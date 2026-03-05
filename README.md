@@ -1,6 +1,16 @@
-# claude-git-memory
+<![CDATA[<p align="center">
+  <img src="claude_git_memory_logo_concept_2_1772753619440.png" alt="claude-git-memory" width="180">
+</p>
 
-Cross-machine persistent memory system for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Uses git commits as the single source of truth — no external docs, no extra files. Everything lives in the commit history.
+<h1 align="center">claude-git-memory</h1>
+
+<p align="center">
+  Cross-machine persistent memory system for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>.<br>
+  Uses git commits as the single source of truth — no external docs, no extra files.<br>
+  Everything lives in the commit history.
+</p>
+
+---
 
 ## The problem
 
@@ -81,6 +91,50 @@ Both validation hooks handle Git-native messages transparently:
 | `Resolution:` | Free text | How conflict was resolved |
 | `Refs:` | URLs, doc links | External references |
 
+## Dashboard
+
+A self-contained static HTML dashboard that visualizes the entire memory system at a glance. Built with GitHub Primer dark theme — no server, no dependencies.
+
+```bash
+git memory dashboard    # Generate + open in browser
+```
+
+The dashboard renders 7 sections from real git data:
+
+| Section | What it shows |
+|---------|---------------|
+| **Status bar** | Pending, blockers, decisions, memos counts |
+| **Blockers** | Active blockers with TTL progress bars |
+| **Pending** | `Next:` items sorted by age |
+| **Decisions** | Latest decision per scope |
+| **Memos** | Latest memo per scope with category labels |
+| **Health** | Compliance percentage + missing trailer breakdown |
+| **GC Status** | Tombstone count, candidates, days since last GC |
+| **Timeline** | Last 20 commits with type-colored badges |
+
+**Auto-refresh**: The dashboard auto-reloads every 10 seconds. After every valid commit, the post-hook regenerates it in the background. Open it once and forget — it stays current.
+
+**State preservation**: Search queries, scroll position, and collapsed sections persist across reloads via `localStorage`.
+
+## Garbage Collector
+
+Stale `Next:` and `Blocker:` items accumulate over time. The GC cleans them automatically using three heuristics:
+
+| Heuristic | What it detects |
+|-----------|----------------|
+| **H1** (keyword overlap) | `Next:` items where subsequent commits in the same scope share ≥2 keywords |
+| **H2** (TTL expiry) | `Blocker:` items older than N days with no recent mentions |
+| **H3** (explicit resolution) | Items referenced by a `Resolution:` trailer |
+
+```bash
+git memory gc              # Interactive — shows candidates, asks before commit
+git memory gc --dry-run    # Just show what would be cleaned
+git memory gc --auto       # Auto-commit without asking
+git memory gc --days 60    # Custom TTL for blockers (default 30)
+```
+
+The GC creates a compensation commit with tombstone trailers (`Resolved-Next:`, `Stale-Blocker:`) that suppress cleaned items from future snapshots and dashboard views. Fully reversible with `git revert`.
+
 ## Installation
 
 ### 1. Copy hooks and skills into your project
@@ -143,7 +197,7 @@ Copy the contents of `settings-snippet.json` into your project's `.claude/settin
 }
 ```
 
-### 3. (Optional) Install the CLI
+### 3. Install the CLI
 
 ```bash
 # From your project root:
@@ -153,6 +207,8 @@ export PATH="$PWD/bin:$PATH"
 git memory decisions
 git memory search "dayjs"
 git memory boot
+git memory dashboard
+git memory gc --dry-run
 ```
 
 ## CLI: `git memory`
@@ -167,6 +223,8 @@ git memory pending      # Only Next: entries
 git memory blockers     # Only Blocker: entries
 git memory search term  # Search across decisions + memos + pending
 git memory boot         # Compact boot summary
+git memory dashboard    # Static HTML dashboard (opens in browser)
+git memory gc           # Garbage collect stale items
 ```
 
 ## Project structure
@@ -175,7 +233,7 @@ git memory boot         # Compact boot summary
 .claude/
 ├── hooks/
 │   ├── pre-validate-commit-trailers.py   # Belt — blocks bad commits
-│   ├── post-validate-commit-trailers.py  # Suspenders — safety net
+│   ├── post-validate-commit-trailers.py  # Suspenders — safety net + dashboard regen
 │   ├── precompact-snapshot.py            # Saves memory before compression
 │   └── stop-dod-check.py                # Blocks exit with pending work
 └── skills/
@@ -186,7 +244,10 @@ git memory boot         # Compact boot summary
         ├── CONFLICTS.md    # Conflict resolution with audit trail
         └── UNDO.md         # Recovery with risk tagging
 bin/
-└── git-memory              # CLI query tool
+├── git-memory              # CLI query tool
+├── git-memory-gc.py        # Garbage collector
+└── git-memory-dashboard.py # Dashboard generator
+dashboard-preview.html      # HTML template (GitHub Primer dark theme)
 tests/
 └── drift-test.py           # 6-month simulation (200 commits, 6 scopes)
 CLAUDE.md                   # Entry point for Claude sessions
@@ -242,6 +303,10 @@ Claude detects intent from natural language and creates commits automatically:
 3. **Snapshot budget** — stays at 18 lines even under stress (all sections maxed)
 4. **Truncation** — long trailer values (>200 chars) are truncated with `...`
 5. **Hook robustness** — `fixup!`, `squash!`, `amend!`, Merge, Revert all pass validation correctly
+6. **Post-hook exit_code safety** — failed commits (exit_code=1) don't trigger destructive resets
+7. **Delimiter collision** — pipes in commit messages don't break the snapshot parser
+8. **Nested prefixes** — `squash! fixup! feat:` and triple-nested variants parse correctly
+9. **GC tombstones** — `Resolved-Next:` and `Stale-Blocker:` suppress items from snapshot
 
 ```bash
 python3 tests/drift-test.py
@@ -268,3 +333,4 @@ If you need a new type (e.g., `policy()`), follow the checklist in `SKILL.md > F
 ## License
 
 MIT
+]]>
