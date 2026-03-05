@@ -21,6 +21,7 @@ import sys
 VALID_KEYS = {
     "Issue", "Why", "Touched", "Decision", "Memo", "Next",
     "Blocker", "Risk", "Conflict", "Resolution", "Refs",
+    "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
 }
 
 RISK_VALUES = {"low", "medium", "high"}
@@ -110,7 +111,7 @@ def parse_trailers(message: str) -> dict[str, str]:
         line = line.strip()
         if not line:
             break
-        match = re.match(r"^([A-Z][a-z]+):\s*(.+)$", line)
+        match = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line)
         if match:
             key = match.group(1)
             value = match.group(2).strip()

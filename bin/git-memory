@@ -10,6 +10,7 @@
 #   blockers  Show only Blocker: entries
 #   search    Search memory for a keyword: git memory search <term>
 #   boot      Show compact boot summary (same as AUTO-BOOT)
+#   gc        Garbage collect stale Next:/Blocker: items
 
 set -euo pipefail
 
@@ -45,6 +46,11 @@ case "${1:-all}" in
     echo "=== Pending ==="
     git log --all --grep="Next:" --pretty=format:"%h %s %b" | grep -i "$2" || echo "  (none)"
     ;;
+  gc)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-gc.py" "$@"
+    ;;
   boot)
     echo "=== BOOT — Memory Summary ==="
     if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
@@ -77,6 +83,10 @@ case "${1:-all}" in
     echo "  blockers   Blocker: entries only"
     echo "  search     Search by keyword: git memory search <term>"
     echo "  boot       Compact boot summary"
+    echo "  gc         Garbage collect stale Next:/Blocker: items"
+    echo "             --dry-run  Show what would be cleaned"
+    echo "             --auto     Auto-commit without asking"
+    echo "             --days N   Blocker TTL in days (default 30)"
     ;;
   *)
     echo "Unknown subcommand: $1"

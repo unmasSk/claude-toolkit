@@ -12,6 +12,7 @@ then validates:
   6. Post-hook exit_code safety (won't destroy commits on failed git commit)
   7. Delimiter collision (commit messages with pipe chars don't break snapshot)
   8. Nested prefixes (squash! fixup! feat: handled correctly)
+  9. GC tombstones suppress resolved Next:/Blocker: from snapshot
 
 Usage: python3 tests/drift-test.py
 """
@@ -631,6 +632,64 @@ def test_nested_prefixes(cwd):
     return errors
 
 
+# ── Test 9: GC Tombstones ─────────────────────────────────────────────────
+
+def test_gc_tombstones(cwd):
+    """Verify that GC tombstone trailers suppress items from the snapshot."""
+    print("\n── TEST 9: GC Tombstones ──")
+    errors = []
+
+    # Create a commit with a Next: and a Blocker:
+    msg_next = "💾 context(api): pause api work\n\nWhy: end of day\nNext: implement rate limiting for api\nBlocker: waiting for api credentials"
+    git(f'commit --allow-empty -m "{msg_next}"', cwd)
+
+    # Verify they appear in the snapshot BEFORE GC
+    result = subprocess.run(
+        [sys.executable, PRECOMPACT_SCRIPT],
+        capture_output=True, text=True, cwd=cwd, timeout=15,
+    )
+    snapshot_before = result.stdout.strip()
+
+    has_next = "rate limiting" in snapshot_before
+    has_blocker = "api credentials" in snapshot_before
+    if not has_next:
+        errors.append("Next: 'rate limiting' not found in snapshot before GC")
+        return errors
+    if not has_blocker:
+        errors.append("Blocker: 'api credentials' not found in snapshot before GC")
+        return errors
+    print("  Before GC: Next + Blocker visible in snapshot ✓")
+
+    # Now simulate a GC commit with tombstones
+    gc_msg = '🔧 chore(memory): gc — 2 items cleaned\n\nWhy: automated memory garbage collection\nResolved-Next: implement rate limiting for api\nStale-Blocker: waiting for api credentials'
+    git(f'commit --allow-empty -m "{gc_msg}"', cwd)
+
+    # Verify they are GONE from the snapshot AFTER GC
+    result = subprocess.run(
+        [sys.executable, PRECOMPACT_SCRIPT],
+        capture_output=True, text=True, cwd=cwd, timeout=15,
+    )
+    snapshot_after = result.stdout.strip()
+
+    if "rate limiting" in snapshot_after:
+        errors.append("Next: 'rate limiting' still in snapshot after GC tombstone")
+    else:
+        print("  After GC: Next suppressed by Resolved-Next tombstone ✓")
+
+    if "api credentials" in snapshot_after:
+        errors.append("Blocker: 'api credentials' still in snapshot after GC tombstone")
+    else:
+        print("  After GC: Blocker suppressed by Stale-Blocker tombstone ✓")
+
+    # Verify snapshot is still valid structure
+    if "GIT MEMORY SNAPSHOT" in snapshot_after and "END SNAPSHOT" in snapshot_after:
+        print("  Snapshot structure intact after GC ✓")
+    else:
+        errors.append("Snapshot structure broken after GC")
+
+    return errors
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def main():
@@ -661,6 +720,7 @@ def main():
         all_errors.extend(test_post_hook_exit_code(cwd))
         all_errors.extend(test_delimiter_collision(cwd))
         all_errors.extend(test_nested_prefixes(cwd))
+        all_errors.extend(test_gc_tombstones(cwd))
 
         print("\n" + "=" * 60)
         if all_errors:
@@ -678,6 +738,7 @@ def main():
             print("  6. Post-hook exit_code safety (no destructive reset on failures)")
             print("  7. Delimiter collision (pipes in messages don't break snapshot)")
             print("  8. Nested prefixes (squash! fixup! feat: handled)")
+            print("  9. GC tombstones suppress resolved items from snapshot")
             sys.exit(0)
 
     finally:

@@ -68,6 +68,20 @@ def extract_memory_from_log() -> dict:
 
     commits = [c for c in output.split("\x1e") if c.strip()]
 
+    # First pass: collect GC tombstones (Resolved-Next:, Stale-Blocker:)
+    tombstones = set()
+    for commit in commits:
+        parts = commit.strip().split("\x1f", 2)
+        if len(parts) < 3:
+            continue
+        body = parts[2].strip()
+        for line in body.split("\n"):
+            line = line.strip()
+            ts_match = re.match(r"^(Resolved-Next|Stale-Blocker):\s*(.+)$", line)
+            if ts_match:
+                tombstones.add(ts_match.group(2).strip().lower())
+
+    # Second pass: extract memory, skipping tombstoned items
     for commit in commits:
         parts = commit.strip().split("\x1f", 2)
         if len(parts) < 3:
@@ -99,15 +113,21 @@ def extract_memory_from_log() -> dict:
 
             next_match = re.match(r"^Next:\s*(.+)$", line)
             if next_match:
-                memory["pending"].append({
-                    "sha": sha,
-                    "subject": subject,
-                    "next": next_match.group(1),
-                })
+                next_text = next_match.group(1)
+                # Skip if tombstoned by GC
+                if next_text.strip().lower() not in tombstones:
+                    memory["pending"].append({
+                        "sha": sha,
+                        "subject": subject,
+                        "next": next_text,
+                    })
 
             blocker_match = re.match(r"^Blocker:\s*(.+)$", line)
             if blocker_match:
                 blocker_text = blocker_match.group(1)
+                # Skip if tombstoned by GC
+                if blocker_text.strip().lower() in tombstones:
+                    continue
                 # Dedup: skip if a similar blocker already exists
                 existing = [b["blocker"].lower() for b in memory["blockers"]]
                 if blocker_text.lower() not in existing:
