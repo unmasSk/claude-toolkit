@@ -47,6 +47,9 @@ case "${1:-all}" in
     ;;
   boot)
     echo "=== BOOT — Memory Summary ==="
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      echo "!!! WARNING: Shallow clone detected. Memory may be incomplete. !!!"
+    fi
     echo "Branch: $(git branch --show-current)"
     echo ""
     echo "Last context:"

@@ -81,9 +81,17 @@ def extract_commit_message(command: str) -> str | None:
 def parse_commit_type(subject: str) -> str | None:
     """Extract commit type from conventional commit subject.
     Supports optional emoji prefix: '✨ feat(scope): ...' or 'feat(scope): ...'
+    Also supports Git prefixes: 'fixup!', 'squash!', 'amend!'
     """
+    # Whitelist internal Git messages
+    if re.match(r"^(Merge branch|Merge remote-tracking branch|Revert |Cherry-pick )", subject):
+        return "internal"
+
+    # Strip Git prefixes for validation
+    cleaned = re.sub(r"^(fixup!|squash!|amend!)\s*", "", subject).strip()
+
     # Strip leading emoji(s) and whitespace (preserve # for issue refs)
-    cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
+    cleaned = re.sub(r"^[^\w#]+", "", cleaned).strip()
     # Match: type(scope): or type:
     match = re.match(r"^(\w+)(?:\([^)]*\))?[!]?:", cleaned)
     if match:
@@ -202,8 +210,8 @@ def main():
         print(error_msg, file=sys.stderr)
         sys.exit(2)
 
-    # WIP commits pass without trailer validation
-    if commit_type == "wip":
+    # WIP and Internal (Merge/Revert) commits pass without trailer validation
+    if commit_type in ["wip", "internal"]:
         sys.exit(0)
 
     # Parse trailers

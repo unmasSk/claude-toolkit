@@ -48,6 +48,13 @@ Next: wire validation into the API layer
 | **DoD** (stop-check) | `Stop` | Blocks session exit if uncommitted changes or pending work exist |
 | **Hipocampo** (precompact) | `PreCompact` | Before context compression, saves critical memory as a compact snapshot |
 
+Both validation hooks handle Git-native messages transparently:
+
+- **`fixup!`, `squash!`, `amend!`** prefixes are stripped before parsing the commit type, so interactive rebase workflows work without friction.
+- **Merge, Revert, Cherry-pick** commits are whitelisted as `internal` and skip trailer validation entirely.
+- **Trailer values > 200 chars** are truncated with `...` in the snapshot to protect the line budget.
+- **Shallow clones** are detected (`git rev-parse --is-shallow-repository`) and flagged with a warning in both the snapshot and `git memory boot`.
+
 ### Five commit types
 
 | Emoji | Type | Purpose | Required trailers |
@@ -230,9 +237,11 @@ Claude detects intent from natural language and creates commits automatically:
 
 `tests/drift-test.py` generates 200 commits across 6 months and 6 scopes, then validates:
 
-1. **Deep search** finds all decisions/memos across the full history
-2. **Dedup** preserves entries from different scopes (doesn't collapse)
-3. **Snapshot budget** stays at 18 lines even under stress (all sections maxed)
+1. **Deep search** — finds all decisions/memos across the full history
+2. **Dedup** — preserves entries from different scopes (doesn't collapse)
+3. **Snapshot budget** — stays at 18 lines even under stress (all sections maxed)
+4. **Truncation** — long trailer values (>200 chars) are truncated with `...`
+5. **Hook robustness** — `fixup!`, `squash!`, `amend!`, Merge, Revert all pass validation correctly
 
 ```bash
 python3 tests/drift-test.py

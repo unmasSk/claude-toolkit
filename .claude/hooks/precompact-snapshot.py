@@ -36,6 +36,12 @@ def is_git_repo() -> bool:
     return code == 0
 
 
+def is_shallow_clone() -> bool:
+    """Check if the repository is a shallow clone."""
+    code, output = run_git(["rev-parse", "--is-shallow-repository"])
+    return code == 0 and output == "true"
+
+
 def extract_memory_from_log() -> dict:
     """
     Read last 30 commits and extract memory trailers.
@@ -132,6 +138,10 @@ def format_snapshot(memory: dict) -> str:
     lines = []
     lines.append("=== GIT MEMORY SNAPSHOT (pre-compact) ===")
 
+    # Shallow clone warning
+    if is_shallow_clone():
+        lines.append("!!! WARNING: Shallow clone detected. Memory may be incomplete. !!!")
+
     # Branch
     code, branch = run_git(["branch", "--show-current"])
     if code == 0:
@@ -141,6 +151,10 @@ def format_snapshot(memory: dict) -> str:
     if memory.get("last_context"):
         ctx = memory["last_context"]
         lines.append(f"Last session: {ctx['sha']} {ctx['subject']}")
+
+    # Helper to truncate
+    def trunc(text: str, limit: int = 200) -> str:
+        return (text[:limit] + "...") if len(text) > limit else text
 
     # Pending items — prioritize context() Next: first, then others
     if memory.get("pending"):
@@ -159,7 +173,7 @@ def format_snapshot(memory: dict) -> str:
             lines.append("Pending:")
             for item in ordered[:2]:  # Max 2 items to stay ≤18 lines total
                 marker = " (current)" if item["sha"] == ctx_sha else ""
-                lines.append(f"  - [{item['sha']}] {item['next']}{marker}")
+                lines.append(f"  - [{item['sha']}] {trunc(item['next'])}{marker}")
             if len(ordered) > 2:
                 lines.append(f"  + {len(ordered) - 2} older items")
 
@@ -167,19 +181,19 @@ def format_snapshot(memory: dict) -> str:
     if memory.get("blockers"):
         lines.append("Blockers:")
         for item in memory["blockers"][:2]:  # Max 2 to stay compact
-            lines.append(f"  - [{item['sha']}] {item['blocker']}")
+            lines.append(f"  - [{item['sha']}] {trunc(item['blocker'])}")
 
     # Active decisions (1 per scope — overflow only if >3 scopes in last 30 commits)
     if memory.get("decisions"):
         lines.append("Active decisions:")
         for scope, item in list(memory["decisions"].items())[:3]:  # Max 3 to stay ≤18 lines total
-            lines.append(f"  - ({scope}) {item['decision']}")
+            lines.append(f"  - ({scope}) {trunc(item['decision'])}")
 
     # Active memos (1 per scope — overflow only if >2 scopes in last 30 commits)
     if memory.get("memos"):
         lines.append("Active memos:")
         for scope, item in list(memory["memos"].items())[:2]:  # Max 2 to stay ≤18 lines total
-            lines.append(f"  - ({scope}) {item['memo']}")
+            lines.append(f"  - ({scope}) {trunc(item['memo'])}")
 
     lines.append("=== END SNAPSHOT ===")
     return "\n".join(lines)
