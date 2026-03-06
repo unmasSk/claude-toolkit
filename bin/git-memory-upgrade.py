@@ -86,8 +86,8 @@ def find_target_root():
 
 
 def file_hash(path):
-    """SHA256 hash of a file, or None if missing."""
-    if not os.path.isfile(path):
+    """SHA256 hash of a file, or None if missing. Skips symlinks."""
+    if not os.path.isfile(path) or os.path.islink(path):
         return None
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -233,6 +233,10 @@ def apply_upgrade(source, target, changes, manifest):
             try:
                 src = os.path.join(source, label)
                 dst = os.path.join(target, label)
+                # Seguridad: no seguir symlinks
+                if os.path.islink(src):
+                    errors.append(f"Symlink rechazado (seguridad): {label}")
+                    continue
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copy2(src, dst)
                 # Hacer ejecutable si es bin/git-memory

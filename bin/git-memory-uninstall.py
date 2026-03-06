@@ -153,7 +153,8 @@ def remove_cli(target):
 
     cli_files = ["git-memory", "git-memory-gc.py", "git-memory-dashboard.py",
                  "git-memory-doctor.py", "git-memory-install.py",
-                 "git-memory-repair.py", "git-memory-uninstall.py"]
+                 "git-memory-repair.py", "git-memory-uninstall.py",
+                 "git-memory-bootstrap.py", "git-memory-upgrade.py"]
 
     for f in cli_files:
         path = os.path.join(bin_dir, f)

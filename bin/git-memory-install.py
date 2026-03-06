@@ -271,6 +271,13 @@ def apply_plan(plan, source, target):
     return errors
 
 
+def _safe_copy(src, dst):
+    """Copy a file, refusing to follow symlinks (security: prevent symlink attacks)."""
+    if os.path.islink(src):
+        raise ValueError(f"Refusing to copy symlink: {src}")
+    shutil.copy2(src, dst)
+
+
 def _copy_hooks(source, target):
     """Copy hook files from source to target."""
     src_hooks = os.path.join(source, "hooks")
@@ -279,8 +286,8 @@ def _copy_hooks(source, target):
     for hook in HOOKS:
         src = os.path.join(src_hooks, hook)
         dst = os.path.join(dst_hooks, hook)
-        if os.path.isfile(src):
-            shutil.copy2(src, dst)
+        if os.path.isfile(src) and not os.path.islink(src):
+            _safe_copy(src, dst)
 
 
 def _copy_skills(source, target):
@@ -290,10 +297,12 @@ def _copy_skills(source, target):
     for skill in SKILLS:
         src_dir = os.path.join(src_skills, skill)
         dst_dir = os.path.join(dst_skills, skill)
-        if os.path.isdir(src_dir):
+        if os.path.isdir(src_dir) and not os.path.islink(src_dir):
             os.makedirs(dst_dir, exist_ok=True)
             for f in os.listdir(src_dir):
-                shutil.copy2(os.path.join(src_dir, f), os.path.join(dst_dir, f))
+                src = os.path.join(src_dir, f)
+                if os.path.isfile(src) and not os.path.islink(src):
+                    _safe_copy(src, os.path.join(dst_dir, f))
 
 
 def _copy_cli(source, target):
@@ -304,8 +313,8 @@ def _copy_cli(source, target):
     for f in os.listdir(src_bin):
         src = os.path.join(src_bin, f)
         dst = os.path.join(dst_bin, f)
-        if os.path.isfile(src):
-            shutil.copy2(src, dst)
+        if os.path.isfile(src) and not os.path.islink(src):
+            _safe_copy(src, dst)
             if f == "git-memory":
                 os.chmod(dst, 0o755)
 
@@ -404,6 +413,12 @@ def _create_manifest(target, mode):
     for skill in SKILLS:
         managed_files.append(f"skills/{skill}/SKILL.md")
     managed_files.append("bin/git-memory")
+    # All CLI scripts that get copied
+    for cli_script in ["git-memory-gc.py", "git-memory-doctor.py",
+                       "git-memory-install.py", "git-memory-repair.py",
+                       "git-memory-uninstall.py", "git-memory-bootstrap.py",
+                       "git-memory-upgrade.py"]:
+        managed_files.append(f"bin/{cli_script}")
 
     manifest = {
         "version": VERSION,

@@ -13,6 +13,7 @@ Usage:
 Exit codes:
   0: Repaired (or nothing to repair)
   1: Error (repair failed or no manifest)
+  2: Aborted by user
 """
 
 import json
@@ -20,7 +21,6 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -178,21 +178,34 @@ def _read_existing_mode(target):
 
 # ── Repair Actions ────────────────────────────────────────────────────────
 
+def _safe_copy(src, dst):
+    """Copy a file, refusing to follow symlinks (security)."""
+    if os.path.islink(src):
+        raise ValueError(f"Refusing to copy symlink: {src}")
+    shutil.copy2(src, dst)
+
+
 def repair_issue(issue_type, target_name, source, target):
     """Repair a single issue. Returns True on success."""
     if issue_type == "missing_hook":
         src = os.path.join(source, "hooks", target_name)
         dst = os.path.join(target, "hooks", target_name)
+        if os.path.islink(src):
+            return False
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy2(src, dst)
+        _safe_copy(src, dst)
         return True
 
     elif issue_type == "missing_skill":
         src_dir = os.path.join(source, "skills", target_name)
         dst_dir = os.path.join(target, "skills", target_name)
+        if os.path.islink(src_dir):
+            return False
         os.makedirs(dst_dir, exist_ok=True)
         for f in os.listdir(src_dir):
-            shutil.copy2(os.path.join(src_dir, f), os.path.join(dst_dir, f))
+            src = os.path.join(src_dir, f)
+            if os.path.isfile(src) and not os.path.islink(src):
+                _safe_copy(src, os.path.join(dst_dir, f))
         return True
 
     elif issue_type == "missing_cli":
@@ -202,8 +215,8 @@ def repair_issue(issue_type, target_name, source, target):
         for f in os.listdir(src_bin):
             src = os.path.join(src_bin, f)
             dst = os.path.join(dst_bin, f)
-            if os.path.isfile(src):
-                shutil.copy2(src, dst)
+            if os.path.isfile(src) and not os.path.islink(src):
+                _safe_copy(src, dst)
                 if f == "git-memory":
                     os.chmod(dst, 0o755)
         return True
@@ -241,8 +254,8 @@ def repair_issue(issue_type, target_name, source, target):
     elif issue_type == "missing_hooks_json":
         src = os.path.join(source, "hooks.json")
         dst = os.path.join(target, "hooks.json")
-        if os.path.isfile(src):
-            shutil.copy2(src, dst)
+        if os.path.isfile(src) and not os.path.islink(src):
+            _safe_copy(src, dst)
             return True
         return False
 
@@ -293,11 +306,11 @@ def main():
             answer = input("\nRepair all issues? [Y/n] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
-            sys.exit(0)
+            sys.exit(2)
 
         if answer and answer not in ("y", "yes", "s", "si", "sí", ""):
             print("Aborted.")
-            sys.exit(0)
+            sys.exit(2)
 
     # Repair
     print("\nRepairing...")
