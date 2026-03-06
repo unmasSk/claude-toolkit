@@ -12,6 +12,10 @@
 #   boot      Show compact boot summary (same as AUTO-BOOT)
 #   gc        Garbage collect stale Next:/Blocker: items
 #   dashboard Generate static HTML dashboard (.claude/dashboard.html)
+#   doctor    Health check for the memory system
+#   install   Install git-memory in current repo
+#   repair    Fix broken components
+#   uninstall Remove git-memory runtime (preserves git history)
 
 set -euo pipefail
 
@@ -54,7 +58,28 @@ case "${1:-all}" in
     ;;
   dashboard|dash)
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
     python3 "$SCRIPT_DIR/git-memory-dashboard.py" "$@"
+    ;;
+  doctor|doc)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-doctor.py" "$@"
+    ;;
+  install)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-install.py" "$@"
+    ;;
+  repair|fix)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-repair.py" "$@"
+    ;;
+  uninstall|remove)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-uninstall.py" "$@"
     ;;
   boot)
     echo "=== BOOT — Memory Summary ==="
@@ -94,6 +119,18 @@ case "${1:-all}" in
     echo "             --days N   Blocker TTL in days (default 30)"
     echo "  dashboard  Generate static HTML dashboard"
     echo "             Opens .claude/dashboard.html in browser"
+    echo "  doctor     Health check for the memory system"
+    echo "             --json     Machine-readable output"
+    echo "             --silent   Exit code only"
+    echo "  install    Install git-memory in current repo"
+    echo "             --auto     Non-interactive install"
+    echo "             --mode X   Force mode (normal/compatible/read-only)"
+    echo "  repair     Fix broken components"
+    echo "             --auto     Non-interactive"
+    echo "             --dry-run  Show what would be fixed"
+    echo "  uninstall  Remove git-memory runtime"
+    echo "             --full-local  Also remove generated files"
+    echo "             --auto     Non-interactive"
     ;;
   *)
     echo "Unknown subcommand: $1"
