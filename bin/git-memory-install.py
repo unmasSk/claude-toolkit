@@ -59,7 +59,14 @@ Lee el skill `git-memory` y ejecuta AUTO-BOOT automáticamente.
 - "estado de memoria" / "doctor" → skill `git-memory-lifecycle` (doctor)
 - "qué recuerdas" → boot con resumen extendido
 - Releases, conflictos, undo → skill `git-memory-protocol`
-- Rebase, reset, self-healing → skill `git-memory-recovery`"""
+- Rebase, reset, self-healing → skill `git-memory-recovery`
+
+### ⚠️ Sistema en Alpha — Verificación Activa
+Este sistema está en **fase alpha**. Como operador:
+- Ejecuta `git memory doctor` al inicio de cada sesión
+- Reporta cualquier fallo al usuario (no lo ignores silenciosamente)
+- Si algo se rompe: `git memory repair --auto` antes de arreglos manuales
+- No asumas que todo funciona — valida resultados de cada operación"""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
