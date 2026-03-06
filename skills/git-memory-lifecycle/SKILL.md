@@ -5,6 +5,9 @@ description: Use when user says install, setup, configure, doctor, health, statu
 
 # Git Memory — Lifecycle
 
+**Rule: Claude executes all lifecycle commands. Never ask the user to run them.**
+Scripts are in `bin/`. Execute with `python3 bin/git-memory-<command>.py [flags]`.
+
 ## Install (transactional)
 
 ```
@@ -96,13 +99,13 @@ Repair and uninstall read this to know what exists and what to clean.
 
 ## Maintenance: Opportunistic
 
-No scheduled calendar. Clean in passing:
+No scheduled calendar. Claude cleans in passing (never asks user to run commands):
 
-| When | What | How |
-|------|------|-----|
-| Session start | Silent health check | Verify hooks + skills present |
-| PR/merge | Clean stale trailers if seen | "Cleaned 2 obsolete items" |
-| Symptoms detected | GC on demand | "Accumulation found. Clean?" |
-| User asks | Full GC | `git memory gc` with confirmation |
+| When | What | Claude does |
+|------|------|-------------|
+| Session start | Silent health check | `python3 bin/git-memory-doctor.py --json` → repair if needed |
+| PR/merge | Clean stale trailers if seen | "He limpiado 2 items obsoletos de paso" |
+| Symptoms detected | GC on demand | Ask user "¿Limpio?" → `python3 bin/git-memory-gc.py --auto` |
+| User asks | Full GC | `python3 bin/git-memory-gc.py` (Claude runs it, shows results) |
 
-Never interrupt the user with unsolicited admin tasks.
+Never interrupt the user with unsolicited admin tasks. Never ask the user to run commands.

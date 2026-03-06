@@ -6,26 +6,21 @@
 Este proyecto usa claude-git-memory v2.
 Git es la memoria. Cada commit es resumible entre sesiones y máquinas.
 
-### Al iniciar sesión
-Lee el skill `git-memory` y ejecuta AUTO-BOOT automáticamente.
-
-### Comandos conversacionales
-- "instala/repara/desinstala memoria" → skill `git-memory-lifecycle`
-- "estado de memoria" / "doctor" → skill `git-memory-lifecycle` (doctor)
-- "qué recuerdas" → boot con resumen extendido
-- Releases, conflictos, undo → skill `git-memory-protocol`
-- Rebase, reset, self-healing → skill `git-memory-recovery`
+### Instrucciones para Claude (no para el usuario)
+1. Al iniciar sesión: lee el skill `git-memory` y ejecuta AUTO-BOOT + doctor automáticamente
+2. Ejecuta `python3 bin/git-memory-doctor.py --json` al arrancar. Si hay errores, repara con `python3 bin/git-memory-repair.py --auto`
+3. Nunca le pidas al usuario que ejecute comandos del sistema de memoria — ejecútalos tú
+4. Si el usuario dice "instala/repara/desinstala/doctor/estado" → lee skill `git-memory-lifecycle` y actúa
+5. Si el usuario dice "qué recuerdas" → ejecuta boot extendido
+6. Sistema en alpha: verifica todo, reporta fallos al usuario, no asumas que funciona
 <!-- END claude-git-memory -->
 
-## ⚠️ Sistema en Alpha — Verificación Activa
+## Sistema en Alpha — Claude verifica todo
 
-Este sistema (claude-git-memory v2) está en **fase alpha**. Como operador, debes:
+Este sistema está en **fase alpha**. Tú (Claude) eres responsable de verificar que funciona:
 
-1. **Reportar cualquier fallo** que encuentres al usar hooks, skills, CLI, o lifecycle scripts — no lo ignores silenciosamente
-2. **Verificar antes de confiar**: si un comando (`git memory doctor`, `install`, `repair`, etc.) produce output inesperado, investígalo y repórtalo al usuario
-3. **Ejecutar `git memory doctor`** al inicio de cada sesión para confirmar que el sistema está sano
-4. **Si algo se rompe**: usa `git memory repair --auto` antes de intentar arreglos manuales
-5. **No asumir que todo funciona** — valida los resultados de cada operación del sistema de memoria
-6. **Documentar bugs encontrados**: si encuentras un bug reproducible, explícalo al usuario con pasos para reproducir
-
-El sistema se considera estable cuando todos los tests pasen (`drift-test.py` + `lifecycle-test.py`) y doctor reporte todo verde en repos instalados.
+- Al arrancar sesión: ejecuta `python3 bin/git-memory-doctor.py --json` silenciosamente. Si hay errores, díselo al usuario y ejecuta repair tú mismo.
+- Si algo falla: ejecuta `python3 bin/git-memory-repair.py --auto` antes de intentar arreglos manuales.
+- Nunca le pidas al usuario que ejecute comandos del sistema de memoria. Ejecútalos tú.
+- Si encuentras un bug reproducible, explícalo al usuario con pasos para reproducir.
+- No asumas que todo funciona — valida resultados de cada operación.

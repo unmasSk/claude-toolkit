@@ -51,22 +51,13 @@ MANAGED_BLOCK_CONTENT = """## Git Memory Active
 Este proyecto usa claude-git-memory v2.
 Git es la memoria. Cada commit es resumible entre sesiones y máquinas.
 
-### Al iniciar sesión
-Lee el skill `git-memory` y ejecuta AUTO-BOOT automáticamente.
-
-### Comandos conversacionales
-- "instala/repara/desinstala memoria" → skill `git-memory-lifecycle`
-- "estado de memoria" / "doctor" → skill `git-memory-lifecycle` (doctor)
-- "qué recuerdas" → boot con resumen extendido
-- Releases, conflictos, undo → skill `git-memory-protocol`
-- Rebase, reset, self-healing → skill `git-memory-recovery`
-
-### ⚠️ Sistema en Alpha — Verificación Activa
-Este sistema está en **fase alpha**. Como operador:
-- Ejecuta `git memory doctor` al inicio de cada sesión
-- Reporta cualquier fallo al usuario (no lo ignores silenciosamente)
-- Si algo se rompe: `git memory repair --auto` antes de arreglos manuales
-- No asumas que todo funciona — valida resultados de cada operación"""
+### Instrucciones para Claude (no para el usuario)
+1. Al iniciar sesión: lee el skill `git-memory` y ejecuta AUTO-BOOT + doctor automáticamente
+2. Ejecuta `python3 bin/git-memory-doctor.py --json` al arrancar. Si hay errores, repara con `python3 bin/git-memory-repair.py --auto`
+3. Nunca le pidas al usuario que ejecute comandos del sistema de memoria — ejecútalos tú
+4. Si el usuario dice "instala/repara/desinstala/doctor/estado" → lee skill `git-memory-lifecycle` y actúa
+5. Si el usuario dice "qué recuerdas" → ejecuta boot extendido
+6. Sistema en alpha: verifica todo, reporta fallos al usuario, no asumas que funciona"""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

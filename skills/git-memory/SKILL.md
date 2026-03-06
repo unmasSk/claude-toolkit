@@ -22,14 +22,17 @@ Git is the memory. Every commit is resumable. Claude handles git — the user fo
 Write ONLY if: user asked explicitly, affects future sessions, prevents real loss, or is a confirmed decision.
 Do NOT write: provisional observations, weak inferences, session-only context.
 
-## Auto-Boot (every session start)
+## Auto-Boot (every session start — Claude executes all of this, never asks the user to)
 
-1. `git log -n 30 --pretty=format:"%h%x1f%s%x1f%b%x1e"` → extract Next, Blocker, Decision, Memo, last context()
-2. `git status --porcelain` → detect uncommitted state
-3. Show compact summary (≤18 lines):
+1. Run `python3 bin/git-memory-doctor.py --json` silently. If errors → run `python3 bin/git-memory-repair.py --auto` and tell the user what was fixed.
+2. `git log -n 30 --pretty=format:"%h%x1f%s%x1f%b%x1e"` → extract Next, Blocker, Decision, Memo, last context()
+3. `git status --porcelain` → detect uncommitted state
+4. Show compact summary (≤18 lines):
    - Branch + last context + pending (max 2) + blockers (max 2) + decisions (max 3) + memos (max 2)
    - Overflow: last slot becomes `+ N more`
-4. If nothing: "Repo up to date. What are we working on?"
+5. If nothing: "Repo up to date. What are we working on?"
+
+**Critical**: Never ask the user to run CLI commands. Claude runs everything. The user only sees results.
 
 ## Branches
 
