@@ -18,7 +18,6 @@ Exit codes:
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -388,18 +387,20 @@ def _copy_hooks_json(source, target):
     """Copy hooks.json to target root."""
     src = os.path.join(source, "hooks.json")
     dst = os.path.join(target, "hooks.json")
-    if os.path.isfile(src):
-        shutil.copy2(src, dst)
+    if os.path.isfile(src) and not os.path.islink(src):
+        _safe_copy(src, dst)
 
 
 def _copy_plugin_manifest(source, target):
     """Copy .claude-plugin/ directory to target."""
     src_dir = os.path.join(source, ".claude-plugin")
     dst_dir = os.path.join(target, ".claude-plugin")
-    if os.path.isdir(src_dir):
+    if os.path.isdir(src_dir) and not os.path.islink(src_dir):
         os.makedirs(dst_dir, exist_ok=True)
         for f in os.listdir(src_dir):
-            shutil.copy2(os.path.join(src_dir, f), os.path.join(dst_dir, f))
+            src = os.path.join(src_dir, f)
+            if os.path.isfile(src) and not os.path.islink(src):
+                _safe_copy(src, os.path.join(dst_dir, f))
 
 
 def _create_manifest(target, mode):
@@ -414,11 +415,15 @@ def _create_manifest(target, mode):
         managed_files.append(f"skills/{skill}/SKILL.md")
     managed_files.append("bin/git-memory")
     # All CLI scripts that get copied
-    for cli_script in ["git-memory-gc.py", "git-memory-doctor.py",
-                       "git-memory-install.py", "git-memory-repair.py",
-                       "git-memory-uninstall.py", "git-memory-bootstrap.py",
-                       "git-memory-upgrade.py"]:
+    for cli_script in ["git-memory-gc.py", "git-memory-dashboard.py",
+                       "git-memory-doctor.py", "git-memory-install.py",
+                       "git-memory-repair.py", "git-memory-uninstall.py",
+                       "git-memory-bootstrap.py", "git-memory-upgrade.py"]:
         managed_files.append(f"bin/{cli_script}")
+    # Non-bin managed files
+    managed_files.append("hooks.json")
+    managed_files.append(".claude-plugin/plugin.json")
+    managed_files.append(".claude-plugin/marketplace.json")
 
     manifest = {
         "version": VERSION,

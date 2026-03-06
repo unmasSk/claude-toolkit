@@ -28,7 +28,7 @@ VALID_KEYS = {
 }
 
 RISK_VALUES = {"low", "medium", "high"}
-MEMO_CATEGORIES = {"preference", "requirement", "antipattern"}
+MEMO_CATEGORIES = {"preference", "requirement", "antipattern", "stack"}
 
 # Commit types that require code trailers (Why + Touched)
 CODE_TYPES = {"feat", "fix", "refactor", "perf", "chore", "ci", "test", "docs"}

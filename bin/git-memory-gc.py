@@ -19,6 +19,7 @@ Usage:
 Exit codes:
   0: Success (or nothing to clean)
   1: Error
+  2: Aborted by user
 """
 
 import os
@@ -109,7 +110,7 @@ def scan_commits(depth):
         trailers = {}
         for line in body.split("\n"):
             line = line.strip()
-            m = re.match(r"^([A-Z][a-z-]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line)
+            m = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line)
             if m:
                 trailers[m.group(1)] = m.group(2).strip()
 
@@ -345,12 +346,13 @@ def main():
             answer = input("Create GC commit? [y/N] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
-            sys.exit(0)
+            sys.exit(2)
 
         if answer in ("y", "yes", "s", "si", "sí"):
             create_gc_commit(candidates)
         else:
             print("Aborted.")
+            sys.exit(2)
 
 
 if __name__ == "__main__":

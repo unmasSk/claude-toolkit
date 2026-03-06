@@ -11,7 +11,6 @@ Exit codes:
 - 2: Block stop (uncommitted changes or unresolved Next:)
 """
 
-import json
 import re
 import subprocess
 import sys

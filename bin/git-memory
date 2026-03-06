@@ -131,6 +131,7 @@ case "${1:-all}" in
     echo "             --days N   Blocker TTL in days (default 30)"
     echo "  dashboard  Generate static HTML dashboard"
     echo "             Opens .claude/dashboard.html in browser"
+    echo "             --silent   Generate only, no browser open"
     echo "  doctor     Health check for the memory system"
     echo "             --json     Machine-readable output"
     echo "             --silent   Exit code only"

@@ -26,7 +26,7 @@ VALID_KEYS = {
 }
 
 RISK_VALUES = {"low", "medium", "high"}
-MEMO_CATEGORIES = {"preference", "requirement", "antipattern"}
+MEMO_CATEGORIES = {"preference", "requirement", "antipattern", "stack"}
 
 CODE_TYPES = {"feat", "fix", "refactor", "perf", "chore", "ci", "test", "docs"}
 MEMORY_TYPES = {"context", "decision", "memo"}
