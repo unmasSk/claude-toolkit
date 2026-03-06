@@ -16,6 +16,7 @@
 #   install   Install git-memory in current repo
 #   repair    Fix broken components
 #   uninstall Remove git-memory runtime (preserves git history)
+#   bootstrap Scout project and detect stack/structure
 
 set -euo pipefail
 
@@ -81,6 +82,11 @@ case "${1:-all}" in
     shift
     python3 "$SCRIPT_DIR/git-memory-uninstall.py" "$@"
     ;;
+  bootstrap|scout)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-bootstrap.py" "$@"
+    ;;
   boot)
     echo "=== BOOT — Memory Summary ==="
     if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
@@ -131,6 +137,9 @@ case "${1:-all}" in
     echo "  uninstall  Remove git-memory runtime"
     echo "             --full-local  Also remove generated files"
     echo "             --auto     Non-interactive"
+    echo "  bootstrap  Scout project stack and structure"
+    echo "             --json     Machine-readable output"
+    echo "             --silent   Exit code only"
     ;;
   *)
     echo "Unknown subcommand: $1"
