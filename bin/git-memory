@@ -17,6 +17,7 @@
 #   repair    Fix broken components
 #   uninstall Remove git-memory runtime (preserves git history)
 #   bootstrap Scout project and detect stack/structure
+#   upgrade   Upgrade git-memory to latest version
 
 set -euo pipefail
 
@@ -87,6 +88,11 @@ case "${1:-all}" in
     shift
     python3 "$SCRIPT_DIR/git-memory-bootstrap.py" "$@"
     ;;
+  upgrade|update)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-upgrade.py" "$@"
+    ;;
   boot)
     echo "=== BOOT — Memory Summary ==="
     if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
@@ -140,6 +146,11 @@ case "${1:-all}" in
     echo "  bootstrap  Scout project stack and structure"
     echo "             --json     Machine-readable output"
     echo "             --silent   Exit code only"
+    echo "  upgrade    Upgrade git-memory to latest version"
+    echo "             --auto     Non-interactive"
+    echo "             --dry-run  Show what would change"
+    echo "             --check    Check if update available"
+    echo "             --json     Machine-readable output"
     ;;
   *)
     echo "Unknown subcommand: $1"
