@@ -38,6 +38,28 @@ def needs_install(root: str) -> bool:
         return "BEGIN claude-git-memory" not in f.read()
 
 
+def needs_upgrade(root: str) -> bool:
+    """Check if the CLAUDE.md managed block has outdated content.
+
+    Detects old-style instructions that reference hardcoded paths like
+    'python3 bin/' instead of dynamic paths from hook output.
+    """
+    claude_md = os.path.join(root, "CLAUDE.md")
+    if not os.path.isfile(claude_md):
+        return False  # needs_install handles this
+    with open(claude_md) as f:
+        content = f.read()
+    if "BEGIN claude-git-memory" not in content:
+        return False  # needs_install handles this
+    # Old-style markers: hardcoded bin/ paths in the managed block
+    begin = content.find("BEGIN claude-git-memory")
+    end = content.find("END claude-git-memory")
+    if begin == -1 or end == -1:
+        return False
+    block = content[begin:end]
+    return "python3 bin/" in block or "Context Checkpoint Commits" not in block
+
+
 def main() -> None:
     """Print hook output for Claude to process."""
     if not is_git_repo():
@@ -62,6 +84,15 @@ def main() -> None:
             "this is a tool call, not a bash command."
         )
         sys.exit(0)
+
+    # Case 1.5: Installed but CLAUDE.md managed block is outdated — auto-upgrade
+    if needs_upgrade(root):
+        import subprocess
+        install_script = os.path.join(PLUGIN_ROOT, "bin", "git-memory-install.py")
+        subprocess.run(
+            [sys.executable, install_script, "--auto"],
+            capture_output=True, text=True, cwd=root, timeout=15,
+        )
 
     # Case 2: Installed — always remind about boot + memory check
     lines = []
