@@ -70,11 +70,12 @@ When you see it: silently evaluate the user's message for memory-worthy content 
 When it blocks: present the options menu to the user and wait for their choice.
 
 ### Instructions for Claude
-1. Never ask the user to run memory system commands — run them yourself
-2. If the user says "install/repair/uninstall/doctor/status" → read skill `git-memory-lifecycle` and act
-3. If the user says "what do you remember" → run `python3 bin/git-memory-doctor.py --json` and show extended summary
-4. If something breaks: run `python3 bin/git-memory-repair.py --auto` before trying manual fixes
-5. System in alpha: verify everything, report failures to the user
+1. **On session start: IMMEDIATELY read the `git-memory` skill before doing anything else.** This is mandatory — do not skip it, do not respond to the user first.
+2. Never ask the user to run memory system commands — run them yourself
+3. If the user says "install/repair/uninstall/doctor/status" → read skill `git-memory-lifecycle` and act
+4. If the user says "what do you remember" → run `python3 bin/git-memory-doctor.py --json` and show extended summary
+5. If something breaks: run `python3 bin/git-memory-repair.py --auto` before trying manual fixes
+6. System in alpha: verify everything, report failures to the user
 
 ### Continuous Memory Capture (enforced by UserPromptSubmit hook)
 After EVERY user message, silently evaluate if it contains memory-worthy content:
