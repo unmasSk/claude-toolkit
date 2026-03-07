@@ -15,6 +15,7 @@ Exit codes:
   1: Error
 """
 
+import argparse
 import html as html_mod
 import json
 import os
@@ -326,7 +327,10 @@ def inject_data(html_content, data):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    silent = "--silent" in sys.argv
+    parser = argparse.ArgumentParser(description="Generate a static HTML dashboard from git memory.")
+    parser.add_argument("--silent", action="store_true", help="Suppress output")
+    args = parser.parse_args()
+    silent = args.silent
 
     # Verify git repo
     code, root = run_git(["rev-parse", "--show-toplevel"], timeout=30)

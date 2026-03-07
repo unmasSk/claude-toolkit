@@ -15,6 +15,7 @@ Exit codes:
   1: Errors found (broken components)
 """
 
+import argparse
 import json
 import os
 import re
@@ -413,9 +414,12 @@ def run_doctor(silent=False, as_json=False):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    silent = "--silent" in args
-    as_json = "--json" in args
+    parser = argparse.ArgumentParser(description="Health check for the git-memory system.")
+    parser.add_argument("--silent", action="store_true", help="Exit code only")
+    parser.add_argument("--json", dest="json", action="store_true", help="Machine-readable JSON output")
+    args = parser.parse_args()
+    silent = args.silent
+    as_json = args.json
 
     exit_code = run_doctor(silent=silent, as_json=as_json)
     sys.exit(exit_code)

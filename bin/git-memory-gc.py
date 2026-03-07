@@ -22,6 +22,7 @@ Exit codes:
   2: Aborted by user
 """
 
+import argparse
 import os
 import re
 import sys
@@ -287,20 +288,14 @@ def create_gc_commit(candidates):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    dry_run = "--dry-run" in args
-    auto = "--auto" in args
-    stale_days = DEFAULT_STALE_DAYS
-
-    # Parse --days N
-    if "--days" in args:
-        idx = args.index("--days")
-        if idx + 1 < len(args):
-            try:
-                stale_days = int(args[idx + 1])
-            except ValueError:
-                print("Error: --days requires a number", file=sys.stderr)
-                sys.exit(1)
+    parser = argparse.ArgumentParser(description="Garbage collector for stale trailers.")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be cleaned")
+    parser.add_argument("--auto", action="store_true", help="Auto-commit without asking")
+    parser.add_argument("--days", type=int, default=DEFAULT_STALE_DAYS, help="Custom TTL for blockers")
+    args = parser.parse_args()
+    dry_run = args.dry_run
+    auto = args.auto
+    stale_days = args.days
 
     # Verify we're in a git repo
     code, _ = run_git(["rev-parse", "--is-inside-work-tree"])

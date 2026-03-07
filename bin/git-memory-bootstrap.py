@@ -20,6 +20,7 @@ Exit codes:
   1: Nothing to report (empty project or error)
 """
 
+import argparse
 import json
 import os
 import re
@@ -831,9 +832,12 @@ def run_bootstrap(silent=False, as_json=False):
 
 
 def main():
-    args = sys.argv[1:]
-    silent = "--silent" in args
-    as_json = "--json" in args
+    parser = argparse.ArgumentParser(description="Scout for first contact with a repo.")
+    parser.add_argument("--silent", action="store_true", help="Exit code only")
+    parser.add_argument("--json", dest="json", action="store_true", help="Machine-readable JSON output")
+    args = parser.parse_args()
+    silent = args.silent
+    as_json = args.json
 
     exit_code = run_bootstrap(silent=silent, as_json=as_json)
     sys.exit(exit_code)

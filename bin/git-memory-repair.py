@@ -16,6 +16,7 @@ Exit codes:
   2: Aborted by user
 """
 
+import argparse
 import json
 import os
 import shutil
@@ -263,9 +264,12 @@ def repair_issue(issue_type, target_name, source, target):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    auto = "--auto" in args
-    dry_run = "--dry-run" in args
+    parser = argparse.ArgumentParser(description="Reconstruct broken runtime from manifest.")
+    parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be fixed")
+    args = parser.parse_args()
+    auto = args.auto
+    dry_run = args.dry_run
 
     source = find_source_root()
     target = find_target_root()

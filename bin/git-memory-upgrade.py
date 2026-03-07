@@ -18,6 +18,7 @@ Exit codes:
   2: Abortado por usuario
 """
 
+import argparse
 import hashlib
 import json
 import os
@@ -358,11 +359,16 @@ def format_diff_human(changes, from_version, to_version):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    auto = "--auto" in args
-    dry_run = "--dry-run" in args
-    check_only = "--check" in args
-    as_json = "--json" in args
+    parser = argparse.ArgumentParser(description="Safe upgrade for the git-memory system.")
+    parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change")
+    parser.add_argument("--check", action="store_true", help="Only check if upgrade is available")
+    parser.add_argument("--json", dest="json", action="store_true", help="JSON output")
+    args = parser.parse_args()
+    auto = args.auto
+    dry_run = args.dry_run
+    check_only = args.check
+    as_json = args.json
 
     source = find_source_root()
     target = find_target_root()

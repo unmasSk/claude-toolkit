@@ -15,6 +15,7 @@ Exit codes:
   2: Aborted by user
 """
 
+import argparse
 import hashlib
 import json
 import os
@@ -482,17 +483,12 @@ def verify(target):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    auto = "--auto" in args
-    forced_mode = None
-
-    if "--mode" in args:
-        idx = args.index("--mode")
-        if idx + 1 < len(args):
-            forced_mode = args[idx + 1]
-            if forced_mode not in ("normal", "compatible", "read-only"):
-                print(f"Error: invalid mode '{forced_mode}'. Use: normal, compatible, read-only", file=sys.stderr)
-                sys.exit(1)
+    parser = argparse.ArgumentParser(description="Transactional installer for git-memory.")
+    parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
+    parser.add_argument("--mode", dest="mode", choices=["normal", "compatible", "read-only"], default=None, help="Force install mode")
+    args = parser.parse_args()
+    auto = args.auto
+    forced_mode = args.mode
 
     source = find_source_root()
     target = find_target_root()

@@ -20,6 +20,7 @@ Exit codes:
   2: Aborted
 """
 
+import argparse
 import json
 import os
 import shutil
@@ -228,9 +229,12 @@ def remove_generated_files(target):
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
-    args = sys.argv[1:]
-    auto = "--auto" in args
-    full_local = "--full-local" in args
+    parser = argparse.ArgumentParser(description="Clean removal of git-memory runtime.")
+    parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
+    parser.add_argument("--full-local", action="store_true", help="Also remove generated files")
+    args = parser.parse_args()
+    auto = args.auto
+    full_local = args.full_local
 
     source = find_source_root()
     target = find_target_root()

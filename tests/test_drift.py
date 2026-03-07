@@ -10,10 +10,10 @@ import json
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
-import shutil
 from datetime import datetime, timedelta
 
 import pytest
