@@ -5,6 +5,7 @@
 # Python
 *.pyc
 __pycache__/
+.venv/
 
 # Generated
 .claude/dashboard.html
