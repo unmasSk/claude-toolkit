@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-git-memory-install -- Transactional installer for git-memory.
+git-memory-install -- Configure git-memory for a project.
 
-Follows a five-phase pipeline: inspect, plan, apply, verify, health proof.
+The plugin runs entirely from the plugin cache (~/.claude/plugins/cache/).
+This script only manages the CLAUDE.md managed block and manifest at the
+project root. No hooks, skills, bin, or lib files are copied.
+
+If an old-style install is detected (files at project root), it cleans them up.
 
 Usage:
   git memory install              # Interactive install
@@ -16,7 +20,6 @@ Exit codes:
 """
 
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -34,22 +37,6 @@ from git_helpers import run_git
 
 VERSION = "2.0.0"
 
-HOOKS = [
-    "pre-validate-commit-trailers.py",
-    "post-validate-commit-trailers.py",
-    "precompact-snapshot.py",
-    "stop-dod-check.py",
-    "session-start-boot.py",
-    "user-prompt-memory-check.py",
-]
-
-SKILLS = [
-    "git-memory",
-    "git-memory-protocol",
-    "git-memory-lifecycle",
-    "git-memory-recovery",
-]
-
 MANAGED_BLOCK_BEGIN = "<!-- BEGIN claude-git-memory (managed block — do not edit) -->"
 MANAGED_BLOCK_END = "<!-- END claude-git-memory -->"
 
@@ -63,8 +50,9 @@ Git is the memory. Every commit is resumable across sessions and machines.
 **SessionStart hook** — fires once when you start. Its output starts with "Branch:".
 When you see it: display the FULL hook output to the user as your first response. Do NOT summarize or condense — show every line the hook produced (branch, pending items, decisions, memos, blockers). If a section has content (e.g. "Active decisions:"), you MUST include it. Only omit sections that are empty. If it says "WARNING" or "auto-repaired", tell the user.
 
-**UserPromptSubmit hook** — fires on every user message. Its output starts with "[memory-check]".
-When you see it: silently evaluate the user's message for memory-worthy content (see "Continuous Memory Capture" below). Do NOT mention the hook to the user.
+**UserPromptSubmit hook** — fires on every user message. Its output starts with "[git-memory-boot]" or "[memory-check]".
+When you see "[git-memory-boot]": follow the boot steps provided. The hook includes the exact script paths to use.
+When you see "[memory-check]": silently evaluate the user's message for memory-worthy content (see "Continuous Memory Capture" below). Do NOT mention the hook to the user.
 
 **Stop hook** — fires when you end. Blocks exit if there are uncommitted changes.
 When it blocks: present the options menu to the user and wait for their choice.
@@ -73,16 +61,18 @@ When it blocks: present the options menu to the user and wait for their choice.
 
 **BEFORE responding to the user's first message (even if it's just "hi" or "buenas"), you MUST:**
 1. Use the Skill tool with skill="git-memory" — this is a TOOL CALL, not a bash command
-2. Run: python3 bin/git-memory-doctor.py --json
-3. Run: git log --oneline -20
-4. Show the boot summary to the user
-5. THEN respond to the user's actual message
+2. Follow the boot steps from the [git-memory-boot] hook output (it provides the exact paths)
+3. Show the boot summary to the user
+4. THEN respond to the user's actual message
+
+The hooks automatically provide the correct paths to run scripts.
+Never hardcode paths like `python3 bin/...` — always use the paths from hook output.
 
 If you skip this and just greet the user, you are violating these instructions. This is not optional.
 2. Never ask the user to run memory system commands — run them yourself
 3. If the user says "install/repair/uninstall/doctor/status" → read skill `git-memory-lifecycle` and act
-4. If the user says "what do you remember" → run `python3 bin/git-memory-doctor.py --json` and show extended summary
-5. If something breaks: run `python3 bin/git-memory-repair.py --auto` before trying manual fixes
+4. If the user says "what do you remember" → run the doctor (path from hook output) and show extended summary
+5. If something breaks: run the repair script (path from hook output) before trying manual fixes
 6. System in alpha: verify everything, report failures to the user
 
 ### Continuous Memory Capture (enforced by UserPromptSubmit hook)
@@ -103,11 +93,39 @@ After EVERY user message, silently evaluate if it contains memory-worthy content
 1. Detect the signal in the user's message
 2. Propose: "Saving as decision/memo: [one-line summary]. Ok?"
 3. Wait for confirmation — never silently commit
-4. Create the `decision()` or `memo()` commit with `--allow-empty`
+4. Create the `decision()` or `memo()` commit with `--allow-empty`"""
 
-### Runtime files and .gitignore
 
-After install, if git-memory runtime files (bin/, hooks/, skills/, lib/, .claude-plugin/) are untracked, ask the user if they want to add them to .gitignore. Read the `git-memory-lifecycle` skill for the exact .gitignore block to use."""
+# Old-style install files that should be cleaned up from the project root.
+# These were copied by the v1 installer but should only live in the plugin cache.
+OLD_BIN_FILES = [
+    "bin/git-memory", "bin/git-memory-gc.py", "bin/git-memory-dashboard.py",
+    "bin/git-memory-doctor.py", "bin/git-memory-install.py",
+    "bin/git-memory-repair.py", "bin/git-memory-uninstall.py",
+    "bin/git-memory-bootstrap.py", "bin/git-memory-upgrade.py",
+]
+
+OLD_HOOK_FILES = [
+    "hooks/pre-validate-commit-trailers.py",
+    "hooks/post-validate-commit-trailers.py",
+    "hooks/precompact-snapshot.py",
+    "hooks/stop-dod-check.py",
+    "hooks/session-start-boot.py",
+    "hooks/user-prompt-memory-check.py",
+    "hooks/hooks.json",
+]
+
+OLD_LIB_FILES = [
+    "lib/__init__.py", "lib/constants.py", "lib/git_helpers.py",
+    "lib/parsing.py", "lib/colors.py",
+]
+
+OLD_SKILL_DIRS = [
+    "skills/git-memory",
+    "skills/git-memory-protocol",
+    "skills/git-memory-lifecycle",
+    "skills/git-memory-recovery",
+]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -125,40 +143,13 @@ def find_target_root() -> str:
     return os.getcwd()
 
 
-def compute_fingerprint(root: str) -> str:
-    """Compute a SHA-256 fingerprint of installed hooks, skills, and CLI.
-
-    Args:
-        root: Repository root directory.
-
-    Returns:
-        Fingerprint string like "sha256:abcdef1234567890".
-    """
-    h = hashlib.sha256()
-    for hook in HOOKS:
-        path = os.path.join(root, "hooks", hook)
-        if os.path.isfile(path):
-            with open(path, "rb") as f:
-                h.update(f.read())
-    for skill in SKILLS:
-        path = os.path.join(root, "skills", skill, "SKILL.md")
-        if os.path.isfile(path):
-            with open(path, "rb") as f:
-                h.update(f.read())
-    cli_path = os.path.join(root, "bin", "git-memory")
-    if os.path.isfile(cli_path):
-        with open(cli_path, "rb") as f:
-            h.update(f.read())
-    return f"sha256:{h.hexdigest()[:16]}"
-
-
 # ── Phase 1: Inspect ─────────────────────────────────────────────────────
 
 def inspect(target: str) -> dict[str, Any]:
     """Inspect the target repository and detect its current state.
 
-    Checks for git repo, .claude/ directory, hooks, skills, CLI,
-    CLAUDE.md managed block, manifest, and commitlint config.
+    Checks for git repo, CLAUDE.md managed block, manifest, and old-style
+    install files.
 
     Args:
         target: Path to the target repository root.
@@ -166,18 +157,13 @@ def inspect(target: str) -> dict[str, Any]:
     Returns:
         Dict with boolean flags and a suggested install mode.
     """
-    report = {
+    report: dict[str, Any] = {
         "is_git": False,
-        "has_claude_dir": False,
-        "has_settings": False,
-        "has_hooks": False,
-        "has_skills": False,
-        "has_cli": False,
         "has_claude_md": False,
         "has_managed_block": False,
         "has_manifest": False,
+        "has_old_install": False,
         "has_commitlint": False,
-        "existing_hooks": [],
         "suggested_mode": "normal",
     }
 
@@ -188,42 +174,29 @@ def inspect(target: str) -> dict[str, Any]:
     if not report["is_git"]:
         return report
 
-    # .claude/ directory
-    claude_dir = os.path.join(target, ".claude")
-    report["has_claude_dir"] = os.path.isdir(claude_dir)
-
-    # settings.json
-    settings_path = os.path.join(claude_dir, "settings.json")
-    report["has_settings"] = os.path.isfile(settings_path)
-
-    # Existing hooks
-    hooks_dir = os.path.join(claude_dir, "hooks")
-    if os.path.isdir(hooks_dir):
-        report["has_hooks"] = True
-        report["existing_hooks"] = os.listdir(hooks_dir)
-
-    # Existing skills
-    skills_dir = os.path.join(claude_dir, "skills")
-    if os.path.isdir(skills_dir):
-        report["has_skills"] = True
-
-    # CLI
-    report["has_cli"] = os.path.isfile(os.path.join(target, "bin", "git-memory"))
-
     # CLAUDE.md
     claude_md = os.path.join(target, "CLAUDE.md")
     if os.path.isfile(claude_md):
         report["has_claude_md"] = True
         with open(claude_md) as f:
-            content = f.read()
-        report["has_managed_block"] = "BEGIN claude-git-memory" in content
+            report["has_managed_block"] = "BEGIN claude-git-memory" in f.read()
 
     # Manifest
-    manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
+    manifest_path = os.path.join(target, ".claude", "git-memory-manifest.json")
     report["has_manifest"] = os.path.isfile(manifest_path)
 
+    # Detect old-style install (files copied to project root)
+    for f in OLD_BIN_FILES + OLD_HOOK_FILES:
+        if os.path.isfile(os.path.join(target, f)):
+            report["has_old_install"] = True
+            break
+    if not report["has_old_install"]:
+        if os.path.isdir(os.path.join(target, ".claude-plugin")):
+            report["has_old_install"] = True
+
     # Commitlint / CI that might reject trailers
-    for ci_file in [".commitlintrc.json", ".commitlintrc.yml", "commitlint.config.js", "commitlint.config.ts"]:
+    for ci_file in [".commitlintrc.json", ".commitlintrc.yml",
+                    "commitlint.config.js", "commitlint.config.ts"]:
         if os.path.isfile(os.path.join(target, ci_file)):
             report["has_commitlint"] = True
             report["suggested_mode"] = "compatible"
@@ -246,7 +219,8 @@ def inspect(target: str) -> dict[str, Any]:
 
 # ── Phase 2: Plan ─────────────────────────────────────────────────────────
 
-def create_plan(report: dict[str, Any], source: str, target: str, mode: str | None = None) -> dict[str, Any]:
+def create_plan(report: dict[str, Any], source: str, target: str,
+                mode: str | None = None) -> dict[str, Any]:
     """Build an installation plan based on the inspection report.
 
     Args:
@@ -256,8 +230,7 @@ def create_plan(report: dict[str, Any], source: str, target: str, mode: str | No
         mode: Forced install mode, or None to use the suggested one.
 
     Returns:
-        Dict with "mode", "actions" (list of (action, description) tuples),
-        and "skipped" (list of description strings).
+        Dict with "mode", "actions" list, and "skipped" list.
     """
     plan: dict[str, Any] = {
         "mode": mode or report["suggested_mode"],
@@ -269,35 +242,19 @@ def create_plan(report: dict[str, Any], source: str, target: str, mode: str | No
         plan["actions"].append(("abort", "Not a git repository"))
         return plan
 
-    # Hooks
-    plan["actions"].append(("copy_hooks", f"Install {len(HOOKS)} hooks to hooks/"))
-
-    # Skills
-    plan["actions"].append(("copy_skills", f"Install {len(SKILLS)} skills to skills/"))
-
-    # CLI
-    plan["actions"].append(("copy_cli", "Install bin/git-memory CLI"))
-
-    # Shared lib
-    plan["actions"].append(("copy_lib", "Install lib/ shared modules"))
-
-    # Symlinks (.claude/ → source)
-    plan["actions"].append(("create_symlinks", "Create .claude/hooks/ and .claude/skills/ symlinks"))
+    # Clean up old-style install first
+    is_self = os.path.realpath(source) == os.path.realpath(target)
+    if report["has_old_install"] and not is_self:
+        plan["actions"].append(("cleanup_old", "Remove old-style install files from project root"))
 
     # CLAUDE.md managed block
     if report["has_managed_block"]:
-        plan["skipped"].append("CLAUDE.md managed block already present")
+        plan["actions"].append(("update_claude_md", "Update managed block in CLAUDE.md"))
     else:
         plan["actions"].append(("update_claude_md", "Add managed block to CLAUDE.md"))
 
-    # hooks/hooks.json (plugin hook registry)
-    plan["actions"].append(("copy_hooks_json", "Install hooks/hooks.json for plugin system"))
-
-    # Plugin manifest
-    plan["actions"].append(("copy_plugin_manifest", "Install .claude-plugin/ manifests"))
-
     # Manifest
-    plan["actions"].append(("create_manifest", "Create .claude/git-memory-manifest.json"))
+    plan["actions"].append(("create_manifest", "Create/update .claude/git-memory-manifest.json"))
 
     return plan
 
@@ -305,7 +262,7 @@ def create_plan(report: dict[str, Any], source: str, target: str, mode: str | No
 # ── Phase 3: Apply ────────────────────────────────────────────────────────
 
 def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
-    """Execute the installation plan by running each action.
+    """Execute the installation plan.
 
     Args:
         plan: Output from create_plan().
@@ -316,34 +273,15 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
         List of error messages. Empty list means all actions succeeded.
     """
     errors = []
-    is_self = os.path.realpath(source) == os.path.realpath(target)
 
     for action, description in plan["actions"]:
         try:
             if action == "abort":
                 return [description]
-            elif action == "copy_hooks":
-                if not is_self:
-                    _copy_hooks(source, target)
-            elif action == "copy_skills":
-                if not is_self:
-                    _copy_skills(source, target)
-            elif action == "copy_cli":
-                if not is_self:
-                    _copy_cli(source, target)
-            elif action == "copy_lib":
-                if not is_self:
-                    _copy_lib(source, target)
-            elif action == "create_symlinks":
-                _create_symlinks(target)
+            elif action == "cleanup_old":
+                _cleanup_old_install(target, source)
             elif action == "update_claude_md":
                 _update_claude_md(target)
-            elif action == "copy_hooks_json":
-                if not is_self:
-                    _copy_hooks_json(source, target)
-            elif action == "copy_plugin_manifest":
-                if not is_self:
-                    _copy_plugin_manifest(source, target)
             elif action == "create_manifest":
                 _create_manifest(target, plan["mode"])
         except Exception as e:
@@ -352,106 +290,63 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
     return errors
 
 
-def _safe_copy(src: str, dst: str) -> None:
-    """Copy a file, refusing to follow symlinks to prevent symlink attacks."""
-    if os.path.islink(src):
-        raise ValueError(f"Refusing to copy symlink: {src}")
-    shutil.copy2(src, dst)
+def _cleanup_old_install(target: str, source: str) -> None:
+    """Remove files from old-style installs that copied to project root.
 
-
-def _copy_hooks(source: str, target: str) -> None:
-    """Copy hook scripts from source hooks/ to target hooks/."""
-    src_hooks = os.path.join(source, "hooks")
-    dst_hooks = os.path.join(target, "hooks")
-    os.makedirs(dst_hooks, exist_ok=True)
-    for hook in HOOKS:
-        src = os.path.join(src_hooks, hook)
-        dst = os.path.join(dst_hooks, hook)
-        if os.path.isfile(src) and not os.path.islink(src):
-            _safe_copy(src, dst)
-
-
-def _copy_skills(source: str, target: str) -> None:
-    """Copy skill directories (with SKILL.md files) from source to target."""
-    src_skills = os.path.join(source, "skills")
-    dst_skills = os.path.join(target, "skills")
-    for skill in SKILLS:
-        src_dir = os.path.join(src_skills, skill)
-        dst_dir = os.path.join(dst_skills, skill)
-        if os.path.isdir(src_dir) and not os.path.islink(src_dir):
-            os.makedirs(dst_dir, exist_ok=True)
-            for f in os.listdir(src_dir):
-                src = os.path.join(src_dir, f)
-                if os.path.isfile(src) and not os.path.islink(src):
-                    _safe_copy(src, os.path.join(dst_dir, f))
-
-
-def _copy_cli(source: str, target: str) -> None:
-    """Copy bin/ CLI scripts to target and make git-memory executable."""
-    src_bin = os.path.join(source, "bin")
-    dst_bin = os.path.join(target, "bin")
-    os.makedirs(dst_bin, exist_ok=True)
-    for f in os.listdir(src_bin):
-        src = os.path.join(src_bin, f)
-        dst = os.path.join(dst_bin, f)
-        if os.path.isfile(src) and not os.path.islink(src):
-            _safe_copy(src, dst)
-            if f == "git-memory":
-                os.chmod(dst, 0o755)
-
-
-def _copy_lib(source: str, target: str) -> None:
-    """Copy shared lib/ Python modules to the target repo."""
-    src_lib = os.path.join(source, "lib")
-    dst_lib = os.path.join(target, "lib")
-    if not os.path.isdir(src_lib):
+    Only removes files we recognize as git-memory managed files.
+    Never removes user files or directories that contain non-managed files.
+    """
+    is_self = os.path.realpath(source) == os.path.realpath(target)
+    if is_self:
         return
-    os.makedirs(dst_lib, exist_ok=True)
-    for f in os.listdir(src_lib):
-        src = os.path.join(src_lib, f)
-        dst = os.path.join(dst_lib, f)
-        if os.path.isfile(src) and not os.path.islink(src):
-            _safe_copy(src, dst)
 
+    removed = []
 
-def _create_symlinks(target: str) -> None:
-    """Create .claude/hooks/ and .claude/skills/ symlinks pointing to the repo root."""
-    claude_dir = os.path.join(target, ".claude")
-    os.makedirs(claude_dir, exist_ok=True)
+    # Remove individual managed files
+    for f in OLD_BIN_FILES + OLD_HOOK_FILES + OLD_LIB_FILES:
+        path = os.path.join(target, f)
+        if os.path.isfile(path) or os.path.islink(path):
+            os.unlink(path)
+            removed.append(f)
 
-    # Hooks symlinks
-    _create_hook_symlinks(claude_dir)
+    # Remove old skill directories
+    for d in OLD_SKILL_DIRS:
+        path = os.path.join(target, d)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+            removed.append(d + "/")
+        elif os.path.islink(path):
+            os.unlink(path)
+            removed.append(d)
 
-    # Skills symlinks
-    _create_skill_symlinks(claude_dir)
+    # Remove .claude-plugin/ directory (entirely ours)
+    plugin_dir = os.path.join(target, ".claude-plugin")
+    if os.path.isdir(plugin_dir):
+        shutil.rmtree(plugin_dir)
+        removed.append(".claude-plugin/")
 
+    # Remove old .claude/hooks and .claude/skills symlink directories
+    for subdir in ["hooks", "skills"]:
+        path = os.path.join(target, ".claude", subdir)
+        if os.path.isdir(path):
+            # Only remove if it contains symlinks (our old install pattern)
+            entries = os.listdir(path)
+            all_symlinks = all(os.path.islink(os.path.join(path, e)) for e in entries) if entries else True
+            if all_symlinks:
+                shutil.rmtree(path)
+                removed.append(f".claude/{subdir}/")
 
-def _create_hook_symlinks(claude_dir: str) -> None:
-    """Create relative symlinks from .claude/hooks/ to hooks/."""
-    hooks_link_dir = os.path.join(claude_dir, "hooks")
-    if os.path.islink(hooks_link_dir):
-        os.unlink(hooks_link_dir)
-    os.makedirs(hooks_link_dir, exist_ok=True)
-    for hook in HOOKS:
-        src = os.path.join("..", "..", "hooks", hook)
-        dst = os.path.join(hooks_link_dir, hook)
-        if os.path.islink(dst):
-            os.unlink(dst)
-        if not os.path.exists(dst):
-            os.symlink(src, dst)
+    # Try to clean up empty parent dirs (won't remove if they have other files)
+    for d in ["bin", "hooks", "skills", "lib"]:
+        path = os.path.join(target, d)
+        if os.path.isdir(path):
+            try:
+                os.rmdir(path)  # Only succeeds if empty
+            except OSError:
+                pass
 
-
-def _create_skill_symlinks(claude_dir: str) -> None:
-    """Create relative symlinks from .claude/skills/ to skills/."""
-    skills_link_dir = os.path.join(claude_dir, "skills")
-    os.makedirs(skills_link_dir, exist_ok=True)
-    for skill in SKILLS:
-        src = os.path.join("..", "..", "skills", skill)
-        dst = os.path.join(skills_link_dir, skill)
-        if os.path.islink(dst):
-            os.unlink(dst)
-        if not os.path.exists(dst):
-            os.symlink(src, dst)
+    if removed:
+        print(f"  Cleaned {len(removed)} old-style install files/directories")
 
 
 def _update_claude_md(target: str) -> None:
@@ -479,60 +374,15 @@ def _update_claude_md(target: str) -> None:
         f.write(content)
 
 
-def _copy_hooks_json(source: str, target: str) -> None:
-    """Copy hooks/hooks.json (plugin hook registry) to the target."""
-    src = os.path.join(source, "hooks", "hooks.json")
-    dst = os.path.join(target, "hooks", "hooks.json")
-    if os.path.isfile(src) and not os.path.islink(src):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        _safe_copy(src, dst)
-
-
-def _copy_plugin_manifest(source: str, target: str) -> None:
-    """Copy the .claude-plugin/ directory (plugin.json, marketplace.json) to target."""
-    src_dir = os.path.join(source, ".claude-plugin")
-    dst_dir = os.path.join(target, ".claude-plugin")
-    if os.path.isdir(src_dir) and not os.path.islink(src_dir):
-        os.makedirs(dst_dir, exist_ok=True)
-        for f in os.listdir(src_dir):
-            src = os.path.join(src_dir, f)
-            if os.path.isfile(src) and not os.path.islink(src):
-                _safe_copy(src, os.path.join(dst_dir, f))
-
-
 def _create_manifest(target: str, mode: str) -> None:
-    """Create .claude/git-memory-manifest.json with install metadata.
-
-    Records version, managed files, runtime mode, hook registrations,
-    and an install fingerprint for future integrity checks.
-    """
+    """Create .claude/git-memory-manifest.json with install metadata."""
     claude_dir = os.path.join(target, ".claude")
     os.makedirs(claude_dir, exist_ok=True)
-
-    managed_files = []
-    for hook in HOOKS:
-        managed_files.append(f"hooks/{hook}")
-    for skill in SKILLS:
-        managed_files.append(f"skills/{skill}/SKILL.md")
-    managed_files.append("bin/git-memory")
-    # All CLI scripts that get copied
-    for cli_script in ["git-memory-gc.py", "git-memory-dashboard.py",
-                       "git-memory-doctor.py", "git-memory-install.py",
-                       "git-memory-repair.py", "git-memory-uninstall.py",
-                       "git-memory-bootstrap.py", "git-memory-upgrade.py"]:
-        managed_files.append(f"bin/{cli_script}")
-    # Shared lib modules
-    for lib_file in ["__init__.py", "constants.py", "git_helpers.py", "parsing.py", "colors.py"]:
-        managed_files.append(f"lib/{lib_file}")
-    # Non-bin managed files
-    managed_files.append("hooks/hooks.json")
-    managed_files.append(".claude-plugin/plugin.json")
 
     manifest = {
         "version": VERSION,
         "installed_at": datetime.now().isoformat(),
         "runtime_mode": mode,
-        "managed_files": managed_files,
         "managed_blocks": [
             {
                 "file": "CLAUDE.md",
@@ -540,9 +390,11 @@ def _create_manifest(target: str, mode: str) -> None:
                 "end": "END claude-git-memory",
             }
         ],
-        "hook_registrations": ["PreToolUse", "PostToolUse", "Stop", "PreCompact", "SessionStart", "UserPromptSubmit"],
+        "hook_registrations": [
+            "PreToolUse", "PostToolUse", "Stop",
+            "PreCompact", "SessionStart", "UserPromptSubmit",
+        ],
         "last_healthcheck_at": datetime.now().isoformat(),
-        "install_fingerprint": compute_fingerprint(target),
     }
 
     manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
@@ -575,10 +427,12 @@ def verify(target: str) -> dict[str, Any]:
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Entry point: parse args and run the five-phase install pipeline."""
-    parser = argparse.ArgumentParser(description="Transactional installer for git-memory.")
+    """Entry point: parse args and run the install pipeline."""
+    parser = argparse.ArgumentParser(description="Configure git-memory for a project.")
     parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
-    parser.add_argument("--mode", dest="mode", choices=["normal", "compatible", "read-only"], default=None, help="Force install mode")
+    parser.add_argument("--mode", dest="mode",
+                        choices=["normal", "compatible", "read-only"],
+                        default=None, help="Force install mode")
     args = parser.parse_args()
     auto = args.auto
     forced_mode = args.mode
@@ -590,18 +444,18 @@ def main() -> None:
     is_self = os.path.realpath(source) == os.path.realpath(target)
 
     print("=== git memory install ===")
-    print(f"Source: {source}")
-    print(f"Target: {target}")
+    print(f"Plugin: {source}")
+    print(f"Project: {target}")
     if is_self:
-        print("(self-install: source and target are the same repo)")
+        print("(self-install: plugin source is the project)")
     print()
 
     # Phase 1: Inspect
-    print("Phase 1: Inspecting target...")
+    print("Phase 1: Inspecting project...")
     report = inspect(target)
 
     if not report["is_git"]:
-        print("Error: target is not a git repository.", file=sys.stderr)
+        print("Error: not a git repository.", file=sys.stderr)
         sys.exit(1)
 
     # Phase 2: Plan
@@ -656,13 +510,10 @@ def main() -> None:
 
     if status == "ok":
         print(f"\nInstallation complete. Mode: {plan['mode']}")
-        print("If anything fails, run: git memory repair")
     elif status == "warn":
         print(f"\nInstalled with warnings. Mode: {plan['mode']}")
-        print("Run: git memory doctor for details")
     else:
-        print(f"\nInstalled but verification found issues.")
-        print("Run: git memory repair to fix")
+        print("\nInstalled but verification found issues.")
 
     sys.exit(0)
 

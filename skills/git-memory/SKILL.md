@@ -24,24 +24,17 @@ Do NOT write: provisional observations, weak inferences, session-only context.
 
 ## Auto-Boot (every session start — Claude executes all of this, never asks the user to)
 
-### Finding scripts — READ THIS CAREFULLY
+### Finding scripts
 
-Scripts are ALWAYS at `bin/` in the project root. Example: `python3 bin/git-memory-doctor.py --json`
+Scripts live in the plugin cache, NOT at the project root. The `[git-memory-boot]` hook output provides the plugin root path on every user message.
 
-**NEVER use these paths** (common mistakes):
-- `.claude-plugin/bin/` — WRONG, .claude-plugin/ only has manifests
-- `$CLAUDE_PLUGIN_ROOT/bin/` — WRONG, this var does not exist in Bash
-- `hooks/bin/` — WRONG
-- `env | grep CLAUDE_PLUGIN` — USELESS, the var is not an env var
+Use that path to run scripts: `python3 <plugin-root>/bin/git-memory-doctor.py --json`
 
-**If `bin/` doesn't exist** (first install only):
-1. Read `~/.claude/plugins/installed_plugins.json`
-2. Find `installPath` for key `claude-git-memory@unmassk-claude-git-memory`
-3. Run: `python3 <that-path>/bin/git-memory-install.py --auto`
+**NEVER hardcode paths** like `python3 bin/...` — the project root has NO bin/, hooks/, skills/, or lib/ directories from the plugin.
 
 ### Boot sequence
 
-1. Run `python3 bin/git-memory-doctor.py --json` silently. If errors → run `python3 bin/git-memory-repair.py --auto` and tell the user what was fixed.
+1. Run `python3 <plugin-root>/bin/git-memory-doctor.py --json` silently. If errors → run `python3 <plugin-root>/bin/git-memory-repair.py --auto` and tell the user what was fixed.
 2. `git log -n 30 --pretty=format:"%h%x1f%s%x1f%b%x1e"` → extract Next, Blocker, Decision, Memo, last context()
 3. `git status --porcelain` → detect uncommitted state
 4. Show compact summary (≤18 lines):

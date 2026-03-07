@@ -18,6 +18,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 
 from git_helpers import is_git_repo, run_git
 
+# Plugin root — derived from this script's location in the cache.
+# hooks/user-prompt-memory-check.py → go up one level → plugin root.
+PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
 
 def get_project_root() -> str | None:
     """Get the git repo root, or None."""
@@ -26,25 +30,12 @@ def get_project_root() -> str | None:
 
 
 def needs_install(root: str) -> bool:
-    """Check if git-memory needs to be installed or is incomplete."""
+    """Check if git-memory CLAUDE.md managed block is present."""
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return True
     with open(claude_md) as f:
-        if "BEGIN claude-git-memory" not in f.read():
-            return True
-    # Detect incomplete install: lib/ missing means doctor/hooks will fail
-    if not os.path.isdir(os.path.join(root, "lib")):
-        return True
-    # Detect incomplete install: bin/ missing
-    if not os.path.isfile(os.path.join(root, "bin", "git-memory-doctor.py")):
-        return True
-    return False
-
-
-def needs_boot(root: str) -> bool:
-    """Check if bin/ exists locally (install was run) but boot may not have happened."""
-    return os.path.isfile(os.path.join(root, "bin", "git-memory-doctor.py"))
+        return "BEGIN claude-git-memory" not in f.read()
 
 
 def main() -> None:
@@ -61,16 +52,13 @@ def main() -> None:
         print(
             "[git-memory-bootstrap] Git-memory plugin is active but NOT configured. "
             "BEFORE doing anything else:\n"
-            "1. Run: cat ~/.claude/plugins/installed_plugins.json | python3 -c "
-            "\"import sys,json; d=json.load(sys.stdin); "
-            "print(d['plugins']['claude-git-memory@unmassk-claude-git-memory'][0]['installPath'])\"\n"
-            "2. Run: python3 <that-path>/bin/git-memory-install.py --auto\n"
-            "3. Use the Skill tool with skill=\"git-memory\" to load the memory rules\n"
-            "4. Run: python3 bin/git-memory-doctor.py --json\n"
-            "5. Run: git log --oneline -20\n"
-            "6. Show the user a boot summary.\n"
+            f"1. Run: python3 {PLUGIN_ROOT}/bin/git-memory-install.py --auto\n"
+            "2. Use the Skill tool with skill=\"git-memory\" to load the memory rules\n"
+            f"3. Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
+            "4. Run: git log --oneline -20\n"
+            "5. Show the user a boot summary.\n"
             "Do NOT greet the user first. Install and boot FIRST.\n"
-            "CRITICAL: Step 3 means calling the Skill tool — "
+            "CRITICAL: Step 2 means calling the Skill tool — "
             "this is a tool call, not a bash command."
         )
         sys.exit(0)
@@ -80,11 +68,12 @@ def main() -> None:
 
     # Boot reminder on every message (Claude may not have booted yet)
     lines.append(
-        "[git-memory-boot] If you have NOT yet booted this session, "
+        f"[git-memory-boot] Plugin root: {PLUGIN_ROOT}\n"
+        "If you have NOT yet booted this session, "
         "do ALL of these steps NOW before responding to the user:\n"
         "  Step 1: Use the Skill tool with skill=\"git-memory\" "
         "(this is a TOOL CALL, not a bash command)\n"
-        "  Step 2: Run: python3 bin/git-memory-doctor.py --json\n"
+        f"  Step 2: Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
         "  Step 3: Run: git log --oneline -20\n"
         "  Step 4: Show the user a boot summary\n"
         "If you already booted this session, skip this."

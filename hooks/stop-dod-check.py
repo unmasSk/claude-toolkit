@@ -27,12 +27,11 @@ COOLDOWN_SECONDS = 30
 from git_helpers import run_git, is_git_repo
 from colors import RED, YELLOW, RESET
 
-# git-memory runtime files — these are infrastructure, not user work.
+# git-memory project files — only CLAUDE.md and manifest live at the project root.
 # The stop hook should not block for these.
 RUNTIME_PREFIXES = (
-    ".claude/", ".claude-plugin/", "CLAUDE.md",
-    "bin/git-memory", "hooks/", "skills/git-memory",
-    "lib/", "hooks/hooks.json",
+    "CLAUDE.md",
+    ".claude/git-memory-manifest.json",
 )
 
 

@@ -109,12 +109,11 @@ That's it. **No configuration needed.** When Claude starts a session in your pro
 1. **Hooks register** — pre-commit, post-commit, session start, user message, session exit, context compression
 2. **Skills load** — memory rules, lifecycle, protocol, recovery
 3. **Auto-boot runs** — silent health check + memory summary
+4. **CLAUDE.md updated** — a managed block is added with memory system instructions
+
+**Nothing gets copied to your project root** except `CLAUDE.md` and `.claude/git-memory-manifest.json`. The plugin runs entirely from the plugin cache at `~/.claude/plugins/cache/`. No `bin/`, `hooks/`, `skills/`, or `lib/` directories clutter your project.
 
 The plugin uses `${CLAUDE_PLUGIN_ROOT}` internally to locate its own hooks and scripts. Claude Code discovers hooks from `hooks/hooks.json` automatically.
-
-### Known issue
-
-`${CLAUDE_PLUGIN_ROOT}` may not resolve for `SessionStart` hooks in some Claude Code versions ([#27145](https://github.com/anthropics/claude-code/issues/27145)). If auto-boot doesn't fire, update to the latest Claude Code version or use `--plugin-dir` as a workaround.
 
 ### Requirements
 
@@ -365,10 +364,9 @@ Claude doesn't just install the system — it maintains it:
 
 | Situation | What Claude does |
 |-----------|-----------------|
-| Hooks missing after a rebase | Detects on session start, re-registers |
-| `.claude/` directory deleted | Reinstalls runtime from manifest |
-| `settings.json` corrupted | Reconstructs hook registrations |
-| Partial install (interrupted) | Completes missing pieces |
+| CLAUDE.md block missing | Recreates the managed block on next session |
+| Manifest missing/corrupt | Regenerates from install script |
+| Old-style install files at root | Cleans up on next install |
 | After force push / history rewrite | Detects amnesia, rebuilds conservatively from current state, warns about gaps |
 
 All of this happens automatically. Claude tells you what it fixed, but you don't need to do anything.
@@ -451,14 +449,14 @@ The memory system has a full CLI. **Claude runs all of these automatically — y
 | "any pending work?" | `git memory pending` | Shows all unfinished Next: items |
 | "what memos do we have?" | `git memory memos` | Lists all preferences, requirements, and antipatterns |
 | "anything blocking us?" | `git memory blockers` | Shows all active blockers |
-| "is the memory system healthy?" | `git memory doctor` | Full diagnostic: hooks, skills, CLI, manifest, GC status, version |
-| "something's broken" | `git memory repair` | Reads the manifest, compares expected vs actual state, fixes gaps |
+| "is the memory system healthy?" | `git memory doctor` | Full diagnostic: plugin cache, CLAUDE.md, manifest, GC status, version |
+| "something's broken" | `git memory repair` | Checks CLAUDE.md and manifest, fixes what's broken |
 | "clean up old stuff" | `git memory gc` | Garbage collects stale Next/Blocker items with tombstones |
 | "show me the dashboard" | `git memory dashboard` | Generates a static HTML dashboard and opens it |
 | "scan this project" | `git memory bootstrap` | Scouts stack, frameworks, monorepo patterns, CI config |
-| "install memory system" | `git memory install` | Transactional 5-phase installer: inspect → plan → apply → verify → health proof |
+| "install memory system" | `git memory install` | Writes CLAUDE.md block + manifest (plugin runs from cache, nothing copied to root) |
 | "upgrade memory system" | `git memory upgrade` | Safe version migration with backup |
-| "remove memory system" | `git memory uninstall` | Removes runtime, keeps git history intact |
+| "remove memory system" | `git memory uninstall` | Removes CLAUDE.md block + manifest, keeps git history intact |
 
 All commands support `--json` for machine-readable output and `--auto` for non-interactive mode.
 
@@ -481,6 +479,8 @@ For monorepos, the scout builds a **scope map** — mapping directories like `ap
 ---
 
 ## Project structure
+
+Everything below lives in the plugin cache (`~/.claude/plugins/cache/`), **not** in your project. The only files written to your project are `CLAUDE.md` and `.claude/git-memory-manifest.json`.
 
 ```
 claude-git-memory/
@@ -561,8 +561,11 @@ A: Yes. The plugin detects commitlint and switches to compatible mode (git notes
 **Q: Will this mess up my existing commits?**
 A: No. The system only adds trailers to new commits. Existing history is never modified.
 
+**Q: Does it put files in my project?**
+A: Only `CLAUDE.md` (with a managed block) and `.claude/git-memory-manifest.json`. The plugin itself runs entirely from the plugin cache. No `bin/`, `hooks/`, `skills/`, or `lib/` directories are created in your project.
+
 **Q: Can I uninstall it?**
-A: Yes. Run `/plugin uninstall claude-git-memory` in Claude Code. Commits with trailers stay intact forever — they're just normal git metadata.
+A: Yes. Run `/plugin uninstall claude-git-memory` in Claude Code. The CLAUDE.md block and manifest are removed. Commits with trailers stay intact forever — they're just normal git metadata.
 
 **Q: Does it work with monorepos?**
 A: Yes. The scout detects Turborepo, Nx, Lerna, pnpm workspaces, Rush, and Moon. It builds a scope map so Claude knows which package a commit belongs to.

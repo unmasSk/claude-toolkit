@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-git-memory-uninstall -- Clean removal of git-memory runtime.
+git-memory-uninstall -- Clean removal of git-memory from a project.
 
-Removes hooks, skills, CLI, managed blocks, and manifest.
+Removes the CLAUDE.md managed block, manifest, and optionally generated files.
+The plugin itself is uninstalled via `/plugin uninstall` in Claude Code.
 Never touches git history (commits with trailers are preserved).
 
 Usage:
@@ -11,7 +12,7 @@ Usage:
   git memory uninstall --auto         # Non-interactive
 
 Modes:
-  safe (default): Remove hooks, skills, CLI, CLAUDE.md block, manifest
+  safe (default): Remove CLAUDE.md block, manifest
   full-local:     Above + generated files (.claude/dashboard.html, etc.)
 
 Exit codes:
@@ -21,7 +22,6 @@ Exit codes:
 """
 
 import argparse
-import json
 import os
 import shutil
 import sys
@@ -33,25 +33,39 @@ from git_helpers import run_git
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-HOOKS = [
-    "pre-validate-commit-trailers.py",
-    "post-validate-commit-trailers.py",
-    "precompact-snapshot.py",
-    "stop-dod-check.py",
-    "session-start-boot.py",
-    "user-prompt-memory-check.py",
-]
-
-SKILLS = [
-    "git-memory",
-    "git-memory-protocol",
-    "git-memory-lifecycle",
-    "git-memory-recovery",
-]
-
 GENERATED_FILES = [
     ".claude/dashboard.html",
     ".claude/precompact-snapshot.md",
+]
+
+# Old-style install remnants that might still exist
+OLD_BIN_FILES = [
+    "bin/git-memory", "bin/git-memory-gc.py", "bin/git-memory-dashboard.py",
+    "bin/git-memory-doctor.py", "bin/git-memory-install.py",
+    "bin/git-memory-repair.py", "bin/git-memory-uninstall.py",
+    "bin/git-memory-bootstrap.py", "bin/git-memory-upgrade.py",
+]
+
+OLD_HOOK_FILES = [
+    "hooks/pre-validate-commit-trailers.py",
+    "hooks/post-validate-commit-trailers.py",
+    "hooks/precompact-snapshot.py",
+    "hooks/stop-dod-check.py",
+    "hooks/session-start-boot.py",
+    "hooks/user-prompt-memory-check.py",
+    "hooks/hooks.json",
+]
+
+OLD_LIB_FILES = [
+    "lib/__init__.py", "lib/constants.py", "lib/git_helpers.py",
+    "lib/parsing.py", "lib/colors.py",
+]
+
+OLD_SKILL_DIRS = [
+    "skills/git-memory",
+    "skills/git-memory-protocol",
+    "skills/git-memory-lifecycle",
+    "skills/git-memory-recovery",
 ]
 
 
@@ -90,86 +104,6 @@ def safe_rmdir(path: str) -> bool:
 
 
 # ── Uninstall Steps ──────────────────────────────────────────────────────
-
-def remove_hooks(target: str) -> list[str]:
-    """Remove hook files and their .claude/hooks symlinks.
-
-    Returns:
-        List of relative paths that were removed.
-    """
-    removed = []
-
-    # Remove source hooks
-    for hook in HOOKS:
-        path = os.path.join(target, "hooks", hook)
-        if safe_remove(path):
-            removed.append(f"hooks/{hook}")
-
-    # Remove .claude/hooks symlinks
-    for hook in HOOKS:
-        link = os.path.join(target, ".claude", "hooks", hook)
-        if safe_remove(link):
-            removed.append(f".claude/hooks/{hook}")
-
-    # Clean empty dirs
-    safe_rmdir(os.path.join(target, "hooks"))
-    safe_rmdir(os.path.join(target, ".claude", "hooks"))
-
-    return removed
-
-
-def remove_skills(target: str) -> list[str]:
-    """Remove skill directories and their .claude/skills symlinks.
-
-    Returns:
-        List of relative paths that were removed.
-    """
-    removed = []
-
-    for skill in SKILLS:
-        # Remove source skill dir
-        skill_dir = os.path.join(target, "skills", skill)
-        if os.path.isdir(skill_dir) and not os.path.islink(skill_dir):
-            shutil.rmtree(skill_dir)
-            removed.append(f"skills/{skill}/")
-        elif os.path.islink(skill_dir):
-            os.unlink(skill_dir)
-            removed.append(f"skills/{skill} (symlink)")
-
-        # Remove .claude/skills symlink
-        link = os.path.join(target, ".claude", "skills", skill)
-        if safe_remove(link):
-            removed.append(f".claude/skills/{skill}")
-
-    # Clean empty dirs
-    safe_rmdir(os.path.join(target, "skills"))
-    safe_rmdir(os.path.join(target, ".claude", "skills"))
-
-    return removed
-
-
-def remove_cli(target: str) -> list[str]:
-    """Remove CLI scripts from the bin/ directory.
-
-    Returns:
-        List of relative paths that were removed.
-    """
-    removed = []
-    bin_dir = os.path.join(target, "bin")
-
-    cli_files = ["git-memory", "git-memory-gc.py", "git-memory-dashboard.py",
-                 "git-memory-doctor.py", "git-memory-install.py",
-                 "git-memory-repair.py", "git-memory-uninstall.py",
-                 "git-memory-bootstrap.py", "git-memory-upgrade.py"]
-
-    for f in cli_files:
-        path = os.path.join(bin_dir, f)
-        if safe_remove(path):
-            removed.append(f"bin/{f}")
-
-    safe_rmdir(bin_dir)
-    return removed
-
 
 def remove_claude_md_block(target: str) -> bool:
     """Remove the managed block from CLAUDE.md without touching other content."""
@@ -216,20 +150,6 @@ def remove_manifest(target: str) -> bool:
     return safe_remove(path)
 
 
-def remove_hooks_json(target: str) -> bool:
-    """Remove hooks/hooks.json (plugin hook registry)."""
-    return safe_remove(os.path.join(target, "hooks", "hooks.json"))
-
-
-def remove_plugin_manifest(target: str) -> bool:
-    """Remove .claude-plugin/ directory."""
-    plugin_dir = os.path.join(target, ".claude-plugin")
-    if os.path.isdir(plugin_dir):
-        shutil.rmtree(plugin_dir)
-        return True
-    return False
-
-
 def remove_generated_files(target: str) -> list[str]:
     """Remove generated files like dashboard and snapshots (full-local mode only).
 
@@ -244,11 +164,58 @@ def remove_generated_files(target: str) -> list[str]:
     return removed
 
 
+def remove_old_install_files(target: str) -> list[str]:
+    """Remove any old-style install remnants from the project root.
+
+    Returns:
+        List of relative paths that were removed.
+    """
+    removed = []
+
+    # Remove individual files
+    for f in OLD_BIN_FILES + OLD_HOOK_FILES + OLD_LIB_FILES:
+        path = os.path.join(target, f)
+        if safe_remove(path):
+            removed.append(f)
+
+    # Remove old skill directories
+    for d in OLD_SKILL_DIRS:
+        path = os.path.join(target, d)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+            removed.append(d + "/")
+        elif os.path.islink(path):
+            os.unlink(path)
+            removed.append(d)
+
+    # Remove .claude-plugin/
+    plugin_dir = os.path.join(target, ".claude-plugin")
+    if os.path.isdir(plugin_dir):
+        shutil.rmtree(plugin_dir)
+        removed.append(".claude-plugin/")
+
+    # Remove old .claude/hooks and .claude/skills symlink directories
+    for subdir in ["hooks", "skills"]:
+        path = os.path.join(target, ".claude", subdir)
+        if os.path.isdir(path):
+            entries = os.listdir(path)
+            all_symlinks = all(os.path.islink(os.path.join(path, e)) for e in entries) if entries else True
+            if all_symlinks:
+                shutil.rmtree(path)
+                removed.append(f".claude/{subdir}/")
+
+    # Clean empty parent dirs
+    for d in ["bin", "hooks", "skills", "lib"]:
+        safe_rmdir(os.path.join(target, d))
+
+    return removed
+
+
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
     """CLI entry point. Shows removal plan, asks for confirmation, and executes."""
-    parser = argparse.ArgumentParser(description="Clean removal of git-memory runtime.")
+    parser = argparse.ArgumentParser(description="Clean removal of git-memory from a project.")
     parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
     parser.add_argument("--full-local", action="store_true", help="Also remove generated files")
     args = parser.parse_args()
@@ -259,30 +226,26 @@ def main() -> None:
     target = find_target_root()
     mode = "full-local" if full_local else "safe"
 
-    # Self-uninstall guard: refuse to delete source repo's own files
+    # Self-uninstall guard
     is_self = os.path.realpath(source) == os.path.realpath(target)
     if is_self:
-        print("Error: cannot uninstall from the source repo (would delete source files).", file=sys.stderr)
-        print("To uninstall from a target repo, run from that repo's directory.", file=sys.stderr)
+        print("Error: cannot uninstall from the plugin source repo.", file=sys.stderr)
         sys.exit(1)
 
     print("=== git memory uninstall ===")
-    print(f"Target: {target}")
+    print(f"Project: {target}")
     print(f"Mode: {mode}")
     print()
 
     # Build plan
     plan = []
-    plan.append("Remove hooks (6 files + symlinks)")
-    plan.append("Remove skills (4 directories + symlinks)")
-    plan.append("Remove CLI (bin/ scripts)")
     plan.append("Remove CLAUDE.md managed block")
     plan.append("Remove manifest (.claude/git-memory-manifest.json)")
-    plan.append("Remove hooks/hooks.json")
-    plan.append("Remove .claude-plugin/ directory")
+    plan.append("Remove any old-style install remnants (bin/, hooks/, skills/, lib/, .claude-plugin/)")
     if full_local:
         plan.append("Remove generated files (dashboard, snapshots)")
     plan.append("Git history (commits with trailers) is preserved")
+    plan.append("To remove the plugin itself: /plugin uninstall claude-git-memory")
 
     print("Removal plan:")
     print("─" * 40)
@@ -306,32 +269,25 @@ def main() -> None:
     all_removed = []
 
     # Execute removal
-    all_removed.extend(remove_hooks(target))
-    all_removed.extend(remove_skills(target))
-    all_removed.extend(remove_cli(target))
-
     if remove_claude_md_block(target):
         all_removed.append("CLAUDE.md managed block")
 
     if remove_manifest(target):
         all_removed.append(".claude/git-memory-manifest.json")
 
-    if remove_hooks_json(target):
-        all_removed.append("hooks/hooks.json")
-
-    if remove_plugin_manifest(target):
-        all_removed.append(".claude-plugin/")
+    old_files = remove_old_install_files(target)
+    all_removed.extend(old_files)
 
     if full_local:
         all_removed.extend(remove_generated_files(target))
 
     print(f"\nRemoved {len(all_removed)} items:")
     for item in all_removed:
-        print(f"  🗑  {item}")
+        print(f"  - {item}")
 
     print("\nUninstall complete.")
     print("Git history (commits with trailers) was preserved.")
-    print("To reinstall: git memory install")
+    print("To remove the plugin: /plugin uninstall claude-git-memory")
 
     sys.exit(0)
 
