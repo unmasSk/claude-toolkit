@@ -54,26 +54,26 @@ POST_HOOK = os.path.join(
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
-def run(cmd, cwd, env=None):
-    """Run shell command, return stdout."""
+def run(cmd_list, cwd, env=None):
+    """Run command as list of arguments (no shell=True)."""
     merged = {**os.environ, **(env or {})}
     result = subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, cwd=cwd, env=merged,
+        cmd_list, capture_output=True, text=True, cwd=cwd, env=merged,
     )
     return result.stdout.strip(), result.returncode
 
 
 def git(args, cwd, env=None):
-    return run(f"git {args}", cwd, env)
+    return run(["git"] + args, cwd, env)
 
 
 def make_temp_repo():
     """Create a temp repo with initial commit."""
     path = tempfile.mkdtemp(prefix="drift-test-")
-    git("init", path)
-    git("checkout -b dev", path)
-    git('commit --allow-empty -m "🔧 chore: init repo\n\nWhy: initial setup\nTouched: none"', path)
-    git("checkout -b feat/CU-042-big-feature", path)
+    git(["init"], path)
+    git(["checkout", "-b", "dev"], path)
+    git(["commit", "--allow-empty", "-m", "🔧 chore: init repo\n\nWhy: initial setup\nTouched: none"], path)
+    git(["checkout", "-b", "feat/CU-042-big-feature"], path)
     return path
 
 
@@ -98,7 +98,7 @@ def gen_code_commit(idx, scope, date_str, cwd):
         msg += f"\nBlocker: waiting for {scope} API keys"
 
     env = {"GIT_AUTHOR_DATE": date_str, "GIT_COMMITTER_DATE": date_str}
-    git(f'commit --allow-empty -m "{msg}"', cwd, env)
+    git(["commit", "--allow-empty", "-m", msg], cwd, env)
 
 
 def gen_decision(scope, idx, date_str, cwd):
@@ -116,7 +116,7 @@ def gen_decision(scope, idx, date_str, cwd):
         f"Decision: {topic} — benchmarks show 3x improvement"
     )
     env = {"GIT_AUTHOR_DATE": date_str, "GIT_COMMITTER_DATE": date_str}
-    git(f'commit --allow-empty -m "{msg}"', cwd, env)
+    git(["commit", "--allow-empty", "-m", msg], cwd, env)
 
 
 def gen_memo(scope, idx, date_str, cwd):
@@ -135,7 +135,7 @@ def gen_memo(scope, idx, date_str, cwd):
         f"Why: drift test memo #{idx}"
     )
     env = {"GIT_AUTHOR_DATE": date_str, "GIT_COMMITTER_DATE": date_str}
-    git(f'commit --allow-empty -m "{msg}"', cwd, env)
+    git(["commit", "--allow-empty", "-m", msg], cwd, env)
 
 
 def gen_context(scope, idx, date_str, cwd):
@@ -148,7 +148,7 @@ def gen_context(scope, idx, date_str, cwd):
         f"Blocker: waiting for {scope} deploy slot"
     )
     env = {"GIT_AUTHOR_DATE": date_str, "GIT_COMMITTER_DATE": date_str}
-    git(f'commit --allow-empty -m "{msg}"', cwd, env)
+    git(["commit", "--allow-empty", "-m", msg], cwd, env)
 
 
 # ── Build the 6-month history ──────────────────────────────────────────────
@@ -201,7 +201,7 @@ def test_deep_search(cwd):
     errors = []
 
     # All decisions findable
-    out, _ = git('log --all --grep="Decision:" --pretty=format:"%h %s %b"', cwd)
+    out, _ = git(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s %b"], cwd)
     decision_lines = [l for l in out.split("\n") if "Decision:" in l]
     if len(decision_lines) < DECISION_COUNT:
         errors.append(f"Expected ≥{DECISION_COUNT} decision lines, got {len(decision_lines)}")
@@ -209,7 +209,7 @@ def test_deep_search(cwd):
         print(f"  Decision search: {len(decision_lines)} entries ✓")
 
     # All memos findable
-    out, _ = git('log --all --grep="Memo:" --pretty=format:"%h %s %b"', cwd)
+    out, _ = git(["log", "--all", "--grep=Memo:", "--pretty=format:%h %s %b"], cwd)
     memo_lines = [l for l in out.split("\n") if "Memo:" in l]
     if len(memo_lines) < MEMO_COUNT:
         errors.append(f"Expected ≥{MEMO_COUNT} memo lines, got {len(memo_lines)}")
@@ -217,7 +217,7 @@ def test_deep_search(cwd):
         print(f"  Memo search: {len(memo_lines)} entries ✓")
 
     # Deep search finds decisions across multiple scopes
-    out, _ = git('log --all --grep="Decision:" --pretty=format:"%h %s"', cwd)
+    out, _ = git(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s"], cwd)
     all_d_scopes = set()
     for line in out.strip().split("\n"):
         sm = re.search(r"decision\((\w+)\)", line, re.IGNORECASE)
@@ -229,7 +229,7 @@ def test_deep_search(cwd):
         print(f"  Decision scopes (full history): {all_d_scopes} ({len(all_d_scopes)} unique) ✓")
 
     # Issue filter
-    out, _ = git('log --all --grep="Issue: CU-042" --oneline', cwd)
+    out, _ = git(["log", "--all", "--grep=Issue: CU-042", "--oneline"], cwd)
     issue_count = len([l for l in out.strip().split("\n") if l.strip()])
     if issue_count < 50:
         errors.append(f"Issue filter CU-042 returned only {issue_count} commits")
@@ -343,24 +343,24 @@ def test_snapshot_budget(cwd):
     # 5 decisions with different scopes (max 3 should show)
     for i, scope in enumerate(["alpha", "beta", "gamma", "delta", "epsilon"]):
         msg = f"🧭 decision({scope}): stress decision {i}\n\nWhy: stress test\nDecision: stress pick {scope}"
-        git(f'commit --allow-empty -m "{msg}"', cwd)
+        git(["commit", "--allow-empty", "-m", msg], cwd)
 
     # 4 memos with different scopes (max 2 should show)
     for i, scope in enumerate(["alpha", "beta", "gamma", "delta"]):
         msg = f"📌 memo({scope}): stress memo {i}\n\nMemo: preference - stress pref for {scope}"
-        git(f'commit --allow-empty -m "{msg}"', cwd)
+        git(["commit", "--allow-empty", "-m", msg], cwd)
 
     # 5 Next: items (max 2 should show)
     for i in range(5):
         scope = SCOPES[i % len(SCOPES)]
         msg = f"✨ feat({scope}): stress feature {i}\n\nWhy: stress test\nTouched: app/{scope}/stress-{i}.php\nNext: stress pending item {i}"
-        git(f'commit --allow-empty -m "{msg}"', cwd)
+        git(["commit", "--allow-empty", "-m", msg], cwd)
 
     # 3 blockers with context commits (max 2 should show)
     for i in range(3):
         scope = SCOPES[i % len(SCOPES)]
         msg = f"💾 context({scope}): stress context {i}\n\nWhy: stress test\nNext: stress next from context {i}\nBlocker: unique blocker {i} for {scope}"
-        git(f'commit --allow-empty -m "{msg}"', cwd)
+        git(["commit", "--allow-empty", "-m", msg], cwd)
 
     result = subprocess.run(
         [sys.executable, PRECOMPACT_SCRIPT],
@@ -389,7 +389,7 @@ def test_truncation(cwd):
 
     long_text = "X" * 300
     msg = f"🧭 decision(trunc): long test\n\nWhy: test\nDecision: {long_text}"
-    git(f'commit --allow-empty -m "{msg}"', cwd)
+    git(["commit", "--allow-empty", "-m", msg], cwd)
 
     result = subprocess.run(
         [sys.executable, PRECOMPACT_SCRIPT],
@@ -502,7 +502,7 @@ def test_post_hook_exit_code(cwd):
     errors = []
 
     # Create a commit without trailers (simulate pre-install commit)
-    git('commit --allow-empty -m "old commit without trailers"', cwd)
+    git(["commit", "--allow-empty", "-m", "old commit without trailers"], cwd)
 
     # Simulate: Claude ran git commit but it FAILED (exit_code=1, e.g. linting)
     payload_failed = {
@@ -525,7 +525,7 @@ def test_post_hook_exit_code(cwd):
         print("  Failed commit (exit_code=1) → post-hook skips ✓")
 
     # Verify the "old commit" still exists (was NOT reset)
-    out, _ = git("log -1 --pretty=format:%s", cwd)
+    out, _ = git(["log", "-1", "--pretty=format:%s"], cwd)
     if "old commit without trailers" not in out:
         errors.append(f"Post-hook destroyed previous commit! Last commit: {out}")
     else:
@@ -551,7 +551,7 @@ def test_post_hook_exit_code(cwd):
         print("  Spanish locale failure → post-hook skips ✓")
 
     # Clean up: restore a proper commit as HEAD
-    git('commit --allow-empty -m "🔧 chore: restore state\n\nWhy: test cleanup\nTouched: none"', cwd)
+    git(["commit", "--allow-empty", "-m", "🔧 chore: restore state\n\nWhy: test cleanup\nTouched: none"], cwd)
 
     return errors
 
@@ -565,11 +565,11 @@ def test_delimiter_collision(cwd):
 
     # Create a commit with pipe chars and old delimiter pattern in the message
     msg = "✨ feat(parser): fix collision with |---END---| tokens\n\nIssue: CU-042\nWhy: pipes in messages | should not | break parsing\nTouched: parser.py"
-    git(f'commit --allow-empty -m "{msg}"', cwd)
+    git(["commit", "--allow-empty", "-m", msg], cwd)
 
     # Create another with pipes in decision value
     msg2 = "🧭 decision(parser): choose approach A | not B | not C\n\nWhy: A handles edge cases\nDecision: approach A over B|C — cleaner API"
-    git(f'commit --allow-empty -m "{msg2}"', cwd)
+    git(["commit", "--allow-empty", "-m", msg2], cwd)
 
     # Run snapshot — should not crash or produce garbage
     result = subprocess.run(
@@ -653,7 +653,7 @@ def test_gc_tombstones(cwd):
 
     # Create a commit with a Next: and a Blocker:
     msg_next = "💾 context(api): pause api work\n\nWhy: end of day\nNext: implement rate limiting for api\nBlocker: waiting for api credentials"
-    git(f'commit --allow-empty -m "{msg_next}"', cwd)
+    git(["commit", "--allow-empty", "-m", msg_next], cwd)
 
     # Verify they appear in the snapshot BEFORE GC
     result = subprocess.run(
@@ -673,8 +673,8 @@ def test_gc_tombstones(cwd):
     print("  Before GC: Next + Blocker visible in snapshot ✓")
 
     # Now simulate a GC commit with tombstones
-    gc_msg = '🔧 chore(memory): gc — 2 items cleaned\n\nWhy: automated memory garbage collection\nResolved-Next: implement rate limiting for api\nStale-Blocker: waiting for api credentials'
-    git(f'commit --allow-empty -m "{gc_msg}"', cwd)
+    gc_msg = "🔧 chore(memory): gc — 2 items cleaned\n\nWhy: automated memory garbage collection\nResolved-Next: implement rate limiting for api\nStale-Blocker: waiting for api credentials"
+    git(["commit", "--allow-empty", "-m", gc_msg], cwd)
 
     # Verify they are GONE from the snapshot AFTER GC
     result = subprocess.run(
@@ -720,7 +720,7 @@ def main():
         print("\nBuilding 6-month commit history...")
         build_history(cwd)
 
-        out, _ = git("rev-list --count HEAD", cwd)
+        out, _ = git(["rev-list", "--count", "HEAD"], cwd)
         print(f"Total commits in repo: {out}")
 
         all_errors = []

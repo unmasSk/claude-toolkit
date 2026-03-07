@@ -18,6 +18,11 @@ import subprocess
 import sys
 
 
+def _normalize(text):
+    """Normalize text for tombstone matching: lowercase, collapse whitespace, strip."""
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
 def run_git(args: list[str]) -> tuple[int, str]:
     """Run a git command and return (exit_code, stdout)."""
     try:
@@ -79,7 +84,7 @@ def extract_memory_from_log() -> dict:
             line = line.strip()
             ts_match = re.match(r"^(Resolved-Next|Stale-Blocker):\s*(.+)$", line)
             if ts_match:
-                tombstones.add(ts_match.group(2).strip().lower())
+                tombstones.add(_normalize(ts_match.group(2)))
 
     # Second pass: extract memory, skipping tombstoned items
     for commit in commits:
@@ -114,8 +119,8 @@ def extract_memory_from_log() -> dict:
             next_match = re.match(r"^Next:\s*(.+)$", line)
             if next_match:
                 next_text = next_match.group(1)
-                # Skip if tombstoned by GC
-                if next_text.strip().lower() not in tombstones:
+                # Skip if tombstoned by GC (normalized matching)
+                if _normalize(next_text) not in tombstones:
                     memory["pending"].append({
                         "sha": sha,
                         "subject": subject,
@@ -125,8 +130,8 @@ def extract_memory_from_log() -> dict:
             blocker_match = re.match(r"^Blocker:\s*(.+)$", line)
             if blocker_match:
                 blocker_text = blocker_match.group(1)
-                # Skip if tombstoned by GC
-                if blocker_text.strip().lower() in tombstones:
+                # Skip if tombstoned by GC (normalized matching)
+                if _normalize(blocker_text) in tombstones:
                     continue
                 # Dedup: skip if a similar blocker already exists
                 existing = [b["blocker"].lower() for b in memory["blockers"]]

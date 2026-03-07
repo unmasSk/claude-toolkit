@@ -15,6 +15,7 @@ Exit codes:
   1: Error
 """
 
+import html
 import json
 import os
 import re
@@ -22,6 +23,11 @@ import subprocess
 import sys
 import webbrowser
 from datetime import datetime
+
+
+def _normalize(text):
+    """Normalize text for tombstone matching: lowercase, collapse whitespace, strip."""
+    return re.sub(r"\s+", " ", text.strip().lower())
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -194,7 +200,7 @@ def aggregate(commits):
             if val:
                 vals = val if isinstance(val, list) else [val]
                 for v in vals:
-                    tombstones.add(v.lower().strip())
+                    tombstones.add(_normalize(v))
 
     # Pending
     pending = []
@@ -204,7 +210,7 @@ def aggregate(commits):
             if not isinstance(texts, list):
                 texts = [texts]
             for t in texts:
-                if t.lower().strip() not in tombstones:
+                if _normalize(t) not in tombstones:
                     pending.append({
                         "text": t, "sha": c["sha"], "scope": c["scope"] or "",
                         "age_days": c["age_days"] or 0, "date": c["date"],
@@ -215,7 +221,7 @@ def aggregate(commits):
     for c in commits:
         if "Blocker" in c["trailers"]:
             text = c["trailers"]["Blocker"]
-            if text.lower().strip() not in tombstones:
+            if _normalize(text) not in tombstones:
                 ttl = STALE_DAYS - (c["age_days"] or 0)
                 blockers.append({
                     "text": text, "sha": c["sha"], "scope": c["scope"] or "",
@@ -331,18 +337,23 @@ def get_html_template():
         return f.read()
 
 
-def inject_data(html, data):
-    """Replace the mock DATA object with real data."""
-    data_json = json.dumps(data, ensure_ascii=False, indent=None)
+def _sanitize_value(val):
+    """Recursively escape all string values to prevent XSS."""
+    if isinstance(val, str):
+        return html.escape(val, quote=True)
+    elif isinstance(val, dict):
+        return {k: _sanitize_value(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_sanitize_value(item) for item in val]
+    return val
 
-    # Find and replace the DATA block
-    # Pattern: "const DATA = { ... };" — everything between "const DATA = " and the next "// ===" line
-    import re as re_mod
-    pattern = r"const DATA = \{[\s\S]*?\};\s*\n"
-    replacement = f"const DATA = {data_json};\n"
 
-    # More reliable: find "const DATA = {" and replace until we hit a line starting with function/const///
-    lines = html.split("\n")
+def inject_data(html_content, data):
+    """Replace the mock DATA object with real sanitized data."""
+    safe_data = _sanitize_value(data)
+    data_json = json.dumps(safe_data, ensure_ascii=False, indent=None)
+
+    lines = html_content.split("\n")
     new_lines = []
     in_data_block = False
     brace_depth = 0
@@ -397,12 +408,14 @@ def main():
     html_template = get_html_template()
     html = inject_data(html_template, data)
 
-    # Write dashboard
+    # Write dashboard (atomic: write to tmp then replace)
     output_path = os.path.join(root, DASHBOARD_PATH)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    with open(output_path, "w", encoding="utf-8") as f:
+    tmp_path = output_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         f.write(html)
+    os.replace(tmp_path, output_path)
 
     if not silent:
         print(f"✅ Dashboard: {output_path}", file=sys.stderr)
