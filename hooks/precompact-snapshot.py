@@ -241,6 +241,23 @@ def main() -> None:
         # Print to stdout so Claude receives it as context
         print(snapshot)
 
+    # After compaction, Claude receives this output. Instruct it to
+    # create a context commit so the next session (or post-compaction
+    # continuation) has a rich checkpoint in git history.
+    print()
+    print(
+        "CRITICAL — CONTEXT CHECKPOINT REQUIRED: "
+        "Your context was just compacted. "
+        "IMMEDIATELY create a context() commit capturing what you worked on this session. "
+        "Use: git commit --allow-empty -m \"💾 context(<scope>): <summary>\\n\\n"
+        "Next: <what to do next>\\n"
+        "Decision: <any decisions made>\\n"
+        "Memo: <any preferences or patterns learned>\\n"
+        "Blocker: <any blockers>\" "
+        "Include ALL relevant trailers. This is how the next session picks up your work. "
+        "Do this BEFORE responding to the user."
+    )
+
     sys.exit(0)
 
 

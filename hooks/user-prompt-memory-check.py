@@ -86,6 +86,41 @@ def main() -> None:
         "If yes → propose a decision() or memo() commit. If not → do nothing."
     )
 
+    # Periodic context commit reminder.
+    # Count messages via a temp file. Every 20 messages, remind Claude
+    # to create a context() commit if it hasn't made one recently.
+    counter_file = os.path.join(root, ".claude", ".message-counter")
+    msg_count = 0
+    try:
+        os.makedirs(os.path.dirname(counter_file), exist_ok=True)
+        if os.path.isfile(counter_file):
+            with open(counter_file) as f:
+                msg_count = int(f.read().strip() or "0")
+        msg_count += 1
+        with open(counter_file, "w") as f:
+            f.write(str(msg_count))
+    except (ValueError, OSError):
+        pass
+
+    if msg_count > 0 and msg_count % 20 == 0:
+        # Check if there's a recent context commit (within last 5 commits)
+        code, recent = run_git(["log", "-5", "--pretty=format:%s"])
+        has_recent_context = False
+        if code == 0 and recent:
+            for subj in recent.split("\n"):
+                cleaned = subj.strip().lstrip("🔧💾📌🧭✨🐛♻️🔥📝🚀 ")
+                if cleaned.lower().startswith("context"):
+                    has_recent_context = True
+                    break
+        if not has_recent_context:
+            lines.append(
+                "[context-reminder] You have exchanged ~20 messages without "
+                "creating a context() commit. Create one NOW to checkpoint your work. "
+                "Use: git commit --allow-empty -m \"💾 context(<scope>): <summary of current work>"
+                "\\n\\nNext: <pending tasks>\\nDecision: <decisions made>\""
+                " — Include all relevant trailers so the next session can continue."
+            )
+
     print("\n".join(lines))
     sys.exit(0)
 

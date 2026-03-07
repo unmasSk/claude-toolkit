@@ -141,9 +141,24 @@ def build_history(cwd):
 
 
 def run_snapshot(cwd):
-    """Run precompact-snapshot and return stdout."""
+    """Run precompact-snapshot and return the snapshot portion of stdout.
+
+    Filters out any post-snapshot instructions (e.g. context checkpoint
+    reminder) by extracting only lines between the snapshot markers.
+    """
     rc, out, _ = run_cmd([sys.executable, PRECOMPACT_SCRIPT], cwd, timeout=15)
-    return out
+    # Extract only the snapshot block (between markers)
+    lines = out.split("\n")
+    snapshot_lines = []
+    in_snapshot = False
+    for line in lines:
+        if "GIT MEMORY SNAPSHOT" in line:
+            in_snapshot = True
+        if in_snapshot:
+            snapshot_lines.append(line)
+        if "END SNAPSHOT" in line:
+            break
+    return "\n".join(snapshot_lines) if snapshot_lines else out
 
 
 # ── Module-scoped fixture ──────────────────────────────────────────────
