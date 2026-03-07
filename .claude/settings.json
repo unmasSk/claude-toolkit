@@ -2,40 +2,68 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "type": "command",
-        "command": "python3 hooks/pre-validate-commit-trailers.py"
+        "matcher": {
+          "tools": ["Bash"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/pre-validate-commit-trailers.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
-        "type": "command",
-        "command": "python3 hooks/post-validate-commit-trailers.py"
+        "matcher": {
+          "tools": ["Bash"]
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/post-validate-commit-trailers.py"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "type": "command",
-        "command": "python3 hooks/stop-dod-check.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/stop-dod-check.py"
+          }
+        ]
       }
     ],
     "PreCompact": [
       {
-        "type": "command",
-        "command": "python3 hooks/precompact-snapshot.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/precompact-snapshot.py"
+          }
+        ]
       }
     ],
     "SessionStart": [
       {
-        "type": "command",
-        "command": "python3 hooks/session-start-boot.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/session-start-boot.py"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "python3 hooks/user-prompt-memory-check.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 hooks/user-prompt-memory-check.py"
+          }
+        ]
       }
     ]
   }
