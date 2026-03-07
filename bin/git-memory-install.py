@@ -95,7 +95,11 @@ After EVERY user message, silently evaluate if it contains memory-worthy content
 1. Detect the signal in the user's message
 2. Propose: "Saving as decision/memo: [one-line summary]. Ok?"
 3. Wait for confirmation — never silently commit
-4. Create the `decision()` or `memo()` commit with `--allow-empty`"""
+4. Create the `decision()` or `memo()` commit with `--allow-empty`
+
+### Runtime files and .gitignore
+
+After install, if git-memory runtime files (bin/, hooks/, skills/, lib/, .claude-plugin/) are untracked, ask the user if they want to add them to .gitignore. Read the `git-memory-lifecycle` skill for the exact .gitignore block to use."""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

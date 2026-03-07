@@ -32,6 +32,30 @@ The script runs 5 phases automatically: inspect → plan → apply → verify �
 
 Never install without showing plan first. Never merge JSON blindly.
 
+### Post-install: ask about .gitignore
+
+After a successful install, **always ask the user**:
+
+> "The git-memory runtime files (bin/, hooks/, skills/, lib/, .claude-plugin/) are now in your project. Do you want to add them to .gitignore so they don't get committed? Only CLAUDE.md would be tracked."
+
+If the user says yes, add a managed block to `.gitignore`:
+
+```gitignore
+# BEGIN claude-git-memory (managed — do not edit)
+bin/git-memory*
+hooks/*.py
+hooks/hooks.json
+skills/git-memory*/
+lib/
+.claude-plugin/
+.claude/hooks/
+.claude/skills/
+.claude/git-memory-manifest.json
+# END claude-git-memory
+```
+
+If the user says no, the files will show as untracked and the Stop hook will flag them.
+
 ## Doctor (diagnosis)
 
 Check and report, one line per item:
