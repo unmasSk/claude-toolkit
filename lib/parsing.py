@@ -128,3 +128,39 @@ def extract_commit_message(command: str) -> str | None:
 def normalize(text: str) -> str:
     """Normalize text for tombstone matching: lowercase, collapse whitespace, strip."""
     return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def suggest_scope_from_paths(changed_files: list[str], scope_map: dict[str, str]) -> str | None:
+    """Suggest a commit scope based on changed file paths and a monorepo scope map.
+
+    Matches each changed file against scope_map prefixes. If all changes
+    belong to a single scope, returns that scope. If ambiguous, returns None.
+
+    Args:
+        changed_files: List of relative file paths (e.g., ["apps/web/src/index.ts"])
+        scope_map: Mapping of directory prefixes to scope names
+                   (e.g., {"apps/web": "web", "packages/ui": "ui"})
+
+    Returns:
+        Scope name if all files map to one scope, None if ambiguous or unmapped.
+    """
+    if not changed_files or not scope_map:
+        return None
+
+    # Sort prefixes longest-first for greedy matching
+    sorted_prefixes = sorted(scope_map.keys(), key=len, reverse=True)
+
+    matched_scopes: set[str] = set()
+    for filepath in changed_files:
+        # Normalize separators
+        normalized = filepath.replace("\\", "/")
+        for prefix in sorted_prefixes:
+            if normalized.startswith(prefix + "/") or normalized == prefix:
+                matched_scopes.add(scope_map[prefix])
+                break
+        # Files outside any scope prefix are ignored (root-level configs, etc.)
+
+    if len(matched_scopes) == 1:
+        return matched_scopes.pop()
+
+    return None

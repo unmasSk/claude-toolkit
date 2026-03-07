@@ -9,6 +9,11 @@ import pytest
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN_DIR = os.path.join(SOURCE_ROOT, "bin")
+LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
+
+# Make lib/ importable for unit tests of shared modules
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
 HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
 
 # Hook / script paths

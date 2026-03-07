@@ -125,6 +125,11 @@ def test_monorepo(tmp_path):
     assert any("Monorepo" in f["text"] for f in hypotheses)
     assert "ask_scope" in suggestions
     assert len(data.get("monorepo_signals", [])) > 0
+    # Scope map should map packages/X → X
+    scope_map = data.get("monorepo_scope_map", {})
+    assert "packages/web" in scope_map
+    assert scope_map["packages/web"] == "web"
+    assert "packages/api" in scope_map
 
 
 def test_commitlint_detected(tmp_path):
@@ -207,6 +212,43 @@ def test_silent_exit_code(tmp_path):
     assert result_full.returncode == 0
     assert result_empty.stdout.strip() == ""
     assert result_full.stdout.strip() == ""
+
+
+## ── Scope mapping (unit tests, no git needed) ──────────────────────────
+
+def test_suggest_scope_single_match():
+    """All files in one scope → returns that scope."""
+    from parsing import suggest_scope_from_paths
+
+    scope_map = {"apps/web": "web", "apps/api": "api", "packages/ui": "ui"}
+    files = ["apps/web/src/index.ts", "apps/web/src/app.tsx"]
+    assert suggest_scope_from_paths(files, scope_map) == "web"
+
+
+def test_suggest_scope_ambiguous():
+    """Files across multiple scopes → returns None."""
+    from parsing import suggest_scope_from_paths
+
+    scope_map = {"apps/web": "web", "apps/api": "api"}
+    files = ["apps/web/src/index.ts", "apps/api/src/server.ts"]
+    assert suggest_scope_from_paths(files, scope_map) is None
+
+
+def test_suggest_scope_root_files_ignored():
+    """Root-level files (outside any scope) are ignored."""
+    from parsing import suggest_scope_from_paths
+
+    scope_map = {"apps/web": "web", "packages/ui": "ui"}
+    files = ["apps/web/src/index.ts", "README.md", ".gitignore"]
+    assert suggest_scope_from_paths(files, scope_map) == "web"
+
+
+def test_suggest_scope_empty():
+    """Empty inputs → None."""
+    from parsing import suggest_scope_from_paths
+
+    assert suggest_scope_from_paths([], {"a": "b"}) is None
+    assert suggest_scope_from_paths(["x/y"], {}) is None
 
 
 if __name__ == "__main__":

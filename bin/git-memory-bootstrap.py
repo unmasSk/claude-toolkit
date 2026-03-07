@@ -169,6 +169,10 @@ SIGNAL_FILES = {
     "README.md":          ("Documentation", "config"),
     "CHANGELOG.md":       ("Changelog", "config"),
     "LICENSE":            ("License file", "config"),
+    # Monorepo tools
+    "rush.json":          ("Rush (monorepo)", "js"),
+    ".moon/workspace.yml": ("Moon (monorepo)", "js"),
+
     "commitlint.config.js": ("commitlint", "ci"),
     ".commitlintrc":      ("commitlint", "ci"),
     ".husky":             ("Husky (git hooks)", "ci"),
@@ -432,34 +436,69 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     }
 
 
-def detect_monorepo(root: str, tree: dict[str, list[str]]) -> list[str]:
-    """Detect monorepo patterns."""
-    signals = []
+def detect_monorepo(root: str, tree: dict[str, list[str]]) -> dict[str, Any]:
+    """Detect monorepo patterns and build scope map.
+
+    Returns:
+        {"signals": [...], "scope_map": {"apps/web": "web", ...}}
+    """
+    signals: list[str] = []
+    scope_map: dict[str, str] = {}
 
     # Check for workspace config files
-    workspace_files = ["pnpm-workspace.yaml", "turbo.json", "lerna.json", "nx.json"]
+    workspace_files = [
+        "pnpm-workspace.yaml", "turbo.json", "lerna.json",
+        "nx.json", "rush.json", ".moon/workspace.yml",
+    ]
     for wf in workspace_files:
         if os.path.isfile(os.path.join(root, wf)):
             signals.append(f"Found {wf}")
 
     # Check for packages/ or apps/ directories
     mono_dirs = ["packages", "apps", "libs", "modules", "services"]
+    project_markers = ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml", "build.gradle"]
     for d in mono_dirs:
         full = os.path.join(root, d)
         if os.path.isdir(full):
-            # Count subdirs with their own package.json or similar
-            subs = []
-            for sub in os.listdir(full):
+            subs: list[str] = []
+            try:
+                entries = os.listdir(full)
+            except OSError:
+                continue
+            for sub in entries:
                 sub_path = os.path.join(full, sub)
                 if os.path.isdir(sub_path):
-                    for marker in ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"]:
+                    for marker in project_markers:
                         if os.path.isfile(os.path.join(sub_path, marker)):
                             subs.append(sub)
+                            scope_map[f"{d}/{sub}"] = sub
                             break
             if subs:
                 signals.append(f"{d}/ has {len(subs)} sub-projects: {', '.join(subs[:5])}")
 
-    return signals
+    # npm/yarn workspaces from package.json (already parsed by scan_package_json,
+    # but we check here too for scope_map completeness)
+    pkg_json = os.path.join(root, "package.json")
+    if os.path.isfile(pkg_json) and not scope_map:
+        try:
+            with open(pkg_json) as f:
+                data = json.load(f)
+            workspaces = data.get("workspaces", [])
+            if isinstance(workspaces, dict):
+                workspaces = workspaces.get("packages", [])
+            if isinstance(workspaces, list):
+                for pattern in workspaces:
+                    # Resolve simple glob patterns like "packages/*"
+                    base = pattern.rstrip("/*")
+                    base_path = os.path.join(root, base)
+                    if os.path.isdir(base_path):
+                        for sub in os.listdir(base_path):
+                            if os.path.isdir(os.path.join(base_path, sub)):
+                                scope_map.setdefault(f"{base}/{sub}", sub)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return {"signals": signals, "scope_map": scope_map}
 
 
 def detect_ci_commitlint(root: str) -> list[str]:
@@ -532,7 +571,7 @@ def check_existing_memory(root: str) -> dict[str, Any]:
 
 # ── Classification ────────────────────────────────────────────────────────
 
-def classify_findings(signals: list[dict[str, str]], pkg_info: dict[str, Any] | None, py_info: dict[str, Any] | None, commits: dict[str, Any] | None, monorepo: list[str], ci_signals: list[str], existing: dict[str, Any]) -> list[dict[str, Any]]:
+def classify_findings(signals: list[dict[str, str]], pkg_info: dict[str, Any] | None, py_info: dict[str, Any] | None, commits: dict[str, Any] | None, monorepo: dict[str, Any], ci_signals: list[str], existing: dict[str, Any]) -> list[dict[str, Any]]:
     """Classify all findings by confidence level."""
     findings: list[dict[str, Any]] = []
 
@@ -606,12 +645,18 @@ def classify_findings(signals: list[dict[str, str]], pkg_info: dict[str, Any] | 
             })
 
     # Hypotheses: inferred with medium signal
-    if monorepo:
+    mono_signals = monorepo.get("signals", [])
+    mono_scope_map = monorepo.get("scope_map", {})
+    if mono_signals:
+        detail = list(mono_signals)
+        if mono_scope_map:
+            scopes = ", ".join(sorted(mono_scope_map.values())[:8])
+            detail.append(f"Scopes: {scopes}")
         findings.append({
             "level": "hypothesis",
             "category": "structure",
             "text": "Monorepo detected",
-            "detail": monorepo,
+            "detail": detail,
             "source": "directory structure",
         })
 
@@ -677,7 +722,7 @@ def classify_findings(signals: list[dict[str, str]], pkg_info: dict[str, Any] | 
 
 # ── Suggested Actions ─────────────────────────────────────────────────────
 
-def suggest_actions(findings: list[dict[str, Any]], existing: dict[str, Any], monorepo: list[str], ci_signals: list[str]) -> list[dict[str, Any]]:
+def suggest_actions(findings: list[dict[str, Any]], existing: dict[str, Any], monorepo: dict[str, Any], ci_signals: list[str]) -> list[dict[str, Any]]:
     """Suggest what Claude should do based on findings."""
     suggestions = []
 
@@ -691,11 +736,17 @@ def suggest_actions(findings: list[dict[str, Any]], existing: dict[str, Any], mo
         return suggestions
 
     # Monorepo?
-    if monorepo:
+    mono_signals = monorepo.get("signals", [])
+    mono_scope_map = monorepo.get("scope_map", {})
+    if mono_signals:
+        scope_detail = "Ask user: global memory or per-subproject?"
+        if mono_scope_map:
+            scopes = ", ".join(sorted(mono_scope_map.values())[:8])
+            scope_detail += f" Available scopes: {scopes}"
         suggestions.append({
             "action": "ask_scope",
             "reason": "Monorepo detected",
-            "detail": "Ask user: global memory or per-subproject?",
+            "detail": scope_detail,
         })
 
     # commitlint risk?
@@ -813,7 +864,8 @@ def run_bootstrap(silent: bool = False, as_json: bool = False) -> int:
             "repo": repo_info,
             "findings": findings,
             "suggestions": suggestions,
-            "monorepo_signals": monorepo,
+            "monorepo_signals": monorepo.get("signals", []),
+            "monorepo_scope_map": monorepo.get("scope_map", {}),
             "ci_signals": ci_signals,
             "existing_memory": existing,
         }
