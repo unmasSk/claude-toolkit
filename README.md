@@ -408,23 +408,30 @@ Before asking you something, Claude searches existing memory first:
 
 ---
 
-## Internal CLI
+## CLI reference
 
-These commands exist for Claude to use internally. **You never run them** — just ask Claude in natural language. Listed here for transparency and debugging.
+The memory system has a full CLI. **Claude runs all of these automatically — you never need to type them.** They're documented here so you know what's happening under the hood.
 
-| Command | What it does |
-|---------|-------------|
-| `git memory boot` | Show compact memory summary (branch, pending, decisions, memos) |
-| `git memory decisions` | List all architecture decisions |
-| `git memory memos` | List all memos (preferences, requirements, antipatterns) |
-| `git memory pending` | List all pending Next: items |
-| `git memory blockers` | List all active blockers |
-| `git memory search <term>` | Full-text search across all memory |
-| `git memory doctor` | Health check (hooks, skills, manifest, GC status) |
-| `git memory repair` | Fix broken components using manifest |
-| `git memory bootstrap` | Scout project structure (stack, monorepo, CI) |
-| `git memory gc` | Garbage collect stale Next/Blocker items |
-| `git memory dashboard` | Generate static HTML dashboard |
+### What you say → what Claude runs
+
+| You say | Claude runs | What happens |
+|---------|------------|--------------|
+| *(start a session)* | `git memory boot` | Shows memory summary: branch, pending items, decisions, memos |
+| "what did we decide about auth?" | `git memory search "auth"` | Searches all decisions, memos, and pending items |
+| "show me all decisions" | `git memory decisions` | Lists every architecture decision in the project |
+| "any pending work?" | `git memory pending` | Shows all unfinished Next: items |
+| "what memos do we have?" | `git memory memos` | Lists all preferences, requirements, and antipatterns |
+| "anything blocking us?" | `git memory blockers` | Shows all active blockers |
+| "is the memory system healthy?" | `git memory doctor` | Full diagnostic: hooks, skills, CLI, manifest, GC status, version |
+| "something's broken" | `git memory repair` | Reads the manifest, compares expected vs actual state, fixes gaps |
+| "clean up old stuff" | `git memory gc` | Garbage collects stale Next/Blocker items with tombstones |
+| "show me the dashboard" | `git memory dashboard` | Generates a static HTML dashboard and opens it |
+| "scan this project" | `git memory bootstrap` | Scouts stack, frameworks, monorepo patterns, CI config |
+| "install memory system" | `git memory install` | Transactional 5-phase installer: inspect → plan → apply → verify → health proof |
+| "upgrade memory system" | `git memory upgrade` | Safe version migration with backup |
+| "remove memory system" | `git memory uninstall` | Removes runtime, keeps git history intact |
+
+All commands support `--json` for machine-readable output and `--auto` for non-interactive mode.
 
 ---
 
