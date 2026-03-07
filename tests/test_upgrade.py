@@ -3,6 +3,9 @@ Upgrade tests for safe version migration.
 
 Covers no-install error, up-to-date check, dry-run, real upgrade,
 JSON output, and manifest updates.
+
+NOTE: Upgrade now only updates CLAUDE.md managed block and manifest.
+No files are compared or copied since the plugin runs from the cache.
 """
 
 import json
@@ -59,38 +62,43 @@ def test_up_to_date(tmp_path):
 
     rc, stdout, _ = run_upgrade(repo, ["--check"])
     assert rc == 0
-    assert "latest version" in stdout or "up to date" in stdout.lower() or "reciente" in stdout
+    assert "latest version" in stdout.lower() or "up to date" in stdout.lower() or "up_to_date" in stdout
 
 
-def test_detects_modified_file(tmp_path):
-    """Dry-run detects modified hook but doesn't change it."""
+def test_detects_outdated_block(tmp_path):
+    """Dry-run detects outdated CLAUDE.md managed block."""
     repo = make_installed_repo(tmp_path)
 
-    hook = os.path.join(repo, "hooks", "pre-validate-commit-trailers.py")
-    with open(hook, "a") as f:
-        f.write("\n# viejo\n")
+    # Tamper with the managed block
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    with open(claude_md) as f:
+        content = f.read()
+    content = content.replace("Git Memory Active", "Git Memory OLD")
+    with open(claude_md, "w") as f:
+        f.write(content)
 
     rc, stdout, _ = run_upgrade(repo, ["--dry-run"])
     assert rc == 0
-    assert "pre-validate" in stdout
-
-    with open(hook) as f:
-        assert "viejo" in f.read(), "Dry-run modified the hook"
+    assert "outdated" in stdout.lower() or "changes" in stdout.lower() or "dry-run" in stdout.lower()
 
 
-def test_upgrade_restores_files(tmp_path):
-    """Real upgrade restores modified files and creates backup."""
+def test_upgrade_restores_block(tmp_path):
+    """Real upgrade restores CLAUDE.md managed block and creates backup."""
     repo = make_installed_repo(tmp_path)
 
-    hook = os.path.join(repo, "hooks", "pre-validate-commit-trailers.py")
-    with open(hook, "a") as f:
-        f.write("\n# viejo\n")
+    # Tamper with the managed block
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    with open(claude_md) as f:
+        content = f.read()
+    content = content.replace("Git Memory Active", "Git Memory OLD")
+    with open(claude_md, "w") as f:
+        f.write(content)
 
     rc, stdout, _ = run_upgrade(repo, ["--auto"])
     assert rc == 0
 
-    with open(hook) as f:
-        assert "viejo" not in f.read()
+    with open(claude_md) as f:
+        assert "Git Memory Active" in f.read()
 
     backup_dir = os.path.join(repo, ".claude", "backups")
     assert os.path.isdir(backup_dir)
@@ -98,24 +106,26 @@ def test_upgrade_restores_files(tmp_path):
 
 
 def test_json_output(tmp_path):
-    """JSON output includes status, version, and changes."""
+    """JSON --check output includes status and version info."""
     repo = make_installed_repo(tmp_path)
 
-    skill = os.path.join(repo, "skills", "git-memory", "SKILL.md")
-    with open(skill, "a") as f:
-        f.write("\n# viejo\n")
+    # Tamper to trigger update_available
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    with open(claude_md) as f:
+        content = f.read()
+    content = content.replace("Git Memory Active", "Git Memory OLD")
+    with open(claude_md, "w") as f:
+        f.write(content)
 
-    rc, stdout, _ = run_upgrade(repo, ["--json", "--dry-run"])
+    rc, stdout, _ = run_upgrade(repo, ["--check", "--json"])
     data = json.loads(stdout)
     assert data.get("status") == "update_available"
     assert "installed_version" in data
-    assert "modified" in data.get("changes", {})
-    modified = data.get("changes", {}).get("modified", [])
-    assert any("SKILL.md" in f for f in modified)
+    assert "reasons" in data
 
 
-def test_check_json(tmp_path):
-    """--check --json returns up_to_date status."""
+def test_check_json_up_to_date(tmp_path):
+    """--check --json returns up_to_date status when current."""
     repo = make_installed_repo(tmp_path)
 
     rc, stdout, _ = run_upgrade(repo, ["--check", "--json"])
@@ -127,9 +137,13 @@ def test_manifest_updated(tmp_path):
     """Manifest is updated after upgrade."""
     repo = make_installed_repo(tmp_path)
 
-    hook = os.path.join(repo, "hooks", "stop-dod-check.py")
-    with open(hook, "a") as f:
-        f.write("\n# viejo\n")
+    # Tamper with CLAUDE.md to trigger upgrade
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    with open(claude_md) as f:
+        content = f.read()
+    content = content.replace("Git Memory Active", "Git Memory OLD")
+    with open(claude_md, "w") as f:
+        f.write(content)
 
     run_upgrade(repo, ["--auto"])
 
@@ -139,7 +153,6 @@ def test_manifest_updated(tmp_path):
 
     assert "upgraded_at" in manifest
     assert manifest.get("version") == "2.0.0"
-    assert "sha256:" in manifest.get("install_fingerprint", "")
 
 
 if __name__ == "__main__":

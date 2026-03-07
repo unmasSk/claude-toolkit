@@ -355,8 +355,8 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     if block_ok:
         results.append(("ok", "CLAUDE.md", block_msg))
     else:
-        has_warnings = True
-        results.append(("warn", "CLAUDE.md", block_msg))
+        has_errors = True
+        results.append(("error", "CLAUDE.md", block_msg))
 
     # 7. Hook execution (trailer presence in recent commits)
     with_trailers, total_commits, scanned = check_hook_execution()
@@ -392,8 +392,8 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     if manifest:
         results.append(("ok", "Manifest", f"v{manifest.get('version', '?')}"))
     elif manifest_msg == "not found":
-        results.append(("warn", "Manifest", "not found (run install to create)"))
-        has_warnings = True
+        results.append(("error", "Manifest", "not found (run install to create)"))
+        has_errors = True
     else:
         has_errors = True
         results.append(("error", "Manifest", manifest_msg))

@@ -3,6 +3,10 @@ Lifecycle tests for doctor, install, repair, and uninstall.
 
 Runs the full install, doctor, break, repair, uninstall cycle
 in a shared temporary repo.
+
+NOTE: The plugin runs from the cache (SOURCE_ROOT). Install only creates
+CLAUDE.md + manifest at the project root. Doctor checks the plugin cache
+for hooks/skills and the project for CLAUDE.md/manifest.
 """
 
 import json
@@ -55,36 +59,20 @@ def lifecycle_repo():
 
 
 def test_doctor_fresh_repo(lifecycle_repo):
-    """Doctor on a fresh repo should find missing components."""
+    """Doctor on a fresh repo should find missing CLAUDE.md/manifest."""
     result, rc = run_doctor_json(lifecycle_repo)
     assert result.get("status") != "ok", "Doctor reported 'ok' on fresh repo"
 
-    hook_check = next((c for c in result.get("checks", []) if c.get("component") == "Hooks"), None)
-    assert hook_check and "0/6" in hook_check.get("message", "")
-
-    skill_check = next((c for c in result.get("checks", []) if c.get("component") == "Skills"), None)
-    assert skill_check and "0/4" in skill_check.get("message", "")
+    # Should detect missing CLAUDE.md
+    claude_check = next((c for c in result.get("checks", [])
+                         if c.get("component") == "CLAUDE.md"), None)
+    assert claude_check and claude_check.get("level") in ("error", "warn")
 
 
 def test_install(lifecycle_repo):
-    """Install should create all components."""
+    """Install should create CLAUDE.md and manifest (nothing else)."""
     rc, _, _ = run_install(lifecycle_repo)
     assert rc == 0
-
-    # Hooks
-    hooks_dir = os.path.join(lifecycle_repo, "hooks")
-    for hook in ["pre-validate-commit-trailers.py", "post-validate-commit-trailers.py",
-                 "precompact-snapshot.py", "stop-dod-check.py"]:
-        assert os.path.isfile(os.path.join(hooks_dir, hook)), f"Hook missing: {hook}"
-
-    # Skills
-    skills_dir = os.path.join(lifecycle_repo, "skills")
-    for skill in ["git-memory", "git-memory-protocol", "git-memory-lifecycle", "git-memory-recovery"]:
-        assert os.path.isfile(os.path.join(skills_dir, skill, "SKILL.md")), f"Skill missing: {skill}"
-
-    # CLI
-    cli = os.path.join(lifecycle_repo, "bin", "git-memory")
-    assert os.path.isfile(cli) and os.access(cli, os.X_OK)
 
     # CLAUDE.md
     with open(os.path.join(lifecycle_repo, "CLAUDE.md")) as f:
@@ -94,8 +82,12 @@ def test_install(lifecycle_repo):
     with open(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")) as f:
         assert json.load(f).get("version") == "2.0.0"
 
-    # hooks/hooks.json
-    assert os.path.isfile(os.path.join(lifecycle_repo, "hooks", "hooks.json"))
+    # Nothing copied to project root (no hooks, skills, bin, lib)
+    assert not os.path.isdir(os.path.join(lifecycle_repo, "hooks"))
+    assert not os.path.isdir(os.path.join(lifecycle_repo, "skills"))
+    assert not os.path.isdir(os.path.join(lifecycle_repo, "bin"))
+    assert not os.path.isdir(os.path.join(lifecycle_repo, "lib"))
+    assert not os.path.isdir(os.path.join(lifecycle_repo, ".claude-plugin"))
 
 
 def test_doctor_after_install(lifecycle_repo):
@@ -106,54 +98,67 @@ def test_doctor_after_install(lifecycle_repo):
     assert not error_checks
 
 
-def test_repair(lifecycle_repo):
-    """Break components, then repair should fix them."""
-    hook_path = os.path.join(lifecycle_repo, "hooks", "pre-validate-commit-trailers.py")
-    skill_dir = os.path.join(lifecycle_repo, "skills", "git-memory-protocol")
+def test_repair_missing_manifest(lifecycle_repo):
+    """Break manifest, then repair should fix it."""
     manifest = os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")
 
-    # Break things
-    if os.path.isfile(hook_path):
-        os.unlink(hook_path)
-    if os.path.isdir(skill_dir):
-        shutil.rmtree(skill_dir)
+    # Break: remove manifest
     if os.path.isfile(manifest):
         os.unlink(manifest)
 
-    # Doctor detects problems
+    # Doctor detects the problem
     result, _ = run_doctor_json(lifecycle_repo)
     error_checks = [c for c in result.get("checks", []) if c.get("level") == "error"]
     assert len(error_checks) > 0
 
-    # Repair
+    # Repair fixes it
     rc, _, _ = run_repair(lifecycle_repo)
     assert rc == 0
-    assert os.path.isfile(hook_path), "Hook not restored"
-    assert os.path.isfile(os.path.join(skill_dir, "SKILL.md")), "Skill not restored"
     assert os.path.isfile(manifest), "Manifest not restored"
 
 
+def test_repair_missing_claude_md_block(lifecycle_repo):
+    """Break CLAUDE.md block, then repair should fix it."""
+    claude_md = os.path.join(lifecycle_repo, "CLAUDE.md")
+
+    # Break: remove the managed block
+    with open(claude_md) as f:
+        content = f.read()
+    begin = "<!-- BEGIN claude-git-memory"
+    end = "<!-- END claude-git-memory -->"
+    begin_idx = content.find(begin)
+    end_idx = content.find(end)
+    if begin_idx != -1 and end_idx != -1:
+        content = content[:begin_idx] + content[end_idx + len(end):]
+        with open(claude_md, "w") as f:
+            f.write(content)
+
+    # Doctor detects the problem
+    result, _ = run_doctor_json(lifecycle_repo)
+    error_checks = [c for c in result.get("checks", []) if c.get("level") == "error"]
+    assert len(error_checks) > 0
+
+    # Repair fixes it
+    rc, _, _ = run_repair(lifecycle_repo)
+    assert rc == 0
+    with open(claude_md) as f:
+        assert "BEGIN claude-git-memory" in f.read()
+
+
 def test_uninstall(lifecycle_repo):
-    """Uninstall should remove components but preserve git history."""
+    """Uninstall should remove CLAUDE.md block and manifest but preserve git history."""
     _, count_before, _ = git_cmd("rev-list --count HEAD", lifecycle_repo)
 
     rc, _, _ = run_uninstall(lifecycle_repo)
     assert rc == 0
 
-    # Components gone
-    hooks_dir = os.path.join(lifecycle_repo, "hooks")
-    assert not (os.path.isdir(hooks_dir) and os.listdir(hooks_dir))
-
-    skills_dir = os.path.join(lifecycle_repo, "skills")
-    assert not (os.path.isdir(skills_dir) and os.listdir(skills_dir))
-
-    assert not os.path.exists(os.path.join(lifecycle_repo, "bin", "git-memory"))
-
+    # CLAUDE.md block gone
     claude_md = os.path.join(lifecycle_repo, "CLAUDE.md")
     if os.path.isfile(claude_md):
         with open(claude_md) as f:
             assert "BEGIN claude-git-memory" not in f.read()
 
+    # Manifest gone
     assert not os.path.exists(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json"))
 
     # History preserved
@@ -193,17 +198,17 @@ def test_repair_dry_run(lifecycle_repo):
     """Repair --dry-run doesn't change anything."""
     run_install(lifecycle_repo)
 
-    hook = os.path.join(lifecycle_repo, "hooks", "stop-dod-check.py")
-    if os.path.isfile(hook):
-        os.unlink(hook)
+    # Break manifest
+    manifest = os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")
+    os.unlink(manifest)
 
     # Dry run should NOT fix it
     run_cmd([sys.executable, REPAIR, "--dry-run"], lifecycle_repo)
-    assert not os.path.isfile(hook), "Dry run repaired the hook"
+    assert not os.path.isfile(manifest), "Dry run repaired the manifest"
 
     # Real repair should fix it
     run_repair(lifecycle_repo)
-    assert os.path.isfile(hook), "Real repair didn't restore the hook"
+    assert os.path.isfile(manifest), "Real repair didn't restore the manifest"
 
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@ End-to-end integration tests.
 Covers real-world scenarios: install over existing config,
 bootstrap, sessions, compaction, GC, branch-aware context,
 uninstall+reinstall, upgrade, and bootstrap detection.
+
+NOTE: The plugin runs from the cache (SOURCE_ROOT). Install only creates
+CLAUDE.md + manifest at the project root. Hooks/skills/bin are never
+copied to the project.
 """
 
 import json
@@ -14,7 +18,8 @@ import sys
 import pytest
 
 from conftest import (
-    SOURCE_ROOT, INSTALL, UNINSTALL, UPGRADE, BOOTSTRAP, DOCTOR,
+    SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, UPGRADE, BOOTSTRAP, DOCTOR,
+    PRE_HOOK, POST_HOOK,
     run_cmd, git_cmd, write_file, run_script, run_doctor_json,
 )
 
@@ -31,15 +36,15 @@ def make_installed_repo(tmp_path, name="repo"):
     return repo
 
 
-def run_hook(repo, hook_name, commit_msg, env_extra=None):
-    """Run a hook script by name and return (rc, stdout, stderr)."""
-    hook_path = os.path.join(repo, "hooks", hook_name)
+def run_hook_from_cache(hook_name, commit_msg, cwd, env_extra=None):
+    """Run a hook script from the plugin source (cache) and return (rc, stdout, stderr)."""
+    hook_path = os.path.join(HOOKS_DIR, hook_name)
     if not os.path.isfile(hook_path):
-        return 1, "", "hook not found"
+        return 1, "", f"hook not found: {hook_path}"
     env = {"CLAUDE_CODE": "1"}
     if env_extra:
         env.update(env_extra)
-    return run_cmd([sys.executable, hook_path, commit_msg], repo, env=env)
+    return run_cmd([sys.executable, hook_path, commit_msg], cwd, env=env)
 
 
 # ── Tests ──────────────────────────────────────────────────────────────
@@ -66,6 +71,26 @@ def test_install_over_existing(tmp_path):
         claude_md = f.read()
     assert "Instrucciones personalizadas" in claude_md
     assert "BEGIN claude-git-memory" in claude_md
+
+
+def test_install_only_creates_claude_md_and_manifest(tmp_path):
+    """Install should only create CLAUDE.md and manifest — no hooks/skills/bin at project root."""
+    repo = make_installed_repo(tmp_path)
+
+    # CLAUDE.md exists
+    with open(os.path.join(repo, "CLAUDE.md")) as f:
+        assert "BEGIN claude-git-memory" in f.read()
+
+    # Manifest exists
+    with open(os.path.join(repo, ".claude", "git-memory-manifest.json")) as f:
+        assert json.load(f).get("version") == "2.0.0"
+
+    # Nothing else copied to project root
+    assert not os.path.isdir(os.path.join(repo, "hooks"))
+    assert not os.path.isdir(os.path.join(repo, "skills"))
+    assert not os.path.isdir(os.path.join(repo, "bin"))
+    assert not os.path.isdir(os.path.join(repo, "lib"))
+    assert not os.path.isdir(os.path.join(repo, ".claude-plugin"))
 
 
 def test_bootstrap_with_commits(tmp_path):
@@ -99,7 +124,7 @@ def test_bootstrap_with_commits(tmp_path):
 
 
 def test_session_with_trailers(tmp_path):
-    """Pre-hook accepts commits with valid trailers."""
+    """Pre-hook accepts commits with valid trailers (hook runs from plugin cache)."""
     repo = make_installed_repo(tmp_path)
 
     write_file(repo, "src/main.py", "print('hello')")
@@ -109,12 +134,12 @@ def test_session_with_trailers(tmp_path):
     write_file(repo, ".git/COMMIT_EDITMSG", msg)
     msg_file = os.path.join(repo, ".git", "COMMIT_EDITMSG")
 
-    rc, _, _ = run_hook(repo, "pre-validate-commit-trailers.py", msg_file)
+    rc, _, _ = run_hook_from_cache("pre-validate-commit-trailers.py", msg_file, repo)
     assert rc == 0
 
     git_cmd(["commit", "-m", msg], repo)
 
-    rc, _, _ = run_hook(repo, "post-validate-commit-trailers.py", msg_file)
+    rc, _, _ = run_hook_from_cache("post-validate-commit-trailers.py", msg_file, repo)
     assert rc == 0
 
 
@@ -133,10 +158,9 @@ def test_compaction_snapshot(tmp_path):
         git_cmd(["commit", "--allow-empty", "-m",
                  f"🧭 decision(core): choice {i}\n\n{trailers}"], repo)
 
-    hook_path = os.path.join(repo, "hooks", "precompact-snapshot.py")
+    hook_path = os.path.join(HOOKS_DIR, "precompact-snapshot.py")
     if os.path.isfile(hook_path):
         rc, stdout, _ = run_cmd([sys.executable, hook_path], repo)
-        # Snapshot output goes to stdout
         if stdout:
             lines = stdout.strip().split("\n")
             assert len(lines) <= 18, f"Snapshot has {len(lines)} lines"
@@ -164,14 +188,14 @@ def test_gc_real(tmp_path):
 
 
 def test_human_commits_not_blocked(tmp_path):
-    """Human commits without trailers should not be blocked."""
+    """Human commits without trailers should not be blocked (hook from cache)."""
     repo = make_installed_repo(tmp_path)
 
     hook_input = json.dumps({
         "tool_name": "Bash",
         "tool_input": {"command": 'git commit -m "fix: quick hotfix"'},
     })
-    hook_path = os.path.join(repo, "hooks", "pre-validate-commit-trailers.py")
+    hook_path = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
 
     # Without CLAUDE_CODE → allowed
     env_no_claude = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE"}
@@ -224,7 +248,13 @@ def test_uninstall_reinstall_data_intact(tmp_path):
     commits_before = len(log_before.strip().split("\n"))
 
     run_script(UNINSTALL, repo, ["--auto"])
-    assert not os.path.isfile(os.path.join(repo, "hooks", "pre-validate-commit-trailers.py"))
+
+    # After uninstall: CLAUDE.md block gone, manifest gone
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    if os.path.isfile(claude_md):
+        with open(claude_md) as f:
+            assert "BEGIN claude-git-memory" not in f.read()
+    assert not os.path.isfile(os.path.join(repo, ".claude", "git-memory-manifest.json"))
 
     _, log_after, _ = git_cmd(["log", "--oneline"], repo)
     assert len(log_after.strip().split("\n")) == commits_before
@@ -233,29 +263,37 @@ def test_uninstall_reinstall_data_intact(tmp_path):
     assert "Decision:" in full_log
     assert "Memo:" in full_log
 
+    # Reinstall
     run_script(INSTALL, repo, ["--auto"])
-    assert os.path.isfile(os.path.join(repo, "hooks", "pre-validate-commit-trailers.py"))
+    with open(os.path.join(repo, "CLAUDE.md")) as f:
+        assert "BEGIN claude-git-memory" in f.read()
 
     _, log_final, _ = git_cmd(["log", "--oneline"], repo)
     assert len(log_final.strip().split("\n")) == commits_before
 
 
-def test_upgrade_over_install(tmp_path):
-    """Upgrade restores modified files and creates backup."""
+def test_upgrade_creates_backup(tmp_path):
+    """Upgrade creates a backup and updates CLAUDE.md managed block."""
     repo = make_installed_repo(tmp_path)
 
-    hook = os.path.join(repo, "hooks", "pre-validate-commit-trailers.py")
-    with open(hook, "a") as f:
-        f.write("\n# version_vieja\n")
+    # Tamper with the managed block to trigger an upgrade
+    claude_md = os.path.join(repo, "CLAUDE.md")
+    with open(claude_md) as f:
+        content = f.read()
+    content = content.replace("Git Memory Active", "Git Memory OLD VERSION")
+    with open(claude_md, "w") as f:
+        f.write(content)
 
     rc, _, _ = run_script(UPGRADE, repo, ["--auto"])
     assert rc == 0
 
-    with open(hook) as f:
-        assert "version_vieja" not in f.read()
-
+    # Backup exists
     backup_dir = os.path.join(repo, ".claude", "backups")
     assert os.path.isdir(backup_dir) and len(os.listdir(backup_dir)) > 0
+
+    # CLAUDE.md restored
+    with open(claude_md) as f:
+        assert "Git Memory Active" in f.read()
 
     result, _ = run_doctor_json(repo)
     assert result.get("status") != "error"

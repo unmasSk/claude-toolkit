@@ -16,10 +16,10 @@ if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
 
-# Hook / script paths
-PRECOMPACT_SCRIPT = os.path.join(SOURCE_ROOT, ".claude", "hooks", "precompact-snapshot.py")
-PRE_HOOK = os.path.join(SOURCE_ROOT, ".claude", "hooks", "pre-validate-commit-trailers.py")
-POST_HOOK = os.path.join(SOURCE_ROOT, ".claude", "hooks", "post-validate-commit-trailers.py")
+# Hook / script paths (all in plugin source, not project root)
+PRECOMPACT_SCRIPT = os.path.join(HOOKS_DIR, "precompact-snapshot.py")
+PRE_HOOK = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
+POST_HOOK = os.path.join(HOOKS_DIR, "post-validate-commit-trailers.py")
 
 DOCTOR = os.path.join(BIN_DIR, "git-memory-doctor.py")
 INSTALL = os.path.join(BIN_DIR, "git-memory-install.py")

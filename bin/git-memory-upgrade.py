@@ -2,8 +2,10 @@
 """
 git-memory-upgrade -- Safe upgrade for the git-memory system.
 
-Compares installed version vs source, shows diff, creates backup,
-and applies the upgrade while preserving mode and configuration.
+Since the plugin runs from the cache (~/.claude/plugins/cache/), "upgrade"
+means: update the CLAUDE.md managed block and manifest at the project root,
+and clean up any old-style install files. The plugin itself is updated by
+`/plugin install`.
 
 Usage:
   git memory upgrade              # Interactive: shows changes, asks for confirmation
@@ -19,10 +21,8 @@ Exit codes:
 """
 
 import argparse
-import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -36,34 +36,6 @@ from git_helpers import run_git
 # ── Config ────────────────────────────────────────────────────────────────
 
 VERSION = "2.0.0"
-
-HOOKS = [
-    "pre-validate-commit-trailers.py",
-    "post-validate-commit-trailers.py",
-    "precompact-snapshot.py",
-    "stop-dod-check.py",
-    "session-start-boot.py",
-    "user-prompt-memory-check.py",
-]
-
-SKILLS = [
-    "git-memory",
-    "git-memory-protocol",
-    "git-memory-lifecycle",
-    "git-memory-recovery",
-]
-
-BIN_FILES = [
-    "git-memory",
-    "git-memory-gc.py",
-    "git-memory-dashboard.py",
-    "git-memory-doctor.py",
-    "git-memory-install.py",
-    "git-memory-repair.py",
-    "git-memory-uninstall.py",
-    "git-memory-upgrade.py",
-    "git-memory-bootstrap.py",
-]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -79,16 +51,6 @@ def find_target_root() -> str:
     if code == 0:
         return output
     return os.getcwd()
-
-
-def file_hash(path: str) -> str | None:
-    """SHA256 hash of a file, or None if missing. Skips symlinks."""
-    if not os.path.isfile(path) or os.path.islink(path):
-        return None
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        h.update(f.read())
-    return h.hexdigest()[:16]
 
 
 # ── Read current state ────────────────────────────────────────────────────
@@ -110,76 +72,67 @@ def read_installed_manifest(target: str) -> dict[str, Any] | None:
         return None
 
 
-def read_source_version(source: str) -> str:
-    """Get the source version (this script defines the canonical version)."""
-    return VERSION
-
-
 # ── Comparison ────────────────────────────────────────────────────────────
 
-def compute_diff(source: str, target: str) -> dict[str, list[str]]:
-    """Compare source files vs installed files, produce a detailed diff.
+def check_upgrade_needed(source: str, target: str, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Check what needs upgrading at the project level.
 
     Returns:
-        Dict with "added", "modified", "removed", and "unchanged" file lists.
+        Dict with "needs_update", "reasons", and version info.
     """
-    changes: dict[str, list[str]] = {
-        "added": [],       # New files not in target
-        "modified": [],    # Files that changed
-        "removed": [],     # Files in target that no longer exist in source
-        "unchanged": [],   # Identical files
+    result: dict[str, Any] = {
+        "needs_update": False,
+        "installed_version": manifest.get("version", "unknown"),
+        "available_version": VERSION,
+        "reasons": [],
+        "has_old_install": False,
     }
 
-    # Hooks
-    for hook in HOOKS:
-        src = os.path.join(source, "hooks", hook)
-        dst = os.path.join(target, "hooks", hook)
-        _compare_file(src, dst, f"hooks/{hook}", changes)
+    # Version mismatch
+    if manifest.get("version") != VERSION:
+        result["needs_update"] = True
+        result["reasons"].append(f"Version mismatch: {manifest.get('version')} → {VERSION}")
 
-    # Skills (compare all files in each skill dir)
-    for skill in SKILLS:
-        src_dir = os.path.join(source, "skills", skill)
-        dst_dir = os.path.join(target, "skills", skill)
-        if os.path.isdir(src_dir):
-            for fname in os.listdir(src_dir):
-                src = os.path.join(src_dir, fname)
-                dst = os.path.join(dst_dir, fname)
-                if os.path.isfile(src):
-                    _compare_file(src, dst, f"skills/{skill}/{fname}", changes)
-
-    # Bin files
-    for bf in BIN_FILES:
-        src = os.path.join(source, "bin", bf)
-        dst = os.path.join(target, "bin", bf)
-        _compare_file(src, dst, f"bin/{bf}", changes)
-
-    # hooks/hooks.json
-    src = os.path.join(source, "hooks", "hooks.json")
-    dst = os.path.join(target, "hooks", "hooks.json")
-    _compare_file(src, dst, "hooks/hooks.json", changes)
-
-    # Plugin manifest
-    src = os.path.join(source, ".claude-plugin", "plugin.json")
-    dst = os.path.join(target, ".claude-plugin", "plugin.json")
-    _compare_file(src, dst, ".claude-plugin/plugin.json", changes)
-
-    return changes
-
-
-def _compare_file(src: str, dst: str, label: str, changes: dict[str, list[str]]) -> None:
-    """Compare a single source file against its installed counterpart."""
-    src_hash = file_hash(src)
-    dst_hash = file_hash(dst)
-
-    if src_hash and not dst_hash:
-        changes["added"].append(label)
-    elif not src_hash and dst_hash:
-        changes["removed"].append(label)
-    elif src_hash and dst_hash:
-        if src_hash != dst_hash:
-            changes["modified"].append(label)
+    # CLAUDE.md managed block outdated or missing
+    claude_md = os.path.join(target, "CLAUDE.md")
+    if os.path.isfile(claude_md):
+        with open(claude_md) as f:
+            content = f.read()
+        if "BEGIN claude-git-memory" not in content:
+            result["needs_update"] = True
+            result["reasons"].append("CLAUDE.md managed block missing")
         else:
-            changes["unchanged"].append(label)
+            # Load the current managed block content from install module
+            install_mod = _load_install_module()
+            expected = install_mod.MANAGED_BLOCK_CONTENT
+            begin_marker = install_mod.MANAGED_BLOCK_BEGIN
+            end_marker = install_mod.MANAGED_BLOCK_END
+            begin_idx = content.find(begin_marker)
+            end_idx = content.find(end_marker)
+            if begin_idx != -1 and end_idx != -1:
+                current_block = content[begin_idx + len(begin_marker):end_idx].strip()
+                if current_block != expected.strip():
+                    result["needs_update"] = True
+                    result["reasons"].append("CLAUDE.md managed block content outdated")
+    else:
+        result["needs_update"] = True
+        result["reasons"].append("CLAUDE.md missing")
+
+    # Old-style install files at project root
+    install_mod = _load_install_module()
+    for f in install_mod.OLD_BIN_FILES + install_mod.OLD_HOOK_FILES:
+        if os.path.isfile(os.path.join(target, f)):
+            result["needs_update"] = True
+            result["has_old_install"] = True
+            result["reasons"].append("Old-style install files at project root")
+            break
+    if not result["has_old_install"]:
+        if os.path.isdir(os.path.join(target, ".claude-plugin")):
+            result["needs_update"] = True
+            result["has_old_install"] = True
+            result["reasons"].append("Old .claude-plugin/ directory at project root")
+
+    return result
 
 
 # ── Backup ────────────────────────────────────────────────────────────────
@@ -205,94 +158,54 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
     return backup_path
 
 
-# ── Migrations ────────────────────────────────────────────────────────────
-
-# Registry of migrations between versions.
-# Each migration is a function that takes (target, manifest) and returns the updated manifest.
-# They run in version order.
-
-MIGRATIONS: dict[str, Any] = {
-    # "1.0.0→2.0.0": migration_1_to_2,
-    # Add future migrations here
-}
-
-
-def get_needed_migrations(from_version: str, to_version: str) -> list[tuple[str, Any]]:
-    """Determine which migrations need to run between two versions."""
-    needed = []
-    for key, fn in MIGRATIONS.items():
-        src_v, dst_v = key.split("→")
-        # Simple check: if the installed version is older
-        if src_v == from_version and dst_v != from_version:
-            needed.append((key, fn))
-    return needed
-
-
 # ── Apply upgrade ─────────────────────────────────────────────────────────
 
-def apply_upgrade(source: str, target: str, changes: dict[str, list[str]], manifest: dict[str, Any]) -> list[str]:
-    """Copy changed files, update symlinks, refresh CLAUDE.md and manifest.
+def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_result: dict[str, Any]) -> list[str]:
+    """Apply the upgrade: update CLAUDE.md, manifest, clean old files.
 
     Returns:
         List of error messages (empty on success).
     """
     errors = []
+    install_mod = _load_install_module()
 
-    is_self = os.path.realpath(source) == os.path.realpath(target)
+    # Clean up old-style install files
+    if check_result.get("has_old_install"):
+        try:
+            install_mod._cleanup_old_install(target, source)
+        except Exception as e:
+            errors.append(f"Error cleaning old install: {e}")
 
-    # Copy modified and new files (skip in self-install mode)
-    if not is_self:
-        for label in changes["added"] + changes["modified"]:
-            try:
-                src = os.path.join(source, label)
-                dst = os.path.join(target, label)
-                # Safety: do not follow symlinks
-                if os.path.islink(src):
-                    errors.append(f"Symlink rejected (security): {label}")
-                    continue
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.copy2(src, dst)
-                # Make executable if it's bin/git-memory
-                if label == "bin/git-memory":
-                    os.chmod(dst, 0o755)
-            except Exception as e:
-                errors.append(f"Error copiando {label}: {e}")
-
-    # Update symlinks in .claude/
-    claude_dir = os.path.join(target, ".claude")
-    for hook in HOOKS:
-        link = os.path.join(claude_dir, "hooks", hook)
-        if not os.path.exists(link):
-            os.makedirs(os.path.dirname(link), exist_ok=True)
-            rel = os.path.join("..", "..", "hooks", hook)
-            try:
-                os.symlink(rel, link)
-            except Exception as e:
-                errors.append(f"Error creando symlink hooks/{hook}: {e}")
-
-    for skill in SKILLS:
-        link = os.path.join(claude_dir, "skills", skill)
-        if not os.path.exists(link):
-            os.makedirs(os.path.dirname(link), exist_ok=True)
-            rel = os.path.join("..", "..", "skills", skill)
-            try:
-                os.symlink(rel, link)
-            except Exception as e:
-                errors.append(f"Error creando symlink skills/{skill}: {e}")
-
-    # Update managed block in CLAUDE.md
+    # Update CLAUDE.md managed block
     try:
-        install_mod = _load_install_module()
         install_mod._update_claude_md(target)
     except Exception as e:
         errors.append(f"Error updating CLAUDE.md: {e}")
 
     # Update manifest
     try:
-        new_manifest = dict(manifest)
-        new_manifest["version"] = VERSION
-        new_manifest["upgraded_at"] = datetime.now().isoformat()
-        new_manifest["install_fingerprint"] = _compute_fingerprint(target)
+        mode = manifest.get("runtime_mode", "normal")
+        claude_dir = os.path.join(target, ".claude")
+        os.makedirs(claude_dir, exist_ok=True)
+
+        new_manifest = {
+            "version": VERSION,
+            "installed_at": manifest.get("installed_at", datetime.now().isoformat()),
+            "upgraded_at": datetime.now().isoformat(),
+            "runtime_mode": mode,
+            "managed_blocks": [
+                {
+                    "file": "CLAUDE.md",
+                    "begin": "BEGIN claude-git-memory",
+                    "end": "END claude-git-memory",
+                }
+            ],
+            "hook_registrations": [
+                "PreToolUse", "PostToolUse", "Stop",
+                "PreCompact", "SessionStart", "UserPromptSubmit",
+            ],
+            "last_healthcheck_at": datetime.now().isoformat(),
+        }
 
         manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
         with open(manifest_path, "w") as f:
@@ -324,64 +237,10 @@ def _load_install_module() -> Any:
     return _install_mod
 
 
-def _compute_fingerprint(root: str) -> str:
-    """Compute a SHA256 fingerprint of all installed files (hooks, skills, CLI)."""
-    h = hashlib.sha256()
-    for hook in HOOKS:
-        path = os.path.join(root, "hooks", hook)
-        if os.path.isfile(path):
-            with open(path, "rb") as f:
-                h.update(f.read())
-    for skill in SKILLS:
-        path = os.path.join(root, "skills", skill, "SKILL.md")
-        if os.path.isfile(path):
-            with open(path, "rb") as f:
-                h.update(f.read())
-    cli_path = os.path.join(root, "bin", "git-memory")
-    if os.path.isfile(cli_path):
-        with open(cli_path, "rb") as f:
-            h.update(f.read())
-    return f"sha256:{h.hexdigest()[:16]}"
-
-
-# ── Output ────────────────────────────────────────────────────────────────
-
-def format_diff_human(changes: dict[str, list[str]], from_version: str, to_version: str) -> str:
-    """Format the file diff as a human-readable summary."""
-    lines = []
-    lines.append(f"Installed version: v{from_version}")
-    lines.append(f"Available version: v{to_version}")
-    lines.append("")
-
-    total_changes = len(changes["added"]) + len(changes["modified"])
-    if total_changes == 0:
-        lines.append("No changes -- already on the latest version.")
-        return "\n".join(lines)
-
-    if changes["added"]:
-        lines.append(f"  + {len(changes['added'])} new files:")
-        for f in changes["added"]:
-            lines.append(f"    + {f}")
-
-    if changes["modified"]:
-        lines.append(f"  ~ {len(changes['modified'])} modified files:")
-        for f in changes["modified"]:
-            lines.append(f"    ~ {f}")
-
-    if changes["removed"]:
-        lines.append(f"  - {len(changes['removed'])} removed files:")
-        for f in changes["removed"]:
-            lines.append(f"    - {f}")
-
-    lines.append(f"\n  = {len(changes['unchanged'])} unchanged files")
-
-    return "\n".join(lines)
-
-
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """CLI entry point. Compares versions, shows diff, and applies upgrade if confirmed."""
+    """CLI entry point. Checks what needs upgrading and applies if confirmed."""
     parser = argparse.ArgumentParser(description="Safe upgrade for the git-memory system.")
     parser.add_argument("--auto", action="store_true", help="Non-interactive mode")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change")
@@ -396,9 +255,6 @@ def main() -> None:
     source = find_source_root()
     target = find_target_root()
 
-    # Self-upgrade guard
-    is_self = os.path.realpath(source) == os.path.realpath(target)
-
     # Read current state
     manifest = read_installed_manifest(target)
     if manifest is None:
@@ -409,69 +265,66 @@ def main() -> None:
             print("Use: git memory install", file=sys.stderr)
         sys.exit(1)
 
-    from_version = manifest.get("version", "unknown")
-    to_version = read_source_version(source)
+    # Check what needs upgrading
+    check_result = check_upgrade_needed(source, target, manifest)
 
-    # Compute diff
-    changes = compute_diff(source, target)
-    total_changes = len(changes["added"]) + len(changes["modified"])
-
-    # --check: only report if an upgrade is available
+    # --check: only report
     if check_only:
-        has_update = total_changes > 0 or from_version != to_version
         if as_json:
             print(json.dumps({
-                "status": "update_available" if has_update else "up_to_date",
-                "installed_version": from_version,
-                "available_version": to_version,
-                "changes": {k: len(v) for k, v in changes.items()},
+                "status": "update_available" if check_result["needs_update"] else "up_to_date",
+                "installed_version": check_result["installed_version"],
+                "available_version": check_result["available_version"],
+                "reasons": check_result["reasons"],
             }))
         else:
-            if has_update:
-                print(f"Upgrade available: v{from_version} -> v{to_version}")
-                print(f"  {total_changes} files to update")
+            if check_result["needs_update"]:
+                print(f"Upgrade available: v{check_result['installed_version']} -> v{check_result['available_version']}")
+                for reason in check_result["reasons"]:
+                    print(f"  - {reason}")
             else:
-                print(f"Already on the latest version (v{to_version})")
+                print(f"Already on the latest version (v{check_result['available_version']})")
         sys.exit(0)
 
     # Full output
+    if not as_json:
+        print("=== git memory upgrade ===")
+        print(f"Plugin: {source}")
+        print(f"Project: {target}")
+        print()
+
+    if not check_result["needs_update"]:
+        if as_json:
+            print(json.dumps({
+                "status": "up_to_date",
+                "installed_version": check_result["installed_version"],
+                "available_version": check_result["available_version"],
+            }))
+        else:
+            print(f"Already on the latest version (v{check_result['available_version']}). Nothing to upgrade.")
+        sys.exit(0)
+
+    # Show what needs upgrading
     if as_json:
         output = {
-            "installed_version": from_version,
-            "available_version": to_version,
-            "changes": changes,
-            "is_self": is_self,
-            "migrations": [k for k, _ in get_needed_migrations(from_version, to_version)],
+            "status": "update_available",
+            "installed_version": check_result["installed_version"],
+            "available_version": check_result["available_version"],
+            "reasons": check_result["reasons"],
         }
-
-        if total_changes == 0 and from_version == to_version:
-            output["status"] = "up_to_date"
-            print(json.dumps(output, indent=2))
-            sys.exit(0)
-
-        output["status"] = "update_available"
         if dry_run:
             output["dry_run"] = True
             print(json.dumps(output, indent=2))
             sys.exit(0)
-
     else:
-        print("=== git memory upgrade ===")
-        print(f"Source: {source}")
-        print(f"Target: {target}")
-        if is_self:
-            print("(self-upgrade mode -- source == target)")
+        print(f"Installed: v{check_result['installed_version']}")
+        print(f"Available: v{check_result['available_version']}")
         print()
-        print(format_diff_human(changes, from_version, to_version))
+        print("Changes needed:")
+        for reason in check_result["reasons"]:
+            print(f"  - {reason}")
         print()
 
-    # Nothing to upgrade
-    if total_changes == 0 and from_version == to_version:
-        if not as_json:
-            print("Nothing to upgrade.")
-        sys.exit(0)
-
-    # Dry run
     if dry_run:
         if not as_json:
             print("(dry-run -- no changes applied)")
@@ -480,7 +333,7 @@ def main() -> None:
     # Confirmation
     if not auto:
         try:
-            answer = input("\nApply upgrade? [Y/n] ").strip().lower()
+            answer = input("Apply upgrade? [Y/n] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
             sys.exit(2)
@@ -491,31 +344,15 @@ def main() -> None:
 
     # Backup
     if not as_json:
-        print("\nCreating backup...")
+        print("Creating backup...")
     backup_path = create_backup(target, manifest)
     if not as_json:
         print(f"  Backup: {backup_path}")
 
-    # Migrations
-    migrations = get_needed_migrations(from_version, to_version)
-    if migrations:
-        if not as_json:
-            print(f"\nRunning {len(migrations)} migration(s)...")
-        for key, fn in migrations:
-            try:
-                manifest = fn(target, manifest)
-                if not as_json:
-                    print(f"  ✅ {key}")
-            except Exception as e:
-                if not as_json:
-                    print(f"  ❌ {key}: {e}")
-                    print("Upgrade aborted. Original manifest preserved in backup.")
-                sys.exit(1)
-
     # Apply
     if not as_json:
-        print("\nApplying upgrade...")
-    errors = apply_upgrade(source, target, changes, manifest)
+        print("Applying upgrade...")
+    errors = apply_upgrade(source, target, manifest, check_result)
 
     if errors:
         if as_json:
@@ -529,23 +366,23 @@ def main() -> None:
 
     # Verify
     if not as_json:
-        print("\nVerifying...")
+        print("Verifying...")
     doctor_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-memory-doctor.py")
     if os.path.isfile(doctor_script):
-        subprocess.run([sys.executable, doctor_script], timeout=15)
+        subprocess.run([sys.executable, doctor_script], capture_output=True, timeout=15)
 
     if as_json:
         print(json.dumps({
             "status": "upgraded",
-            "from_version": from_version,
-            "to_version": to_version,
-            "changes_applied": total_changes,
+            "from_version": check_result["installed_version"],
+            "to_version": check_result["available_version"],
             "backup": backup_path,
         }))
     else:
-        print(f"\nUpgrade complete: v{from_version} -> v{to_version}")
-        print(f"   {total_changes} files updated")
-        print(f"   Backup: {backup_path}")
+        print(f"\nUpgrade complete: v{check_result['installed_version']} -> v{check_result['available_version']}")
+        print(f"  Backup: {backup_path}")
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":
