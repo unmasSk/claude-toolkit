@@ -27,21 +27,55 @@ COOLDOWN_SECONDS = 30
 from git_helpers import run_git, is_git_repo
 from colors import RED, YELLOW, RESET
 
+# git-memory runtime files — these are infrastructure, not user work.
+# The stop hook should not block for these.
+RUNTIME_PREFIXES = (
+    ".claude/", ".claude-plugin/", "CLAUDE.md",
+    "bin/git-memory", "hooks/", "skills/git-memory",
+    "lib/", "hooks/hooks.json",
+)
+
+
+def _is_runtime_file(path: str) -> bool:
+    """Check if a path is a git-memory runtime file."""
+    return any(path.startswith(p) or path == p for p in RUNTIME_PREFIXES)
+
+
+def _filter_status_lines(lines: list[str]) -> list[str]:
+    """Filter out git-memory runtime files from git status output.
+
+    Each line has format: 'XY path' or 'XY path -> new_path'.
+    Returns only lines with non-runtime files.
+    """
+    result = []
+    for line in lines:
+        if not line.strip():
+            continue
+        # git status --porcelain: first 2 chars are status, then space, then path
+        path = line[3:].strip()
+        # Handle renames: "old -> new"
+        if " -> " in path:
+            path = path.split(" -> ")[-1]
+        if not _is_runtime_file(path):
+            result.append(line)
+    return result
+
 
 def has_uncommitted_changes() -> bool:
-    """Check for uncommitted changes (staged or unstaged).
+    """Check for uncommitted changes (staged or unstaged), ignoring runtime files.
 
     Returns:
-        True if the working tree or index has modifications.
+        True if there are non-runtime modifications.
     """
     code, output = run_git(["status", "--porcelain"])
     if code != 0:
         return False
-    return bool(output.strip())
+    lines = [l for l in output.strip().split("\n") if l.strip()]
+    return bool(_filter_status_lines(lines))
 
 
 def get_change_summary() -> str:
-    """Get a brief summary of uncommitted changes.
+    """Get a brief summary of uncommitted changes, excluding runtime files.
 
     Shows up to 5 files from git status --short, with a count of
     remaining files if there are more.
@@ -53,9 +87,13 @@ def get_change_summary() -> str:
     if code != 0:
         return ""
 
-    lines = output.strip().split("\n")
+    lines = _filter_status_lines(
+        [l for l in output.strip().split("\n") if l.strip()]
+    )
+    if not lines:
+        return ""
     if len(lines) <= 5:
-        return output.strip()
+        return "\n".join(lines)
     else:
         return "\n".join(lines[:5]) + f"\n... and {len(lines) - 5} more files"
 
