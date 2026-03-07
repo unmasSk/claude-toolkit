@@ -26,12 +26,20 @@ def get_project_root() -> str | None:
 
 
 def needs_install(root: str) -> bool:
-    """Check if git-memory needs to be installed (CLAUDE.md missing or no managed block)."""
+    """Check if git-memory needs to be installed or is incomplete."""
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return True
     with open(claude_md) as f:
-        return "BEGIN claude-git-memory" not in f.read()
+        if "BEGIN claude-git-memory" not in f.read():
+            return True
+    # Detect incomplete install: lib/ missing means doctor/hooks will fail
+    if not os.path.isdir(os.path.join(root, "lib")):
+        return True
+    # Detect incomplete install: bin/ missing
+    if not os.path.isfile(os.path.join(root, "bin", "git-memory-doctor.py")):
+        return True
+    return False
 
 
 def needs_boot(root: str) -> bool:
