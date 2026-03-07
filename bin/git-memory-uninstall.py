@@ -217,8 +217,8 @@ def remove_manifest(target: str) -> bool:
 
 
 def remove_hooks_json(target: str) -> bool:
-    """Remove hooks.json from root."""
-    return safe_remove(os.path.join(target, "hooks.json"))
+    """Remove hooks/hooks.json (plugin hook registry)."""
+    return safe_remove(os.path.join(target, "hooks", "hooks.json"))
 
 
 def remove_plugin_manifest(target: str) -> bool:
@@ -278,7 +278,7 @@ def main() -> None:
     plan.append("Remove CLI (bin/ scripts)")
     plan.append("Remove CLAUDE.md managed block")
     plan.append("Remove manifest (.claude/git-memory-manifest.json)")
-    plan.append("Remove hooks.json")
+    plan.append("Remove hooks/hooks.json")
     plan.append("Remove .claude-plugin/ directory")
     if full_local:
         plan.append("Remove generated files (dashboard, snapshots)")
@@ -317,7 +317,7 @@ def main() -> None:
         all_removed.append(".claude/git-memory-manifest.json")
 
     if remove_hooks_json(target):
-        all_removed.append("hooks.json")
+        all_removed.append("hooks/hooks.json")
 
     if remove_plugin_manifest(target):
         all_removed.append(".claude-plugin/")

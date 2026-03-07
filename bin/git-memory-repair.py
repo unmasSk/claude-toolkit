@@ -133,9 +133,9 @@ def diagnose(source: str, target: str) -> list[tuple[str, str, str]]:
     else:
         issues.append(("missing_claude_md", "CLAUDE.md", "CLAUDE.md not found"))
 
-    # Check hooks.json
-    if not os.path.isfile(os.path.join(target, "hooks.json")):
-        issues.append(("missing_hooks_json", "hooks.json", "hooks.json missing"))
+    # Check hooks/hooks.json
+    if not os.path.isfile(os.path.join(target, "hooks", "hooks.json")):
+        issues.append(("missing_hooks_json", "hooks/hooks.json", "hooks/hooks.json missing"))
 
     # Check manifest
     manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
@@ -275,9 +275,10 @@ def repair_issue(issue_type: str, target_name: str, source: str, target: str) ->
         return True
 
     elif issue_type == "missing_hooks_json":
-        src = os.path.join(source, "hooks.json")
-        dst = os.path.join(target, "hooks.json")
+        src = os.path.join(source, "hooks", "hooks.json")
+        dst = os.path.join(target, "hooks", "hooks.json")
         if os.path.isfile(src) and not os.path.islink(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             _safe_copy(src, dst)
             return True
         return False

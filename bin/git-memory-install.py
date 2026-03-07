@@ -278,8 +278,8 @@ def create_plan(report: dict[str, Any], source: str, target: str, mode: str | No
     else:
         plan["actions"].append(("update_claude_md", "Add managed block to CLAUDE.md"))
 
-    # hooks.json
-    plan["actions"].append(("copy_hooks_json", "Install hooks.json for plugin system"))
+    # hooks/hooks.json (plugin hook registry)
+    plan["actions"].append(("copy_hooks_json", "Install hooks/hooks.json for plugin system"))
 
     # Plugin manifest
     plan["actions"].append(("copy_plugin_manifest", "Install .claude-plugin/ manifests"))
@@ -468,10 +468,11 @@ def _update_claude_md(target: str) -> None:
 
 
 def _copy_hooks_json(source: str, target: str) -> None:
-    """Copy hooks.json (plugin hook registry) to the target repo root."""
-    src = os.path.join(source, "hooks.json")
-    dst = os.path.join(target, "hooks.json")
+    """Copy hooks/hooks.json (plugin hook registry) to the target."""
+    src = os.path.join(source, "hooks", "hooks.json")
+    dst = os.path.join(target, "hooks", "hooks.json")
     if os.path.isfile(src) and not os.path.islink(src):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
         _safe_copy(src, dst)
 
 
@@ -512,9 +513,8 @@ def _create_manifest(target: str, mode: str) -> None:
     for lib_file in ["__init__.py", "constants.py", "git_helpers.py", "parsing.py", "colors.py"]:
         managed_files.append(f"lib/{lib_file}")
     # Non-bin managed files
-    managed_files.append("hooks.json")
+    managed_files.append("hooks/hooks.json")
     managed_files.append(".claude-plugin/plugin.json")
-    managed_files.append(".claude-plugin/marketplace.json")
 
     manifest = {
         "version": VERSION,

@@ -70,15 +70,7 @@ No questions. It knows where you left off.
 
 ## Quick start
 
-### Option A: Install from the official marketplace
-
-If the plugin is published to the [official Anthropic marketplace](https://github.com/anthropics/claude-plugins-official), just run inside Claude Code:
-
-```
-/plugin install claude-git-memory@claude-plugins-official
-```
-
-### Option B: Install from GitHub
+### Option A: Install from GitHub (recommended)
 
 Add the repository as a marketplace source, then install the plugin:
 
@@ -88,9 +80,27 @@ Add the repository as a marketplace source, then install the plugin:
 ```
 
 You can choose the installation scope:
-- **User**: for yourself across all projects
+- **User** (default): for yourself across all projects
 - **Project**: for all collaborators on this repository (saved in `.claude/settings.json`)
 - **Local**: for yourself in this repo only
+
+### Option B: Install from the official marketplace
+
+If the plugin is published to the [official Anthropic marketplace](https://github.com/anthropics/claude-plugins-official):
+
+```
+/plugin install claude-git-memory@claude-plugins-official
+```
+
+### Option C: Local development / testing
+
+Load the plugin directly from a local directory without installing:
+
+```bash
+claude --plugin-dir /path/to/claude-git-memory
+```
+
+This uses the plugin in-place (no cache copy). Useful for development and testing. Restart Claude Code to pick up changes.
 
 ### What happens after installing
 
@@ -100,7 +110,11 @@ That's it. **No configuration needed.** When Claude starts a session in your pro
 2. **Skills load** — memory rules, lifecycle, protocol, recovery
 3. **Auto-boot runs** — silent health check + memory summary
 
-You don't manage paths, copy files, or edit configs. The plugin uses `${CLAUDE_PLUGIN_ROOT}` internally to locate its own hooks and scripts.
+The plugin uses `${CLAUDE_PLUGIN_ROOT}` internally to locate its own hooks and scripts. Claude Code discovers hooks from `hooks/hooks.json` automatically.
+
+### Known issue
+
+`${CLAUDE_PLUGIN_ROOT}` may not resolve for `SessionStart` hooks in some Claude Code versions ([#27145](https://github.com/anthropics/claude-code/issues/27145)). If auto-boot doesn't fire, update to the latest Claude Code version or use `--plugin-dir` as a workaround.
 
 ### Requirements
 
@@ -471,10 +485,9 @@ For monorepos, the scout builds a **scope map** — mapping directories like `ap
 ```
 claude-git-memory/
 ├── .claude-plugin/
-│   ├── plugin.json                         # Plugin manifest (name, version, entry points)
-│   └── marketplace.json                    # Marketplace listing
-├── hooks.json                              # Hook registration (Claude Code reads this)
+│   └── plugin.json                         # Plugin manifest (name, version, entry points)
 ├── hooks/
+│   ├── hooks.json                          # Hook registration (Claude Code reads this)
 │   ├── pre-validate-commit-trailers.py     # Belt — blocks bad commits
 │   ├── post-validate-commit-trailers.py    # Suspenders — safety net
 │   ├── session-start-boot.py              # Boot — auto-boot + memory summary

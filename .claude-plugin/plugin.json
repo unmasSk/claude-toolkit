@@ -10,6 +10,5 @@
   "repository": "https://github.com/unmasSk/claude-git-memory",
   "license": "MIT",
   "keywords": ["git", "memory", "trailers", "context", "decisions"],
-  "skills": "./skills/",
-  "hooks": "./hooks.json"
+  "skills": "./skills/"
 }

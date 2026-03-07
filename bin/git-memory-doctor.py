@@ -290,8 +290,8 @@ def check_symlinks(root: str) -> tuple[list[str], list[str]]:
 
 
 def check_hooks_json(root: str) -> bool:
-    """Check that hooks.json exists at the repo root."""
-    return os.path.isfile(os.path.join(root, "hooks.json"))
+    """Check that hooks/hooks.json exists (standard plugin location)."""
+    return os.path.isfile(os.path.join(root, "hooks", "hooks.json"))
 
 
 def check_claude_md(root: str) -> tuple[bool, str]:
@@ -383,12 +383,12 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
         total_sym = len(EXPECTED_HOOKS) + len(EXPECTED_SKILLS)
         results.append(("ok", "Symlinks", f"{total_sym}/{total_sym} .claude/ links valid"))
 
-    # 7. hooks.json
+    # 7. hooks/hooks.json
     if check_hooks_json(root):
-        results.append(("ok", "hooks.json", "present"))
+        results.append(("ok", "hooks.json", "present at hooks/hooks.json"))
     else:
         has_warnings = True
-        results.append(("warn", "hooks.json", "not found"))
+        results.append(("warn", "hooks.json", "not found at hooks/hooks.json"))
 
     # 8. Hook execution (trailer presence in recent commits)
     with_trailers, total_commits, scanned = check_hook_execution()

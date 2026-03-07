@@ -94,8 +94,8 @@ def test_install(lifecycle_repo):
     with open(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")) as f:
         assert json.load(f).get("version") == "2.0.0"
 
-    # hooks.json
-    assert os.path.isfile(os.path.join(lifecycle_repo, "hooks.json"))
+    # hooks/hooks.json
+    assert os.path.isfile(os.path.join(lifecycle_repo, "hooks", "hooks.json"))
 
 
 def test_doctor_after_install(lifecycle_repo):

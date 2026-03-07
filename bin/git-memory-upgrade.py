@@ -153,10 +153,10 @@ def compute_diff(source: str, target: str) -> dict[str, list[str]]:
         dst = os.path.join(target, "bin", bf)
         _compare_file(src, dst, f"bin/{bf}", changes)
 
-    # hooks.json
-    src = os.path.join(source, "hooks.json")
-    dst = os.path.join(target, "hooks.json")
-    _compare_file(src, dst, "hooks.json", changes)
+    # hooks/hooks.json
+    src = os.path.join(source, "hooks", "hooks.json")
+    dst = os.path.join(target, "hooks", "hooks.json")
+    _compare_file(src, dst, "hooks/hooks.json", changes)
 
     # Plugin manifest
     src = os.path.join(source, ".claude-plugin", "plugin.json")
