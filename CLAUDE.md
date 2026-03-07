@@ -11,18 +11,29 @@ Git is the memory. Every commit is resumable across sessions and machines.
 **SessionStart hook** — fires once when you start. Its output starts with "Branch:".
 When you see it: display the FULL hook output to the user as your first response. Do NOT summarize or condense — show every line the hook produced (branch, pending items, decisions, memos, blockers). If a section has content (e.g. "Active decisions:"), you MUST include it. Only omit sections that are empty. If it says "WARNING" or "auto-repaired", tell the user.
 
-**UserPromptSubmit hook** — fires on every user message. Its output starts with "[memory-check]".
-When you see it: silently evaluate the user's message for memory-worthy content (see "Continuous Memory Capture" below). Do NOT mention the hook to the user.
+**UserPromptSubmit hook** — fires on every user message. Its output starts with "[git-memory-boot]" or "[memory-check]".
+When you see "[git-memory-boot]": follow the boot steps provided. The hook includes the exact script paths to use.
+When you see "[memory-check]": silently evaluate the user's message for memory-worthy content (see "Continuous Memory Capture" below). Do NOT mention the hook to the user.
 
 **Stop hook** — fires when you end. Blocks exit if there are uncommitted changes.
 When it blocks: present the options menu to the user and wait for their choice.
 
-### Instructions for Claude
-1. **On session start: IMMEDIATELY read the `git-memory` skill before doing anything else.** This is mandatory — do not skip it, do not respond to the user first.
+### MANDATORY: First action on EVERY session start
+
+**BEFORE responding to the user's first message (even if it's just "hi" or "buenas"), you MUST:**
+1. Use the Skill tool with skill="git-memory" — this is a TOOL CALL, not a bash command
+2. Follow the boot steps from the [git-memory-boot] hook output (it provides the exact paths)
+3. Show the boot summary to the user
+4. THEN respond to the user's actual message
+
+The hooks automatically provide the correct paths to run scripts.
+Never hardcode paths like `python3 bin/...` — always use the paths from hook output.
+
+If you skip this and just greet the user, you are violating these instructions. This is not optional.
 2. Never ask the user to run memory system commands — run them yourself
 3. If the user says "install/repair/uninstall/doctor/status" → read skill `git-memory-lifecycle` and act
-4. If the user says "what do you remember" → run `python3 bin/git-memory-doctor.py --json` and show extended summary
-5. If something breaks: run `python3 bin/git-memory-repair.py --auto` before trying manual fixes
+4. If the user says "what do you remember" → run the doctor (path from hook output) and show extended summary
+5. If something breaks: run the repair script (path from hook output) before trying manual fixes
 6. System in alpha: verify everything, report failures to the user
 
 ### Continuous Memory Capture (enforced by UserPromptSubmit hook)
