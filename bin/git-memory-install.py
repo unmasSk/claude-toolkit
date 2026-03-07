@@ -69,8 +69,15 @@ When you see it: silently evaluate the user's message for memory-worthy content 
 **Stop hook** — fires when you end. Blocks exit if there are uncommitted changes.
 When it blocks: present the options menu to the user and wait for their choice.
 
-### Instructions for Claude
-1. **On session start: IMMEDIATELY read the `git-memory` skill before doing anything else.** This is mandatory — do not skip it, do not respond to the user first.
+### MANDATORY: First action on EVERY session start
+
+**BEFORE responding to the user's first message (even if it's just "hi" or "buenas"), you MUST:**
+1. Load the `git-memory` skill: `Skill(git-memory)`
+2. Run the boot sequence described in that skill
+3. Show the boot summary
+4. THEN respond to the user
+
+If you skip this and just greet the user, you are violating these instructions. This is not optional.
 2. Never ask the user to run memory system commands — run them yourself
 3. If the user says "install/repair/uninstall/doctor/status" → read skill `git-memory-lifecycle` and act
 4. If the user says "what do you remember" → run `python3 bin/git-memory-doctor.py --json` and show extended summary
