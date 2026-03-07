@@ -70,30 +70,43 @@ No questions. It knows where you left off.
 
 ## Quick start
 
-### Install the plugin
+### Option A: Install from the official marketplace
 
-Install `claude-git-memory` as a Claude Code plugin from the [marketplace](https://github.com/unmasSk/claude-git-memory), or add it directly to your project's `.claude/plugins.json`:
+If the plugin is published to the [official Anthropic marketplace](https://github.com/anthropics/claude-plugins-official), just run inside Claude Code:
 
-```json
-{
-  "plugins": ["github:unmasSk/claude-git-memory"]
-}
+```
+/plugin install claude-git-memory@claude-plugins-official
 ```
 
-That's it. **No commands to run, nothing to configure.**
+### Option B: Install from GitHub
 
-When Claude starts a session in your project, the plugin activates automatically:
-1. Hooks register themselves (pre-commit, post-commit, session exit, context compression)
-2. Skills load into Claude's context (memory rules, lifecycle, protocol, recovery)
-3. Claude runs a silent health check and shows a memory summary
+Add the repository as a marketplace source, then install the plugin:
 
-The hooks use `${CLAUDE_PLUGIN_ROOT}` to reference the plugin directory — you don't need to know where it lives or manage any paths.
+```
+/plugin marketplace add unmasSk/claude-git-memory
+/plugin install claude-git-memory@unmassk-claude-git-memory
+```
+
+You can choose the installation scope:
+- **User**: for yourself across all projects
+- **Project**: for all collaborators on this repository (saved in `.claude/settings.json`)
+- **Local**: for yourself in this repo only
+
+### What happens after installing
+
+That's it. **No configuration needed.** When Claude starts a session in your project, the plugin activates automatically:
+
+1. **Hooks register** — pre-commit, post-commit, session exit, context compression
+2. **Skills load** — memory rules, lifecycle, protocol, recovery
+3. **Auto-boot runs** — silent health check + memory summary
+
+You don't manage paths, copy files, or edit configs. The plugin uses `${CLAUDE_PLUGIN_ROOT}` internally to locate its own hooks and scripts.
 
 ### Requirements
 
 - Python 3.10+
 - Git
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with plugin support
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) v1.0.33+ (plugin support)
 
 ---
 
@@ -532,7 +545,7 @@ A: Yes. The plugin detects commitlint and switches to compatible mode (git notes
 A: No. The system only adds trailers to new commits. Existing history is never modified.
 
 **Q: Can I uninstall it?**
-A: Yes. Remove the plugin from your `.claude/plugins.json`. Commits with trailers stay intact forever — they're just normal git metadata.
+A: Yes. Run `/plugin uninstall claude-git-memory` in Claude Code. Commits with trailers stay intact forever — they're just normal git metadata.
 
 **Q: Does it work with monorepos?**
 A: Yes. The scout detects Turborepo, Nx, Lerna, pnpm workspaces, Rush, and Moon. It builds a scope map so Claude knows which package a commit belongs to.
