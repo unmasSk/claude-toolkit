@@ -72,10 +72,11 @@ When it blocks: present the options menu to the user and wait for their choice.
 ### MANDATORY: First action on EVERY session start
 
 **BEFORE responding to the user's first message (even if it's just "hi" or "buenas"), you MUST:**
-1. Load the `git-memory` skill: `Skill(git-memory)`
-2. Run the boot sequence described in that skill
-3. Show the boot summary
-4. THEN respond to the user
+1. Use the Skill tool with skill="git-memory" — this is a TOOL CALL, not a bash command
+2. Run: python3 bin/git-memory-doctor.py --json
+3. Run: git log --oneline -20
+4. Show the boot summary to the user
+5. THEN respond to the user's actual message
 
 If you skip this and just greet the user, you are violating these instructions. This is not optional.
 2. Never ask the user to run memory system commands — run them yourself
