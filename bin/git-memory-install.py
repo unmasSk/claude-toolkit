@@ -35,7 +35,7 @@ from git_helpers import run_git
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 MANAGED_BLOCK_BEGIN = "<!-- BEGIN claude-git-memory (managed block — do not edit) -->"
 MANAGED_BLOCK_END = "<!-- END claude-git-memory -->"
@@ -362,10 +362,13 @@ def _cleanup_old_install(target: str, source: str) -> None:
                 shutil.rmtree(path)
                 removed.append(f".claude/{subdir}/")
 
-    # Try to clean up empty parent dirs (won't remove if they have other files)
+    # Clean up __pycache__ left by our old scripts, then try to remove empty dirs
     for d in ["bin", "hooks", "skills", "lib"]:
         path = os.path.join(target, d)
         if os.path.isdir(path):
+            pycache = os.path.join(path, "__pycache__")
+            if os.path.isdir(pycache):
+                shutil.rmtree(pycache)
             try:
                 os.rmdir(path)  # Only succeeds if empty
             except OSError:
