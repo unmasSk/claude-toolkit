@@ -35,7 +35,7 @@ from git_helpers import run_git
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 
 MANAGED_BLOCK_BEGIN = "<!-- BEGIN claude-git-memory (managed block — do not edit) -->"
 MANAGED_BLOCK_END = "<!-- END claude-git-memory -->"
