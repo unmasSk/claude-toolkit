@@ -67,7 +67,7 @@ OLD_SKILL_DIRS = [
     "skills/git-memory-protocol",
     "skills/git-memory-lifecycle",
     "skills/git-memory-recovery",
-]
+]  # Keep old dirs listed for cleanup during uninstall
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

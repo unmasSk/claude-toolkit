@@ -35,7 +35,7 @@ from git_helpers import run_git
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-VERSION = "2.2.0"
+VERSION = "3.0.0"
 
 MANAGED_BLOCK_BEGIN = "<!-- BEGIN claude-git-memory (managed block — do not edit) -->"
 MANAGED_BLOCK_END = "<!-- END claude-git-memory -->"
@@ -160,7 +160,7 @@ OLD_SKILL_DIRS = [
     "skills/git-memory-protocol",
     "skills/git-memory-lifecycle",
     "skills/git-memory-recovery",
-]
+]  # Keep old dirs listed for cleanup during upgrades
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -514,7 +514,7 @@ def _setup_statusline_wrapper(source: str) -> None:
     claude_home = os.path.join(os.path.expanduser("~"), ".claude")
     settings_path = os.path.join(claude_home, "settings.json")
     backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-    wrapper_script = os.path.join(source, "hooks", "context-writer.py")
+    wrapper_script = os.path.join(source, "bin", "context-writer.py")
 
     # Read current settings
     settings: dict[str, Any] = {}

@@ -146,6 +146,121 @@ Contradiction detection: before creating decision/memo, search same scope. Warn 
 
 ## Routing
 
-- Releases, conflicts, undo, authority, conduct → `git-memory-protocol` skill
 - Install, doctor, repair, uninstall → `git-memory-lifecycle` skill
-- Rebase, reset, force push, self-healing, CI → `git-memory-recovery` skill
+
+## Protocol
+
+### Authority Hierarchy
+
+1. User instruction in conversation (highest)
+2. Confirmed memory (decisions/memos with commit)
+3. CLAUDE.md of the project
+4. Other context files (.cursorrules, docs)
+5. Code inferences (lowest)
+
+If conflict between sources: acknowledge openly, defer to most recent user confirmation.
+
+### Noise Levels
+
+| Level | When | Action |
+|-------|------|--------|
+| **silent** | All OK | Zero output |
+| **inline** | Warning, not blocking | Mention only if asked or relevant |
+| **interrupt** | Capacity loss (hooks broken, runtime absent) | Warn before working |
+
+### Confidence Levels
+
+| Level | Example | Action |
+|-------|---------|--------|
+| Fact | "Uses TypeScript 5.3" | `memo(stack)` |
+| Hypothesis | "Seems like monorepo" | Do NOT save without confirmation |
+| Decision | "Use dayjs" | `decision()` only if user confirms |
+| Preference | "Always async/await" | `memo(preference)` |
+
+### Releases
+
+- PR mandatory: `dev → staging`. Production: `staging → main` with release protocol.
+- No `Next:` on main commits. `Risk:` always required on hotfixes.
+- PR body auto-generated from trailers: changelog from subjects, `Decision:` aggregated, `Next:` as pending.
+- Hotfix flow: branch from main → fix → PR to main → back-merge to dev immediately.
+
+### Conflict Resolution
+
+- Default: merge, not rebase. If conflict: **stop**, don't improvise.
+- Resolution commits MUST include: `Conflict:` + `Resolution:` + `Why:` + `Touched:` + `Risk:`
+- Force push to `main`: **FORBIDDEN**.
+- Force push to `staging`: only with explicit approval + documented reason + `Risk: high`.
+- Rebase: only with explicit user request and risk acceptance.
+
+### Undo Operations
+
+| Operation | Risk | Confirm? |
+|-----------|------|----------|
+| `reset --soft HEAD~1` | low | No |
+| `stash push/pop` | low | No |
+| `revert <sha>` | low | No (creates new commit) |
+| `amend` (before push) | low | No |
+| `amend` (after push) | **high** | YES |
+| `reset --hard` | **high** | YES — show what will be lost first |
+| `push --force-with-lease` | **high** | YES — feature branches only |
+| `push --force` main/staging | **FORBIDDEN** | N/A |
+
+Decision tree: Pushed to main/staging → `revert`. Not pushed, keep changes → `reset --soft`. Discard → `reset --hard` (confirm + backup branch first).
+
+Any `rebase`, `push --force`, `reset --hard` → **STOP**. Show: command, branch, risk, consequences. Require explicit "I understand the risk, proceed".
+
+## Recovery
+
+### Modes of Operation
+
+| Mode | When | Does | Doesn't |
+|------|------|------|---------|
+| **Normal** | Standard git repo | Full runtime: hooks + trailers + CLI | — |
+| **Compatible** | CI/commitlint rejects trailers | git notes or local store instead | Touch commit messages |
+| **Read-only** | No write perms, external repo | Read existing memory | Create commits |
+| **Abort** | No git | Explain why and stop | Force anything |
+
+Detected during install inspection. Stored in manifest. If uncertain, ask.
+
+### Self-Healing (rebase/reset detection)
+
+On boot, compare known commit hashes with current tree. If amnesia detected (memory commits missing):
+
+> "Seems like a rebase happened. I've rebuilt memory from current state, but prior design context may be missing."
+
+Don't dramatize. Don't fake normalcy. Rebuild conservatively, be honest about gaps.
+
+### Force Push Handling
+
+- Detect history rewrite (known SHAs missing from tree)
+- Don't assume "most recent = best"
+- Conservative resolution — never invent missing context
+- Log what was lost if detectable
+
+### Branch-Aware Decisions
+
+Decisions have scope: repo / branch / path / environment. Don't deduplicate across branches. Treat differing decisions on different branches as branch-specific context.
+
+### CI Compatibility
+
+Check compatibility BEFORE activating writes. If commitlint is active, use compatible mode or allowed namespace. Alternative: git notes for local memory.
+
+### Contradiction Detection
+
+Before creating a new decision/memo, search existing:
+
+1. `git log --all --grep="Decision:" --pretty=format:"%h %s %b" | grep -i "<topic>"`
+2. `git log --all --grep="Memo:" --pretty=format:"%h %s %b" | grep -i "<topic>"`
+
+- Memo (antipattern) vs new Decision using that thing → warn: "Contradicts memo [sha]. Confirm override?"
+- Decision vs new Decision (same scope) → warn: "Overrides decision [sha]. Confirm?"
+- If confirmed → create. Most recent always wins. False positives OK — better to warn than miss.
+
+### Emergency: Lost Commits
+
+```bash
+git reflog                    # find SHA before the reset
+git reset --hard <sha>        # recover (reflog keeps ~30 days)
+```
+
+Document recovery with `Risk: high` + `Why:` trailers. Create backup branch before any destructive recovery: `git branch backup-before-recovery`

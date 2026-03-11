@@ -1,1 +1,0 @@
-../../hooks/pre-validate-commit-trailers.py

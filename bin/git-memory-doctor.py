@@ -45,9 +45,7 @@ EXPECTED_HOOKS = [
 
 EXPECTED_SKILLS = [
     "git-memory",
-    "git-memory-protocol",
     "git-memory-lifecycle",
-    "git-memory-recovery",
 ]
 
 STALE_BLOCKER_DAYS = 30
