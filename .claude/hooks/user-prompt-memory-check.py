@@ -1,1 +1,0 @@
-../../hooks/user-prompt-memory-check.py
