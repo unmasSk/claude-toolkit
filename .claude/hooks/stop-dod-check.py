@@ -1,0 +1,1 @@
+../../hooks/stop-dod-check.py

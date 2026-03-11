@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# git-memory — query the git memory system
+# Usage: git memory [subcommand]
+#
+# Subcommands:
+#   all       Show all memory trailers (Decision, Memo, Next, Blocker)
+#   decisions Show only Decision: entries
+#   memos     Show only Memo: entries
+#   pending   Show only Next: entries (pending work)
+#   blockers  Show only Blocker: entries
+#   search    Search memory for a keyword: git memory search <term>
+#   boot      Show compact boot summary (same as AUTO-BOOT)
+#   gc        Garbage collect stale Next:/Blocker: items
+#   dashboard Generate static HTML dashboard (.claude/dashboard.html)
+#   doctor    Health check for the memory system
+#   install   Install git-memory in current repo
+#   repair    Fix broken components
+#   uninstall Remove git-memory runtime (preserves git history)
+#   bootstrap Scout project and detect stack/structure
+#   upgrade   Upgrade git-memory to latest version
+
+set -euo pipefail
+
+FMT='%C(yellow)%h%C(reset) %C(bold)%s%C(reset)%n%b---'
+
+case "${1:-all}" in
+  all)
+    git log --all --grep='Decision:\|Memo:\|Next:\|Blocker:' --pretty=format:"$FMT" | head -100
+    ;;
+  decisions|dec)
+    git log --all --grep='Decision:' --pretty=format:"$FMT" | head -60
+    ;;
+  memos|memo)
+    git log --all --grep='Memo:' --pretty=format:"$FMT" | head -60
+    ;;
+  pending|next)
+    git log --all --grep='Next:' --pretty=format:"$FMT" | head -60
+    ;;
+  blockers|block)
+    git log --all --grep='Blocker:' --pretty=format:"$FMT" | head -60
+    ;;
+  search)
+    if [ -z "${2:-}" ]; then
+      echo "Usage: git memory search <keyword>"
+      exit 1
+    fi
+    echo "=== Decisions ==="
+    git log --all --grep="Decision:" --pretty=format:"%h %s %b" | grep -i "$2" || echo "  (none)"
+    echo ""
+    echo "=== Memos ==="
+    git log --all --grep="Memo:" --pretty=format:"%h %s %b" | grep -i "$2" || echo "  (none)"
+    echo ""
+    echo "=== Pending ==="
+    git log --all --grep="Next:" --pretty=format:"%h %s %b" | grep -i "$2" || echo "  (none)"
+    ;;
+  gc)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-gc.py" "$@"
+    ;;
+  dashboard|dash)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-dashboard.py" "$@"
+    ;;
+  doctor|doc)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-doctor.py" "$@"
+    ;;
+  install)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-install.py" "$@"
+    ;;
+  repair|fix)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-repair.py" "$@"
+    ;;
+  uninstall|remove)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-uninstall.py" "$@"
+    ;;
+  bootstrap|scout)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-bootstrap.py" "$@"
+    ;;
+  upgrade|update)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    shift
+    python3 "$SCRIPT_DIR/git-memory-upgrade.py" "$@"
+    ;;
+  boot)
+    echo "=== BOOT — Memory Summary ==="
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      echo "!!! WARNING: Shallow clone detected. Memory may be incomplete. !!!"
+    fi
+    echo "Branch: $(git branch --show-current)"
+    echo ""
+    echo "Last context:"
+    git log --all --pretty=format:"%h %s" | grep -i "context(" | head -1 || echo "  (none)"
+    echo ""
+    echo "Pending (Next:):"
+    git log -n 30 --pretty=format:"%h %s%n%b" | grep -B1 "Next:" | grep -v "^--$" | head -6 || echo "  (none)"
+    echo ""
+    echo "Active decisions:"
+    git log -n 30 --pretty=format:"%h %s%n%b" | grep -B1 "Decision:" | grep -v "^--$" | head -8 || echo "  (none)"
+    echo ""
+    echo "Active memos:"
+    git log -n 30 --pretty=format:"%h %s%n%b" | grep -B1 "Memo:" | grep -v "^--$" | head -6 || echo "  (none)"
+    ;;
+  -h|--help|help)
+    echo "git-memory — query the git memory system"
+    echo ""
+    echo "Usage: git memory [subcommand]"
+    echo ""
+    echo "Subcommands:"
+    echo "  all        All memory trailers (default)"
+    echo "  decisions  Decision: entries only"
+    echo "  memos      Memo: entries only"
+    echo "  pending    Next: entries only"
+    echo "  blockers   Blocker: entries only"
+    echo "  search     Search by keyword: git memory search <term>"
+    echo "  boot       Compact boot summary"
+    echo "  gc         Garbage collect stale Next:/Blocker: items"
+    echo "             --dry-run  Show what would be cleaned"
+    echo "             --auto     Auto-commit without asking"
+    echo "             --days N   Blocker TTL in days (default 30)"
+    echo "  dashboard  Generate static HTML dashboard"
+    echo "             Opens .claude/dashboard.html in browser"
+    echo "             --silent   Generate only, no browser open"
+    echo "  doctor     Health check for the memory system"
+    echo "             --json     Machine-readable output"
+    echo "             --silent   Exit code only"
+    echo "  install    Install git-memory in current repo"
+    echo "             --auto     Non-interactive install"
+    echo "             --mode X   Force mode (normal/compatible/read-only)"
+    echo "  repair     Fix broken components"
+    echo "             --auto     Non-interactive"
+    echo "             --dry-run  Show what would be fixed"
+    echo "  uninstall  Remove git-memory runtime"
+    echo "             --full-local  Also remove generated files"
+    echo "             --auto     Non-interactive"
+    echo "  bootstrap  Scout project stack and structure"
+    echo "             --json     Machine-readable output"
+    echo "             --silent   Exit code only"
+    echo "  upgrade    Upgrade git-memory to latest version"
+    echo "             --auto     Non-interactive"
+    echo "             --dry-run  Show what would change"
+    echo "             --check    Check if update available"
+    echo "             --json     Machine-readable output"
+    ;;
+  *)
+    echo "Unknown subcommand: $1"
+    echo "Run 'git memory help' for usage"
+    exit 1
+    ;;
+esac

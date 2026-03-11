@@ -1,0 +1,1 @@
+../../hooks/post-validate-commit-trailers.py

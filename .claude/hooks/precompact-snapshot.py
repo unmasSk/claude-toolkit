@@ -1,0 +1,1 @@
+../../hooks/precompact-snapshot.py
