@@ -78,10 +78,16 @@ El usuario ve que Claude está trabajando, qué va guardando, y se queda tranqui
 - **Style B** (`style-B-github-primer.html`): GitHub Primer dark, con search bar + Ask Claude + Gitto badge
 - **Style C** (`style-C-modern-glass.html`): Moderno/glassmorphism, gradientes sutiles, glows en dots, botón Gitto destacado
 
+## Decisiones tomadas
+
+- [x] Repo aparte: `claude-git-memory-vscode`
+- [x] Estilo visual: Style C (moderno/glassmorphism)
+- [x] Iconos: SVG propios, NO emojis
+- [x] Ask Claude: copia referencia formateada al clipboard (`@git-memory decision <sha> — <text>`)
+- [x] MVP incluye: timeline + búsqueda texto + Ask Claude
+
 ## Decisiones pendientes
 
-- [ ] ¿Repo aparte o carpeta dentro de este repo?
-- [ ] ¿Qué estilo visual elegir?
-- [ ] ¿MVP: solo timeline read-only, o incluir búsqueda desde el principio?
-- [ ] ¿Ask Claude: cómo inyectar contexto en el terminal de Claude Code?
+- [ ] Estilo de iconos (outline vs filled vs mono-glyph)
 - [ ] ¿Publicar en marketplace o solo distribución local al principio?
+- [ ] Diseño final mockup con Style C + iconos propios
