@@ -79,7 +79,7 @@ def main() -> None:
             f"1. Run: python3 {PLUGIN_ROOT}/bin/git-memory-install.py --auto\n"
             "2. Use the Skill tool with skill=\"git-memory\" to load the memory rules\n"
             f"3. Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
-            "4. Run: git log --oneline -20\n"
+            f"4. Run: python3 {PLUGIN_ROOT}/bin/git-memory-log.py 20\n"
             "5. Show the user a boot summary.\n"
             "Do NOT greet the user first. Install and boot FIRST.\n"
             "CRITICAL: Step 2 means calling the Skill tool — "
@@ -107,16 +107,18 @@ def main() -> None:
         "  Step 1: Use the Skill tool with skill=\"git-memory\" "
         "(this is a TOOL CALL, not a bash command)\n"
         f"  Step 2: Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
-        "  Step 3: Run: git log --oneline -20\n"
+        f"  Step 3: Run: python3 {PLUGIN_ROOT}/bin/git-memory-log.py 20\n"
         "  Step 4: Show the user a boot summary\n"
         "If you already booted this session, skip this."
     )
 
-    # Memory capture check
+    # Memory capture check — covers all memory commit types
     lines.append(
         "[memory-check] Evaluate this message: "
-        "does it contain a decision, preference, requirement, or anti-pattern? "
-        "If yes → propose a decision() or memo() commit. If not → do nothing."
+        "does it contain a decision, preference, requirement, anti-pattern, "
+        "or personality/working-style note? "
+        "If yes → create the appropriate commit: decision(), memo(), or remember(). "
+        "If not → do nothing."
     )
 
     # Context window warning — read .context-status.json if it exists
@@ -172,12 +174,12 @@ def main() -> None:
                     has_recent_context = True
                     break
         if not has_recent_context:
+            commit_script = os.path.join(PLUGIN_ROOT, "bin", "git-memory-commit.py")
             lines.append(
                 "[context-reminder] You have exchanged ~20 messages without "
                 "creating a context() commit. Create one NOW to checkpoint your work. "
-                "Use: git commit --allow-empty -m \"💾 context(<scope>): <summary of current work>"
-                "\\n\\nNext: <pending tasks>\\nDecision: <decisions made>\""
-                " — Include all relevant trailers so the next session can continue."
+                f"Use: python3 {commit_script} context <scope> \"<summary>\" "
+                "--trailer \"Next=<pending tasks>\" --trailer \"Decision=<decisions made>\""
             )
 
     print("\n".join(lines))
