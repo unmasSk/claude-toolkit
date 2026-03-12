@@ -14,6 +14,7 @@ Git is the memory. Every commit is resumable. Claude handles git — the user fo
 3. `context()`, `decision()`, `memo()` always use `--allow-empty`
 4. If conflict/risky op → stop (see Conflict Resolution section below)
 5. Claude writes trailers automatically — never ask the user to write them
+6. **ALWAYS launch agents in background** (`run_in_background: true`). Never block the conversation waiting for an agent to finish.
 
 ## Memory Policy
 
