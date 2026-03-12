@@ -10,8 +10,10 @@ Exit codes:
     0: Always (never blocks user input).
 """
 
+import json
 import os
 import sys
+import time
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
@@ -116,6 +118,32 @@ def main() -> None:
         "does it contain a decision, preference, requirement, or anti-pattern? "
         "If yes → propose a decision() or memo() commit. If not → do nothing."
     )
+
+    # Context window warning — read .context-status.json if it exists
+    ctx_status_path = os.path.join(root, ".claude", ".context-status.json")
+    if os.path.isfile(ctx_status_path):
+        try:
+            with open(ctx_status_path) as f:
+                ctx = json.load(f)
+            ts = ctx.get("timestamp", 0)
+            age = time.time() - ts
+            used = ctx.get("used_percentage")
+            remaining = ctx.get("remaining_percentage")
+            # Only use data fresher than 15 minutes
+            if age < 900 and used is not None and remaining is not None:
+                if used >= 75:
+                    lines.append(
+                        f"[CONTEXT CRITICAL] {used:.0f}% used ({remaining:.0f}% remaining). "
+                        "Auto-compact imminent (~80%). Create a context() commit NOW "
+                        "to preserve session state before compaction."
+                    )
+                elif used >= 60:
+                    lines.append(
+                        f"[context-warning] {used:.0f}% used ({remaining:.0f}% remaining). "
+                        "Consider creating a context() commit to checkpoint your work."
+                    )
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
 
     # Periodic context commit reminder.
     # Count messages via a temp file. Every 20 messages, remind Claude

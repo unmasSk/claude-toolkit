@@ -265,6 +265,69 @@ def extract_glossary() -> dict:
     return {"decisions": decisions, "memos": memos, "remembers": remembers}
 
 
+def _ensure_statusline() -> None:
+    """Ensure the statusline wrapper is configured for context tracking.
+
+    Checks ~/.claude/settings.json for context-writer.py. If not present,
+    configures it (backing up any existing statusline command).
+    """
+    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    wrapper_script = os.path.join(plugin_root, "bin", "context-writer.py")
+    if not os.path.isfile(wrapper_script):
+        return
+
+    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
+    settings_path = os.path.join(claude_home, "settings.json")
+    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
+
+    try:
+        if os.path.isfile(settings_path):
+            with open(settings_path) as f:
+                settings = json.load(f)
+        else:
+            settings = {}
+    except (json.JSONDecodeError, OSError):
+        return
+
+    current_sl = settings.get("statusLine", {})
+    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
+
+    # Already configured — just update path if plugin root changed
+    if "context-writer" in current_cmd:
+        expected_cmd = f"{sys.executable} {wrapper_script}"
+        if current_cmd != expected_cmd:
+            settings["statusLine"] = {
+                "type": "command",
+                "command": expected_cmd,
+                "padding": 0,
+            }
+            try:
+                with open(settings_path, "w") as f:
+                    json.dump(settings, f, indent=2)
+            except OSError:
+                pass
+        return
+
+    # Not configured — backup existing and set ours
+    if current_cmd and not os.path.isfile(backup_path):
+        try:
+            with open(backup_path, "w") as f:
+                f.write(current_cmd)
+        except OSError:
+            pass
+
+    settings["statusLine"] = {
+        "type": "command",
+        "command": f"{sys.executable} {wrapper_script}",
+        "padding": 0,
+    }
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=2)
+    except OSError:
+        pass
+
+
 def main() -> None:
     """Auto-boot: doctor + memory extraction + summary output."""
     # Check if we're in a git repo
@@ -274,7 +337,10 @@ def main() -> None:
 
     lines: list[str] = []
 
-    # 0. Fetch remote refs silently (so boot sees remote commits)
+    # 0. Ensure statusline wrapper is configured (needed for context tracking)
+    _ensure_statusline()
+
+    # 0b. Fetch remote refs silently (so boot sees remote commits)
     run_git(["fetch", "--quiet"])
 
     # 1. Silent doctor

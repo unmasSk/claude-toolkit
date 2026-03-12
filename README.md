@@ -766,15 +766,15 @@ Claude Code sends JSON session data (including `context_window.used_percentage`)
 1. Writes context stats to `<project>/.claude/.context-status.json`
 2. Passes the JSON through to your original statusline (so it still works normally)
 
-The stop hook reads this file and shows warnings:
+The **UserPromptSubmit hook** reads this file on every user message and warns Claude in real-time:
 
 | Context used | Warning |
 |-------------|---------|
 | < 60% | No warning |
-| 60-75% | Yellow: "Consider creating a context() commit" |
-| 75%+ | Red: "CONTEXT CRITICAL. Auto-compact imminent. Create context() commit NOW" |
+| 60-75% | `[context-warning]` — "Consider creating a context() commit" |
+| 75%+ | `[CONTEXT CRITICAL]` — "Auto-compact imminent. Create context() commit NOW" |
 
-The install script configures the wrapper automatically, backing up your original statusline. Uninstall restores it.
+The statusline wrapper is configured automatically on first session start (no manual install needed). If you had an existing statusline, it's backed up and receives passthrough data.
 
 ---
 
