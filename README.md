@@ -134,11 +134,32 @@ The plugin uses `${CLAUDE_PLUGIN_ROOT}` internally to locate its own hooks and s
 
 ## Updating & troubleshooting
 
-### Updating the plugin
+### For developers: releasing a new version
+
+When you make changes to the plugin code, **you MUST bump the version** or the changes won't reach users. Claude Code caches plugins keyed by `name + version` — same version = same cache, no matter what changed in the code.
+
+**Version bump checklist (ALL of these, every time):**
+
+| File | What to change |
+|------|---------------|
+| `.claude-plugin/plugin.json` | `"version": "X.Y.Z"` |
+| `.claude-plugin/marketplace.json` | `"version": "X.Y.Z"` (MUST match plugin.json) |
+| `bin/git-memory-install.py` | `VERSION = "X.Y.Z"` |
+| `bin/git-memory-doctor.py` | `VERSION = "X.Y.Z"` |
+| `bin/git-memory-bootstrap.py` | `VERSION = "X.Y.Z"` |
+| `bin/git-memory-upgrade.py` | `VERSION = "X.Y.Z"` |
+| `skills/git-memory-lifecycle/SKILL.md` | version in example manifest |
+| `tests/*.py` | version assertions (3 files) |
+
+**Semver rules:** PATCH (3.1.0 → 3.1.1) for bugfixes. MINOR (3.1.0 → 3.2.0) for new features. MAJOR (3.x → 4.0.0) for breaking changes.
+
+After pushing, users need to refresh their plugin cache (see below).
+
+### Updating the plugin (for users)
 
 > **Known issue (as of March 2026):** `/plugin update` does NOT invalidate the plugin cache. This is a [confirmed Claude Code bug](https://github.com/anthropics/claude-code/issues/14061). Running `/plugin update claude-git-memory` will say "already at latest version" even when a new version exists.
 
-**To update, you must do all 3 steps in order:**
+**To update, you must do all 5 steps in order:**
 
 ```bash
 # Step 1: Delete the stale cache (run in your terminal, NOT in Claude Code)
@@ -159,6 +180,8 @@ rm -rf ~/.claude/plugins/cache/unmassk-claude-git-memory/
 ```
 
 **Why all these steps?** Claude Code caches plugin files keyed by name + version. Even after uninstall, the cache directory persists. And even after re-adding the marketplace, the old cache is reused if the directory still exists. The only reliable way is: delete cache → uninstall → remove marketplace → re-add → reinstall.
+
+**Important:** Until you refresh the cache, your projects will keep using the OLD version. The CLAUDE.md managed block, hooks, and skills all run from the cache, not from the source repo.
 
 ### The marketplace.json matters
 
