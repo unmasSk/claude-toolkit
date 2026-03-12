@@ -15,7 +15,7 @@
   <a href="#quick-start">Quick start</a> &nbsp;·&nbsp;
   <a href="#what-you-say-vs-what-claude-does">Conversational capture</a> &nbsp;·&nbsp;
   <a href="#the-six-hooks">Hooks</a> &nbsp;·&nbsp;
-  <a href="#gitto---memory-oracle-agent">Gitto agent</a> &nbsp;·&nbsp;
+  <a href="#agents">Agents</a> &nbsp;·&nbsp;
   <a href="#context-awareness">Context awareness</a> &nbsp;·&nbsp;
   <a href="#updating--troubleshooting">Updating</a>
 </p>
@@ -43,7 +43,7 @@ You end up repeating yourself, re-explaining decisions, and watching Claude rein
 Here's what a commit looks like with memory:
 
 ```
-✨ feat(forms): add date range validation
+✨ feat(frontend/forms): add date range validation
 
 Issue: CU-042
 Why: users submit impossible date ranges crashing the report engine
@@ -117,8 +117,10 @@ That's it. **No configuration needed.** When Claude starts a session in your pro
 
 1. **Hooks register** — pre-commit, post-commit, session start, user message, session exit, context compression
 2. **Skills load** — core memory rules + lifecycle management (2 skills)
-3. **Auto-boot runs** — silent health check + memory summary
-4. **CLAUDE.md updated** — a managed block is added with memory system instructions
+3. **Agents available** — Gitto (memory oracle) + Scope Scout (project structure analyzer)
+4. **Auto-boot runs** — silent health check + memory summary + full glossary
+5. **CLAUDE.md updated** — a minimal managed block pointing to the skills
+6. **Scope map generated** — Scope Scout analyzes your project structure in the background
 
 **Nothing gets copied to your project root** except `CLAUDE.md` and `.claude/git-memory-manifest.json`. The plugin runs entirely from the plugin cache at `~/.claude/plugins/cache/`. No `bin/`, `hooks/`, `skills/`, or `lib/` directories clutter your project.
 
@@ -225,6 +227,18 @@ This is the most important thing to understand:
 
 The CLI commands exist, but they're for Claude to use internally — not for you. You just talk.
 
+### Pretty output
+
+Claude uses wrapper scripts instead of raw `git commit` and `git log`. A PreToolUse hook blocks direct git commands and forces Claude to use the wrappers, which produce clean, colored ANSI output:
+
+```
+🧭 decision(auth): usar JWT [a3f2b1c]
+📌 memo(api): preference - async/await everywhere [b4c3d2e]
+✨ feat(backend/api): add rate limiting [c5d4e3f]
+```
+
+Log output is also colored and filterable by type (`--type memo`, `--type decision`, `--all` for memory commits only).
+
 ---
 
 ## Hierarchical scopes
@@ -253,10 +267,12 @@ You don't need to learn any syntax. Claude detects intent from natural language:
 | "always use X" / "never use Y" | Creates a `memo(preference)` immediately, informs you in one line |
 | "the client requires X" | Creates a `memo(requirement)` immediately, informs you in one line |
 | "don't ever do X again" | Creates a `memo(antipattern)` immediately, informs you in one line |
+| "remember that I X" / "recuerda que yo X" | Creates a `remember(user)` — personality note for future sessions |
 | "I need to stop here" / "pause" | Creates a `context()` bookmark with Next: |
 | "what did we decide about X?" | Searches memory before asking you |
+| "scan scopes" | Launches the scope-scout agent to analyze project structure |
 
-Decisions and memos are captured without asking — Claude commits immediately and tells you what it saved in one line. No friction, no "ok?" prompts. Context bookmarks still show the message before committing.
+Decisions, memos, and remembers are captured without asking — Claude commits immediately and tells you what it saved in one line. No friction, no "ok?" prompts. Saying "remember that I..." creates a personality note that future Claudes read on boot. Context bookmarks still show the message before committing.
 
 ---
 
@@ -267,7 +283,7 @@ Decisions and memos are captured without asking — Claude commits immediately a
 Normal development work. Claude adds trailers automatically:
 
 ```
-✨ feat(auth): add OAuth2 login flow
+✨ feat(backend/auth): add OAuth2 login flow
 
 Why: users need to sign in with Google accounts
 Touched: src/auth/oauth.ts, src/routes/login.ts
@@ -281,7 +297,7 @@ Required trailers: `Why:` + `Touched:` (+ `Issue:` if the branch name has one)
 Created when you pause work or end a session:
 
 ```
-💾 context(api): pause — switching to urgent bugfix
+💾 context(backend/api): pause — switching to urgent bugfix
 
 Why: need to handle prod incident before continuing API refactor
 Next: finish rate limiting middleware after bugfix
@@ -294,7 +310,7 @@ Required: `Why:` + `Next:`
 Created when you make an architecture or design choice:
 
 ```
-🧭 decision(auth): use JWT over session cookies
+🧭 decision(backend/auth): use JWT over session cookies
 
 Why: API needs to be stateless for horizontal scaling
 Decision: JWT with 15min access + 7d refresh tokens
@@ -307,12 +323,36 @@ Required: `Why:` + `Decision:`
 Created when you state a preference, requirement, or antipattern:
 
 ```
-📌 memo(api): preference — always use async/await over .then() chains
+📌 memo(backend/api): preference — always use async/await over .then() chains
 
 Memo: preference - async/await is more readable, team standard
 ```
 
 Required: `Memo:` with category (`preference`, `requirement`, `antipattern`, or `stack`)
+
+### Remembers — `remember(scope)`
+
+Personality and working-style notes between Claude sessions. Two subtypes:
+
+**User remembers** — explicit notes from you about yourself:
+
+```
+🧠 remember(user): se frustra si asumes cosas
+
+Remember: user - no asumir, preguntar antes
+```
+
+**Claude remembers** — observations Claude makes about how you work:
+
+```
+🧠 remember(claude): trabaja en español, respuestas directas
+
+Remember: claude - idioma español, tono directo sin rodeos
+```
+
+Required: `Remember:` with category (`user` or `claude`)
+
+Remembers are NOT about the project — they're about the person. "Always use async/await" is a memo. "This user gets frustrated when I assume things" is a remember.
 
 ### WIP checkpoints
 
@@ -332,11 +372,11 @@ The memory system protects itself with six automatic hooks. You don't configure 
 
 | Hook | Nickname | When it runs | What it does |
 |------|----------|-------------|--------------|
-| **Pre-commit** | Belt | Before `git commit` | Blocks Claude's commits if trailers are missing. Human commits get a warning only — never blocked. |
+| **Pre-commit** | Belt | Before `git commit` | Blocks Claude's commits if trailers are missing **and** blocks direct `git commit`/`git log` — Claude must use wrapper scripts (`git-memory-commit.py`, `git-memory-log.py`). Human commits get a warning only — never blocked. |
 | **Post-commit** | Suspenders | After `git commit` | Safety net. If a bad commit slips through and hasn't been pushed, rolls it back safely (`reset --soft`). |
-| **Session start** | Boot | When Claude starts a session | Silent health check + memory extraction from last 30 commits. Shows a compact summary. |
+| **Session start** | Boot | When Claude starts a session | Silent health check + memory extraction from last 30 commits + **full glossary scan** of all decisions and memos across entire git history. Shows a compact summary with recent memory and a grouped glossary. |
 | **User message** | Radar | Every time you send a message | Injects a `[memory-check]` reminder so Claude evaluates if your message contains a decision, preference, or requirement worth saving. |
-| **Session exit** | DoD | When Claude ends a session | Never blocks. If there are uncommitted changes, instructs Claude to create a silent wip commit. If wips accumulate (3+), suggests squashing into a proper commit at natural milestones. Also checks if decisions were discussed but not captured. |
+| **Session exit** | DoD | When Claude ends a session | Never blocks. If there are uncommitted changes, instructs Claude to create a silent wip commit. If wips accumulate (3+), suggests squashing into a proper commit. **Mandates a `context()` commit before every session end** — Claude must save what was accomplished and what's next. Also checks if decisions were discussed but not captured. |
 | **Context compression** | Hippocampus | Before Claude compresses context | Extracts a compact snapshot (branch, pending items, decisions, memos) and re-injects it so memory survives compression. |
 
 ### How Belt + Suspenders work together
@@ -369,18 +409,28 @@ The hooks respect garbage collector tombstones. If an item has been cleaned by t
 
 Every time Claude starts a session in your project, it automatically:
 
-1. Runs a silent health check (doctor). If anything is broken, repairs it.
-2. Reads the last 30 commits and extracts memory trailers.
-3. Checks for uncommitted changes.
-4. Shows you a compact summary:
+1. Fetches remote refs silently (detects if remote is ahead and suggests pulling).
+2. Runs a silent health check (doctor). If anything is broken, repairs it.
+3. Reads the last 30 commits and extracts memory trailers (pending, blockers, decisions, memos).
+4. Scans the **full git history** for a glossary of all decisions and memos by scope (deduplicated against recent memory).
+5. Checks for uncommitted changes.
+6. Shows you a compact summary:
 
 ```
-=== BOOT — Memory Summary ===
 Branch: feat/CU-042-filters
 Last session: pause forms refactor (2h ago)
 Pending: wire validation into API layer
+Remember (personality/working notes):
+  🧠 (user) se frustra si asumes cosas — preguntar antes
+  🧠 (claude) trabaja en español, respuestas directas
 Active decisions: (forms) use dayjs over moment
 Active memos: (api) preference - never use sync fs operations
+Glossary (full history):
+  [backend]
+    🧭 (backend/auth) JWT with refresh tokens
+    📌 (backend/api) preference - async/await everywhere
+  [frontend]
+    🧭 (frontend/ux) glassmorphic style
 ```
 
 If there's nothing relevant, Claude just says: "Repo up to date. What are we working on?"
@@ -415,6 +465,7 @@ Full list of trailers the system understands:
 | `Touched:` | `path1, path2` or `glob/*` | Code commits |
 | `Decision:` | Free text | `decision()` commits |
 | `Memo:` | `category - description` | `memo()` commits |
+| `Remember:` | `category - description` | `remember()` commits (user/claude personality notes) |
 | `Next:` | Free text | Pending work items |
 | `Blocker:` | Free text | What blocks progress |
 | `Issue:` | `CU-xxx` or `#xxx` | Auto-extracted from branch name |
@@ -502,14 +553,17 @@ If Claude finds a contradiction (e.g., a new decision conflicts with an old memo
 
 > "Write little, read often, confirm when it hurts to be wrong."
 
-Claude only creates memory commits when:
-- You asked explicitly
-- It affects future sessions
-- It prevents real loss
-- It's a confirmed decision
+Claude captures memory **without asking** when it detects:
+- Decisions: "let's go with X", "decided", "the approach is Y"
+- Preferences: "always X", "never Y", "from now on"
+- Requirements: "the client wants X", "it must", "mandatory"
+- Anti-patterns: "don't ever do X again", "that broke because"
+- Personality notes: "remember that I X", "recuerda que yo X" → `remember(user)`
+
+Claude commits immediately and informs you in one line. No "ok?" prompts — friction kills capture.
 
 Claude does **not** save:
-- Provisional observations
+- Provisional observations or brainstorming
 - Weak inferences
 - Session-only context that won't matter tomorrow
 
@@ -572,7 +626,8 @@ claude-git-memory/
 │   ├── plugin.json                         # Plugin manifest (name, version, entry points)
 │   └── marketplace.json                    # Marketplace metadata (version MUST match plugin.json)
 ├── agents/
-│   └── gitto.md                            # Memory oracle subagent (read-only)
+│   ├── gitto.md                            # Memory oracle subagent (read-only)
+│   └── scope-scout.md                      # Project structure analyzer → generates scope map
 ├── hooks/
 │   ├── hooks.json                          # Hook registration (Claude Code reads this)
 │   ├── pre-validate-commit-trailers.py     # Belt — blocks bad commits
@@ -593,7 +648,9 @@ claude-git-memory/
 │   ├── git-memory-uninstall.py             # Clean removal
 │   ├── git-memory-upgrade.py               # Safe version migration
 │   ├── git-memory-bootstrap.py             # Project scout
-│   └── git-memory-gc.py                    # Garbage collector
+│   ├── git-memory-gc.py                    # Garbage collector
+│   ├── git-memory-commit.py               # Pretty commit wrapper (ANSI output, emoji, trailers)
+│   └── git-memory-log.py                  # Pretty log viewer (colored, filterable by type)
 ├── archived/
 │   └── dashboard/                          # Dashboard generator (deactivated, preserved for future use)
 ├── lib/
@@ -636,7 +693,9 @@ python3 -m mypy bin/ hooks/
 
 ---
 
-## Gitto - Memory oracle agent
+## Agents
+
+### Gitto — Memory oracle
 
 Gitto is a read-only subagent that answers questions about past decisions, preferences, requirements, and pending work. Claude delegates to Gitto automatically when you ask about the project's memory.
 
@@ -657,6 +716,14 @@ Gitto uses `git log --all --grep` to search the entire history, not just the las
 - **Fallback.** If the `git memory` CLI is not available, falls back to raw `git log --grep`.
 
 Gitto is auto-discovered by Claude Code from the plugin's `agents/` directory. No configuration needed.
+
+### Scope Scout — Project structure analyzer
+
+Scope Scout inspects your codebase and generates a hierarchical scope map at `.claude/git-memory-scopes.json`. It detects frameworks, monorepo patterns, and existing scopes from git history.
+
+Claude launches Scope Scout automatically on first install, or when you say "scan scopes" / "update scopes". It runs in the background and writes only the scope map file — it never modifies your code.
+
+**All agents run in background** (`run_in_background: true`), so they never block your conversation.
 
 ---
 
@@ -690,6 +757,7 @@ The stop hook never blocks the session. Instead, it uses a silent wip strategy:
 1. **Uncommitted changes?** Claude creates a `wip:` commit automatically, without asking.
 2. **3+ consecutive wips?** Claude evaluates if it's a good time to suggest squashing them into a proper commit with trailers.
 3. **Natural milestones** (feature complete, bug fixed, refactor done) trigger the suggestion. Trivial wips accumulate silently.
+4. **Mandatory `context()` on session end.** Before finishing, Claude must create a context commit summarizing what was accomplished and what's next. This ensures the next session can resume immediately.
 
 This means you never get interrupted by "choose an option" dialogs, and your work is always saved.
 

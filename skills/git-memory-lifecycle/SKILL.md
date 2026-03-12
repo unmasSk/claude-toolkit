@@ -1,6 +1,6 @@
 ---
 name: git-memory-lifecycle
-description: Use when user says install, setup, configure, doctor, health, status, repair, fix, uninstall, remove memory system, or when checking system integrity.
+description: Use when user says install, setup, configure, doctor, health, status, repair, fix, uninstall, remove memory system, recovery, modes, compatible mode, CI compatibility, or when checking system integrity. Also used for self-healing after rebase/force-push.
 ---
 
 # Git Memory — Lifecycle
@@ -39,7 +39,7 @@ Memory System Status
 ✅ Hook activity: 12/15 commits have trailers (80%)
 ✅ GC: last run 4 days ago
 ❌ Stale blockers: 2 items >30 days
-✅ Version: v2.0 (current)
+✅ Version: v3.2.0 (current)
 ─────────────────────────
 Recommendation: review stale blockers
 ```
@@ -92,3 +92,48 @@ No scheduled calendar. Claude cleans in passing (never asks user to run commands
 | User asks | Full GC | Run GC (Claude runs it, shows results) |
 
 Never interrupt the user with unsolicited admin tasks. Never ask the user to run commands.
+
+## Modes of Operation
+
+| Mode | When | Does | Doesn't |
+|------|------|------|---------|
+| **Normal** | Standard git repo | Full runtime: hooks + trailers + CLI | — |
+| **Compatible** | CI/commitlint rejects trailers | git notes or local store instead | Touch commit messages |
+| **Read-only** | No write perms, external repo | Read existing memory | Create commits |
+| **Abort** | No git | Explain why and stop | Force anything |
+
+Detected during install inspection. Stored in manifest. If uncertain, ask.
+
+### CI Compatibility
+
+Check compatibility BEFORE activating writes. If commitlint is active, use compatible mode or allowed namespace. Alternative: git notes for local memory.
+
+## Recovery
+
+### Self-Healing (rebase/reset detection)
+
+On boot, compare known commit hashes with current tree. If amnesia detected (memory commits missing):
+
+> "Seems like a rebase happened. I've rebuilt memory from current state, but prior design context may be missing."
+
+Don't dramatize. Don't fake normalcy. Rebuild conservatively, be honest about gaps.
+
+### Force Push Handling
+
+- Detect history rewrite (known SHAs missing from tree)
+- Don't assume "most recent = best"
+- Conservative resolution — never invent missing context
+- Log what was lost if detectable
+
+### Branch-Aware Decisions
+
+Decisions have scope: repo / branch / path / environment. Don't deduplicate across branches. Treat differing decisions on different branches as branch-specific context.
+
+### Emergency: Lost Commits
+
+```bash
+git reflog                    # find SHA before the reset
+git reset --hard <sha>        # recover (reflog keeps ~30 days)
+```
+
+Document recovery with `Risk: high` + `Why:` trailers. Create backup branch before any destructive recovery: `git branch backup-before-recovery`

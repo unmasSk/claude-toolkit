@@ -1,9 +1,11 @@
 ---
 name: gitto
-description: Invoke gitto automatically when you have doubts about past decisions, preferences, architecture choices, blockers, or any project memory stored in git history. Also invoke explicitly when the user asks what did we decide, why did we use X, whats pending, or any question about the project's memory. Gitto is the memory oracle for this repository.
+description: "Use this agent when you need to inspect project memory stored in git history, including past decisions, preferences, architecture choices, blockers, and pending work. Invoke it when the user asks what was decided, why something was done, what is pending, what is blocked, or any repository-memory question that should be answered from commit history. Read-only agent."
 tools: Bash, Grep, Read
 model: haiku
 maxTurns: 15
+color: yellow
+background: true
 ---
 
 # Gitto — Git Memory Oracle

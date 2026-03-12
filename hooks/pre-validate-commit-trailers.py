@@ -96,6 +96,10 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
         if has_issue and "Issue" not in trailers:
             errors.append(f"Missing required trailer: Issue: (branch '{branch}' has issue reference)")
 
+    elif commit_type == "remember":
+        if "Remember" not in trailers:
+            errors.append("Missing required trailer: Remember: (remember commits must include Remember: category - description)")
+
     elif commit_type == "wip":
         pass  # All trailers optional for wip
 
@@ -104,6 +108,12 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
         parts = trailers["Memo"].split(" - ", 1)
         if len(parts) < 2 or parts[0].strip() not in MEMO_CATEGORIES:
             errors.append(f"Invalid Memo format: '{trailers['Memo']}'. Must be: preference|requirement|antipattern - description")
+
+    # Validate Remember category if present
+    if "Remember" in trailers:
+        parts = trailers["Remember"].split(" - ", 1)
+        if len(parts) < 2 or parts[0].strip() not in ("user", "claude"):
+            errors.append(f"Invalid Remember format: '{trailers['Remember']}'. Must be: user|claude - description")
 
     # Validate Risk values if present
     if "Risk" in trailers and trailers["Risk"] not in RISK_VALUES:

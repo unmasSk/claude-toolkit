@@ -126,16 +126,16 @@ def count_consecutive_wips() -> int:
 
 
 def has_recent_memory_commits(depth: int = 10) -> bool:
-    """Check if any recent commits are decision() or memo() commits.
+    """Check if any recent commits are decision(), memo(), or remember() commits.
 
-    Scans the last `depth` commits for subjects containing "decision("
-    or "memo(" (case-insensitive), indicating memory was captured.
+    Scans the last `depth` commits for subjects containing "decision(",
+    "memo(", or "remember(" (case-insensitive), indicating memory was captured.
 
     Args:
         depth: Number of recent commits to scan.
 
     Returns:
-        True if at least one decision/memo commit was found.
+        True if at least one decision/memo/remember commit was found.
     """
     code, output = run_git(["log", f"-n{depth}", "--pretty=format:%s"])
     if code != 0 or not output:
@@ -145,7 +145,7 @@ def has_recent_memory_commits(depth: int = 10) -> bool:
         subject = line.strip().lower()
         # Strip emoji prefix before checking
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-        if cleaned.startswith("decision(") or cleaned.startswith("memo("):
+        if cleaned.startswith("decision(") or cleaned.startswith("memo(") or cleaned.startswith("remember("):
             return True
 
     return False

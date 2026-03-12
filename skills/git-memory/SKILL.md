@@ -1,6 +1,6 @@
 ---
 name: git-memory
-description: Use this skill when user mentions git, branches, merge, PR, pull, push, rebase, conflict, staging, pre, main, dev, release, hotfix, rollback, promotion, commit, memory, resume, context, decision, or when starting a new session in a git repository.
+description: Use this skill when user mentions memory, resume, context, decision, memo, remember, or when starting a new session in a git repository. Also when user says "what did we decide", "what's pending", or discusses preferences/requirements worth saving.
 ---
 
 # Git Memory — Core
@@ -11,10 +11,28 @@ Git is the memory. Every commit is resumable. Claude handles git — the user fo
 
 1. Never commit to `main` directly
 2. Never commit without trailers (hooks enforce it for Claude; humans get warnings only)
-3. `context()`, `decision()`, `memo()` always use `--allow-empty`
-4. If conflict/risky op → stop (see Conflict Resolution section below)
+3. `context()`, `decision()`, `memo()`, `remember()` always use `--allow-empty`
+4. If conflict/risky op → stop (see Safety section below)
 5. Claude writes trailers automatically — never ask the user to write them
-6. **ALWAYS launch agents in background** (`run_in_background: true`). Never block the conversation waiting for an agent to finish.
+
+## Two Modes: Capture vs Safety
+
+This skill has two distinct behaviors. They are NOT contradictory — they apply to different situations:
+
+**Capture mode** (memory commits) → **silent, automatic, no confirmation**:
+- `wip:` — silent checkpoint
+- `decision()` — architecture choice detected → commit immediately, inform in one line
+- `memo()` — preference/requirement detected → commit immediately, inform in one line
+- `remember()` — personality note → commit immediately, inform in one line
+
+**Safety mode** (dangerous git ops) → **always confirm before acting**:
+- `squash` / `reset --soft HEAD~N` — show what will be squashed, wait for "ok"
+- `context()` — show the message, wait for "ok"
+- `reset --hard` — show what will be lost, require explicit confirmation
+- `push --force` — feature branches only, require explicit confirmation
+- `rebase` — require explicit "I understand the risk"
+
+Capture never asks. Safety always asks. No exceptions.
 
 ## Memory Policy
 
@@ -23,55 +41,15 @@ Git is the memory. Every commit is resumable. Claude handles git — the user fo
 Write ONLY if: user asked explicitly, affects future sessions, prevents real loss, or is a confirmed decision.
 Do NOT write: provisional observations, weak inferences, session-only context.
 
-## Auto-Boot (every session start — Claude executes all of this, never asks the user to)
-
-### Finding scripts
-
-Scripts live in the plugin cache, NOT at the project root. The `[git-memory-boot]` hook output provides the plugin root path on every user message.
-
-Use that path to run scripts: `python3 <plugin-root>/bin/git-memory-doctor.py --json`
-
-**NEVER hardcode paths** like `python3 bin/...` — the project root has NO bin/, hooks/, skills/, or lib/ directories from the plugin.
-
-### MANDATORY: Use wrapper scripts for git commit and git log
+## Wrapper Scripts
 
 **NEVER use `git commit` or `git log` directly.** A PreToolUse hook will BLOCK them.
 
-**For commits**, use:
-```
-python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--push]
-```
+The `[git-memory-boot]` hook output provides the plugin root path. Use it:
 
-Examples:
-```
-python3 <plugin-root>/bin/git-memory-commit.py decision auth "usar JWT" --trailer "Decision=JWT over cookies" --trailer "Why=stateless API"
-python3 <plugin-root>/bin/git-memory-commit.py memo api "preference - async/await" --trailer "Memo=preference - async/await everywhere"
-python3 <plugin-root>/bin/git-memory-commit.py feat forms "add date picker" --trailer "Why=users need it" --trailer "Touched=src/forms/" --push
-python3 <plugin-root>/bin/git-memory-commit.py context forms "validation done" --trailer "Next=wire to API" --push
-python3 <plugin-root>/bin/git-memory-commit.py wip forms "half-done picker"
-```
+**For commits**: `python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--push]`
 
-**For logs**, use:
-```
-python3 <plugin-root>/bin/git-memory-log.py [N]          # last N commits (default 10)
-python3 <plugin-root>/bin/git-memory-log.py --all        # only memory commits
-python3 <plugin-root>/bin/git-memory-log.py --type memo  # only memos
-```
-
-These scripts produce clean, colored output for the user instead of raw git output.
-
-### Boot sequence
-
-1. `git fetch --quiet` — sync remote refs silently. If no network or no remote, continues without error.
-2. Run `python3 <plugin-root>/bin/git-memory-doctor.py --json` silently. If errors → run `python3 <plugin-root>/bin/git-memory-repair.py --auto` and tell the user what was fixed.
-3. `git log -n 30 --pretty=format:"%h%x1f%s%x1f%b%x1e"` → extract Next, Blocker, Decision, Memo, last context()
-4. `git status --porcelain` → detect uncommitted state
-5. Show compact summary (≤18 lines):
-   - Branch + last context + pending (max 2) + blockers (max 2) + decisions (max 3) + memos (max 2)
-   - Overflow: last slot becomes `+ N more`
-6. If nothing: "Repo up to date. What are we working on?"
-
-**Critical**: Never ask the user to run CLI commands. Claude runs everything. The user only sees results.
+**For logs**: `python3 <plugin-root>/bin/git-memory-log.py [N] [--all] [--type TYPE]`
 
 ## Hierarchical Scopes
 
@@ -81,19 +59,8 @@ Examples:
 - `feat(backend/api): add rate limiting`
 - `decision(frontend/ux): usar glassmorphic style`
 - `memo(backend/auth): preference - JWT over sessions`
-- `fix(infra/ci): pipeline timeout`
 
-**Where to find the scope map:**
-- If `.claude/git-memory-scopes.json` exists, read it for the project's scope hierarchy
-- If it doesn't exist, use the `scope-scout` agent to generate it (or ask the user)
-- You can use unlisted scopes — the map is a guide, not a constraint
-- For simple changes that don't fit a hierarchy, flat scopes are fine (`chore(docs): ...`)
-
-**On first install or "scan scopes":** launch the `scope-scout` agent to analyze the project and generate the scope map.
-
-## Branches
-
-Base: `dev`. Work in `feat/*`, `fix/*`, `chore/*`. 1 issue = 1 branch. Default merge (not rebase).
+**Scope map:** read `.claude/git-memory-scopes.json` if it exists. Launch `scope-scout` agent on first install or "scan scopes". You can use unlisted scopes — the map is a guide, not a constraint.
 
 ## Commit Types
 
@@ -111,6 +78,7 @@ Base: `dev`. Work in `feat/*`, `fix/*`, `chore/*`. 1 issue = 1 branch. Default m
 | 💾 | `context` | Session bookmark (--allow-empty) |
 | 🧭 | `decision` | Architecture/design choice (--allow-empty) |
 | 📌 | `memo` | Soft knowledge (--allow-empty) |
+| 🧠 | `remember` | Personality/working-style note between sessions (--allow-empty) |
 
 Format: `<emoji> type(scope): description`. Emoji mandatory.
 
@@ -128,6 +96,7 @@ Every non-wip commit. Trailers at end of body, contiguous block, no blank lines 
 | `Blocker:` | 1 line | if blocked |
 | `Risk:` | low/medium/high | if applicable |
 | `Memo:` | category - desc | memo() (preference/requirement/antipattern) |
+| `Remember:` | category - desc | remember() (user/claude personality note) |
 | `Conflict:` + `Resolution:` | 1 line each | merge conflict resolution |
 
 Keys are case-sensitive, max once per commit, single-line values.
@@ -142,9 +111,9 @@ Keys are case-sensitive, max once per commit, single-line values.
 | "I'm done" / "tomorrow" | `context()` with Next/Blocker |
 | Design choice made | `decision()` |
 | Preference/requirement stated | `memo()` |
+| "remember that I..." / personality note | `remember()` |
+| Claude notices working-style pattern | `remember(claude)` — sparingly |
 | Dev advanced | Merge dev into current branch |
-
-Confirmations: `wip:` always silent. `decision()`/`memo()` → commit immediately, inform in one line. Squash/final/context → show message, wait for "ok".
 
 ## Wip Strategy
 
@@ -157,9 +126,9 @@ wip commits are silent checkpoints. The stop hook creates them automatically whe
   - Squashing means: `git reset --soft HEAD~N` + proper commit with Why/Touched/etc. trailers
 - wip commits NEVER have trailers. They are temporary by definition.
 
-## Conversational Capture (CONTINUOUS — enforced by UserPromptSubmit hook)
+## Conversational Capture
 
-A `UserPromptSubmit` hook fires on EVERY user message and injects a `[memory-check]` reminder into Claude's context. When you see this reminder, evaluate the user's message:
+A `UserPromptSubmit` hook fires on EVERY user message and injects a `[memory-check]` reminder. When you see it, evaluate the user's message:
 
 **Decision signals** → `decision()` immediately:
 - "let's go with X", "decided", "we'll use Y", "go with Z"
@@ -170,30 +139,40 @@ A `UserPromptSubmit` hook fires on EVERY user message and injects a `[memory-che
 - "client wants X" / "it must" / "mandatory" → `memo(requirement)`
 - "don't ever do X again" / "that broke because" → `memo(antipattern)`
 
+**Remember signals** → `remember()` personality/working-style notes:
+- "remember that I X", "recuerda que yo X", "don't forget I X" → `remember(user)`
+- If the content is about the project ("remember we decided X") → use `decision()` instead
+- If the content is about a project preference ("remember to always use X") → use `memo()` instead
+- Default to `remember()` when it's about the person, not the project
+
+**Claude-initiated remembers** → `remember(claude)`:
+- ONLY after seeing the **same pattern at least 2 times** in the current session
+- ONLY for patterns that caused friction or miscommunication (e.g., you assumed something and the user corrected you twice)
+- NEVER from a single observation. One correction is feedback, not a pattern.
+- Examples that warrant it: "user corrected me 3 times for assuming X", "user always responds in Spanish even when I write in English"
+- Examples that do NOT: "user seems tired today", "user typed fast", "user used an emoji once"
+
 **Not memory-worthy** (ignore silently):
 - Questions, brainstorming, "what if", "maybe", "let's explore"
 - Temporary debugging, one-off instructions
-- Already captured in an existing decision/memo
+- Already captured in an existing decision/memo/remember
 
 **When detected**:
-1. Create the `decision()` or `memo()` commit immediately with `--allow-empty`
-2. Inform the user in ONE line: "📌 memo saved: [summary]" or "🧭 decision saved: [summary]"
+1. Create the commit immediately with `--allow-empty`
+2. Inform the user in ONE line: "📌 memo saved: ..." or "🧭 decision saved: ..." or "🧠 remember saved: ..."
 3. Do NOT ask for confirmation. Do NOT propose. Just do it.
 
-Ambiguous cases → still commit. Better to capture and be wrong than to miss and lose context.
+**Uncertain cases**: if the user clearly made a statement but you're unsure whether it's a decision, memo, or remember — pick the closest type and commit. Miscategorized > lost. But if you can't tell whether the user is stating something or just thinking out loud — **don't commit**. When in doubt about intent, silence beats noise.
 
 ## Memory Search (before asking the user)
 
 1. `git log --all --grep="Decision:" --pretty=format:"%h %s %b" | grep -i "<keyword>"`
 2. `git log --all --grep="Memo:" --pretty=format:"%h %s %b" | grep -i "<keyword>"`
-3. Check CLAUDE.md and `~/.claude/MEMORY.md`
-4. Only if no match: ask the user
+3. `git log --all --grep="Remember:" --pretty=format:"%h %s %b" | grep -i "<keyword>"`
+4. Check CLAUDE.md and `~/.claude/MEMORY.md`
+5. Only if no match: ask the user
 
-Contradiction detection: before creating decision/memo, search same scope. Warn if conflict exists.
-
-## Routing
-
-- Install, doctor, repair, uninstall → `git-memory-lifecycle` skill
+**Contradiction detection**: before creating decision/memo, search same scope. Warn if conflict exists. Most recent always wins.
 
 ## Protocol
 
@@ -219,17 +198,16 @@ If conflict between sources: acknowledge openly, defer to most recent user confi
 
 | Level | Example | Action |
 |-------|---------|--------|
-| Fact | "Uses TypeScript 5.3" | `memo(stack)` |
-| Hypothesis | "Seems like monorepo" | Do NOT save without confirmation |
-| Decision | "Use dayjs" | `decision()` only if user confirms |
-| Preference | "Always async/await" | `memo(preference)` |
+| Fact | "Uses TypeScript 5.3" | `memo(stack)` — commit immediately |
+| Decision | "let's go with dayjs" | `decision()` — commit immediately |
+| Preference | "Always async/await" | `memo(preference)` — commit immediately |
+| Hypothesis | "Seems like monorepo" | Do NOT save. Investigate first. |
 
-### Releases
+## Safety
 
-- PR mandatory: `dev → staging`. Production: `staging → main` with release protocol.
-- No `Next:` on main commits. `Risk:` always required on hotfixes.
-- PR body auto-generated from trailers: changelog from subjects, `Decision:` aggregated, `Next:` as pending.
-- Hotfix flow: branch from main → fix → PR to main → back-merge to dev immediately.
+### Branches
+
+Base: `dev`. Work in `feat/*`, `fix/*`, `chore/*`. 1 issue = 1 branch. Default merge (not rebase).
 
 ### Conflict Resolution
 
@@ -252,62 +230,15 @@ If conflict between sources: acknowledge openly, defer to most recent user confi
 | `push --force-with-lease` | **high** | YES — feature branches only |
 | `push --force` main/staging | **FORBIDDEN** | N/A |
 
-Decision tree: Pushed to main/staging → `revert`. Not pushed, keep changes → `reset --soft`. Discard → `reset --hard` (confirm + backup branch first).
+Any `rebase`, `push --force`, `reset --hard` → **STOP**. Show: command, branch, risk, consequences. Require explicit confirmation.
 
-Any `rebase`, `push --force`, `reset --hard` → **STOP**. Show: command, branch, risk, consequences. Require explicit "I understand the risk, proceed".
+### Releases
 
-## Recovery
+- PR mandatory: `dev → staging`. Production: `staging → main` with release protocol.
+- No `Next:` on main commits. `Risk:` always required on hotfixes.
+- PR body auto-generated from trailers.
+- Hotfix flow: branch from main → fix → PR to main → back-merge to dev immediately.
 
-### Modes of Operation
+## Routing
 
-| Mode | When | Does | Doesn't |
-|------|------|------|---------|
-| **Normal** | Standard git repo | Full runtime: hooks + trailers + CLI | — |
-| **Compatible** | CI/commitlint rejects trailers | git notes or local store instead | Touch commit messages |
-| **Read-only** | No write perms, external repo | Read existing memory | Create commits |
-| **Abort** | No git | Explain why and stop | Force anything |
-
-Detected during install inspection. Stored in manifest. If uncertain, ask.
-
-### Self-Healing (rebase/reset detection)
-
-On boot, compare known commit hashes with current tree. If amnesia detected (memory commits missing):
-
-> "Seems like a rebase happened. I've rebuilt memory from current state, but prior design context may be missing."
-
-Don't dramatize. Don't fake normalcy. Rebuild conservatively, be honest about gaps.
-
-### Force Push Handling
-
-- Detect history rewrite (known SHAs missing from tree)
-- Don't assume "most recent = best"
-- Conservative resolution — never invent missing context
-- Log what was lost if detectable
-
-### Branch-Aware Decisions
-
-Decisions have scope: repo / branch / path / environment. Don't deduplicate across branches. Treat differing decisions on different branches as branch-specific context.
-
-### CI Compatibility
-
-Check compatibility BEFORE activating writes. If commitlint is active, use compatible mode or allowed namespace. Alternative: git notes for local memory.
-
-### Contradiction Detection
-
-Before creating a new decision/memo, search existing:
-
-1. `git log --all --grep="Decision:" --pretty=format:"%h %s %b" | grep -i "<topic>"`
-2. `git log --all --grep="Memo:" --pretty=format:"%h %s %b" | grep -i "<topic>"`
-
-- Memo (antipattern) vs new Decision using that thing → warn: "Contradicts memo [sha]. Confirm override?"
-- Decision vs new Decision (same scope) → warn: "Overrides decision [sha]. Confirm?"
-- If confirmed → create. Most recent always wins. False positives OK — better to warn than miss.
-
-### Emergency: Lost Commits
-
-```bash
-git reflog                    # find SHA before the reset
-git reset --hard <sha>        # recover (reflog keeps ~30 days)
-```
-
-Document recovery with `Risk: high` + `Why:` trailers. Create backup branch before any destructive recovery: `git branch backup-before-recovery`
+- Install, doctor, repair, uninstall, recovery, modes of operation → `git-memory-lifecycle` skill

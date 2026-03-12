@@ -18,7 +18,7 @@ import sys
 
 
 # Trailer keys we care about for memory extraction
-MEMORY_KEYS = {"Decision", "Memo", "Next", "Blocker", "Resolved-Next", "Stale-Blocker"}
+MEMORY_KEYS = {"Decision", "Memo", "Next", "Blocker", "Remember", "Resolved-Next", "Stale-Blocker"}
 TRAILER_RE = re.compile(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$")
 
 
@@ -132,9 +132,11 @@ def extract_memory() -> dict:
     blockers: list[str] = []
     decisions: list[tuple[str, str]] = []  # (scope, text)
     memos: list[tuple[str, str]] = []      # (scope, text)
+    remembers: list[tuple[str, str]] = []  # (scope, text)
     last_context: str = ""
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
+    remember_seen: set[str] = set()  # dedup by normalized text
 
     for entry in commits:
         entry = entry.strip()
@@ -182,12 +184,25 @@ def extract_memory() -> dict:
                 label = f"({scope})" if scope else "(global)"
                 memos.append((label, trailers["Memo"]))
 
+        # Remembers (personality notes between sessions)
+        if "Remember" in trailers:
+            text = trailers["Remember"]
+            norm = normalize(text)
+            if norm not in remember_seen:
+                remember_seen.add(norm)
+                scope = ""
+                if "(" in subject and ")" in subject:
+                    scope = subject.split("(")[1].split(")")[0]
+                label = f"({scope})" if scope else "(global)"
+                remembers.append((label, text))
+
     return {
         "last_context": last_context,
         "pending": pending,
         "blockers": blockers,
         "decisions": decisions,
         "memos": memos,
+        "remembers": remembers,
     }
 
 
@@ -202,12 +217,14 @@ def extract_glossary() -> dict:
         "--pretty=format:%h\x1f%s\x1f%b\x1e"
     ])
     if code != 0 or not log_output:
-        return {"decisions": [], "memos": []}
+        return {"decisions": [], "memos": [], "remembers": []}
 
     decisions: list[tuple[str, str]] = []
     memos: list[tuple[str, str]] = []
+    remembers: list[tuple[str, str]] = []
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
+    remember_seen: set[str] = set()
 
     commits = log_output.split("\x1e")
     for entry in commits:
@@ -237,7 +254,15 @@ def extract_glossary() -> dict:
                 label = f"({scope})" if scope else "(global)"
                 memos.append((label, trailers["Memo"]))
 
-    return {"decisions": decisions, "memos": memos}
+        if "Remember" in trailers:
+            text = trailers["Remember"]
+            norm = normalize(text)
+            if norm not in remember_seen:
+                remember_seen.add(norm)
+                label = f"({scope})" if scope else "(global)"
+                remembers.append((label, text))
+
+    return {"decisions": decisions, "memos": memos, "remembers": remembers}
 
 
 def main() -> None:
@@ -297,6 +322,11 @@ def main() -> None:
         for item in memory["blockers"]:
             lines.append(f"  - {item}")
 
+    if memory.get("remembers"):
+        lines.append("Remember (personality/working notes):")
+        for scope, text in memory["remembers"]:
+            lines.append(f"  🧠 {scope} {text}")
+
     if memory.get("decisions"):
         lines.append("Active decisions:")
         for scope, text in memory["decisions"]:
@@ -307,22 +337,25 @@ def main() -> None:
         for scope, text in memory["memos"]:
             lines.append(f"  - {scope} {text}")
 
-    # 5. Glossary — full history scan for decisions and memos beyond last 30
+    # 5. Glossary — full history scan for decisions, memos, and remembers beyond last 30
     glossary = extract_glossary()
     glossary_decisions = glossary.get("decisions", [])
     glossary_memos = glossary.get("memos", [])
+    glossary_remembers = glossary.get("remembers", [])
 
     # Only show glossary items NOT already shown in the recent memory section
     recent_decision_scopes = {s for s, _ in memory.get("decisions", [])}
     recent_memo_scopes = {s for s, _ in memory.get("memos", [])}
+    recent_remember_texts = {normalize(t) for _, t in memory.get("remembers", [])}
 
     extra_decisions = [(s, t) for s, t in glossary_decisions if s not in recent_decision_scopes]
     extra_memos = [(s, t) for s, t in glossary_memos if s not in recent_memo_scopes]
+    extra_remembers = [(s, t) for s, t in glossary_remembers if normalize(t) not in recent_remember_texts]
 
-    if extra_decisions or extra_memos:
+    if extra_decisions or extra_memos or extra_remembers:
         # Group by first level of scope for hierarchy
         groups: dict[str, list[str]] = {}
-        for emoji, items in [("🧭", extra_decisions), ("📌", extra_memos)]:
+        for emoji, items in [("🧭", extra_decisions), ("📌", extra_memos), ("🧠", extra_remembers)]:
             for scope, text in items:
                 # scope is like "(backend/api)" or "(plugin)"
                 clean = scope.strip("()")

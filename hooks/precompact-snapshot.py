@@ -138,6 +138,17 @@ def extract_memory_from_log() -> dict[str, Any]:
                         "memo": memo_match.group(1),
                     }
 
+            remember_match = re.match(r"^Remember:\s*(.+)$", line)
+            if remember_match:
+                if "remembers" not in memory:
+                    memory["remembers"] = {}
+                text = remember_match.group(1)
+                if text.lower() not in {r["remember"].lower() for r in memory["remembers"].values()}:
+                    memory["remembers"][f"{scope}:{text[:20]}"] = {
+                        "sha": sha,
+                        "remember": text,
+                    }
+
     return memory
 
 
@@ -212,6 +223,12 @@ def format_snapshot(memory: dict[str, Any]) -> str:
         lines.append("Active memos:")
         for scope, item in list(memory["memos"].items())[:2]:  # Max 2 to stay ≤18 lines total
             lines.append(f"  - ({scope}) {trunc(item['memo'])}")
+
+    # Remember notes (personality/working-style notes between sessions)
+    if memory.get("remembers"):
+        lines.append("Remember (personality notes):")
+        for key, item in list(memory["remembers"].items())[:3]:
+            lines.append(f"  🧠 {trunc(item['remember'])}")
 
     lines.append("=== END SNAPSHOT ===")
     return "\n".join(lines)

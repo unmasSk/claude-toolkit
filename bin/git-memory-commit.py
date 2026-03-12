@@ -32,10 +32,11 @@ EMOJIS = {
     "feat": "✨", "fix": "🐛", "refactor": "♻️", "perf": "⚡",
     "test": "🧪", "docs": "📝", "chore": "🔧", "ci": "👷",
     "wip": "🚧", "context": "💾", "decision": "🧭", "memo": "📌",
+    "remember": "🧠",
 }
 
 # Memory types use --allow-empty
-MEMORY_TYPES = {"context", "decision", "memo"}
+MEMORY_TYPES = {"context", "decision", "memo", "remember"}
 
 # ANSI colors
 RESET = "\033[0m"
@@ -47,8 +48,11 @@ BLUE = "\033[34m"
 MAGENTA = "\033[35m"
 RED = "\033[91m"
 
+CYAN = "\033[36m"
+
 TYPE_COLORS = {
     "decision": YELLOW, "memo": BLUE, "context": GREEN,
+    "remember": CYAN,
     "feat": MAGENTA, "fix": MAGENTA, "refactor": MAGENTA,
     "perf": MAGENTA, "test": MAGENTA, "docs": MAGENTA,
     "chore": MAGENTA, "ci": MAGENTA, "wip": DIM,

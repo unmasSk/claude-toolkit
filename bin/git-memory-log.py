@@ -31,15 +31,18 @@ YELLOW = "\033[33m"
 BLUE = "\033[34m"
 MAGENTA = "\033[35m"
 
+CYAN = "\033[36m"
+
 TYPE_COLORS = {
     "decision": YELLOW, "memo": BLUE, "context": GREEN,
+    "remember": CYAN,
     "feat": MAGENTA, "fix": MAGENTA, "refactor": MAGENTA,
     "perf": MAGENTA, "test": MAGENTA, "docs": MAGENTA,
     "chore": MAGENTA, "ci": MAGENTA, "wip": DIM,
 }
 
 # Pattern to parse: "emoji type(scope): message"
-SUBJECT_RE = re.compile(r"^(.+?)\s+(feat|fix|refactor|perf|test|docs|chore|ci|wip|context|decision|memo)\(([^)]+)\):\s*(.+)$")
+SUBJECT_RE = re.compile(r"^(.+?)\s+(feat|fix|refactor|perf|test|docs|chore|ci|wip|context|decision|memo|remember)\(([^)]+)\):\s*(.+)$")
 
 
 def main() -> None:
@@ -78,7 +81,7 @@ def main() -> None:
             emoji, type_, scope, msg = "", "?", "", subject
 
         # Filters
-        if args.all and type_ not in ("decision", "memo", "context"):
+        if args.all and type_ not in ("decision", "memo", "context", "remember"):
             continue
         if args.filter_type and type_ != args.filter_type:
             continue

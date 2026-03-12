@@ -9,6 +9,7 @@ and memo categories. Imported everywhere.
 VALID_KEYS: set[str] = {
     "Issue", "Why", "Touched", "Decision", "Memo", "Next",
     "Blocker", "Risk", "Conflict", "Resolution", "Refs",
+    "Remember",  # Personality/working-style notes between sessions
     "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
 }
 
@@ -22,4 +23,4 @@ MEMO_CATEGORIES: set[str] = {"preference", "requirement", "antipattern", "stack"
 CODE_TYPES: set[str] = {"feat", "fix", "refactor", "perf", "chore", "ci", "test", "docs"}
 
 # Commit types that are memory-only (allow-empty)
-MEMORY_TYPES: set[str] = {"context", "decision", "memo"}
+MEMORY_TYPES: set[str] = {"context", "decision", "memo", "remember"}
