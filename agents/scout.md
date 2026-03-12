@@ -5,6 +5,7 @@ tools: Bash, Glob, Grep, Read, Write
 model: inherit
 color: purple
 background: true
+memory: project
 ---
 
 # Scope Scout — Project Structure Analyzer
