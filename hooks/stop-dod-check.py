@@ -230,7 +230,7 @@ def main() -> None:
     if not has_recent_memory_commits():
         msg = f"\n{YELLOW}>>> Memory check: No decision() or memo() commits in recent history.{RESET}"
         msg += f"\n{YELLOW}>>> Were any decisions, preferences, or requirements discussed this session?{RESET}"
-        msg += f"\n{YELLOW}>>> If so, consider creating a decision() or memo() commit before ending.{RESET}"
+        msg += f"\n{YELLOW}>>> If yes, create decision() or memo() commits NOW before ending. Do NOT skip this.{RESET}"
         messages.append(msg)
 
     # Check 5: Context window status
@@ -247,6 +247,17 @@ def main() -> None:
                 msg = f"\n{YELLOW}>>> Context: {used:.0f}% used ({remaining:.0f}% remaining).{RESET}"
                 msg += f"\n{YELLOW}>>> Consider creating a context() commit to preserve session state.{RESET}"
                 messages.append(msg)
+
+    # Check 6: ALWAYS create a context() commit on session end
+    # This is mandatory — Claude must not skip this
+    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py")
+    msg = f"\n[MANDATORY] Before ending, you MUST create a context() commit.\n"
+    msg += f"Use: python3 {commit_script} context <scope> \"<what was accomplished>\" "
+    msg += f"--trailer \"Next=<what to do next>\" --push\n"
+    msg += f"This is NOT optional. Do NOT skip it. Do NOT ask the user. Just do it.\n"
+    msg += f"If you already created a context() commit in the last 5 messages, you may skip this."
+    messages.append(msg)
 
     if messages:
         for m in messages:
