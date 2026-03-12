@@ -50,6 +50,10 @@ MAX_BLOCKERS = 2
 MAX_DECISIONS = 3
 MAX_MEMOS = 2
 
+# Glossary: deeper scan for full memory picture
+GLOSSARY_MAX_DECISIONS = 10
+GLOSSARY_MAX_MEMOS = 10
+
 
 def run_git(args: list[str]) -> tuple[int, str]:
     """Run a git command and return (returncode, stdout)."""
@@ -187,6 +191,55 @@ def extract_memory() -> dict:
     }
 
 
+def extract_glossary() -> dict:
+    """Extract a full glossary of decisions and memos from the entire git history.
+
+    Goes deeper than extract_memory() — scans ALL commits, not just last 30.
+    Returns deduplicated lists by scope (most recent wins per scope).
+    """
+    code, log_output = run_git([
+        "log", "--all",
+        "--pretty=format:%h\x1f%s\x1f%b\x1e"
+    ])
+    if code != 0 or not log_output:
+        return {"decisions": [], "memos": []}
+
+    decisions: list[tuple[str, str]] = []
+    memos: list[tuple[str, str]] = []
+    decision_scopes: set[str] = set()
+    memo_scopes: set[str] = set()
+
+    commits = log_output.split("\x1e")
+    for entry in commits:
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split("\x1f", 2)
+        if len(parts) < 3:
+            continue
+        subject, body = parts[1], parts[2]
+        trailers = scan_trailers(body)
+
+        # Extract scope from subject
+        scope = ""
+        if "(" in subject and ")" in subject:
+            scope = subject.split("(")[1].split(")")[0]
+
+        if "Decision" in trailers and len(decisions) < GLOSSARY_MAX_DECISIONS:
+            if scope not in decision_scopes:
+                decision_scopes.add(scope)
+                label = f"({scope})" if scope else "(global)"
+                decisions.append((label, trailers["Decision"]))
+
+        if "Memo" in trailers and len(memos) < GLOSSARY_MAX_MEMOS:
+            if scope not in memo_scopes:
+                memo_scopes.add(scope)
+                label = f"({scope})" if scope else "(global)"
+                memos.append((label, trailers["Memo"]))
+
+    return {"decisions": decisions, "memos": memos}
+
+
 def main() -> None:
     """Auto-boot: doctor + memory extraction + summary output."""
     # Check if we're in a git repo
@@ -254,7 +307,26 @@ def main() -> None:
         for scope, text in memory["memos"]:
             lines.append(f"  - {scope} {text}")
 
-    # 5. Reminder about memory capture
+    # 5. Glossary — full history scan for decisions and memos beyond last 30
+    glossary = extract_glossary()
+    glossary_decisions = glossary.get("decisions", [])
+    glossary_memos = glossary.get("memos", [])
+
+    # Only show glossary items NOT already shown in the recent memory section
+    recent_decision_scopes = {s for s, _ in memory.get("decisions", [])}
+    recent_memo_scopes = {s for s, _ in memory.get("memos", [])}
+
+    extra_decisions = [(s, t) for s, t in glossary_decisions if s not in recent_decision_scopes]
+    extra_memos = [(s, t) for s, t in glossary_memos if s not in recent_memo_scopes]
+
+    if extra_decisions or extra_memos:
+        lines.append("Glossary (full history):")
+        for scope, text in extra_decisions:
+            lines.append(f"  🧭 {scope} {text}")
+        for scope, text in extra_memos:
+            lines.append(f"  📌 {scope} {text}")
+
+    # 6. Reminder about memory capture
     lines.append("")
     lines.append("Remember: if the user makes a decision, states a preference, or")
     lines.append("says 'always/never X' → create a decision() or memo() commit.")
