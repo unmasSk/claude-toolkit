@@ -123,7 +123,10 @@ def main() -> None:
     )
 
     # Context window warning — read .context-status.json if it exists
+    # Debounce: don't repeat same-level warnings on consecutive messages.
+    # Severity escalation (warning → critical) bypasses debounce.
     ctx_status_path = os.path.join(root, ".claude", ".context-status.json")
+    ctx_warn_path = os.path.join(root, ".claude", ".context-warn-state.json")
     if os.path.isfile(ctx_status_path):
         try:
             with open(ctx_status_path) as f:
@@ -134,19 +137,59 @@ def main() -> None:
             remaining = ctx.get("remaining_percentage")
             # Only use data fresher than 15 minutes
             if age < 900 and used is not None and remaining is not None:
+                # Determine current level
                 if used >= 75:
-                    lines.append(
-                        f"[CONTEXT CRITICAL] {used:.0f}% used ({remaining:.0f}% remaining). "
-                        "Auto-compact imminent (~80%). Create a context() commit NOW "
-                        "to preserve session state before compaction."
-                    )
+                    level = "critical"
                 elif used >= 60:
-                    lines.append(
-                        f"[context-warning] {used:.0f}% used ({remaining:.0f}% remaining). "
-                        "Consider creating a context() commit to checkpoint your work."
-                    )
+                    level = "warning"
                 else:
+                    level = "info"
+
+                # Read debounce state
+                last_level = None
+                msgs_since_warn = 0
+                try:
+                    if os.path.isfile(ctx_warn_path):
+                        with open(ctx_warn_path) as f:
+                            warn_state = json.load(f)
+                        last_level = warn_state.get("level")
+                        msgs_since_warn = warn_state.get("msgs", 0)
+                except (json.JSONDecodeError, OSError):
+                    pass
+
+                # Info level: always show (just the percentage, no spam)
+                if level == "info":
                     lines.append(f"[CTX: {used:.0f}%]")
+                else:
+                    # Emit warning if: first time, severity escalated, or 5+ msgs since last
+                    escalated = level == "critical" and last_level == "warning"
+                    should_warn = last_level is None or escalated or msgs_since_warn >= 5 or last_level != level
+
+                    if should_warn:
+                        if level == "critical":
+                            lines.append(
+                                f"[CONTEXT CRITICAL] {used:.0f}% used ({remaining:.0f}% remaining). "
+                                "Context is nearly exhausted. Inform the user that context is low. "
+                                "Create a context() commit to preserve session state before auto-compact."
+                            )
+                        else:
+                            lines.append(
+                                f"[context-warning] {used:.0f}% used ({remaining:.0f}% remaining). "
+                                "Context is getting limited. Avoid starting new complex work. "
+                                "Consider creating a context() commit to checkpoint."
+                            )
+                        msgs_since_warn = 0
+                    else:
+                        # Suppressed — just show percentage
+                        lines.append(f"[CTX: {used:.0f}%]")
+                        msgs_since_warn += 1
+
+                    # Update debounce state
+                    try:
+                        with open(ctx_warn_path, "w") as f:
+                            json.dump({"level": level, "msgs": msgs_since_warn}, f)
+                    except OSError:
+                        pass
         except (json.JSONDecodeError, OSError, ValueError):
             pass
 
