@@ -145,6 +145,8 @@ def main() -> None:
                         f"[context-warning] {used:.0f}% used ({remaining:.0f}% remaining). "
                         "Consider creating a context() commit to checkpoint your work."
                     )
+                else:
+                    lines.append(f"[CTX: {used:.0f}%]")
         except (json.JSONDecodeError, OSError, ValueError):
             pass
 
