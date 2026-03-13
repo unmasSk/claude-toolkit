@@ -1,6 +1,6 @@
 {
-  "head_sha": "55ec4fd22cb5ea05dfa7c3e8371a6c39ca0b57be",
-  "generated_at": "2026-03-13T15:15:56.592702+00:00",
+  "head_sha": "ef32e2e42907a2b4a766b8d29a35288410e70dfd",
+  "generated_at": "2026-03-13T15:31:14.652919+00:00",
   "decisions": [
     [
       "(plugin/scout)",
@@ -45,12 +45,16 @@
   ],
   "memos": [
     [
-      "(plugin/distribution)",
-      "antipattern - /plugin update NUNCA ha funcionado. El proceso real es: /plugin (menu interactivo) > ir al marketplace > seleccionar la opcion de updatear. Nunca decirle al usuario que use /plugin update ni el proceso de 5 pasos del README (esta mal)"
+      "(plugin/commit)",
+      "requirement - co-author como constante, pendiente decision del valor exacto"
     ],
     [
       "(plugin)",
-      "antipattern - si hay una pregunta pendiente al usuario, NUNCA lanzar ejecucion hasta que responda. Esperar siempre. El usuario corrigio esto explicitamente."
+      "antipattern - dejar de listar context-writer warnings como pendiente, ya se arreglo"
+    ],
+    [
+      "(plugin/distribution)",
+      "antipattern - /plugin update NUNCA ha funcionado. El proceso real es: /plugin (menu interactivo) > ir al marketplace > seleccionar la opcion de updatear. Nunca decirle al usuario que use /plugin update ni el proceso de 5 pasos del README (esta mal)"
     ],
     [
       "(capture)",
@@ -79,10 +83,6 @@
     [
       "(api)",
       "antipattern - sync fs operations block event loop and cause timeouts in prod"
-    ],
-    [
-      "(ui)",
-      "requirement - client requested Notion-like filter UX for all data views"
     ]
   ],
   "remembers": []

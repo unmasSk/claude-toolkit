@@ -19,16 +19,21 @@ Exit codes:
 """
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from constants import MEMORY_TYPES
 from git_helpers import run_git
 from parsing import suggest_scope_from_paths
 
-# ── Emoji map ────────────────────────────────────────────────────────────
+# ── Config ───────────────────────────────────────────────────────────────
+
+# Co-author line appended to every commit (pending user decision on final value)
+CO_AUTHOR = "Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 EMOJIS = {
     "feat": "✨", "fix": "🐛", "refactor": "♻️", "perf": "⚡",
@@ -36,9 +41,6 @@ EMOJIS = {
     "wip": "🚧", "context": "💾", "decision": "🧭", "memo": "📌",
     "remember": "🧠",
 }
-
-# Memory types use --allow-empty
-MEMORY_TYPES = {"context", "decision", "memo", "remember"}
 
 _gh_available_cache: bool | None = None
 
@@ -64,7 +66,7 @@ def _auto_create_issue(next_text: str) -> str | None:
     Returns '#N' issue reference if successful, None otherwise.
     Only runs if gh CLI is available and the text has no existing #ref.
     """
-    if "#" in next_text:
+    if re.search(r"#\d+", next_text):
         return None  # Already has an issue reference
     if not _gh_available():
         return None
@@ -135,7 +137,6 @@ def _load_scope_map() -> dict[str, str]:
         scopes_file = os.path.join(toplevel, ".claude", "git-memory-scopes.json")
         if not os.path.isfile(scopes_file):
             return {}
-        import json
         with open(scopes_file) as f:
             data = json.load(f)
         result: dict[str, str] = {}
@@ -151,13 +152,10 @@ def _suggest_scope(given_scope: str) -> None:
     scope_map = _load_scope_map()
     if not scope_map:
         return
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        capture_output=True, text=True, timeout=5,
-    )
-    if result.returncode != 0:
+    code, output = run_git(["diff", "--cached", "--name-only"])
+    if code != 0 or not output:
         return
-    changed = [f for f in result.stdout.strip().splitlines() if f]
+    changed = [f for f in output.strip().splitlines() if f]
     if not changed:
         return
     suggested = suggest_scope_from_paths(changed, scope_map)
@@ -171,7 +169,11 @@ def _suggest_scope(given_scope: str) -> None:
 
 def build_commit_message(type_: str, scope: str, message: str,
                          body: str | None, trailers: list[str]) -> str:
-    """Build the full commit message with emoji, subject, body, trailers."""
+    """Build the full commit message with emoji, subject, body, trailers.
+
+    Note: does NOT process Next/Resolved-Next issues — that happens
+    post-commit in main() to avoid side effects if the commit fails.
+    """
     emoji = EMOJIS.get(type_, "")
     subject = f"{emoji} {type_}({scope}): {message}"
 
@@ -186,20 +188,13 @@ def build_commit_message(type_: str, scope: str, message: str,
     if trailers:
         if body:
             parts.append("")  # blank line between body and trailers
-        # Process trailers with auto-issue creation
         for t in trailers:
             key, _, value = t.partition("=")
-            if key == "Next":
-                issue_ref = _auto_create_issue(value)
-                if issue_ref:
-                    value = f"{value} {issue_ref}"
-            elif key == "Resolved-Next":
-                _auto_close_issue(value)
             parts.append(f"{key}: {value}")
 
     # Co-author
     parts.append("")
-    parts.append("Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>")
+    parts.append(CO_AUTHOR)
 
     return "\n".join(parts)
 
@@ -224,8 +219,21 @@ def main() -> None:
     if type_ not in MEMORY_TYPES:
         _suggest_scope(args.scope)
 
+    # Process Next/Resolved-Next trailers for issue management (pre-compute, apply post-commit)
+    processed_trailers = []
+    for t in args.trailers:
+        key, _, value = t.partition("=")
+        if key == "Next":
+            issue_ref = _auto_create_issue(value)
+            if issue_ref:
+                processed_trailers.append(f"Next={value} {issue_ref}")
+            else:
+                processed_trailers.append(t)
+        else:
+            processed_trailers.append(t)
+
     # Build message
-    msg = build_commit_message(type_, args.scope, args.message, args.body, args.trailers)
+    msg = build_commit_message(type_, args.scope, args.message, args.body, processed_trailers)
 
     # Build git command
     git_args = ["commit"]
@@ -234,24 +242,31 @@ def main() -> None:
     git_args += ["-m", msg]
 
     # Execute
-    result = subprocess.run(
-        ["git"] + git_args,
-        capture_output=True, text=True, timeout=15,
-    )
+    try:
+        result = subprocess.run(
+            ["git"] + git_args,
+            capture_output=True, text=True, timeout=15,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
+        print(f"{RED}{BOLD}Error{RESET}: git commit failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
     if result.returncode != 0:
         stderr = result.stderr.strip()
         print(f"{RED}{BOLD}Error{RESET}: git commit failed: {stderr}", file=sys.stderr)
         sys.exit(1)
 
+    # Post-commit: close resolved issues
+    for t in args.trailers:
+        key, _, value = t.partition("=")
+        if key == "Resolved-Next":
+            _auto_close_issue(value)
+
     # Extract SHA from output (format: "[branch SHA] message")
     sha = "?"
-    stdout = result.stdout.strip()
-    if "[" in stdout and "]" in stdout:
-        bracket = stdout[stdout.index("[") + 1:stdout.index("]")]
-        parts = bracket.split()
-        if len(parts) >= 2:
-            sha = parts[-1][:7]
+    sha_match = re.search(r"\[\S+\s+([a-f0-9]+)\]", result.stdout)
+    if sha_match:
+        sha = sha_match.group(1)[:7]
 
     # Pretty output
     emoji = EMOJIS.get(type_, "")
@@ -260,10 +275,14 @@ def main() -> None:
 
     # Push if requested
     if args.push:
-        push_result = subprocess.run(
-            ["git", "push"],
-            capture_output=True, text=True, timeout=30,
-        )
+        try:
+            push_result = subprocess.run(
+                ["git", "push"],
+                capture_output=True, text=True, timeout=30,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
+            print(f"  {RED}push failed: {e}{RESET}", file=sys.stderr)
+            sys.exit(1)
         if push_result.returncode == 0:
             print(f"  {DIM}↑ pushed{RESET}")
         else:

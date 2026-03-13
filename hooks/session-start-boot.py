@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
-from parsing import scan_trailers_memory as scan_trailers, normalize
+from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
 
 
@@ -102,7 +102,7 @@ def score_branch_relevance(text: str, keywords: list[str]) -> int:
 
 
 SCAN_DEPTH = 30
-MAX_PENDING = 10
+MAX_PENDING = 30
 MAX_BLOCKERS = 20
 MAX_DECISIONS = 20
 MAX_MEMOS = 10
@@ -167,24 +167,8 @@ def extract_memory() -> dict:
     if code != 0 or not log_output:
         return {}
 
-    # Parse tombstones first (GC cleanup markers)
     tombstones: set[str] = set()
     commits = log_output.split("\x1e")
-
-    for entry in commits:
-        entry = entry.strip()
-        if not entry:
-            continue
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        body = parts[2]
-        trailers = scan_trailers(body)
-        for key in ("Resolved-Next", "Stale-Blocker"):
-            if key in trailers:
-                tombstones.add(normalize(trailers[key]))
-
-    # Now extract active memory
     pending: list[str] = []
     blockers: list[str] = []
     decisions: list[tuple[str, str]] = []  # (scope, text)
@@ -209,13 +193,18 @@ def extract_memory() -> dict:
         if not last_context and "context(" in subject.lower():
             last_context = f"{sha} {subject}"
 
+        scope = parse_scope(subject) or ""
+        label = f"({scope})" if scope else "(global)"
+
+        # Tombstones (GC markers) — collect in same pass
+        for key in ("Resolved-Next", "Stale-Blocker"):
+            if key in trailers:
+                tombstones.add(normalize(trailers[key]))
+
         # Pending items (include subject for branch-relevance scoring)
         if "Next" in trailers and len(pending) < MAX_PENDING:
             text = trailers["Next"]
             if normalize(text) not in tombstones:
-                scope = ""
-                if "(" in subject and ")" in subject:
-                    scope = subject.split("(")[1].split(")")[0]
                 scope_prefix = f"({scope}) " if scope else ""
                 pending.append(f"{sha}: {scope_prefix}{text}")
 
@@ -227,22 +216,14 @@ def extract_memory() -> dict:
 
         # Decisions (one per scope)
         if "Decision" in trailers and len(decisions) < MAX_DECISIONS:
-            scope = ""
-            if "(" in subject and ")" in subject:
-                scope = subject.split("(")[1].split(")")[0]
             if scope not in decision_scopes:
                 decision_scopes.add(scope)
-                label = f"({scope})" if scope else "(global)"
                 decisions.append((label, trailers["Decision"]))
 
         # Memos (one per scope)
         if "Memo" in trailers and len(memos) < MAX_MEMOS:
-            scope = ""
-            if "(" in subject and ")" in subject:
-                scope = subject.split("(")[1].split(")")[0]
             if scope not in memo_scopes:
                 memo_scopes.add(scope)
-                label = f"({scope})" if scope else "(global)"
                 memos.append((label, trailers["Memo"]))
 
         # Remembers (personality notes between sessions)
@@ -251,10 +232,6 @@ def extract_memory() -> dict:
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
-                scope = ""
-                if "(" in subject and ")" in subject:
-                    scope = subject.split("(")[1].split(")")[0]
-                label = f"({scope})" if scope else "(global)"
                 remembers.append((label, text))
 
     return {
@@ -274,7 +251,7 @@ def extract_glossary() -> dict:
     Returns deduplicated lists by scope (most recent wins per scope).
     """
     code, log_output = run_git([
-        "log", "--all",
+        "log", "--all", "-n500",
         "--pretty=format:%h\x1f%s\x1f%b\x1e"
     ])
     if code != 0 or not log_output:
@@ -297,22 +274,17 @@ def extract_glossary() -> dict:
             continue
         subject, body = parts[1], parts[2]
         trailers = scan_trailers(body)
-
-        # Extract scope from subject
-        scope = ""
-        if "(" in subject and ")" in subject:
-            scope = subject.split("(")[1].split(")")[0]
+        scope = parse_scope(subject) or ""
+        label = f"({scope})" if scope else "(global)"
 
         if "Decision" in trailers and len(decisions) < GLOSSARY_MAX_DECISIONS:
             if scope not in decision_scopes:
                 decision_scopes.add(scope)
-                label = f"({scope})" if scope else "(global)"
                 decisions.append((label, trailers["Decision"]))
 
         if "Memo" in trailers and len(memos) < GLOSSARY_MAX_MEMOS:
             if scope not in memo_scopes:
                 memo_scopes.add(scope)
-                label = f"({scope})" if scope else "(global)"
                 memos.append((label, trailers["Memo"]))
 
         if "Remember" in trailers:
@@ -320,7 +292,6 @@ def extract_glossary() -> dict:
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
-                label = f"({scope})" if scope else "(global)"
                 remembers.append((label, text))
 
     return {"decisions": decisions, "memos": memos, "remembers": remembers}
@@ -329,10 +300,22 @@ def extract_glossary() -> dict:
 GLOSSARY_CACHE_TTL = 86400  # 24 hours
 
 
+_project_root_cache: str | None = None
+
+
+def _get_project_root() -> str | None:
+    """Get project root, cached for the process."""
+    global _project_root_cache
+    if _project_root_cache is None:
+        code, root = run_git(["rev-parse", "--show-toplevel"])
+        _project_root_cache = root if code == 0 and root else ""
+    return _project_root_cache or None
+
+
 def _glossary_cache_path() -> str | None:
     """Return path to .claude/.glossary-cache.json, or None if no project root."""
-    code, root = run_git(["rev-parse", "--show-toplevel"])
-    if code != 0 or not root:
+    root = _get_project_root()
+    if not root:
         return None
     return os.path.join(root, ".claude", ".glossary-cache.json")
 
@@ -546,8 +529,8 @@ def main() -> None:
     lines: list[str] = []
 
     # 0. Clean session-booted flag (new session = fresh boot)
-    code_root, project_root = run_git(["rev-parse", "--show-toplevel"])
-    if code_root == 0 and project_root:
+    project_root = _get_project_root()
+    if project_root:
         booted_flag = os.path.join(project_root, ".claude", ".session-booted")
         try:
             os.remove(booted_flag)
