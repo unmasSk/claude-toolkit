@@ -39,12 +39,12 @@ Memory System Status
 ✅ Hook activity: 12/15 commits have trailers (80%)
 ✅ GC: last run 4 days ago
 ❌ Stale blockers: 2 items >30 days
-✅ Version: v3.5.1 (current)
+✅ Version: v3.6.0 (current)
 ─────────────────────────
 Recommendation: review stale blockers
 ```
 
-Run silently on session start. Only report if problems found.
+Run silently by the SessionStart hook on every boot. STATUS section in boot output shows the result. Only report details to the user if problems found.
 
 ## Repair
 
@@ -69,7 +69,7 @@ To remove the plugin itself: `/plugin uninstall claude-git-memory`
 
 ```json
 {
-  "version": "3.5.1",
+  "version": "3.6.0",
   "installed_at": "ISO8601",
   "runtime_mode": "normal|compatible|read-only",
   "managed_blocks": [
@@ -86,7 +86,7 @@ No scheduled calendar. Claude cleans in passing (never asks user to run commands
 
 | When | What | Claude does |
 |------|------|-------------|
-| Session start | Silent health check | Doctor from plugin cache → repair if needed |
+| Session start | STATUS in boot output | SessionStart hook runs doctor silently → shows result in STATUS section |
 | PR/merge | Clean stale trailers if seen | "Cleaned 2 stale items in passing" |
 | Symptoms detected | GC on demand | Ask user "Clean up?" → run GC from plugin cache |
 | User asks | Full GC | Run GC (Claude runs it, shows results) |

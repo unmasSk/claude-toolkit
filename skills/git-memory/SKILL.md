@@ -41,11 +41,20 @@ Capture never asks. Safety always asks. No exceptions.
 Write ONLY if: user asked explicitly, affects future sessions, prevents real loss, or is a confirmed decision.
 Do NOT write: provisional observations, weak inferences, session-only context.
 
+## Boot Protocol
+
+The `[git-memory-boot]` SessionStart hook provides ALL context pre-extracted: STATUS, BRANCH, RESUME, REMEMBER, DECISIONS, MEMOS, TIMELINE, and script paths. Claude does NOT need to run doctor or git-memory-log on boot — everything is already in context.
+
+On boot, Claude only needs to:
+1. Load this skill (Skill tool call)
+2. Read the SessionStart output already in context
+3. Show a summary to the user
+
 ## Wrapper Scripts
 
 **NEVER use `git commit` or `git log` directly.** A PreToolUse hook will BLOCK them.
 
-The `[git-memory-boot]` hook output provides the plugin root path. Use it:
+The boot output terminator provides the plugin root path. Use it:
 
 **For commits**: `python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--push]`
 
@@ -114,6 +123,14 @@ Keys are case-sensitive, max once per commit, single-line values.
 | "remember that I..." / personality note | `remember()` |
 | Claude notices working-style pattern | `remember(claude)` — sparingly |
 | Dev advanced | Merge dev into current branch |
+
+## Next <-> Issues
+
+Next: trailers auto-create GitHub issues via git-memory-commit.py.
+Format: `Next: description #issue-number`
+The commit script handles issue creation — Claude doesn't need to call gh manually.
+Resolved-Next: trailers auto-close the referenced issue.
+For advanced issue management (milestones, templates, checklists) -> skill `git-memory-issues`.
 
 ## Wip Strategy
 

@@ -20,6 +20,7 @@ Exit codes:
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -37,6 +38,71 @@ EMOJIS = {
 
 # Memory types use --allow-empty
 MEMORY_TYPES = {"context", "decision", "memo", "remember"}
+
+_gh_available_cache: bool | None = None
+
+def _gh_available() -> bool:
+    """Check if gh CLI is installed and authenticated. Result is cached for the process."""
+    global _gh_available_cache
+    if _gh_available_cache is not None:
+        return _gh_available_cache
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True, text=True, timeout=5,
+        )
+        _gh_available_cache = result.returncode == 0
+    except (FileNotFoundError, OSError):
+        _gh_available_cache = False
+    return _gh_available_cache
+
+
+def _auto_create_issue(next_text: str) -> str | None:
+    """Try to create a GitHub issue from a Next: trailer text.
+
+    Returns '#N' issue reference if successful, None otherwise.
+    Only runs if gh CLI is available and the text has no existing #ref.
+    """
+    if "#" in next_text:
+        return None  # Already has an issue reference
+    if not _gh_available():
+        return None
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "create", "--title", next_text, "--label", "next", "--body",
+             f"Auto-created from git-memory Next: trailer.\n\nSource: `Next: {next_text}`"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0:
+            # gh issue create prints the URL, extract issue number
+            url = result.stdout.strip()
+            # URL format: https://github.com/owner/repo/issues/42
+            match = re.search(r"/issues/(\d+)", url)
+            if match:
+                return f"#{match.group(1)}"
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def _auto_close_issue(issue_ref: str) -> None:
+    """Try to close a GitHub issue referenced in a Resolved-Next: trailer.
+
+    Silently degrades if gh CLI is unavailable.
+    """
+    match = re.search(r"#(\d+)", issue_ref)
+    if not match:
+        return
+    if not _gh_available():
+        return
+    try:
+        subprocess.run(
+            ["gh", "issue", "close", match.group(1), "--comment",
+             "Resolved via git-memory Resolved-Next: trailer"],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        pass
 
 # ANSI colors
 RESET = "\033[0m"
@@ -76,8 +142,15 @@ def build_commit_message(type_: str, scope: str, message: str,
     if trailers:
         if body:
             parts.append("")  # blank line between body and trailers
+        # Process trailers with auto-issue creation
         for t in trailers:
             key, _, value = t.partition("=")
+            if key == "Next":
+                issue_ref = _auto_create_issue(value)
+                if issue_ref:
+                    value = f"{value} {issue_ref}"
+            elif key == "Resolved-Next":
+                _auto_close_issue(value)
             parts.append(f"{key}: {value}")
 
     # Co-author

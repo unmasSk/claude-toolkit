@@ -77,10 +77,8 @@ def main() -> None:
             "[git-memory-bootstrap] Git-memory plugin is active but NOT configured. "
             "BEFORE doing anything else:\n"
             f'1. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-install.py" --auto\n'
-            "2. Use the Skill tool with skill=\"git-memory\" to load the memory rules\n"
-            f'3. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-doctor.py" --json\n'
-            f'4. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-log.py" 20\n'
-            "5. Show the user a boot summary.\n"
+            '2. Use the Skill tool with skill="git-memory" to load the memory rules\n'
+            "3. Show the user a boot summary from the SessionStart output above.\n"
             "Do NOT greet the user first. Install and boot FIRST.\n"
             "CRITICAL: Step 2 means calling the Skill tool — "
             "this is a tool call, not a bash command."
@@ -102,15 +100,13 @@ def main() -> None:
     session_booted = os.path.isfile(booted_flag)
 
     if not session_booted:
-        # First message — full boot instructions
+        # First message — boot instructions (SessionStart already provided all context)
         lines.append(
             f"[git-memory-boot] Plugin root: {PLUGIN_ROOT}\n"
-            "Do ALL of these steps NOW before responding to the user:\n"
-            "  Step 1: Use the Skill tool with skill=\"git-memory\" "
+            "Do these steps NOW before responding to the user:\n"
+            '  Step 1: Use the Skill tool with skill="git-memory" '
             "(this is a TOOL CALL, not a bash command)\n"
-            f'  Step 2: Run: python3 "{PLUGIN_ROOT}/bin/git-memory-doctor.py" --json\n'
-            f'  Step 3: Run: python3 "{PLUGIN_ROOT}/bin/git-memory-log.py" 20\n'
-            "  Step 4: Show the user a boot summary\n"
+            "  Step 2: Show the user a boot summary from the SessionStart output above\n"
             f'After booting, run: touch "{booted_flag}"'
         )
     else:

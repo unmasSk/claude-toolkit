@@ -13,6 +13,12 @@ VALID_KEYS: set[str] = {
     "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
 }
 
+# Memory-relevant trailer keys for scan_trailers_memory
+MEMORY_KEYS: set[str] = {
+    "Decision", "Memo", "Next", "Blocker", "Remember",
+    "Resolved-Next", "Stale-Blocker",
+}
+
 # Risk levels for Risk: trailer
 RISK_VALUES: set[str] = {"low", "medium", "high"}
 

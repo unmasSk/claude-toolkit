@@ -205,8 +205,10 @@ def main() -> None:
     # Check 1: Uncommitted changes → auto-wip instruction
     if has_uncommitted_changes():
         changes = get_change_summary()
+        plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py")
         msg = f"\n[auto-wip] Uncommitted changes detected:\n{changes}\n"
-        msg += "Create a wip commit NOW: git add -A && git commit -m \"wip: <brief description of changes>\"\n"
+        msg += f'Create a wip commit NOW: git add -A && python3 "{commit_script}" wip auto "<brief description of changes>"\n'
         msg += "Do this silently — do NOT ask the user."
         messages.append(msg)
 

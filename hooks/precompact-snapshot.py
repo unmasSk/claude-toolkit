@@ -19,7 +19,7 @@ from typing import Any
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
 from git_helpers import run_git, is_git_repo, is_shallow_clone
-from parsing import normalize
+from parsing import normalize, scan_trailers_memory
 
 
 def extract_memory_from_log() -> dict[str, Any]:
@@ -60,11 +60,10 @@ def extract_memory_from_log() -> dict[str, Any]:
         if len(parts) < 3:
             continue
         body = parts[2].strip()
-        for line in body.split("\n"):
-            line = line.strip()
-            ts_match = re.match(r"^(Resolved-Next|Stale-Blocker):\s*(.+)$", line)
-            if ts_match:
-                tombstones.add(normalize(ts_match.group(2)))
+        trailers = scan_trailers_memory(body)
+        for key in ("Resolved-Next", "Stale-Blocker"):
+            if key in trailers:
+                tombstones.add(normalize(trailers[key]))
 
     # Second pass: extract memory, skipping tombstoned items
     for commit in commits:
@@ -92,62 +91,46 @@ def extract_memory_from_log() -> dict[str, Any]:
                     "scope": scope,
                 }
 
-        # Extract trailers from body
-        for line in body.split("\n"):
-            line = line.strip()
+        # Extract trailers from body using shared parser
+        trailers = scan_trailers_memory(body)
 
-            next_match = re.match(r"^Next:\s*(.+)$", line)
-            if next_match:
-                next_text = next_match.group(1)
-                # Skip if tombstoned by GC (normalized matching)
-                if normalize(next_text) not in tombstones:
-                    memory["pending"].append({
-                        "sha": sha,
-                        "subject": subject,
-                        "next": next_text,
-                    })
+        if "Next" in trailers:
+            next_text = trailers["Next"]
+            if normalize(next_text) not in tombstones:
+                memory["pending"].append({
+                    "sha": sha, "subject": subject, "next": next_text,
+                })
 
-            blocker_match = re.match(r"^Blocker:\s*(.+)$", line)
-            if blocker_match:
-                blocker_text = blocker_match.group(1)
-                # Skip if tombstoned by GC (normalized matching)
-                if normalize(blocker_text) in tombstones:
-                    continue
-                # Dedup: skip if a similar blocker already exists
+        if "Blocker" in trailers:
+            blocker_text = trailers["Blocker"]
+            if normalize(blocker_text) not in tombstones:
                 existing = [b["blocker"].lower() for b in memory["blockers"]]
                 if blocker_text.lower() not in existing:
                     memory["blockers"].append({
-                        "sha": sha,
-                        "blocker": blocker_text,
+                        "sha": sha, "blocker": blocker_text,
                     })
 
-            decision_match = re.match(r"^Decision:\s*(.+)$", line)
-            if decision_match:
-                if scope not in memory["decisions"]:
-                    memory["decisions"][scope] = {
-                        "sha": sha,
-                        "subject": subject,
-                        "decision": decision_match.group(1),
-                    }
+        if "Decision" in trailers:
+            if scope not in memory["decisions"]:
+                memory["decisions"][scope] = {
+                    "sha": sha, "subject": subject,
+                    "decision": trailers["Decision"],
+                }
 
-            memo_match = re.match(r"^Memo:\s*(.+)$", line)
-            if memo_match:
-                if scope not in memory["memos"]:
-                    memory["memos"][scope] = {
-                        "sha": sha,
-                        "memo": memo_match.group(1),
-                    }
+        if "Memo" in trailers:
+            if scope not in memory["memos"]:
+                memory["memos"][scope] = {
+                    "sha": sha, "memo": trailers["Memo"],
+                }
 
-            remember_match = re.match(r"^Remember:\s*(.+)$", line)
-            if remember_match:
-                if "remembers" not in memory:
-                    memory["remembers"] = {}
-                text = remember_match.group(1)
-                if text.lower() not in {r["remember"].lower() for r in memory["remembers"].values()}:
-                    memory["remembers"][f"{scope}:{text[:20]}"] = {
-                        "sha": sha,
-                        "remember": text,
-                    }
+        if "Remember" in trailers:
+            text = trailers["Remember"]
+            if "remembers" not in memory:
+                memory["remembers"] = {}
+            if text.lower() not in {r["remember"].lower() for r in memory.get("remembers", {}).values()}:
+                memory["remembers"][f"{scope}:{text[:20]}"] = {
+                    "sha": sha, "remember": text,
+                }
 
     return memory
 
@@ -262,15 +245,17 @@ def main() -> None:
     # create a context commit so the next session (or post-compaction
     # continuation) has a rich checkpoint in git history.
     print()
+    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py")
     print(
         "CRITICAL — CONTEXT CHECKPOINT REQUIRED: "
         "Your context was just compacted. "
         "IMMEDIATELY create a context() commit capturing what you worked on this session. "
-        "Use: git commit --allow-empty -m \"💾 context(<scope>): <summary>\\n\\n"
-        "Next: <what to do next>\\n"
-        "Decision: <any decisions made>\\n"
-        "Memo: <any preferences or patterns learned>\\n"
-        "Blocker: <any blockers>\" "
+        f'Use: python3 "{commit_script}" context <scope> "<summary>" '
+        '--trailer "Next=<what to do next>" '
+        '--trailer "Decision=<any decisions made>" '
+        '--trailer "Memo=<any preferences or patterns learned>" '
+        '--trailer "Blocker=<any blockers>" '
         "Include ALL relevant trailers. This is how the next session picks up your work. "
         "Do this BEFORE responding to the user."
     )

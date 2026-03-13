@@ -57,16 +57,44 @@ Next: wire validation into the API layer
 ### What Claude sees when it starts a new session
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Branch: feat/CU-042-filters                             │
-│  Last session: "pause forms refactor" (2h ago)           │
-│  Pending: wire validation into API layer                 │
-│  Decision: (forms) use dayjs over moment                 │
-│  Memo: (api) never use sync fs operations                │
-└──────────────────────────────────────────────────────────┘
+[git-memory-boot] v3.6.0 | ~/.claude/plugins/cache/.../claude-git-memory
+
+STATUS: ok
+
+BRANCH: feat/CU-042-filters [0/2 vs upstream]
+  PULL RECOMMENDED: remote is 2 ahead
+
+RESUME:
+  Last: a3f2b1c 💾 context(forms): pause forms refactor | 2h ago
+  Issue (from branch): #42
+  Next: a3f2b1c: wire validation into API layer
+  Blocker: none
+
+REMEMBER:
+  (user) se frustra si asumes cosas — preguntar antes
+  (claude) trabaja en español, respuestas directas
+
+DECISIONS:
+  (forms) use dayjs over moment
+  (backend/auth) JWT with refresh tokens
+
+MEMOS:
+  (api) preference - never use sync fs operations
+
+TIMELINE (last 5):
+  a3f2b1c 💾 context(forms): pause forms refactor | 2h ago
+  b4c3d2e 📌 memo(api): async preference | 3h ago
+  c5d4e3f ✨ feat(forms): add date picker | 3h ago
+  d6e5f4g 🧭 decision(forms): use dayjs | 1d ago
+  e7f6g5h 🐛 fix(auth): token expiry | 2d ago
+
+---
+BOOT COMPLETE. Do NOT run doctor or git-memory-log. All context is above.
+Commit: python3 "~/.claude/plugins/cache/.../bin/git-memory-commit.py"
+Log: python3 "~/.claude/plugins/cache/.../bin/git-memory-log.py"
 ```
 
-No questions. It knows where you left off.
+No questions. It knows where you left off. One tool call (loading the skill), zero bash commands.
 
 ---
 
@@ -376,8 +404,8 @@ The memory system protects itself with six automatic hooks. You don't configure 
 |------|----------|-------------|--------------|
 | **Pre-commit** | Belt | Before `git commit` | Blocks Claude's commits if trailers are missing **and** blocks direct `git commit`/`git log` — Claude must use wrapper scripts (`git-memory-commit.py`, `git-memory-log.py`). Catches all flag variants (`git -C path log`, `git --no-pager commit`, etc.). Human commits get a warning only — never blocked. |
 | **Post-commit** | Suspenders | After `git commit` | Safety net. If a bad commit slips through and hasn't been pushed, rolls it back safely (`reset --soft`). |
-| **Session start** | Boot | When Claude starts a session | Silent health check + memory extraction from last 30 commits + **full glossary scan** of all decisions and memos across entire git history. Shows a compact summary with recent memory and a grouped glossary. |
-| **User message** | Radar | Every time you send a message | Injects a `[memory-check]` reminder so Claude evaluates if your message contains a decision, preference, or requirement worth saving. |
+| **Session start** | Boot | When Claude starts a session | **Complete structured briefing** — silent health check + memory extraction + full glossary (cached) + branch-awareness + time-ago + version check. Outputs sectioned format: STATUS, BRANCH, RESUME, REMEMBER, DECISIONS, MEMOS, TIMELINE, BOOT COMPLETE. Claude receives everything in context — zero bash calls needed. |
+| **User message** | Radar | Every time you send a message | On first message: tells Claude to load the skill and show boot summary (no doctor/log). On every message: injects `[memory-check]` reminder so Claude evaluates if your message contains a decision, preference, or requirement worth saving. |
 | **Session exit** | DoD | When Claude ends a session | Never blocks. If there are uncommitted changes, instructs Claude to create a silent wip commit. If wips accumulate (3+), suggests squashing into a proper commit. **Mandates a `context()` commit before every session end** — Claude must save what was accomplished and what's next. Also checks if decisions were discussed but not captured. |
 | **Context compression** | Hippocampus | Before Claude compresses context | Extracts a compact snapshot (branch, pending items, decisions, memos) and re-injects it so memory survives compression. |
 
@@ -413,31 +441,15 @@ Every time Claude starts a session in your project, it automatically:
 
 1. Fetches remote refs silently (detects if remote is ahead and suggests pulling).
 2. Runs a silent health check (doctor). If anything is broken, repairs it.
-3. Reads the last 30 commits and extracts memory trailers (pending, blockers, decisions, memos).
-4. Scans the **full git history** for a glossary of all decisions and memos by scope (deduplicated against recent memory).
-5. Checks for uncommitted changes.
-6. Shows you a compact summary:
+3. Checks plugin version against manifest.
+4. Reads the last 30 commits and extracts memory trailers (pending, blockers, decisions, memos, remembers).
+5. Scans the **full git history** for a glossary of all decisions and memos by scope (cached with 24h TTL).
+6. Detects branch context — extracts keywords and issue references from branch name.
+7. Prioritizes branch-relevant items in each section.
+8. Calculates time since last context commit.
+9. Outputs a complete structured briefing with sections: STATUS, BRANCH, RESUME, REMEMBER, DECISIONS, MEMOS, TIMELINE, BOOT COMPLETE.
 
-```
-Branch: feat/CU-042-filters
-Last session: pause forms refactor (2h ago)
-Pending: wire validation into API layer
-Remember (personality/working notes):
-  🧠 (user) se frustra si asumes cosas — preguntar antes
-  🧠 (claude) trabaja en español, respuestas directas
-Active decisions: (forms) use dayjs over moment
-Active memos: (api) preference - never use sync fs operations
-Glossary (full history):
-  [backend]
-    🧭 (backend/auth) JWT with refresh tokens
-    📌 (backend/api) preference - async/await everywhere
-  [frontend]
-    🧭 (frontend/ux) glassmorphic style
-```
-
-If there's nothing relevant, Claude just says: "Repo up to date. What are we working on?"
-
-You don't ask for this. It happens automatically.
+Claude receives all of this in context from the SessionStart hook. It only needs to load the skill (one tool call) — no bash commands required. This saves ~1500-3000 tokens per boot compared to the previous 3-tool-call flow.
 
 ---
 

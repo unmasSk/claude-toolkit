@@ -35,7 +35,7 @@ from git_helpers import run_git
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-VERSION = "3.5.1"
+VERSION = "3.6.0"
 
 MANAGED_BLOCK_BEGIN = "<!-- BEGIN claude-git-memory (managed block — do not edit) -->"
 MANAGED_BLOCK_END = "<!-- END claude-git-memory -->"
@@ -46,7 +46,7 @@ This project uses **claude-git-memory**. Git is the memory.
 
 **On every session start**, you MUST:
 1. Use the Skill tool with `skill="git-memory"` (TOOL CALL, not bash)
-2. Follow the boot steps from the `[git-memory-boot]` hook output
+2. Read the `[git-memory-boot]` SessionStart output already in your context (do NOT run doctor or git-memory-log)
 3. Show the boot summary, then respond to the user
 
 **On every user message**, the `[memory-check]` hook fires. Follow the skill instructions.
@@ -54,8 +54,8 @@ This project uses **claude-git-memory**. Git is the memory.
 **On session end**, the Stop hook fires. Follow its instructions (wip commits, etc).
 
 All rules, commit types, trailers, capture behavior, and protocol are in the **git-memory skill**.
-If the user says "install/repair/uninstall/doctor/status" → use skill `git-memory-lifecycle`.
-Never ask the user to run commands — run them yourself."""
+If the user says "install/repair/uninstall/doctor/status" -> use skill `git-memory-lifecycle`.
+Never ask the user to run commands -- run them yourself."""
 
 
 # Old-style install files that should be cleaned up from the project root.

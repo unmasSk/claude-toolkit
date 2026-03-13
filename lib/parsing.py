@@ -7,7 +7,7 @@ normalization. Used by validation hooks and CLI scripts.
 
 import re
 
-from constants import VALID_KEYS
+from constants import VALID_KEYS, MEMORY_KEYS
 
 
 def parse_commit_type(subject: str) -> str | None:
@@ -102,6 +102,25 @@ def parse_trailers_full(body: str) -> dict[str, str | list[str]]:
             else:
                 trailers[key] = val
     return trailers
+
+
+def scan_trailers_memory(body: str) -> dict[str, str]:
+    """Scan entire body for memory-relevant trailers (full-body, not bottom-up).
+
+    Unlike parse_trailers() which stops at the first non-trailer line
+    from the bottom, this scans all lines. Needed because Co-Authored-By
+    at the end breaks bottom-up parsing.
+
+    Returns first occurrence of each memory key found.
+    """
+    found: dict[str, str] = {}
+    for line in body.splitlines():
+        match = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line.strip())
+        if match:
+            key, value = match.group(1), match.group(2).strip()
+            if key in MEMORY_KEYS and key not in found:
+                found[key] = value
+    return found
 
 
 def extract_commit_message(command: str) -> str | None:
