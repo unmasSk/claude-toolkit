@@ -158,8 +158,15 @@ def main() -> None:
                     pass
 
                 # Info level: always show (just the percentage, no spam)
+                # Reset debounce state when back to info (prevents stale state
+                # from suppressing warnings if context rises again)
                 if level == "info":
                     lines.append(f"[CTX: {used:.0f}%]")
+                    if last_level is not None:
+                        try:
+                            os.remove(ctx_warn_path)
+                        except OSError:
+                            pass
                 else:
                     # Emit warning if: first time, severity escalated, or 5+ msgs since last
                     escalated = level == "critical" and last_level == "warning"
