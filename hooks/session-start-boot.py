@@ -615,6 +615,27 @@ def main() -> None:
 
     lines.append("")
 
+    # ── SCOPES ──────────────────────────────────────────────────────
+    scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json") if project_root else None
+    if scopes_file and os.path.isfile(scopes_file):
+        try:
+            with open(scopes_file) as f:
+                scopes_data = json.load(f)
+            scope_map = scopes_data.get("scopes", {})
+            if scope_map:
+                lines.append("SCOPES:")
+                for scope_name, scope_info in scope_map.items():
+                    desc = scope_info.get("description", "") if isinstance(scope_info, dict) else str(scope_info)
+                    children = scope_info.get("children", {}) if isinstance(scope_info, dict) else {}
+                    if children:
+                        child_list = ", ".join(f"{scope_name}/{k}" for k in children)
+                        lines.append(f"  {scope_name}: {desc} [{child_list}]")
+                    else:
+                        lines.append(f"  {scope_name}: {desc}")
+                lines.append("")
+        except (json.JSONDecodeError, OSError):
+            pass  # Silently skip if file is corrupt
+
     # ── RESUME ──────────────────────────────────────────────────────
     memory = extract_memory()
 

@@ -26,6 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from parsing import suggest_scope_from_paths
 
 # ── Emoji map ────────────────────────────────────────────────────────────
 
@@ -125,6 +126,49 @@ TYPE_COLORS = {
 }
 
 
+def _load_scope_map() -> dict[str, str]:
+    """Load scope map from .claude/git-memory-scopes.json and flatten to {dir_prefix: scope_name}."""
+    try:
+        _, toplevel = run_git(["rev-parse", "--show-toplevel"])
+        if not toplevel:
+            return {}
+        scopes_file = os.path.join(toplevel, ".claude", "git-memory-scopes.json")
+        if not os.path.isfile(scopes_file):
+            return {}
+        import json
+        with open(scopes_file) as f:
+            data = json.load(f)
+        result: dict[str, str] = {}
+        for scope_name, scope_info in data.get("scopes", {}).items():
+            result[scope_name] = scope_name
+        return result
+    except (OSError, ValueError):
+        return {}
+
+
+def _suggest_scope(given_scope: str) -> None:
+    """Print a hint if staged files suggest a more specific scope than what was given."""
+    scope_map = _load_scope_map()
+    if not scope_map:
+        return
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        capture_output=True, text=True, timeout=5,
+    )
+    if result.returncode != 0:
+        return
+    changed = [f for f in result.stdout.strip().splitlines() if f]
+    if not changed:
+        return
+    suggested = suggest_scope_from_paths(changed, scope_map)
+    if not suggested:
+        return
+    scope_base = given_scope.split("/")[0]
+    if suggested != scope_base and suggested != given_scope:
+        print(f"  {DIM}hint: files are in {suggested}/, consider scope '{suggested}' or '{suggested}/...'{RESET}",
+              file=sys.stderr)
+
+
 def build_commit_message(type_: str, scope: str, message: str,
                          body: str | None, trailers: list[str]) -> str:
     """Build the full commit message with emoji, subject, body, trailers."""
@@ -175,6 +219,10 @@ def main() -> None:
     if type_ not in EMOJIS:
         print(f"{RED}{BOLD}Error{RESET}: unknown type '{type_}'. Valid: {', '.join(sorted(EMOJIS))}", file=sys.stderr)
         sys.exit(1)
+
+    # Scope suggestion from staged files (non-blocking hint)
+    if type_ not in MEMORY_TYPES:
+        _suggest_scope(args.scope)
 
     # Build message
     msg = build_commit_message(type_, args.scope, args.message, args.body, args.trailers)
