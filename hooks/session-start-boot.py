@@ -730,17 +730,45 @@ def main() -> None:
     if branch_issue:
         lines.append(f"  Issue (from branch): {branch_issue}")
 
-    # Next items — branch-scoped first
+    # Next items — filter closed issues + stale marker
     if memory.get("pending"):
-        branch_next, other_next = partition_by_relevance(
-            memory["pending"], branch_keywords, lambda x: x["display"])
-        all_next = branch_next[:BOOT_MAX_BRANCH_NEXT] + other_next[:BOOT_MAX_OTHER_NEXT]
-        all_next = all_next[:BOOT_MAX_NEXT]
-        for item in all_next:
-            lines.append(f"  Next: {item['display']}")
-        remaining = len(memory["pending"]) - len(all_next)
-        if remaining > 0:
-            lines.append(f"  ({remaining} more Next items in history. Use git-memory-log --type context)")
+        # Check issue status for items with refs
+        issue_status = check_issue_status(memory["pending"])
+
+        # Filter and annotate
+        filtered_pending = []
+        now = int(time.time())
+        stale_threshold = 7 * 24 * 3600  # 7 days
+
+        for item in memory["pending"]:
+            issue_num = item.get("issue")
+
+            # If has issue ref and we got status, check if closed
+            if issue_num and issue_num in issue_status:
+                status = issue_status[issue_num]
+                if status["state"] == "CLOSED" and _issue_matches_next(item["text"], status["title"]):
+                    continue  # Skip — issue closed and matches
+
+            # Stale marker for items without issue
+            display = item["display"]
+            if not issue_num and item.get("timestamp") and item["timestamp"] > 0:
+                age = now - item["timestamp"]
+                if age > stale_threshold:
+                    display = display.replace(": ", ": [stale] ", 1)
+
+            filtered_pending.append({**item, "display": display})
+
+        # Branch-scoped partitioning
+        if filtered_pending:
+            branch_next, other_next = partition_by_relevance(
+                filtered_pending, branch_keywords, lambda x: x["display"])
+            all_next = branch_next[:BOOT_MAX_BRANCH_NEXT] + other_next[:BOOT_MAX_OTHER_NEXT]
+            all_next = all_next[:BOOT_MAX_NEXT]
+            for item in all_next:
+                lines.append(f"  Next: {item['display']}")
+            remaining = len(filtered_pending) - len(all_next)
+            if remaining > 0:
+                lines.append(f"  ({remaining} more Next items in history. Use git-memory-log --type context)")
 
     # Blockers
     if memory.get("blockers"):
