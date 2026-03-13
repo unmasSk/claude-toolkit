@@ -19,6 +19,7 @@ from conftest import (
     INSTALL, UPGRADE, DOCTOR,
     git_cmd, run_script,
 )
+from version import VERSION
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ def test_manifest_updated(tmp_path):
         manifest = json.load(f)
 
     assert "upgraded_at" in manifest
-    assert manifest["version"] == "3.6.0"
+    assert manifest["version"] == VERSION
 
 
 if __name__ == "__main__":

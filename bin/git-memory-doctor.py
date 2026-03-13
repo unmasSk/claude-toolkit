@@ -30,6 +30,7 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from version import VERSION
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -50,7 +51,6 @@ EXPECTED_SKILLS = [
 
 STALE_BLOCKER_DAYS = 30
 SCAN_DEPTH = 50
-VERSION = "3.6.0"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

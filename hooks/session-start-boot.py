@@ -20,9 +20,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
 from parsing import scan_trailers_memory as scan_trailers, normalize
-
-# Current plugin version — must match bin/git-memory-install.py VERSION
-PLUGIN_VERSION = "3.6.0"
+from version import VERSION as PLUGIN_VERSION
 
 
 def check_version_mismatch() -> str | None:

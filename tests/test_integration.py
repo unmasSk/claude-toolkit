@@ -22,6 +22,7 @@ from conftest import (
     PRE_HOOK, POST_HOOK,
     run_cmd, git_cmd, write_file, run_script, run_doctor_json,
 )
+from version import VERSION
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
     # Manifest exists
     with open(os.path.join(repo, ".claude", "git-memory-manifest.json")) as f:
         manifest = json.load(f)
-        assert manifest["version"] == "3.6.0"
+        assert manifest["version"] == VERSION
 
     # Nothing else copied to project root
     assert not os.path.isdir(os.path.join(repo, "hooks"))

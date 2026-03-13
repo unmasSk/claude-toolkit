@@ -22,6 +22,7 @@ from conftest import (
     DOCTOR, INSTALL, REPAIR, UNINSTALL,
     run_cmd, git_cmd, run_script, run_doctor_json,
 )
+from version import VERSION
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ def test_install(lifecycle_repo):
     # Manifest
     with open(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")) as f:
         manifest = json.load(f)
-        assert manifest["version"] == "3.6.0"
+        assert manifest["version"] == VERSION
 
     # Nothing copied to project root (no hooks, skills, bin, lib)
     assert not os.path.isdir(os.path.join(lifecycle_repo, "hooks"))
