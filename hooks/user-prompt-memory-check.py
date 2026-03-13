@@ -76,10 +76,10 @@ def main() -> None:
         print(
             "[git-memory-bootstrap] Git-memory plugin is active but NOT configured. "
             "BEFORE doing anything else:\n"
-            f"1. Run: python3 {PLUGIN_ROOT}/bin/git-memory-install.py --auto\n"
+            f'1. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-install.py" --auto\n'
             "2. Use the Skill tool with skill=\"git-memory\" to load the memory rules\n"
-            f"3. Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
-            f"4. Run: python3 {PLUGIN_ROOT}/bin/git-memory-log.py 20\n"
+            f'3. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-doctor.py" --json\n'
+            f'4. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-log.py" 20\n'
             "5. Show the user a boot summary.\n"
             "Do NOT greet the user first. Install and boot FIRST.\n"
             "CRITICAL: Step 2 means calling the Skill tool — "
@@ -108,10 +108,10 @@ def main() -> None:
             "Do ALL of these steps NOW before responding to the user:\n"
             "  Step 1: Use the Skill tool with skill=\"git-memory\" "
             "(this is a TOOL CALL, not a bash command)\n"
-            f"  Step 2: Run: python3 {PLUGIN_ROOT}/bin/git-memory-doctor.py --json\n"
-            f"  Step 3: Run: python3 {PLUGIN_ROOT}/bin/git-memory-log.py 20\n"
+            f'  Step 2: Run: python3 "{PLUGIN_ROOT}/bin/git-memory-doctor.py" --json\n'
+            f'  Step 3: Run: python3 "{PLUGIN_ROOT}/bin/git-memory-log.py" 20\n'
             "  Step 4: Show the user a boot summary\n"
-            "After booting, run: touch " + booted_flag
+            f'After booting, run: touch "{booted_flag}"'
         )
     else:
         # Already booted — just plugin root for reference
@@ -183,7 +183,7 @@ def main() -> None:
             lines.append(
                 "[context-reminder] You have exchanged ~20 messages without "
                 "creating a context() commit. Create one NOW to checkpoint your work. "
-                f"Use: python3 {commit_script} context <scope> \"<summary>\" "
+                f'Use: python3 "{commit_script}" context <scope> "<summary>" '
                 "--trailer \"Next=<pending tasks>\" --trailer \"Decision=<decisions made>\""
             )
 

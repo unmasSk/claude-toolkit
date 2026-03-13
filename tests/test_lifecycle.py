@@ -80,7 +80,8 @@ def test_install(lifecycle_repo):
 
     # Manifest
     with open(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")) as f:
-        assert result["version"] == "3.4.0"
+        manifest = json.load(f)
+        assert manifest["version"] == "3.4.0"
 
     # Nothing copied to project root (no hooks, skills, bin, lib)
     assert not os.path.isdir(os.path.join(lifecycle_repo, "hooks"))

@@ -83,7 +83,8 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
 
     # Manifest exists
     with open(os.path.join(repo, ".claude", "git-memory-manifest.json")) as f:
-        assert result["version"] == "3.4.0"
+        manifest = json.load(f)
+        assert manifest["version"] == "3.4.0"
 
     # Nothing else copied to project root
     assert not os.path.isdir(os.path.join(repo, "hooks"))
@@ -219,6 +220,9 @@ def test_branch_context(tmp_path):
     """Branch change produces branch-aware context."""
     repo = make_installed_repo(tmp_path)
 
+    # Remember the default branch name (may be "main" or "master")
+    _, default_branch, _ = git_cmd(["branch", "--show-current"], repo)
+
     git_cmd(["commit", "--allow-empty", "-m",
              "🧭 decision(main): arch principal\n\nDecision: usar monolito\nWhy: simplicidad"], repo)
 
@@ -229,7 +233,7 @@ def test_branch_context(tmp_path):
     _, log_output, _ = git_cmd(["log", "-n", "5", "--pretty=format:%s%n%b"], repo)
     assert "microservicios" in log_output
 
-    git_cmd(["checkout", "main"], repo)
+    git_cmd(["checkout", default_branch], repo)
     _, log_output, _ = git_cmd(["log", "-n", "5", "--pretty=format:%s%n%b"], repo)
     assert "monolito" in log_output
     assert "microservicios" not in log_output
