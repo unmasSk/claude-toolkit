@@ -187,31 +187,17 @@ After pushing, users need to refresh their plugin cache (see below).
 
 ### Updating the plugin (for users)
 
-> **Known issue (as of March 2026):** `/plugin update` does NOT invalidate the plugin cache. This is a [confirmed Claude Code bug](https://github.com/anthropics/claude-code/issues/14061). Running `/plugin update claude-git-memory` will say "already at latest version" even when a new version exists.
+**To update to a new version:**
 
-**To update, you must do all 5 steps in order:**
+1. Run `/plugin` in Claude Code (opens the interactive menu)
+2. Go to the **marketplace** section
+3. Select the **update** option for `claude-git-memory`
 
-```bash
-# Step 1: Delete the stale cache (run in your terminal, NOT in Claude Code)
-rm -rf ~/.claude/plugins/cache/unmassk-claude-git-memory/
+That's it. Claude Code will download the new version to a fresh cache directory (keyed by version number). Your next session will use the updated version automatically.
 
-# Step 2: Uninstall (in Claude Code)
-/plugin uninstall claude-git-memory
+**Important:** `/plugin update` (the CLI command) does NOT work reliably. Always use the interactive `/plugin` menu instead.
 
-# Step 3: Remove the marketplace
-/plugin marketplace remove unmassk-claude-git-memory
-
-# Step 4: Re-add the marketplace (fetches fresh from GitHub)
-/plugin marketplace add https://github.com/unmasSk/claude-git-memory
-
-# Step 5: Reinstall (use the interactive menu)
-/plugin install
-# Select claude-git-memory from the list
-```
-
-**Why all these steps?** Claude Code caches plugin files keyed by name + version. Even after uninstall, the cache directory persists. And even after re-adding the marketplace, the old cache is reused if the directory still exists. The only reliable way is: delete cache → uninstall → remove marketplace → re-add → reinstall.
-
-**Important:** Until you refresh the cache, your projects will keep using the OLD version. The CLAUDE.md managed block, hooks, and skills all run from the cache, not from the source repo.
+**Note:** Until you update, your projects keep using the OLD cached version. The CLAUDE.md managed block, hooks, and skills all run from the cache, not from the source repo.
 
 ### The marketplace.json matters
 
@@ -221,7 +207,7 @@ The version in `.claude-plugin/marketplace.json` is what Claude Code uses to det
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `/plugin update` says "already at latest" | Cache not invalidated (known bug) | Follow the 5-step update process above |
+| `/plugin update` says "already at latest" | CLI command unreliable | Use `/plugin` interactive menu > marketplace > update instead |
 | `/plugin install <URL>` says "Marketplace not found" | `/plugin install` doesn't accept URLs | Use `/plugin marketplace add <URL>` first, then `/plugin install` from menu |
 | Hooks error "can't open file" after update | Stale cache pointing to old version directory | Delete `~/.claude/plugins/cache/unmassk-claude-git-memory/` and reinstall |
 | Stop hook blocks in infinite loop | Cache was deleted but plugin still registered | Ctrl+C to kill, then restore cache manually or reinstall |
@@ -236,7 +222,7 @@ If you delete the plugin cache while a session is running, you'll enter a deadlo
 1. Kill the Claude Code session (Ctrl+C or close terminal)
 2. In a normal terminal, either:
    - Restore the cache: `mkdir -p ~/.claude/plugins/cache/unmassk-claude-git-memory/claude-git-memory/<version>/ && cp -R <plugin-source>/* <that-dir>/`
-   - Or reinstall cleanly: follow the 5-step update process above
+   - Or reinstall cleanly: `/plugin` > marketplace > update
 3. Start a new Claude Code session
 
 ---
@@ -876,7 +862,7 @@ A: The Hippocampus hook extracts critical memory before compression and re-injec
 A: Claude detects the amnesia on next session start, rebuilds memory from current state, and warns about any gaps.
 
 **Q: `/plugin update` doesn't work?**
-A: This is a [known Claude Code bug](https://github.com/anthropics/claude-code/issues/14061). See the [Updating section](#updating--troubleshooting) for the workaround.
+A: Use the interactive menu instead: `/plugin` > marketplace > update. The `/plugin update` CLI command is unreliable.
 
 ---
 
