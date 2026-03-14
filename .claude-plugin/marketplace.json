@@ -27,6 +27,36 @@
       "version": "1.0.0",
       "description": "14-step enterprise audit for backend modules",
       "source": "./unmassk-audit/"
+    },
+    {
+      "name": "unmassk-seo",
+      "version": "0.1.0",
+      "description": "Technical SEO — crawling, schema, Core Web Vitals, GEO/AEO, site audits",
+      "source": "./unmassk-seo/"
+    },
+    {
+      "name": "unmassk-marketing",
+      "version": "0.1.0",
+      "description": "Strategic marketing — CRO, copywriting, email, ads, pricing, growth",
+      "source": "./unmassk-marketing/"
+    },
+    {
+      "name": "unmassk-design",
+      "version": "0.1.0",
+      "description": "Frontend/UX — design systems, component patterns, responsive layouts",
+      "source": "./unmassk-design/"
+    },
+    {
+      "name": "unmassk-ops",
+      "version": "0.1.0",
+      "description": "DevOps — CI/CD, database migrations, performance, observability",
+      "source": "./unmassk-ops/"
+    },
+    {
+      "name": "unmassk-compliance",
+      "version": "0.1.0",
+      "description": "Compliance — accessibility (WCAG), i18n, GDPR, E2E testing, API docs",
+      "source": "./unmassk-compliance/"
     }
   ]
 }
