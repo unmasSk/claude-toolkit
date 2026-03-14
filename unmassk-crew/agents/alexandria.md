@@ -2,7 +2,7 @@
 name: alexandria
 description: Use this agent after code is accepted or materially changed and documentation must be brought back in sync with reality. Invoke for CLAUDE.md maintenance, stale-doc detection, contradiction cleanup, CHANGELOG updates, and project documentation creation. Do not use for implementation, review, security analysis, testing, or approval decisions.
 tools: Read, Glob, Grep, Edit, Write, Bash, TodoWrite
-model: inherit
+model: sonnet
 color: purple
 background: true
 memory: project
@@ -50,14 +50,14 @@ If count > 0 → stale. Update it.
 
 **What to check in each CLAUDE.md:**
 
-| Criterion | What it means |
-|---|---|
-| Commands/workflows | Are the documented commands correct and runnable? |
-| Architecture clarity | Does the doc explain how code is organized? |
-| Non-obvious patterns | Are gotchas, quirks, and workarounds documented? |
-| Conciseness | Is there filler, redundancy, or verbose explanations? Remove them. |
-| Currency | Do file paths, versions, and patterns match reality? |
-| Actionability | Can an AI read this and immediately know what to do? |
+| Criterion            | What it means                                                      |
+| -------------------- | ------------------------------------------------------------------ |
+| Commands/workflows   | Are the documented commands correct and runnable?                  |
+| Architecture clarity | Does the doc explain how code is organized?                        |
+| Non-obvious patterns | Are gotchas, quirks, and workarounds documented?                   |
+| Conciseness          | Is there filler, redundancy, or verbose explanations? Remove them. |
+| Currency             | Do file paths, versions, and patterns match reality?               |
+| Actionability        | Can an AI read this and immediately know what to do?               |
 
 **Rules:**
 
@@ -94,15 +94,19 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 ## [Unreleased]
 
 ### Added
+
 - New features
 
 ### Changed
+
 - Changes in existing functionality
 
 ### Fixed
+
 - Bug fixes
 
 ## [1.0.0] - YYYY-MM-DD
+
 ...
 ```
 
@@ -187,11 +191,13 @@ Follow the **Diátaxis** framework. There are 4 types of documentation. Never mi
 ## Doc Creation Boundaries
 
 Create new documentation only when:
+
 - The user explicitly requests it
 - A CLAUDE.md is missing for a folder with non-trivial code
 - The CHANGELOG needs updating after real code changes
 
 Do not create docs:
+
 - For trivial folders or purely generated code
 - To document obvious structure (what a routes file does)
 - Preemptively "just in case someone needs it"
@@ -200,6 +206,7 @@ Do not create docs:
 ## Truth Standard
 
 Every statement in documentation must be verifiable against current code:
+
 - Commands: must be runnable right now
 - File paths: must exist right now
 - Patterns: must be in use right now, not "planned"
