@@ -1017,7 +1017,7 @@ Score 1-5 per factor. Prioritize highest weighted scores.
 
 ## CLI Script Reference
 
-All CLI tools are zero-dependency Node.js scripts. Run with `node tools/clis/<name>.js`. Run without arguments to see usage. Use `--dry-run` to preview API requests without sending.
+All CLI tools are zero-dependency Node.js scripts. Run with `node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<name>.js`. Run without arguments to see usage. Use `--dry-run` to preview API requests without sending.
 
 ### ga4.js
 

@@ -684,7 +684,7 @@ They get [their reward] too.
 
 ## CLI Script Reference (Growth Tools)
 
-All CLI tools are zero-dependency Node.js scripts. Run with `node tools/clis/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
+All CLI tools are zero-dependency Node.js scripts. Run with `node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
 
 ### dub.js (Link Tracking and Attribution)
 

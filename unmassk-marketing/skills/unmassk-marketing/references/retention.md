@@ -765,22 +765,22 @@ Manage subscriptions, dunning configuration, and payment retries.
 export STRIPE_API_KEY=sk_live_xxx
 
 # List subscriptions
-node stripe.js subscriptions list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions list
 
 # Get subscription details
-node stripe.js subscriptions get --id sub_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions get --id sub_xxx
 
 # Cancel subscription
-node stripe.js subscriptions cancel --id sub_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions cancel --id sub_xxx
 
 # Create subscription
-node stripe.js subscriptions create --customer cus_xxx --price price_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions create --customer cus_xxx --price price_xxx
 
 # List invoices
-node stripe.js invoices list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js invoices list
 
 # Preview without sending
-node stripe.js subscriptions list --dry-run
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions list --dry-run
 ```
 
 ### paddle.js
@@ -793,19 +793,19 @@ export PADDLE_API_KEY=pdl_xxx
 export PADDLE_SANDBOX=true  # optional, for sandbox environment
 
 # List subscriptions
-node paddle.js subscriptions list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js subscriptions list
 
 # Get subscription
-node paddle.js subscriptions get --id sub_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js subscriptions get --id sub_xxx
 
 # List products
-node paddle.js products list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js products list
 
 # Create product
-node paddle.js products create --name "Pro Plan" --tax-category saas
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js products create --name "Pro Plan" --tax-category saas
 
 # List transactions
-node paddle.js transactions list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js transactions list
 ```
 
 ### customer-io.js
@@ -820,27 +820,27 @@ export CUSTOMERIO_API_KEY=xxx
 export CUSTOMERIO_APP_KEY=xxx
 
 # Identify/update a customer
-node customer-io.js customers identify user_123 --email user@example.com --plan pro
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers identify user_123 --email user@example.com --plan pro
 
 # Get customer attributes
-node customer-io.js customers get user_123
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers get user_123
 
 # Track a custom event (e.g., payment_failed, subscription_cancelled)
-node customer-io.js customers track-event user_123 --name payment_failed --data '{"amount": 29, "reason": "card_declined"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers track-event user_123 --name payment_failed --data '{"amount": 29, "reason": "card_declined"}'
 
 # Delete a customer
-node customer-io.js customers delete user_123
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers delete user_123
 
 # Manage segments
-node customer-io.js segments list
-node customer-io.js segments get 5
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments get 5
 
 # Manage campaigns
-node customer-io.js campaigns list
-node customer-io.js campaigns get 12
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns get 12
 
 # Send transactional message
-node customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
 ```
 
 ### intercom.js
@@ -852,25 +852,25 @@ In-app messaging, proactive support, and product tours for retention.
 export INTERCOM_API_KEY=xxx
 
 # List contacts
-node intercom.js contacts list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts list
 
 # Get contact
-node intercom.js contacts get --id xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts get --id xxx
 
 # Create contact
-node intercom.js contacts create --email user@example.com --name "John Doe"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts create --email user@example.com --name "John Doe"
 
 # Update contact
-node intercom.js contacts update --id xxx --name "Jane Doe"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts update --id xxx --name "Jane Doe"
 
 # List conversations
-node intercom.js conversations list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js conversations list
 
 # Create a message (for proactive outreach)
-node intercom.js messages create --from admin_id --to user_id --body "Need help with anything?"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js messages create --from admin_id --to user_id --body "Need help with anything?"
 
 # Tag a contact
-node intercom.js tags create --name "at-risk"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js tags create --name "at-risk"
 ```
 
 ---
