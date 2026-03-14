@@ -607,6 +607,20 @@ def partition_by_relevance(items, keywords, text_fn):
     return branch_scoped, other
 
 
+def _migrate_untrack_generated_jsons(project_root: str) -> None:
+    """Retrocompat: untrack generated JSONs that older installs committed."""
+    from git_helpers import _GENERATED_JSONS
+    tracked = []
+    for entry in _GENERATED_JSONS:
+        full_path = os.path.join(project_root, entry)
+        code, _ = run_git(["ls-files", "--error-unmatch", full_path])
+        if code == 0:
+            tracked.append(full_path)
+    if tracked:
+        run_git(["rm", "--cached", "--"] + tracked)
+        ensure_gitignore(project_root)
+
+
 def main() -> None:
     """Auto-boot: structured briefing with all context pre-extracted."""
     # Check if we're in a git repo
@@ -629,7 +643,11 @@ def main() -> None:
     # 0a. Ensure statusline wrapper is configured
     _ensure_statusline()
 
-    # 0b. Fetch remote refs silently
+    # 0b. Migrate: untrack generated JSONs from older installs
+    if project_root:
+        _migrate_untrack_generated_jsons(project_root)
+
+    # 0c. Fetch remote refs silently
     run_git(["fetch", "--quiet"])
 
     # ── HEADER ──────────────────────────────────────────────────────

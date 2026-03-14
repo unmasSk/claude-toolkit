@@ -236,3 +236,77 @@ class TestVersionCheck:
         output = run_boot(repo)
         assert "Plugin v" in output
         assert "installed: v1.0.0" in output
+
+
+class TestMigrateUntrackedGeneratedJsons:
+    """Boot should untrack generated JSONs left by older installs."""
+
+    def test_untrack_previously_committed_jsons(self, tmp_path):
+        """If generated JSONs are tracked, boot should git rm --cached them."""
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+        run_script(INSTALL, repo, ["--auto"])
+
+        # Simulate old install: force-add the generated JSONs to the index
+        claude_dir = os.path.join(repo, ".claude")
+        for name in [".context-status.json", ".glossary-cache.json",
+                      ".context-warn-state.json", "git-memory-manifest.json"]:
+            fpath = os.path.join(claude_dir, name)
+            with open(fpath, "w") as f:
+                f.write("{}")
+            git_cmd(["add", "-f", fpath], repo)
+        git_cmd(["commit", "-m", "old install committed jsons"], repo)
+
+        # Verify they are tracked
+        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.context-status.json"], repo)
+        assert ".context-status.json" in out
+
+        # Run boot — should untrack them
+        run_boot(repo)
+
+        # Verify they are no longer tracked
+        for name in [".context-status.json", ".glossary-cache.json",
+                      ".context-warn-state.json", "git-memory-manifest.json"]:
+            rc, out, _ = run_cmd(["git", "ls-files", f".claude/{name}"], repo)
+            assert name not in out, f"{name} should be untracked after boot"
+
+    def test_gitignore_entries_added(self, tmp_path):
+        """Boot migration should also ensure .gitignore has the entries."""
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+        run_script(INSTALL, repo, ["--auto"])
+
+        # Remove gitignore entries to simulate old install
+        gitignore_path = os.path.join(repo, ".gitignore")
+        with open(gitignore_path) as f:
+            content = f.read()
+        # Strip out the generated JSON lines
+        lines = [l for l in content.splitlines()
+                 if not any(j in l for j in [".context-status", ".glossary-cache",
+                                              ".context-warn-state", "git-memory-manifest"])]
+        with open(gitignore_path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+
+        # Force-add a JSON so migration triggers
+        fpath = os.path.join(repo, ".claude", ".context-status.json")
+        with open(fpath, "w") as f:
+            f.write("{}")
+        git_cmd(["add", "-f", fpath], repo)
+        git_cmd(["commit", "-m", "old tracked json"], repo)
+
+        run_boot(repo)
+
+        with open(gitignore_path) as f:
+            gitignore = f.read()
+        assert ".claude/.context-status.json" in gitignore
+
+    def test_no_error_when_already_clean(self, tmp_path):
+        """Boot should not fail if JSONs are already untracked."""
+        repo = make_repo_with_memory(tmp_path)
+        # Just run boot — nothing to migrate, should not error
+        output = run_boot(repo)
+        assert "STATUS:" in output
