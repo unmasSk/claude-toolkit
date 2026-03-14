@@ -1,17 +1,32 @@
 ---
 name: unmassk-seo
 description: >
-  Technical SEO toolkit for auditing, optimizing, and monitoring websites. Performs
-  full site audits, single-page deep analysis, technical SEO checks (crawlability,
-  indexability, Core Web Vitals with INP), schema markup detection and validation,
-  content quality assessment (E-E-A-T framework), image optimization, sitemap analysis,
-  hreflang validation, programmatic SEO at scale, and Generative Engine Optimization
-  (GEO) for AI Overviews, ChatGPT, and Perplexity citations. Industry detection for
-  SaaS, e-commerce, local business, publishers, agencies. Triggers on: "SEO",
-  "audit site", "audit website", "schema markup", "Core Web Vitals", "sitemap",
-  "E-E-A-T", "AI Overviews", "GEO", "technical SEO", "content quality", "page speed",
-  "structured data", "hreflang", "international SEO", "programmatic SEO",
-  "SEO strategy", "SEO plan".
+  This skill should be used when the user asks to "audit a website", "audit a page",
+  "check SEO", "analyze SEO", "technical SEO audit", "check Core Web Vitals",
+  "check CWV", "check page speed", "optimize images for SEO", "check alt text",
+  "validate schema markup", "generate JSON-LD", "check structured data",
+  "analyze sitemap", "generate sitemap", "check hreflang", "international SEO audit",
+  "E-E-A-T analysis", "content quality check", "AI Overviews optimization",
+  "GEO optimization", "optimize for ChatGPT", "optimize for Perplexity",
+  "AI search visibility", "programmatic SEO", "SEO at scale",
+  "SEO strategy", "SEO plan", "competitor SEO analysis",
+  "compare vs competitor", "alternatives page SEO",
+  or mentions any of: SEO, schema, sitemap, hreflang, Core Web Vitals, INP, LCP, CLS,
+  E-E-A-T, GEO, AI Overviews, structured data, robots.txt, crawlability, indexability,
+  rich results, JSON-LD, PageSpeed, Lighthouse, image optimization, meta tags,
+  canonical tags, redirect audit, mobile SEO, JavaScript SEO, IndexNow.
+  Covers full site audits, single-page deep analysis, technical SEO (9 categories),
+  content quality (E-E-A-T framework with scoring), schema markup (detection,
+  validation, generation with JSON-LD templates), image optimization, XML sitemap
+  analysis and generation, hreflang validation (8 checks), programmatic SEO at scale
+  with quality gates, strategic SEO planning (4 phases, 6 industry templates),
+  competitor comparison pages, and Generative Engine Optimization (GEO) for
+  AI Overviews, ChatGPT, Perplexity, and Bing Copilot. Industry detection for
+  SaaS, e-commerce, local service, publisher, and agency sites.
+  Includes 4 mandatory Python scripts for page fetching, HTML parsing, screenshot
+  capture, and visual analysis. Integrates with 5 MCP servers: DataForSEO, Ahrefs,
+  Semrush, Google Search Console, and PageSpeed Insights.
+  Based on claude-seo by AgriciDaniel (MIT License).
 version: 1.0.0
 ---
 
