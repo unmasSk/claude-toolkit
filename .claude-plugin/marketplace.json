@@ -30,20 +30,20 @@
     },
     {
       "name": "unmassk-seo",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "description": "Technical SEO — crawling, schema, Core Web Vitals, GEO/AEO, site audits",
       "source": "./unmassk-seo/"
     },
     {
       "name": "unmassk-marketing",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "description": "Strategic marketing — CRO, copywriting, email, ads, pricing, growth",
       "source": "./unmassk-marketing/"
     },
     {
       "name": "unmassk-design",
-      "version": "0.1.0",
-      "description": "Frontend/UX — design systems, component patterns, responsive layouts",
+      "version": "1.0.0",
+      "description": "Frontend design — design systems, typography, color, motion, accessibility, BM25 search engine",
       "source": "./unmassk-design/"
     },
     {
@@ -61,7 +61,7 @@
     {
       "name": "unmassk-media",
       "version": "0.1.0",
-      "description": "Media generation — video (Remotion/ffmpeg), images (AI gen/optimization), SVG, thumbnails, OG images",
+      "description": "Media generation — video (Remotion/ffmpeg), images, SVG, thumbnails, OG images",
       "source": "./unmassk-media/"
     }
   ]
