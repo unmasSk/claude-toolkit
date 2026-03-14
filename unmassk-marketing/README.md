@@ -12,7 +12,7 @@ Based on [marketingskills](https://github.com/coreyhaines31/marketingskills) by 
 - 9 domain references
 - 4 integration references
 - 61 CLI scripts
-- 159 evals
+- 176 evals
 - Composio MCP server
 - Product-context template
 
@@ -97,7 +97,7 @@ When both CLI scripts and Composio MCP are available for a platform, the skill p
 
 ## Evals
 
-159 evals validate skill behavior across all 9 marketing domains and 4 integration categories. Each eval tests a specific routing decision, reference loading pattern, or output quality gate.
+176 evals validate skill behavior across all 9 marketing domains and 4 integration categories. Each eval tests a specific routing decision, reference loading pattern, or output quality gate.
 
 Run evals to verify that the skill correctly routes requests, loads appropriate references, applies product context, and produces outputs that meet quality standards.
 

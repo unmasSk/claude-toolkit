@@ -738,7 +738,7 @@ Track all exceptions. If everyone requests the same exception, make it standard.
 
 ## CLI Script Reference (Sales Tools)
 
-All CLI tools are zero-dependency Node.js scripts. Run with `node tools/clis/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
+All CLI tools are zero-dependency Node.js scripts. Run with `node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
 
 ### apollo.js (Contact Data and Enrichment)
 

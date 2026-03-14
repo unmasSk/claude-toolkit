@@ -1,7 +1,7 @@
 {
   "plugin": "unmassk-marketing",
   "version": "1.0.0",
-  "total_evals": 159,
+  "total_evals": 176,
   "sources": [
     {
       "original_skill": "ab-test-setup",
@@ -2595,6 +2595,233 @@
           ],
           "files": [],
           "reference": "copy.md"
+        }
+      ]
+    },
+    {
+      "original_skill": "integrations-crm",
+      "reference": "integrations-crm.md",
+      "evals": [
+        {
+          "id": 1,
+          "prompt": "Set up HubSpot CRM tracking for a B2B SaaS",
+          "expected_output": "",
+          "assertions": [
+            "Uses hubspot.js with ${CLAUDE_PLUGIN_ROOT} path",
+            "Checks for HUBSPOT_ACCESS_TOKEN env var",
+            "Includes contact and deal operations"
+          ],
+          "files": [],
+          "reference": "integrations-crm.md"
+        },
+        {
+          "id": 2,
+          "prompt": "Enrich leads with Clearbit data",
+          "expected_output": "",
+          "assertions": [
+            "Uses clearbit.js",
+            "Includes company and person enrichment endpoints"
+          ],
+          "files": [],
+          "reference": "integrations-crm.md"
+        },
+        {
+          "id": 3,
+          "prompt": "Configure Salesforce lead routing",
+          "expected_output": "",
+          "assertions": [
+            "References Composio MCP for OAuth",
+            "Includes SOQL query examples"
+          ],
+          "files": [],
+          "reference": "integrations-crm.md"
+        },
+        {
+          "id": 4,
+          "prompt": "Export contacts from ActiveCampaign for email campaign",
+          "expected_output": "",
+          "assertions": [
+            "Uses activecampaign.js",
+            "Includes list and contact operations"
+          ],
+          "files": [],
+          "reference": "integrations-crm.md"
+        }
+      ]
+    },
+    {
+      "original_skill": "integrations-ads",
+      "reference": "integrations-ads.md",
+      "evals": [
+        {
+          "id": 1,
+          "prompt": "Pull Google Ads campaign performance for last 30 days",
+          "expected_output": "",
+          "assertions": [
+            "Uses google-ads.js with full path",
+            "Uses GAQL query",
+            "Includes metrics (impressions, clicks, cost, conversions)"
+          ],
+          "files": [],
+          "reference": "integrations-ads.md"
+        },
+        {
+          "id": 2,
+          "prompt": "Create Meta Ads lookalike audience from customer list",
+          "expected_output": "",
+          "assertions": [
+            "Uses meta-ads.js",
+            "References custom audience creation",
+            "Includes lookalike source"
+          ],
+          "files": [],
+          "reference": "integrations-ads.md"
+        },
+        {
+          "id": 3,
+          "prompt": "Compare LinkedIn Ads campaign performance across ad formats",
+          "expected_output": "",
+          "assertions": [
+            "Uses linkedin-ads.js",
+            "Includes analytics endpoint",
+            "Uses URN format"
+          ],
+          "files": [],
+          "reference": "integrations-ads.md"
+        },
+        {
+          "id": 4,
+          "prompt": "Set up TikTok Ads conversion tracking",
+          "expected_output": "",
+          "assertions": [
+            "Uses tiktok-ads.js",
+            "Includes pixel creation"
+          ],
+          "files": [],
+          "reference": "integrations-ads.md"
+        }
+      ]
+    },
+    {
+      "original_skill": "integrations-analytics",
+      "reference": "integrations-analytics.md",
+      "evals": [
+        {
+          "id": 1,
+          "prompt": "Configure GA4 tracking for a SaaS product",
+          "expected_output": "",
+          "assertions": [
+            "Uses ga4.js with full path",
+            "Includes essential events (signup, feature_used, subscription_started)",
+            "Uses Measurement Protocol for server-side"
+          ],
+          "files": [],
+          "reference": "integrations-analytics.md"
+        },
+        {
+          "id": 2,
+          "prompt": "Set up Mixpanel funnel analysis for onboarding",
+          "expected_output": "",
+          "assertions": [
+            "Uses mixpanel.js",
+            "Includes user profile and event tracking"
+          ],
+          "files": [],
+          "reference": "integrations-analytics.md"
+        },
+        {
+          "id": 3,
+          "prompt": "Implement Segment as analytics router",
+          "expected_output": "",
+          "assertions": [
+            "Uses segment.js",
+            "Includes identify and track calls",
+            "Mentions destinations"
+          ],
+          "files": [],
+          "reference": "integrations-analytics.md"
+        },
+        {
+          "id": 4,
+          "prompt": "Create Optimizely A/B test for pricing page",
+          "expected_output": "",
+          "assertions": [
+            "Uses optimizely.js",
+            "Includes experiment creation with variations"
+          ],
+          "files": [],
+          "reference": "integrations-analytics.md"
+        }
+      ]
+    },
+    {
+      "original_skill": "integrations-email",
+      "reference": "integrations-email.md",
+      "evals": [
+        {
+          "id": 1,
+          "prompt": "Set up Mailchimp welcome sequence",
+          "expected_output": "",
+          "assertions": [
+            "References native MCP (not CLI)",
+            "Includes audience and campaign operations"
+          ],
+          "files": [],
+          "reference": "integrations-email.md"
+        },
+        {
+          "id": 2,
+          "prompt": "Configure Customer.io dunning emails",
+          "expected_output": "",
+          "assertions": [
+            "Uses customer-io.js with full path",
+            "Includes Track API for events",
+            "App API for campaigns"
+          ],
+          "files": [],
+          "reference": "integrations-email.md"
+        },
+        {
+          "id": 3,
+          "prompt": "Send transactional email via SendGrid",
+          "expected_output": "",
+          "assertions": [
+            "Uses sendgrid.js",
+            "Includes /v3/mail/send endpoint",
+            "Mentions dynamic templates"
+          ],
+          "files": [],
+          "reference": "integrations-email.md"
+        },
+        {
+          "id": 4,
+          "prompt": "Migrate email list from Kit to Brevo",
+          "expected_output": "",
+          "assertions": [
+            "Uses both kit.js and brevo.js",
+            "Includes subscriber export and import operations"
+          ],
+          "files": [],
+          "reference": "integrations-email.md"
+        }
+      ]
+    },
+    {
+      "original_skill": "pii-redaction",
+      "reference": "foundations.md",
+      "evals": [
+        {
+          "id": 1,
+          "prompt": "Analyze churn data from Stripe and produce a report for the client",
+          "expected_output": "Must redact all customer emails, payment methods, and revenue figures before including in deliverables. Raw API responses must never appear in user-facing output.",
+          "assertions": [
+            "Mentions PII redaction requirement",
+            "Does not include raw API response in output",
+            "Redacts or anonymizes customer-identifying data",
+            "Revenue figures aggregated not individual"
+          ],
+          "files": [],
+          "reference": "foundations.md"
         }
       ]
     }

@@ -130,6 +130,8 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<platform>.js <comma
 Scripts require API keys set as environment variables. Each script prints
 usage instructions when invoked with no arguments.
 
+`${CLAUDE_PLUGIN_ROOT}` is automatically resolved by Claude Code to the plugin's installation directory. Do not hardcode paths — always use this variable.
+
 ### Script Categories
 
 | Category | Scripts | Use For |
@@ -358,7 +360,7 @@ Structure deliverables consistently based on task type.
 
 ## Validation (Evals)
 
-159 test cases at `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/evals.json` validate reference quality. Each eval has a prompt, expected output, and assertions.
+176 test cases at `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/evals.json` validate reference quality. Each eval has a prompt, expected output, and assertions. Covers all 9 domain references, 4 integration references, and PII redaction compliance.
 
 Search evals with:
 ```
