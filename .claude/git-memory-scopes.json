@@ -7,8 +7,8 @@
       "description": "Plugin core — packaging, config, distribution, versioning",
       "children": {
         "hooks": "Claude Code hooks (SessionStart, PreToolUse, Stop, UserPrompt)",
-        "skills": "Skill definitions (git-memory, git-memory-issues, git-memory-lifecycle)",
-        "agents": "Agent definitions (gitto, alexandria)",
+        "skills": "Skill definitions (unmassk-gitmemory, unmassk-gitmemory-issues, unmassk-gitmemory-lifecycle)",
+        "agents": "Agent definitions (in unmassk-crew plugin)",
         "boot": "Session startup and boot briefing logic",
         "config": "Plugin config files (plugin.json, marketplace.json, gitignore)"
       }
