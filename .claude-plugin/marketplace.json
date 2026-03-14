@@ -48,8 +48,8 @@
     },
     {
       "name": "unmassk-ops",
-      "version": "0.1.0",
-      "description": "DevOps — CI/CD, database migrations, performance, observability",
+      "version": "1.0.0",
+      "description": "DevOps — IaC (Terraform/Terragrunt/Ansible), containers (Docker/Helm/K8s), CI/CD (GitHub Actions/GitLab/Azure/Jenkins), observability (PromQL/LogQL/Loki/Fluent Bit), scripting (Bash/Makefile)",
       "source": "./unmassk-ops/"
     },
     {
