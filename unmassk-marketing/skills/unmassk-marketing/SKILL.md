@@ -362,8 +362,8 @@ Structure deliverables consistently based on task type.
 
 Search evals with:
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --reference <ref>.md
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --keyword <term>
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --reference copy.md
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --keyword pricing
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --random
 ```
 
