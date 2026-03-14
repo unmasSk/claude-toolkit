@@ -173,6 +173,16 @@ Match the offer to the reason. A discount will not save someone who is not using
 | Temporary / seasonal | Pause subscription | Downgrade temporarily |
 | Business closed | Skip offer (respect the situation) | -- |
 
+### The Discount Ladder
+
+Do not lead with your biggest discount. Escalate:
+
+```
+Cancel click → 15% off → Still cancelling → 25% off → Still cancelling → Let them go
+```
+
+Rules: maximum 2 discount offers per cancel session. Never exceed 30% (higher trains cancel-for-discount behavior). Time-limit discounts (2-3 months, then full price resumes). Track discount accepters — if they cancel again at full price, do not re-offer.
+
 ### Save Offer Types
 
 **Discount:**
@@ -222,6 +232,47 @@ Match the offer to the reason. A discount will not save someone who is not using
 | $2,000+/mo | Block self-serve cancel, require CS call |
 
 **Freemium / Free-to-Paid:** Lead with the free tier as the first option (not a save offer). Show what they keep on free vs what they lose. Track free-tier users for future re-upgrade campaigns.
+
+### Cancel Flow by Billing Interval
+
+**Monthly subscribers** — more price-sensitive, shorter commitment:
+- Discount offers work well (20-30% for 2-3 months)
+- Pause is effective (1-2 months)
+- Suggest annual plan at a discount as alternative
+
+Offer priority: 1. Discount (price reason) → 2. Pause (not using / temporary) → 3. Annual plan switch (engaged but price-sensitive)
+
+**Annual subscribers** — higher commitment, often cancelling for stronger reasons:
+- Prorate refund expectations matter — be generous
+- Longer save window (they have already paid)
+- Personal outreach more justified (higher LTV at stake)
+
+Offer priority: 1. Pause remainder of term (temporary) → 2. Plan adjustment + credit for next renewal → 3. Personal outreach from CS → 4. Partial refund + downgrade (better than full refund + cancel)
+
+Refund handling: offer prorated refund if significant time remaining. "Pause until renewal" if less than 3 months left. Bad refund experiences create vocal detractors — be generous.
+
+### Cancel Flow Segmentation Rules
+
+The most effective cancel flows show different offers to different customers.
+
+| Dimension | Why It Matters |
+|-----------|---------------|
+| Plan / MRR | Higher-value customers get personal outreach |
+| Tenure | Long-term customers get more generous offers |
+| Usage level | High-usage customers get different messaging than dormant ones |
+| Billing interval | Monthly vs. annual need different approaches |
+| Previous saves | Do not re-offer the same discount to a repeat canceller |
+| Cancel reason | Drives which offer to show (core mapping) |
+
+**Segment-specific flows:**
+
+**New customer (< 30 days):** They have not activated. The save is onboarding, not discounts. Offer: free onboarding call, setup help, extended trial. Ask "What were you hoping to accomplish?" to learn what is missing.
+
+**Engaged customer cancelling on price:** They love the product but cannot justify the cost. Offer: discount, annual plan switch, downgrade. High save potential.
+
+**Dormant customer (no login 30+ days):** They forgot about you. A discount will not bring them back. Offer: pause subscription, "what changed?" conversation. Low save potential — focus on learning why.
+
+**Power user switching to competitor:** They are actively choosing something else. Offer: competitive match, feedback call, roadmap preview. Medium save potential — depends on reason.
 
 ### Cancel Flow UI Principles
 
@@ -335,6 +386,18 @@ Not all failures are the same. Retry strategy by decline type:
 | Hard decline (permanent) | Card stolen, account closed | Do not retry -- ask for new card |
 | Authentication required | 3D Secure, SCA | Send customer to update payment |
 
+**Decline type codes:**
+
+| Code | Type | Meaning | Retry? |
+|------|------|---------|--------|
+| `insufficient_funds` | Soft | Temporarily low balance | Yes — retry in 2-3 days |
+| `card_declined` (generic) | Soft | Various temporary reasons | Yes — retry 3-4 times |
+| `processing_error` | Soft | Gateway/network issue | Yes — retry within 24h |
+| `expired_card` | Hard | Card is expired | No — request new card |
+| `stolen_card` | Hard | Card reported stolen | No — request new card |
+| `do_not_honor` | Soft/Hard | Bank refused (ambiguous) | Try once more, then ask for new card |
+| `authentication_required` | Auth | SCA/3DS needed | Send customer to authenticate |
+
 **Retry timing best practices:**
 - Retry 1: 24 hours after failure
 - Retry 2: 3 days after failure
@@ -354,6 +417,93 @@ Retry on the day of the month the payment originally succeeded. Retry after comm
 | 2 | Day 3 | Helpful reminder | "Quick reminder -- update your payment to keep access." |
 | 3 | Day 7 | Urgency | "Your account will be paused in 3 days. Update now." |
 | 4 | Day 10 | Final warning | "Last chance to keep your account active." |
+
+**Email 1 — Payment Failed (Day 0):**
+```
+Subject: Action needed — your payment didn't go through
+
+Hi [Name],
+
+We tried to charge your [card type] ending in [last 4] for your
+[Product] subscription ($[amount]), but it didn't go through.
+
+This happens sometimes — usually a quick card update fixes it.
+
+[Update Payment Method →]
+
+Your access isn't affected yet. We'll retry automatically, but
+updating your card is the fastest fix.
+
+Need help? Just reply to this email.
+
+— [Product] Team
+```
+
+**Email 2 — Reminder (Day 3):**
+```
+Subject: Quick reminder — update your payment for [Product]
+
+Hi [Name],
+
+Just a heads-up — we still haven't been able to process your
+$[amount] payment for [Product].
+
+[Update Payment Method →]
+
+Takes less than 30 seconds. Your [data/projects/team access]
+is safe, but we'll need a valid payment method to keep your
+account active.
+
+Questions? Reply here and we'll help.
+
+— [Product] Team
+```
+
+**Email 3 — Urgency (Day 7):**
+```
+Subject: Your [Product] account will be paused in 3 days
+
+Hi [Name],
+
+We've tried to process your payment several times, but your
+[card type] ending in [last 4] keeps getting declined.
+
+If we don't receive payment by [date], your account will be
+paused and you'll lose access to:
+
+• [Key feature/data they use]
+• [Their projects/workspace]
+• [Team access for X members]
+
+[Update Payment Method Now →]
+
+Your data won't be deleted — you can reactivate anytime by
+updating your payment method.
+
+— [Product] Team
+```
+
+**Email 4 — Final Warning (Day 10):**
+```
+Subject: Last chance to keep your [Product] account active
+
+Hi [Name],
+
+This is our last reminder. Your payment of $[amount] is past
+due, and your account will be paused tomorrow ([date]).
+
+[Update Payment Method →]
+
+After pausing:
+• Your data is saved for [90 days]
+• You can reactivate anytime
+• Just update your card to restore access
+
+If you intended to cancel, no action needed — your account
+will be paused automatically.
+
+— [Product] Team
+```
 
 **Dunning email best practices:**
 - Direct link to payment update page (no login required if possible)
@@ -584,6 +734,21 @@ Add "Contact Sales" when deal sizes exceed $10k+ ARR, customers need custom cont
 | Dunning recovery rate | Recovered / Total failed payments | 50-60% |
 
 **Segment churn by:** Acquisition channel (which bring stickier customers?), plan type, tenure (30/60/90 day spikes?), cancel reason (which are growing?), save offer type (which work for which segments?).
+
+---
+
+## Common Mistakes and Anti-Patterns
+
+- **No cancel flow at all** — Instant cancel leaves money on the table. Even a simple survey + one offer saves 10-15%.
+- **Making cancellation hard to find** — Hidden cancel buttons breed resentment and bad reviews. Many jurisdictions require easy cancellation (FTC Click-to-Cancel rule).
+- **Same offer for every reason** — A blanket discount does not address "missing feature" or "not using it."
+- **Discounts too deep** — 50%+ discounts train customers to cancel-and-return for deals.
+- **Ignoring involuntary churn** — Often 30-50% of total churn and the easiest to fix.
+- **No dunning emails** — Letting payment failures silently cancel accounts.
+- **Guilt-trip copy** — "Are you sure you want to abandon us?" damages brand trust.
+- **Not tracking save offer LTV** — A "saved" customer who churns 30 days later was not really saved.
+- **Pausing too long** — Pauses beyond 3 months rarely reactivate. Set limits.
+- **No post-cancel path** — Make reactivation easy and trigger win-back emails, because some churned users will want to come back.
 
 ---
 

@@ -354,6 +354,18 @@ Organize by industry, use case, and company size so reps find the right one inst
 | **Customer** | Closed-won deal, contract signed | Expands, renews, or churns | CS / Account Mgmt |
 | **Evangelist** | NPS 9-10, referral activity, case study agreement | Ongoing program participation | CS + Marketing |
 
+**Actions on entry per stage:**
+
+| Stage | Actions on Entry |
+|-------|-----------------|
+| Subscriber | Add to newsletter nurture. Begin tracking engagement score. |
+| Lead | Enrich contact data (company size, industry, role). Begin scoring. Add to relevant nurture sequence. |
+| MQL | Instant alert to assigned rep. Create follow-up task with 4-hour SLA. Pause marketing nurture. Log all recent activity for sales context. |
+| SQL | Update lifecycle stage in CRM. Notify AE if SDR-qualified. Begin sales sequence if not already in conversation. |
+| Opportunity | Add to pipeline reporting. Create deal tasks (proposal, demo, etc.). Notify CS if deal is likely to close. |
+| Customer | Trigger onboarding sequence. Assign CS manager. Schedule kickoff call. Remove from all sales sequences. |
+| Evangelist | Add to advocacy program. Request case study or testimonial. Invite to referral program. Feature in marketing campaigns (with permission). |
+
 ---
 
 ### MQL Definition
@@ -373,6 +385,21 @@ A perfect-fit company that never engages is not an MQL. A student downloading ev
 | First contact attempt | Within 4 business hours | Alert to sales manager at 4 hours |
 | Qualification decision | Within 48 hours | Auto-escalate at 48 hours, reassign |
 | Meeting scheduled (if qualified) | Within 5 business days | Weekly pipeline review flag |
+
+### SQL-to-Opportunity SLA
+
+| Metric | Target | Escalation |
+|--------|--------|------------|
+| Discovery call completed | Within 3 business days of SQL | Alert to AE manager |
+| Opportunity created | Within 5 business days of SQL | Pipeline review flag |
+
+### Opportunity-to-Close SLA
+
+| Metric | Target | Escalation |
+|--------|--------|------------|
+| Proposal delivered | Within 5 business days of demo | AE manager alert |
+| Deal stale in stage | 2x average days for that stage | Pipeline review flag |
+| Close date pushed 2+ times | Immediate | Forecast review required |
 
 ### MQL Criteria by Business Type
 
@@ -583,24 +610,45 @@ Multi-contact handling: Route all contacts from the same account to the same own
 
 #### HubSpot Workflow Recipes
 
-**MQL Alert and Assignment:** Trigger on lifecycle stage change to MQL. Rotate contact owner (round-robin). Send internal email with lead context. Create follow-up task (due in 4 hours). Send Slack notification.
+**MQL Alert and Assignment:** Trigger on lifecycle stage change to MQL. Rotate contact owner (round-robin). Send internal email with lead context. Create follow-up task (due in 4 hours). Send Slack notification to #sales-alerts. Enroll in MQL follow-up sequence.
 
-**MQL SLA Escalation:** If MQL not contacted after 12 hours, send warning to owner. After 24 hours, alert manager. After 48 hours, reassign via rotation.
+**MQL SLA Escalation:** If MQL not contacted after 12 hours, send warning to owner. After 24 hours, alert manager. After 48 hours, reassign via rotation and create urgent task for new owner.
 
-**Meeting Booked:** On Calendly/HubSpot meeting, notify contact owner, update lifecycle stage, create prep task (1 hour before meeting), include recent page views in notification.
+**Lead Scoring Update and MQL Promotion (Auto-MQL):** Trigger when HubSpot Score reaches threshold. Set lifecycle stage to MQL. Set MQL Date. Suppress from marketing nurture. Trigger MQL Alert workflow. Add suppression for existing customers and competitors.
 
-**Closed-Won Handoff:** Update lifecycle to Customer. Assign CS manager. Create kickoff task (due 2 business days). Enroll in onboarding sequence. Remove from all sales sequences.
+**Meeting Booked:** On Calendly/HubSpot meeting, notify contact owner, update lifecycle stage to MQL if still Lead, create prep task (1 hour before meeting), include recent page views in notification. Send Slack to #meetings channel.
 
-**Stale Deal Alert:** When deal exceeds 2x average days in stage, alert owner. Create update task (3 days). After 7 days with no update, alert manager.
+**Closed-Won Handoff:** Update lifecycle to Customer. Set Customer Since date. Assign CS team member. Create kickoff task (due 2 business days). Enroll in onboarding sequence. Send internal notification to CS manager. Remove from all sales sequences.
 
-**Recycled Lead Nurture:** On sales rejection, update to Recycled stage. Reset engagement score. Enroll in lower-frequency nurture. If score re-crosses threshold, re-route to sales as Recycled MQL.
+**Stale Deal Alert:** When deal exceeds 2x average days in stage, alert owner. Create update task (3 days). After 7 days with no update, alert manager. Customize thresholds per stage (Discovery: 14 days, Proposal: 10 days, Negotiation: 21 days).
+
+**Lead Activity Digest:** Scheduled daily at 8 AM. Filter contacts: SQL or Opportunity stage with website activity in last 24 hours. Send digest to each rep with pages visited, content downloaded, emails opened/clicked. Exclude single homepage visits.
+
+**Recycled Lead Nurture:** On sales rejection, update to Recycled stage. Reset engagement score (keep fit score). Enroll in lower-frequency nurture. Set re-enrollment trigger: if score re-crosses threshold, re-trigger MQL workflow. Track recycled-to-MQL conversion rate separately.
 
 #### Salesforce Flow Equivalents
 
-- Record-Triggered Flow on Lead status change to MQL for assignment and task creation.
-- Scheduled Flow every 4 hours for SLA escalation.
-- Record-Triggered Flow on Opportunity stage change for pipeline automation.
-- Scheduled daily Flow for stale deal detection.
+**MQL Alert and Assignment:** Record-Triggered Flow on Lead Status change to MQL. Query Rep Assignment custom object for next available rep. Assign Lead Owner. Create Task due NOW + 4 hours. Send email alert to new owner. Update rep assignment timestamp.
+
+**SLA Escalation:** Scheduled-Triggered Flow every 4 hours during business hours. Get Leads where Status = MQL and LastActivityDate < TODAY - 1. Decision: older than 48 hours with no activity? Yes → reassign, create urgent task, alert manager. No → send reminder to current owner.
+
+**Pipeline Stage Automation:** Record-Triggered Flow on Opportunity Stage change. Per stage: Discovery → create questionnaire task; Demo → create prep task; Proposal → create send task + deal desk alert if ACV > $25K; Closed Won → trigger CS handoff; Closed Lost → create loss reason task.
+
+**Stale Deal Detection:** Scheduled-Triggered Flow daily at 7 AM. Get open Opportunities where Days_In_Stage > Stage_SLA_Threshold. Create task and email owner. If > 2x threshold, email manager. Set Stale Flag = true for dashboard visibility.
+
+#### Zapier Cross-Tool Patterns
+
+**New Lead → CRM + Slack + Task:** Trigger on new form submission (Typeform, HubSpot, Webflow). Create/update CRM contact. Enrich with Clearbit. Post to #new-leads Slack with enriched data. Create task in project management tool.
+
+**Meeting Booked → CRM + Prep Email:** Trigger on new Calendly/SavvyCal booking. Find or create CRM contact. Update lifecycle to MQL. Send prep email to rep with CRM link, LinkedIn profile, recent activity.
+
+**Deal Closed → Onboarding Stack:** Trigger on CRM stage = Closed Won. Create customer record in CS tool (Vitally, Gainsight). Add to onboarding project. Send welcome email. Create Slack channel #customer-[company]. Notify CS team.
+
+**Lead Scoring → Cross-Tool Sync:** Trigger on CRM score crossing MQL threshold. Update marketing automation status. Add to retargeting audience (Facebook, Google Ads). Trigger SDR outreach sequence. Log event in analytics platform.
+
+**SLA Breach → Multi-Channel Alert:** Trigger on overdue MQL follow-up task. Slack DM to rep. Email to rep. If 2+ hours overdue → Slack DM to manager. If 4+ hours overdue → reassign in CRM via webhook.
+
+**Weekly Pipeline Digest:** Scheduled every Monday at 8 AM. Query CRM for pipeline summary (total value, new deals, stale deals, expected closes). Post to #sales-team Slack. Send email digest to sales leadership.
 
 #### Scheduling Tool Integration (Calendly/SavvyCal)
 

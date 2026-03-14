@@ -6,7 +6,7 @@ Complete reference for optimizing marketing pages, forms, popups, and signup flo
 
 ## Page CRO Analysis Framework
 
-Analyze pages across seven dimensions in order of impact. Read `.agents/product-marketing-context.md` first.
+Analyze pages across seven dimensions in order of impact.
 
 ### 1. Value Proposition Clarity (Highest Impact)
 
@@ -78,6 +78,8 @@ Can a visitor understand what this is and why they should care within 5 seconds?
 **Feature Page CRO**: Connect feature to benefit to outcome. Use cases and examples. Clear path to try or buy.
 
 **Blog Post CRO**: Contextual CTAs matching content topic. Inline CTAs at natural stopping points.
+
+**Resource/Blog Page CRO**: Floating CTAs for ongoing visibility, inline CTAs at natural stops, related content recommendations to keep visitors in funnel.
 
 ---
 
@@ -358,272 +360,392 @@ Field priority: Essential (email/phone, password) > Often needed (name) > Usuall
 
 ### Page CRO Experiments
 
-**Hero Section**:
-- Headline variations (specific vs. abstract)
-- Subheadline clarity
-- CTA above fold (include/exclude)
-- Hero visual format (screenshot vs. GIF vs. illustration vs. video)
-- CTA button color, text variations
-- Interactive demo in hero
+**Hero Section**
 
-**Trust and Social Proof**:
-- Logo placement (hero vs. below fold)
-- Case study in hero section
-- Trust badges (security, compliance, awards)
-- Social proof in headline ("Join 10,000+ teams")
-- Testimonial placement (above fold vs. dedicated section)
-- Video testimonials vs. text
+| Test | Hypothesis |
+|------|------------|
+| Headline variations | Specific vs. abstract messaging |
+| Subheadline clarity | Add/refine to support headline |
+| CTA above fold | Include or exclude prominent CTA |
+| Hero visual format | Screenshot vs. GIF vs. illustration vs. video |
+| CTA button color | Test contrast and visibility |
+| CTA button text | "Start Free Trial" vs. "Get Started" vs. "See Demo" |
+| Interactive demo | Engage visitors immediately with product |
 
-**Features and Content**:
-- Feature presentation format (icons vs. detailed sections)
-- Section ordering (move high-value up)
-- Secondary CTAs throughout
-- Benefit vs. feature focus
-- Comparison section (vs. competitors or status quo)
+**Trust and Social Proof**
 
-**Navigation and UX**:
-- Sticky navigation with CTA
-- Nav menu order (priority at edges)
-- Nav CTA button
-- Support widget (live chat vs. AI chatbot)
-- Footer optimization
-- Exit intent popup
+| Test | Hypothesis |
+|------|------------|
+| Logo placement | Hero section vs. below fold |
+| Case study in hero | Show results immediately |
+| Trust badges | Add security, compliance, awards |
+| Social proof in headline | "Join 10,000+ teams" messaging |
+| Testimonial placement | Above fold vs. dedicated section |
+| Video testimonials | More engaging than text quotes |
 
-**Pricing Page**:
-- Annual vs. monthly display
-- Price points ($99 vs. $100 vs. $97)
-- "Most Popular" badge
-- Number of visible tiers (2 vs. 3 vs. 4)
-- Price anchoring order
-- Pricing calculator for usage-based
-- Guided pricing wizard vs. comparison table
-- Monthly/annual toggle with savings
-- Plan recommendation quiz
-- FAQ addressing pricing objections
-- ROI calculator
-- Money-back guarantee prominence
-- Customer logos near pricing
-- Review scores (G2/Capterra)
+**Features and Content**
 
-**Demo Request Page**:
-- Field count reduction
-- Multi-step vs. single form
-- Form placement (above fold vs. after content)
-- Phone field (include/exclude)
-- Field enrichment (auto-fill)
-- Benefits above form
-- Demo preview (video/GIF)
-- "What You'll Learn" expectations
-- Calendar integration (inline vs. external)
-- Qualification routing (self-serve vs. sales)
+| Test | Hypothesis |
+|------|------------|
+| Feature presentation | Icons + descriptions vs. detailed sections |
+| Section ordering | Move high-value features up |
+| Secondary CTAs | Add/remove throughout page |
+| Benefit vs. feature focus | Lead with outcomes |
+| Comparison section | Show vs. competitors or status quo |
 
-**Landing Page**:
-- Headline matching ad copy
-- Visual matching ad creative
-- Audience-specific pages per segment
-- Navigation removal (single-focus)
-- CTA repetition throughout
-- Form vs. button (direct capture vs. click-through)
-- Urgency/scarcity messaging (if genuine)
-- Short vs. long page
-- Section ordering
+**Navigation and UX**
 
-**Feature Page**:
-- Demo/screenshot showing feature
-- Use case examples
-- Before/after visualization
-- Video walkthrough
-- Interactive demo
-- Feature-specific trial offer
-- Comparison vs. competitors
+| Test | Hypothesis |
+|------|------------|
+| Sticky navigation | Persistent nav with CTA |
+| Nav menu order | High-priority items at edges |
+| Nav CTA button | Add prominent button in nav |
+| Support widget | Live chat vs. AI chatbot |
+| Footer optimization | Clearer secondary conversions |
+| Exit intent popup | Capture abandoning visitors |
 
-**Cross-Page**:
-- Chat widget impact
-- Cookie consent UX
-- Page load speed vs. features
-- Mobile responsive optimization
-- Personalization by segment
-- Menu structure
-- Search placement
-- CTA in navigation
-- Breadcrumbs
+**Pricing Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Annual vs. monthly display | Highlight savings or simplify |
+| Price points | $99 vs. $100 vs. $97 psychology |
+| "Most Popular" badge | Highlight target plan |
+| Number of tiers | 3 vs. 4 vs. 2 visible options |
+| Price anchoring | Order plans to anchor expectations |
+| Pricing calculator | For usage-based pricing clarity |
+| Guided pricing flow | Multistep wizard vs. comparison table |
+| Monthly/annual toggle | With savings highlighted |
+| Plan recommendation quiz | Help visitors choose |
+| FAQ addressing pricing objections | Reduce pre-purchase anxiety |
+| ROI calculator | Demonstrate value vs. cost |
+| Money-back guarantee prominence | Reduce risk perception |
+| Customer logos near pricing | Trust signal at decision point |
+| Review scores | G2/Capterra ratings near pricing |
+
+**Demo Request Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Field count | Fewer fields, higher completion |
+| Multi-step vs. single | Progress bar encouragement |
+| Form placement | Above fold vs. after content |
+| Phone field | Include vs. exclude |
+| Field enrichment | Hide fields you can auto-fill |
+| Benefits above form | Reinforce value before ask |
+| Demo preview | Video/GIF showing demo experience |
+| "What You'll Learn" | Set expectations clearly |
+| Calendar integration | Inline booking vs. external link |
+| Qualification routing | Self-serve for some, sales for others |
+
+**Resource/Blog Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Floating CTAs | Sticky CTA on blog posts |
+| CTA placement | Inline vs. end-of-post only |
+| Reading time display | Estimated reading time increases engagement |
+| Related resources | End-of-article recommendations keep visitors in funnel |
+| Gated vs. free | Content access strategy impact on leads |
+| Content upgrades | Specific to article topic |
+| Navigation/filtering | Easier to find relevant content |
+| Search functionality | Find specific resources |
+| Featured resources | Highlight best content |
+| Layout format | Grid vs. list view |
+| Topic bundles | Grouped resources by theme |
+| Download tracking | Gate some, track engagement |
+
+**Landing Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Headline matching | Match ad copy exactly |
+| Visual matching | Match ad creative |
+| Audience-specific pages | Different pages per segment |
+| Navigation removal | Single-focus page |
+| CTA repetition | Multiple CTAs throughout |
+| Form vs. button | Direct capture vs. click-through |
+| Urgency/scarcity | If genuine, test messaging |
+| Short vs. long | Quick conversion vs. complete argument |
+| Section ordering | Most important content first |
+
+**Feature Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Demo/screenshot | Show feature in action |
+| Use case examples | How customers use it |
+| Before/after | Impact visualization |
+| Video walkthrough | Feature tour |
+| Interactive demo | Try feature without signup |
+| Trial CTA | Feature-specific trial offer |
+| Comparison | vs. competitors' version |
+
+**Cross-Page**
+
+| Test | Hypothesis |
+|------|------------|
+| Chat widget | Impact on conversions |
+| Cookie consent UX | Minimize friction |
+| Page load speed | Performance vs. features |
+| Mobile experience | Responsive optimization |
+| Personalization | Dynamic content by segment |
+| Menu structure | Information architecture |
+| Search placement | Help visitors find content |
+| CTA in nav | Always-visible conversion path |
+| Breadcrumbs | Navigation clarity |
 
 ### Form CRO Experiments
 
-**Layout and Flow**:
-- Single-step vs. multi-step with progress bar
-- 1-column vs. 2-column
-- Embedded on page vs. separate page
-- Form above fold vs. after content
+**Layout and Flow**
 
-**Field Optimization**:
-- Reduce to minimum viable fields
-- Add/remove phone number
-- Add/remove company field
-- Required vs. optional balance
-- Field enrichment to auto-fill
-- Hide fields for returning visitors
+| Test | Hypothesis |
+|------|------------|
+| Single-step vs. multi-step | Progress bar encouragement |
+| 1-column vs. 2-column | Single column reduces cognitive load |
+| Embedded on page vs. separate page | Context proximity effect |
+| Form above fold vs. after content | Ask before or after presenting value |
 
-**Smart Forms**:
-- Real-time validation
-- Progressive profiling (ask more over time)
-- Conditional fields based on earlier answers
-- Auto-suggest for company names
+**Field Optimization**
 
-**Labels and Microcopy**:
-- Label clarity and length
-- Placeholder text optimization
-- Help text: show vs. hide vs. hover
-- Error message tone (friendly vs. direct)
+| Test | Hypothesis |
+|------|------------|
+| Reduce to minimum viable fields | Fewer fields, more completions |
+| Add/remove phone number | Phone friction vs. sales quality |
+| Add/remove company field | B2B data vs. friction tradeoff |
+| Required vs. optional balance | Fewer required fields, higher starts |
+| Field enrichment to auto-fill | Remove manual entry burden |
+| Hide fields for returning visitors | Progressive profiling |
 
-**CTAs and Buttons**:
-- Button text ("Submit" vs. "Get My Quote" vs. specific)
-- Button color and size
-- Placement relative to fields
+**Smart Forms**
 
-**Trust Elements**:
-- Privacy assurance near form
-- Trust badges next to submit
-- Testimonial near form
-- Expected response time display
+| Test | Hypothesis |
+|------|------------|
+| Real-time validation | Catch errors before submit |
+| Progressive profiling | Ask more over time vs. upfront |
+| Conditional fields | Only show relevant fields |
+| Auto-suggest for company names | Faster entry, higher quality data |
 
-**Demo Request Forms**:
-- With/without phone requirement
-- "Preferred contact method" choice
-- "Biggest challenge?" question
-- Calendar embed vs. form submission
+**Labels and Microcopy**
 
-**Lead Capture Forms**:
-- Email-only vs. email + name
-- Value proposition messaging above form
-- Gated vs. ungated strategies
-- Post-submission enrichment questions
+| Test | Hypothesis |
+|------|------------|
+| Label clarity and length | Shorter clearer labels reduce confusion |
+| Placeholder text | Examples vs. instructions |
+| Help text: show vs. hide vs. hover | Context when needed reduces errors |
+| Error message tone | Friendly vs. direct wording |
 
-**Contact Forms**:
-- Department/topic routing dropdown
-- With/without message requirement
-- Alternative contact methods
-- Response time messaging
+**CTAs and Buttons**
 
-**Mobile**:
-- Larger touch targets
-- Keyboard type testing
-- Sticky submit button
-- Auto-focus first field
-- Form container styling
+| Test | Hypothesis |
+|------|------------|
+| Button text | "Submit" vs. "Get My Quote" vs. specific value copy |
+| Button color and size | Contrast and visibility |
+| Placement relative to fields | Proximity after last field |
+
+**Trust Elements**
+
+| Test | Hypothesis |
+|------|------------|
+| Privacy assurance near form | Reduce data anxiety |
+| Trust badges next to submit | Security perception at decision point |
+| Testimonial near form | Social proof reduces friction |
+| Expected response time display | Reduce post-submit uncertainty |
+
+**Demo Request Forms**
+
+| Test | Hypothesis |
+|------|------------|
+| With/without phone requirement | Phone removes vs. improves pipeline quality |
+| "Preferred contact method" choice | Control increases completion |
+| "Biggest challenge?" question | Personalization improves show rates |
+| Calendar embed vs. form submission | Instant scheduling vs. async follow-up |
+
+**Lead Capture Forms**
+
+| Test | Hypothesis |
+|------|------------|
+| Email-only vs. email + name | Friction vs. personalization |
+| Value proposition above form | Reinforce why they should give their email |
+| Gated vs. ungated strategies | Lead quality vs. consumption volume |
+| Post-submission enrichment questions | Qualify without upfront friction |
+
+**Contact Forms**
+
+| Test | Hypothesis |
+|------|------------|
+| Department/topic routing dropdown | Faster routing, better response |
+| With/without message requirement | Reduces friction, may reduce quality |
+| Alternative contact methods | Chat or phone as complement |
+| Response time messaging | Reduces post-submit anxiety |
+
+**Mobile**
+
+| Test | Hypothesis |
+|------|------------|
+| Larger touch targets | Reduce mis-taps |
+| Keyboard type | Correct keyboard per field type |
+| Sticky submit button | Always-visible CTA |
+| Auto-focus first field | Reduce friction to start |
+| Form container styling | Visual weight and clarity |
 
 ### Popup CRO Experiments
 
-**Placement and Format**:
-- Top bar vs. below header banner
-- Sticky vs. static banner
-- Full-width vs. contained banner
-- Banner with/without countdown timer
-- Center modal vs. slide-in
-- Full-screen vs. smaller modal
-- Bottom bar vs. corner popup
-- Popup sizes on desktop and mobile
+**Placement and Format**
 
-**Triggers**:
-- Exit intent vs. 30s delay vs. 50% scroll
-- Time delay (10s vs. 30s vs. 60s)
-- Scroll depth (25% vs. 50% vs. 75%)
-- Page count trigger
-- Intent prediction
-- Specific page visit triggers
-- Return vs. new visitor targeting
-- Referral source targeting
-- Click-triggered for lead magnets
-- In-content vs. sidebar triggers
+| Test | Hypothesis |
+|------|------------|
+| Top bar vs. below header banner | Visibility vs. disruption |
+| Sticky vs. static banner | Persistent awareness vs. clean UX |
+| Full-width vs. contained banner | Prominence tradeoff |
+| Banner with/without countdown | Urgency increases action |
+| Center modal vs. slide-in | Attention vs. less disruptive |
+| Full-screen vs. smaller modal | Conversion vs. experience |
+| Bottom bar vs. corner popup | Less intrusive formats |
+| Popup size on desktop and mobile | Prominence vs. UX |
 
-**Messaging and Content**:
-- Attention-grabbing vs. informational headlines
-- "Limited-time offer" vs. "New feature alert"
-- Urgency-focused vs. value-focused copy
-- Headline length and specificity
-- CTA button text variations
-- Button color for contrast
-- Primary + secondary CTA vs. single
-- Decline text (friendly vs. neutral)
-- Countdown timers
-- With/without images
-- Product preview vs. generic imagery
-- Social proof in popup
+**Triggers**
 
-**Personalization**:
-- Visitor data personalization
-- Industry-specific content
-- Pages-visited tailoring
-- Progressive profiling
+| Test | Hypothesis |
+|------|------------|
+| Exit intent vs. 30s delay vs. 50% scroll | Timing vs. intent signal |
+| Time delay | 10s vs. 30s vs. 60s |
+| Scroll depth | 25% vs. 50% vs. 75% |
+| Page count trigger | Signals research behavior |
+| Intent prediction | Behavioral targeting |
+| Specific page visit triggers | Context-matched offers |
+| Return vs. new visitor targeting | Different needs, different offers |
+| Referral source targeting | Match offer to traffic source |
+| Click-triggered for lead magnets | Zero annoyance, high intent |
+| In-content vs. sidebar triggers | Contextual vs. persistent |
 
-**Frequency and Rules**:
-- Frequency capping (per session vs. per week)
-- Cool-down after dismissal
-- Dismiss behavior testing
-- Escalating offers over visits
+**Messaging and Content**
+
+| Test | Hypothesis |
+|------|------------|
+| Attention-grabbing vs. informational headlines | Curiosity vs. clarity |
+| "Limited-time offer" vs. "New feature alert" | Urgency vs. value framing |
+| Urgency-focused vs. value-focused copy | Scarcity vs. benefit lead |
+| Headline length and specificity | Short and punchy vs. descriptive |
+| CTA button text | Generic vs. specific value copy |
+| Button color for contrast | Visibility drives clicks |
+| Primary + secondary CTA vs. single | Choice vs. focus |
+| Decline text | Friendly vs. neutral |
+| Countdown timers | Real urgency increases action |
+| With/without images | Visual vs. text-only |
+| Product preview vs. generic imagery | Concrete vs. abstract |
+| Social proof in popup | Trust at moment of decision |
+
+**Personalization**
+
+| Test | Hypothesis |
+|------|------------|
+| Visitor data personalization | Relevant offers outperform generic |
+| Industry-specific content | Relevance improves conversion |
+| Pages-visited tailoring | Intent signals improve offer match |
+| Progressive profiling | Ask less, learn over time |
+
+**Frequency and Rules**
+
+| Test | Hypothesis |
+|------|------------|
+| Frequency capping | Per session vs. per week |
+| Cool-down after dismissal | Respect vs. persistence |
+| Dismiss behavior | Hard dismiss vs. soft dismiss |
+| Escalating offers over visits | Increasing incentive for repeat visitors |
 
 ### Signup Flow CRO Experiments
 
-**Layout and Structure**:
-- Single-step vs. multi-step
-- Progress bar vs. without
-- 1-column vs. 2-column
-- Embedded vs. separate page
+**Layout and Structure**
 
-**Field Optimization**:
-- Minimum fields (email + password only)
-- Add/remove phone
-- Single "Name" vs. First/Last
-- Add/remove company
-- Required vs. optional balance
+| Test | Hypothesis |
+|------|------------|
+| Single-step vs. multi-step | Commitment escalation reduces drop-off |
+| Progress bar | Visible progress motivates completion |
+| 1-column vs. 2-column | Single column reduces cognitive load |
+| Embedded vs. separate page | Context proximity vs. focused environment |
 
-**Authentication**:
-- Add SSO (Google, Microsoft, GitHub, LinkedIn)
-- SSO prominent vs. email prominent
-- Which SSO options resonate
-- SSO-only vs. SSO + email
+**Field Optimization**
 
-**Visual Design**:
-- Button colors and sizes
-- Background (plain vs. product visuals)
-- Form container styling
-- Mobile-optimized layout
+| Test | Hypothesis |
+|------|------------|
+| Minimum fields (email + password only) | Fewer required fields |
+| Add/remove phone | Friction vs. verification need |
+| Single "Name" vs. First/Last | One field reduces friction |
+| Add/remove company | B2B data vs. friction tradeoff |
+| Required vs. optional balance | Make fewer things required |
 
-**Headlines and CTAs**:
-- Headline variations above form
-- CTA text ("Create Account" vs. "Start Free Trial" vs. "Get Started")
-- Trial length clarity in CTA
-- Value proposition emphasis
+**Authentication**
 
-**Microcopy**:
-- Minimal vs. descriptive labels
-- Placeholder optimization
-- Error message clarity
-- Password requirements (upfront vs. on error)
+| Test | Hypothesis |
+|------|------------|
+| Add SSO (Google, Microsoft, GitHub, LinkedIn) | Social auth reduces friction |
+| SSO prominent vs. email prominent | Auth method preference |
+| Which SSO options resonate | Audience-specific auth |
+| SSO-only vs. SSO + email | Simplify vs. offer choice |
 
-**Trust Elements**:
-- Social proof next to form
-- Trust badges (security, compliance)
-- "No credit card required" messaging
-- Privacy assurance copy
+**Visual Design**
 
-**Trial and Commitment**:
-- Credit card required vs. not for trial
-- Trial length (7 vs. 14 vs. 30 days)
-- Freemium vs. free trial
-- Limited features vs. full access trial
+| Test | Hypothesis |
+|------|------------|
+| Button colors and sizes | Contrast and prominence |
+| Background | Plain vs. product visuals |
+| Form container styling | Visual clarity |
+| Mobile-optimized layout | Smaller screens, simpler forms |
 
-**Friction Points**:
-- Email verification (required vs. delayed vs. removed)
-- CAPTCHA impact on completion
-- Terms checkbox vs. implicit acceptance
-- Phone verification for high-value
+**Headlines and CTAs**
 
-**Post-Submit**:
-- Next steps messaging
-- Instant access vs. email confirmation first
-- Personalized welcome based on signup data
-- Auto-login vs. require login
+| Test | Hypothesis |
+|------|------------|
+| Headline variations above form | Value framing at decision point |
+| CTA text | "Create Account" vs. "Start Free Trial" vs. "Get Started" |
+| Trial length clarity in CTA | Explicit trial length reduces uncertainty |
+| Value proposition emphasis | Benefit-led vs. feature-led |
+
+**Microcopy**
+
+| Test | Hypothesis |
+|------|------------|
+| Minimal vs. descriptive labels | Clarity vs. brevity |
+| Placeholder optimization | Examples vs. instructions |
+| Error message clarity | Specific errors reduce drop-off |
+| Password requirements | Upfront vs. on error |
+
+**Trust Elements**
+
+| Test | Hypothesis |
+|------|------------|
+| Social proof next to form | Reduces anxiety at signup |
+| Trust badges (security, compliance) | Security perception |
+| "No credit card required" messaging | Removes commitment barrier |
+| Privacy assurance copy | Reduces data anxiety |
+
+**Trial and Commitment**
+
+| Test | Hypothesis |
+|------|------------|
+| Credit card required vs. not | Conversion vs. trial quality |
+| Trial length | 7 vs. 14 vs. 30 days |
+| Freemium vs. free trial | Always-free vs. time-limited |
+| Limited features vs. full access | Taste vs. full experience |
+
+**Friction Points**
+
+| Test | Hypothesis |
+|------|------------|
+| Email verification timing | Required upfront vs. delayed |
+| CAPTCHA impact | Spam prevention vs. friction |
+| Terms checkbox vs. implicit acceptance | Explicit vs. assumed consent |
+| Phone verification | Fraud prevention vs. friction |
+
+**Post-Submit**
+
+| Test | Hypothesis |
+|------|------------|
+| Next steps messaging | Clarity reduces abandonment |
+| Instant access vs. email confirmation first | Immediate value vs. verified start |
+| Personalized welcome based on signup data | Relevance improves activation |
+| Auto-login vs. require login | Friction at final step |
 
 ---
 
@@ -664,23 +786,3 @@ Track: popup views, form focus, submission attempts, successful submissions, clo
 - Social auth vs. email ratio
 - Mobile vs. desktop completion
 
----
-
-## Output Format: CRO Recommendations
-
-Structure all CRO recommendations in three tiers:
-
-### Quick Wins (Implement Now)
-Easy changes with likely immediate impact. Low effort, high confidence.
-
-### High-Impact Changes (Prioritize)
-Bigger changes requiring more effort but significantly improving conversions.
-
-### Test Ideas
-Hypotheses worth A/B testing rather than assuming. Include expected outcome for each.
-
-For form audits, additionally provide per issue:
-- **Issue**: What is wrong
-- **Impact**: Estimated effect on conversions
-- **Fix**: Specific recommendation
-- **Priority**: High / Medium / Low

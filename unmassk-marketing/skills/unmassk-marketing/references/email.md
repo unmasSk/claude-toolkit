@@ -306,6 +306,10 @@ A/B test one variable at a time with sufficient sample size and statistical sign
 
 **Observation-Problem-Proof-Ask:** Noticed X -> which usually means Y challenge -> we helped Z with that -> interested?
 
+**Vanilla Ice Cream (Lavender/Will Allred):** Observation -> Problem/Insight -> Credibility -> Solution -> Call-to-Conversation. Universal "base" framework that works everywhere. Five parts.
+
+**PASTOR (Ray Edwards):** Problem -> Amplify -> Story -> Testimony -> Offer -> Response. Best for longer-form or multi-email sequences -- consulting, education, complex B2B services. Each element can be developed across separate touches.
+
 ### Personalization System (4 Levels)
 
 **Level 1 -- Basic (merge tags):** First name, company name, job title. Table stakes. Approximately 5% lift.
@@ -341,6 +345,8 @@ Short, boring, internal-looking. The subject line's only job is to get the email
 - 2-4 words, lowercase, no punctuation tricks
 - Should look like it came from a colleague ("reply rates", "hiring ops", "Q2 forecast")
 - No product pitches, no urgency, no emojis, no prospect's first name
+
+**Internal Camouflage Principle:** Subject lines that look like they came from a colleague, not a vendor, double open rates (Gong). Buyers mentally categorize before opening -- if it looks like sales, it is filtered. High-performing examples: "reply rates" · "trial delays" · "hiring ops" · "employee turnover" · "Q2 forecast" · "new patients" · "personalization issue" · "second page"
 
 **Data points:**
 - 2-word subject lines get 60% more opens than 5-word
@@ -414,6 +420,24 @@ If you send a breakup email, honor it. Do not contact the prospect again.
 - Identical templates with only {{FirstName}} swapped
 - Asking for 30-minute calls in first touch
 
+### Top 15 Mistakes (Ranked by Impact)
+
+1. **Too long** -- 70% of emails above 10th-grade level. Under 75 words = 83% more replies
+2. **Too self-focused** -- "We are a leading..." signals sales pitch. Count I/We sentences
+3. **No clear value prop** -- 71% of decision-makers ignore irrelevant emails
+4. **Generic templates** -- {{FirstName}} is not personalization. Recipients detect instantly
+5. **Feature dumping** -- "Great reps lead with problems" (Lavender). One proof point beats ten features
+6. **False personalization** -- "Loved your post!" without specifics is transparent
+7. **Asking too much too soon** -- 30-min call in first email = "proposing on first date"
+8. **Pushy language** -- "Act Now" stacking increases spam flagging by 67%
+9. **No CTA** -- Without a clear next step, momentum dies
+10. **"Just checking in" follow-ups** -- "I never heard back" = 12% drop in bookings
+11. **Wrong tone for audience** -- Founder is not RevOps lead is not sales leader
+12. **Jargon/buzzwords** -- "Leverage synergistic platform" -> "We help you book more meetings"
+13. **Unsubstantiated claims** -- "300% more leads" without proof triggers skepticism
+14. **Too many contacts per company** -- 1-2 people = 7.8% reply; 10+ = 3.8%
+15. **Fake urgency** -- Fake "Re:" / "Fwd:" / countdown timers destroy trust
+
 ### Cold Email Benchmarks
 
 | Metric | Average | Good | Excellent |
@@ -469,22 +493,22 @@ SMB email marketing, list management, and campaigns.
 export MAILCHIMP_API_KEY=xxx-us1
 
 # List audiences
-node mailchimp.js lists list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js lists list
 
 # Get audience details
-node mailchimp.js lists get list_abc123
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js lists get list_abc123
 
 # List members of an audience
-node mailchimp.js members list --list-id list_abc123 --count 50
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js members list --list-id list_abc123 --count 50
 
 # Add member
-node mailchimp.js members add --list-id list_abc123 --email user@example.com --status subscribed
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js members add --list-id list_abc123 --email user@example.com --status subscribed
 
 # List campaigns
-node mailchimp.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js campaigns list
 
 # Get campaign details
-node mailchimp.js campaigns get camp_abc123
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js campaigns get camp_abc123
 ```
 
 ### customer-io.js
@@ -499,19 +523,19 @@ export CUSTOMERIO_API_KEY=xxx
 export CUSTOMERIO_APP_KEY=xxx
 
 # Identify/update customer
-node customer-io.js customers identify user_123 --email user@example.com --plan pro
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers identify user_123 --email user@example.com --plan pro
 
 # Track event (triggers automated emails)
-node customer-io.js customers track-event user_123 --name signed_up --data '{"plan": "free"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers track-event user_123 --name signed_up --data '{"plan": "free"}'
 
 # List segments
-node customer-io.js segments list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments list
 
 # List campaigns
-node customer-io.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns list
 
 # Send transactional message
-node customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
 ```
 
 ### sendgrid.js
@@ -523,19 +547,19 @@ Transactional email at scale with template support.
 export SENDGRID_API_KEY=SG.xxx
 
 # Send email
-node sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with template
-node sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --template-id d-xxx --template-data '{"name": "John"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --template-id d-xxx --template-data '{"name": "John"}'
 
 # List contacts
-node sendgrid.js contacts list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js contacts list
 
 # Add contact
-node sendgrid.js contacts add --email user@example.com --first-name John --last-name Doe
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js contacts add --email user@example.com --first-name John --last-name Doe
 
 # List contact lists
-node sendgrid.js lists list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js lists list
 ```
 
 ### kit.js (ConvertKit)
@@ -548,28 +572,28 @@ export KIT_API_KEY=xxx
 export KIT_API_SECRET=xxx
 
 # List subscribers
-node kit.js subscribers list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers list
 
 # Get subscriber
-node kit.js subscribers get 12345
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers get 12345
 
 # Update subscriber
-node kit.js subscribers update 12345 --first-name John --fields '{"company": "Acme"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers update 12345 --first-name John --fields '{"company": "Acme"}'
 
 # Unsubscribe
-node kit.js subscribers unsubscribe --email user@example.com
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers unsubscribe --email user@example.com
 
 # List sequences
-node kit.js sequences list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js sequences list
 
 # Add subscriber to sequence
-node kit.js sequences subscribe 12345 --email user@example.com
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js sequences subscribe 12345 --email user@example.com
 
 # List tags
-node kit.js tags list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js tags list
 
 # Tag subscriber
-node kit.js tags tag 12345 --email user@example.com
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js tags tag 12345 --email user@example.com
 ```
 
 ### resend.js
@@ -581,19 +605,19 @@ Developer-friendly transactional email.
 export RESEND_API_KEY=re_xxx
 
 # Send email
-node resend.js send --from onboarding@example.com --to user@example.com --subject "Welcome" --html "<p>Hello</p>"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js send --from onboarding@example.com --to user@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with scheduling
-node resend.js send --from sender@example.com --to user@example.com --subject "Reminder" --text "Don't forget!" --scheduled-at "2024-12-01T10:00:00Z"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js send --from sender@example.com --to user@example.com --subject "Reminder" --text "Don't forget!" --scheduled-at "2024-12-01T10:00:00Z"
 
 # List sent emails
-node resend.js emails list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js emails list
 
 # Get email details
-node resend.js emails get email_abc123
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js emails get email_abc123
 
 # List domains
-node resend.js domains list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js domains list
 ```
 
 ### postmark.js
@@ -605,22 +629,22 @@ Deliverability-focused transactional email.
 export POSTMARK_API_KEY=xxx
 
 # Send email
-node postmark.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with template
-node postmark.js email send-template --template-id 12345 --from sender@example.com --to recipient@example.com --data '{"name": "John"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js email send-template --template-id 12345 --from sender@example.com --to recipient@example.com --data '{"name": "John"}'
 
 # List templates
-node postmark.js templates list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js templates list
 
 # Get delivery stats
-node postmark.js stats delivery
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js stats delivery
 
 # Get bounce stats
-node postmark.js stats bounces
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js stats bounces
 
 # List message streams
-node postmark.js streams list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js streams list
 ```
 
 ### brevo.js
@@ -632,22 +656,22 @@ Email and SMS with strong EU presence.
 export BREVO_API_KEY=xkeysib-xxx
 
 # Get account info
-node brevo.js account get
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js account get
 
 # List contacts
-node brevo.js contacts list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js contacts list
 
 # Add contact
-node brevo.js contacts add --email user@example.com --attributes '{"FIRSTNAME": "John"}'
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js contacts add --email user@example.com --attributes '{"FIRSTNAME": "John"}'
 
 # List email campaigns
-node brevo.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js campaigns list
 
 # Send transactional email
-node brevo.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send SMS
-node brevo.js sms send --to "+1234567890" --content "Your code is 1234" --sender "MyApp"
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js sms send --to "+1234567890" --content "Your code is 1234" --sender "MyApp"
 ```
 
 ---

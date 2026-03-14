@@ -211,19 +211,76 @@ Examples: "Start My Free Trial", "Get the Complete Checklist", "See Pricing for 
 Edit copy through seven sequential passes. After each sweep, loop back to verify previous sweeps are not compromised.
 
 ### Sweep 1: Clarity
-Can the reader understand what is being said? Check for confusing structures, unclear pronouns, jargon, ambiguous statements, missing context. Common killers: sentences doing too much, abstract language, assuming reader knowledge, burying the point in qualifications. After this sweep confirm the "Rule of One" (one main idea per section) and "You Rule" (copy speaks to the reader).
+
+**Focus:** Can the reader understand what is being said?
+
+**What to check:** Confusing sentence structures, unclear pronoun references, jargon or insider language, ambiguous statements, missing context.
+
+**Common clarity killers:** Sentences trying to say too much, abstract language instead of concrete, assuming reader knowledge, burying the point in qualifications.
+
+**Process:**
+1. Read through quickly, highlighting unclear parts
+2. Do not correct yet — note problem areas only
+3. Recommend specific edits after marking issues
+4. Verify edits maintain the original intent
+
+After this sweep confirm the "Rule of One" (one main idea per section) and "You Rule" (copy speaks to the reader).
 
 ### Sweep 2: Voice and Tone
-Is the copy consistent in how it sounds? Check for shifts between formal and casual, inconsistent brand personality, mood changes, mismatched word choices. Common issues: starting casual then becoming corporate, mixing "we" and "the company," humor in some places only. After this sweep, return to Clarity.
+
+**Focus:** Is the copy consistent in how it sounds?
+
+**What to check:** Shifts between formal and casual, inconsistent brand personality, mood changes that feel jarring, word choices that do not match the brand.
+
+**Common voice issues:** Starting casual then becoming corporate, mixing "we" and "the company" references, humor in some places but not others (unintentionally), technical language appearing randomly.
+
+**Process:**
+1. Read aloud to hear inconsistencies
+2. Mark where tone shifts unexpectedly
+3. Recommend edits that smooth transitions
+4. Ensure personality remains throughout
+
+After this sweep, return to Clarity.
 
 ### Sweep 3: So What
-Does every claim answer "why should I care?" For every statement, ask "So what?" If the copy does not answer with a deeper benefit, it needs work. "Our platform uses AI-powered analytics" becomes "Our AI-powered analytics surface insights you'd miss manually — so you make better decisions in half the time." After this sweep, return to Voice and Tone, then Clarity.
+
+**Focus:** Does every claim answer "why should I care?"
+
+**What to check:** Features without benefits, claims without consequences, statements that do not connect to reader's life, missing "which means..." bridges.
+
+**The So What test:** For every statement, ask "Okay, so what?" If the copy does not answer with a deeper benefit, it needs work. "Our platform uses AI-powered analytics" becomes "Our AI-powered analytics surface insights you'd miss manually — so you make better decisions in half the time."
+
+**Process:**
+1. Read each claim and literally ask "so what?"
+2. Highlight claims missing the answer
+3. Add the benefit bridge or deeper meaning
+4. Ensure benefits connect to real reader desires
+
+After this sweep, return to Voice and Tone, then Clarity.
 
 ### Sweep 4: Prove It
-Is every claim supported? Check for unsubstantiated claims, missing social proof, unsupported assertions, "best" or "leading" without evidence. Types of proof: testimonials with names, case study references, statistics, third-party validation, guarantees, customer logos, review scores. "Trusted by thousands" — which thousands? "Industry-leading" — according to whom? After this sweep, return to So What, Voice, Clarity.
+
+**Focus:** Is every claim supported with evidence?
+
+**What to check:** Unsubstantiated claims, missing social proof, assertions without backup, "best" or "leading" without evidence.
+
+**Types of proof:** Testimonials with names and specifics, case study references, statistics and data, third-party validation, guarantees and risk reversals, customer logos, review scores.
+
+**Common proof gaps:** "Trusted by thousands" — which thousands? "Industry-leading" — according to whom? "Customers love us" — show them saying it.
+
+**Process:**
+1. Identify every claim that needs proof
+2. Check if proof exists nearby
+3. Flag unsupported assertions
+4. Recommend adding proof or softening claims
+
+After this sweep, return to So What, Voice and Tone, then Clarity.
 
 ### Sweep 5: Specificity
-Is the copy concrete enough? Check for vague language ("improve," "enhance," "optimize"), generic statements, round numbers, missing details.
+
+**Focus:** Is the copy concrete enough to be compelling?
+
+**What to check:** Vague language ("improve," "enhance," "optimize"), generic statements, round numbers that feel made up, missing details.
 
 | Vague | Specific |
 |-------|----------|
@@ -233,13 +290,127 @@ Is the copy concrete enough? Check for vague language ("improve," "enhance," "op
 | Improve your workflow | Cut reporting time in half |
 | Great support | Response within 2 hours |
 
-After this sweep, return to Prove It, So What, Voice, Clarity.
+**Process:**
+1. Highlight vague words and phrases
+2. Ask "Can this be more specific?"
+3. Add numbers, timeframes, or examples
+4. Remove content that cannot be made specific — it is probably filler
+
+After this sweep, return to Prove It, So What, Voice and Tone, then Clarity.
 
 ### Sweep 6: Heightened Emotion
-Does the copy make the reader feel something? Check for flat informational language, missing emotional triggers, pain mentioned but not felt, aspirations stated but not evoked. Techniques: paint the "before" vividly, use sensory language, tell micro-stories, reference shared experiences, ask reflective questions. After this sweep, return through all previous sweeps.
+
+**Focus:** Does the copy make the reader feel something?
+
+**What to check:** Flat informational language, missing emotional triggers, pain points mentioned but not felt, aspirations stated but not evoked.
+
+**Emotional dimensions to consider:**
+- Pain of the current state
+- Frustration with alternatives
+- Fear of missing out
+- Desire for transformation
+- Pride in making smart choices
+- Relief from solving the problem
+
+**Techniques:**
+- Paint the "before" state vividly
+- Use sensory language
+- Tell micro-stories
+- Reference shared experiences
+- Ask questions that prompt reflection
+
+**Process:**
+1. Read for emotional impact — does it move you?
+2. Identify flat sections that should resonate
+3. Add emotional texture while staying authentic
+4. Ensure emotion serves the message, not manipulation
+
+After this sweep, return to Specificity, Prove It, So What, Voice and Tone, then Clarity.
 
 ### Sweep 7: Zero Risk
-Have all barriers to action been removed? Check friction near CTAs, unanswered objections, missing trust signals, unclear next steps, hidden costs. Risk reducers: money-back guarantees, free trials, "no credit card required," "cancel anytime," social proof near CTA, clear expectations, privacy assurances. After this sweep, return through all previous sweeps one final time.
+
+**Focus:** Have all barriers to action been removed?
+
+**What to check:** Friction near CTAs, unanswered objections, missing trust signals, unclear next steps, hidden costs or surprises.
+
+**Risk reducers to look for:**
+- Money-back guarantees
+- Free trials
+- "No credit card required"
+- "Cancel anytime"
+- Social proof near CTA
+- Clear expectations of what happens next
+- Privacy assurances
+
+**Common risk issues:**
+- CTA asks for commitment without earning trust
+- Objections raised but not addressed
+- Fine print that creates doubt
+- Vague "Contact us" instead of clear next step
+
+**Process:**
+1. Focus on sections near CTAs
+2. List every reason someone might hesitate
+3. Check if the copy addresses each concern
+4. Add risk reversals or trust signals as needed
+
+After this sweep, return through all previous sweeps one final time.
+
+### Copy Editing Checklist
+
+**Before You Start**
+- [ ] Understand the goal of this copy
+- [ ] Know the target audience
+- [ ] Identify the desired action
+- [ ] Read through once without editing
+
+**Clarity (Sweep 1)**
+- [ ] Every sentence is immediately understandable
+- [ ] No jargon without explanation
+- [ ] Pronouns have clear references
+- [ ] No sentences trying to do too much
+
+**Voice & Tone (Sweep 2)**
+- [ ] Consistent formality level throughout
+- [ ] Brand personality maintained
+- [ ] No jarring shifts in mood
+- [ ] Reads well aloud
+
+**So What (Sweep 3)**
+- [ ] Every feature connects to a benefit
+- [ ] Claims answer "why should I care?"
+- [ ] Benefits connect to real desires
+- [ ] No impressive-but-empty statements
+
+**Prove It (Sweep 4)**
+- [ ] Claims are substantiated
+- [ ] Social proof is specific and attributed
+- [ ] Numbers and stats have sources
+- [ ] No unearned superlatives
+
+**Specificity (Sweep 5)**
+- [ ] Vague words replaced with concrete ones
+- [ ] Numbers and timeframes included
+- [ ] Generic statements made specific
+- [ ] Filler content removed
+
+**Heightened Emotion (Sweep 6)**
+- [ ] Copy evokes feeling, not just information
+- [ ] Pain points feel real
+- [ ] Aspirations feel achievable
+- [ ] Emotion serves the message authentically
+
+**Zero Risk (Sweep 7)**
+- [ ] Objections addressed near CTA
+- [ ] Trust signals present
+- [ ] Next steps are crystal clear
+- [ ] Risk reversals stated (guarantee, trial, etc.)
+
+**Final Checks**
+- [ ] No typos or grammatical errors
+- [ ] Consistent formatting
+- [ ] Links work (if applicable)
+- [ ] Core message preserved through all edits
 
 ### Quick-Pass Editing Checks
 
@@ -279,29 +450,361 @@ Have all barriers to action been removed? Check friction near CTAs, unanswered o
 
 ---
 
-## Plain English Alternatives (Quick Reference)
+## Voice and Tone Guidance
+
+### Reading for Voice Consistency
+
+Read aloud to catch inconsistencies. Mark where tone shifts unexpectedly. Ensure personality remains throughout — not just in some sections.
+
+**Signs of voice inconsistency:**
+- Starts casual, becomes corporate mid-page
+- Mixes "we" and "the company" references
+- Humor in the hero, formality in the body
+- Technical language appearing without warning
+
+### Brand Voice Dimensions
+
+When establishing or checking brand voice, assess on these axes:
+
+- **Formal ↔ Casual**: Where does this brand sit?
+- **Serious ↔ Playful**: Does humor fit the context?
+- **Expert ↔ Accessible**: How much does the reader already know?
+- **Reserved ↔ Bold**: Does the copy take positions?
+
+### Voice and Tone in Practice
+
+**Consistent voice means:**
+- Same formality level in headlines, body, and CTAs
+- Consistent use of "you" vs. "your team" vs. "users"
+- Personality present even in functional microcopy (buttons, error messages)
+- Transitions between sections feel natural, not jarring
+
+**Tone shifts appropriately** (unlike voice, tone can shift by context):
+- Empathetic in problem sections
+- Confident in solution sections
+- Clear and directive in CTAs
+- Reassuring near risk-reversal elements
+
+---
+
+## Plain English Alternatives
 
 Replace complex words with plain alternatives in all marketing copy.
 
-| Complex | Plain | Complex | Plain |
-|---------|-------|---------|-------|
-| Accomplish | Do, finish | Facilitate | Help |
-| Acquire | Get, buy | Commence | Start |
-| Additional | Extra, more | Demonstrate | Show |
-| Approximately | About | Endeavour | Try |
-| Ascertain | Find out | Ensure | Make sure |
-| Assistance | Help | Evaluate | Test |
-| Beneficial | Helpful | Expedite | Speed up |
-| Cease | Stop | Implement | Do |
-| Communicate | Tell | Obtain | Get |
-| Comprise | Include | Purchase | Buy |
-| Currently | Now | Require | Need |
-| Determine | Decide | Subsequent | Later |
-| Diminish | Reduce | Sufficient | Enough |
-| Disseminate | Spread | Terminate | End |
-| Duration | Time | Utilize | Use |
+### A
 
-**Phrases to remove entirely**: a total of, absolutely, actually, basically, currently (when "now" works), obviously, of course, quite, really, very, at the end of the day, at this moment in time, the fact of the matter is
+| Complex | Plain Alternative |
+|---------|-------------------|
+| (an) absence of | no, none |
+| abundance | enough, plenty, many |
+| accede to | allow, agree to |
+| accelerate | speed up |
+| accommodate | meet, hold, house |
+| accomplish | do, finish, complete |
+| accordingly | so, therefore |
+| acknowledge | thank you for, confirm |
+| acquire | get, buy, obtain |
+| additional | extra, more |
+| adjacent | next to |
+| advantageous | useful, helpful |
+| advise | tell, say, inform |
+| aforesaid | this, earlier |
+| aggregate | total |
+| alleviate | ease, reduce |
+| allocate | give, share, assign |
+| alternative | other, choice |
+| ameliorate | improve |
+| anticipate | expect |
+| apparent | clear, obvious |
+| appreciable | large, noticeable |
+| appropriate | proper, right, suitable |
+| approximately | about, roughly |
+| ascertain | find out |
+| assistance | help |
+| at the present time | now |
+| attempt | try |
+| authorise | allow, let |
+
+### B
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| belated | late |
+| beneficial | helpful, useful |
+| bestow | give |
+| by means of | by |
+
+### C
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| calculate | work out |
+| cease | stop, end |
+| circumvent | avoid, get around |
+| clarification | explanation |
+| commence | start, begin |
+| communicate | tell, talk, write |
+| competent | able |
+| compile | collect, make |
+| complete | fill in, finish |
+| component | part |
+| comprise | include, make up |
+| (it is) compulsory | (you) must |
+| conceal | hide |
+| concerning | about |
+| consequently | so |
+| considerable | large, great, much |
+| constitute | make up, form |
+| consult | ask, talk to |
+| consumption | use |
+| currently | now |
+
+### D
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| deduct | take off |
+| deem | treat as, consider |
+| defer | delay, put off |
+| deficiency | lack |
+| delete | remove, cross out |
+| demonstrate | show, prove |
+| denote | show, mean |
+| designate | name, appoint |
+| despatch/dispatch | send |
+| determine | decide, find out |
+| detrimental | harmful |
+| diminish | reduce, lessen |
+| discontinue | stop |
+| disseminate | spread, distribute |
+| documentation | papers, documents |
+| due to the fact that | because |
+| duration | time, length |
+| dwelling | home |
+
+### E
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| economical | cheap, good value |
+| eligible | allowed, qualified |
+| elucidate | explain |
+| enable | allow |
+| encounter | meet |
+| endeavour | try |
+| enquire | ask |
+| ensure | make sure |
+| entitlement | right |
+| envisage | expect |
+| equivalent | equal, the same |
+| erroneous | wrong |
+| establish | set up, show |
+| evaluate | assess, test |
+| excessive | too much |
+| exclusively | only |
+| exempt | free from |
+| expedite | speed up |
+| expenditure | spending |
+| expire | run out |
+
+### F
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| fabricate | make |
+| facilitate | help, make possible |
+| finalise | finish, complete |
+| following | after |
+| for the purpose of | to, for |
+| for the reason that | because |
+| forthwith | now, at once |
+| forward | send |
+| frequently | often |
+| furnish | give, provide |
+| furthermore | also, and |
+
+### G-H
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| generate | produce, create |
+| henceforth | from now on |
+| hitherto | until now |
+
+### I
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| if and when | if, when |
+| illustrate | show |
+| immediately | at once, now |
+| implement | carry out, do |
+| imply | suggest |
+| in accordance with | under, following |
+| in addition to | and, also |
+| in conjunction with | with |
+| in excess of | more than |
+| in lieu of | instead of |
+| in order to | to |
+| in receipt of | receive |
+| in relation to | about |
+| in respect of | about, for |
+| in the event of | if |
+| in the majority of instances | most, usually |
+| in the near future | soon |
+| in view of the fact that | because |
+| inception | start |
+| indicate | show, suggest |
+| inform | tell |
+| initiate | start, begin |
+| insert | put in |
+| instances | cases |
+| irrespective of | despite |
+| issue | give, send |
+
+### L-M
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| (a) large number of | many |
+| liaise with | work with, talk to |
+| locality | place, area |
+| locate | find |
+| magnitude | size |
+| (it is) mandatory | (you) must |
+| manner | way |
+| modification | change |
+| moreover | also, and |
+
+### N-O
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| negligible | small |
+| nevertheless | but, however |
+| notify | tell |
+| notwithstanding | despite, even if |
+| numerous | many |
+| objective | aim, goal |
+| (it is) obligatory | (you) must |
+| obtain | get |
+| occasioned by | caused by |
+| on behalf of | for |
+| on numerous occasions | often |
+| on receipt of | when you get |
+| on the grounds that | because |
+| operate | work, run |
+| optimum | best |
+| option | choice |
+| otherwise | or |
+| outstanding | unpaid |
+| owing to | because |
+
+### P
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| partially | partly |
+| participate | take part |
+| particulars | details |
+| per annum | a year |
+| perform | do |
+| permit | let, allow |
+| personnel | staff, people |
+| peruse | read |
+| possess | have, own |
+| practically | almost |
+| predominant | main |
+| prescribe | set |
+| preserve | keep |
+| previous | earlier, before |
+| principal | main |
+| prior to | before |
+| proceed | go ahead |
+| procure | get |
+| prohibit | ban, stop |
+| promptly | quickly |
+| provide | give |
+| provided that | if |
+| provisions | rules, terms |
+| proximity | nearness |
+| purchase | buy |
+| pursuant to | under |
+
+### R
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| reconsider | think again |
+| reduction | cut |
+| referred to as | called |
+| regarding | about |
+| reimburse | repay |
+| reiterate | repeat |
+| relating to | about |
+| remain | stay |
+| remainder | rest |
+| remuneration | pay |
+| render | make, give |
+| represent | stand for |
+| request | ask |
+| require | need |
+| residence | home |
+| retain | keep |
+| revised | changed, new |
+
+### S
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| scrutinise | examine, check |
+| select | choose |
+| solely | only |
+| specified | given, stated |
+| state | say |
+| statutory | legal, by law |
+| subject to | depending on |
+| submit | send, give |
+| subsequent to | after |
+| subsequently | later |
+| substantial | large, much |
+| sufficient | enough |
+| supplement | add to |
+| supplementary | extra |
+
+### T-U
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| terminate | end, stop |
+| thereafter | then |
+| thereby | by this |
+| thus | so |
+| to date | so far |
+| transfer | move |
+| transmit | send |
+| ultimately | in the end |
+| undertake | agree, do |
+| uniform | same |
+| utilise | use |
+
+### V-Z
+
+| Complex | Plain Alternative |
+|---------|-------------------|
+| variation | change |
+| virtually | almost |
+| visualise | imagine, see |
+| ways and means | ways |
+| whatsoever | any |
+| with a view to | to |
+| with effect from | from |
+| with reference to | about |
+| with regard to | about |
+| with respect to | about |
+| zone | area |
+
+**Phrases to remove entirely**: a total of, absolutely, actually, all things being equal, as a matter of fact, at the end of the day, at this moment in time, basically, currently (when "now" works), I am of the opinion that (use: I think), in due course (use: soon, or say when), in the final analysis, it should be understood, last but not least, obviously, of course, quite, really, the fact of the matter is, to all intents and purposes, very
 
 ---
 
@@ -309,31 +812,244 @@ Replace complex words with plain alternatives in all marketing copy.
 
 Use these to guide readers through content. Vary transitions and avoid AI tells.
 
-**Previewing structure**: "Here's what we'll cover...", "This guide walks you through...", "Let's break this down step by step."
+### Previewing Content Structure
 
-**Introducing topics**: "When it comes to X...", "Another key factor is...", "X is worth exploring because..."
+Use to orient readers and set expectations:
 
-**Moving between sections**: "Now let's look at...", "With that covered, let's turn to...", "That brings us to..."
+- Here's what we'll cover...
+- This guide walks you through...
+- Below, you'll find...
+- We'll start with X, then move to Y...
+- First, let's look at...
+- Let's break this down step by step.
+- The sections below explain...
 
-**Addition**: "Also...", "Plus...", "On top of that...", "Beyond that..."
+### Introducing a New Topic
 
-**Contrast**: "However...", "But...", "That said...", "On the flip side..."
+- When it comes to X,...
+- Regarding X,...
+- Speaking of X,...
+- Now let's talk about X.
+- Another key factor is...
+- X is worth exploring because...
 
-**Cause and effect**: "So...", "This means...", "That's why...", "Here's what happens..."
+### Referring Back
 
-**Examples**: "For example...", "Take X, for instance.", "Consider this:", "Say you want to..."
+Use to connect ideas and reinforce key points:
 
-**Emphasis**: "Here's the key takeaway:", "What matters most is...", "This is critical:"
+- As mentioned earlier,...
+- As we covered above,...
+- Remember when we discussed X?
+- Building on that point,...
+- Going back to X,...
+- Earlier, we explained that...
 
-**Summarizing**: "To recap...", "In short...", "The takeaway?", "Quick summary:"
+### Moving Between Sections
 
-**Question transitions**: "So what does this mean for you?", "But why does this matter?", "Sound complicated? It's not."
+- Now let's look at...
+- Next up:...
+- Moving on to...
+- With that covered, let's turn to...
+- Now that you understand X, here's Y.
+- That brings us to...
 
-**Transitions to AVOID (AI tells)**: "That being said...", "It's worth noting that...", "At its core...", "In today's digital landscape...", "When it comes to the realm of...", "This begs the question...", "Let's delve into...", "In conclusion..."
+### Indicating Addition
+
+- Also,...
+- Plus,...
+- On top of that,...
+- What's more,...
+- Another benefit is...
+- Beyond that,...
+- In addition,...
+- There's also...
+
+**Note:** Use "moreover" and "furthermore" sparingly — they can sound AI-generated when overused.
+
+### Indicating Contrast
+
+- However,...
+- But,...
+- That said,...
+- On the flip side,...
+- In contrast,...
+- Unlike X, Y...
+- While X is true, Y...
+- Despite this,...
+
+### Indicating Similarity
+
+- Similarly,...
+- Likewise,...
+- In the same way,...
+- Just like X, Y also...
+- This mirrors...
+- The same applies to...
+
+### Indicating Cause and Effect
+
+- So,...
+- This means...
+- As a result,...
+- That's why...
+- Because of this,...
+- This leads to...
+- The outcome?...
+- Here's what happens:...
+
+### Giving Examples
+
+- For example,...
+- For instance,...
+- Here's an example:...
+- Take X, for instance.
+- Consider this:...
+- A good example is...
+- To illustrate,...
+- Like when...
+- Say you want to...
+
+### Emphasising Key Points
+
+- Here's the key takeaway:...
+- The important thing is...
+- What matters most is...
+- Don't miss this:...
+- Pay attention to...
+- This is critical:...
+- The bottom line?...
+
+### Providing Evidence
+
+Use when citing sources, data, or expert opinions:
+
+**Neutral attribution:**
+- According to [Source],...
+- [Source] reports that...
+- Research shows that...
+- Data from [Source] indicates...
+- A study by [Source] found...
+
+**Expert quotes:**
+- As [Expert] puts it,...
+- [Expert] explains,...
+- In the words of [Expert],...
+- [Expert] notes that...
+
+**Supporting claims:**
+- This is backed by...
+- Evidence suggests...
+- The numbers confirm...
+- This aligns with findings from...
+
+### Summarising Sections
+
+- To recap,...
+- Here's the short version:...
+- In short,...
+- The takeaway?...
+- So what does this mean?...
+- Let's pull this together:...
+- Quick summary:...
+
+### Concluding Content
+
+- Wrapping up,...
+- The bottom line is...
+- Here's what to do next:...
+- To sum up,...
+- Final thoughts:...
+- Ready to get started?...
+- Now it's your turn.
+
+**Note:** Avoid "In conclusion" at the start of a paragraph. It is overused and signals AI writing.
+
+### Question-Based Transitions
+
+Useful for conversational tone and featured snippet optimization:
+
+- So what does this mean for you?
+- But why does this matter?
+- How do you actually do this?
+- What's the catch?
+- Sound complicated? It's not.
+- Wondering where to start?
+- Still not sure? Here's the breakdown.
+
+### List Introductions
+
+For numbered lists and step-by-step content:
+
+- Here's how to do it:
+- Follow these steps:
+- The process is straightforward:
+- Here's what you need to know:
+- Key things to consider:
+- The main factors are:
+
+### Hedging Language
+
+For claims that need qualification or are not absolute:
+
+- may, might, could
+- tends to, generally
+- often, usually, typically
+- in most cases
+- it appears that
+- evidence suggests
+- this can help
+- many experts believe
+
+### Best Practice Guidelines
+
+1. **Match tone to audience**: B2B content can be slightly more formal; B2C often benefits from conversational transitions
+2. **Vary your transitions**: Repeating the same phrase gets noticed
+3. **Do not over-signpost**: Trust your reader; every sentence does not need a transition
+4. **Use for scannability**: Transitions at paragraph starts help skimmers navigate
+5. **Keep it natural**: Read aloud; if it sounds forced, simplify
+6. **Front-load key info**: Put the important word or phrase early in the transition
+
+### Transitions to Avoid (AI Tells)
+
+- "That being said,..."
+- "It's worth noting that..."
+- "At its core,..."
+- "In today's digital landscape,..."
+- "When it comes to the realm of..."
+- "This begs the question..."
+- "Let's delve into..."
+- "In conclusion..."
 
 ---
 
 ## Content Strategy
+
+### Before Planning
+
+Read `.agents/product-marketing-context.md` first. Use that context and only ask for information not already covered.
+
+Gather this context:
+
+#### 1. Business Context
+- What does the company do?
+- Who is the ideal customer?
+- What is the primary goal for content? (traffic, leads, brand awareness, thought leadership)
+- What problems does the product solve?
+
+#### 2. Customer Research
+- What questions do customers ask before buying?
+- What objections come up in sales calls?
+- What topics appear repeatedly in support tickets?
+- What language do customers use to describe their problems?
+
+#### 3. Current State
+- Do you have existing content? What is working?
+- What resources do you have? (writers, budget, time)
+- What content formats can you produce? (written, video, audio)
+
+#### 4. Competitive Landscape
+- Who are your main competitors?
+- What content gaps exist in your market?
 
 ### Searchable vs. Shareable
 
@@ -420,11 +1136,46 @@ When using a CMS for marketing content, model content types around marketing nee
 | Case Study | title, customer, challenge, solution, results, metrics[], logo |
 | Testimonial | quote, author, role, company, avatar, rating |
 | FAQ | question, answer, category |
+| Author | name, bio, avatar, social links |
 | CTA Block | heading, body, buttonText, buttonUrl, variant |
 
 Every page-level type needs SEO fields: metaTitle (50-60 chars), metaDescription (150-160 chars), ogImage (1200x630), slug, canonicalUrl, noIndex, structuredData.
 
-**Platform comparison**: Sanity (GROQ, schema-as-code, real-time collab), Contentful (enterprise, multi-locale), Strapi (open source, self-hosted).
+**When headless makes sense:**
+- Multiple frontends consume the same content (web, mobile, email)
+- Developers want full control over the frontend stack
+- Content needs to be reused across channels
+- Building with a modern framework (Next.js, Remix, Astro)
+- Marketing needs structured, reusable content blocks
+
+**When traditional works better:**
+- Small team with no dedicated developers
+- Simple blog or brochure site
+- WYSIWYG editing is a hard requirement
+- Budget is tight and WordPress/Webflow does the job
+
+**Content modeling principles:**
+1. Think in types, not pages — a "Landing Page" is a content type with fields, not an HTML file
+2. Separate content from presentation — store the headline text, not the styled headline
+3. Design for reuse — if testimonials appear on 5 pages, create a Testimonial type and reference it
+4. Keep models flat — deeply nested structures are hard to query; prefer references over nesting
+
+**Editorial workflow (Draft → Review → Publish):**
+1. **Draft** — Author creates or edits content
+2. **Review** — Editor reviews for accuracy, brand voice, SEO
+3. **Approve** — Stakeholder signs off
+4. **Schedule** — Set publish date/time
+5. **Publish** — Content goes live via API
+
+**CMS roles and permissions:**
+
+| Role | Can Create | Can Edit | Can Publish | Can Delete |
+|------|:----------:|:--------:|:-----------:|:----------:|
+| Author | Yes | Own | No | Own drafts |
+| Editor | Yes | All | Yes | Drafts |
+| Admin | Yes | All | Yes | All |
+
+**Platform comparison**: Sanity (GROQ, schema-as-code, real-time collab, Presentation tool for preview), Contentful (enterprise, multi-locale, preview via `preview.contentful.com`), Strapi (open source, self-hosted, Draft & Publish with `status=draft` in v5).
 
 ---
 
@@ -444,13 +1195,37 @@ Every page-level type needs SEO fields: metaTitle (50-60 chars), metaDescription
 
 **LinkedIn**: Best times Tue-Thu 7-8am, 12pm, 5-6pm. Personal stories with business lessons, contrarian takes, data. 1,200-1,500 characters performs well. Put links in comments. First hour engagement matters most. Comments outweigh reactions outweigh clicks.
 
+**Anti-patterns**: Overly promotional content, generic motivational quotes, links in the main post body, corporate speak without personality.
+
+**Algorithm tips**: First hour engagement matters most. Comments > reactions > clicks. Dwell time signals quality. No external links in post body. Document posts (carousels) get strong reach. Polls drive engagement but do not build authority.
+
+---
+
 **Twitter/X**: 3-10x/day including replies. Hot takes, teaching threads, behind-the-scenes, memes (if on-brand). Tweets under 100 characters get more engagement. Engagement in first 30 min matters.
+
+**Anti-patterns**: Pure self-promotion, threads without a strong hook, ignoring replies and mentions, scheduling everything with no real-time presence.
+
+**Algorithm tips**: Replies and quote tweets build authority. Threads keep people on platform (rewarded). Images and video get more reach. Engagement in first 30 min matters. Twitter Blue/Premium may boost reach.
+
+---
 
 **Instagram**: 1-2 feed posts + 3-10 Stories daily. Best times 11am-1pm, 7-9pm. Reels get 2x reach of static posts. Saves and shares outweigh likes. Use all features (polls, questions).
 
-**TikTok**: 1-4x/day. Best times 7-9am, 12-3pm, 7-11pm. Native, unpolished content. Trending sounds. Hook in first 1-2 seconds. Keep under 30 seconds initially.
+**Anti-patterns**: Low-quality images, too much text in images, ignoring Stories and Reels, only promotional content.
 
-**Facebook**: 1-2x/day. Best times 1-4pm weekdays. Groups, native video, live video, local content. External links kill reach.
+**Algorithm tips**: Reels heavily prioritized over static posts. Saves and shares > likes. Stories keep you top of feed. Consistency matters more than perfection. Use all features (polls, questions).
+
+---
+
+**TikTok**: 1-4x/day. Best times 7-9am, 12-3pm, 7-11pm. Native, unpolished content. Trending sounds. Hook in first 1-2 seconds. Keep under 30 seconds initially. Vertical only (9:16).
+
+**Anti-patterns**: Overly produced content, ignoring trends, hard selling, repurposed horizontal video.
+
+---
+
+**Facebook**: 1-2x/day. Best times 1-4pm weekdays. Groups, native video, live video, local content.
+
+**Anti-patterns**: Links to external sites (reach killer), pure promotional content, ignoring comments, cross-posting from other platforms without adaptation.
 
 ### Content Pillars Framework
 

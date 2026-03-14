@@ -127,9 +127,20 @@ cta_hero_clicked
 | feature_used | feature_name, feature_category |
 | action_completed | action_type, count |
 | content_created | content_type |
+| content_edited | content_type |
+| content_deleted | content_type |
 | search_performed | query, results_count |
 | settings_changed | setting_name, new_value |
 | invite_sent | invite_type, count |
+
+**Errors & Support:**
+
+| Event Name | Properties |
+|------------|------------|
+| error_occurred | error_type, error_message, page |
+| help_opened | help_type, page |
+| support_contacted | contact_method, issue_type |
+| feedback_submitted | feedback_type, rating |
 
 **Monetization:**
 
@@ -145,25 +156,77 @@ cta_hero_clicked
 | subscription_downgraded | from_plan, to_plan |
 | subscription_cancelled | plan, reason, tenure |
 
-**E-commerce Events (if applicable):**
+**Subscription Management:**
+
+| Event Name | Properties |
+|------------|------------|
+| trial_started | plan, trial_length |
+| trial_ended | plan, converted (bool) |
+| subscription_upgraded | from_plan, to_plan, value |
+| subscription_downgraded | from_plan, to_plan |
+| subscription_cancelled | plan, reason, tenure |
+| subscription_renewed | plan, value |
+| billing_updated | - |
+
+**E-commerce — Browsing:**
 
 | Event Name | Properties |
 |------------|------------|
 | product_viewed | product_id, product_name, category, price |
+| product_list_viewed | list_name, products[] |
+| product_searched | query, results_count |
+| product_filtered | filter_type, filter_value |
+| product_sorted | sort_by, sort_order |
+
+**E-commerce — Cart & Checkout:**
+
+| Event Name | Properties |
+|------------|------------|
 | product_added_to_cart | product_id, product_name, price, quantity |
+| product_removed_from_cart | product_id, product_name, price, quantity |
 | cart_viewed | cart_value, items_count |
 | checkout_started | cart_value, items_count |
+| checkout_step_completed | step_number, step_name |
+| shipping_info_entered | shipping_method |
+| coupon_applied | coupon_code, discount_value |
 | purchase_completed | transaction_id, value, currency, items[] |
 
-**B2B/SaaS Specific:**
+**E-commerce — Post-Purchase:**
+
+| Event Name | Properties |
+|------------|------------|
+| order_confirmed | transaction_id |
+| refund_requested | transaction_id, reason |
+| refund_completed | transaction_id, value |
+| review_submitted | product_id, rating |
+
+**B2B/SaaS — Team & Collaboration:**
 
 | Event Name | Properties |
 |------------|------------|
 | team_created | team_size, plan |
 | team_member_invited | role, invite_method |
+| team_member_joined | role |
+| team_member_removed | role |
+| role_changed | user_id, old_role, new_role |
+
+**B2B/SaaS — Integration Events:**
+
+| Event Name | Properties |
+|------------|------------|
+| integration_viewed | integration_name |
+| integration_started | integration_name |
 | integration_connected | integration_name |
+| integration_disconnected | integration_name, reason |
+
+**B2B/SaaS — Account Events:**
+
+| Event Name | Properties |
+|------------|------------|
+| account_created | source, plan |
 | account_upgraded | from_plan, to_plan |
 | account_churned | reason, tenure, mrr_lost |
+| account_reactivated | previous_tenure, new_plan |
 
 ### Standard Event Properties
 
@@ -412,13 +475,94 @@ document.querySelector('.cta-button').addEventListener('click', function() {
 });
 ```
 
+**E-commerce dataLayer patterns** — always clear ecommerce before pushing a new e-commerce event:
+
+```javascript
+// Product view
+dataLayer.push({ ecommerce: null });
+dataLayer.push({
+  'event': 'view_item',
+  'ecommerce': {
+    'items': [{
+      'item_id': 'SKU123',
+      'item_name': 'Product Name',
+      'price': 99.99,
+      'item_category': 'Category',
+      'quantity': 1
+    }]
+  }
+});
+
+// Add to cart
+dataLayer.push({ ecommerce: null });
+dataLayer.push({
+  'event': 'add_to_cart',
+  'ecommerce': {
+    'items': [{
+      'item_id': 'SKU123',
+      'item_name': 'Product Name',
+      'price': 99.99,
+      'quantity': 1
+    }]
+  }
+});
+
+// Purchase
+dataLayer.push({ ecommerce: null });
+dataLayer.push({
+  'event': 'purchase',
+  'ecommerce': {
+    'transaction_id': 'T12345',
+    'value': 99.99,
+    'currency': 'USD',
+    'tax': 5.00,
+    'shipping': 10.00,
+    'items': [{
+      'item_id': 'SKU123',
+      'item_name': 'Product Name',
+      'price': 99.99,
+      'quantity': 1
+    }]
+  }
+});
+```
+
 ### Common Tag Configurations
 
 **GA4 Configuration Tag:** Tag Type: GA4 Configuration. Measurement ID: G-XXXXXXXX. Send page view: checked. Trigger: All Pages. Add user properties for user-level dimensions.
 
 **GA4 Event Tag:** Tag Type: GA4 Event. Reference your config tag. Set event name from dataLayer or hardcode. Map event parameters from dataLayer variables. Trigger: Custom Event matching the dataLayer event name.
 
-**Facebook Pixel (Custom HTML):** Initialize with pixel ID on All Pages. Fire standard events (Lead, Purchase) on matching custom event triggers via additional Custom HTML tags.
+**Facebook Pixel — Base (Custom HTML):**
+
+```html
+<script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', 'YOUR_PIXEL_ID');
+  fbq('track', 'PageView');
+</script>
+```
+
+Trigger: All Pages.
+
+**Facebook Pixel — Event (Custom HTML):**
+
+```html
+<script>
+  fbq('track', 'Lead', {
+    content_name: '{{DL - form_name}}'
+  });
+</script>
+```
+
+Trigger: Custom Event - form_submitted.
 
 ### Consent Management
 
@@ -685,6 +829,163 @@ Document every test:
 | Segment analysis | Mobile/desktop, new/returning, traffic source |
 | Decision | Implement, keep control, or re-test |
 | Learnings | What was learned, what to test next |
+
+---
+
+## A/B Test Templates
+
+### Test Plan Template
+
+```markdown
+# A/B Test: [Name]
+
+## Overview
+- **Owner**: [Name]
+- **Test ID**: [ID in testing tool]
+- **Page/Feature**: [What's being tested]
+- **Planned dates**: [Start] - [End]
+
+## Hypothesis
+
+Because [observation/data],
+we believe [change]
+will cause [expected outcome]
+for [audience].
+We'll know this is true when [metrics].
+
+## Test Design
+
+| Element | Details |
+|---------|---------|
+| Test type | A/B / A/B/n / MVT |
+| Duration | X weeks |
+| Sample size | X per variant |
+| Traffic allocation | 50/50 |
+| Tool | [Tool name] |
+| Implementation | Client-side / Server-side |
+
+## Variants
+
+### Control (A)
+- Current experience
+- [Key details about current state]
+
+### Variant (B)
+- [Specific change #1]
+- [Specific change #2]
+- Rationale: [Why we think this will win]
+
+## Metrics
+
+### Primary
+- **Metric**: [metric name]
+- **Definition**: [how it's calculated]
+- **Current baseline**: [X%]
+- **Minimum detectable effect**: [X%]
+
+### Secondary
+- [Metric 1]: [what it tells us]
+- [Metric 2]: [what it tells us]
+
+### Guardrails
+- [Metric that shouldn't get worse]
+
+## Success Criteria
+- Winner: [Primary metric improves by X% with 95% confidence]
+- Loser: [Primary metric decreases significantly]
+- Inconclusive: [What we'll do if no significant result]
+
+## Pre-Launch Checklist
+- [ ] Hypothesis documented and reviewed
+- [ ] Primary metric defined and trackable
+- [ ] Sample size calculated
+- [ ] Variants implemented and QA'd
+- [ ] Tracking verified in all variants
+- [ ] Stakeholders informed
+```
+
+### Results Documentation Template
+
+```markdown
+# A/B Test Results: [Name]
+
+## Summary
+| Element | Value |
+|---------|-------|
+| Test ID | [ID] |
+| Dates | [Start] - [End] |
+| Duration | X days |
+| Result | Winner / Loser / Inconclusive |
+| Decision | [What we're doing] |
+
+## Results
+
+### Primary Metric: [Metric Name]
+| Variant | Value | 95% CI | vs. Control |
+|---------|-------|--------|-------------|
+| Control | X% | [X%, Y%] | — |
+| Variant | X% | [X%, Y%] | +X% |
+
+**Statistical significance**: p = X.XX
+
+### Secondary Metrics
+| Metric | Control | Variant | Change | Significant? |
+|--------|---------|---------|--------|--------------|
+| [Metric 1] | X | Y | +Z% | Yes/No |
+
+### Guardrail Metrics
+| Metric | Control | Variant | Change | Concern? |
+|--------|---------|---------|--------|----------|
+| [Metric 1] | X | Y | +Z% | Yes/No |
+
+### Segment Analysis
+**Mobile vs. Desktop** / **New vs. Returning** — same table structure
+
+## Decision
+**Winner**: [Control / Variant]
+**Action**: [Implement / Keep control / Re-test]
+
+## Learnings
+- [Key insight 1]
+- [Follow-up test idea]
+```
+
+### Test Repository Entry
+
+```markdown
+| Test ID | Name | Page | Dates | Primary Metric | Result | Lift | Link |
+|---------|------|------|-------|----------------|--------|------|------|
+| 001 | Hero headline test | Homepage | 1/1-1/15 | CTR | Winner | +12% | [Link] |
+```
+
+### Quick Test Brief
+
+```markdown
+## [Test Name]
+**What**: [One sentence description]
+**Why**: [One sentence hypothesis]
+**Metric**: [Primary metric]
+**Duration**: [X weeks]
+**Result**: [TBD / Winner / Loser / Inconclusive]
+**Learnings**: [Key takeaway]
+```
+
+### Stakeholder Update Template
+
+```markdown
+## A/B Test Update: [Name]
+**Status**: Running / Complete
+**Days remaining**: X (or complete)
+**Current sample**: X% of target
+
+### Preliminary observations
+[What we're seeing — without making decisions yet]
+
+### Next steps
+- [Date]: Analysis complete
+- [Date]: Decision and recommendation
+- [Date]: Implementation (if winner)
+```
 
 ### Experiment Prioritization
 

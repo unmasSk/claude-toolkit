@@ -6,6 +6,10 @@ Complete reference for product context, mental models, psychology, and marketing
 
 ## Product Marketing Context
 
+### Pre-Check (Universal — run before every marketing task)
+
+Check if `.agents/product-marketing-context.md` exists (or `.claude/product-marketing-context.md` for legacy setups). If it exists, read it before applying any models or generating recommendations. Use that context to tailor all output to the specific product and audience.
+
 ### Purpose
 
 Create and maintain `.agents/product-marketing-context.md` — a single document capturing all foundational positioning and messaging. Every other marketing task references this file to avoid repeating information.
@@ -99,9 +103,121 @@ Capture for each stakeholder (User, Champion, Decision Maker, Financial Buyer, T
 - Validate and summarize each section before moving on
 - Skip sections that do not apply (e.g., Personas for B2C)
 
+### Output Template
+
+After gathering information, create `.agents/product-marketing-context.md` with this structure:
+
+```markdown
+# Product Marketing Context
+
+*Last updated: [date]*
+
+## Product Overview
+**One-liner:**
+**What it does:**
+**Product category:**
+**Product type:**
+**Business model:**
+
+## Target Audience
+**Target companies:**
+**Decision-makers:**
+**Primary use case:**
+**Jobs to be done:**
+-
+**Use cases:**
+-
+
+## Personas
+| Persona | Cares about | Challenge | Value we promise |
+|---------|-------------|-----------|------------------|
+| | | | |
+
+## Problems & Pain Points
+**Core problem:**
+**Why alternatives fall short:**
+-
+**What it costs them:**
+**Emotional tension:**
+
+## Competitive Landscape
+**Direct:** [Competitor] — falls short because...
+**Secondary:** [Approach] — falls short because...
+**Indirect:** [Alternative] — falls short because...
+
+## Differentiation
+**Key differentiators:**
+-
+**How we do it differently:**
+**Why that's better:**
+**Why customers choose us:**
+
+## Objections
+| Objection | Response |
+|-----------|----------|
+| | |
+
+**Anti-persona:**
+
+## Switching Dynamics
+**Push:**
+**Pull:**
+**Habit:**
+**Anxiety:**
+
+## Customer Language
+**How they describe the problem:**
+- "[verbatim]"
+**How they describe us:**
+- "[verbatim]"
+**Words to use:**
+**Words to avoid:**
+**Glossary:**
+| Term | Meaning |
+|------|---------|
+| | |
+
+## Brand Voice
+**Tone:**
+**Style:**
+**Personality:**
+
+## Proof Points
+**Metrics:**
+**Customers:**
+**Testimonials:**
+> "[quote]" — [who]
+**Value themes:**
+| Theme | Proof |
+|-------|-------|
+| | |
+
+## Goals
+**Business goal:**
+**Conversion action:**
+**Current metrics:**
+```
+
+After creating the document: show it, ask if anything needs adjustment, save to `.agents/product-marketing-context.md`, and tell the user: "Other marketing skills will now use this context automatically. Run `/product-marketing-context` anytime to update it."
+
 ---
 
 ## Mental Models and Psychology
+
+### Agent Workflow
+
+1. Check for product marketing context (see Pre-Check above).
+2. Identify which models apply to the user's specific situation.
+3. Explain the psychology behind each relevant model.
+4. Provide specific marketing applications for the product and audience.
+5. Suggest how to implement ethically.
+
+When the user describes a challenge, ask:
+- What specific behavior are you trying to influence?
+- What does your customer believe before encountering your marketing?
+- Where in the journey (awareness → consideration → decision) is this?
+- What is currently preventing the desired action?
+- Have you tested this with real customers?
 
 ### Foundational Thinking Models (14 Models)
 
@@ -276,6 +392,35 @@ Use these to ethically influence customer decisions.
 ## The 139 Marketing Ideas
 
 Proven marketing approaches organized by category. Use the product context and company stage to select the right subset.
+
+### Agent Workflow
+
+1. Check for product marketing context (see Pre-Check above).
+2. Ask about product, audience, and stage if context is not available:
+   - What is your current stage and main growth goal?
+   - What is your marketing budget and team size?
+   - What have you already tried that worked or did not?
+   - What competitor tactics do you admire?
+3. Suggest 3-5 most relevant ideas based on their situation.
+4. Provide implementation details for each using the output format below.
+
+### Output Format
+
+When recommending ideas, provide for each:
+
+- **Idea name**: One-line description
+- **Why it fits**: Connection to their situation
+- **How to start**: First 2-3 implementation steps
+- **Expected outcome**: What success looks like
+- **Resources needed**: Time, budget, skills required
+
+### By Timeline
+
+**Quick wins** (results in days to weeks): Google Ads (#31), LinkedIn Ads (#28), Comment Marketing (#44), Reddit Marketing (#38), Email reactivation (#46, #52), Dynamic Email Capture (#48)
+
+**Medium-term** (results in 1-3 months): Content and SEO (#1-10), Community Marketing (#35), Webinars (#65), Affiliate Program (#62), Onboarding Optimization (#96), Partnerships (#54-64)
+
+**Long-term** (results in 3+ months): Programmatic SEO (#4), Brand building, Podcast (#107), Book Marketing (#104), Network Effects, Open Source (#123)
 
 ### By Stage
 

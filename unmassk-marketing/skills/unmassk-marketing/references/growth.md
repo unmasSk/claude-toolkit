@@ -263,9 +263,13 @@ Do not rely on a single launch event. Regular updates and feature rollouts susta
 
 **Mini-courses (email):** 3-5 emails over 5-7 days. One lesson per email. Teach, example, exercise pattern. Progressive difficulty. Final email: summary + product CTA.
 
+**Mini-courses (video):** 3-5 videos, 5-15 minutes each. Host on unlisted YouTube, Loom, or a course platform. Deliver links via email drip. Include worksheets or exercises per lesson. More personal — builds stronger connection. Cadence: every 1-2 days.
+
 **Quizzes/assessments:** 5-10 questions (sweet spot: 7). Multiple choice only. 3-5 result categories with personalized recommendations. Gate results behind email capture (quiz itself is ungated).
 
-**Webinars:** 30-45 minutes teaching + 15 minutes Q&A. Structure: Hook, Teach (3 key points), Demo/example, CTA. Send 3 reminders (confirmation, day before, 1 hour before). Record for replay.
+**Live webinars:** 30-45 minutes teaching + 15 minutes Q&A. Structure: Hook, Teach (3 key points), Demo/example, CTA. Send 3 reminders (confirmation, day before, 1 hour before). Record for replay.
+
+**Evergreen webinars:** Pre-recorded, available on demand. Same structure as live but tighter editing. Always-on lead generation. Gate with email registration. Automated follow-up sequence.
 
 ### Matching Lead Magnets to Buyer Stage
 
@@ -337,6 +341,17 @@ Rule: Every extra field reduces conversion by 5-10%.
 | Mini-course | 15-30% |
 | Free trial | 5-15% |
 
+**Conversion rates by industry (landing page):**
+
+| Industry | Average Conversion |
+|----------|-------------------|
+| SaaS/Tech | 15-25% |
+| Marketing/Agency | 20-35% |
+| Finance | 10-20% |
+| E-commerce | 10-20% |
+| Education | 20-35% |
+| Health/Wellness | 15-25% |
+
 **Conversion rates by traffic source:**
 
 | Source | Expected Conversion |
@@ -389,6 +404,8 @@ Rule: Every extra field reduces conversion by 5-10%.
 **E-commerce:** Product finder quiz, comparison tool, size/fit calculator, savings calculator.
 
 **Developer Tools:** Code snippet library, testing/preview tool, documentation generator, API playground.
+
+**Finance:** Financial calculators, investment comparison tool, budget planner, tax estimator, loan calculator.
 
 ### Ideation Framework
 
@@ -599,7 +616,33 @@ Program costs = Rewards paid + Tool costs + Management time
 
 **Affiliate recruitment sources:** Existing customers who create content, industry bloggers/reviewers, YouTubers, newsletter writers, complementary tool companies, consultants and agencies.
 
+**Affiliate outreach template:**
+
+```
+Subject: Partnership opportunity — [Your Product]
+
+Hi [Name],
+
+I've been following your content on [topic] — particularly [specific piece] — and think there could be a great fit for a partnership.
+
+[Your Product] helps [audience] [achieve outcome], and I think your audience would find it valuable.
+
+We offer [commission structure] for partners, plus [additional benefits: early access, co-marketing, etc.].
+
+Would you be open to learning more?
+
+[Your name]
+```
+
 **Affiliate enablement (provide):** Unique tracking links/codes, product overview and key benefits, target audience description, competitor comparison, creative assets, sample copy, case studies, demo access, FAQ and objection handling, payment terms.
+
+**Affiliate program tools:**
+
+| Category | Platforms |
+|----------|-----------|
+| Affiliate networks | ShareASale, Impact (enterprise), PartnerStack (SaaS), Tapfiliate, FirstPromoter |
+| Self-hosted | Rewardful (Stripe-integrated), Refersion (e-commerce) |
+| Referral platforms | ReferralCandy (e-commerce), GrowSurf (SaaS), Mention Me, Viral Loops, Friendbuy |
 
 ### Fraud Prevention
 

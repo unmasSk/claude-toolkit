@@ -372,6 +372,12 @@ For large-scale production (100+ variations per cycle):
 
 **Pinning strategy:** Pin brand name to position 1 if required. Pin strongest CTA to position 2 or 3. Leave most unpinned for ML optimization.
 
+**Description mix recommendation (4 descriptions):**
+- 1 benefit + proof point
+- 1 feature + outcome
+- 1 social proof + CTA
+- 1 urgency/offer + CTA (if applicable)
+
 ### Google Ads -- Performance Max
 
 | Element | Limit | Quantity |
@@ -457,19 +463,19 @@ Use CLI scripts to pull ad performance data:
 
 ```bash
 # Google Ads -- campaign performance last 30 days
-node google-ads.js campaigns performance --days 30
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns performance --days 30
 
 # Google Ads -- ad-level performance
-node google-ads.js reports get --type ad_performance --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js reports get --type ad_performance --date-range last_30_days
 
 # Meta Ads -- campaign insights
-node meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
 
 # LinkedIn Ads -- campaign analytics
-node linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
 
 # TikTok Ads -- campaign reports
-node tiktok-ads.js reports get --advertiser-id xxx --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js reports get --advertiser-id xxx --date-range last_30_days
 ```
 
 ### Analyzing Results
@@ -632,6 +638,15 @@ For templated, data-driven video ads at scale. React + TypeScript. Deterministic
 - Compare platform data to GA4
 - Look at blended CAC, not just platform CPA
 
+### Weekly Review Checklist
+
+- [ ] Spend vs. budget pacing
+- [ ] CPA/ROAS vs. targets
+- [ ] Top and bottom performing ads
+- [ ] Audience performance breakdown
+- [ ] Frequency check (fatigue risk)
+- [ ] Landing page conversion rate
+
 ---
 
 ## CLI Scripts for Ad Platforms
@@ -649,28 +664,28 @@ export GOOGLE_ADS_DEVELOPER_TOKEN=xxx
 export GOOGLE_ADS_CUSTOMER_ID=xxx
 
 # Get account info
-node google-ads.js account info
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js account info
 
 # List campaigns
-node google-ads.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns list
 
 # Get campaign performance (last 30 days)
-node google-ads.js campaigns performance --days 30
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns performance --days 30
 
 # Pause a campaign
-node google-ads.js campaigns pause --id 12345
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns pause --id 12345
 
 # Get ad group performance
-node google-ads.js adgroups performance --days 30
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js adgroups performance --days 30
 
 # Get keyword performance
-node google-ads.js keywords performance --days 30
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js keywords performance --days 30
 
 # Pull ad-level reports
-node google-ads.js reports get --type ad_performance --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js reports get --type ad_performance --date-range last_30_days
 
 # Preview without making changes
-node google-ads.js campaigns list --dry-run
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns list --dry-run
 ```
 
 ### meta-ads.js
@@ -683,25 +698,25 @@ export META_ACCESS_TOKEN=xxx
 export META_AD_ACCOUNT_ID=act_xxx
 
 # List ad accounts
-node meta-ads.js accounts list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js accounts list
 
 # List campaigns
-node meta-ads.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns list
 
 # Get campaign insights
-node meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
 
 # Create campaign
-node meta-ads.js campaigns create --name "Q1 Trial Campaign" --objective CONVERSIONS
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns create --name "Q1 Trial Campaign" --objective CONVERSIONS
 
 # List ad sets
-node meta-ads.js adsets list --campaign-id camp_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js adsets list --campaign-id camp_xxx
 
 # Get ad set insights
-node meta-ads.js adsets insights --id adset_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js adsets insights --id adset_xxx
 
 # List ads
-node meta-ads.js ads list --adset-id adset_xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js ads list --adset-id adset_xxx
 ```
 
 ### linkedin-ads.js
@@ -713,19 +728,19 @@ B2B advertising with job title and company targeting.
 export LINKEDIN_ACCESS_TOKEN=xxx
 
 # List ad accounts
-node linkedin-ads.js accounts list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js accounts list
 
 # List campaigns
-node linkedin-ads.js campaigns list --account-id 12345
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js campaigns list --account-id 12345
 
 # Create campaign
-node linkedin-ads.js campaigns create --account-id 12345 --name "CMO Targeting" --campaign-group-id 67890 --cost-type CPC --unit-cost 10.00
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js campaigns create --account-id 12345 --name "CMO Targeting" --campaign-group-id 67890 --cost-type CPC --unit-cost 10.00
 
 # Get campaign analytics
-node linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
 
 # List creatives
-node linkedin-ads.js creatives list --campaign-id xxx
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js creatives list --campaign-id xxx
 ```
 
 ### tiktok-ads.js
@@ -738,22 +753,22 @@ export TIKTOK_ACCESS_TOKEN=xxx
 export TIKTOK_ADVERTISER_ID=xxx
 
 # Get advertiser info
-node tiktok-ads.js advertiser info
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js advertiser info
 
 # List campaigns
-node tiktok-ads.js campaigns list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns list
 
 # Create campaign
-node tiktok-ads.js campaigns create --name "App Install Q1" --objective APP_INSTALL --budget-mode BUDGET_MODE_DAY --budget 100
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns create --name "App Install Q1" --objective APP_INSTALL --budget-mode BUDGET_MODE_DAY --budget 100
 
 # List ad groups
-node tiktok-ads.js adgroups list
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js adgroups list
 
 # Get reports
-node tiktok-ads.js reports get --date-range last_30_days
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js reports get --date-range last_30_days
 
 # Preview without sending
-node tiktok-ads.js campaigns list --dry-run
+node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns list --dry-run
 ```
 
 ---
@@ -767,7 +782,7 @@ Composio adds MCP access to ad platforms that lack native MCP servers, handling 
 npx @composio/mcp@latest setup
 ```
 
-Verify in Claude Code with `/mcp`. Authenticate each platform via Connect Link on first use.
+**Prerequisite:** Composio must be configured in `.mcp.json` before use. The setup command above generates the required entry. Without this configuration, Composio MCP tools will not be available in Claude Code. Verify with `/mcp` after setup. Authenticate each platform via Connect Link on first use.
 
 **Available ad platform toolkits:**
 
