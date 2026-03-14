@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
+from git_helpers import ensure_gitignore
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
 
@@ -452,6 +453,9 @@ def _write_glossary_cache(glossary: dict) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(cache, f, indent=2)
+        root = _get_project_root()
+        if root:
+            ensure_gitignore(root, ".claude/.glossary-cache.json")
     except OSError:
         pass
 

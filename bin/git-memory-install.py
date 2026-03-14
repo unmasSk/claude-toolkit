@@ -30,7 +30,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
+from git_helpers import run_git, ensure_gitignore
 from version import VERSION
 
 
@@ -441,6 +441,8 @@ def _create_manifest(target: str, mode: str) -> None:
     manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
+
+    ensure_gitignore(target)
 
 
 def _setup_statusline_wrapper(source: str) -> None:

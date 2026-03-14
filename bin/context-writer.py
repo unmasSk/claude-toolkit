@@ -18,6 +18,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from git_helpers import ensure_gitignore
+
 
 def main() -> None:
     raw = sys.stdin.read()
@@ -48,6 +51,7 @@ def main() -> None:
         try:
             with open(status_path, "w") as f:
                 json.dump(status, f)
+            ensure_gitignore(project_dir, ".claude/.context-status.json")
         except OSError:
             pass
 

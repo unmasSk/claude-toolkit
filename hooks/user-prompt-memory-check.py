@@ -18,7 +18,7 @@ import time
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
-from git_helpers import is_git_repo, run_git
+from git_helpers import is_git_repo, run_git, ensure_gitignore
 
 # Plugin root — derived from this script's location in the cache.
 # hooks/user-prompt-memory-check.py → go up one level → plugin root.
@@ -195,6 +195,7 @@ def main() -> None:
                     try:
                         with open(ctx_warn_path, "w") as f:
                             json.dump({"level": level, "msgs": msgs_since_warn}, f)
+                        ensure_gitignore(root, ".claude/.context-warn-state.json")
                     except OSError:
                         pass
         except (json.JSONDecodeError, OSError, ValueError):
