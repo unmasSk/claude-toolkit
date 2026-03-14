@@ -9,6 +9,5 @@
   "homepage": "https://github.com/unmasSk/claude-toolkit",
   "repository": "https://github.com/unmasSk/claude-toolkit",
   "license": "MIT",
-  "keywords": ["agents", "crew", "subagents", "specialized"],
-  "agents": "./agents/"
+  "keywords": ["agents", "crew", "subagents", "specialized"]
 }
