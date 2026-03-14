@@ -6,8 +6,8 @@
     "name": "unmasSk",
     "url": "https://github.com/unmasSk"
   },
-  "homepage": "https://github.com/unmasSk/claude-git-memory",
-  "repository": "https://github.com/unmasSk/claude-git-memory",
+  "homepage": "https://github.com/unmasSk/claude-toolkit",
+  "repository": "https://github.com/unmasSk/claude-toolkit",
   "license": "MIT",
   "keywords": ["git", "memory", "trailers", "context", "decisions"],
   "skills": "./skills/"

@@ -10,7 +10,7 @@ description: Use when the user asks to "build a feature", "create something new"
 ## Dependencies
 
 - **claude-git-memory plugin** — required for decision/memo/context commits
-- **Claude Code subagents** — agents in `.claude/agents/` (Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria)
+- **Claude Code subagents** — bundled agents: Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria (use `subagent_type` by name)
 - **TodoWrite tool** — native Claude Code tool for task tracking visible to the user
 
 ## When to Use
@@ -183,7 +183,7 @@ The plan file is always the truth. Ultron does not improvise future tasks.
 If Ultron fails the same task 3 times:
 
 1. STOP execution
-2. Launch House agent (`.claude/agents/house.md`) to diagnose root cause
+2. Launch House agent (agent:house.md`) to diagnose root cause
 3. House delivers diagnostic report with root cause and fix strategy
 4. Orchestrator amends plan if needed
 5. Ultron resumes with diagnosis context
@@ -200,14 +200,14 @@ Verify the feature works and meets quality standards.
 
 ### Always (all features)
 
-- **Cerberus** (`.claude/agents/cerberus.md`) — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks?
-- **Dante** (`.claude/agents/dante.md`) — tests for code that changed without coverage
+- **Cerberus** (agent:cerberus.md`) — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks?
+- **Dante** (agent:dante.md`) — tests for code that changed without coverage
 
 ### If Big feature (or touches auth/data/permissions)
 
-- **Argus** (`.claude/agents/argus.md`) — deep security audit of the feature
-- **Moriarty** (`.claude/agents/moriarty.md`) — adversarial attack
-- **Yoda** (`.claude/agents/yoda.md`) — senior review with verdict
+- **Argus** (agent:argus.md`) — deep security audit of the feature
+- **Moriarty** (agent:moriarty.md`) — adversarial attack
+- **Yoda** (agent:yoda.md`) — senior review with verdict
 
 ### Loop Condition
 
@@ -217,7 +217,7 @@ If VERIFY finds T1/T2 issues → return to Step 4 with findings. Repeat until cl
 
 Separate from closure — documentation deserves its own step.
 
-1. Launch Alexandria agent (`.claude/agents/alexandria.md`)
+1. Launch Alexandria agent (agent:alexandria.md`)
 2. Read all WIP commits and changes from the feature
 3. Update module CLAUDE.md if patterns changed
 4. Update CHANGELOG.md under [Unreleased]

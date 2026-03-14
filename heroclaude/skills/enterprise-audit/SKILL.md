@@ -96,7 +96,7 @@ Order: T1 first, then T2, then T3. 1 agent per finding or group of findings in t
 
 Gate: tests pass after each round.
 
-House circuit breaker: if Ultron fails the same fix 3 times, launch House (`.claude/agents/house.md`) to diagnose root cause before retrying.
+House circuit breaker: if Ultron fails the same fix 3 times, launch House (agent: `house`) to diagnose root cause before retrying.
 
 Prompt templates: see `prompts/ultron.md` and `prompts/house.md`
 
