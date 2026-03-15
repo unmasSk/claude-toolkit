@@ -66,8 +66,8 @@
     },
     {
       "name": "unmassk-db",
-      "version": "0.1.0",
-      "description": "Database — migrations, seeds, rollbacks, schema management, query optimization",
+      "version": "1.0.0",
+      "description": "Database — PostgreSQL, MySQL, MongoDB, Redis, migrations (zero-downtime), vector/RAG (pgvector), schema design",
       "source": "./unmassk-db/"
     }
   ]
