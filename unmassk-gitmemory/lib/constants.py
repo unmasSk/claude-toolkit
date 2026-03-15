@@ -33,4 +33,4 @@ MEMORY_TYPES: set[str] = {"context", "decision", "memo", "remember"}
 
 # Default Co-Author line appended to every commit.
 # Override via GIT_MEMORY_CO_AUTHOR environment variable.
-DEFAULT_CO_AUTHOR: str = "Co-Authored-By: Claude <noreply@anthropic.com>"
+DEFAULT_CO_AUTHOR: str = "Co-Authored-By: Claude, empowered by unmasSk-toolkit"
