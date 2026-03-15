@@ -59,7 +59,7 @@ class BM25:
 
     def tokenize(self, text):
         """Lowercase, split, remove punctuation, filter short words"""
-        text = re.sub(r'[^\w\s]', ' ', str(text).lower())
+        text = re.sub(r'[^\w\s\-]', ' ', str(text).lower())
         return [w for w in text.split() if len(w) > 1]
 
     def fit(self, documents):

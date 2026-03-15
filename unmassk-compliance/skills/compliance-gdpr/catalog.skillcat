@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+compliance-gdpr,unmassk-compliance,PII scan personal data hardcoded email SSN credit card GDPR CCPA HIPAA LGPD data privacy consent lawful basis data retention right to erasure data subject rights anonymization pseudonymization CWE-312 CWE-532 ROPA DPIA DPO Article 6 Article 7 Article 17 Article 30 Article 35 data processing agreement cross-border transfer breach notification unencrypted PII logs schema privacy posture,data privacy compliance PII detection,any,none
