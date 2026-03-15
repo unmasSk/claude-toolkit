@@ -49,7 +49,7 @@ version: 1.0.0
 
 All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/`.
 
-**Run scripts using the absolute path above. Do not use relative paths.**
+**Always use the `${CLAUDE_PLUGIN_ROOT}` variable prefix when running scripts. Never use relative paths.**
 
 ### Script Reference Table
 

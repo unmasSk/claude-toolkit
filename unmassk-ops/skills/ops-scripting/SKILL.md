@@ -25,6 +25,10 @@ version: 1.0.0
 
 # Scripting -- Bash and Makefile Toolkit
 
+## Scope
+
+This skill covers standalone bash scripts and Makefiles as authoring tools. It does NOT cover CI/CD pipelines (ops-cicd), Dockerfiles (ops-containers), or Terraform/Ansible configs (ops-iac).
+
 ## Routing Table
 
 | Task | Tool |
