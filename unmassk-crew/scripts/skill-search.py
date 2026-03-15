@@ -60,7 +60,7 @@ class BM25:
     def tokenize(self, text):
         """Lowercase, split, remove punctuation, filter short words"""
         text = re.sub(r'[^\w\s]', ' ', str(text).lower())
-        return [w for w in text.split() if len(w) > 2]
+        return [w for w in text.split() if len(w) > 1]
 
     def fit(self, documents):
         """Build BM25 index from documents"""
@@ -84,8 +84,10 @@ class BM25:
             self.idf[word] = log((self.N - freq + 0.5) / (freq + 0.5) + 1)
 
     def score(self, query):
-        """Score all documents against query"""
+        """Score all documents against query. Returns empty list if query has no valid tokens."""
         query_tokens = self.tokenize(query)
+        if not query_tokens:
+            return []
         scores = []
 
         for idx, doc in enumerate(self.corpus):
@@ -135,6 +137,7 @@ def discover_skillcats(search_dirs):
     Recursively scan search_dirs for *.skillcat files.
     Skips symlinks. Returns list of absolute Path objects.
     """
+    seen = set()
     found = []
     for base in search_dirs:
         if not base.exists() or not base.is_dir():
@@ -142,7 +145,10 @@ def discover_skillcats(search_dirs):
         for path in base.rglob("*.skillcat"):
             if path.is_symlink():
                 continue
-            found.append(path.resolve())
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                found.append(resolved)
     return found
 
 
@@ -207,7 +213,7 @@ def main():
     skillcat_files = discover_skillcats(search_dirs)
 
     if not skillcat_files:
-        print("WARNING: no .skillcat files found in any search directory")
+        print("WARNING: no .skillcat files found in any search directory", file=sys.stderr)
         sys.exit(0)
 
     # Parse all rows
@@ -216,7 +222,7 @@ def main():
         all_rows.extend(parse_skillcat(path))
 
     if not all_rows:
-        print("WARNING: no skill entries found in discovered .skillcat files")
+        print("WARNING: no skill entries found in discovered .skillcat files", file=sys.stderr)
         sys.exit(0)
 
     # Build BM25 index
@@ -231,7 +237,7 @@ def main():
     top = scored[:MAX_RESULTS]
 
     if not top:
-        print("WARNING: no results")
+        print("WARNING: no results", file=sys.stderr)
         sys.exit(0)
 
     # Threshold warning
