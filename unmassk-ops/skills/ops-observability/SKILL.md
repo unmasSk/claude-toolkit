@@ -31,6 +31,7 @@ version: 1.0.0
 
 | Task | Primary Reference | Script to Run |
 |------|-------------------|---------------|
+| Understand metric types (counter/gauge/histogram/summary) | `references/promql-metric-types.md` | — |
 | Generate PromQL query | `references/promql-patterns.md` | `promql-validate-syntax.py` |
 | Validate PromQL syntax | `references/promql-functions.md` | `promql-validate-syntax.py` |
 | Check PromQL best practices | `references/promql-best-practices.md` | `promql-check-best-practices.py` |

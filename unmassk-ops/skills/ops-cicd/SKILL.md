@@ -181,7 +181,8 @@ For validating an existing pipeline:
 | `jenkins-generate-shared-library.py` | Jenkins | Generate shared library skeleton |
 | `jenkins-test-declarative.py` | Jenkins | Test declarative pipeline |
 | `jenkins-test-shared-library.py` | Jenkins | Test shared library |
-| `jenkins-common-plugins.sh` (in jenkins-lib/) | Jenkins | Common plugin utilities |
+| `jenkins-lib/common_patterns.py` | Jenkins | Shared Jenkins patterns library |
+| `jenkins-lib/syntax_helpers.py` | Jenkins | Groovy syntax helpers for Jenkinsfile generation |
 
 ---
 
