@@ -5,17 +5,15 @@
 <h1 align="center">unmassk-claude-toolkit</h1>
 
 <p align="center">
-  <strong>A suite of Claude Code plugins for memory, agents, workflows, and audits.</strong><br>
-  <em>Four plugins that give Claude persistent memory, specialized agents, structured pipelines, and enterprise-grade auditing.</em>
+  <strong>A suite of Claude Code plugins for the full web project lifecycle.</strong><br>
+  <em>11 plugins covering memory, agents, workflows, audits, SEO, marketing, design, DevOps, databases, compliance, and media.</em>
 </p>
 
 <p align="center">
   <a href="#plugins">Plugins</a> &nbsp;&middot;&nbsp;
   <a href="#quick-start">Quick start</a> &nbsp;&middot;&nbsp;
-  <a href="#unmassk-gitmemory">gitmemory</a> &nbsp;&middot;&nbsp;
-  <a href="#unmassk-crew">crew</a> &nbsp;&middot;&nbsp;
-  <a href="#unmassk-flow">flow</a> &nbsp;&middot;&nbsp;
-  <a href="#unmassk-audit">audit</a> &nbsp;&middot;&nbsp;
+  <a href="#core-plugins">Core</a> &nbsp;&middot;&nbsp;
+  <a href="#domain-plugins">Domain</a> &nbsp;&middot;&nbsp;
   <a href="#how-they-work-together">Synergies</a> &nbsp;&middot;&nbsp;
   <a href="#faq">FAQ</a>
 </p>
@@ -24,12 +22,26 @@
 
 ## Plugins
 
+### Core plugins
+
 | Plugin | Version | What it does |
 |--------|---------|-------------|
-| [unmassk-gitmemory](#unmassk-gitmemory) | 3.7.0 | Persistent memory for Claude Code via git commit trailers |
+| [unmassk-gitmemory](#unmassk-gitmemory) | 3.7.1 | Persistent memory for Claude Code via git commit trailers |
 | [unmassk-crew](#unmassk-crew) | 1.0.0 | 10 specialized agents for software engineering |
 | [unmassk-flow](#unmassk-flow) | 1.0.0 | 8-step creative pipeline -- from idea to shipped code |
 | [unmassk-audit](#unmassk-audit) | 1.0.0 | 14-step enterprise audit for backend modules |
+
+### Domain plugins
+
+| Plugin | Version | What it does |
+|--------|---------|-------------|
+| [unmassk-seo](./unmassk-seo/README.md) | 1.0.0 | Technical SEO -- crawling, schema, Core Web Vitals, GEO/AEO, site audits |
+| [unmassk-marketing](./unmassk-marketing/README.md) | 1.0.0 | Strategic marketing -- CRO, copywriting, email, ads, pricing, growth |
+| [unmassk-design](./unmassk-design/README.md) | 1.0.0 | Frontend design -- design systems, typography, color, motion, accessibility |
+| [unmassk-ops](./unmassk-ops/README.md) | 1.0.0 | DevOps -- IaC, containers, CI/CD, observability, scripting (93 scripts) |
+| [unmassk-db](./unmassk-db/README.md) | 1.0.0 | Database -- PostgreSQL, MySQL, MongoDB, Redis, migrations, vector/RAG |
+| unmassk-compliance | 0.1.0 | Compliance -- WCAG, i18n, GDPR, E2E testing, API docs (coming soon) |
+| unmassk-media | 0.1.0 | Media -- video, images, SVG, thumbnails, OG images (coming soon) |
 
 Each plugin is independent. Install only what you need, or install the full toolkit.
 
@@ -194,17 +206,19 @@ Scoring dimensions: Security (x3), Error handling (x3), Structure (x2), Testing 
 
 ## How they work together
 
-The four plugins form a layered system:
+The plugins form a layered system:
 
 ```
-unmassk-audit ──> unmassk-crew ──> (standalone)
+Domain plugins (seo, marketing, design, ops, db) ──> unmassk-crew (agents execute domain work)
+unmassk-audit ──> unmassk-crew
 unmassk-flow ──> unmassk-crew + unmassk-gitmemory
 ```
 
-- **gitmemory** is the foundation. It gives Claude persistent memory regardless of which other plugins are installed.
-- **crew** provides the agents. It works standalone (you can invoke any agent directly) but is also consumed by Flow and Audit.
-- **flow** orchestrates agents from crew through an 8-step pipeline, with decisions persisted by gitmemory.
-- **audit** orchestrates agents from crew through a 14-step audit workflow.
+- **gitmemory** is the foundation. Persistent memory regardless of which other plugins are installed.
+- **crew** provides 10 agents. Works standalone or consumed by Flow, Audit, and all domain plugins.
+- **flow** orchestrates agents through an 8-step pipeline, with decisions persisted by gitmemory.
+- **audit** orchestrates agents through a 14-step audit workflow.
+- **Domain plugins** (seo, marketing, design, ops, db) provide skills and references. Agents from crew execute the domain work.
 
 ### Recommended setups
 
@@ -213,7 +227,10 @@ unmassk-flow ──> unmassk-crew + unmassk-gitmemory
 | Just persistent memory | gitmemory |
 | Memory + agents | gitmemory + crew |
 | Full development workflow | gitmemory + crew + flow |
-| Full development + auditing | all four |
+| Full development + auditing | gitmemory + crew + flow + audit |
+| Web project (frontend) | + seo + marketing + design |
+| Web project (backend) | + ops + db |
+| Everything | all 9 (compliance + media coming soon) |
 
 ---
 
