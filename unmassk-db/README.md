@@ -36,6 +36,10 @@ Requires the **unmassk-crew** plugin for agent execution. Install it from the ma
 
 Migration and schema design scripts are Python CLI tools. They generate SQL output that requires human review before execution. All SQL identifiers are validated against injection.
 
+## BM25 skill discovery
+
+All 7 skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew. db-postgres had a pre-existing skillcat; the remaining 6 were added in 1.1.0.
+
 ## Audited by
 
 - **Cerberus** — code review + security audit of all 6 scripts (2 Critical + 7 Warning fixed)

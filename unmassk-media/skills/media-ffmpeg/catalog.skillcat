@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-ffmpeg,unmassk-media,"ffmpeg ffprobe trim video concat videos extract audio compress video convert video codec ProRes H.264 H.265 format conversion re-encode scale video fade color correction hardware acceleration VideoToolbox NVENC","video audio processing","any","ffmpeg ffprobe"

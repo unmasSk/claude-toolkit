@@ -212,4 +212,36 @@ type: project
 | `unmassk-ops/skills/ops-error-tracking/references/sentry-create-alert.md` | Reference | Stripped frontmatter 2026-03-15 — Sentry workflow engine API, polymorphic comparison field, all action types |
 | `unmassk-ops/skills/ops-error-tracking/references/otel-backends.md` | Reference | Created 2026-03-15 — OTel JS/Python instrumentation, 3 backend setups (Honeycomb/Datadog/SigNoz), custom spans, sampling |
 
+## unmassk-crew agent system prompts
+
+| Path | Type | Status |
+|------|------|--------|
+| `unmassk-crew/agents/cerberus.md` | Agent system prompt | Restructured 2026-03-15 — sections reordered to canonical template: Identity, When Invoked, Shared Discipline, Core Principles (Review Boundaries + Goal-Backward Verification + Approval Logic + Anti-Patch Detection), Workflow, Output Format, Noise Control, Memory |
+| `unmassk-crew/agents/dante.md` | Agent system prompt | Restructured 2026-03-15 — sections reordered to canonical template: Identity, When Invoked, Shared Discipline, Core Principles (Test Selection Mode + Coverage Boundaries + Flaky Test Discipline + No Hardcoded Values + Manifesto + Philosophy), Workflow, Output Format, Noise Control, Quality Gates, Configuration, Integration Points, Memory, Remember. Broken `## ()` section deleted. |
+| `unmassk-crew/agents/gitto.md` | Agent system prompt | Restructured 2026-03-15 — created Identity and When Invoked sections (Boot was orphaned ### with no parent). Added Shared Discipline. No Memory section (Gitto is read-only, no memory). |
+| `unmassk-crew/agents/alexandria.md` | Agent system prompt | Restructured 2026-03-15 — moved Shared Discipline after Identity; merged duplicate "On Startup" + "Boot" sections into single "When Invoked" at position 2 with git root resolution; Responsibilities → Core Principles; Anti-Patterns → Noise Control; Output → Output Format; Memory section at end. |
+| `unmassk-crew/agents/argus.md` | Agent system prompt | Restructured 2026-03-15 — moved Identity before Shared Discipline; Boot (was line 647) moved to "When Invoked" at position 2; Threat Modeling Mode + Findings Discipline + Escalation to Moriarty moved into Core Principles; deleted broken `## ()` section; Communication Guidelines → Noise Control; Best Practices moved into Workflow. |
+| `unmassk-crew/agents/bilbo.md` | Agent system prompt | Restructured 2026-03-15 — moved Shared Discipline after Identity; Boot (was inside Memory at line 209) moved to "When Invoked" at position 2 with correct `$GIT_ROOT` path; What You Investigate + Evidence Standard → Core Principles; Memory section at end with Shutdown only. |
+| `unmassk-crew/agents/house.md` | Agent system prompt | Restructured 2026-03-15 — moved Identity before Shared Discipline; "When to Invoke" renamed to "Trigger Conditions" inside "When Invoked" section; Boot (was inside Memory at line 345) moved to "When Invoked" at position 2; Bug Classification + Iron Law + 3-Hypothesis Rule + Scope Limits → Core Principles; Memory section at end. |
+| `unmassk-crew/agents/moriarty.md` | Agent system prompt | Restructured 2026-03-15 — added H1 `# Moriarty — Adversarial Validation Agent`; moved Identity before Shared Discipline; Boot (was orphaned at line 561) moved to "When Invoked" at position 2; Attack Rules + Proof Standard + Termination Rules/Stop Conditions consolidated into Core Principles; Workflow section contains all 7 attack phases + pipeline info. |
+| `unmassk-crew/agents/ultron.md` | Agent system prompt | Restructured 2026-03-15 — H1 changed from "Coder" to `# Ultron — Implementation Agent`; added Identity section; Boot (was inside Memory at line 134) moved to "When Invoked" at position 2; TodoWrite + Deviation Rules + Escalation Boundaries + Safety → Core Principles; Implementation/Fix/Refactoring/Validation Modes moved from after Memory into Workflow section. |
+| `unmassk-crew/agents/yoda.md` | Agent system prompt | Restructured 2026-03-15 — added H1 `# Yoda — Senior Review Agent`; moved Identity before Shared Discipline; Boot (was orphaned at line 496) moved to "When Invoked" at position 2; Judgment Mode + Synthesis Rules + Non-Duplication Rule + Emotional Register → Core Principles; no Memory section (Yoda has no memory frontmatter). |
+
+## Plugin README.md files — BM25 skill routing update
+
+All 10 plugin README.md files updated 2026-03-15 to document BM25 skill routing system:
+
+| Path | Update |
+|------|--------|
+| `unmassk-crew/README.md` | New "BM25 skill routing" section — describes skill-search.py, skillcat format, confidence threshold, flags |
+| `unmassk-compliance/README.md` | New "BM25 skill discovery" section — 9 skillcats, hyphenated Article refs |
+| `unmassk-db/README.md` | New "BM25 skill discovery" section — 7 skillcats (db-postgres pre-existing) |
+| `unmassk-design/README.md` | New "BM25 skill discovery" section |
+| `unmassk-flow/README.md` | New "BM25 skill discovery" section — 2 skillcats |
+| `unmassk-marketing/README.md` | New "BM25 skill discovery" section |
+| `unmassk-media/README.md` | New "BM25 skill discovery" section — 8 skillcats |
+| `unmassk-ops/README.md` | New "BM25 skill discovery" section — 7 skillcats (ops-deploy pre-existing) |
+| `unmassk-seo/README.md` | New "BM25 skill discovery" section — hyphenated compound triggers |
+| `unmassk-gitmemory/README.md` | Note after Skills table — bin/skill-map-generator.py removed, internal skillcats removed |
+
 **How to apply:** On each launch, check git commits since last verified date for each CLAUDE.md. If stale, update.

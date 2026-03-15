@@ -68,6 +68,10 @@ Two non-blocking, warning-only hooks run automatically.
 | **Pre-commit SEO check** | `PreToolUse` on Bash (git commit) | Warns if a commit touches SEO-critical files (meta tags, schema markup, robots.txt, sitemap) without corresponding test or validation. |
 | **Schema validation** | `PostToolUse` on Edit/Write | Validates JSON-LD schema markup in edited files. Checks for deprecated types, missing required properties, and syntax errors. |
 
+## BM25 skill discovery
+
+Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew. Triggers use hyphenated compounds (Core-Web-Vitals, AI-Overviews, programmatic-SEO) for precise BM25 matching.
+
 ## References
 
 Twelve reference files provide the knowledge base for all audit types. Claude loads them on-demand based on the analysis requested.

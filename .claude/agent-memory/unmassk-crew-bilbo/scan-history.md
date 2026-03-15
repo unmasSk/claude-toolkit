@@ -123,6 +123,41 @@ Scanned all 47 production skills + 10 crew agents = 57 capability units across 1
 
 No escalation to Argus/Moriarty/Cerberus needed — inventory scan only.
 
+## 2026-03-15 — OmawaMapas external project technology scan
+
+Scanned `/Users/unmassk/Workspace/omawamapas/` — a geospatial SPA for asbestos inventory management.
+
+**Confirmed tech stack:**
+- Backend: Node.js 22+ / Express 5 / TypeScript ESM / Knex (query builder) / pg (direct driver)
+- Frontend: React 19 / Vite / TypeScript / Radix UI Themes / Mapbox GL JS / Turf.js / Axios / react-router-dom 7
+- Database: PostgreSQL 17 + PostGIS 3.3/3.4 via Supabase (cloud, session pooler — eu-west-1)
+- Cache: Upstash Redis (cloud, TLS — ioredis client)
+- Auth: Mock headers in dev (X-Mock-User-ID / X-Mock-User-Role), JWT in production
+- API docs: Swagger/OpenAPI (swagger-jsdoc + swagger-ui-express)
+- Testing: Vitest + Supertest + Testing Library
+- Monitoring: Sentry (@sentry/node 9.x + profiling)
+- Rate limiting: express-rate-limit / Helmet / compression / opossum (circuit breaker)
+- Hosting target: Supabase (DB) + Upstash (Redis) + AWS EC2/RDS/ElastiCache for staging/prod
+
+**Toolkit skill matches:**
+- db-postgres: DIRECT match — PostgreSQL + PostGIS, connection pooling, migrations (Knex), query optimization
+- db-redis: DIRECT match — Redis cache layer (Upstash via ioredis), TTL management, cache.service.ts
+- db-migrations: DIRECT match — Knex migrations in `backend/src/db/migrations/`
+- db-schema-design: RELEVANT — schema.sql exists at root, PostGIS spatial types
+- compliance-owasp: RELEVANT — OWASP Top 10 explicitly in CLAUDE.md, SQL injection/XSS guards
+- compliance-gdpr: POTENTIALLY relevant — user data, roles, municipio data
+- ops-observability: PARTIAL match — Sentry present but ops-observability is infra-level (Prometheus/Grafana), not app-level
+- ops-iac: RELEVANT for AWS staging — EC2 + RDS + ElastiCache + ALB architecture planned
+
+**Confirmed gaps in toolkit for this project:**
+- No Sentry/application error tracking skill (app-level vs infra-level)
+- No Mapbox GL JS / geospatial frontend skill
+- No Supabase skill (connection pooler specifics, RLS, auto-pause behavior)
+- No Knex/ORM skill (db plugin covers engines, not query builders)
+- No React 19 / Vite frontend dev skill
+
+No orphans or dead code investigated — technology inventory scan only.
+
 ## 2026-03-14 — cc-devops-skills ref-repo full inventory
 
 Surveyed all 31 skills in `.ref-repos/cc-devops-skills/devops-skills-plugin/skills/`.

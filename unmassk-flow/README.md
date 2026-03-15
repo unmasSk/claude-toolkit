@@ -86,6 +86,10 @@ Full test suite must pass. Merge to dev, push, close issue, delete branch, mark 
 | **unmassk-flow** | 8-step creative pipeline -- from idea to shipped code |
 | **flow-stack-selection** | IDE-grade project scaffolding wizard -- 70+ project types (HTML/CSS, React, Next.js, Vue, Astro, Expo, FastAPI, NestJS, Go/Gin, Rust/Axum, Chrome Extensions, Tauri, and more) with interactive SDK selection, framework configuration, database setup, and DevOps tooling |
 
+## BM25 skill discovery
+
+Both skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew.
+
 ## Dependencies
 
 - **unmassk-crew** -- provides the agents (Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria)

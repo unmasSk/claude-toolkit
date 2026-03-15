@@ -40,6 +40,10 @@ cp .env.example .env
 | `yt-dlp` | transcribe | `brew install yt-dlp` |
 | Playwright | screenshots | `npx playwright install chromium` |
 
+## BM25 skill discovery
+
+All 8 skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew.
+
 ## Sources
 
 | Skill | Source | License |

@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+ops-cicd,unmassk-ops,"GitHub Actions GitLab CI Azure Pipelines Jenkins Jenkinsfile workflow pipeline .github/workflows .gitlab-ci.yml actionlint act CI/CD continuous integration continuous delivery job stage runner self-hosted matrix strategy reusable workflow composite action OIDC pipeline security","cicd pipelines automation","any","actionlint act"

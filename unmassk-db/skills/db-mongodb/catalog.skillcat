@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+db-mongodb,unmassk-db,"MongoDB Mongo mongosh mongod mongos replica set sharding shard key aggregation pipeline $match $group $lookup $unwind $project $facet BSON ObjectId write concern read preference Atlas CSFLE change stream time series collection schema validation $jsonSchema embedded referenced document model","database nosql document","any-backend","mongosh"

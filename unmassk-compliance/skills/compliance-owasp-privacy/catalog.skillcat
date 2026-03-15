@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+compliance-owasp-privacy,unmassk-compliance,"OWASP Top-10 ASVS ASVS-5.0 application security broken access control injection XSS SSRF CSRF agentic security prompt injection tool misuse memory poisoning rogue agents ASI01 ASI02 ASI03 ASI04 ASI05 verification level L1 L2 L3 security misconfiguration cryptographic failures insecure design","application-security owasp","any","none"

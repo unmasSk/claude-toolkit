@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-image-edit,unmassk-media,"edit image style transfer remove object change background inpaint erase object replace background fill mask artistic style AI image editing","image editing ai","any","fal-ai"

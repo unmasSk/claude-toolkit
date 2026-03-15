@@ -221,6 +221,8 @@ Rules: case-sensitive keys, single-line values, contiguous block at the end of t
 | **unmassk-gitmemory-lifecycle** | Install, repair, uninstall, doctor, status commands |
 | **unmassk-gitmemory-issues** | GitHub issue creation and milestone tracking |
 
+The previous `bin/skill-map-generator.py` and internal skillcat files have been removed -- skill discovery is now handled by BM25 search in unmassk-crew.
+
 ## License
 
 MIT

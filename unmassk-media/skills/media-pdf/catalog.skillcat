@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-pdf,unmassk-media,"generate PDF create PDF react-pdf @react-pdf/renderer PDF report PDF invoice document generation custom fonts SVG graphics page numbers headers footers page breaks Canvas drawing","pdf document-generation","React","react-pdf"

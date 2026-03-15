@@ -64,3 +64,47 @@ if not str(resolved).startswith(str(cwd)):
     sys.exit(1)
 ```
 Apply in `main()` after parsing args, before any file access.
+
+## BM25 Skill Search Pattern (unmassk-crew)
+
+Reference implementation lives at `unmassk-design/skills/unmassk-design/scripts/core.py` lines 89-148.
+Copy BM25 class verbatim — it is proven and stdlib-only (csv, re, math.log, collections.defaultdict).
+
+Script: `unmassk-crew/scripts/skill-search.py`
+- Scans `~/.claude/plugins/cache/`, `~/.claude/skills/`, `<git-root>/.claude/skills/` for `*.skillcat`
+- `.skillcat` = CSV with columns: `name,plugin,triggers,domains,frameworks,tools`
+- Search columns: `name + triggers + domains + frameworks + tools`
+- SKILL.md is colocated with the `.skillcat` file (same directory)
+- `SKILL_SEARCH_EXTRA_DIRS` env var (colon-separated) adds extra scan dirs for testing
+- Low-confidence threshold: score < 1.5 → print WARNING
+- Runs in ~45ms on stdlib only
+
+IDF behavior: with only 3 docs, all scores are compressed (max ~4.7 for exact keyword match). This is expected — warning fires correctly. Rankings are still correct.
+
+## Managed Block Injection Pattern (CLAUDE.md / markdown files)
+
+For injecting auto-generated content between markers in an existing file:
+
+```python
+MARKER_START = "<!-- skill-map:start -->"
+MARKER_END = "<!-- skill-map:end -->"
+
+def inject_into_claude_md(path, block):
+    if not os.path.exists(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f: f.write(block + "\n")
+        return "created"
+    with open(path) as f: content = f.read()
+    if MARKER_START in content and MARKER_END in content:
+        pattern = re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END)
+        new_content = re.sub(pattern, block, content, flags=re.DOTALL)
+        # write back
+        return "updated"
+    else:
+        sep = "\n" if content.endswith("\n") else "\n\n"
+        # append sep + block
+        return "appended"
+```
+
+Key: `re.DOTALL` required for the replace to span multiple lines.
+Key: `os.makedirs(..., exist_ok=True)` on the create path — parent may not exist.

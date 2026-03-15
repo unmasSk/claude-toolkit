@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+ops-iac,unmassk-ops,"Terraform Terragrunt Ansible HCL .tf .tfvars playbook role inventory infrastructure as code IaC checkov tflint ansible-lint terraform validate terraform plan terraform fmt FQCN ansible-vault provider module state backend resource block data source security scan","infrastructure iac provisioning","any","terraform tflint checkov ansible-lint yamllint"

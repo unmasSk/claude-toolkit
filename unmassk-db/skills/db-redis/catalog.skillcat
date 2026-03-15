@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+db-redis,unmassk-db,"Redis redis-py Jedis ioredis RedisJSON RediSearch RedisVL HNSW vector set sorted set stream consumer group pub/sub pipelining connection pooling TTL key expiration ACL sentinel cluster hash tags read replicas semantic caching LangCache rate limiting session store cache invalidation","cache key-value vector-search","any-backend","redis-cli"

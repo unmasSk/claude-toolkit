@@ -37,6 +37,10 @@ Requires the **unmassk-crew** plugin for agent execution. Install it from the ma
 - **compliance-lopdgdd** — Generates compliance artifacts in `.compliance/`: RAT, DPIA, aviso legal, and status summary.
 - **compliance-ens** — Covers private providers supplying services to Spanish public administration, not only public entities themselves.
 
+## BM25 skill discovery
+
+All 9 skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew. The GDPR skillcat uses hyphenated Article references (Article-6, Article-7, etc.) for compound trigger matching.
+
 ## License
 
 MIT

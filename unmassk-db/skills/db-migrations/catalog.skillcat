@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+db-migrations,unmassk-db,"migration rollback zero-downtime schema evolution expand-contract dual write CDC change data capture strangler fig canary migration blue-green database data reconciliation backfill migration planner compatibility check phased migration","database migration schema-evolution","any-backend","none"

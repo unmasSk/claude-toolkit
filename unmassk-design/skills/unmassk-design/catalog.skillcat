@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+unmassk-design,unmassk-design,"design UI landing page dashboard design system colors fonts typography animate motion bolder quieter audit critique polish responsive dark mode accessibility WCAG UX writing onboarding agentic UX AI interface design tokens component library Tailwind shadcn color palette type scale spacing layout grid breakpoints mobile-first ARIA focus states contrast ratio font pairing visual hierarchy Framer Motion Radix UI","frontend design ui ux","Next.js React Tailwind shadcn/ui any-web-framework","core.py"

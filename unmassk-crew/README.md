@@ -44,6 +44,14 @@ Each agent has:
 | Update documentation | Alexandria | Any other agent |
 | Query past decisions | Gitto | Any other agent |
 
+## BM25 skill routing
+
+Agents discover skills dynamically using `scripts/skill-search.py`, a BM25-based skill router. Each plugin's skills have a colocated `catalog.skillcat` file (CSV format: name, plugin, triggers, domains, frameworks, tools). On boot, agents run `skill-search.py` with the user's query, which scans all `.skillcat` files across plugins and returns ranked results with descriptions, confidence stars, and SKILL.md paths. Agents read the top result's SKILL.md if the score meets the confidence threshold (>= 1.5).
+
+Flags: `--json` (machine-readable output), `--top N` (limit results).
+
+This replaced the previous static skill-map table lookup in CLAUDE.md.
+
 ## Used by
 
 - **unmassk-flow** -- orchestrates agents through an 8-step creative pipeline

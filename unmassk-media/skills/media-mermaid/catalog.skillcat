@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-mermaid,unmassk-media,"mermaid diagram flowchart sequence diagram class diagram ER diagram state diagram visualize relationships data flows system architecture state machines .mmd","diagrams visualization","any","render_mermaid.sh"

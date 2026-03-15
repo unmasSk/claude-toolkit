@@ -31,6 +31,10 @@ Requires the **unmassk-crew** plugin for agent execution. Install it from the ma
 
 All scripts use `${CLAUDE_PLUGIN_ROOT}` paths and run with `set -euo pipefail`. Scripts call real tools (terraform, tflint, checkov, ansible-lint, hadolint, kubeconform, actionlint, act, shellcheck, promtool) with graceful fallback when tools are missing.
 
+## BM25 skill discovery
+
+All 7 skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew. ops-deploy had a pre-existing skillcat; the remaining 6 were added in 1.2.0.
+
 ## Audited by
 
 - **Cerberus** — code review of all 93 scripts

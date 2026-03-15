@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+compliance-i18n,unmassk-compliance,"i18n internationalization localization l10n translation keys Better-i18n ICU MessageFormat pluralization RTL right-to-left hreflang locale next-intl translation CDN AI translation glossary key management pseudo-localization translation workflow hardcoded strings","internationalization localization translation","Next.js React Vite any-web-framework","better-i18n-cli"

@@ -136,6 +136,10 @@ These are the 17 user-facing actions the skill understands. The first ten are st
 | Breakpoints, mobile-first, responsive | Responsive design, mobile audit, breakpoint planning | `responsive.md` |
 | AI interfaces, agentic UX, memory UI | AI-native product design, trust signals, agentic flows | `agentic-ux.md` |
 
+## BM25 skill discovery
+
+Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew.
+
 ## Dependencies
 
 Python 3.x is required for `search.py`.

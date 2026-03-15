@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+ops-scripting,unmassk-ops,"bash shell sh zsh shellcheck Makefile make GNU Make script template CLI helper build targets shell scripting text processing awk sed grep regex shebang exit codes signal handling trap getopts set -euo pipefail","scripting automation cli","any","shellcheck"

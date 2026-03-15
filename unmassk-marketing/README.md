@@ -101,6 +101,10 @@ When both CLI scripts and Composio MCP are available for a platform, the skill p
 
 Run evals to verify that the skill correctly routes requests, loads appropriate references, applies product context, and produces outputs that meet quality standards.
 
+## BM25 skill discovery
+
+Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew.
+
 ## Attribution
 
 Based on [marketingskills](https://github.com/coreyhaines31/marketingskills) by Corey Haines (MIT License).
