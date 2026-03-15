@@ -1,7 +1,7 @@
 {
   "name": "unmassk-media",
-  "version": "0.1.0",
-  "description": "Media and content toolkit — video, audio, and image processing. Work in progress.",
+  "version": "1.0.0",
+  "description": "Media toolkit — programmatic video creation with Remotion, AI image generation and editing via Gemini and fal.ai, Mermaid diagram generation, FFmpeg video/audio processing, marketing screenshots with Playwright, and audio/video transcription with whisper.cpp. 7 skills covering the full media production lifecycle.",
   "author": {
     "name": "unmasSk",
     "url": "https://github.com/unmasSk"
@@ -9,5 +9,18 @@
   "homepage": "https://github.com/unmasSk/claude-toolkit",
   "repository": "https://github.com/unmasSk/claude-toolkit",
   "license": "MIT",
-  "keywords": ["media", "video", "audio", "image"]
+  "keywords": [
+    "media",
+    "video",
+    "image",
+    "audio",
+    "remotion",
+    "ffmpeg",
+    "mermaid",
+    "screenshots",
+    "transcription",
+    "whisper",
+    "gemini",
+    "fal-ai"
+  ]
 }

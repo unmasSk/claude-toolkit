@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A suite of Claude Code plugins for the full web project lifecycle.</strong><br>
-  <em>10 plugins covering memory, agents, workflows, audits, SEO, marketing, design, DevOps, databases, and compliance.</em>
+  <em>11 plugins covering memory, agents, workflows, audits, SEO, marketing, design, DevOps, databases, compliance, and media.</em>
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@
 | [unmassk-ops](./unmassk-ops/README.md) | 1.0.0 | DevOps -- IaC, containers, CI/CD, observability, scripting (93 scripts) |
 | [unmassk-db](./unmassk-db/README.md) | 1.0.0 | Database -- PostgreSQL, MySQL, MongoDB, Redis, migrations, vector/RAG |
 | [unmassk-compliance](./unmassk-compliance/README.md) | 1.0.0 | Compliance -- GDPR, OWASP, NIS2, SOC 2, ISO 27001, ENS, LOPDGDD, cookies, i18n, legal docs (9 skills) |
-| unmassk-media | — | Media -- video, images, SVG, thumbnails, OG images (coming soon) |
+| [unmassk-media](./unmassk-media/README.md) | 1.0.0 | Media -- Remotion video, AI image gen/edit, Mermaid diagrams, FFmpeg, screenshots, transcription (7 skills) |
 
 Each plugin is independent. Install only what you need, or install the full toolkit.
 
