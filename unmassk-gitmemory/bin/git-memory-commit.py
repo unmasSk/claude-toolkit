@@ -129,12 +129,22 @@ TYPE_COLORS = {
 
 
 def _load_scope_map() -> dict[str, str]:
-    """Load scope map from .claude/git-memory-scopes.json and flatten to {dir_prefix: scope_name}."""
+    """Load scope map from .claude/git-memory-scopes.json or agent-memory, flatten to {dir_prefix: scope_name}."""
     try:
         _, toplevel = run_git(["rev-parse", "--show-toplevel"])
         if not toplevel:
             return {}
+        # Check primary location first, then agent-memory fallback
         scopes_file = os.path.join(toplevel, ".claude", "git-memory-scopes.json")
+        if not os.path.isfile(scopes_file):
+            # Search in agent-memory directories
+            agent_mem = os.path.join(toplevel, ".claude", "agent-memory")
+            if os.path.isdir(agent_mem):
+                for agent_dir in os.listdir(agent_mem):
+                    candidate = os.path.join(agent_mem, agent_dir, "scopes.json")
+                    if os.path.isfile(candidate):
+                        scopes_file = candidate
+                        break
         if not os.path.isfile(scopes_file):
             return {}
         with open(scopes_file) as f:

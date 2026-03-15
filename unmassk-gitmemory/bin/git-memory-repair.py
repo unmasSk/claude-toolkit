@@ -70,7 +70,7 @@ def diagnose(target: str) -> list[tuple[str, str, str]]:
         issues.append(("missing_claude_md", "CLAUDE.md", "CLAUDE.md not found"))
 
     # Check manifest
-    manifest_path = os.path.join(target, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest_path):
         issues.append(("missing_manifest", "manifest", "Manifest missing"))
     else:
@@ -133,7 +133,7 @@ def repair_issue(issue_type: str, source: str, target: str) -> bool:
 
         # Read existing mode from manifest if possible
         mode = "normal"
-        manifest_path = os.path.join(target, ".claude", "git-memory-manifest.json")
+        manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
         if os.path.isfile(manifest_path):
             try:
                 with open(manifest_path) as f:

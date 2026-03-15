@@ -96,7 +96,7 @@ def main() -> None:
 
     # Case 2: Installed — check if session already booted
     lines = []
-    booted_flag = os.path.join(root, ".claude", ".session-booted")
+    booted_flag = os.path.join(root, ".claude", ".unmassk", ".session-booted")
     session_booted = os.path.isfile(booted_flag)
 
     if not session_booted:
@@ -106,8 +106,7 @@ def main() -> None:
             "Do these steps NOW before responding to the user:\n"
             '  Step 1: Use the Skill tool with skill="unmassk-gitmemory" '
             "(this is a TOOL CALL, not a bash command)\n"
-            "  Step 2: Show the user a boot summary from the SessionStart output above\n"
-            f'After booting, run: touch "{booted_flag}"'
+            "  Step 2: Show the user a boot summary from the SessionStart output above"
         )
     else:
         # Already booted — just plugin root for reference
@@ -125,8 +124,8 @@ def main() -> None:
     # Context window warning — read .context-status.json if it exists
     # Debounce: don't repeat same-level warnings on consecutive messages.
     # Severity escalation (warning → critical) bypasses debounce.
-    ctx_status_path = os.path.join(root, ".claude", ".context-status.json")
-    ctx_warn_path = os.path.join(root, ".claude", ".context-warn-state.json")
+    ctx_status_path = os.path.join(root, ".claude", ".unmassk", "context-status.json")
+    ctx_warn_path = os.path.join(root, ".claude", ".unmassk", "context-warn-state.json")
     if os.path.isfile(ctx_status_path):
         try:
             with open(ctx_status_path) as f:
@@ -195,7 +194,7 @@ def main() -> None:
                     try:
                         with open(ctx_warn_path, "w") as f:
                             json.dump({"level": level, "msgs": msgs_since_warn}, f)
-                        ensure_gitignore(root, ".claude/.context-warn-state.json")
+                        ensure_gitignore(root, ".claude/.unmassk/context-warn-state.json")
                     except OSError:
                         pass
         except (json.JSONDecodeError, OSError, ValueError):
@@ -204,7 +203,7 @@ def main() -> None:
     # Periodic context commit reminder.
     # Count messages via a temp file. Every 20 messages, remind Claude
     # to create a context() commit if it hasn't made one recently.
-    counter_file = os.path.join(root, ".claude", ".message-counter")
+    counter_file = os.path.join(root, ".claude", ".unmassk", ".message-counter")
     msg_count = 0
     try:
         os.makedirs(os.path.dirname(counter_file), exist_ok=True)

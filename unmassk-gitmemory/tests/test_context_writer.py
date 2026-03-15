@@ -51,7 +51,7 @@ class TestContextWriter:
         result = _run_writer(_make_input(str(tmp_path), used=42, remaining=58))
         assert result.returncode == 0
 
-        status_file = claude_dir / ".context-status.json"
+        status_file = claude_dir / ".unmassk" / "context-status.json"
         assert status_file.exists()
 
         data = json.loads(status_file.read_text())
@@ -79,7 +79,7 @@ class TestContextWriter:
         result = _run_writer(input_json)
         assert result.returncode == 0
 
-        status_file = claude_dir / ".context-status.json"
+        status_file = claude_dir / ".unmassk" / "context-status.json"
         assert status_file.exists()
         data = json.loads(status_file.read_text())
         assert data["used_percentage"] == 10
@@ -113,7 +113,7 @@ class TestContextWriter:
         result = _run_writer(input_json)
         assert result.returncode == 0
 
-        status_file = claude_dir / ".context-status.json"
+        status_file = claude_dir / ".unmassk" / "context-status.json"
         assert status_file.exists()
         data = json.loads(status_file.read_text())
         assert data["used_percentage"] is None
@@ -129,6 +129,6 @@ class TestContextWriter:
         # Second write
         _run_writer(_make_input(str(tmp_path), used=75, remaining=25))
 
-        data = json.loads((claude_dir / ".context-status.json").read_text())
+        data = json.loads((claude_dir / ".unmassk" / "context-status.json").read_text())
         assert data["used_percentage"] == 75
         assert data["remaining_percentage"] == 25

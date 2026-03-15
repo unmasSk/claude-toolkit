@@ -60,7 +60,7 @@ def read_installed_manifest(target: str) -> dict[str, Any] | None:
     Returns:
         Parsed manifest dict, or None if missing or corrupt.
     """
-    manifest_path = os.path.join(target, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest_path):
         return None
     try:
@@ -206,7 +206,9 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
             "last_healthcheck_at": datetime.now().isoformat(),
         }
 
-        manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
+        unmassk_dir = os.path.join(claude_dir, ".unmassk")
+        os.makedirs(unmassk_dir, exist_ok=True)
+        manifest_path = os.path.join(unmassk_dir, "manifest.json")
         with open(manifest_path, "w") as f:
             json.dump(new_manifest, f, indent=2)
     except Exception as e:

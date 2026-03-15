@@ -143,7 +143,7 @@ def inspect(target: str) -> dict[str, Any]:
             report["has_managed_block"] = "BEGIN unmassk-gitmemory" in f.read()
 
     # Manifest
-    manifest_path = os.path.join(target, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
     report["has_manifest"] = os.path.isfile(manifest_path)
 
     # Detect old-style install (files copied to project root).
@@ -255,7 +255,7 @@ def create_plan(report: dict[str, Any], source: str, target: str,
         plan["actions"].append(("update_claude_md", "Add managed block to CLAUDE.md"))
 
     # Manifest
-    plan["actions"].append(("create_manifest", "Create/update .claude/git-memory-manifest.json"))
+    plan["actions"].append(("create_manifest", "Create/update .claude/.unmassk/manifest.json"))
 
     # Statusline wrapper for context awareness
     plan["actions"].append(("setup_statusline", "Configure statusline wrapper for context tracking"))
@@ -416,7 +416,7 @@ def _update_claude_md(target: str) -> None:
 
 
 def _create_manifest(target: str, mode: str) -> None:
-    """Create .claude/git-memory-manifest.json with install metadata."""
+    """Create .claude/.unmassk/manifest.json with install metadata."""
     claude_dir = os.path.join(target, ".claude")
     os.makedirs(claude_dir, exist_ok=True)
 
@@ -438,7 +438,9 @@ def _create_manifest(target: str, mode: str) -> None:
         "last_healthcheck_at": datetime.now().isoformat(),
     }
 
-    manifest_path = os.path.join(claude_dir, "git-memory-manifest.json")
+    unmassk_dir = os.path.join(claude_dir, ".unmassk")
+    os.makedirs(unmassk_dir, exist_ok=True)
+    manifest_path = os.path.join(unmassk_dir, "manifest.json")
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
@@ -450,7 +452,7 @@ def _setup_statusline_wrapper(source: str) -> None:
 
     Saves the user's current statusline command (if any) to a backup file,
     then sets our context-writer.py as the statusline command. The wrapper
-    writes context window data to <project>/.claude/.context-status.json
+    writes context window data to <project>/.claude/.unmassk/context-status.json
     and passes through to the user's original statusline.
     """
     claude_home = os.path.join(os.path.expanduser("~"), ".claude")

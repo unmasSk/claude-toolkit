@@ -83,7 +83,7 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
         assert "BEGIN unmassk-gitmemory" in f.read()
 
     # Manifest exists
-    with open(os.path.join(repo, ".claude", "git-memory-manifest.json")) as f:
+    with open(os.path.join(repo, ".claude", ".unmassk", "manifest.json")) as f:
         manifest = json.load(f)
         assert manifest["version"] == VERSION
 
@@ -259,7 +259,7 @@ def test_uninstall_reinstall_data_intact(tmp_path):
     if os.path.isfile(claude_md):
         with open(claude_md) as f:
             assert "BEGIN unmassk-gitmemory" not in f.read()
-    assert not os.path.isfile(os.path.join(repo, ".claude", "git-memory-manifest.json"))
+    assert not os.path.isfile(os.path.join(repo, ".claude", ".unmassk", "manifest.json"))
 
     _, log_after, _ = git_cmd(["log", "--oneline"], repo)
     assert len(log_after.strip().split("\n")) == commits_before

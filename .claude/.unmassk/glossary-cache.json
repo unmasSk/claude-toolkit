@@ -1,0 +1,106 @@
+{
+  "head_sha": "36617e0ef2948c1ba787d1d4dbfc03bc9fe6fbf0",
+  "generated_at": "2026-03-15T10:51:11.166261+00:00",
+  "decisions": [
+    [
+      "(plugin/compliance)",
+      "compliance 9 skills, repos cloned, structure mounted, content copied \u2014 pending SKILL.md writing and from-scratch builds"
+    ],
+    [
+      "(plugin)",
+      "compliance has 9 skills: 4 from repos (gdpr, soc2-iso, i18n, owasp-privacy) + 5 from scratch (lopdgdd, ens, nis2, cookies, legal-docs)"
+    ],
+    [
+      "(plugin/db)",
+      "5 skills from pg-aiguide+planetscale+alirezarezvani, MongoDB+Redis pendientes de fuentes verificadas"
+    ],
+    [
+      "(plugin/ops)",
+      "5 skills (iac, containers, cicd, observability, scripting) con references originales reescritas al canon"
+    ],
+    [
+      "(plugin/design)",
+      "3 refinement patterns: subjective=options, technical=execute, explicit=no-ask"
+    ],
+    [
+      "(plugin/marketing)",
+      "rewrite references with full source content, deploy on sonnet"
+    ],
+    [
+      "(plugin/seo)",
+      "ship .env.example with MCP key placeholders, skill prompts user to configure on first use"
+    ],
+    [
+      "(plugin/marketplace)",
+      "8 plugins in marketplace covering 100% of web project lifecycle \u2014 4 done, 4 to build"
+    ],
+    [
+      "(plugin/architecture)",
+      "new plugins are skill-only \u2014 unmassk-crew agents execute all domain work via skill loading, no external agents"
+    ],
+    [
+      "(plugin/boot)",
+      "boot checks gh issue state for Next with #number (closed=skip), Next without issue use latest context() as cutoff"
+    ]
+  ],
+  "memos": [
+    [
+      "(plugin/agents)",
+      "antipattern - Alexandria and other agents create agent-memory dirs in .ref-repos and other dirs they explore, polluting read-only sources"
+    ],
+    [
+      "(plugin)",
+      "antipattern - README must be updated in the same commit as plugin changes, never deferred"
+    ],
+    [
+      "(plugin/db)",
+      "antipattern - Alexandria reescribe contenido existente, no lo genera desde cero. Si hay que crear, lo hace el orquestador"
+    ],
+    [
+      "(plugin/architecture)",
+      "requirement - referencias siempre de repos verificados contra produccion, nunca contenido inventado por Claude que puede alucinar"
+    ],
+    [
+      "(plugin/ops)",
+      "requirement - scripts mandatorios con paths completos en SKILL.md, un agente cold-start debe poder ejecutar sin ambiguedad"
+    ],
+    [
+      "(plugin/flow)",
+      "preference - parar despu\u00e9s de cada paso, mostrar resultado, hablar antes de continuar"
+    ],
+    [
+      "(plugin/marketplace)",
+      "requirement - add database plugin to marketplace roadmap"
+    ],
+    [
+      "(plugin/seo)",
+      "requirement - SKILL.md frontmatter canonical third-person format, complete trigger phrases, nothing missing"
+    ],
+    [
+      "(plugin/crew)",
+      "requirement - when syncing agents, only rename enterprise-audit to unmassk-audit, preserve all other skills they declare"
+    ],
+    [
+      "(plugin/install)",
+      "requirement - install script must auto-gitignore generated .claude/*.json (except scopes)"
+    ]
+  ],
+  "remembers": [
+    [
+      "(claude)",
+      "claude - 11 preferencias criticas del usuario para construccion de plugins"
+    ],
+    [
+      "(claude)",
+      "claude - proceso completo de plugin building con 13 pasos, nunca inventar contenido, siempre repos verificados, actualizar README en cada commit"
+    ],
+    [
+      "(claude)",
+      "claude - leer contenido = simular agente frio ejecutando el workflow, no releer archivos buscando bugs"
+    ],
+    [
+      "(claude)",
+      "claude - merge after every deliverable in marketplace repos, do not wait"
+    ]
+  ]
+}

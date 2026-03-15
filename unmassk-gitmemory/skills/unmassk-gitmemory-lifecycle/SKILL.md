@@ -23,7 +23,7 @@ python3 <plugin-root>/bin/git-memory-install.py --auto
 The `--auto` flag skips all interactive prompts. **Always use it.**
 
 The script runs 5 phases: inspect → plan → apply → verify → health proof.
-It only writes CLAUDE.md and `.claude/git-memory-manifest.json` to the project.
+It only writes CLAUDE.md and `.claude/.unmassk/manifest.json` to the project.
 No files are copied to the project root — the plugin runs entirely from the cache.
 
 ## Doctor (diagnosis)
@@ -65,7 +65,7 @@ Run silently by the SessionStart hook on every boot. STATUS section in boot outp
 Git history (commits with trailers) is **never deleted automatically**.
 To remove the plugin itself: `/plugin uninstall unmassk-gitmemory`
 
-## Manifest (.claude/git-memory-manifest.json)
+## Manifest (.claude/.unmassk/manifest.json)
 
 ```json
 {

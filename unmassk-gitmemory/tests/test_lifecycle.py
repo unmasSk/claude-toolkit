@@ -80,7 +80,7 @@ def test_install(lifecycle_repo):
         assert "BEGIN unmassk-gitmemory" in f.read()
 
     # Manifest
-    with open(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")) as f:
+    with open(os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json")) as f:
         manifest = json.load(f)
         assert manifest["version"] == VERSION
 
@@ -102,7 +102,7 @@ def test_doctor_after_install(lifecycle_repo):
 
 def test_repair_missing_manifest(lifecycle_repo):
     """Break manifest, then repair should fix it."""
-    manifest = os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")
+    manifest = os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json")
 
     # Break: remove manifest
     if os.path.isfile(manifest):
@@ -161,7 +161,7 @@ def test_uninstall(lifecycle_repo):
             assert "BEGIN unmassk-gitmemory" not in f.read()
 
     # Manifest gone
-    assert not os.path.exists(os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json"))
+    assert not os.path.exists(os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json"))
 
     # History preserved
     _, count_after, _ = git_cmd("rev-list --count HEAD", lifecycle_repo)
@@ -201,7 +201,7 @@ def test_repair_dry_run(lifecycle_repo):
     run_install(lifecycle_repo)
 
     # Break manifest
-    manifest = os.path.join(lifecycle_repo, ".claude", "git-memory-manifest.json")
+    manifest = os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json")
     os.unlink(manifest)
 
     # Dry run should NOT fix it

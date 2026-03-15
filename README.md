@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="logo.png" alt="unmassk-claude-toolkit" width="180">
-</p>
-
 <h1 align="center">unmassk-claude-toolkit</h1>
 
 <p align="center">

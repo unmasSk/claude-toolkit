@@ -270,12 +270,12 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
 
 
 def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
-    """Check if .claude/git-memory-manifest.json exists and is valid JSON.
+    """Check if .claude/.unmassk/manifest.json exists and is valid JSON.
 
     Returns:
         Tuple of (parsed manifest dict or None, status message).
     """
-    manifest_path = os.path.join(project_root, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest_path):
         return None, "not found"
     try:
@@ -454,7 +454,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             print("All systems healthy")
 
     # Update manifest healthcheck timestamp
-    manifest_path = os.path.join(project_root, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
     if os.path.isfile(manifest_path):
         try:
             with open(manifest_path) as f:

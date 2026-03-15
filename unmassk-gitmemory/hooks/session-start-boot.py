@@ -33,7 +33,7 @@ def check_version_mismatch() -> str | None:
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
         return None
-    manifest_path = os.path.join(root, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(root, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest_path):
         return None
     try:
@@ -399,11 +399,11 @@ def _get_project_root() -> str | None:
 
 
 def _glossary_cache_path() -> str | None:
-    """Return path to .claude/.glossary-cache.json, or None if no project root."""
+    """Return path to .claude/.unmassk/glossary-cache.json, or None if no project root."""
     root = _get_project_root()
     if not root:
         return None
-    return os.path.join(root, ".claude", ".glossary-cache.json")
+    return os.path.join(root, ".claude", ".unmassk", "glossary-cache.json")
 
 
 def _read_glossary_cache() -> dict | None:
@@ -435,7 +435,7 @@ def _read_glossary_cache() -> dict | None:
 
 
 def _write_glossary_cache(glossary: dict) -> None:
-    """Write glossary cache to .claude/.glossary-cache.json."""
+    """Write glossary cache to .claude/.unmassk/glossary-cache.json."""
     path = _glossary_cache_path()
     if not path:
         return
@@ -455,7 +455,7 @@ def _write_glossary_cache(glossary: dict) -> None:
             json.dump(cache, f, indent=2)
         root = _get_project_root()
         if root:
-            ensure_gitignore(root, ".claude/.glossary-cache.json")
+            ensure_gitignore(root)
     except OSError:
         pass
 
@@ -634,7 +634,7 @@ def main() -> None:
     # 0. Clean session-booted flag (new session = fresh boot)
     project_root = _get_project_root()
     if project_root:
-        booted_flag = os.path.join(project_root, ".claude", ".session-booted")
+        booted_flag = os.path.join(project_root, ".claude", ".unmassk", ".session-booted")
         try:
             os.remove(booted_flag)
         except FileNotFoundError:
@@ -707,6 +707,15 @@ def main() -> None:
 
     # ── SCOPES ──────────────────────────────────────────────────────
     scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json") if project_root else None
+    # Fallback: search in agent-memory directories
+    if scopes_file and not os.path.isfile(scopes_file) and project_root:
+        agent_mem = os.path.join(project_root, ".claude", "agent-memory")
+        if os.path.isdir(agent_mem):
+            for agent_dir in os.listdir(agent_mem):
+                candidate = os.path.join(agent_mem, agent_dir, "scopes.json")
+                if os.path.isfile(candidate):
+                    scopes_file = candidate
+                    break
     scopes_exist = scopes_file and os.path.isfile(scopes_file)
     if scopes_exist:
         try:
@@ -730,7 +739,7 @@ def main() -> None:
         lines.append("SCOPES: not generated yet")
         lines.append(
             "  ACTION: Launch an Explore agent (subagent_type=Explore) to analyze the project "
-            "structure and generate .claude/git-memory-scopes.json. "
+            "structure and generate .claude/agent-memory/<agent-name>/scopes.json. "
             "The agent should: scan directories, detect frameworks, extract existing scopes "
             "from git log, and write a JSON with version, project_type, scopes (2 levels max), "
             "existing_scopes, and notes. Run it in background."
@@ -878,6 +887,16 @@ def main() -> None:
     lines.append("BOOT COMPLETE. Do NOT run doctor or git-memory-log. All context is above.")
     lines.append(f'Commit: python3 "{commit_script}"')
     lines.append(f'Log: python3 "{log_script}"')
+
+    # Create .session-booted flag automatically after successful boot
+    if project_root:
+        runtime_dir = os.path.join(project_root, ".claude", ".unmassk")
+        os.makedirs(runtime_dir, exist_ok=True)
+        booted_flag = os.path.join(runtime_dir, ".session-booted")
+        try:
+            open(booted_flag, "w").close()
+        except OSError:
+            pass
 
     print("\n".join(lines))
     sys.exit(0)

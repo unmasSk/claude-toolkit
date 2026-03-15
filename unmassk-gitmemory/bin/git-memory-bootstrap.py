@@ -577,7 +577,7 @@ def check_existing_memory(root: str) -> dict[str, Any]:
         signals["claude_md_exists"] = False
 
     # Check manifest
-    manifest = os.path.join(root, ".claude", "git-memory-manifest.json")
+    manifest = os.path.join(root, ".claude", ".unmassk", "manifest.json")
     if os.path.isfile(manifest):
         signals["already_installed"] = True
         try:

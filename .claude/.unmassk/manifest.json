@@ -1,0 +1,21 @@
+{
+  "version": "3.7.1",
+  "installed_at": "2026-03-15T16:28:04.767011",
+  "runtime_mode": "normal",
+  "managed_blocks": [
+    {
+      "file": "CLAUDE.md",
+      "begin": "BEGIN unmassk-gitmemory",
+      "end": "END unmassk-gitmemory"
+    }
+  ],
+  "hook_registrations": [
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+    "PreCompact",
+    "SessionStart",
+    "UserPromptSubmit"
+  ],
+  "last_healthcheck_at": "2026-03-15T16:28:04.853813"
+}

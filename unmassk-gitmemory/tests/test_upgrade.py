@@ -148,7 +148,7 @@ def test_manifest_updated(tmp_path):
 
     run_upgrade(repo, ["--auto"])
 
-    manifest_path = os.path.join(repo, ".claude", "git-memory-manifest.json")
+    manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
     with open(manifest_path) as f:
         manifest = json.load(f)
 

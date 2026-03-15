@@ -81,11 +81,11 @@ echo '{"context_window":{"used_percentage":75,"remaining_percentage":25,"context
   python3 .claude/hooks/context-writer.py
 
 # Check the file was written
-cat .claude/.context-status.json
+cat .claude/.unmassk/context-status.json
 ```
 
 **Verify:**
-- [ ] `.claude/.context-status.json` exists with `used_percentage`, `remaining_percentage`, `timestamp`
+- [ ] `.claude/.unmassk/context-status.json` exists with `used_percentage`, `remaining_percentage`, `timestamp`
 - [ ] Run stop hook: `python3 .claude/hooks/stop-dod-check.py` — should show context warning (75% > 60%)
 
 Test thresholds:

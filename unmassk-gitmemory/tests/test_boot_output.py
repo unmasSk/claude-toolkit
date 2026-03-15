@@ -175,7 +175,7 @@ class TestGlossaryCache:
     def test_cache_created_on_first_boot(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         run_boot(repo)
-        cache_path = os.path.join(repo, ".claude", ".glossary-cache.json")
+        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         assert os.path.isfile(cache_path), "Glossary cache file should be created on first boot"
         with open(cache_path) as f:
             cache = json.load(f)
@@ -185,7 +185,7 @@ class TestGlossaryCache:
     def test_cache_invalidated_on_head_change(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         run_boot(repo)  # creates cache
-        cache_path = os.path.join(repo, ".claude", ".glossary-cache.json")
+        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         with open(cache_path) as f:
             cache_before = json.load(f)
         # Make a new commit to change HEAD
@@ -198,7 +198,7 @@ class TestGlossaryCache:
     def test_cache_invalidated_on_ttl_expiry(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         run_boot(repo)  # creates cache
-        cache_path = os.path.join(repo, ".claude", ".glossary-cache.json")
+        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         # Backdate the generated_at to simulate TTL expiry
         with open(cache_path) as f:
             cache = json.load(f)
@@ -227,7 +227,7 @@ class TestVersionCheck:
     def test_warning_when_versions_mismatch(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         # Tamper the manifest to have an old version
-        manifest_path = os.path.join(repo, ".claude", "git-memory-manifest.json")
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         with open(manifest_path) as f:
             manifest = json.load(f)
         manifest["version"] = "1.0.0"
@@ -252,7 +252,7 @@ class TestMigrateUntrackedGeneratedJsons:
         # Simulate old install: force-add the generated JSONs to the index
         claude_dir = os.path.join(repo, ".claude")
         for name in [".context-status.json", ".glossary-cache.json",
-                      ".context-warn-state.json", "git-memory-manifest.json"]:
+                      ".context-warn-state.json", ".unmassk", "manifest.json"]:
             fpath = os.path.join(claude_dir, name)
             with open(fpath, "w") as f:
                 f.write("{}")
@@ -260,7 +260,7 @@ class TestMigrateUntrackedGeneratedJsons:
         git_cmd(["commit", "-m", "old install committed jsons"], repo)
 
         # Verify they are tracked
-        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.context-status.json"], repo)
+        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.unmassk/context-status.json"], repo)
         assert ".context-status.json" in out
 
         # Run boot — should untrack them
@@ -268,7 +268,7 @@ class TestMigrateUntrackedGeneratedJsons:
 
         # Verify they are no longer tracked
         for name in [".context-status.json", ".glossary-cache.json",
-                      ".context-warn-state.json", "git-memory-manifest.json"]:
+                      ".context-warn-state.json", ".unmassk", "manifest.json"]:
             rc, out, _ = run_cmd(["git", "ls-files", f".claude/{name}"], repo)
             assert name not in out, f"{name} should be untracked after boot"
 
@@ -292,7 +292,7 @@ class TestMigrateUntrackedGeneratedJsons:
             f.write("\n".join(lines) + "\n")
 
         # Force-add a JSON so migration triggers
-        fpath = os.path.join(repo, ".claude", ".context-status.json")
+        fpath = os.path.join(repo, ".claude", ".unmassk", "context-status.json")
         with open(fpath, "w") as f:
             f.write("{}")
         git_cmd(["add", "-f", fpath], repo)
@@ -302,7 +302,7 @@ class TestMigrateUntrackedGeneratedJsons:
 
         with open(gitignore_path) as f:
             gitignore = f.read()
-        assert ".claude/.context-status.json" in gitignore
+        assert ".claude/.unmassk/context-status.json" in gitignore
 
     def test_no_error_when_already_clean(self, tmp_path):
         """Boot should not fail if JSONs are already untracked."""

@@ -93,6 +93,36 @@ Reference files confirmed:
 Scripts: NONE. No scripts in this skill.
 Escalation: Ultron needs to create SKILL.md before this skill is usable.
 
+## 2026-03-15 — Full toolkit capability map (all production plugins + agents)
+
+Scanned all 47 production skills + 10 crew agents = 57 capability units across 11 plugins.
+
+**Top 10 confirmed gaps** (nothing in toolkit covers these):
+1. Backend framework skill (Node/Express/Fastify/Bun/Go — no framework patterns)
+2. Authentication implementation skill (JWT, OAuth2/OIDC, sessions, RBAC — only audited, never built)
+3. Frontend development skill (React/Next.js patterns, state management, forms, React Query)
+4. API design skill (OpenAPI/Swagger, REST conventions, GraphQL, gRPC — entirely absent)
+5. Payment integration skill (Stripe, subscriptions, webhooks — absent)
+6. Email service skill (transactional email — Resend/Postmark/AWS SES + templating)
+7. Serverless/PaaS deployment skill (Vercel, Railway, Fly.io, Cloudflare Workers — ops is K8s-only)
+8. Application error tracking skill (Sentry, OpenTelemetry instrumentation — ops-observability is infra-only)
+9. ORM/data access layer skill (Prisma, Drizzle, TypeORM — db plugin covers engines, not access layer)
+10. Product analytics/event tracking skill (PostHog, Mixpanel — marketing assumes events exist, no one creates them)
+
+**Structural anomaly confirmed**: `compliance-i18n` is a localization tooling skill (Better i18n SaaS), misclassified in the compliance plugin. SKILL.md now exists (was missing in earlier scan, created since). Content mismatch remains — it's a dev tooling skill, not a compliance skill.
+
+**Coverage summary by phase**:
+- Database: best-covered (7 skills, all engines)
+- Compliance: deepest EU/Spanish coverage (9 skills)
+- Ops/DevOps: enterprise-grade K8s/IaC (5 skills) but misses PaaS/serverless
+- Marketing/SEO: well-covered (2 aggregate skills, ~27+ marketing capabilities)
+- Frontend: design only — no development patterns
+- Backend: workflow/audit only — no framework patterns
+- Auth: audit only — no implementation
+- API: entirely absent
+
+No escalation to Argus/Moriarty/Cerberus needed — inventory scan only.
+
 ## 2026-03-14 — cc-devops-skills ref-repo full inventory
 
 Surveyed all 31 skills in `.ref-repos/cc-devops-skills/devops-skills-plugin/skills/`.

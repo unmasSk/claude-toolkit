@@ -147,7 +147,7 @@ def remove_claude_md_block(target: str) -> bool:
 
 def remove_manifest(target: str) -> bool:
     """Remove the manifest file."""
-    path = os.path.join(target, ".claude", "git-memory-manifest.json")
+    path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
     return safe_remove(path)
 
 
@@ -286,7 +286,7 @@ def main() -> None:
     # Build plan
     plan = []
     plan.append("Remove CLAUDE.md managed block")
-    plan.append("Remove manifest (.claude/git-memory-manifest.json)")
+    plan.append("Remove manifest (.claude/.unmassk/manifest.json)")
     plan.append("Remove any old-style install remnants (bin/, hooks/, skills/, lib/, .claude-plugin/)")
     if full_local:
         plan.append("Remove generated files (dashboard, snapshots)")
@@ -319,7 +319,7 @@ def main() -> None:
         all_removed.append("CLAUDE.md managed block")
 
     if remove_manifest(target):
-        all_removed.append(".claude/git-memory-manifest.json")
+        all_removed.append(".claude/.unmassk/manifest.json")
 
     old_files = remove_old_install_files(target)
     all_removed.extend(old_files)
@@ -332,9 +332,9 @@ def main() -> None:
         all_removed.append("statusline wrapper (original restored)")
 
     # Remove context status file
-    ctx_file = os.path.join(target, ".claude", ".context-status.json")
+    ctx_file = os.path.join(target, ".claude", ".unmassk", "context-status.json")
     if safe_remove(ctx_file):
-        all_removed.append(".claude/.context-status.json")
+        all_removed.append(".claude/.unmassk/context-status.json")
 
     print(f"\nRemoved {len(all_removed)} items:")
     for item in all_removed:

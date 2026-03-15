@@ -30,7 +30,7 @@ CTX_URGENT_THRESHOLD = 75  # Strongly urge context commit (near auto-compact at 
 # The stop hook should not flag these for auto-wip.
 RUNTIME_PREFIXES = (
     "CLAUDE.md",
-    ".claude/git-memory-manifest.json",
+    ".claude/.unmassk/manifest.json",
 )
 
 # Consecutive wip threshold before suggesting a proper commit
@@ -171,7 +171,7 @@ def get_last_commit_next() -> str | None:
 
 
 def get_context_status() -> dict | None:
-    """Read context window status from .claude/.context-status.json.
+    """Read context window status from .claude/.unmassk/context-status.json.
 
     Returns:
         Dict with used_percentage, remaining_percentage, etc., or None.
@@ -179,7 +179,7 @@ def get_context_status() -> dict | None:
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
         return None
-    status_path = os.path.join(root, ".claude", ".context-status.json")
+    status_path = os.path.join(root, ".claude", ".unmassk", "context-status.json")
     if not os.path.isfile(status_path):
         return None
     try:

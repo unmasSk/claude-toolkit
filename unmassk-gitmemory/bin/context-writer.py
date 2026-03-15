@@ -5,7 +5,7 @@ Statusline wrapper — saves context window data to disk for hooks to read.
 Claude Code sends JSON session data to the statusline command via stdin.
 This script:
   1. Reads the JSON
-  2. Writes context_window data to <project>/.claude/.context-status.json
+  2. Writes context_window data to <project>/.claude/.unmassk/context-status.json
   3. Passes the JSON through to the user's original statusline command (if any)
 
 The original statusline command is stored in ~/.claude/.git-memory-original-statusline.
@@ -19,7 +19,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
-from git_helpers import ensure_gitignore
+from git_helpers import ensure_gitignore, ensure_runtime_dir
 
 
 def main() -> None:
@@ -47,11 +47,12 @@ def main() -> None:
             "context_window_size": ctx.get("context_window_size"),
             "timestamp": time.time(),
         }
-        status_path = os.path.join(project_dir, ".claude", ".context-status.json")
+        runtime_dir = ensure_runtime_dir(project_dir)
+        status_path = os.path.join(runtime_dir, "context-status.json")
         try:
             with open(status_path, "w") as f:
                 json.dump(status, f)
-            ensure_gitignore(project_dir, ".claude/.context-status.json")
+            ensure_gitignore(project_dir)
         except OSError:
             pass
 
