@@ -1,2 +1,2 @@
 name,plugin,triggers,domains,frameworks,tools
-db-mysql,unmassk-db,"MySQL MariaDB InnoDB MyISAM mysqldump replication binlog slow query log EXPLAIN MySQL-8 optimizer foreign keys stored procedures composite indexes covering indexes utf8mb4 JSON columns partitioning security hardening","database sql relational","any-backend","mysql mysqldump"
+db-mysql,unmassk-db,"MySQL MariaDB InnoDB MyISAM mysqldump replication binlog slow query log EXPLAIN MySQL-8 optimizer foreign keys stored procedures composite indexes covering indexes utf8mb4 JSON columns partitioning MySQL-security","database sql relational","any-backend","mysql mysqldump"

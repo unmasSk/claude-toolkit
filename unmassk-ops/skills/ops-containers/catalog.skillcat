@@ -1,2 +1,2 @@
 name,plugin,triggers,domains,frameworks,tools
-ops-containers,unmassk-ops,"Dockerfile Docker Helm Kubernetes K8s kubectl kubeconform hadolint container pod deployment service ingress CRD chart values.yaml YAML manifest multi-stage build distroless alpine non-root HEALTHCHECK debug pods troubleshoot cluster","containers orchestration","any","hadolint kubeconform kubectl helm"
+ops-containers,unmassk-ops,"Dockerfile Docker Helm Kubernetes K8s kubectl kubeconform hadolint container pod deployment service ingress CRD chart values.yaml YAML manifest multi-stage build distroless alpine non-root HEALTHCHECK debug pods troubleshoot cluster container-security security-hardening image-pinning","containers orchestration","any","hadolint kubeconform kubectl helm"

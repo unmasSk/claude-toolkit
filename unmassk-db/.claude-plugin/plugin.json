@@ -1,7 +1,7 @@
 {
   "name": "unmassk-db",
-  "version": "1.1.0",
-  "description": "Database toolkit — PostgreSQL, MySQL, MongoDB, Redis, schema design, migrations, and vector/RAG patterns. 7 skills covering query optimization, connection pooling, indexing, replication, sharding, and AI-powered retrieval.",
+  "version": "1.2.0",
+  "description": "Database toolkit \u2014 PostgreSQL, MySQL, MongoDB, Redis, schema design, migrations, and vector/RAG patterns. 7 skills covering query optimization, connection pooling, indexing, replication, sharding, and AI-powered retrieval.",
   "author": {
     "name": "unmasSk",
     "url": "https://github.com/unmasSk"

@@ -48,7 +48,7 @@
     },
     {
       "name": "unmassk-ops",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "description": "DevOps \u2014 IaC (Terraform/Terragrunt/Ansible), containers (Docker/Helm/K8s), CI/CD (GitHub Actions/GitLab/Azure/Jenkins), observability (PromQL/LogQL/Loki/Fluent Bit), scripting (Bash/Makefile), deploy (Vercel/Railway), error tracking (Sentry/OTel)",
       "source": "./unmassk-ops/"
     },
@@ -66,7 +66,7 @@
     },
     {
       "name": "unmassk-db",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "description": "Database \u2014 PostgreSQL, MySQL, MongoDB, Redis, migrations (zero-downtime), vector/RAG (pgvector), schema design",
       "source": "./unmassk-db/"
     }
