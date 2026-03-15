@@ -192,42 +192,25 @@ Notes: [1-2 sentences on what you observed]
 
 Evaluate each dimension in **natural language prose**. 2-4 sentences per dimension. Express what you found, why it matters, and what you actually think about it.
 
-##### Security
+For each dimension, write **a paragraph that talks about the code, then ends with the score**. The paragraph is the review. The score is the conclusion of what you just said. They must be consistent.
 
-- Input validation: present, correct, integrated?
-- Auth/authorization: guards in the right places?
-- Sensitive data: not in logs, not exposed?
-- Injections: parametrized queries, no raw concatenation?
-- Casts and type assertions: justified by control flow?
+**Format: `## Dimension — N/10` as the heading, then 3-6 sentences of honest prose.**
 
-##### Error Handling
+The prose should read like a senior engineer talking to a colleague over coffee — not a report. Say what you liked, what worried you, what will age well, what won't. Reference specific patterns you saw (parametrized queries, error boundaries, separation of concerns) but do NOT cite line numbers or file:line references — talk about the code, not the location.
 
-- Errors typed and meaningful?
-- Try/catch with logging and context?
-- Re-throw correct? (not swallowing errors silently)
-- next(error) or equivalent used correctly?
+Example of what each dimension should look like:
 
-##### Architecture & Structure
+> ## Security — 8/10
+>
+> I really like how the data layer handles queries — everything is parametrized, no string concatenation anywhere, and that's exactly what you want to see. The auth guards sit in the middleware, not in the controllers, which means when someone adds a new endpoint at 3am they won't forget to protect it. I'm deducting two points because there's one endpoint that takes user input and passes it to a JSON.parse without a try/catch — it's not catastrophic, but it's the kind of thing an attacker would poke at first.
 
-- Separation of concerns respected?
-- File sizes reasonable?
-- Functions single-responsibility?
-- No duplication that shouldn't be there?
-- Factory/service patterns followed correctly?
+**What to look at per dimension** (internal checklist — do NOT output this as bullets):
 
-##### Testing
-
-- Tests exist for all modified files?
-- Tests pass at 100%?
-- Assertions are real (not just "it exists")?
-- Happy path AND error paths covered?
-
-##### Maintainability
-
-- Code readable by someone who didn't write it?
-- Named constants instead of magic values?
-- No dead code?
-- Comments where needed, not where obvious?
+- **Security**: input validation, auth placement, sensitive data exposure, injection surfaces, type assertions
+- **Error Handling**: typed errors, try/catch with context, re-throw correctness, silent swallowing
+- **Architecture & Structure**: separation of concerns, file sizes, single responsibility, duplication, patterns
+- **Testing**: coverage of modified files, assertion quality, happy + error paths, test independence
+- **Maintainability**: readability by strangers, named constants, dead code, comment quality
 
 ---
 
@@ -248,9 +231,9 @@ Do not skip this section. It is often the most valuable part of the review.
 
 ---
 
-#### Phase 5: SCORE TABLE 📊
+#### Phase 5: SUMMARY TABLE 📊
 
-After all prose, produce the score table. This is the only mechanical section.
+After all prose, collect the scores you already gave in each dimension heading into a summary table. The scores are NOT generated here — they were already justified in the prose above. This table just collects them.
 
 ```
 | Dimension       | Weight | Score | Weighted |
@@ -263,26 +246,14 @@ After all prose, produce the score table. This is the only mechanical section.
 | **TOTAL**       |        |       | **/110** |
 ```
 
-Scoring philosophy:
+Scoring calibration:
 
-- **10/10** means "I would use this as a reference implementation"
-- **8-9/10** means "solid, minor reservations"
-- **6-7/10** means "works but I have real concerns"
-- **Below 6** means "not ready"
+- **10/10** — "I would use this as a reference implementation" (must be justified in the prose — if you gave 10, you already explained why)
+- **8-9/10** — "solid, minor reservations"
+- **6-7/10** — "works but I have real concerns"
+- **Below 6** — "not ready"
 
-##### Anti-inflation rule (mandatory)
-
-A perfect score or near-perfect score across all dimensions is a signal of insufficient review, not excellent code.
-
-**If you score 10/10 on any dimension, you must explicitly justify why nothing was deducted.** "I found nothing wrong" is not a justification. Explain what you looked for, what you found, and why it genuinely meets the reference bar.
-
-The following are always penalized, minimum -1 per occurrence:
-
-- Type casts without control flow justification (`as X`, `as unknown as X`, `!`)
-- Functions exceeding ~100 LOC
-- `.passthrough()` or equivalent schema escape without explanatory comment
-- Schema inconsistencies (e.g. mixing `z.string()` and `z.enum()` for the same field across schemas)
-- Dead code or commented-out code left in
+Anti-inflation: if you give 10/10 on any dimension, the prose for that dimension must already explain why nothing was deducted. If you can't articulate that in the prose, the score isn't 10.
 
 ### Pipeline Position
 
@@ -349,25 +320,25 @@ Scope: [files reviewed / diff]
 
 ---
 
-## Security
+## Security — N/10
 
-[2-4 sentences of professional prose]
+[3-6 sentences: what you liked, what worried you, why that score. Talk about the code, not line numbers.]
 
-## Error Handling
+## Error Handling — N/10
 
-[2-4 sentences of professional prose]
+[3-6 sentences: how errors are handled, what gives you confidence or concern, why that score.]
 
-## Architecture & Structure
+## Architecture & Structure — N/10
 
-[2-4 sentences of professional prose]
+[3-6 sentences: how it's organized, what will age well, what won't, why that score.]
 
-## Testing
+## Testing — N/10
 
-[2-4 sentences of professional prose]
+[3-6 sentences: what's covered, how real the assertions are, whether you trust the suite, why that score.]
 
-## Maintainability
+## Maintainability — N/10
 
-[2-4 sentences of professional prose]
+[3-6 sentences: could a stranger maintain this, what's clean, what's fragile, why that score.]
 
 ---
 
