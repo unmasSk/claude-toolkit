@@ -113,3 +113,12 @@ version: 1.0.0
 |-----------|-------------|
 | `references/redis-cluster-hash-tags.md` | Hash tags for co-locating keys in cluster multi-key operations |
 | `references/redis-cluster-read-replicas.md` | Read replicas for scaling read-heavy workloads |
+
+## Scope Boundaries
+
+This skill covers Redis as a data store, cache, message broker, and vector search engine. It does NOT cover:
+- PostgreSQL or pgvector (use db-postgres or db-vector-rag)
+- Storage-agnostic RAG pipeline design (use db-vector-rag)
+- MySQL or MongoDB (use db-mysql or db-mongodb)
+- Database migrations (use db-migrations)
+- Schema design theory (use db-schema-design)

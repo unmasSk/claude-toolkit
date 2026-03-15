@@ -26,6 +26,27 @@ version: 1.0.0
 
 # PostgreSQL -- Schema Design, Query Optimization, and Extensions
 
+## Routing Table
+
+| Task | Read these references |
+|------|----------------------|
+| Design a new table / schema | `postgres-table-design.md`, `postgres-schema-design.md` |
+| Create or optimize indexes | `postgres-indexing.md`, `postgres-index-optimization.md` |
+| Optimize slow queries | `postgres-query-patterns.md`, `postgres-optimization-checklist.md` |
+| Set up partitioning | `postgres-partitioning.md` |
+| VACUUM / autovacuum tuning | `postgres-mvcc-vacuum.md`, `postgres-mvcc-transactions.md` |
+| Full-text search / hybrid search | `postgres-text-search.md` |
+| Connection pooling (PgBouncer) | `postgres-pgbouncer-configuration.md`, `postgres-process-architecture.md` |
+| Memory tuning | `postgres-memory-management-ops.md` |
+| Storage / TOAST / fillfactor | `postgres-storage-layout.md` |
+| Monitoring / pg_stat views | `postgres-monitoring.md` |
+| WAL / checkpoints / crash recovery | `postgres-wal-operations.md` |
+| Replication / failover | `postgres-replication.md` |
+| Backup / restore / PITR | `postgres-backup-recovery.md` |
+| TimescaleDB setup | `postgres-timescaledb-setup.md` |
+| Migrate tables to hypertables | `postgres-timescaledb-migration.md`, `postgres-timescaledb-candidates.md` |
+| PostGIS / spatial data | `postgres-postgis-design.md` |
+
 ## References
 
 | File | Topic |
