@@ -138,11 +138,12 @@ At the end ALWAYS include:
 
 ## Project Persistent Memory
 
-Location: `.claude/agent-memory/cerberus/`
+Location: `.claude/agent-memory/unmassk-crew-cerberus/` (relative to the git root of the MAIN project, NOT the current working directory). Before reading or writing memory, resolve the git root: `git rev-parse --show-toplevel`. NEVER create memory directories inside subdirectories, cloned repos, or .ref-repos.
 
 ### Boot (MANDATORY — before any work)
 
-1. Read `MEMORY.md` in your memory directory
+1. Resolve git root: `GIT_ROOT=$(git rev-parse --show-toplevel)`
+2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-crew-cerberus/MEMORY.md`
 2. Follow every link in MEMORY.md to load topic files
 3. If MEMORY.md does not exist, create it after completing your first task
 4. Apply known anti-patterns, conventions, and false positives to your current review
