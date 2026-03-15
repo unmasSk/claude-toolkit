@@ -350,6 +350,8 @@ Location: `.claude/agent-memory/unmassk-crew-house/` (relative to the git root o
 3. If MEMORY.md does not exist, create it after completing your first task
 4. Apply known diagnostic patterns, root causes, and rejected hypotheses to your current investigation
 
+5. **MANDATORY — Skill Map**: Read `/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
 ### Shutdown (MANDATORY — before reporting results)
 
 1. Did I discover a recurring diagnostic pattern? If yes → add to patterns topic file

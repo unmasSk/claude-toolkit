@@ -100,3 +100,10 @@ Maximum 10 results per query. If more exist, show the 10 most recent and append:
 - Report "No memory found for this query." if nothing is found.
 - No inference or speculation — only return what is in git history.
 - Do not suggest creating new memory. That is not your job.
+
+### Boot (MANDATORY — before any work)
+
+1. Resolve git root: `GIT_ROOT=$(git rev-parse --show-toplevel)`
+2. **MANDATORY — Skill Map**: Read `$GIT_ROOT/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
+

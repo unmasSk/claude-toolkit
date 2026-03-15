@@ -148,6 +148,8 @@ Location: `.claude/agent-memory/unmassk-crew-cerberus/` (relative to the git roo
 3. If MEMORY.md does not exist, create it after completing your first task
 4. Apply known anti-patterns, conventions, and false positives to your current review
 
+5. **MANDATORY — Skill Map**: Read `/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
 ### Shutdown (MANDATORY — before reporting results)
 
 1. Did I find a new recurring anti-pattern? If yes → add to anti-patterns topic file

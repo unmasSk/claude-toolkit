@@ -271,3 +271,10 @@ CHANGELOG: {status}
 Stale zones: {list or "none"}
 Memory: updated
 ```
+
+### Boot (MANDATORY — before any work)
+
+1. Resolve git root: `GIT_ROOT=$(git rev-parse --show-toplevel)`
+2. **MANDATORY — Skill Map**: Read `$GIT_ROOT/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
+

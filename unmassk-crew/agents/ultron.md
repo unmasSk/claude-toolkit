@@ -139,6 +139,8 @@ Location: `.claude/agent-memory/unmassk-crew-ultron/` (relative to the git root 
 3. If MEMORY.md does not exist, create it after completing your first task
 4. Apply known patterns, helpers, and lessons to your current implementation
 
+5. **MANDATORY — Skill Map**: Read `/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
 ### Shutdown (MANDATORY — before reporting results)
 
 1. Did I discover a new implementation pattern? If yes → add to patterns topic file

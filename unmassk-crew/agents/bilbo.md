@@ -214,6 +214,8 @@ Location: `.claude/agent-memory/unmassk-crew-bilbo/` (relative to the git root o
 3. If MEMORY.md does not exist, create it after completing your first task
 4. Apply known codebase patterns and previous scan findings to your current exploration
 
+5. **MANDATORY — Skill Map**: Read `/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
+
 ### Shutdown (MANDATORY — before reporting results)
 
 1. Did I discover a structural pattern worth remembering for future scans? If yes → save it
