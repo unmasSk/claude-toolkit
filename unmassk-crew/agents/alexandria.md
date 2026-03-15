@@ -235,6 +235,7 @@ Location: `.claude/agent-memory/unmassk-crew-alexandria/` (relative to the git r
 3. Follow every link in MEMORY.md to load topic files
 4. If MEMORY.md does not exist, create it after completing your first task
 5. Apply knowledge from memory to your current task
+6. **MANDATORY — Skill Map**: Read `$GIT_ROOT/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge that makes your output significantly better. Never skip this step.
 
 ### Shutdown (MANDATORY — before reporting results)
 
@@ -271,10 +272,5 @@ CHANGELOG: {status}
 Stale zones: {list or "none"}
 Memory: updated
 ```
-
-### Boot (MANDATORY — before any work)
-
-1. Resolve git root: `GIT_ROOT=$(git rev-parse --show-toplevel)`
-2. **MANDATORY — Skill Map**: Read `$GIT_ROOT/CLAUDE.md` and find the `<!-- skill-map:start -->` section. Match your current task against the Skill Map table. If a domain matches, Read the SKILL.md at the listed path BEFORE doing any work. This loads domain-specific knowledge (checklists, patterns, scripts, references) that makes your output significantly better. Never skip this step.
 
 
