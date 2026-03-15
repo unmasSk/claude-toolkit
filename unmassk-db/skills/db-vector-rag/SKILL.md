@@ -1,13 +1,14 @@
 ---
 name: db-vector-rag
 description: >
-  Use when the user asks to "set up pgvector", "semantic search",
-  "RAG pipeline", "embedding strategy", "chunking strategy",
-  "vector database", "similarity search", "HNSW index",
-  or mentions any of: pgvector, vector search, embeddings, RAG,
-  retrieval augmented generation, chunking, HNSW, IVF, halfvec,
-  semantic search, cosine similarity, embedding model, reranking,
-  cross-encoder, BM25, hybrid search, recall@K, MRR, NDCG.
+  Use when the user asks to "set up pgvector", "RAG pipeline",
+  "embedding strategy", "chunking strategy", "evaluate retrieval quality",
+  or mentions any of: pgvector, RAG, retrieval augmented generation,
+  chunking, IVF, halfvec, embedding model, reranking, cross-encoder,
+  recall@K, MRR, NDCG, chunking strategy, embedding benchmark.
+  For Redis vector search use db-redis instead. For general
+  "semantic search" or "vector search" without specifying a backend,
+  this skill covers the pgvector path and RAG pipeline design.
   Use this for implementing semantic search with pgvector (HNSW,
   IVF-PQ, halfvec), designing RAG pipelines with optimal chunking
   strategies, selecting embedding models, building hybrid search

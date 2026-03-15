@@ -2,7 +2,7 @@
 name: db-postgres
 description: >
   Use when the user asks to "design PostgreSQL schema", "optimize Postgres query",
-  "create index strategy", "configure TimescaleDB", "set up pgvector",
+  "configure TimescaleDB", "Postgres index tuning",
   "full-text search Postgres", "PostGIS tables", "VACUUM tuning",
   "MVCC troubleshooting", "partitioning", "connection pooling",
   or mentions any of: PostgreSQL, Postgres, pg, psql, EXPLAIN ANALYZE,
@@ -15,7 +15,7 @@ description: >
   data types, constraints, and indexing strategies, optimizing query
   performance with EXPLAIN ANALYZE and index gap analysis, configuring
   TimescaleDB for time-series workloads (hypertables, continuous
-  aggregates), implementing semantic search with pgvector (HNSW, IVF),
+  aggregates), using pgvector extension for vector storage,
   building hybrid text search with tsvector and trigrams, designing
   spatial tables with PostGIS, and tuning VACUUM and MVCC for
   high-throughput environments. 22 reference files from pg-aiguide

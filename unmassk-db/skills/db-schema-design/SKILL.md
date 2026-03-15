@@ -2,12 +2,13 @@
 name: db-schema-design
 description: >
   Use when the user asks to "design database schema", "normalize schema",
-  "database selection", "ERD diagram", "index strategy",
-  "row-level security", "seed data", "schema analysis",
+  "database selection", "ERD diagram", "seed data", "schema analysis",
+  "which database should I use",
   or mentions any of: schema design, normalization, 1NF, 2NF, 3NF, BCNF,
   denormalization, ERD, entity relationship, database selection,
-  SQL vs NoSQL, index strategy, covering index, composite index,
-  partial index, RLS, row-level security, seed data, fixtures.
+  SQL vs NoSQL, seed data, fixtures.
+  Does NOT cover database-specific index tuning (use db-postgres or db-mysql)
+  or database-specific RLS implementation (use db-postgres).
   Use this for designing database schemas from requirements with
   normalization analysis (1NF through BCNF), selecting the right
   database technology for the use case, creating index strategies,
