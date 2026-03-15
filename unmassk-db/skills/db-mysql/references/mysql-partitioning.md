@@ -1,9 +1,3 @@
----
-title: MySQL Partitioning
-description: Partition types and management operations
-tags: mysql, partitioning, range, list, hash, maintenance, data-retention
----
-
 # Partitioning
 
 All columns used in the partitioning expression must be part of every UNIQUE/PRIMARY KEY.

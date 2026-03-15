@@ -1,9 +1,3 @@
----
-title: Replication Lag Awareness
-description: Read-replica consistency pitfalls and mitigations
-tags: mysql, replication, lag, read-replicas, consistency, gtid
----
-
 # Replication Lag
 
 MySQL replication is asynchronous by default. Reads from a replica may return stale data.

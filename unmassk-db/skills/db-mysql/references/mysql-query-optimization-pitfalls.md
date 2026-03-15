@@ -1,9 +1,3 @@
----
-title: Query Optimization Pitfalls
-description: Common anti-patterns that silently kill performance
-tags: mysql, query-optimization, anti-patterns, performance, indexes
----
-
 # Query Optimization Pitfalls
 
 These patterns look correct but bypass indexes or cause full scans.

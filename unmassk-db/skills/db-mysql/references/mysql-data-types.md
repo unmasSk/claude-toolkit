@@ -1,9 +1,3 @@
----
-title: MySQL Data Type Selection
-description: Data type reference
-tags: mysql, data-types, numeric, varchar, datetime, json
----
-
 # Data Types
 
 Choose the smallest correct type — more rows per page, better cache, faster queries.

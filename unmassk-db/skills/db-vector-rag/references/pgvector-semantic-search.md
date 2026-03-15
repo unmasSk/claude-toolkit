@@ -1,21 +1,3 @@
----
-name: pgvector-semantic-search
-description: |
-  Use this skill for setting up vector similarity search with pgvector for AI/ML embeddings, RAG applications, or semantic search.
-
-  **Trigger when user asks to:**
-  - Store or search vector embeddings in PostgreSQL
-  - Set up semantic search, similarity search, or nearest neighbor search
-  - Create HNSW or IVFFlat indexes for vectors
-  - Implement RAG (Retrieval Augmented Generation) with PostgreSQL
-  - Optimize pgvector performance, recall, or memory usage
-  - Use binary quantization for large vector datasets
-
-  **Keywords:** pgvector, embeddings, semantic search, vector similarity, HNSW, IVFFlat, halfvec, cosine distance, nearest neighbor, RAG, LLM, AI search
-
-  Covers: halfvec storage, HNSW index configuration (m, ef_construction, ef_search), quantization strategies, filtered search, bulk loading, and performance tuning.
----
-
 # pgvector for Semantic Search
 
 Semantic search finds content by meaning rather than exact keywords. An embedding model converts text into high-dimensional vectors, where similar meanings map to nearby points. pgvector stores these vectors in PostgreSQL and uses approximate nearest neighbor (ANN) indexes to find the closest matches quickly—scaling to millions of rows without leaving the database. Store your text alongside its embedding, then query by converting your search text to a vector and returning the rows with the smallest distance.

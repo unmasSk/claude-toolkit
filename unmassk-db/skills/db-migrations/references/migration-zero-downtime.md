@@ -1,9 +1,3 @@
----
-title: Zero-Downtime Migration Techniques
-description: Database-level techniques for schema and data changes without downtime
-tags: migrations, zero-downtime, online-ddl, chunked-migration, expand-contract
----
-
 # Zero-Downtime Migration Techniques
 
 ## Core Principles

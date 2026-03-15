@@ -1,9 +1,3 @@
----
-title: InnoDB Deadlock Resolution
-description: Deadlock diagnosis
-tags: mysql, deadlocks, innodb, transactions, locking, concurrency
----
-
 # Deadlocks
 
 InnoDB auto-detects deadlocks and rolls back one transaction (the "victim").

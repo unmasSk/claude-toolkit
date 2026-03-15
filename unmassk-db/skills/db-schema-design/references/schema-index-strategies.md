@@ -1,9 +1,3 @@
----
-title: Index Strategy Patterns
-description: Index types, composite design, common anti-patterns, and maintenance
-tags: indexes, B-tree, composite, partial, covering, functional
----
-
 # Index Strategy Patterns
 
 ## Index Types

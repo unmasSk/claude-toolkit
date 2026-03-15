@@ -1,9 +1,3 @@
----
-title: Chunking Strategies
-description: Comparison of document chunking approaches for RAG systems
-tags: RAG, chunking, embeddings, semantic-search
----
-
 # Chunking Strategies
 
 Chunking is the foundation of effective RAG. The right strategy depends on document type, quality requirements, and processing constraints.

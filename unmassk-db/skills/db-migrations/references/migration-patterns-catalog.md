@@ -1,9 +1,3 @@
----
-title: Migration Patterns Catalog
-description: Decision guide for selecting migration patterns
-tags: migrations, patterns, strangler-fig, parallel-run, blue-green, canary
----
-
 # Migration Patterns Catalog
 
 ## Pattern Selection Matrix

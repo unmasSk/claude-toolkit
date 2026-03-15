@@ -1,9 +1,3 @@
----
-title: Database Selection Guide
-description: Decision framework and category deep-dive for choosing the right database
-tags: database-selection, SQL, NoSQL, PostgreSQL, MySQL, Redis, MongoDB
----
-
 # Database Selection Guide
 
 ## Decision Tree

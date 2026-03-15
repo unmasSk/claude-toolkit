@@ -1,9 +1,3 @@
----
-title: N+1 Query Detection and Fixes
-description: N+1 query solutions
-tags: mysql, n-plus-one, orm, query-optimization, performance
----
-
 # N+1 Query Detection
 
 ## What Is N+1?

@@ -1,9 +1,3 @@
----
-title: Connection Pooling and Limits
-description: Connection management best practices
-tags: mysql, connections, pooling, max-connections, performance
----
-
 # Connection Management
 
 Every MySQL connection costs memory (~1–10 MB depending on buffers). Unbounded connections cause OOM or `Too many connections` errors.

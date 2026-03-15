@@ -1,9 +1,3 @@
----
-title: EXPLAIN Plan Analysis
-description: EXPLAIN output guide
-tags: mysql, explain, query-plan, performance, indexes
----
-
 # EXPLAIN Analysis
 
 ```sql

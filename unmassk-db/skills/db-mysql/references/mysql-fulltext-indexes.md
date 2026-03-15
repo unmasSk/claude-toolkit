@@ -1,9 +1,3 @@
----
-title: Fulltext Search Indexes
-description: Fulltext index guide
-tags: mysql, fulltext, search, indexes, boolean-mode
----
-
 # Fulltext Indexes
 
 Fulltext indexes are useful for keyword text search in MySQL. For advanced ranking, fuzzy matching, or complex document search, prefer a dedicated search engine.

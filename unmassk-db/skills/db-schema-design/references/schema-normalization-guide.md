@@ -1,9 +1,3 @@
----
-title: Database Normalization Guide
-description: Normal forms 1NF through BCNF with examples, denormalization patterns, trade-offs
-tags: normalization, 1NF, 2NF, 3NF, BCNF, denormalization
----
-
 # Normalization Guide
 
 ## First Normal Form (1NF)

@@ -1,9 +1,3 @@
----
-title: Character Sets and Collations
-description: Charset config guide
-tags: mysql, character-sets, utf8mb4, collation, encoding
----
-
 # Character Sets and Collations
 
 ## Always Use utf8mb4

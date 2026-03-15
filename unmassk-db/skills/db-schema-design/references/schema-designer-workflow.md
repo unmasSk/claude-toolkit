@@ -1,9 +1,3 @@
----
-title: Database Schema Designer Workflow
-description: Schema design process, RLS policies, seed data, ERD generation, common pitfalls
-tags: schema-design, RLS, ERD, seed-data, multi-tenancy
----
-
 # Schema Designer Workflow
 
 ## Design Process

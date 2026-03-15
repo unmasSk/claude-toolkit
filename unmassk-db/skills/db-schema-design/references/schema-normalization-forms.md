@@ -1,9 +1,3 @@
----
-title: Normalization Forms and Data Modeling Patterns
-description: Quick reference for normal forms, index patterns, and data modeling (star, snowflake, graph)
-tags: normalization, data-modeling, star-schema, snowflake, graph
----
-
 # Normalization Forms and Data Modeling Patterns
 
 ## Normal Forms Quick Reference

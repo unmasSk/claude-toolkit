@@ -1,9 +1,3 @@
----
-title: RAG Evaluation Framework
-description: Metrics and methodologies for evaluating retrieval and generation quality
-tags: RAG, evaluation, NDCG, MRR, faithfulness, recall
----
-
 # RAG Evaluation Framework
 
 ## Retrieval Metrics

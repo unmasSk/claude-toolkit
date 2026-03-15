@@ -1,9 +1,3 @@
----
-title: JSON Column Best Practices
-description: When and how to use JSON columns safely
-tags: mysql, json, generated-columns, indexes, data-modeling
----
-
 # JSON Column Patterns
 
 MySQL 5.7+ supports native JSON columns. Useful, but with important caveats.

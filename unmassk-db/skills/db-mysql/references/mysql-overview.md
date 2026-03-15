@@ -1,9 +1,3 @@
----
-title: MySQL Skill Overview
-description: Workflow and guardrails for MySQL changes
-tags: mysql, workflow, schema, innodb
----
-
 # MySQL Overview
 
 Use this skill to make safe, measurable MySQL/InnoDB changes.

@@ -1,9 +1,3 @@
----
-title: InnoDB Row Locking Gotchas
-description: Gap locks, next-key locks, and surprise escalation
-tags: mysql, innodb, locking, gap-locks, next-key-locks, concurrency
----
-
 # Row Locking Gotchas
 
 InnoDB uses row-level locking, but the actual locked range is often wider than expected.

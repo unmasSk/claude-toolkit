@@ -1,9 +1,3 @@
----
-title: Data Reconciliation Strategies
-description: Detecting, measuring, and correcting data discrepancies during migrations
-tags: migrations, reconciliation, data-consistency, validation, delta-detection
----
-
 # Data Reconciliation
 
 ## Core Principles

@@ -1,9 +1,3 @@
----
-title: Covering Indexes
-description: Index-only scans
-tags: mysql, indexes, covering-index, query-optimization, explain
----
-
 # Covering Indexes
 
 A covering index contains all columns a query needs — InnoDB satisfies it from the index alone (`Using index` in EXPLAIN Extra).

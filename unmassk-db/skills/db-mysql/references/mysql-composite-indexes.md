@@ -1,9 +1,3 @@
----
-title: Composite Index Design
-description: Multi-column indexes
-tags: mysql, indexes, composite, query-optimization, leftmost-prefix
----
-
 # Composite Indexes
 
 ## Leftmost Prefix Rule

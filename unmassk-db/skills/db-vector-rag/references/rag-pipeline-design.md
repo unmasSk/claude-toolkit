@@ -1,9 +1,3 @@
----
-title: RAG Pipeline Design
-description: End-to-end RAG pipeline architecture, retrieval strategies, and production patterns
-tags: RAG, pipeline, hybrid-search, reranking, HyDE, production
----
-
 # RAG Pipeline Design
 
 ## Pipeline Overview

@@ -1,9 +1,3 @@
----
-title: InnoDB Transaction Isolation Levels
-description: Best practices for choosing and using isolation levels
-tags: mysql, transactions, isolation, innodb, locking, concurrency
----
-
 # Isolation Levels (InnoDB Best Practices)
 
 **Default to REPEATABLE READ.** It is the InnoDB default, most tested, and prevents phantom reads. Only change per-session with a measured reason.

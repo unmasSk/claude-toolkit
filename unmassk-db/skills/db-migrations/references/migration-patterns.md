@@ -1,9 +1,3 @@
----
-title: Migration Patterns
-description: Core database migration patterns with implementation guidance
-tags: migrations, expand-contract, dual-write, CDC, strangler-fig
----
-
 # Migration Patterns
 
 ## Expand-Contract (Default Pattern for Schema Changes)

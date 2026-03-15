@@ -1,9 +1,3 @@
----
-title: Primary Key Design
-description: Primary key patterns
-tags: mysql, primary-keys, auto-increment, uuid, innodb
----
-
 # Primary Keys
 
 InnoDB stores rows in primary key order (clustered index). This means:

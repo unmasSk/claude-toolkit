@@ -1,9 +1,3 @@
----
-title: Embedding Model Benchmarks
-description: Model comparison for retrieval quality, speed, cost, and domain fit
-tags: RAG, embeddings, benchmarks, model-selection
----
-
 # Embedding Model Benchmarks
 
 Benchmark data from evaluation across MS MARCO, Natural Questions, TREC-COVID, FiQA-2018, and ArguAna (2M+ documents, 50K queries).

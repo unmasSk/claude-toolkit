@@ -1,9 +1,3 @@
----
-title: Index Maintenance and Cleanup
-description: Index maintenance
-tags: mysql, indexes, maintenance, unused-indexes, performance
----
-
 # Index Maintenance
 
 ## Find Unused Indexes
