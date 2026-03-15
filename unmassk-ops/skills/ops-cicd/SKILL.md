@@ -19,7 +19,7 @@ description: >
   checking action versions and deprecations, testing workflows locally,
   generating Jenkinsfiles (declarative, scripted, shared libraries),
   and auditing pipeline security (secret exposure, injection risks,
-  untrusted input handling). Includes 29 scripts (bash and Python)
+  untrusted input handling). Includes 30 scripts (bash and Python)
   for automated validation and generation. 30 reference files provide
   best practices, common errors, security guidelines, syntax references,
   and platform-specific patterns.
