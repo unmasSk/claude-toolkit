@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+ops-error-tracking,unmassk-ops,"Sentry error tracking exception monitoring session replay crash reporting OpenTelemetry OTel OTLP instrument app error monitoring setup Sentry SDK Sentry alert Sentry MCP Datadog Honeycomb SigNoz","error-tracking observability","Python Node.js Next.js React Django Flask FastAPI Express","sentry-cli"

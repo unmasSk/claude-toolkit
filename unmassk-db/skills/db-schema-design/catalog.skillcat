@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+db-schema-design,unmassk-db,"schema design normalization 1NF 2NF 3NF BCNF denormalization ERD entity relationship database selection SQL vs NoSQL seed data fixtures which database","database modeling design","any","schema_analyzer.py index_optimizer.py"

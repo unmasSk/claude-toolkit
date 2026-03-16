@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "media-pipeline": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/skills/media-image-gen/mcp-server/build/bundle.js"],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}",
+        "GEMINI_DEFAULT_MODEL": "${GEMINI_DEFAULT_MODEL:-gemini-3-pro-image-preview}",
+        "IMAGE_OUTPUT_DIR": "${IMAGE_OUTPUT_DIR:-./generated-images}"
+      }
+    }
+  }
+}

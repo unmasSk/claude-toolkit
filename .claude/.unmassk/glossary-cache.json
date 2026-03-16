@@ -1,0 +1,122 @@
+{
+  "head_sha": "2b7a36a8db1d6e21f511569ed4a5d7619a8e27ad",
+  "generated_at": "2026-03-15T22:03:02.957969+00:00",
+  "decisions": [
+    [
+      "(plugin/architecture)",
+      "BM25 with .skillcat CSVs replaces static skill-map table in CLAUDE.md"
+    ],
+    [
+      "(plugin)",
+      ".skillcat custom extension (CSV inside) to avoid collision with design CSVs"
+    ],
+    [
+      "(plugin/compliance)",
+      "compliance 9 skills, repos cloned, structure mounted, content copied \u2014 pending SKILL.md writing and from-scratch builds"
+    ],
+    [
+      "(plugin/db)",
+      "5 skills from pg-aiguide+planetscale+alirezarezvani, MongoDB+Redis pendientes de fuentes verificadas"
+    ],
+    [
+      "(plugin/ops)",
+      "5 skills (iac, containers, cicd, observability, scripting) con references originales reescritas al canon"
+    ],
+    [
+      "(plugin/design)",
+      "3 refinement patterns: subjective=options, technical=execute, explicit=no-ask"
+    ],
+    [
+      "(plugin/marketing)",
+      "rewrite references with full source content, deploy on sonnet"
+    ],
+    [
+      "(plugin/seo)",
+      "ship .env.example with MCP key placeholders, skill prompts user to configure on first use"
+    ],
+    [
+      "(plugin/marketplace)",
+      "8 plugins in marketplace covering 100% of web project lifecycle \u2014 4 done, 4 to build"
+    ],
+    [
+      "(plugin/boot)",
+      "boot checks gh issue state for Next with #number (closed=skip), Next without issue use latest context() as cutoff"
+    ]
+  ],
+  "memos": [
+    [
+      "(plugin)",
+      "antipattern - marketplace.json debe estar sincronizado con cada plugin.json, si no los usuarios no reciben updates"
+    ],
+    [
+      "(plugin/architecture)",
+      "requirement - skillcat triggers must be domain-unique, processed not copied, minimal overlap between skills"
+    ],
+    [
+      "(claude)",
+      "antipattern - do not blindly follow Yoda findings, use own judgement, never delete original content without asking"
+    ],
+    [
+      "(plugin/compliance)",
+      "preference - all plugin content in English, never Spanish, even for Spanish-specific legislation"
+    ],
+    [
+      "(plugin/agents)",
+      "antipattern - Alexandria and other agents create agent-memory dirs in .ref-repos and other dirs they explore, polluting read-only sources"
+    ],
+    [
+      "(plugin/db)",
+      "antipattern - Alexandria reescribe contenido existente, no lo genera desde cero. Si hay que crear, lo hace el orquestador"
+    ],
+    [
+      "(plugin/ops)",
+      "requirement - scripts mandatorios con paths completos en SKILL.md, un agente cold-start debe poder ejecutar sin ambiguedad"
+    ],
+    [
+      "(plugin/flow)",
+      "preference - parar despu\u00e9s de cada paso, mostrar resultado, hablar antes de continuar"
+    ],
+    [
+      "(plugin/marketplace)",
+      "requirement - add database plugin to marketplace roadmap"
+    ],
+    [
+      "(plugin/seo)",
+      "requirement - SKILL.md frontmatter canonical third-person format, complete trigger phrases, nothing missing"
+    ]
+  ],
+  "remembers": [
+    [
+      "(claude)",
+      "claude - read all loaded context before acting, asking, or exploring \u2014 the answer is usually already there"
+    ],
+    [
+      "(claude)",
+      "claude - read what the user ACTUALLY said before acting \u2014 past tense means already done, do not repeat"
+    ],
+    [
+      "(claude)",
+      "claude - kill process immediately when told, no questions, no waiting, no confirmation"
+    ],
+    [
+      "(claude)",
+      "claude - when user says do it yourself, do it yourself \u2014 never delegate to subagents against explicit instruction"
+    ],
+    [
+      "(claude)",
+      "claude - 11 preferencias criticas del usuario para construccion de plugins"
+    ],
+    [
+      "(claude)",
+      "claude - proceso completo de plugin building con 13 pasos, nunca inventar contenido, siempre repos verificados, actualizar README en cada commit"
+    ],
+    [
+      "(claude)",
+      "claude - leer contenido = simular agente frio ejecutando el workflow, no releer archivos buscando bugs"
+    ],
+    [
+      "(claude)",
+      "claude - merge after every deliverable in marketplace repos, do not wait"
+    ]
+  ]
+}

@@ -1,20 +1,48 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
+### Added
+- `compliance-legal-docs` skill: SKILL.md created with 42-reference routing table organized by category (contract review, GDPR/privacy, risk assessment, litigation, French employment law, vendor due diligence, document processing, legal ops)
+
 ### Fixed
-- Statusline context-writer and hook scripts now generate forward-slash paths for Git Bash compatibility on Windows (root cause: `sys.executable` and `os.path.join` produced backslash paths that broke under Git Bash)
-- Path generation fixed in context-writer.py, git-memory-install.py, session-start-boot.py, and user-prompt-memory-check.py
+- `compliance-legal-docs` references: removed broken `/mnt/skills/public/docx/SKILL.md` paths in 3 GDPR files (gdpr-privacy-notice-eu, dpia-sentinel, gdpr-breach-sentinel) — now points to `legal-docx-processing-anthropic`
+- `compliance-legal-docs` references: removed broken sub-file references in both assignation-en-référé files (workflow-informations.md, structure-assignation.md, workflow-collecte.md, variantes-cas-particuliers.md, conseils-strategie.md) — workflows now self-contained in the reference files
+- `compliance-legal-docs` references: removed broken `assets/` template path in politique-confidentialite-malik-taiar
+- `compliance-legal-docs` references: removed `scripts/office/unpack.py`, `scripts/comment.py`, `scripts/accept_changes.py`, `scripts/recalc.py` references — replaced with standard system commands (unzip, LibreOffice, zip)
+- `compliance-legal-docs` references: removed `editing.md`, `pptxgenjs.md`, `scripts/thumbnail.py` references from pptx-processing — replaced with inline instructions
+- `compliance-legal-docs` references: removed `REFERENCE.md`, `FORMS.md` references from pdf-processing
+- `compliance-legal-docs` references: replaced `AskUserQuestion`/`Task` tool calls in tabular-review with plain prose instructions; updated pdf/docx/xlsx "skill" references to reference file names
+
+- `unmassk-ops` plugin: 5 skills covering the full ops domain (iac, containers, cicd, observability, scripting)
+- `ops-iac` skill: SKILL.md + 14 references rewritten (Terraform, Ansible, Helm, Pulumi, OpenTofu)
+- `ops-containers` skill: SKILL.md + 19 references rewritten (Kubernetes, Docker, Helm, container security)
+- `ops-observability` skill: SKILL.md + 9 references rewritten (Prometheus, Grafana, alerting, logging)
+- `ops-scripting` skill: SKILL.md + 21 references rewritten (Bash, Makefile)
+- `ops-cicd` skill: SKILL.md + 30 references rewritten (GitHub Actions, GitLab CI, Azure Pipelines, Jenkins)
+
+## [3.7.0] - 2026-03-13
 
 ### Added
-- Context percentage (ctx%) output in status bar with color coding (red at 75%+, yellow at 60%+)
-- `[context] XX%` now appears in hook output at all levels, not just above 60%
-- Separator between ctx% and original statusline passthrough
+- Boot auto-detects missing `git-memory-scopes.json` and instructs Claude to generate it via Explore agent
+- Next cleanup in boot: checks GitHub issue status for pending Next items — closed issues are filtered out, items older than 7 days without an issue ref are marked `[stale]`
+- Cross-repo guard prevents false positives when Next items reference issues in other repositories
+- GC tombstone support for `Resolved-Next:` trailers — resolved pending items are hidden from future boot output
+- Context warnings now use debounce: same-level warnings suppressed for 5 messages (shows `[CTX: N%]` instead), severity escalation (warning to critical) bypasses debounce
+- Advisory language for context warnings — informs the agent instead of commanding it
+- Test coverage for `context-writer.py` statusline wrapper (7 tests)
+- `CO_AUTHOR` is now configurable via `GIT_MEMORY_CO_AUTHOR` environment variable
+
+### Changed
+- Scout agent removed — scope scanning now handled by an Explore agent prompt during boot
+- Context percentage is now always shown in the UserPromptSubmit hook output (previously only displayed at 60%+ usage)
+- Removed `Refs:` trailer key from valid keys — was unused dead code
+- Replaced remaining scout terminology in bootstrap script and tests
+
+### Fixed
+- Boot and commit script hardening from code review feedback
+- Debounce oscillation bug: context bouncing between 59-61% caused stale debounce state to suppress warnings incorrectly — state now resets when context drops back to info level
+- `.context-status.json` and `.context-warn-state.json` added to `.gitignore` (were being tracked as noise)
 
 ## [3.6.0] - 2026-03-13
 

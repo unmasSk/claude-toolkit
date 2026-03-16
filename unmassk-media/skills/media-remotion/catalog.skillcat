@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-remotion,unmassk-media,"Remotion video creation React video render video composition animate captions subtitles transcribe audio visualization spectrum waveform sound effects Lottie GIF map animation chart animation text animation typewriter spring interpolate useCurrentFrame useVideoConfig Sequence TransitionSeries calculateMetadata Three.js Mapbox TailwindCSS","video programmatic-video","React","remotion renderMedia renderStill"

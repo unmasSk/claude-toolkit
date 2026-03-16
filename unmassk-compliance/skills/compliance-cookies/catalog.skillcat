@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+compliance-cookies,unmassk-compliance,"cookie consent cookie banner CMP consent management platform Google Consent Mode GCM-v2 IAB TCF ePrivacy opt-in opt-out cookie audit cookie wall cookiebot klaro tarteaucitron onetrust axeptio cookie policy AEPD cookies analytics marketing third-party","cookies consent privacy","any-web-framework","none"

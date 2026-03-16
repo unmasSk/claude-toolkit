@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+media-transcribe,unmassk-media,"transcribe transcription whisper yt-dlp download YouTube audio TikTok Instagram Twitter/X audio video .m4a .mp3 .wav .ogg .flac .vtt analysis critical analysis","transcription audio-analysis","any","whisper.cpp yt-dlp"

@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+db-vector-rag,unmassk-db,"pgvector RAG retrieval augmented generation chunking IVF halfvec embedding model reranking cross-encoder recall@K MRR NDCG chunking strategy embedding benchmark semantic search vector search hybrid search BM25","ai vector-search retrieval","any-backend","none"

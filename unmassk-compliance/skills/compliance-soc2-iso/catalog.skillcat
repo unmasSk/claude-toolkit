@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+compliance-soc2-iso,unmassk-compliance,"SOC-2 SOC2 Type-I Type-II ISO-27001 HIPAA ISMS Annex-A Trust Service Criteria TSC AICPA compliance roadmap security program CISO vCISO zero trust defense-in-depth risk quantification ALE FAIR incident response IR playbook severity classification breach notification vendor risk security questionnaire Vanta Drata Secureframe GRC policy template audit evidence access control policy","compliance governance security-program","any","none"

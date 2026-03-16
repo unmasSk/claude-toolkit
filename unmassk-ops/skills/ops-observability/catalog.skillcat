@@ -1,0 +1,2 @@
+name,plugin,triggers,domains,frameworks,tools
+ops-observability,unmassk-ops,"PromQL LogQL Prometheus Loki Fluent Bit Grafana alerting recording rules metric types counter gauge histogram summary rate() increase() histogram_quantile() cardinality scrape interval log pipeline INPUT FILTER OUTPUT monitoring logging metrics","observability monitoring logging","any","promtool"
