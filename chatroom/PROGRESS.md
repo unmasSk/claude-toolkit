@@ -8,8 +8,9 @@ Sesion autonoma nocturna. El usuario se fue a dormir.
 - [x] Panel de participantes muestra usuarios reales conectados, no placeholders
 - [x] Invocacion de agentes verificada: 10 agentes invokables en /api/agents
 - [ ] Test real de @bilbo con claude -p (requiere sesion interactiva)
-- [ ] Dante escribiendo tests adicionales para features nuevas
-- [ ] Commitear todo cuando tests pasen
+- [x] Dante escribio 52 tests nuevos para features de identidad WS, config, schemas
+- [x] 458 tests totales, 0 fail
+- [x] Commiteado: feat(plugin/chatroom) — 0a06fa7
 
 ## Log
 
@@ -24,3 +25,7 @@ Sesion autonoma nocturna. El usuario se fue a dormir.
 - Schemas: `ConnectedUserSchema` agregado y `ServerRoomStateSchema` actualizado con `connectedUsers`. Tests actualizados.
 - Tests: 405 pass, 0 fail.
 - Backend y frontend reiniciados correctamente.
+- Dante: 52 tests nuevos — WS identity (23), ConnectedUser schemas (9), config resolveAgentDir (9), integracion WS (6), mas schemas connectedUsers (5).
+- Total: 458 tests, 0 fail, 757ms.
+- Commit: feat(plugin/chatroom) — 75 archivos, 0a06fa7.
+- Pendiente para manana: test real con @bilbo via claude -p (requiere sesion interactiva con Max plan).
