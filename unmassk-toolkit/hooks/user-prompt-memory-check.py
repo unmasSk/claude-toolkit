@@ -77,11 +77,12 @@ def main() -> None:
             "[git-memory-bootstrap] Git-memory plugin is active but NOT configured. "
             "BEFORE doing anything else:\n"
             f'1. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-install.py" --auto\n'
-            '2. Use the Skill tool with skill="unmassk-gitmemory" to load the memory rules\n'
-            "3. Show the user a boot summary from the SessionStart output above.\n"
-            "Do NOT greet the user first. Install and boot FIRST.\n"
-            "CRITICAL: Step 2 means calling the Skill tool — "
-            "this is a tool call, not a bash command."
+            '2. Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
+            '3. Use the Skill tool with skill="unmassk-gitmemory" (TOOL CALL, not bash)\n'
+            f'4. Read CALIBRATION.md: Read tool on {PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md\n'
+            "5. Show the user a boot summary from the SessionStart output above.\n"
+            "DO NOT greet the user first. Install and boot FIRST.\n"
+            "DO NOT SKIP ANY STEP."
         )
         sys.exit(0)
 
@@ -103,10 +104,12 @@ def main() -> None:
         # First message — boot instructions (SessionStart already provided all context)
         lines.append(
             f"[git-memory-boot] Plugin root: {PLUGIN_ROOT}\n"
-            "Do these steps NOW before responding to the user:\n"
-            '  Step 1: Use the Skill tool with skill="unmassk-gitmemory" '
-            "(this is a TOOL CALL, not a bash command)\n"
-            "  Step 2: Show the user a boot summary from the SessionStart output above"
+            "MANDATORY — Do these steps NOW before responding to the user:\n"
+            '  Step 1: Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
+            '  Step 2: Use the Skill tool with skill="unmassk-gitmemory" (TOOL CALL, not bash)\n'
+            f'  Step 3: Read CALIBRATION.md: Read tool on {PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md\n'
+            "  Step 4: Show the user a boot summary from the SessionStart output above\n"
+            "DO NOT SKIP ANY STEP. DO NOT GREET THE USER BEFORE COMPLETING ALL STEPS."
         )
     else:
         # Already booted — just plugin root for reference
