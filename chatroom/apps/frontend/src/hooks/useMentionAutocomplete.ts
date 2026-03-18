@@ -35,14 +35,27 @@ function replaceMention(text: string, cursorPos: number, agentName: string): { n
 
 const INVOKABLE_AGENTS = AGENT_REGISTRY.filter((a) => a.invokable);
 
+/** Synthetic @everyone entry — not a real agent, used for broadcast directives */
+const EVERYONE_ENTRY: AgentDefinition = {
+  name: 'everyone',
+  displayName: 'everyone — directive to all agents',
+  role: 'broadcast',
+  model: 'claude-sonnet-4-6',
+  color: 'oklch(0.75 0.12 60)',
+  icon: 'Users',
+  invokable: false,
+};
+
+const ALL_AUTOCOMPLETE = [...INVOKABLE_AGENTS, EVERYONE_ENTRY];
+
 export function useMentionAutocomplete(): UseMentionAutocompleteResult {
   const [showDropdown, setShowDropdown] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const filteredAgents = query === ''
-    ? INVOKABLE_AGENTS
-    : INVOKABLE_AGENTS.filter((a) =>
+    ? ALL_AUTOCOMPLETE
+    : ALL_AUTOCOMPLETE.filter((a) =>
         a.name.startsWith(query.toLowerCase()) ||
         a.displayName.toLowerCase().startsWith(query.toLowerCase())
       );

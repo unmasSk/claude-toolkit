@@ -103,7 +103,8 @@ type ServerMessage =
 // ---------------------------------------------------------------------------
 
 const BRIDGE_PORT = Number(process.env['BRIDGE_PORT'] ?? 3002);
-const WS_URL = 'ws://127.0.0.1:3001/ws/default?name=claude';
+const CHATROOM_HTTP = 'http://127.0.0.1:3001';
+const WS_BASE = 'ws://127.0.0.1:3001/ws/default';
 const HTTP_URL = `http://127.0.0.1:${BRIDGE_PORT}`;
 
 const RING_BUFFER_SIZE = 200;
@@ -225,45 +226,65 @@ function connectWs(): void {
 
   wsStatus = 'connecting';
 
-  let socket: WebSocket;
-  try {
-    socket = new WebSocket(WS_URL);
-  } catch (err) {
-    console.error('WS: failed to create WebSocket:', err);
-    scheduleReconnect();
-    return;
-  }
-
-  wsSocket = socket;
-
-  socket.onopen = () => {
-    console.error('WS: connected to chatroom');
-    wsStatus = 'connected';
-    reconnectAttempts = 0; // reset on successful connection
-  };
-
-  socket.onmessage = (event: MessageEvent) => {
-    let parsed: ServerMessage;
+  // SEC-AUTH-001: Obtain a token before upgrading to WS
+  void (async () => {
+    let wsToken: string;
     try {
-      parsed = JSON.parse(event.data as string) as ServerMessage;
-    } catch {
-      console.error('WS: failed to parse message:', event.data);
+      const res = await fetch(`${CHATROOM_HTTP}/api/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'claude' }),
+      });
+      if (!res.ok) throw new Error(`Auth token request failed: ${res.status}`);
+      const data = (await res.json()) as { token: string };
+      wsToken = data.token;
+    } catch (err) {
+      console.error('WS: failed to obtain auth token:', err);
+      scheduleReconnect();
       return;
     }
 
-    handleServerMessage(parsed);
-  };
+    const wsUrl = `${WS_BASE}?token=${encodeURIComponent(wsToken)}`;
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(wsUrl);
+    } catch (err) {
+      console.error('WS: failed to create WebSocket:', err);
+      scheduleReconnect();
+      return;
+    }
 
-  socket.onerror = (event: Event) => {
-    console.error('WS: error', event);
-  };
+    wsSocket = socket;
 
-  socket.onclose = () => {
-    wsStatus = 'disconnected';
-    wsSocket = null;
-    console.error('WS: connection closed');
-    scheduleReconnect();
-  };
+    socket.onopen = () => {
+      console.error('WS: connected to chatroom');
+      wsStatus = 'connected';
+      reconnectAttempts = 0; // reset on successful connection
+    };
+
+    socket.onmessage = (event: MessageEvent) => {
+      let parsed: ServerMessage;
+      try {
+        parsed = JSON.parse(event.data as string) as ServerMessage;
+      } catch {
+        console.error('WS: failed to parse message:', event.data);
+        return;
+      }
+
+      handleServerMessage(parsed);
+    };
+
+    socket.onerror = (event: Event) => {
+      console.error('WS: error', event);
+    };
+
+    socket.onclose = () => {
+      wsStatus = 'disconnected';
+      wsSocket = null;
+      console.error('WS: connection closed');
+      scheduleReconnect();
+    };
+  })();
 }
 
 function handleServerMessage(msg: ServerMessage): void {

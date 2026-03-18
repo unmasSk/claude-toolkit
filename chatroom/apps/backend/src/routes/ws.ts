@@ -16,10 +16,11 @@ import {
 } from '../db/queries.js';
 import { extractMentions } from '../services/mention-parser.js';
 import { broadcastSync } from '../services/message-bus.js';
-import { invokeAgents, invokeAgent } from '../services/agent-invoker.js';
+import { invokeAgents, invokeAgent, clearQueue, pauseInvocations, resumeInvocations, isPaused } from '../services/agent-invoker.js';
 import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, generateId, nowIso, safeMessage } from '../utils.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
+import { validateToken } from '../services/auth-tokens.js';
 import { ClientMessageSchema, AGENT_BY_NAME } from '@agent-chatroom/shared';
 import type { ServerMessage, Message, ConnectedUser } from '@agent-chatroom/shared';
 
@@ -149,12 +150,15 @@ function resolveConnectionName(rawName: string | undefined): string | null {
 // ---------------------------------------------------------------------------
 
 // connId is stored in the module-level wsConnIds map, not in ws.data
-type WsData = { params: { roomId: string }; query: { name?: string } };
+type WsData = { params: { roomId: string }; query: { name?: string; token?: string } };
 
 export const wsRoutes = new Elysia()
   .ws('/ws/:roomId', {
     params: t.Object({ roomId: t.String() }),
-    query: t.Object({ name: t.Optional(t.String()) }),
+    query: t.Object({
+      name: t.Optional(t.String()),
+      token: t.Optional(t.String()),
+    }),
 
     // SEC-HIGH-001: Hard ceiling on WS frame size — enforced by uWebSockets before handler runs
     maxPayloadLength: 64 * 1024, // 64KB
@@ -166,6 +170,7 @@ export const wsRoutes = new Elysia()
       // origin is not allowed.
       const origin = (ws.data as WsData & { headers?: Record<string, string> }).headers?.['origin'] ?? '';
       if (!ALLOWED_ORIGINS.has(origin)) {
+        log('open rejected: bad origin', origin);
         ws.close();
         return;
       }
@@ -173,19 +178,22 @@ export const wsRoutes = new Elysia()
       const wsData = ws.data as WsData;
       const { roomId } = wsData.params;
 
-      // Resolve connection name from ?name= query param.
-      // If the name collides with an agent name, reject the connection.
-      const rawName = wsData.query?.name;
-      const resolvedName = resolveConnectionName(rawName);
-      if (resolvedName === null) {
+      // SEC-AUTH-001: Token validation.
+      // Clients must present a valid token obtained from POST /api/auth/token.
+      // The name is bound to the token at issuance — the ?name= param is ignored.
+      const rawToken = wsData.query?.token;
+      const tokenName = validateToken(rawToken);
+      if (tokenName === null) {
+        log('open rejected: invalid or missing token', roomId);
         ws.send(JSON.stringify({
           type: 'error',
-          message: `Name '${rawName}' is reserved for agents. Choose a different name.`,
-          code: 'NAME_RESERVED',
+          message: 'Unauthorized. Obtain a token from POST /api/auth/token.',
+          code: 'UNAUTHORIZED',
         } satisfies ServerMessage));
         ws.close();
         return;
       }
+      const resolvedName = tokenName;
 
       // Assign a unique connId for rate limiting and store it in the module map.
       const connId = nextConnId();
@@ -331,6 +339,15 @@ export const wsRoutes = new Elysia()
           if (/@everyone\b/i.test(msg.content)) {
             const directive = msg.content.replace(/@everyone\b/gi, '').trim();
             log('send_message', authorName, '@everyone directive:', directive);
+
+            // @everyone stop — halt all pending and new invocations
+            const isStopDirective = /\b(stop|para|callaos|silence|quiet)\b/i.test(directive);
+            if (isStopDirective) {
+              const cleared = clearQueue(roomId);
+              pauseInvocations();
+              log('@everyone stop — cleared', cleared, 'queued entries, invocations paused');
+            }
+
             const sysId = generateId();
             const sysCreatedAt = nowIso();
             insertMessage({
@@ -345,6 +362,10 @@ export const wsRoutes = new Elysia()
             };
             broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
             ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
+          } else if (isPaused()) {
+            // Non-@everyone human message resumes invocations
+            resumeInvocations();
+            log('send_message', authorName, 'invocations resumed after @everyone stop');
           }
 
           const mentions = extractMentions(msg.content);

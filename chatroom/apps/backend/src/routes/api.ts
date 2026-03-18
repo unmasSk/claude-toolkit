@@ -12,6 +12,7 @@ import {
 import { getAllAgents, getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, safeMessage } from '../utils.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
+import { validateName, issueToken } from '../services/auth-tokens.js';
 
 // ---------------------------------------------------------------------------
 // API route group
@@ -95,6 +96,28 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
   .get('/agents', () => {
     return getAllAgents().map(({ allowedTools: _omit, ...safe }) => safe);
   })
+
+  // POST /api/auth/token — issue a short-lived WS auth token
+  // Body: { name?: string }  →  { token, expiresAt, name }
+  .post(
+    '/auth/token',
+    ({ body, set }) => {
+      const name = validateName((body as { name?: string }).name);
+      if (name === null) {
+        set.status = 400;
+        return { error: 'Invalid or reserved name', code: 'NAME_INVALID' };
+      }
+      const issued = issueToken(name);
+      if (issued === null) {
+        set.status = 503;
+        return { error: 'Token store full — try again later', code: 'TOKEN_STORE_FULL' };
+      }
+      return issued;
+    },
+    {
+      body: t.Object({ name: t.Optional(t.String()) }),
+    }
+  )
 
   // POST /api/rooms/:id/invite — add agents to a room (create agent_session rows)
   .post(

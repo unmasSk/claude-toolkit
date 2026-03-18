@@ -215,3 +215,21 @@ Rule: health/liveness endpoints MUST be exempt from auth if they are used for si
 ## `inFlight` lock keyed by agent name only (not agent:room)
 
 Using a `Set<string>` keyed by agent name alone for a per-agent in-flight lock blocks the agent across ALL rooms when the desired scope is per-agent-per-room. The `activeInvocations` map uses `${agentName}:${roomId}` — the `inFlight` lock must use the same compound key for consistency. Found in `agent-invoker.ts:inFlight` (2026-03-18). Check that all concurrency primitives in the same module use the same key scope.
+
+NOTE (2026-03-18 follow-up): This was already fixed — `agent-invoker.ts:144` uses `${agentName}:${roomId}` as the compound key. Do not re-flag.
+
+## Unbounded in-memory token Map with public unauthenticated endpoint
+
+An in-memory `Map<string, TokenEntry>` for WS auth tokens with no size cap, combined with a `POST /api/auth/token` endpoint that is unauthenticated and has no rate limit, creates a memory-exhaustion vector. The GC interval only removes expired entries; it does not cap total size. Found in `auth-tokens.ts` (2026-03-18).
+
+Rule: any in-memory store fed by a public endpoint must have an upper-bound (`TOKEN_MAX`) checked in the issuer function before inserting.
+
+## Async reconnect path that omits retry on token fetch failure
+
+When a WS connect function is wrapped in an async IIFE to fetch an auth token first, the catch block for token fetch failure must schedule a reconnect the same way `ws.onclose` does — otherwise token fetch errors leave the UI silently stuck in `disconnected` while WS-level errors correctly retry. Found in `ws-store.ts` (2026-03-18).
+
+Asymmetry pattern: `ws.onclose` → retry; token fetch error → no retry. Always mirror the reconnect logic across all error paths in the same connect flow.
+
+## Token in WS query string without documenting the access-log risk
+
+Passing a short-lived auth token as `?token=<uuid>` in the WS upgrade URL is the only standard option when the `Authorization` header cannot be set (browser WebSocket). However, the token appears in server access logs if logging is enabled. This is acceptable for localhost dev tools, but the trade-off must be documented in a code comment. Found in `claude-bridge.ts:247` and `ws-store.ts` (2026-03-18).

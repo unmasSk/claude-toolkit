@@ -45,3 +45,28 @@ Without this, the outer finally would delete the entry that the retry had just a
 - `mention-parser.ts` — depth param only (no authorType), NEVER_INVOKE set for 'user'/'system'/'claude'
 - `agent-invoker.ts` — `InvocationContext.depth + retryScheduled`, composite inFlight key, chain detection
 - `routes/ws.ts` — explicit `0` at human message entry point (no authorType arg)
+
+---
+
+## @everyone stop — pause/clear pattern (2026-03-18)
+
+Server-side enforcement for `@everyone stop` directives.
+
+### agent-invoker.ts exports
+- `clearQueue(roomId)` — removes all pendingQueue entries for a room, returns count removed
+- `pauseInvocations()` / `resumeInvocations()` / `isPaused()` — module-level `_paused` flag
+- `scheduleInvocation` checks `_paused` at the very top (before inFlight check) and returns early
+
+### ws.ts wiring
+- Stop words regex: `/\b(stop|para|callaos|silence|quiet)\b/i` applied to the directive portion (content after stripping `@everyone`)
+- On stop: call `clearQueue(roomId)` then `pauseInvocations()`
+- Resume: in the `else if (isPaused())` branch of the non-`@everyone` path — `resumeInvocations()` called before `extractMentions`
+
+### auth-tokens.ts token store limit (2026-03-18)
+- `issueToken` returns `null` when `tokens.size >= 10_000`
+- Caller in `api.ts` returns HTTP 503 with `{ error, code: 'TOKEN_STORE_FULL' }`
+
+### useMentionAutocomplete.ts — everyone special entry (2026-03-18)
+- `EVERYONE_ENTRY: AgentDefinition` — synthetic entry with `invokable: false`, name='everyone'
+- `ALL_AUTOCOMPLETE = [...INVOKABLE_AGENTS, EVERYONE_ENTRY]`
+- Filter uses `ALL_AUTOCOMPLETE` — `everyone` appears when user types `@e` or `@ev`
