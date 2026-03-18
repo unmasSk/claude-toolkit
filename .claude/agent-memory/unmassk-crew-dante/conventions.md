@@ -1,38 +1,95 @@
 ---
-name: omawamapas-backend-test-conventions
-description: Test conventions for omawamapas/backend — Vitest, ESM, file structure, naming patterns
+name: test-conventions
+description: Test conventions for chatroom/apps/backend — bun:test, ESM, SQLite, WebSocket
 type: project
 ---
 
 ## Framework
-- Vitest with `@vitest-environment node` directive at top of every test file
-- ESM modules — all mocks MUST use `vi.hoisted()` before `vi.mock()`, imports come AFTER mock declarations
 
-## File Organization
-- Tests in `src/api/<module>/__tests__/`
-- Naming: `<module>.<concern>.test.ts`
-- Adversarial tests get their own file: `<module>.adversarial.test.ts`
-- Golden tests: `<module>.queries.test.ts`, `<module>.service.test.ts`, etc.
+- Runtime: **Bun** (not Node)
+- Test framework: `bun:test` (NOT Vitest, NOT Jest)
+- Import: `import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'`
+- Run: `bun test` from `chatroom/apps/backend/`
+- Coverage: `bun test --coverage`
 
-## Import Order (MANDATORY for ESM)
-1. `vi.hoisted()` declarations
-2. `vi.mock()` calls
-3. Actual imports from source
+## File Structure
+
+```
+src/
+  services/
+    foo.test.ts          # Unit tests for services/foo.ts
+    foo-bar.test.ts      # Additional coverage file (e.g., file-reading paths)
+  db/
+    queries-real.test.ts # Real module tests with in-memory DB mock
+    connection.test.ts   # DB initialization path
+  routes/
+    api.test.ts          # HTTP route integration tests
+    ws.test.ts           # WebSocket integration tests
+  utils.test.ts
+```
+
+## Naming Conventions
+
+- File: `<module-name>.test.ts` or `<module-name>-<variant>.test.ts`
+- Describe: `'<module> — <function name>'` or `'<feature>'`
+- It: `'<does what> when <condition>'` or `'<assertion>'`
+
+## mock.module() Ordering Rule (CRITICAL)
+
+In Bun, `mock.module()` MUST be called BEFORE any static import of the module being mocked (or any module that imports it transitively). Pattern:
+
+```ts
+import { mock } from 'bun:test';
+import { Database } from 'bun:sqlite';
+
+// 1. Declare all mock.module() calls
+mock.module('./connection.js', () => ({ getDb: () => _db }));
+
+// 2. THEN import the code under test
+import { insertMessage } from './queries.js';
+```
 
 ## Assertion Style
-- Standard Vitest `expect(...).toBe/toEqual/toContain/toThrow/toHaveBeenCalledWith`
-- `it.each()` for parametrized cases (SQL injection payloads, role lists)
-- `describe` nesting for RBAC role groups
 
-## Test Structure
-- `beforeEach(() => vi.clearAllMocks())` in every describe that uses mocks
-- Arrange-Act-Assert with inline comments on non-obvious assertions
-- `mockQuery.mock.calls[0][0]` for SQL string, `[0][1]` for params array
+- `expect(x).toBe(y)` — strict equality
+- `expect(x).toEqual(y)` — deep equality
+- `expect(x).toContain(y)` — substring or array element
+- `expect(x).toBeNull()` / `expect(x).toBeDefined()`
+- `expect(x).toBeGreaterThan(n)` / `toBeCloseTo(n, precision)`
+- No `toHaveBeenCalledWith` — use captured arrays instead
 
-## Coverage Target
-- 97%+ per enterprise audit standard (Step 3 golden tests gate)
+## Test Isolation
+
+- Each DB test: `beforeEach(() => { currentDb = makeDb(); })` + `afterEach(() => currentDb.close())`
+- Do NOT close the DB used by another test file's mock — use SEPARATE DB instances
+- WS tests: spin up server + close in afterAll; each test opens its own WebSocket
+- Never share mutable state between tests without explicit reset
+
+## Coverage Targets
+
+- Target: 97% lines overall
+- Achieved: ~94.67% lines (2026-03)
+- Remaining gap: `agent-invoker.ts` subprocess code (lines 267-479) — requires real claude binary, not testable in unit tests
+- Everything else: 98%+
 
 ## Hard Rules
-- Never hardcode role lists — import from `search.schemas.js` (SEARCH_USER_ACCESS_ROLES)
-- Never hardcode error messages — assert with `toThrow('partial message')`
-- COUNT query is `calls[0]`, DATA query is `calls[1]` (Promise.all order)
+
+- NEVER use `Object.defineProperty` on ESM namespace bindings — use `mock.module()` instead
+- NEVER use `require()` for ESM-first modules (use dynamic `import()` if needed)
+- NEVER mark tests as `skip` — fix them or remove them
+- NEVER write tautological assertions like `expect(true).toBe(true)`
+- Test behavior, not implementation details
+
+## Non-exported Functions
+
+When a function is not exported (e.g., `resolveConnectionName` in ws.ts), inline a copy of the logic
+in the test file with a comment noting the source. Add a note that if ws.ts changes the rules,
+tests must be updated manually. Do NOT test implementation details of other modules via source-file reads.
+
+## config.ts Testing
+
+`resolveAgentDir()` is not exported. Test it by:
+1. Inlining the logic with env overrides passed as a parameter
+2. Testing the sort-descending version selection with simulated path arrays
+3. Testing the fallback path string construction directly
+Do NOT try to reload ESM modules with modified env vars — Bun caches them.

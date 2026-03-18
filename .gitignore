@@ -20,3 +20,4 @@ __pycache__/
 
 # unmassk-toolkit generated (do not track)
 .claude/.unmassk/
+.claude/worktrees/

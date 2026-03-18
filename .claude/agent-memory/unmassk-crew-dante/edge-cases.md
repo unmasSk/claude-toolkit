@@ -56,3 +56,19 @@ Test both INT4_MAX (accept) and INT4_MAX+1 (reject)
 ## Empty Term Behavior
 When term is empty string: no LIKE condition added to SQL.
 Assert: `countParams` does not contain any value starting with `%`.
+
+## WS Identity / Name Resolution (chatroom ws.ts)
+- `resolveConnectionName` is NOT exported → inline a copy in the test file (same pattern as rate-limit helper)
+- Reserved names: all AGENT_BY_NAME keys EXCEPT 'user' and 'claude'
+- Check is case-insensitive: 'BILBO', 'Ultron', 'Dante' all rejected
+- Empty string and whitespace-only → 'user' (not null)
+- NAME_RE: `/^[a-zA-Z0-9_-]{1,32}$/` — spaces, `!`, `@` all rejected
+- 'user' and 'claude' explicitly allowed despite being in AGENT_BY_NAME
+- Import `AGENT_BY_NAME` from `@agent-chatroom/shared` to derive reserved names dynamically (never hardcode)
+
+## WS connectedUsers Tracking
+- Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
+- Use `publishToSelf: true` on test server for echo tests
+- After disconnect: allow ~50ms yield before asserting user is gone from list
+- room_state broadcast on connect: use `ws.publish(topic, ...)` (does not send to self with publishToSelf)
+- connectedUsers timestamp: assert `!isNaN(new Date(ts).getTime())` — don't check exact value

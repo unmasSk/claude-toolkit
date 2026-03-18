@@ -27,3 +27,81 @@ When writing a Python PreToolUse hook that validates file paths:
 ## set -euo pipefail vs set -e
 
 Bare `set -e` doesn't catch unset variable references (`-u`) or pipeline failures (`-o pipefail`). Always use `set -euo pipefail` in new and existing scripts.
+
+## Elysia 1.4.28: publishToSelf is dead config — self-deliver manually
+
+`publishToSelf: true` in the `.ws()` config compiles with no error but has no effect in Elysia 1.4.28 — the string "publishToSelf" does not appear in any compiled Elysia .js file. `ws.publish()` (and `broadcastSync` which calls it) always excludes the calling socket.
+
+Fix: after every `broadcastSync(roomId, event, ws)` call in a WS handler, add an explicit self-send:
+```typescript
+ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(msg) }));
+```
+Apply `safeMessage()` (or `stripSessionId` for the full event envelope) to the self-send — same sanitization that `broadcastSync` applies internally before publishing.
+
+Remove the dead `publishToSelf: true` line — it gives false confidence that self-delivery works.
+
+## React StrictMode: useEffect cleanup cannot return a value
+
+The first draft of the StrictMode WebSocket fix had the cleanup return a cancellation
+function (`return () => clearTimeout(timeoutId)`). This is invalid — React cleanup
+functions must return `void | undefined`; any return value is silently ignored.
+
+The correct pattern is to store the timer ID in a `useRef` and cancel it at the TOP
+of the next effect run, not inside the cleanup itself. See implementation-patterns.md
+for the full pattern.
+
+## bun test finds no files from apps/frontend
+
+There are no `.test.ts` / `.spec.ts` files under `chatroom/apps/frontend/src`. Run
+`bun test` from the monorepo root (`/Users/unmassk/Workspace/claude-toolkit/chatroom`)
+or use `bunx tsc --noEmit` as a type-check fallback from the package directory.
+
+## Pre-existing tsconfig rootDir error in apps/frontend
+
+`chatroom/apps/frontend/tsconfig.json` includes `vite.config.ts` via a glob but
+`rootDir` is `src/`, so `tsc --noEmit` always exits 2 with a TS6059 error. This is
+pre-existing and unrelated to any edits. Filter it with grep or ignore when scanning
+for new errors introduced by a change.
+
+## Elysia WS upgrade() hook ignores return values
+
+Elysia's `upgrade()` hook on `.ws()` routes cannot reject connections — any return value (including `{ status: 403 }` or a `Response`) is silently discarded and the upgrade proceeds regardless. Do not use `upgrade()` for auth/origin checks. Instead:
+- Move origin/auth checks to the `open()` handler.
+- Call `ws.close()` immediately if the check fails, then `return`.
+- Store per-connection state (e.g. connId for rate limiting) in a module-level `Map<ws, data>` keyed by `ws.raw ?? ws` (the raw uWebSockets handle), populated in `open()` and cleaned up in `close()`.
+- The `WsData` type (from `ws.data`) cannot carry custom fields set in `upgrade()` — they are not propagated.
+
+## WS name validation blocked legitimate orchestrator (chatroom)
+
+Initial validation for `?name=` query param blocked ALL agent names including `claude`. The test `?name=Claude` returned `NAME_RESERVED`.
+Fix: `RESERVED_AGENT_NAMES` excludes `user` and `claude` from the blocked set — only specialist invokable agents (bilbo, ultron, etc.) are blocked to prevent impersonation.
+Rule: think about who legitimately connects, not just who to block.
+
+## globSync import location
+
+`globSync` is exported from `node:fs` in Bun (not `node:fs/promises`, not a separate package).
+Correct: `import { existsSync, globSync } from 'node:fs'`
+
+## Adding a field to ServerRoomState breaks 3 tests
+
+The `ServerRoomStateSchema` is referenced in 3 test objects (ServerRoomStateSchema tests x2, ServerMessageSchema union test x1). When adding a required field, all 3 need updating. Find with: `grep -n "room_state" packages/shared/src/schemas.test.ts`
+
+## React StrictMode: second connect() call kills a CONNECTING socket
+
+StrictMode lifecycle: mount → connect(WS1) → unmount → cleanup(schedules disconnect 100ms) →
+remount → clearTimeout(ok) → connect() — but this second connect() hit the old "close existing
+socket unconditionally" block and closed WS1 while it was still in CONNECTING state, producing
+"WebSocket closed before connection established".
+
+Fix in ws-store.ts `connect()`: guard before the close block —
+```typescript
+if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+  const currentRoom = get().roomId;
+  if (currentRoom === roomId) {
+    return; // Already connecting/connected — don't recreate
+  }
+}
+```
+Only close the existing socket when it is for a different room or is in CLOSING/CLOSED state.
+The original `socket.onclose = null; socket.close(); socket = null` block stays intact beneath
+the guard for the different-room case.

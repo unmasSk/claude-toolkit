@@ -65,6 +65,67 @@ if not str(resolved).startswith(str(cwd)):
 ```
 Apply in `main()` after parsing args, before any file access.
 
+## React StrictMode double-mount protection for WebSocket hooks
+
+File: `chatroom/apps/frontend/src/hooks/useWebSocket.ts`
+
+React dev mode (StrictMode) mounts, unmounts, and remounts every component immediately.
+Without protection, the `useEffect` cleanup fires `disconnect()` while the WebSocket is
+still opening, producing "WebSocket is closed before the connection is established".
+
+Pattern: hold a pending-disconnect timer in a `useRef`. Delay `disconnect()` by 100ms in
+the cleanup. Cancel the timer at the top of the next effect run if a remount arrives
+within that window (StrictMode). On a real unmount no remount follows within 100ms so
+the timer fires normally.
+
+```typescript
+const cleanupRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+useEffect(() => {
+  if (cleanupRef.current !== undefined) {
+    clearTimeout(cleanupRef.current);
+    cleanupRef.current = undefined;
+  }
+  connect(roomId);
+  return () => {
+    cleanupRef.current = setTimeout(() => {
+      cleanupRef.current = undefined;
+      disconnect();
+    }, 100);
+  };
+}, [roomId, connect, disconnect]);
+```
+
+Key constraints:
+- `useRef` must be at component level, never inside the effect.
+- The cleanup cannot return a function — React ignores return values from cleanups.
+- Cancellation must happen at the top of the next effect run.
+- 100ms is sufficient for StrictMode (synchronous in dev) without delaying real disconnects.
+
+## Elysia WS query params pattern (chatroom)
+
+To read `?name=foo` in a WS handler, add `query: t.Object({ name: t.Optional(t.String()) })` alongside `params:` in the `.ws()` config. Access via `(ws.data as WsData).query?.name`. Update the `WsData` type: `type WsData = { params: { roomId: string }; query: { name?: string } }`.
+
+## WS per-connection state tracking pattern (chatroom)
+
+Three module-level Maps for tracking WS connection state:
+```typescript
+const wsConnIds = new Map<any, string>();          // ws handle → connId
+const connStates = new Map<string, ConnState>();   // connId → {name, roomId, connectedAt}
+const roomConns = new Map<string, Set<string>>();  // roomId → Set<connId>
+```
+Populate in `open()`, clean up in `close()`. This allows per-connection author name without putting it in `ws.data`.
+
+## AGENT_DIR glob resolution pattern (chatroom)
+
+Use `globSync` from `node:fs` to find versioned toolkit directories:
+```typescript
+import { existsSync, globSync } from 'node:fs';
+const matches = globSync(join(homedir(), '.claude/plugins/cache/.../*/agents'));
+matches.sort().reverse(); // highest version first
+return matches[0];
+```
+
 ## BM25 Skill Search Pattern (unmassk-crew)
 
 Reference implementation lives at `unmassk-design/skills/unmassk-design/scripts/core.py` lines 89-148.
