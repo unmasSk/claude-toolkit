@@ -475,6 +475,9 @@ async function spawnAndParse(
             resultSessionId = validateSessionId(event.sessionId);
             resultCostUsd = event.costUsd;
             resultSuccess = event.success;
+            const durationSec = (event.durationMs / 1000).toFixed(1);
+            const totalTokens = event.inputTokens + event.outputTokens;
+            const denialCount = event.permissionDenials.length;
             logger.info({
               agentName,
               success: resultSuccess,
@@ -484,8 +487,8 @@ async function spawnAndParse(
               inputTokens: event.inputTokens,
               outputTokens: event.outputTokens,
               cacheReadTokens: event.cacheReadTokens,
-              permissionDenials: event.permissionDenials.length > 0 ? event.permissionDenials : undefined,
-            }, 'result');
+              permissionDenials: denialCount > 0 ? event.permissionDenials : undefined,
+            }, `${agentName} ${resultSuccess ? '✓' : '✗'} ${durationSec}s | ${event.numTurns} turns | ${totalTokens.toLocaleString()} tokens | $${resultCostUsd.toFixed(4)}${denialCount ? ` | ${denialCount} denied` : ''}`);
           }
           // text events are collected implicitly via resultText from the result event
         }
