@@ -5,6 +5,9 @@
 ### Added
 - `compliance-legal-docs` skill: SKILL.md created with 42-reference routing table organized by category (contract review, GDPR/privacy, risk assessment, litigation, French employment law, vendor due diligence, document processing, legal ops)
 
+### Fixed
+- Boot hook now skips tombstoned entries when merging glossary remembers and memos into the session summary — `Resolved-Remember:` and `Resolved-Memo:` tombstones are respected on the glossary merge path, not just on the recent-commits path.
+
 ## [1.6.0] - 2026-03-16 (unmassk-crew)
 
 ### Added
