@@ -151,11 +151,8 @@ const startedAt = Date.now();
 
 async function checkSingleton(): Promise<void> {
   try {
-    // DECEPTION-002/SEC-MED-003: pass the token so the probe gets 200 (not 401)
-    // from an existing authenticated bridge. Without auth, every probe returned
-    // 401 and the check always concluded "no bridge running".
+    // /health is unauthenticated — if another bridge is running it responds 200
     const resp = await fetch(`${HTTP_URL}/health`, {
-      headers: { Authorization: `Bearer ${BRIDGE_TOKEN}` },
       signal: AbortSignal.timeout(1000),
     });
     if (resp.status === 200) {
@@ -171,10 +168,19 @@ async function checkSingleton(): Promise<void> {
 // Ring buffer helpers
 // ---------------------------------------------------------------------------
 
+/** Set of message IDs in the ring buffer for O(1) dedup check */
+const ringBufferIds = new Set<string>();
+
 function pushToBuffer(msg: Message): void {
+  // Dedup: skip messages already present (can arrive again after reconnect)
+  if (ringBufferIds.has(msg.id)) return;
+
   ringBuffer.push(msg);
+  ringBufferIds.add(msg.id);
+
   if (ringBuffer.length > RING_BUFFER_SIZE) {
-    ringBuffer.shift();
+    const evicted = ringBuffer.shift();
+    if (evicted) ringBufferIds.delete(evicted.id);
   }
 }
 
@@ -291,11 +297,14 @@ function connectWs(): void {
 function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case 'room_state': {
-      // Seed ring buffer with recent messages from server
+      // Replace ring buffer with server state on (re)connect
+      // Clear both the buffer and the ID set so dedup tracking stays in sync
       ringBuffer.length = 0;
+      ringBufferIds.clear();
       const seed = msg.messages.slice(-RING_BUFFER_SIZE);
       for (const m of seed) {
         ringBuffer.push(m);
+        ringBufferIds.add(m.id);
       }
       connectedUsers = msg.connectedUsers;
       break;
@@ -372,11 +381,7 @@ function jsonResponse(data: unknown, status = 200): Response {
 async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
-  // Auth check (except /health which we also protect)
-  const authError = checkAuth(req);
-  if (authError) return authError;
-
-  // GET /health
+  // GET /health — no auth required (used by health checks and singleton probe)
   if (req.method === 'GET' && url.pathname === '/health') {
     return jsonResponse({
       status: wsStatus === 'connected' ? 'ok' : 'disconnected',
@@ -387,6 +392,10 @@ async function handleRequest(req: Request): Promise<Response> {
       uptime: Math.floor((Date.now() - startedAt) / 1000),
     });
   }
+
+  // All other endpoints require auth
+  const authError = checkAuth(req);
+  if (authError) return authError;
 
   // GET /messages?since=<messageId>
   if (req.method === 'GET' && url.pathname === '/messages') {

@@ -15,6 +15,45 @@ import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
 import { validateName, issueToken } from '../services/auth-tokens.js';
 
 // ---------------------------------------------------------------------------
+// SEC-FIX 7: Rate limiter for POST /api/auth/token.
+// We intentionally do NOT key by X-Forwarded-For — headers are trivially
+// spoofed and the backend runs behind a proxy we do not control.
+// Using 'global' caps the total token-issuance rate server-wide, which is
+// sufficient to prevent brute-force token farming.
+// ---------------------------------------------------------------------------
+
+interface ApiBucket {
+  tokens: number;
+  lastRefill: number;
+}
+
+const API_RATE_LIMIT_MAX = 20;           // 20 token requests allowed per window
+const API_RATE_LIMIT_WINDOW_MS = 60_000; // per minute
+const apiBuckets = new Map<string, ApiBucket>();
+
+function checkApiRateLimit(key: string): boolean {
+  const now = Date.now();
+  let bucket = apiBuckets.get(key);
+
+  if (!bucket) {
+    bucket = { tokens: API_RATE_LIMIT_MAX - 1, lastRefill: now };
+    apiBuckets.set(key, bucket);
+    return true;
+  }
+
+  const elapsed = now - bucket.lastRefill;
+  const refill = Math.floor((elapsed / API_RATE_LIMIT_WINDOW_MS) * API_RATE_LIMIT_MAX);
+  if (refill > 0) {
+    bucket.tokens = Math.min(API_RATE_LIMIT_MAX, bucket.tokens + refill);
+    bucket.lastRefill = now;
+  }
+
+  if (bucket.tokens <= 0) return false;
+  bucket.tokens -= 1;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // API route group
 // ---------------------------------------------------------------------------
 
@@ -61,7 +100,7 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
         return { error: 'Room not found', code: 'NOT_FOUND' };
       }
 
-      const limit = Math.min(Number(query.limit ?? ROOM_STATE_MESSAGE_LIMIT), 100);
+      const limit = Math.max(1, Math.min(Number(query.limit ?? ROOM_STATE_MESSAGE_LIMIT), 100));
 
       if (query.before) {
         const rows = getMessagesBefore(params.id, query.before, limit);
@@ -102,6 +141,11 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
   .post(
     '/auth/token',
     ({ body, set }) => {
+      // SEC-FIX 7: Rate limit keyed by 'global' — never by X-Forwarded-For.
+      if (!checkApiRateLimit('global')) {
+        set.status = 429;
+        return { error: 'Too many token requests — try again later', code: 'RATE_LIMIT' };
+      }
       const name = validateName((body as { name?: string }).name);
       if (name === null) {
         set.status = 400;

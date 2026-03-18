@@ -18,6 +18,10 @@ interface WsState {
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+// FIX StrictMode-async: guard set BEFORE the async auth fetch so concurrent
+// synchronous connect() calls (React StrictMode double-mount) don't both slip
+// through and spawn two WebSockets.
+let connectingRoomId: string | null = null;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
@@ -121,13 +125,17 @@ export const useWsStore = create<WsState>((set, get) => ({
       reconnectTimer = null;
     }
 
-    // If already connecting/connected to the same room, reuse the socket.
-    // StrictMode double-invocation would otherwise kill a CONNECTING socket before
-    // the handshake completes, producing "WebSocket closed before connection established".
+    // FIX StrictMode-async: check connectingRoomId BEFORE the async fetch.
+    // The old guard checked `socket` which is only set after the fetch resolves —
+    // StrictMode's two synchronous calls both saw socket===null and both launched
+    // an auth fetch, creating two WebSockets. This guard fires synchronously.
+    if (connectingRoomId === roomId) return;
+
+    // If already connected to the same room, reuse the socket.
     if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
       const currentRoom = get().roomId;
       if (currentRoom === roomId) {
-        return; // Already connecting/connected to this room — don't recreate
+        return;
       }
     }
 
@@ -138,6 +146,7 @@ export const useWsStore = create<WsState>((set, get) => ({
       socket = null;
     }
 
+    connectingRoomId = roomId;
     set({ status: 'connecting', roomId });
 
     // SEC-AUTH-001: Obtain a short-lived token before opening the WS connection.
@@ -147,13 +156,14 @@ export const useWsStore = create<WsState>((set, get) => ({
         const res = await fetch('/api/auth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'user' }),
+          body: JSON.stringify({ name: 'Bex' }),
         });
         if (!res.ok) throw new Error(`Auth token request failed: ${res.status}`);
         const data = (await res.json()) as { token: string };
         token = data.token;
       } catch (err) {
         console.error('[ws-store] Failed to obtain auth token:', err);
+        connectingRoomId = null;
         set({ status: 'disconnected' });
 
         const currentRoomId = get().roomId;
@@ -175,6 +185,7 @@ export const useWsStore = create<WsState>((set, get) => ({
       socket = ws;
 
       ws.onopen = () => {
+        connectingRoomId = null;
         reconnectAttempts = 0;
         set({ status: 'connected' });
       };
@@ -186,6 +197,7 @@ export const useWsStore = create<WsState>((set, get) => ({
       };
 
       ws.onclose = () => {
+        connectingRoomId = null;
         socket = null;
         set({ status: 'disconnected' });
 
@@ -209,6 +221,7 @@ export const useWsStore = create<WsState>((set, get) => ({
   },
 
   disconnect: () => {
+    connectingRoomId = null;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

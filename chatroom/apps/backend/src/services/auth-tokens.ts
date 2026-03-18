@@ -14,14 +14,33 @@ import { AGENT_BY_NAME } from '@agent-chatroom/shared';
 // Name validation (mirrors resolveConnectionName in ws.ts)
 // ---------------------------------------------------------------------------
 
-const RESERVED_AGENT_NAMES = new Set(
-  Array.from(AGENT_BY_NAME.keys()).filter((n) => n !== 'user' && n !== 'claude')
-);
+/**
+ * SEC-AUTH-002: "claude" is an identity-sensitive name.
+ * "claude" is the orchestrator bridge identity — impersonation would let any
+ * client inject messages that appear to come from the orchestrator.
+ * It is excluded from token issuance via the public endpoint; the bridge
+ * authenticates with a pre-shared token, not this endpoint.
+ *
+ * "user" is intentionally NOT reserved — it is the default frontend identity
+ * and must be obtainable via POST /api/auth/token.
+ * Although "user" appears in AGENT_BY_NAME (as a human participant entry),
+ * it is excluded here so the frontend can register with that name.
+ */
+const EXTRA_RESERVED = new Set(['claude']);
+const RESERVED_AGENT_NAMES = new Set([
+  ...Array.from(AGENT_BY_NAME.keys()).filter((n) => n !== 'user'),
+  ...EXTRA_RESERVED,
+]);
 const NAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 
-/** Returns the normalised name or null if invalid / reserved. */
+/**
+ * Returns the normalised name or null if invalid / reserved / empty.
+ * SEC-AUTH-003: Empty names are rejected — the frontend must send an explicit
+ * name. The previous default of 'user' allowed anonymous tokens to silently
+ * assume the default human identity.
+ */
 export function validateName(rawName: string | undefined): string | null {
-  if (!rawName || rawName.trim() === '') return 'user';
+  if (!rawName || rawName.trim() === '') return null;
   const name = rawName.trim();
   if (!NAME_RE.test(name)) return null;
   if (RESERVED_AGENT_NAMES.has(name.toLowerCase())) return null;
@@ -55,6 +74,8 @@ export function issueToken(name: string): { token: string; expiresAt: string } |
 /**
  * Validate a token and return the associated name.
  * Returns null if the token is missing, unknown, or expired.
+ * SEC-AUTH-004: One-time-use — the token is deleted on first successful
+ * validation to prevent replay attacks via token reuse.
  */
 export function validateToken(token: string | undefined): string | null {
   if (!token) return null;
@@ -64,6 +85,8 @@ export function validateToken(token: string | undefined): string | null {
     tokens.delete(token);
     return null;
   }
+  // Consume the token: one successful WS upgrade per token issued.
+  tokens.delete(token);
   return entry.name;
 }
 

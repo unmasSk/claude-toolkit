@@ -261,25 +261,30 @@ body {
   padding: 14px 20px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 
 .message {
-  padding: 5px 0;
+  padding: 5px 8px;
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
+  flex-wrap: wrap;
   gap: 0;
   line-height: 1.55;
+  border-radius: 6px;
 }
 
 .msg-time {
   font-size: 10px;
   color: var(--text-muted);
   font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  min-width: 38px;
-  margin-right: 10px;
+  margin-left: auto;
+  padding-left: 8px;
   user-select: none;
   flex-shrink: 0;
+  align-self: flex-end;
+  line-height: 1.2;
+  padding-bottom: 1px;
 }
 
 .msg-author {
@@ -309,14 +314,52 @@ body {
   color: var(--accent);
 }
 
-.system-msg {
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 6px 0;
+.system-pill {
   display: flex;
+  justify-content: center;
+  padding: 3px 0;
+}
+
+.system-pill-inner {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-style: italic;
+  gap: 5px;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  user-select: none;
+}
+
+.system-pill-inner.error {
+  background: color-mix(in oklch, var(--error) 15%, transparent);
+  color: var(--error);
+}
+
+.system-pill-inner.join {
+  color: var(--success);
+}
+
+.system-pill-inner.leave {
+  color: var(--text-secondary);
+}
+
+.system-pill-inner.queue-toggle {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  font-size: 10px;
+}
+
+.system-pill-inner.queue-toggle:hover {
+  background: var(--surface-card);
+}
+
+.system-queue-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .tool-line {
@@ -327,6 +370,13 @@ body {
   align-items: center;
   gap: 6px;
   opacity: 0.7;
+}
+
+.tool-agent {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 0;
 }
 
 .tool-badge {
@@ -485,6 +535,67 @@ body {
 .av-alexandria { background: oklch(25% 0.05 300); color: var(--agent-alexandria); }
 .av-gitto     { background: oklch(25% 0.05 85);  color: var(--agent-gitto); }
 .av-user      { background: oklch(25% 0.04 145); color: var(--agent-user); }
+
+/* Agent message background tints — very subtle, almost transparent */
+.bg-claude    { background: color-mix(in oklch, var(--agent-claude) 6%, transparent); }
+.bg-bilbo     { background: color-mix(in oklch, var(--agent-bilbo) 6%, transparent); }
+.bg-ultron    { background: color-mix(in oklch, var(--agent-ultron) 6%, transparent); }
+.bg-cerberus  { background: color-mix(in oklch, var(--agent-cerberus) 6%, transparent); }
+.bg-dante     { background: color-mix(in oklch, var(--agent-dante) 6%, transparent); }
+.bg-argus     { background: color-mix(in oklch, var(--agent-argus) 6%, transparent); }
+.bg-moriarty  { background: color-mix(in oklch, var(--agent-moriarty) 6%, transparent); }
+.bg-house     { background: color-mix(in oklch, var(--agent-house) 6%, transparent); }
+.bg-yoda      { background: color-mix(in oklch, var(--agent-yoda) 6%, transparent); }
+.bg-alexandria { background: color-mix(in oklch, var(--agent-alexandria) 6%, transparent); }
+.bg-gitto     { background: color-mix(in oklch, var(--agent-gitto) 6%, transparent); }
+.bg-user      { background: color-mix(in oklch, var(--agent-user) 6%, transparent); }
+
+/* --- Markdown rendering inside message content --- */
+.msg-content .md-para {
+  /* Inline paragraph — no block layout, flows with the message line */
+  display: inline;
+}
+
+.msg-content .md-code-inline {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  background: var(--surface-card);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.msg-content .md-pre {
+  display: block;
+  margin: 4px 0;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+}
+
+.msg-content .md-pre .md-code-block {
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.msg-content .md-ul,
+.msg-content .md-ol {
+  display: block;
+  margin: 4px 0 4px 18px;
+}
+
+.msg-content .md-li {
+  display: list-item;
+  margin: 1px 0;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
 
 /* Mention highlight backgrounds */
 .mention-claude    { color: var(--agent-claude);    background: oklch(25% 0.04 250); }

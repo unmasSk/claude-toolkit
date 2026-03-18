@@ -13,27 +13,48 @@ interface ChatState {
   setLoadingHistory: (loading: boolean) => void;
 }
 
+// Module-level dedup set — survives across Zustand set() race conditions
+// that occur when 2 StrictMode WS connections deliver the same message
+const seenIds = new Set<string>();
+
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isLoadingHistory: false,
   hasMoreHistory: false,
 
-  appendMessage: (msg) =>
-    set((state) => ({ messages: [...state.messages, msg] })),
+  appendMessage: (msg) => {
+    if (seenIds.has(msg.id)) return;
+    seenIds.add(msg.id);
+    set((state) => ({ messages: [...state.messages, msg] }));
+  },
 
-  /** FIX 17: batch append for coalesced WS flush */
-  appendMessages: (msgs) =>
-    set((state) => ({ messages: [...state.messages, ...msgs] })),
+  appendMessages: (msgs) => {
+    const fresh = msgs.filter((m) => {
+      if (seenIds.has(m.id)) return false;
+      seenIds.add(m.id);
+      return true;
+    });
+    if (fresh.length === 0) return;
+    set((state) => ({ messages: [...state.messages, ...fresh] }));
+  },
 
-  prependHistory: (msgs, hasMore) =>
+  prependHistory: (msgs, hasMore) => {
+    const fresh = msgs.filter((m) => {
+      if (seenIds.has(m.id)) return false;
+      seenIds.add(m.id);
+      return true;
+    });
     set((state) => ({
-      messages: [...msgs, ...state.messages],
+      messages: [...fresh, ...state.messages],
       hasMoreHistory: hasMore,
       isLoadingHistory: false,
-    })),
+    }));
+  },
 
-  clearMessages: () =>
-    set({ messages: [], hasMoreHistory: false }),
+  clearMessages: () => {
+    seenIds.clear();
+    set({ messages: [], hasMoreHistory: false });
+  },
 
   setLoadingHistory: (loading) =>
     set({ isLoadingHistory: loading }),

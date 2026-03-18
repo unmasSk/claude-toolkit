@@ -106,9 +106,13 @@ function getConnectedUsers(roomId: string): ConnectedUser[] {
   const conns = roomConns.get(roomId);
   if (!conns) return [];
   const users: ConnectedUser[] = [];
+  // Dedup by name — StrictMode creates 2 WS connections from the same browser,
+  // both with the same name, so the user panel would show them twice.
+  const seenNames = new Set<string>();
   for (const connId of conns) {
     const state = connStates.get(connId);
-    if (state) {
+    if (state && !seenNames.has(state.name)) {
+      seenNames.add(state.name);
       users.push({ name: state.name, connectedAt: state.connectedAt });
     }
   }
@@ -329,9 +333,9 @@ export const wsRoutes = new Elysia()
             createdAt,
           };
 
-          // Broadcast to all subscribers except sender
+          // Broadcast to all subscribers (sender receives via their second StrictMode socket)
           broadcastSync(roomId, { type: 'new_message', message: newMsg }, ws);
-          // Self-deliver: Elysia 1.4.28 does not implement publishToSelf
+          // Also self-deliver directly in case there's only 1 socket (production, no StrictMode)
           ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(newMsg) }));
 
           // @everyone: post as a high-priority system directive that agents
@@ -344,8 +348,13 @@ export const wsRoutes = new Elysia()
             const isStopDirective = /\b(stop|para|callaos|silence|quiet)\b/i.test(directive);
             if (isStopDirective) {
               const cleared = clearQueue(roomId);
-              pauseInvocations();
+              pauseInvocations(roomId);
               log('@everyone stop — cleared', cleared, 'queued entries, invocations paused');
+            }
+
+            // Ignore empty directive (e.g. "@everyone" with nothing after it)
+            if (!directive) {
+              break;
             }
 
             const sysId = generateId();
@@ -362,9 +371,19 @@ export const wsRoutes = new Elysia()
             };
             broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
             ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
-          } else if (isPaused()) {
+
+            // @everyone (non-stop): invoke all agents currently in the room
+            if (!isStopDirective) {
+              const agentSessions = listAgentSessions(roomId);
+              if (agentSessions.length > 0) {
+                const agentNames = new Set(agentSessions.map((row) => mapAgentSessionRow(row).agentName));
+                log('@everyone — invoking active agents:', [...agentNames]);
+                invokeAgents(roomId, agentNames, directive);
+              }
+            }
+          } else if (isPaused(roomId)) {
             // Non-@everyone human message resumes invocations
-            resumeInvocations();
+            resumeInvocations(roomId);
             log('send_message', authorName, 'invocations resumed after @everyone stop');
           }
 

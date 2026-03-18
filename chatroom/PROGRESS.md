@@ -1,31 +1,45 @@
-# Log de progreso — Chatroom
+# PROGRESS — Agent Chatroom
 
-Sesion autonoma nocturna. El usuario se fue a dormir.
+## 2026-03-18 — Ultron: Issues #27, #30, #26, #32
 
-## Pendiente
-- [x] Identidad en conexion WS: query param `?name=` para que cada cliente se identifique
-- [x] AGENT_DIR corregido en config.ts para apuntar al cache del toolkit
-- [x] Panel de participantes muestra usuarios reales conectados, no placeholders
-- [x] Invocacion de agentes verificada: 10 agentes invokables en /api/agents
-- [ ] Test real de @bilbo con claude -p (requiere sesion interactiva)
-- [x] Dante escribio 52 tests nuevos para features de identidad WS, config, schemas
-- [x] 458 tests totales, 0 fail
-- [x] Commiteado: feat(plugin/chatroom) — 0a06fa7
+### Issue #27 — WS_ALLOWED_ORIGINS configurable
+- `config.ts`: añadida constante `WS_ALLOWED_ORIGINS` leída de env var (comma-separated), con fallback a los dos orígenes por defecto. En dev agrega `''` para wscat/curl.
+- `ws.ts`: eliminado el `Set` hardcodeado de `ALLOWED_ORIGINS`. Ahora importa de config y construye el Set desde ahí.
 
-## Log
+### Issue #30 — Bridge /health sin auth
+- `claude-bridge.ts`: el handler de `/health` se movió antes del `checkAuth`. Los demás endpoints (`/messages`, `/send`) siguen requiriendo token.
+- El singleton check ya no necesita enviar el token en el probe — `/health` es público.
 
-- Fix 1 (WS identity): Agregado query param `?name=` en el WS. El servidor usa ese nombre como `author`. Sin param → default `user`.
-- Fix 1 (validacion de nombre): Nombres de agentes invocables (bilbo, ultron, etc.) bloqueados. `claude` y `user` permitidos.
-- Fix 1 (ConnectedUser): Nuevo tipo `ConnectedUser` en el protocolo compartido. Incluido en `room_state.connectedUsers`.
-- Fix 2 (AGENT_DIR): Config.ts ahora usa `globSync` para encontrar el directorio de agentes en el cache del toolkit (`~/.claude/plugins/cache/.../agents`). Con fallback relativo.
-- Fix 3 (participantes reales): El `open` handler registra el usuario conectado en un Map por sala. Los usuarios aparecen en `room_state.connectedUsers`.
-- Fix 4 (verificacion agentes): Confirmado que `GET /api/agents` devuelve 10 agentes invocables. AGENT_DIR resuelve correctamente al path del toolkit.
-- Fix 5 (frontend URL): `ws-store.ts` ahora conecta con `?name=user` en la URL del WS.
-- Fix 6 (panel participantes): `ParticipantPanel.tsx` y `agent-store.ts` actualizados para mostrar usuarios humanos conectados (de `connectedUsers`) separados de los agentes.
-- Schemas: `ConnectedUserSchema` agregado y `ServerRoomStateSchema` actualizado con `connectedUsers`. Tests actualizados.
-- Tests: 405 pass, 0 fail.
-- Backend y frontend reiniciados correctamente.
-- Dante: 52 tests nuevos — WS identity (23), ConnectedUser schemas (9), config resolveAgentDir (9), integracion WS (6), mas schemas connectedUsers (5).
-- Total: 458 tests, 0 fail, 757ms.
-- Commit: feat(plugin/chatroom) — 75 archivos, 0a06fa7.
-- Pendiente para manana: test real con @bilbo via claude -p (requiere sesion interactiva con Max plan).
+### Issue #26 — Markdown en mensajes
+- `bun add react-markdown` (v10.1.0) en `apps/frontend`.
+- `MessageLine.tsx`: reemplaza el render de texto plano con `<ReactMarkdown>`. Usa componentes custom para párrafos (inline, no `<p>` block), code inline, code blocks, listas. Layout IRC-style preservado: timestamp y autor no se tocan.
+- `globals.css`: añadidos estilos para `.md-para`, `.md-code-inline`, `.md-pre`, `.md-code-block`, `.md-ul`, `.md-ol`, `.md-li`.
+
+### Issue #32 — Bridge dedup en reconexión
+- `claude-bridge.ts`: añadido `ringBufferIds: Set<string>` para tracking O(1) de IDs.
+- `pushToBuffer`: omite mensajes cuyo ID ya está en el set.
+- Handler de `room_state`: limpia `ringBufferIds` junto con el buffer al reemplazar con el estado del servidor.
+
+### Validación
+- `bun test`: 460 pass, 0 fail
+- `bunx vite build`: build limpio (398 KB JS, 10 KB CSS)
+
+## 2026-03-18 — Session 2: Agent behavior hardening
+
+### triggerContent isolation (`agent-invoker.ts` — `buildPrompt`)
+- El trigger original del `@mention` se inyecta como bloque separado (`[ORIGINAL TRIGGER]` / `[END ORIGINAL TRIGGER]`) antes del historial del chat.
+- Sanitizado: se elimina el patrón `[END ORIGINAL TRIGGER]` del `triggerContent` para prevenir inyección de marcadores.
+- Los agentes ya no confunden el trigger con mensajes posteriores del historial.
+
+### SKIP suppression (`agent-invoker.ts` ~L522)
+- Si un agente devuelve exactamente `"SKIP"` (case-insensitive, regex `/^skip\.?$/i`), el mensaje no se inserta en DB ni se emite WS event.
+- El agente desaparece silenciosamente — no contamina el historial del chat.
+
+### Agent identities + anti-spam rules (`agent-invoker.ts` — `buildSystemPrompt`)
+- `AGENT_VOICE` map: voz/personalidad de cada agente inyectada como `"Your voice: ..."` en la primera línea del system prompt.
+- 7 reglas anti-spam añadidas al system prompt: supresión de acks vacíos, prohibición de @mention solo por cortesía, SKIP como respuesta válida, etc.
+- Regla 2 coherente con regla 1: los dos casos que producen silencio usan SKIP, no "nothing new in one sentence".
+
+### Self-mention guard (`agent-invoker.ts` ~L574)
+- `if (name === agentName) continue;` en el bucle de chained mentions.
+- Un agente ya no puede auto-invocarse aunque escriba su propio `@nombre` en la respuesta.

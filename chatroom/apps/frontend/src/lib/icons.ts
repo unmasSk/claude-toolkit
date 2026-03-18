@@ -20,12 +20,14 @@ import {
   Search,
   FolderSearch,
   Pencil,
-  Trash2,
+  SquareTerminal,
+  FilePlus,
   GitCommitHorizontal,
   Clock,
   Users,
   Cpu,
   Gauge,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -56,8 +58,10 @@ export const TOOL_ICON: Record<string, LucideIcon> = {
   Grep:     Search,
   Glob:     FolderSearch,
   Edit:     Pencil,
-  Write:    Pencil,
-  Bash:     Trash2,
+  Write:    FilePlus,
+  Bash:     SquareTerminal,
+  WebFetch: Globe,
+  WebSearch: Globe,
   default:  GitCommitHorizontal,
 };
 
@@ -80,6 +84,7 @@ export {
   Users,
   Cpu,
   Gauge,
+  Globe,
   GitBranch,
   GitCommitHorizontal,
 };

@@ -66,6 +66,38 @@ export const ROOM_STATE_MESSAGE_LIMIT = 50;
 export const WS_ROOM_TOPIC_PREFIX = 'room:';
 
 /**
+ * Allowed origins for WebSocket upgrade.
+ * Configurable via WS_ALLOWED_ORIGINS env var (comma-separated list).
+ * Empty entries (e.g. from a trailing comma) are filtered out of the parsed
+ * list so they do not act as an accidental wildcard.
+ * In dev (NODE_ENV !== 'production'), an empty string is added explicitly to
+ * allow wscat/curl connections that send no Origin header.
+ */
+const _rawOrigins = (process.env.WS_ALLOWED_ORIGINS ?? 'http://localhost:4201,http://127.0.0.1:4201')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
+
+// SEC-CONFIG-001: Explicitly check for known dev/test values.
+// The previous `!== 'production'` check was overly permissive: an unset or
+// misspelled NODE_ENV (e.g. 'staging', 'preview') would silently enable the
+// no-Origin bypass in a non-development environment.
+const _isDev =
+  process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
+export const WS_ALLOWED_ORIGINS: readonly string[] = [
+  ..._rawOrigins,
+  ...(_isDev ? [''] : []),
+];
+
+if (_isDev) {
+  console.warn(
+    '[config] NODE_ENV is "' + process.env.NODE_ENV + '" — WS upgrade accepts connections with no Origin header.' +
+    ' Set NODE_ENV=production to enforce origin checking.'
+  );
+}
+
+/**
  * SEC-FIX 3: Tools that are never allowed in agent invocations,
  * regardless of what the agent's frontmatter says.
  * Bash = arbitrary code execution. computer = desktop automation.

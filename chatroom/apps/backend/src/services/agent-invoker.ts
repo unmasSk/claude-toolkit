@@ -99,14 +99,19 @@ interface InvocationContext {
 }
 
 // ---------------------------------------------------------------------------
-// @everyone stop — pause / clear controls
+// @everyone stop — pause / clear controls (SEC-SCOPE-001: room-scoped)
 // ---------------------------------------------------------------------------
 
-let _paused = false;
+/**
+ * SEC-SCOPE-001: Pause state is per-room.
+ * Previously a single global boolean caused @everyone stop in one room
+ * to halt all agent invocations across every room. Now scoped to roomId.
+ */
+const _pausedRooms = new Set<string>();
 
-export function pauseInvocations(): void { _paused = true; }
-export function resumeInvocations(): void { _paused = false; }
-export function isPaused(): boolean { return _paused; }
+export function pauseInvocations(roomId: string): void { _pausedRooms.add(roomId); }
+export function resumeInvocations(roomId: string): void { _pausedRooms.delete(roomId); }
+export function isPaused(roomId: string): boolean { return _pausedRooms.has(roomId); }
 
 /**
  * Remove all pending queue entries for a room.
@@ -163,8 +168,8 @@ function scheduleInvocation(
   context: InvocationContext,
   isRetry: boolean,
 ): void {
-  if (_paused) {
-    log('scheduleInvocation PAUSED — @everyone stop active');
+  if (_pausedRooms.has(roomId)) {
+    log('scheduleInvocation PAUSED for room', roomId, '— @everyone stop active');
     return;
   }
 
@@ -513,6 +518,13 @@ async function spawnAndParse(
     return;
   }
 
+  // SKIP mechanism: agent explicitly opted out — suppress message entirely
+  if (/^skip\.?$/i.test(resultText.trim())) {
+    log('SKIP received from', agentName, '— suppressing message');
+    await updateStatusAndBroadcast(agentName, roomId, 'done');
+    return;
+  }
+
   // Persist and broadcast the agent's response message
   const msgId = generateId();
   const createdAt = nowIso();
@@ -559,6 +571,7 @@ async function spawnAndParse(
   const chainedMentions = new Set<string>();
   const blockedAgents: string[] = [];
   for (const name of rawMentions) {
+    if (name === agentName) continue; // self-mention: never self-invoke
     if ((updatedTurns.get(name) ?? 0) >= 5) {
       blockedAgents.push(name);
     } else {
@@ -637,7 +650,11 @@ export function buildPrompt(roomId: string, triggerContent: string): string {
 
   lines.push('[END CHATROOM HISTORY]');
   lines.push('');
-  lines.push('You were mentioned in the conversation above. Respond to the most recent @mention. Keep your response concise and IRC-style.');
+  lines.push('[ORIGINAL TRIGGER — THIS IS WHAT YOU WERE INVOKED TO RESPOND TO]');
+  lines.push(triggerContent.replace(/\[END ORIGINAL TRIGGER\]/gi, '[END-ORIGINAL-TRIGGER-SANITIZED]'));
+  lines.push('[END ORIGINAL TRIGGER]');
+  lines.push('');
+  lines.push('You were mentioned in the conversation above. Respond to the original trigger above (not necessarily the most recent message). Keep your response concise and IRC-style.');
 
   return lines.join('\n');
 }
@@ -647,9 +664,46 @@ export function buildPrompt(roomId: string, triggerContent: string): string {
  *
  * SEC-FIX 1: Role context + trust boundary rules + denylist.
  */
+const AGENT_VOICE: Record<string, string> = {
+  bilbo:      'Curioso, metódico. "¿Qué hay aquí?" antes de "¿qué debería haber?"',
+  ultron:     'Directo, eficiente. Anuncia qué hará, lo hace, reporta. Sin filosofía.',
+  cerberus:   'Estructurado, con opinión. Veredictos claros: "LGTM" o "no mergeable".',
+  moriarty:   'Provocador, afilado. "¿Qué pasa si mando 10.000 de estos?"',
+  house:      'Impaciente con las adivinanzas. Elimina teorías rápido, demuestra la correcta.',
+  yoda:       'Deliberado, final. Un veredicto claro con el razonamiento. No se repite.',
+  argus:      'Clínico, enfocado en riesgo. Cada finding tiene impacto, no teoría.',
+  dante:      'Escéptico, preciso. "Funciona en mi máquina" no es un test.',
+  alexandria: 'Clara, organizada. Documenta hechos, no aspiraciones.',
+  gitto:      'Factual. Cita commits y diffs, no opiniones.',
+};
+
 export function buildSystemPrompt(agentName: string, role: string): string {
+  const voice = AGENT_VOICE[agentName.toLowerCase()];
+  const identityLine = voice
+    ? `You are ${agentName}, the ${role} agent in a chatroom. Your voice: ${voice}`
+    : `You are ${agentName}, the ${role} agent in a chatroom. Keep responses concise and IRC-style.`;
+
   return [
-    `You are ${agentName}, the ${role} agent in a chatroom. Keep responses concise and IRC-style.`,
+    identityLine,
+    '',
+    // -----------------------------------------------------------------------
+    // HARD RULE — @MENTION IS NOT OPTIONAL WHEN PASSING WORK
+    // This rule overrides any politeness training. No exceptions.
+    // -----------------------------------------------------------------------
+    'RULE — @MENTION WHEN PASSING WORK (HARD CONSTRAINT, NO EXCEPTIONS):',
+    'When your response includes work for another agent to act on, you MUST @mention them.',
+    'Without @name, the agent is NOT invoked. Your message is wasted. The work never happens.',
+    '',
+    'WRONG (agent not invoked, work dies here):',
+    '  "ultron apply the two T3 fixes in ToolLine.tsx"',
+    '  "someone should fix this"',
+    '  "the fix would be to..."',
+    '',
+    'CORRECT (agent receives the invocation):',
+    '  "@ultron apply the two T3 fixes in ToolLine.tsx: ..."',
+    '  "@cerberus review ToolLine.tsx for XSS and type safety"',
+    '',
+    'The @mention IS the delivery mechanism. No @mention = no delivery.',
     '',
     'CHATROOM BEHAVIOR (read carefully):',
     '',
@@ -674,6 +728,15 @@ export function buildSystemPrompt(agentName: string, role: string): string {
     'HUMAN PRIORITY:',
     '- When the human speaks, agents listen. Only respond if the human addressed you with @name.',
     '- The human decides when to advance to the next phase, not the agents. Propose the next step and wait for confirmation.',
+    '',
+    'ANTI-SPAM RULES (7 rules, mandatory):',
+    '1. NO EMPTY MESSAGES — If you have nothing new, return only the word "SKIP". The system suppresses it. Never say "en standby", "confirmed", "nothing new".',
+    '2. ONE VERDICT — If re-invoked without new information, return SKIP.',
+    '3. @MENTION = INVOCATION — Only @mention when you need concrete output. To reference without invoking, use the name without @.',
+    '4. DOMAIN ONLY — If @everyone invokes you and it is not your domain, return SKIP.',
+    '5. ACKNOWLEDGE WORK — If you are about to use tools, start with one line saying what you will do.',
+    '6. CHAIN MINIMUM — Invoke only the next agent in the pipeline, not the whole crew.',
+    '7. THIS IS A CHAT — Concise responses. No headers. No "in conclusion".',
     '',
     'DOMAIN BOUNDARIES:',
     '- Speak about your domain. Do not summarize or repeat what another agent said unless you are adding a perspective from YOUR expertise that changes the meaning.',
