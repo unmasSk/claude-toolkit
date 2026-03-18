@@ -1,0 +1,54 @@
+{
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 17093,
+    "duration_api_ms": 16710,
+    "num_turns": 6,
+    "result": "Hola",
+    "stop_reason": "end_turn",
+    "session_id": "3014f8d9-105a-4d32-ac66-f49b0b3c17f0",
+    "total_cost_usd": 0.18087585,
+    "usage": {
+        "input_tokens": 19,
+        "cache_creation_input_tokens": 129951,
+        "cache_read_input_tokens": 121931,
+        "output_tokens": 1245,
+        "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+            "ephemeral_1h_input_tokens": 129951,
+            "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "",
+        "iterations": [],
+        "speed": "standard"
+    },
+    "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+            "inputTokens": 19,
+            "outputTokens": 1245,
+            "cacheReadInputTokens": 121931,
+            "cacheCreationInputTokens": 129951,
+            "webSearchRequests": 0,
+            "costUSD": 0.18087585,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000
+        }
+    },
+    "permission_denials": [
+        {
+            "tool_name": "Read",
+            "tool_use_id": "toolu_012HwCmTQqyTcuobxeeBdNqT",
+            "tool_input": {
+                "file_path": "/example/path/CALIBRATION.md",
+                "limit": 100
+            }
+        }
+    ],
+    "fast_mode_state": "off",
+    "uuid": "0ead0763-0f7d-4840-b80b-894880243f79"
+}

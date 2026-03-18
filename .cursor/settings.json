@@ -1,0 +1,12 @@
+{
+  "editor.minimap.enabled": true,
+  "editor.minimap.autohide": false,
+  "editor.minimap.size": "fill",
+  "editor.fontFamily": "FiraCode",
+  "editor.fontSize": 16,
+  "editor.fontWeight": "500",
+  "terminal.integrated.fontFamily": "FiraCode Nerd Font Mono",
+  "terminal.integrated.fontWeight": "500",
+  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.lineHeight": 1.1
+}

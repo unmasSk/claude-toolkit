@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chatroom — sidebar card mockup v2</title>
+<style>
+/* ================================================================
+   SIDEBAR CARD MOCKUP v2
+   DNA: cerberus-mock-v2 glassmorphism + compact agent cards
+   Cards: ~72px each — 10 agents fit in sidebar
+   Hover: control buttons slide from right side of card
+   No session ID. No tools section.
+   ================================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Agent OKLCH hues — from cerberus-mock-v2 */
+  --c-cerberus:   oklch(72% 0.18 65);
+  --c-ultron:     oklch(64% 0.18 250);
+  --c-bilbo:      oklch(68% 0.16 45);
+  --c-dante:      oklch(64% 0.17 290);
+  --c-argus:      oklch(58% 0.20 22);
+  --c-moriarty:   oklch(62% 0.20 350);
+  --c-house:      oklch(66% 0.18 195);
+  --c-yoda:       oklch(70% 0.18 130);
+  --c-alexandria: oklch(64% 0.17 220);
+  --c-gitto:      oklch(62% 0.16 165);
+  --c-bex:        oklch(82% 0.06 60);
+
+  /* Glass system */
+  --glass-panel:  oklch(12% 0.015 260 / 0.60);
+  --glass-card:   oklch(16% 0.012 260 / 0.45);
+  --glass-border: oklch(100% 0 0 / 0.07);
+  --glass-shine:  oklch(100% 0 0 / 0.05);
+  --blur-deep:    blur(28px);
+  --blur-medium:  blur(16px);
+  --blur-light:   blur(8px);
+
+  /* Text */
+  --t1: oklch(91% 0.005 260);
+  --t2: oklch(60% 0.010 260);
+  --t3: oklch(36% 0.008 260);
+
+  /* Globals.css compat for chat section */
+  --surface-deep:    oklch(8%  0.01 250);
+  --surface-base:    oklch(13% 0.01 250);
+  --surface-panel:   oklch(16% 0.01 250);
+  --surface-card:    oklch(20% 0.01 250);
+  --surface-elevated:oklch(25% 0.01 250);
+  --text-primary:    oklch(90% 0.005 250);
+  --text-secondary:  oklch(62% 0.01 250);
+  --text-muted:      oklch(42% 0.01 250);
+  --accent:          oklch(65% 0.18 250);
+  --accent-muted:    oklch(30% 0.06 250);
+  --border:          oklch(20% 0.01 250);
+  --border-subtle:   oklch(18% 0.01 250);
+  --success:         oklch(55% 0.15 145);
+  --warning:         oklch(65% 0.18 60);
+  --error:           oklch(50% 0.20 25);
+  --info:            oklch(58% 0.14 250);
+  --font-mono: "SF Mono","Fira Code","JetBrains Mono",monospace;
+  --font-ui: -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;
+}
+
+html, body {
+  min-height: 100%;
+  background: oklch(5% 0.020 260);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 24px 80px;
+}
+
+/* Animated background orbs */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+  animation: drift 20s ease-in-out infinite alternate;
+}
+.orb-1 { width: 600px; height: 600px; top: -150px; left: -80px; background: radial-gradient(circle, oklch(65% 0.18 250 / 0.5), transparent 70%); animation-duration: 22s; }
+.orb-2 { width: 500px; height: 500px; top: 100px; right: -50px; background: radial-gradient(circle, oklch(62% 0.18 65 / 0.4), transparent 70%); animation-duration: 18s; animation-delay: -8s; }
+.orb-3 { width: 400px; height: 400px; bottom: -100px; left: 40%; background: radial-gradient(circle, oklch(55% 0.16 195 / 0.35), transparent 70%); animation-duration: 25s; animation-delay: -14s; }
+@keyframes drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.06); }
+  66%  { transform: translate(-20px, 35px) scale(0.96); }
+  100% { transform: translate(20px, -10px) scale(1.03); }
+}
+/* Grid overlay */
+.bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: linear-gradient(oklch(100% 0 0 / 0.012) 1px, transparent 1px), linear-gradient(90deg, oklch(100% 0 0 / 0.012) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.page-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+/* ════════════════════════════════════════════════
+   SECTION LABELS
+   ════════════════════════════════════════════════ */
+.section-note {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.10em;
+  text-transform: uppercase; color: oklch(36% 0.008 260);
+  align-self: flex-start; width: 920px; margin-bottom: 8px;
+}
+
+/* ════════════════════════════════════════════════
+   CHATROOM (fiel a globals.css)
+   ════════════════════════════════════════════════ */
+.chatroom {
+  width: 920px; height: 768px;
+  display: flex; flex-direction: column;
+  border-radius: 14px; overflow: hidden;
+  background: var(--surface-base);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 0 1px oklch(20% 0.01 250 / 0.5), 0 4px 16px oklch(0% 0 0 / 0.5), 0 16px 48px oklch(0% 0 0 / 0.4);
+  flex-shrink: 0;
+}
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 18px; background: var(--surface-panel);
+  border-bottom: 1px solid var(--border); gap: 12px; flex-shrink: 0;
+}
+.room-info { display: flex; align-items: center; gap: 10px; }
+.room-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--accent-muted); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+.room-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.room-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); background: var(--surface-card); padding: 2px 8px; border-radius: 4px; }
+.room-meta { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--text-secondary); }
+.room-meta-item { display: flex; align-items: center; gap: 5px; }
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* sidebar panel (existing, not the new card design) */
+.panel {
+  width: 210px; min-width: 210px; background: var(--surface-panel);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto;
+}
+.panel-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 14px 14px 6px; }
+.p-item { display: flex; align-items: center; gap: 10px; padding: 7px 14px; }
+.p-av { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; position: relative; }
+.p-dot { position: absolute; bottom: -1px; right: -1px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--surface-panel); }
+.p-dot-active  { background: var(--success); }
+.p-dot-idle    { background: var(--text-muted); }
+.p-dot-think   { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.p-info { flex: 1; min-width: 0; }
+.p-name { font-size: 13px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-role { font-size: 10px; color: var(--text-muted); }
+.mbadge { font-family: var(--font-mono); font-size: 9px; font-weight: 500; padding: 0 4px; border-radius: 3px; background: oklch(25% 0.05 250); color: oklch(65% 0.12 250); }
+
+/* chat */
+.chat { flex: 1; display: flex; flex-direction: column; background: var(--surface-base); overflow: hidden; }
+.messages { flex: 1; overflow-y: auto; padding: 14px 20px; display: flex; flex-direction: column; gap: 3px; }
+.message { padding: 5px 8px; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0; line-height: 1.55; border-radius: 6px; }
+.msg-time { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-left: auto; padding-left: 8px; user-select: none; flex-shrink: 0; align-self: flex-end; line-height: 1.2; padding-bottom: 1px; }
+.msg-author { font-weight: 600; font-size: 13px; margin-right: 8px; flex-shrink: 0; }
+.msg-content { color: var(--text-primary); font-size: 13.5px; }
+.msg-metrics { display: block; width: 100%; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); padding: 2px 0 0 0; opacity: 0.6; line-height: 1.3; }
+.mention { font-weight: 550; padding: 0 2px; border-radius: 3px; }
+.file-ref { font-family: var(--font-mono); font-size: 12px; background: var(--surface-card); padding: 1px 6px; border-radius: 3px; color: var(--accent); }
+.tool-line { font-size: 11px; color: var(--text-secondary); padding: 2px 0 2px 48px; display: flex; align-items: center; gap: 6px; opacity: 0.7; }
+.tool-badge { font-family: var(--font-mono); font-size: 10px; background: var(--surface-elevated); color: var(--info); padding: 1px 6px; border-radius: 3px; }
+.sys-pill { display: flex; justify-content: center; padding: 3px 0; }
+.pill { display: inline-flex; align-items: center; gap: 5px; background: var(--surface-elevated); color: var(--text-muted); font-size: 10px; padding: 2px 10px; border-radius: 999px; }
+.bg-ultron   { background: color-mix(in oklch, var(--c-ultron) 6%, transparent); }
+.bg-cerberus { background: color-mix(in oklch, var(--c-cerberus) 6%, transparent); }
+.bg-house    { background: color-mix(in oklch, var(--c-house) 6%, transparent); }
+.bg-bex      { background: color-mix(in oklch, var(--c-bex) 5%, transparent); }
+.c-ultron    { color: var(--c-ultron); }
+.c-cerberus  { color: var(--c-cerberus); }
+.c-house     { color: var(--c-house); }
+.c-bex       { color: var(--c-bex); }
+.m-ultron    { color: var(--c-ultron); background: oklch(25% 0.04 250); }
+.m-cerberus  { color: var(--c-cerberus); background: oklch(25% 0.04 65); }
+.m-house     { color: var(--c-house); background: oklch(25% 0.04 195); }
+.av-ultron   { background: oklch(18% 0.04 250 / 0.8); color: var(--c-ultron); }
+.av-cerberus { background: oklch(18% 0.04 65 / 0.8); color: var(--c-cerberus); }
+.av-house    { background: oklch(18% 0.04 195 / 0.8); color: var(--c-house); }
+.av-bilbo    { background: oklch(18% 0.03 45 / 0.8); color: var(--c-bilbo); }
+.av-yoda     { background: oklch(18% 0.04 130 / 0.8); color: var(--c-yoda); }
+.av-argus    { background: oklch(16% 0.04 22 / 0.8); color: var(--c-argus); }
+.av-moriarty { background: oklch(16% 0.04 350 / 0.8); color: var(--c-moriarty); }
+.av-bex      { background: oklch(18% 0.015 60 / 0.8); color: var(--c-bex); }
+
+.input-area { padding: 10px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.input-field { flex: 1; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 14px; color: var(--text-primary); font-family: inherit; font-size: 13px; outline: none; }
+.input-field::placeholder { color: var(--text-muted); }
+.send-btn { width: 36px; height: 36px; background: var(--accent); color: oklch(98% 0 0); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.statusbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 18px; background: var(--surface-panel); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); flex-shrink: 0; }
+.statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 14px; }
+.statusbar-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+
+/* ════════════════════════════════════════════════
+   GAP BETWEEN CHAT AND CARDS
+   ════════════════════════════════════════════════ */
+.cards-gap { height: 50px; }
+
+/* ════════════════════════════════════════════════
+   NEW COMPACT AGENT CARD — CERBERUS-MK2 DNA
+   ════════════════════════════════════════════════ */
+
+.cards-demo-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.10em;
+  text-transform: uppercase; color: oklch(36% 0.008 260);
+  align-self: flex-start; width: 920px; margin-bottom: 12px;
+}
+
+/* Demo container: looks like the real sidebar */
+.sidebar-demo {
+  width: 260px;
+  background: var(--glass-panel);
+  backdrop-filter: var(--blur-deep);
+  -webkit-backdrop-filter: var(--blur-deep);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-self: flex-start;
+  position: relative;
+}
+.sidebar-demo::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: var(--glass-shine); border-radius: 12px 12px 0 0;
+}
+
+.sidebar-title {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; color: var(--t3);
+  padding: 0 6px 8px;
+}
+
+/* ── CARD WRAPPER — contains card + hover action panel ── */
+.card-wrap {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+/* ── THE CARD ── */
+.agent-card {
+  background: var(--glass-card);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  padding: 8px 10px 6px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+/* Top shine */
+.agent-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: var(--glass-shine); border-radius: 9px 9px 0 0;
+}
+
+.agent-card:hover {
+  border-color: oklch(100% 0 0 / 0.12);
+  background: oklch(18% 0.012 260 / 0.55);
+}
+
+.agent-card.active {
+  border-color: var(--agent-color, oklch(100% 0 0 / 0.1));
+  box-shadow: 0 0 10px var(--agent-color-dim, oklch(100% 0 0 / 0.05));
+}
+
+.agent-card.idle {
+  opacity: 0.52;
+}
+.card-wrap:hover .agent-card.idle {
+  opacity: 0.78;
+}
+
+/* Top row: avatar + identity + pip */
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.av {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+/* Ambient glow for active agents */
+.av-glow {
+  position: absolute; inset: -2px;
+  border-radius: 9px;
+  animation: av-pulse 3s ease-in-out infinite;
+}
+@keyframes av-pulse {
+  0%,100% { opacity: 0.25; }
+  50%       { opacity: 0.5; }
+}
+
+.card-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+
+.card-name {
+  font-size: 12px; font-weight: 600; color: var(--t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.card-model-chip {
+  font-family: var(--font-mono);
+  font-size: 8px; font-weight: 500;
+  padding: 1px 4px; border-radius: 3px;
+  background: oklch(20% 0.03 260 / 0.8);
+  color: oklch(50% 0.06 260);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-pip {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.pip-active  { background: oklch(68% 0.18 145); box-shadow: 0 0 5px oklch(68% 0.18 145); }
+.pip-busy    { animation: pip-blink 1.2s ease-in-out infinite; }
+.pip-idle    { background: var(--t3); }
+.pip-think   { background: oklch(65% 0.18 60); animation: pip-blink 1.8s ease-in-out infinite; }
+@keyframes pip-blink {
+  0%,100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+/* Activity SVG strip */
+.activity-svg {
+  width: 100%;
+  height: 22px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Compact metrics line */
+.card-metrics-line {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--t3);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metrics-accent { color: var(--agent-color, var(--t2)); opacity: 0.8; }
+.metrics-warn   { color: oklch(65% 0.18 60); }
+
+/* ── HOVER ACTION PANEL — slides from right side of card ── */
+.card-actions {
+  position: absolute;
+  right: -48px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 5px;
+  background: oklch(14% 0.015 260 / 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, right 0.18s ease;
+  z-index: 10;
+}
+
+.card-wrap:hover .card-actions {
+  opacity: 1;
+  pointer-events: all;
+  right: -44px;
+}
+
+.action-btn {
+  width: 30px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  color: var(--t2);
+}
+.action-btn:hover { background: oklch(22% 0.015 260 / 0.8); border-color: oklch(100% 0 0 / 0.15); }
+.action-btn svg { width: 12px; height: 12px; }
+
+.btn-start:hover  { color: oklch(68% 0.18 145); border-color: oklch(68% 0.18 145 / 0.4); background: oklch(12% 0.04 145 / 0.6); }
+.btn-pause:hover  { color: oklch(65% 0.18 60);  border-color: oklch(65% 0.18 60 / 0.4);  background: oklch(12% 0.04 60 / 0.6); }
+.btn-stop:hover   { color: oklch(55% 0.20 22);  border-color: oklch(55% 0.20 22 / 0.4);  background: oklch(12% 0.05 22 / 0.6); }
+.btn-read:hover   { color: oklch(58% 0.14 250); border-color: oklch(58% 0.14 250 / 0.4); background: oklch(12% 0.04 250 / 0.6); }
+
+/* Tooltip labels for buttons */
+.action-btn { position: relative; }
+.btn-tip {
+  position: absolute;
+  right: calc(100% + 5px);
+  top: 50%; transform: translateY(-50%);
+  background: oklch(10% 0.01 260 / 0.95);
+  border: 1px solid var(--glass-border);
+  color: var(--t2);
+  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.1s;
+}
+.action-btn:hover .btn-tip { opacity: 1; }
+
+/* ════════════
+   SVG ANIMATIONS (from cerberus-mock-v2)
+   ════════════ */
+@keyframes gauge-fill {
+  0%   { stroke-dashoffset: 56.5; }
+  60%  { stroke-dashoffset: 5; }
+  80%  { stroke-dashoffset: 5; }
+  100% { stroke-dashoffset: 0; }
+}
+@keyframes ecg {
+  0%   { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: -200; }
+}
+@keyframes radar {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes branch-grow { 0%,20%{stroke-dashoffset:50} 60%,100%{stroke-dashoffset:0} }
+</style>
+</head>
+<body>
+<div class="bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="page-content">
+
+<!-- ════════════════════════════════════════════════
+     CHATROOM — fiel a globals.css
+     ════════════════════════════════════════════════ -->
+
+<div class="section-note">↓ chat actual</div>
+
+<div class="chatroom">
+  <div class="topbar">
+    <div class="room-info">
+      <div class="room-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="room-name">general</div>
+      <div class="room-id">rm_4f2a</div>
+    </div>
+    <div class="room-meta">
+      <div class="room-meta-item">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        22:54
+      </div>
+      <div class="room-meta-item">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        8 agents
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Left panel: old design (the sidebar being replaced) -->
+    <div class="panel">
+      <div class="panel-label">Agents</div>
+      <div class="p-item"><div class="p-av av-ultron">UL<div class="p-dot p-dot-think"></div></div><div class="p-info"><div class="p-name c-ultron">ultron</div><div class="p-role">implementer · <span class="mbadge">s4.6</span></div></div></div>
+      <div class="p-item"><div class="p-av av-cerberus">CE<div class="p-dot p-dot-idle"></div></div><div class="p-info"><div class="p-name c-cerberus">cerberus</div><div class="p-role">reviewer · <span class="mbadge">s4.6</span></div></div></div>
+      <div class="p-item"><div class="p-av av-house">HO<div class="p-dot p-dot-active"></div></div><div class="p-info"><div class="p-name c-house">house</div><div class="p-role">diagnostician</div></div></div>
+      <div class="p-item"><div class="p-av av-bilbo">BI<div class="p-dot p-dot-idle"></div></div><div class="p-info"><div class="p-name" style="color:var(--c-bilbo)">bilbo</div><div class="p-role">explorer</div></div></div>
+      <div class="p-item"><div class="p-av av-yoda">YO<div class="p-dot p-dot-idle"></div></div><div class="p-info"><div class="p-name" style="color:var(--c-yoda)">yoda</div><div class="p-role">judge</div></div></div>
+      <div class="p-item"><div class="p-av av-argus">AR<div class="p-dot p-dot-idle"></div></div><div class="p-info"><div class="p-name" style="color:var(--c-argus)">argus</div><div class="p-role">security</div></div></div>
+      <div class="p-item"><div class="p-av av-moriarty">MO<div class="p-dot p-dot-idle"></div></div><div class="p-info"><div class="p-name" style="color:var(--c-moriarty)">moriarty</div><div class="p-role">adversarial</div></div></div>
+      <div class="panel-label" style="margin-top:8px">Users</div>
+      <div class="p-item"><div class="p-av av-bex" style="font-size:10px;font-weight:700">BX<div class="p-dot p-dot-active"></div></div><div class="p-info"><div class="p-name c-bex">Bex</div><div class="p-role">human</div></div></div>
+    </div>
+
+    <!-- Chat messages -->
+    <div class="chat">
+      <div class="messages">
+        <div class="sys-pill"><span class="pill" style="color:var(--success)">⬤ ultron joined the room</span></div>
+
+        <div class="message bg-bex">
+          <span class="msg-author c-bex">Bex</span>
+          <span class="msg-content">leete la skill de design, las cards tienen que ser más compactas, botones en hover en un lateral. los cambios de la primera respuesta + el estilo de cerberus-mock-v2</span>
+          <span class="msg-time">23:04</span>
+        </div>
+
+        <div class="message bg-ultron">
+          <span class="msg-author c-ultron">ultron</span>
+          <span class="msg-content">Releído. Rehaciendo desde el DNA de cerberus-mock-v2 — glassmorphism, SVG animations, cards de ~72px. Botones aparecen a la derecha en hover. Sin session ID, sin tools.</span>
+          <span class="msg-time">23:04</span>
+          <span class="msg-metrics">sonnet 4.6 | 34.1s | 11T | 48K/3.2K tok | ctx 47%</span>
+        </div>
+
+        <div class="tool-line">
+          <span class="tool-badge">Read</span>
+          cerberus-mock-v2.html — DNA extraction
+        </div>
+        <div class="tool-line">
+          <span class="tool-badge">Write</span>
+          sidebar-card-mockup.html — v2 rewrite
+        </div>
+
+        <div class="message bg-ultron">
+          <span class="msg-author c-ultron">ultron</span>
+          <span class="msg-content">Listo. Mira debajo del chat: sidebar demo con todos los agentes, cards compactas ~72px. Hover cualquier card y aparecen los 4 botones a la derecha.</span>
+          <span class="msg-time">23:05</span>
+          <span class="msg-metrics">sonnet 4.6 | 41.7s | 14T | 52K/4.1K tok | ctx 51%</span>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <input class="input-field" placeholder="Message or @agent…" />
+        <button class="send-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+
+      <div class="statusbar">
+        <div class="statusbar-left">
+          <div style="display:flex;align-items:center;gap:5px"><div class="statusbar-dot"></div> ws connected</div>
+          <span>2 running · 6 idle</span>
+        </div>
+        <div class="statusbar-right"><span>backend v1.0.0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     50px GAP
+     ════════════════════════════════════════════════ -->
+<div class="cards-gap"></div>
+<div class="cards-demo-label">↓ nueva card — hover para ver controles · hover cualquier card</div>
+
+<!-- ════════════════════════════════════════════════
+     SIDEBAR DEMO — all 10 agents, compact cards
+     ════════════════════════════════════════════════ -->
+
+<div class="sidebar-demo">
+  <div class="sidebar-title">Agents · 2 running</div>
+
+  <!-- ── ULTRON — running: code typing lines ── -->
+  <div class="card-wrap">
+    <div class="agent-card active" style="--agent-color: var(--c-ultron); --agent-color-dim: oklch(64% 0.18 250 / 0.15);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 250 / 0.8); color: var(--c-ultron); border: 1px solid oklch(54% 0.18 250 / 0.4);">
+          <div class="av-glow" style="background: radial-gradient(var(--c-ultron), transparent 70%);"></div>
+          UL
+        </div>
+        <div class="card-info">
+          <div class="card-name" style="color: var(--c-ultron);">ultron</div>
+          <div class="card-model-chip">s4.6</div>
+        </div>
+        <div class="status-pip pip-busy" style="background: var(--c-ultron); box-shadow: 0 0 5px var(--c-ultron);"></div>
+      </div>
+      <!-- Code typing animation -->
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="var(--c-ultron)" font-family="monospace" opacity="0.4">EDIT</text>
+        <rect x="26" y="5" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.5" width="0">
+          <animate attributeName="width" values="0;60;60;60;0" keyTimes="0;0.3;0.6;0.9;1" dur="2.5s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="26" y="10" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.35" width="0">
+          <animate attributeName="width" values="0;0;45;45;0" keyTimes="0;0.3;0.55;0.9;1" dur="2.5s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="26" y="15" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.25" width="0">
+          <animate attributeName="width" values="0;0;0;72;0" keyTimes="0;0.3;0.55;0.85;1" dur="2.5s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="26" y="15" width="5" height="2.5" rx="1" fill="var(--c-ultron)">
+          <animate attributeName="opacity" values="0;0;0;1;0.4;1;0" keyTimes="0;0.3;0.55;0.85;0.88;0.91;1" dur="2.5s" repeatCount="indefinite"/>
+          <animate attributeName="x" values="26;26;26;72;72" keyTimes="0;0.3;0.55;0.85;1" dur="2.5s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="105" y="4" width="110" height="14" rx="2" fill="oklch(16% 0.016 250 / 0.7)"/>
+        <text x="160" y="14" font-size="8" fill="oklch(50% 0.08 250)" font-family="monospace" text-anchor="middle">sidebar-card-mockup.html</text>
+      </svg>
+      <div class="card-metrics-line" style="--agent-color: var(--c-ultron)">
+        <span class="metrics-accent">41s</span> · 14T · ctx <span class="metrics-warn">51%</span>
+      </div>
+    </div>
+    <!-- Hover action panel -->
+    <div class="card-actions">
+      <button class="action-btn btn-start" title="Start">
+        <div class="btn-tip">Start</div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+      <button class="action-btn btn-pause" title="Pause">
+        <div class="btn-tip">Pause</div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="action-btn btn-stop" title="Stop">
+        <div class="btn-tip">Stop</div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+      <button class="action-btn btn-read" title="Read chat">
+        <div class="btn-tip">Read chat</div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── HOUSE — running: ECG ── -->
+  <div class="card-wrap">
+    <div class="agent-card active" style="--agent-color: var(--c-house); --agent-color-dim: oklch(66% 0.18 195 / 0.12);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 195 / 0.8); color: var(--c-house); border: 1px solid oklch(56% 0.18 195 / 0.4);">
+          <div class="av-glow" style="background: radial-gradient(var(--c-house), transparent 70%);"></div>
+          HO
+        </div>
+        <div class="card-info">
+          <div class="card-name" style="color: var(--c-house);">house</div>
+          <div class="card-model-chip">s4.6</div>
+        </div>
+        <div class="status-pip pip-active"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="var(--c-house)" font-family="monospace" opacity="0.4">DIAG</text>
+        <polyline points="26,11 44,11 50,3 54,19 58,11 64,11 78,11 84,3 88,19 92,11 98,11 116,11 122,4 126,19 130,11 148,11 154,4 158,19 162,11 180,11 186,3 190,19 194,11 212,11"
+          stroke="var(--c-house)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+          <animate attributeName="stroke-dasharray" values="300;300" dur="0.1s"/>
+          <animate attributeName="stroke-dashoffset" values="300;0" dur="2s" repeatCount="indefinite" calcMode="linear"/>
+        </polyline>
+      </svg>
+      <div class="card-metrics-line" style="--agent-color: var(--c-house)">
+        <span class="metrics-accent">63s</span> · 6T · ctx <span>21%</span>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── CERBERUS — idle: verdict gauge faint ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-cerberus);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 65 / 0.8); color: var(--c-cerberus); border: 1px solid oklch(52% 0.18 65 / 0.3);">CE</div>
+        <div class="card-info">
+          <div class="card-name">cerberus</div>
+          <div class="card-model-chip">s4.6</div>
+        </div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">IDLE</text>
+        <path d="M 45 18 A 14 14 0 0 1 73 18" stroke="oklch(22% 0.01 260)" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <line x1="90" y1="11" x2="210" y2="11" stroke="oklch(20% 0.01 260)" stroke-width="1" opacity="0.5"/>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── BILBO — idle: compass ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-bilbo);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.03 45 / 0.8); color: var(--c-bilbo); border: 1px solid oklch(58% 0.16 45 / 0.3);">BI</div>
+        <div class="card-info"><div class="card-name">bilbo</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">IDLE</text>
+        <circle cx="36" cy="11" r="8" stroke="oklch(35% 0.01 260)" stroke-width="1" fill="none"/>
+        <line x1="36" y1="3" x2="36" y2="9" stroke="var(--c-bilbo)" stroke-width="1.5" stroke-linecap="round" transform-origin="36 11">
+          <animateTransform attributeName="transform" type="rotate" values="0 36 11;140 36 11;120 36 11;320 36 11;360 36 11" keyTimes="0;0.3;0.5;0.8;1" dur="5s" repeatCount="indefinite"/>
+        </line>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── DANTE — idle: test dots ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-dante);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 290 / 0.8); color: var(--c-dante); border: 1px solid oklch(54% 0.17 290 / 0.3);">DA</div>
+        <div class="card-info"><div class="card-name">dante</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">SUITE</text>
+        <g transform="translate(32, 7)">
+          <circle cx="0"  cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="12" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="24" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="36" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="48" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="60" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+          <circle cx="72" cy="4" r="3" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+        </g>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── ARGUS — idle: radar ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-argus);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(16% 0.04 22 / 0.8); color: var(--c-argus); border: 1px solid oklch(48% 0.20 22 / 0.3);">AR</div>
+        <div class="card-info"><div class="card-name">argus</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">SCAN</text>
+        <circle cx="36" cy="11" r="8" stroke="oklch(28% 0.06 22)" stroke-width="1" fill="none"/>
+        <circle cx="36" cy="11" r="4" stroke="oklch(24% 0.04 22)" stroke-width="1" fill="none"/>
+        <line x1="36" y1="11" x2="36" y2="3" stroke="var(--c-argus)" stroke-width="1.5" stroke-linecap="round" transform-origin="36 11">
+          <animateTransform attributeName="transform" type="rotate" values="0 36 11;360 36 11" dur="3s" repeatCount="indefinite"/>
+        </line>
+        <circle cx="42" cy="7" r="2" fill="var(--c-argus)">
+          <animate attributeName="opacity" values="0;0.8;0;0;0" keyTimes="0;0.1;0.3;0.9;1" dur="3s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · monitoring</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── MORIARTY — idle: glitch line ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-moriarty);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(16% 0.04 350 / 0.8); color: var(--c-moriarty); border: 1px solid oklch(52% 0.20 350 / 0.3);">MO</div>
+        <div class="card-info"><div class="card-name">moriarty</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">QUIET</text>
+        <line x1="30" y1="11" x2="200" y2="11" stroke="oklch(25% 0.05 350)" stroke-width="1" opacity="0.5"/>
+        <polyline points="60,11 65,4 68,18 71,8 74,14 77,11" stroke="var(--c-moriarty)" stroke-width="1.5" fill="none" opacity="0">
+          <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;1;0;0;0" keyTimes="0;0.1;0.2;0.3;0.4;0.5;0.6;0.7;0.8;0.9;0.95;1" dur="4s" repeatCount="indefinite"/>
+        </polyline>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── YODA — idle: scales ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-yoda);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 130 / 0.8); color: var(--c-yoda); border: 1px solid oklch(60% 0.18 130 / 0.3);">YO</div>
+        <div class="card-info"><div class="card-name">yoda</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">AWAIT</text>
+        <line x1="24" y1="8" x2="46" y2="8" stroke="var(--c-yoda)" stroke-width="1.5" transform-origin="35 8">
+          <animateTransform attributeName="transform" type="rotate" values="0 35 8;-10 35 8;6 35 8;0 35 8" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+        </line>
+        <line x1="35" y1="8" x2="35" y2="18" stroke="var(--c-yoda)" stroke-width="1.2"/>
+        <circle cx="24" cy="10" r="2.5" fill="var(--c-yoda)" transform-origin="35 8">
+          <animateTransform attributeName="transform" type="rotate" values="0 35 8;-10 35 8;6 35 8;0 35 8" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="46" cy="10" r="2.5" fill="var(--c-yoda)" transform-origin="35 8">
+          <animateTransform attributeName="transform" type="rotate" values="0 35 8;-10 35 8;6 35 8;0 35 8" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── ALEXANDRIA — idle: doc ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: oklch(64% 0.17 220);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 220 / 0.8); color: oklch(64% 0.17 220); border: 1px solid oklch(54% 0.17 220 / 0.3);">AL</div>
+        <div class="card-info"><div class="card-name">alexandria</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">DOCS</text>
+        <rect x="30" y="3" width="14" height="16" rx="2" fill="oklch(16% 0.012 220 / 0.8)" stroke="oklch(40% 0.10 220)" stroke-width="1"/>
+        <line x1="33" y1="8"  x2="41" y2="8"  stroke="oklch(50% 0.12 220)" stroke-width="1" opacity="0.6"/>
+        <line x1="33" y1="11" x2="41" y2="11" stroke="oklch(50% 0.12 220)" stroke-width="1" opacity="0.5"/>
+        <line x1="33" y1="14" x2="38" y2="14" stroke="oklch(50% 0.12 220)" stroke-width="1" opacity="0.4"/>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ── GITTO — idle: branch ── -->
+  <div class="card-wrap">
+    <div class="agent-card idle" style="--agent-color: var(--c-gitto);">
+      <div class="card-top">
+        <div class="av" style="background: oklch(18% 0.04 165 / 0.8); color: var(--c-gitto); border: 1px solid oklch(52% 0.16 165 / 0.3);">GI</div>
+        <div class="card-info"><div class="card-name">gitto</div><div class="card-model-chip">s4.6</div></div>
+        <div class="status-pip pip-idle"></div>
+      </div>
+      <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+        <text x="4" y="17" font-size="7" fill="oklch(30% 0.01 260)" font-family="monospace">LOG</text>
+        <line x1="30" y1="3" x2="30" y2="19" stroke="oklch(40% 0.10 165)" stroke-width="1.5"/>
+        <circle cx="30" cy="5" r="2.5" fill="var(--c-gitto)"/>
+        <circle cx="30" cy="11" r="2.5" fill="oklch(48% 0.10 165)" stroke="var(--c-gitto)" stroke-width="1"/>
+        <circle cx="30" cy="17" r="2.5" fill="oklch(48% 0.10 165)"/>
+        <path d="M 30 11 Q 44 11 46 5" stroke="oklch(44% 0.10 165)" stroke-width="1.5" fill="none" stroke-dasharray="24" stroke-dashoffset="24">
+          <animate attributeName="stroke-dashoffset" values="24;0;0;24" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite"/>
+        </path>
+        <circle cx="46" cy="5" r="2.5" fill="var(--c-gitto)" opacity="0">
+          <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.38;0.42;0.8;1" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        <text x="60" y="14" font-size="8" fill="oklch(36% 0.08 165)" font-family="monospace">9427b42</text>
+      </svg>
+      <div class="card-metrics-line" style="color: oklch(30% 0.008 260)">idle · ready</div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+      <button class="action-btn btn-pause" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+      <button class="action-btn btn-stop" style="opacity:0.3;pointer-events:none"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+      <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+  </div>
+
+</div><!-- /sidebar-demo -->
+
+
+<!-- ════════════════════════════════════════════════
+     ESTADOS EN ACCIÓN — 3 cards, 3 estados
+     thinking · tool_use · writing→chat
+     ════════════════════════════════════════════════ -->
+
+<div style="height:40px"></div>
+<div class="cards-demo-label">↓ estados en acción — hover para controles · los 3 estados del stream</div>
+
+<div style="display:flex; gap:14px; width:920px; align-items:flex-start;">
+
+  <!-- ══ ESTADO 1: THINKING ══
+       evento `assistant` activo — el agente genera texto internamente
+       Visual: tres puntos pulsando (WhatsApp style) + SVG late suave -->
+  <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+    <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:oklch(72% 0.18 65 / 0.7); padding:0 2px;">
+      🧠 thinking — assistant event
+    </div>
+    <div class="card-wrap">
+      <div class="agent-card active" style="--agent-color: var(--c-cerberus); --agent-color-dim: oklch(72% 0.18 65 / 0.15); border-color: oklch(72% 0.18 65 / 0.4);">
+        <div class="card-top">
+          <div class="av" style="background: oklch(18% 0.04 65 / 0.8); color: var(--c-cerberus); border: 1px solid oklch(52% 0.18 65 / 0.5);">
+            <div class="av-glow" style="background: radial-gradient(var(--c-cerberus), transparent 70%);"></div>
+            CE
+          </div>
+          <div class="card-info">
+            <div class="card-name" style="color: var(--c-cerberus);">cerberus</div>
+            <!-- State chip: thinking dots -->
+            <div style="display:flex; align-items:center; gap:3px; font-size:9px; color: var(--c-cerberus); opacity:0.8;">
+              <span>thinking</span>
+              <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+          </div>
+          <div class="status-pip pip-busy" style="background: var(--c-cerberus); box-shadow: 0 0 5px var(--c-cerberus);"></div>
+        </div>
+        <!-- Verdict gauge — slow pulse (thinking = no tool, just generating) -->
+        <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+          <text x="4" y="17" font-size="7" fill="oklch(52% 0.10 65)" font-family="monospace">THINKING</text>
+          <path d="M 55 18 A 14 14 0 0 1 83 18" stroke="oklch(22% 0.01 260)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M 55 18 A 14 14 0 0 1 83 18" stroke="var(--c-cerberus)" stroke-width="2" fill="none" stroke-linecap="round">
+            <animate attributeName="stroke-dasharray" values="0 44;22 22;44 0;22 22;0 44" dur="2.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.4;0.8;1;0.8;0.4" dur="2.5s" repeatCount="indefinite"/>
+          </path>
+          <!-- Soft glow pulse behind gauge -->
+          <ellipse cx="69" cy="16" rx="14" ry="6" fill="var(--c-cerberus)" opacity="0">
+            <animate attributeName="opacity" values="0;0.06;0.12;0.06;0" dur="2.5s" repeatCount="indefinite"/>
+          </ellipse>
+        </svg>
+        <div class="card-metrics-line" style="--agent-color: var(--c-cerberus)">
+          <span class="metrics-accent" style="animation: blink-text 1s ease-in-out infinite">⏱ 23s</span> · 4T · ctx <span>12%</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+        <button class="action-btn btn-pause"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+        <button class="action-btn btn-stop"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+        <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+    </div>
+    <div style="font-size:9px; color: var(--t3); padding: 4px 2px; line-height:1.5;">
+      El agente razona internamente.<br>
+      SVG latiendo suave. Dots animados.<br>
+      Timer cuenta. No hay tool activa.
+    </div>
+  </div>
+
+  <!-- ══ ESTADO 2: TOOL_USE ══
+       evento `tool_use` activo — ejecutando herramienta
+       Visual: chip con nombre de tool parpadeando + SVG rápido/intenso -->
+  <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+    <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--c-ultron); padding:0 2px;">
+      ⚡ tool_use — herramienta activa
+    </div>
+    <div class="card-wrap">
+      <div class="agent-card active" style="--agent-color: var(--c-ultron); --agent-color-dim: oklch(64% 0.18 250 / 0.15); border-color: oklch(64% 0.18 250 / 0.5);">
+        <div class="card-top">
+          <div class="av" style="background: oklch(18% 0.04 250 / 0.8); color: var(--c-ultron); border: 1px solid oklch(54% 0.18 250 / 0.5);">
+            <div class="av-glow" style="background: radial-gradient(var(--c-ultron), transparent 70%);"></div>
+            UL
+          </div>
+          <div class="card-info">
+            <div class="card-name" style="color: var(--c-ultron);">ultron</div>
+            <!-- Tool chip: flashing active tool name -->
+            <div class="tool-running-chip">
+              <span class="tool-running-dot"></span>
+              <span class="tool-running-name" id="tool-name-demo">Write</span>
+              <span style="color:var(--t3); font-size:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80px;" id="tool-file-demo">globals.css</span>
+            </div>
+          </div>
+          <div class="status-pip pip-busy" style="background: var(--c-ultron); box-shadow: 0 0 6px var(--c-ultron);"></div>
+        </div>
+        <!-- Code typing — fast/intense during tool_use -->
+        <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+          <text x="4" y="17" font-size="7" fill="var(--c-ultron)" font-family="monospace" opacity="0.5">TOOL</text>
+          <rect x="26" y="4" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.7" width="0">
+            <animate attributeName="width" values="0;70;70;70;0" keyTimes="0;0.25;0.5;0.75;1" dur="1.2s" repeatCount="indefinite"/>
+          </rect>
+          <rect x="26" y="9" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.5" width="0">
+            <animate attributeName="width" values="0;0;55;55;0" keyTimes="0;0.2;0.45;0.75;1" dur="1.2s" repeatCount="indefinite"/>
+          </rect>
+          <rect x="26" y="14" height="2.5" rx="1.25" fill="var(--c-ultron)" opacity="0.35" width="0">
+            <animate attributeName="width" values="0;0;0;80;0" keyTimes="0;0.2;0.4;0.7;1" dur="1.2s" repeatCount="indefinite"/>
+          </rect>
+          <!-- Cursor fast blink -->
+          <rect x="26" y="14" width="5" height="2.5" rx="1" fill="var(--c-ultron)">
+            <animate attributeName="opacity" values="1;0;1;0;1" dur="0.4s" repeatCount="indefinite"/>
+            <animate attributeName="x" values="26;26;26;80;80" keyTimes="0;0.2;0.4;0.7;1" dur="1.2s" repeatCount="indefinite"/>
+          </rect>
+          <!-- Active file tag — highlighted -->
+          <rect x="105" y="3" width="112" height="16" rx="3" fill="oklch(20% 0.06 250 / 0.8)" stroke="oklch(64% 0.18 250 / 0.3)" stroke-width="1"/>
+          <text x="161" y="14" font-size="8" fill="oklch(64% 0.18 250)" font-family="monospace" text-anchor="middle">
+            <animate attributeName="opacity" values="1;0.4;1" dur="0.8s" repeatCount="indefinite"/>
+            globals.css
+          </text>
+        </svg>
+        <div class="card-metrics-line" style="--agent-color: var(--c-ultron)">
+          <span class="metrics-accent">41s</span> · 14T · ctx <span class="metrics-warn">51%</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+        <button class="action-btn btn-pause"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+        <button class="action-btn btn-stop"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+        <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+    </div>
+    <div style="font-size:9px; color: var(--t3); padding: 4px 2px; line-height:1.5;">
+      Herramienta activa parpadeando.<br>
+      SVG rápido/intenso. Archivo visible.<br>
+      El nombre cambia con cada tool call.
+    </div>
+  </div>
+
+  <!-- ══ ESTADO 3: WRITING → CHAT ══
+       El agente está posteando su respuesta al chat
+       Visual: "writing···" como WhatsApp + waveform de output -->
+  <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+    <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--c-house); padding:0 2px;">
+      ✍️ writing — respuesta al chat
+    </div>
+    <div class="card-wrap">
+      <div class="agent-card active" style="--agent-color: var(--c-house); --agent-color-dim: oklch(66% 0.18 195 / 0.15); border-color: oklch(66% 0.18 195 / 0.45);">
+        <div class="card-top">
+          <div class="av" style="background: oklch(18% 0.04 195 / 0.8); color: var(--c-house); border: 1px solid oklch(56% 0.18 195 / 0.5);">
+            <div class="av-glow" style="background: radial-gradient(var(--c-house), transparent 70%);"></div>
+            HO
+          </div>
+          <div class="card-info">
+            <div class="card-name" style="color: var(--c-house);">house</div>
+            <!-- Writing indicator: WhatsApp style -->
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span style="font-size:9px; color:var(--c-house); opacity:0.9;">writing to chat</span>
+              <span class="writing-bubble">
+                <span></span><span></span><span></span>
+              </span>
+            </div>
+          </div>
+          <div class="status-pip pip-active" style="background: var(--c-house); box-shadow: 0 0 6px var(--c-house);"></div>
+        </div>
+        <!-- ECG fast — streaming text output -->
+        <svg class="activity-svg" viewBox="0 0 220 22" fill="none">
+          <text x="4" y="17" font-size="7" fill="oklch(56% 0.12 195)" font-family="monospace">OUTPUT</text>
+          <polyline points="26,11 36,11 40,3 43,19 46,11 50,11 56,11 60,4 63,18 66,11 70,11 76,11 80,4 83,18 86,11 90,11 96,11 100,3 103,19 106,11 112,11 116,4 119,18 122,11 126,11 132,11 136,4 139,18 142,11 148,11 154,4 157,18 160,11 166,11 172,3 175,19 178,11 184,11 190,4 193,18 196,11 202,11 208,11"
+            stroke="var(--c-house)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">
+            <animate attributeName="stroke-dasharray" values="400" dur="0.05s"/>
+            <animate attributeName="stroke-dashoffset" values="400;0" dur="1.2s" repeatCount="indefinite" calcMode="linear"/>
+          </polyline>
+          <!-- Trailing glow dot -->
+          <circle r="2.5" fill="var(--c-house)" opacity="0.9">
+            <animate attributeName="cx" values="26;210" dur="1.2s" repeatCount="indefinite" calcMode="linear"/>
+            <animate attributeName="cy" values="11;11" dur="1.2s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.05;0.9;1" dur="1.2s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <div class="card-metrics-line" style="--agent-color: var(--c-house)">
+          <span class="metrics-accent">63s</span> · 6T · ctx <span>21%</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="action-btn btn-start"><div class="btn-tip">Start</div><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+        <button class="action-btn btn-pause"><div class="btn-tip">Pause</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+        <button class="action-btn btn-stop"><div class="btn-tip">Stop</div><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+        <button class="action-btn btn-read"><div class="btn-tip">Read chat</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+      </div>
+    </div>
+    <div style="font-size:9px; color: var(--t3); padding: 4px 2px; line-height:1.5;">
+      Agente posteando respuesta.<br>
+      ECG rápido = flujo de tokens output.<br>
+      Dots como WhatsApp hasta que termina.
+    </div>
+  </div>
+
+</div>
+
+<style>
+/* ── Thinking dots (WhatsApp style) ── */
+.thinking-dots span {
+  display: inline-block;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  margin: 0 1px;
+  animation: dot-bounce 1.4s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(1) { animation-delay: 0s; }
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* ── Tool running chip ── */
+.tool-running-chip {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+}
+.tool-running-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--c-ultron);
+  animation: pip-blink 0.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.tool-running-name {
+  color: var(--c-ultron);
+  font-weight: 700;
+  font-size: 9px;
+}
+
+/* ── Writing bubble (WhatsApp 3-dot) ── */
+.writing-bubble {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: oklch(16% 0.04 195 / 0.6);
+  border: 1px solid oklch(56% 0.18 195 / 0.25);
+  border-radius: 8px;
+  padding: 2px 5px;
+}
+.writing-bubble span {
+  display: block; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--c-house);
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+.writing-bubble span:nth-child(1) { animation-delay: 0s; }
+.writing-bubble span:nth-child(2) { animation-delay: 0.15s; }
+.writing-bubble span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Timer blink during thinking */
+@keyframes blink-text {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>
+
+</div><!-- /sidebar-demo -->
+
+</div><!-- /page-content -->
+</body>
+</html>
