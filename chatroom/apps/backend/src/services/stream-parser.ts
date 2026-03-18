@@ -43,6 +43,7 @@ export interface ResultEvent {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  contextWindow: number;
   permissionDenials: PermissionDenial[];
 }
 
@@ -80,6 +81,7 @@ interface ResultEventRaw {
     cache_read_input_tokens?: number;
   };
   permission_denials?: Array<{ tool_name?: string; input?: unknown }>;
+  modelUsage?: Record<string, { contextWindow?: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +167,11 @@ function parseResultEvent(event: ResultEventRaw): ResultEvent | null {
   const permissionDenials: PermissionDenial[] = Array.isArray(event.permission_denials)
     ? event.permission_denials.map(d => ({ toolName: d.tool_name ?? 'unknown', input: d.input }))
     : [];
+  // contextWindow lives under modelUsage[<modelId>].contextWindow — pick the first entry
+  const modelUsageValues = event.modelUsage ? Object.values(event.modelUsage) : [];
+  const contextWindow = modelUsageValues.length > 0 && typeof modelUsageValues[0]?.contextWindow === 'number'
+    ? modelUsageValues[0].contextWindow
+    : 0;
 
-  return { type: 'result', result, sessionId, success, costUsd, durationMs, numTurns, inputTokens, outputTokens, cacheReadTokens, permissionDenials };
+  return { type: 'result', result, sessionId, success, costUsd, durationMs, numTurns, inputTokens, outputTokens, cacheReadTokens, contextWindow, permissionDenials };
 }

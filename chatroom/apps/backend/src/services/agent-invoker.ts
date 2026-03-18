@@ -413,6 +413,11 @@ async function spawnAndParse(
   let resultSessionId: string | null = null;
   let resultCostUsd = 0;
   let resultSuccess = false;
+  let resultDurationMs = 0;
+  let resultNumTurns = 0;
+  let resultInputTokens = 0;
+  let resultOutputTokens = 0;
+  let resultContextWindow = 0;
   let hasResult = false;
   // Track last tool event per agent to avoid spamming the UI (FIX 17 partial)
   let lastToolBroadcastTime = 0;
@@ -475,6 +480,11 @@ async function spawnAndParse(
             resultSessionId = validateSessionId(event.sessionId);
             resultCostUsd = event.costUsd;
             resultSuccess = event.success;
+            resultDurationMs = event.durationMs;
+            resultNumTurns = event.numTurns;
+            resultInputTokens = event.inputTokens;
+            resultOutputTokens = event.outputTokens;
+            resultContextWindow = event.contextWindow;
             const durationSec = (event.durationMs / 1000).toFixed(1);
             const totalTokens = event.inputTokens + event.outputTokens;
             const denialCount = event.permissionDenials.length;
@@ -601,6 +611,12 @@ async function spawnAndParse(
     metadata: JSON.stringify({
       sessionId: resultSessionId,
       costUsd: resultCostUsd,
+      model,
+      durationMs: resultDurationMs,
+      numTurns: resultNumTurns,
+      inputTokens: resultInputTokens,
+      outputTokens: resultOutputTokens,
+      contextWindow: resultContextWindow,
     }),
   });
 
@@ -616,6 +632,12 @@ async function spawnAndParse(
       // sessionId intentionally included here — message-bus.ts strips it before broadcast
       sessionId: resultSessionId ?? undefined,
       costUsd: resultCostUsd,
+      model,
+      durationMs: resultDurationMs,
+      numTurns: resultNumTurns,
+      inputTokens: resultInputTokens,
+      outputTokens: resultOutputTokens,
+      contextWindow: resultContextWindow,
     },
     createdAt,
   };

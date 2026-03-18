@@ -18,6 +18,12 @@ export const MessageMetadataSchema = z.object({
   sessionId: z.string().optional(),
   costUsd: z.number().optional(),
   error: z.string().optional(),
+  model: z.string().optional(),
+  durationMs: z.number().optional(),
+  numTurns: z.number().optional(),
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  contextWindow: z.number().optional(),
 });
 
 export const MessageSchema = z.object({

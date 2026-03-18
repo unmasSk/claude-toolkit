@@ -17,6 +17,33 @@ interface MessageLineProps {
   message: Message;
 }
 
+function formatModelName(model: string): string {
+  // "claude-sonnet-4-6" → "sonnet 4.6", "claude-haiku-4-5-20251001" → "haiku 4.5"
+  const m = model.replace(/^claude-/, '').replace(/-(\d{8})$/, '');
+  const parts = m.split('-');
+  const name = parts[0];
+  const version = parts.slice(1).join('.').replace(/\.\d+$/, (s) => s); // keep as is
+  return `${name} ${version}`;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatMetrics(metadata: Message['metadata']): string | null {
+  if (!metadata.model || !metadata.durationMs) return null;
+  const model = formatModelName(metadata.model);
+  const dur = `${(metadata.durationMs / 1000).toFixed(1)}s`;
+  const turns = `${metadata.numTurns ?? 0} turns`;
+  const tok = `${formatTokens(metadata.inputTokens ?? 0)}/${formatTokens(metadata.outputTokens ?? 0)} tok`;
+  const ctx = metadata.contextWindow && metadata.inputTokens
+    ? `ctx ${Math.round((metadata.inputTokens / metadata.contextWindow) * 100)}%`
+    : null;
+  const sess = metadata.sessionId ? `sess ${metadata.sessionId.slice(-4)}` : null;
+  return [model, dur, turns, tok, ctx, sess].filter(Boolean).join(' | ');
+}
+
 function formatTime(createdAt: string): string {
   try {
     const d = new Date(createdAt);
@@ -89,6 +116,8 @@ export const MessageLine = memo(function MessageLine({ message }: MessageLinePro
     ? `bg-${safeAuthor.toLowerCase().replace(/\s+/g, '-')}`
     : '';
 
+  const metrics = message.authorType === 'agent' ? formatMetrics(message.metadata) : null;
+
   return (
     <div className={`message ${bgClass}`}>
       <span className={`msg-author ${agentColorClass(safeAuthor)}`}>
@@ -129,6 +158,9 @@ export const MessageLine = memo(function MessageLine({ message }: MessageLinePro
         </ReactMarkdown>
       </span>
       <span className="msg-time">{formatTime(message.createdAt)}</span>
+      {metrics && (
+        <span className="msg-metrics">{metrics}</span>
+      )}
     </div>
   );
 });
