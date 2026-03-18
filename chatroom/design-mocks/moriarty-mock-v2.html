@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moriarty v2 — Threat Grid</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
+
+    :root {
+      --red:     oklch(55% 0.22 24);
+      --red-dim: oklch(55% 0.22 24 / 0.18);
+      --red-glow:oklch(55% 0.22 24 / 0.35);
+      --amber:   oklch(68% 0.18 55);
+      --cyan:    oklch(70% 0.15 200);
+      --green:   oklch(68% 0.18 145);
+      --violet:  oklch(60% 0.18 290);
+      --gold:    oklch(72% 0.14 80);
+      --teal:    oklch(65% 0.14 180);
+      --purple:  oklch(62% 0.16 310);
+      --blue:    oklch(62% 0.16 230);
+      --mint:    oklch(65% 0.13 165);
+      --cream:   oklch(82% 0.08 90);
+
+      --glass-bg: oklch(10% 0.008 260 / 0.55);
+      --glass-border: oklch(100% 0 0 / 0.07);
+      --glass-shine: oklch(100% 0 0 / 0.04);
+
+      --sidebar-w: 268px;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: oklch(7% 0.01 260);
+      font-family: var(--font);
+      font-size: 13px;
+      color: oklch(90% 0.01 260);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ─── BACKGROUND ─────────────────────────────────────────────── */
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      overflow: hidden;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.55;
+      animation: drift linear infinite;
+    }
+
+    .orb-1 {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, oklch(40% 0.22 24), transparent 70%);
+      top: -140px; left: -120px;
+      animation-duration: 28s;
+      animation-name: drift-1;
+    }
+    .orb-2 {
+      width: 420px; height: 420px;
+      background: radial-gradient(circle, oklch(28% 0.16 290), transparent 70%);
+      bottom: -100px; right: -80px;
+      animation-duration: 34s;
+      animation-name: drift-2;
+    }
+    .orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, oklch(30% 0.12 24), transparent 70%);
+      top: 50%; right: 28%;
+      animation-duration: 22s;
+      animation-name: drift-3;
+    }
+
+    @keyframes drift-1 {
+      0%,100% { transform: translate(0,0); }
+      33%  { transform: translate(60px, 40px); }
+      66%  { transform: translate(-30px, 70px); }
+    }
+    @keyframes drift-2 {
+      0%,100% { transform: translate(0,0); }
+      40%  { transform: translate(-50px,-30px); }
+      70%  { transform: translate(30px,-60px); }
+    }
+    @keyframes drift-3 {
+      0%,100% { transform: translate(0,0); }
+      50%  { transform: translate(-80px,40px); }
+    }
+
+    .bg-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(oklch(100% 0 0 / 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, oklch(100% 0 0 / 0.025) 1px, transparent 1px);
+      background-size: 28px 28px;
+      -webkit-mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, black 30%, transparent 80%);
+      mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, black 30%, transparent 80%);
+    }
+
+    /* ─── TAURI WINDOW ───────────────────────────────────────────── */
+    .window {
+      position: relative; z-index: 1;
+      width: 980px; height: 640px;
+      margin: 50px auto;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px var(--glass-border),
+        0 40px 120px oklch(0% 0 0 / 0.6),
+        0 0 80px var(--red-glow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .window::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: var(--glass-bg);
+      backdrop-filter: blur(40px) saturate(1.5);
+      -webkit-backdrop-filter: blur(40px) saturate(1.5);
+      border-radius: inherit;
+      z-index: 0;
+    }
+    .window::after {
+      content: '';
+      position: absolute;
+      inset: 0; bottom: auto;
+      height: 1px;
+      background: linear-gradient(90deg,
+        transparent 0%, oklch(100% 0 0 / 0.12) 20%, oklch(100% 0 0 / 0.12) 80%, transparent 100%);
+      z-index: 2;
+    }
+
+    .window > * { position: relative; z-index: 1; }
+
+    /* ─── TITLEBAR ────────────────────────────────────────────────── */
+    .titlebar {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+      -webkit-app-region: drag;
+      border-bottom: 1px solid var(--glass-border);
+      flex-shrink: 0;
+      background: oklch(100% 0 0 / 0.02);
+    }
+
+    .traffic-lights {
+      display: flex; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .tl { width: 12px; height: 12px; border-radius: 50%; }
+    .tl-close  { background: #ff5f57; }
+    .tl-min    { background: #ffbd2e; }
+    .tl-max    { background: #28ca41; }
+
+    .titlebar-center {
+      flex: 1;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: oklch(60% 0.01 260);
+      letter-spacing: 0.06em;
+    }
+
+    .titlebar-threat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--red);
+      letter-spacing: 0.05em;
+      -webkit-app-region: no-drag;
+    }
+
+    .threat-pulse {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 6px var(--red);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ─── BODY ───────────────────────────────────────────────────── */
+    .window-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      overflow: hidden;
+    }
+
+    /* ─── SIDEBAR ─────────────────────────────────────────────────── */
+    .sidebar {
+      border-right: 1px solid var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: oklch(100% 0 0 / 0.02);
+    }
+
+    /* ambient glow top of sidebar */
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: var(--sidebar-w);
+      height: 120px;
+      background: radial-gradient(ellipse at 50% 0%, var(--red-glow), transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .sidebar-header {
+      position: relative; z-index: 1;
+      padding: 10px 14px 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: oklch(45% 0.01 260);
+    }
+
+    .threat-badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--red-dim);
+      border: 1px solid oklch(55% 0.22 24 / 0.3);
+      color: var(--red);
+      letter-spacing: 0.05em;
+    }
+
+    .agent-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 10px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      position: relative; z-index: 1;
+    }
+
+    .agent-grid::-webkit-scrollbar { width: 2px; }
+    .agent-grid::-webkit-scrollbar-thumb { background: oklch(35% 0 0); border-radius: 1px; }
+
+    /* AGENT CARD */
+    .agent-card {
+      border-radius: 8px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 140ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      background: var(--glass-shine);
+      opacity: 0;
+      transition: opacity 140ms;
+    }
+    .agent-card:hover::before { opacity: 1; }
+
+    .agent-card.active {
+      background: oklch(100% 0 0 / 0.04);
+      border-color: oklch(100% 0 0 / 0.08);
+    }
+    .agent-card.active .agent-name { opacity: 1; }
+
+    .agent-card.idle {
+      opacity: 0.42;
+    }
+
+    /* left accent stripe */
+    .agent-card::after {
+      content: '';
+      position: absolute;
+      left: 0; top: 20%; bottom: 20%;
+      width: 2px;
+      border-radius: 0 2px 2px 0;
+      background: var(--agent-color);
+      opacity: 0;
+      transition: opacity 200ms;
+    }
+    .agent-card.active::after { opacity: 1; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .agent-avatar {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      background: color-mix(in oklch, var(--agent-color) 15%, oklch(8% 0.008 260));
+      border: 1px solid color-mix(in oklch, var(--agent-color) 30%, transparent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 10px; font-weight: 600;
+      color: var(--agent-color);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .agent-card.active .agent-avatar {
+      box-shadow: 0 0 10px color-mix(in oklch, var(--agent-color) 40%, transparent);
+    }
+
+    .status-dot {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      border: 1.5px solid oklch(10% 0.008 260);
+    }
+    .agent-card[data-status="active"] .status-dot  { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .agent-card[data-status="busy"] .status-dot    { background: var(--amber); box-shadow: 0 0 4px var(--amber); animation: blink 1s ease-in-out infinite; }
+    .agent-card[data-status="idle"] .status-dot    { background: oklch(35% 0 0); }
+
+    .agent-info { flex: 1; min-width: 0; }
+
+    .agent-name {
+      font-size: 11px; font-weight: 500;
+      color: oklch(88% 0.005 260);
+      opacity: 0.75;
+      display: block;
+      letter-spacing: 0.01em;
+    }
+
+    .agent-role {
+      font-size: 9px;
+      color: oklch(45% 0.005 260);
+      display: block;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    /* SVG VIZ AREA */
+    .agent-viz {
+      height: 28px;
+      width: 100%;
+    }
+
+    .agent-viz svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* BEX FOOTER */
+    .sidebar-footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      background: oklch(100% 0 0 / 0.02);
+    }
+
+    .bex-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: color-mix(in oklch, var(--cream) 12%, oklch(8% 0.008 260));
+      border: 1.5px solid color-mix(in oklch, var(--cream) 35%, transparent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 11px; font-weight: 600;
+      color: var(--cream);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .bex-avatar::after {
+      content: '';
+      position: absolute; bottom: -2px; right: -2px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      border: 1.5px solid oklch(10% 0.008 260);
+      box-shadow: 0 0 4px var(--green);
+    }
+
+    .bex-name {
+      font-size: 12px; font-weight: 600;
+      color: var(--cream);
+    }
+    .bex-role {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: oklch(45% 0 260);
+    }
+
+    /* ─── CHAT ───────────────────────────────────────────────────── */
+    .chat {
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 16px 20px;
+      display: flex; flex-direction: column;
+      gap: 2px;
+    }
+    .messages::-webkit-scrollbar { width: 3px; }
+    .messages::-webkit-scrollbar-thumb { background: oklch(25% 0 0); border-radius: 2px; }
+
+    /* system pill */
+    .msg-sys {
+      display: flex; justify-content: center;
+      padding: 6px 0;
+    }
+    .sys-pill {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: oklch(45% 0 260);
+      background: oklch(100% 0 0 / 0.03);
+      border: 1px solid var(--glass-border);
+      padding: 2px 10px; border-radius: 20px;
+    }
+    .sys-pill.warn {
+      color: var(--amber);
+      background: oklch(68% 0.18 55 / 0.06);
+      border-color: oklch(68% 0.18 55 / 0.2);
+    }
+
+    /* human bubble (right) */
+    .msg-human {
+      display: flex; justify-content: flex-end;
+      padding: 3px 0;
+    }
+    .human-bubble {
+      max-width: 60%;
+      background: oklch(100% 0 0 / 0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px 14px 3px 14px;
+      padding: 9px 13px;
+    }
+    .human-meta {
+      display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px;
+    }
+    .human-author { font-size: 11px; font-weight: 600; color: var(--cream); font-family: var(--mono); }
+    .msg-time { font-size: 10px; color: oklch(38% 0 260); font-family: var(--mono); }
+    .human-text { font-size: 13px; line-height: 1.5; }
+
+    /* agent message */
+    .msg-agent {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 3px 0;
+    }
+    .msg-avatar {
+      width: 30px; height: 30px; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-meta { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+    .msg-name { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+    .msg-role { font-size: 10px; color: oklch(40% 0 260); }
+    .msg-text { font-size: 13px; line-height: 1.6; max-width: 580px; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: oklch(100% 0 0 / 0.06);
+      border: 1px solid var(--glass-border);
+      padding: 1px 5px; border-radius: 3px;
+      color: var(--red);
+    }
+
+    .mention { font-weight: 600; }
+
+    /* moriarty threat-frame */
+    .threat-frame {
+      margin-top: 7px;
+      padding: 8px 12px;
+      border-left: 2px solid var(--red);
+      background: var(--red-dim);
+      border-radius: 0 6px 6px 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: oklch(72% 0.12 24);
+      line-height: 1.5;
+    }
+    .tf-label {
+      font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--red); margin-bottom: 4px; opacity: 0.8;
+    }
+
+    /* tool line */
+    .msg-tool {
+      padding: 2px 0 2px 40px;
+    }
+    .tool-line {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 10px;
+      color: oklch(42% 0 260);
+      background: oklch(100% 0 0 / 0.025);
+      border: 1px solid var(--glass-border);
+      padding: 3px 8px; border-radius: 3px;
+    }
+    .tool-name { color: oklch(55% 0 260); }
+    .tool-result { color: var(--green); }
+
+    /* ─── INPUT ──────────────────────────────────────────────────── */
+    .input-area {
+      padding: 12px 20px 16px;
+      border-top: 1px solid var(--glass-border);
+    }
+    .input-box {
+      display: flex; align-items: flex-end; gap: 10px;
+      background: oklch(100% 0 0 / 0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px; padding: 10px 14px;
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+    .input-box:focus-within {
+      border-color: oklch(55% 0.22 24 / 0.4);
+      box-shadow: 0 0 0 3px oklch(55% 0.22 24 / 0.07);
+    }
+    .input-field {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-family: var(--font); font-size: 13px;
+      color: oklch(88% 0.005 260); resize: none; min-height: 20px;
+    }
+    .input-field::placeholder { color: oklch(35% 0 260); }
+    .send-btn {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: var(--red); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 120ms; flex-shrink: 0;
+    }
+    .send-btn:hover { background: oklch(62% 0.22 24); }
+
+    /* ─── AGENT COLOR MAP ────────────────────────────────────────── */
+    [data-agent="moriarty"] { --agent-color: var(--red); }
+    [data-agent="cerberus"] { --agent-color: var(--amber); }
+    [data-agent="bilbo"]    { --agent-color: var(--gold); }
+    [data-agent="ultron"]   { --agent-color: var(--cyan); }
+    [data-agent="dante"]    { --agent-color: var(--green); }
+    [data-agent="argus"]    { --agent-color: oklch(55% 0.22 24); }
+    [data-agent="house"]    { --agent-color: var(--teal); }
+    [data-agent="yoda"]     { --agent-color: var(--purple); }
+    [data-agent="alexandria"]{ --agent-color: var(--blue); }
+    [data-agent="gitto"]    { --agent-color: var(--mint); }
+
+    .msg-avatar[data-agent], .agent-avatar[data-agent] {
+      background: color-mix(in oklch, var(--agent-color) 14%, oklch(8% 0.008 260));
+      color: var(--agent-color);
+      border: 1px solid color-mix(in oklch, var(--agent-color) 28%, transparent);
+    }
+    .msg-name[data-agent] { color: var(--agent-color); }
+
+    /* SVG ANIMATIONS */
+    @keyframes radar-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes ecg-shift {
+      from { stroke-dashoffset: 120; }
+      to   { stroke-dashoffset: 0; }
+    }
+    @keyframes branch-pulse {
+      0%,100% { r: 3; opacity: 1; }
+      50% { r: 4.5; opacity: 0.6; }
+    }
+    @keyframes fracture-fade {
+      0%,100% { opacity: 0.7; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes bar-grow {
+      0%,100% { transform: scaleY(0.3); }
+      50% { transform: scaleY(1); }
+    }
+    @keyframes ring-spin {
+      from { stroke-dashoffset: 56; }
+      to   { stroke-dashoffset: 0; }
+    }
+    @keyframes line-march {
+      from { stroke-dashoffset: 20; }
+      to   { stroke-dashoffset: 0; }
+    }
+    @keyframes scales {
+      0%,100% { transform: rotate(-8deg); }
+      50% { transform: rotate(8deg); }
+    }
+    @keyframes typing-dot {
+      0%,66%,100% { opacity: 0.2; }
+      33% { opacity: 1; }
+    }
+    @keyframes sweep {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- BACKGROUND -->
+<div class="bg">
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+  <div class="bg-grid"></div>
+</div>
+
+<!-- TAURI WINDOW -->
+<div class="window">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="tl tl-close"></div>
+      <div class="tl tl-min"></div>
+      <div class="tl tl-max"></div>
+    </div>
+    <div class="titlebar-center">crew-alpha · 11 assets</div>
+    <div class="titlebar-threat">
+      <div class="threat-pulse"></div>
+      MORIARTY OPS
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="window-body">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-label">Threat Grid</span>
+        <span class="threat-badge">3 ACTIVE</span>
+      </div>
+
+      <div class="agent-grid">
+
+        <!-- MORIARTY — active, fracture lines -->
+        <div class="agent-card active" data-agent="moriarty" data-status="active" style="--agent-color:var(--red)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="moriarty">
+              MO
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">moriarty</span>
+              <span class="agent-role">adversarial</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- fracture lines — attack vectors being probed -->
+              <line x1="0" y1="14" x2="240" y2="14" stroke="oklch(55% 0.22 24 / 0.2)" stroke-width="1"/>
+              <polyline points="0,14 30,14 45,4 60,22 80,14 105,14 118,6 130,20 148,14 175,14 185,8 195,18 210,14 240,14"
+                stroke="var(--red)" stroke-width="1.5" fill="none" opacity="0.9"/>
+              <!-- shatter spikes -->
+              <line x1="45" y1="4" x2="42" y2="-2" stroke="var(--red)" stroke-width="1" opacity="0.4" style="animation: fracture-fade 2.1s ease-in-out infinite"/>
+              <line x1="118" y1="6" x2="122" y2="1" stroke="var(--red)" stroke-width="1" opacity="0.4" style="animation: fracture-fade 2.1s ease-in-out infinite 0.7s"/>
+              <line x1="185" y1="8" x2="182" y2="2" stroke="var(--red)" stroke-width="1" opacity="0.4" style="animation: fracture-fade 2.1s ease-in-out infinite 1.4s"/>
+              <!-- label -->
+              <text x="0" y="28" font-family="JetBrains Mono" font-size="8" fill="oklch(55% 0.22 24 / 0.6)">3 vectors active</text>
+              <text x="200" y="28" font-family="JetBrains Mono" font-size="8" fill="oklch(55% 0.22 24 / 0.5)" text-anchor="end">LIVE</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- CERBERUS — busy, verdict ring -->
+        <div class="agent-card active" data-agent="cerberus" data-status="busy" style="--agent-color:var(--amber)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="cerberus">
+              CE
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">cerberus</span>
+              <span class="agent-role">reviewer</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <!-- spinning verdict ring -->
+              <g transform="translate(14,14)">
+                <circle cx="0" cy="0" r="9" stroke="oklch(68% 0.18 55 / 0.15)" stroke-width="1.5"/>
+                <circle cx="0" cy="0" r="9" stroke="var(--amber)" stroke-width="1.5"
+                  stroke-dasharray="28 30" stroke-linecap="round"
+                  style="animation: ring-spin 2s linear infinite; transform-origin: 0 0;"/>
+              </g>
+              <!-- finding bars -->
+              <rect x="34" y="18" width="8" height="8" rx="1" fill="oklch(68% 0.18 55 / 0.8)"/>
+              <rect x="46" y="12" width="8" height="14" rx="1" fill="oklch(68% 0.18 55 / 0.6)"/>
+              <rect x="58" y="20" width="8" height="6" rx="1" fill="oklch(68% 0.18 55 / 0.4)"/>
+              <!-- T labels -->
+              <text x="35" y="10" font-family="JetBrains Mono" font-size="7" fill="var(--amber)" opacity="0.7">T1</text>
+              <text x="47" y="10" font-family="JetBrains Mono" font-size="7" fill="var(--amber)" opacity="0.5">T2</text>
+              <text x="59" y="10" font-family="JetBrains Mono" font-size="7" fill="var(--amber)" opacity="0.4">T3</text>
+              <!-- score -->
+              <text x="240" y="10" font-family="JetBrains Mono" font-size="9" fill="var(--amber)" text-anchor="end">82/110</text>
+              <text x="240" y="24" font-family="JetBrains Mono" font-size="8" fill="oklch(68% 0.18 55 / 0.5)" text-anchor="end">reviewing</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- BILBO — active, sonar sweep -->
+        <div class="agent-card active" data-agent="bilbo" data-status="active" style="--agent-color:var(--gold)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="bilbo">
+              BI
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">bilbo</span>
+              <span class="agent-role">explorer</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <!-- sonar circles -->
+              <g transform="translate(14,14)">
+                <circle cx="0" cy="0" r="4" stroke="var(--gold)" stroke-width="1.5" opacity="0.9"/>
+                <circle cx="0" cy="0" r="8" stroke="var(--gold)" stroke-width="1" opacity="0.5"/>
+                <circle cx="0" cy="0" r="12" stroke="var(--gold)" stroke-width="0.5" opacity="0.25"/>
+                <!-- sweep line -->
+                <line x1="0" y1="0" x2="0" y2="-11" stroke="var(--gold)" stroke-width="1.5"
+                  style="animation: sweep 2.5s linear infinite; transform-origin: 0 0;" opacity="0.8"/>
+              </g>
+              <!-- file tree -->
+              <line x1="40" y1="6" x2="40" y2="22" stroke="oklch(72% 0.14 80 / 0.3)" stroke-width="1"/>
+              <line x1="40" y1="10" x2="50" y2="10" stroke="oklch(72% 0.14 80 / 0.3)" stroke-width="1"/>
+              <line x1="40" y1="16" x2="50" y2="16" stroke="oklch(72% 0.14 80 / 0.3)" stroke-width="1"/>
+              <text x="52" y="13" font-family="JetBrains Mono" font-size="8" fill="oklch(72% 0.14 80 / 0.7)">agent-invoker.ts</text>
+              <text x="52" y="21" font-family="JetBrains Mono" font-size="8" fill="oklch(72% 0.14 80 / 0.45)">ws.ts</text>
+              <text x="195" y="24" font-family="JetBrains Mono" font-size="8" fill="oklch(72% 0.14 80 / 0.5)" text-anchor="end">exploring</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ULTRON — idle, typing dots / compile bars -->
+        <div class="agent-card idle" data-agent="ultron" data-status="idle" style="--agent-color:var(--cyan)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="ultron">
+              UL
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">ultron</span>
+              <span class="agent-role">implementer</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(70% 0.15 200 / 0.4)">standby</text>
+              <line x1="60" y1="14" x2="240" y2="14" stroke="oklch(70% 0.15 200 / 0.1)" stroke-width="1"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- DANTE — idle, test bars -->
+        <div class="agent-card idle" data-agent="dante" data-status="idle" style="--agent-color:var(--green)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="dante">
+              DA
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">dante</span>
+              <span class="agent-role">test engineer</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(68% 0.18 145 / 0.35)">133 pass · 0 fail</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ARGUS — idle, radar -->
+        <div class="agent-card idle" data-agent="argus" data-status="idle" style="--agent-color:var(--red)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="argus">
+              AR
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">argus</span>
+              <span class="agent-role">security</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(55% 0.22 24 / 0.35)">0 vulns detected</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- HOUSE — idle, ECG -->
+        <div class="agent-card idle" data-agent="house" data-status="idle" style="--agent-color:var(--teal)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="house">
+              HO
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">house</span>
+              <span class="agent-role">diagnostician</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(65% 0.14 180 / 0.35)">no active incidents</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- YODA — idle, scales -->
+        <div class="agent-card idle" data-agent="yoda" data-status="idle" style="--agent-color:var(--purple)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="yoda">
+              YO
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">yoda</span>
+              <span class="agent-role">senior judge</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(62% 0.16 310 / 0.35)">awaiting review</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ALEXANDRIA — idle -->
+        <div class="agent-card idle" data-agent="alexandria" data-status="idle" style="--agent-color:var(--blue)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="alexandria">
+              AL
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">alexandria</span>
+              <span class="agent-role">documentation</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(62% 0.16 230 / 0.35)">docs in sync</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- GITTO — idle, branch graph -->
+        <div class="agent-card idle" data-agent="gitto" data-status="idle" style="--agent-color:var(--mint)">
+          <div class="card-top">
+            <div class="agent-avatar" data-agent="gitto">
+              GI
+              <div class="status-dot"></div>
+            </div>
+            <div class="agent-info">
+              <span class="agent-name">gitto</span>
+              <span class="agent-role">git oracle</span>
+            </div>
+          </div>
+          <div class="agent-viz">
+            <svg viewBox="0 0 240 28" fill="none">
+              <text x="0" y="18" font-family="JetBrains Mono" font-size="8" fill="oklch(65% 0.13 165 / 0.35)">HEAD: ad546d1</text>
+            </svg>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BEX -->
+      <div class="sidebar-footer">
+        <div class="bex-avatar">Bx</div>
+        <div>
+          <div class="bex-name">Bex</div>
+          <div class="bex-role">human · owner</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CHAT -->
+    <div class="chat">
+      <div class="messages">
+
+        <div class="msg-sys">
+          <span class="sys-pill">crew-alpha · session started · 20:22</span>
+        </div>
+
+        <!-- Bex -->
+        <div class="msg-human">
+          <div class="human-bubble">
+            <div class="human-meta">
+              <span class="human-author">Bex</span>
+              <span class="msg-time">20:43</span>
+            </div>
+            <div class="human-text">
+              <span class="mention" style="color:var(--red)">@moriarty</span>
+              commit fue prematuro — ¿hay algo roto en producción ahora mismo?
+            </div>
+          </div>
+        </div>
+
+        <!-- moriarty reads -->
+        <div class="msg-tool">
+          <div class="tool-line">
+            <span>⊞</span>
+            <span class="tool-name">Read</span>
+            <span style="color:oklch(42% 0 260)">agent-invoker.ts:510-590</span>
+            <span class="tool-result">✓</span>
+          </div>
+        </div>
+
+        <!-- moriarty -->
+        <div class="msg-agent" data-agent="moriarty">
+          <div class="msg-avatar" data-agent="moriarty">MO</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" data-agent="moriarty">moriarty</span>
+              <span class="msg-role">adversarial</span>
+              <span class="msg-time">20:43</span>
+            </div>
+            <div class="msg-text">
+              tres cosas rotas en el commit que fue: <code>ws.ts</code> define su propio
+              <code>ALLOWED_ORIGINS</code> local — el guard de seguridad de <code>config.ts</code>
+              no aplica en producción. <code>MessageList.tsx:80</code> filtra por
+              <code>authorType !== 'user'</code> cuando el campo real es <code>'human'</code> — filtro
+              roto desde el primer día. Y los botones sin <code>type="button"</code> en un form ancestor
+              son submit silencioso.
+              <div class="threat-frame">
+                <div class="tf-label">vector no cubierto por cerberus</div>
+                el historial en <code>buildPrompt</code> sanitiza <code>triggerContent</code> pero no los mensajes humanos ya persistidos en DB. Cualquier mensaje anterior con <code>[END CHATROOM HISTORY]</code> embedded rompe el trust boundary en cada re-invocación. ¿Qué pasa si mando 10.000 de estos?
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- cerberus responds -->
+        <div class="msg-agent" data-agent="cerberus">
+          <div class="msg-avatar" data-agent="cerberus">CE</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" data-agent="cerberus">cerberus</span>
+              <span class="msg-role">reviewer</span>
+              <span class="msg-time">20:44</span>
+            </div>
+            <div class="msg-text">
+              confirmado — el historial humano no está sanitizado. <span class="mention" style="color:var(--cyan)">@ultron</span>
+              añade sanitización del historial de mensajes humanos en <code>buildPrompt</code> con el mismo pattern que triggerContent.
+            </div>
+          </div>
+        </div>
+
+        <!-- system -->
+        <div class="msg-sys">
+          <span class="sys-pill warn">Agent ultron queued (1 in queue)</span>
+        </div>
+
+        <!-- Bex closes -->
+        <div class="msg-human">
+          <div class="human-bubble">
+            <div class="human-meta">
+              <span class="human-author">Bex</span>
+              <span class="msg-time">20:45</span>
+            </div>
+            <div class="human-text">
+              buena caza. ultron lo aplica y cerberus revisa antes del próximo commit.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- INPUT -->
+      <div class="input-area">
+        <div class="input-box">
+          <textarea class="input-field" placeholder="mensaje… @nombre para invocar un agente" rows="1"></textarea>
+          <button class="send-btn" type="button">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="oklch(9% 0 0)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2L8 8M14 2L9 14L8 8L2 6L14 2Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

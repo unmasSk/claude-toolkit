@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>agent-chatroom — ultron.mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0C0C14;
+      --surface:    #111120;
+      --surface2:   #181828;
+      --surface3:   #1F1F32;
+      --border:     #242438;
+      --border2:    #1A1A2C;
+
+      --text:       #D0D0E8;
+      --text2:      #8080A0;
+      --text3:      #48486A;
+
+      --green:      #00D46A;
+      --green-dim:  #007A3D;
+      --green-bg:   rgba(0,212,106,0.06);
+
+      /* agent hues — OKLCH-sourced, non-slop palette */
+      --c-bilbo:     #A78BFA;
+      --c-ultron:    #00D46A;
+      --c-cerberus:  #FB923C;
+      --c-dante:     #60A5FA;
+      --c-argus:     #F87171;
+      --c-moriarty:  #F472B6;
+      --c-house:     #A3E635;
+      --c-yoda:      #FCD34D;
+      --c-alexandria:#67E8F9;
+      --c-gitto:     #34D399;
+      --c-bex:       #E2E8F0;
+
+      --font: 'JetBrains Mono', 'Fira Code', monospace;
+      --r: 2px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    /* ─── LAYOUT ─────────────────────────────────────── */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ─── SIDEBAR ─────────────────────────────────────── */
+    .sidebar {
+      width: 210px; min-width: 210px;
+      background: var(--surface);
+      border-right: 1px solid var(--border2);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sb-header {
+      padding: 14px 12px 10px;
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .sb-label {
+      font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text3);
+      margin-bottom: 5px;
+    }
+
+    .sb-room {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; font-weight: 500; color: var(--text);
+    }
+
+    .sb-room .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 5px var(--green);
+      flex-shrink: 0;
+    }
+
+    .sb-section-label {
+      padding: 10px 12px 4px;
+      font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text3);
+    }
+
+    .agent-list { flex: 1; overflow-y: auto; }
+    .agent-list::-webkit-scrollbar { width: 3px; }
+    .agent-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .agent-row {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 12px; cursor: pointer;
+      transition: background 120ms;
+    }
+    .agent-row:hover { background: var(--surface2); }
+    .agent-row.self { background: var(--surface2); }
+
+    .agent-sq {
+      width: 5px; height: 5px; border-radius: 1px;
+      flex-shrink: 0;
+    }
+    .agent-sq.thinking { animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .agent-name {
+      font-size: 12px; font-weight: 400; color: var(--text2);
+      flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .agent-row.self .agent-name { color: var(--text); font-weight: 500; }
+    .agent-row.active .agent-name { color: var(--text); }
+
+    .agent-tag {
+      font-size: 9px; letter-spacing: 0.04em;
+      color: var(--text3); flex-shrink: 0;
+    }
+
+    .badge {
+      font-size: 8px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 1px 4px; border-radius: 1px;
+      flex-shrink: 0;
+    }
+    .badge-on   { background: rgba(0,212,106,0.12); color: var(--green); }
+    .badge-run  { background: rgba(253,186,116,0.12); color: #FB923C; }
+    .badge-off  { display: none; }
+
+    .divider {
+      height: 1px; margin: 4px 12px; background: var(--border2);
+    }
+
+    .sb-footer {
+      padding: 8px 12px 10px;
+      border-top: 1px solid var(--border2);
+    }
+    .sb-stat {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--text3); margin-bottom: 1px;
+    }
+    .sb-stat span { color: var(--text2); font-weight: 500; }
+
+    /* ─── CHAT ─────────────────────────────────────── */
+    .chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .chat-header {
+      padding: 10px 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .ch-left { display: flex; align-items: center; gap: 8px; }
+    .ch-title { font-size: 13px; font-weight: 500; color: var(--text); }
+    .ch-sub   { font-size: 10px; color: var(--text3); }
+    .ch-stats { display: flex; gap: 14px; }
+    .ch-stat  { font-size: 10px; color: var(--text3); }
+    .ch-stat b { color: var(--text2); font-weight: 500; }
+
+    /* ─── MESSAGES ─────────────────────────────────── */
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 10px 0 6px;
+    }
+    .messages::-webkit-scrollbar { width: 3px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* date separator */
+    .date-sep {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 18px;
+    }
+    .date-sep .line { flex: 1; height: 1px; background: var(--border2); }
+    .date-sep .dt   { font-size: 9px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* message row */
+    .msg {
+      display: flex; gap: 0; align-items: flex-start;
+      padding: 1px 18px;
+    }
+    .msg:hover { background: rgba(255,255,255,0.015); }
+
+    .msg-gutter {
+      width: 88px; min-width: 88px;
+      display: flex; flex-direction: column;
+      align-items: flex-end; padding-top: 2px;
+    }
+    .msg-author { font-size: 12px; font-weight: 600; }
+    .msg-time   { font-size: 9px; color: var(--text3); }
+
+    .msg-body { flex: 1; min-width: 0; padding-left: 10px; }
+    .msg-text {
+      font-size: 13px; color: var(--text); line-height: 1.65;
+      word-break: break-word;
+    }
+    .msg-text code {
+      background: var(--surface2); padding: 1px 5px;
+      border-radius: var(--r); font-size: 11px;
+    }
+
+    /* tool event */
+    .tool-line {
+      display: flex; align-items: center; gap: 7px;
+      padding: 2px 18px;
+      border-left: 2px solid var(--green-dim);
+      background: var(--green-bg);
+      margin: 1px 0;
+    }
+    .tool-line:hover { background: rgba(0,212,106,0.09); }
+
+    .tl-agent  { width: 68px; min-width: 68px; text-align: right; font-size: 10px; font-weight: 600; color: var(--text3); }
+    .tl-arrow  { font-size: 11px; color: var(--green-dim); flex-shrink: 0; }
+    .tl-badge  {
+      font-size: 9px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 1px 6px;
+      background: rgba(0,212,106,0.1); color: var(--green);
+      border-radius: 1px; flex-shrink: 0;
+    }
+    .tl-desc {
+      font-size: 11px; color: var(--text3);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* system message */
+    .sys-msg {
+      display: flex; align-items: center; gap: 10px;
+      padding: 3px 18px;
+    }
+    .sys-line { flex: 1; height: 1px; background: var(--border2); }
+    .sys-text { font-size: 10px; color: var(--text3); white-space: nowrap; }
+
+    /* thinking indicator */
+    .thinking {
+      display: flex; align-items: center; gap: 0;
+      padding: 2px 18px;
+    }
+    .thinking .msg-gutter { padding-top: 6px; }
+    .t-dots { display: flex; gap: 4px; padding-left: 10px; padding-top: 3px; }
+    .t-dots span {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: #FB923C; opacity: 0.3;
+      animation: tdot 1.4s ease-in-out infinite;
+    }
+    .t-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .t-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes tdot { 0%,80%,100%{opacity:0.3;transform:scale(1)} 40%{opacity:1;transform:scale(1.3)} }
+
+    /* ─── INPUT ─────────────────────────────────────── */
+    .chat-input {
+      padding: 10px 18px 14px;
+      border-top: 1px solid var(--border2);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .input-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 9px 12px;
+      display: flex; align-items: flex-end; gap: 9px;
+      transition: border-color 150ms;
+    }
+    .input-box:focus-within {
+      border-color: var(--green-dim);
+      box-shadow: 0 0 0 2px rgba(0,212,106,0.07);
+    }
+    .input-box textarea {
+      flex: 1; background: none; border: none; outline: none;
+      font-family: var(--font); font-size: 13px; color: var(--text);
+      resize: none; height: 20px; line-height: 1.5;
+    }
+    .input-box textarea::placeholder { color: var(--text3); }
+    .input-send {
+      background: var(--green); border: none; border-radius: var(--r);
+      width: 26px; height: 26px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; flex-shrink: 0;
+      color: #000; transition: opacity 150ms;
+    }
+    .input-send:hover { opacity: 0.8; }
+    .input-footer {
+      display: flex; justify-content: space-between;
+      margin-top: 5px; font-size: 9px; color: var(--text3);
+    }
+
+    /* ─── AGENT COLOR HELPERS ────────────────────────── */
+    .c-bilbo     { color: var(--c-bilbo); }
+    .c-ultron    { color: var(--c-ultron); }
+    .c-cerberus  { color: var(--c-cerberus); }
+    .c-dante     { color: var(--c-dante); }
+    .c-argus     { color: var(--c-argus); }
+    .c-moriarty  { color: var(--c-moriarty); }
+    .c-house     { color: var(--c-house); }
+    .c-yoda      { color: var(--c-yoda); }
+    .c-alexandria{ color: var(--c-alexandria); }
+    .c-gitto     { color: var(--c-gitto); }
+    .c-bex       { color: var(--c-bex); }
+
+    .bg-bilbo     { background: var(--c-bilbo); }
+    .bg-ultron    { background: var(--c-ultron); }
+    .bg-cerberus  { background: var(--c-cerberus); }
+    .bg-dante     { background: var(--c-dante); }
+    .bg-argus     { background: var(--c-argus); }
+    .bg-moriarty  { background: var(--c-moriarty); }
+    .bg-house     { background: var(--c-house); }
+    .bg-yoda      { background: var(--c-yoda); }
+    .bg-alexandria{ background: var(--c-alexandria); }
+    .bg-gitto     { background: var(--c-gitto); }
+    .bg-bex       { background: var(--c-bex); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .agent-sq.thinking, .t-dots span { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-label">workspace</div>
+      <div class="sb-room">
+        <span class="dot"></span>
+        general
+      </div>
+    </div>
+
+    <div class="sb-section-label">AGENTS — 10 + 1 HUMAN</div>
+
+    <div class="agent-list">
+
+      <!-- active / thinking -->
+      <div class="agent-row self">
+        <span class="agent-sq bg-ultron thinking"></span>
+        <span class="agent-name c-ultron">ultron</span>
+        <span class="badge badge-run">exec</span>
+      </div>
+      <div class="agent-row active">
+        <span class="agent-sq bg-cerberus"></span>
+        <span class="agent-name c-cerberus">cerberus</span>
+        <span class="badge badge-on">active</span>
+      </div>
+      <!-- human — always present -->
+      <div class="agent-row active">
+        <span class="agent-sq bg-bex"></span>
+        <span class="agent-name c-bex">bex</span>
+        <span class="badge badge-on">human</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- idle agents -->
+      <div class="agent-row" style="opacity:.55">
+        <span class="agent-sq bg-bilbo" style="opacity:.5"></span>
+        <span class="agent-name">bilbo</span>
+        <span class="agent-tag">explore</span>
+      </div>
+      <div class="agent-row" style="opacity:.55">
+        <span class="agent-sq bg-dante" style="opacity:.5"></span>
+        <span class="agent-name">dante</span>
+        <span class="agent-tag">test</span>
+      </div>
+      <div class="agent-row" style="opacity:.55">
+        <span class="agent-sq bg-house" style="opacity:.5"></span>
+        <span class="agent-name">house</span>
+        <span class="agent-tag">diagnose</span>
+      </div>
+      <div class="agent-row" style="opacity:.55">
+        <span class="agent-sq bg-yoda" style="opacity:.5"></span>
+        <span class="agent-name">yoda</span>
+        <span class="agent-tag">judge</span>
+      </div>
+      <div class="agent-row" style="opacity:.55">
+        <span class="agent-sq bg-gitto" style="opacity:.5"></span>
+        <span class="agent-name">gitto</span>
+        <span class="agent-tag">memory</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- offline -->
+      <div class="agent-row" style="opacity:.28">
+        <span class="agent-sq" style="background:var(--surface3)"></span>
+        <span class="agent-name">argus</span>
+        <span class="agent-tag">security</span>
+      </div>
+      <div class="agent-row" style="opacity:.28">
+        <span class="agent-sq" style="background:var(--surface3)"></span>
+        <span class="agent-name">moriarty</span>
+        <span class="agent-tag">break</span>
+      </div>
+      <div class="agent-row" style="opacity:.28">
+        <span class="agent-sq" style="background:var(--surface3)"></span>
+        <span class="agent-name">alexandria</span>
+        <span class="agent-tag">docs</span>
+      </div>
+    </div>
+
+    <div class="sb-footer">
+      <div class="sb-stat">session cost <span>$0.041</span></div>
+      <div class="sb-stat">turns <span>9</span></div>
+      <div class="sb-stat">active agents <span>3</span></div>
+    </div>
+  </aside>
+
+  <!-- ── CHAT ── -->
+  <main class="chat">
+    <div class="chat-header">
+      <div class="ch-left">
+        <div>
+          <div class="ch-title"># general</div>
+          <div class="ch-sub">multi-agent workspace</div>
+        </div>
+      </div>
+      <div class="ch-stats">
+        <div class="ch-stat">messages <b>14</b></div>
+        <div class="ch-stat">tools <b>6</b></div>
+      </div>
+    </div>
+
+    <div class="messages">
+
+      <div class="date-sep">
+        <div class="line"></div>
+        <div class="dt">hoy — 14:21</div>
+        <div class="line"></div>
+      </div>
+
+      <!-- Bex -->
+      <div class="msg">
+        <div class="msg-gutter">
+          <span class="msg-author c-bex">bex</span>
+          <span class="msg-time">14:21</span>
+        </div>
+        <div class="msg-body">
+          <div class="msg-text">@ultron implementa rate limiting en la WS API. 100 req/min por conexión, sliding window.</div>
+        </div>
+      </div>
+
+      <!-- Ultron ack -->
+      <div class="msg">
+        <div class="msg-gutter">
+          <span class="msg-author c-ultron">ultron</span>
+          <span class="msg-time">14:21</span>
+        </div>
+        <div class="msg-body">
+          <div class="msg-text">Rate limiting en WS. Leo el código actual y aplico.</div>
+        </div>
+      </div>
+
+      <!-- Tool events -->
+      <div class="tool-line">
+        <span class="tl-agent c-ultron">ultron</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Read</span>
+        <span class="tl-desc">apps/backend/src/routes/ws.ts</span>
+      </div>
+      <div class="tool-line">
+        <span class="tl-agent c-ultron">ultron</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Read</span>
+        <span class="tl-desc">apps/backend/src/config.ts</span>
+      </div>
+      <div class="tool-line">
+        <span class="tl-agent c-ultron">ultron</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Edit</span>
+        <span class="tl-desc">apps/backend/src/routes/ws.ts — added rateLimiter middleware</span>
+      </div>
+      <div class="tool-line">
+        <span class="tl-agent c-ultron">ultron</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Edit</span>
+        <span class="tl-desc">apps/backend/src/config.ts — WS_RATE_LIMIT_RPM = 100</span>
+      </div>
+
+      <!-- Ultron done -->
+      <div class="msg">
+        <div class="msg-gutter">
+          <span class="msg-author c-ultron">ultron</span>
+          <span class="msg-time">14:22</span>
+        </div>
+        <div class="msg-body">
+          <div class="msg-text">Hecho. Sliding window, 100 req/min por conexión, burst ×1.5. Headers <code>RateLimit-*</code> incluidos. Configurable vía <code>WS_RATE_LIMIT_RPM</code>.</div>
+        </div>
+      </div>
+
+      <div class="sys-msg">
+        <div class="sys-line"></div>
+        <div class="sys-text">cerberus invocado</div>
+        <div class="sys-line"></div>
+      </div>
+
+      <!-- Cerberus review -->
+      <div class="msg">
+        <div class="msg-gutter">
+          <span class="msg-author c-cerberus">cerberus</span>
+          <span class="msg-time">14:23</span>
+        </div>
+        <div class="msg-body">
+          <div class="msg-text">Revisado. T3 — falta test unitario para el path de rechazo (429). No bloquea merge. @dante cubre el 429 en ws.test.ts.</div>
+        </div>
+      </div>
+
+      <div class="tool-line">
+        <span class="tl-agent c-dante">dante</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Edit</span>
+        <span class="tl-desc">apps/backend/src/routes/ws.test.ts — test: 429 on rate limit exceeded</span>
+      </div>
+      <div class="tool-line">
+        <span class="tl-agent c-dante">dante</span>
+        <span class="tl-arrow">›</span>
+        <span class="tl-badge">Bash</span>
+        <span class="tl-desc">pnpm --filter backend test -- --testPathPattern=ws ✓ 8 passed</span>
+      </div>
+
+      <!-- Bex -->
+      <div class="msg">
+        <div class="msg-gutter">
+          <span class="msg-author c-bex">bex</span>
+          <span class="msg-time">14:24</span>
+        </div>
+        <div class="msg-body">
+          <div class="msg-text">ok perf</div>
+        </div>
+      </div>
+
+      <!-- thinking -->
+      <div class="thinking">
+        <div class="msg-gutter">
+          <span class="msg-author c-ultron" style="font-size:10px">ultron</span>
+        </div>
+        <div class="t-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── INPUT ── -->
+    <div class="chat-input">
+      <div class="input-box">
+        <textarea placeholder="Escribe un mensaje... (@ultron, @cerberus, @everyone)" rows="1"></textarea>
+        <button class="input-send" type="button" aria-label="Enviar">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span>@mention para invocar · Enter envía · Shift+Enter nueva línea</span>
+        <span>0 / 50000</span>
+      </div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

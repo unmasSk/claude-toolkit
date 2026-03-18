@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gitto — Commit History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   GITTO MOCK — "Commit History"
+   Direction: Git archaeological archive. Every message is a
+   commit. Every agent is a contributor. History is sacred.
+
+   Colors: warm-dark OLED black, teal-green accent (git success),
+   amber for HEAD/active, muted stone for idle.
+   Font: JetBrains Mono — the only acceptable choice here.
+   ========================================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Background layers — warm black, not cold gray */
+  --bg-base:        oklch(8% 0.005 165);
+  --bg-surface:     oklch(11% 0.006 165);
+  --bg-raised:      oklch(14% 0.007 165);
+  --bg-overlay:     oklch(17% 0.008 165);
+  --bg-hover:       oklch(19% 0.008 165);
+
+  /* Teal-green accent — git success, history confirmed */
+  --accent:         oklch(72% 0.15 168);
+  --accent-dim:     oklch(52% 0.12 168);
+  --accent-ghost:   oklch(20% 0.05 168);
+
+  /* Amber — HEAD pointer, active state */
+  --head:           oklch(78% 0.14 70);
+  --head-dim:       oklch(55% 0.10 70);
+  --head-ghost:     oklch(18% 0.05 70);
+
+  /* Text layers */
+  --text-primary:   oklch(90% 0.004 165);
+  --text-secondary: oklch(68% 0.006 165);
+  --text-muted:     oklch(44% 0.005 165);
+  --text-dim:       oklch(30% 0.004 165);
+
+  /* Borders */
+  --border:         oklch(20% 0.006 165);
+  --border-subtle:  oklch(16% 0.005 165);
+
+  /* Agent hues — each contributor has their branch color */
+  --c-gitto:    oklch(72% 0.15 168);  /* teal — the historian */
+  --c-ultron:   oklch(68% 0.18 250);  /* blue — implementer */
+  --c-cerberus: oklch(74% 0.15 50);   /* amber — reviewer */
+  --c-bilbo:    oklch(70% 0.12 90);   /* lime — explorer */
+  --c-dante:    oklch(65% 0.14 270);  /* indigo — test engineer */
+  --c-argus:    oklch(62% 0.18 22);   /* red — security */
+  --c-moriarty: oklch(60% 0.16 340);  /* crimson — adversarial */
+  --c-house:    oklch(72% 0.12 55);   /* gold — diagnostician */
+  --c-yoda:     oklch(66% 0.13 210);  /* sky — senior judge */
+  --c-alexandria: oklch(70% 0.11 300); /* violet — documentation */
+  --c-bex:      oklch(80% 0.04 165);  /* near-white — the human */
+}
+
+body {
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 13px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- TOPBAR ---- */
+.topbar {
+  height: 44px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.topbar-logo-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-sep {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.topbar-branch {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--head);
+  font-size: 11px;
+  background: var(--head-ghost);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid oklch(30% 0.07 70);
+}
+
+.topbar-room {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-sha {
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* ---- LAYOUT ---- */
+.layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---- SIDEBAR ---- */
+.sidebar {
+  width: 220px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-title {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.sidebar-subtitle {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.contributors {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.contributor {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 150ms ease;
+  position: relative;
+}
+
+.contributor:hover {
+  background: var(--bg-hover);
+}
+
+.contributor.active {
+  background: var(--accent-ghost);
+}
+
+.contributor.active .contrib-avatar {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Tree line on left for active */
+.contributor.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0 1px 1px 0;
+}
+
+.contributor.busy .contrib-avatar {
+  box-shadow: 0 0 0 1px var(--head);
+}
+
+.contributor.busy::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--head);
+  border-radius: 0 1px 1px 0;
+}
+
+.contrib-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  position: relative;
+  letter-spacing: 0;
+}
+
+.contrib-avatar .dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-surface);
+}
+
+.dot-active   { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+.dot-busy     { background: var(--head); box-shadow: 0 0 4px var(--head); animation: pulse 1.4s ease-in-out infinite; }
+.dot-idle     { background: var(--text-dim); }
+.dot-offline  { background: transparent; border-color: var(--text-dim); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.contrib-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contrib-name {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contrib-role {
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contrib-commits {
+  font-size: 9px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* Scrollbar */
+.contributors::-webkit-scrollbar { width: 3px; }
+.contributors::-webkit-scrollbar-track { background: transparent; }
+.contributors::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ---- MAIN CHAT ---- */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ---- MESSAGE ---- */
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 16px;
+  transition: background 100ms ease;
+  position: relative;
+}
+
+.message:hover {
+  background: var(--bg-surface);
+}
+
+/* Commit SHA in left gutter on hover */
+.message::before {
+  content: attr(data-sha);
+  position: absolute;
+  left: 16px;
+  top: 7px;
+  font-size: 9px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.message:hover::before {
+  opacity: 1;
+}
+
+.msg-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 1px;
+  letter-spacing: 0;
+}
+
+.msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 3px;
+}
+
+.msg-author {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.msg-time {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.msg-text {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.msg-text code {
+  background: var(--bg-overlay);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.msg-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Human message gets subtle accent */
+.message.human .msg-text {
+  color: var(--text-primary);
+}
+
+/* ---- TOOL LINE ---- */
+.tool-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 16px 3px 56px;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: background 100ms ease;
+}
+
+.tool-line:hover {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.tool-agent-name {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.tool-icon {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.tool-content {
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- SYSTEM MESSAGE ---- */
+.sys-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  margin: 4px 0;
+}
+
+.sys-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.sys-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.sys-pill.queue { border-color: oklch(30% 0.06 70); color: var(--head-dim); }
+.sys-pill.join  { border-color: oklch(28% 0.07 168); color: var(--accent-dim); }
+
+/* ---- COMMIT BLOCK (gitto-style annotation) ---- */
+.commit-block {
+  margin: 6px 0 2px;
+  border-left: 2px solid var(--accent-dim);
+  padding: 6px 10px;
+  background: var(--accent-ghost);
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.commit-sha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commit-sha {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.commit-type {
+  font-size: 9px;
+  padding: 1px 6px;
+  background: var(--bg-overlay);
+  border: 1px solid oklch(28% 0.07 168);
+  border-radius: 2px;
+  color: var(--accent-dim);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.commit-msg {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.commit-trail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 3px;
+}
+
+.commit-trail-row {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.commit-trail-key {
+  color: var(--head-dim);
+}
+
+/* ---- INPUT ---- */
+.input-area {
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 12px;
+  transition: border-color 200ms ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 2px var(--accent-ghost);
+}
+
+.input-prompt {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  caret-color: var(--accent);
+}
+
+.input-field::placeholder {
+  color: var(--text-dim);
+}
+
+.input-hint {
+  font-size: 9px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* ---- AVATAR HELPERS ---- */
+.av-gitto    { background: oklch(18% 0.07 168); color: var(--c-gitto); }
+.av-ultron   { background: oklch(16% 0.08 250); color: var(--c-ultron); }
+.av-cerberus { background: oklch(18% 0.06 50);  color: var(--c-cerberus); }
+.av-bilbo    { background: oklch(16% 0.06 90);  color: var(--c-bilbo); }
+.av-dante    { background: oklch(15% 0.07 270); color: var(--c-dante); }
+.av-argus    { background: oklch(15% 0.08 22);  color: var(--c-argus); }
+.av-moriarty { background: oklch(14% 0.07 340); color: var(--c-moriarty); }
+.av-house    { background: oklch(17% 0.06 55);  color: var(--c-house); }
+.av-yoda     { background: oklch(15% 0.06 210); color: var(--c-yoda); }
+.av-alexandria { background: oklch(15% 0.06 300); color: var(--c-alexandria); }
+.av-bex      { background: oklch(20% 0.004 165); color: var(--c-bex); }
+
+.name-gitto    { color: var(--c-gitto); }
+.name-ultron   { color: var(--c-ultron); }
+.name-cerberus { color: var(--c-cerberus); }
+.name-bilbo    { color: var(--c-bilbo); }
+.name-dante    { color: var(--c-dante); }
+.name-argus    { color: var(--c-argus); }
+.name-moriarty { color: var(--c-moriarty); }
+.name-house    { color: var(--c-house); }
+.name-yoda     { color: var(--c-yoda); }
+.name-alexandria { color: var(--c-alexandria); }
+.name-bex      { color: var(--c-bex); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .dot-busy { animation: none; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="topbar-logo-icon">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="4" r="2" fill="currentColor" opacity="0.9"/>
+        <circle cx="4" cy="12" r="2" fill="currentColor" opacity="0.6"/>
+        <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.6"/>
+        <line x1="8" y1="6" x2="4" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+        <line x1="8" y1="6" x2="12" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+      </svg>
+    </div>
+    chatroom
+  </div>
+  <span class="topbar-sep">/</span>
+  <div class="topbar-branch">
+    <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+      <circle cx="2" cy="2" r="1.5" fill="currentColor"/>
+      <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
+      <path d="M2 3.5v2a2 2 0 002 2h1" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+    main
+  </div>
+  <span class="topbar-room">· #general</span>
+  <div class="topbar-right">
+    <span class="topbar-sha">HEAD ad546d1</span>
+    <div class="status-dot"></div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR — 10 agents + 1 human, always fixed -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">contributors</div>
+      <div class="sidebar-subtitle">11 slots · branch: main</div>
+    </div>
+    <div class="contributors">
+
+      <!-- Bex — the human, HEAD -->
+      <div class="contributor active" title="Bex · human">
+        <div class="contrib-avatar av-bex">
+          Bx
+          <div class="dot dot-active"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-bex">Bex</div>
+          <div class="contrib-role">human · HEAD</div>
+        </div>
+        <div class="contrib-commits">∞</div>
+      </div>
+
+      <!-- Gitto — active, this session -->
+      <div class="contributor active" title="gitto · git historian">
+        <div class="contrib-avatar av-gitto">
+          GT
+          <div class="dot dot-active"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-gitto">gitto</div>
+          <div class="contrib-role">historian · oracle</div>
+        </div>
+        <div class="contrib-commits">47</div>
+      </div>
+
+      <!-- Ultron — busy -->
+      <div class="contributor busy" title="ultron · implementer">
+        <div class="contrib-avatar av-ultron">
+          UT
+          <div class="dot dot-busy"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-ultron">ultron</div>
+          <div class="contrib-role">implementer</div>
+        </div>
+        <div class="contrib-commits">183</div>
+      </div>
+
+      <!-- Cerberus — active -->
+      <div class="contributor active" title="cerberus · reviewer">
+        <div class="contrib-avatar av-cerberus">
+          CB
+          <div class="dot dot-active"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-cerberus">cerberus</div>
+          <div class="contrib-role">reviewer</div>
+        </div>
+        <div class="contrib-commits">29</div>
+      </div>
+
+      <!-- Bilbo — idle (invoked earlier, now idle) -->
+      <div class="contributor" title="bilbo · explorer">
+        <div class="contrib-avatar av-bilbo">
+          BB
+          <div class="dot dot-idle"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-bilbo">bilbo</div>
+          <div class="contrib-role">explorer</div>
+        </div>
+        <div class="contrib-commits">12</div>
+      </div>
+
+      <!-- Dante — never invoked this session -->
+      <div class="contributor" title="dante · test engineer · not yet invoked">
+        <div class="contrib-avatar av-dante" style="opacity:0.45">
+          DT
+          <div class="dot dot-offline"></div>
+        </div>
+        <div class="contrib-info" style="opacity:0.45">
+          <div class="contrib-name name-dante">dante</div>
+          <div class="contrib-role">test engineer</div>
+        </div>
+        <div class="contrib-commits" style="opacity:0.3">—</div>
+      </div>
+
+      <!-- Argus — idle -->
+      <div class="contributor" title="argus · security">
+        <div class="contrib-avatar av-argus">
+          AR
+          <div class="dot dot-idle"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-argus">argus</div>
+          <div class="contrib-role">security</div>
+        </div>
+        <div class="contrib-commits">8</div>
+      </div>
+
+      <!-- Moriarty — never invoked -->
+      <div class="contributor" title="moriarty · adversarial · not yet invoked">
+        <div class="contrib-avatar av-moriarty" style="opacity:0.45">
+          MO
+          <div class="dot dot-offline"></div>
+        </div>
+        <div class="contrib-info" style="opacity:0.45">
+          <div class="contrib-name name-moriarty">moriarty</div>
+          <div class="contrib-role">adversarial</div>
+        </div>
+        <div class="contrib-commits" style="opacity:0.3">—</div>
+      </div>
+
+      <!-- House — idle -->
+      <div class="contributor" title="house · diagnostician">
+        <div class="contrib-avatar av-house">
+          HS
+          <div class="dot dot-idle"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-house">house</div>
+          <div class="contrib-role">diagnostician</div>
+        </div>
+        <div class="contrib-commits">15</div>
+      </div>
+
+      <!-- Yoda — never invoked -->
+      <div class="contributor" title="yoda · senior evaluator · not yet invoked">
+        <div class="contrib-avatar av-yoda" style="opacity:0.45">
+          YD
+          <div class="dot dot-offline"></div>
+        </div>
+        <div class="contrib-info" style="opacity:0.45">
+          <div class="contrib-name name-yoda">yoda</div>
+          <div class="contrib-role">senior evaluator</div>
+        </div>
+        <div class="contrib-commits" style="opacity:0.3">—</div>
+      </div>
+
+      <!-- Alexandria — idle -->
+      <div class="contributor" title="alexandria · documentation">
+        <div class="contrib-avatar av-alexandria">
+          AL
+          <div class="dot dot-idle"></div>
+        </div>
+        <div class="contrib-info">
+          <div class="contrib-name name-alexandria">alexandria</div>
+          <div class="contrib-role">documentation</div>
+        </div>
+        <div class="contrib-commits">6</div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MAIN CHAT -->
+  <main class="chat-main">
+    <div class="messages">
+
+      <!-- System: session start -->
+      <div class="sys-divider">
+        <div class="sys-line"></div>
+        <div class="sys-pill join">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" stroke="currentColor" stroke-width="1.2"/><path d="M4 2v2l1.5 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          session started · branch main · 13c253a
+        </div>
+        <div class="sys-line"></div>
+      </div>
+
+      <!-- Bex message -->
+      <div class="message human" data-sha="—">
+        <div class="msg-avatar av-bex">Bx</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-author name-bex">Bex</span>
+            <span class="msg-time">19:48:03Z</span>
+          </div>
+          <div class="msg-text">
+            @gitto dame un resumen de lo que hay pendiente esta sesión.
+            y dime cuantos commits llevamos en <code>main</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tool line: gitto reading git log -->
+      <div class="tool-line">
+        <span class="tool-agent-name name-gitto">gitto</span>
+        <span class="tool-icon">⬡</span>
+        <span class="tool-badge">Bash</span>
+        <span class="tool-content">git log --oneline -20 main</span>
+      </div>
+      <div class="tool-line">
+        <span class="tool-agent-name name-gitto">gitto</span>
+        <span class="tool-icon">◈</span>
+        <span class="tool-badge">Read</span>
+        <span class="tool-content">.claude/agent-memory/unmassk-gitmemory/PROGRESS.md</span>
+      </div>
+
+      <!-- Gitto response -->
+      <div class="message" data-sha="a1b2c3d">
+        <div class="msg-avatar av-gitto">GT</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-author name-gitto">gitto</span>
+            <span class="msg-time">19:48:11Z</span>
+          </div>
+          <div class="msg-text">
+            13 commits ahead of upstream. <strong>3 pendientes de resolver:</strong>
+          </div>
+          <div class="commit-block">
+            <div class="commit-sha-row">
+              <span class="commit-sha">next/1</span>
+              <span class="commit-type">feat</span>
+            </div>
+            <div class="commit-msg">tool_event dedup ID — ID aleatorio en ws-store.ts:84 nunca se deduplica</div>
+            <div class="commit-trail">
+              <div class="commit-trail-row"><span class="commit-trail-key">Source:</span> 13c253a context(plugin/chatroom)</div>
+            </div>
+          </div>
+          <div class="commit-block">
+            <div class="commit-sha-row">
+              <span class="commit-sha">next/2</span>
+              <span class="commit-type">feat</span>
+            </div>
+            <div class="commit-msg">Tauri app — empaquetar chatroom como desktop app</div>
+            <div class="commit-trail">
+              <div class="commit-trail-row"><span class="commit-trail-key">Source:</span> memo(plugin/chatroom) · design-mocks/</div>
+            </div>
+          </div>
+          <div class="commit-block">
+            <div class="commit-sha-row">
+              <span class="commit-sha">next/3</span>
+              <span class="commit-type">test</span>
+            </div>
+            <div class="commit-msg">dante — tests para fixes de esta sesión (connectingRoomId, ToolLine)</div>
+            <div class="commit-trail">
+              <div class="commit-trail-row"><span class="commit-trail-key">Source:</span> 13c253a Next: trailer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System: queue -->
+      <div class="sys-divider">
+        <div class="sys-line"></div>
+        <div class="sys-pill queue">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" stroke="currentColor" stroke-width="1.2"/><path d="M4 2v2l1.5 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          ultron queued · 1 pending
+        </div>
+        <div class="sys-line"></div>
+      </div>
+
+      <!-- Bex again -->
+      <div class="message human" data-sha="—">
+        <div class="msg-avatar av-bex">Bx</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-author name-bex">Bex</span>
+            <span class="msg-time">19:49:02Z</span>
+          </div>
+          <div class="msg-text">
+            @cerberus revisa lo que ha hecho ultron. y cuando termines <strong>menciona a ultron</strong> si hay algo que arreglar.
+          </div>
+        </div>
+      </div>
+
+      <!-- Cerberus tool lines -->
+      <div class="tool-line">
+        <span class="tool-agent-name name-cerberus">cerberus</span>
+        <span class="tool-icon">◈</span>
+        <span class="tool-badge">Read</span>
+        <span class="tool-content">frontend/src/components/MessageList.tsx</span>
+      </div>
+      <div class="tool-line">
+        <span class="tool-agent-name name-cerberus">cerberus</span>
+        <span class="tool-icon">◈</span>
+        <span class="tool-badge">Grep</span>
+        <span class="tool-content">tool_event · ws-store.ts</span>
+      </div>
+
+      <!-- Cerberus response -->
+      <div class="message" data-sha="f9e8d7c">
+        <div class="msg-avatar av-cerberus">CB</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-author name-cerberus">cerberus</span>
+            <span class="msg-time">19:49:18Z</span>
+          </div>
+          <div class="msg-text">
+            review completo. <strong>2 issues, T2.</strong><br><br>
+            <code>ToolLine.tsx:12</code> — <code>c-${author.toLowerCase()}</code> falta en className. el nombre del agente aparece en color muted para todos.<br><br>
+            <code>ToolLine.tsx:9</code> — <code>message.author.charAt(0)</code> explota si author es vacío. añadir <code>|| 'unknown'</code>.<br><br>
+            resto limpio. @ultron aplica los dos T2.
+          </div>
+        </div>
+      </div>
+
+      <!-- Spacer -->
+      <div style="height: 8px;"></div>
+
+    </div>
+
+    <!-- INPUT -->
+    <div class="input-area">
+      <div class="input-wrapper">
+        <span class="input-prompt">❯</span>
+        <input
+          class="input-field"
+          type="text"
+          placeholder="message #general — @mention an agent to invoke"
+          aria-label="Chat input"
+        >
+        <span class="input-hint">↵ send</span>
+      </div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

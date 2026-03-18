@@ -1,10 +1,8 @@
 import { getAgentConfig } from './agent-registry.js';
+import { createLogger } from '../logger.js';
 
-// ---------------------------------------------------------------------------
-// Debug logger — all output to stderr
-// ---------------------------------------------------------------------------
-
-function log(...args: unknown[]) { console.error('[mention-parser]', new Date().toISOString(), ...args); }
+const logger = createLogger('mention-parser');
+function log(...args: unknown[]) { logger.debug(args.map(String).join(' ')); }
 
 // ---------------------------------------------------------------------------
 // Mention extraction

@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bilbo v2 — Mission Control</title>
+<style>
+/* =============================================================
+   BILBO v2 — "Mission Control"
+   Glassmorphism real. Sidebar es la estrella.
+   Cada agente tiene su presencia visual activa.
+   ============================================================= */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+:root {
+  /* Agent accent colors */
+  --c-bilbo:      oklch(70% 0.14 60);
+  --c-ultron:     oklch(64% 0.18 250);
+  --c-cerberus:   oklch(62% 0.15 155);
+  --c-dante:      oklch(60% 0.18 25);
+  --c-argus:      oklch(62% 0.17 295);
+  --c-moriarty:   oklch(66% 0.16 38);
+  --c-house:      oklch(62% 0.14 190);
+  --c-yoda:       oklch(66% 0.12 140);
+  --c-alexandria: oklch(72% 0.13 80);
+  --c-gitto:      oklch(64% 0.13 268);
+  --c-bex:        oklch(88% 0.006 55);
+
+  --glass-bg:     oklch(18% 0.012 250 / 0.55);
+  --glass-border: oklch(60% 0.01 250 / 0.12);
+  --glass-hover:  oklch(25% 0.012 250 / 0.6);
+  --text-primary: oklch(92% 0.005 250);
+  --text-secondary: oklch(60% 0.01 250);
+  --text-muted:   oklch(42% 0.01 250);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  background: oklch(8% 0.015 250);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* ---- DEEP BACKGROUND — orbital ambient orbs ---- */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+.bg-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 30%, oklch(62% 0.15 155 / 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 60% at 85% 70%, oklch(64% 0.18 250 / 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, oklch(70% 0.14 60 / 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 30% at 80% 10%, oklch(66% 0.16 38 / 0.06) 0%, transparent 50%);
+}
+/* Subtle grid */
+.bg-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(60% 0.01 250 / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(60% 0.01 250 / 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ---- APP SHELL — centered window (Tauri feel) ---- */
+.app {
+  position: relative;
+  z-index: 1;
+  width: 1060px;
+  height: 680px;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: 44px 1fr 58px;
+  border-radius: 16px;
+  overflow: hidden;
+  /* Real glassmorphism frame */
+  background: oklch(12% 0.012 250 / 0.7);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 0 0 1px oklch(100% 0 0 / 0.04),
+    0 8px 32px oklch(0% 0 0 / 0.5),
+    0 32px 80px oklch(0% 0 0 / 0.4),
+    0 0 120px oklch(64% 0.18 250 / 0.06);
+}
+
+/* ---- TOPBAR — Tauri drag region feel ---- */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  background: oklch(14% 0.012 250 / 0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  /* macOS traffic lights placeholder */
+}
+.traffic-lights {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.traffic-light {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+}
+.tl-red    { background: #ff5f56; }
+.tl-yellow { background: #ffbd2e; }
+.tl-green  { background: #26c940; }
+
+.topbar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+.topbar-room {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: oklch(100% 0 0 / 0.05);
+  border: 1px solid var(--glass-border);
+}
+.topbar-spacer { flex: 1; }
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: oklch(60% 0.15 145);
+  box-shadow: 0 0 6px oklch(60% 0.15 145 / 0.6);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- SIDEBAR — the star of the show ---- */
+.sidebar {
+  grid-row: 2 / 4;
+  background: oklch(14% 0.014 250 / 0.6);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 14px 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  flex: 1;
+}
+.sidebar-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: oklch(100% 0 0 / 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+
+.agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ---- AGENT CARD — the real innovation ---- */
+.agent-card {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.agent-card:hover {
+  background: var(--glass-hover);
+  border-color: oklch(60% 0.01 250 / 0.22);
+}
+/* Glow stripe on left edge — agent color */
+.agent-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--agent-color);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.agent-card.active::before  { opacity: 1; }
+.agent-card.busy::before    { opacity: 1; animation: stripe-breathe 1.5s ease-in-out infinite; }
+@keyframes stripe-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Ambient glow behind active card */
+.agent-card.active {
+  box-shadow: 0 0 20px var(--agent-color, transparent) / 0.08;
+  border-color: color-mix(in oklch, var(--agent-color) 30%, oklch(60% 0.01 250 / 0.12));
+}
+.agent-card.busy {
+  border-color: color-mix(in oklch, var(--agent-color) 20%, oklch(60% 0.01 250 / 0.12));
+}
+
+.agent-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* Avatar with ring */
+.agent-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.agent-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  background: color-mix(in oklch, var(--agent-color) 15%, oklch(15% 0.01 250));
+  color: var(--agent-color);
+  border: 1.5px solid color-mix(in oklch, var(--agent-color) 35%, transparent);
+  transition: box-shadow 0.3s;
+}
+.agent-card.active .agent-avatar,
+.agent-card.busy .agent-avatar {
+  box-shadow: 0 0 10px color-mix(in oklch, var(--agent-color) 50%, transparent);
+}
+.agent-card.busy .agent-avatar {
+  animation: avatar-pulse 2s ease-in-out infinite;
+}
+@keyframes avatar-pulse {
+  0%, 100% { box-shadow: 0 0 8px color-mix(in oklch, var(--agent-color) 40%, transparent); }
+  50%       { box-shadow: 0 0 18px color-mix(in oklch, var(--agent-color) 70%, transparent); }
+}
+
+/* Status dot on avatar */
+.agent-status-dot {
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid oklch(14% 0.014 250);
+}
+.status-online  { background: oklch(60% 0.15 145); box-shadow: 0 0 4px oklch(60% 0.15 145 / 0.7); }
+.status-busy    { background: oklch(65% 0.18 60);  animation: dot-blink 1s step-end infinite; }
+.status-idle    { background: oklch(35% 0.01 250); }
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.agent-info { flex: 1; min-width: 0; }
+.agent-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--agent-color);
+  letter-spacing: 0.01em;
+}
+.agent-role {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.agent-state {
+  font-size: 9.5px;
+  color: var(--text-secondary);
+  text-align: right;
+  flex-shrink: 0;
+}
+.agent-state.thinking { color: oklch(65% 0.18 60); }
+.agent-state.writing  { color: oklch(62% 0.15 155); }
+
+/* ---- SVG ACTIVITY BAR — the key feature ---- */
+.activity-bar {
+  height: 20px;
+  width: 100%;
+}
+.activity-bar .bar-bg {
+  fill: none;
+}
+/* bars are rectangles; animated via CSS */
+.activity-bar .bar {
+  fill: var(--agent-color);
+  opacity: 0.7;
+  rx: 1;
+  transform-origin: bottom;
+  animation: bar-grow 0s ease-out forwards;
+}
+/* Each bar has its own delay and height via inline style */
+
+/* Tool trail under the bar */
+.tool-trail {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  align-items: center;
+}
+.tool-chip {
+  font-size: 9px;
+  font-family: 'SF Mono', monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: oklch(100% 0 0 / 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.tool-chip.last {
+  background: color-mix(in oklch, var(--agent-color) 10%, oklch(15% 0.01 250));
+  border-color: color-mix(in oklch, var(--agent-color) 25%, transparent);
+  color: var(--agent-color);
+}
+
+/* Human slot — different look */
+.human-card {
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: oklch(100% 0 0 / 0.04);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 8px 6px;
+}
+.human-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: oklch(88% 0.006 55 / 0.12);
+  border: 1.5px solid oklch(88% 0.006 55 / 0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  color: var(--c-bex);
+}
+.human-name { font-size: 12px; font-weight: 700; color: var(--c-bex); }
+.human-role { font-size: 9.5px; color: var(--text-muted); }
+
+.sidebar-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+  margin: 4px 8px 6px;
+}
+
+/* ---- MESSAGES ---- */
+.messages {
+  overflow-y: auto;
+  padding: 12px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: oklch(30% 0.01 250) transparent;
+}
+.messages::-webkit-scrollbar { width: 3px; }
+.messages::-webkit-scrollbar-thumb { background: oklch(30% 0.01 250); border-radius: 2px; }
+
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 16px;
+  border-radius: 6px;
+  position: relative;
+  transition: background 0.1s;
+}
+.message:hover { background: oklch(100% 0 0 / 0.025); }
+
+/* Glassmorphic message background — agent tinted */
+.message::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: var(--msg-bg, transparent);
+  pointer-events: none;
+}
+
+.msg-avatar {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 800;
+  font-family: 'SF Mono', monospace;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 1px solid color-mix(in oklch, var(--agent-color) 30%, transparent);
+  color: var(--agent-color);
+  background: color-mix(in oklch, var(--agent-color) 12%, oklch(15% 0.01 250));
+}
+.msg-body { flex: 1; min-width: 0; }
+.msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.msg-author {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--agent-color);
+}
+.msg-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.msg-content {
+  font-size: 12.5px;
+  color: oklch(85% 0.006 250);
+  line-height: 1.55;
+  word-break: break-word;
+}
+code {
+  background: oklch(100% 0 0 / 0.08);
+  border: 1px solid oklch(100% 0 0 / 0.08);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-family: 'SF Mono', monospace;
+}
+
+/* ---- TOOL LINE ---- */
+.tool-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 16px;
+  font-family: 'SF Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+.tool-agent { font-weight: 700; }
+.tool-badge {
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  background: oklch(100% 0 0 / 0.05);
+  border: 1px solid oklch(100% 0 0 / 0.08);
+  color: oklch(55% 0.01 250);
+}
+.tool-desc {
+  color: oklch(40% 0.01 250);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- SYSTEM PILL ---- */
+.system-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 3px 16px;
+}
+.system-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: oklch(100% 0 0 / 0.04);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', monospace;
+}
+.queue-pill {
+  background: oklch(100% 0 0 / 0.04);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 99px;
+  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* ---- INPUT ---- */
+.input-area {
+  grid-column: 2;
+  background: oklch(14% 0.012 250 / 0.8);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+}
+.input-wrap {
+  flex: 1;
+  position: relative;
+}
+.input-box {
+  width: 100%;
+  background: oklch(100% 0 0 / 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  resize: none;
+  line-height: 1.4;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-box::placeholder { color: var(--text-muted); }
+.input-box:focus {
+  border-color: oklch(64% 0.18 250 / 0.4);
+  box-shadow: 0 0 0 2px oklch(64% 0.18 250 / 0.08), 0 0 16px oklch(64% 0.18 250 / 0.06);
+}
+.input-send {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, oklch(60% 0.15 250), oklch(55% 0.18 270));
+  border: 1px solid oklch(64% 0.18 250 / 0.4);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 12px oklch(64% 0.18 250 / 0.2);
+  transition: box-shadow 0.2s, transform 0.1s;
+  flex-shrink: 0;
+}
+.input-send:hover {
+  box-shadow: 0 0 20px oklch(64% 0.18 250 / 0.35);
+  transform: scale(1.05);
+}
+.input-send svg { stroke: white; }
+
+/* ============================================================
+   SVG ACTIVITY BARS — keyframe animations per-bar
+   ============================================================ */
+@keyframes grow-bar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+.bar-1  { animation: grow-bar 0.3s 0.0s ease-out both; }
+.bar-2  { animation: grow-bar 0.3s 0.05s ease-out both; }
+.bar-3  { animation: grow-bar 0.3s 0.10s ease-out both; }
+.bar-4  { animation: grow-bar 0.3s 0.15s ease-out both; }
+.bar-5  { animation: grow-bar 0.3s 0.20s ease-out both; }
+.bar-6  { animation: grow-bar 0.3s 0.25s ease-out both; }
+.bar-7  { animation: grow-bar 0.3s 0.30s ease-out both; }
+.bar-8  { animation: grow-bar 0.3s 0.35s ease-out both; }
+.bar-9  { animation: grow-bar 0.3s 0.40s ease-out both; }
+.bar-10 { animation: grow-bar 0.3s 0.45s ease-out both; }
+.bar-11 { animation: grow-bar 0.3s 0.50s ease-out both; }
+.bar-12 { animation: grow-bar 0.3s 0.55s ease-out both; }
+.bar-13 { animation: grow-bar 0.3s 0.60s ease-out both; }
+.bar-14 { animation: grow-bar 0.3s 0.65s ease-out both; }
+.bar-15 { animation: grow-bar 0.3s 0.70s ease-out both; }
+.bar-16 { animation: grow-bar 0.3s 0.75s ease-out both; }
+
+/* Active agent — last bar animates continuously */
+.agent-card.busy .bar-16 {
+  animation: bar-live 1.2s 0.75s ease-in-out infinite;
+}
+@keyframes bar-live {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+  50%       { transform: scaleY(1.2); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="traffic-lights">
+      <div class="traffic-light tl-red"></div>
+      <div class="traffic-light tl-yellow"></div>
+      <div class="traffic-light tl-green"></div>
+    </div>
+    <span class="topbar-title">unmassk</span>
+    <span class="topbar-room">/ chatroom / main</span>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-status">
+      <div class="status-dot"></div>
+      11 online
+    </div>
+  </header>
+
+  <!-- SIDEBAR — THE STAR -->
+  <aside class="sidebar">
+
+    <!-- Human — top always -->
+    <div class="human-card">
+      <div class="human-avatar">B</div>
+      <div>
+        <div class="human-name">Bex</div>
+        <div class="human-role">Human · Owner</div>
+      </div>
+      <div style="margin-left:auto">
+        <div class="agent-status-dot status-online" style="position:static;width:7px;height:7px;border-radius:50%;background:oklch(60% 0.15 145);box-shadow:0 0 4px oklch(60% 0.15 145 / 0.6)"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div style="padding: 0 0 4px 14px;">
+      <span class="sidebar-label">Crew</span>
+    </div>
+
+    <div class="agent-list">
+
+      <!-- BILBO — active, exploring -->
+      <div class="agent-card active" style="--agent-color: var(--c-bilbo);">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">B</div>
+            <div class="agent-status-dot status-online"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">bilbo</div>
+            <div class="agent-role">Explorer</div>
+          </div>
+          <div class="agent-state writing">reading</div>
+        </div>
+        <!-- SVG activity bar — 16 bars, varying heights -->
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect class="bar bar-1"  x="0"   y="10" width="5" height="10" fill="var(--c-bilbo)" opacity="0.4" style="transform-origin:0 20px"/>
+          <rect class="bar bar-2"  x="7"   y="6"  width="5" height="14" fill="var(--c-bilbo)" opacity="0.5" style="transform-origin:7px 20px"/>
+          <rect class="bar bar-3"  x="14"  y="12" width="5" height="8"  fill="var(--c-bilbo)" opacity="0.4" style="transform-origin:14px 20px"/>
+          <rect class="bar bar-4"  x="21"  y="4"  width="5" height="16" fill="var(--c-bilbo)" opacity="0.6" style="transform-origin:21px 20px"/>
+          <rect class="bar bar-5"  x="28"  y="8"  width="5" height="12" fill="var(--c-bilbo)" opacity="0.5" style="transform-origin:28px 20px"/>
+          <rect class="bar bar-6"  x="35"  y="14" width="5" height="6"  fill="var(--c-bilbo)" opacity="0.35" style="transform-origin:35px 20px"/>
+          <rect class="bar bar-7"  x="42"  y="2"  width="5" height="18" fill="var(--c-bilbo)" opacity="0.7" style="transform-origin:42px 20px"/>
+          <rect class="bar bar-8"  x="49"  y="9"  width="5" height="11" fill="var(--c-bilbo)" opacity="0.5" style="transform-origin:49px 20px"/>
+          <rect class="bar bar-9"  x="56"  y="13" width="5" height="7"  fill="var(--c-bilbo)" opacity="0.4" style="transform-origin:56px 20px"/>
+          <rect class="bar bar-10" x="63"  y="5"  width="5" height="15" fill="var(--c-bilbo)" opacity="0.6" style="transform-origin:63px 20px"/>
+          <rect class="bar bar-11" x="70"  y="11" width="5" height="9"  fill="var(--c-bilbo)" opacity="0.45" style="transform-origin:70px 20px"/>
+          <rect class="bar bar-12" x="77"  y="7"  width="5" height="13" fill="var(--c-bilbo)" opacity="0.55" style="transform-origin:77px 20px"/>
+          <rect class="bar bar-13" x="84"  y="3"  width="5" height="17" fill="var(--c-bilbo)" opacity="0.65" style="transform-origin:84px 20px"/>
+          <rect class="bar bar-14" x="91"  y="10" width="5" height="10" fill="var(--c-bilbo)" opacity="0.45" style="transform-origin:91px 20px"/>
+          <rect class="bar bar-15" x="98"  y="6"  width="5" height="14" fill="var(--c-bilbo)" opacity="0.55" style="transform-origin:98px 20px"/>
+          <rect class="bar bar-16" x="105" y="1"  width="5" height="19" fill="var(--c-bilbo)" opacity="0.8" style="transform-origin:105px 20px"/>
+        </svg>
+        <div class="tool-trail">
+          <span class="tool-chip">Glob</span>
+          <span class="tool-chip">Grep</span>
+          <span class="tool-chip last">Read ›</span>
+        </div>
+      </div>
+
+      <!-- ULTRON — busy, implementing -->
+      <div class="agent-card busy" style="--agent-color: var(--c-ultron);">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">U</div>
+            <div class="agent-status-dot status-busy"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">ultron</div>
+            <div class="agent-role">Implementer</div>
+          </div>
+          <div class="agent-state thinking">writing…</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect class="bar bar-1"  x="0"   y="8"  width="5" height="12" fill="var(--c-ultron)" opacity="0.5" style="transform-origin:0 20px"/>
+          <rect class="bar bar-2"  x="7"   y="14" width="5" height="6"  fill="var(--c-ultron)" opacity="0.3" style="transform-origin:7px 20px"/>
+          <rect class="bar bar-3"  x="14"  y="3"  width="5" height="17" fill="var(--c-ultron)" opacity="0.7" style="transform-origin:14px 20px"/>
+          <rect class="bar bar-4"  x="21"  y="10" width="5" height="10" fill="var(--c-ultron)" opacity="0.45" style="transform-origin:21px 20px"/>
+          <rect class="bar bar-5"  x="28"  y="6"  width="5" height="14" fill="var(--c-ultron)" opacity="0.55" style="transform-origin:28px 20px"/>
+          <rect class="bar bar-6"  x="35"  y="1"  width="5" height="19" fill="var(--c-ultron)" opacity="0.75" style="transform-origin:35px 20px"/>
+          <rect class="bar bar-7"  x="42"  y="11" width="5" height="9"  fill="var(--c-ultron)" opacity="0.4" style="transform-origin:42px 20px"/>
+          <rect class="bar bar-8"  x="49"  y="5"  width="5" height="15" fill="var(--c-ultron)" opacity="0.6" style="transform-origin:49px 20px"/>
+          <rect class="bar bar-9"  x="56"  y="13" width="5" height="7"  fill="var(--c-ultron)" opacity="0.35" style="transform-origin:56px 20px"/>
+          <rect class="bar bar-10" x="63"  y="2"  width="5" height="18" fill="var(--c-ultron)" opacity="0.7" style="transform-origin:63px 20px"/>
+          <rect class="bar bar-11" x="70"  y="9"  width="5" height="11" fill="var(--c-ultron)" opacity="0.5" style="transform-origin:70px 20px"/>
+          <rect class="bar bar-12" x="77"  y="4"  width="5" height="16" fill="var(--c-ultron)" opacity="0.65" style="transform-origin:77px 20px"/>
+          <rect class="bar bar-13" x="84"  y="12" width="5" height="8"  fill="var(--c-ultron)" opacity="0.4" style="transform-origin:84px 20px"/>
+          <rect class="bar bar-14" x="91"  y="7"  width="5" height="13" fill="var(--c-ultron)" opacity="0.55" style="transform-origin:91px 20px"/>
+          <rect class="bar bar-15" x="98"  y="3"  width="5" height="17" fill="var(--c-ultron)" opacity="0.7" style="transform-origin:98px 20px"/>
+          <rect class="bar bar-16" x="105" y="0"  width="5" height="20" fill="var(--c-ultron)" opacity="0.9" style="transform-origin:105px 20px"/>
+        </svg>
+        <div class="tool-trail">
+          <span class="tool-chip">Read</span>
+          <span class="tool-chip">Edit</span>
+          <span class="tool-chip last">Edit ›</span>
+        </div>
+      </div>
+
+      <!-- CERBERUS — online, waiting -->
+      <div class="agent-card" style="--agent-color: var(--c-cerberus);">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">C</div>
+            <div class="agent-status-dot status-online"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">cerberus</div>
+            <div class="agent-role">Reviewer</div>
+          </div>
+          <div class="agent-state">standby</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect class="bar bar-1"  x="0"  y="16" width="5" height="4"  fill="var(--c-cerberus)" opacity="0.3" style="transform-origin:0 20px"/>
+          <rect class="bar bar-2"  x="7"  y="18" width="5" height="2"  fill="var(--c-cerberus)" opacity="0.2" style="transform-origin:7px 20px"/>
+          <rect class="bar bar-3"  x="14" y="14" width="5" height="6"  fill="var(--c-cerberus)" opacity="0.35" style="transform-origin:14px 20px"/>
+          <rect class="bar bar-4"  x="21" y="17" width="5" height="3"  fill="var(--c-cerberus)" opacity="0.25" style="transform-origin:21px 20px"/>
+          <rect class="bar bar-5"  x="28" y="10" width="5" height="10" fill="var(--c-cerberus)" opacity="0.45" style="transform-origin:28px 20px"/>
+          <rect class="bar bar-6"  x="35" y="16" width="5" height="4"  fill="var(--c-cerberus)" opacity="0.25" style="transform-origin:35px 20px"/>
+          <rect class="bar bar-7"  x="42" y="13" width="5" height="7"  fill="var(--c-cerberus)" opacity="0.35" style="transform-origin:42px 20px"/>
+          <rect class="bar bar-8"  x="49" y="18" width="5" height="2"  fill="var(--c-cerberus)" opacity="0.2" style="transform-origin:49px 20px"/>
+          <rect class="bar bar-9"  x="56" y="15" width="5" height="5"  fill="var(--c-cerberus)" opacity="0.3" style="transform-origin:56px 20px"/>
+          <rect class="bar bar-10" x="63" y="17" width="5" height="3"  fill="var(--c-cerberus)" opacity="0.2" style="transform-origin:63px 20px"/>
+          <rect class="bar bar-11" x="70" y="11" width="5" height="9"  fill="var(--c-cerberus)" opacity="0.4" style="transform-origin:70px 20px"/>
+          <rect class="bar bar-12" x="77" y="16" width="5" height="4"  fill="var(--c-cerberus)" opacity="0.25" style="transform-origin:77px 20px"/>
+          <rect class="bar bar-13" x="84" y="18" width="5" height="2"  fill="var(--c-cerberus)" opacity="0.2" style="transform-origin:84px 20px"/>
+          <rect class="bar bar-14" x="91" y="14" width="5" height="6"  fill="var(--c-cerberus)" opacity="0.3" style="transform-origin:91px 20px"/>
+          <rect class="bar bar-15" x="98" y="17" width="5" height="3"  fill="var(--c-cerberus)" opacity="0.2" style="transform-origin:98px 20px"/>
+          <rect class="bar bar-16" x="105" y="15" width="5" height="5" fill="var(--c-cerberus)" opacity="0.3" style="transform-origin:105px 20px"/>
+        </svg>
+        <div class="tool-trail">
+          <span class="tool-chip">Grep</span>
+          <span class="tool-chip last">Review ✓</span>
+        </div>
+      </div>
+
+      <!-- DANTE, ARGUS, MORIARTY, HOUSE, YODA, ALEXANDRIA, GITTO — compact idle -->
+      <div class="agent-card" style="--agent-color: var(--c-dante); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">D</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">dante</div>
+            <div class="agent-role">Tester</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0"   y="18" width="5" height="2"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="7"   y="19" width="5" height="1"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="14"  y="17" width="5" height="3"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="21"  y="18" width="5" height="2"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="28"  y="16" width="5" height="4"  fill="var(--c-dante)" opacity="0.25"/>
+          <rect x="35"  y="19" width="5" height="1"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="42"  y="17" width="5" height="3"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="49"  y="18" width="5" height="2"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="56"  y="19" width="5" height="1"  fill="var(--c-dante)" opacity="0.1"/>
+          <rect x="63"  y="17" width="5" height="3"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="70"  y="18" width="5" height="2"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="77"  y="16" width="5" height="4"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="84"  y="19" width="5" height="1"  fill="var(--c-dante)" opacity="0.1"/>
+          <rect x="91"  y="17" width="5" height="3"  fill="var(--c-dante)" opacity="0.2"/>
+          <rect x="98"  y="18" width="5" height="2"  fill="var(--c-dante)" opacity="0.15"/>
+          <rect x="105" y="19" width="5" height="1"  fill="var(--c-dante)" opacity="0.1"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-argus); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">A</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">argus</div>
+            <div class="agent-role">Security</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="7" y="16" width="5" height="4" fill="var(--c-argus)" opacity="0.2"/>
+          <rect x="14" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="21" y="17" width="5" height="3" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="28" y="19" width="5" height="1" fill="var(--c-argus)" opacity="0.1"/>
+          <rect x="35" y="16" width="5" height="4" fill="var(--c-argus)" opacity="0.2"/>
+          <rect x="42" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="49" y="17" width="5" height="3" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="56" y="19" width="5" height="1" fill="var(--c-argus)" opacity="0.1"/>
+          <rect x="63" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="70" y="16" width="5" height="4" fill="var(--c-argus)" opacity="0.2"/>
+          <rect x="77" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="84" y="17" width="5" height="3" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="91" y="19" width="5" height="1" fill="var(--c-argus)" opacity="0.1"/>
+          <rect x="98" y="18" width="5" height="2" fill="var(--c-argus)" opacity="0.15"/>
+          <rect x="105" y="17" width="5" height="3" fill="var(--c-argus)" opacity="0.15"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-moriarty); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">M</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">moriarty</div>
+            <div class="agent-role">Adversarial</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="17" width="5" height="3" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="7" y="19" width="5" height="1" fill="var(--c-moriarty)" opacity="0.1"/>
+          <rect x="14" y="16" width="5" height="4" fill="var(--c-moriarty)" opacity="0.2"/>
+          <rect x="21" y="18" width="5" height="2" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="28" y="17" width="5" height="3" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="35" y="19" width="5" height="1" fill="var(--c-moriarty)" opacity="0.1"/>
+          <rect x="42" y="18" width="5" height="2" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="49" y="16" width="5" height="4" fill="var(--c-moriarty)" opacity="0.2"/>
+          <rect x="56" y="17" width="5" height="3" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="63" y="19" width="5" height="1" fill="var(--c-moriarty)" opacity="0.1"/>
+          <rect x="70" y="18" width="5" height="2" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="77" y="17" width="5" height="3" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="84" y="19" width="5" height="1" fill="var(--c-moriarty)" opacity="0.1"/>
+          <rect x="91" y="16" width="5" height="4" fill="var(--c-moriarty)" opacity="0.2"/>
+          <rect x="98" y="18" width="5" height="2" fill="var(--c-moriarty)" opacity="0.15"/>
+          <rect x="105" y="17" width="5" height="3" fill="var(--c-moriarty)" opacity="0.15"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-house); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">H</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">house</div>
+            <div class="agent-role">Diagnostician</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="16" width="5" height="4" fill="var(--c-house)" opacity="0.2"/>
+          <rect x="7" y="18" width="5" height="2" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="14" y="19" width="5" height="1" fill="var(--c-house)" opacity="0.1"/>
+          <rect x="21" y="16" width="5" height="4" fill="var(--c-house)" opacity="0.2"/>
+          <rect x="28" y="18" width="5" height="2" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="35" y="17" width="5" height="3" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="42" y="19" width="5" height="1" fill="var(--c-house)" opacity="0.1"/>
+          <rect x="49" y="18" width="5" height="2" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="56" y="16" width="5" height="4" fill="var(--c-house)" opacity="0.2"/>
+          <rect x="63" y="17" width="5" height="3" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="70" y="19" width="5" height="1" fill="var(--c-house)" opacity="0.1"/>
+          <rect x="77" y="16" width="5" height="4" fill="var(--c-house)" opacity="0.2"/>
+          <rect x="84" y="18" width="5" height="2" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="91" y="17" width="5" height="3" fill="var(--c-house)" opacity="0.15"/>
+          <rect x="98" y="19" width="5" height="1" fill="var(--c-house)" opacity="0.1"/>
+          <rect x="105" y="18" width="5" height="2" fill="var(--c-house)" opacity="0.15"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-yoda); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">Y</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">yoda</div>
+            <div class="agent-role">Senior Judge</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="19" width="5" height="1" fill="var(--c-yoda)" opacity="0.1"/>
+          <rect x="7" y="17" width="5" height="3" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="14" y="18" width="5" height="2" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="21" y="19" width="5" height="1" fill="var(--c-yoda)" opacity="0.1"/>
+          <rect x="28" y="16" width="5" height="4" fill="var(--c-yoda)" opacity="0.2"/>
+          <rect x="35" y="18" width="5" height="2" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="42" y="17" width="5" height="3" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="49" y="19" width="5" height="1" fill="var(--c-yoda)" opacity="0.1"/>
+          <rect x="56" y="18" width="5" height="2" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="63" y="16" width="5" height="4" fill="var(--c-yoda)" opacity="0.2"/>
+          <rect x="70" y="17" width="5" height="3" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="77" y="19" width="5" height="1" fill="var(--c-yoda)" opacity="0.1"/>
+          <rect x="84" y="18" width="5" height="2" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="91" y="17" width="5" height="3" fill="var(--c-yoda)" opacity="0.15"/>
+          <rect x="98" y="16" width="5" height="4" fill="var(--c-yoda)" opacity="0.2"/>
+          <rect x="105" y="19" width="5" height="1" fill="var(--c-yoda)" opacity="0.1"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-alexandria); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">A</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">alexandria</div>
+            <div class="agent-role">Docs</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="18" width="5" height="2" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="7" y="16" width="5" height="4" fill="var(--c-alexandria)" opacity="0.2"/>
+          <rect x="14" y="19" width="5" height="1" fill="var(--c-alexandria)" opacity="0.1"/>
+          <rect x="21" y="17" width="5" height="3" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="28" y="18" width="5" height="2" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="35" y="16" width="5" height="4" fill="var(--c-alexandria)" opacity="0.2"/>
+          <rect x="42" y="19" width="5" height="1" fill="var(--c-alexandria)" opacity="0.1"/>
+          <rect x="49" y="18" width="5" height="2" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="56" y="17" width="5" height="3" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="63" y="19" width="5" height="1" fill="var(--c-alexandria)" opacity="0.1"/>
+          <rect x="70" y="16" width="5" height="4" fill="var(--c-alexandria)" opacity="0.2"/>
+          <rect x="77" y="18" width="5" height="2" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="84" y="17" width="5" height="3" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="91" y="19" width="5" height="1" fill="var(--c-alexandria)" opacity="0.1"/>
+          <rect x="98" y="18" width="5" height="2" fill="var(--c-alexandria)" opacity="0.15"/>
+          <rect x="105" y="16" width="5" height="4" fill="var(--c-alexandria)" opacity="0.2"/>
+        </svg>
+      </div>
+
+      <div class="agent-card" style="--agent-color: var(--c-gitto); opacity: 0.75;">
+        <div class="agent-card-top">
+          <div class="agent-avatar-wrap">
+            <div class="agent-avatar">G</div>
+            <div class="agent-status-dot status-idle"></div>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name">gitto</div>
+            <div class="agent-role">Git Memory</div>
+          </div>
+          <div class="agent-state">idle</div>
+        </div>
+        <svg class="activity-bar" viewBox="0 0 120 20" preserveAspectRatio="none">
+          <rect x="0" y="17" width="5" height="3" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="7" y="18" width="5" height="2" fill="var(--c-gitto)" opacity="0.1"/>
+          <rect x="14" y="16" width="5" height="4" fill="var(--c-gitto)" opacity="0.2"/>
+          <rect x="21" y="19" width="5" height="1" fill="var(--c-gitto)" opacity="0.1"/>
+          <rect x="28" y="17" width="5" height="3" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="35" y="18" width="5" height="2" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="42" y="16" width="5" height="4" fill="var(--c-gitto)" opacity="0.2"/>
+          <rect x="49" y="19" width="5" height="1" fill="var(--c-gitto)" opacity="0.1"/>
+          <rect x="56" y="17" width="5" height="3" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="63" y="18" width="5" height="2" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="70" y="19" width="5" height="1" fill="var(--c-gitto)" opacity="0.1"/>
+          <rect x="77" y="16" width="5" height="4" fill="var(--c-gitto)" opacity="0.2"/>
+          <rect x="84" y="18" width="5" height="2" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="91" y="17" width="5" height="3" fill="var(--c-gitto)" opacity="0.15"/>
+          <rect x="98" y="19" width="5" height="1" fill="var(--c-gitto)" opacity="0.1"/>
+          <rect x="105" y="18" width="5" height="2" fill="var(--c-gitto)" opacity="0.15"/>
+        </svg>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MESSAGES -->
+  <main class="messages">
+
+    <!-- System: session -->
+    <div class="system-wrap">
+      <div class="system-pill">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line></svg>
+        session started &bull; main &bull; 20:32
+      </div>
+    </div>
+
+    <!-- Bex message -->
+    <div class="message" style="--agent-color: var(--c-bex);">
+      <div class="msg-avatar">B</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author" style="color:var(--c-bex)">Bex</span>
+          <span class="msg-time">20:33</span>
+        </div>
+        <div class="msg-content">@everyone nueva ronda. diseño innovador — glassmorphism, sidebar animado con lo que estáis haciendo, estilo Tauri. la clave es el sidebar. <strong style="color:oklch(70% 0.14 60)">¿probamos otra vez?</strong></div>
+      </div>
+    </div>
+
+    <!-- Tool line bilbo -->
+    <div class="tool-line">
+      <span class="tool-agent" style="color:var(--c-bilbo)">bilbo</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+      <span class="tool-badge">Read</span>
+      <span class="tool-desc">design-references/mockup-chatroom-v2.html</span>
+    </div>
+
+    <!-- Bilbo response -->
+    <div class="message" style="--agent-color: var(--c-bilbo);">
+      <div class="msg-avatar">B</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author" style="color:var(--c-bilbo)">bilbo</span>
+          <span class="msg-time">20:35</span>
+        </div>
+        <div class="msg-content">referencia vista. voy con <strong style="color:var(--c-bilbo)">"Mission Control"</strong> — glassmorphism real, sidebar con SVG activity bars por agente, ambient glow orbital, profundidad z. el sidebar es la estrella.</div>
+      </div>
+    </div>
+
+    <!-- Queue group collapsed -->
+    <div class="system-wrap">
+      <div class="queue-pill">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        7 queued
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+    </div>
+
+    <!-- Ultron tool -->
+    <div class="tool-line">
+      <span class="tool-agent" style="color:var(--c-ultron)">ultron</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+      <span class="tool-badge">Write</span>
+      <span class="tool-desc">design-mocks/ultron-mock-v2.html &mdash; glassmorphism + live sidebar</span>
+    </div>
+
+    <!-- Ultron response -->
+    <div class="message" style="--agent-color: var(--c-ultron);">
+      <div class="msg-avatar">U</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author" style="color:var(--c-ultron)">ultron</span>
+          <span class="msg-time">20:41</span>
+        </div>
+        <div class="msg-content"><code>ultron-mock-v2.html</code> — glassmorphism real. sidebar con agent cards, activity bars SVG animadas, tool trail. fondo con profundidad z. @cerberus revisa antes de que Bex lo vea.</div>
+      </div>
+    </div>
+
+    <!-- Cerberus -->
+    <div class="message" style="--agent-color: var(--c-cerberus);">
+      <div class="msg-avatar">C</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-author" style="color:var(--c-cerberus)">cerberus</span>
+          <span class="msg-time">20:42</span>
+        </div>
+        <div class="msg-content">revisado. backdrop-filter con fallback correcto, sin XSS posible, animaciones con <code>prefers-reduced-motion</code> pendiente pero no bloqueante. aprobado para mostrar a Bex.</div>
+      </div>
+    </div>
+
+    <div style="height:6px"></div>
+  </main>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea class="input-box" rows="1" placeholder="Message @agents…"></textarea>
+    </div>
+    <button class="input-send" aria-label="Send" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+
+</div>
+
+</body>
+</html>

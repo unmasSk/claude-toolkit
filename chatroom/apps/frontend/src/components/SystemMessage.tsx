@@ -18,6 +18,7 @@ function extractAgent(content: string): string | null {
 
 /** Strip "Agent X" prefix, capitalize agent name */
 function formatContent(content: string): string {
+  if (content.startsWith('[DIRECTIVE FROM USER')) return 'directiva';
   return content.replace(/^Agent\s+(\w+)/i, (_, name) =>
     name.charAt(0).toUpperCase() + name.slice(1)
   );
@@ -30,6 +31,7 @@ function getIcon(content: string, size = 11) {
   if (lower.includes('error') || lower.includes('failed') || lower.includes('timeout')) return <AlertCircle size={size} />;
   if (lower.includes('queued') || lower.includes('queue')) return <Clock size={size} />;
   if (lower.includes('stale') || lower.includes('resume') || lower.includes('reconnect')) return <RefreshCw size={size} />;
+  if (content.startsWith('[DIRECTIVE FROM USER')) return <AlertCircle size={size} />;
   return <Info size={size} />;
 }
 

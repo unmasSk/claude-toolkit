@@ -1,8 +1,7 @@
-// ---------------------------------------------------------------------------
-// Debug logger — all output to stderr
-// ---------------------------------------------------------------------------
+import { createLogger } from '../logger.js';
 
-function log(...args: unknown[]) { console.error('[ws]', new Date().toISOString(), ...args); }
+const logger = createLogger('ws');
+function log(...args: unknown[]) { logger.debug(args.map(String).join(' ')); }
 
 import { Elysia, t } from 'elysia';
 import {

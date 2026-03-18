@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>house — Diagnostic Terminal</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     DESIGN DIRECTION: Diagnostic Terminal
+     Concept: House doesn't decorate. He diagnoses. Every pixel earns its place.
+     Color: Dark warm-gray base + amber diagnostic accent. No decorations.
+     Type: JetBrains Mono for agents (precision matters), system-ui for Bex.
+     Inspiration: medical terminal + IRC + git blame output.
+     AI Slop violations avoided: no Inter, no purple gradients, no glassmorphism,
+     no identical cards, no hero metrics.
+  ───────────────────────────────────────────────────────────────────────── */
+
+  :root {
+    /* Base surfaces — warm-gray, not dead gray, not pure black */
+    --bg-base:       oklch(0.09 0.006 55);
+    --bg-surface:    oklch(0.12 0.006 55);
+    --bg-elevated:   oklch(0.15 0.006 55);
+    --bg-input:      oklch(0.13 0.005 55);
+
+    /* Borders */
+    --border-subtle: oklch(0.22 0.006 55);
+    --border-strong: oklch(0.30 0.006 55);
+
+    /* Text */
+    --text-primary:  oklch(0.92 0.006 55);
+    --text-secondary:oklch(0.60 0.005 55);
+    --text-muted:    oklch(0.42 0.005 55);
+
+    /* Diagnostic accent — amber */
+    --amber:         oklch(0.75 0.16 68);
+    --amber-dim:     oklch(0.40 0.08 68);
+    --amber-bg:      oklch(0.14 0.03 68);
+
+    /* Agent colors — each hue distinct, not just different saturation */
+    --c-house:       oklch(0.72 0.16 68);   /* amber       — diagnosis    */
+    --c-bilbo:       oklch(0.70 0.14 180);  /* teal        — exploration  */
+    --c-ultron:      oklch(0.68 0.18 245);  /* electric bl — implement    */
+    --c-cerberus:    oklch(0.68 0.20 30);   /* red-orange  — review       */
+    --c-argus:       oklch(0.60 0.22 22);   /* crimson     — security     */
+    --c-moriarty:    oklch(0.65 0.18 295);  /* purple      — adversarial  */
+    --c-dante:       oklch(0.70 0.18 140);  /* lime        — tests        */
+    --c-yoda:        oklch(0.65 0.12 155);  /* sage        — senior       */
+    --c-alexandria:  oklch(0.68 0.14 310);  /* lavender    — docs         */
+    --c-gitto:       oklch(0.62 0.14 230);  /* slate blue  — git          */
+    --c-bex:         oklch(0.94 0.004 55);  /* near white  — human        */
+
+    /* Status indicators */
+    --status-active: oklch(0.65 0.18 140);
+    --status-busy:   oklch(0.72 0.16 68);
+    --status-idle:   oklch(0.42 0.005 55);
+    --status-offline:oklch(0.28 0.005 55);
+
+    /* Severity */
+    --sev-t1: oklch(0.60 0.22 22);
+    --sev-t2: oklch(0.72 0.16 68);
+    --sev-t3: oklch(0.62 0.14 230);
+
+    /* Font */
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    --font-ui:   system-ui, -apple-system, sans-serif;
+
+    /* Spacing (8pt grid) */
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+    --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── LAYOUT ─────────────────────────────────────────────────────────── */
+
+  .app {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    grid-template-rows: 40px 1fr 48px;
+    height: 100vh;
+    grid-template-areas:
+      "header header"
+      "sidebar main"
+      "sidebar input";
+  }
+
+  /* ─── HEADER ─────────────────────────────────────────────────────────── */
+
+  .header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 11px;
+  }
+
+  .header-room {
+    font-weight: 600;
+    color: var(--amber);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .header-sep { color: var(--border-strong); }
+
+  .header-status {
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+
+  .header-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--status-active);
+    box-shadow: 0 0 4px var(--status-active);
+  }
+
+  .header-spacer { flex: 1; }
+
+  .header-tag {
+    font-size: 10px;
+    color: var(--amber-dim);
+    border: 1px solid var(--amber-dim);
+    padding: 1px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+  }
+
+  /* ─── SIDEBAR ────────────────────────────────────────────────────────── */
+
+  .sidebar {
+    grid-area: sidebar;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-label {
+    padding: var(--sp-3) var(--sp-3) var(--sp-2);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .agent-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp-1) 0;
+  }
+
+  .agent-list::-webkit-scrollbar { width: 3px; }
+  .agent-list::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+  .agent-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+
+  .agent-item:hover { background: var(--bg-elevated); }
+
+  .agent-item.active {
+    border-left-color: var(--amber);
+    background: var(--amber-bg);
+  }
+
+  .agent-item.human {
+    border-top: 1px solid var(--border-subtle);
+    margin-top: var(--sp-1);
+    padding-top: var(--sp-2);
+  }
+
+  .agent-avatar {
+    width: 24px; height: 24px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .agent-info { flex: 1; min-width: 0; }
+
+  .agent-name {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agent-role {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .agent-status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-active  { background: var(--status-active);  box-shadow: 0 0 3px var(--status-active); }
+  .status-busy    { background: var(--status-busy);     box-shadow: 0 0 3px var(--status-busy); }
+  .status-idle    { background: var(--status-idle); }
+  .status-offline { background: var(--status-offline); }
+
+  /* Agent color backgrounds (subtle tint) */
+  .av-house      { background: oklch(0.18 0.04 68); color: var(--c-house); }
+  .av-bilbo      { background: oklch(0.16 0.04 180); color: var(--c-bilbo); }
+  .av-ultron     { background: oklch(0.16 0.05 245); color: var(--c-ultron); }
+  .av-cerberus   { background: oklch(0.16 0.05 30); color: var(--c-cerberus); }
+  .av-argus      { background: oklch(0.14 0.06 22); color: var(--c-argus); }
+  .av-moriarty   { background: oklch(0.16 0.05 295); color: var(--c-moriarty); }
+  .av-dante      { background: oklch(0.16 0.05 140); color: var(--c-dante); }
+  .av-yoda       { background: oklch(0.15 0.04 155); color: var(--c-yoda); }
+  .av-alexandria { background: oklch(0.16 0.04 310); color: var(--c-alexandria); }
+  .av-gitto      { background: oklch(0.15 0.04 230); color: var(--c-gitto); }
+  .av-bex        { background: oklch(0.22 0.005 55); color: var(--c-bex); }
+
+  .name-house      { color: var(--c-house); }
+  .name-bilbo      { color: var(--c-bilbo); }
+  .name-ultron     { color: var(--c-ultron); }
+  .name-cerberus   { color: var(--c-cerberus); }
+  .name-argus      { color: var(--c-argus); }
+  .name-moriarty   { color: var(--c-moriarty); }
+  .name-dante      { color: var(--c-dante); }
+  .name-yoda       { color: var(--c-yoda); }
+  .name-alexandria { color: var(--c-alexandria); }
+  .name-gitto      { color: var(--c-gitto); }
+  .name-bex        { color: var(--c-bex); }
+
+  /* ─── MAIN CHAT AREA ─────────────────────────────────────────────────── */
+
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    padding: var(--sp-4) var(--sp-5);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .main::-webkit-scrollbar { width: 4px; }
+  .main::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+  /* ─── MESSAGE ────────────────────────────────────────────────────────── */
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: 3px;
+    max-width: 100%;
+    position: relative;
+    gap: 3px;
+  }
+
+  .msg:hover { background: var(--bg-elevated); }
+
+  .msg-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+  }
+
+  .msg-author {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .msg-tag {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+  }
+
+  .msg-content {
+    font-size: 12.5px;
+    color: var(--text-primary);
+    line-height: 1.55;
+    font-family: var(--font-ui);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .msg-content code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 2px;
+    color: var(--amber);
+  }
+
+  .msg-footer {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: 1px;
+  }
+
+  .msg-time {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  /* House-specific: diagnostic block */
+  .diag-block {
+    border-left: 2px solid var(--amber);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--amber-bg);
+    border-radius: 0 3px 3px 0;
+    margin-top: var(--sp-1);
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+  }
+
+  .diag-label {
+    font-size: 9px;
+    color: var(--amber);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: var(--sp-1);
+  }
+
+  .diag-item {
+    display: flex;
+    gap: var(--sp-2);
+    margin: 2px 0;
+  }
+
+  .diag-item::before {
+    content: '→';
+    color: var(--amber-dim);
+    flex-shrink: 0;
+  }
+
+  /* Verdict: found/eliminated markers */
+  .verdict-found {
+    color: var(--c-dante);
+    font-weight: 600;
+  }
+
+  .verdict-no {
+    color: var(--text-muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--text-muted);
+  }
+
+  /* Human messages — slightly different treatment */
+  .msg.is-human .msg-content {
+    color: var(--text-primary);
+  }
+
+  /* ─── TOOL LINE ──────────────────────────────────────────────────────── */
+
+  .tool-line {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 3px var(--sp-3);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .tool-prompt {
+    color: var(--border-strong);
+  }
+
+  .tool-agent-name {
+    font-weight: 600;
+    font-size: 10px;
+  }
+
+  .tool-badge {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 0 5px;
+    border-radius: 2px;
+    font-size: 9.5px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  .tool-desc {
+    color: var(--text-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ─── SYSTEM MESSAGES ────────────────────────────────────────────────── */
+
+  .system-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: var(--sp-2) 0;
+  }
+
+  .system-pill {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 2px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .system-pill.info {
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+  }
+
+  .system-pill.warn {
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    background: var(--amber-bg);
+  }
+
+  .system-pill.error {
+    color: var(--c-argus);
+    border: 1px solid oklch(0.30 0.10 22);
+    background: oklch(0.12 0.04 22);
+  }
+
+  .system-pill.directive {
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    background: var(--amber-bg);
+    font-weight: 700;
+    max-width: 80%;
+    font-size: 10.5px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  /* ─── QUEUE GROUP ────────────────────────────────────────────────────── */
+
+  .queue-group {
+    display: flex;
+    justify-content: center;
+    margin: 2px 0;
+  }
+
+  .queue-toggle {
+    cursor: pointer;
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    padding: 1px 8px;
+    border-radius: 2px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: border-color 0.1s;
+  }
+
+  .queue-toggle:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+  /* ─── DATE SEPARATOR ─────────────────────────────────────────────────── */
+
+  .date-sep {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin: var(--sp-4) 0 var(--sp-2);
+    font-size: 9.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+  }
+
+  .date-sep::before,
+  .date-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-subtle);
+  }
+
+  /* ─── INPUT ──────────────────────────────────────────────────────────── */
+
+  .input-area {
+    grid-area: input;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4);
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .input-prompt {
+    color: var(--amber);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .input-field {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    caret-color: var(--amber);
+  }
+
+  .input-field::placeholder {
+    color: var(--text-muted);
+  }
+
+  .input-hint {
+    font-size: 9.5px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  /* ─── SCROLLBAR ──────────────────────────────────────────────────────── */
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-dot"></div>
+    <span class="header-room">#general</span>
+    <span class="header-sep">/</span>
+    <span class="header-status">11 connected · 3 active</span>
+    <span class="header-spacer"></span>
+    <span class="header-tag">HOUSE</span>
+    <span class="header-tag">DIAGNOSTIC</span>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-label">crew · 10+1</div>
+    <div class="agent-list">
+
+      <!-- Agents -->
+      <div class="agent-item active">
+        <div class="agent-avatar av-house">HO</div>
+        <div class="agent-info">
+          <div class="agent-name name-house">house</div>
+          <div class="agent-role">diagnostician</div>
+        </div>
+        <div class="agent-status-dot status-active"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-ultron">UL</div>
+        <div class="agent-info">
+          <div class="agent-name name-ultron">ultron</div>
+          <div class="agent-role">implementer</div>
+        </div>
+        <div class="agent-status-dot status-busy"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-cerberus">CE</div>
+        <div class="agent-info">
+          <div class="agent-name name-cerberus">cerberus</div>
+          <div class="agent-role">reviewer</div>
+        </div>
+        <div class="agent-status-dot status-active"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-bilbo">BI</div>
+        <div class="agent-info">
+          <div class="agent-name name-bilbo">bilbo</div>
+          <div class="agent-role">explorer</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-argus">AR</div>
+        <div class="agent-info">
+          <div class="agent-name name-argus">argus</div>
+          <div class="agent-role">security</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-moriarty">MO</div>
+        <div class="agent-info">
+          <div class="agent-name name-moriarty">moriarty</div>
+          <div class="agent-role">adversarial</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-dante">DA</div>
+        <div class="agent-info">
+          <div class="agent-name name-dante">dante</div>
+          <div class="agent-role">tests</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-yoda">YO</div>
+        <div class="agent-info">
+          <div class="agent-name name-yoda">yoda</div>
+          <div class="agent-role">senior eval</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-alexandria">AL</div>
+        <div class="agent-info">
+          <div class="agent-name name-alexandria">alexandria</div>
+          <div class="agent-role">docs</div>
+        </div>
+        <div class="agent-status-dot status-offline"></div>
+      </div>
+
+      <div class="agent-item">
+        <div class="agent-avatar av-gitto">GI</div>
+        <div class="agent-info">
+          <div class="agent-name name-gitto">gitto</div>
+          <div class="agent-role">git oracle</div>
+        </div>
+        <div class="agent-status-dot status-idle"></div>
+      </div>
+
+      <!-- Human -->
+      <div class="agent-item human">
+        <div class="agent-avatar av-bex">BX</div>
+        <div class="agent-info">
+          <div class="agent-name name-bex">Bex</div>
+          <div class="agent-role">human · owner</div>
+        </div>
+        <div class="agent-status-dot status-active"></div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MAIN CHAT -->
+  <main class="main">
+
+    <div class="date-sep">today · 20:04</div>
+
+    <!-- Bex asks about duplication -->
+    <div class="msg is-human">
+      <div class="msg-header">
+        <span class="msg-author name-bex">Bex</span>
+        <span class="msg-tag">human</span>
+      </div>
+      <div class="msg-content">@house — los tool_events se duplican o cuadriplican otra vez. algo que habeis tocado esta sesión.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:04</span>
+      </div>
+    </div>
+
+    <!-- Tool line for house reading a file -->
+    <div class="tool-line">
+      <span class="tool-prompt">$</span>
+      <span class="tool-agent-name name-house">house</span>
+      <span class="tool-badge">Read</span>
+      <span class="tool-desc">apps/frontend/src/stores/ws-store.ts</span>
+    </div>
+
+    <div class="tool-line">
+      <span class="tool-prompt">$</span>
+      <span class="tool-agent-name name-house">house</span>
+      <span class="tool-badge">Read</span>
+      <span class="tool-desc">apps/backend/src/services/message-bus.ts</span>
+    </div>
+
+    <!-- House diagnosis -->
+    <div class="msg">
+      <div class="msg-header">
+        <span class="msg-author name-house">house</span>
+        <span class="msg-tag">diagnostician</span>
+      </div>
+      <div class="msg-content">encontrado. <code>disconnect()</code> borra <code>connectingRoomId</code> a null pero no cancela el auth fetch en vuelo.</div>
+      <div class="diag-block">
+        <div class="diag-label">root cause</div>
+        <div class="diag-item"><span class="verdict-no">connectingRoomId guard</span> — solo protege doble llamada síncrona</div>
+        <div class="diag-item"><span class="verdict-found">stale fetch</span> — fetch 1 sigue corriendo tras disconnect()</div>
+        <div class="diag-item"><span class="verdict-found">2 sockets activos</span> → 2 handlers → 2 UUIDs únicos → seenIds no deduplica</div>
+        <div class="diag-item">reconneect loop encima → 4 handlers → cuadriplica</div>
+      </div>
+      <div class="msg-content" style="margin-top: 6px;">fix: AbortController en disconnect(). <code>authAbortController?.abort()</code> mata el fetch en vuelo. @ultron aplícalo.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:06</span>
+      </div>
+    </div>
+
+    <!-- Ultron tool line -->
+    <div class="tool-line">
+      <span class="tool-prompt">$</span>
+      <span class="tool-agent-name name-ultron">ultron</span>
+      <span class="tool-badge">Edit</span>
+      <span class="tool-desc">ws-store.ts — authAbortController + signal in fetch</span>
+    </div>
+
+    <!-- System: ultron busy -->
+    <div class="queue-group">
+      <button class="queue-toggle" type="button">
+        ▸ &nbsp;2 queued — cerberus · dante
+      </button>
+    </div>
+
+    <!-- Cerberus confirms -->
+    <div class="msg">
+      <div class="msg-header">
+        <span class="msg-author name-cerberus">cerberus</span>
+        <span class="msg-tag">reviewer</span>
+      </div>
+      <div class="msg-content">limpio. AbortController correcto. guard post-fetch en L188 sella la race window restante. aprobado. @dante tests de reconneect + abort.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:09</span>
+      </div>
+    </div>
+
+    <!-- System directive -->
+    <div class="system-wrap">
+      <div class="system-pill directive">
+        ⬡ DIRECTIVE · @everyone probemos — decid algo y leed un archivo cada uno
+      </div>
+    </div>
+
+    <!-- System info pill -->
+    <div class="system-wrap">
+      <div class="system-pill info">bilbo joined · 20:11</div>
+    </div>
+
+    <!-- Bilbo response -->
+    <div class="msg">
+      <div class="msg-header">
+        <span class="msg-author name-bilbo">bilbo</span>
+        <span class="msg-tag">explorer</span>
+      </div>
+      <div class="msg-content">bilbo presente.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:11</span>
+      </div>
+    </div>
+
+    <!-- Tool line for bilbo -->
+    <div class="tool-line">
+      <span class="tool-prompt">$</span>
+      <span class="tool-agent-name name-bilbo">bilbo</span>
+      <span class="tool-badge">Read</span>
+      <span class="tool-desc">src/services/agent-invoker.ts:1-20</span>
+    </div>
+
+    <!-- House present -->
+    <div class="msg">
+      <div class="msg-header">
+        <span class="msg-author name-house">house</span>
+        <span class="msg-tag">diagnostician</span>
+      </div>
+      <div class="msg-content">house presente. leído <code>auth-tokens.ts</code> — one-time use, "claude" reservado. sin duplicados.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:11</span>
+      </div>
+    </div>
+
+    <!-- System error pill -->
+    <div class="system-wrap">
+      <div class="system-pill error">⚠ moriarty · invocation timeout · 20:12</div>
+    </div>
+
+    <!-- Bex -->
+    <div class="msg is-human">
+      <div class="msg-header">
+        <span class="msg-author name-bex">Bex</span>
+        <span class="msg-tag">human</span>
+      </div>
+      <div class="msg-content">perfecto. ya no se duplica nada. buen trabajo.</div>
+      <div class="msg-footer">
+        <span class="msg-time">20:13</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <span class="input-prompt">Bex ›</span>
+    <input class="input-field" type="text" placeholder="@mention an agent or type a message…" />
+    <span class="input-hint">⏎ send</span>
+  </div>
+
+</div>
+
+</body>
+</html>

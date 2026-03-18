@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chatroom — ultron v2</title>
+<style>
+/* ================================================================
+   ULTRON v2 — EXECUTION DASHBOARD
+   Concept: The sidebar is a live mission board. Each agent card
+   shows exactly what that agent is doing via a role-specific SVG.
+   Ultron: code execution progress bar + cursor + changing filename.
+   Background: deep near-black with green/indigo/teal orbs bleeding
+   through real glassmorphism. Tauri desktop window, centred.
+   ================================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Agent colors — OKLCH, non-slop */
+  --c-bilbo:      oklch(68% 0.16 290);
+  --c-ultron:     oklch(72% 0.18 145);
+  --c-cerberus:   oklch(72% 0.18 65);
+  --c-dante:      oklch(64% 0.17 250);
+  --c-argus:      oklch(58% 0.20 22);
+  --c-moriarty:   oklch(62% 0.20 350);
+  --c-house:      oklch(66% 0.18 85);
+  --c-yoda:       oklch(70% 0.18 130);
+  --c-alexandria: oklch(64% 0.17 220);
+  --c-gitto:      oklch(62% 0.16 165);
+  --c-bex:        oklch(88% 0.04 80);
+
+  /* Glass system */
+  --g-window: oklch(10% 0.018 240 / 0.72);
+  --g-sidebar: oklch(8%  0.020 240 / 0.60);
+  --g-card:   oklch(14% 0.014 240 / 0.55);
+  --g-msg:    oklch(16% 0.010 240 / 0.45);
+  --g-input:  oklch(12% 0.016 240 / 0.65);
+  --g-border: oklch(100% 0 0 / 0.07);
+  --g-shine:  oklch(100% 0 0 / 0.04);
+  --blur-lg:  blur(32px);
+  --blur-md:  blur(18px);
+  --blur-sm:  blur(8px);
+
+  /* Text */
+  --t1: oklch(90% 0.006 240);
+  --t2: oklch(58% 0.010 240);
+  --t3: oklch(36% 0.008 240);
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-ui:   -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: oklch(5% 0.025 240);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYER 0: Animated background orbs ────────────────── */
+.bg {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+}
+
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(90px); opacity: 0.5;
+  animation: drift ease-in-out infinite alternate;
+}
+.orb-1 {
+  width: 500px; height: 500px;
+  top: -150px; left: -80px;
+  background: radial-gradient(circle, oklch(65% 0.22 145 / 0.6), transparent 70%);
+  animation-duration: 22s; animation-delay: 0s;
+}
+.orb-2 {
+  width: 440px; height: 440px;
+  top: 60px; right: 0;
+  background: radial-gradient(circle, oklch(52% 0.18 240 / 0.55), transparent 70%);
+  animation-duration: 26s; animation-delay: -8s;
+}
+.orb-3 {
+  width: 380px; height: 380px;
+  bottom: -100px; left: 38%;
+  background: radial-gradient(circle, oklch(56% 0.16 175 / 0.45), transparent 70%);
+  animation-duration: 20s; animation-delay: -14s;
+}
+
+@keyframes drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(40px, 30px) scale(1.08); }
+}
+
+/* dot grid overlay */
+.bg-grid {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, oklch(100% 0 0 / 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+}
+
+/* ── LAYER 1: App shell (Tauri window) ─────────────────── */
+.app-shell {
+  position: relative; z-index: 1;
+  width: 1060px; height: 680px;
+  margin: calc((100vh - 680px)/2) auto 0;
+  display: flex; flex-direction: column;
+  background: var(--g-window);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--g-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px var(--g-shine) inset,
+    0 24px 80px oklch(0% 0 0 / 0.6),
+    0 2px 0 var(--g-shine) inset;
+}
+
+/* ── Titlebar ───────────────────────────────────────────── */
+.titlebar {
+  height: 36px; min-height: 36px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  background: oklch(100% 0 0 / 0.025);
+  border-bottom: 1px solid var(--g-border);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+.tb-controls { display: flex; gap: 7px; -webkit-app-region: no-drag; }
+.tb-dot {
+  width: 12px; height: 12px; border-radius: 50%; cursor: pointer;
+  transition: filter 150ms;
+}
+.tb-dot:hover { filter: brightness(1.3); }
+.tb-dot-r { background: #FF5F57; }
+.tb-dot-y { background: #FFBD2E; }
+.tb-dot-g { background: #28C840; }
+.tb-title {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--t3);
+  letter-spacing: 0.04em;
+}
+.tb-right { width: 60px; display: flex; justify-content: flex-end; }
+.tb-badge {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--c-ultron);
+  background: oklch(72% 0.18 145 / 0.12);
+  padding: 2px 7px; border-radius: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Layout ─────────────────────────────────────────────── */
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ─────────────────────────────────────────────── */
+.sidebar {
+  width: 274px; min-width: 274px;
+  display: flex; flex-direction: column;
+  background: var(--g-sidebar);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border-right: 1px solid var(--g-border);
+  box-shadow: 1px 0 0 var(--g-shine) inset;
+  overflow: hidden;
+}
+
+.sb-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--g-border);
+  flex-shrink: 0;
+}
+.sb-room-label {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--t3); margin-bottom: 5px;
+}
+.sb-room-name {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; color: var(--t1);
+}
+.sb-live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--c-ultron);
+  box-shadow: 0 0 8px var(--c-ultron);
+  animation: livepulse 2s ease-in-out infinite;
+}
+@keyframes livepulse {
+  0%, 100% { box-shadow: 0 0 6px var(--c-ultron); }
+  50% { box-shadow: 0 0 14px var(--c-ultron), 0 0 24px oklch(72% 0.18 145 / 0.3); }
+}
+
+.sb-section {
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--t3); flex-shrink: 0;
+}
+
+.agent-list { flex: 1; overflow-y: auto; padding: 2px 8px 8px; }
+.agent-list::-webkit-scrollbar { width: 3px; }
+.agent-list::-webkit-scrollbar-thumb { background: oklch(100% 0 0 / 0.07); border-radius: 2px; }
+
+/* ── Agent card ─────────────────────────────────────────── */
+.agent-card {
+  background: var(--g-card);
+  border: 1px solid var(--g-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  transition: background 150ms;
+  cursor: pointer;
+}
+.agent-card:hover { background: oklch(18% 0.012 240 / 0.6); }
+.agent-card.me { border-color: oklch(72% 0.18 145 / 0.25); background: oklch(72% 0.18 145 / 0.07); }
+.agent-card.idle { opacity: 0.48; }
+.agent-card.offline { opacity: 0.22; }
+
+.ac-top {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 7px;
+}
+.ac-avatar {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  color: oklch(5% 0.02 240); flex-shrink: 0;
+  position: relative;
+}
+.ac-avatar.has-ring::after {
+  content: '';
+  position: absolute; inset: -3px;
+  border-radius: 8px;
+  border: 1.5px solid currentColor;
+  opacity: 0.5;
+  animation: ringpulse 2s ease-in-out infinite;
+}
+@keyframes ringpulse {
+  0%,100%{ opacity:0.3; transform:scale(1); }
+  50%{ opacity:0.7; transform:scale(1.06); }
+}
+.ac-info { flex: 1; min-width: 0; }
+.ac-name {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600;
+  line-height: 1.2;
+}
+.ac-role {
+  font-size: 10px; color: var(--t3);
+  font-family: var(--font-mono); letter-spacing: 0.02em;
+}
+.ac-status-badge {
+  font-family: var(--font-mono);
+  font-size: 8px; font-weight: 700;
+  padding: 2px 6px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+.badge-exec { background: oklch(72% 0.18 145 / 0.15); color: var(--c-ultron); }
+.badge-on   { background: oklch(64% 0.17 250 / 0.15); color: oklch(64% 0.17 250); }
+.badge-q    { background: oklch(72% 0.18 65 / 0.12); color: var(--c-cerberus); }
+
+/* ── Agent SVG widget ───────────────────────────────────── */
+.ac-widget { height: 28px; display: flex; align-items: center; }
+.ac-widget svg { overflow: visible; }
+
+/* ── Sidebar footer ─────────────────────────────────────── */
+.sb-footer {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--g-border);
+  flex-shrink: 0;
+}
+.sf-row {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+  margin-bottom: 2px;
+}
+.sf-row span { color: var(--t2); font-weight: 500; }
+
+/* ── CHAT AREA ───────────────────────────────────────────── */
+.chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.chat-header {
+  padding: 10px 18px;
+  background: oklch(100% 0 0 / 0.025);
+  border-bottom: 1px solid var(--g-border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; backdrop-filter: var(--blur-sm);
+}
+.ch-title { font-size: 13px; font-weight: 600; color: var(--t1); }
+.ch-sub { font-family: var(--font-mono); font-size: 10px; color: var(--t3); }
+.ch-stats { display: flex; gap: 14px; }
+.ch-stat { font-family: var(--font-mono); font-size: 10px; color: var(--t3); }
+.ch-stat b { color: var(--t2); font-weight: 500; }
+
+/* ── Messages ─────────────────────────────────────────────── */
+.messages { flex: 1; overflow-y: auto; padding: 14px 18px 8px; }
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: oklch(100% 0 0 / 0.07); border-radius: 2px; }
+
+.date-sep {
+  display: flex; align-items: center; gap: 10px; margin: 6px 0 12px;
+}
+.date-sep .line { flex: 1; height: 1px; background: var(--g-border); }
+.date-sep .dt {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* Message */
+.msg {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-bottom: 10px;
+}
+.msg-avatar {
+  width: 32px; height: 32px; border-radius: 8px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: oklch(5% 0 0);
+}
+.msg-body { flex: 1; min-width: 0; }
+.msg-header {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px;
+}
+.msg-name {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 700;
+}
+.msg-time {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--t3);
+}
+.msg-bubble {
+  background: var(--g-msg);
+  backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--g-border);
+  border-radius: 4px 10px 10px 10px;
+  padding: 8px 12px;
+  font-size: 13px; line-height: 1.6; color: var(--t1);
+  box-shadow: 0 1px 0 var(--g-shine) inset;
+  display: inline-block; max-width: 100%;
+  word-break: break-word;
+}
+.msg-bubble code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: oklch(100% 0 0 / 0.06);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* Human msg — right aligned */
+.msg.human { flex-direction: row-reverse; }
+.msg.human .msg-header { flex-direction: row-reverse; }
+.msg.human .msg-bubble {
+  border-radius: 10px 4px 10px 10px;
+  background: oklch(88% 0.04 80 / 0.08);
+  border-color: oklch(88% 0.04 80 / 0.12);
+}
+
+/* Tool event */
+.tool-event {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px;
+  background: oklch(72% 0.18 145 / 0.04);
+  border-left: 2px solid oklch(72% 0.18 145 / 0.4);
+  border-radius: 0 4px 4px 0;
+  margin: 3px 0;
+}
+.te-agent {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  width: 56px; text-align: right; flex-shrink: 0;
+  color: var(--t3);
+}
+.te-arrow { font-size: 11px; color: oklch(72% 0.18 145 / 0.5); flex-shrink: 0; }
+.te-badge {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 1px 6px; border-radius: 2px;
+  background: oklch(72% 0.18 145 / 0.12); color: var(--c-ultron);
+  flex-shrink: 0;
+}
+.te-desc {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--t2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* System pill */
+.sys-pill {
+  display: flex; align-items: center; gap: 10px;
+  margin: 8px 0;
+}
+.sys-pill .line { flex: 1; height: 1px; background: var(--g-border); }
+.sys-pill .text {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--t3);
+  white-space: nowrap; letter-spacing: 0.04em;
+}
+
+/* Thinking dots */
+.thinking-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.thinking-row .msg-avatar { opacity: 0.7; }
+.t-dots { display: flex; gap: 5px; padding: 10px 0 2px; }
+.t-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: tdot 1.4s ease-in-out infinite;
+}
+.t-dots span:nth-child(2) { animation-delay: 0.22s; }
+.t-dots span:nth-child(3) { animation-delay: 0.44s; }
+@keyframes tdot {
+  0%,80%,100%{ opacity:0.25; transform:scale(1); }
+  40%{ opacity:1; transform:scale(1.3); }
+}
+
+/* ── Input ───────────────────────────────────────────────── */
+.chat-input {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--g-border);
+  background: oklch(100% 0 0 / 0.02);
+  flex-shrink: 0;
+}
+.input-box {
+  background: var(--g-input);
+  backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--g-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex; align-items: flex-end; gap: 10px;
+  box-shadow: 0 1px 0 var(--g-shine) inset;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.input-box:focus-within {
+  border-color: oklch(72% 0.18 145 / 0.35);
+  box-shadow: 0 0 0 3px oklch(72% 0.18 145 / 0.08), 0 1px 0 var(--g-shine) inset;
+}
+.input-box textarea {
+  flex: 1; background: none; border: none; outline: none;
+  font-family: var(--font-ui); font-size: 13px; color: var(--t1);
+  resize: none; height: 20px; line-height: 1.5;
+}
+.input-box textarea::placeholder { color: var(--t3); }
+.input-send {
+  background: var(--c-ultron);
+  border: none; border-radius: 7px;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; color: oklch(5% 0 0);
+  transition: opacity 150ms, transform 100ms;
+}
+.input-send:hover { opacity: 0.85; transform: scale(1.05); }
+.input-footer {
+  display: flex; justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--font-mono); font-size: 9px; color: var(--t3);
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .orb, .sb-live-dot, .ac-avatar.has-ring::after, .t-dots span { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="bg-grid"></div>
+</div>
+
+<div class="app-shell">
+
+  <!-- Tauri titlebar -->
+  <div class="titlebar">
+    <div class="tb-controls">
+      <div class="tb-dot tb-dot-r"></div>
+      <div class="tb-dot tb-dot-y"></div>
+      <div class="tb-dot tb-dot-g"></div>
+    </div>
+    <div class="tb-title">chatroom · general</div>
+    <div class="tb-right"><span class="tb-badge">EXEC</span></div>
+  </div>
+
+  <div class="layout">
+
+    <!-- ───────── SIDEBAR ───────── -->
+    <aside class="sidebar">
+      <div class="sb-header">
+        <div class="sb-room-label">workspace</div>
+        <div class="sb-room-name">
+          <span class="sb-live-dot"></span>
+          general
+        </div>
+      </div>
+
+      <div class="sb-section">agents — 10 + 1 human</div>
+
+      <div class="agent-list">
+
+        <!-- ── ULTRON (me, active/thinking) ── -->
+        <div class="agent-card me">
+          <div class="ac-top">
+            <div class="ac-avatar has-ring" style="background:var(--c-ultron); color:oklch(5% 0 0)">UL</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-ultron)">ultron</div>
+              <div class="ac-role">implementer</div>
+            </div>
+            <span class="ac-status-badge badge-exec">exec</span>
+          </div>
+          <!-- SVG: code execution progress bar + cursor + filename -->
+          <div class="ac-widget">
+            <svg width="230" height="28" viewBox="0 0 230 28">
+              <defs>
+                <linearGradient id="prog" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="oklch(72% 0.18 145)" stop-opacity="0.9"/>
+                  <stop offset="100%" stop-color="oklch(72% 0.18 145)" stop-opacity="0.5"/>
+                </linearGradient>
+                <clipPath id="barclip"><rect x="0" y="6" width="160" height="6" rx="3"/></clipPath>
+              </defs>
+              <!-- track -->
+              <rect x="0" y="6" width="160" height="6" rx="3" fill="oklch(72% 0.18 145 / 0.1)"/>
+              <!-- fill bar -->
+              <rect x="0" y="6" height="6" rx="3" fill="url(#prog)" clip-path="url(#barclip)">
+                <animate attributeName="width" values="8;112;112;8" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0 0 0 0; 0.4 0 0.2 1"/>
+              </rect>
+              <!-- cursor -->
+              <rect y="4" width="2" height="10" rx="1" fill="oklch(72% 0.18 145)">
+                <animate attributeName="x" values="8;112;112;8" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0 0 0 0; 0.4 0 0.2 1"/>
+                <animate attributeName="opacity" values="1;1;0.2;1" dur="3.2s" repeatCount="indefinite"/>
+              </rect>
+              <!-- step label -->
+              <text x="168" y="13" font-size="9" fill="oklch(72% 0.18 145 / 0.7)" font-family="monospace">3/4</text>
+              <!-- filename -->
+              <text x="0" y="26" font-size="9" fill="oklch(58% 0.010 240)" font-family="monospace">
+                <tspan>→ Edit ws.ts</tspan>
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── CERBERUS (active, reviewing) ── -->
+        <div class="agent-card">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-cerberus)">CE</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-cerberus)">cerberus</div>
+              <div class="ac-role">reviewer</div>
+            </div>
+            <span class="ac-status-badge badge-q">review</span>
+          </div>
+          <!-- SVG: verdict gauge semicircle filling -->
+          <div class="ac-widget">
+            <svg width="230" height="28" viewBox="0 0 230 28">
+              <defs>
+                <clipPath id="gcclip">
+                  <rect x="0" y="0" width="230" height="28"/>
+                </clipPath>
+              </defs>
+              <!-- arc track -->
+              <path d="M10 24 A20 20 0 0 1 50 24" fill="none" stroke="oklch(72% 0.18 65 / 0.12)" stroke-width="4" stroke-linecap="round"/>
+              <!-- arc fill -->
+              <path d="M10 24 A20 20 0 0 1 50 24" fill="none" stroke="oklch(72% 0.18 65 / 0.8)" stroke-width="4" stroke-linecap="round"
+                stroke-dasharray="63" stroke-dashoffset="63">
+                <animate attributeName="stroke-dashoffset" values="63;20;20;63" dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+              </path>
+              <!-- needle -->
+              <line x1="30" y1="24" x2="30" y2="10" stroke="oklch(72% 0.18 65)" stroke-width="1.5" stroke-linecap="round">
+                <animateTransform attributeName="transform" type="rotate"
+                  values="-70 30 24; 0 30 24; 0 30 24; -70 30 24"
+                  dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+              </line>
+              <!-- T badges -->
+              <text x="60" y="12" font-size="8" fill="oklch(58% 0.20 22 / 0.7)" font-family="monospace">T1:0</text>
+              <text x="80" y="12" font-size="8" fill="oklch(72% 0.18 65 / 0.7)" font-family="monospace">T2:2</text>
+              <text x="100" y="12" font-size="8" fill="oklch(58% 0.010 240 / 0.5)" font-family="monospace">T3:4</text>
+              <text x="60" y="24" font-size="8" fill="oklch(58% 0.010 240 / 0.5)" font-family="monospace">→ Reviewing ws.ts</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── BEX (human, active) ── -->
+        <div class="agent-card">
+          <div class="ac-top">
+            <div class="ac-avatar has-ring" style="background:var(--c-bex); color:oklch(15% 0 0)">BX</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-bex)">bex</div>
+              <div class="ac-role">human</div>
+            </div>
+            <span class="ac-status-badge badge-on">online</span>
+          </div>
+          <!-- SVG: audio waveform (speaking/active) -->
+          <div class="ac-widget">
+            <svg width="230" height="28" viewBox="0 0 230 28">
+              <!-- waveform bars -->
+              <g fill="oklch(88% 0.04 80 / 0.65)">
+                <rect x="0"  y="8" width="3" height="12" rx="1.5">
+                  <animate attributeName="height" values="6;16;6" dur="0.8s" repeatCount="indefinite"/>
+                  <animate attributeName="y" values="11;4;11" dur="0.8s" repeatCount="indefinite"/>
+                </rect>
+                <rect x="6"  y="6" width="3" height="16" rx="1.5">
+                  <animate attributeName="height" values="8;18;8" dur="0.9s" begin="-0.1s" repeatCount="indefinite"/>
+                  <animate attributeName="y" values="10;3;10" dur="0.9s" begin="-0.1s" repeatCount="indefinite"/>
+                </rect>
+                <rect x="12" y="4" width="3" height="20" rx="1.5">
+                  <animate attributeName="height" values="12;22;12" dur="0.7s" begin="-0.2s" repeatCount="indefinite"/>
+                  <animate attributeName="y" values="8;2;8" dur="0.7s" begin="-0.2s" repeatCount="indefinite"/>
+                </rect>
+                <rect x="18" y="7" width="3" height="14" rx="1.5">
+                  <animate attributeName="height" values="6;16;6" dur="1.0s" begin="-0.15s" repeatCount="indefinite"/>
+                  <animate attributeName="y" values="11;4;11" dur="1.0s" begin="-0.15s" repeatCount="indefinite"/>
+                </rect>
+                <rect x="24" y="10" width="3" height="8" rx="1.5">
+                  <animate attributeName="height" values="4;14;4" dur="0.85s" begin="-0.3s" repeatCount="indefinite"/>
+                  <animate attributeName="y" values="12;5;12" dur="0.85s" begin="-0.3s" repeatCount="indefinite"/>
+                </rect>
+              </g>
+              <text x="36" y="17" font-size="9" fill="oklch(58% 0.010 240 / 0.6)" font-family="monospace">online · general</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── DANTE (idle) ── -->
+        <div class="agent-card idle">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-dante)">DA</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-dante)">dante</div>
+              <div class="ac-role">tester</div>
+            </div>
+          </div>
+          <!-- SVG: test dots (all idle/grey) -->
+          <div class="ac-widget">
+            <svg width="230" height="18" viewBox="0 0 230 18">
+              <g>
+                <circle cx="6"  cy="9" r="4" fill="oklch(36% 0.008 240)"/>
+                <circle cx="18" cy="9" r="4" fill="oklch(36% 0.008 240)"/>
+                <circle cx="30" cy="9" r="4" fill="oklch(36% 0.008 240)"/>
+                <circle cx="42" cy="9" r="4" fill="oklch(36% 0.008 240)"/>
+                <circle cx="54" cy="9" r="4" fill="oklch(36% 0.008 240)"/>
+              </g>
+              <text x="68" y="13" font-size="9" fill="oklch(36% 0.008 240)" font-family="monospace">idle · 133 pass</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── BILBO (idle) ── -->
+        <div class="agent-card idle">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-bilbo)">BI</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-bilbo)">bilbo</div>
+              <div class="ac-role">explorer</div>
+            </div>
+          </div>
+          <!-- SVG: magnifying glass, still -->
+          <div class="ac-widget">
+            <svg width="230" height="22" viewBox="0 0 230 22">
+              <circle cx="9" cy="9" r="7" fill="none" stroke="oklch(36% 0.008 240)" stroke-width="1.5"/>
+              <line x1="14" y1="14" x2="20" y2="20" stroke="oklch(36% 0.008 240)" stroke-width="2" stroke-linecap="round"/>
+              <text x="28" y="14" font-size="9" fill="oklch(36% 0.008 240)" font-family="monospace">idle · ready</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── HOUSE (idle) ── -->
+        <div class="agent-card idle">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-house)">HO</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-house)">house</div>
+              <div class="ac-role">diagnostician</div>
+            </div>
+          </div>
+          <!-- SVG: flat ECG line -->
+          <div class="ac-widget">
+            <svg width="230" height="18" viewBox="0 0 230 18">
+              <polyline points="0,9 20,9 25,9 30,9 160,9" fill="none" stroke="oklch(36% 0.008 240)" stroke-width="1.5" stroke-linecap="round"/>
+              <text x="0" y="18" font-size="8" fill="oklch(36% 0.008 240)" font-family="monospace" opacity="0">.</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── YODA (idle) ── -->
+        <div class="agent-card idle">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-yoda); color:oklch(5% 0 0)">YO</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-yoda)">yoda</div>
+              <div class="ac-role">judge</div>
+            </div>
+          </div>
+          <!-- SVG: balanced scales -->
+          <div class="ac-widget">
+            <svg width="230" height="22" viewBox="0 0 230 22">
+              <!-- beam -->
+              <line x1="3" y1="10" x2="37" y2="10" stroke="oklch(36% 0.008 240)" stroke-width="1.5" stroke-linecap="round"/>
+              <!-- pivot -->
+              <line x1="20" y1="10" x2="20" y2="20" stroke="oklch(36% 0.008 240)" stroke-width="1.5"/>
+              <!-- pans -->
+              <circle cx="5" cy="13" r="4" fill="none" stroke="oklch(36% 0.008 240)" stroke-width="1.2"/>
+              <circle cx="35" cy="13" r="4" fill="none" stroke="oklch(36% 0.008 240)" stroke-width="1.2"/>
+              <text x="48" y="14" font-size="9" fill="oklch(36% 0.008 240)" font-family="monospace">idle · ready</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── GITTO (idle) ── -->
+        <div class="agent-card idle">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:var(--c-gitto)">GI</div>
+            <div class="ac-info">
+              <div class="ac-name" style="color:var(--c-gitto)">gitto</div>
+              <div class="ac-role">git memory</div>
+            </div>
+          </div>
+          <!-- SVG: git branch static -->
+          <div class="ac-widget">
+            <svg width="230" height="22" viewBox="0 0 230 22">
+              <circle cx="8" cy="8" r="3.5" fill="oklch(36% 0.008 240)"/>
+              <line x1="8" y1="11.5" x2="8" y2="20" stroke="oklch(36% 0.008 240)" stroke-width="1.5"/>
+              <circle cx="8" cy="20" r="3" fill="none" stroke="oklch(36% 0.008 240)" stroke-width="1.2"/>
+              <text x="20" y="14" font-size="9" fill="oklch(36% 0.008 240)" font-family="monospace">idle · main</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ── ARGUS (offline) ── -->
+        <div class="agent-card offline">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:oklch(25% 0.008 240)">AR</div>
+            <div class="ac-info">
+              <div class="ac-name">argus</div>
+              <div class="ac-role">security</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── MORIARTY (offline) ── -->
+        <div class="agent-card offline">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:oklch(25% 0.008 240)">MO</div>
+            <div class="ac-info">
+              <div class="ac-name">moriarty</div>
+              <div class="ac-role">adversarial</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ALEXANDRIA (offline) ── -->
+        <div class="agent-card offline">
+          <div class="ac-top">
+            <div class="ac-avatar" style="background:oklch(25% 0.008 240)">AL</div>
+            <div class="ac-info">
+              <div class="ac-name">alexandria</div>
+              <div class="ac-role">docs</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /agent-list -->
+
+      <div class="sb-footer">
+        <div class="sf-row">session cost <span>$0.041</span></div>
+        <div class="sf-row">turns <span>9</span></div>
+        <div class="sf-row">active <span>3 / 11</span></div>
+      </div>
+    </aside>
+
+    <!-- ───────── CHAT ───────── -->
+    <main class="chat">
+      <div class="chat-header">
+        <div>
+          <div class="ch-title"># general</div>
+          <div class="ch-sub">multi-agent workspace</div>
+        </div>
+        <div class="ch-stats">
+          <div class="ch-stat">msgs <b>14</b></div>
+          <div class="ch-stat">tools <b>6</b></div>
+        </div>
+      </div>
+
+      <div class="messages">
+        <div class="date-sep">
+          <div class="line"></div>
+          <div class="dt">hoy — 14:21</div>
+          <div class="line"></div>
+        </div>
+
+        <!-- Bex (human, right) -->
+        <div class="msg human">
+          <div class="msg-avatar" style="background:var(--c-bex); color:oklch(15% 0 0)">BX</div>
+          <div class="msg-body">
+            <div class="msg-header">
+              <span class="msg-name" style="color:var(--c-bex)">bex</span>
+              <span class="msg-time">14:21</span>
+            </div>
+            <div class="msg-bubble">
+              @ultron implementa rate limiting en la WS API. 100 req/min por conexión, sliding window.
+            </div>
+          </div>
+        </div>
+
+        <!-- Ultron -->
+        <div class="msg">
+          <div class="msg-avatar" style="background:var(--c-ultron); color:oklch(5% 0 0)">UL</div>
+          <div class="msg-body">
+            <div class="msg-header">
+              <span class="msg-name" style="color:var(--c-ultron)">ultron</span>
+              <span class="msg-time">14:21</span>
+            </div>
+            <div class="msg-bubble">
+              Rate limiting en WS. Leo el código actual y aplico.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tool events -->
+        <div class="tool-event">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow">›</span>
+          <span class="te-badge">Read</span>
+          <span class="te-desc">apps/backend/src/routes/ws.ts</span>
+        </div>
+        <div class="tool-event">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow">›</span>
+          <span class="te-badge">Read</span>
+          <span class="te-desc">apps/backend/src/config.ts</span>
+        </div>
+        <div class="tool-event">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow">›</span>
+          <span class="te-badge">Edit</span>
+          <span class="te-desc">apps/backend/src/routes/ws.ts — added sliding window rateLimiter</span>
+        </div>
+        <div class="tool-event">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow">›</span>
+          <span class="te-badge">Edit</span>
+          <span class="te-desc">apps/backend/src/config.ts — WS_RATE_LIMIT_RPM = 100, burst ×1.5</span>
+        </div>
+
+        <!-- Ultron done -->
+        <div class="msg">
+          <div class="msg-avatar" style="background:var(--c-ultron); color:oklch(5% 0 0)">UL</div>
+          <div class="msg-body">
+            <div class="msg-header">
+              <span class="msg-name" style="color:var(--c-ultron)">ultron</span>
+              <span class="msg-time">14:22</span>
+            </div>
+            <div class="msg-bubble">
+              Hecho. Sliding window, 100 req/min, burst ×1.5. Headers <code>RateLimit-*</code> incluidos. Configurable via <code>WS_RATE_LIMIT_RPM</code>.
+            </div>
+          </div>
+        </div>
+
+        <div class="sys-pill">
+          <div class="line"></div>
+          <div class="text">cerberus invocado</div>
+          <div class="line"></div>
+        </div>
+
+        <!-- Cerberus -->
+        <div class="msg">
+          <div class="msg-avatar" style="background:var(--c-cerberus); color:oklch(5% 0 0)">CE</div>
+          <div class="msg-body">
+            <div class="msg-header">
+              <span class="msg-name" style="color:var(--c-cerberus)">cerberus</span>
+              <span class="msg-time">14:23</span>
+            </div>
+            <div class="msg-bubble">
+              Revisado. T3 — falta test para el path 429. No bloquea merge. @dante cubre en ws.test.ts.
+            </div>
+          </div>
+        </div>
+
+        <!-- Bex ok -->
+        <div class="msg human">
+          <div class="msg-avatar" style="background:var(--c-bex); color:oklch(15% 0 0)">BX</div>
+          <div class="msg-body">
+            <div class="msg-header">
+              <span class="msg-name" style="color:var(--c-bex)">bex</span>
+              <span class="msg-time">14:24</span>
+            </div>
+            <div class="msg-bubble">ok perf</div>
+          </div>
+        </div>
+
+        <!-- Thinking -->
+        <div class="thinking-row">
+          <div class="msg-avatar" style="background:var(--c-ultron); color:oklch(5% 0 0); opacity:0.7">UL</div>
+          <div class="t-dots">
+            <span style="background:var(--c-ultron)"></span>
+            <span style="background:var(--c-ultron)"></span>
+            <span style="background:var(--c-ultron)"></span>
+          </div>
+        </div>
+
+      </div><!-- /messages -->
+
+      <!-- Input -->
+      <div class="chat-input">
+        <div class="input-box">
+          <textarea placeholder="Escribe un mensaje… (@ultron, @cerberus, @everyone)" rows="1"></textarea>
+          <button class="input-send" type="button" aria-label="Enviar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-footer">
+          <span>@mention para invocar · Enter envía · Shift+Enter nueva línea</span>
+          <span>0 / 50000</span>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- /layout -->
+</div><!-- /app-shell -->
+
+</body>
+</html>

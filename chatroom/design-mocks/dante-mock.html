@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dante — test runner UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── reset ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── tokens ── */
+  :root {
+    --bg:        #060606;
+    --surface:   #0c0c0c;
+    --surface2:  #111111;
+    --surface3:  #181818;
+    --border:    #1d1d1d;
+    --border2:   #252525;
+
+    --text:      #d4d4d4;
+    --text-dim:  #666666;
+    --text-muted:#3a3a3a;
+
+    /* agent colors */
+    --bilbo:     #f59e0b;
+    --ultron:    #3b82f6;
+    --cerberus:  #ef4444;
+    --dante:     #22c55e;
+    --argus:     #a78bfa;
+    --moriarty:  #f97316;
+    --house:     #06b6d4;
+    --yoda:      #eab308;
+    --alexandria:#ec4899;
+    --gitto:     #8b5cf6;
+    --human:     #94a3b8;
+
+    --pass:      #22c55e;
+    --fail:      #ef4444;
+    --warn:      #f59e0b;
+    --info:      #3b82f6;
+    --skip:      #666666;
+
+    --font: 'JetBrains Mono', monospace;
+    --sidebar-w: 220px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── layout ── */
+  .app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .sidebar-subtitle {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .agent-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .agent-list::-webkit-scrollbar { width: 4px; }
+  .agent-list::-webkit-scrollbar-track { background: transparent; }
+  .agent-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* section divider */
+  .section-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 14px 4px;
+  }
+
+  .agent-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .agent-item:hover { background: var(--surface2); }
+  .agent-item.active { background: var(--surface3); }
+
+  .agent-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* status dot */
+  .agent-avatar::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1.5px solid var(--surface);
+    background: var(--text-muted);
+  }
+  .agent-item.status-invoked .agent-avatar::after  { background: var(--pass); }
+  .agent-item.status-thinking .agent-avatar::after { background: var(--warn); }
+  .agent-item.status-error .agent-avatar::after    { background: var(--fail); }
+  .agent-item.status-done .agent-avatar::after     { background: var(--info); }
+  .agent-item.status-idle .agent-avatar::after     { background: var(--text-muted); }
+
+  .agent-info { flex: 1; min-width: 0; }
+  .agent-name {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .agent-role {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agent-status-badge {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 4px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .badge-invoked  { background: color-mix(in srgb, var(--pass) 15%, transparent); color: var(--pass); }
+  .badge-thinking { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  .badge-idle     { background: var(--surface3); color: var(--text-muted); }
+  .badge-done     { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); }
+  .badge-error    { background: color-mix(in srgb, var(--fail) 15%, transparent); color: var(--fail); }
+
+  /* run counter */
+  .sidebar-footer {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .run-counter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .run-counter-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--pass);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .run-counter-text {
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  /* ── main area ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* ── topbar ── */
+  .topbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .topbar-room {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .topbar-sep { color: var(--text-muted); }
+
+  .topbar-topic {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex: 1;
+  }
+
+  .topbar-stats {
+    display: flex;
+    gap: 12px;
+  }
+
+  .stat {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .stat span {
+    color: var(--pass);
+    font-weight: 600;
+  }
+
+  /* ── messages ── */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* timestamp divider */
+  .time-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    margin: 4px 0;
+  }
+
+  .time-divider::before, .time-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .time-divider-text {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+  }
+
+  /* message row */
+  .msg-row {
+    display: flex;
+    gap: 10px;
+    padding: 3px 16px;
+    transition: background 0.1s;
+  }
+  .msg-row:hover { background: var(--surface); }
+  .msg-row.msg-grouped { padding-top: 1px; padding-bottom: 1px; }
+
+  .msg-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .msg-avatar.placeholder {
+    background: transparent;
+    /* shows timestamp on hover in grouped messages */
+  }
+
+  .msg-body { flex: 1; min-width: 0; }
+
+  .msg-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+
+  .msg-author {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .msg-time {
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .msg-content {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* inline code */
+  .msg-content code {
+    font-family: var(--font);
+    font-size: 11px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0 4px;
+    color: var(--dante);
+  }
+
+  /* ── system pill ── */
+  .system-pill {
+    padding: 3px 16px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .system-pill-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 2px 8px;
+  }
+
+  .system-pill-inner.pass { color: var(--pass); border-color: color-mix(in srgb, var(--pass) 30%, transparent); background: color-mix(in srgb, var(--pass) 5%, transparent); }
+  .system-pill-inner.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); background: color-mix(in srgb, var(--warn) 5%, transparent); }
+  .system-pill-inner.fail { color: var(--fail); border-color: color-mix(in srgb, var(--fail) 30%, transparent); background: color-mix(in srgb, var(--fail) 5%, transparent); }
+  .system-pill-inner.info { color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); background: color-mix(in srgb, var(--info) 5%, transparent); }
+
+  /* dot indicator in pill */
+  .pill-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* ── tool event ── */
+  .tool-event {
+    padding: 2px 16px 2px 52px;
+  }
+
+  .tool-event-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--font);
+  }
+
+  .tool-event-arrow {
+    color: var(--text-muted);
+    font-size: 9px;
+  }
+
+  .tool-name {
+    font-weight: 600;
+    font-size: 10px;
+  }
+
+  .tool-path {
+    color: var(--text-dim);
+    font-size: 10px;
+  }
+
+  /* verdict block — dante-specific */
+  .verdict-block {
+    margin-top: 6px;
+    border-left: 2px solid var(--dante);
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--dante) 4%, transparent);
+  }
+
+  .verdict-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--dante);
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .verdict-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 1px 0;
+  }
+
+  .verdict-check { color: var(--pass); font-size: 10px; }
+  .verdict-x     { color: var(--fail); font-size: 10px; }
+  .verdict-dash  { color: var(--text-muted); font-size: 10px; }
+
+  /* test count inline */
+  .test-count {
+    display: inline-flex;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 4px 8px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 10px;
+  }
+
+  .tc-pass { color: var(--pass); }
+  .tc-fail { color: var(--fail); }
+  .tc-skip { color: var(--skip); }
+
+  /* ── input area ── */
+  .input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 8px 12px;
+    transition: border-color 0.15s;
+  }
+
+  .input-bar:focus-within {
+    border-color: var(--dante);
+  }
+
+  .input-prompt {
+    font-size: 11px;
+    color: var(--dante);
+    flex-shrink: 0;
+    margin-bottom: 1px;
+    font-weight: 600;
+  }
+
+  .input-field {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: var(--font);
+    font-size: 12px;
+    color: var(--text);
+    resize: none;
+    min-height: 20px;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+
+  .input-field::placeholder { color: var(--text-muted); }
+
+  .input-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .input-hint {
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .btn-send {
+    background: var(--dante);
+    border: none;
+    border-radius: 3px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+
+  .btn-send:hover { opacity: 0.85; }
+
+  .btn-send svg {
+    width: 11px;
+    height: 11px;
+    fill: #000;
+  }
+
+  /* ── mention tag ── */
+  .mention {
+    font-weight: 600;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+
+  /* ── scrollbar global ── */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">agent chatroom</div>
+      <div class="sidebar-subtitle">#general · 4 invoked</div>
+    </div>
+
+    <div class="agent-list">
+      <div class="section-label">human</div>
+
+      <!-- Bex -->
+      <div class="agent-item status-invoked">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--human) 18%,transparent);color:var(--human)">BX</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--human)">Bex</div>
+          <div class="agent-role">orchestrator</div>
+        </div>
+        <span class="agent-status-badge badge-invoked">active</span>
+      </div>
+
+      <div class="section-label">agents</div>
+
+      <!-- bilbo -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--bilbo) 18%,transparent);color:var(--bilbo)">BI</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--bilbo)">bilbo</div>
+          <div class="agent-role">explorer</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+
+      <!-- ultron -->
+      <div class="agent-item status-done">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--ultron) 18%,transparent);color:var(--ultron)">UL</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--ultron)">ultron</div>
+          <div class="agent-role">implementer</div>
+        </div>
+        <span class="agent-status-badge badge-done">done</span>
+      </div>
+
+      <!-- cerberus -->
+      <div class="agent-item status-done">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--cerberus) 18%,transparent);color:var(--cerberus)">CE</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--cerberus)">cerberus</div>
+          <div class="agent-role">reviewer</div>
+        </div>
+        <span class="agent-status-badge badge-done">done</span>
+      </div>
+
+      <!-- dante — active -->
+      <div class="agent-item status-invoked active">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--dante) 18%,transparent);color:var(--dante)">DA</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--dante)">dante</div>
+          <div class="agent-role">tester</div>
+        </div>
+        <span class="agent-status-badge badge-invoked">running</span>
+      </div>
+
+      <!-- argus -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--argus) 18%,transparent);color:var(--argus)">AR</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--argus)">argus</div>
+          <div class="agent-role">security</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+
+      <!-- moriarty -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--moriarty) 18%,transparent);color:var(--moriarty)">MO</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--moriarty)">moriarty</div>
+          <div class="agent-role">adversarial</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+
+      <!-- house -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--house) 18%,transparent);color:var(--house)">HO</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--house)">house</div>
+          <div class="agent-role">diagnostician</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+
+      <!-- yoda -->
+      <div class="agent-item status-done">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--yoda) 18%,transparent);color:var(--yoda)">YO</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--yoda)">yoda</div>
+          <div class="agent-role">evaluator</div>
+        </div>
+        <span class="agent-status-badge badge-done">done</span>
+      </div>
+
+      <!-- alexandria -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--alexandria) 18%,transparent);color:var(--alexandria)">AL</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--alexandria)">alexandria</div>
+          <div class="agent-role">documentation</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+
+      <!-- gitto -->
+      <div class="agent-item status-idle">
+        <div class="agent-avatar" style="background:color-mix(in srgb,var(--gitto) 18%,transparent);color:var(--gitto)">GI</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color:var(--gitto)">gitto</div>
+          <div class="agent-role">git memory</div>
+        </div>
+        <span class="agent-status-badge badge-idle">idle</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="run-counter">
+        <div class="run-counter-dot"></div>
+        <span class="run-counter-text">133 pass · 0 fail · session active</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- main -->
+  <main class="main">
+
+    <!-- topbar -->
+    <div class="topbar">
+      <span class="topbar-room">#general</span>
+      <span class="topbar-sep">/</span>
+      <span class="topbar-topic">agent chatroom — security hardening + tests</span>
+      <div class="topbar-stats">
+        <span class="stat"><span>4</span> running</span>
+        <span class="stat"><span>85</span>/110</span>
+      </div>
+    </div>
+
+    <!-- messages -->
+    <div class="messages">
+
+      <div class="time-divider">
+        <span class="time-divider-text">20:04</span>
+      </div>
+
+      <!-- Bex message -->
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:color-mix(in srgb,var(--human) 18%,transparent);color:var(--human)">BX</div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author" style="color:var(--human)">Bex</span>
+            <span class="msg-time">20:04</span>
+          </div>
+          <div class="msg-content"><span class="mention" style="color:var(--cerberus)">@cerberus</span> <span class="mention" style="color:var(--ultron)">@ultron</span> algo que habeis tocado duplica los toolline o cuadriplica</div>
+        </div>
+      </div>
+
+      <!-- system: agent queued -->
+      <div class="system-pill">
+        <span class="system-pill-inner warn">
+          <span class="pill-dot"></span>
+          cerberus is busy. Message queued (1 pending).
+        </span>
+      </div>
+
+      <!-- house tool event -->
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--house)">house</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Read</span>
+          <span class="tool-path">apps/frontend/src/stores/ws-store.ts</span>
+        </div>
+      </div>
+
+      <!-- house response -->
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:color-mix(in srgb,var(--house) 18%,transparent);color:var(--house)">HO</div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author" style="color:var(--house)">house</span>
+            <span class="msg-time">20:07</span>
+          </div>
+          <div class="msg-content">encontrado. el problema es estructural.
+
+<code>disconnect()</code> borra <code>connectingRoomId</code> a null pero no cancela el auth fetch en vuelo. cuando StrictMode llama cleanup+remount, dos WebSockets quedan activos simultáneamente. cada uno recibe el <code>tool_event</code> y genera un UUID distinto → seenIds no puede deduplicar → aparece dos veces. si hay un reconnect adicional → cuadriplica.
+
+fix: <code>AbortController</code> en <code>disconnect()</code>. <span class="mention" style="color:var(--ultron)">@ultron</span> aplica triple defensa.</div>
+        </div>
+      </div>
+
+      <div class="time-divider">
+        <span class="time-divider-text">20:07</span>
+      </div>
+
+      <!-- ultron tool events -->
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--ultron)">ultron</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Edit</span>
+          <span class="tool-path">apps/frontend/src/stores/ws-store.ts</span>
+        </div>
+      </div>
+
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--ultron)">ultron</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Edit</span>
+          <span class="tool-path">packages/shared/src/protocol.ts</span>
+        </div>
+      </div>
+
+      <!-- ultron response -->
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:color-mix(in srgb,var(--ultron) 18%,transparent);color:var(--ultron)">UL</div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author" style="color:var(--ultron)">ultron</span>
+            <span class="msg-time">20:08</span>
+          </div>
+          <div class="msg-content">aplicado. triple defensa contra el race de StrictMode:
+
+1. <code>authAbortController.abort()</code> en <code>disconnect()</code>
+2. <code>AbortError</code> catch — salida silenciosa
+3. <code>connectingRoomId !== roomId</code> check post-fetch
+
+<span class="mention" style="color:var(--cerberus)">@cerberus</span> revisa <code>ws-store.ts</code>.</div>
+        </div>
+      </div>
+
+      <!-- cerberus response -->
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:color-mix(in srgb,var(--cerberus) 18%,transparent);color:var(--cerberus)">CE</div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author" style="color:var(--cerberus)">cerberus</span>
+            <span class="msg-time">20:09</span>
+          </div>
+          <div class="msg-content">LGTM. tres capas de defensa verificadas. no hay T1 ni T2.
+
+<span class="mention" style="color:var(--dante)">@dante</span> 7 tests pendientes: 6 sanitizers + 1 regresión dedup.</div>
+        </div>
+      </div>
+
+      <div class="time-divider">
+        <span class="time-divider-text">20:12</span>
+      </div>
+
+      <!-- dante tool events -->
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--dante)">dante</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Read</span>
+          <span class="tool-path">src/services/agent-invoker.ts:658</span>
+        </div>
+      </div>
+
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--dante)">dante</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Edit</span>
+          <span class="tool-path">src/services/agent-invoker-schedule.test.ts</span>
+        </div>
+      </div>
+
+      <div class="tool-event">
+        <div class="tool-event-inner">
+          <span class="tool-event-arrow">→</span>
+          <span class="tool-name" style="color:var(--dante)">dante</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span class="tool-name">Bash</span>
+          <span class="tool-path">bun test src/utils.test.ts src/config.test.ts src/services/agent-invoker-schedule.test.ts</span>
+        </div>
+      </div>
+
+      <!-- dante response -->
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:color-mix(in srgb,var(--dante) 18%,transparent);color:var(--dante)">DA</div>
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author" style="color:var(--dante)">dante</span>
+            <span class="msg-time">20:12</span>
+          </div>
+          <div class="msg-content">133 pass, 0 fail.
+
+cobertura añadida esta ronda:
+
+<div class="verdict-block">
+  <div class="verdict-header">✓ TEST RUN COMPLETE</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> 6 trust boundary sanitizers — uno por marker</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> multi-marker injection attack</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> case-insensitive match (×6)</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> ServerToolEvent.id no-opcional</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> seenIds dedup — mismo id → 1 entrada</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> cuadruplica → 1 aceptado</div>
+  <div class="verdict-line"><span class="verdict-check">✓</span> clearMessages resetea seenIds</div>
+</div>
+
+<div class="test-count">
+  <span class="tc-pass">133 pass</span>
+  <span class="tc-fail">0 fail</span>
+  <span class="tc-skip">0 skip</span>
+  <span style="color:var(--text-muted)">104ms</span>
+</div>
+
+nota: MessageList filter + SystemMessage buttons no se pueden testear sin Vitest en frontend. limitación documentada.
+
+<span class="mention" style="color:var(--cerberus)">@cerberus</span> para revisión antes de commit.</div>
+        </div>
+      </div>
+
+    </div><!-- /messages -->
+
+    <!-- input area -->
+    <div class="input-area">
+      <div class="input-bar">
+        <span class="input-prompt">❯</span>
+        <textarea class="input-field" rows="1" placeholder="message #general — @ to mention an agent"></textarea>
+        <div class="input-actions">
+          <span class="input-hint">↵ send</span>
+          <button class="btn-send" title="send">
+            <svg viewBox="0 0 16 16"><path d="M14.5 8L2 2l2.5 6L2 14z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>

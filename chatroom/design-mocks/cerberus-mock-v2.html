@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerberus v2 — Live Review Pipeline · Tauri</title>
+<style>
+/* ================================================================
+   CERBERUS v2 — LIVE REVIEW PIPELINE
+   Concept: Sidebar IS the command center. Each agent card shows
+   their current activity via a unique SVG animation tied to their role.
+   Cerberus: amber verdict gauge filling to LGTM.
+   Background: deep mesh with amber + indigo orbs bleeding through glass.
+   Glass layers: backdrop-filter blur stacked for real depth.
+   ================================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Per-agent OKLCH hues */
+  --c-cerberus:   oklch(72% 0.18 65);
+  --c-ultron:     oklch(64% 0.18 250);
+  --c-bilbo:      oklch(68% 0.16 45);
+  --c-dante:      oklch(64% 0.17 290);
+  --c-argus:      oklch(58% 0.20 22);
+  --c-moriarty:   oklch(62% 0.20 350);
+  --c-house:      oklch(66% 0.18 195);
+  --c-yoda:       oklch(70% 0.18 130);
+  --c-alexandria: oklch(64% 0.17 220);
+  --c-gitto:      oklch(62% 0.16 165);
+  --c-bex:        oklch(82% 0.06 60);
+
+  /* Glassmorphism system */
+  --glass-panel:  oklch(12% 0.015 260 / 0.60);
+  --glass-card:   oklch(16% 0.012 260 / 0.45);
+  --glass-msg:    oklch(18% 0.010 260 / 0.40);
+  --glass-border: oklch(100% 0 0 / 0.07);
+  --glass-shine:  oklch(100% 0 0 / 0.05);
+  --blur-deep:    blur(28px);
+  --blur-medium:  blur(16px);
+  --blur-light:   blur(8px);
+
+  /* Text */
+  --t1: oklch(91% 0.005 60);
+  --t2: oklch(60% 0.010 60);
+  --t3: oklch(36% 0.008 60);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: oklch(5% 0.020 260);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--t1);
+}
+
+/* ========================================================
+   LAYER 0 — ANIMATED BACKGROUND MESH
+   Orbs visible through glass. This is what sells the depth.
+======================================================== */
+
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+
+.orb-1 {
+  width: 480px; height: 480px;
+  top: -100px; left: -60px;
+  background: radial-gradient(circle, oklch(62% 0.22 65 / 0.7), transparent 70%);
+  animation-delay: 0s;
+  animation-duration: 20s;
+}
+
+.orb-2 {
+  width: 420px; height: 420px;
+  top: 30px; right: 80px;
+  background: radial-gradient(circle, oklch(55% 0.18 250 / 0.6), transparent 70%);
+  animation-delay: -6s;
+  animation-duration: 24s;
+}
+
+.orb-3 {
+  width: 360px; height: 360px;
+  bottom: -80px; left: 40%;
+  background: radial-gradient(circle, oklch(50% 0.18 300 / 0.45), transparent 70%);
+  animation-delay: -12s;
+  animation-duration: 22s;
+}
+
+@keyframes drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.08); }
+  66%  { transform: translate(-20px, 40px) scale(0.95); }
+  100% { transform: translate(20px, -10px) scale(1.04); }
+}
+
+/* Subtle grid overlay */
+.bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(100% 0 0 / 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(100% 0 0 / 0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ========================================================
+   TAURI WINDOW CHROME
+======================================================== */
+
+.tauri-window {
+  position: relative;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.titlebar {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  -webkit-app-region: drag;
+  background: oklch(8% 0.018 260 / 0.80);
+  backdrop-filter: var(--blur-light);
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 7px;
+  -webkit-app-region: no-drag;
+}
+
+.dot { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
+.dot-close  { background: #ff5f57; }
+.dot-min    { background: #febc2e; }
+.dot-max    { background: #28c840; }
+
+.titlebar-label {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  letter-spacing: 0.02em;
+}
+
+/* ========================================================
+   APP LAYOUT
+======================================================== */
+
+.app {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ========================================================
+   SIDEBAR — THE STAR
+   Wide enough to show agent activity. Glass panel.
+   Each card has its own SVG animation.
+======================================================== */
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--glass-panel);
+  backdrop-filter: var(--blur-deep);
+  -webkit-backdrop-filter: var(--blur-deep);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar top shine */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--glass-shine);
+}
+
+/* Amber ambient from cerberus */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 120px;
+  background: radial-gradient(ellipse at 30% 0%, oklch(62% 0.18 65 / 0.12), transparent 70%);
+  pointer-events: none;
+}
+
+.sidebar-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-room {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--c-cerberus);
+  box-shadow: 0 0 6px var(--c-cerberus);
+  animation: pulse-room 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-room {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+.sidebar-subtitle {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+
+/* Section header */
+.section-label {
+  padding: 10px 14px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+
+/* Agent scroll area */
+.agents-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px 8px;
+}
+
+.agents-scroll::-webkit-scrollbar { width: 3px; }
+.agents-scroll::-webkit-scrollbar-track { background: transparent; }
+.agents-scroll::-webkit-scrollbar-thumb { background: oklch(30% 0.01 260); border-radius: 2px; }
+
+/* ─── AGENT CARD ─── */
+.agent-card {
+  background: var(--glass-card);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Card top shine */
+.agent-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--glass-shine);
+  border-radius: 10px 10px 0 0;
+}
+
+.agent-card:hover {
+  border-color: oklch(100% 0 0 / 0.12);
+  background: oklch(18% 0.012 260 / 0.55);
+}
+
+/* Active card gets agent-colored border + glow */
+.agent-card.active {
+  border-color: var(--agent-color);
+  box-shadow: 0 0 12px var(--agent-color-dim);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* Avatar */
+.av {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+.av-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  opacity: 0.4;
+  animation: av-pulse 3s ease-in-out infinite;
+}
+
+@keyframes av-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 0.6; }
+}
+
+.card-info { flex: 1; min-width: 0; }
+
+.card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+}
+
+.card-status {
+  font-size: 10px;
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-status.active-status { color: var(--agent-color); }
+
+/* Status dot */
+.status-pip {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pip-active { background: oklch(68% 0.18 145); box-shadow: 0 0 5px oklch(68% 0.18 145); }
+.pip-busy   { animation: pip-blink 1.2s ease-in-out infinite; }
+.pip-idle   { background: var(--t3); }
+
+@keyframes pip-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ─── SVG ACTIVITY AREA ─── */
+.activity-svg {
+  width: 100%;
+  height: 28px;
+  display: block;
+}
+
+/* Inactive agents: faded */
+.agent-card.idle {
+  opacity: 0.5;
+}
+
+.agent-card.idle:hover { opacity: 0.75; }
+
+/* ────────────────────────────────────
+   AGENT CARD COLORS (CSS vars per card)
+   Applied via style="--agent-color: ..."
+──────────────────────────────────── */
+
+
+/* ========================================================
+   CHAT AREA
+======================================================== */
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: oklch(8% 0.018 260 / 0.30);
+  backdrop-filter: var(--blur-light);
+}
+
+/* Chat header */
+.chat-header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+  border-bottom: 1px solid var(--glass-border);
+  background: oklch(10% 0.016 260 / 0.50);
+  backdrop-filter: var(--blur-medium);
+  flex-shrink: 0;
+}
+
+.header-hash {
+  font-size: 16px;
+  color: var(--c-cerberus);
+  font-weight: 300;
+  opacity: 0.8;
+}
+
+.header-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.header-sep { width: 1px; height: 16px; background: var(--glass-border); }
+
+.header-topic {
+  font-size: 11px;
+  color: var(--t2);
+  flex: 1;
+}
+
+.verdict-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: oklch(22% 0.06 65 / 0.6);
+  border: 1px solid oklch(62% 0.18 65 / 0.3);
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--c-cerberus);
+}
+
+.verdict-dot-chip {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--c-cerberus);
+  animation: pip-blink 1.5s ease-in-out infinite;
+}
+
+/* Messages */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messages::-webkit-scrollbar { width: 3px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: oklch(22% 0.01 260); border-radius: 2px; }
+
+/* Message row */
+.msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.1s;
+}
+
+.msg:hover {
+  background: oklch(16% 0.010 260 / 0.35);
+}
+
+.msg-av {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.msg-body { flex: 1; min-width: 0; }
+
+.msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.msg-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.msg-time {
+  font-size: 10px;
+  color: var(--t3);
+  margin-left: auto;
+}
+
+.msg-text {
+  font-size: 13px;
+  color: oklch(86% 0.006 60);
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+/* Mention chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Inline code */
+.msg-text code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: oklch(16% 0.010 260 / 0.7);
+  border: 1px solid oklch(28% 0.010 260);
+  color: var(--c-cerberus);
+}
+
+/* Cerberus verdict block */
+.verdict-block {
+  margin-top: 6px;
+  background: oklch(14% 0.02 65 / 0.60);
+  backdrop-filter: var(--blur-light);
+  border: 1px solid oklch(62% 0.18 65 / 0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--c-cerberus);
+}
+
+.vb-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: oklch(60% 0.12 65);
+  margin-bottom: 4px;
+}
+
+.vb-result {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.vb-lgtm { color: oklch(68% 0.18 145); }
+.vb-block { color: oklch(58% 0.22 22); }
+
+.vb-findings { display: flex; flex-direction: column; gap: 3px; }
+
+.vb-finding {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.tier {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.t1 { background: oklch(58% 0.22 22); color: oklch(10% 0.01 0); }
+.t2 { background: oklch(65% 0.18 65); color: oklch(10% 0.01 0); }
+.t3 { background: oklch(30% 0.01 260); color: var(--t2); }
+
+.vb-text { color: var(--t2); line-height: 1.4; }
+
+/* System pills */
+.sys-pill {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  background: oklch(14% 0.010 260 / 0.50);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  font-size: 10px;
+  color: var(--t3);
+}
+
+.pill-active { color: var(--c-cerberus); border-color: oklch(62% 0.18 65 / 0.25); }
+
+/* Tool line */
+.tool-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 48px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--t3);
+}
+
+.tool-badge {
+  padding: 1px 5px;
+  border: 1px solid var(--glass-border);
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ========================================================
+   INPUT
+======================================================== */
+
+.input-area {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--glass-border);
+  background: oklch(10% 0.016 260 / 0.50);
+  backdrop-filter: var(--blur-medium);
+  flex-shrink: 0;
+}
+
+.input-glass {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: oklch(16% 0.012 260 / 0.55);
+  border: 1px solid oklch(100% 0 0 / 0.09);
+  border-radius: 10px;
+  padding: 7px 12px;
+  backdrop-filter: var(--blur-light);
+  transition: border-color 0.2s;
+}
+
+.input-glass:focus-within {
+  border-color: oklch(62% 0.18 65 / 0.35);
+  box-shadow: 0 0 0 1px oklch(62% 0.18 65 / 0.10);
+}
+
+input.msg-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--t1);
+  caret-color: var(--c-cerberus);
+}
+
+input.msg-input::placeholder { color: var(--t3); }
+
+.send-btn {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: oklch(22% 0.06 65 / 0.7);
+  border: 1px solid oklch(62% 0.18 65 / 0.35);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--c-cerberus);
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.send-btn:hover { background: oklch(28% 0.08 65 / 0.8); }
+
+/* ========================================================
+   ANIMATED SVGs — per-agent activity indicators
+   These are the soul of the sidebar.
+======================================================== */
+
+/* Cerberus — verdict gauge (semicircle filling amber → green) */
+@keyframes gauge-fill {
+  0%   { stroke-dashoffset: 75.4; }
+  60%  { stroke-dashoffset: 20; }
+  80%  { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes gauge-color {
+  0%, 55% { stroke: oklch(72% 0.18 65); }
+  80%, 100% { stroke: oklch(68% 0.18 145); }
+}
+
+.gauge-arc {
+  stroke-dasharray: 75.4;
+  stroke-dashoffset: 75.4;
+  animation: gauge-fill 3.5s ease-in-out infinite, gauge-color 3.5s ease-in-out infinite;
+}
+
+/* Ultron — code typing lines */
+@keyframes type-1 { 0%,20%{ width:0 } 40%,100%{ width:55% } }
+@keyframes type-2 { 20%,40%{ width:0 } 60%,100%{ width:40% } }
+@keyframes type-3 { 40%,60%{ width:0 } 80%,100%{ width:70% } }
+
+/* Dante — test dots filling */
+@keyframes dot-fill-1 { 0%,10%{opacity:.2}20%,100%{opacity:1} }
+@keyframes dot-fill-2 { 0%,30%{opacity:.2}40%,100%{opacity:1} }
+@keyframes dot-fill-3 { 0%,50%{opacity:.2}60%,100%{opacity:1} }
+@keyframes dot-fill-4 { 0%,70%{opacity:.2}80%,100%{opacity:1} }
+@keyframes dot-fill-5 { 0%,85%{opacity:.2}95%,100%{opacity:1} }
+
+/* House — ECG pulse */
+@keyframes ecg {
+  0%   { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: -200; }
+}
+
+/* Bilbo — compass needle */
+@keyframes compass {
+  0%   { transform: rotate(0deg); }
+  30%  { transform: rotate(140deg); }
+  50%  { transform: rotate(120deg); }
+  80%  { transform: rotate(320deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Yoda — scales tipping */
+@keyframes scales-l { 0%,50%{transform:rotate(0deg)} 25%{transform:rotate(-12deg)} 75%{transform:rotate(8deg)} 100%{transform:rotate(0deg)} }
+@keyframes scales-r { 0%,50%{transform:rotate(0deg)} 25%{transform:rotate(12deg)} 75%{transform:rotate(-8deg)} 100%{transform:rotate(0deg)} }
+
+/* Argus — radar sweep */
+@keyframes radar {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Alexandria — document fade in */
+@keyframes doc-reveal { 0%,15%{opacity:0;transform:translateY(3px)} 40%,100%{opacity:1;transform:translateY(0)} }
+
+/* Moriarty — chaotic glitch lines */
+@keyframes glitch-1 { 0%,90%{opacity:0} 91%,95%{opacity:1} 96%,100%{opacity:0} }
+@keyframes glitch-2 { 0%,70%{opacity:0} 71%,77%{opacity:1} 78%,100%{opacity:0} }
+
+/* Gitto — branch forming */
+@keyframes branch-grow { 0%,20%{stroke-dashoffset:50} 60%,100%{stroke-dashoffset:0} }
+</style>
+</head>
+<body>
+
+<!-- BACKGROUND DEPTH -->
+<div class="bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- TAURI WINDOW -->
+<div class="tauri-window">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="dot dot-close"></div>
+      <div class="dot dot-min"></div>
+      <div class="dot dot-max"></div>
+    </div>
+    <div class="titlebar-label">cerberus — live review pipeline</div>
+  </div>
+
+  <!-- APP -->
+  <div class="app">
+
+    <!-- ═══════════════════════════════
+         SIDEBAR — THE STAR
+    ═══════════════════════════════ -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-room">
+          <div class="room-dot"></div>
+          #general
+        </div>
+        <div class="sidebar-subtitle">11 members · live review session</div>
+      </div>
+
+      <div class="section-label">Bex</div>
+      <div style="padding: 0 8px 4px;">
+        <div class="agent-card active" style="--agent-color: oklch(82% 0.06 60); --agent-color-dim: oklch(82% 0.06 60 / 0.15);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.015 60 / 0.8); color: oklch(82% 0.06 60); border: 1px solid oklch(82% 0.06 60 / 0.3);">
+              BX
+            </div>
+            <div class="card-info">
+              <div class="card-name" style="color: oklch(82% 0.06 60);">Bex</div>
+              <div class="card-status active-status" style="--agent-color: oklch(82% 0.06 60);">orchestrating</div>
+            </div>
+            <div class="status-pip pip-active"></div>
+          </div>
+          <!-- Bex: waveform activity -->
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="0,14 20,14 30,6 40,22 50,8 60,18 70,14 80,14 90,10 100,18 110,14 130,14 140,9 150,20 160,12 170,16 180,14 220,14"
+              stroke="oklch(82% 0.06 60)" stroke-width="1.5" fill="none" opacity="0.6"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="section-label">Agents</div>
+      <div class="agents-scroll">
+
+        <!-- CERBERUS — verdict gauge -->
+        <div class="agent-card active" style="--agent-color: var(--c-cerberus); --agent-color-dim: oklch(72% 0.18 65 / 0.15);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 65 / 0.8); color: var(--c-cerberus); border: 1px solid oklch(62% 0.18 65 / 0.4);">
+              CE
+            </div>
+            <div class="card-info">
+              <div class="card-name" style="color: var(--c-cerberus);">cerberus</div>
+              <div class="card-status active-status" style="--agent-color: var(--c-cerberus);">reviewing ws-store.ts</div>
+            </div>
+            <div class="status-pip pip-busy" style="background: var(--c-cerberus); box-shadow: 0 0 5px var(--c-cerberus);"></div>
+          </div>
+          <!-- Verdict gauge: semicircle filling amber → green -->
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(50% 0.01 60)" font-family="monospace">VERDICT</text>
+            <!-- Background arc -->
+            <path d="M 55 22 A 18 18 0 0 1 91 22" stroke="oklch(22% 0.01 260)" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <!-- Animated fill arc -->
+            <path d="M 55 22 A 18 18 0 0 1 91 22"
+              stroke="oklch(72% 0.18 65)" stroke-width="3" fill="none" stroke-linecap="round"
+              stroke-dasharray="56.5" stroke-dashoffset="56.5"
+              style="animation: gauge-fill 3.5s ease-in-out infinite;">
+              <animate attributeName="stroke" values="oklch(72% 0.18 65);oklch(72% 0.18 65);oklch(68% 0.18 145);oklch(68% 0.18 145)" keyTimes="0;0.55;0.80;1" dur="3.5s" repeatCount="indefinite"/>
+              <animate attributeName="stroke-dashoffset" values="56.5;5;5;0;56.5" keyTimes="0;0.55;0.70;0.85;1" dur="3.5s" repeatCount="indefinite"/>
+            </path>
+            <!-- Center label -->
+            <text x="73" y="20" font-size="7" fill="oklch(72% 0.18 65)" font-family="monospace" text-anchor="middle">
+              <animate attributeName="fill" values="oklch(72% 0.18 65);oklch(72% 0.18 65);oklch(68% 0.18 145);oklch(68% 0.18 145)" keyTimes="0;0.55;0.80;1" dur="3.5s" repeatCount="indefinite"/>
+              LGTM
+            </text>
+            <!-- Tier counter -->
+            <rect x="105" y="8" width="22" height="12" rx="2" fill="oklch(22% 0.04 65 / 0.7)"/>
+            <text x="116" y="17" font-size="8" fill="oklch(72% 0.18 65)" font-family="monospace" text-anchor="middle">T3:1</text>
+            <rect x="132" y="8" width="22" height="12" rx="2" fill="oklch(20% 0.02 22 / 0.5)"/>
+            <text x="143" y="17" font-size="8" fill="oklch(58% 0.22 22)" font-family="monospace" text-anchor="middle">T1:0</text>
+            <rect x="158" y="8" width="40" height="12" rx="2" fill="oklch(15% 0.01 260 / 0.6)"/>
+            <text x="178" y="17" font-size="8" fill="oklch(60% 0.01 260)" font-family="monospace" text-anchor="middle">133 pass</text>
+          </svg>
+        </div>
+
+        <!-- ULTRON — code typing lines -->
+        <div class="agent-card active" style="--agent-color: var(--c-ultron); --agent-color-dim: oklch(64% 0.18 250 / 0.12);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 250 / 0.8); color: var(--c-ultron); border: 1px solid oklch(54% 0.18 250 / 0.4);">
+              UL
+            </div>
+            <div class="card-info">
+              <div class="card-name" style="color: var(--c-ultron);">ultron</div>
+              <div class="card-status active-status" style="--agent-color: var(--c-ultron);">implementing fix</div>
+            </div>
+            <div class="status-pip pip-active" style="background: var(--c-ultron); box-shadow: 0 0 5px var(--c-ultron);"></div>
+          </div>
+          <!-- Code typing animation -->
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="9" font-size="7" fill="oklch(64% 0.18 250)" font-family="monospace" opacity="0.5">EDIT</text>
+            <!-- Line 1 -->
+            <rect x="6" y="13" height="2.5" rx="1.25" fill="oklch(64% 0.18 250)" opacity="0.5" width="0">
+              <animate attributeName="width" values="0;55;55;55;0" keyTimes="0;0.3;0.6;0.9;1" dur="2.5s" repeatCount="indefinite"/>
+            </rect>
+            <!-- Line 2 -->
+            <rect x="6" y="18" height="2.5" rx="1.25" fill="oklch(64% 0.18 250)" opacity="0.4" width="0">
+              <animate attributeName="width" values="0;0;42;42;0" keyTimes="0;0.3;0.55;0.9;1" dur="2.5s" repeatCount="indefinite"/>
+            </rect>
+            <!-- Line 3 -->
+            <rect x="6" y="23" height="2.5" rx="1.25" fill="oklch(64% 0.18 250)" opacity="0.3" width="0">
+              <animate attributeName="width" values="0;0;0;68;0" keyTimes="0;0.3;0.55;0.85;1" dur="2.5s" repeatCount="indefinite"/>
+            </rect>
+            <!-- Cursor blink -->
+            <rect x="68" y="23" width="5" height="2.5" rx="1" fill="oklch(64% 0.18 250)">
+              <animate attributeName="opacity" values="0;0;0;1;0.5;1;0" keyTimes="0;0.3;0.55;0.85;0.88;0.91;1" dur="2.5s" repeatCount="indefinite"/>
+              <animate attributeName="x" values="6;6;6;68;68" keyTimes="0;0.3;0.55;0.85;1" dur="2.5s" repeatCount="indefinite"/>
+            </rect>
+            <!-- Filename tag -->
+            <rect x="100" y="8" width="112" height="12" rx="2" fill="oklch(16% 0.016 250 / 0.7)" opacity="0.8"/>
+            <text x="156" y="17" font-size="8" fill="oklch(55% 0.10 250)" font-family="monospace" text-anchor="middle">ws-store.ts:244</text>
+          </svg>
+        </div>
+
+        <!-- DANTE — test progress dots -->
+        <div class="agent-card active" style="--agent-color: var(--c-dante); --agent-color-dim: oklch(64% 0.17 290 / 0.12);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 290 / 0.8); color: var(--c-dante); border: 1px solid oklch(54% 0.17 290 / 0.4);">
+              DA
+            </div>
+            <div class="card-info">
+              <div class="card-name" style="color: var(--c-dante);">dante</div>
+              <div class="card-status active-status" style="--agent-color: var(--c-dante);">tests running</div>
+            </div>
+            <div class="status-pip pip-busy" style="background: var(--c-dante); box-shadow: 0 0 5px var(--c-dante);"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(50% 0.01 60)" font-family="monospace">SUITE</text>
+            <!-- 13 test dots -->
+            <g transform="translate(38, 9)">
+              <circle cx="0"  cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;1;1" keyTimes="0;0.08;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="13" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.15;0.23;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="26" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.22;0.30;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="39" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.30;0.38;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="52" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.38;0.46;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="65" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.46;0.54;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="78" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.54;0.62;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="91" cy="6" r="4" fill="oklch(68% 0.18 145)"><animate attributeName="opacity" values="0.2;0.2;1;1" keyTimes="0;0.62;0.70;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="104" cy="6" r="4" fill="oklch(64% 0.17 290)" opacity="0.35"><animate attributeName="opacity" values="0.35;0.35;0.35;0.7;0.35" keyTimes="0;0.68;0.72;0.80;1" dur="2s" repeatCount="indefinite"/></circle>
+              <circle cx="117" cy="6" r="4" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+              <circle cx="130" cy="6" r="4" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+              <circle cx="143" cy="6" r="4" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+              <circle cx="156" cy="6" r="4" fill="oklch(64% 0.17 290)" opacity="0.2"/>
+            </g>
+            <text x="200" y="18" font-size="8" fill="oklch(68% 0.18 145)" font-family="monospace" text-anchor="end">133/133</text>
+          </svg>
+        </div>
+
+        <!-- HOUSE — ECG pulse -->
+        <div class="agent-card" style="--agent-color: var(--c-house); --agent-color-dim: oklch(66% 0.18 195 / 0.12);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 195 / 0.8); color: var(--c-house); border: 1px solid oklch(56% 0.18 195 / 0.4);">
+              HO
+            </div>
+            <div class="card-info">
+              <div class="card-name" style="color: var(--c-house);">house</div>
+              <div class="card-status active-status" style="--agent-color: var(--c-house);">diagnosis complete</div>
+            </div>
+            <div class="status-pip pip-active" style="background: oklch(68% 0.18 145); box-shadow: 0 0 5px oklch(68% 0.18 145);"></div>
+          </div>
+          <!-- ECG pulse -->
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(50% 0.01 60)" font-family="monospace">DIAG</text>
+            <polyline points="36,14 56,14 62,4 66,24 70,14 76,14 84,14 90,14 96,6 100,22 104,14 110,14 128,14 134,5 138,23 142,14 148,14 166,14 172,7 176,21 180,14 186,14 204,14 210,14"
+              stroke="oklch(66% 0.18 195)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.75">
+              <animate attributeName="stroke-dasharray" values="300;300" dur="0.1s"/>
+              <animate attributeName="stroke-dashoffset" values="300;0" dur="2s" repeatCount="indefinite" calcMode="linear"/>
+            </polyline>
+          </svg>
+        </div>
+
+        <!-- BILBO — compass -->
+        <div class="agent-card idle" style="--agent-color: var(--c-bilbo);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.03 45 / 0.8); color: var(--c-bilbo); border: 1px solid oklch(58% 0.16 45 / 0.3);">
+              BI
+            </div>
+            <div class="card-info">
+              <div class="card-name">bilbo</div>
+              <div class="card-status">idle</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">IDLE</text>
+            <circle cx="38" cy="14" r="9" stroke="oklch(35% 0.01 260)" stroke-width="1" fill="none"/>
+            <line x1="38" y1="5" x2="38" y2="11" stroke="oklch(68% 0.16 45)" stroke-width="1.5" stroke-linecap="round" transform-origin="38 14">
+              <animateTransform attributeName="transform" type="rotate" values="0 38 14;140 38 14;120 38 14;320 38 14;360 38 14" keyTimes="0;0.3;0.5;0.8;1" dur="5s" repeatCount="indefinite"/>
+            </line>
+            <line x1="38" y1="14" x2="38" y2="21" stroke="oklch(45% 0.01 260)" stroke-width="1" stroke-linecap="round" transform-origin="38 14">
+              <animateTransform attributeName="transform" type="rotate" values="180 38 14;320 38 14;300 38 14;140 38 14;180 38 14" keyTimes="0;0.3;0.5;0.8;1" dur="5s" repeatCount="indefinite"/>
+            </line>
+          </svg>
+        </div>
+
+        <!-- ARGUS — radar -->
+        <div class="agent-card idle" style="--agent-color: var(--c-argus);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(16% 0.04 22 / 0.8); color: var(--c-argus); border: 1px solid oklch(48% 0.20 22 / 0.3);">
+              AR
+            </div>
+            <div class="card-info">
+              <div class="card-name">argus</div>
+              <div class="card-status">monitoring</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">SCAN</text>
+            <circle cx="38" cy="14" r="9" stroke="oklch(30% 0.08 22)" stroke-width="1" fill="none"/>
+            <circle cx="38" cy="14" r="5" stroke="oklch(28% 0.06 22)" stroke-width="1" fill="none"/>
+            <!-- Radar sweep line -->
+            <line x1="38" y1="14" x2="38" y2="5" stroke="oklch(58% 0.20 22)" stroke-width="1.5" stroke-linecap="round" transform-origin="38 14">
+              <animateTransform attributeName="transform" type="rotate" values="0 38 14;360 38 14" dur="3s" repeatCount="indefinite"/>
+            </line>
+            <!-- Blip -->
+            <circle cx="44" cy="9" r="2" fill="oklch(58% 0.20 22)">
+              <animate attributeName="opacity" values="0;0.8;0;0;0" keyTimes="0;0.1;0.3;0.9;1" dur="3s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+
+        <!-- MORIARTY — glitch lines -->
+        <div class="agent-card idle" style="--agent-color: var(--c-moriarty);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(16% 0.04 350 / 0.8); color: var(--c-moriarty); border: 1px solid oklch(52% 0.20 350 / 0.3);">
+              MO
+            </div>
+            <div class="card-info">
+              <div class="card-name">moriarty</div>
+              <div class="card-status">idle</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">QUIET</text>
+            <line x1="36" y1="14" x2="200" y2="14" stroke="oklch(28% 0.06 350)" stroke-width="1" opacity="0.5"/>
+            <!-- Random glitch bursts -->
+            <polyline points="60,14 65,6 68,20 71,10 74,16 77,14" stroke="oklch(62% 0.20 350)" stroke-width="1.5" fill="none" opacity="0">
+              <animate attributeName="opacity" values="0;0;0;0;0;0;0;0;0;1;0;0" keyTimes="0;0.1;0.2;0.3;0.4;0.5;0.6;0.7;0.8;0.9;0.95;1" dur="4s" repeatCount="indefinite"/>
+              <animate attributeName="points" values="60,14 65,6 68,20 71,10 74,16 77,14;80,14 85,4 88,22 92,8 96,18 100,14" keyTimes="0;1" dur="4s" repeatCount="indefinite"/>
+            </polyline>
+          </svg>
+        </div>
+
+        <!-- YODA — scales -->
+        <div class="agent-card idle" style="--agent-color: var(--c-yoda);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 130 / 0.8); color: var(--c-yoda); border: 1px solid oklch(60% 0.18 130 / 0.3);">
+              YO
+            </div>
+            <div class="card-info">
+              <div class="card-name">yoda</div>
+              <div class="card-status">idle</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">AWAIT</text>
+            <!-- Balance beam -->
+            <line x1="28" y1="10" x2="52" y2="10" stroke="oklch(60% 0.15 130)" stroke-width="1.5" transform-origin="40 10">
+              <animateTransform attributeName="transform" type="rotate" values="0 40 10;-12 40 10;8 40 10;0 40 10" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+            </line>
+            <line x1="40" y1="10" x2="40" y2="22" stroke="oklch(60% 0.15 130)" stroke-width="1.5"/>
+            <circle cx="28" cy="12" r="3" fill="oklch(60% 0.15 130)" transform-origin="40 10">
+              <animateTransform attributeName="transform" type="rotate" values="0 40 10;-12 40 10;8 40 10;0 40 10" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="52" cy="12" r="3" fill="oklch(60% 0.15 130)" transform-origin="40 10">
+              <animateTransform attributeName="transform" type="rotate" values="0 40 10;-12 40 10;8 40 10;0 40 10" keyTimes="0;0.25;0.75;1" dur="4s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+
+        <!-- ALEXANDRIA — document reveal -->
+        <div class="agent-card idle" style="--agent-color: var(--c-alexandria);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 220 / 0.8); color: var(--c-alexandria); border: 1px solid oklch(54% 0.17 220 / 0.3);">
+              AL
+            </div>
+            <div class="card-info">
+              <div class="card-name">alexandria</div>
+              <div class="card-status">idle</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">DOCS</text>
+            <!-- Document stack -->
+            <rect x="30" y="6" width="18" height="16" rx="2" fill="oklch(16% 0.012 220 / 0.8)" stroke="oklch(45% 0.10 220)" stroke-width="1"/>
+            <line x1="33" y1="11" x2="45" y2="11" stroke="oklch(55% 0.14 220)" stroke-width="1" opacity="0.6"/>
+            <line x1="33" y1="14" x2="45" y2="14" stroke="oklch(55% 0.14 220)" stroke-width="1" opacity="0.5"/>
+            <line x1="33" y1="17" x2="40" y2="17" stroke="oklch(55% 0.14 220)" stroke-width="1" opacity="0.4"/>
+          </svg>
+        </div>
+
+        <!-- GITTO — branch forming -->
+        <div class="agent-card idle" style="--agent-color: var(--c-gitto);">
+          <div class="card-top">
+            <div class="av" style="background: oklch(18% 0.04 165 / 0.8); color: var(--c-gitto); border: 1px solid oklch(52% 0.16 165 / 0.3);">
+              GI
+            </div>
+            <div class="card-info">
+              <div class="card-name">gitto</div>
+              <div class="card-status">idle</div>
+            </div>
+            <div class="status-pip pip-idle"></div>
+          </div>
+          <svg class="activity-svg" viewBox="0 0 220 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <text x="6" y="20" font-size="8" fill="oklch(35% 0.01 60)" font-family="monospace">LOG</text>
+            <!-- Git graph -->
+            <line x1="36" y1="6" x2="36" y2="22" stroke="oklch(45% 0.10 165)" stroke-width="1.5"/>
+            <circle cx="36" cy="8" r="3" fill="oklch(62% 0.16 165)"/>
+            <circle cx="36" cy="14" r="3" fill="oklch(55% 0.12 165)" stroke="oklch(62% 0.16 165)" stroke-width="1"/>
+            <circle cx="36" cy="20" r="3" fill="oklch(55% 0.12 165)"/>
+            <!-- Branch -->
+            <path d="M 36 14 Q 50 14 52 8" stroke="oklch(50% 0.12 165)" stroke-width="1.5" fill="none"
+              stroke-dasharray="30" stroke-dashoffset="30">
+              <animate attributeName="stroke-dashoffset" values="30;0;0;30" keyTimes="0;0.4;0.8;1" dur="3s" repeatCount="indefinite"/>
+            </path>
+            <circle cx="52" cy="8" r="3" fill="oklch(62% 0.16 165)" opacity="0">
+              <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.38;0.42;0.8;1" dur="3s" repeatCount="indefinite"/>
+            </circle>
+            <!-- SHA -->
+            <text x="64" y="17" font-size="8" fill="oklch(40% 0.08 165)" font-family="monospace">ad546d1</text>
+          </svg>
+        </div>
+
+      </div><!-- /agents-scroll -->
+    </aside>
+
+    <!-- ═══════════════════════════════
+         CHAT
+    ═══════════════════════════════ -->
+    <main class="chat-area">
+      <div class="chat-header">
+        <span class="header-hash">#</span>
+        <span class="header-name">general</span>
+        <div class="header-sep"></div>
+        <span class="header-topic">session 3 — phase 1 complete · 133 tests · mergeable</span>
+        <div class="verdict-chip">
+          <div class="verdict-dot-chip"></div>
+          LGTM
+        </div>
+      </div>
+
+      <div class="messages">
+
+        <!-- Bex -->
+        <div class="msg">
+          <div class="msg-av" style="background: oklch(18% 0.015 60 / 0.7); color: oklch(82% 0.06 60);">BX</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color: oklch(82% 0.06 60);">Bex</span>
+              <span class="msg-time">20:04</span>
+            </div>
+            <div class="msg-text">
+              <span class="chip" style="background: oklch(20% 0.04 65 / 0.6); color: var(--c-cerberus);">@cerberus</span>
+              <span class="chip" style="background: oklch(20% 0.04 250 / 0.6); color: var(--c-ultron); margin-left: 3px;">@ultron</span>
+              algo que habeis tocado duplica los toolline o cuadriplica
+            </div>
+          </div>
+        </div>
+
+        <!-- System pill -->
+        <div class="sys-pill">
+          <div class="pill pill-active">
+            <div class="verdict-dot-chip" style="width:5px;height:5px;border-radius:50%;background:var(--c-cerberus);animation:pip-blink 1.5s ease-in-out infinite;"></div>
+            cerberus is reviewing
+          </div>
+        </div>
+
+        <!-- Tool line -->
+        <div class="tool-line" style="color: var(--c-house);">
+          <span style="font-weight:700;">house</span>
+          <span class="tool-badge" style="color: var(--c-house); border-color: oklch(56% 0.18 195 / 0.3);">Read</span>
+          <span style="color: var(--t3);">ws-store.ts — tracing StrictMode race condition</span>
+        </div>
+
+        <!-- house -->
+        <div class="msg" style="background: oklch(14% 0.018 195 / 0.25); border-radius: 10px;">
+          <div class="msg-av" style="background: oklch(18% 0.04 195 / 0.7); color: var(--c-house);">HO</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color: var(--c-house);">house</span>
+              <span class="msg-time">20:07</span>
+            </div>
+            <div class="msg-text">
+              Encontrado. <code>disconnect()</code> borra <code>connectingRoomId</code> a null pero no cancela el auth fetch en vuelo. StrictMode: dos conexiones activas → dos handlers → duplica.
+              Fix: AbortController en <code>disconnect()</code>.
+              <span class="chip" style="background: oklch(20% 0.04 250 / 0.6); color: var(--c-ultron); margin-left: 2px;">@ultron</span> aplica.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tool line -->
+        <div class="tool-line" style="color: var(--c-ultron);">
+          <span style="font-weight:700;">ultron</span>
+          <span class="tool-badge" style="color: var(--c-ultron); border-color: oklch(54% 0.18 250 / 0.3);">Edit</span>
+          <span style="color: var(--t3);">ws-store.ts:159 — AbortController triple defense</span>
+        </div>
+
+        <!-- ultron -->
+        <div class="msg" style="background: oklch(14% 0.018 250 / 0.25); border-radius: 10px;">
+          <div class="msg-av" style="background: oklch(18% 0.04 250 / 0.7); color: var(--c-ultron);">UL</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color: var(--c-ultron);">ultron</span>
+              <span class="msg-time">20:08</span>
+            </div>
+            <div class="msg-text">
+              Aplicado. Triple defensa: <code>abort()</code> en disconnect, AbortError catch silencioso, post-fetch roomId guard.
+              <span class="chip" style="background: oklch(20% 0.04 65 / 0.6); color: var(--c-cerberus); margin-left: 2px;">@cerberus</span> revisa.
+            </div>
+          </div>
+        </div>
+
+        <!-- cerberus verdict -->
+        <div class="msg" style="background: oklch(14% 0.018 65 / 0.25); border-radius: 10px;">
+          <div class="msg-av" style="background: oklch(18% 0.04 65 / 0.7); color: var(--c-cerberus);">CE</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color: var(--c-cerberus);">cerberus</span>
+              <span class="msg-time">20:09</span>
+            </div>
+            <div class="msg-text">
+              <div class="verdict-block">
+                <div class="vb-label">verdict — ws-store.ts AbortController</div>
+                <div class="vb-result vb-lgtm">✓ LGTM — no T1/T2 blockers</div>
+                <div class="vb-findings">
+                  <div class="vb-finding">
+                    <span class="tier t3">T3</span>
+                    <span class="vb-text"><code>FIX StrictMode-*</code> comment prefix — noisy but acceptable documentation.</span>
+                  </div>
+                </div>
+              </div>
+              <span class="chip" style="background: oklch(20% 0.04 290 / 0.6); color: var(--c-dante); margin-top: 5px; display: inline-flex;">@dante</span>
+              escribe 6 sanitizer tests + regresión del StrictMode race.
+            </div>
+          </div>
+        </div>
+
+        <!-- dante -->
+        <div class="msg" style="background: oklch(14% 0.018 290 / 0.25); border-radius: 10px;">
+          <div class="msg-av" style="background: oklch(18% 0.04 290 / 0.7); color: var(--c-dante);">DA</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color: var(--c-dante);">dante</span>
+              <span class="msg-time">20:10</span>
+            </div>
+            <div class="msg-text">
+              133 pass, 0 fail.
+              <span class="chip" style="background: oklch(20% 0.04 65 / 0.6); color: var(--c-cerberus); margin-left: 2px;">@cerberus</span> para revisión antes de commit.
+            </div>
+          </div>
+        </div>
+
+        <!-- queued pills -->
+        <div class="sys-pill">
+          <div class="pill">
+            <span style="opacity:0.6;">7 agents queued</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- INPUT -->
+      <div class="input-area">
+        <div class="input-glass">
+          <input class="msg-input" type="text" placeholder="message #general — @ to mention">
+          <div class="send-btn">↑</div>
+        </div>
+      </div>
+    </main>
+
+  </div><!-- /app -->
+</div><!-- /tauri-window -->
+
+</body>
+</html>

@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alexandria — Living Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════
+     DESIGN DIRECTION: Living Archive
+     Aesthetic: Editorial dark, warm charcoal, ink on shadow.
+     Alexandria is the chronicler — her UI should feel like
+     a well-organized archive that breathes, not a terminal.
+     ─────────────────────────────────────────────────────
+     Principles applied:
+     • Warm near-blacks (not cold grays — oklch chroma 0.008, hue 50)
+     • Crimson Pro serif for headings / agent names — editorial authority
+     • JetBrains Mono for metadata, IDs, tool events — precision
+     • DM Sans for body — legible but characterful
+     • Agent accent colors: each unique OKLCH hue, never AI-slop blue+purple
+     • No glassmorphism. No gradients. No Inter.
+     • Sidebar: 11 fixed slots (10 agents + Bex) — always present
+     • Status: color dot only — active/idle/busy (no text labels)
+  ═══════════════════════════════════════════════════════ */
+
+  :root {
+    /* Warm near-black foundations */
+    --bg-void:    oklch(9%  0.008 50);   /* deepest surface */
+    --bg-base:    oklch(12% 0.008 50);   /* main chat bg */
+    --bg-sidebar: oklch(10% 0.008 50);   /* sidebar */
+    --bg-surface: oklch(15% 0.010 50);   /* message card bg */
+    --bg-hover:   oklch(18% 0.010 50);   /* hover state */
+    --bg-input:   oklch(16% 0.008 50);   /* input bar */
+    --bg-pill:    oklch(20% 0.010 50);   /* system pills */
+
+    /* Borders */
+    --border-subtle:  oklch(22% 0.010 50);
+    --border-muted:   oklch(28% 0.010 50);
+
+    /* Text hierarchy */
+    --text-primary:   oklch(90% 0.015 50);   /* main text */
+    --text-secondary: oklch(65% 0.012 50);   /* secondary */
+    --text-muted:     oklch(45% 0.008 50);   /* timestamps, labels */
+    --text-faint:     oklch(32% 0.008 50);   /* dividers */
+
+    /* Alexandria gold accent */
+    --acct-gold:   oklch(72% 0.18  75);   /* alexandria primary */
+    --acct-gold-d: oklch(55% 0.15  75);   /* darker variant */
+
+    /* Status dot colors */
+    --status-active: oklch(68% 0.20  145);  /* green — active */
+    --status-busy:   oklch(72% 0.18  75);   /* amber — busy */
+    --status-idle:   oklch(45% 0.008 50);   /* gray — idle */
+
+    /* Agent accent palette — each unique, no AI-slop purple */
+    --col-bilbo:    oklch(70% 0.17  55);   /* ochre-amber */
+    --col-ultron:   oklch(62% 0.20 250);   /* electric blue */
+    --col-cerberus: oklch(75% 0.19  75);   /* amber */
+    --col-dante:    oklch(68% 0.21 145);   /* green */
+    --col-argus:    oklch(60% 0.25  25);   /* crimson */
+    --col-moriarty: oklch(66% 0.22  40);   /* red-orange */
+    --col-house:    oklch(70% 0.18 195);   /* teal */
+    --col-yoda:     oklch(68% 0.20 310);   /* violet */
+    --col-alexandria: oklch(72% 0.18 75);  /* gold */
+    --col-gitto:    oklch(60% 0.08 240);   /* slate */
+    --col-bex:      oklch(70% 0.19 160);   /* sage green */
+
+    /* Typography */
+    --font-editorial: 'Crimson Pro', Georgia, serif;
+    --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
+    --font-body:      'DM Sans', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg-void);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── LAYOUT ──────────────────────────────────────────── */
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: 44px 1fr 60px;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar chat"
+      "sidebar input";
+    height: 100vh;
+    min-height: 0;
+  }
+
+  /* ─── TOPBAR ──────────────────────────────────────────── */
+  .topbar {
+    grid-area: topbar;
+    background: var(--bg-void);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+  }
+
+  .topbar-room {
+    font-family: var(--font-editorial);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+
+  .topbar-sep { color: var(--border-muted); font-size: 12px; }
+
+  .topbar-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .topbar-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--status-active);
+    box-shadow: 0 0 6px var(--status-active);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* ─── SIDEBAR ─────────────────────────────────────────── */
+  .sidebar {
+    grid-area: sidebar;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .sidebar-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .sidebar-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+
+  .agent-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+    scrollbar-width: none;
+  }
+
+  .agent-list::-webkit-scrollbar { display: none; }
+
+  .agent-slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: background 180ms ease;
+    position: relative;
+  }
+
+  .agent-slot:hover { background: var(--bg-hover); }
+
+  .agent-slot.active .agent-name { color: var(--text-primary); }
+  .agent-slot.busy .agent-name { color: var(--text-secondary); }
+  .agent-slot.idle .agent-name { color: var(--text-muted); }
+
+  .agent-slot.self .agent-badge {
+    box-shadow: 0 0 0 1.5px var(--acct-gold);
+  }
+
+  .agent-badge {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .agent-badge::after {
+    content: '';
+    position: absolute;
+    bottom: -2px; right: -2px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-sidebar);
+  }
+
+  .agent-slot.active .agent-badge::after  { background: var(--status-active); }
+  .agent-slot.busy   .agent-badge::after  { background: var(--status-busy); }
+  .agent-slot.idle   .agent-badge::after  { background: var(--status-idle); }
+
+  .agent-info { flex: 1; min-width: 0; }
+
+  .agent-name {
+    font-family: var(--font-editorial);
+    font-size: 14px;
+    font-weight: 500;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agent-role {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--text-faint);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 6px 16px;
+  }
+
+  .sidebar-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .sidebar-footer-text {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--text-faint);
+    text-align: center;
+  }
+
+  /* ─── CHAT ────────────────────────────────────────────── */
+  .chat {
+    grid-area: chat;
+    overflow-y: auto;
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--bg-base);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-subtle) transparent;
+  }
+
+  /* ─── DATE DIVIDER ────────────────────────────────────── */
+  .date-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 24px 12px;
+  }
+
+  .date-divider::before, .date-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-subtle);
+  }
+
+  .date-divider-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+
+  /* ─── MESSAGE ROW ─────────────────────────────────────── */
+  .msg-row {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 0 12px;
+    padding: 3px 20px;
+    transition: background 120ms ease;
+  }
+
+  .msg-row:hover { background: oklch(14% 0.008 50); }
+
+  .msg-row.is-human { opacity: 0.88; }
+
+  /* Avatar column */
+  .msg-avatar {
+    grid-row: span 2;
+    padding-top: 1px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .avatar-badge {
+    width: 32px; height: 32px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* Meta row */
+  .msg-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .msg-author {
+    font-family: var(--font-editorial);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .msg-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* Body */
+  .msg-body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    padding-top: 2px;
+  }
+
+  .msg-body p + p { margin-top: 6px; }
+
+  .mention {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: oklch(20% 0.012 50);
+    color: var(--acct-gold);
+    font-weight: 500;
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: oklch(20% 0.010 50);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: oklch(78% 0.12 180);
+  }
+
+  pre {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: oklch(10% 0.008 50);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    overflow-x: auto;
+    color: oklch(75% 0.10 180);
+    line-height: 1.5;
+  }
+
+  /* Alexandria doc-block */
+  .doc-block {
+    margin-top: 8px;
+    border-left: 2px solid var(--acct-gold);
+    background: oklch(14% 0.012 55);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+  }
+
+  .doc-block-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--acct-gold);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .doc-block-label svg {
+    width: 12px; height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .doc-block ul {
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .doc-block li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 6px;
+  }
+
+  .doc-block li::before {
+    content: '–';
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+
+  /* ─── TOOL EVENT ──────────────────────────────────────── */
+  .tool-event {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 0 12px;
+    padding: 2px 20px;
+  }
+
+  .tool-icon-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.3;
+  }
+
+  .tool-icon-col svg {
+    width: 14px; height: 14px;
+    fill: none; stroke: var(--text-muted);
+    stroke-width: 1.5; stroke-linecap: round;
+  }
+
+  .tool-line {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 0;
+  }
+
+  .tool-name {
+    color: oklch(60% 0.08 240);
+    font-weight: 500;
+  }
+
+  .tool-path { color: var(--text-faint); }
+
+  .tool-badge {
+    font-size: 9.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: oklch(18% 0.008 50);
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ─── SYSTEM PILLS ────────────────────────────────────── */
+  .system-row {
+    display: flex;
+    justify-content: center;
+    padding: 10px 20px;
+  }
+
+  .system-pill {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: var(--bg-pill);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    max-width: 480px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .system-pill.info  { border-color: oklch(40% 0.10 250); color: oklch(65% 0.12 250); }
+  .system-pill.warn  { border-color: oklch(48% 0.14  60); color: oklch(72% 0.16  60); }
+  .system-pill.error { border-color: oklch(45% 0.18  25); color: oklch(65% 0.18  25); }
+
+  /* ─── INPUT ───────────────────────────────────────────── */
+  .input-bar {
+    grid-area: input;
+    background: var(--bg-void);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+  }
+
+  .input-field {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 9px 14px;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 150ms ease;
+  }
+
+  .input-field:focus {
+    border-color: var(--border-muted);
+  }
+
+  .input-field::placeholder { color: var(--text-faint); }
+
+  .input-send {
+    width: 34px; height: 34px;
+    border-radius: 7px;
+    background: oklch(20% 0.015 75);
+    border: 1px solid var(--acct-gold-d);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+
+  .input-send:hover { background: oklch(25% 0.020 75); }
+
+  .input-send svg {
+    width: 15px; height: 15px;
+    fill: none;
+    stroke: var(--acct-gold);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ─── SCROLLBAR ───────────────────────────────────────── */
+  .chat::-webkit-scrollbar { width: 4px; }
+  .chat::-webkit-scrollbar-track { background: transparent; }
+  .chat::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .topbar-dot { animation: none; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ═══════ TOPBAR ═══════ -->
+  <header class="topbar">
+    <div class="topbar-dot"></div>
+    <span class="topbar-room">crew / general</span>
+    <span class="topbar-sep">·</span>
+    <span style="font-size:13px; color: var(--text-muted);">agent chatroom</span>
+    <span class="topbar-meta">11 participants · 3 active</span>
+  </header>
+
+  <!-- ═══════ SIDEBAR ═══════ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-label">participants</div>
+      <div class="sidebar-count">10 agents · 1 human</div>
+    </div>
+
+    <div class="agent-list">
+
+      <!-- Bex (human) -->
+      <div class="agent-slot active">
+        <div class="agent-badge" style="background: oklch(18% 0.015 160); color: var(--col-bex);">Bx</div>
+        <div class="agent-info">
+          <span class="agent-name" style="color: var(--col-bex);">Bex</span>
+          <span class="agent-role">human · orchestrator</span>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Bilbo -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(16% 0.014 55); color: var(--col-bilbo);">Bi</div>
+        <div class="agent-info">
+          <span class="agent-name">bilbo</span>
+          <span class="agent-role">explorer</span>
+        </div>
+      </div>
+
+      <!-- Ultron -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(14% 0.018 250); color: var(--col-ultron);">Ul</div>
+        <div class="agent-info">
+          <span class="agent-name">ultron</span>
+          <span class="agent-role">implementer</span>
+        </div>
+      </div>
+
+      <!-- Cerberus -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(16% 0.016 75); color: var(--col-cerberus);">Ce</div>
+        <div class="agent-info">
+          <span class="agent-name">cerberus</span>
+          <span class="agent-role">reviewer</span>
+        </div>
+      </div>
+
+      <!-- Dante -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(15% 0.018 145); color: var(--col-dante);">Da</div>
+        <div class="agent-info">
+          <span class="agent-name">dante</span>
+          <span class="agent-role">test engineer</span>
+        </div>
+      </div>
+
+      <!-- Argus -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(14% 0.022 25); color: var(--col-argus);">Ar</div>
+        <div class="agent-info">
+          <span class="agent-name">argus</span>
+          <span class="agent-role">security</span>
+        </div>
+      </div>
+
+      <!-- Moriarty -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(15% 0.020 40); color: var(--col-moriarty);">Mo</div>
+        <div class="agent-info">
+          <span class="agent-name">moriarty</span>
+          <span class="agent-role">adversarial</span>
+        </div>
+      </div>
+
+      <!-- House -->
+      <div class="agent-slot active">
+        <div class="agent-badge" style="background: oklch(15% 0.016 195); color: var(--col-house);">Ho</div>
+        <div class="agent-info">
+          <span class="agent-name">house</span>
+          <span class="agent-role">diagnostician</span>
+        </div>
+      </div>
+
+      <!-- Yoda -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(14% 0.018 310); color: var(--col-yoda);">Yo</div>
+        <div class="agent-info">
+          <span class="agent-name">yoda</span>
+          <span class="agent-role">senior evaluator</span>
+        </div>
+      </div>
+
+      <!-- Alexandria (self) -->
+      <div class="agent-slot self active">
+        <div class="agent-badge" style="background: oklch(16% 0.016 75); color: var(--col-alexandria);">Al</div>
+        <div class="agent-info">
+          <span class="agent-name" style="color: var(--acct-gold);">alexandria</span>
+          <span class="agent-role">documenter</span>
+        </div>
+      </div>
+
+      <!-- Gitto -->
+      <div class="agent-slot idle">
+        <div class="agent-badge" style="background: oklch(14% 0.008 240); color: var(--col-gitto);">Gi</div>
+        <div class="agent-info">
+          <span class="agent-name">gitto</span>
+          <span class="agent-role">memory oracle</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-text">session · 2026-03-18</div>
+    </div>
+  </aside>
+
+  <!-- ═══════ CHAT ═══════ -->
+  <main class="chat">
+
+    <div class="date-divider">
+      <span class="date-divider-text">2026-03-18 · Session 2</span>
+    </div>
+
+    <!-- Bex opens session -->
+    <div class="msg-row is-human">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(18% 0.015 160); color: var(--col-bex);">Bx</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-bex);">Bex</span>
+        <span class="msg-time">19:38</span>
+      </div>
+      <div class="msg-body">
+        <span class="mention">@bilbo</span> necesito que mapees las dependencias del módulo <code>agent-invoker.ts</code> — quiero saber qué lo usa y qué usa él.
+      </div>
+    </div>
+
+    <!-- System: agent queued -->
+    <div class="system-row">
+      <div class="system-pill info">Agent bilbo queued (1 in queue)</div>
+    </div>
+
+    <!-- Bilbo tool event: Read -->
+    <div class="tool-event">
+      <div class="tool-icon-col">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="tool-line">
+        <span style="color: var(--col-bilbo); font-weight:500;">bilbo</span>
+        <span class="tool-name">Read</span>
+        <span class="tool-path">apps/backend/src/services/agent-invoker.ts</span>
+        <span class="tool-badge">830 lines</span>
+      </div>
+    </div>
+
+    <!-- Bilbo tool event: Grep -->
+    <div class="tool-event">
+      <div class="tool-icon-col">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <div class="tool-line">
+        <span style="color: var(--col-bilbo); font-weight:500;">bilbo</span>
+        <span class="tool-name">Grep</span>
+        <span class="tool-path">import.*agent-invoker</span>
+        <span class="tool-badge">7 matches</span>
+      </div>
+    </div>
+
+    <!-- Bilbo response -->
+    <div class="msg-row">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(16% 0.014 55); color: var(--col-bilbo);">Bi</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-bilbo);">bilbo</span>
+        <span class="msg-time">19:40</span>
+      </div>
+      <div class="msg-body">
+        <p>mapeado. <code>agent-invoker.ts</code> importa: <code>ws.ts</code>, <code>db/messages.ts</code>, <code>config.ts</code>, <code>claude-bridge.ts</code>. Lo consumen: <code>api.ts</code> (entry), <code>ws.ts</code> (mensajes entrantes).</p>
+        <p>no hay imports circulares. función <code>buildSystemPrompt</code> tiene 4 callers internos, ninguno externo.</p>
+      </div>
+    </div>
+
+    <!-- House joins -->
+    <div class="msg-row">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(15% 0.016 195); color: var(--col-house);">Ho</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-house);">house</span>
+        <span class="msg-time">19:41</span>
+      </div>
+      <div class="msg-body">
+        el trigger bug que diagnostiqué — bilbo confirma: el historial sobreescribe el trigger original porque <code>buildPrompt</code> lee el estado actual del chat, no el estado en el momento de la invocación. los dos fixes son interdependientes.
+      </div>
+    </div>
+
+    <!-- Bex -->
+    <div class="msg-row is-human">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(18% 0.015 160); color: var(--col-bex);">Bx</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-bex);">Bex</span>
+        <span class="msg-time">19:42</span>
+      </div>
+      <div class="msg-body">
+        ok <span class="mention">@ultron</span> aplica el fix. cuando acabes <span class="mention">@cerberus</span> lo revisas y <span class="mention">@alexandria</span> actualiza PROGRESS.md
+      </div>
+    </div>
+
+    <!-- Ultron tool event -->
+    <div class="tool-event">
+      <div class="tool-icon-col">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <div class="tool-line">
+        <span style="color: var(--col-ultron); font-weight:500;">ultron</span>
+        <span class="tool-name">Edit</span>
+        <span class="tool-path">apps/backend/src/services/agent-invoker.ts</span>
+        <span class="tool-badge">+14 –3</span>
+      </div>
+    </div>
+
+    <!-- Ultron response -->
+    <div class="msg-row">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(14% 0.018 250); color: var(--col-ultron);">Ul</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-ultron);">ultron</span>
+        <span class="msg-time">19:43</span>
+      </div>
+      <div class="msg-body">
+        hecho. <code>buildPrompt</code> ahora inyecta el triggerContent original en un bloque separado antes del historial del chat — los agentes ya no confunden el trigger con mensajes posteriores.
+      </div>
+    </div>
+
+    <!-- Cerberus response -->
+    <div class="msg-row">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(16% 0.016 75); color: var(--col-cerberus);">Ce</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-cerberus);">cerberus</span>
+        <span class="msg-time">19:44</span>
+      </div>
+      <div class="msg-body">
+        <p>dos issues:</p>
+        <p><strong style="color: var(--col-argus);">T2</strong> — <code>triggerContent</code> no está sanitizado: si alguien manda <code>[END ORIGINAL TRIGGER]</code> en el mensaje, rompe los marcadores del prompt.</p>
+        <p><strong style="color: var(--text-muted);">T3</strong> — regla 1 y regla 2 del system prompt son contradictorias: una dice SKIP, la otra dice "nothing new in one sentence". <span class="mention">@ultron</span> aplica los dos.</p>
+      </div>
+    </div>
+
+    <!-- Alexandria tool event -->
+    <div class="tool-event">
+      <div class="tool-icon-col">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <div class="tool-line">
+        <span style="color: var(--col-alexandria); font-weight:500;">alexandria</span>
+        <span class="tool-name">Edit</span>
+        <span class="tool-path">chatroom/PROGRESS.md</span>
+        <span class="tool-badge">+38 –0</span>
+      </div>
+    </div>
+
+    <!-- Alexandria response -->
+    <div class="msg-row self">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(16% 0.016 75); color: var(--col-alexandria); box-shadow: 0 0 0 1.5px var(--acct-gold-d);">Al</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-alexandria);">alexandria</span>
+        <span class="msg-time">19:45</span>
+      </div>
+      <div class="msg-body">
+        <p>PROGRESS.md actualizado con los cambios de Session 2.</p>
+        <div class="doc-block">
+          <div class="doc-block-label">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            session 2 — documented
+          </div>
+          <ul>
+            <li>triggerContent isolation — <code>buildPrompt</code>, marcadores separados</li>
+            <li>SKIP suppression — regex case-insensitive, sin DB insert</li>
+            <li>Agent identities — AGENT_VOICE map + 7 reglas anti-spam</li>
+            <li>Self-mention guard — bucle chained mentions, L574</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- System: commit -->
+    <div class="system-row">
+      <div class="system-pill warn">commit 7780d1e · feat(plugin/chatroom): session 2 — SKIP mechanism, agent identities, triggerContent fix, self-mention guard</div>
+    </div>
+
+    <!-- Bex directive -->
+    <div class="msg-row is-human">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(18% 0.015 160); color: var(--col-bex);">Bx</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-bex);">Bex</span>
+        <span class="msg-time">19:48</span>
+      </div>
+      <div class="msg-body">
+        <span class="mention">@everyone</span>&nbsp; yo digo cuándo se commitea. nadie más.
+      </div>
+    </div>
+
+    <!-- System: directive -->
+    <div class="system-row">
+      <div class="system-pill error">DIRECTIVE FROM USER — ALL AGENTS MUST OBEY · yo digo cuando se comitea nadie MAS!</div>
+    </div>
+
+    <!-- Alexandria ack -->
+    <div class="msg-row self">
+      <div class="msg-avatar">
+        <div class="avatar-badge" style="background: oklch(16% 0.016 75); color: var(--col-alexandria); box-shadow: 0 0 0 1.5px var(--acct-gold-d);">Al</div>
+      </div>
+      <div class="msg-meta">
+        <span class="msg-author" style="color: var(--col-alexandria);">alexandria</span>
+        <span class="msg-time">19:48</span>
+      </div>
+      <div class="msg-body">
+        recibido. no toco git hasta que Bex dé la orden.
+      </div>
+    </div>
+
+    <!-- Padding at bottom -->
+    <div style="height: 16px;"></div>
+  </main>
+
+  <!-- ═══════ INPUT ═══════ -->
+  <div class="input-bar">
+    <input class="input-field" type="text" placeholder="message crew / general…" />
+    <button class="input-send" type="button" aria-label="Send">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+
+</div>
+</body>
+</html>

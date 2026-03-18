@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>house v2 — Vital Signs</title>
+<style>
+/*
+  HOUSE v2 — VITAL SIGNS
+  Direction: Medical diagnostic terminal meets glassmorphism.
+  Sidebar = patient monitor bank. Each agent has a scrolling ECG line.
+  Active agents: regular heartbeat. Busy: rapid irregular. Idle: flatline + blip.
+  Offline: flat. Ambient glow: amber — the color of diagnosis confirmed.
+  Tauri window, glassmorphism, no purple gradients, no Inter, no glassmorphism overuse.
+  OKLCH colors. JetBrains Mono for precision. DM Sans for body text.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+:root {
+  /* Surfaces */
+  --bg-void:      #080810;
+  --glass-bg:     rgba(12, 12, 22, 0.72);
+  --glass-border: rgba(255,255,255,0.07);
+  --glass-shine:  rgba(255,255,255,0.03);
+  --sidebar-bg:   rgba(8, 8, 18, 0.80);
+
+  /* Text */
+  --tx-hi:    rgba(235,235,245,0.94);
+  --tx-mid:   rgba(235,235,245,0.56);
+  --tx-lo:    rgba(235,235,245,0.28);
+  --tx-mute:  rgba(235,235,245,0.14);
+
+  /* Amber — house diagnostic */
+  --amber:      oklch(0.76 0.17 68);
+  --amber-glow: rgba(255, 174, 60, 0.22);
+  --amber-dim:  rgba(255, 174, 60, 0.40);
+  --amber-bg:   rgba(255, 174, 60, 0.08);
+
+  /* Agent ECG line colors */
+  --ecg-house:      oklch(0.76 0.17 68);   /* amber      */
+  --ecg-bilbo:      oklch(0.70 0.14 180);  /* teal       */
+  --ecg-ultron:     oklch(0.68 0.18 245);  /* blue       */
+  --ecg-cerberus:   oklch(0.68 0.20 30);   /* red-orange */
+  --ecg-argus:      oklch(0.60 0.22 22);   /* crimson    */
+  --ecg-moriarty:   oklch(0.65 0.18 295);  /* purple     */
+  --ecg-dante:      oklch(0.70 0.18 140);  /* lime       */
+  --ecg-yoda:       oklch(0.65 0.12 155);  /* sage       */
+  --ecg-alexandria: oklch(0.68 0.14 310);  /* lavender   */
+  --ecg-gitto:      oklch(0.62 0.14 230);  /* slate-blue */
+
+  /* Status */
+  --s-active:  oklch(0.65 0.18 140);
+  --s-busy:    oklch(0.76 0.17 68);
+  --s-idle:    rgba(235,235,245,0.22);
+  --s-offline: rgba(235,235,245,0.10);
+
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg-void);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+/* ── ANIMATED BACKGROUND ─────────────────────────────────────────────────── */
+
+.bg {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+}
+
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.55;
+}
+
+.orb-1 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, oklch(0.40 0.16 68) 0%, transparent 70%);
+  top: -10%; left: -5%;
+  animation: drift1 18s ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, oklch(0.30 0.18 245) 0%, transparent 70%);
+  bottom: -8%; right: 10%;
+  animation: drift2 22s ease-in-out infinite alternate;
+}
+
+.orb-3 {
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, oklch(0.28 0.14 295) 0%, transparent 70%);
+  top: 30%; right: -5%;
+  animation: drift3 16s ease-in-out infinite alternate;
+}
+
+@keyframes drift1 { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,60px) scale(1.08); } }
+@keyframes drift2 { from { transform: translate(0,0) scale(1); } to { transform: translate(-50px,-30px) scale(0.94); } }
+@keyframes drift3 { from { transform: translate(0,0) scale(1); } to { transform: translate(30px,-50px) scale(1.05); } }
+
+/* Dot grid */
+.bg-grid {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* ── TAURI WINDOW ─────────────────────────────────────────────────────────── */
+
+.window {
+  position: relative; z-index: 1;
+  width: 960px; height: 620px;
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  grid-template-columns: 260px 1fr;
+  grid-template-areas:
+    "titlebar titlebar"
+    "sidebar  chat";
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 32px 80px rgba(0,0,0,0.70),
+    0 0 120px rgba(255,174,60,0.06);
+  backdrop-filter: blur(40px) saturate(1.4);
+  background: var(--glass-bg);
+}
+
+/* ── TITLEBAR ─────────────────────────────────────────────────────────────── */
+
+.titlebar {
+  grid-area: titlebar;
+  display: flex; align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  background: rgba(8,8,18,0.60);
+  border-bottom: 1px solid var(--glass-border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.traffic { display: flex; gap: 6px; align-items: center; }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot-red    { background: #ff5f57; }
+.dot-yellow { background: #febc2e; }
+.dot-green  { background: #28c840; }
+
+.titlebar-room {
+  flex: 1; text-align: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--tx-mid); letter-spacing: 0.1em;
+}
+
+.titlebar-badge {
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: var(--amber-dim);
+  border: 1px solid rgba(255,174,60,0.25);
+  padding: 1px 7px; border-radius: 3px;
+  letter-spacing: 0.06em;
+}
+
+/* ── SIDEBAR ──────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  grid-area: sidebar;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--glass-border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Ambient amber glow from top — house's diagnostic light */
+.sidebar::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 120px;
+  background: radial-gradient(ellipse 100% 100% at 50% 0%, rgba(255,174,60,0.18) 0%, transparent 100%);
+  pointer-events: none; z-index: 0;
+}
+
+.sidebar-header {
+  position: relative; z-index: 1;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.sidebar-title {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: var(--amber); letter-spacing: 0.16em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+}
+
+.sidebar-title::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+
+.sidebar-sub {
+  font-family: var(--font-mono); font-size: 8.5px;
+  color: var(--tx-lo); margin-top: 2px;
+}
+
+.agents {
+  position: relative; z-index: 1;
+  flex: 1; overflow-y: auto; padding: 4px 0;
+  scrollbar-width: none;
+}
+
+/* ── AGENT ROW ────────────────────────────────────────────────────────────── */
+
+.agent {
+  display: flex; align-items: center;
+  gap: 9px; padding: 7px 14px;
+  cursor: pointer; transition: background 0.15s;
+  position: relative;
+}
+
+.agent:hover { background: rgba(255,255,255,0.04); }
+
+.agent.is-active {
+  background: rgba(255,174,60,0.05);
+  border-left: 2px solid var(--amber);
+}
+
+.agent.is-offline { opacity: 0.35; }
+.agent.is-idle    { opacity: 0.65; }
+
+/* Avatar */
+.av {
+  width: 26px; height: 26px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 700;
+  flex-shrink: 0; position: relative;
+  transition: box-shadow 0.3s;
+}
+
+.agent.is-active .av {
+  box-shadow: 0 0 10px var(--ecg-color, var(--amber));
+  animation: av-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes av-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--ecg-color, var(--amber)); }
+  50%       { box-shadow: 0 0 18px var(--ecg-color, var(--amber)), 0 0 4px var(--ecg-color, var(--amber)); }
+}
+
+/* Status dot on avatar */
+.av-dot {
+  position: absolute; bottom: -2px; right: -2px;
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid var(--glass-bg);
+}
+
+/* Agent info */
+.ag-info { flex: 1; min-width: 0; }
+.ag-name {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.04em; white-space: nowrap;
+}
+.ag-role {
+  font-size: 8.5px; color: var(--tx-lo);
+  font-family: var(--font-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ECG display */
+.ecg-wrap {
+  width: 70px; height: 28px;
+  overflow: hidden; flex-shrink: 0;
+  position: relative;
+}
+
+.ecg-wrap svg { position: absolute; top: 0; left: 0; }
+
+/* ── ECG ANIMATIONS ──────────────────────────────────────────────────────── */
+
+/* Active heartbeat — path scrolls leftward, clipped to 70px */
+.ecg-active {
+  animation: ecg-scroll-active 2.4s linear infinite;
+  stroke-dasharray: none;
+}
+
+.ecg-busy {
+  animation: ecg-scroll-busy 1.2s linear infinite;
+}
+
+.ecg-idle {
+  animation: ecg-scroll-idle 4s linear infinite;
+}
+
+@keyframes ecg-scroll-active {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-80px); }
+}
+
+@keyframes ecg-scroll-busy {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-80px); }
+}
+
+@keyframes ecg-scroll-idle {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-80px); }
+}
+
+/* Tool chip below agent */
+.ag-tool {
+  font-family: var(--font-mono); font-size: 8px;
+  color: var(--tx-lo);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100px;
+  letter-spacing: 0.03em;
+}
+
+/* Human separator */
+.agent-sep {
+  height: 1px; background: var(--glass-border);
+  margin: 4px 14px;
+}
+
+/* ── AVATAR COLORS ───────────────────────────────────────────────────────── */
+.av-house      { background: oklch(0.18 0.05 68);   color: oklch(0.76 0.17 68);   --ecg-color: oklch(0.76 0.17 68); }
+.av-bilbo      { background: oklch(0.15 0.04 180);  color: oklch(0.70 0.14 180);  --ecg-color: oklch(0.70 0.14 180); }
+.av-ultron     { background: oklch(0.14 0.05 245);  color: oklch(0.68 0.18 245);  --ecg-color: oklch(0.68 0.18 245); }
+.av-cerberus   { background: oklch(0.15 0.06 30);   color: oklch(0.68 0.20 30);   --ecg-color: oklch(0.68 0.20 30); }
+.av-argus      { background: oklch(0.13 0.07 22);   color: oklch(0.60 0.22 22);   --ecg-color: oklch(0.60 0.22 22); }
+.av-moriarty   { background: oklch(0.14 0.05 295);  color: oklch(0.65 0.18 295);  --ecg-color: oklch(0.65 0.18 295); }
+.av-dante      { background: oklch(0.14 0.05 140);  color: oklch(0.70 0.18 140);  --ecg-color: oklch(0.70 0.18 140); }
+.av-yoda       { background: oklch(0.13 0.04 155);  color: oklch(0.65 0.12 155);  --ecg-color: oklch(0.65 0.12 155); }
+.av-alexandria { background: oklch(0.14 0.04 310);  color: oklch(0.68 0.14 310);  --ecg-color: oklch(0.68 0.14 310); }
+.av-gitto      { background: oklch(0.13 0.04 230);  color: oklch(0.62 0.14 230);  --ecg-color: oklch(0.62 0.14 230); }
+.av-bex        { background: oklch(0.20 0.004 55);  color: rgba(235,235,245,0.90); --ecg-color: rgba(235,235,245,0.7); }
+
+.name-house      { color: oklch(0.76 0.17 68); }
+.name-bilbo      { color: oklch(0.70 0.14 180); }
+.name-ultron     { color: oklch(0.68 0.18 245); }
+.name-cerberus   { color: oklch(0.68 0.20 30); }
+.name-argus      { color: oklch(0.60 0.22 22); }
+.name-moriarty   { color: oklch(0.65 0.18 295); }
+.name-dante      { color: oklch(0.70 0.18 140); }
+.name-yoda       { color: oklch(0.65 0.12 155); }
+.name-alexandria { color: oklch(0.68 0.14 310); }
+.name-gitto      { color: oklch(0.62 0.14 230); }
+.name-bex        { color: rgba(235,235,245,0.90); }
+
+/* ── CHAT AREA ───────────────────────────────────────────────────────────── */
+
+.chat {
+  grid-area: chat;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+  background: rgba(10,10,20,0.40);
+}
+
+.messages {
+  flex: 1; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 2px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* ── MESSAGE ─────────────────────────────────────────────────────────────── */
+
+.msg {
+  padding: 8px 12px; border-radius: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.msg:hover { background: rgba(255,255,255,0.03); }
+
+/* House messages get amber left border */
+.msg.is-house {
+  border-left: 2px solid var(--amber-dim);
+  background: var(--amber-bg);
+  border-radius: 0 8px 8px 0;
+}
+
+.msg-header {
+  display: flex; align-items: baseline; gap: 8px;
+}
+
+.msg-author {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.msg-badge {
+  font-family: var(--font-mono); font-size: 8px;
+  color: var(--tx-lo); letter-spacing: 0.06em;
+}
+
+.msg-content {
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--tx-hi); line-height: 1.55;
+  font-weight: 400;
+}
+
+.msg-content code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: rgba(255,255,255,0.07);
+  padding: 1px 5px; border-radius: 3px;
+  color: var(--amber);
+}
+
+.msg-footer {
+  display: flex; align-items: center; margin-top: 1px;
+}
+
+.msg-time {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 9px; color: var(--tx-lo);
+}
+
+/* Diagnostic block */
+.diag {
+  margin-top: 5px;
+  background: rgba(255,174,60,0.06);
+  border: 1px solid rgba(255,174,60,0.18);
+  border-radius: 6px; padding: 8px 12px;
+  font-family: var(--font-mono); font-size: 11px;
+}
+
+.diag-label {
+  font-size: 8.5px; font-weight: 700;
+  color: var(--amber); letter-spacing: 0.14em;
+  text-transform: uppercase; margin-bottom: 5px;
+}
+
+.diag-row {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 2px 0; color: var(--tx-mid); line-height: 1.4;
+}
+
+.diag-row .arrow { color: rgba(255,174,60,0.55); flex-shrink: 0; }
+.diag-hit  { color: oklch(0.70 0.18 140); font-weight: 600; }
+.diag-null { color: var(--tx-lo); text-decoration: line-through; }
+
+/* ── TOOL LINE ───────────────────────────────────────────────────────────── */
+
+.tool-line {
+  display: flex; align-items: center; gap: 7px;
+  padding: 2px 12px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--tx-lo);
+}
+
+.tl-prompt { color: rgba(255,255,255,0.15); }
+.tl-agent  { font-weight: 700; font-size: 9.5px; }
+.tl-badge  {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 0 5px; border-radius: 3px;
+  font-size: 9px; color: var(--tx-mid); font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.tl-desc { color: var(--tx-lo); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── SYSTEM PILLS ────────────────────────────────────────────────────────── */
+
+.sys-wrap {
+  display: flex; justify-content: center;
+  margin: 6px 0;
+}
+
+.sys-pill {
+  font-family: var(--font-mono); font-size: 9.5px;
+  padding: 2px 11px; border-radius: 20px;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.sys-pill.info {
+  color: var(--tx-lo);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.sys-pill.directive {
+  color: var(--amber-dim);
+  border: 1px solid rgba(255,174,60,0.22);
+  background: rgba(255,174,60,0.05);
+  font-size: 10px; padding: 4px 14px;
+  max-width: 90%; white-space: normal; text-align: center; line-height: 1.4;
+}
+
+/* Queue group */
+.queue-wrap { display: flex; justify-content: center; margin: 3px 0; }
+.queue-btn {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--tx-lo); background: transparent;
+  border: 1px solid rgba(255,255,255,0.07);
+  padding: 1px 10px; border-radius: 3px;
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  transition: border-color 0.1s, color 0.1s;
+}
+.queue-btn:hover { border-color: rgba(255,174,60,0.3); color: var(--amber-dim); }
+
+/* ── INPUT ───────────────────────────────────────────────────────────────── */
+
+.input-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 18px;
+  height: 46px;
+  background: rgba(8,8,18,0.60);
+  border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.input-avatar {
+  width: 22px; height: 22px; border-radius: 5px;
+  background: oklch(0.20 0.004 55); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+  color: rgba(235,235,245,0.8);
+}
+
+.input-box {
+  flex: 1; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 7px 12px;
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--tx-hi); outline: none; caret-color: var(--amber);
+}
+.input-box::placeholder { color: var(--tx-lo); }
+
+.input-hint {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--tx-mute); letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body>
+
+<!-- ANIMATED BACKGROUND -->
+<div class="bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="bg-grid"></div>
+</div>
+
+<!-- TAURI WINDOW -->
+<div class="window">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="traffic">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div class="titlebar-room">#general · agent-chatroom</div>
+    <div class="titlebar-badge">VITALS</div>
+  </div>
+
+  <!-- SIDEBAR: VITAL SIGNS MONITOR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Patient Monitor</div>
+      <div class="sidebar-sub">11 slots · 3 active · 1 busy</div>
+    </div>
+
+    <div class="agents">
+
+      <!-- HOUSE — active -->
+      <div class="agent is-active">
+        <div class="av av-house">
+          HO
+          <div class="av-dot" style="background: var(--s-active); box-shadow: 0 0 5px var(--s-active);"></div>
+        </div>
+        <div class="ag-info">
+          <div class="ag-name name-house">house</div>
+          <div class="ag-role">diagnostician</div>
+          <div class="ag-tool">↳ Read ws-store.ts</div>
+        </div>
+        <!-- ECG: active heartbeat -->
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none"
+               style="stroke: oklch(0.76 0.17 68); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none;">
+            <polyline class="ecg-active" points="0,14 16,14 18,14 20,4 22,24 24,10 26,14 42,14 44,14 46,4 48,24 50,10 52,14 68,14 70,14 72,4 74,24 76,10 78,14 94,14 96,14 98,4 100,24 102,10 104,14 120,14 122,14 124,4 126,24 128,10 130,14 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ULTRON — busy -->
+      <div class="agent is-active" style="border-left-color: oklch(0.68 0.18 245);">
+        <div class="av av-ultron">
+          UL
+          <div class="av-dot" style="background: var(--s-busy); box-shadow: 0 0 5px var(--s-busy);"></div>
+        </div>
+        <div class="ag-info">
+          <div class="ag-name name-ultron">ultron</div>
+          <div class="ag-role">implementer</div>
+          <div class="ag-tool">↳ Edit ws-store.ts</div>
+        </div>
+        <!-- ECG: busy / rapid -->
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none"
+               style="stroke: oklch(0.68 0.18 245); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none;">
+            <polyline class="ecg-busy" points="0,14 8,14 9,6 10,22 11,9 12,14 20,14 21,6 22,22 23,9 24,14 32,14 33,6 34,22 35,9 36,14 44,14 45,6 46,22 47,9 48,14 56,14 57,6 58,22 59,9 60,14 68,14 69,6 70,22 71,9 72,14 80,14 81,6 82,22 83,9 84,14 92,14 93,6 94,22 95,9 96,14 104,14 105,6 106,22 107,9 108,14 116,14 117,6 118,22 119,9 120,14 128,14 129,6 130,22 131,9 132,14 140,14 141,6 142,22 143,9 144,14 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- CERBERUS — active -->
+      <div class="agent is-active" style="border-left-color: oklch(0.68 0.20 30);">
+        <div class="av av-cerberus">
+          CE
+          <div class="av-dot" style="background: var(--s-active); box-shadow: 0 0 5px var(--s-active);"></div>
+        </div>
+        <div class="ag-info">
+          <div class="ag-name name-cerberus">cerberus</div>
+          <div class="ag-role">reviewer</div>
+          <div class="ag-tool">↳ Grep MessageList.tsx</div>
+        </div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none"
+               style="stroke: oklch(0.68 0.20 30); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none;">
+            <polyline class="ecg-active" points="0,14 16,14 18,14 20,5 22,23 24,11 26,14 42,14 44,14 46,5 48,23 50,11 52,14 68,14 70,14 72,5 74,23 76,11 78,14 94,14 96,14 98,5 100,23 102,11 104,14 120,14 122,14 124,5 126,23 128,11 130,14 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- BILBO — idle -->
+      <div class="agent is-idle">
+        <div class="av av-bilbo">
+          BI
+          <div class="av-dot" style="background: var(--s-idle);"></div>
+        </div>
+        <div class="ag-info">
+          <div class="ag-name name-bilbo">bilbo</div>
+          <div class="ag-role">explorer</div>
+        </div>
+        <!-- ECG: idle flatline with occasional blip -->
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none"
+               style="stroke: oklch(0.70 0.14 180); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; fill: none; opacity: 0.55;">
+            <polyline class="ecg-idle" points="0,14 36,14 38,10 40,14 80,14 82,10 84,14 120,14 122,10 124,14 160,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ARGUS — idle -->
+      <div class="agent is-idle">
+        <div class="av av-argus">AR<div class="av-dot" style="background:var(--s-idle);"></div></div>
+        <div class="ag-info"><div class="ag-name name-argus">argus</div><div class="ag-role">security</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.60 0.22 22);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:0.45;">
+            <polyline class="ecg-idle" points="0,14 50,14 52,9 54,14 100,14 102,9 104,14 150,14 152,9 154,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- MORIARTY — idle -->
+      <div class="agent is-idle">
+        <div class="av av-moriarty">MO<div class="av-dot" style="background:var(--s-idle);"></div></div>
+        <div class="ag-info"><div class="ag-name name-moriarty">moriarty</div><div class="ag-role">adversarial</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.65 0.18 295);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:0.45;">
+            <polyline class="ecg-idle" points="0,14 40,14 42,8 44,14 80,14 82,8 84,14 120,14 122,8 124,14 160,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- DANTE — idle -->
+      <div class="agent is-idle">
+        <div class="av av-dante">DA<div class="av-dot" style="background:var(--s-idle);"></div></div>
+        <div class="ag-info"><div class="ag-name name-dante">dante</div><div class="ag-role">tests</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.70 0.18 140);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:0.45;">
+            <polyline class="ecg-idle" points="0,14 44,14 46,9 48,14 90,14 92,9 94,14 136,14 138,9 140,14 160,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- YODA — offline -->
+      <div class="agent is-offline">
+        <div class="av av-yoda">YO<div class="av-dot" style="background:var(--s-offline);"></div></div>
+        <div class="ag-info"><div class="ag-name name-yoda">yoda</div><div class="ag-role">senior eval</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.65 0.12 155);stroke-width:1;stroke-linecap:round;fill:none;opacity:0.25;">
+            <polyline points="0,14 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ALEXANDRIA — offline -->
+      <div class="agent is-offline">
+        <div class="av av-alexandria">AL<div class="av-dot" style="background:var(--s-offline);"></div></div>
+        <div class="ag-info"><div class="ag-name name-alexandria">alexandria</div><div class="ag-role">docs</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.68 0.14 310);stroke-width:1;stroke-linecap:round;fill:none;opacity:0.25;">
+            <polyline points="0,14 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- GITTO — idle -->
+      <div class="agent is-idle">
+        <div class="av av-gitto">GI<div class="av-dot" style="background:var(--s-idle);"></div></div>
+        <div class="ag-info"><div class="ag-name name-gitto">gitto</div><div class="ag-role">git oracle</div></div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none" style="stroke:oklch(0.62 0.14 230);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;fill:none;opacity:0.45;">
+            <polyline class="ecg-idle" points="0,14 42,14 44,10 46,14 88,14 90,10 92,14 134,14 136,10 138,14 160,14"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- separator -->
+      <div class="agent-sep"></div>
+
+      <!-- BEX — human -->
+      <div class="agent is-active" style="border-left-color: rgba(235,235,245,0.35);">
+        <div class="av av-bex">
+          BX
+          <div class="av-dot" style="background: var(--s-active); box-shadow: 0 0 4px var(--s-active);"></div>
+        </div>
+        <div class="ag-info">
+          <div class="ag-name name-bex">Bex</div>
+          <div class="ag-role">human · owner</div>
+        </div>
+        <div class="ecg-wrap">
+          <svg width="150" height="28" viewBox="0 0 150 28" fill="none"
+               style="stroke:rgba(235,235,245,0.65); stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; fill:none;">
+            <polyline class="ecg-active" points="0,14 20,14 22,14 24,7 26,21 28,12 30,14 50,14 52,14 54,7 56,21 58,12 60,14 80,14 82,14 84,7 86,21 88,12 90,14 110,14 112,14 114,7 116,21 118,12 120,14 140,14 142,14 144,7 146,21 148,12 150,14"/>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- CHAT -->
+  <div class="chat">
+    <div class="messages">
+
+      <!-- Bex message -->
+      <div class="msg">
+        <div class="msg-header">
+          <span class="msg-author name-bex">Bex</span>
+          <span class="msg-badge">human</span>
+        </div>
+        <div class="msg-content">@house — los tool_events se duplican o cuadriplican. algo que habeis tocado esta sesión.</div>
+        <div class="msg-footer"><span class="msg-time">20:04</span></div>
+      </div>
+
+      <!-- Tool lines -->
+      <div class="tool-line">
+        <span class="tl-prompt">$</span>
+        <span class="tl-agent name-house">house</span>
+        <span class="tl-badge">Read</span>
+        <span class="tl-desc">apps/frontend/src/stores/ws-store.ts</span>
+      </div>
+      <div class="tool-line">
+        <span class="tl-prompt">$</span>
+        <span class="tl-agent name-house">house</span>
+        <span class="tl-badge">Read</span>
+        <span class="tl-desc">apps/backend/src/services/message-bus.ts</span>
+      </div>
+
+      <!-- House diagnosis -->
+      <div class="msg is-house">
+        <div class="msg-header">
+          <span class="msg-author name-house">house</span>
+          <span class="msg-badge">diagnostician</span>
+        </div>
+        <div class="msg-content">encontrado. <code>disconnect()</code> borra <code>connectingRoomId</code> a null pero no cancela el auth fetch en vuelo.</div>
+        <div class="diag">
+          <div class="diag-label">diagnosis confirmed</div>
+          <div class="diag-row"><span class="arrow">→</span><span class="diag-null">connectingRoomId guard</span>&nbsp;— solo bloquea llamada síncrona</div>
+          <div class="diag-row"><span class="arrow">→</span><span class="diag-hit">stale fetch completa</span>&nbsp;— crea ws1 tras disconnect()</div>
+          <div class="diag-row"><span class="arrow">→</span><span class="diag-hit">2 sockets activos</span>&nbsp;→ 2 handlers → seenIds bypassed via UUID</div>
+          <div class="diag-row"><span class="arrow">→</span>reconnect cycle encima → 4 handlers → cuadriplica</div>
+        </div>
+        <div class="msg-content" style="margin-top:5px;">fix: <code>AbortController</code> en <code>disconnect()</code>. @ultron aplícalo.</div>
+        <div class="msg-footer"><span class="msg-time">20:06</span></div>
+      </div>
+
+      <!-- Tool line ultron -->
+      <div class="tool-line">
+        <span class="tl-prompt">$</span>
+        <span class="tl-agent name-ultron">ultron</span>
+        <span class="tl-badge">Edit</span>
+        <span class="tl-desc">ws-store.ts — authAbortController + signal in fetch</span>
+      </div>
+
+      <!-- Queue group -->
+      <div class="queue-wrap">
+        <button class="queue-btn" type="button">▸ &nbsp;3 queued — cerberus · dante · argus</button>
+      </div>
+
+      <!-- Directive -->
+      <div class="sys-wrap">
+        <div class="sys-pill directive">⬡ DIRECTIVE · @everyone — probemos, decid algo y leed un archivo cada uno</div>
+      </div>
+
+      <!-- House present -->
+      <div class="msg is-house">
+        <div class="msg-header">
+          <span class="msg-author name-house">house</span>
+          <span class="msg-badge">diagnostician</span>
+        </div>
+        <div class="msg-content">house presente. leído <code>auth-tokens.ts</code> — one-time use, "claude" reservado. sin duplicados tras AbortController fix.</div>
+        <div class="msg-footer"><span class="msg-time">20:11</span></div>
+      </div>
+
+      <!-- Cerberus -->
+      <div class="msg">
+        <div class="msg-header">
+          <span class="msg-author name-cerberus">cerberus</span>
+          <span class="msg-badge">reviewer</span>
+        </div>
+        <div class="msg-content">limpio. AbortController en disconnect() correcto. guard L188 sella la race window. aprobado. @dante tests del reconneect path.</div>
+        <div class="msg-footer"><span class="msg-time">20:09</span></div>
+      </div>
+
+      <!-- Bex confirm -->
+      <div class="msg">
+        <div class="msg-header">
+          <span class="msg-author name-bex">Bex</span>
+          <span class="msg-badge">human</span>
+        </div>
+        <div class="msg-content">perfecto. ya no se duplica nada. buen trabajo equipo.</div>
+        <div class="msg-footer"><span class="msg-time">20:13</span></div>
+      </div>
+
+    </div>
+
+    <!-- INPUT -->
+    <div class="input-row">
+      <div class="input-avatar">BX</div>
+      <input class="input-box" type="text" placeholder="@mention an agent or type a message…" />
+      <span class="input-hint">⏎ send</span>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

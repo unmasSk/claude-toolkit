@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerberus — Brutalist Minimal</title>
+<style>
+  /* -------------------------------------------------------------------------
+     CERBERUS DESIGN DIRECTION: Brutalist Minimal
+     Color: OKLCH warm-amber accent on near-black
+     Philosophy: if it doesn't serve a function, remove it.
+     Typography: monospace — this is a code review environment
+  --------------------------------------------------------------------------- */
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* OKLCH palette — warm amber accent on near-black */
+    --bg-base:       oklch(11% 0.01 60);
+    --bg-surface:    oklch(15% 0.015 60);
+    --bg-elevated:   oklch(19% 0.015 60);
+    --border:        oklch(25% 0.01 60);
+    --border-strong: oklch(35% 0.01 60);
+
+    --text-primary:  oklch(88% 0.01 60);
+    --text-secondary:oklch(55% 0.01 60);
+    --text-dim:      oklch(38% 0.01 60);
+
+    /* Amber — the verdict color */
+    --accent:        oklch(72% 0.18 65);
+    --accent-dim:    oklch(55% 0.12 65);
+    --accent-bg:     oklch(20% 0.04 65);
+
+    /* Status colors */
+    --green:         oklch(68% 0.18 145);
+    --red:           oklch(62% 0.20 25);
+    --blue:          oklch(65% 0.18 250);
+    --violet:        oklch(65% 0.18 290);
+    --cyan:          oklch(70% 0.16 195);
+    --rose:          oklch(65% 0.18 10);
+    --lime:          oklch(72% 0.20 130);
+    --orange:        oklch(70% 0.18 45);
+    --sky:           oklch(68% 0.16 220);
+    --pink:          oklch(68% 0.18 340);
+
+    --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1.5;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* -------------------------------------------------------------------------
+     SIDEBAR — LEFT RAIL
+     Rule: 10 agents + 1 human. Fixed. No scroll needed — they always fit.
+  --------------------------------------------------------------------------- */
+
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-title {
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .sidebar-room {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+
+  .sidebar-section {
+    padding: 8px 0 4px;
+    flex-shrink: 0;
+  }
+
+  .section-label {
+    padding: 0 14px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .agent-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    cursor: default;
+    transition: background 0.1s;
+  }
+
+  .agent-item:hover { background: var(--bg-elevated); }
+
+  .agent-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font);
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: -0.02em;
+  }
+
+  /* Per-agent colors — each agent owns a hue */
+  .av-cerberus  { background: oklch(20% 0.05 65);  color: var(--accent);  border: 1px solid var(--accent-dim); }
+  .av-ultron    { background: oklch(20% 0.05 250); color: var(--blue);    border: 1px solid oklch(45% 0.12 250); }
+  .av-bilbo     { background: oklch(20% 0.05 45);  color: var(--orange);  border: 1px solid oklch(45% 0.12 45); }
+  .av-dante     { background: oklch(20% 0.05 290); color: var(--violet);  border: 1px solid oklch(45% 0.12 290); }
+  .av-argus     { background: oklch(20% 0.05 145); color: var(--green);   border: 1px solid oklch(45% 0.12 145); }
+  .av-moriarty  { background: oklch(20% 0.05 25);  color: var(--red);     border: 1px solid oklch(45% 0.12 25); }
+  .av-house     { background: oklch(20% 0.05 195); color: var(--cyan);    border: 1px solid oklch(45% 0.12 195); }
+  .av-yoda      { background: oklch(20% 0.05 130); color: var(--lime);    border: 1px solid oklch(45% 0.12 130); }
+  .av-alexandria{ background: oklch(20% 0.05 220); color: var(--sky);     border: 1px solid oklch(45% 0.12 220); }
+  .av-gitto     { background: oklch(20% 0.05 340); color: var(--pink);    border: 1px solid oklch(45% 0.12 340); }
+  .av-bex       { background: oklch(20% 0.01 60);  color: var(--text-primary); border: 1px solid var(--border-strong); }
+
+  .agent-info { flex: 1; min-width: 0; }
+
+  .agent-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agent-status-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Status indicator dot — right side */
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-idle    { background: var(--text-dim); }
+  .status-active  { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .status-busy    { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+  .status-human   { background: var(--blue); }
+
+  /* Sidebar divider */
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 14px;
+  }
+
+  /* -------------------------------------------------------------------------
+     MAIN LAYOUT — CHAT AREA + INPUT
+  --------------------------------------------------------------------------- */
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Channel header */
+  .chat-header {
+    height: 44px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .channel-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .channel-hash {
+    color: var(--text-dim);
+    font-family: var(--font);
+    font-size: 14px;
+  }
+
+  .header-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--border-strong);
+  }
+
+  .header-topic {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Verdict badge in header — cerberus branding */
+  .verdict-badge {
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border: 1px solid var(--accent-dim);
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  /* -------------------------------------------------------------------------
+     MESSAGE LIST
+  --------------------------------------------------------------------------- */
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+  /* Message row */
+  .msg {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 3px 16px;
+    transition: background 0.08s;
+  }
+
+  .msg:hover { background: var(--bg-surface); }
+
+  /* Left accent stripe — agent identity at a glance */
+  .msg-stripe {
+    width: 2px;
+    align-self: stretch;
+    flex-shrink: 0;
+    margin-right: -4px;
+  }
+
+  .msg .agent-avatar { flex-shrink: 0; margin-top: 1px; }
+
+  .msg-body { flex: 1; min-width: 0; }
+
+  .msg-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 1px;
+  }
+
+  .msg-author {
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font);
+  }
+
+  /* Author colors */
+  .c-cerberus   { color: var(--accent); }
+  .c-ultron     { color: var(--blue); }
+  .c-bilbo      { color: var(--orange); }
+  .c-dante      { color: var(--violet); }
+  .c-argus      { color: var(--green); }
+  .c-moriarty   { color: var(--red); }
+  .c-house      { color: var(--cyan); }
+  .c-yoda       { color: var(--lime); }
+  .c-alexandria { color: var(--sky); }
+  .c-gitto      { color: var(--pink); }
+  .c-bex        { color: var(--text-primary); }
+
+  .msg-time {
+    font-family: var(--font);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: auto;
+    align-self: flex-end;
+    flex-shrink: 0;
+  }
+
+  .msg-content {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .msg-content .mention {
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  /* Mention colors per agent */
+  .mention-cerberus   { color: var(--accent);  background: var(--accent-bg); }
+  .mention-ultron     { color: var(--blue);    background: oklch(16% 0.04 250); }
+  .mention-bilbo      { color: var(--orange);  background: oklch(16% 0.04 45); }
+  .mention-dante      { color: var(--violet);  background: oklch(16% 0.04 290); }
+  .mention-yoda       { color: var(--lime);    background: oklch(16% 0.04 130); }
+  .mention-house      { color: var(--cyan);    background: oklch(16% 0.04 195); }
+
+  /* Code inline */
+  .msg-content code {
+    font-family: var(--font);
+    font-size: 11px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 1px 4px;
+    color: var(--accent);
+  }
+
+  /* Background tint per agent — subtle */
+  .bg-cerberus   { background: oklch(13% 0.02 65); }
+  .bg-ultron     { background: oklch(13% 0.02 250); }
+  .bg-bilbo      { background: oklch(13% 0.02 45); }
+  .bg-dante      { background: oklch(13% 0.02 290); }
+  .bg-argus      { background: oklch(13% 0.02 145); }
+  .bg-moriarty   { background: oklch(13% 0.02 25); }
+  .bg-house      { background: oklch(13% 0.02 195); }
+  .bg-yoda       { background: oklch(13% 0.02 130); }
+  .bg-alexandria { background: oklch(13% 0.02 220); }
+  .bg-gitto      { background: oklch(13% 0.02 340); }
+
+  /* -------------------------------------------------------------------------
+     SYSTEM MESSAGES — Pills
+  --------------------------------------------------------------------------- */
+
+  .system-pill {
+    display: flex;
+    justify-content: center;
+    padding: 4px 16px;
+  }
+
+  .pill-inner {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font);
+  }
+
+  .pill-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .pill-agent { font-weight: 700; }
+  .pill-busy  .pill-dot { background: var(--accent); }
+
+  /* -------------------------------------------------------------------------
+     TOOL LINES — inline activity
+  --------------------------------------------------------------------------- */
+
+  .tool-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 16px 2px 52px; /* indented under message */
+    font-family: var(--font);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .tool-agent {
+    font-weight: 700;
+    font-size: 10px;
+  }
+
+  .tool-badge {
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .tool-desc { color: var(--text-secondary); }
+
+  /* -------------------------------------------------------------------------
+     VERDICT BLOCK — cerberus signature output
+  --------------------------------------------------------------------------- */
+
+  .verdict-block {
+    margin: 4px 0;
+    border-left: 2px solid var(--accent);
+    padding: 6px 10px;
+    background: var(--accent-bg);
+    font-family: var(--font);
+    font-size: 12px;
+  }
+
+  .verdict-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-dim);
+    margin-bottom: 3px;
+  }
+
+  .verdict-lgtm { color: var(--green); font-weight: 700; }
+  .verdict-block { color: var(--red); font-weight: 700; }
+
+  .finding {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
+  .finding-tier {
+    padding: 0 5px;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .t1 { background: var(--red);   color: var(--bg-base); }
+  .t2 { background: var(--accent); color: var(--bg-base); }
+  .t3 { background: var(--border-strong); color: var(--text-secondary); }
+
+  .finding-text { color: var(--text-secondary); line-height: 1.4; }
+
+  /* -------------------------------------------------------------------------
+     INPUT
+  --------------------------------------------------------------------------- */
+
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 10px 16px 12px;
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    padding: 6px 10px;
+  }
+
+  .input-wrap:focus-within {
+    border-color: var(--accent-dim);
+  }
+
+  .input-field {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--text-primary);
+    caret-color: var(--accent);
+  }
+
+  .input-field::placeholder { color: var(--text-dim); }
+
+  .input-hint {
+    font-family: var(--font);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 4px 0 0;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-title">workspace</div>
+    <div class="sidebar-room">#general</div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="section-label">Human</div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-bex">BX</div>
+      <div class="agent-info">
+        <div class="agent-name">Bex</div>
+        <div class="agent-status-text">online</div>
+      </div>
+      <div class="status-dot status-human"></div>
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">
+    <div class="section-label">Agents</div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-cerberus">CE</div>
+      <div class="agent-info">
+        <div class="agent-name" style="color: var(--accent);">cerberus</div>
+        <div class="agent-status-text">reviewing</div>
+      </div>
+      <div class="status-dot status-busy"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-ultron">UL</div>
+      <div class="agent-info">
+        <div class="agent-name">ultron</div>
+        <div class="agent-status-text">implementing</div>
+      </div>
+      <div class="status-dot status-active"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-bilbo">BI</div>
+      <div class="agent-info">
+        <div class="agent-name">bilbo</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-dante">DA</div>
+      <div class="agent-info">
+        <div class="agent-name">dante</div>
+        <div class="agent-status-text">writing tests</div>
+      </div>
+      <div class="status-dot status-active"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-argus">AR</div>
+      <div class="agent-info">
+        <div class="agent-name">argus</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-moriarty">MO</div>
+      <div class="agent-info">
+        <div class="agent-name">moriarty</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-house">HO</div>
+      <div class="agent-info">
+        <div class="agent-name">house</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-yoda">YO</div>
+      <div class="agent-info">
+        <div class="agent-name">yoda</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-alexandria">AL</div>
+      <div class="agent-info">
+        <div class="agent-name">alexandria</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+
+    <div class="agent-item">
+      <div class="agent-avatar av-gitto">GI</div>
+      <div class="agent-info">
+        <div class="agent-name">gitto</div>
+        <div class="agent-status-text">idle</div>
+      </div>
+      <div class="status-dot status-idle"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CHAT -->
+<main class="main">
+  <div class="chat-header">
+    <span class="channel-hash">#</span>
+    <span class="channel-name">general</span>
+    <div class="header-sep"></div>
+    <span class="header-topic">agent chatroom — session 3</span>
+    <div class="verdict-badge">LGTM</div>
+  </div>
+
+  <div class="messages">
+
+    <!-- Human message -->
+    <div class="msg">
+      <div class="agent-avatar av-bex">BX</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-bex">Bex</span>
+          <span class="msg-time">20:04</span>
+        </div>
+        <div class="msg-content">
+          <span class="mention mention-cerberus">@cerberus</span>
+          <span class="mention mention-ultron">@ultron</span>
+          algo que habeis tocado duplica los toolline o cuadriplica
+        </div>
+      </div>
+    </div>
+
+    <!-- System pill -->
+    <div class="system-pill">
+      <div class="pill-inner pill-busy">
+        <div class="pill-dot"></div>
+        <span class="pill-agent" style="color: var(--accent);">cerberus</span>
+        <span>is reviewing</span>
+      </div>
+    </div>
+
+    <!-- Tool line -->
+    <div class="tool-line">
+      <span class="tool-agent c-house">house</span>
+      <span class="tool-badge">Read</span>
+      <span class="tool-desc">ws-store.ts — tracing disconnect() race condition</span>
+    </div>
+
+    <!-- house message -->
+    <div class="msg bg-house">
+      <div class="agent-avatar av-house">HO</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-house">house</span>
+          <span class="msg-time">20:07</span>
+        </div>
+        <div class="msg-content">
+          Encontrado. <code>disconnect()</code> borra <code>connectingRoomId</code> a null pero no cancela el auth fetch en vuelo. StrictMode: dos conexiones activas → dos handlers → duplica.
+          <br><br>
+          Fix: AbortController en <code>disconnect()</code>. <span class="mention mention-ultron">@ultron</span> aplica.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool line -->
+    <div class="tool-line">
+      <span class="tool-agent c-ultron">ultron</span>
+      <span class="tool-badge">Edit</span>
+      <span class="tool-desc">ws-store.ts — AbortController triple defense</span>
+    </div>
+
+    <!-- ultron message -->
+    <div class="msg bg-ultron">
+      <div class="agent-avatar av-ultron">UL</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-ultron">ultron</span>
+          <span class="msg-time">20:08</span>
+        </div>
+        <div class="msg-content">
+          Aplicado. Triple defensa: <code>abort()</code> en disconnect, AbortError catch silencioso, post-fetch roomId guard.
+          <span class="mention mention-cerberus">@cerberus</span> revisa.
+        </div>
+      </div>
+    </div>
+
+    <!-- cerberus review block -->
+    <div class="msg bg-cerberus">
+      <div class="agent-avatar av-cerberus">CE</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-cerberus">cerberus</span>
+          <span class="msg-time">20:09</span>
+        </div>
+        <div class="msg-content">
+          <div class="verdict-block">
+            <div class="verdict-label">verdict — ws-store.ts AbortController</div>
+            <div class="verdict-lgtm">✓ LGTM — no T1/T2 blockers</div>
+            <div class="finding">
+              <span class="finding-tier t3">T3</span>
+              <span class="finding-text"><code>FIX StrictMode-*</code> comment prefix — acceptable inline documentation, noisy but not harmful.</span>
+            </div>
+          </div>
+          <span class="mention mention-dante">@dante</span> escribe 6 sanitizer tests + regresión del StrictMode race.
+        </div>
+      </div>
+    </div>
+
+    <!-- dante -->
+    <div class="msg bg-dante">
+      <div class="agent-avatar av-dante">DA</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-dante">dante</span>
+          <span class="msg-time">20:10</span>
+        </div>
+        <div class="msg-content">
+          133 pass, 0 fail. <span class="mention mention-cerberus">@cerberus</span> para revisión antes de commit.
+        </div>
+      </div>
+    </div>
+
+    <!-- cerberus final -->
+    <div class="msg bg-cerberus">
+      <div class="agent-avatar av-cerberus">CE</div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-author c-cerberus">cerberus</span>
+          <span class="msg-time">20:11</span>
+        </div>
+        <div class="msg-content">
+          <div class="verdict-block">
+            <div class="verdict-label">verdict — test suite</div>
+            <div class="verdict-lgtm">✓ mergeable — 133/133</div>
+            <div class="finding">
+              <span class="finding-tier t3">T3</span>
+              <span class="finding-text">Duplicate <code>sanitizeTrigger</code> declaration at L461. Dead code. Cleanup before commit.</span>
+            </div>
+          </div>
+          <span class="mention mention-ultron">@ultron</span> elimina el bloque duplicado (L453-fin), luego commitea.
+        </div>
+      </div>
+    </div>
+
+    <!-- system pill — queue -->
+    <div class="system-pill">
+      <div class="pill-inner">
+        <div class="pill-dot"></div>
+        <span>2 queued</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <input class="input-field" type="text" placeholder="message #general — use @ to mention">
+    </div>
+    <div class="input-hint">enter to send · shift+enter for newline</div>
+  </div>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gitto v2 — Living Branch Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ==========================================================
+   GITTO v2 — LIVING BRANCH GRAPH
+   The sidebar IS the git log. Every agent is a branch.
+   Active branches glow, merge lines pulse, commits float.
+   Glassmorphism frosted over an animated nebula base.
+   ========================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --glass-bg:      rgba(12, 14, 13, 0.55);
+  --glass-border:  rgba(255, 255, 255, 0.07);
+  --glass-shine:   rgba(255, 255, 255, 0.04);
+  --blur:          blur(28px) saturate(1.3);
+
+  --surface:       rgba(18, 22, 20, 0.72);
+  --surface-hover: rgba(26, 32, 28, 0.80);
+
+  --text-1: rgba(235, 242, 238, 0.95);
+  --text-2: rgba(180, 200, 188, 0.75);
+  --text-3: rgba(120, 150, 130, 0.55);
+  --text-4: rgba(70, 95, 80, 0.40);
+
+  /* Agent branch colors */
+  --gitto:     #20c997;  /* teal  */
+  --ultron:    #60a5fa;  /* blue  */
+  --cerberus:  #fbbf24;  /* amber */
+  --bilbo:     #a3e635;  /* lime  */
+  --dante:     #818cf8;  /* indigo*/
+  --argus:     #f87171;  /* red   */
+  --moriarty:  #fb7185;  /* rose  */
+  --house:     #fdba74;  /* orange*/
+  --yoda:      #38bdf8;  /* sky   */
+  --alexandria:#c084fc;  /* violet*/
+  --bex:       #f0fdf4;  /* white */
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #060a08;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* ---- NEBULA BACKGROUND ---- */
+.nebula {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.18;
+  animation: drift linear infinite;
+}
+
+.orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, var(--gitto), transparent 70%);
+  top: -200px; left: -100px;
+  animation-duration: 28s;
+  animation-name: drift1;
+}
+.orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, var(--ultron), transparent 70%);
+  top: 40%; right: -150px;
+  animation-duration: 35s;
+  animation-name: drift2;
+  opacity: 0.12;
+}
+.orb-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--cerberus), transparent 70%);
+  bottom: -100px; left: 30%;
+  animation-duration: 42s;
+  animation-name: drift3;
+  opacity: 0.10;
+}
+
+@keyframes drift1 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(80px, 60px) scale(1.1); }
+  66%      { transform: translate(-40px, 100px) scale(0.95); }
+}
+@keyframes drift2 {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50%      { transform: translate(-60px, -80px) scale(1.15); }
+}
+@keyframes drift3 {
+  0%,100% { transform: translate(0,0); }
+  40%      { transform: translate(60px, -40px) scale(1.05); }
+  80%      { transform: translate(-80px, 20px); }
+}
+
+/* Subtle grid */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(32, 201, 151, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(32, 201, 151, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+/* ---- TAURI WINDOW ---- */
+.window {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+
+/* Titlebar */
+.titlebar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 8px;
+  background: rgba(8, 12, 10, 0.60);
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.traffic {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.dot-red   { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3); }
+.dot-yel   { width: 12px; height: 12px; border-radius: 50%; background: #febc2e; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3); }
+.dot-grn   { width: 12px; height: 12px; border-radius: 50%; background: #28c840; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3); }
+
+.titlebar-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: 12px;
+  letter-spacing: 0.04em;
+}
+
+.titlebar-branch {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--gitto);
+  background: rgba(32, 201, 151, 0.08);
+  border: 1px solid rgba(32, 201, 151, 0.2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.titlebar-sha {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+  margin-left: auto;
+  letter-spacing: 0.03em;
+}
+
+/* ---- BODY ---- */
+.body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ====================================================
+   THE SIDEBAR — the star of the show
+   Each agent = a branch in the git graph.
+   Active = glowing branch line + animated commit dots.
+   ==================================================== */
+.sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 12, 10, 0.50);
+  backdrop-filter: blur(16px);
+  border-right: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(32, 201, 151, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.sidebar-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--gitto);
+  opacity: 0.7;
+}
+
+/* Branch graph container — the animated git log */
+.branch-graph {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0 12px;
+  scrollbar-width: none;
+}
+.branch-graph::-webkit-scrollbar { display: none; }
+
+/* Agent row */
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.agent-row:hover { background: rgba(255,255,255,0.03); }
+
+/* The SVG branch graph column */
+.branch-col {
+  width: 48px;
+  height: 52px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Agent info */
+.agent-info {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px 6px 4px;
+}
+
+.agent-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-role {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-action {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sparkline — mini activity graph */
+.sparkline {
+  width: 44px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+/* Status badge */
+.status-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.badge-active  { background: rgba(32,201,151,0.12); color: var(--gitto); border: 1px solid rgba(32,201,151,0.25); }
+.badge-busy    { background: rgba(251,191,36,0.10); color: var(--cerberus); border: 1px solid rgba(251,191,36,0.25); animation: badge-pulse 1.8s ease-in-out infinite; }
+.badge-idle    { background: rgba(255,255,255,0.04); color: var(--text-4); border: 1px solid rgba(255,255,255,0.06); }
+.badge-offline { background: transparent; color: var(--text-4); border: 1px solid rgba(255,255,255,0.04); opacity: 0.45; }
+
+@keyframes badge-pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+/* ---- CHAT MAIN ---- */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.05) transparent;
+}
+
+.messages::-webkit-scrollbar { width: 3px; }
+.messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
+
+/* System pill */
+.sys-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 20px;
+  margin: 3px 0;
+}
+.sys-hr { flex: 1; height: 1px; background: var(--glass-border); }
+.sys-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+  padding: 2px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+.sys-pill.queue { color: rgba(251,191,36,0.6); border-color: rgba(251,191,36,0.15); }
+
+/* Message */
+.msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 5px 20px;
+  transition: background 100ms ease;
+}
+.msg:hover { background: rgba(255,255,255,0.02); }
+
+.msg-av {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 1px;
+  letter-spacing: 0;
+}
+
+.msg-body { flex: 1; min-width: 0; }
+
+.msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.msg-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.msg-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+}
+
+.msg-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: break-word;
+}
+
+.msg-text code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: rgba(32,201,151,0.08);
+  color: var(--gitto);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.msg-text strong { color: var(--text-1); font-weight: 600; }
+.msg-text .mention { font-weight: 600; }
+
+/* Gitto commit block */
+.commit-card {
+  margin-top: 8px;
+  background: rgba(32, 201, 151, 0.05);
+  border: 1px solid rgba(32, 201, 151, 0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+}
+
+.commit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commit-sha {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--gitto);
+  letter-spacing: 0.05em;
+}
+
+.commit-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  padding: 1px 6px;
+  background: rgba(32, 201, 151, 0.1);
+  border: 1px solid rgba(32, 201, 151, 0.2);
+  border-radius: 3px;
+  color: var(--gitto);
+  letter-spacing: 0.04em;
+}
+
+.commit-msg {
+  font-size: 12px;
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.commit-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+}
+
+.commit-meta span { color: rgba(251, 191, 36, 0.6); }
+
+/* Tool line */
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 20px 2px 64px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-4);
+  transition: background 100ms;
+}
+.tool-row:hover { background: rgba(255,255,255,0.02); color: var(--text-3); }
+.tool-agent { font-weight: 600; font-size: 9px; }
+.tool-badge {
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 2px;
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  color: var(--text-3);
+}
+.tool-desc { color: var(--text-4); font-size: 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 280px; }
+
+/* INPUT */
+.input-area {
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(8, 12, 10, 0.40);
+}
+
+.input-shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 9px 14px;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.input-shell:focus-within {
+  border-color: rgba(32, 201, 151, 0.3);
+  box-shadow: 0 0 0 3px rgba(32, 201, 151, 0.05);
+}
+
+.input-prompt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--gitto);
+  flex-shrink: 0;
+}
+
+.input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: var(--text-1);
+  caret-color: var(--gitto);
+}
+.input-field::placeholder { color: var(--text-4); }
+
+.input-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-4);
+}
+
+/* Avatar colors */
+.av-gitto    { background: rgba(32,201,151,0.12); color: var(--gitto); }
+.av-ultron   { background: rgba(96,165,250,0.12); color: var(--ultron); }
+.av-cerberus { background: rgba(251,191,36,0.12); color: var(--cerberus); }
+.av-bilbo    { background: rgba(163,230,53,0.12); color: var(--bilbo); }
+.av-dante    { background: rgba(129,140,248,0.12); color: var(--dante); }
+.av-argus    { background: rgba(248,113,113,0.12); color: var(--argus); }
+.av-moriarty { background: rgba(251,113,133,0.12); color: var(--moriarty); }
+.av-house    { background: rgba(253,186,116,0.12); color: var(--house); }
+.av-yoda     { background: rgba(56,189,248,0.12); color: var(--yoda); }
+.av-alexandria { background: rgba(192,132,252,0.12); color: var(--alexandria); }
+.av-bex      { background: rgba(240,253,244,0.08); color: var(--bex); }
+
+@media (prefers-reduced-motion: reduce) {
+  .orb, .badge-busy, [class*="anim"] { animation: none !important; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Animated nebula background -->
+<div class="nebula" aria-hidden="true">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+<div class="grid-overlay" aria-hidden="true"></div>
+
+<!-- Tauri window -->
+<div class="window" role="main">
+
+  <!-- Titlebar -->
+  <div class="titlebar" aria-label="Application titlebar">
+    <div class="traffic" aria-hidden="true">
+      <div class="dot-red"></div>
+      <div class="dot-yel"></div>
+      <div class="dot-grn"></div>
+    </div>
+    <span class="titlebar-title">chatroom</span>
+    <div class="titlebar-branch" aria-label="Current branch: main">
+      <svg width="9" height="10" viewBox="0 0 9 10" fill="none" aria-hidden="true">
+        <circle cx="2" cy="2" r="1.5" fill="currentColor"/>
+        <circle cx="7" cy="8" r="1.5" fill="currentColor"/>
+        <path d="M2 3.5C2 6 4 7.5 5.5 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      </svg>
+      main
+    </div>
+    <span class="titlebar-sha" aria-label="Current commit: ad546d1">ad546d1</span>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- =============================================
+         SIDEBAR — The Living Branch Graph
+         ============================================= -->
+    <aside class="sidebar" aria-label="Agent roster">
+      <div class="sidebar-head">
+        <span class="sidebar-label">branch graph</span>
+        <span class="sidebar-count">11 contributors</span>
+      </div>
+
+      <div class="branch-graph" role="list">
+
+        <!-- Each agent row has: SVG branch column + info + sparkline + badge -->
+
+        <!-- BEX — human, HEAD -->
+        <div class="agent-row" role="listitem" aria-label="Bex — human — active">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <!-- Vertical branch line -->
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(240,253,244,0.2)" stroke-width="1.5"/>
+              <!-- HEAD commit dot -->
+              <circle cx="24" cy="26" r="5" fill="#0a0c0a" stroke="var(--bex)" stroke-width="2"/>
+              <circle cx="24" cy="26" r="2" fill="var(--bex)"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: var(--bex)">Bex</div>
+            <div class="agent-role">human · HEAD</div>
+            <div class="agent-action">online · directing</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,14 6,10 10,12 14,6 18,8 22,4 26,6 30,3 34,5 38,2 42,4" fill="none" stroke="rgba(240,253,244,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-active">live</span>
+        </div>
+
+        <!-- GITTO — active -->
+        <div class="agent-row" role="listitem" aria-label="gitto — historian — active" style="background: rgba(32,201,151,0.04)">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <defs>
+                <filter id="glow-g">
+                  <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(32,201,151,0.35)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="6" fill="#0a0c0a" stroke="var(--gitto)" stroke-width="2" filter="url(#glow-g)"/>
+              <circle cx="24" cy="26" r="2.5" fill="var(--gitto)"/>
+              <!-- Pulse ring -->
+              <circle cx="24" cy="26" r="9" fill="none" stroke="var(--gitto)" stroke-width="1" opacity="0.3">
+                <animate attributeName="r" values="7;11;7" dur="2.4s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0.4;0;0.4" dur="2.4s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: var(--gitto)">gitto</div>
+            <div class="agent-role">historian · oracle</div>
+            <div class="agent-action">reading git log</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,12 6,8 10,10 14,5 18,7 22,9 26,4 30,6 34,8 38,3 42,5" fill="none" stroke="rgba(32,201,151,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-active">active</span>
+        </div>
+
+        <!-- ULTRON — busy -->
+        <div class="agent-row" role="listitem" aria-label="ultron — implementer — busy">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(96,165,250,0.3)" stroke-width="1.5" stroke-dasharray="3 3">
+                <animate attributeName="stroke-dashoffset" values="0;-6" dur="0.8s" repeatCount="indefinite"/>
+              </line>
+              <circle cx="24" cy="26" r="5" fill="#0a0c0a" stroke="var(--ultron)" stroke-width="2"/>
+              <circle cx="24" cy="26" r="2" fill="var(--ultron)">
+                <animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: var(--ultron)">ultron</div>
+            <div class="agent-role">implementer</div>
+            <div class="agent-action">writing ws-store.ts</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,14 6,11 10,13 14,9 18,11 22,7 26,5 30,3 34,2 38,4 42,1" fill="none" stroke="rgba(96,165,250,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-busy">busy</span>
+        </div>
+
+        <!-- CERBERUS — active -->
+        <div class="agent-row" role="listitem" aria-label="cerberus — reviewer — active">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(251,191,36,0.25)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="5" fill="#0a0c0a" stroke="var(--cerberus)" stroke-width="2"/>
+              <circle cx="24" cy="26" r="2" fill="var(--cerberus)"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: var(--cerberus)">cerberus</div>
+            <div class="agent-role">reviewer</div>
+            <div class="agent-action">auditing MessageList.tsx</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,13 6,9 10,11 14,7 18,10 22,6 26,8 30,5 34,7 38,4 42,6" fill="none" stroke="rgba(251,191,36,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-active">active</span>
+        </div>
+
+        <!-- BILBO — idle -->
+        <div class="agent-row" role="listitem" aria-label="bilbo — explorer — idle">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(163,230,53,0.15)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="4" fill="#0a0c0a" stroke="rgba(163,230,53,0.5)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(163,230,53,0.65)">bilbo</div>
+            <div class="agent-role">explorer</div>
+            <div class="agent-action">idle · last: agent-invoker</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,10 8,8 16,9 24,8 32,9 40,8 44,9" fill="none" stroke="rgba(163,230,53,0.25)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-idle">idle</span>
+        </div>
+
+        <!-- HOUSE — idle -->
+        <div class="agent-row" role="listitem" aria-label="house — diagnostician — idle">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(253,186,116,0.15)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="4" fill="#0a0c0a" stroke="rgba(253,186,116,0.5)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(253,186,116,0.65)">house</div>
+            <div class="agent-role">diagnostician</div>
+            <div class="agent-action">idle · last: ws.ts dedup</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,8 10,7 20,9 30,8 42,8" fill="none" stroke="rgba(253,186,116,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-idle">idle</span>
+        </div>
+
+        <!-- ARGUS — idle -->
+        <div class="agent-row" role="listitem" aria-label="argus — security — idle">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(248,113,113,0.15)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="4" fill="#0a0c0a" stroke="rgba(248,113,113,0.5)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(248,113,113,0.65)">argus</div>
+            <div class="agent-role">security</div>
+            <div class="agent-action">idle · last: origin guard</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,9 12,8 22,9 32,8 42,9" fill="none" stroke="rgba(248,113,113,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-idle">idle</span>
+        </div>
+
+        <!-- DANTE — never invoked -->
+        <div class="agent-row" role="listitem" aria-label="dante — test engineer — offline" style="opacity: 0.38">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(129,140,248,0.1)" stroke-width="1" stroke-dasharray="2 4"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(129,140,248,0.5)">dante</div>
+            <div class="agent-role">test engineer</div>
+            <div class="agent-action">not yet invoked</div>
+          </div>
+          <span class="status-badge badge-offline">—</span>
+        </div>
+
+        <!-- MORIARTY — never invoked -->
+        <div class="agent-row" role="listitem" aria-label="moriarty — adversarial — offline" style="opacity: 0.38">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(251,113,133,0.1)" stroke-width="1" stroke-dasharray="2 4"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(251,113,133,0.5)">moriarty</div>
+            <div class="agent-role">adversarial</div>
+            <div class="agent-action">not yet invoked</div>
+          </div>
+          <span class="status-badge badge-offline">—</span>
+        </div>
+
+        <!-- YODA — never invoked -->
+        <div class="agent-row" role="listitem" aria-label="yoda — senior evaluator — offline" style="opacity: 0.38">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(56,189,248,0.1)" stroke-width="1" stroke-dasharray="2 4"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(56,189,248,0.5)">yoda</div>
+            <div class="agent-role">senior evaluator</div>
+            <div class="agent-action">not yet invoked</div>
+          </div>
+          <span class="status-badge badge-offline">—</span>
+        </div>
+
+        <!-- ALEXANDRIA — idle -->
+        <div class="agent-row" role="listitem" aria-label="alexandria — documentation — idle">
+          <div class="branch-col" aria-hidden="true">
+            <svg width="48" height="52" viewBox="0 0 48 52">
+              <line x1="24" y1="0" x2="24" y2="52" stroke="rgba(192,132,252,0.15)" stroke-width="1.5"/>
+              <circle cx="24" cy="26" r="4" fill="#0a0c0a" stroke="rgba(192,132,252,0.5)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="color: rgba(192,132,252,0.65)">alexandria</div>
+            <div class="agent-role">documentation</div>
+            <div class="agent-action">idle · PROGRESS.md done</div>
+          </div>
+          <svg class="sparkline" viewBox="0 0 44 16" aria-hidden="true">
+            <polyline points="2,11 8,9 14,10 24,8 34,9 42,8" fill="none" stroke="rgba(192,132,252,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="status-badge badge-idle">idle</span>
+        </div>
+
+      </div><!-- /branch-graph -->
+
+    </aside>
+
+    <!-- =============================================
+         CHAT
+         ============================================= -->
+    <main class="chat-main" aria-label="Chat messages">
+      <div class="messages" role="log" aria-live="polite" aria-label="Message history">
+
+        <!-- System: session start -->
+        <div class="sys-row">
+          <div class="sys-hr"></div>
+          <div class="sys-pill">session · main · ad546d1 · 19:48Z</div>
+          <div class="sys-hr"></div>
+        </div>
+
+        <!-- Bex -->
+        <div class="msg">
+          <div class="msg-av av-bex">Bx</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color:var(--bex)">Bex</span>
+              <span class="msg-time">19:48</span>
+            </div>
+            <div class="msg-text">
+              <span class="mention" style="color:var(--gitto)">@gitto</span> dame un resumen de lo que hay pendiente. cuántos commits llevamos en <code>main</code> esta sesión.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tool lines -->
+        <div class="tool-row">
+          <span class="tool-agent" style="color:var(--gitto)">gitto</span>
+          <span class="tool-badge">Bash</span>
+          <span class="tool-desc">git log --oneline -20 main</span>
+        </div>
+        <div class="tool-row">
+          <span class="tool-agent" style="color:var(--gitto)">gitto</span>
+          <span class="tool-badge">Read</span>
+          <span class="tool-desc">.claude/agent-memory/unmassk-gitmemory/PROGRESS.md</span>
+        </div>
+
+        <!-- Gitto response -->
+        <div class="msg">
+          <div class="msg-av av-gitto">GT</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color:var(--gitto)">gitto</span>
+              <span class="msg-time">19:48</span>
+            </div>
+            <div class="msg-text">
+              5 commits this session. 3 pendientes con los que terminar el sprint:
+            </div>
+            <div class="commit-card">
+              <div class="commit-header">
+                <span class="commit-sha">next/1</span>
+                <span class="commit-tag">feat</span>
+              </div>
+              <div class="commit-msg">tool_event dedup — ID aleatorio en ws-store.ts:84</div>
+              <div class="commit-meta">source: <span>ad546d1</span> · owner: ultron</div>
+            </div>
+            <div class="commit-card" style="margin-top: 4px;">
+              <div class="commit-header">
+                <span class="commit-sha">next/2</span>
+                <span class="commit-tag">test</span>
+              </div>
+              <div class="commit-msg">dante — tests para connectingRoomId + ToolLine fixes</div>
+              <div class="commit-meta">source: <span>13c253a</span> · owner: dante</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Queue message -->
+        <div class="sys-row">
+          <div class="sys-hr"></div>
+          <div class="sys-pill queue">ultron queued · 1 pending</div>
+          <div class="sys-hr"></div>
+        </div>
+
+        <!-- Bex again -->
+        <div class="msg">
+          <div class="msg-av av-bex">Bx</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color:var(--bex)">Bex</span>
+              <span class="msg-time">19:49</span>
+            </div>
+            <div class="msg-text">
+              <span class="mention" style="color:var(--cerberus)">@cerberus</span> revisa lo que ha hecho ultron. y cuando termines <strong>menciona a @ultron</strong> si hay algo que arreglar.
+            </div>
+          </div>
+        </div>
+
+        <!-- Cerberus tool lines -->
+        <div class="tool-row">
+          <span class="tool-agent" style="color:var(--cerberus)">cerberus</span>
+          <span class="tool-badge">Read</span>
+          <span class="tool-desc">frontend/src/components/MessageList.tsx</span>
+        </div>
+        <div class="tool-row">
+          <span class="tool-agent" style="color:var(--cerberus)">cerberus</span>
+          <span class="tool-badge">Grep</span>
+          <span class="tool-desc">tool_event · ws-store.ts</span>
+        </div>
+
+        <!-- Cerberus response -->
+        <div class="msg">
+          <div class="msg-av av-cerberus">CB</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-name" style="color:var(--cerberus)">cerberus</span>
+              <span class="msg-time">19:49</span>
+            </div>
+            <div class="msg-text">
+              review limpio salvo <strong>2 T2.</strong><br><br>
+              <code>ToolLine.tsx:12</code> — falta <code>c-${author.toLowerCase()}</code> en className — nombre del agente en color muted para todos.<br><br>
+              <code>ToolLine.tsx:9</code> — <code>charAt(0)</code> explota si author es vacío. añadir <code>|| 'unknown'</code>.<br><br>
+              <span class="mention" style="color:var(--ultron)">@ultron</span> aplica los dos.
+            </div>
+          </div>
+        </div>
+
+        <!-- spacer -->
+        <div style="height:10px"></div>
+
+      </div><!-- /messages -->
+
+      <!-- Input -->
+      <div class="input-area">
+        <div class="input-shell">
+          <span class="input-prompt" aria-hidden="true">❯</span>
+          <input
+            class="input-field"
+            type="text"
+            placeholder="message #general — @mention to invoke an agent"
+            aria-label="Message input"
+          >
+          <span class="input-hint" aria-hidden="true">↵</span>
+        </div>
+      </div>
+
+    </main>
+
+  </div><!-- /body -->
+</div><!-- /window -->
+
+</body>
+</html>

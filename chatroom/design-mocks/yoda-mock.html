@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yoda — The Chambers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* -------------------------------------------------------------------------
+     YODA DESIGN DIRECTION: The Chambers
+     Philosophy: The weight of a verdict comes from restraint, not decoration.
+                 Every element earns its place or does not appear.
+     Typography: EB Garamond for verdicts (Yoda's own voice) — legal, weighty,
+                 authoritative. IBM Plex Sans for the courtroom proceedings.
+                 IBM Plex Mono for tool events and system artifacts.
+     Color: Deep charcoal base. Gold accent for verdicts. No gradients.
+                 No animations. Gravity through stillness.
+     Reference: design-system script recommendation — EB Garamond + authoritative
+                palette, accessible contrast, no AI purple slop.
+  --------------------------------------------------------------------------- */
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Charcoal — deep, not black. The difference matters. */
+    --bg-base:        #131416;
+    --bg-surface:     #1a1c1f;
+    --bg-elevated:    #212428;
+    --bg-input:       #1e2023;
+
+    --border:         #2a2d32;
+    --border-strong:  #3d4148;
+    --border-verdict: #8B7355;   /* aged parchment border for Yoda messages */
+
+    --text-primary:   #ddd8cc;  /* warm off-white — aged paper, not clinical white */
+    --text-secondary: #888580;
+    --text-dim:       #55524e;
+    --text-verdict:   #e8dfc8;  /* Yoda's own words, slightly warmer */
+
+    /* The verdict gold — restrained, not gaudy */
+    --gold:           #c4943a;
+    --gold-dim:       #8B6914;
+    --gold-bg:        #1e1a12;
+    --gold-text:      #d4a84b;
+
+    /* Status — muted, professional */
+    --green:          #5a8a60;
+    --red:            #8a4a4a;
+    --blue:           #4a6a8a;
+    --amber:          #8a6a3a;
+
+    /* Agent accent colors — same palette, each distinct */
+    --c-bilbo:      #c4943a;   /* gold — the scout */
+    --c-ultron:     #5b7fa6;   /* steel blue — the builder */
+    --c-cerberus:   #8a4a3a;   /* deep red — the gatekeeper */
+    --c-dante:      #4d7a55;   /* forest green — tests */
+    --c-argus:      #7a5fa6;   /* muted violet — security */
+    --c-moriarty:   #a65f3a;   /* burnt orange — adversary */
+    --c-house:      #4a7a8a;   /* teal — diagnostics */
+    --c-yoda:       #c4943a;   /* gold — the judge */
+    --c-alexandria: #a67a8a;   /* dusty rose — knowledge */
+    --c-gitto:      #6a7a5a;   /* olive — memory */
+    --c-bex:        #ddd8cc;   /* near-white — the human */
+
+    --font-prose:   'EB Garamond', Georgia, 'Times New Roman', serif;
+    --font-ui:      'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono:    'IBM Plex Mono', 'Fira Code', ui-monospace, monospace;
+
+    --sidebar-w:    224px;
+    --radius:       3px;       /* minimal radius — this is not a playful product */
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    display: flex;
+    height: 100vh;
+  }
+
+  /* -------------------------------------------------------------------------
+     SIDEBAR — THE ROSTER
+     11 permanent seats. Always visible. Status reads at a glance.
+  --------------------------------------------------------------------------- */
+
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 16px 14px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .sidebar-name {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .sidebar-room {
+    color: var(--gold-text);
+    font-weight: 400;
+  }
+
+  .roster {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .roster::-webkit-scrollbar { width: 3px; }
+  .roster::-webkit-scrollbar-track { background: transparent; }
+  .roster::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .roster-section-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 8px 14px 4px;
+  }
+
+  .member {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 120ms;
+    position: relative;
+  }
+
+  .member:hover {
+    background: var(--bg-elevated);
+  }
+
+  .member.active-speaker {
+    background: var(--bg-elevated);
+  }
+
+  .member.is-yoda {
+    /* Yoda's entry in the roster is subtly distinguished */
+    border-left: 2px solid var(--gold-dim);
+    padding-left: 12px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-surface);
+  }
+
+  .status-dot.online  { background: var(--green); }
+  .status-dot.idle    { background: var(--amber); }
+  .status-dot.busy    { background: var(--red); }
+  .status-dot.offline { background: var(--border-strong); }
+
+  .member-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .member-name {
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .member-role {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+  }
+
+  .sidebar-footer {
+    border-top: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+
+  .session-info {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+
+  .session-info span {
+    color: var(--text-secondary);
+  }
+
+  /* -------------------------------------------------------------------------
+     MAIN CHAT AREA
+  --------------------------------------------------------------------------- */
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-base);
+  }
+
+  /* ── Header ── */
+  .chat-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-surface);
+    flex-shrink: 0;
+  }
+
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chat-channel {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .chat-context {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .chat-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 16px;
+  }
+
+  .chat-meta-item { display: flex; align-items: center; gap: 5px; }
+
+  .meta-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+  }
+
+  /* ── Messages ── */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0 8px;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* System / timestamp divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 24px;
+    margin: 4px 0;
+  }
+
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .divider-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  /* System event pill */
+  .sys-event {
+    padding: 3px 24px;
+    margin: 2px 0;
+  }
+
+  .sys-event-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px 8px;
+  }
+
+  .sys-icon {
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  /* Tool event */
+  .tool-event {
+    padding: 4px 24px;
+    margin: 2px 0;
+  }
+
+  .tool-event-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 10px;
+    max-width: 480px;
+  }
+
+  .tool-name {
+    color: var(--gold-text);
+    font-weight: 500;
+  }
+
+  .tool-status-ok  { color: var(--green); font-size: 9px; }
+  .tool-status-err { color: var(--red); font-size: 9px; }
+
+  /* Standard message */
+  .message {
+    padding: 4px 24px;
+    display: flex;
+    gap: 12px;
+    transition: background 80ms;
+  }
+
+  .message:hover { background: rgba(255,255,255,0.018); }
+
+  .message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-top: 1px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+  }
+
+  .message-body { flex: 1; min-width: 0; }
+
+  .message-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+
+  .message-sender {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .message-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .message-text {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+
+  .message-text code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0 4px;
+    color: var(--text-secondary);
+  }
+
+  /* ── YODA MESSAGE — The Ruling ── */
+  /* Yoda's messages are set apart. A ruling is not a chat message. */
+  .message.is-verdict {
+    padding: 14px 24px 14px 20px;
+    border-left: 3px solid var(--border-verdict);
+    margin: 10px 0;
+    background: var(--gold-bg);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    position: relative;
+  }
+
+  .message.is-verdict::before {
+    content: 'RULING';
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+  }
+
+  .message.is-verdict .message-text {
+    font-family: var(--font-prose);
+    font-size: 15.5px;
+    line-height: 1.75;
+    color: var(--text-verdict);
+    font-style: normal;
+  }
+
+  .message.is-verdict .message-text em {
+    font-style: italic;
+    color: var(--gold-text);
+  }
+
+  .message.is-verdict .message-sender {
+    color: var(--gold-text);
+  }
+
+  .verdict-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    margin-top: 10px;
+    text-transform: uppercase;
+  }
+
+  .verdict-badge.approved {
+    background: rgba(90, 138, 96, 0.15);
+    color: #5a8a60;
+    border: 1px solid rgba(90, 138, 96, 0.3);
+  }
+
+  .verdict-badge.reservations {
+    background: rgba(196, 148, 58, 0.12);
+    color: var(--gold-text);
+    border: 1px solid rgba(196, 148, 58, 0.3);
+  }
+
+  .verdict-badge.not-ready {
+    background: rgba(138, 74, 74, 0.15);
+    color: #c47070;
+    border: 1px solid rgba(138, 74, 74, 0.3);
+  }
+
+  /* Score table in a verdict */
+  .score-table {
+    margin-top: 12px;
+    border: 1px solid var(--border-verdict);
+    border-radius: var(--radius);
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .score-table thead tr {
+    background: rgba(196, 148, 58, 0.08);
+  }
+
+  .score-table th {
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 500;
+    color: var(--gold-dim);
+    letter-spacing: 0.06em;
+    font-size: 10px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-verdict);
+  }
+
+  .score-table td {
+    padding: 5px 10px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .score-table tr:last-child td { border-bottom: none; }
+
+  .score-table tr.total-row td {
+    color: var(--gold-text);
+    font-weight: 500;
+    background: rgba(196, 148, 58, 0.06);
+    border-top: 1px solid var(--border-verdict);
+  }
+
+  .score-val {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  /* ── INPUT AREA ── */
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 12px 20px 14px;
+    background: var(--bg-surface);
+    flex-shrink: 0;
+  }
+
+  .input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    transition: border-color 120ms;
+  }
+
+  .input-bar:focus-within {
+    border-color: var(--gold-dim);
+    outline: 2px solid rgba(196, 148, 58, 0.15);
+    outline-offset: 0;
+  }
+
+  .input-prefix {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    padding-bottom: 2px;
+  }
+
+  .input-field {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    line-height: 1.5;
+    resize: none;
+    min-height: 20px;
+    max-height: 120px;
+  }
+
+  .input-field::placeholder {
+    color: var(--text-dim);
+  }
+
+  .input-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: border-color 120ms, color 120ms;
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+
+  .btn-send {
+    background: var(--gold-bg);
+    border: 1px solid var(--gold-dim);
+    border-radius: var(--radius);
+    color: var(--gold-text);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 4px 10px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 120ms;
+  }
+
+  .btn-send:hover {
+    background: rgba(139, 105, 20, 0.3);
+  }
+
+  .input-hint {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── misc utilities ── */
+  .mention {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    background: rgba(196, 148, 58, 0.1);
+    color: var(--gold-text);
+    border-radius: 2px;
+    padding: 0 3px;
+  }
+
+  .inline-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0 4px;
+    color: var(--text-secondary);
+  }
+
+  /* reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     SIDEBAR — 11 permanent seats
+════════════════════════════════════════════════════════════ -->
+<aside class="sidebar" role="navigation" aria-label="Session roster">
+
+  <div class="sidebar-header">
+    <div class="sidebar-title">Session</div>
+    <div class="sidebar-name">
+      <span class="sidebar-room">chatroom</span> &mdash; pipeline review
+    </div>
+  </div>
+
+  <div class="roster" role="list">
+
+    <div class="roster-section-label">Human</div>
+
+    <!-- Bex -->
+    <div class="member" role="listitem" aria-label="Bex — human, online">
+      <div class="avatar" style="color: var(--c-bex); border-color: rgba(221,216,204,0.25);">
+        Bx
+        <span class="status-dot online" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-bex);">Bex</div>
+        <div class="member-role">human</div>
+      </div>
+    </div>
+
+    <div class="roster-section-label">Agents</div>
+
+    <!-- Bilbo -->
+    <div class="member" role="listitem" aria-label="bilbo — explorer, idle">
+      <div class="avatar" style="color: var(--c-bilbo); border-color: rgba(196,148,58,0.2);">
+        Bl
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-bilbo);">bilbo</div>
+        <div class="member-role">explorer</div>
+      </div>
+    </div>
+
+    <!-- Ultron -->
+    <div class="member" role="listitem" aria-label="ultron — builder, busy">
+      <div class="avatar" style="color: var(--c-ultron); border-color: rgba(91,127,166,0.2);">
+        Ul
+        <span class="status-dot busy" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-ultron);">ultron</div>
+        <div class="member-role">builder</div>
+      </div>
+    </div>
+
+    <!-- Cerberus -->
+    <div class="member" role="listitem" aria-label="cerberus — auditor, idle">
+      <div class="avatar" style="color: var(--c-cerberus); border-color: rgba(138,74,58,0.2);">
+        Ce
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-cerberus);">cerberus</div>
+        <div class="member-role">auditor</div>
+      </div>
+    </div>
+
+    <!-- Dante -->
+    <div class="member" role="listitem" aria-label="dante — tester, idle">
+      <div class="avatar" style="color: var(--c-dante); border-color: rgba(77,122,85,0.2);">
+        Da
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-dante);">dante</div>
+        <div class="member-role">tester</div>
+      </div>
+    </div>
+
+    <!-- Argus -->
+    <div class="member" role="listitem" aria-label="argus — security, online">
+      <div class="avatar" style="color: var(--c-argus); border-color: rgba(122,95,166,0.2);">
+        Ar
+        <span class="status-dot online" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-argus);">argus</div>
+        <div class="member-role">security</div>
+      </div>
+    </div>
+
+    <!-- Moriarty -->
+    <div class="member" role="listitem" aria-label="moriarty — adversary, idle">
+      <div class="avatar" style="color: var(--c-moriarty); border-color: rgba(166,95,58,0.2);">
+        Mo
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-moriarty);">moriarty</div>
+        <div class="member-role">adversary</div>
+      </div>
+    </div>
+
+    <!-- House -->
+    <div class="member" role="listitem" aria-label="house — diagnostics, idle">
+      <div class="avatar" style="color: var(--c-house); border-color: rgba(74,122,138,0.2);">
+        Ho
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-house);">house</div>
+        <div class="member-role">diagnostics</div>
+      </div>
+    </div>
+
+    <!-- Yoda — distinguished -->
+    <div class="member is-yoda active-speaker" role="listitem" aria-label="yoda — senior evaluator, online">
+      <div class="avatar" style="color: var(--c-yoda); border-color: rgba(196,148,58,0.4);">
+        Yo
+        <span class="status-dot online" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-yoda);">yoda</div>
+        <div class="member-role">evaluator</div>
+      </div>
+    </div>
+
+    <!-- Alexandria -->
+    <div class="member" role="listitem" aria-label="alexandria — knowledge, online">
+      <div class="avatar" style="color: var(--c-alexandria); border-color: rgba(166,122,138,0.2);">
+        Al
+        <span class="status-dot online" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-alexandria);">alexandria</div>
+        <div class="member-role">knowledge</div>
+      </div>
+    </div>
+
+    <!-- Gitto -->
+    <div class="member" role="listitem" aria-label="gitto — memory, idle">
+      <div class="avatar" style="color: var(--c-gitto); border-color: rgba(106,122,90,0.2);">
+        Gi
+        <span class="status-dot idle" aria-hidden="true"></span>
+      </div>
+      <div class="member-info">
+        <div class="member-name" style="color: var(--c-gitto);">gitto</div>
+        <div class="member-role">memory</div>
+      </div>
+    </div>
+
+  </div><!-- /roster -->
+
+  <div class="sidebar-footer">
+    <div class="session-info">
+      <div>phase <span>5 / pipeline</span></div>
+      <div>module <span>auth.service</span></div>
+      <div>rev <span>ad546d1</span></div>
+    </div>
+  </div>
+
+</aside>
+
+<!-- ════════════════════════════════════════════════════════════
+     MAIN
+════════════════════════════════════════════════════════════ -->
+<main class="main" role="main">
+
+  <!-- Header -->
+  <header class="chat-header">
+    <div class="chat-header-left">
+      <div>
+        <div class="chat-channel"># pipeline / review</div>
+        <div class="chat-context">auth.service — session review</div>
+      </div>
+    </div>
+    <div class="chat-meta">
+      <div class="chat-meta-item">
+        <span class="meta-dot" aria-hidden="true"></span>
+        <span>11 present</span>
+      </div>
+      <div class="chat-meta-item">phase 5 of 6</div>
+      <div class="chat-meta-item">2026-03-18</div>
+    </div>
+  </header>
+
+  <!-- Messages -->
+  <div class="messages" role="log" aria-label="Conversation" aria-live="polite">
+
+    <!-- Session divider -->
+    <div class="divider" aria-hidden="true">
+      <div class="divider-line"></div>
+      <div class="divider-text">SESSION START — 14:02:11</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- System event: pipeline begins -->
+    <div class="sys-event">
+      <div class="sys-event-inner">
+        <span class="sys-icon" aria-hidden="true">&#9679;</span>
+        <span>pipeline invoked — module: <strong>auth.service</strong> — 6 phases</span>
+      </div>
+    </div>
+
+    <!-- Bex -->
+    <div class="message" role="article" aria-label="Message from Bex">
+      <div class="message-avatar" style="color: var(--c-bex);">Bx</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-bex);">Bex</span>
+          <span class="message-time">14:02</span>
+        </div>
+        <div class="message-text">
+          Starting a full pipeline review on <span class="inline-code">auth.service</span>. 
+          This one handles JWT issuance and session management — it touched a lot in the last PR. 
+          I want the full sequence: bilbo, ultron, cerberus, argus, moriarty, dante, then yoda signs off.
+        </div>
+      </div>
+    </div>
+
+    <!-- Bilbo -->
+    <div class="message" role="article" aria-label="Message from bilbo">
+      <div class="message-avatar" style="color: var(--c-bilbo);">Bl</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-bilbo);">bilbo</span>
+          <span class="message-time">14:02</span>
+        </div>
+        <div class="message-text">
+          Noted. Exploring <span class="inline-code">auth.service</span> — 
+          mapping entry points, dependencies, and ambient context before the build phase.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool event: bilbo reads file -->
+    <div class="tool-event" aria-label="Tool event">
+      <div class="tool-event-inner">
+        <span class="tool-name">Read</span>
+        <span>src/auth/auth.service.ts</span>
+        <span style="color: var(--text-dim)">2.1 KB, 89 lines</span>
+        <span class="tool-status-ok" aria-label="Success">&#10003; ok</span>
+      </div>
+    </div>
+
+    <div class="tool-event" aria-label="Tool event">
+      <div class="tool-event-inner">
+        <span class="tool-name">Read</span>
+        <span>src/auth/guards/jwt.guard.ts</span>
+        <span style="color: var(--text-dim)">1.4 KB, 55 lines</span>
+        <span class="tool-status-ok" aria-label="Success">&#10003; ok</span>
+      </div>
+    </div>
+
+    <!-- Bilbo reports -->
+    <div class="message" role="article" aria-label="Message from bilbo">
+      <div class="message-avatar" style="color: var(--c-bilbo);">Bl</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-bilbo);">bilbo</span>
+          <span class="message-time">14:04</span>
+        </div>
+        <div class="message-text">
+          Exploration complete. Key findings: JWT strategy lives in the guard, not the service — 
+          clean separation. Token expiry is hardcoded as a constant, not an env var. 
+          Refresh token rotation exists but the revocation list is in-memory, not Redis. 
+          Handing off to <span class="mention">@ultron</span>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider" aria-hidden="true">
+      <div class="divider-line"></div>
+      <div class="divider-text">14:07 — cerberus audit complete</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Cerberus -->
+    <div class="message" role="article" aria-label="Message from cerberus">
+      <div class="message-avatar" style="color: var(--c-cerberus);">Ce</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-cerberus);">cerberus</span>
+          <span class="message-time">14:07</span>
+        </div>
+        <div class="message-text">
+          Audit done. Three blockers: (1) <span class="inline-code">verifyToken()</span> swallows 
+          errors silently — returns <span class="inline-code">null</span> on any exception, no logging. 
+          (2) Refresh endpoint accepts expired access tokens without validating the 
+          <span class="inline-code">sub</span> claim against the revocation list. 
+          (3) Token expiry constant exposed in the response payload. 
+          <span class="mention">@ultron</span> fix required before we continue.
+        </div>
+      </div>
+    </div>
+
+    <!-- System: ultron fixing -->
+    <div class="sys-event">
+      <div class="sys-event-inner">
+        <span class="sys-icon" aria-hidden="true">&#9679;</span>
+        <span>ultron patching — 3 findings addressed</span>
+      </div>
+    </div>
+
+    <!-- Tool event: ultron writes -->
+    <div class="tool-event" aria-label="Tool event">
+      <div class="tool-event-inner">
+        <span class="tool-name">Edit</span>
+        <span>src/auth/auth.service.ts</span>
+        <span style="color: var(--text-dim)">+34 / -8 lines</span>
+        <span class="tool-status-ok" aria-label="Success">&#10003; ok</span>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider" aria-hidden="true">
+      <div class="divider-line"></div>
+      <div class="divider-text">14:22 — argus + moriarty complete</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Argus -->
+    <div class="message" role="article" aria-label="Message from argus">
+      <div class="message-avatar" style="color: var(--c-argus);">Ar</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-argus);">argus</span>
+          <span class="message-time">14:18</span>
+        </div>
+        <div class="message-text">
+          Security audit clear. OWASP A01-A10 mapped. The silent error swallow was the 
+          critical exposure — now resolved. In-memory revocation list is a T2 risk: 
+          not a blocker today, but a future incident waiting to happen in multi-instance. 
+          Logged as tracked debt. Passing to <span class="mention">@moriarty</span>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Moriarty -->
+    <div class="message" role="article" aria-label="Message from moriarty">
+      <div class="message-avatar" style="color: var(--c-moriarty);">Mo</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-moriarty);">moriarty</span>
+          <span class="message-time">14:22</span>
+        </div>
+        <div class="message-text">
+          Adversarial scan complete. No T1 findings. Attempted token replay, clock-skew 
+          bypass, and sub-claim spoofing — all rejected cleanly. The revocation list gap 
+          that argus flagged is real but requires multi-instance deployment to exploit, 
+          so T2 classification confirmed. PASA.
+        </div>
+      </div>
+    </div>
+
+    <!-- Dante -->
+    <div class="message" role="article" aria-label="Message from dante">
+      <div class="message-avatar" style="color: var(--c-dante);">Da</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-dante);">dante</span>
+          <span class="message-time">14:28</span>
+        </div>
+        <div class="message-text">
+          Tests executed. 38 specs, 37 pass, 1 skip (multi-instance revocation — 
+          no Redis in test env). Coverage: 94% statements, 89% branches. 
+          The error-handling paths added by ultron are fully covered. 
+          Handing to <span class="mention">@yoda</span> for final evaluation.
+        </div>
+      </div>
+    </div>
+
+    <!-- System event: yoda invoked -->
+    <div class="sys-event">
+      <div class="sys-event-inner">
+        <span class="sys-icon" aria-hidden="true">&#9679;</span>
+        <span>yoda invoked — phase 5 of 6 — final evaluation</span>
+      </div>
+    </div>
+
+    <!-- Tool event: yoda reads diff -->
+    <div class="tool-event" aria-label="Tool event">
+      <div class="tool-event-inner">
+        <span class="tool-name">Bash</span>
+        <span>git diff HEAD~1 -- src/auth/</span>
+        <span style="color: var(--text-dim)">+61 / -12 lines</span>
+        <span class="tool-status-ok" aria-label="Success">&#10003; ok</span>
+      </div>
+    </div>
+
+    <div class="tool-event" aria-label="Tool event">
+      <div class="tool-event-inner">
+        <span class="tool-name">Read</span>
+        <span>src/auth/auth.service.ts — full review</span>
+        <span style="color: var(--text-dim)">123 lines</span>
+        <span class="tool-status-ok" aria-label="Success">&#10003; ok</span>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         YODA RULING — the distinctive message
+    ═══════════════════════════════════════ -->
+    <div class="message is-verdict" role="article" aria-label="Yoda's ruling">
+      <div class="message-avatar" style="color: var(--c-yoda); border-color: rgba(196,148,58,0.5); background: var(--gold-bg);">Yo</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender">yoda</span>
+          <span class="message-time">14:41</span>
+        </div>
+        <div class="message-text">
+          I've read the diff three times. That first read was to understand what changed. 
+          The second was to look for what the diff doesn't show — the ghost of the old 
+          silent error swallow, the assumption that single-instance deployment will 
+          always hold. The third was to decide whether I'd ship this.<br><br>
+
+          The security fix is honest. It doesn't just catch the exception — it logs it 
+          with context and re-throws a typed error that the caller can handle. That's not 
+          a patch, that's a proper repair. The refresh endpoint now validates the 
+          <span class="inline-code">sub</span> claim before any token is issued. Clean.<br><br>
+
+          The in-memory revocation list is the thing that will wake someone up at 2am, 
+          but not today. Argus and Moriarty both confirmed the T2 classification, and 
+          I agree with it. The risk is real but it requires a deployment topology we don't 
+          currently have. I want it in the debt register with a clear note: 
+          <em>this breaks the moment we go multi-instance.</em><br><br>
+
+          Coverage at 94% with 89% branch coverage on the changed files is enough. 
+          The skipped test is honest — it's skipped because the environment doesn't 
+          support it, not because nobody thought to write it.
+        </div>
+
+        <!-- Score table -->
+        <table class="score-table" aria-label="Dimension scores">
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>Weight</th>
+              <th>Score</th>
+              <th>Weighted</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Security</td>
+              <td>x3</td>
+              <td class="score-val">8/10</td>
+              <td class="score-val">24</td>
+            </tr>
+            <tr>
+              <td>Error Handling</td>
+              <td>x3</td>
+              <td class="score-val">9/10</td>
+              <td class="score-val">27</td>
+            </tr>
+            <tr>
+              <td>Architecture</td>
+              <td>x2</td>
+              <td class="score-val">8/10</td>
+              <td class="score-val">16</td>
+            </tr>
+            <tr>
+              <td>Testing</td>
+              <td>x2</td>
+              <td class="score-val">8/10</td>
+              <td class="score-val">16</td>
+            </tr>
+            <tr>
+              <td>Maintainability</td>
+              <td>x1</td>
+              <td class="score-val">8/10</td>
+              <td class="score-val">8</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="3"><strong>TOTAL</strong></td>
+              <td><strong>91/110</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Verdict badge -->
+        <div>
+          <span class="verdict-badge reservations" aria-label="Verdict: approved with reservations">
+            &#10003; APPROVED WITH RESERVATIONS
+          </span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Bex closes -->
+    <div class="message" role="article" aria-label="Message from Bex">
+      <div class="message-avatar" style="color: var(--c-bex);">Bx</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-bex);">Bex</span>
+          <span class="message-time">14:43</span>
+        </div>
+        <div class="message-text">
+          Logging the revocation-list debt item now. <span class="mention">@alexandria</span> 
+          can you document the T2 finding and the Redis migration path in the module ADR?
+        </div>
+      </div>
+    </div>
+
+    <!-- Alexandria -->
+    <div class="message" role="article" aria-label="Message from alexandria">
+      <div class="message-avatar" style="color: var(--c-alexandria);">Al</div>
+      <div class="message-body">
+        <div class="message-header">
+          <span class="message-sender" style="color: var(--c-alexandria);">alexandria</span>
+          <span class="message-time">14:43</span>
+        </div>
+        <div class="message-text">
+          On it. ADR-017 drafted with the T2 classification, yoda's note verbatim, 
+          and a Redis migration stub. Will commit to docs/.
+        </div>
+      </div>
+    </div>
+
+    <!-- End spacer -->
+    <div style="height: 16px;"></div>
+
+  </div><!-- /messages -->
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-bar">
+      <span class="input-prefix" aria-hidden="true">Bex</span>
+      <textarea
+        class="input-field"
+        placeholder="Message pipeline / review..."
+        rows="1"
+        aria-label="Message input"
+      ></textarea>
+      <div class="input-actions">
+        <button class="btn-ghost" type="button" aria-label="Mention agent">@</button>
+        <button class="btn-send" type="button" aria-label="Send message">send</button>
+      </div>
+    </div>
+    <div class="input-hint">
+      <span>@ to invoke an agent &nbsp;&middot;&nbsp; Enter to send</span>
+      <span>phase 5 complete &nbsp;&mdash;&nbsp; awaiting alexandria</span>
+    </div>
+  </div>
+
+</main>
+
+</body>
+</html>

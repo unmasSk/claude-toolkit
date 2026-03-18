@@ -16,11 +16,10 @@
  *   SEC-FIX 7  — Context poisoning: agent history labeled as prior output
  */
 
-// ---------------------------------------------------------------------------
-// Debug logger — all output to stderr to avoid mixing with stdout
-// ---------------------------------------------------------------------------
+import { createLogger } from '../logger.js';
 
-function log(...args: unknown[]) { console.error('[agent-invoker]', new Date().toISOString(), ...args); }
+const logger = createLogger('agent-invoker');
+function log(...args: unknown[]) { logger.debug(args.map(String).join(' ')); }
 
 import { parseStreamLine } from './stream-parser.js';
 import { getAgentConfig } from './agent-registry.js';
@@ -97,6 +96,8 @@ interface InvocationContext {
    * or activeInvocations, because the retry entry is already in place.
    */
   retryScheduled?: boolean;
+  /** Prevents a second rate-limit retry loop */
+  rateLimitRetry?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,8 +143,14 @@ export function invokeAgents(
   triggerContent: string,
   agentTurns: Map<string, number> = new Map(),
 ): void {
+  // Stagger invocations by 600ms per agent to avoid concurrent rate-limit spikes
+  // (House diagnostic: @everyone firing 8+ claude processes simultaneously saturates the API)
+  let delay = 0;
   for (const agentName of agentNames) {
-    scheduleInvocation(roomId, agentName, { triggerContent, agentTurns }, false);
+    setTimeout(() => {
+      scheduleInvocation(roomId, agentName, { triggerContent, agentTurns }, false);
+    }, delay);
+    delay += 600;
   }
 }
 
@@ -409,6 +416,21 @@ async function spawnAndParse(
   let hasResult = false;
   // Track last tool event per agent to avoid spamming the UI (FIX 17 partial)
   let lastToolBroadcastTime = 0;
+  // Collect stderr for error diagnosis (House diagnostic: rate limit detection)
+  let stderrOutput = '';
+
+  // Read stderr in background — never block stdout on it
+  const stderrReader = proc.stderr.getReader();
+  const stderrDecoder = new TextDecoder();
+  const stderrDone = (async () => {
+    const chunks: string[] = [];
+    while (true) {
+      const { done, value } = await stderrReader.read();
+      if (done) break;
+      chunks.push(stderrDecoder.decode(value));
+    }
+    stderrOutput = chunks.join('');
+  })();
 
   try {
     // Read stdout line by line
@@ -475,9 +497,14 @@ async function spawnAndParse(
     }
 
     await proc.exited;
+    await stderrDone; // ensure stderr fully collected before we inspect it
 
   } finally {
     clearTimeout(timeoutHandle);
+  }
+
+  if (stderrOutput.trim()) {
+    log('stderr', agentName, stderrOutput.trim());
   }
 
   // FIX 2: Stale session detection
@@ -512,6 +539,24 @@ async function spawnAndParse(
   }
 
   if (!hasResult || !resultText.trim()) {
+    // House diagnostic: detect rate limit / overload in stderr → retry with backoff
+    const isRateLimit =
+      stderrOutput.includes('429') ||
+      stderrOutput.toLowerCase().includes('rate limit') ||
+      stderrOutput.toLowerCase().includes('overloaded') ||
+      stderrOutput.toLowerCase().includes('too many requests');
+
+    if (isRateLimit && !context.rateLimitRetry) {
+      log('rate limit detected for', agentName, '— retrying in 12s');
+      await postSystemMessage(roomId, `Agent ${agentName}: rate limited, retrying in 12s...`);
+      context.retryScheduled = true;
+      context.rateLimitRetry = true;
+      setTimeout(() => {
+        scheduleInvocation(roomId, agentName, context, false);
+      }, 12_000);
+      return;
+    }
+
     await postSystemMessage(
       roomId,
       `Agent ${agentName} returned no response.`,

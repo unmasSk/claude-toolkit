@@ -61,13 +61,13 @@ export const AgentStatusSchema = z.object({
 
 export const ClientSendMessageSchema = z.object({
   type: z.literal('send_message'),
-  content: z.string().min(1).max(10000),
+  content: z.string().min(1).max(50000),
 });
 
 export const ClientInvokeAgentSchema = z.object({
   type: z.literal('invoke_agent'),
   agent: z.string().min(1),
-  prompt: z.string().min(1).max(10000),
+  prompt: z.string().min(1).max(50000),
 });
 
 export const ClientLoadHistorySchema = z.object({

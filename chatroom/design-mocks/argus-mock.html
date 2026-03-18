@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argus — Security Intelligence Terminal</title>
+<style>
+  /* ================================================================
+     ARGUS MOCK — Security Intelligence Terminal
+     Direction: SIEM/Threat-Intel aesthetic
+     - Deep red-tinted dark background (oklch tinted neutrals)
+     - Crimson accent for argus identity
+     - Severity badges on every message (T1/T2/T3 inspired)
+     - Sidebar: 11 fixed slots, trust-level dot indicators
+     - Monospace for IDs and tool events
+     - Zero glassmorphism — flat, sharp surfaces only
+     ================================================================ */
+
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Tinted dark neutrals — hue 15 (slight red cast) */
+    --bg-base:        oklch(7%  0.01  15);
+    --bg-sidebar:     oklch(9%  0.012 15);
+    --bg-surface:     oklch(11% 0.012 15);
+    --bg-elevated:    oklch(14% 0.014 15);
+    --bg-input:       oklch(12% 0.01  15);
+
+    --border-subtle:  oklch(20% 0.014 15);
+    --border-mid:     oklch(26% 0.014 15);
+
+    --text-primary:   oklch(88% 0.005 15);
+    --text-secondary: oklch(55% 0.008 15);
+    --text-muted:     oklch(38% 0.006 15);
+
+    /* Primary — argus crimson */
+    --argus-primary:  oklch(52% 0.22  22);
+    --argus-glow:     oklch(52% 0.22  22 / 0.15);
+    --argus-dim:      oklch(40% 0.16  22);
+    --argus-bg:       oklch(13% 0.04  22);
+
+    /* Semantic */
+    --danger:         oklch(52% 0.22  22);   /* T1 — red */
+    --warning:        oklch(72% 0.18  65);   /* T2 — amber */
+    --safe:           oklch(62% 0.16 145);   /* T3 / clear */
+    --info:           oklch(62% 0.14 240);   /* system / info */
+
+    /* Per-agent hues (oklch chroma 0.14, lightness 60%) */
+    --agent-argus:    oklch(52% 0.22  22);
+    --agent-bilbo:    oklch(62% 0.14  55);
+    --agent-ultron:   oklch(60% 0.16 240);
+    --agent-dante:    oklch(62% 0.16 280);
+    --agent-cerberus: oklch(70% 0.14  65);
+    --agent-moriarty: oklch(58% 0.14 305);
+    --agent-house:    oklch(60% 0.16  35);
+    --agent-yoda:     oklch(65% 0.14 135);
+    --agent-alexandria: oklch(62% 0.14 195);
+    --agent-gitto:    oklch(60% 0.14 245);
+    --agent-bex:      oklch(75% 0.06  60);
+
+    --radius-sm:  3px;
+    --radius-md:  5px;
+    --radius-lg:  8px;
+  }
+
+  html, body { height: 100%; font-family: 'Inter', sans-serif; }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ======== SIDEBAR ======== */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sidebar-header .logo-mark {
+    width: 22px;
+    height: 22px;
+    background: var(--argus-bg);
+    border: 1px solid var(--argus-dim);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--argus-primary);
+    letter-spacing: -0.5px;
+  }
+
+  .sidebar-header .room-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+
+  .sidebar-header .threat-level {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--warning);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .sidebar-section-label {
+    padding: 12px 16px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+  }
+
+  .agent-list { flex: 1; overflow-y: auto; padding: 0 0 8px; }
+  .agent-list::-webkit-scrollbar { width: 3px; }
+  .agent-list::-webkit-scrollbar-track { background: transparent; }
+  .agent-list::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
+
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 16px;
+    cursor: default;
+    border-left: 2px solid transparent;
+    transition: background 0.1s;
+  }
+
+  .agent-row:hover { background: var(--bg-elevated); }
+
+  .agent-row.active {
+    background: oklch(12% 0.015 15);
+  }
+
+  .agent-row.active-argus {
+    background: var(--argus-bg);
+    border-left-color: var(--argus-primary);
+  }
+
+  .agent-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* Status dot */
+  .status-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-sidebar);
+  }
+  .status-dot.active  { background: var(--safe); }
+  .status-dot.idle    { background: var(--warning); }
+  .status-dot.offline { background: var(--border-mid); }
+
+  .agent-meta { flex: 1; min-width: 0; }
+  .agent-name {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .agent-role {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ======== MAIN AREA ======== */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 0 20px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-sidebar);
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .chat-header .scan-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--argus-bg);
+    color: var(--argus-primary);
+    border: 1px solid var(--argus-dim);
+    animation: pulse-border 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%, 100% { border-color: var(--argus-dim); }
+    50%       { border-color: var(--argus-primary); }
+  }
+
+  .chat-header .header-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .chat-header .header-meta {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chat-header .active-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .chat-header .active-count::before {
+    content: '';
+    display: block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--safe);
+  }
+
+  /* ======== MESSAGES ======== */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 20px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }
+
+  /* System / directive pills */
+  .msg-system {
+    align-self: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    margin: 8px 0;
+    letter-spacing: 0.02em;
+  }
+
+  .msg-system.directive {
+    background: oklch(10% 0.04 22);
+    border-color: oklch(30% 0.10 22);
+    color: oklch(65% 0.18 22);
+  }
+
+  /* Human message */
+  .msg-row {
+    display: flex;
+    gap: 10px;
+    padding: 3px 0;
+    align-items: flex-start;
+  }
+
+  .msg-row.human {
+    flex-direction: row-reverse;
+    padding-right: 0;
+  }
+
+  .msg-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .msg-content { max-width: 68%; min-width: 0; }
+
+  .msg-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 3px;
+  }
+
+  .msg-row.human .msg-meta { flex-direction: row-reverse; }
+
+  .msg-author {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Severity badge */
+  .sev-badge {
+    font-size: 9px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 1px 5px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .sev-t1 { background: oklch(15% 0.08 22); color: var(--danger);  border: 1px solid oklch(30% 0.12 22); }
+  .sev-t2 { background: oklch(14% 0.06 65); color: var(--warning); border: 1px solid oklch(30% 0.10 65); }
+  .sev-t3 { background: oklch(12% 0.05 145); color: var(--safe);   border: 1px solid oklch(28% 0.09 145); }
+  .sev-clear { background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+  .bubble {
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.55;
+    word-break: break-word;
+    border: 1px solid transparent;
+  }
+
+  /* Per-agent bubble backgrounds */
+  .bubble-human     { background: oklch(15% 0.02 60);  border-color: oklch(24% 0.02 60);  }
+  .bubble-argus     { background: var(--argus-bg);      border-color: oklch(22% 0.08 22); border-left: 2px solid var(--argus-primary); }
+  .bubble-bilbo     { background: oklch(12% 0.03 55);   border-color: oklch(22% 0.05 55);  border-left: 2px solid var(--agent-bilbo); }
+  .bubble-ultron    { background: oklch(10% 0.04 240);  border-color: oklch(22% 0.06 240); border-left: 2px solid var(--agent-ultron); }
+  .bubble-dante     { background: oklch(10% 0.04 280);  border-color: oklch(22% 0.06 280); border-left: 2px solid var(--agent-dante); }
+  .bubble-cerberus  { background: oklch(12% 0.04 65);   border-color: oklch(22% 0.06 65);  border-left: 2px solid var(--agent-cerberus); }
+  .bubble-moriarty  { background: oklch(10% 0.04 305);  border-color: oklch(22% 0.06 305); border-left: 2px solid var(--agent-moriarty); }
+  .bubble-house     { background: oklch(11% 0.04 35);   border-color: oklch(22% 0.06 35);  border-left: 2px solid var(--agent-house); }
+  .bubble-yoda      { background: oklch(10% 0.04 135);  border-color: oklch(22% 0.06 135); border-left: 2px solid var(--agent-yoda); }
+
+  /* Tool event line */
+  .tool-event {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    margin: 4px 0 4px 38px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    max-width: 580px;
+  }
+
+  .tool-event .tool-icon {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  .tool-event .tool-name {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .tool-event .tool-status {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .tool-event .tool-status.ok   { color: var(--safe); }
+  .tool-event .tool-status.warn { color: var(--warning); }
+  .tool-event .tool-status.err  { color: var(--danger); }
+
+  /* Finding block — argus specific */
+  .finding-block {
+    margin-top: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    font-size: 12px;
+  }
+
+  .finding-row {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .finding-row:last-child { border-bottom: none; }
+
+  .finding-sev {
+    width: 4px;
+    flex-shrink: 0;
+  }
+  .finding-sev.t1 { background: var(--danger); }
+  .finding-sev.t2 { background: var(--warning); }
+  .finding-sev.t3 { background: var(--safe); }
+
+  .finding-body {
+    flex: 1;
+    padding: 6px 10px;
+    background: var(--bg-elevated);
+  }
+
+  .finding-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  .finding-desc {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* ======== INPUT ======== */
+  .input-area {
+    padding: 12px 20px 14px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-sidebar);
+    flex-shrink: 0;
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    transition: border-color 0.15s;
+  }
+
+  .input-wrapper:focus-within {
+    border-color: var(--argus-dim);
+    box-shadow: 0 0 0 2px var(--argus-glow);
+  }
+
+  .input-wrapper input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    caret-color: var(--argus-primary);
+  }
+
+  .input-wrapper input::placeholder { color: var(--text-muted); }
+
+  .send-btn {
+    background: var(--argus-bg);
+    border: 1px solid var(--argus-dim);
+    border-radius: var(--radius-sm);
+    color: var(--argus-primary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: background 0.1s, border-color 0.1s;
+  }
+
+  .send-btn:hover {
+    background: oklch(16% 0.06 22);
+    border-color: var(--argus-primary);
+  }
+
+  .input-hint {
+    margin-top: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    padding-left: 2px;
+  }
+
+  /* Inline code */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 2px;
+    padding: 1px 4px;
+    color: var(--text-secondary);
+  }
+
+  /* Mention */
+  .mention {
+    font-weight: 600;
+    font-size: 12px;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-mark">ARG</div>
+    <span class="room-name">crew</span>
+    <span class="threat-level">T2 ACTIVE</span>
+  </div>
+
+  <div class="sidebar-section-label">participants — 11</div>
+
+  <div class="agent-list">
+
+    <!-- Human always first -->
+    <div class="agent-row active">
+      <div class="agent-avatar" style="background: oklch(15% 0.02 60); color: var(--agent-bex);">
+        BX
+        <span class="status-dot active"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-bex);">Bex</div>
+        <div class="agent-role">human</div>
+      </div>
+    </div>
+
+    <!-- Argus — active (self) -->
+    <div class="agent-row active-argus">
+      <div class="agent-avatar" style="background: var(--argus-bg); color: var(--argus-primary); border: 1px solid var(--argus-dim);">
+        AR
+        <span class="status-dot active"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--argus-primary);">argus</div>
+        <div class="agent-role">security</div>
+      </div>
+    </div>
+
+    <!-- Bilbo — active -->
+    <div class="agent-row active">
+      <div class="agent-avatar" style="background: oklch(12% 0.03 55); color: var(--agent-bilbo);">
+        BI
+        <span class="status-dot active"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-bilbo);">bilbo</div>
+        <div class="agent-role">explorer</div>
+      </div>
+    </div>
+
+    <!-- Ultron — active -->
+    <div class="agent-row active">
+      <div class="agent-avatar" style="background: oklch(10% 0.04 240); color: var(--agent-ultron);">
+        UL
+        <span class="status-dot active"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-ultron);">ultron</div>
+        <div class="agent-role">implementer</div>
+      </div>
+    </div>
+
+    <!-- Cerberus — active -->
+    <div class="agent-row active">
+      <div class="agent-avatar" style="background: oklch(12% 0.04 65); color: var(--agent-cerberus);">
+        CE
+        <span class="status-dot active"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-cerberus);">cerberus</div>
+        <div class="agent-role">reviewer</div>
+      </div>
+    </div>
+
+    <!-- Dante — idle -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(10% 0.03 280); color: var(--agent-dante);">
+        DA
+        <span class="status-dot idle"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-dante);">dante</div>
+        <div class="agent-role">testing</div>
+      </div>
+    </div>
+
+    <!-- Moriarty — idle -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(10% 0.03 305); color: var(--agent-moriarty);">
+        MO
+        <span class="status-dot idle"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-moriarty);">moriarty</div>
+        <div class="agent-role">adversarial</div>
+      </div>
+    </div>
+
+    <!-- House — offline -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(11% 0.02 35); color: var(--agent-house);">
+        HO
+        <span class="status-dot offline"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-house);">house</div>
+        <div class="agent-role">diagnostics</div>
+      </div>
+    </div>
+
+    <!-- Yoda — offline -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(10% 0.03 135); color: var(--agent-yoda);">
+        YO
+        <span class="status-dot offline"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-yoda);">yoda</div>
+        <div class="agent-role">senior eval</div>
+      </div>
+    </div>
+
+    <!-- Alexandria — offline -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(10% 0.03 195); color: var(--agent-alexandria);">
+        AL
+        <span class="status-dot offline"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-alexandria);">alexandria</div>
+        <div class="agent-role">docs</div>
+      </div>
+    </div>
+
+    <!-- Gitto — offline -->
+    <div class="agent-row">
+      <div class="agent-avatar" style="background: oklch(10% 0.03 245); color: var(--agent-gitto);">
+        GI
+        <span class="status-dot offline"></span>
+      </div>
+      <div class="agent-meta">
+        <div class="agent-name" style="color: var(--agent-gitto);">gitto</div>
+        <div class="agent-role">git oracle</div>
+      </div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+
+  <!-- Header -->
+  <header class="chat-header">
+    <div class="scan-badge">● LIVE SCAN</div>
+    <span class="header-title">plugin/chatroom</span>
+    <div class="header-meta">
+      <span class="active-count">5 active</span>
+      <span>2026-03-18 20:34</span>
+    </div>
+  </header>
+
+  <!-- Messages -->
+  <div class="messages">
+
+    <!-- System pill -->
+    <div class="msg-system">session resumed — 13 commits ahead of upstream</div>
+
+    <!-- Bex (human, right-aligned) -->
+    <div class="msg-row human">
+      <div class="msg-avatar" style="background: oklch(15% 0.02 60); color: var(--agent-bex);">BX</div>
+      <div class="msg-content">
+        <div class="msg-meta">
+          <span class="msg-time">20:22</span>
+          <span class="msg-author" style="color: var(--agent-bex);">Bex</span>
+        </div>
+        <div class="bubble bubble-human">
+          <span class="mention" style="color: var(--argus-primary);">@everyone</span>
+          ahora quiero que todos leáis la skill de design, elijáis un estilo y me hagáis un mock del chat con vuestro nombre. siempre dark mode.
+        </div>
+      </div>
+    </div>
+
+    <!-- Directive system pill -->
+    <div class="msg-system directive">⚠ DIRECTIVE — MANDATORY — ALL AGENTS</div>
+
+    <!-- Bilbo response -->
+    <div class="msg-row">
+      <div class="msg-avatar" style="background: oklch(12% 0.03 55); color: var(--agent-bilbo);">BI</div>
+      <div class="msg-content">
+        <div class="msg-meta">
+          <span class="msg-author" style="color: var(--agent-bilbo);">bilbo</span>
+          <span class="msg-time">20:34</span>
+          <span class="sev-badge sev-clear">explore</span>
+        </div>
+        <div class="bubble bubble-bilbo">
+          hecho. mock en <code>chatroom/design-mocks/bilbo-mock.html</code>. estilo elegido: <strong>Expedition Log</strong> — warm-amber dark con slots fijos para los 11 participantes.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool event under bilbo -->
+    <div class="tool-event">
+      <span class="tool-icon">📄</span>
+      <span class="tool-name">Write</span>
+      <span>chatroom/design-mocks/bilbo-mock.html</span>
+      <span class="tool-status ok">OK</span>
+    </div>
+
+    <!-- Cerberus response -->
+    <div class="msg-row">
+      <div class="msg-avatar" style="background: oklch(12% 0.04 65); color: var(--agent-cerberus);">CE</div>
+      <div class="msg-content">
+        <div class="msg-meta">
+          <span class="msg-author" style="color: var(--agent-cerberus);">cerberus</span>
+          <span class="msg-time">20:35</span>
+          <span class="sev-badge sev-t2">review</span>
+        </div>
+        <div class="bubble bubble-cerberus">
+          <code>chatroom/design-mocks/cerberus-mock.html</code> — listo. dirección: <strong>Brutalist Minimal</strong>. monospace para nombres, acento amber, verdict-block con T1/T2/T3 inline.
+        </div>
+      </div>
+    </div>
+
+    <!-- Argus response — with finding block -->
+    <div class="msg-row">
+      <div class="msg-avatar" style="background: var(--argus-bg); color: var(--argus-primary); border: 1px solid var(--argus-dim);">AR</div>
+      <div class="msg-content">
+        <div class="msg-meta">
+          <span class="msg-author" style="color: var(--argus-primary);">argus</span>
+          <span class="msg-time">20:36</span>
+          <span class="sev-badge sev-t1">security</span>
+        </div>
+        <div class="bubble bubble-argus">
+          <code>chatroom/design-mocks/argus-mock.html</code> — listo. dirección: <strong>Security Intelligence Terminal</strong>. rojo crimson como acento primario, severity badges en cada mensaje, finding-blocks para hallazgos. sidebar fijo con 11 slots: 5 activos, 2 idle, 4 offline.
+
+          <div class="finding-block">
+            <div class="finding-row">
+              <div class="finding-sev t1"></div>
+              <div class="finding-body">
+                <div class="finding-title">T1 — WebSocket origin not validated</div>
+                <div class="finding-desc">Cualquier origen puede conectarse al WS. Añadir allowedOrigins en el server.</div>
+              </div>
+            </div>
+            <div class="finding-row">
+              <div class="finding-sev t2"></div>
+              <div class="finding-body">
+                <div class="finding-title">T2 — XSS en markdown renderer</div>
+                <div class="finding-desc"><code>dangerouslySetInnerHTML</code> sin sanitizar en MessageBubble. Usar DOMPurify.</div>
+              </div>
+            </div>
+            <div class="finding-row">
+              <div class="finding-sev t3"></div>
+              <div class="finding-body">
+                <div class="finding-title">T3 — Token sin expiración configurada</div>
+                <div class="finding-desc">SESSION_TOKEN no tiene TTL explícito en config. Bajo riesgo, definir límite.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool event under argus -->
+    <div class="tool-event">
+      <span class="tool-icon">📄</span>
+      <span class="tool-name">Write</span>
+      <span>chatroom/design-mocks/argus-mock.html</span>
+      <span class="tool-status ok">OK</span>
+    </div>
+
+    <!-- Ultron response -->
+    <div class="msg-row">
+      <div class="msg-avatar" style="background: oklch(10% 0.04 240); color: var(--agent-ultron);">UL</div>
+      <div class="msg-content">
+        <div class="msg-meta">
+          <span class="msg-author" style="color: var(--agent-ultron);">ultron</span>
+          <span class="msg-time">20:37</span>
+          <span class="sev-badge sev-clear">impl</span>
+        </div>
+        <div class="bubble bubble-ultron">
+          <span class="mention" style="color: var(--argus-primary);">@argus</span> los T1 los aplico ahora — origin guard en WS y DOMPurify en MessageBubble. dame 2 min.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-wrapper">
+      <input type="text" placeholder="message crew... (@argus, @everyone)">
+      <button class="send-btn" type="button">send</button>
+    </div>
+    <div class="input-hint">@ to mention · enter to send · esc to cancel</div>
+  </div>
+
+</main>
+
+</body>
+</html>
