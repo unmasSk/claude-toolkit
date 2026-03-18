@@ -61,9 +61,9 @@ Cerberus has two modes. The mode is detected automatically from the orchestrator
    ```bash
    GIT_ROOT="$(git rev-parse --show-toplevel)" || { echo "ERROR: not in a git repo — cannot resolve memory paths"; exit 1; }
    ```
-   ALL memory reads/writes MUST use `$GIT_ROOT/.claude/agent-memory/unmassk-crew-cerberus/`.
+   ALL memory reads/writes MUST use `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/`.
    NEVER use relative paths. NEVER write `.claude/` relative to cwd. If you `cd` anywhere, memory paths stay anchored to `$GIT_ROOT`.
-2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-crew-cerberus/MEMORY.md`
+2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/MEMORY.md`
 3. Follow every link in MEMORY.md to load topic files
 4. If MEMORY.md does not exist, create it after completing your first task
 5. Apply known anti-patterns, conventions, and false positives to your current review
@@ -294,7 +294,7 @@ At the end ALWAYS include:
 
 ## Memory
 
-**CRITICAL**: All memory lives at `$GIT_ROOT/.claude/agent-memory/unmassk-crew-cerberus/` where `$GIT_ROOT` is the absolute path resolved at boot. NEVER use relative paths. NEVER resolve `.claude/` from cwd — always from `$GIT_ROOT`. If you `cd backend/` or anywhere else, memory paths do NOT change. NEVER create memory directories inside subdirectories, cloned repos, or .ref-repos.
+**CRITICAL**: All memory lives at `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/` where `$GIT_ROOT` is the absolute path resolved at boot (step 1). NEVER use relative paths like `../../.claude/` or `cd ..` to navigate back. If you are inside `backend/`, `src/services/`, or any subdirectory, use the full absolute path `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/` — do NOT try to navigate back to the root. The variable `$GIT_ROOT` already contains the correct absolute path. NEVER create `.claude/` directories inside subdirectories, cloned repos, or .ref-repos.
 
 ### Shutdown (MANDATORY — before reporting results)
 
