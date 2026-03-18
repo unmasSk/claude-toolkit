@@ -103,8 +103,9 @@ type ServerMessage =
 // ---------------------------------------------------------------------------
 
 const BRIDGE_PORT = Number(process.env['BRIDGE_PORT'] ?? 3002);
+const BRIDGE_ROOM = process.env['BRIDGE_ROOM'] ?? 'default';
 const CHATROOM_HTTP = 'http://127.0.0.1:3001';
-const WS_BASE = 'ws://127.0.0.1:3001/ws/default';
+const WS_BASE = `ws://127.0.0.1:3001/ws/${BRIDGE_ROOM}`;
 const HTTP_URL = `http://127.0.0.1:${BRIDGE_PORT}`;
 
 const RING_BUFFER_SIZE = 200;
@@ -179,8 +180,8 @@ function pushToBuffer(msg: Message): void {
 
 function toolEventToMessage(event: ServerToolEvent): Message {
   return {
-    id: `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    roomId: 'default',
+    id: `tool-${Date.now()}-${crypto.randomUUID()}`,
+    roomId: BRIDGE_ROOM,
     author: event.agent,
     authorType: 'agent',
     content: event.description,
@@ -326,7 +327,10 @@ function handleServerMessage(msg: ServerMessage): void {
     }
 
     case 'error': {
-      console.error(`WS: server error [${msg.code}]: ${msg.message}`);
+      console.error('WS server error:', msg.code, msg.message);
+      if (msg.code === 'RATE_LIMIT') {
+        console.error('WARNING: Message was rate-limited and may have been dropped by the server');
+      }
       break;
     }
 
@@ -487,7 +491,7 @@ const server = Bun.serve({
 });
 
 console.error(`claude-bridge listening on http://127.0.0.1:${BRIDGE_PORT}`);
-console.error(`WS target: ${WS_URL}`);
+console.error(`WS target: ${WS_BASE}`);
 
 // Register shutdown handlers
 process.on('SIGTERM', () => shutdown('SIGTERM'));
