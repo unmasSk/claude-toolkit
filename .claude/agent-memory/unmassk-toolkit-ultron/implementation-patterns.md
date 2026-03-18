@@ -14,3 +14,59 @@ Elysia's `.ws()` upgrade hook parameter is an **Elysia Context**, not a Web API 
 **Why:** House diagnosed a T1 bug (2026-03-17) where `request.headers.get('origin')` threw a TypeError on every WS upgrade, causing HTTP 500.
 
 **How to apply:** Any time the `.ws({ upgrade })` hook is written or modified in this codebase.
+
+---
+
+## Agent-to-agent @mention chain depth pattern (2026-03-18)
+
+The chatroom uses a server-side `depth` counter to bound recursive agent invocation chains.
+
+### Key design decisions
+
+- `depth` lives only in `InvocationContext` — never in WS protocol or DB
+- Human messages always start at `depth: 0`
+- Each agent response that triggers another agent increments: `context.depth + 1`
+- `extractMentions(content, depth)` returns empty set when `depth >= 3` — `authorType` param was removed (T1-01/Cerberus 2026-03-18)
+- `NEVER_INVOKE = new Set(['user', 'system', 'claude'])` — claude filtered to prevent @claude loops (T1-02)
+- The depth-cap system message fires only when the agent *would have* triggered mentions (checked with depth=0) but is blocked by the cap — avoids false positives
+- `invokeAgents` and `invokeAgent` both carry depth; `invokeAgent` (explicit invoke from WS) always starts at 0
+
+### inFlight key is composite: `${agentName}:${roomId}` (T2-05, 2026-03-18)
+Previously `inFlight` was keyed by agent name alone, blocking same-agent cross-room invocations. Now keyed as `${agentName}:${roomId}`.
+All `.has()`, `.add()`, `.delete()` calls use the composite key.
+`drainQueue` also checks `${e.agentName}:${e.roomId}`.
+
+### RACE-002: retryScheduled flag prevents double-delete in stale session retry
+`InvocationContext.retryScheduled?: boolean` — set to `true` before calling `scheduleInvocation` in the stale session path.
+The `.finally()` in `runInvocation` checks `!context.retryScheduled` before deleting from `inFlight`/`activeInvocations`.
+Without this, the outer finally would delete the entry that the retry had just added.
+
+### Files involved
+- `mention-parser.ts` — depth param only (no authorType), NEVER_INVOKE set for 'user'/'system'/'claude'
+- `agent-invoker.ts` — `InvocationContext.depth + retryScheduled`, composite inFlight key, chain detection
+- `routes/ws.ts` — explicit `0` at human message entry point (no authorType arg)
+
+---
+
+## @everyone stop — pause/clear pattern (2026-03-18)
+
+Server-side enforcement for `@everyone stop` directives.
+
+### agent-invoker.ts exports
+- `clearQueue(roomId)` — removes all pendingQueue entries for a room, returns count removed
+- `pauseInvocations()` / `resumeInvocations()` / `isPaused()` — module-level `_paused` flag
+- `scheduleInvocation` checks `_paused` at the very top (before inFlight check) and returns early
+
+### ws.ts wiring
+- Stop words regex: `/\b(stop|para|callaos|silence|quiet)\b/i` applied to the directive portion (content after stripping `@everyone`)
+- On stop: call `clearQueue(roomId)` then `pauseInvocations()`
+- Resume: in the `else if (isPaused())` branch of the non-`@everyone` path — `resumeInvocations()` called before `extractMentions`
+
+### auth-tokens.ts token store limit (2026-03-18)
+- `issueToken` returns `null` when `tokens.size >= 10_000`
+- Caller in `api.ts` returns HTTP 503 with `{ error, code: 'TOKEN_STORE_FULL' }`
+
+### useMentionAutocomplete.ts — everyone special entry (2026-03-18)
+- `EVERYONE_ENTRY: AgentDefinition` — synthetic entry with `invokable: false`, name='everyone'
+- `ALL_AUTOCOMPLETE = [...INVOKABLE_AGENTS, EVERYONE_ENTRY]`
+- Filter uses `ALL_AUTOCOMPLETE` — `everyone` appears when user types `@e` or `@ev`

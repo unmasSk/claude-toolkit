@@ -100,6 +100,10 @@ function handleServerMessage(event: MessageEvent) {
       chatStore.prependHistory(parsed.messages, parsed.hasMore);
       break;
 
+    case 'user_list_update':
+      agentStore.setConnectedUsers(parsed.connectedUsers);
+      break;
+
     case 'error':
       console.error('[ws-store] Server error:', parsed.code, parsed.message);
       break;
@@ -136,44 +140,72 @@ export const useWsStore = create<WsState>((set, get) => ({
 
     set({ status: 'connecting', roomId });
 
-    // Pass the user's name in the query param so the server can identify the sender.
-    // Default is 'user'; Claude orchestrator connects with ?name=Claude.
-    const userName = encodeURIComponent('user');
-    const wsUrl = `/ws/${roomId}?name=${userName}`;
-    const ws = new WebSocket(wsUrl);
-    socket = ws;
+    // SEC-AUTH-001: Obtain a short-lived token before opening the WS connection.
+    void (async () => {
+      let token: string;
+      try {
+        const res = await fetch('/api/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'user' }),
+        });
+        if (!res.ok) throw new Error(`Auth token request failed: ${res.status}`);
+        const data = (await res.json()) as { token: string };
+        token = data.token;
+      } catch (err) {
+        console.error('[ws-store] Failed to obtain auth token:', err);
+        set({ status: 'disconnected' });
 
-    ws.onopen = () => {
-      reconnectAttempts = 0;
-      set({ status: 'connected' });
-    };
-
-    ws.onmessage = handleServerMessage;
-
-    ws.onerror = (err) => {
-      console.error('[ws-store] WebSocket error:', err);
-    };
-
-    ws.onclose = () => {
-      socket = null;
-      set({ status: 'disconnected' });
-
-      const currentRoomId = get().roomId;
-      if (!currentRoomId) return; // intentional disconnect
-
-      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.error('[ws-store] Max reconnect attempts reached');
+        const currentRoomId = get().roomId;
+        if (currentRoomId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          const delay = getReconnectDelay();
+          reconnectAttempts++;
+          console.info(`[ws-store] Reconnecting after token failure in ${delay}ms (attempt ${reconnectAttempts})`);
+          reconnectTimer = setTimeout(() => {
+            get().connect(currentRoomId);
+          }, delay);
+        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          console.error('[ws-store] Max reconnect attempts reached after token failure');
+        }
         return;
       }
 
-      const delay = getReconnectDelay();
-      reconnectAttempts++;
-      console.info(`[ws-store] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+      const wsUrl = `/ws/${roomId}?token=${encodeURIComponent(token)}`;
+      const ws = new WebSocket(wsUrl);
+      socket = ws;
 
-      reconnectTimer = setTimeout(() => {
-        get().connect(currentRoomId);
-      }, delay);
-    };
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        set({ status: 'connected' });
+      };
+
+      ws.onmessage = handleServerMessage;
+
+      ws.onerror = (err) => {
+        console.error('[ws-store] WebSocket error:', err);
+      };
+
+      ws.onclose = () => {
+        socket = null;
+        set({ status: 'disconnected' });
+
+        const currentRoomId = get().roomId;
+        if (!currentRoomId) return; // intentional disconnect
+
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          console.error('[ws-store] Max reconnect attempts reached');
+          return;
+        }
+
+        const delay = getReconnectDelay();
+        reconnectAttempts++;
+        console.info(`[ws-store] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+
+        reconnectTimer = setTimeout(() => {
+          get().connect(currentRoomId);
+        }, delay);
+      };
+    })();
   },
 
   disconnect: () => {

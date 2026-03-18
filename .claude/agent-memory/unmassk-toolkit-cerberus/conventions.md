@@ -1,25 +1,31 @@
 ---
-name: project-conventions
-description: unmassk-toolkit project conventions for commit types, branch patterns, and empty commits
+name: Plugin and SKILL.md conventions
+description: Structural conventions for unmassk-claude-toolkit plugins and SKILL.md orchestrators
 type: project
 ---
 
-# Project Conventions
+## SKILL.md Frontmatter
 
-## Empty commits are intentional
-Commits with types `context`, `decision`, `memo`, `remember` are intentionally --allow-empty.
-They carry git trailer metadata (Remember:, Memo:, Decision:, Next:) consumed by session-start-boot.py.
-Do NOT flag them as "empty commits" — that is the design.
+Every SKILL.md must have a `description` field that begins with "This skill should be used when...". This is enforced by the unmassk-audit command.
 
-## GC tombstone commits
-Commits prefixed `context(claude): GC: tombstone` are --allow-empty and carry `Resolved-Remember:` or `Resolved-Memo:` trailers.
-They suppress old entries from appearing in the boot output. Intentional.
+## Plugin File Layout
 
-## Branch topology
-main is the integration branch. Feature sessions happen in worktrees on branches like `claude/silly-cori`.
-These branches diverge from main and are merged back. The `git diff main...branch` three-dot syntax shows
-only what's on the branch and not in main.
+Standard plugin structure (verified in unmassk-marketing, 2026-03-14):
 
-## CLAUDE.md header line
-The `# CLAUDE.md — unmassk-toolkit` title line may be present or absent — the managed block is what matters.
-Its presence/absence is not a bug.
+```
+skills/<skill-name>/
+  SKILL.md             — orchestrator with routing table
+  references/          — domain knowledge files loaded on-demand
+  scripts/             — zero-dependency Node.js CLI scripts for platform APIs
+  evals/               — eval JSON + search script (evals.json, search-evals.py)
+```
+
+The `scripts/` directory may contain a `README.md` — this is documentation, not a routed script. Do not flag it as orphaned.
+
+## Routing Table Audit Pattern
+
+When auditing SKILL.md routing completeness:
+1. Extract every `references/*.md` path from the routing table AND the Reference Files section (they can overlap — deduplicate).
+2. Extract every `scripts/*.js` filename from the Script Categories table.
+3. Diff against actual disk contents.
+4. `README.md` in scripts/ is always expected and benign.

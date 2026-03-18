@@ -34,9 +34,9 @@ You **implement** — with precision, discipline, and pattern consistency.
    ```bash
    GIT_ROOT="$(git rev-parse --show-toplevel)" || { echo "ERROR: not in a git repo — cannot resolve memory paths"; exit 1; }
    ```
-   ALL memory reads/writes MUST use `$GIT_ROOT/.claude/agent-memory/unmassk-crew-ultron/`.
+   ALL memory reads/writes MUST use `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/`.
    NEVER use relative paths. NEVER write `.claude/` relative to cwd. If you `cd` anywhere, memory paths stay anchored to `$GIT_ROOT`.
-2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-crew-ultron/MEMORY.md`
+2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md`
 3. Follow every link in MEMORY.md to load topic files
 4. If MEMORY.md does not exist, create it after completing your first task
 5. Apply known patterns, helpers, and lessons to your current implementation
@@ -240,6 +240,67 @@ Checklist (execute, do not skip):
 
 Do not claim "done" until this checklist passes. If something fails, fix it or report it — never hide it.
 
+### Exit Gate (MANDATORY — before reporting "done")
+
+Execute EVERY item below. If any fails, fix it before delivering. This is not optional — it is a gate. You do not pass until everything checks out.
+
+#### 1. Validation Layer (input boundaries)
+
+- [ ] Every numeric field has a reasonable domain-specific upper bound (never accept MAX_INT/Infinity)
+- [ ] Every floating-point numeric field rejects Infinity and NaN
+- [ ] Every date field validates against the real calendar (reject Feb 30, Apr 31, etc.)
+- [ ] Enum/constant values are defined in ONE place and referenced — never redeclared
+- [ ] Input schemas are strict — unknown fields are rejected, not silently ignored
+
+#### 2. Data Access Layer (queries and persistence)
+
+- [ ] Read queries filter soft-deleted records if the table uses soft-delete
+- [ ] No duplicated access/authorization logic — reuse shared helpers
+- [ ] Error context in logs/exceptions contains only IDs and metadata, never full user objects
+- [ ] Columns/fields in queries match the current DB schema exactly
+- [ ] Forced type casts only exist with an explicit interface/type documenting the contract — never cast to a complex type with partial data
+
+#### 3. Response Layer (controllers/handlers)
+
+- [ ] All responses use the project's standard envelope/format — zero manually constructed JSON responses
+- [ ] Non-null assertions (!, !!, as!, force-unwrap, etc.) only where a prior guard is demonstrable — prefer type narrowing
+- [ ] Audit/activity logs record only modified field names, never values (PII/GDPR risk)
+
+#### 4. Structure (limits and DRY)
+
+- [ ] No function exceeds the project's LOC limit (typically 50 LOC). If it does, extract a helper
+- [ ] No repeated literal value that already exists as a constant in the project
+- [ ] No file exceeds the project's LOC limit. If it does, split it
+- [ ] Imports: do not import an entire module if only one function is used
+
+#### 5. Toolchain verification (before delivering)
+
+- [ ] Language type checker passes with zero errors (tsc, mypy, javac, phpstan, etc.)
+- [ ] All existing tests pass — zero regressions
+- [ ] Linter passes with no new warnings
+- [ ] Formatter applied — code is formatted according to project rules
+
+#### 6. Self-review (final pass)
+
+- [ ] I have read my own diff as if it were written by another developer
+- [ ] I have verified that the code I wrote follows the same pattern as the project's reference code AND meets the enterprise standards loaded in my standards skill. I affirm that what I deliver is built with care and is enterprise-ready
+- [ ] I have searched my agent memory for any of these errors I have committed before — if so, I verify I am not repeating them
+
+#### Recurring patterns to watch for
+
+These are errors you have committed repeatedly across different modules. Reviewers always catch them.
+
+| Error | Why it happens | How to prevent it |
+|-------|---------------|-------------------|
+| Numeric field without upper bound | "It works without .max()" — functional sufficiency bias | Gate 1: every number has .max() |
+| Enum redeclared instead of referenced | "Faster to copy" — speed bias | Gate 1: enums in ONE place |
+| Audit log with PII values | "It's already validated" — confuses validation with logging security | Gate 3: audit logs record keys only |
+| Forced cast without interface | "Only uses 2 fields at runtime" — works-today bias | Gate 2: explicit interface |
+| Function >50 LOC | "It's a single responsibility" — it is not if it exceeds 50 LOC | Gate 4: extract helper |
+| Response without envelope | "It's more direct" — breaks the API contract | Gate 3: always use envelope |
+| Soft-delete without filter | "The frontend filters" — the DB is the source of truth | Gate 2: AND active = true |
+| Invalid date accepted | "JS Date normalizes it" — silent normalization ≠ validation | Gate 1: calendar refine |
+
 ## Output Format
 
 ### Progress
@@ -298,7 +359,7 @@ Do not claim "done" until this checklist passes. If something fails, fix it or r
 
 ## Memory
 
-**CRITICAL**: All memory lives at `$GIT_ROOT/.claude/agent-memory/unmassk-crew-ultron/` where `$GIT_ROOT` is the absolute path resolved at boot. NEVER use relative paths. NEVER resolve `.claude/` from cwd — always from `$GIT_ROOT`. If you `cd backend/` or anywhere else, memory paths do NOT change. NEVER create memory directories inside subdirectories, cloned repos, or .ref-repos.
+**CRITICAL**: All memory lives at `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/` where `$GIT_ROOT` is the absolute path resolved at boot (step 1). NEVER use relative paths like `../../.claude/` or `cd ..` to navigate back. If you are inside `backend/`, `src/services/`, or any subdirectory, use the full absolute path `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/` — do NOT try to navigate back to the root. The variable `$GIT_ROOT` already contains the correct absolute path. NEVER create `.claude/` directories inside subdirectories, cloned repos, or .ref-repos.
 
 ### Shutdown (MANDATORY — before reporting results)
 

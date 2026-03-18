@@ -39,13 +39,13 @@ interface ParsedFrontmatter {
 }
 
 function parseFrontmatter(content: string): ParsedFrontmatter {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return {};
 
   const yaml = match[1];
   const result: ParsedFrontmatter = {};
 
-  for (const line of yaml.split('\n')) {
+  for (const line of yaml.split(/\r?\n/)) {
     const colon = line.indexOf(':');
     if (colon === -1) continue;
 

@@ -1,3 +1,9 @@
+// ---------------------------------------------------------------------------
+// Debug logger — all output to stderr
+// ---------------------------------------------------------------------------
+
+function log(...args: unknown[]) { console.error('[ws]', new Date().toISOString(), ...args); }
+
 import { Elysia, t } from 'elysia';
 import {
   getRoomById,
@@ -10,10 +16,11 @@ import {
 } from '../db/queries.js';
 import { extractMentions } from '../services/mention-parser.js';
 import { broadcastSync } from '../services/message-bus.js';
-import { invokeAgents, invokeAgent } from '../services/agent-invoker.js';
+import { invokeAgents, invokeAgent, clearQueue, pauseInvocations, resumeInvocations, isPaused } from '../services/agent-invoker.js';
 import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, generateId, nowIso, safeMessage } from '../utils.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
+import { validateToken } from '../services/auth-tokens.js';
 import { ClientMessageSchema, AGENT_BY_NAME } from '@agent-chatroom/shared';
 import type { ServerMessage, Message, ConnectedUser } from '@agent-chatroom/shared';
 
@@ -143,12 +150,15 @@ function resolveConnectionName(rawName: string | undefined): string | null {
 // ---------------------------------------------------------------------------
 
 // connId is stored in the module-level wsConnIds map, not in ws.data
-type WsData = { params: { roomId: string }; query: { name?: string } };
+type WsData = { params: { roomId: string }; query: { name?: string; token?: string } };
 
 export const wsRoutes = new Elysia()
   .ws('/ws/:roomId', {
     params: t.Object({ roomId: t.String() }),
-    query: t.Object({ name: t.Optional(t.String()) }),
+    query: t.Object({
+      name: t.Optional(t.String()),
+      token: t.Optional(t.String()),
+    }),
 
     // SEC-HIGH-001: Hard ceiling on WS frame size — enforced by uWebSockets before handler runs
     maxPayloadLength: 64 * 1024, // 64KB
@@ -160,6 +170,7 @@ export const wsRoutes = new Elysia()
       // origin is not allowed.
       const origin = (ws.data as WsData & { headers?: Record<string, string> }).headers?.['origin'] ?? '';
       if (!ALLOWED_ORIGINS.has(origin)) {
+        log('open rejected: bad origin', origin);
         ws.close();
         return;
       }
@@ -167,23 +178,27 @@ export const wsRoutes = new Elysia()
       const wsData = ws.data as WsData;
       const { roomId } = wsData.params;
 
-      // Resolve connection name from ?name= query param.
-      // If the name collides with an agent name, reject the connection.
-      const rawName = wsData.query?.name;
-      const resolvedName = resolveConnectionName(rawName);
-      if (resolvedName === null) {
+      // SEC-AUTH-001: Token validation.
+      // Clients must present a valid token obtained from POST /api/auth/token.
+      // The name is bound to the token at issuance — the ?name= param is ignored.
+      const rawToken = wsData.query?.token;
+      const tokenName = validateToken(rawToken);
+      if (tokenName === null) {
+        log('open rejected: invalid or missing token', roomId);
         ws.send(JSON.stringify({
           type: 'error',
-          message: `Name '${rawName}' is reserved for agents. Choose a different name.`,
-          code: 'NAME_RESERVED',
+          message: 'Unauthorized. Obtain a token from POST /api/auth/token.',
+          code: 'UNAUTHORIZED',
         } satisfies ServerMessage));
         ws.close();
         return;
       }
+      const resolvedName = tokenName;
 
       // Assign a unique connId for rate limiting and store it in the module map.
       const connId = nextConnId();
       wsConnIds.set(ws.raw ?? ws, connId);
+      log('open', resolvedName, 'room:', roomId, 'connId:', connId);
 
       const connectedAt = nowIso();
       connStates.set(connId, { name: resolvedName, roomId, connectedAt });
@@ -194,6 +209,11 @@ export const wsRoutes = new Elysia()
 
       // Subscribe to room pub/sub topic
       ws.subscribe(topic);
+
+      // Broadcast updated user list to all room subscribers (including self)
+      const userListMsg = JSON.stringify({ type: 'user_list_update', connectedUsers: getConnectedUsers(roomId) });
+      ws.publish(topic, userListMsg);
+      ws.send(userListMsg);
 
       const room = getRoomById(roomId);
       if (!room) {
@@ -231,6 +251,7 @@ export const wsRoutes = new Elysia()
 
       // SEC-FIX 6: Rate limit check
       if (!connId || !checkRateLimit(connId)) {
+        log('rate limit hit connId:', connId);
         ws.send(JSON.stringify({
           type: 'error',
           message: 'Rate limit exceeded. Max 5 messages per 10 seconds.',
@@ -313,12 +334,44 @@ export const wsRoutes = new Elysia()
           // Self-deliver: Elysia 1.4.28 does not implement publishToSelf
           ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(newMsg) }));
 
-          // FIX 5: authorType='human' — agents never trigger other agents
-          const mentions = extractMentions(msg.content, 'human');
+          // @everyone: post as a high-priority system directive that agents
+          // must obey when they read it in their history context
+          if (/@everyone\b/i.test(msg.content)) {
+            const directive = msg.content.replace(/@everyone\b/gi, '').trim();
+            log('send_message', authorName, '@everyone directive:', directive);
+
+            // @everyone stop — halt all pending and new invocations
+            const isStopDirective = /\b(stop|para|callaos|silence|quiet)\b/i.test(directive);
+            if (isStopDirective) {
+              const cleared = clearQueue(roomId);
+              pauseInvocations();
+              log('@everyone stop — cleared', cleared, 'queued entries, invocations paused');
+            }
+
+            const sysId = generateId();
+            const sysCreatedAt = nowIso();
+            insertMessage({
+              id: sysId, roomId, author: 'system', authorType: 'system',
+              content: `[DIRECTIVE FROM USER — ALL AGENTS MUST OBEY] ${directive}`,
+              msgType: 'system', parentId: null, metadata: '{}',
+            });
+            const sysMsg: Message = {
+              id: sysId, roomId, author: 'system', authorType: 'system',
+              content: `[DIRECTIVE FROM USER — ALL AGENTS MUST OBEY] ${directive}`,
+              msgType: 'system', parentId: null, metadata: {}, createdAt: sysCreatedAt,
+            };
+            broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
+            ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
+          } else if (isPaused()) {
+            // Non-@everyone human message resumes invocations
+            resumeInvocations();
+            log('send_message', authorName, 'invocations resumed after @everyone stop');
+          }
+
+          const mentions = extractMentions(msg.content);
+          log('send_message', authorName, 'contentLength:', msg.content.length, 'mentions:', [...mentions]);
 
           if (mentions.size > 0) {
-            // Phase 3: fire-and-forget agent invocations
-            // invokeAgents handles concurrency, queueing, and per-agent locking
             invokeAgents(roomId, mentions, msg.content);
           }
 
@@ -378,6 +431,7 @@ export const wsRoutes = new Elysia()
           // Self-deliver: Elysia 1.4.28 does not implement publishToSelf
           ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(invokeUserMsg) }));
 
+          log('invoke_agent', msg.agent, 'room:', roomId);
           invokeAgent(roomId, msg.agent, msg.prompt);
           break;
         }
@@ -418,6 +472,8 @@ export const wsRoutes = new Elysia()
       const { roomId } = (ws.data as WsData).params;
       const key = ws.raw ?? ws;
       const connId = wsConnIds.get(key);
+      const closedName = connId ? connStates.get(connId)?.name : 'unknown';
+      log('close', closedName, 'room:', roomId, 'connId:', connId);
 
       // Clean up rate limit bucket, connected user state, and connId map
       if (connId) {
@@ -431,6 +487,10 @@ export const wsRoutes = new Elysia()
       }
       wsConnIds.delete(key);
 
-      ws.unsubscribe(`room:${roomId}`);
+      // Broadcast updated user list before unsubscribing so this connection still receives it
+      const topic = `room:${roomId}`;
+      ws.publish(topic, JSON.stringify({ type: 'user_list_update', connectedUsers: getConnectedUsers(roomId) }));
+
+      ws.unsubscribe(topic);
     },
   });

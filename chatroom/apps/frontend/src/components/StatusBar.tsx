@@ -29,6 +29,9 @@ export function StatusBar() {
         </div>
       </div>
       <div className="statusbar-right">
+        <div className="statusbar-item" style={{ opacity: 0.5, fontSize: '0.7em', letterSpacing: '0.01em' }}>
+          <span>@agent — invoke&nbsp;&nbsp;@everyone &lt;msg&gt; — directive&nbsp;&nbsp;@everyone stop — halt all</span>
+        </div>
         <div className="statusbar-item">
           <Cpu size={12} />
           <span>sonnet 4.6</span>
