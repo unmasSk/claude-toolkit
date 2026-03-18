@@ -27,12 +27,23 @@ export interface ToolUseEvent {
   input: unknown;
 }
 
+export interface PermissionDenial {
+  toolName: string;
+  input?: unknown;
+}
+
 export interface ResultEvent {
   type: 'result';
   result: string;
   sessionId: string | null;
   costUsd: number;
   success: boolean;
+  durationMs: number;
+  numTurns: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  permissionDenials: PermissionDenial[];
 }
 
 export type StreamEvent = TextEvent | ToolUseEvent | ResultEvent;
@@ -61,6 +72,14 @@ interface ResultEventRaw {
   result?: string;
   session_id?: string;
   total_cost_usd?: number;
+  duration_ms?: number;
+  num_turns?: number;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+  permission_denials?: Array<{ tool_name?: string; input?: unknown }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +157,14 @@ function parseResultEvent(event: ResultEventRaw): ResultEvent | null {
   const result = typeof event.result === 'string' ? event.result : '';
   const sessionId = typeof event.session_id === 'string' ? event.session_id : null;
   const costUsd = typeof event.total_cost_usd === 'number' ? event.total_cost_usd : 0;
+  const durationMs = typeof event.duration_ms === 'number' ? event.duration_ms : 0;
+  const numTurns = typeof event.num_turns === 'number' ? event.num_turns : 0;
+  const inputTokens = typeof event.usage?.input_tokens === 'number' ? event.usage.input_tokens : 0;
+  const outputTokens = typeof event.usage?.output_tokens === 'number' ? event.usage.output_tokens : 0;
+  const cacheReadTokens = typeof event.usage?.cache_read_input_tokens === 'number' ? event.usage.cache_read_input_tokens : 0;
+  const permissionDenials: PermissionDenial[] = Array.isArray(event.permission_denials)
+    ? event.permission_denials.map(d => ({ toolName: d.tool_name ?? 'unknown', input: d.input }))
+    : [];
 
-  return { type: 'result', result, sessionId, success, costUsd };
+  return { type: 'result', result, sessionId, success, costUsd, durationMs, numTurns, inputTokens, outputTokens, cacheReadTokens, permissionDenials };
 }

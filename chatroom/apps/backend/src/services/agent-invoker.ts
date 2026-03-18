@@ -475,7 +475,17 @@ async function spawnAndParse(
             resultSessionId = validateSessionId(event.sessionId);
             resultCostUsd = event.costUsd;
             resultSuccess = event.success;
-            log('result', agentName, 'success:', resultSuccess, 'costUsd:', resultCostUsd, 'sessionId:', resultSessionId);
+            logger.info({
+              agentName,
+              success: resultSuccess,
+              costUsd: resultCostUsd,
+              durationMs: event.durationMs,
+              numTurns: event.numTurns,
+              inputTokens: event.inputTokens,
+              outputTokens: event.outputTokens,
+              cacheReadTokens: event.cacheReadTokens,
+              permissionDenials: event.permissionDenials.length > 0 ? event.permissionDenials : undefined,
+            }, 'result');
           }
           // text events are collected implicitly via resultText from the result event
         }
