@@ -144,3 +144,76 @@ describe('resolveAgentDir — fallback when no glob match', () => {
     expect(sorted[0]).toBe('/path/to/1.0.0/agents');
   });
 });
+
+// ---------------------------------------------------------------------------
+// WS_ALLOWED_ORIGINS — SEC-CONFIG-001 regression
+// Inline the config logic to test _isDev behavior independently of module cache.
+// The old bug: `!== 'production'` was too permissive — 'staging' would include ''.
+// The fix: only 'development' and 'test' are dev environments.
+// ---------------------------------------------------------------------------
+
+function buildAllowedOrigins(nodeEnv: string | undefined, rawEnv?: string): readonly string[] {
+  const rawOrigins = (rawEnv ?? 'http://localhost:4201,http://127.0.0.1:4201')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const isDev = nodeEnv === 'development' || nodeEnv === 'test';
+
+  return [...rawOrigins, ...(isDev ? [''] : [])];
+}
+
+describe('WS_ALLOWED_ORIGINS — _isDev gate (SEC-CONFIG-001)', () => {
+  it('production: empty string NOT included', () => {
+    const origins = buildAllowedOrigins('production');
+    expect(origins).not.toContain('');
+  });
+
+  it('staging: empty string NOT included (regression — old bug allowed this)', () => {
+    const origins = buildAllowedOrigins('staging');
+    expect(origins).not.toContain('');
+  });
+
+  it('undefined NODE_ENV: empty string NOT included', () => {
+    const origins = buildAllowedOrigins(undefined);
+    expect(origins).not.toContain('');
+  });
+
+  it('preview: empty string NOT included', () => {
+    const origins = buildAllowedOrigins('preview');
+    expect(origins).not.toContain('');
+  });
+
+  it('development: empty string IS included (no-origin bypass for dev tools)', () => {
+    const origins = buildAllowedOrigins('development');
+    expect(origins).toContain('');
+  });
+
+  it('test: empty string IS included (no-origin bypass for bun tests)', () => {
+    const origins = buildAllowedOrigins('test');
+    expect(origins).toContain('');
+  });
+
+  it('base origins always present regardless of environment', () => {
+    for (const env of ['production', 'staging', 'development', 'test', undefined]) {
+      const origins = buildAllowedOrigins(env);
+      expect(origins).toContain('http://localhost:4201');
+      expect(origins).toContain('http://127.0.0.1:4201');
+    }
+  });
+
+  it('custom WS_ALLOWED_ORIGINS env var is parsed correctly', () => {
+    const origins = buildAllowedOrigins('production', 'https://app.example.com,https://admin.example.com');
+    expect(origins).toContain('https://app.example.com');
+    expect(origins).toContain('https://admin.example.com');
+    expect(origins).not.toContain('http://localhost:4201');
+    expect(origins).not.toContain('');
+  });
+
+  it('empty entries from trailing comma are filtered out', () => {
+    const origins = buildAllowedOrigins('production', 'https://app.example.com,');
+    // The trailing comma produces an empty string after split — it must be filtered
+    // so it does not act as an accidental no-origin wildcard in production
+    expect(origins.filter((o) => o === '').length).toBe(0);
+  });
+});

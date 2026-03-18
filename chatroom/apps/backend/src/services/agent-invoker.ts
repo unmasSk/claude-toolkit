@@ -42,6 +42,7 @@ import {
   AGENT_TIMEOUT_MS,
   AGENT_HISTORY_LIMIT,
   BANNED_TOOLS,
+  AGENT_VOICE,
 } from '../config.js';
 import type { Message } from '@agent-chatroom/shared';
 
@@ -438,6 +439,7 @@ async function spawnAndParse(
               lastToolBroadcastTime = now;
               await broadcast(roomId, {
                 type: 'tool_event',
+                id: generateId(),
                 agent: agentName,
                 tool: event.name,
                 description: formatToolDescription(event.name, event.input),
@@ -651,7 +653,16 @@ export function buildPrompt(roomId: string, triggerContent: string): string {
   lines.push('[END CHATROOM HISTORY]');
   lines.push('');
   lines.push('[ORIGINAL TRIGGER — THIS IS WHAT YOU WERE INVOKED TO RESPOND TO]');
-  lines.push(triggerContent.replace(/\[END ORIGINAL TRIGGER\]/gi, '[END-ORIGINAL-TRIGGER-SANITIZED]'));
+  // SEC-FIX 1: Sanitize ALL trust boundary markers from user-supplied triggerContent
+  // to prevent structural injection through any of the prompt delimiters.
+  const sanitizedTrigger = triggerContent
+    .replace(/\[CHATROOM HISTORY[^\]]*\]/gi, '[CHATROOM-HISTORY-SANITIZED]')
+    .replace(/\[END CHATROOM HISTORY\]/gi, '[END-CHATROOM-HISTORY-SANITIZED]')
+    .replace(/\[PRIOR AGENT OUTPUT[^\]]*\]/gi, '[PRIOR-AGENT-OUTPUT-SANITIZED]')
+    .replace(/\[END PRIOR AGENT OUTPUT\]/gi, '[END-PRIOR-AGENT-OUTPUT-SANITIZED]')
+    .replace(/\[ORIGINAL TRIGGER[^\]]*\]/gi, '[ORIGINAL-TRIGGER-SANITIZED]')
+    .replace(/\[END ORIGINAL TRIGGER\]/gi, '[END-ORIGINAL-TRIGGER-SANITIZED]');
+  lines.push(sanitizedTrigger);
   lines.push('[END ORIGINAL TRIGGER]');
   lines.push('');
   lines.push('You were mentioned in the conversation above. Respond to the original trigger above (not necessarily the most recent message). Keep your response concise and IRC-style.');
@@ -664,19 +675,6 @@ export function buildPrompt(roomId: string, triggerContent: string): string {
  *
  * SEC-FIX 1: Role context + trust boundary rules + denylist.
  */
-const AGENT_VOICE: Record<string, string> = {
-  bilbo:      'Curioso, metódico. "¿Qué hay aquí?" antes de "¿qué debería haber?"',
-  ultron:     'Directo, eficiente. Anuncia qué hará, lo hace, reporta. Sin filosofía.',
-  cerberus:   'Estructurado, con opinión. Veredictos claros: "LGTM" o "no mergeable".',
-  moriarty:   'Provocador, afilado. "¿Qué pasa si mando 10.000 de estos?"',
-  house:      'Impaciente con las adivinanzas. Elimina teorías rápido, demuestra la correcta.',
-  yoda:       'Deliberado, final. Un veredicto claro con el razonamiento. No se repite.',
-  argus:      'Clínico, enfocado en riesgo. Cada finding tiene impacto, no teoría.',
-  dante:      'Escéptico, preciso. "Funciona en mi máquina" no es un test.',
-  alexandria: 'Clara, organizada. Documenta hechos, no aspiraciones.',
-  gitto:      'Factual. Cita commits y diffs, no opiniones.',
-};
-
 export function buildSystemPrompt(agentName: string, role: string): string {
   const voice = AGENT_VOICE[agentName.toLowerCase()];
   const identityLine = voice

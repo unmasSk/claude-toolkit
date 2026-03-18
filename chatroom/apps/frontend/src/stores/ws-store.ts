@@ -14,6 +14,9 @@ interface WsState {
   send: (msg: ClientMessage) => void;
 }
 
+// User display name — configurable via VITE_USER_NAME env var
+const USER_NAME: string = import.meta.env.VITE_USER_NAME ?? 'Bex';
+
 // Module-level state (not in Zustand) — raw WS handle and reconnect bookkeeping
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -22,6 +25,9 @@ let reconnectAttempts = 0;
 // synchronous connect() calls (React StrictMode double-mount) don't both slip
 // through and spawn two WebSockets.
 let connectingRoomId: string | null = null;
+// FIX StrictMode-fetch: AbortController for the in-flight auth fetch.
+// disconnect() aborts it so a completed fetch from a stale mount can't open a WS.
+let authAbortController: AbortController | null = null;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
@@ -85,7 +91,7 @@ function handleServerMessage(event: MessageEvent) {
       // Tool events become tool_use messages in the chat
       // They arrive as separate WS events — buffer them for batching
       const toolMsg: Message = {
-        id: `tool-${Date.now()}-${Math.random()}`,
+        id: `tool-${parsed.id}`,
         roomId: agentStore.room?.id ?? 'default',
         author: parsed.agent,
         authorType: 'agent',
@@ -149,6 +155,11 @@ export const useWsStore = create<WsState>((set, get) => ({
     connectingRoomId = roomId;
     set({ status: 'connecting', roomId });
 
+    // Cancel any previous in-flight auth fetch before starting a new one
+    authAbortController?.abort();
+    authAbortController = new AbortController();
+    const { signal } = authAbortController;
+
     // SEC-AUTH-001: Obtain a short-lived token before opening the WS connection.
     void (async () => {
       let token: string;
@@ -156,12 +167,15 @@ export const useWsStore = create<WsState>((set, get) => ({
         const res = await fetch('/api/auth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'Bex' }),
+          body: JSON.stringify({ name: USER_NAME }),
+          signal,
         });
         if (!res.ok) throw new Error(`Auth token request failed: ${res.status}`);
         const data = (await res.json()) as { token: string };
         token = data.token;
       } catch (err) {
+        // AbortError means disconnect() was called — do not reconnect
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error('[ws-store] Failed to obtain auth token:', err);
         connectingRoomId = null;
         set({ status: 'disconnected' });
@@ -179,6 +193,10 @@ export const useWsStore = create<WsState>((set, get) => ({
         }
         return;
       }
+
+      // Guard: if disconnect() was called while fetch was in flight, abort
+      if (connectingRoomId !== roomId) return;
+      authAbortController = null;
 
       const wsUrl = `/ws/${roomId}?token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(wsUrl);
@@ -222,6 +240,9 @@ export const useWsStore = create<WsState>((set, get) => ({
 
   disconnect: () => {
     connectingRoomId = null;
+    // Abort any in-flight auth fetch — prevents stale fetch from opening a WS after disconnect
+    authAbortController?.abort();
+    authAbortController = null;
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

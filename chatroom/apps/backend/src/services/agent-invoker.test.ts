@@ -270,7 +270,7 @@ describe('buildPrompt — structural markers', () => {
   it('ends with the @mention instruction line', () => {
     const result = buildPrompt('default', 'test prompt');
     expect(result).toContain('You were mentioned in the conversation above.');
-    expect(result).toContain('@mention');
+    expect(result).toContain('Respond to the original trigger above');
   });
 
   it('contains IRC-style instruction', () => {
@@ -345,14 +345,15 @@ describe('buildPrompt — agent and human message labeling', () => {
     _invokerDb.query(`DELETE FROM messages WHERE id = 'bp-agent-001'`).run();
   });
 
-  it('buildPrompt does not embed the triggerContent parameter verbatim (content comes from DB rows)', () => {
-    // buildPrompt fetches history from DB — the triggerContent param is not appended
-    // to the output string directly. The prompt's content comes from getRecentMessages.
+  it('buildPrompt embeds triggerContent in the [ORIGINAL TRIGGER] block', () => {
+    // Since the triggerContent fix: triggerContent is explicitly embedded in the prompt
+    // inside the [ORIGINAL TRIGGER] block so agents respond to the right message.
     const triggerMsg = 'UNIQUE_TRIGGER_CANARY_XYZ_987';
     const result = buildPrompt('default', triggerMsg);
-    // The canary string is NOT directly in the prompt (it comes from DB rows, not inline)
-    expect(result).not.toContain(triggerMsg);
-    // But the structural markers ARE present regardless
+    // The canary IS in the prompt — inside the ORIGINAL TRIGGER block
+    expect(result).toContain(triggerMsg);
+    expect(result).toContain('[ORIGINAL TRIGGER — THIS IS WHAT YOU WERE INVOKED TO RESPOND TO]');
+    expect(result).toContain('[END ORIGINAL TRIGGER]');
     expect(result).toContain('[CHATROOM HISTORY — UNTRUSTED USER AND AGENT CONTENT]');
   });
 });

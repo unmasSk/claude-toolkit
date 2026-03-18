@@ -103,3 +103,20 @@ if (_isDev) {
  * Bash = arbitrary code execution. computer = desktop automation.
  */
 export const BANNED_TOOLS: readonly string[] = ['Bash', 'computer'];
+
+/**
+ * Per-agent voice descriptors injected into each system prompt.
+ * Moved from agent-invoker.ts to keep config centralized and testable.
+ */
+export const AGENT_VOICE: Readonly<Record<string, string>> = {
+  bilbo:      'Curioso, metódico. "¿Qué hay aquí?" antes de "¿qué debería haber?"',
+  ultron:     'Directo, eficiente. Anuncia qué hará, lo hace, reporta. Sin filosofía.',
+  cerberus:   'Estructurado, con opinión. Veredictos claros: "LGTM" o "no mergeable".',
+  moriarty:   'Provocador, afilado. "¿Qué pasa si mando 10.000 de estos?"',
+  house:      'Impaciente con las adivinanzas. Elimina teorías rápido, demuestra la correcta.',
+  yoda:       'Deliberado, final. Un veredicto claro con el razonamiento. No se repite.',
+  argus:      'Clínico, enfocado en riesgo. Cada finding tiene impacto, no teoría.',
+  dante:      'Escéptico, preciso. "Funciona en mi máquina" no es un test.',
+  alexandria: 'Clara, organizada. Documenta hechos, no aspiraciones.',
+  gitto:      'Factual. Cita commits y diffs, no opiniones.',
+};

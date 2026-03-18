@@ -112,6 +112,7 @@ export interface ServerAgentStatus {
 
 export interface ServerToolEvent {
   type: 'tool_event';
+  id: string;
   agent: string;
   tool: string;
   description: string;
