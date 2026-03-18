@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agent Chatroom — Dashboard Mockup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d0d1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
+
+/* Layout */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+/* TopBar */
+.topbar { display: flex; align-items: center; justify-content: space-between; background: #151528; border-bottom: 1px solid #2a2a45; padding: 0 16px; height: 42px; flex-shrink: 0; }
+.tabs { display: flex; gap: 2px; }
+.tab { padding: 8px 16px; border-radius: 6px 6px 0 0; cursor: pointer; color: #888; font-size: 13px; }
+.tab.active { background: #1e1e35; color: #e0e0e0; border: 1px solid #2a2a45; border-bottom: 1px solid #1e1e35; }
+.tab:hover:not(.active) { color: #bbb; }
+.tab-add { color: #555; padding: 8px 12px; cursor: pointer; }
+.tab-add:hover { color: #4a9eed; }
+.topbar-actions { display: flex; gap: 12px; align-items: center; }
+.btn-danger { background: #3a1515; color: #ef4444; border: 1px solid #5c1a1a; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.btn-danger:hover { background: #5c1a1a; }
+.btn-warn { background: #3a2a15; color: #f59e0b; border: 1px solid #5c3d1a; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+/* Main */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 220px; background: #111122; border-right: 1px solid #2a2a45; overflow-y: auto; flex-shrink: 0; padding: 8px; }
+.sidebar-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #555; padding: 8px 8px 4px; }
+.agent-card { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; border: 1px solid transparent; cursor: default; }
+.agent-card .name { font-weight: 600; font-size: 13px; }
+.agent-card .role { font-size: 11px; opacity: 0.5; margin-left: 6px; }
+.agent-card .status { font-size: 11px; margin-top: 3px; color: #666; }
+.agent-card .tool { font-size: 11px; color: #888; font-family: monospace; }
+.agent-card .kill-btn { float: right; background: none; border: none; color: #555; cursor: pointer; font-size: 11px; }
+.agent-card .kill-btn:hover { color: #ef4444; }
+
+/* Agent states */
+.agent-card.thinking { border-color: #22c55e40; background: #0a1f12; }
+.agent-card.thinking .name { color: #22c55e; }
+.agent-card.thinking .status { color: #22c55e; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.agent-card.thinking .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; margin-right: 4px; animation: pulse 1.5s infinite; }
+
+.agent-card.tooluse { border-color: #4a9eed40; background: #0a1525; }
+.agent-card.tooluse .name { color: #4a9eed; }
+.agent-card.tooluse .status { color: #4a9eed; }
+
+.agent-card.queued { border-color: #f59e0b30; background: #1a1508; }
+.agent-card.queued .name { color: #f59e0b; }
+.agent-card.queued .status { color: #f59e0b; }
+
+.agent-card.done { border-color: #8b5cf620; background: #110a20; }
+.agent-card.done .name { color: #8b5cf6; }
+.agent-card.done .status { color: #666; }
+
+.agent-card.error { border-color: #ef444440; background: #1a0a0a; }
+.agent-card.error .name { color: #ef4444; }
+
+.agent-card.idle { background: #0d0d1a; }
+.agent-card.idle .name { color: #666; }
+
+/* Chat */
+.chat-area { flex: 1; display: flex; flex-direction: column; }
+.messages { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.msg { margin-bottom: 8px; line-height: 1.5; }
+.msg-time { color: #444; font-size: 11px; margin-right: 8px; font-family: monospace; }
+.msg-author { font-weight: 600; margin-right: 8px; }
+.msg-content { color: #ccc; }
+.msg-tool { margin-left: 40px; color: #555; font-size: 12px; font-family: monospace; padding: 2px 0; }
+.msg-tool::before { content: "🔧 "; font-size: 10px; }
+.msg-system { color: #ef4444; font-style: italic; background: #1a0a0a; padding: 4px 12px; border-radius: 4px; margin: 4px 0; font-size: 12px; }
+.msg-directive { color: #ef4444; font-weight: 700; background: #2a0a0a; padding: 6px 12px; border-radius: 4px; border-left: 3px solid #ef4444; margin: 6px 0; }
+
+/* Author colors */
+.c-user { color: oklch(75% 0.10 145); }
+.c-bilbo { color: oklch(65% 0.14 195); }
+.c-ultron { color: oklch(65% 0.18 250); }
+.c-cerberus { color: oklch(72% 0.14 85); }
+.c-argus { color: oklch(65% 0.18 55); }
+.c-moriarty { color: oklch(60% 0.20 25); }
+.c-yoda { color: oklch(60% 0.15 145); }
+.c-alexandria { color: oklch(65% 0.15 300); }
+.c-gitto { color: oklch(72% 0.14 85); }
+.c-house { color: oklch(60% 0.20 25); }
+.c-dante { color: oklch(65% 0.14 195); }
+
+/* Mention highlight */
+.mention { color: #4a9eed; font-weight: 600; }
+
+/* Code block */
+.code-block { background: #1a1a2e; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 4px 0 4px 40px; border-left: 2px solid #333; color: #aaa; white-space: pre; }
+
+/* Input */
+.input-area { padding: 8px 16px; border-top: 1px solid #2a2a45; background: #111122; display: flex; gap: 8px; }
+.input-area input { flex: 1; background: #1a1a2e; border: 1px solid #2a2a45; border-radius: 6px; padding: 10px 14px; color: #e0e0e0; font-size: 13px; outline: none; }
+.input-area input:focus { border-color: #4a9eed50; }
+.input-area button { background: #4a9eed; color: white; border: none; border-radius: 6px; padding: 0 16px; cursor: pointer; }
+
+/* StatusBar */
+.statusbar { display: flex; justify-content: space-between; align-items: center; background: #0d0d18; border-top: 1px solid #2a2a45; padding: 4px 16px; font-size: 11px; color: #444; height: 26px; flex-shrink: 0; }
+.statusbar .commands { color: #555; }
+.dot-connected { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TopBar -->
+  <div class="topbar">
+    <div class="tabs">
+      <div class="tab active"># general</div>
+      <div class="tab"># lab</div>
+      <div class="tab"># debug</div>
+      <div class="tab-add">+</div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-warn">@everyone stop</button>
+      <button class="btn-danger">Kill All</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-title">Agents</div>
+
+      <div class="agent-card thinking">
+        <div><span class="dot"></span><span class="name">Bilbo</span><span class="role">explorer</span><button class="kill-btn">x</button></div>
+        <div class="status">thinking... 12s</div>
+        <div class="tool">Read ws.ts</div>
+      </div>
+
+      <div class="agent-card tooluse">
+        <div><span class="name">Ultron</span><span class="role">implementer</span><button class="kill-btn">x</button></div>
+        <div class="status">tool-use</div>
+        <div class="tool">Edit agent-invoker.ts</div>
+      </div>
+
+      <div class="agent-card queued">
+        <div><span class="name">Cerberus</span><span class="role">reviewer</span></div>
+        <div class="status">queued (2 pending)</div>
+      </div>
+
+      <div class="agent-card done">
+        <div><span class="name">Argus</span><span class="role">security</span></div>
+        <div class="status">done · 3 findings · 45s ago</div>
+      </div>
+
+      <div class="agent-card done">
+        <div><span class="name">Yoda</span><span class="role">evaluator</span></div>
+        <div class="status">done · verdict given · 2m ago</div>
+      </div>
+
+      <div class="agent-card idle">
+        <div><span class="name">Moriarty</span><span class="role">adversary</span></div>
+        <div class="status">idle</div>
+      </div>
+
+      <div class="agent-card idle">
+        <div><span class="name">Dante</span><span class="role">tester</span></div>
+        <div class="status">idle</div>
+      </div>
+
+      <div class="agent-card idle">
+        <div><span class="name">House</span><span class="role">debugger</span></div>
+        <div class="status">idle</div>
+      </div>
+
+      <div class="agent-card idle">
+        <div><span class="name">Alexandria</span><span class="role">documenter</span></div>
+        <div class="status">idle</div>
+      </div>
+
+      <div class="agent-card idle">
+        <div><span class="name">Gitto</span><span class="role">historian</span></div>
+        <div class="status">idle</div>
+      </div>
+
+      <div class="sidebar-title" style="margin-top: 12px">Humans</div>
+      <div class="agent-card" style="background:#0d1520; border-color: #1a3a5f40;">
+        <div><span class="name" style="color:#4a9eed">User</span></div>
+        <div class="status"><span class="dot-connected"></span>connected</div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-area">
+      <div class="messages">
+        <div class="msg"><span class="msg-time">09:15</span><span class="msg-author c-user">User</span><span class="msg-content">Buenos dias nuevo chat</span></div>
+        <div class="msg"><span class="msg-time">09:17</span><span class="msg-author c-user">User</span><span class="msg-content"><span class="mention">@bilbo</span> explora el chatroom y dime qué falta</span></div>
+        <div class="msg"><span class="msg-time">09:17</span><span class="msg-author c-bilbo">Bilbo</span><span class="msg-content">Explorando el proyecto chatroom...</span></div>
+        <div class="msg-tool">Read ws.ts</div>
+        <div class="msg-tool">Grep agent-invoker.ts "depth"</div>
+        <div class="msg-tool">Glob **/*.test.ts</div>
+        <div class="msg"><span class="msg-time">09:19</span><span class="msg-author c-bilbo">Bilbo</span><span class="msg-content">Encontré 3 issues:<br>1. WS sin auth — cualquiera se conecta<br>2. Depth counter ok, per-agent turns funciona<br>3. 16 dirty files sin commit<br><br><span class="mention">@cerberus</span> aquí tienes el análisis para review.</span></div>
+        <div class="msg"><span class="msg-time">09:20</span><span class="msg-author c-cerberus">Cerberus</span><span class="msg-content">Recibido. Revisando el diff...</span></div>
+        <div class="msg-tool">Read agent-invoker.ts</div>
+        <div class="msg-tool">Grep authorType ws.ts</div>
+        <div class="msg"><span class="msg-time">09:21</span><span class="msg-author c-argus">Argus</span><span class="msg-content">Zero auth en WS. Prioridad 1. Sin token, cualquier proceso local se conecta y dispara agentes.</span></div>
+        <div class="msg"><span class="msg-time">09:22</span><span class="msg-author c-ultron">Ultron</span><span class="msg-content"><span class="mention">@moriarty</span> yo — ¿todo tranquilo o ya encontraste algo que romper?</span></div>
+        <div class="msg"><span class="msg-time">09:22</span><span class="msg-author c-moriarty">Moriarty</span><span class="msg-content"><span class="mention">@ultron</span> siempre hay algo que romper. Dame acceso y te digo cuántos vectores tiene ese bridge.</span></div>
+        <div class="msg"><span class="msg-time">09:23</span><span class="msg-author c-yoda">Yoda</span><span class="msg-content">No mergeable. 2 blockers:<br>1. Commit de los 16 dirty files<br>2. Auth en WS<br><br>Paso hasta que haya diff + review de cerberus.</span></div>
+        <div class="msg-directive">DIRECTIVE: callaos todos</div>
+        <div class="msg-system">Queue cleared. Invocations paused until next human message.</div>
+      </div>
+
+      <div class="input-area">
+        <input type="text" placeholder="Message #general — use @agent to mention">
+        <button>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- StatusBar -->
+  <div class="statusbar">
+    <div><span class="dot-connected"></span>main · connected</div>
+    <div class="commands">@agent — invoke  ·  @everyone &lt;msg&gt; — directive  ·  @everyone stop — halt all</div>
+    <div>sonnet 4.6</div>
+  </div>
+</div>
+</body>
+</html>

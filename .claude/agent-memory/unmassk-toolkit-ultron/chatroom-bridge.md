@@ -65,3 +65,15 @@ The `/health` probe at startup must include `Authorization: Bearer ${BRIDGE_TOKE
 
 ## Timing-safe auth (SEC-HIGH-001, 2026-03-18)
 `checkAuth` uses `timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))` from `node:crypto`. Length check first to avoid timing oracle on mismatched lengths.
+
+## Configurable room (T3-03, 2026-03-18)
+`BRIDGE_ROOM = process.env['BRIDGE_ROOM'] ?? 'default'`. Used in `WS_BASE` and as `roomId` in synthetic tool_event messages. Never hardcode `'default'` — always use `BRIDGE_ROOM`.
+
+## Tool event IDs use crypto.randomUUID() (T3-04, 2026-03-18)
+`toolEventToMessage` uses `crypto.randomUUID()` (not `Math.random()`) for the ID suffix. Bun exposes `crypto` globally.
+
+## RATE_LIMIT error logging (T2-04, 2026-03-18)
+`handleServerMessage` `error` case: logs `msg.code` + `msg.message`. If `msg.code === 'RATE_LIMIT'`, additionally logs a WARNING that the message may have been dropped. This is the best we can do since `/send` already returned `ok:true` before the async error arrives.
+
+## WS_URL undefined bug (auto-fix, 2026-03-18)
+Boot log used `WS_URL` which was never defined (only `WS_BASE` exists). Fixed to `WS_BASE`. If this const is renamed, update the boot log line too.
