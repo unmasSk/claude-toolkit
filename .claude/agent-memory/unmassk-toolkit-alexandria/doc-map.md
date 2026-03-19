@@ -244,4 +244,22 @@ All 10 plugin README.md files updated 2026-03-15 to document BM25 skill routing 
 | `unmassk-seo/README.md` | New "BM25 skill discovery" section — hyphenated compound triggers |
 | `unmassk-gitmemory/README.md` | Note after Skills table — bin/skill-map-generator.py removed, internal skillcats removed |
 
+## chatroom/docs — backend documentation (created 2026-03-19)
+
+| Path | Type | Status |
+|------|------|--------|
+| `chatroom/docs/index.md` | Index | Created 2026-03-19 — table of contents for all 11 docs |
+| `chatroom/docs/architecture-overview.md` | Reference | Created 2026-03-19 — request flow, module map, concurrency model, security perimeter |
+| `chatroom/docs/module-reference.md` | Reference | Created 2026-03-19 — all 14 modules documented: exports, patterns, gotchas |
+| `chatroom/docs/rest-api-reference.md` | Reference | Created 2026-03-19 — 6 HTTP endpoints with request/response shapes and error codes |
+| `chatroom/docs/websocket-protocol.md` | Reference | Created 2026-03-19 — WS connection, 3 client messages, 7 server events, @everyone |
+| `chatroom/docs/auth-flow.md` | Reference | Created 2026-03-19 — token issuance, WS auth, constant-time comparison, brute-force |
+| `chatroom/docs/agent-invocation-pipeline.md` | Reference | Created 2026-03-19 — scheduling, semaphore, subprocess spawn, post-invocation paths |
+| `chatroom/docs/prompt-injection-defense.md` | Reference | Created 2026-03-19 — 6 defense layers, sanitizePromptContent(), known limits |
+| `chatroom/docs/rate-limiting.md` | Reference | Created 2026-03-19 — token bucket algorithm, all 4 deployed limiters |
+| `chatroom/docs/database-schema.md` | Reference | Created 2026-03-19 — 3 tables, indexes, pagination pattern, concurrency notes |
+| `chatroom/docs/configuration.md` | Reference | Created 2026-03-19 — all env vars, fixed constants, examples |
+| `chatroom/docs/security.md` | Reference | Created 2026-03-19 — threat model, controls by category, known limitations |
+| `chatroom/docs/testing-guide.md` | Reference | Created 2026-03-19 — test runner, DB strategy, file inventory, patterns |
+
 **How to apply:** On each launch, check git commits since last verified date for each CLAUDE.md. If stale, update.

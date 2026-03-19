@@ -272,6 +272,12 @@ Always say "non-production environments (NODE_ENV !== 'production')" and add an 
 
 Found in: `config.ts:78` (chatroom WS_ALLOWED_ORIGINS dev bypass, 2026-03-18).
 
+## Duplicate function declaration in same module (TypeScript)
+
+When a module is refactored to export a shared function (e.g. `getReservedAgentNames()`), the old local version is sometimes left in place under a slightly different return type (`Set<string>` vs `ReadonlySet<string>`). TypeScript will reject duplicate `export function` declarations with the same name at compile time — but in some editors or loose tsconfig setups the error is surfaced as a type conflict rather than a clear duplicate. The fix is to delete one of the two declarations, keeping only the one with the correct return type.
+
+Found in: `auth-tokens.ts:49-65` (2026-03-19) — two `export function getReservedAgentNames()` declarations, return types `Set<string>` and `ReadonlySet<string>` respectively.
+
 ## Shared sanitizer that does not cover its own delimiters
 
 A sanitizer function that strips all known trust-boundary markers from user content will be incomplete if the system later adds a new delimiter (e.g. box-drawing chars for a RESPAWN notice) without adding a corresponding strip pattern to the sanitizer. The gap means stored messages containing the new delimiter pass through unsanitized.
