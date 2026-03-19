@@ -13,6 +13,9 @@ import { getAllAgents, getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, safeMessage } from '../utils.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
 import { validateName, issueToken } from '../services/auth-tokens.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('api');
 
 // ---------------------------------------------------------------------------
 // SEC-FIX 7: Rate limiter for POST /api/auth/token.
@@ -143,11 +146,13 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
     ({ body, set }) => {
       // SEC-FIX 7: Rate limit keyed by 'global' — never by X-Forwarded-For.
       if (!checkApiRateLimit('global')) {
+        log.warn('POST /api/auth/token rate limit exceeded');
         set.status = 429;
         return { error: 'Too many token requests — try again later', code: 'RATE_LIMIT' };
       }
       const name = validateName((body as { name?: string }).name);
       if (name === null) {
+        log.warn({ rawName: (body as { name?: string }).name }, 'POST /api/auth/token invalid or reserved name');
         set.status = 400;
         return { error: 'Invalid or reserved name', code: 'NAME_INVALID' };
       }
@@ -156,6 +161,7 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
         set.status = 503;
         return { error: 'Token store full — try again later', code: 'TOKEN_STORE_FULL' };
       }
+      log.info({ name }, 'POST /api/auth/token issued');
       return issued;
     },
     {

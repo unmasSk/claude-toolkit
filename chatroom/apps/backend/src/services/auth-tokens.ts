@@ -9,6 +9,9 @@
  */
 
 import { AGENT_BY_NAME } from '@agent-chatroom/shared';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('auth-tokens');
 
 // ---------------------------------------------------------------------------
 // Name validation (mirrors resolveConnectionName in ws.ts)
@@ -63,11 +66,13 @@ const tokens = new Map<string, TokenEntry>();
 /** Issue a new UUID token bound to a validated name. Returns null if the token store is full. */
 export function issueToken(name: string): { token: string; expiresAt: string } | null {
   if (tokens.size >= 10_000) {
+    log.warn({ storeSize: tokens.size }, 'token store full — rejecting issuance');
     return null;
   }
   const token = crypto.randomUUID();
   const expiresAt = Date.now() + TOKEN_TTL_MS;
   tokens.set(token, { name, expiresAt });
+  log.info({ name }, 'token issued');
   return { token, expiresAt: new Date(expiresAt).toISOString() };
 }
 
@@ -80,20 +85,24 @@ export function issueToken(name: string): { token: string; expiresAt: string } |
 export function validateToken(token: string | undefined): string | null {
   if (!token) return null;
   const entry = tokens.get(token);
-  if (!entry) return null;
+  if (!entry) { log.warn('token validation failed: unknown token'); return null; }
   if (Date.now() > entry.expiresAt) {
     tokens.delete(token);
+    log.warn({ name: entry.name }, 'token validation failed: expired');
     return null;
   }
   // Consume the token: one successful WS upgrade per token issued.
   tokens.delete(token);
+  log.info({ name: entry.name }, 'token validated and consumed');
   return entry.name;
 }
 
 // Periodic GC — remove expired tokens every 10 minutes
 setInterval(() => {
   const now = Date.now();
+  let removed = 0;
   for (const [tok, entry] of tokens) {
-    if (now > entry.expiresAt) tokens.delete(tok);
+    if (now > entry.expiresAt) { tokens.delete(tok); removed++; }
   }
+  if (removed > 0) log.info({ removed, remaining: tokens.size }, 'token GC completed');
 }, 10 * 60 * 1000);

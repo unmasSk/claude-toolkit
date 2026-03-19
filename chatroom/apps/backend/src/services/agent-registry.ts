@@ -2,6 +2,9 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AGENT_DIR } from '../config.js';
 import { AGENT_BY_NAME, type AgentDefinition } from '@agent-chatroom/shared';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('agent-registry');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,7 +94,8 @@ function buildRegistry(): Map<string, AgentConfig> {
     let files: string[];
     try {
       files = readdirSync(AGENT_DIR).filter((f) => f.endsWith('.md'));
-    } catch {
+    } catch (err) {
+      log.error({ err }, 'failed to read agent directory');
       files = [];
     }
 
@@ -118,8 +122,8 @@ function buildRegistry(): Map<string, AgentConfig> {
           allowedTools,
           invokable,
         });
-      } catch {
-        // Skip unreadable files
+      } catch (err) {
+        log.warn({ err, file }, 'failed to parse agent frontmatter — skipping');
       }
     }
   }
@@ -137,6 +141,8 @@ function buildRegistry(): Map<string, AgentConfig> {
  */
 export function loadAgentRegistry(): Map<string, AgentConfig> {
   _registry = buildRegistry();
+  const invokable = [..._registry.values()].filter((a) => a.invokable).map((a) => a.name);
+  log.info({ count: _registry.size, invokable }, 'agent registry loaded');
   return _registry;
 }
 
