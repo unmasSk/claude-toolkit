@@ -3,8 +3,12 @@
  *
  * These tests exercise the pure in-memory logic; no HTTP server needed.
  */
-import { describe, it, expect } from 'bun:test';
-import { validateName, issueToken, validateToken, peekToken } from '../../src/services/auth-tokens.js';
+import { describe, it, expect, beforeEach, afterEach, setSystemTime } from 'bun:test';
+import { validateName, issueToken, validateToken, peekToken, __resetForTests } from '../../src/services/auth-tokens.js';
+
+beforeEach(() => {
+  __resetForTests();
+});
 
 // ---------------------------------------------------------------------------
 // validateName
@@ -27,13 +31,13 @@ describe('validateName', () => {
     expect(validateName('user')).toBe('user');
   });
 
-  it('returns null for "claude" (bridge identity — must stay blocked)', () => {
-    expect(validateName('claude')).toBeNull();
+  it('allows "claude" (bridge uses normal token flow — chatroom is private)', () => {
+    expect(validateName('claude')).toBe('claude');
   });
 
-  it('returns null for "claude" regardless of case', () => {
-    expect(validateName('Claude')).toBeNull();
-    expect(validateName('CLAUDE')).toBeNull();
+  it('allows "claude" regardless of case', () => {
+    expect(validateName('Claude')).toBe('Claude');
+    expect(validateName('CLAUDE')).toBe('CLAUDE');
   });
 
   it('returns the trimmed name for a valid custom name', () => {
@@ -165,5 +169,80 @@ describe('peekToken', () => {
     validateToken(token); // consume it
     // Now the token no longer exists in the store — peekToken must return null
     expect(peekToken(token)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Token expiration — time-travel tests using setSystemTime
+//
+// TTL is 30 minutes (TOKEN_TTL_MS). We issue a token, fast-forward the clock
+// past expiresAt, then assert the auth functions return null.
+// setSystemTime is restored after each test via afterEach so real-time tests
+// in other blocks are unaffected.
+// ---------------------------------------------------------------------------
+
+const TOKEN_TTL_MS = 30 * 60 * 1000; // mirrors auth-tokens.ts constant
+
+describe('peekToken — token expiration', () => {
+  afterEach(() => {
+    // Restore real wall-clock time so subsequent tests are unaffected.
+    setSystemTime();
+  });
+
+  it('returns null when clock is advanced past the token TTL', () => {
+    const issuedAt = Date.now();
+    const result = issueToken('expiry-peek-user');
+    const token = result!.token;
+
+    // Sanity: token is valid before expiry
+    expect(peekToken(token)).toBe('expiry-peek-user');
+
+    // Fast-forward 1 ms past expiresAt
+    setSystemTime(new Date(issuedAt + TOKEN_TTL_MS + 1));
+
+    expect(peekToken(token)).toBeNull();
+  });
+
+  it('removes the expired entry from the store (subsequent peekToken also returns null)', () => {
+    const issuedAt = Date.now();
+    const result = issueToken('expiry-peek-gc-user');
+    const token = result!.token;
+
+    setSystemTime(new Date(issuedAt + TOKEN_TTL_MS + 1));
+
+    // First call detects expiry and deletes the entry
+    expect(peekToken(token)).toBeNull();
+    // Second call: entry is already gone — must still return null, not throw
+    expect(peekToken(token)).toBeNull();
+  });
+});
+
+describe('validateToken — token expiration', () => {
+  afterEach(() => {
+    setSystemTime();
+  });
+
+  it('returns null when clock is advanced past the token TTL', () => {
+    const issuedAt = Date.now();
+    const result = issueToken('expiry-validate-user');
+    const token = result!.token;
+
+    // Fast-forward 1 ms past expiresAt (token was issued at issuedAt, expires at issuedAt + TTL)
+    setSystemTime(new Date(issuedAt + TOKEN_TTL_MS + 1));
+
+    expect(validateToken(token)).toBeNull();
+  });
+
+  it('does not consume the token slot when rejecting due to expiry (token is deleted, not returned)', () => {
+    const issuedAt = Date.now();
+    const result = issueToken('expiry-no-consume-user');
+    const token = result!.token;
+
+    setSystemTime(new Date(issuedAt + TOKEN_TTL_MS + 1));
+
+    // Expired — must return null (not the name)
+    expect(validateToken(token)).toBeNull();
+    // Token was deleted during expiry check — a second call also returns null
+    expect(validateToken(token)).toBeNull();
   });
 });

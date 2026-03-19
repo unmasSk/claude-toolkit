@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Icons v3 — 20 Animation Styles</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0e0e0e;
+    color: #c0c0c0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 32px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  .agent-row {
+    margin-bottom: 28px;
+  }
+
+  .agent-label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .agent-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+  }
+
+  .agent-role {
+    font-size: 11px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .anim-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .anim-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 72px;
+  }
+
+  .anim-card:hover {
+    border-color: #444;
+  }
+
+  .anim-card .icon-wrap {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .anim-card svg {
+    width: 32px;
+    height: 32px;
+    stroke: #c0c0c0;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .anim-label {
+    font-size: 8px;
+    color: #555;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    text-align: center;
+    line-height: 1.2;
+    word-break: break-all;
+  }
+
+  /* ===== 1. pulse ===== */
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .anim-pulse svg { animation: pulse 2s ease-in-out infinite; }
+
+  /* ===== 2. breathe ===== */
+  @keyframes breathe {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .anim-breathe svg { animation: breathe 3s ease-in-out infinite; }
+
+  /* ===== 3. glow-pulse ===== */
+  @keyframes glow-pulse {
+    0%, 100% { filter: drop-shadow(0 0 1px rgba(192,192,192,0.2)); }
+    50% { filter: drop-shadow(0 0 6px rgba(192,192,192,0.6)); }
+  }
+  .anim-glow-pulse svg { animation: glow-pulse 2s ease-in-out infinite; }
+
+  /* ===== 4. rotate-slow ===== */
+  @keyframes rotate-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .anim-rotate-slow svg { animation: rotate-slow 6s linear infinite; }
+
+  /* ===== 5. rotate-swing ===== */
+  @keyframes rotate-swing {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(15deg); }
+  }
+  .anim-rotate-swing svg { animation: rotate-swing 3s ease-in-out infinite; }
+
+  /* ===== 6. bounce ===== */
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-3px); }
+    60% { transform: translateY(-1px); }
+  }
+  .anim-bounce svg { animation: bounce 1.5s cubic-bezier(0.28, 0.84, 0.42, 1) infinite; }
+
+  /* ===== 7. shake ===== */
+  @keyframes shake {
+    0%, 86%, 100% { transform: translateX(0); }
+    88% { transform: translateX(-2px); }
+    90% { transform: translateX(2px); }
+    92% { transform: translateX(-2px); }
+    94% { transform: translateX(2px); }
+    96% { transform: translateX(-1px); }
+    98% { transform: translateX(1px); }
+  }
+  .anim-shake svg { animation: shake 3s ease-in-out infinite; }
+
+  /* ===== 8. draw ===== */
+  @keyframes draw {
+    0% { stroke-dashoffset: 100; }
+    100% { stroke-dashoffset: 0; }
+  }
+  .anim-draw svg {
+    stroke-dasharray: 100;
+    animation: draw 2.5s ease-in-out forwards;
+  }
+
+  /* ===== 9. draw-loop ===== */
+  @keyframes draw-loop {
+    0% { stroke-dashoffset: 100; opacity: 1; }
+    60% { stroke-dashoffset: 0; opacity: 1; }
+    80% { stroke-dashoffset: 0; opacity: 0; }
+    81% { stroke-dashoffset: 100; opacity: 0; }
+    100% { stroke-dashoffset: 100; opacity: 1; }
+  }
+  .anim-draw-loop svg {
+    stroke-dasharray: 100;
+    animation: draw-loop 3.5s ease-in-out infinite;
+  }
+
+  /* ===== 10. float ===== */
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(1deg); }
+    50% { transform: translateY(-4px) rotate(0deg); }
+    75% { transform: translateY(-2px) rotate(-1deg); }
+  }
+  .anim-float svg { animation: float 4s ease-in-out infinite; }
+
+  /* ===== 11. ping ===== */
+  @keyframes ping {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    25% { transform: scale(1.15); opacity: 0.7; }
+    50% { transform: scale(1); opacity: 1; }
+  }
+  .anim-ping svg { animation: ping 1.5s ease-in-out infinite; }
+
+  /* ===== 12. spin-settle ===== */
+  @keyframes spin-settle {
+    0% { transform: rotate(0deg); }
+    70% { transform: rotate(360deg); }
+    80% { transform: rotate(350deg); }
+    90% { transform: rotate(358deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .anim-spin-settle svg { animation: spin-settle 2s cubic-bezier(0.2, 0.8, 0.3, 1) infinite; }
+
+  /* ===== 13. heartbeat ===== */
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    15% { transform: scale(1.12); }
+    30% { transform: scale(1); }
+    45% { transform: scale(1.08); }
+    60% { transform: scale(1); }
+  }
+  .anim-heartbeat svg { animation: heartbeat 1.5s ease-in-out infinite; }
+
+  /* ===== 14. scan-lr ===== */
+  @keyframes scan-lr {
+    0%, 100% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+  }
+  .anim-scan-lr svg { animation: scan-lr 3s linear infinite; }
+
+  /* ===== 15. flicker ===== */
+  @keyframes flicker {
+    0%, 8% { opacity: 0.4; }
+    4% { opacity: 1; }
+    12% { opacity: 1; }
+    16% { opacity: 0.4; }
+    20% { opacity: 1; }
+    24%, 100% { opacity: 1; }
+  }
+  .anim-flicker svg { animation: flicker 4s step-end infinite; }
+
+  /* ===== 16. morph-scale ===== */
+  @keyframes morph-scale {
+    0%, 100% { transform: scaleX(1) scaleY(1); }
+    33% { transform: scaleX(1.1) scaleY(0.92); }
+    66% { transform: scaleX(0.95) scaleY(1.06); }
+  }
+  .anim-morph-scale svg { animation: morph-scale 3s ease-in-out infinite; }
+
+  /* ===== 17. orbit ===== */
+  @keyframes orbit {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(3px, -2px); }
+    50%  { transform: translate(0, -3px); }
+    75%  { transform: translate(-3px, -2px); }
+    100% { transform: translate(0, 0); }
+  }
+  .anim-orbit svg { animation: orbit 4s ease-in-out infinite; }
+
+  /* ===== 18. fade-in-out ===== */
+  @keyframes fade-in-out {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .anim-fade-in-out svg { animation: fade-in-out 4s ease-in-out infinite; }
+
+  /* ===== 19. jiggle ===== */
+  @keyframes jiggle {
+    0%, 88%, 100% { transform: rotate(0); }
+    90% { transform: rotate(-3deg); }
+    92% { transform: rotate(3deg); }
+    94% { transform: rotate(-2deg); }
+    96% { transform: rotate(1deg); }
+    98% { transform: rotate(0); }
+  }
+  .anim-jiggle svg { animation: jiggle 4s ease-in-out infinite; }
+
+  /* ===== 20. neon-flicker ===== */
+  @keyframes neon-flicker {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(192,192,192,0.6)); }
+    5% { filter: drop-shadow(0 0 1px rgba(192,192,192,0.1)); }
+    10% { filter: drop-shadow(0 0 6px rgba(192,192,192,0.8)); }
+    15% { filter: drop-shadow(0 0 2px rgba(192,192,192,0.2)); }
+    20% { filter: drop-shadow(0 0 8px rgba(192,192,192,0.9)); }
+    25%, 90% { filter: drop-shadow(0 0 5px rgba(192,192,192,0.7)); }
+    92% { filter: drop-shadow(0 0 1px rgba(192,192,192,0.1)); }
+    94% { filter: drop-shadow(0 0 6px rgba(192,192,192,0.8)); }
+  }
+  .anim-neon-flicker svg { animation: neon-flicker 3s ease-in-out infinite; }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce) {
+    svg { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Agent Icons v3 — Animation Picker</h1>
+<p class="subtitle">10 agents x 20 animations = 200 previews &middot; Lucide icons (MIT) &middot; pick your favorite per row</p>
+
+<script>
+const agents = [
+  {
+    name: 'Ultron',
+    role: 'implementer',
+    svg: '<path d="M12 19h8"/><path d="m4 17 6-6-6-6"/>'
+  },
+  {
+    name: 'Cerberus',
+    role: 'reviewer',
+    svg: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'
+  },
+  {
+    name: 'Dante',
+    role: 'tester',
+    svg: '<path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/>'
+  },
+  {
+    name: 'Bilbo',
+    role: 'explorer',
+    svg: '<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/>'
+  },
+  {
+    name: 'House',
+    role: 'diagnostician',
+    svg: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'
+  },
+  {
+    name: 'Yoda',
+    role: 'judge',
+    svg: '<path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0z"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0z"/><path d="M7 21h10"/>'
+  },
+  {
+    name: 'Alexandria',
+    role: 'docs',
+    svg: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>'
+  },
+  {
+    name: 'Argus',
+    role: 'security',
+    svg: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>'
+  },
+  {
+    name: 'Moriarty',
+    role: 'adversarial',
+    svg: '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>'
+  },
+  {
+    name: 'Gitto',
+    role: 'git memory',
+    svg: '<path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>'
+  }
+];
+
+const animations = [
+  'pulse', 'breathe', 'glow-pulse', 'rotate-slow', 'rotate-swing',
+  'bounce', 'shake', 'draw', 'draw-loop', 'float',
+  'ping', 'spin-settle', 'heartbeat', 'scan-lr', 'flicker',
+  'morph-scale', 'orbit', 'fade-in-out', 'jiggle', 'neon-flicker'
+];
+
+function makeSVG(innerSvg) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c0c0c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${innerSvg}</svg>`;
+}
+
+const container = document.createElement('div');
+
+agents.forEach(agent => {
+  const row = document.createElement('div');
+  row.className = 'agent-row';
+
+  const label = document.createElement('div');
+  label.className = 'agent-label';
+  label.innerHTML = `<span class="agent-name">${agent.name}</span><span class="agent-role">${agent.role}</span>`;
+  row.appendChild(label);
+
+  const grid = document.createElement('div');
+  grid.className = 'anim-grid';
+
+  animations.forEach(anim => {
+    const card = document.createElement('div');
+    card.className = `anim-card anim-${anim}`;
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'icon-wrap';
+    iconWrap.innerHTML = makeSVG(agent.svg);
+
+    const animLabel = document.createElement('div');
+    animLabel.className = 'anim-label';
+    animLabel.textContent = anim;
+
+    card.appendChild(iconWrap);
+    card.appendChild(animLabel);
+    grid.appendChild(card);
+  });
+
+  row.appendChild(grid);
+  container.appendChild(row);
+});
+
+document.body.appendChild(container);
+</script>
+
+</body>
+</html>

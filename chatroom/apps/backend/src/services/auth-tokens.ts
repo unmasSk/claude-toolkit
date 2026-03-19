@@ -17,19 +17,20 @@ const log = createLogger('auth-tokens');
 // ---------------------------------------------------------------------------
 
 /**
- * "claude" is the orchestrator bridge identity — impersonation would let any client
- * inject messages that appear to come from the orchestrator. It is excluded from
- * token issuance via the public endpoint; the bridge authenticates with a pre-shared
- * token, not this endpoint (SEC-AUTH-002).
+ * "system" is reserved to prevent impersonation of internal server messages.
+ *
+ * "claude" is intentionally NOT reserved — the chatroom is private and the
+ * bridge uses the normal token flow (POST /api/auth/token) to authenticate
+ * as the 'claude' identity (SEC-AUTH-002).
  *
  * "user" is intentionally NOT reserved — it is the default frontend identity
  * and must be obtainable via POST /api/auth/token. Although "user" appears in
  * AGENT_BY_NAME (as a human participant entry), it is excluded here so the
  * frontend can register with that name.
  */
-const EXTRA_RESERVED = new Set(['claude', 'system']);
+const EXTRA_RESERVED = new Set(['system']);
 const RESERVED_AGENT_NAMES = new Set([
-  ...Array.from(AGENT_BY_NAME.keys()).filter((n) => n !== 'user'),
+  ...Array.from(AGENT_BY_NAME.keys()).filter((n) => n !== 'user' && n !== 'claude'),
   ...EXTRA_RESERVED,
 ]);
 
@@ -39,9 +40,9 @@ const NAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 /**
  * Returns the set of reserved agent names for use in other modules (e.g. ws.ts).
  *
- * ws.ts uses a slightly narrower filter: it excludes 'user' and 'claude' from
- * the blocked set (both are valid WS identities). This function returns the
- * auth-token-issuance set; ws.ts filters it down as needed.
+ * Both 'user' and 'claude' are excluded from the blocked set — they are valid
+ * token-issuance identities. 'user' is the default frontend identity; 'claude'
+ * is the bridge identity that authenticates via the normal token flow.
  *
  * @returns Read-only set of names that cannot be issued tokens via the public endpoint
  */
@@ -71,6 +72,11 @@ export function validateName(rawName: string | undefined): string | null {
 // Token store
 // ---------------------------------------------------------------------------
 
+/** Maximum number of tokens in the store — rejects issuance when full */
+const MAX_TOKENS = 10_000;
+/** GC interval for expired tokens and stale failure windows */
+const TOKEN_GC_INTERVAL_MS = 10 * 60 * 1000;
+
 /** 30-minute TTL — long enough to survive reconnect backoff without lingering indefinitely */
 const TOKEN_TTL_MS = 30 * 60 * 1000;
 
@@ -90,7 +96,7 @@ const tokens = new Map<string, TokenEntry>();
  * @returns Token and ISO expiry string, or null if the store is at capacity (10 000 tokens)
  */
 export function issueToken(name: string): { token: string; expiresAt: string } | null {
-  if (tokens.size >= 10_000) {
+  if (tokens.size >= MAX_TOKENS) {
     log.warn({ storeSize: tokens.size }, 'token store full — rejecting issuance');
     return null;
   }
@@ -240,6 +246,19 @@ function recordAuthFailure(token?: string | undefined): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Test helpers (never call from production code)
+// ---------------------------------------------------------------------------
+
+/**
+ * Clears the token store and auth-failure tracker.
+ * For use in test beforeEach only — not exported from the public API barrel.
+ */
+export function __resetForTests(): void {
+  tokens.clear();
+  authFailureBySource.clear();
+}
+
 // Periodic GC — remove expired tokens every 10 minutes + stale failure windows.
 // .unref() prevents this timer from keeping the process alive after all real work is done.
 setInterval(
@@ -264,5 +283,5 @@ setInterval(
     }
     if (failWindowsRemoved > 0) log.info({ failWindowsRemoved }, 'failure window GC completed');
   },
-  10 * 60 * 1000,
+  TOKEN_GC_INTERVAL_MS,
 ).unref();

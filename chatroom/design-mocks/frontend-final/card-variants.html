@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Card Variants</title>
+<style>
+  :root {
+    --bg-page: #141414;
+    --bg-active: #272727;
+    --border-inactive: #232323;
+    --text-primary: #ececec;
+    --text-secondary: #aeaeae;
+    --text-tertiary: #7d7d7d;
+    --text-icon: #747474;
+    --agent-color: oklch(65% 0.18 250);
+    --bar-track: #232323;
+    --bar-fill-active: #555555;
+    --bar-fill-inactive: #333333;
+    --font-ui: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --card-width: 220px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    padding: 40px 20px 80px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 48px;
+  }
+
+  .variant-section {
+    max-width: 780px;
+    margin: 0 auto 48px;
+  }
+
+  .variant-section h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    letter-spacing: -0.2px;
+  }
+
+  .variant-section h3 span {
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+
+  .cards-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .state-label {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+  }
+
+  /* ── Shared card base ── */
+  .card {
+    width: var(--card-width);
+    border-radius: 6px;
+    padding: 10px;
+    position: relative;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .card.active { background: var(--bg-active); }
+  .card.inactive { background: transparent; border: 1px solid var(--border-inactive); }
+  .card.disconnected { background: transparent; border: 1px solid var(--border-inactive); }
+
+  .agent-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--agent-color);
+    line-height: 1.2;
+  }
+  .agent-role {
+    font-size: 10px;
+    color: var(--text-secondary);
+    line-height: 1.3;
+  }
+  .model-badge {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    line-height: 1.3;
+  }
+  .metrics {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .card.inactive .metrics { opacity: 0.5; }
+  .card.disconnected .metrics { opacity: 0.3; }
+
+  /* Context bar */
+  .ctx-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--bar-track);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  .ctx-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .card.active .ctx-bar-fill { background: var(--bar-fill-active); }
+  .card.inactive .ctx-bar-fill { background: var(--bar-fill-inactive); }
+  .card.disconnected .ctx-bar-fill { width: 0 !important; }
+  .ctx-pct {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+  }
+
+  /* Status icon container */
+  .status-icon { width: 30px; height: 30px; flex-shrink: 0; }
+  .status-icon svg { width: 30px; height: 30px; }
+  .card.disconnected .status-icon { opacity: 0.15; }
+  .card.inactive .status-icon svg * { animation: none !important; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 1 — Classic Row
+     ───────────────────────────────────────────── */
+  .v1 .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .v1 .top-left { display: flex; flex-direction: column; gap: 2px; }
+  .v1 .top-left .meta-row { display: flex; gap: 6px; align-items: baseline; }
+  .v1 .bottom { display: flex; flex-direction: column; gap: 4px; }
+  .v1 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v1 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 2 — Two Column
+     ───────────────────────────────────────────── */
+  .v2 .content { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .v2 .left-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .v2 .left-col .meta-row { display: flex; gap: 6px; align-items: baseline; }
+  .v2 .status-icon { width: 36px; height: 36px; }
+  .v2 .status-icon svg { width: 36px; height: 36px; }
+  .v2 .bottom { display: flex; flex-direction: column; gap: 4px; }
+  .v2 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v2 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 3 — Compact Inline
+     ───────────────────────────────────────────── */
+  .v3 .row1 { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .v3 .row1 .agent-name { white-space: nowrap; }
+  .v3 .row1 .spacer { flex: 1; }
+  .v3 .row1 .status-icon { width: 22px; height: 22px; }
+  .v3 .row1 .status-icon svg { width: 22px; height: 22px; }
+  .v3 .row2 { display: flex; flex-direction: column; gap: 3px; }
+  .v3 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v3 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 4 — Status-First
+     ───────────────────────────────────────────── */
+  .v4 .content { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .v4 .status-icon { width: 34px; height: 34px; }
+  .v4 .status-icon svg { width: 34px; height: 34px; }
+  .v4 .right-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .v4 .right-col .meta-row { display: flex; gap: 6px; align-items: baseline; }
+  .v4 .bottom { display: flex; flex-direction: column; gap: 4px; }
+  .v4 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v4 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 5 — Minimal (hover reveal)
+     ───────────────────────────────────────────── */
+  .v5 .top { display: flex; justify-content: space-between; align-items: center; }
+  .v5 .hidden-area {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.2s ease, opacity 0.15s ease;
+  }
+  .v5:hover .hidden-area, .v5.show-hover .hidden-area {
+    max-height: 60px; opacity: 1; margin-top: 8px;
+  }
+  .v5 .hidden-area .meta-row { display: flex; gap: 6px; align-items: baseline; margin-bottom: 4px; }
+  .v5 .bar-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .v5 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 6 — Dashboard
+     ───────────────────────────────────────────── */
+  .v6 .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .v6 .top-left { display: flex; gap: 6px; align-items: baseline; }
+  .v6 .status-icon { position: absolute; top: 8px; right: 8px; }
+  .v6 .metric-boxes { display: flex; gap: 4px; margin-bottom: 8px; }
+  .v6 .metric-box {
+    flex: 1; text-align: center; padding: 4px 2px;
+    background: rgba(255,255,255,0.03); border-radius: 3px;
+    font-size: 9px; font-family: var(--font-mono); color: var(--text-tertiary);
+  }
+  .v6 .metric-box .val { font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 1px; }
+  .v6.card.inactive .metric-box { opacity: 0.5; }
+  .v6.card.disconnected .metric-box { opacity: 0.3; }
+  .v6 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v6 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 7 — Progress-Centric
+     ───────────────────────────────────────────── */
+  .v7 .ctx-bar { height: 8px; border-radius: 4px; margin-bottom: 8px; }
+  .v7 .ctx-bar-fill { border-radius: 4px; }
+  .v7 .bar-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .v7 .middle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .v7 .middle-left { display: flex; gap: 6px; align-items: baseline; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 8 — Avatar-Big
+     ───────────────────────────────────────────── */
+  .v8 .content { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .v8 .avatar {
+    width: 36px; height: 36px; border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--agent-color);
+    flex-shrink: 0; letter-spacing: -0.5px;
+  }
+  .v8 .mid-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .v8 .mid-col .meta-row { display: flex; gap: 6px; align-items: baseline; }
+  .v8 .bottom { display: flex; flex-direction: column; gap: 4px; }
+  .v8 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v8 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 9 — Vertical Stack
+     ───────────────────────────────────────────── */
+  .v9 { text-align: center; padding: 12px 10px; }
+  .v9 .agent-name { margin-bottom: 2px; }
+  .v9 .meta-row { display: flex; justify-content: center; gap: 6px; align-items: baseline; margin-bottom: 8px; }
+  .v9 .status-icon { margin: 0 auto 8px; }
+  .v9 .metrics { justify-content: center; margin-bottom: 6px; }
+  .v9 .bar-row { display: flex; align-items: center; gap: 6px; }
+  .v9 .bar-row .ctx-bar { flex: 1; }
+
+  /* ─────────────────────────────────────────────
+     VARIANT 10 — Terminal
+     ───────────────────────────────────────────── */
+  .v10 {
+    font-family: var(--font-mono);
+    padding: 6px 8px;
+    border-radius: 2px;
+  }
+  .v10 .line {
+    font-size: 10px;
+    line-height: 1.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .v10 .line .name { color: var(--agent-color); font-weight: 600; }
+  .v10 .line .model { color: var(--text-tertiary); }
+  .v10 .line .role { color: var(--text-secondary); }
+  .v10 .line .bar-text { color: var(--text-tertiary); }
+  .v10 .line .metric { color: var(--text-tertiary); }
+  .v10 .term-bar { margin-top: 2px; }
+  .v10 .term-bar .ctx-bar { height: 2px; border-radius: 1px; }
+</style>
+</head>
+<body>
+
+<h1>Agent Card Variants</h1>
+<p class="subtitle">10 layout approaches &times; 3 states each &mdash; pick your favorite</p>
+
+<!-- ════════════════════════════════════════════════
+     SVG ICON DEFINITIONS (shared, hidden)
+     ════════════════════════════════════════════════ -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- THINKING: concentric pulsing rings -->
+    <symbol id="icon-thinking" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="4" fill="#aeaeae" opacity="0.6"/>
+      <circle cx="16" cy="16" r="6" fill="none" stroke="#aeaeae" stroke-width="1.2" opacity="0">
+        <animate attributeName="r" values="6;13;6" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="16" cy="16" r="6" fill="none" stroke="#7d7d7d" stroke-width="1" opacity="0">
+        <animate attributeName="r" values="6;15;6" dur="2s" begin="0.4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.5;0;0.5" dur="2s" begin="0.4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="16" cy="16" r="6" fill="none" stroke="#747474" stroke-width="0.8" opacity="0">
+        <animate attributeName="r" values="6;14;6" dur="2s" begin="0.8s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" begin="0.8s" repeatCount="indefinite"/>
+      </circle>
+    </symbol>
+
+    <!-- TOOL: rotating gear -->
+    <symbol id="icon-tool" viewBox="0 0 32 32">
+      <g transform-origin="16 16">
+        <animateTransform attributeName="transform" type="rotate" values="0;360" dur="4s" repeatCount="indefinite"/>
+        <path d="M16 8 l1.5 2.5 a6 6 0 0 1 2 0.8 l2.5-1.5 l1 1.7 l-2.5 1.5 a6 6 0 0 1 0.8 2 l2.5 1.5 l0 2 l-2.5 1.5 a6 6 0 0 1 -0.8 2 l2.5 1.5 l-1 1.7 l-2.5-1.5 a6 6 0 0 1 -2 0.8 l-1.5 2.5 l-2 0 l0-2.5 a6 6 0 0 1 0 0 l-1.5-2.5 a6 6 0 0 1 -2-0.8 l-2.5 1.5 l-1-1.7 l2.5-1.5 a6 6 0 0 1 -0.8-2 l-2.5-1.5 l0-2 l2.5-1.5 a6 6 0 0 1 0.8-2 l-2.5-1.5 l1-1.7 l2.5 1.5 a6 6 0 0 1 2-0.8 l1.5-2.5 z"
+          fill="none" stroke="#aeaeae" stroke-width="1" stroke-linejoin="round"/>
+        <circle cx="16" cy="16" r="3" fill="none" stroke="#7d7d7d" stroke-width="1.2"/>
+      </g>
+    </symbol>
+
+    <!-- RUNNING/WRITING: flowing dots -->
+    <symbol id="icon-running" viewBox="0 0 32 32">
+      <line x1="6" y1="22" x2="26" y2="22" stroke="#747474" stroke-width="0.8"/>
+      <line x1="6" y1="10" x2="20" y2="10" stroke="#747474" stroke-width="0.8" opacity="0.4"/>
+      <line x1="6" y1="14" x2="24" y2="14" stroke="#747474" stroke-width="0.8" opacity="0.4"/>
+      <line x1="6" y1="18" x2="18" y2="18" stroke="#747474" stroke-width="0.8" opacity="0.4"/>
+      <rect x="6" y="20" width="1.5" height="5" rx="0.75" fill="#aeaeae">
+        <animate attributeName="x" values="6;22;6" dur="2.5s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="6" y="20" width="1.5" height="5" rx="0.75" fill="#aeaeae">
+        <animate attributeName="opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite"/>
+        <animate attributeName="x" values="6;22;6" dur="2.5s" repeatCount="indefinite"/>
+      </rect>
+    </symbol>
+
+    <!-- STATIC: idle circle -->
+    <symbol id="icon-static" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="6" fill="none" stroke="#747474" stroke-width="1.2"/>
+      <circle cx="16" cy="16" r="2" fill="#747474"/>
+    </symbol>
+
+    <!-- DISCONNECTED: empty ring -->
+    <symbol id="icon-disconnected" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="7" fill="none" stroke="#747474" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.3"/>
+    </symbol>
+  </defs>
+</svg>
+
+<script>
+// Helper to generate cards from JS to avoid insane HTML repetition
+function iconSvg(state) {
+  if (state === 'active-thinking') return '<svg><use href="#icon-thinking"/></svg>';
+  if (state === 'active-tool') return '<svg><use href="#icon-tool"/></svg>';
+  if (state === 'active-running') return '<svg><use href="#icon-running"/></svg>';
+  if (state === 'inactive') return '<svg><use href="#icon-static"/></svg>';
+  return '<svg><use href="#icon-disconnected"/></svg>';
+}
+</script>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 1 — Classic Row
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 1 <span>-- Classic Row</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v1 active">
+        <div class="top">
+          <div class="top-left">
+            <div class="agent-name">Ultron</div>
+            <div class="meta-row">
+              <span class="agent-role">implementer</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-thinking"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>11T</span>
+            <span>5.2K in</span>
+            <span>800 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:47%"></div></div>
+            <span class="ctx-pct">47%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v1 inactive">
+        <div class="top">
+          <div class="top-left">
+            <div class="agent-name">Ultron</div>
+            <div class="meta-row">
+              <span class="agent-role">implementer</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>11T</span>
+            <span>5.2K in</span>
+            <span>800 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:47%"></div></div>
+            <span class="ctx-pct">47%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v1 disconnected">
+        <div class="top">
+          <div class="top-left">
+            <div class="agent-name">Ultron</div>
+            <div class="meta-row">
+              <span class="agent-role">implementer</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+            <span class="ctx-pct">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 2 — Two Column
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 2 <span>-- Two Column</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v2 active">
+        <div class="content">
+          <div class="left-col">
+            <div class="agent-name">Jarvis</div>
+            <div class="meta-row">
+              <span class="agent-role">reviewer</span>
+              <span class="model-badge">sonnet</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-tool"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>8T</span>
+            <span>3.1K in</span>
+            <span>620 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:72%"></div></div>
+            <span class="ctx-pct">72%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v2 inactive">
+        <div class="content">
+          <div class="left-col">
+            <div class="agent-name">Jarvis</div>
+            <div class="meta-row">
+              <span class="agent-role">reviewer</span>
+              <span class="model-badge">sonnet</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>8T</span>
+            <span>3.1K in</span>
+            <span>620 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:72%"></div></div>
+            <span class="ctx-pct">72%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v2 disconnected">
+        <div class="content">
+          <div class="left-col">
+            <div class="agent-name">Jarvis</div>
+            <div class="meta-row">
+              <span class="agent-role">reviewer</span>
+              <span class="model-badge">sonnet</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+            <span class="ctx-pct">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 3 — Compact Inline
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 3 <span>-- Compact Inline</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v3 active">
+        <div class="row1">
+          <div class="agent-name">Nova</div>
+          <span class="agent-role">tester</span>
+          <span class="model-badge">haiku</span>
+          <span class="spacer"></span>
+          <div class="status-icon"><svg><use href="#icon-running"/></svg></div>
+        </div>
+        <div class="row2">
+          <div class="metrics">
+            <span>5T</span>
+            <span>1.8K in</span>
+            <span>340 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:85%"></div></div>
+            <span class="ctx-pct">85%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v3 inactive">
+        <div class="row1">
+          <div class="agent-name">Nova</div>
+          <span class="agent-role">tester</span>
+          <span class="model-badge">haiku</span>
+          <span class="spacer"></span>
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="row2">
+          <div class="metrics">
+            <span>5T</span>
+            <span>1.8K in</span>
+            <span>340 out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:85%"></div></div>
+            <span class="ctx-pct">85%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v3 disconnected">
+        <div class="row1">
+          <div class="agent-name">Nova</div>
+          <span class="agent-role">tester</span>
+          <span class="model-badge">haiku</span>
+          <span class="spacer"></span>
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="row2">
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+            <span class="ctx-pct">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 4 — Status-First
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 4 <span>-- Status-First</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v4 active">
+        <div class="content">
+          <div class="status-icon"><svg><use href="#icon-thinking"/></svg></div>
+          <div class="right-col">
+            <div class="agent-name">Cortex</div>
+            <div class="meta-row">
+              <span class="agent-role">architect</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>23T</span>
+            <span>12K in</span>
+            <span>2.1K out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:31%"></div></div>
+            <span class="ctx-pct">31%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v4 inactive">
+        <div class="content">
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+          <div class="right-col">
+            <div class="agent-name">Cortex</div>
+            <div class="meta-row">
+              <span class="agent-role">architect</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>23T</span>
+            <span>12K in</span>
+            <span>2.1K out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:31%"></div></div>
+            <span class="ctx-pct">31%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v4 disconnected">
+        <div class="content">
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+          <div class="right-col">
+            <div class="agent-name">Cortex</div>
+            <div class="meta-row">
+              <span class="agent-role">architect</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+            <span class="ctx-pct">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 5 — Minimal (hover to reveal)
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 5 <span>-- Minimal</span> <span style="font-size:9px;color:var(--text-tertiary)">(hover to reveal details)</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v5 active show-hover">
+        <div class="top">
+          <div class="agent-name">Sentinel</div>
+          <div class="status-icon"><svg><use href="#icon-tool"/></svg></div>
+        </div>
+        <div class="hidden-area">
+          <div class="meta-row">
+            <span class="agent-role">monitor</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+          <div class="metrics">
+            <span>3T</span>
+            <span>900 in</span>
+            <span>210 out</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:91%"></div></div>
+          <span class="ctx-pct">91%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v5 inactive show-hover">
+        <div class="top">
+          <div class="agent-name">Sentinel</div>
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="hidden-area">
+          <div class="meta-row">
+            <span class="agent-role">monitor</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+          <div class="metrics">
+            <span>3T</span>
+            <span>900 in</span>
+            <span>210 out</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:91%"></div></div>
+          <span class="ctx-pct">91%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v5 disconnected show-hover">
+        <div class="top">
+          <div class="agent-name">Sentinel</div>
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="hidden-area">
+          <div class="meta-row">
+            <span class="agent-role">monitor</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+          <span class="ctx-pct">--%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 6 — Dashboard
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 6 <span>-- Dashboard</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v6 active">
+        <div class="top">
+          <div class="top-left">
+            <span class="agent-name">Forge</span>
+            <span class="model-badge" style="margin-left:6px">opus</span>
+          </div>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-running"/></svg></div>
+        <div class="metric-boxes">
+          <div class="metric-box"><span class="val">14</span>turns</div>
+          <div class="metric-box"><span class="val">7.4K</span>in</div>
+          <div class="metric-box"><span class="val">1.5K</span>out</div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:55%"></div></div>
+          <span class="ctx-pct">55%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v6 inactive">
+        <div class="top">
+          <div class="top-left">
+            <span class="agent-name">Forge</span>
+            <span class="model-badge" style="margin-left:6px">opus</span>
+          </div>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        <div class="metric-boxes">
+          <div class="metric-box"><span class="val">14</span>turns</div>
+          <div class="metric-box"><span class="val">7.4K</span>in</div>
+          <div class="metric-box"><span class="val">1.5K</span>out</div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:55%"></div></div>
+          <span class="ctx-pct">55%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v6 disconnected">
+        <div class="top">
+          <div class="top-left">
+            <span class="agent-name">Forge</span>
+            <span class="model-badge" style="margin-left:6px">opus</span>
+          </div>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        <div class="metric-boxes">
+          <div class="metric-box"><span class="val">--</span>turns</div>
+          <div class="metric-box"><span class="val">--</span>in</div>
+          <div class="metric-box"><span class="val">--</span>out</div>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+          <span class="ctx-pct">--%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 7 — Progress-Centric
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 7 <span>-- Progress-Centric</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v7 active">
+        <div class="bar-top">
+          <span class="ctx-pct" style="font-size:10px">63% ctx</span>
+          <div class="status-icon" style="width:24px;height:24px"><svg style="width:24px;height:24px"><use href="#icon-thinking"/></svg></div>
+        </div>
+        <div class="ctx-bar"><div class="ctx-bar-fill" style="width:63%"></div></div>
+        <div class="middle">
+          <div class="middle-left">
+            <span class="agent-name">Axiom</span>
+            <span class="agent-role">planner</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+        </div>
+        <div class="metrics">
+          <span>7T</span>
+          <span>2.9K in</span>
+          <span>510 out</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v7 inactive">
+        <div class="bar-top">
+          <span class="ctx-pct" style="font-size:10px">63% ctx</span>
+          <div class="status-icon" style="width:24px;height:24px"><svg style="width:24px;height:24px"><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="ctx-bar"><div class="ctx-bar-fill" style="width:63%"></div></div>
+        <div class="middle">
+          <div class="middle-left">
+            <span class="agent-name">Axiom</span>
+            <span class="agent-role">planner</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+        </div>
+        <div class="metrics">
+          <span>7T</span>
+          <span>2.9K in</span>
+          <span>510 out</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v7 disconnected">
+        <div class="bar-top">
+          <span class="ctx-pct" style="font-size:10px">--% ctx</span>
+          <div class="status-icon" style="width:24px;height:24px"><svg style="width:24px;height:24px"><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+        <div class="middle">
+          <div class="middle-left">
+            <span class="agent-name">Axiom</span>
+            <span class="agent-role">planner</span>
+            <span class="model-badge">sonnet</span>
+          </div>
+        </div>
+        <div class="metrics">
+          <span>--</span>
+          <span>-- in</span>
+          <span>-- out</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 8 — Avatar-Big
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 8 <span>-- Avatar-Big</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v8 active">
+        <div class="content">
+          <div class="avatar">VX</div>
+          <div class="mid-col">
+            <div class="agent-name">Vortex</div>
+            <div class="meta-row">
+              <span class="agent-role">executor</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-running"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>19T</span>
+            <span>9.8K in</span>
+            <span>1.9K out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:38%"></div></div>
+            <span class="ctx-pct">38%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v8 inactive">
+        <div class="content">
+          <div class="avatar">VX</div>
+          <div class="mid-col">
+            <div class="agent-name">Vortex</div>
+            <div class="meta-row">
+              <span class="agent-role">executor</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>19T</span>
+            <span>9.8K in</span>
+            <span>1.9K out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:38%"></div></div>
+            <span class="ctx-pct">38%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v8 disconnected">
+        <div class="content">
+          <div class="avatar" style="opacity:0.3">VX</div>
+          <div class="mid-col">
+            <div class="agent-name">Vortex</div>
+            <div class="meta-row">
+              <span class="agent-role">executor</span>
+              <span class="model-badge">opus</span>
+            </div>
+          </div>
+          <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        </div>
+        <div class="bottom">
+          <div class="metrics">
+            <span>--</span>
+            <span>-- in</span>
+            <span>-- out</span>
+          </div>
+          <div class="bar-row">
+            <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+            <span class="ctx-pct">--%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 9 — Vertical Stack
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 9 <span>-- Vertical Stack</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v9 active">
+        <div class="agent-name">Oracle</div>
+        <div class="meta-row">
+          <span class="agent-role">analyst</span>
+          <span class="model-badge">sonnet</span>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-tool"/></svg></div>
+        <div class="metrics">
+          <span>6T</span>
+          <span>2.4K in</span>
+          <span>480 out</span>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:67%"></div></div>
+          <span class="ctx-pct">67%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v9 inactive">
+        <div class="agent-name">Oracle</div>
+        <div class="meta-row">
+          <span class="agent-role">analyst</span>
+          <span class="model-badge">sonnet</span>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-static"/></svg></div>
+        <div class="metrics">
+          <span>6T</span>
+          <span>2.4K in</span>
+          <span>480 out</span>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:67%"></div></div>
+          <span class="ctx-pct">67%</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v9 disconnected">
+        <div class="agent-name">Oracle</div>
+        <div class="meta-row">
+          <span class="agent-role">analyst</span>
+          <span class="model-badge">sonnet</span>
+        </div>
+        <div class="status-icon"><svg><use href="#icon-disconnected"/></svg></div>
+        <div class="metrics">
+          <span>--</span>
+          <span>-- in</span>
+          <span>-- out</span>
+        </div>
+        <div class="bar-row">
+          <div class="ctx-bar"><div class="ctx-bar-fill" style="width:0%"></div></div>
+          <span class="ctx-pct">--%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     VARIANT 10 — Terminal
+     ════════════════════════════════════════════════ -->
+<div class="variant-section">
+  <h3>Variant 10 <span>-- Terminal</span></h3>
+  <div class="cards-row">
+    <div>
+      <div class="state-label">Active</div>
+      <div class="card v10 active">
+        <div class="line">
+          <span class="name">vector</span>
+          <span class="model"> [haiku]</span>
+          <span class="role"> scout</span>
+          <span style="flex:1"></span>
+        </div>
+        <div class="line">
+          <span class="bar-text" style="letter-spacing:-1px">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span>
+        </div>
+        <div class="line" style="margin-top:1px">
+          <span class="bar-text" style="letter-spacing:-1px; color:#555">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-text" style="letter-spacing:-1px; color:#232323">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span>
+          <span class="metric"> 78%</span>
+        </div>
+        <div class="line">
+          <span class="metric">4T 1.2K/280</span>
+          <span style="color:var(--text-tertiary)">
+            <svg width="14" height="14" viewBox="0 0 32 32" style="vertical-align:middle;margin-left:4px"><use href="#icon-running"/></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Inactive</div>
+      <div class="card v10 inactive">
+        <div class="line">
+          <span class="name">vector</span>
+          <span class="model"> [haiku]</span>
+          <span class="role"> scout</span>
+        </div>
+        <div class="line" style="margin-top:1px">
+          <span class="bar-text" style="letter-spacing:-1px; color:#333">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-text" style="letter-spacing:-1px; color:#232323">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span>
+          <span class="metric"> 78%</span>
+        </div>
+        <div class="line">
+          <span class="metric" style="opacity:0.5">4T 1.2K/280</span>
+          <span style="color:var(--text-tertiary)">
+            <svg width="14" height="14" viewBox="0 0 32 32" style="vertical-align:middle;margin-left:4px"><use href="#icon-static"/></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="state-label">Disconnected</div>
+      <div class="card v10 disconnected">
+        <div class="line">
+          <span class="name" style="opacity:0.4">vector</span>
+          <span class="model"> [haiku]</span>
+          <span class="role"> scout</span>
+        </div>
+        <div class="line" style="margin-top:1px">
+          <span class="bar-text" style="letter-spacing:-1px; color:#232323">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span>
+          <span class="metric"> --%</span>
+        </div>
+        <div class="line">
+          <span class="metric" style="opacity:0.3">-- --/--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

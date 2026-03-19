@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chatroom — Option B: Cursor Style</title>
+<style>
+/* ================================================================
+   OPTION B — CURSOR WARM GRAYS
+   No bubbles. No glassmorphism. No orbs. No blur.
+   Text flows directly on background. Agent colors only on names,
+   avatars, tool event borders. Everything else is gray.
+   Card SVG widgets use agent color at 30-40% opacity.
+   ================================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Cursor Deep Dark — color picked from real app */
+  --bg-body:    #0e0e0e;
+  --bg-sidebar: #141414;
+  --bg-chat:    #181818;
+  --bg-card:    #272727;
+  --bg-card-h:  #2c2c2c;
+  --bg-input:   #1f1f1f;
+  --bg-code:    #121212;
+  --border:     #232323;
+  --border-s:   #1a1a1a;
+
+  /* Text */
+  --text-1:     #ececec;
+  --text-2:     #aeaeae;
+  --text-3:     #7d7d7d;
+  --text-icon:  #747474;
+  --text-code:  #aeaeae;
+
+  /* Accent */
+  --accent:       oklch(65% 0.18 250);
+  --accent-muted: oklch(30% 0.06 250);
+
+  /* Semantic */
+  --success: oklch(55% 0.15 145);
+  --warning: oklch(65% 0.18 60);
+  --error:   oklch(50% 0.20 25);
+  --info:    oklch(58% 0.14 250);
+
+  /* Agent colors — from globals.css */
+  --c-ultron:     oklch(65% 0.18 250);
+  --c-cerberus:   oklch(72% 0.14 85);
+  --c-dante:      oklch(65% 0.14 195);
+  --c-bilbo:      oklch(65% 0.14 195);
+  --c-house:      oklch(60% 0.20 25);
+  --c-yoda:       oklch(60% 0.15 145);
+  --c-alexandria: oklch(65% 0.15 300);
+  --c-gitto:      oklch(72% 0.14 85);
+  --c-argus:      oklch(65% 0.18 55);
+  --c-moriarty:   oklch(60% 0.20 25);
+  --c-bex:        oklch(75% 0.10 145);
+
+  /* Avatar backgrounds */
+  --av-ultron:     oklch(25% 0.06 250);
+  --av-cerberus:   oklch(25% 0.05 85);
+  --av-dante:      oklch(25% 0.05 195);
+  --av-bilbo:      oklch(25% 0.05 195);
+  --av-house:      oklch(25% 0.07 25);
+  --av-yoda:       oklch(25% 0.05 145);
+  --av-alexandria: oklch(25% 0.05 300);
+  --av-gitto:      oklch(25% 0.05 85);
+  --av-argus:      oklch(25% 0.06 55);
+  --av-moriarty:   oklch(25% 0.07 25);
+
+  /* Model badges */
+  --model-opus-bg:   oklch(25% 0.06 25);
+  --model-opus-text: oklch(65% 0.15 25);
+  --model-sonnet-bg:   oklch(25% 0.05 250);
+  --model-sonnet-text: oklch(65% 0.12 250);
+  --model-haiku-bg:   oklch(25% 0.05 145);
+  --model-haiku-text: oklch(60% 0.10 145);
+
+  /* Fonts */
+  --font-ui:   -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-body);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── APP SHELL ───────────────────────────────────── */
+.app-shell {
+  width: 1000px;
+  height: 756px;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+}
+
+/* ── TITLEBAR ────────────────────────────────────── */
+.titlebar {
+  height: 28px; min-height: 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+.tb-dots { display: flex; gap: 7px; -webkit-app-region: no-drag; }
+.tb-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  cursor: pointer; transition: filter 150ms;
+}
+.tb-dot:hover { filter: brightness(1.3); }
+.tb-dot-r { background: #FF5F57; }
+.tb-dot-y { background: #FFBD2E; }
+.tb-dot-g { background: #28C840; }
+.tb-center {
+  display: flex; align-items: center; gap: 6px;
+}
+.tb-title {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+.tb-sep { color: var(--text-3); font-size: 10px; }
+.tb-dot-inline {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #28C840; display: inline-block;
+}
+.tb-meta {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-3);
+}
+
+/* ── LAYOUT ──────────────────────────────────────── */
+.layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+/* ── SIDEBAR ─────────────────────────────────────── */
+.sidebar {
+  width: 220px; min-width: 220px;
+  display: flex; flex-direction: column;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.sb-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border-s);
+  flex-shrink: 0;
+}
+.sb-label {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 6px;
+}
+.sb-room {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 14px; font-weight: 600; color: var(--text-1);
+  margin-bottom: 3px;
+}
+.sb-dot-green {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #28C840;
+  box-shadow: 0 0 6px rgba(40,200,64,0.5);
+  animation: dotpulse 2.5s ease-in-out infinite;
+}
+.sb-dot-sm {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #28C840; display: inline-block;
+}
+@keyframes dotpulse {
+  0%,100% { box-shadow: 0 0 4px rgba(40,200,64,0.4); }
+  50%     { box-shadow: 0 0 10px rgba(40,200,64,0.7); }
+}
+.sb-user {
+  font-size: 11px; color: var(--text-2);
+  display: flex; align-items: center; gap: 5px;
+}
+
+.sb-section {
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3); flex-shrink: 0;
+}
+
+/* ── AGENT LIST ──────────────────────────────────── */
+.agent-list {
+  flex: 1; overflow-y: auto; padding: 4px 4px 4px 4px;
+}
+.agent-list::-webkit-scrollbar { width: 3px; }
+.agent-list::-webkit-scrollbar-track { background: transparent; }
+.agent-list::-webkit-scrollbar-thumb { background: oklch(30% 0.01 250); border-radius: 2px; }
+
+/* ── AGENT CARD ──────────────────────────────────── */
+.card-wrap {
+  position: relative;
+  margin-bottom: 4px;
+}
+.agent-card {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px;
+  height: 66px;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+.agent-card.active {
+  background: #272727;
+  border-color: var(--border);
+}
+.agent-card:hover {
+  background: #272727;
+  border-color: var(--border);
+}
+.agent-card.off {
+  background: transparent;
+  border-color: var(--border);
+}
+
+.ac-top {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
+}
+.ac-avatar {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  color: oklch(10% 0.01 250); flex-shrink: 0;
+}
+.ac-info { flex: 1; min-width: 0; }
+.ac-name {
+  font-family: var(--font-mono);
+  font-size: 11.5px; font-weight: 600;
+  line-height: 1.2;
+}
+.ac-role {
+  font-size: 10px; color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.ac-badge {
+  font-family: var(--font-mono);
+  font-size: 8px; font-weight: 700;
+  padding: 1px 5px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* ── SVG WIDGET ──────────────────────────────────── */
+.ac-widget {
+  height: 26px; display: flex; align-items: center;
+}
+.ac-widget svg { overflow: visible; }
+
+/* ── METRICS LINE ────────────────────────────────── */
+.ac-metrics {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-3);
+  letter-spacing: 0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── HOVER ACTIONS ───────────────────────────────── */
+.card-actions {
+  position: absolute;
+  right: -46px; top: 50%; transform: translateY(-50%);
+  width: 38px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 5px 4px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s, right 0.15s;
+  z-index: 10;
+}
+.card-wrap:hover .card-actions {
+  opacity: 1; pointer-events: all; right: -42px;
+}
+.act-btn {
+  width: 28px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px; border: 1px solid var(--border-s);
+  background: transparent; cursor: pointer;
+  color: var(--text-2); transition: background 0.12s, color 0.12s;
+}
+.act-btn:hover { background: var(--surface-elevated); color: var(--text-1); }
+.act-btn svg { width: 11px; height: 11px; }
+
+/* ── SIDEBAR FOOTER ──────────────────────────────── */
+.sb-footer {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border-s);
+  flex-shrink: 0;
+}
+.sf-row {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+  margin-bottom: 1px;
+}
+.sf-row span { color: var(--text-2); font-weight: 500; }
+
+/* ── CHAT AREA ───────────────────────────────────── */
+.chat-area {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-chat);
+}
+
+/* chat header */
+.chat-header {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-s);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.ch-left {}
+.ch-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.ch-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.ch-stats { display: flex; gap: 14px; }
+.ch-stat { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.ch-stat b { color: var(--text-2); font-weight: 500; }
+
+/* ── MESSAGES ────────────────────────────────────── */
+.messages {
+  flex: 1; overflow-y: auto; padding: 16px 22px 8px;
+}
+.messages::-webkit-scrollbar { width: 3px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: oklch(30% 0.01 250); border-radius: 2px; }
+
+/* Date separator */
+.date-sep {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 14px;
+}
+.date-sep .line { flex: 1; height: 1px; background: var(--border-s); }
+.date-sep .dt {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* Message — NO bubble */
+.msg { margin-bottom: 14px; }
+.msg-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 3px;
+}
+.msg-name {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 700;
+}
+.msg-time {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-3);
+}
+.msg-text {
+  font-family: var(--font-ui);
+  font-size: 13px; line-height: 1.65; color: var(--text-1);
+  max-width: 620px;
+}
+.msg-text code {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-code);
+  background: var(--bg-code);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* Human message — warm strip */
+.msg.human {
+  background: rgba(255, 200, 100, 0.04);
+  border-left: 2px solid rgba(255, 200, 100, 0.12);
+  padding: 8px 14px;
+  border-radius: 0 4px 4px 0;
+  margin-left: -14px;
+  margin-right: -14px;
+}
+
+/* ── TOOL EVENTS ─────────────────────────────────── */
+.tool-event {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px;
+  margin: 3px 0;
+  border-radius: 0 4px 4px 0;
+}
+.te-agent {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  width: 56px; text-align: right; flex-shrink: 0;
+  color: var(--text-3);
+}
+.te-arrow { font-size: 11px; flex-shrink: 0; }
+.te-badge {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 1px 6px; border-radius: 2px;
+  flex-shrink: 0;
+}
+.te-desc {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── SYSTEM PILL ─────────────────────────────────── */
+.sys-pill {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 0;
+}
+.sys-pill .line { flex: 1; height: 1px; background: var(--border-s); }
+.sys-pill .text {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-3);
+  white-space: nowrap; letter-spacing: 0.04em;
+}
+
+/* ── THINKING DOTS ───────────────────────────────── */
+.thinking {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.thinking .t-name {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 700;
+}
+.t-dots { display: flex; gap: 5px; }
+.t-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: tdot 1.4s ease-in-out infinite;
+}
+.t-dots span:nth-child(2) { animation-delay: 0.22s; }
+.t-dots span:nth-child(3) { animation-delay: 0.44s; }
+@keyframes tdot {
+  0%,80%,100% { opacity: 0.25; transform: scale(1); }
+  40%         { opacity: 1;    transform: scale(1.3); }
+}
+
+/* ── MARKDOWN RENDERING ──────────────────────────── */
+.md h2 {
+  font-family: var(--font-ui);
+  font-size: 15px; font-weight: 700; color: var(--text-1);
+  margin: 10px 0 6px;
+}
+.md h3 {
+  font-family: var(--font-ui);
+  font-size: 13px; font-weight: 700; color: var(--text-1);
+  margin: 8px 0 4px;
+}
+.md p {
+  margin: 4px 0;
+  font-family: var(--font-ui);
+  font-size: 13px; line-height: 1.65; color: var(--text-1);
+}
+.md strong { font-weight: 700; }
+.md ul {
+  padding-left: 18px; margin: 4px 0;
+}
+.md li {
+  font-family: var(--font-ui);
+  font-size: 13px; line-height: 1.65; color: var(--text-1);
+  margin-bottom: 2px;
+}
+.md li code, .md p code {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-code);
+  background: var(--bg-code);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* Code block */
+.code-block {
+  background: var(--bg-code);
+  border: 1px solid var(--border-s);
+  border-radius: 6px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.code-label {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-3);
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-s);
+}
+.code-block pre {
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px; line-height: 1.6;
+  color: var(--text-code);
+  overflow-x: auto;
+  margin: 0;
+}
+.code-block pre .kw { color: oklch(70% 0.16 290); }
+.code-block pre .fn { color: oklch(72% 0.18 200); }
+.code-block pre .str { color: oklch(70% 0.16 130); }
+.code-block pre .cm { color: var(--text-3); font-style: italic; }
+.code-block pre .num { color: oklch(72% 0.18 65); }
+.code-block pre .type { color: oklch(68% 0.16 60); }
+
+/* ── INPUT ───────────────────────────────────────── */
+.chat-input {
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--border-s);
+  flex-shrink: 0;
+}
+.input-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex; align-items: flex-end; gap: 10px;
+  transition: border-color 150ms;
+}
+.input-box:focus-within {
+  border-color: var(--surface-elevated);
+}
+.input-box textarea {
+  flex: 1; background: none; border: none; outline: none;
+  font-family: var(--font-ui); font-size: 13px; color: var(--text-1);
+  resize: none; height: 20px; line-height: 1.5;
+}
+.input-box textarea::placeholder { color: var(--text-3); }
+.input-send {
+  background: var(--surface-card);
+  border: none; border-radius: 6px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; color: var(--text-2);
+  transition: background 150ms, color 150ms;
+}
+.input-send:hover { background: var(--surface-elevated); color: var(--text-1); }
+.input-footer {
+  display: flex; justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-3);
+}
+
+/* ── STATUS BAR ──────────────────────────────────── */
+.statusbar {
+  height: 22px; min-height: 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 10px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border-s);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-3);
+}
+.sb-left, .sb-right { display: flex; gap: 12px; }
+.sb-item { white-space: nowrap; }
+
+/* ── REDUCED MOTION ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .sb-dot-green, .t-dots span, .ac-widget svg *,
+  .status-pip { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="tb-dots">
+      <div class="tb-dot tb-dot-r"></div>
+      <div class="tb-dot tb-dot-y"></div>
+      <div class="tb-dot tb-dot-g"></div>
+    </div>
+    <div class="tb-center">
+      <span class="tb-title"># general</span>
+      <span class="tb-sep">&middot;</span>
+      <span class="tb-meta">bex</span>
+      <span class="tb-dot-inline"></span>
+      <span class="tb-sep">&middot;</span>
+      <span class="tb-meta">msgs 14</span>
+      <span class="tb-sep">&middot;</span>
+      <span class="tb-meta">tools 6</span>
+    </div>
+    <div class="tb-title">chatroom</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- ═══════ SIDEBAR ═══════ -->
+    <aside class="sidebar">
+      <div class="agent-list">
+
+        <!-- ── ULTRON (active, exec) ── -->
+        <div class="card-wrap">
+          <div class="agent-card active">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">UL</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-ultron)">ultron</div>
+                <div class="ac-role">implementer</div>
+              </div>
+              <span class="ac-badge" style="background:#333333; color:var(--text-2)">exec</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="230" height="26" viewBox="0 0 230 26">
+                <rect x="0" y="6" width="160" height="5" rx="2.5" fill="#333333"/>
+                <rect x="0" y="6" height="5" rx="2.5" fill="#555555">
+                  <animate attributeName="width" values="6;110;110;6" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+                </rect>
+                <rect y="4" width="2" height="9" rx="1" fill="#7d7d7d">
+                  <animate attributeName="x" values="6;110;110;6" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+                  <animate attributeName="opacity" values="1;1;0.2;1" dur="3.2s" repeatCount="indefinite"/>
+                </rect>
+                <text x="168" y="12" font-size="9" fill="#7d7d7d" font-family="monospace">3/4</text>
+                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">Edit ws.ts</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">34s &middot; 11T &middot; ctx 47%</div>
+          </div>
+          <div class="card-actions">
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- ── CERBERUS (active, review) ── -->
+        <div class="card-wrap">
+          <div class="agent-card active">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">CE</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-cerberus)">cerberus</div>
+                <div class="ac-role">reviewer</div>
+              </div>
+              <span class="ac-badge" style="background:#333333; color:var(--text-2)">review</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="230" height="26" viewBox="0 0 230 26">
+                <path d="M8 22 A18 18 0 0 1 44 22" fill="none" stroke="#333333" stroke-width="3.5" stroke-linecap="round"/>
+                <path d="M8 22 A18 18 0 0 1 44 22" fill="none" stroke="#555555" stroke-width="3.5" stroke-linecap="round"
+                  stroke-dasharray="56" stroke-dashoffset="56">
+                  <animate attributeName="stroke-dashoffset" values="56;16;16;56" dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+                </path>
+                <line x1="26" y1="22" x2="26" y2="8" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round">
+                  <animateTransform attributeName="transform" type="rotate"
+                    values="-65 26 22;0 26 22;0 26 22;-65 26 22"
+                    dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
+                </line>
+                <text x="54" y="12" font-size="8" fill="#7d7d7d" font-family="monospace">T1:0 T2:2 T3:4</text>
+                <text x="54" y="23" font-size="8" fill="#7d7d7d" font-family="monospace">Reviewing ws.ts</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">18s &middot; 6T &middot; ctx 31%</div>
+          </div>
+          <div class="card-actions">
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- ── DANTE (active, test) ── -->
+        <div class="card-wrap">
+          <div class="agent-card active">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">DA</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-dante)">dante</div>
+                <div class="ac-role">tester</div>
+              </div>
+              <span class="ac-badge" style="background:#333333; color:var(--text-2)">test</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="230" height="26" viewBox="0 0 230 26">
+                <g transform="translate(0, 8)">
+                  <circle cx="6"  cy="5" r="3.5" fill="#555555"/>
+                  <circle cx="18" cy="5" r="3.5" fill="#555555"/>
+                  <circle cx="30" cy="5" r="3.5" fill="#555555"/>
+                  <circle cx="42" cy="5" r="3.5" fill="#333333">
+                    <animate attributeName="fill" values="#333333;#555555;#555555" dur="2.4s" repeatCount="indefinite"/>
+                  </circle>
+                  <circle cx="54" cy="5" r="3.5" fill="#333333">
+                    <animate attributeName="fill" values="#333333;#333333;#555555" dur="2.4s" repeatCount="indefinite" begin="0.4s"/>
+                  </circle>
+                  <circle cx="66" cy="5" r="3.5" fill="#333333"/>
+                  <circle cx="78" cy="5" r="3.5" fill="#333333"/>
+                </g>
+                <text x="90" y="15" font-size="8" fill="#7d7d7d" font-family="monospace">3/7 pass</text>
+                <text x="0" y="24" font-size="8" fill="#7d7d7d" font-family="monospace">ws.test.ts</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">8s &middot; 3T &middot; ctx 12%</div>
+          </div>
+          <div class="card-actions">
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- ── BILBO (off) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">BI</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-bilbo)">bilbo</div>
+                <div class="ac-role">explorer</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
+                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── HOUSE (off) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">HO</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-house)">house</div>
+                <div class="ac-role">diagnostician</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
+                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── YODA (off) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">YO</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-yoda)">yoda</div>
+                <div class="ac-role">judge</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
+                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── GITTO (off) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">GI</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-gitto)">gitto</div>
+                <div class="ac-role">git memory</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
+                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── ARGUS (offline) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">AR</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-argus)">argus</div>
+                <div class="ac-role">security</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── MORIARTY (offline) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">MO</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-moriarty)">moriarty</div>
+                <div class="ac-role">adversarial</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+        <!-- ── ALEXANDRIA (offline) ── -->
+        <div class="card-wrap">
+          <div class="agent-card off">
+            <div class="ac-top">
+              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">AL</div>
+              <div class="ac-info">
+                <div class="ac-name" style="color:var(--c-alexandria)">alexandria</div>
+                <div class="ac-role">docs</div>
+              </div>
+              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+            </div>
+            <div class="ac-widget">
+              <svg width="190" height="26" viewBox="0 0 190 26">
+                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="ac-metrics">&mdash;</div>
+          </div>
+        </div>
+
+      </div><!-- /agent-list -->
+
+    </aside>
+
+    <!-- ═══════ CHAT ═══════ -->
+    <main class="chat-area">
+
+      <div class="messages">
+
+        <!-- Date -->
+        <div class="date-sep">
+          <div class="line"></div>
+          <div class="dt">hoy &mdash; 14:21</div>
+          <div class="line"></div>
+        </div>
+
+        <!-- 1. Bex (human) -->
+        <div class="msg human">
+          <div class="msg-head">
+            <span class="msg-name" style="color:var(--c-bex)">bex</span>
+            <span class="msg-time">14:21</span>
+          </div>
+          <div class="msg-text">@ultron implementa rate limiting en la WS API. 100 req/min por conexi&oacute;n, sliding window.</div>
+        </div>
+
+        <!-- 2. Ultron response -->
+        <div class="msg">
+          <div class="msg-head">
+            <span class="msg-name" style="color:var(--c-ultron)">ultron</span>
+            <span class="msg-time">14:21</span>
+          </div>
+          <div class="msg-text">Rate limiting en WS. Leo el c&oacute;digo actual de <code>ws.ts</code> y <code>config.ts</code>, luego aplico sliding window con burst allowance.</div>
+        </div>
+
+        <!-- 3. Tool events — Ultron (green border) -->
+        <div class="tool-event" style="background:oklch(72% 0.18 145 / 0.03); border-left:2px solid oklch(72% 0.18 145 / 0.4)">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 145 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 145 / 0.12); color:var(--c-ultron)">Read</span>
+          <span class="te-desc">apps/backend/src/routes/ws.ts</span>
+        </div>
+        <div class="tool-event" style="background:oklch(72% 0.18 145 / 0.03); border-left:2px solid oklch(72% 0.18 145 / 0.4)">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 145 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 145 / 0.12); color:var(--c-ultron)">Read</span>
+          <span class="te-desc">apps/backend/src/config.ts</span>
+        </div>
+        <div class="tool-event" style="background:oklch(72% 0.18 145 / 0.03); border-left:2px solid oklch(72% 0.18 145 / 0.4)">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 145 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 145 / 0.12); color:var(--c-ultron)">Edit</span>
+          <span class="te-desc">apps/backend/src/routes/ws.ts &mdash; added sliding window rateLimiter</span>
+        </div>
+        <div class="tool-event" style="background:oklch(72% 0.18 145 / 0.03); border-left:2px solid oklch(72% 0.18 145 / 0.4)">
+          <span class="te-agent" style="color:var(--c-ultron)">ultron</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 145 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 145 / 0.12); color:var(--c-ultron)">Edit</span>
+          <span class="te-desc">apps/backend/src/config.ts &mdash; WS_RATE_LIMIT_RPM = 100, burst &times;1.5</span>
+        </div>
+
+        <!-- 4. Ultron done -->
+        <div class="msg">
+          <div class="msg-head">
+            <span class="msg-name" style="color:var(--c-ultron)">ultron</span>
+            <span class="msg-time">14:22</span>
+          </div>
+          <div class="msg-text">Hecho. Sliding window, 100 req/min, burst &times;1.5. Headers <code>RateLimit-*</code> incluidos. Configurable via <code>WS_RATE_LIMIT_RPM</code> en <code>config.ts</code>.</div>
+        </div>
+
+        <!-- 5. System pill: cerberus invocado -->
+        <div class="sys-pill">
+          <div class="line"></div>
+          <div class="text">cerberus invocado</div>
+          <div class="line"></div>
+        </div>
+
+        <!-- 6. Cerberus tool events (amber border) -->
+        <div class="tool-event" style="background:oklch(72% 0.18 65 / 0.03); border-left:2px solid oklch(72% 0.18 65 / 0.4)">
+          <span class="te-agent" style="color:var(--c-cerberus)">cerberus</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 65 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 65 / 0.12); color:var(--c-cerberus)">Read</span>
+          <span class="te-desc">apps/backend/src/routes/ws.ts</span>
+        </div>
+        <div class="tool-event" style="background:oklch(72% 0.18 65 / 0.03); border-left:2px solid oklch(72% 0.18 65 / 0.4)">
+          <span class="te-agent" style="color:var(--c-cerberus)">cerberus</span>
+          <span class="te-arrow" style="color:oklch(72% 0.18 65 / 0.4)">&rsaquo;</span>
+          <span class="te-badge" style="background:oklch(72% 0.18 65 / 0.12); color:var(--c-cerberus)">Read</span>
+          <span class="te-desc">apps/backend/src/config.ts</span>
+        </div>
+
+        <!-- 7. LONG cerberus review with markdown -->
+        <div class="msg">
+          <div class="msg-head">
+            <span class="msg-name" style="color:var(--c-cerberus)">cerberus</span>
+            <span class="msg-time">14:23</span>
+          </div>
+          <div class="msg-text md">
+            <h2>Review: rate-limiter.ts</h2>
+            <p><strong>Score: 94/110 &mdash; T2 findings only, no blockers.</strong></p>
+
+            <h3>Findings</h3>
+            <ul>
+              <li><strong>T2</strong> &mdash; <code>rateLimiter.check()</code> no emite m&eacute;trica a pino. A&ntilde;ade <code>logger.info({ ip, remaining }, 'rate-limit check')</code> para observabilidad.</li>
+              <li><strong>T2</strong> &mdash; El burst multiplier <code>1.5</code> est&aacute; hardcoded en <code>ws.ts:47</code>. Mover a <code>config.ts</code> como <code>WS_RATE_BURST_MULT</code>.</li>
+              <li><strong>T3</strong> &mdash; Consider renaming <code>windowMs</code> to <code>slidingWindowMs</code> for clarity.</li>
+              <li><strong>T3</strong> &mdash; Missing JSDoc on <code>checkRateLimit()</code> export.</li>
+              <li><strong>T3</strong> &mdash; <code>Date.now()</code> called twice in the hot path &mdash; cache in a local <code>const now</code>.</li>
+              <li><strong>T3</strong> &mdash; No test for 429 response path when limit is exceeded.</li>
+            </ul>
+
+            <h3>Code</h3>
+            <div class="code-block">
+              <div class="code-label">typescript</div>
+              <pre><span class="kw">export function</span> <span class="fn">checkRateLimit</span>(
+  ws: <span class="type">ServerWebSocket</span>,
+  config: <span class="type">RateLimitConfig</span>
+): <span class="type">boolean</span> {
+  <span class="kw">const</span> now = <span class="fn">Date.now</span>();
+  <span class="kw">const</span> window = ws.data.requests
+    .<span class="fn">filter</span>(t => t > now - config.windowMs);
+  <span class="kw">if</span> (window.length >= config.maxRequests) {
+    ws.<span class="fn">send</span>(<span class="fn">JSON.stringify</span>({
+      error: <span class="str">'Rate limit exceeded'</span>,
+      code: <span class="str">'RATE_LIMITED'</span>,
+      retryAfter: <span class="fn">Math.ceil</span>(
+        (window[<span class="num">0</span>] + config.windowMs - now) / <span class="num">1000</span>
+      )
+    }));
+    <span class="kw">return</span> <span class="kw">false</span>;
+  }
+  ws.data.requests = [...window, now];
+  <span class="kw">return</span> <span class="kw">true</span>;
+}</pre>
+            </div>
+
+            <p>@dante &mdash; cubre el path 429 en <code>ws.test.ts</code>. Enviar 101 requests en <code>&lt;60s</code> y assert <code>RATE_LIMITED</code> response + <code>retryAfter</code> header.</p>
+          </div>
+        </div>
+
+        <!-- 8. System pill: dante invocado -->
+        <div class="sys-pill">
+          <div class="line"></div>
+          <div class="text">dante invocado</div>
+          <div class="line"></div>
+        </div>
+
+        <!-- 9. Short Dante message -->
+        <div class="msg">
+          <div class="msg-head">
+            <span class="msg-name" style="color:var(--c-dante)">dante</span>
+            <span class="msg-time">14:24</span>
+          </div>
+          <div class="msg-text">On it. Adding 429 path coverage to <code>ws.test.ts</code>.</div>
+        </div>
+
+        <!-- 10. Thinking dots: ultron -->
+        <div class="thinking">
+          <span class="t-name" style="color:var(--c-ultron)">ultron</span>
+          <div class="t-dots">
+            <span style="background:var(--c-ultron)"></span>
+            <span style="background:var(--c-ultron)"></span>
+            <span style="background:var(--c-ultron)"></span>
+          </div>
+        </div>
+
+      </div><!-- /messages -->
+
+      <!-- INPUT -->
+      <div class="chat-input">
+        <div class="input-box">
+          <textarea placeholder="Escribe un mensaje... (@ultron, @cerberus, @everyone)" rows="1"></textarea>
+          <button class="input-send" type="button" aria-label="Enviar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-footer">
+          <span>@mention para invocar &middot; Enter env&iacute;a</span>
+          <span>0 / 50000</span>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- STATUS BAR — spans full width below chat, sidebar reaches past it -->
+  </div><!-- /layout -->
+
+  <div class="statusbar">
+    <div class="sb-left">
+      <span class="sb-item">3 / 10 active</span>
+      <span class="sb-item">&middot;</span>
+      <span class="sb-item">9 turns</span>
+      <span class="sb-item">&middot;</span>
+      <span class="sb-item">$0.041</span>
+    </div>
+    <div class="sb-right">
+      <span class="sb-item">chatroom v0.1</span>
+    </div>
+  </div>
+</div><!-- /app-shell -->
+
+</body>
+</html>
