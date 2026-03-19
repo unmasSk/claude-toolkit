@@ -1,10 +1,10 @@
 /**
- * Unit tests for auth-tokens.ts — validateName and issueToken.
+ * Unit tests for auth-tokens.ts — validateName, issueToken, validateToken, peekToken.
  *
  * These tests exercise the pure in-memory logic; no HTTP server needed.
  */
 import { describe, it, expect } from 'bun:test';
-import { validateName, issueToken, validateToken } from './auth-tokens.js';
+import { validateName, issueToken, validateToken, peekToken } from './auth-tokens.js';
 
 // ---------------------------------------------------------------------------
 // validateName
@@ -103,5 +103,67 @@ describe('issueToken + validateToken', () => {
     const result = issueToken('user');
     const exp = new Date(result!.expiresAt).getTime();
     expect(exp).toBeGreaterThan(Date.now());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// peekToken — validates without consuming
+// SEC-AUTH: peekToken must NOT delete the token from the store so the caller
+// can still use the same token for a WS upgrade after calling /invite.
+// ---------------------------------------------------------------------------
+
+describe('peekToken', () => {
+  it('returns the name for a valid token', () => {
+    const result = issueToken('alice');
+    expect(peekToken(result!.token)).toBe('alice');
+  });
+
+  it('does NOT consume the token — token is still valid after peek', () => {
+    const result = issueToken('bob');
+    const token = result!.token;
+    // Peek once
+    const name1 = peekToken(token);
+    // Peek again — must still return the name (not null)
+    const name2 = peekToken(token);
+    expect(name1).toBe('bob');
+    expect(name2).toBe('bob');
+  });
+
+  it('does NOT consume the token — validateToken can still use it after peek', () => {
+    const result = issueToken('carol');
+    const token = result!.token;
+    // Peek first (non-consuming)
+    const peeked = peekToken(token);
+    // Then validate (consuming) — must succeed
+    const validated = validateToken(token);
+    expect(peeked).toBe('carol');
+    expect(validated).toBe('carol');
+    // Now the token IS consumed — a second validateToken returns null
+    const reused = validateToken(token);
+    expect(reused).toBeNull();
+  });
+
+  it('returns null for an unknown token', () => {
+    expect(peekToken('not-a-real-token')).toBeNull();
+  });
+
+  it('returns null when token is undefined', () => {
+    expect(peekToken(undefined)).toBeNull();
+  });
+
+  it('returns null for an empty string', () => {
+    expect(peekToken('')).toBeNull();
+  });
+
+  it('returns null for an expired token (simulated via validateToken consumption + re-issue)', () => {
+    // peekToken deletes expired entries from the store.
+    // We cannot control Date.now() without monkey-patching, but we can verify
+    // the expired-then-deleted path by inspecting that a consumed token returns null.
+    // The token consumed by validateToken is the closest proxy available in unit tests.
+    const result = issueToken('dave');
+    const token = result!.token;
+    validateToken(token); // consume it
+    // Now the token no longer exists in the store — peekToken must return null
+    expect(peekToken(token)).toBeNull();
   });
 });

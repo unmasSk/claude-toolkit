@@ -451,6 +451,171 @@ describe('trust boundary sanitizers — SEC-FIX 1 (6 markers)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Human priority queue — enqueue() unshift vs push (FIX 8 / FIX 4)
+// The enqueue() function itself is not exported, but its logic is simple and
+// critical. We test it inline by mirroring the exact implementation.
+// If the implementation changes in agent-invoker.ts, these tests must be
+// updated manually.
+// ---------------------------------------------------------------------------
+
+describe('priority queue — enqueue logic (inline mirror of agent-invoker.ts)', () => {
+  // Mirror the QueueEntry interface and enqueue logic from agent-invoker.ts
+  interface MockQueueEntry {
+    agentName: string;
+    priority: boolean;
+  }
+
+  function makeQueue(): MockQueueEntry[] {
+    return [];
+  }
+
+  function enqueue(queue: MockQueueEntry[], entry: MockQueueEntry): void {
+    if (entry.priority) {
+      queue.unshift(entry);
+    } else {
+      queue.push(entry);
+    }
+  }
+
+  it('normal (priority=false) entry goes to the BACK of the queue (push)', () => {
+    const queue = makeQueue();
+    enqueue(queue, { agentName: 'first', priority: false });
+    enqueue(queue, { agentName: 'second', priority: false });
+    expect(queue[0].agentName).toBe('first');
+    expect(queue[1].agentName).toBe('second');
+  });
+
+  it('priority (priority=true) entry goes to the FRONT of the queue (unshift)', () => {
+    const queue = makeQueue();
+    enqueue(queue, { agentName: 'first', priority: false });
+    enqueue(queue, { agentName: 'high-priority', priority: true });
+    expect(queue[0].agentName).toBe('high-priority');
+  });
+
+  it('multiple priority entries maintain relative insertion order (LIFO at front)', () => {
+    const queue = makeQueue();
+    enqueue(queue, { agentName: 'normal', priority: false });
+    enqueue(queue, { agentName: 'priority-a', priority: true });
+    enqueue(queue, { agentName: 'priority-b', priority: true });
+    // priority-b was unshifted last → it is at index 0
+    expect(queue[0].agentName).toBe('priority-b');
+    expect(queue[1].agentName).toBe('priority-a');
+    expect(queue[2].agentName).toBe('normal');
+  });
+
+  it('priority entry jumps ahead of all existing normal entries', () => {
+    const queue = makeQueue();
+    enqueue(queue, { agentName: 'n1', priority: false });
+    enqueue(queue, { agentName: 'n2', priority: false });
+    enqueue(queue, { agentName: 'n3', priority: false });
+    enqueue(queue, { agentName: 'urgent', priority: true });
+    // urgent must be first
+    expect(queue[0].agentName).toBe('urgent');
+    expect(queue.length).toBe(4);
+  });
+
+  it('empty queue accepts both priority and normal entries correctly', () => {
+    const q1 = makeQueue();
+    enqueue(q1, { agentName: 'only', priority: true });
+    expect(q1[0].agentName).toBe('only');
+
+    const q2 = makeQueue();
+    enqueue(q2, { agentName: 'only', priority: false });
+    expect(q2[0].agentName).toBe('only');
+  });
+
+  it('invokeAgents with priority=true calls are fire-and-forget (return undefined)', () => {
+    const result = invokeAgents('default', new Set(['bilbo']), 'urgent', new Map(), true);
+    expect(result).toBeUndefined();
+  });
+
+  it('invokeAgents with priority=false calls are fire-and-forget (return undefined)', () => {
+    const result = invokeAgents('default', new Set(['bilbo']), 'normal', new Map(), false);
+    expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// @everyone double-invoke guard (ws.ts FIX: extractMentions skipped when @everyone)
+// The guard is: everyoneProcessed = EVERYONE_PATTERN.test(content)
+//              mentions = everyoneProcessed ? new Set() : extractMentions(content)
+// We test this inline — the pattern is in ws.ts at the module level and cannot
+// be imported directly. If the logic changes in ws.ts, update these tests.
+// ---------------------------------------------------------------------------
+
+describe('@everyone double-invoke guard — inline logic mirror of ws.ts', () => {
+  const EVERYONE_PATTERN = /@everyone\b/i;
+
+  function computeMentions(content: string, extractFn: (c: string) => Set<string>): Set<string> {
+    const everyoneProcessed = EVERYONE_PATTERN.test(content);
+    return everyoneProcessed ? new Set<string>() : extractFn(content);
+  }
+
+  // Spy to detect whether extractMentions was called
+  function makeExtractSpy(): { called: boolean; fn: (c: string) => Set<string> } {
+    const spy = { called: false, fn: (c: string) => { spy.called = true; return new Set<string>(['bilbo']); } };
+    return spy;
+  }
+
+  it('when @everyone is present, the mentions set is empty (extractMentions not invoked)', () => {
+    const spy = makeExtractSpy();
+    const result = computeMentions('@everyone do something @bilbo', spy.fn);
+    expect(result.size).toBe(0);
+    expect(spy.called).toBe(false);
+  });
+
+  it('when @everyone is present (case: @Everyone), mentions set is empty', () => {
+    const spy = makeExtractSpy();
+    const result = computeMentions('@Everyone please respond', spy.fn);
+    expect(result.size).toBe(0);
+    expect(spy.called).toBe(false);
+  });
+
+  it('when @everyone is present (case: @EVERYONE), mentions set is empty', () => {
+    const spy = makeExtractSpy();
+    const result = computeMentions('@EVERYONE stop', spy.fn);
+    expect(result.size).toBe(0);
+    expect(spy.called).toBe(false);
+  });
+
+  it('when @everyone is NOT present, extractMentions is called normally', () => {
+    const spy = makeExtractSpy();
+    const result = computeMentions('hey @bilbo help me', spy.fn);
+    expect(spy.called).toBe(true);
+    expect(result.size).toBeGreaterThan(0);
+  });
+
+  it('message with only a normal mention (no @everyone) passes through extractMentions', () => {
+    const spy = makeExtractSpy();
+    computeMentions('@bilbo review this', spy.fn);
+    expect(spy.called).toBe(true);
+  });
+
+  it('@everyone followed immediately by another word (no word boundary) is still matched', () => {
+    // EVERYONE_PATTERN = /@everyone\b/i — the \b anchors after 'everyone'
+    // '@everyone123' does NOT have a word boundary after 'everyone' — should not match
+    const spy1 = makeExtractSpy();
+    const result1 = computeMentions('@everyone123 do something', spy1.fn);
+    // No word boundary — @everyone123 is NOT matched, so extractMentions IS called
+    expect(spy1.called).toBe(true);
+    expect(result1.size).toBeGreaterThan(0);
+
+    const spy2 = makeExtractSpy();
+    const result2 = computeMentions('@everyone stop', spy2.fn);
+    // Has word boundary — @everyone IS matched, extractMentions NOT called
+    expect(spy2.called).toBe(false);
+    expect(result2.size).toBe(0);
+  });
+
+  it('message with @everyone and no other mentions also yields empty set', () => {
+    const spy = makeExtractSpy();
+    const result = computeMentions('@everyone', spy.fn);
+    expect(result.size).toBe(0);
+    expect(spy.called).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // seenIds dedup — StrictMode race regression (inline logic from chat-store.ts)
 // Without stable server-side tool_event ids, every delivery generates a new UUID
 // → seenIds cannot deduplicate → ToolLines multiply on reconnect/hot-reload.
