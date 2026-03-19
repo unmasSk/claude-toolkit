@@ -52,7 +52,7 @@ function stringEnv(name: string, defaultValue: string): string {
 // ---------------------------------------------------------------------------
 
 /** Port for the Elysia HTTP/WS server */
-export const PORT = requireIntEnv('PORT', 3000, 1, 65535);
+export const PORT = requireIntEnv('PORT', 3001, 1, 65535);
 
 /**
  * SEC-FIX 2: Bind to loopback only — no external connections accepted.
