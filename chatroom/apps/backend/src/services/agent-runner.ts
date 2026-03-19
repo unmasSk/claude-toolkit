@@ -37,6 +37,15 @@ const logger = createLogger('agent-runner');
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Extends Bun's readable spawn options with the `detached` flag, which is
+ * supported by the Bun runtime on Unix but absent from its public TypeScript
+ * typings. Using this interface avoids the `as any` cast on Bun.spawn.
+ */
+interface BunSpawnOptionsWithDetached extends Bun.SpawnOptions.Readable {
+  detached?: boolean;
+}
+
 /** Options bag for spawnAndParse — replaces the 8-argument positional signature. */
 export interface SpawnAndParseOptions {
   roomId: string;
@@ -141,13 +150,12 @@ export async function spawnAndParse(opts: SpawnAndParseOptions): Promise<boolean
   // FIX 16 / House diagnostic: On Windows, detached + windowsHide are broken in
   // Bun 1.3.11. Piped stdio alone suppresses console windows on Windows.
   const isUnix = process.platform !== 'win32';
-  const proc = Bun.spawn(args, {
+  const spawnOpts: BunSpawnOptionsWithDetached = {
     stdout: 'pipe',
     stderr: 'pipe',
     ...(isUnix ? { detached: true } : {}),
-    // as any: Bun's SpawnOptions type does not include `detached` in its public typings
-    // even though the runtime supports it on Unix. Cast avoids a TS2345 error.
-  } as any);
+  };
+  const proc = Bun.spawn(args, spawnOpts);
 
   logger.debug({ agentName, roomId, pid: proc.pid }, 'subprocess spawned');
 

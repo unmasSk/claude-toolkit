@@ -127,13 +127,18 @@ function readStderr(stderr: unknown, result: AgentStreamResult): Promise<void> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   return (async () => {
-    const chunks: string[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(decoder.decode(value));
+    try {
+      const chunks: string[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(decoder.decode(value));
+      }
+      result.stderrOutput = chunks.join('');
+    } catch (err: unknown) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'stderr stream error');
+      result.stderrOutput = '';
     }
-    result.stderrOutput = chunks.join('');
   })();
 }
 
