@@ -70,9 +70,16 @@ validation, check `roomConns.get(roomId)?.size >= MAX_CONNECTIONS_PER_ROOM` — 
 `logger.warn({ connId, roomId }, 'WS rate limit exceeded')` before the error send.
 Use `logger` (pino instance) not `log` (unstructured wrapper) to get structured fields.
 
-**SEC-OPEN-011** (auth-tokens.ts): Simple sliding-window counter `authFailureWindow` —
-incremented in `peekToken` and `validateToken` on every failure path. When count >= 10,
-emit `logger.error({ failCount }, '...')`. Window resets when gap > 60s.
+**SEC-OPEN-011** (auth-tokens.ts): Upgraded to per-source tracking via `authFailureBySource: Map<string, FailureWindow>`.
+Key = first 8 chars of token (enough to distinguish probing sources, avoids storing full tokens).
+Missing/short tokens use sentinel key `'unknown'`. `recordAuthFailure(token?)` now takes the token as argument.
+GC for stale windows added in the existing 10-min setInterval (removes entries older than 2x window).
+Call sites updated: `peekToken` and `validateToken` pass `token` to `recordAuthFailure(token)`.
+
+**SEC-BOOT-001** (logger.ts line 16): Changed from blacklist (`!== 'production'`) to allowlist
+(`=== 'development' || === 'test'`). Bootstrap exception applies — logger reads process.env
+directly here because config.ts is not yet loaded. Allowlist is still required to prevent
+staging/misconfigured envs from getting pretty-printed dev logs.
 
 **SEC-OPEN-012** (agent-invoker.ts): Wrap `stderrOutput.trim()` in `sanitizePromptContent()`
 before calling `log()`. The safeStderr variable replaces the raw trim inline.

@@ -51,7 +51,7 @@ Bun.spawn(['claude', '-p', prompt, '--session-id', id, ...])
 
 **Prompt injection defense** — call `sanitizePromptContent()` (from `agent-invoker.ts`) on any user-supplied content before it enters a prompt.
 
-**Rate limiting** — token bucket enforced on WS (5 messages / 10s) and API (`/auth/token` 20/min, `/invite` shared bucket). Do not bypass.
+**Rate limiting** — token bucket enforced on WS (5 messages / 10s) and API (`/auth/token` 20/min, `/invite` 20/min — each has its own named bucket so one cannot exhaust the other's quota). Do not bypass.
 
 **Config** — never read `process.env` directly. Use `config.ts` exports.
 

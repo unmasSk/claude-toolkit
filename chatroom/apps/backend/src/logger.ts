@@ -13,7 +13,10 @@ import pino from 'pino';
  *   log.error({ err }, 'invocation failed');
  */
 
-const isDev = process.env.NODE_ENV !== 'production';
+// SEC-BOOT-001: allowlist pattern — only known safe envs enable dev mode.
+// Blacklist (`!== 'production'`) would treat unknown/missing NODE_ENV as dev,
+// leaking pretty-printed logs in staging or misconfigured deployments.
+const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
 const rootLogger = pino(
   {
