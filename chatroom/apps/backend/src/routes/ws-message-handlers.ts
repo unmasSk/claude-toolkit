@@ -30,6 +30,8 @@ import { logger, connStates, EVERYONE_PATTERN } from './ws-state.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
+const STOP_DIRECTIVE = /\b(stop|para|callaos|silence|quiet)\b/i;
+
 function sendError(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws: any,
@@ -40,64 +42,46 @@ function sendError(
 }
 
 /**
- * Handle the @everyone directive embedded in a send_message.
- * Returns true if processing should stop (stop directive or empty directive after strip).
+ * Persist a system directive message to DB and broadcast it to the room.
+ * Returns false (and sends DB_ERROR) if the insert fails.
  */
-function handleEveryoneDirective(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ws: any,
-  roomId: string,
-  content: string,
-  authorName: string,
-): void {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function insertAndBroadcastDirective(ws: any, roomId: string, safeDirective: string): boolean {
+  const sysId = generateId();
+  const sysCreatedAt = nowIso();
+  const sysContent = `[DIRECTIVE FROM USER — ALL AGENTS MUST OBEY] ${safeDirective}`;
+  try {
+    insertMessage({ id: sysId, roomId, author: 'system', authorType: 'system', content: sysContent, msgType: 'system', parentId: null, metadata: '{}' });
+  } catch (err) {
+    logger.error({ err, roomId }, 'WS @everyone: insertMessage (system directive) failed');
+    sendError(ws, 'Failed to save directive. Please try again.', 'DB_ERROR');
+    return false;
+  }
+  const sysMsg: Message = { id: sysId, roomId, author: 'system', authorType: 'system', content: sysContent, msgType: 'system', parentId: null, metadata: {}, createdAt: sysCreatedAt };
+  broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
+  ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
+  return true;
+}
+
+/** Handle the @everyone directive embedded in a send_message. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function handleEveryoneDirective(ws: any, roomId: string, content: string, authorName: string): void {
   const directive = content.replace(/@everyone\b/gi, '').trim();
   logger.info({ authorName, directive }, 'WS send_message @everyone directive');
 
-  // @everyone stop — halt all pending and new invocations.
-  const isStopDirective = /\b(stop|para|callaos|silence|quiet)\b/i.test(directive);
+  const isStopDirective = STOP_DIRECTIVE.test(directive);
   if (isStopDirective) {
     const cleared = clearQueue(roomId);
     pauseInvocations(roomId);
     logger.info({ cleared }, 'WS @everyone stop: queue cleared, invocations paused');
   }
 
-  if (!directive) return; // empty after stripping @everyone
+  if (!directive) return;
 
   // FIX 5: Sanitize before storage to prevent double-framing injection.
   const safeDirective = sanitizePromptContent(directive);
-  const sysId = generateId();
-  const sysCreatedAt = nowIso();
-  try {
-    insertMessage({
-      id: sysId,
-      roomId,
-      author: 'system',
-      authorType: 'system',
-      content: `[DIRECTIVE FROM USER — ALL AGENTS MUST OBEY] ${safeDirective}`,
-      msgType: 'system',
-      parentId: null,
-      metadata: '{}',
-    });
-  } catch (err) {
-    logger.error({ err, roomId }, 'WS @everyone: insertMessage (system directive) failed');
-    sendError(ws, 'Failed to save directive. Please try again.', 'DB_ERROR');
-    return;
-  }
-  const sysMsg: Message = {
-    id: sysId,
-    roomId,
-    author: 'system',
-    authorType: 'system',
-    content: `[DIRECTIVE FROM USER — ALL AGENTS MUST OBEY] ${safeDirective}`,
-    msgType: 'system',
-    parentId: null,
-    metadata: {},
-    createdAt: sysCreatedAt,
-  };
-  broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
-  ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
+  if (!insertAndBroadcastDirective(ws, roomId, safeDirective)) return;
 
-  // @everyone (non-stop): invoke all agents currently in the room.
   if (!isStopDirective) {
     const agentSessions = listAgentSessions(roomId);
     if (agentSessions.length > 0) {
@@ -112,6 +96,17 @@ function handleEveryoneDirective(
 // send_message
 // ---------------------------------------------------------------------------
 
+/**
+ * Handle a send_message client message.
+ * Persists the message to the database, broadcasts it to all room subscribers,
+ * and dispatches @mention or @everyone invocations. Author is always resolved
+ * server-side from connId to prevent client spoofing (SEC-FIX 2).
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The target room identifier.
+ * @param connId - The connection identifier used to look up the sender's name.
+ * @param content - The raw message content from the client.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleSendMessage(ws: any, roomId: string, connId: string, content: string): void {
   const room = getRoomById(roomId);
@@ -137,26 +132,22 @@ export function handleSendMessage(ws: any, roomId: string, connId: string, conte
   }
 
   const newMsg: Message = { id, roomId, author: authorName, authorType: 'human', content, msgType: 'message', parentId: null, metadata: {}, createdAt };
-  // Broadcast to all subscribers; self-deliver for production (no StrictMode second socket)
   broadcastSync(roomId, { type: 'new_message', message: newMsg }, ws);
   ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(newMsg) }));
 
   if (EVERYONE_PATTERN.test(content)) {
     handleEveryoneDirective(ws, roomId, content, authorName);
   } else if (isPaused(roomId)) {
-    // Non-@everyone human message resumes invocations
     resumeInvocations(roomId);
     logger.info({ authorName }, 'WS send_message: invocations resumed after @everyone stop');
   }
 
   // Skip individual @mentions when @everyone was present (already handled above or was a stop).
-  // Only process individual mentions when @everyone was NOT present.
   const everyonePresent = EVERYONE_PATTERN.test(content);
   const mentions = everyonePresent ? new Set<string>() : extractMentions(content);
   logger.debug({ authorName, contentLength: content.length, everyonePresent, mentionCount: mentions.size }, 'WS send_message processed');
 
   if (mentions.size > 0) {
-    // priority=true: human message — goes to front of queue (FIX 4)
     invokeAgents(roomId, mentions, sanitizePromptContent(content), new Map(), true);
   }
 }
@@ -165,6 +156,17 @@ export function handleSendMessage(ws: any, roomId: string, connId: string, conte
 // invoke_agent
 // ---------------------------------------------------------------------------
 
+/**
+ * Handle an invoke_agent client message.
+ * Validates the agent exists and is invokable, persists and broadcasts the trigger prompt
+ * as a human message for the audit trail, then enqueues the agent invocation.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The target room identifier.
+ * @param connId - The connection identifier used to look up the invoker's name.
+ * @param agent - The agent name to invoke.
+ * @param prompt - The prompt to pass to the agent.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleInvokeAgent(ws: any, roomId: string, connId: string, agent: string, prompt: string): void {
   // SEC-OPEN-002: Validate agent name against registry at WS layer
@@ -177,7 +179,6 @@ export function handleInvokeAgent(ws: any, roomId: string, connId: string, agent
   const room = getRoomById(roomId);
   if (!room) { sendError(ws, 'Room not found', 'ROOM_NOT_FOUND'); return; }
 
-  // Persist trigger prompt as a user message for audit trail.
   const invokeConnState = connStates.get(connId);
   if (!invokeConnState) {
     logger.error({ connId, roomId }, 'WS invoke_agent: connState missing for active connId — closing');
@@ -199,17 +200,27 @@ export function handleInvokeAgent(ws: any, roomId: string, connId: string, agent
   // T1-03 fix: broadcast the trigger message to all clients
   const invokeUserMsg: Message = { id: invokeMsgId, roomId, author: invokeAuthorName, authorType: 'human', content: prompt, msgType: 'message', parentId: null, metadata: {}, createdAt: invokeCreatedAt };
   broadcastSync(roomId, { type: 'new_message', message: invokeUserMsg }, ws);
-  // Self-deliver: Elysia 1.4.28 does not implement publishToSelf
   ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(invokeUserMsg) }));
 
   logger.info({ agent, roomId }, 'WS invoke_agent');
-  invokeAgent(roomId, agent, prompt);
+  invokeAgent(roomId, agent, sanitizePromptContent(prompt));
 }
 
 // ---------------------------------------------------------------------------
 // load_history
 // ---------------------------------------------------------------------------
 
+/**
+ * Handle a load_history client message.
+ * Returns a paginated batch of messages before the given cursor, clamped to 100 per page,
+ * in chronological order. Includes a hasMore flag for the client to decide whether to
+ * show a "load more" button.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The room to query.
+ * @param before - The message ID used as the pagination cursor.
+ * @param limit - The requested number of messages (clamped to 100).
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleLoadHistory(ws: any, roomId: string, before: string, limit: number): void {
   const room = getRoomById(roomId);
@@ -217,7 +228,6 @@ export function handleLoadHistory(ws: any, roomId: string, before: string, limit
 
   const clampedLimit = Math.min(limit, 100);
   const rows = getMessagesBefore(roomId, before, clampedLimit);
-  // hasMoreMessagesBefore needs a created_at timestamp, not a message ID
   const pivotCreatedAt = getMessageCreatedAt(before);
   const hasMore = pivotCreatedAt ? hasMoreMessagesBefore(roomId, pivotCreatedAt) : false;
 
