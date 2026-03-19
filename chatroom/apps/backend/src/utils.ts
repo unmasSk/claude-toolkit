@@ -1,6 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import type { MessageRow, AgentSessionRow, RoomRow } from './types.js';
 import type { Message, AgentStatus, Room } from '@agent-chatroom/shared';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('utils');
 
 // ---------------------------------------------------------------------------
 // ID generation
@@ -47,7 +50,14 @@ export function mapMessageRow(row: MessageRow): Message {
     content: row.content,
     msgType: row.msg_type,
     parentId: row.parent_id,
-    metadata: JSON.parse(row.metadata || '{}') as Message['metadata'],
+    metadata: (() => {
+      try {
+        return JSON.parse(row.metadata || '{}') as Message['metadata'];
+      } catch {
+        logger.warn({ rowId: row.id }, 'mapMessageRow: failed to parse metadata — using {}');
+        return {} as Message['metadata'];
+      }
+    })(),
     createdAt: row.created_at,
   };
 }

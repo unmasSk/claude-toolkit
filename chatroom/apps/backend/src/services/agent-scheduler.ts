@@ -145,31 +145,24 @@ export function invokeAgent(roomId: string, agentName: string, prompt: string): 
  * Distinct log/system messages per call site preserve branch-level observability.
  */
 function tryMergeOrEnqueue(
-  roomId: string,
-  agentName: string,
-  context: InvocationContext,
-  isRetry: boolean,
-  priority: boolean,
-  mergedLogMsg: string,
-  mergedSysMsg: string,
-  enqueuedSysMsg: (queueSize: number) => string,
+  roomId: string, agentName: string, context: InvocationContext,
+  isRetry: boolean, priority: boolean, mergedLogMsg: string,
+  mergedSysMsg: string, enqueuedSysMsg: (queueSize: number) => string,
 ): void {
-  // Issue #31: merge into existing pending entry to avoid N runs for N queued messages
   const existing = pendingQueue.find((e) => e.agentName === agentName && e.roomId === roomId);
   if (existing) {
-    // FIX 3: Reject merge if combined content exceeds size cap
     const merged = existing.context.triggerContent + `\n\n${context.triggerContent}`;
-    if (merged.length > MAX_TRIGGER_CONTENT_BYTES) {
+    const canMerge = merged.length <= MAX_TRIGGER_CONTENT_BYTES;
+    if (!canMerge) {
       void postSystemMessageAsync(roomId, `Agent ${agentName} trigger content too large — message dropped.`);
       return;
     }
     existing.context.triggerContent = merged;
-    if (priority) existing.priority = true; // FIX 1: escalate priority
+    if (priority) existing.priority = true;
     logger.debug({ agentName, roomId, queueSize: pendingQueue.length }, mergedLogMsg);
     void postSystemMessageAsync(roomId, mergedSysMsg);
     return;
   }
-
   if (pendingQueue.length >= MAX_QUEUE_SIZE) {
     void postSystemMessageAsync(roomId, `Agent ${agentName} cannot be queued — too many pending invocations.`);
     return;

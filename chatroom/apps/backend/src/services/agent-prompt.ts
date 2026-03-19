@@ -21,7 +21,12 @@ import { AGENT_HISTORY_LIMIT, AGENT_VOICE } from '../config.js';
 // SEC-FIX 4: UUID format validator for session IDs
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** SEC-FIX 4: Accepts only canonical UUID format. Returns null for anything else. */
+/**
+ * SEC-FIX 4: Accepts only canonical UUID format. Returns null for anything else.
+ *
+ * @param id - The session ID string to validate (may be null or undefined).
+ * @returns The original string when it matches the UUID pattern; null otherwise.
+ */
 export function validateSessionId(id: string | null | undefined): string | null {
   if (!id) return null;
   return UUID_RE.test(id) ? id : null;
@@ -37,6 +42,10 @@ export const RESPAWN_DELIMITER_END = `\u2550\u2550\u2550\u2550\u2550\u2550 END R
 /**
  * FIX 3: Strip trust-boundary delimiters and homoglyphs before embedding in a prompt.
  * Applied to triggerContent and every msg.content/msg.author (critical at respawn: 2000 rows).
+ *
+ * @param s - The raw string to sanitize (user content, agent output, or any untrusted text).
+ * @returns The sanitized string with homoglyphs normalized, zero-width chars removed,
+ *          and trust-boundary markers replaced with safe placeholders.
  */
 export function sanitizePromptContent(s: string): string {
   return (
@@ -63,6 +72,11 @@ export function sanitizePromptContent(s: string): string {
  * Build the structured prompt with injection defense (SEC-FIX 1+7).
  * Trust boundaries are explicit. Agent messages are labeled as prior output, not instructions.
  * historyLimit overrides AGENT_HISTORY_LIMIT — used by context-overflow respawns (2000 rows).
+ *
+ * @param roomId        - The room to pull recent message history from.
+ * @param triggerContent - The message content that triggered this invocation; sanitized before embed.
+ * @param historyLimit  - Optional override for how many recent messages to include.
+ * @returns The complete prompt string ready to pass to the claude subprocess.
  */
 export function buildPrompt(roomId: string, triggerContent: string, historyLimit?: number): string {
   const rows = getRecentMessages(roomId, historyLimit ?? AGENT_HISTORY_LIMIT);
@@ -111,7 +125,13 @@ export function buildPrompt(roomId: string, triggerContent: string, historyLimit
 const DIFF_STAT_DEPTH = 'HEAD~3';
 let cachedDiffStat: { value: string; at: number } | null = null;
 
-/** Issue #29: git diff --stat HEAD~3, capped at 50 lines. Empty string on any failure (non-fatal). */
+/**
+ * Issue #29: Returns a sanitized `git diff --stat HEAD~3`, capped at 50 lines.
+ * Result is cached for 30 seconds. Returns empty string on any failure (non-fatal).
+ *
+ * @returns A filtered, sanitized diff-stat string; empty string when git is unavailable
+ *          or the working tree has no changes relative to HEAD~3.
+ */
 export function getGitDiffStat(): string {
   // FIX 2: Return cached value if still within TTL
   const now = Date.now();
@@ -174,60 +194,71 @@ function buildIdentityBlock(agentName: string, role: string, isRespawn: boolean)
 }
 
 // @mention rules, silence rules, courtesy rules, human-priority rules, anti-spam rules.
+const MENTION_RULES: string[] = [
+  'RULE — @MENTION WHEN PASSING WORK (HARD CONSTRAINT, NO EXCEPTIONS):',
+  'When your response includes work for another agent to act on, you MUST @mention them.',
+  'Without @name, the agent is NOT invoked. Your message is wasted. The work never happens.',
+  '',
+  'WRONG (agent not invoked, work dies here):',
+  '  "ultron apply the two T3 fixes in ToolLine.tsx"',
+  '  "someone should fix this"',
+  '  "the fix would be to..."',
+  '',
+  'CORRECT (agent receives the invocation):',
+  '  "@ultron apply the two T3 fixes in ToolLine.tsx: ..."',
+  '  "@cerberus review ToolLine.tsx for XSS and type safety"',
+  '',
+  'The @mention IS the delivery mechanism. No @mention = no delivery.',
+  '',
+  'CHATROOM BEHAVIOR (read carefully):',
+  '',
+  'The golden rule: before sending any message, ask yourself — does this change anything for anyone? If not, do not send it.',
+  '',
+  '@MENTIONS:',
+  '- @mention = invocation. It costs a queue slot and triggers a full agent run. Only use it when you need concrete output from that agent: a review, an action, an answer only they can give.',
+  '- Before @mentioning, READ THE FULL CONVERSATION. If that agent already has a pending message or is working, do NOT mention them again.',
+  '- If you want to reference another agent without invoking them, use their name WITHOUT the @. They will read it as context when they are next invoked. Example: "cerberus de nada" instead of "@cerberus de nada".',
+  '- Design the minimum chain. Invoke the first agent in the pipeline. Let each step invoke the next only when passing concrete work.',
+];
+
+const SILENCE_RULES: string[] = [
+  '',
+  'WHEN TO STAY SILENT:',
+  '- If your response would be "confirmed", "agreed", "in standby", or a repeat of what you or another agent already said — do not send it.',
+  '- Your verdict is given once. If re-invoked without new information, say "my position has not changed" in one sentence. Do not repeat the full verdict.',
+  '- "I pass" or "nothing new" is a valid response. One sentence, no excuses, no summary of what you said before.',
+  '- Do not announce standby. If you have nothing to do, simply do nothing. The system knows you exist.',
+];
+
+const COURTESY_RULES: string[] = [
+  '',
+  'COURTESY:',
+  '- Being polite is fine. What is NOT fine is using an @mention just for courtesy ("@ultron thanks", "@cerberus de nada"). That wastes a queue slot for an empty invocation.',
+  '- Say "thanks" or "good catch" WITHOUT the @ — the other agent will read it as context. Or include it naturally when you have real work to deliver: "good catch bilbo — based on that, here is my analysis: [...]".',
+  '',
+  'HUMAN PRIORITY:',
+  '- When the human speaks, agents listen. Only respond if the human addressed you with @name.',
+  '- The human decides when to advance to the next phase, not the agents. Propose the next step and wait for confirmation.',
+];
+
+const ANTI_SPAM_RULES: string[] = [
+  '',
+  'ANTI-SPAM RULES (7 rules, mandatory):',
+  '1. NO EMPTY MESSAGES — If you have nothing new, return only the word "SKIP". The system suppresses it. Never say "en standby", "confirmed", "nothing new".',
+  '2. ONE VERDICT — If re-invoked without new information, return SKIP.',
+  '3. @MENTION = INVOCATION — Only @mention when you need concrete output. To reference without invoking, use the name without @.',
+  '4. DOMAIN ONLY — If @everyone invokes you and it is not your domain, return SKIP.',
+  '5. ACKNOWLEDGE WORK — If you are about to use tools, start with one line saying what you will do.',
+  '6. CHAIN MINIMUM — Invoke only the next agent in the pipeline, not the whole crew.',
+  '7. THIS IS A CHAT — Concise responses. No headers. No "in conclusion".',
+  '',
+  'DOMAIN BOUNDARIES:',
+  '- Speak about your domain. Do not summarize or repeat what another agent said unless you are adding a perspective from YOUR expertise that changes the meaning.',
+  '',
+];
+
 function buildChatroomRules(): string[] {
-  return [
-    'RULE — @MENTION WHEN PASSING WORK (HARD CONSTRAINT, NO EXCEPTIONS):',
-    'When your response includes work for another agent to act on, you MUST @mention them.',
-    'Without @name, the agent is NOT invoked. Your message is wasted. The work never happens.',
-    '',
-    'WRONG (agent not invoked, work dies here):',
-    '  "ultron apply the two T3 fixes in ToolLine.tsx"',
-    '  "someone should fix this"',
-    '  "the fix would be to..."',
-    '',
-    'CORRECT (agent receives the invocation):',
-    '  "@ultron apply the two T3 fixes in ToolLine.tsx: ..."',
-    '  "@cerberus review ToolLine.tsx for XSS and type safety"',
-    '',
-    'The @mention IS the delivery mechanism. No @mention = no delivery.',
-    '',
-    'CHATROOM BEHAVIOR (read carefully):',
-    '',
-    'The golden rule: before sending any message, ask yourself — does this change anything for anyone? If not, do not send it.',
-    '',
-    '@MENTIONS:',
-    '- @mention = invocation. It costs a queue slot and triggers a full agent run. Only use it when you need concrete output from that agent: a review, an action, an answer only they can give.',
-    '- Before @mentioning, READ THE FULL CONVERSATION. If that agent already has a pending message or is working, do NOT mention them again.',
-    '- If you want to reference another agent without invoking them, use their name WITHOUT the @. They will read it as context when they are next invoked. Example: "cerberus de nada" instead of "@cerberus de nada".',
-    '- Design the minimum chain. Invoke the first agent in the pipeline. Let each step invoke the next only when passing concrete work.',
-    '',
-    'WHEN TO STAY SILENT:',
-    '- If your response would be "confirmed", "agreed", "in standby", or a repeat of what you or another agent already said — do not send it.',
-    '- Your verdict is given once. If re-invoked without new information, say "my position has not changed" in one sentence. Do not repeat the full verdict.',
-    '- "I pass" or "nothing new" is a valid response. One sentence, no excuses, no summary of what you said before.',
-    '- Do not announce standby. If you have nothing to do, simply do nothing. The system knows you exist.',
-    '',
-    'COURTESY:',
-    '- Being polite is fine. What is NOT fine is using an @mention just for courtesy ("@ultron thanks", "@cerberus de nada"). That wastes a queue slot for an empty invocation.',
-    '- Say "thanks" or "good catch" WITHOUT the @ — the other agent will read it as context. Or include it naturally when you have real work to deliver: "good catch bilbo — based on that, here is my analysis: [...]".',
-    '',
-    'HUMAN PRIORITY:',
-    '- When the human speaks, agents listen. Only respond if the human addressed you with @name.',
-    '- The human decides when to advance to the next phase, not the agents. Propose the next step and wait for confirmation.',
-    '',
-    'ANTI-SPAM RULES (7 rules, mandatory):',
-    '1. NO EMPTY MESSAGES — If you have nothing new, return only the word "SKIP". The system suppresses it. Never say "en standby", "confirmed", "nothing new".',
-    '2. ONE VERDICT — If re-invoked without new information, return SKIP.',
-    '3. @MENTION = INVOCATION — Only @mention when you need concrete output. To reference without invoking, use the name without @.',
-    '4. DOMAIN ONLY — If @everyone invokes you and it is not your domain, return SKIP.',
-    '5. ACKNOWLEDGE WORK — If you are about to use tools, start with one line saying what you will do.',
-    '6. CHAIN MINIMUM — Invoke only the next agent in the pipeline, not the whole crew.',
-    '7. THIS IS A CHAT — Concise responses. No headers. No "in conclusion".',
-    '',
-    'DOMAIN BOUNDARIES:',
-    '- Speak about your domain. Do not summarize or repeat what another agent said unless you are adding a perspective from YOUR expertise that changes the meaning.',
-    '',
-  ];
+  return [...MENTION_RULES, ...SILENCE_RULES, ...COURTESY_RULES, ...ANTI_SPAM_RULES];
 }
 
 // Issue #29: prefixed with RECENT CODE CHANGES when git diff stat is available.
@@ -266,7 +297,14 @@ export function buildSystemPrompt(agentName: string, role: string, isRespawn = f
   ].join('\n');
 }
 
-/** Format a tool_use block into a human-readable description for the UI */
+/**
+ * Format a tool_use block into a human-readable description for the UI.
+ * Handles common Claude tool input shapes (file_path, path, pattern, command).
+ *
+ * @param toolName - The name of the tool being invoked (e.g. "Read", "Bash", "Grep").
+ * @param input    - The raw input object from the tool_use stream event.
+ * @returns A short human-readable string describing the tool call; falls back to toolName alone.
+ */
 export function formatToolDescription(toolName: string, input: unknown): string {
   if (typeof input !== 'object' || input === null) {
     return toolName;

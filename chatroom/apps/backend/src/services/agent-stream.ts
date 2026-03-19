@@ -16,22 +16,17 @@
 import { createLogger } from '../logger.js';
 import { parseStreamLine } from './stream-parser.js';
 import type { ResultEvent } from './stream-parser.js';
-import {
-  clearAgentSession,
-} from '../db/queries.js';
 import { broadcast } from './message-bus.js';
 import { generateId } from '../utils.js';
-import { AGENT_TIMEOUT_MS } from '../config.js';
 import { AgentState } from '@agent-chatroom/shared';
 import {
   formatToolDescription,
   validateSessionId,
   sanitizePromptContent,
-  CONTEXT_OVERFLOW_SIGNAL,
 } from './agent-prompt.js';
-import { updateStatusAndBroadcast, postSystemMessage } from './agent-runner.js';
+import { updateStatusAndBroadcast } from './agent-runner.js';
 import type { InvocationContext } from './agent-scheduler.js';
-import { persistAndBroadcast } from './agent-result.js';
+import { persistAndBroadcast, handleFailedResult, handleEmptyResult } from './agent-result.js';
 
 const logger = createLogger('agent-stream');
 
@@ -252,72 +247,4 @@ export async function handleAgentResult(
   return false;
 }
 
-// ---------------------------------------------------------------------------
-// handleFailedResult — private, ≤30 LOC
-// ---------------------------------------------------------------------------
-
-async function handleFailedResult(
-  sr: AgentStreamResult,
-  roomId: string,
-  agentName: string,
-  context: InvocationContext,
-): Promise<boolean> {
-  const lo = (s: string) => s.toLowerCase();
-  const isContextOverflow = lo(sr.resultText).includes(CONTEXT_OVERFLOW_SIGNAL) || lo(sr.stderrOutput).includes(CONTEXT_OVERFLOW_SIGNAL);
-  const isStaleSession = isContextOverflow || sr.resultText.includes('No conversation found') || sr.resultText.includes('conversation not found');
-  if (isStaleSession) {
-    clearAgentSession(agentName, roomId);
-    const staleReason = isContextOverflow ? 'context too long' : 'stale session';
-    logger.warn({ agentName, roomId, staleReason }, 'stale session detected — scheduling retry');
-    if (isContextOverflow) {
-      const display = agentName.charAt(0).toUpperCase() + agentName.slice(1);
-      await postSystemMessage(roomId, `🔄 ${display} reinvocado (contexto agotado, nueva sesión)`);
-    } else {
-      await postSystemMessage(roomId, `Agent ${agentName}: ${staleReason} detected, retrying fresh...`);
-    }
-    context.isRespawn = isContextOverflow;
-    const { scheduleInvocation } = await import('./agent-scheduler.js');
-    scheduleInvocation(roomId, agentName, context, true, true);
-    return true;
-  }
-
-  const errorMsg = sanitizePromptContent(sr.resultText || 'Agent returned an error result');
-  await updateStatusAndBroadcast(agentName, roomId, AgentState.Error, errorMsg);
-  await postSystemMessage(roomId, `Agent ${agentName} failed: ${errorMsg}`);
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// handleEmptyResult — private, ≤30 LOC
-// ---------------------------------------------------------------------------
-
-async function handleEmptyResult(
-  sr: AgentStreamResult,
-  roomId: string,
-  agentName: string,
-  context: InvocationContext,
-): Promise<boolean> {
-  const isRateLimit =
-    sr.stderrOutput.includes('429') ||
-    sr.stderrOutput.toLowerCase().includes('rate limit') ||
-    sr.stderrOutput.toLowerCase().includes('overloaded') ||
-    sr.stderrOutput.toLowerCase().includes('too many requests');
-
-  if (isRateLimit && !context.rateLimitRetry) {
-    logger.warn({ agentName, roomId }, 'rate limit detected — releasing lock and retrying in 12s');
-    await postSystemMessage(roomId, `Agent ${agentName}: rate limited, retrying in 12s...`);
-    context.rateLimitRetry = true;
-    const key = `${agentName}:${roomId}`;
-    const sched = await import('./agent-scheduler.js');
-    sched.inFlight.delete(key);
-    sched.activeInvocations.delete(key);
-    sched.drainQueue();
-    setTimeout(() => { sched.scheduleInvocation(roomId, agentName, context, false); }, 12_000);
-    return false;
-  }
-
-  await postSystemMessage(roomId, `Agent ${agentName} returned no response.`);
-  await updateStatusAndBroadcast(agentName, roomId, AgentState.Done);
-  return false;
-}
 
