@@ -153,6 +153,21 @@ function parseAssistantEvent(event: AssistantEvent): StreamEvent[] {
   return events;
 }
 
+/**
+ * Infer context window size from model name when the CLI reports 0.
+ * Keys in modelUsage are the full model IDs (e.g., "claude-sonnet-4-6").
+ */
+function inferContextWindow(modelUsage: Record<string, { contextWindow?: number }> | undefined): number {
+  if (!modelUsage) return 0;
+  for (const modelId of Object.keys(modelUsage)) {
+    const lower = modelId.toLowerCase();
+    if (lower.includes('opus')) return 1_000_000;
+    if (lower.includes('sonnet')) return 200_000;
+    if (lower.includes('haiku')) return 200_000;
+  }
+  return 0;
+}
+
 function parseResultEvent(event: ResultEventRaw): ResultEvent | null {
   // FIX 2: Check subtype for success vs error
   const success = event.subtype === 'success';
@@ -169,9 +184,14 @@ function parseResultEvent(event: ResultEventRaw): ResultEvent | null {
     : [];
   // contextWindow lives under modelUsage[<modelId>].contextWindow — pick the first entry
   const modelUsageValues = event.modelUsage ? Object.values(event.modelUsage) : [];
-  const contextWindow = modelUsageValues.length > 0 && typeof modelUsageValues[0]?.contextWindow === 'number'
+  const rawContextWindow = modelUsageValues.length > 0 && typeof modelUsageValues[0]?.contextWindow === 'number'
     ? modelUsageValues[0].contextWindow
     : 0;
+  // Fallback: when the CLI reports 0, infer from the model name in the modelUsage key.
+  // This covers cases where the CLI omits contextWindow for known model families.
+  const contextWindow = rawContextWindow > 0
+    ? rawContextWindow
+    : inferContextWindow(event.modelUsage);
 
   return { type: 'result', result, sessionId, success, costUsd, durationMs, numTurns, inputTokens, outputTokens, cacheReadTokens, contextWindow, permissionDenials };
 }

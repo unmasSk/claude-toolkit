@@ -685,10 +685,10 @@ describe('Origin check — ALLOWED_ORIGINS set', () => {
     // We verify the logic path exists in the source rather than spinning up a
     // full HTTP upgrade request with a custom Origin header.
     const fs = await import('node:fs');
-    const src = fs.readFileSync(
-      new URL('./ws.ts', import.meta.url).pathname,
-      'utf-8'
-    );
+    // On Windows, URL.pathname starts with /C:/ — strip leading slash for readFileSync
+    let wsPath = new URL('./ws.ts', import.meta.url).pathname;
+    if (/^\/[A-Za-z]:\//.test(wsPath)) wsPath = wsPath.slice(1);
+    const src = fs.readFileSync(wsPath, 'utf-8');
     expect(src).toContain('ALLOWED_ORIGINS.has(origin)');
     expect(src).toContain('ws.close()');
   });

@@ -99,9 +99,11 @@ describe('resolveAgentDir — no env var, glob and fallback', () => {
     expect(result.length).toBeGreaterThan(0);
   });
 
-  it('returns an absolute path (starts with /)', () => {
+  it('returns an absolute path (starts with / or a drive letter on Windows)', () => {
     const result = resolveAgentDir({ AGENT_DIR: undefined });
-    expect(result.startsWith('/')).toBe(true);
+    // On Unix the path starts with /; on Windows it starts with a drive letter (e.g. C:\)
+    const isAbsolute = result.startsWith('/') || /^[A-Za-z]:[/\\]/.test(result);
+    expect(isAbsolute).toBe(true);
   });
 
   it('glob pattern targets the unmassk-toolkit agents directory', () => {
@@ -120,9 +122,9 @@ describe('resolveAgentDir — fallback when no glob match', () => {
     const fallbackWithExisting = join(import.meta.dir, '../../../../../../agents');
     const fallbackWithoutExisting = join(import.meta.dir, '../agents');
 
-    // Both possible fallback paths end with /agents
-    expect(fallbackWithExisting.endsWith('/agents')).toBe(true);
-    expect(fallbackWithoutExisting.endsWith('/agents')).toBe(true);
+    // Both possible fallback paths end with /agents or \agents (Windows)
+    expect(fallbackWithExisting.endsWith('/agents') || fallbackWithExisting.endsWith('\\agents')).toBe(true);
+    expect(fallbackWithoutExisting.endsWith('/agents') || fallbackWithoutExisting.endsWith('\\agents')).toBe(true);
   });
 
   it('version sort picks highest version when multiple glob matches exist', () => {

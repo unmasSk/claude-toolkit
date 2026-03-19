@@ -69,16 +69,20 @@ mock.module('node:fs', () => {
   return {
     ...realFs,
     existsSync(p: string): boolean {
-      if (p === FAKE_AGENT_DIR) return true;
+      // Normalize separators so the mock works on both Windows and Unix
+      if (p.replace(/\\/g, '/') === FAKE_AGENT_DIR.replace(/\\/g, '/')) return true;
       return realFs.existsSync(p);
     },
     readdirSync(p: string): string[] {
-      if (p === FAKE_AGENT_DIR) return Object.keys(fakeFiles);
+      if (p.replace(/\\/g, '/') === FAKE_AGENT_DIR.replace(/\\/g, '/')) return Object.keys(fakeFiles);
       return realFs.readdirSync(p);
     },
     readFileSync(p: string, enc?: string): string | Buffer {
-      const filename = p.replace(FAKE_AGENT_DIR + '/', '');
-      if (p.startsWith(FAKE_AGENT_DIR) && fakeFiles[filename] !== undefined) {
+      // Normalize separators so the mock works on both Windows (backslash) and Unix (forward slash).
+      const normalP = p.replace(/\\/g, '/');
+      const normalDir = FAKE_AGENT_DIR.replace(/\\/g, '/');
+      const filename = normalP.replace(normalDir + '/', '');
+      if (normalP.startsWith(normalDir) && fakeFiles[filename] !== undefined) {
         return fakeFiles[filename];
       }
       return realFs.readFileSync(p, enc);
