@@ -109,3 +109,21 @@ function openWsReady(url: string, timeoutMs = 2000): Promise<WebSocket> {
 ## Bun spawn subprocess testing
 
 `Bun.spawn` in agent-invoker.ts spawns real `claude -p` processes. These lines (267-479) are NOT unit-testable. Accept the coverage gap — mark in report as "requires real claude binary".
+
+## Rate Limit Isolation for Route Tests
+
+When testing rate-limited routes (e.g. /invite), do NOT import the real `apiRoutes` — it shares module-level `apiBuckets` state with api.test.ts. Instead, spin up an inline Elysia handler with a local `checkRateLimit` function and a local `Map`. Add a `exhaustBucket(key)` helper that sets `tokens: 0` directly, so 429 tests don't need to fire 20+ real requests.
+
+## Isolated Rate Limit Test Pattern
+
+```ts
+const _buckets = new Map<string, { tokens: number; lastRefill: number }>();
+function checkRateLimit(key: string): boolean { /* mirror prod logic */ }
+function exhaustBucket(key: string): void {
+  _buckets.set(key, { tokens: 0, lastRefill: Date.now() });
+}
+```
+
+## Cross-File DB Contamination — historyLimit pattern
+
+Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.

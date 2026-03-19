@@ -36,10 +36,11 @@ Previously `inFlight` was keyed by agent name alone, blocking same-agent cross-r
 All `.has()`, `.add()`, `.delete()` calls use the composite key.
 `drainQueue` also checks `${e.agentName}:${e.roomId}`.
 
-### RACE-002: retryScheduled flag prevents double-delete in stale session retry
-`InvocationContext.retryScheduled?: boolean` — set to `true` before calling `scheduleInvocation` in the stale session path.
-The `.finally()` in `runInvocation` checks `!context.retryScheduled` before deleting from `inFlight`/`activeInvocations`.
-Without this, the outer finally would delete the entry that the retry had just added.
+### RACE-002: retryScheduled signal — now a return value, not a context mutation (Issue #36, 2026-03-19)
+`spawnAndParse` returns `Promise<boolean>` — true when a retry was scheduled.
+`doInvoke` returns `Promise<boolean>` — propagates the retryScheduled signal upward.
+`runInvocation` uses `.then(retryScheduled => { if (!retryScheduled) { cleanup } })` — no longer reads from context.
+`InvocationContext.retryScheduled` was removed. `isRespawn` and `rateLimitRetry` remain as context fields (they are config, not race signals).
 
 ### Files involved
 - `mention-parser.ts` — depth param only (no authorType), NEVER_INVOKE set for 'user'/'system'/'claude'
@@ -147,3 +148,22 @@ Import in `ws.ts`: `import { sanitizePromptContent } from '../services/agent-inv
 
 ### FIX 11: Test isolation try/finally
 historyLimit test in `agent-invoker.test.ts` now wraps assertions in `try/finally` — cleanup rows are deleted even if assertions throw.
+
+---
+
+## Session 6 backlog fixes — 2026-03-19
+
+### Issue #36: retryScheduled mutation removed from InvocationContext
+`retryScheduled` deleted from `InvocationContext`. `spawnAndParse` and `doInvoke` now return `Promise<boolean>`. `runInvocation` reads the boolean in `.then()` to decide whether to clean up inFlight/activeInvocations. The `.catch()` guard handles unexpected rejections (always cleans up). `.finally()` always drains queue.
+
+### Issue #31: Queue merge for same-agent+room pending entries
+In `scheduleInvocation`, before adding a new queue entry, check `pendingQueue.find(e => e.agentName === agentName && e.roomId === roomId)`. If found, append the new trigger content with `\n\n` separator instead of adding a new entry. Applied in both the inFlight-lock path and the concurrency-cap path. Prevents N sequential runs when N messages arrive for a busy agent.
+
+### Issue #29: git diff stat injected into agent system prompt
+`getGitDiffStat()` runs `Bun.spawnSync(['git', 'diff', '--stat', 'HEAD~3'])` synchronously. Output capped at 50 lines. Injected as a `RECENT CODE CHANGES` section in `buildSystemPrompt` just before the SECURITY section. Non-fatal — empty string returned on any error.
+
+### contextWindow 0% fallback: infer from model name
+`inferContextWindow(modelUsage)` in `stream-parser.ts`: iterates modelUsage keys, matches 'opus' → 1_000_000, 'sonnet'/'haiku' → 200_000. Called in `parseResultEvent` when rawContextWindow is 0.
+
+### Issue #25 closed
+`gh issue close 25 --comment "Implemented: human messages use unshift for queue priority"`
