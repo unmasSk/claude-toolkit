@@ -171,3 +171,24 @@ Swagger adds HTTP overhead and leaks API surface in test mode.
 - `routes/api.test.ts`: test server handler updated to strip `allowedTools` (matching production).
   Old "each agent has an allowedTools array" test replaced with
   "allowedTools is stripped from every agent in the production route (SEC-MED-001)".
+
+---
+
+## Session 8 fixes — 2026-03-19
+
+### readStderr try/catch (agent-stream.ts)
+The async IIFE inside `readStderr` is now wrapped in try/catch. On any thrown error
+from the stderr stream, `logger.warn({ err: err.message }, 'stderr stream error')` is
+called and `result.stderrOutput` is set to `''`. This prevents an unhandled rejection
+from propagating to the process-level rejection handler when the subprocess stderr stream
+fails unexpectedly.
+
+### BunSpawnOptionsWithDetached interface (agent-runner.ts)
+Replaced `as any` cast on `Bun.spawn` with a typed interface:
+```ts
+interface BunSpawnOptionsWithDetached extends Bun.SpawnOptions.Readable {
+  detached?: boolean;
+}
+```
+`spawnOpts` is declared as `BunSpawnOptionsWithDetached`, then passed to `Bun.spawn`.
+The `as any` cast comment was removed along with the cast itself.

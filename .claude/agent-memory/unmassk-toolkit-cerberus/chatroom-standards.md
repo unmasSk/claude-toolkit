@@ -46,24 +46,40 @@ These rules were mandated by the user for permanent enforcement on every review 
 - Six exported functions missing @param/@returns in JSDoc: validateSessionId, sanitizePromptContent, buildPrompt, getGitDiffStat, buildSystemPrompt (partial), formatToolDescription (T3)
 - buildSystemPrompt now 7 LOC — RESOLVED (was 95 LOC T2)
 
-## Violations after 2026-03-19 refactor of agent-runner.ts + agent-stream.ts + ws-handlers.ts + ws-message-handlers.ts
+## Final scan 2026-03-19 (post all refactors)
 
-### RESOLVED
-- agent-runner.ts: spawnAndParse split into agent-stream.ts — nesting depth 6 RESOLVED, 403 LOC RESOLVED
-- agent-runner.ts: doInvoke 76 LOC → 48 LOC — RESOLVED
-- agent-runner.ts: open() 110 LOC → 9 LOC — RESOLVED (helpers extracted)
-- ws-handlers.ts: open() refactored into validateUpgrade/registerConnection/sendInitialState — each ≤30 LOC — RESOLVED
-- ws-message-handlers.ts: handleSendMessage/handleInvokeAgent/handleLoadHistory JSDoc added — RESOLVED
-- handleEveryoneDirective 64 LOC → 26 LOC — RESOLVED
+### RESOLVED (from previous open list)
+- agent-runner.ts: spawnAndParse 8-param violation → SpawnAndParseOptions interface introduced — RESOLVED (T2 closed)
+- agent-runner.ts: duplicate import from '../db/queries.js' (lines 20 and 30) — RESOLVED (consolidated to single import at line 20)
+- agent-stream.ts: 386 LOC → 323 LOC — still T2 (>300 limit), improvement noted
+- agent-stream.ts: readAgentStream JSDoc now has all 4 @param tags — RESOLVED (T3 closed)
+- agent-stream.ts: AgentStreamResult interface now has full JSDoc with @property tags — RESOLVED (T3 closed)
+- agent-stream.ts: handleAgentResult now has @param/@returns tags — RESOLVED (T3 closed)
+- agent-scheduler.ts: 348 LOC → 294 LOC (split to agent-queue.ts) — RESOLVED (T2 closed)
+- agent-prompt.ts: six missing @param/@returns — STILL OPEN (see below)
 
-### Still open after this refactor (T2/T3)
-- agent-runner.ts: duplicate import from '../db/queries.js' (lines 20 and 30) — T3 nitpick (split lines, functionally identical)
-- agent-runner.ts: spawnAndParse has 8 params (>5 limit) — T2 violation; should use object param
-- agent-runner.ts: AGENT_TIMEOUT_MS imported but not used in agent-runner.ts directly (used only in makeTimeoutHandle at line 193 — ok, valid)
-- agent-stream.ts: 386 LOC — T2 file size violation (limit 300). Next split needed.
-- agent-stream.ts: readAgentStream JSDoc missing @param tags for all 4 parameters — T3
-- agent-stream.ts: AgentStreamResult interface has no JSDoc — T3
-- agent-stream.ts: handleAgentResult JSDoc missing @param/@returns tags — T3
-- agent-stream.ts: line 184 is 215 chars — T3 (nitpick)
-- ws-handlers.ts: rejectUpgrade and other helpers have no JSDoc (private helpers — T3 if exported required; these are not exported so T3 at most)
-- ws-state.ts: 11 exported constants/maps with no JSDoc — still open T3
+### Still open after final scan (T2/T3)
+
+#### T2 (blocking)
+- agent-stream.ts: 323 LOC (T2) — still over 300 limit; next split needed
+- agent-prompt.ts: buildChatroomRules helper 55 LOC (T2) — extract rule clusters into named const arrays
+
+#### T3 (non-blocking)
+- agent-prompt.ts: validateSessionId — single-line JSDoc only, no @param/@returns (T3)
+- agent-prompt.ts: sanitizePromptContent — description only, no @param/@returns (T3)
+- agent-prompt.ts: buildPrompt — description only, no @param/@returns (T3)
+- agent-prompt.ts: getGitDiffStat — description only, no @param (T3)
+- agent-prompt.ts: formatToolDescription — description only, no @param/@returns (T3)
+- agent-result.ts: maybeTruncate — no JSDoc at all (T3)
+- agent-result.ts: buildAgentMessage — no JSDoc at all (T3)
+- agent-result.ts: scheduleChainMentions — no JSDoc at all (T3)
+- agent-result.ts: persistAndBroadcast — no JSDoc at all (T3)
+- agent-scheduler.ts: tryMergeOrEnqueue helper — has 9 params (>5 limit, Rule 5) and no JSDoc (T3 — private helper)
+- ws-state.ts: wsConnIds (Map<any, string>) — exported, no JSDoc describing the any type (T3)
+- agent-stream.ts: line 206 is 215 chars — long line (T3)
+
+#### FALSE POSITIVES (do not re-flag)
+- agent-runner.ts: `as any` on Bun.spawn — documented inline ("Bun 1.3.11 Windows bug"), acceptable
+- ws-handlers.ts: `any` on ws parameter — documented with eslint-disable, Elysia internals limitation, acceptable
+- config.ts: `throw new Error()` inside ConfigError (subclass) — not generic throw, ConfigError is a typed subclass
+- agent-scheduler.ts: tryMergeOrEnqueue 9 params — private helper (not exported), T3 at most

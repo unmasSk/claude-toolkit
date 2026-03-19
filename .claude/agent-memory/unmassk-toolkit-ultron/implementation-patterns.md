@@ -458,3 +458,28 @@ Added property-level `@property` JSDoc on `AgentStreamResult` interface. Added `
 
 ### Lesson: Edit tool path format on Windows
 Edit tool requires Windows-style absolute paths (`C:\Users\...`). The `/c/Users/...` bash form causes "string not found" failures. If Edit fails with no error but string is visually correct, switch to the Windows path form.
+
+---
+
+## Session 16: agent-stream/result/prompt/scheduler/utils cleanup — 2026-03-19
+
+### Change 1: handleFailedResult + handleEmptyResult moved to agent-result.ts
+Previously private in `agent-stream.ts`. Now exported from `agent-result.ts`. agent-stream.ts imports and delegates. Both functions required adding `clearAgentSession` and `CONTEXT_OVERFLOW_SIGNAL` imports to agent-result.ts. Removed now-unused imports from agent-stream.ts: `clearAgentSession`, `AGENT_TIMEOUT_MS`, `postSystemMessage`.
+
+### Change 2: buildChatroomRules refactored — const arrays + spread
+Extracted rule strings into 4 named `const` arrays: `MENTION_RULES`, `SILENCE_RULES`, `COURTESY_RULES`, `ANTI_SPAM_RULES`. `buildChatroomRules()` now returns `[...MENTION_RULES, ...SILENCE_RULES, ...COURTESY_RULES, ...ANTI_SPAM_RULES]` — 3 lines.
+
+### Change 3: tryMergeOrEnqueue — canMerge inline const + signature compaction
+Size-cap check extracted to `const canMerge = merged.length <= MAX_TRIGGER_CONTENT_BYTES`. Signature params compacted from 9-lines to 4-lines. Result: 26 lines total (≤30).
+
+### Change 4: JSDoc @param/@returns on agent-result.ts functions
+Added to: `maybeTruncate`, `buildAgentMessage`, `scheduleChainMentions`, `persistAndBroadcast`, `handleFailedResult`, `handleEmptyResult`.
+
+### Change 5: JSDoc @param/@returns on agent-prompt.ts functions
+Added to: `validateSessionId`, `sanitizePromptContent`, `buildPrompt`, `getGitDiffStat`, `formatToolDescription`.
+
+### Change 6: JSON.parse in utils.ts mapMessageRow wrapped in try/catch
+`JSON.parse(row.metadata || '{}')` → try/catch IIFE returning `{}` on parse failure + `logger.warn`. Required adding `import { createLogger }` and `const logger = createLogger('utils')`.
+
+### Change 7: maybeTruncate — Buffer-safe truncation
+`text.slice(0, MAX_AGENT_RESPONSE_BYTES)` → `Buffer.from(text).subarray(0, MAX_AGENT_RESPONSE_BYTES).toString('utf-8')`. Handles multi-byte UTF-8 chars safely — decoder skips incomplete trailing sequences.

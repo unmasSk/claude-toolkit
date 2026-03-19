@@ -111,6 +111,12 @@ When a function is not exported (e.g., `resolveConnectionName` in ws.ts), inline
 in the test file with a comment noting the source. Add a note that if ws.ts changes the rules,
 tests must be updated manually. Do NOT test implementation details of other modules via source-file reads.
 
+## Test count (session 6 additions)
+
+- +9 tests: `tests/services/agent-stream-stderr.test.ts` — readAgentStream throwing-stderr path
+- +15 tests: `tests/routes/ws-e2e-chain.test.ts` — full WS E2E chain (connect→message→broadcast→invokeAgents→DB)
+- Total as of session 6: 1136 tests, 0 failures
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:

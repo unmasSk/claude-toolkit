@@ -186,6 +186,48 @@ and can cause `drainActiveInvocations` tests to time out (5s Bun default).
 Downstream tests that call `drainActiveInvocations` after invokeAgents: add a
 `await tick(80)` before drain to flush any async cleanup from fake-agent early exits.
 
+## Fake ReadableStream for agent-stream.ts tests
+
+To test `readAgentStream` without spawning a real subprocess, build a fake `proc` object:
+
+```ts
+// Stdout: empty (signals done immediately)
+const emptyStream = new ReadableStream<Uint8Array>({ pull(c) { c.close(); } });
+
+// Stderr: throws on first read (exercises the catch path in readStderr())
+const throwingStream = new ReadableStream<Uint8Array>({ pull() { throw new Error('io error'); } });
+
+const proc = {
+  stdout: emptyStream,
+  stderr: throwingStream,
+  exited: Promise.resolve(0),
+  pid: 99999,
+};
+const handle = setTimeout(() => {}, 30_000); // real handle — readAgentStream clears it
+const result = await readAgentStream(proc, 'agent', 'roomId', handle);
+// result.stderrOutput === '' — readStderr catches and swallows the error
+```
+
+Key: `readStderr()` catches any thrown value (Error or non-Error) and sets `stderrOutput = ''`.
+The outer `readAgentStream` does NOT propagate the exception — it always returns an AgentStreamResult.
+
+## E2E WS chain test — real wsRoutes + real auth tokens
+
+To test the full upgrade → message → broadcast → invokeAgents chain:
+
+1. mock `db/connection.js` (in-memory SQLite)
+2. mock `index.js` (stub `server.publish` for message-bus.broadcast)
+3. mock `agent-invoker.js` with partial stub (capture `invokeAgents` calls, real state functions)
+4. Spin up `new Elysia().use(wsRoutes)` on port 0 — do NOT import `index.ts` (starts real server)
+5. Call `issueToken(name)` to get a real auth token, append `?token=...` to WS URL
+6. Bun WS client sends no Origin header → `''` matches WS_ALLOWED_ORIGINS in test mode (NODE_ENV=test adds `''`)
+
+**user_list_update timing**: `registerConnection()` broadcasts `user_list_update` BEFORE
+`sendInitialState()` sends `room_state`. Skip `user_list_update` in message collectors.
+
+**invokeAgents signature**: `invokeAgents(roomId, mentions: Set<string>, triggerContent, Map, boolean)` —
+the stub receives mentions as a Set but can be spread: `_invokeAgentsCalls.push({ mentions: [...mentions] })`.
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.
