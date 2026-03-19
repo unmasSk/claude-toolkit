@@ -26,9 +26,12 @@ export interface AgentConfig extends AgentDefinition {
 // ---------------------------------------------------------------------------
 
 /**
- * SEC-FIX 3: Tools that are never allowed regardless of what frontmatter says.
- * Bash = arbitrary code execution. computer = desktop automation.
- * Single source of truth — agent-invoker.ts and tests import from here.
+ * Tools that are never allowed regardless of what an agent's frontmatter declares.
+ *
+ * SEC-FIX 3: Bash enables arbitrary code execution; computer enables desktop
+ * automation. Both are unconditionally removed from any tool list before an
+ * agent is marked invokable. This is the single source of truth — agent-invoker.ts
+ * and tests import from here rather than duplicating the list.
  */
 export const BANNED_TOOLS: readonly string[] = ['Bash', 'computer'];
 const BANNED_TOOLS_SET = new Set(BANNED_TOOLS);
@@ -139,7 +142,12 @@ function buildRegistry(): Map<string, AgentConfig> {
 
 /**
  * Load (or reload) the agent registry from disk.
- * Subsequent calls return the cached registry — call this once at startup.
+ *
+ * Reads all `.md` files from `AGENT_DIR`, parses their frontmatter, and
+ * merges the result with the static shared registry. Subsequent calls
+ * replace the cached registry — call once at startup and only again for hot-reload.
+ *
+ * @returns The populated registry map (agent name → AgentConfig)
  */
 export function loadAgentRegistry(): Map<string, AgentConfig> {
   _registry = buildRegistry();
@@ -150,7 +158,12 @@ export function loadAgentRegistry(): Map<string, AgentConfig> {
 
 /**
  * Get the config for a specific agent by name (case-insensitive).
- * Returns null if the agent is not in the registry.
+ *
+ * Falls back to a fresh `buildRegistry()` call if the registry has not been
+ * loaded yet (e.g. in tests that skip `loadAgentRegistry`).
+ *
+ * @param name - Agent name to look up (any case)
+ * @returns The AgentConfig, or null if the agent is not in the registry
  */
 export function getAgentConfig(name: string): AgentConfig | null {
   const reg = _registry ?? buildRegistry();
@@ -159,6 +172,8 @@ export function getAgentConfig(name: string): AgentConfig | null {
 
 /**
  * Get all agents in the registry.
+ *
+ * @returns All AgentConfig entries, including non-invokable agents
  */
 export function getAllAgents(): AgentConfig[] {
   const reg = _registry ?? buildRegistry();

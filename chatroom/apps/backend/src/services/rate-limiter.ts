@@ -1,6 +1,4 @@
 /**
- * rate-limiter.ts
- *
  * Shared token-bucket rate limiter factory.
  *
  * Usage:
@@ -18,11 +16,14 @@ interface Bucket {
 }
 
 /**
- * Returns a check(key) function that returns true when the request is allowed
- * and false when the bucket for that key is empty.
+ * Create an independent token-bucket rate limiter.
  *
- * @param max       Maximum tokens per window (burst capacity)
- * @param windowMs  Rolling window duration in milliseconds
+ * Returns a `check(key)` function. Each unique key gets its own bucket.
+ * Tokens refill proportionally over time (sliding window, not fixed reset).
+ *
+ * @param max - Maximum tokens per window (burst capacity)
+ * @param windowMs - Rolling window duration in milliseconds
+ * @returns A function that returns true when the request is allowed, false when the bucket is empty
  */
 export function createTokenBucket(max: number, windowMs: number): (key: string) => boolean {
   const buckets = new Map<string, Bucket>();

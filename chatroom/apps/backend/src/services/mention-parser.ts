@@ -10,24 +10,29 @@ const logger = createLogger('mention-parser');
 const MENTION_RE = /@([a-zA-Z]+)\b/g;
 
 /**
- * Names that are never actionable mentions regardless of registry.
+ * Names that are never actionable mentions regardless of the agent registry.
+ *
  * - 'user' / 'system' — reserved by the server, never invokable
- * - 'claude' — the orchestrator identity; invoking it as a subprocess would
- *   create a loop (T1-02: prevent @claude loop)
+ * - 'claude' — the orchestrator bridge identity; invoking it as a subprocess
+ *   would create a recursive loop (T1-02: prevent @claude loop)
+ * - 'everyone' — broadcast alias, not a real agent
  */
 const NEVER_INVOKE = new Set(['user', 'system', 'claude', 'everyone']);
 
 /**
- * Extract @mentions from a message.
+ * Extract @mentions from a chat message and return the set of invokable agent names.
  *
  * Rules:
- * - FIX 9: Returns Set<string> — deduplication is automatic.
- * - Ignores email-like patterns (preceding char is alphanumeric, e.g. "user@bilbo.com").
- * - Only returns mentions matching known agent names in the registry.
- * - Never returns 'user', 'system', or 'claude' (T1-01, T1-02).
+ * - Deduplication is automatic (returns Set<string>).
+ * - Ignores email-like patterns where '@' is preceded by an alphanumeric char.
+ * - Only returns mentions that match known, invokable agents in the registry.
+ * - Never returns 'user', 'system', 'claude', or 'everyone' (T1-01, T1-02).
  * - Returned names are lowercase.
  *
  * Per-agent turn limits are enforced in agent-invoker.ts, not here.
+ *
+ * @param content - Raw message content to scan for @mentions
+ * @returns Set of lowercase agent names that should be invoked
  */
 export function extractMentions(content: string): Set<string> {
   logger.debug({ contentLength: content.length }, 'extractMentions');

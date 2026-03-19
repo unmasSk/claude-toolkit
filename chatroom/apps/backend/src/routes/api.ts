@@ -30,12 +30,31 @@ const log = createLogger('api');
 // quota: 'auth-token' for POST /api/auth/token, 'invite' for POST /invite.
 // ---------------------------------------------------------------------------
 
+/**
+ * Shared rate limiter for all sensitive API routes (20 req/min global ceiling).
+ *
+ * Keyed by endpoint name ('auth-token', 'invite') so each route has its own
+ * independent bucket and cannot be starved by the other (SEC-OPEN-002).
+ * Global key — not per-IP — because X-Forwarded-For headers are trivially
+ * spoofed behind an uncontrolled proxy (SEC-FIX 7).
+ */
 const checkApiRateLimit = createTokenBucket(20, 60_000);
 
 // ---------------------------------------------------------------------------
 // API route group
 // ---------------------------------------------------------------------------
 
+/**
+ * Elysia plugin mounting all REST API routes under the `/api` prefix.
+ *
+ * Routes:
+ * - GET  /api/rooms                    — list all rooms
+ * - GET  /api/rooms/:id                — room detail with agent session status
+ * - GET  /api/rooms/:id/messages       — paginated message history
+ * - GET  /api/agents                   — public agent registry (tools stripped)
+ * - POST /api/auth/token               — issue a short-lived WS auth token
+ * - POST /api/rooms/:id/invite         — add agents to a room (requires Bearer token)
+ */
 export const apiRoutes = new Elysia({ prefix: '/api' })
 
   // GET /api/rooms — list all rooms

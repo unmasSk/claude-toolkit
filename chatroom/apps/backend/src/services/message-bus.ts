@@ -8,9 +8,10 @@ const logger = createLogger('message-bus');
 // ---------------------------------------------------------------------------
 
 /**
- * FIX 3: Import the Elysia app singleton lazily (at call time, not module load).
- * This avoids circular import issues during startup and lets index.ts fully
- * initialize before any broadcast call happens.
+ * Import the Elysia app singleton lazily (at call time, not module load).
+ *
+ * FIX 3: This avoids circular import issues during startup and lets index.ts
+ * fully initialize before any broadcast call happens.
  */
 async function getApp() {
   const { app } = await import('../index.js');
@@ -19,7 +20,10 @@ async function getApp() {
 
 /**
  * Strip sessionId from message metadata before broadcasting.
- * SEC-FIX 5: Session IDs are server-internal and must never reach the frontend.
+ *
+ * SEC-FIX 5: Session IDs are server-internal identifiers used for `--resume`.
+ * They must never reach the frontend — a client with a session ID could
+ * potentially influence or hijack a future agent invocation.
  */
 function stripSessionId(event: ServerMessage): ServerMessage {
   if (event.type === 'new_message') {
@@ -47,10 +51,14 @@ function stripSessionId(event: ServerMessage): ServerMessage {
 }
 
 /**
- * Broadcast a server message to all WebSocket clients subscribed to a room.
+ * Broadcast a server event to all WebSocket clients subscribed to a room.
  *
- * FIX 3: Uses app.server!.publish() via lazy singleton import.
- * SEC-FIX 5: Strips metadata.sessionId before broadcasting.
+ * Uses the Elysia app singleton via a lazy import to avoid circular deps (FIX 3).
+ * Strips `metadata.sessionId` before sending (SEC-FIX 5).
+ * Drops the event with a warning if the server is not yet ready.
+ *
+ * @param roomId - Target room; subscribers on `room:<roomId>` receive the event
+ * @param event - The ServerMessage to broadcast
  */
 export async function broadcast(roomId: string, event: ServerMessage): Promise<void> {
   const app = await getApp();
@@ -66,8 +74,15 @@ export async function broadcast(roomId: string, event: ServerMessage): Promise<v
 }
 
 /**
- * Synchronous broadcast variant for use within WS handlers where the server
- * is guaranteed to be live. Avoids async overhead in hot path.
+ * Synchronous broadcast variant for use within WS handlers.
+ *
+ * Requires the caller to pass the server instance directly, which is always
+ * available inside Elysia WS handlers. Avoids the async overhead of the lazy
+ * import on the hot path.
+ *
+ * @param roomId - Target room
+ * @param event - The ServerMessage to broadcast
+ * @param server - Elysia WS server instance with a `publish` method
  */
 export function broadcastSync(
   roomId: string,

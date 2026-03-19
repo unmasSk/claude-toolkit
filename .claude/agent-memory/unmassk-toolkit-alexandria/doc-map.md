@@ -262,4 +262,29 @@ All 10 plugin README.md files updated 2026-03-15 to document BM25 skill routing 
 | `chatroom/docs/security.md` | Reference | Created 2026-03-19 — threat model, controls by category, known limitations |
 | `chatroom/docs/testing-guide.md` | Reference | Created 2026-03-19 — test runner, DB strategy, file inventory, patterns |
 
+## chatroom/apps/backend/src — JSDoc pass (2026-03-19)
+
+All 15 target source files documented with enterprise JSDoc on 2026-03-19:
+
+| File | Status |
+|------|--------|
+| `db/connection.ts` | Updated — `getDb` @summary + WAL/busy_timeout rationale |
+| `db/schema.ts` | Updated — `initializeSchema` @summary + @throws |
+| `db/queries.ts` | Updated — all 13 exported functions fully documented |
+| `types.ts` | Updated — interface-level JSDoc on all 3 interfaces |
+| `utils.ts` | Updated — all 5 exports: generateId, nowIso, mapMessageRow, mapAgentSessionRow, mapRoomRow, safeMessage (SEC-FIX 5 WHY in safeMessage) |
+| `logger.ts` | Updated — `createLogger` @param + @returns; rootLogger one-liner |
+| `config.ts` | Updated — NODE_ENV one-liner; WS_ALLOWED_ORIGINS doc with SEC-CONFIG-001 rationale |
+| `services/auth-tokens.ts` | Updated — all exports: getReservedAgentNames, validateName, issueToken, peekToken, validateToken; constants explain SEC-AUTH codes |
+| `services/stream-parser.ts` | Updated — exported interfaces (TextEvent, ToolUseEvent, ResultEvent); parseStreamLine @param + @returns |
+| `services/agent-registry.ts` | Updated — BANNED_TOOLS explains SEC-FIX 3; loadAgentRegistry, getAgentConfig, getAllAgents |
+| `services/mention-parser.ts` | Updated — NEVER_INVOKE explains T1-02 loop prevention; extractMentions full rules |
+| `services/message-bus.ts` | Updated — broadcast @param + @returns; broadcastSync with hot-path note; stripSessionId SEC-FIX 5 |
+| `services/rate-limiter.ts` | Updated — createTokenBucket @param + @returns |
+| `routes/api.ts` | Updated — apiRoutes export doc with route list; checkApiRateLimit explains global-key rationale |
+| `index.ts` | Updated — app singleton doc (FIX 3 + SEC-FIX 2); gracefulShutdown @param + shutdown order |
+
+Style: no `@module`/`@file`/`@description`; no `{Type}` in `@param`; security constants explain WHY not just WHAT.
+Verified: tsc --noEmit clean, 789 bun tests pass.
+
 **How to apply:** On each launch, check git commits since last verified date for each CLAUDE.md. If stale, update.

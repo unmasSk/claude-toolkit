@@ -19,9 +19,11 @@ initializeSchema();
 loadAgentRegistry();
 
 /**
- * FIX 3: Export app as a singleton so message-bus.ts can import it
- * and call app.server!.publish() without needing a ws instance in scope.
- * SEC-FIX 2: Bind to 127.0.0.1 only — no external access.
+ * Elysia application singleton.
+ *
+ * Exported so message-bus.ts can lazily import it and call
+ * `app.server!.publish()` without needing a live WS instance in scope (FIX 3).
+ * Bound to `127.0.0.1` by default — set `HOST=0.0.0.0` for LAN/Docker (SEC-FIX 2).
  */
 export const app = new Elysia()
   .use(
@@ -70,14 +72,13 @@ app.listen({ port: PORT, hostname: HOST }, () => {
 });
 
 /**
- * Graceful shutdown handler.
- * 1. Stop accepting new connections (app.server?.stop()).
- * 2. Await all in-progress agent invocations so no subprocess is mid-run when the DB closes.
- * 3. Checkpoint the WAL file so all pages are in the main DB file.
- * 4. Close the database.
- * 5. Exit 0.
+ * Drain connections, checkpoint WAL, and exit cleanly on SIGTERM/SIGINT.
  *
- * If shutdown takes longer than 5s, force-exits with code 1.
+ * Order: stop server → drain agent invocations → WAL checkpoint → close DB → exit 0.
+ * Awaiting `drainActiveInvocations` prevents a subprocess from writing a result
+ * row after `db.close()` has been called. Force-exits with code 1 after 5s.
+ *
+ * @param signal - Signal name for logging ('SIGTERM' or 'SIGINT')
  */
 async function gracefulShutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutting down gracefully...');
