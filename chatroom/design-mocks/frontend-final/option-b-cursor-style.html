@@ -707,23 +707,48 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 }
 .input-chip {
   font-family: var(--font-ui);
-  font-size: 11px; color: var(--text-2);
+  font-size: 11px; font-weight: 500;
+  color: var(--text-2);
   background: #1a1a1a;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 2px 8px;
+  padding: 3px 8px;
   cursor: pointer;
   display: flex; align-items: center; gap: 4px;
   transition: background 150ms;
 }
 .input-chip:hover { background: #222222; }
-.input-chip .chip-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: #28C840;
-}
 .input-chip .chip-arrow {
   font-size: 8px; color: var(--text-3);
   margin-left: 2px;
+}
+/* Mode badge — colored bg + icon */
+.mode-badge {
+  font-family: var(--font-ui);
+  font-size: 11px; font-weight: 500;
+  border: none; border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  transition: opacity 150ms;
+}
+.mode-badge:hover { opacity: 0.85; }
+.mode-badge svg {
+  width: 14px; height: 14px;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.mode-badge .chip-arrow {
+  font-size: 8px; opacity: 0.6;
+  margin-left: 2px;
+}
+.mode-execute {
+  background: rgba(63, 199, 235, 0.12);
+  color: #3FC7EB;
+}
+.mode-brainstorm {
+  background: rgba(51, 147, 127, 0.12);
+  color: #33937F;
 }
 .input-icons {
   display: flex; align-items: center; gap: 4px;
@@ -1307,7 +1332,10 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
           <div class="input-bottom">
             <div class="input-controls">
               <!-- Room mode -->
-              <button class="input-chip"><span class="chip-dot" style="background:#3FC7EB"></span> Execute <span class="chip-arrow">&#9662;</span></button>
+              <button class="mode-badge mode-execute">
+                <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+                Execute <span class="chip-arrow">&#9662;</span>
+              </button>
               <!-- Model -->
               <button class="input-chip">Opus <span class="chip-arrow">&#9662;</span></button>
             </div>
