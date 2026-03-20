@@ -13,26 +13,26 @@
   --border-card: #232323;
   --text-1: #ececec;
   --text-2: #aeaeae;
-  --text-3: #7d7d7d;
-  --text-dim: #636363;
+  --text-3: #585858;
+  --text-dim: #7d7d7d;
   --icon: #747474;
   --icon-active: #aeaeae;
-  --bar-track: #1a1a1a;
+  --bar-track: #141414;
   --bar-fill: #4a4a4a;
   --font-ui: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --card-w: 220px;
 
-  --color-ultron: oklch(65% 0.18 250);
-  --color-cerberus: oklch(72% 0.14 85);
-  --color-dante: oklch(65% 0.14 195);
-  --color-bilbo: oklch(65% 0.14 195);
-  --color-house: oklch(60% 0.20 25);
-  --color-yoda: oklch(60% 0.15 145);
-  --color-alexandria: oklch(65% 0.15 300);
-  --color-gitto: oklch(72% 0.14 85);
-  --color-argus: oklch(65% 0.18 55);
-  --color-moriarty: oklch(60% 0.20 25);
+  --color-ultron: #0070DD;                   /* shaman blue */
+  --color-cerberus: #FF7C0A;                /* druid orange */
+  --color-dante: #8788EE;                    /* warlock purple */
+  --color-bilbo: #AAD372;                    /* hunter pistachio */
+  --color-house: #00FF98;                    /* monk spring green */
+  --color-yoda: #33937F;                     /* evoker emerald */
+  --color-alexandria: #A330C9;              /* demon hunter magenta */
+  --color-gitto: #FFF468;                    /* rogue yellow */
+  --color-argus: #C69B6D;                    /* warrior tan */
+  --color-moriarty: #C41E3A;                /* death knight red */
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -67,7 +67,7 @@ h2 {
 /* ===== SVG ICONS ===== */
 svg.icon-role { width: 16px; height: 16px; stroke: var(--icon); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 svg.icon-status { width: 28px; height: 28px; stroke: var(--icon-active); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
 
 .active-card svg.icon-role { stroke: var(--icon-active); }
 .off-card svg.icon-status { stroke: var(--icon); opacity: 0.4; }
@@ -79,7 +79,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   padding: 6px;
   border-radius: 6px;
   display: grid;
-  grid-template-columns: 70% 30%;
+  grid-template-columns: 1fr 54px;
   grid-template-rows: 1fr 1fr 1fr;
   overflow: hidden;
 }
@@ -104,77 +104,105 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   font-size: 12px; font-weight: 600;
   white-space: nowrap;
 }
+.active-card .cell-name .name {
+  animation: neon-glow-text 2.5s ease-in-out infinite;
+}
+@keyframes neon-glow-text {
+  0%, 100% { text-shadow: 0 0 1px currentColor; opacity: 0.8; }
+  50% { text-shadow: 0 0 6px currentColor, 0 0 12px currentColor; opacity: 1; }
+}
 .cell-name .model {
   font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text-3);
   white-space: nowrap;
+  text-transform: uppercase;
+  position: relative;
+  top: 1px;
 }
 
 /* Cell 2: context bar (col1, row2) */
 .cell-bar {
   grid-column: 1; grid-row: 2;
-  display: flex; align-items: center; gap: 6px;
+  position: relative;
+  display: flex; align-items: center;
+  width: 100%;
 }
 
 /* Cell 3: metrics (col1, row3) */
 .cell-metrics {
   grid-column: 1; grid-row: 3;
   display: flex; align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-dim);
 }
 
 /* Cell 4: status icon (col2, rows 1-3 merged) */
 .cell-status {
   grid-column: 2; grid-row: 1 / 4;
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
+  padding-left: 6px;
 }
 .cell-status svg {
   width: 28px; height: 28px;
   flex-shrink: 0;
 }
 .bar-track {
-  flex: 1; height: 3px;
+  flex: 1; height: 7px;
   background: var(--bar-track);
   border-radius: 2px;
   overflow: hidden;
 }
+@keyframes shimmer {
+  0% { background-position: -100px 0; }
+  100% { background-position: 100px 0; }
+}
 .bar-fill {
   height: 100%;
-  background: var(--bar-fill);
   border-radius: 2px;
+  background: linear-gradient(90deg, var(--bar-fill) 0%, #6a6a6a 50%, var(--bar-fill) 100%);
+  background-size: 200px 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
 }
 .bar-pct {
   font-family: var(--font-mono);
   font-size: 9px; color: var(--text-dim);
-  min-width: 24px; text-align: right;
+  display: none; /* moved to cell-name row */
 }
-
-/* Metrics row */
-.cell-metrics {
+/* Percentage shown in name row */
+.cell-name .pct {
   font-family: var(--font-mono);
   font-size: 9px; color: var(--text-dim);
-  gap: 8px;
+  margin-left: auto;
+  position: relative;
+  top: 1px;
 }
+
+/* Metrics row — duplicate removed, styles in cell-metrics above */
 .metric {
   display: flex; align-items: center; gap: 2px;
 }
 
-/* ===== neon-flicker ===== */
-@keyframes neon-flicker {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(192,192,192,0.6)); }
-  5% { filter: drop-shadow(0 0 1px rgba(192,192,192,0.1)); }
-  10% { filter: drop-shadow(0 0 6px rgba(192,192,192,0.8)); }
-  15% { filter: drop-shadow(0 0 2px rgba(192,192,192,0.2)); }
-  20% { filter: drop-shadow(0 0 8px rgba(192,192,192,0.9)); }
-  25%, 90% { filter: drop-shadow(0 0 5px rgba(192,192,192,0.7)); }
-  92% { filter: drop-shadow(0 0 1px rgba(192,192,192,0.1)); }
-  94% { filter: drop-shadow(0 0 6px rgba(192,192,192,0.8)); }
+/* ===== pulse ===== */
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
 
+/* ===== neon glow ===== */
+@keyframes neon-glow {
+  0%, 100% { filter: drop-shadow(0 0 1px currentColor); opacity: 0.7; }
+  50% { filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 16px currentColor); opacity: 1; }
+}
+
+.neon-active {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
 .neon-active svg {
-  animation: neon-flicker 3s ease-in-out infinite;
-  color: #c0c0c0;
+  animation: pulse-scale 2.5s ease-in-out infinite, neon-glow 2.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -195,20 +223,20 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-ultron)">ultron</span>
       <span class="model">opus</span>
+      <span class="pct">47%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:47%"></div></div>
-      <span class="bar-pct">47%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>34s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>11</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>5.2K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>800</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>800</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>5.2K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>11</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>34s</span>
     </div>
     <div class="cell-status">
-      <div class="neon-active">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c0c0c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></svg>
+      <div class="neon-active" style="color:var(--color-ultron)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></svg>
       </div>
     </div>
   </div>
@@ -218,20 +246,20 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-cerberus)">cerberus</span>
       <span class="model">sonnet</span>
+      <span class="pct">31%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:31%"></div></div>
-      <span class="bar-pct">31%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>18s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>6</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>3.1K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>420</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>420</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>3.1K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>6</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>18s</span>
     </div>
     <div class="cell-status">
-      <div class="neon-active">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c0c0c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
+      <div class="neon-active" style="color:var(--color-cerberus)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
       </div>
     </div>
   </div>
@@ -241,20 +269,20 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-dante)">dante</span>
       <span class="model">haiku</span>
+      <span class="pct">88%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:88%"></div></div>
-      <span class="bar-pct">88%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>8s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>3</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>1.8K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>310</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>310</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>1.8K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>3</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>8s</span>
     </div>
     <div class="cell-status">
-      <div class="neon-active">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c0c0c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg>
+      <div class="neon-active" style="color:var(--color-dante)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg>
       </div>
     </div>
   </div>
@@ -270,16 +298,16 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-bilbo)">bilbo</span>
       <span class="model">sonnet</span>
+      <span class="pct">92%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:92%"></div></div>
-      <span class="bar-pct">92%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>12s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>3</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>1.1K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>200</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>200</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>1.1K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>3</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>12s</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></svg>
@@ -291,16 +319,16 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-house)">house</span>
       <span class="model">opus</span>
+      <span class="pct">78%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:78%"></div></div>
-      <span class="bar-pct">78%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>45s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>8</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>4.3K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>620</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>620</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>4.3K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>8</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>45s</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
@@ -312,16 +340,16 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
     <div class="cell-name">
       <span class="name" style="color:var(--color-yoda)">yoda</span>
       <span class="model">opus</span>
+      <span class="pct">65%</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:65%"></div></div>
-      <span class="bar-pct">65%</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>1m22s</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>14</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>8.7K</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>1.2K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>1.2K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>8.7K</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>14</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>1m22s</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0z"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0z"/><path d="M7 21h10"/></svg>
@@ -337,18 +365,18 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   <!-- argus -->
   <div class="card off-card">
     <div class="cell-name">
-      <span class="name" style="color:var(--color-argus)">argus</span>
+      <span class="name" style="color:var(--text-3)">argus</span>
       <span class="model">sonnet</span>
+      <span class="pct">&mdash;</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
-      <span class="bar-pct">&mdash;</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -358,18 +386,18 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   <!-- moriarty -->
   <div class="card off-card">
     <div class="cell-name">
-      <span class="name" style="color:var(--color-moriarty)">moriarty</span>
+      <span class="name" style="color:var(--text-3)">moriarty</span>
       <span class="model">opus</span>
+      <span class="pct">&mdash;</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
-      <span class="bar-pct">&mdash;</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>
@@ -379,18 +407,18 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   <!-- alexandria -->
   <div class="card off-card">
     <div class="cell-name">
-      <span class="name" style="color:var(--color-alexandria)">alexandria</span>
+      <span class="name" style="color:var(--text-3)">alexandria</span>
       <span class="model">sonnet</span>
+      <span class="pct">&mdash;</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
-      <span class="bar-pct">&mdash;</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -400,18 +428,18 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
   <!-- gitto -->
   <div class="card off-card">
     <div class="cell-name">
-      <span class="name" style="color:var(--color-gitto)">gitto</span>
+      <span class="name" style="color:var(--text-3)">gitto</span>
       <span class="model">haiku</span>
+      <span class="pct">&mdash;</span>
     </div>
     <div class="cell-bar">
       <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
-      <span class="bar-pct">&mdash;</span>
     </div>
     <div class="cell-metrics">
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 2v6M3 6l2 2 2-2"/></svg>&mdash;</span>
-      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M5 8V2M3 4l2-2 2 2"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+      <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
     </div>
     <div class="cell-status">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg>
@@ -441,6 +469,251 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-dim); fill: none; 
       <span style="font-size:9px; color:#aeaeae; font-family:monospace;">[status]</span>
     </div>
   </div>
+</div>
+
+<!-- ===== ICON SHOWCASE ===== -->
+<div style="margin-top:48px; background:#141414; border-radius:8px; padding:24px;">
+  <h2 style="margin-bottom:20px;">Metric Icon Options</h2>
+
+  <!-- helper styles for showcase grid -->
+  <style>
+    .icon-row { display:flex; align-items:flex-start; gap:24px; margin-bottom:28px; }
+    .icon-row-label { width:90px; flex-shrink:0; font-family:var(--font-mono); font-size:10px; color:#7d7d7d; text-transform:uppercase; padding-top:4px; }
+    .icon-set { display:flex; gap:20px; flex-wrap:wrap; }
+    .icon-option { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .icon-option span { font-family:var(--font-mono); font-size:8px; color:#7d7d7d; white-space:nowrap; }
+    .icon-sizes { display:flex; flex-direction:column; gap:10px; }
+    .size-label { font-family:var(--font-mono); font-size:8px; color:#555; margin-bottom:2px; }
+  </style>
+
+  <!-- ======== UPLOAD ======== -->
+  <div class="icon-row">
+    <div class="icon-row-label">Upload<br>(output)</div>
+    <div class="icon-sizes">
+      <div>
+        <div class="size-label">10px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V2M3 4l2-2 2 2"/></svg>
+            <span>arrow-up</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5a2.5 2 0 0 1 .5-4A3 2.5 0 0 1 8 4a2 1.5 0 0 1-.5 3"/><path d="M5 9V5M3.5 6.5L5 5l1.5 1.5"/></svg>
+            <span>cloud-up</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5l-7 4 2.5.5.5 2.5z"/></svg>
+            <span>send</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 1V5M3 3l2-2 2 2"/><rect x="1.5" y="4.5" width="7" height="4.5" rx="0.5"/></svg>
+            <span>export</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l2-2 2 2M3 9l2-2 2 2"/></svg>
+            <span>chevron-up-2</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="size-label">16px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V2M3 4l2-2 2 2"/></svg>
+            <span>arrow-up</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5a2.5 2 0 0 1 .5-4A3 2.5 0 0 1 8 4a2 1.5 0 0 1-.5 3"/><path d="M5 9V5M3.5 6.5L5 5l1.5 1.5"/></svg>
+            <span>cloud-up</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5l-7 4 2.5.5.5 2.5z"/></svg>
+            <span>send</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 1V5M3 3l2-2 2 2"/><rect x="1.5" y="4.5" width="7" height="4.5" rx="0.5"/></svg>
+            <span>export</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l2-2 2 2M3 9l2-2 2 2"/></svg>
+            <span>chevron-up-2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== DOWNLOAD ======== -->
+  <div class="icon-row">
+    <div class="icon-row-label">Download<br>(input)</div>
+    <div class="icon-sizes">
+      <div>
+        <div class="size-label">10px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2v6M3 6l2 2 2-2"/></svg>
+            <span>arrow-down</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5a2.5 2 0 0 1 .5-4A3 2.5 0 0 1 8 4a2 1.5 0 0 1-.5 3"/><path d="M5 5v4M3.5 7.5L5 9l1.5-1.5"/></svg>
+            <span>cloud-down</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5V9M3 7l2 2 2-2"/><rect x="1.5" y="1" width="7" height="4.5" rx="0.5"/></svg>
+            <span>import</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 6h7v2.5a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5z"/><path d="M5 1v4M3.5 3.5L5 5l1.5-1.5"/></svg>
+            <span>inbox</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l2 2 2-2M3 1l2 2 2-2"/></svg>
+            <span>chevron-dn-2</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="size-label">16px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2v6M3 6l2 2 2-2"/></svg>
+            <span>arrow-down</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5a2.5 2 0 0 1 .5-4A3 2.5 0 0 1 8 4a2 1.5 0 0 1-.5 3"/><path d="M5 5v4M3.5 7.5L5 9l1.5-1.5"/></svg>
+            <span>cloud-down</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5V9M3 7l2 2 2-2"/><rect x="1.5" y="1" width="7" height="4.5" rx="0.5"/></svg>
+            <span>import</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 6h7v2.5a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5z"/><path d="M5 1v4M3.5 3.5L5 5l1.5-1.5"/></svg>
+            <span>inbox</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l2 2 2-2M3 1l2 2 2-2"/></svg>
+            <span>chevron-dn-2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TURNS ======== -->
+  <div class="icon-row">
+    <div class="icon-row-label">Turns</div>
+    <div class="icon-sizes">
+      <div>
+        <div class="size-label">10px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>
+            <span>refresh</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>
+            <span>repeat</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/><circle cx="5" cy="5" r="0.5" fill="#7d7d7d"/></svg>
+            <span>counter</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h2V6h2V4h2V2h2v7"/></svg>
+            <span>steps</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="6" height="5" rx="0.5"/><rect x="3" y="1" width="6" height="5" rx="0.5"/></svg>
+            <span>layers</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="size-label">16px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5a4 4 0 0 1 8 0M9 5a4 4 0 0 1-8 0"/><path d="M3 2l-2 3h2M7 8l2-3H7"/></svg>
+            <span>refresh</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>
+            <span>repeat</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/><circle cx="5" cy="5" r="0.5" fill="#7d7d7d"/></svg>
+            <span>counter</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h2V6h2V4h2V2h2v7"/></svg>
+            <span>steps</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="6" height="5" rx="0.5"/><rect x="3" y="1" width="6" height="5" rx="0.5"/></svg>
+            <span>layers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TIME ======== -->
+  <div class="icon-row">
+    <div class="icon-row-label">Time</div>
+    <div class="icon-sizes">
+      <div>
+        <div class="size-label">10px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>
+            <span>clock</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 1h4M5 1v1M3 9h4"/><path d="M3 1c0 2.5 2 3 2 4s-2 1.5-2 4"/><path d="M7 1c0 2.5-2 3-2 4s2 1.5 2 4"/></svg>
+            <span>hourglass</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5.5" r="3.5"/><path d="M5 3.5v2l1 1"/><path d="M5 2V1"/><path d="M3.5 1.5h3"/></svg>
+            <span>timer</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1L4 5h3L4.5 9"/></svg>
+            <span>bolt</span>
+          </div>
+          <div class="icon-option">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5h2l1-3 1.5 6L7 4l1 1h1"/></svg>
+            <span>pulse</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="size-label">16px</div>
+        <div class="icon-set">
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="4"/><path d="M5 3v2.5l1.5 1"/></svg>
+            <span>clock</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 1h4M5 1v1M3 9h4"/><path d="M3 1c0 2.5 2 3 2 4s-2 1.5-2 4"/><path d="M7 1c0 2.5-2 3-2 4s2 1.5 2 4"/></svg>
+            <span>hourglass</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5.5" r="3.5"/><path d="M5 3.5v2l1 1"/><path d="M5 2V1"/><path d="M3.5 1.5h3"/></svg>
+            <span>timer</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1L4 5h3L4.5 9"/></svg>
+            <span>bolt</span>
+          </div>
+          <div class="icon-option">
+            <svg width="16" height="16" viewBox="0 0 10 10" fill="none" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5h2l1-3 1.5 6L7 4l1 1h1"/></svg>
+            <span>pulse</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 </body>

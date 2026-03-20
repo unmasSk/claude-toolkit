@@ -17,9 +17,9 @@
 
 :root {
   /* Cursor Deep Dark — color picked from real app */
-  --bg-body:    #0e0e0e;
+  --bg-body:    #050505;
   --bg-sidebar: #141414;
-  --bg-chat:    #181818;
+  --bg-chat:    #0e0e0e;
   --bg-card:    #272727;
   --bg-card-h:  #2c2c2c;
   --bg-input:   #1f1f1f;
@@ -30,9 +30,26 @@
   /* Text */
   --text-1:     #ececec;
   --text-2:     #aeaeae;
-  --text-3:     #7d7d7d;
+  --text-3:     #585858;
+  --text-dim:   #7d7d7d;
   --text-icon:  #747474;
   --text-code:  #aeaeae;
+
+  /* Bar */
+  --bar-track:  #141414;
+  --bar-fill:   #4a4a4a;
+
+  /* Agent colors — WoW class palette */
+  --color-ultron: #0070DD;
+  --color-cerberus: #FF7C0A;
+  --color-dante: #8788EE;
+  --color-bilbo: #AAD372;
+  --color-house: #00FF98;
+  --color-yoda: #33937F;
+  --color-alexandria: #A330C9;
+  --color-gitto: #FFF468;
+  --color-argus: #C69B6D;
+  --color-moriarty: #C41E3A;
 
   /* Accent */
   --accent:       oklch(65% 0.18 250);
@@ -103,20 +120,26 @@ html, body {
   flex-direction: column;
   background: var(--bg-app);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
 }
 
 /* ── TITLEBAR ────────────────────────────────────── */
 .titlebar {
-  height: 28px; min-height: 28px;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 12px;
+  height: 32px; min-height: 32px;
+  display: flex; align-items: stretch;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
   flex-shrink: 0;
+}
+/* Left zone: sits over sidebar */
+.tb-left {
+  width: 220px; min-width: 220px;
+  display: flex; align-items: center;
+  padding: 0 12px;
+  border-right: 1px solid var(--border);
 }
 .tb-dots { display: flex; gap: 7px; -webkit-app-region: no-drag; }
 .tb-dot {
@@ -127,23 +150,82 @@ html, body {
 .tb-dot-r { background: #FF5F57; }
 .tb-dot-y { background: #FFBD2E; }
 .tb-dot-g { background: #28C840; }
-.tb-center {
-  display: flex; align-items: center; gap: 6px;
+/* Right zone: tabs + user, sits over chat */
+.tb-tabs-area {
+  flex: 1;
+  display: flex; align-items: stretch;
+  justify-content: space-between;
 }
-.tb-title {
-  font-family: var(--font-mono);
+.tb-tabs {
+  display: flex; align-items: center;
+  gap: 0;
+  -webkit-app-region: no-drag;
+  height: 100%;
+}
+.tb-tab {
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  padding: 0 12px;
+  height: 100%;
+  font-family: var(--font-ui);
+  font-size: 12px; color: var(--text-3);
+  font-weight: 400;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: background 100ms, color 100ms;
+  position: relative;
+  line-height: 32px;
+}
+.tb-tab:hover { background: rgba(255,255,255,0.03); color: var(--text-2); }
+.tb-tab.active {
+  color: var(--text-2);
+  background: var(--bg-chat);
+}
+.tb-tab.active::after {
+  content: '';
+  position: absolute; bottom: -1px; left: 0; right: 0;
+  height: 1px;
+  background: var(--bg-chat);
+}
+.tb-tab-close {
+  font-size: 14px; color: var(--text-3);
+  cursor: pointer; line-height: 1;
+  opacity: 0;
+  transition: opacity 100ms;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tb-tab:hover .tb-tab-close { opacity: 1; }
+.tb-tab-new {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 10px;
+  font-size: 16px; color: var(--text-3);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: color 100ms;
+}
+.tb-tab-new:hover { color: var(--text-2); }
+.tb-right-group {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  -webkit-app-region: no-drag;
+}
+.tb-user {
+  font-family: var(--font-ui);
   font-size: 11px; color: var(--text-3);
-  letter-spacing: 0.04em;
 }
-.tb-sep { color: var(--text-3); font-size: 10px; }
-.tb-dot-inline {
+.tb-user-dot {
   width: 5px; height: 5px; border-radius: 50%;
-  background: #28C840; display: inline-block;
+  background: #28C840;
 }
-.tb-meta {
-  font-family: var(--font-mono);
-  font-size: 10px; color: var(--text-3);
+.tb-icon {
+  display: flex; align-items: center;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 150ms;
 }
+.tb-icon:hover { opacity: 1; }
 
 /* ── LAYOUT ──────────────────────────────────────── */
 .layout { display: flex; flex: 1; overflow: hidden; position: relative; }
@@ -202,107 +284,177 @@ html, body {
 
 /* ── AGENT LIST ──────────────────────────────────── */
 .agent-list {
-  flex: 1; overflow-y: auto; padding: 4px 4px 4px 4px;
+  flex: 1; overflow: hidden; padding: 4px;
 }
+.agent-list .card-wrap { margin-bottom: 4px; }
 .agent-list::-webkit-scrollbar { width: 3px; }
 .agent-list::-webkit-scrollbar-track { background: transparent; }
 .agent-list::-webkit-scrollbar-thumb { background: oklch(30% 0.01 250); border-radius: 2px; }
 
 /* ── AGENT CARD ──────────────────────────────────── */
 .card-wrap {
-  position: relative;
   margin-bottom: 4px;
-}
-.agent-card {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 6px;
+  position: relative;
   height: 66px;
-  cursor: pointer;
-  transition: background 150ms, border-color 150ms;
-}
-.agent-card.active {
-  background: #272727;
-  border-color: var(--border);
-}
-.agent-card:hover {
-  background: #272727;
-  border-color: var(--border);
-}
-.agent-card.off {
-  background: transparent;
-  border-color: var(--border);
 }
 
-.ac-top {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 4px;
+/* SVG icons */
+svg.icon-role { width: 16px; height: 16px; stroke: var(--text-icon); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.icon-status { width: 28px; height: 28px; stroke: var(--text-icon); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.active-card svg.icon-role { stroke: var(--text-2); }
+.off-card svg.icon-status { stroke: var(--text-icon); opacity: 0.4; }
+
+/* Card grid */
+.card {
+  position: absolute;
+  top: 0; left: 0;
+  width: 192px;
+  height: 66px;
+  padding: 6px;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: 1fr 54px;
+  grid-template-rows: 1fr 1fr 1fr;
+  overflow: hidden;
+  transform-origin: left center;
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              grid-template-columns 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 300ms;
+  z-index: 1;
 }
-.ac-avatar {
-  width: 24px; height: 24px; border-radius: 6px;
+.card-wrap:hover .card {
+  width: 150px;
+  grid-template-columns: 1fr 0px;
+  border-color: var(--ac);
+}
+.card-wrap:hover .card .cell-status {
+  opacity: 0;
+}
+.active-card {
+  background:
+    radial-gradient(circle at 0% 0%, var(--agent-tint, #252525) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, var(--agent-tint, #252525) 0%, transparent 50%),
+    #1f1f1f;
+  border: 1px solid #2a2a2a;
+}
+.off-card {
+  background: transparent;
+  border: 1px solid #232323;
+}
+
+/* Cell 1: icon + name + model (col1, row1) */
+.cell-name {
+  grid-column: 1; grid-row: 1;
+  display: flex; align-items: center; gap: 5px;
+  min-width: 0;
+}
+.cell-name .name {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.active-card .cell-name .name {
+  animation: neon-glow-text 2.5s ease-in-out infinite;
+}
+@keyframes neon-glow-text {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 6px rgba(255,255,255,0.2), 0 0 12px rgba(255,255,255,0.1); }
+}
+.cell-name .model {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-transform: uppercase;
+  position: relative;
+  top: 1px;
+}
+
+/* Cell 2: context bar (col1, row2) */
+.cell-bar {
+  grid-column: 1; grid-row: 2;
+  position: relative;
+  display: flex; align-items: center;
+  width: 100%;
+}
+
+/* Cell 3: metrics (col1, row3) */
+.cell-metrics {
+  grid-column: 1; grid-row: 3;
+  display: flex; align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-dim);
+}
+
+/* Cell 4: status icon (col2, rows 1-3 merged) */
+.cell-status {
+  grid-column: 2; grid-row: 1 / 4;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
-  color: oklch(10% 0.01 250); flex-shrink: 0;
+  padding-left: 6px;
+  transition: opacity 200ms;
+  overflow: hidden;
 }
-.ac-info { flex: 1; min-width: 0; }
-.ac-name {
-  font-family: var(--font-mono);
-  font-size: 11.5px; font-weight: 600;
-  line-height: 1.2;
-}
-.ac-role {
-  font-size: 10px; color: var(--text-3);
-  letter-spacing: 0.02em;
-}
-.ac-badge {
-  font-family: var(--font-mono);
-  font-size: 8px; font-weight: 700;
-  padding: 1px 5px; border-radius: 3px;
-  text-transform: uppercase; letter-spacing: 0.05em;
+.cell-status svg {
+  width: 28px; height: 28px;
   flex-shrink: 0;
 }
 
-/* ── SVG WIDGET ──────────────────────────────────── */
-.ac-widget {
-  height: 26px; display: flex; align-items: center;
+/* Bar */
+.bar-track {
+  flex: 1; height: 7px;
+  background: var(--bar-track);
+  border-radius: 2px;
+  overflow: hidden;
 }
-.ac-widget svg { overflow: visible; }
-
-/* ── METRICS LINE ────────────────────────────────── */
-.ac-metrics {
+@keyframes shimmer {
+  0% { background-position: -100px 0; }
+  100% { background-position: 100px 0; }
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bar-fill) 0%, #6a6a6a 50%, var(--bar-fill) 100%);
+  background-size: 200px 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+.bar-pct {
   font-family: var(--font-mono);
-  font-size: 9px; color: var(--text-3);
-  letter-spacing: 0.02em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 9px; color: var(--text-dim);
+  display: none;
+}
+.cell-name .pct {
+  font-family: var(--font-mono);
+  font-size: 9px; color: var(--text-dim);
+  margin-left: auto;
+  position: relative;
+  top: 1px;
 }
 
-/* ── HOVER ACTIONS ───────────────────────────────── */
-.card-actions {
-  position: absolute;
-  right: -46px; top: 50%; transform: translateY(-50%);
-  width: 38px;
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 5px 4px;
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.15s, right 0.15s;
-  z-index: 10;
+/* Metrics */
+.metric {
+  display: flex; align-items: center; gap: 2px;
 }
-.card-wrap:hover .card-actions {
-  opacity: 1; pointer-events: all; right: -42px;
+
+/* Pulse */
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
-.act-btn {
-  width: 28px; height: 26px;
+
+/* Neon glow */
+@keyframes neon-glow {
+  0%, 100% { filter: drop-shadow(0 0 0px transparent); }
+  50% { filter: drop-shadow(0 0 8px rgba(255,255,255,0.24)) drop-shadow(0 0 16px rgba(255,255,255,0.12)); }
+}
+.neon-active {
   display: flex; align-items: center; justify-content: center;
-  border-radius: 5px; border: 1px solid var(--border-s);
-  background: transparent; cursor: pointer;
-  color: var(--text-2); transition: background 0.12s, color 0.12s;
+  width: 100%; height: 100%;
 }
-.act-btn:hover { background: var(--surface-elevated); color: var(--text-1); }
-.act-btn svg { width: 11px; height: 11px; }
+.neon-active svg {
+  animation: pulse-scale 2.5s ease-in-out infinite, neon-glow 2.5s ease-in-out infinite;
+}
 
 /* ── SIDEBAR FOOTER ──────────────────────────────── */
 .sb-footer {
@@ -320,7 +472,11 @@ html, body {
 /* ── CHAT AREA ───────────────────────────────────── */
 .chat-area {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--bg-chat);
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 85%, rgba(0,0,0,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 35% at 15% 15%, rgba(0,0,0,0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 35% 30% at 85% 40%, rgba(0,0,0,0.08) 0%, transparent 50%),
+    var(--bg-chat);
 }
 
 /* chat header */
@@ -515,22 +671,28 @@ html, body {
 .code-block pre .num { color: oklch(72% 0.18 65); }
 .code-block pre .type { color: oklch(68% 0.16 60); }
 
-/* ── INPUT ───────────────────────────────────────── */
+/* ── INPUT — integrated into chat, no separator ──── */
 .chat-input {
   padding: 10px 20px 14px;
-  border-top: 1px solid var(--border-s);
   flex-shrink: 0;
+  position: relative;
+  overflow: visible;
 }
 .input-box {
   background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex; align-items: flex-end; gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px 6px;
+  display: flex; flex-direction: column; gap: 4px;
   transition: border-color 150ms;
+  position: relative;
+  z-index: 1;
 }
 .input-box:focus-within {
-  border-color: var(--surface-elevated);
+  border-color: #333333;
+}
+.input-row {
+  display: flex; align-items: flex-end; gap: 10px;
 }
 .input-box textarea {
   flex: 1; background: none; border: none; outline: none;
@@ -539,18 +701,18 @@ html, body {
 }
 .input-box textarea::placeholder { color: var(--text-3); }
 .input-send {
-  background: var(--surface-card);
-  border: none; border-radius: 6px;
+  background: #333333;
+  border: none; border-radius: 14px;
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0; color: var(--text-2);
-  transition: background 150ms, color 150ms;
+  cursor: pointer; flex-shrink: 0; color: var(--text-1);
+  transition: background 150ms;
 }
-.input-send:hover { background: var(--surface-elevated); color: var(--text-1); }
-.input-footer {
+.input-send:hover { background: #444444; }
+.input-sub {
   display: flex; justify-content: space-between;
-  margin-top: 5px;
   font-family: var(--font-mono); font-size: 9px; color: var(--text-3);
+  padding: 0 2px;
 }
 
 /* ── STATUS BAR ──────────────────────────────────── */
@@ -567,10 +729,52 @@ html, body {
 .sb-left, .sb-right { display: flex; gap: 12px; }
 .sb-item { white-space: nowrap; }
 
+/* ── SHRINK REVEAL — buttons layer ────────────────── */
+.card-buttons {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: #141414;
+  border: 1px solid #232323;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+.btn-panel {
+  margin-left: auto;
+  width: 70px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  align-items: center;
+  justify-items: center;
+  padding: 4px 8px;
+}
+.btn-panel .act-btn {
+  width: 26px; height: 26px;
+  background: none; border: none; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #666;
+  transition: color 150ms, background 150ms, filter 150ms;
+  padding: 0;
+}
+.btn-panel .act-btn:hover {
+  background: color-mix(in srgb, var(--ac) 15%, transparent);
+  color: var(--ac);
+  filter: drop-shadow(0 0 4px var(--ac));
+}
+.btn-panel .act-btn svg {
+  width: 12px; height: 12px;
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.btn-panel .act-btn .filled { fill: currentColor; stroke: none; }
+
 /* ── REDUCED MOTION ──────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .sb-dot-green, .t-dots span, .ac-widget svg *,
-  .status-pip { animation: none !important; }
+  .sb-dot-green, .t-dots span, .neon-active svg,
+  .bar-fill, .active-card .cell-name .name { animation: none !important; }
 }
 </style>
 </head>
@@ -580,22 +784,26 @@ html, body {
 
   <!-- TITLEBAR -->
   <div class="titlebar">
-    <div class="tb-dots">
-      <div class="tb-dot tb-dot-r"></div>
-      <div class="tb-dot tb-dot-y"></div>
-      <div class="tb-dot tb-dot-g"></div>
+    <div class="tb-left">
+      <div class="tb-dots">
+        <div class="tb-dot tb-dot-r"></div>
+        <div class="tb-dot tb-dot-y"></div>
+        <div class="tb-dot tb-dot-g"></div>
+      </div>
     </div>
-    <div class="tb-center">
-      <span class="tb-title"># general</span>
-      <span class="tb-sep">&middot;</span>
-      <span class="tb-meta">bex</span>
-      <span class="tb-dot-inline"></span>
-      <span class="tb-sep">&middot;</span>
-      <span class="tb-meta">msgs 14</span>
-      <span class="tb-sep">&middot;</span>
-      <span class="tb-meta">tools 6</span>
+    <div class="tb-tabs-area">
+      <div class="tb-tabs">
+        <div class="tb-tab active">#powerful-salamander <span class="tb-tab-close">&times;</span></div>
+        <div class="tb-tab">#fast-cobra <span class="tb-tab-close">&times;</span></div>
+        <div class="tb-tab-new">+</div>
+      </div>
+      <div class="tb-right-group">
+        <span class="tb-user">bex</span>
+        <span class="tb-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#747474" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+      </div>
     </div>
-    <div class="tb-title">chatroom</div>
   </div>
 
   <div class="layout">
@@ -604,259 +812,299 @@ html, body {
     <aside class="sidebar">
       <div class="agent-list">
 
-        <!-- ── ULTRON (active, exec) ── -->
-        <div class="card-wrap">
-          <div class="agent-card active">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">UL</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-ultron)">ultron</div>
-                <div class="ac-role">implementer</div>
+        <!-- ── ULTRON (active, terminal) ── -->
+        <div class="card-wrap" style="--ac: #0070DD">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card active-card" style="--agent-tint: color-mix(in srgb, #0070DD 8%, #1f1f1f)">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-ultron)">ultron</span>
+              <span class="model">opus</span>
+              <span class="pct">47%</span>
+            </div>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:47%"></div></div>
+            </div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>800</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>5.2K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>11</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>34s</span>
+            </div>
+            <div class="cell-status">
+              <div class="neon-active" style="color:var(--color-ultron)">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></svg>
               </div>
-              <span class="ac-badge" style="background:#333333; color:var(--text-2)">exec</span>
             </div>
-            <div class="ac-widget">
-              <svg width="230" height="26" viewBox="0 0 230 26">
-                <rect x="0" y="6" width="160" height="5" rx="2.5" fill="#333333"/>
-                <rect x="0" y="6" height="5" rx="2.5" fill="#555555">
-                  <animate attributeName="width" values="6;110;110;6" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
-                </rect>
-                <rect y="4" width="2" height="9" rx="1" fill="#7d7d7d">
-                  <animate attributeName="x" values="6;110;110;6" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
-                  <animate attributeName="opacity" values="1;1;0.2;1" dur="3.2s" repeatCount="indefinite"/>
-                </rect>
-                <text x="168" y="12" font-size="9" fill="#7d7d7d" font-family="monospace">3/4</text>
-                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">Edit ws.ts</text>
-              </svg>
-            </div>
-            <div class="ac-metrics">34s &middot; 11T &middot; ctx 47%</div>
-          </div>
-          <div class="card-actions">
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
           </div>
         </div>
 
-        <!-- ── CERBERUS (active, review) ── -->
-        <div class="card-wrap">
-          <div class="agent-card active">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">CE</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-cerberus)">cerberus</div>
-                <div class="ac-role">reviewer</div>
+        <!-- ── CERBERUS (active, radar) ── -->
+        <div class="card-wrap" style="--ac: #FF7C0A">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card active-card" style="--agent-tint: color-mix(in srgb, #FF7C0A 8%, #1f1f1f)">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-cerberus)">cerberus</span>
+              <span class="model">sonnet</span>
+              <span class="pct">31%</span>
+            </div>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:31%"></div></div>
+            </div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>420</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>3.1K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>6</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>18s</span>
+            </div>
+            <div class="cell-status">
+              <div class="neon-active" style="color:var(--color-cerberus)">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
               </div>
-              <span class="ac-badge" style="background:#333333; color:var(--text-2)">review</span>
             </div>
-            <div class="ac-widget">
-              <svg width="230" height="26" viewBox="0 0 230 26">
-                <path d="M8 22 A18 18 0 0 1 44 22" fill="none" stroke="#333333" stroke-width="3.5" stroke-linecap="round"/>
-                <path d="M8 22 A18 18 0 0 1 44 22" fill="none" stroke="#555555" stroke-width="3.5" stroke-linecap="round"
-                  stroke-dasharray="56" stroke-dashoffset="56">
-                  <animate attributeName="stroke-dashoffset" values="56;16;16;56" dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
-                </path>
-                <line x1="26" y1="22" x2="26" y2="8" stroke="#7d7d7d" stroke-width="1.5" stroke-linecap="round">
-                  <animateTransform attributeName="transform" type="rotate"
-                    values="-65 26 22;0 26 22;0 26 22;-65 26 22"
-                    dur="3.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 0 0;0.4 0 0.2 1"/>
-                </line>
-                <text x="54" y="12" font-size="8" fill="#7d7d7d" font-family="monospace">T1:0 T2:2 T3:4</text>
-                <text x="54" y="23" font-size="8" fill="#7d7d7d" font-family="monospace">Reviewing ws.ts</text>
-              </svg>
-            </div>
-            <div class="ac-metrics">18s &middot; 6T &middot; ctx 31%</div>
-          </div>
-          <div class="card-actions">
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
           </div>
         </div>
 
-        <!-- ── DANTE (active, test) ── -->
-        <div class="card-wrap">
-          <div class="agent-card active">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#3a3a3a; color:var(--text-1)">DA</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-dante)">dante</div>
-                <div class="ac-role">tester</div>
+        <!-- ── DANTE (active, flask) ── -->
+        <div class="card-wrap" style="--ac: #8788EE">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card active-card" style="--agent-tint: color-mix(in srgb, #8788EE 8%, #1f1f1f)">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-dante)">dante</span>
+              <span class="model">haiku</span>
+              <span class="pct">88%</span>
+            </div>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:88%"></div></div>
+            </div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>310</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>1.8K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>3</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>8s</span>
+            </div>
+            <div class="cell-status">
+              <div class="neon-active" style="color:var(--color-dante)">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg>
               </div>
-              <span class="ac-badge" style="background:#333333; color:var(--text-2)">test</span>
             </div>
-            <div class="ac-widget">
-              <svg width="230" height="26" viewBox="0 0 230 26">
-                <g transform="translate(0, 8)">
-                  <circle cx="6"  cy="5" r="3.5" fill="#555555"/>
-                  <circle cx="18" cy="5" r="3.5" fill="#555555"/>
-                  <circle cx="30" cy="5" r="3.5" fill="#555555"/>
-                  <circle cx="42" cy="5" r="3.5" fill="#333333">
-                    <animate attributeName="fill" values="#333333;#555555;#555555" dur="2.4s" repeatCount="indefinite"/>
-                  </circle>
-                  <circle cx="54" cy="5" r="3.5" fill="#333333">
-                    <animate attributeName="fill" values="#333333;#333333;#555555" dur="2.4s" repeatCount="indefinite" begin="0.4s"/>
-                  </circle>
-                  <circle cx="66" cy="5" r="3.5" fill="#333333"/>
-                  <circle cx="78" cy="5" r="3.5" fill="#333333"/>
-                </g>
-                <text x="90" y="15" font-size="8" fill="#7d7d7d" font-family="monospace">3/7 pass</text>
-                <text x="0" y="24" font-size="8" fill="#7d7d7d" font-family="monospace">ws.test.ts</text>
-              </svg>
-            </div>
-            <div class="ac-metrics">8s &middot; 3T &middot; ctx 12%</div>
-          </div>
-          <div class="card-actions">
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></button>
-            <button class="act-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
           </div>
         </div>
 
-        <!-- ── BILBO (off) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">BI</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-bilbo)">bilbo</div>
-                <div class="ac-role">explorer</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+        <!-- ── BILBO (inactive, compass) ── -->
+        <div class="card-wrap" style="--ac: #AAD372">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-bilbo)">bilbo</span>
+              <span class="model">sonnet</span>
+              <span class="pct">92%</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
-                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:92%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>200</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>1.1K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>3</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>12s</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── HOUSE (off) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">HO</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-house)">house</div>
-                <div class="ac-role">diagnostician</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+        <!-- ── HOUSE (inactive, activity) ── -->
+        <div class="card-wrap" style="--ac: #00FF98">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-house)">house</span>
+              <span class="model">opus</span>
+              <span class="pct">78%</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
-                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:78%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>620</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>4.3K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>8</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>45s</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── YODA (off) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">YO</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-yoda)">yoda</div>
-                <div class="ac-role">judge</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+        <!-- ── YODA (inactive, scale) ── -->
+        <div class="card-wrap" style="--ac: #33937F">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--color-yoda)">yoda</span>
+              <span class="model">opus</span>
+              <span class="pct">65%</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
-                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:65%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>1.2K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>8.7K</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>14</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>1m22s</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0z"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0z"/><path d="M7 21h10"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── GITTO (off) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#2a2a2a; color:var(--text-2)">GI</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-gitto)">gitto</div>
-                <div class="ac-role">git memory</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">idle</span>
+        <!-- ── ARGUS (disconnected, shield-check) ── -->
+        <div class="card-wrap" style="--ac: #C69B6D">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--text-3)">argus</span>
+              <span class="model">sonnet</span>
+              <span class="pct">&mdash;</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#232323" stroke-width="1.5" stroke-linecap="round"/>
-                <text x="0" y="24" font-size="9" fill="#7d7d7d" font-family="monospace">ready</text>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── ARGUS (offline) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">AR</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-argus)">argus</div>
-                <div class="ac-role">security</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+        <!-- ── MORIARTY (disconnected, crosshair) ── -->
+        <div class="card-wrap" style="--ac: #C41E3A">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--text-3)">moriarty</span>
+              <span class="model">opus</span>
+              <span class="pct">&mdash;</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── MORIARTY (offline) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">MO</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-moriarty)">moriarty</div>
-                <div class="ac-role">adversarial</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+        <!-- ── ALEXANDRIA (disconnected, book-open) ── -->
+        <div class="card-wrap" style="--ac: #A330C9">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--text-3)">alexandria</span>
+              <span class="model">sonnet</span>
+              <span class="pct">&mdash;</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- ── ALEXANDRIA (offline) ── -->
-        <div class="card-wrap">
-          <div class="agent-card off">
-            <div class="ac-top">
-              <div class="ac-avatar" style="background:#222222; color:var(--text-3)">AL</div>
-              <div class="ac-info">
-                <div class="ac-name" style="color:var(--c-alexandria)">alexandria</div>
-                <div class="ac-role">docs</div>
-              </div>
-              <span class="ac-badge" style="background:transparent; color:var(--text-3)">off</span>
+        <!-- ── GITTO (disconnected, git-branch) ── -->
+        <div class="card-wrap" style="--ac: #FFF468">
+          <div class="card-buttons"><div class="btn-panel">
+            <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+            <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+          </div></div>
+          <div class="card off-card">
+            <div class="cell-name">
+              <span class="name" style="color:var(--text-3)">gitto</span>
+              <span class="model">haiku</span>
+              <span class="pct">&mdash;</span>
             </div>
-            <div class="ac-widget">
-              <svg width="190" height="26" viewBox="0 0 190 26">
-                <line x1="0" y1="13" x2="100" y2="13" stroke="#1e1e1e" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
+            <div class="cell-bar">
+              <div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>
             </div>
-            <div class="ac-metrics">&mdash;</div>
+            <div class="cell-metrics">
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,1 9,7 1,7" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><polygon points="5,9 9,3 1,3" fill="var(--text-3)" stroke="none"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M8 2.5A4 4 0 1 0 8.5 7"/><path d="M9 1v2.5H6.5"/></svg>&mdash;</span>
+              <span class="metric"><svg class="icon-tiny" viewBox="0 0 10 10"><path d="M2 1h6M2 9h6M2 1l3 4-3 4M8 1L5 5l3 4"/></svg>&mdash;</span>
+            </div>
+            <div class="cell-status">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg>
+            </div>
           </div>
         </div>
 
@@ -1027,20 +1275,22 @@ html, body {
 
       </div><!-- /messages -->
 
-      <!-- INPUT -->
+      <!-- INPUT — integrated, no separator -->
       <div class="chat-input">
         <div class="input-box">
-          <textarea placeholder="Escribe un mensaje... (@ultron, @cerberus, @everyone)" rows="1"></textarea>
-          <button class="input-send" type="button" aria-label="Enviar">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-              <polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </button>
-        </div>
-        <div class="input-footer">
-          <span>@mention para invocar &middot; Enter env&iacute;a</span>
-          <span>0 / 50000</span>
+          <div class="input-row">
+            <textarea placeholder="Escribe un mensaje... (@ultron, @cerberus, @everyone)" rows="1"></textarea>
+            <button class="input-send" type="button" aria-label="Enviar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+          </div>
+          <div class="input-sub">
+            <span>@mention para invocar &middot; Enter env&iacute;a</span>
+            <span>0 / 50000</span>
+          </div>
         </div>
       </div>
 

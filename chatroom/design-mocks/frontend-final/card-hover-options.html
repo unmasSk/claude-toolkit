@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Hover Options — Agent Actions</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #141414;
+    color: #aeaeae;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 48px 40px 80px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    color: #e0e0e0;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .page-sub {
+    color: #7d7d7d;
+    font-size: 13px;
+    margin-bottom: 48px;
+  }
+
+  .section {
+    margin-bottom: 40px;
+  }
+  .section-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 4px;
+  }
+  .section-desc {
+    font-size: 12px;
+    color: #7d7d7d;
+    margin-bottom: 16px;
+  }
+
+  /* ─── BASE CARD ─── */
+  .card {
+    width: 220px;
+    height: 66px;
+    background: #1f1f1f;
+    border: 1px solid #232323;
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    transition: border-color 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+  }
+
+  .card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .agent-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0070DD;
+  }
+  .agent-model {
+    font-size: 9px;
+    font-weight: 600;
+    color: #7d7d7d;
+    letter-spacing: 0.5px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  .context-bar {
+    width: 100%;
+    height: 3px;
+    background: #2a2a2a;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .context-fill {
+    width: 62%;
+    height: 100%;
+    background: linear-gradient(90deg, #0070DD, #0070DD88);
+    border-radius: 2px;
+  }
+  .metrics {
+    display: flex;
+    gap: 8px;
+    font-size: 9px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    color: #7d7d7d;
+  }
+
+  .status-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #7d7d7d;
+    transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .status-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Lucide terminal icon */
+  .terminal-icon {
+    fill: none;
+    stroke: #7d7d7d;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ─── ACTION BUTTONS (shared) ─── */
+  .act-btn {
+    width: 24px;
+    height: 24px;
+    background: #2a2a2a;
+    border: none;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: background 150ms ease;
+  }
+  .act-btn:hover { background: #333; }
+  .act-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: #aeaeae;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .act-btn .filled { fill: #aeaeae; stroke: none; }
+
+  /* ─── REDUCED MOTION ─── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0s !important;
+      animation-duration: 0s !important;
+      transition-delay: 0s !important;
+      animation-delay: 0s !important;
+    }
+  }
+
+  /* ════════════════════════════════════════════
+     OPTION 1 — REVEAL PANEL
+     ════════════════════════════════════════════ */
+  .opt1-wrap {
+    position: relative;
+    width: 220px;
+    overflow: visible;
+  }
+  .opt1-wrap .card-actions {
+    position: absolute;
+    right: -44px;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 200ms ease-in, transform 200ms ease-in;
+    pointer-events: none;
+  }
+  .opt1-wrap .card-actions .act-btn {
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 200ms ease-in, transform 200ms ease-in, background 150ms ease;
+  }
+  .opt1-wrap:hover .card {
+    border-color: #0070DD;
+  }
+  .opt1-wrap:hover .card-actions {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+  }
+  .opt1-wrap:hover .card-actions .act-btn {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                background 150ms ease;
+  }
+  .opt1-wrap:hover .card-actions .act-btn:nth-child(1) { transition-delay: 0ms, 0ms, 0ms; }
+  .opt1-wrap:hover .card-actions .act-btn:nth-child(2) { transition-delay: 50ms, 50ms, 0ms; }
+  .opt1-wrap:hover .card-actions .act-btn:nth-child(3) { transition-delay: 100ms, 100ms, 0ms; }
+  .opt1-wrap:hover .card-actions .act-btn:nth-child(4) { transition-delay: 150ms, 150ms, 0ms; }
+
+  /* ════════════════════════════════════════════
+     OPTION 2 — OVERLAY MORPH
+     ════════════════════════════════════════════ */
+  .opt2-wrap { position: relative; width: 220px; }
+  .opt2-wrap .card { overflow: hidden; }
+  .opt2-wrap .icon-col {
+    position: relative;
+    width: 28px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .opt2-wrap .status-icon {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    transition: opacity 200ms cubic-bezier(0.25, 1, 0.5, 1),
+                transform 200ms cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .opt2-wrap .grid-actions {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    place-items: center;
+    pointer-events: none;
+  }
+  .opt2-wrap .grid-actions .act-btn {
+    width: 20px;
+    height: 20px;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 200ms ease-in, transform 200ms ease-in, background 150ms ease;
+  }
+  .opt2-wrap .grid-actions .act-btn svg { width: 12px; height: 12px; }
+  .opt2-wrap:hover .card { border-color: #0070DD; }
+  .opt2-wrap:hover .status-icon {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  .opt2-wrap:hover .grid-actions {
+    pointer-events: auto;
+  }
+  .opt2-wrap:hover .grid-actions .act-btn {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 250ms cubic-bezier(0.25, 1, 0.5, 1),
+                transform 250ms cubic-bezier(0.25, 1, 0.5, 1),
+                background 150ms ease;
+  }
+  .opt2-wrap:hover .grid-actions .act-btn:nth-child(1) { transition-delay: 0ms; }
+  .opt2-wrap:hover .grid-actions .act-btn:nth-child(2) { transition-delay: 40ms; }
+  .opt2-wrap:hover .grid-actions .act-btn:nth-child(3) { transition-delay: 80ms; }
+  .opt2-wrap:hover .grid-actions .act-btn:nth-child(4) { transition-delay: 120ms; }
+
+  /* ════════════════════════════════════════════
+     OPTION 3 — SLIDE-UP DRAWER
+     ════════════════════════════════════════════ */
+  .opt3-wrap { position: relative; width: 220px; }
+  .opt3-wrap .card {
+    overflow: hidden;
+    transition: border-color 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .opt3-wrap .drawer {
+    position: absolute;
+    bottom: 1px;
+    left: 1px;
+    right: 1px;
+    height: 28px;
+    background: #252525;
+    border-radius: 0 0 13px 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 225ms ease-in, opacity 225ms ease-in;
+    pointer-events: none;
+  }
+  .opt3-wrap .drawer .act-btn { width: 22px; height: 22px; }
+  .opt3-wrap .drawer .act-btn svg { width: 12px; height: 12px; }
+  .opt3-wrap:hover .card {
+    border-color: #0070DD;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .opt3-wrap:hover .drawer {
+    transform: translateY(0);
+    opacity: 1;
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
+  }
+
+  /* ════════════════════════════════════════════
+     OPTION 4 — FLIP REVEAL
+     ════════════════════════════════════════════ */
+  .opt4-wrap { position: relative; width: 220px; }
+  .opt4-wrap .card { perspective: 600px; }
+  .opt4-wrap .flip-container {
+    width: 28px;
+    height: 44px;
+    flex-shrink: 0;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 400ms cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .opt4-wrap .flip-front,
+  .opt4-wrap .flip-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .opt4-wrap .flip-back {
+    transform: rotateY(180deg);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .opt4-wrap .flip-back .act-btn { width: 20px; height: 10px; border-radius: 3px; }
+  .opt4-wrap .flip-back .act-btn svg { width: 10px; height: 10px; }
+  .opt4-wrap:hover .card { border-color: #0070DD; }
+  .opt4-wrap:hover .flip-container {
+    transform: rotateY(180deg);
+  }
+
+  /* ════════════════════════════════════════════
+     OPTION 5 — RADIAL BURST
+     ════════════════════════════════════════════ */
+  .opt5-wrap { position: relative; width: 220px; }
+  .opt5-wrap .card {
+    overflow: visible;
+    transition: border-color 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .opt5-wrap .burst-anchor {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+  .opt5-wrap .burst-anchor .status-icon {
+    position: absolute;
+    inset: 0;
+    transition: opacity 150ms ease, transform 150ms ease;
+  }
+  .opt5-wrap .burst-btn {
+    position: absolute;
+    opacity: 0;
+    transform: scale(0) translate(0, 0);
+    transition: opacity 200ms ease-in, transform 200ms ease-in, background 150ms ease;
+    width: 22px;
+    height: 22px;
+  }
+  .opt5-wrap .burst-btn svg { width: 12px; height: 12px; }
+  /* positions: top-left, top-right, bottom-left, bottom-right from center */
+  .opt5-wrap .burst-btn:nth-child(2) { top: 50%; left: 50%; margin-top: -11px; margin-left: -11px; }
+  .opt5-wrap .burst-btn:nth-child(3) { top: 50%; left: 50%; margin-top: -11px; margin-left: -11px; }
+  .opt5-wrap .burst-btn:nth-child(4) { top: 50%; left: 50%; margin-top: -11px; margin-left: -11px; }
+  .opt5-wrap .burst-btn:nth-child(5) { top: 50%; left: 50%; margin-top: -11px; margin-left: -11px; }
+
+  .opt5-wrap:hover .card {
+    border-color: #0070DD;
+    box-shadow: 0 0 20px rgba(0, 112, 221, 0.1);
+  }
+  .opt5-wrap:hover .burst-anchor .status-icon {
+    opacity: 0;
+    transform: scale(0);
+  }
+  .opt5-wrap:hover .burst-btn {
+    opacity: 1;
+  }
+  .opt5-wrap:hover .burst-btn:nth-child(2) {
+    transform: scale(1) translate(-16px, -16px);
+    transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 150ms ease;
+    transition-delay: 0ms;
+  }
+  .opt5-wrap:hover .burst-btn:nth-child(3) {
+    transform: scale(1) translate(16px, -16px);
+    transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 150ms ease;
+    transition-delay: 30ms;
+  }
+  .opt5-wrap:hover .burst-btn:nth-child(4) {
+    transform: scale(1) translate(-16px, 16px);
+    transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 150ms ease;
+    transition-delay: 60ms;
+  }
+  .opt5-wrap:hover .burst-btn:nth-child(5) {
+    transform: scale(1) translate(16px, 16px);
+    transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 150ms ease;
+    transition-delay: 90ms;
+  }
+</style>
+</head>
+<body>
+
+<h1>Card Hover Options</h1>
+<p class="page-sub">Hover each card to see the action button interaction. Pick your favorite.</p>
+
+<!-- ════════ OPTION 1 ════════ -->
+<div class="section">
+  <div class="section-label">Option 1 — Reveal Panel</div>
+  <div class="section-desc">A hidden panel slides out from the right edge with staggered buttons.</div>
+  <div class="opt1-wrap">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header">
+          <span class="agent-name">ultron</span>
+          <span class="agent-model">OPUS</span>
+        </div>
+        <div class="context-bar"><div class="context-fill"></div></div>
+        <div class="metrics"><span>1.2k tok</span><span>3.4s</span></div>
+      </div>
+      <div class="status-icon">
+        <svg viewBox="0 0 24 24" class="terminal-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ OPTION 2 ════════ -->
+<div class="section">
+  <div class="section-label">Option 2 — Overlay Morph</div>
+  <div class="section-desc">The status icon fades out and 4 mini buttons appear in a 2x2 grid.</div>
+  <div class="opt2-wrap">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header">
+          <span class="agent-name">ultron</span>
+          <span class="agent-model">OPUS</span>
+        </div>
+        <div class="context-bar"><div class="context-fill"></div></div>
+        <div class="metrics"><span>1.2k tok</span><span>3.4s</span></div>
+      </div>
+      <div class="icon-col">
+        <div class="status-icon">
+          <svg viewBox="0 0 24 24" class="terminal-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <div class="grid-actions">
+          <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ OPTION 3 ════════ -->
+<div class="section">
+  <div class="section-label">Option 3 — Slide-Up Drawer</div>
+  <div class="section-desc">Card lifts and a panel slides up from the bottom with horizontal buttons.</div>
+  <div class="opt3-wrap">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header">
+          <span class="agent-name">ultron</span>
+          <span class="agent-model">OPUS</span>
+        </div>
+        <div class="context-bar"><div class="context-fill"></div></div>
+        <div class="metrics"><span>1.2k tok</span><span>3.4s</span></div>
+      </div>
+      <div class="status-icon">
+        <svg viewBox="0 0 24 24" class="terminal-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </div>
+    </div>
+    <div class="drawer">
+      <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+      <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ OPTION 4 ════════ -->
+<div class="section">
+  <div class="section-label">Option 4 — Flip Reveal</div>
+  <div class="section-desc">The icon area does a 3D flip to reveal buttons on the back face.</div>
+  <div class="opt4-wrap">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header">
+          <span class="agent-name">ultron</span>
+          <span class="agent-model">OPUS</span>
+        </div>
+        <div class="context-bar"><div class="context-fill"></div></div>
+        <div class="metrics"><span>1.2k tok</span><span>3.4s</span></div>
+      </div>
+      <div class="flip-container">
+        <div class="flip-front">
+          <div class="status-icon">
+            <svg viewBox="0 0 24 24" class="terminal-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+        </div>
+        <div class="flip-back">
+          <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+          <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ OPTION 5 ════════ -->
+<div class="section">
+  <div class="section-label">Option 5 — Radial Burst</div>
+  <div class="section-desc">The icon vanishes and 4 buttons burst outward to corner positions with overshoot.</div>
+  <div class="opt5-wrap">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header">
+          <span class="agent-name">ultron</span>
+          <span class="agent-model">OPUS</span>
+        </div>
+        <div class="context-bar"><div class="context-fill"></div></div>
+        <div class="metrics"><span>1.2k tok</span><span>3.4s</span></div>
+      </div>
+      <div class="burst-anchor">
+        <div class="status-icon">
+          <svg viewBox="0 0 24 24" class="terminal-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </div>
+        <button class="act-btn burst-btn"><svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14" class="filled"/></svg></button>
+        <button class="act-btn burst-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+        <button class="act-btn burst-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+        <button class="act-btn burst-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== OPTION 6 — "Shrink Reveal" ===== -->
+<style>
+/* Option 6: card shrinks from right, buttons panel appears behind */
+.opt6-wrapper {
+  position: relative;
+  width: 220px;
+  height: 66px;
+}
+
+.opt6-buttons {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 14px;
+  background: #141414;
+  border: 1px solid #232323;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* Left: empty (card sits here). Right: buttons panel */
+.opt6-btn-panel {
+  margin-left: auto;
+  width: 70px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  align-items: center;
+  justify-items: center;
+  padding: 4px 8px;
+  margin-top: 0px;
+}
+
+.opt6-btn-panel .act-btn {
+  width: 26px; height: 26px;
+  background: none; border: none; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: #666;
+  transition: color 150ms, background 150ms;
+  padding: 0;
+}
+.opt6-btn-panel .act-btn:hover {
+  background: rgba(0, 112, 221, 0.15);
+  color: #0070DD;
+  filter: drop-shadow(0 0 4px rgba(0, 112, 221, 0.4)) drop-shadow(0 0 8px rgba(0, 112, 221, 0.2));
+}
+.opt6-btn-panel .act-btn svg {
+  width: 12px; height: 12px;
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.opt6-btn-panel .act-btn .filled {
+  fill: currentColor; stroke: none;
+}
+
+/* The card itself sits on top and shrinks on hover */
+.opt6-card {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 220px;
+  height: 66px;
+  padding: 6px;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: 1fr 54px;
+  grid-template-rows: 1fr 1fr 1fr;
+  overflow: hidden;
+  background: #1f1f1f;
+  border: 1px solid #232323;
+  transform-origin: left center;
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              grid-template-columns 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 300ms;
+}
+
+.opt6-wrapper:hover .opt6-card {
+  width: 150px;
+  grid-template-columns: 1fr 0px;
+  border-color: #0070DD;
+}
+
+/* Card inner content (reuse existing styles) */
+.opt6-card .cell-name {
+  grid-column: 1; grid-row: 1;
+  display: flex; align-items: center; gap: 5px;
+  min-width: 0;
+}
+.opt6-card .name {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  color: #0070DD;
+}
+.opt6-card .model {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: #585858; text-transform: uppercase;
+  position: relative; top: 1px;
+}
+.opt6-card .pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: #7d7d7d; margin-left: auto;
+  position: relative; top: 1px;
+}
+.opt6-card .cell-bar {
+  grid-column: 1; grid-row: 2;
+  display: flex; align-items: center; width: 100%;
+}
+.opt6-card .bar-track {
+  flex: 1; height: 7px; background: #141414; border-radius: 2px; overflow: hidden;
+}
+.opt6-card .bar-fill {
+  height: 100%; width: 47%; background: #4a4a4a; border-radius: 2px;
+}
+.opt6-card .cell-metrics {
+  grid-column: 1; grid-row: 3;
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #7d7d7d;
+}
+.opt6-card .cell-status {
+  grid-column: 2; grid-row: 1 / 4;
+  display: flex; align-items: center; justify-content: center;
+  padding-left: 6px;
+}
+.opt6-card .cell-status {
+  transition: opacity 200ms;
+  overflow: hidden;
+}
+.opt6-card .cell-status svg {
+  width: 28px; height: 28px;
+  stroke: #aeaeae; fill: none; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.opt6-wrapper:hover .opt6-card .cell-status {
+  opacity: 0;
+}
+</style>
+
+<div class="option-section" style="margin-top:40px">
+  <div class="option-label">Option 6 — Shrink Reveal</div>
+  <div class="option-desc">Card shrinks from the right, revealing action buttons behind it in a taller panel</div>
+
+  <div class="opt6-wrapper">
+    <!-- Buttons layer (behind the card) -->
+    <div class="opt6-buttons">
+      <div class="opt6-btn-panel">
+        <button class="act-btn"><svg viewBox="0 0 16 16"><polygon points="5,2 13,8 5,14" class="filled"/></svg></button>
+        <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="3.5" height="12" class="filled"/><rect x="9.5" y="2" width="3.5" height="12" class="filled"/></svg></button>
+        <button class="act-btn"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" class="filled"/></svg></button>
+        <button class="act-btn"><svg viewBox="0 0 16 16"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 3V4z" class="filled"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Card layer (on top, shrinks on hover) -->
+    <div class="opt6-card">
+      <div class="cell-name">
+        <span class="name">ultron</span>
+        <span class="model">OPUS</span>
+        <span class="pct">47%</span>
+      </div>
+      <div class="cell-bar">
+        <div class="bar-track"><div class="bar-fill"></div></div>
+      </div>
+      <div class="cell-metrics">
+        <span>▲800</span>
+        <span>▼5.2K</span>
+        <span>↻11</span>
+        <span>⏳34s</span>
+      </div>
+      <div class="cell-status">
+        <svg viewBox="0 0 24 24"><path d="M12 19h8"/><path d="m4 17 6-6-6-6"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
