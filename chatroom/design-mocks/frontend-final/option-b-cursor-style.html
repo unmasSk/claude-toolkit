@@ -36,7 +36,7 @@
   --text-code:  #aeaeae;
 
   /* Bar */
-  --bar-track:  #141414;
+  --bar-track:  #1a1a1a;
   --bar-fill:   #4a4a4a;
 
   /* Agent colors — WoW class palette */
@@ -328,7 +328,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 .card-wrap:hover .card {
   width: calc(100% - 66px);
   grid-template-columns: 1fr 0px;
-  border-color: var(--ac);
+  border-color: color-mix(in srgb, var(--ac) 50%, transparent);
 }
 .card-wrap:hover .card .cell-status {
   opacity: 0;
@@ -343,6 +343,9 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 .off-card {
   background: var(--bg-sidebar);
   border: 1px solid #232323;
+}
+.off-card .bar-track {
+  background: #1e1e1e;
 }
 
 /* Cell 1: icon + name + model (col1, row1) */
@@ -673,49 +676,69 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 .code-block pre .num { color: oklch(72% 0.18 65); }
 .code-block pre .type { color: oklch(68% 0.16 60); }
 
-/* ── INPUT — integrated into chat, no separator ──── */
+/* ── INPUT — Cursor-style chatbox ──── */
 .chat-input {
   padding: 10px 20px 14px;
   flex-shrink: 0;
-  position: relative;
-  overflow: visible;
 }
 .input-box {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 10px 12px 6px;
-  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px 8px;
+  display: flex; flex-direction: column; gap: 6px;
   transition: border-color 150ms;
-  position: relative;
-  z-index: 1;
 }
 .input-box:focus-within {
   border-color: #333333;
 }
-.input-row {
-  display: flex; align-items: flex-end; gap: 10px;
-}
 .input-box textarea {
-  flex: 1; background: none; border: none; outline: none;
+  width: 100%; background: none; border: none; outline: none;
   font-family: var(--font-ui); font-size: 13px; color: var(--text-1);
-  resize: none; height: 20px; line-height: 1.5;
+  resize: none; height: 48px; line-height: 1.5;
 }
 .input-box textarea::placeholder { color: var(--text-3); }
-.input-send {
-  background: #333333;
-  border: none; border-radius: 14px;
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0; color: var(--text-1);
+.input-bottom {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.input-controls {
+  display: flex; align-items: center; gap: 6px;
+}
+.input-chip {
+  font-family: var(--font-ui);
+  font-size: 11px; color: var(--text-2);
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
   transition: background 150ms;
 }
-.input-send:hover { background: #444444; }
-.input-sub {
-  display: flex; justify-content: space-between;
-  font-family: var(--font-mono); font-size: 9px; color: var(--text-3);
-  padding: 0 2px;
+.input-chip:hover { background: #222222; }
+.input-chip .chip-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #28C840;
 }
+.input-chip .chip-arrow {
+  font-size: 8px; color: var(--text-3);
+  margin-left: 2px;
+}
+.input-icons {
+  display: flex; align-items: center; gap: 4px;
+}
+.input-icon-btn {
+  width: 28px; height: 28px;
+  background: none; border: none; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-3);
+  transition: color 150ms, background 150ms;
+}
+.input-icon-btn:hover { color: var(--text-2); background: #1e1e1e; }
+.input-icon-btn.send-btn {
+  background: #333333; color: var(--text-1); border-radius: 8px;
+}
+.input-icon-btn.send-btn:hover { background: #444444; }
 
 /* ── STATUS BAR ──────────────────────────────────── */
 .statusbar {
@@ -1276,21 +1299,29 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 
       </div><!-- /messages -->
 
-      <!-- INPUT — integrated, no separator -->
+      <!-- INPUT — Cursor style -->
       <div class="chat-input">
         <div class="input-box">
-          <div class="input-row">
-            <textarea placeholder="Escribe un mensaje... (@ultron, @cerberus, @everyone)" rows="1"></textarea>
-            <button class="input-send" type="button" aria-label="Enviar">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12"/>
-                <polyline points="12 5 19 12 12 19"/>
-              </svg>
-            </button>
-          </div>
-          <div class="input-sub">
-            <span>@mention para invocar &middot; Enter env&iacute;a</span>
-            <span>0 / 50000</span>
+          <textarea placeholder="Message... @ for agents, / for commands" rows="3"></textarea>
+          <div class="input-bottom">
+            <div class="input-controls">
+              <button class="input-chip"><span class="chip-dot"></span> Chat <span class="chip-arrow">&#9662;</span></button>
+              <button class="input-chip">Auto <span class="chip-arrow">&#9662;</span></button>
+            </div>
+            <div class="input-icons">
+              <!-- image -->
+              <button class="input-icon-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              </button>
+              <!-- mic -->
+              <button class="input-icon-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              </button>
+              <!-- send -->
+              <button class="input-icon-btn send-btn" aria-label="Enviar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
