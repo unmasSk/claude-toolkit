@@ -685,7 +685,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px 14px 8px;
+  padding: 6px 7px 6px;
   display: flex; flex-direction: column; gap: 6px;
   transition: border-color 150ms;
 }
@@ -695,7 +695,8 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 .input-box textarea {
   width: 100%; background: none; border: none; outline: none;
   font-family: var(--font-ui); font-size: 13px; color: var(--text-1);
-  resize: none; height: 48px; line-height: 1.5;
+  resize: none; height: 28px; line-height: 1.5;
+  padding-left: 2px;
 }
 .input-box textarea::placeholder { color: var(--text-3); }
 .input-bottom {
@@ -736,7 +737,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 }
 .input-icon-btn:hover { color: var(--text-2); background: #1e1e1e; }
 .input-icon-btn.send-btn {
-  background: #333333; color: var(--text-1); border-radius: 8px;
+  background: #333333; color: var(--text-1); border-radius: 50%;
 }
 .input-icon-btn.send-btn:hover { background: #444444; }
 
@@ -1305,17 +1306,19 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
           <textarea placeholder="Message... @ for agents, / for commands" rows="3"></textarea>
           <div class="input-bottom">
             <div class="input-controls">
-              <button class="input-chip"><span class="chip-dot"></span> Chat <span class="chip-arrow">&#9662;</span></button>
-              <button class="input-chip">Auto <span class="chip-arrow">&#9662;</span></button>
+              <!-- Room mode -->
+              <button class="input-chip"><span class="chip-dot"></span> Execute <span class="chip-arrow">&#9662;</span></button>
+              <!-- Model -->
+              <button class="input-chip">Opus <span class="chip-arrow">&#9662;</span></button>
             </div>
             <div class="input-icons">
+              <!-- attach file -->
+              <button class="input-icon-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
               <!-- image -->
               <button class="input-icon-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-              </button>
-              <!-- mic -->
-              <button class="input-icon-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
               </button>
               <!-- send -->
               <button class="input-icon-btn send-btn" aria-label="Enviar">
