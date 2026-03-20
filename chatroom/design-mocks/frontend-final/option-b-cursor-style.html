@@ -296,6 +296,8 @@ html, body {
   margin-bottom: 4px;
   position: relative;
   height: 66px;
+  overflow: hidden;
+  border-radius: 14px;
 }
 
 /* SVG icons */
@@ -309,7 +311,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
 .card {
   position: absolute;
   top: 0; left: 0;
-  width: 192px;
+  width: 100%;
   height: 66px;
   padding: 6px;
   border-radius: 14px;
@@ -324,7 +326,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
   z-index: 1;
 }
 .card-wrap:hover .card {
-  width: 150px;
+  width: calc(100% - 66px);
   grid-template-columns: 1fr 0px;
   border-color: var(--ac);
 }
@@ -735,7 +737,6 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
   inset: 0;
   border-radius: 14px;
   background: #141414;
-  border: 1px solid #232323;
   display: flex;
   align-items: stretch;
   overflow: hidden;
