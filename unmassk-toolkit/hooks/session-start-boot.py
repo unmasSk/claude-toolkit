@@ -448,6 +448,7 @@ def extract_memory() -> dict:
         "decisions": decisions,
         "memos": memos,
         "remembers": remembers,
+        "tombstones": tombstones,
     }
 
 
@@ -977,15 +978,17 @@ def main() -> None:
     lines.append("")
 
     # ── REMEMBER ────────────────────────────────────────────────────
-    # Merge recent + glossary remembers
+    # Merge recent + glossary remembers (skip tombstoned entries)
     glossary = extract_glossary_cached()
+    tombstones = memory.get("tombstones", set())
 
     all_remembers: list[tuple[str, str]] = list(memory.get("remembers", []))
     recent_remember_texts = {normalize(t) for _, t in all_remembers}
     for scope, text in glossary.get("remembers", []):
-        if normalize(text) not in recent_remember_texts:
+        norm = normalize(text)
+        if norm not in recent_remember_texts and norm not in tombstones:
             all_remembers.append((scope, text))
-            recent_remember_texts.add(normalize(text))
+            recent_remember_texts.add(norm)
 
     if all_remembers:
         lines.append("REMEMBER:")
@@ -1021,7 +1024,7 @@ def main() -> None:
     all_memos: list[tuple[str, str]] = list(memory.get("memos", []))
     recent_memo_scopes = {s for s, _ in all_memos}
     for scope, text in glossary.get("memos", []):
-        if scope not in recent_memo_scopes:
+        if scope not in recent_memo_scopes and normalize(text) not in tombstones:
             all_memos.append((scope, text))
             recent_memo_scopes.add(scope)
 
