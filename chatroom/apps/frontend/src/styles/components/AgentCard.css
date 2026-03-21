@@ -13,7 +13,7 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
   margin-bottom: 4px;
   position: relative;
   height: 66px;
-  overflow: hidden;
+  overflow: visible; /* visible so neon glow can bleed outside */
   border-radius: var(--radius);
 }
 
@@ -91,7 +91,7 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
 
 @keyframes neon-glow-text {
   0%, 100% { text-shadow: none; }
-  50%       { text-shadow: 0 0 6px rgba(255,255,255,0.2), 0 0 12px rgba(255,255,255,0.1); }
+  50%       { text-shadow: 0 0 8px var(--ac), 0 0 18px var(--ac); }
 }
 
 .cell-name .model {
@@ -200,10 +200,20 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
   50%       { transform: scale(1.08); }
 }
 
-/* ── Neon glow on status icon ── */
+/* ── Neon glow on status icon (within card bounds) ── */
 @keyframes neon-glow {
   0%, 100% { filter: drop-shadow(0 0 0px transparent); }
-  50%       { filter: drop-shadow(0 0 8px rgba(255,255,255,0.24)) drop-shadow(0 0 16px rgba(255,255,255,0.12)); }
+  50%       { filter: drop-shadow(0 0 12px var(--ac)) drop-shadow(0 0 24px var(--ac)) drop-shadow(0 0 4px var(--ac)); }
+}
+
+/* ── External card-wrap glow — lives outside .card so overflow: hidden doesn't clip it ── */
+@keyframes neon-card-glow {
+  0%, 100% { box-shadow: none; }
+  50%       { box-shadow: 0 0 14px var(--ac), 0 0 28px color-mix(in srgb, var(--ac) 50%, transparent); }
+}
+
+.card-wrap:has(.neon-active) {
+  animation: neon-card-glow 2.5s ease-in-out infinite;
 }
 
 .neon-active {
@@ -217,6 +227,9 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
 .neon-active svg {
   animation: pulse-scale 2.5s ease-in-out infinite, neon-glow 2.5s ease-in-out infinite;
 }
+
+/* Override hardcoded stroke so agent color (--ac via currentColor) reaches the icon */
+.neon-active svg.icon-status { stroke: currentColor; }
 
 /* ── Shrink-reveal: action buttons layer ── */
 .card-buttons {
@@ -296,5 +309,6 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
 @media (prefers-reduced-motion: reduce) {
   .bar-fill,
   .neon-active svg,
+  .card-wrap:has(.neon-active),
   .active-card .cell-name .name { animation: none !important; }
 }

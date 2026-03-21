@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AgentState } from './constants.js';
+import { AGENT_BY_NAME } from './agents.js';
 
 // ---------------------------------------------------------------------------
 // Domain schemas
@@ -44,7 +45,7 @@ export const ConnectedUserSchema = z.object({
 });
 
 export const AgentStatusSchema = z.object({
-  agentName: z.string(),
+  agentName: z.string().refine((v) => AGENT_BY_NAME.has(v), { message: 'Unknown agent name' }),
   roomId: z.string(),
   sessionId: z.string().nullable(),
   model: z.string(),

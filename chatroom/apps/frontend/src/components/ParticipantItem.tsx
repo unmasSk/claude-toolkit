@@ -27,7 +27,7 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
   const agentNameLower = agent.agentName.toLowerCase();
 
   const ctxPct = (agent.lastInputTokens && agent.lastContextWindow && agent.lastContextWindow > 0)
-    ? Math.round((agent.lastInputTokens / agent.lastContextWindow) * 100)
+    ? Math.min(100, Math.max(1, Math.round((agent.lastInputTokens / agent.lastContextWindow) * 100)))
     : null;
 
   const send = useWsStore((s) => s.send);
@@ -158,12 +158,12 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
 
         {/* Cell 4: large status icon spanning all rows */}
         <div className="cell-status">
-          {isAnimating ? (
+          {isActive ? (
             <div className="neon-active" style={{ color: 'var(--ac)' }}>
               <Icon className="icon-status" />
             </div>
           ) : (
-            <Icon className="icon-status" style={neverInvoked ? { opacity: 0.3 } : undefined} />
+            <Icon className="icon-status" style={{ opacity: neverInvoked ? 0.3 : 0.5 }} />
           )}
         </div>
       </div>

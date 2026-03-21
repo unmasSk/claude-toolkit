@@ -34,6 +34,14 @@ import { activeProcesses } from './agent-queue.js';
 
 const logger = createLogger('agent-runner');
 
+// Explicit context window sizes per model ID (tokens).
+// Only models with non-standard windows need entries; the default covers sonnet + opus.
+const CONTEXT_WINDOW_MAP: Record<string, number> = {
+  'claude-haiku-4-5': 200_000,
+  'claude-haiku-4-5-20251001': 200_000,
+};
+const DEFAULT_CONTEXT_WINDOW = 1_000_000;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -167,10 +175,11 @@ export async function spawnAndParse(opts: SpawnAndParseOptions): Promise<boolean
   const timeoutHandle = makeTimeoutHandle(proc, agentName, roomId);
   const sr = await readAgentStream(proc, agentName, roomId, timeoutHandle);
   activeProcesses.delete(flightKey);
-  // Fallback: if CLI didn't emit model_usage.contextWindow, infer from model name
+  // Fallback: if CLI didn't emit model_usage.contextWindow, use explicit model map
   if (sr.resultContextWindow === 0) {
-    if (model.includes('haiku')) sr.resultContextWindow = 200_000;
-    else sr.resultContextWindow = 1_000_000; // sonnet + opus
+    const fallback = CONTEXT_WINDOW_MAP[model] ?? DEFAULT_CONTEXT_WINDOW;
+    logger.warn({ agentName, roomId, model, fallback }, 'CLI did not emit contextWindow — using model fallback');
+    sr.resultContextWindow = fallback;
   }
   return handleAgentResult(sr, roomId, agentName, model, context);
 }
