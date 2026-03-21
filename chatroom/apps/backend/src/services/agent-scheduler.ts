@@ -123,6 +123,7 @@ export function killAgent(agentName: string, roomId: string): boolean {
   // SEC-CRIT-002: Release scheduler slot immediately so drainQueue can unblock waiting agents.
   // activeInvocations entry is NOT removed here — the in-flight promise still runs its .finally()
   // cleanup path, but inFlight must be cleared now to unblock the scheduler.
+  if (proc.timeoutHandle !== undefined) clearTimeout(proc.timeoutHandle);
   inFlight.delete(key);
   activeProcesses.delete(key);
 

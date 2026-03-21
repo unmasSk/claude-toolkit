@@ -192,3 +192,33 @@ interface BunSpawnOptionsWithDetached extends Bun.SpawnOptions.Readable {
 ```
 `spawnOpts` is declared as `BunSpawnOptionsWithDetached`, then passed to `Bun.spawn`.
 The `as any` cast comment was removed along with the cast itself.
+
+---
+
+## Session 9 fixes — 2026-03-21 (agent pause hardening)
+
+### Fix 1: SIGSTOP/SIGCONT must target process GROUP (agent-queue.ts)
+`process.kill(active.pid, 'SIGSTOP')` → `process.kill(-active.pid!, 'SIGSTOP')`.
+Same for SIGCONT. Negative PID targets the entire process group (pgid == pid when
+spawned with `detached: true`). Freezes MCP server children as well.
+
+### Fix 2: SQLite CHECK constraint must include 'paused' (schema.ts)
+Added `'paused'` to the status CHECK constraint in `agent_sessions`.
+The existing `chatroom.db` (old constraint) must be deleted on deploy — the app
+recreates it from scratch on next boot. Tests that inline the schema in
+`tests/db/queries.test.ts` must be updated to match.
+
+### Fix 3: Timeout must pause/resume with the agent (agent-queue.ts + agent-runner.ts)
+`ActiveProcess` extended with three optional fields: `timeoutHandle`, `pausedAt`, `remainingTimeoutMs`.
+`agent-runner.ts`: after `makeTimeoutHandle()`, store the handle in `activeEntry.timeoutHandle`
+and set `activeEntry.remainingTimeoutMs = AGENT_TIMEOUT_MS`.
+`pauseAgent()`: on successful SIGSTOP, clear the timeout, compute remaining time.
+`resumeAgent()`: on successful SIGCONT, restart a new setTimeout with remaining budget.
+`AGENT_TIMEOUT_MS` imported into `agent-queue.ts` from `../config.js`.
+
+### Fix 4: Completion handlers must not overwrite Paused status (agent-result.ts + agent-stream.ts)
+Import `isAgentPaused` from `agent-queue.ts` in both files.
+Guard every `updateStatusAndBroadcast(Done/Error)` call with `if (!isAgentPaused(...))`.
+Affected locations: `handleFailedResult`, `handleEmptyResult`, `persistAndBroadcast` (agent-result.ts),
+SKIP path in `handleAgentResult` (agent-stream.ts).
+`upsertAgentSession` in `persistAndBroadcast` uses `finalStatus = isAgentPaused ? 'paused' : 'done'`.

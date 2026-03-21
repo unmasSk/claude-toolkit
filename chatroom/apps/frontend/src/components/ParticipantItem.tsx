@@ -18,11 +18,13 @@ function fmtTok(n: number | undefined): string {
 export const ParticipantItem = memo(function ParticipantItem({ agent }: ParticipantItemProps) {
   const modelBadge = getModelBadge(agent.model);
   const Icon = getAgentIcon(agent.agentName);
-  // 3 visual states: active (running now), invoked (worked before), never (idle/out)
+  // 4 visual states: active (running now), paused (server-confirmed), invoked (worked before), never (idle/out)
   const isActive = agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse;
+  const isPausedFromServer = agent.status === AgentState.Paused;
   const wasInvoked = agent.status === AgentState.Done || agent.status === AgentState.Error;
   const neverInvoked = agent.status === AgentState.Idle || agent.status === AgentState.Out;
-  const cardClass = isActive ? 'card active-card' : 'card off-card';
+  // Paused: use active-card (tinted background) but NO animation — agent has color but is frozen.
+  const cardClass = (isActive || isPausedFromServer) ? 'card active-card' : 'card off-card';
   const isAnimating = isActive;
   const agentNameLower = agent.agentName.toLowerCase();
 
@@ -32,31 +34,29 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
 
   const send = useWsStore((s) => s.send);
 
-  // T1: Local toggle so the same button acts as Pause or Resume depending on current state.
-  // Optimistic local state — reset when server confirms the agent is running again.
+  // Optimistic local pause state — set on pause click, cleared when server confirms running/done.
   const [isPaused, setIsPaused] = useState(false);
 
-  // Sync: if another client resumes the agent, the server broadcasts Thinking/ToolUse/Done.
-  // Reset isPaused so the button correctly shows "Pause" instead of "Resume".
+  // Sync local pause state with server state.
+  // - Server confirms paused → set isPaused true (catches pauses from other clients).
+  // - Server confirms running/done → clear isPaused so Pause re-enables.
   useEffect(() => {
-    if (agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse || agent.status === AgentState.Done) {
+    if (agent.status === AgentState.Paused) {
+      setIsPaused(true);
+    } else if (agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse || agent.status === AgentState.Done) {
       setIsPaused(false);
     }
   }, [agent.status]);
 
-  const handlePlay = useCallback(() => {
-    send({ type: 'invoke_agent', agent: agent.agentName, prompt: `@${agent.agentName} please continue.` });
+  const handleResume = useCallback(() => {
+    send({ type: 'resume_agent', agentName: agent.agentName });
+    setIsPaused(false);
   }, [send, agent.agentName]);
 
-  const handlePauseOrResume = useCallback(() => {
-    if (isPaused) {
-      send({ type: 'resume_agent', agentName: agent.agentName });
-      setIsPaused(false);
-    } else {
-      send({ type: 'pause_agent', agentName: agent.agentName });
-      setIsPaused(true);
-    }
-  }, [send, agent.agentName, isPaused]);
+  const handlePause = useCallback(() => {
+    send({ type: 'pause_agent', agentName: agent.agentName });
+    setIsPaused(true);
+  }, [send, agent.agentName]);
 
   const handleStop = useCallback(() => {
     send({ type: 'kill_agent', agentName: agent.agentName });
@@ -66,40 +66,38 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
     send({ type: 'read_chat', agentName: agent.agentName });
   }, [send, agent.agentName]);
 
+  // Button enabled states
+  const playEnabled = isPaused || isPausedFromServer;
+  const pauseEnabled = isActive && !isPaused;
+  const stopEnabled = isActive || isPaused || isPausedFromServer;
+  const chatEnabled = !isActive && !isPaused && !isPausedFromServer;
+
   return (
-    <div className={`card-wrap ${neverInvoked ? '' : `agent-${agentNameLower}`}`}>
+    <div className={`card-wrap ${neverInvoked ? '' : `agent-${agentNameLower}`}${isPausedFromServer ? ' agent-paused' : ''}`}>
       {/* Action buttons layer — revealed on hover via CSS shrink-reveal */}
       <div className="card-buttons">
         <div className="btn-panel">
-          {/* Play — invoke agent */}
-          <button className="act-btn" type="button" aria-label="Play" onClick={handlePlay}>
+          {/* Play — resume a paused agent */}
+          <button className="act-btn" type="button" aria-label="Play" onClick={handleResume} disabled={!playEnabled}>
             <svg viewBox="0 0 12 12">
               <polygon points="3,1 11,6 3,11" className="filled" />
             </svg>
           </button>
-          {/* Pause/Resume — toggles between pause_agent and resume_agent */}
-          <button className="act-btn" type="button" aria-label={isPaused ? 'Resume' : 'Pause'} onClick={handlePauseOrResume}>
-            {isPaused ? (
-              /* Resume icon: right-pointing triangle */
-              <svg viewBox="0 0 12 12">
-                <polygon points="2,1 10,6 2,11" className="filled" />
-              </svg>
-            ) : (
-              /* Pause icon: two vertical bars */
-              <svg viewBox="0 0 12 12">
-                <rect x="2" y="1" width="3" height="10" rx="1" className="filled" />
-                <rect x="7" y="1" width="3" height="10" rx="1" className="filled" />
-              </svg>
-            )}
+          {/* Pause — pause an active agent */}
+          <button className="act-btn" type="button" aria-label="Pause" onClick={handlePause} disabled={!pauseEnabled}>
+            <svg viewBox="0 0 12 12">
+              <rect x="2" y="1" width="3" height="10" rx="1" className="filled" />
+              <rect x="7" y="1" width="3" height="10" rx="1" className="filled" />
+            </svg>
           </button>
           {/* Stop — kill running subprocess */}
-          <button className="act-btn" type="button" aria-label="Stop" onClick={handleStop}>
+          <button className="act-btn" type="button" aria-label="Stop" onClick={handleStop} disabled={!stopEnabled}>
             <svg viewBox="0 0 12 12">
               <rect x="1.5" y="1.5" width="9" height="9" rx="2" className="filled" />
             </svg>
           </button>
           {/* Chat — feed recent messages to agent */}
-          <button className="act-btn" type="button" aria-label="Chat" onClick={handleReadChat}>
+          <button className="act-btn" type="button" aria-label="Chat" onClick={handleReadChat} disabled={!chatEnabled}>
             <svg viewBox="0 0 12 12">
               <path d="M10 1H2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2l2 2 2-2h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z" />
             </svg>
@@ -111,7 +109,7 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
       <div className={cardClass}>
         {/* Cell 1: name + model badge + context percentage */}
         <div className="cell-name">
-          <span className={`name ${neverInvoked ? '' : agentColorClass(agent.agentName)}`} style={neverInvoked ? { color: 'var(--text-3)' } : undefined}>
+          <span className={`name ${neverInvoked ? '' : agentColorClass(agent.agentName)}`} style={neverInvoked ? { color: 'var(--text-3)' } : isPausedFromServer ? { opacity: 0.6 } : undefined}>
             {agentNameLower}
           </span>
           <span className="model">{modelBadge}</span>
@@ -162,6 +160,9 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
             <div className="neon-active" style={{ color: 'var(--ac)' }}>
               <Icon className="icon-status" />
             </div>
+          ) : isPausedFromServer ? (
+            /* Paused: agent color, no animation — distinct from active and off states */
+            <Icon className="icon-status" style={{ color: 'var(--ac)', stroke: 'var(--ac)', opacity: 0.55 }} />
           ) : (
             <Icon className="icon-status" style={{ opacity: neverInvoked ? 0.3 : 0.5 }} />
           )}

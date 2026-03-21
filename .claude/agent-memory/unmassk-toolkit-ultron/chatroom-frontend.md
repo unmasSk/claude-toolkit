@@ -165,10 +165,37 @@ Circuit breaker test updated to 3 failures. Test uses `vi.advanceTimersByTimeAsy
 ### Test runner
 Frontend tests: `npx vitest run` from `apps/frontend/` (NOT `bun test` — that calls vitest but vi.stubGlobal fails with bun's test runner). Run from `apps/frontend/`, not from chatroom root.
 
+## AgentState.Paused — end-to-end pattern (2026-03-21)
+
+### What was added
+`Paused = 'paused'` added to `AgentState` enum in `packages/shared/src/constants.ts`.
+Both `AgentStatusSchema` and `ServerAgentStatusSchema` in `schemas.ts` include `AgentState.Paused` in their enum arrays.
+
+### Backend broadcast pattern
+`handlePauseAgent()` calls `updateStatusAndBroadcast(agentName, roomId, AgentState.Paused)` after `pauseAgent()`.
+`handleResumeAgent()` calls `updateStatusAndBroadcast(agentName, roomId, AgentState.Thinking)` after `resumeAgent()` — the real state arrives via the next `agent_status` event from the subprocess.
+
+### Frontend visual state (ParticipantItem.tsx)
+- `isPausedFromServer = agent.status === AgentState.Paused` (derived directly from server)
+- `isActive` excludes Paused (only Thinking | ToolUse)
+- `cardClass`: `active-card` when `isActive || isPausedFromServer` — tinted background but no animation
+- Status icon cell: 3-way branch — neon-active (isActive) | static agent-colored (isPausedFromServer) | dim (off)
+- Name: `opacity: 0.6` when paused (not dimmed to text-3 like neverInvoked)
+- `useEffect` syncs `isPaused` local state: sets `true` on `Paused`, clears on `Thinking|ToolUse|Done`
+
+### Button enabled states
+- `playEnabled = isPaused || isPausedFromServer`
+- `pauseEnabled = isActive && !isPaused`
+- `stopEnabled = isActive || isPaused || isPausedFromServer`
+- `chatEnabled = !isActive && !isPaused && !isPausedFromServer`
+
+### Pre-existing test failures in shared package
+4 tests fail before and after this change (content max 10000 vs 50000, and tool_event missing id field). Do not fix these unless asked.
+
 ## Build commands (from chatroom root)
 - Backend start: `bun run --cwd apps/backend src/index.ts` — binds to 127.0.0.1:3001
 - Frontend build: `bunx vite build` from apps/frontend — outputs to dist/
-- All tests: `bun test` — 460 pass / 0 fail as of 2026-03-18 (after bug fixes)
+- All tests: `bun test` — 1140 pass / 0 fail as of 2026-03-21 (backend); shared: 72 pass / 4 fail (4 pre-existing)
 
 ## user_list_update broadcast pattern (2026-03-18)
 When a WS connection opens or closes, broadcast the updated user list to all room subscribers:

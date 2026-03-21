@@ -8,6 +8,7 @@ export enum AgentState {
   Done = 'done',
   Out = 'out',
   Error = 'error',
+  Paused = 'paused',
 }
 
 /**

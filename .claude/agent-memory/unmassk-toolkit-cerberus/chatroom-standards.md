@@ -86,6 +86,76 @@ These rules were mandated by the user for permanent enforcement on every review 
 - Resume icon SVG (triangle polygon) is visually identical to Play icon — operator confusion risk; differentiate shapes
 - Zero tests for 8 new exported functions (killAgent, pauseAgent, resumeAgent, isAgentPaused, handleKillAgent, handlePauseAgent, handleResumeAgent, handleReadChat)
 
+### Audit 2026-03-21 — SIGSTOP/pause process-group fix commit
+
+#### W2 (non-blocking warnings — open, follow-up needed)
+- agent-queue.ts pauseAgent: remaining-budget calculation uses `pausedAt ?? Date.now()` on first pause — elapsed is always ~0, full timeout budget is preserved instead of subtracting already-elapsed time. Fix: track `startedAt`/`resumedAt` on ActiveProcess.
+- agent-scheduler.ts killAgent: does not clearTimeout(proc.timeoutHandle) before activeProcesses.delete — stale timer fires after kill, logs misleading "timeout reached — killing subprocess".
+- agent-runner.ts spawnAndParse: resume-created timeoutHandle in activeEntry is not cleared after readAgentStream returns — timer fires on natural process exit, logs false "timeout reached after resume" warning.
+
+#### T3 (non-blocking — open)
+- agent-queue.ts pauseAgent/resumeAgent: logger.info with activeKeys array serialized on every call — downgrade to logger.debug or remove (log volume concern in production).
+- agent-result.ts persistAndBroadcast: cost/turn incrementing happens even when paused — intentional but needs a comment to prevent future maintainer confusion.
+
+#### RESOLVED by this commit
+- agent-scheduler.ts: 387 LOC T2 — RESOLVED: pauseAgent/resumeAgent/isAgentPaused moved to agent-queue.ts; agent-scheduler.ts now at ~290 LOC (verify)
+- sendError DRY violation — VERIFY: check if still duplicated after this commit
+
+### Audit 2026-03-21 — SIGSTOP/pause 6-fix correctness review
+
+#### CONFIRMED RESOLVED (all 6 stated fixes verified)
+1. pid guard — RESOLVED: `typeof active?.pid !== 'number' || active.pid <= 0` is correct
+2. remainingTimeoutMs preserved on resume — RESOLVED: comment + code correct; `pausedAt = undefined` cleared, `remainingTimeoutMs` kept for next pause
+3. Single isAgentPaused read in persistAndBroadcast — RESOLVED: `const isPaused = isAgentPaused(...)` at line 273 used for both DB write and broadcast guard
+4. ESRCH clears _pausedAgents — RESOLVED: `_pausedAgents.delete(...)` in catch block when `code === 'ESRCH'`
+5. Timeout handle created before activeProcesses.set — RESOLVED: activeEntry built with timeoutHandle pre-included; clearTimeout on activeEntry.timeoutHandle after readAgentStream returns covers resume-replaced handles
+6. tool_event test `id` field — RESOLVED: three test objects now include `id: 'te-1'/'te-2'/'te-3'`
+
+#### STILL OPEN after this commit (W2 — non-blocking)
+- agent-queue.ts pauseAgent line 143: `Date.now() - (active.pausedAt ?? Date.now())` → elapsed is always 0 on first pause. Fix: add `startedAt: Date.now()` to ActiveProcess and use it as the fallback.
+- agent-scheduler.ts killAgent line 127: `activeProcesses.delete(key)` before `clearTimeout(proc.timeoutHandle)` — stale timer fires AGENT_TIMEOUT_MS after kill, logs misleading "timeout reached — killing subprocess".
+
+#### STILL OPEN after this commit (T3 — non-blocking)
+- agent-queue.ts pauseAgent/resumeAgent: `logger.info` with `activeKeys` array on every call — downgrade to `logger.debug`
+
+#### NEW FALSE POSITIVES (do not re-flag)
+- agent-runner.ts `import('./agent-queue.js').ActiveProcess` in-line import type: valid TypeScript pattern to avoid a circular import; not an error.
+- ParticipantItem.tsx `playEnabled = isPaused || isPausedFromServer` double-condition: intentional — covers both optimistic local state and server-confirmed state; not redundant.
+- Shared schemas test failures (2 fail: "rejects content/prompt exceeding 10000 chars"): pre-existing mismatch between schema max(50000) and test expectation; NOT introduced by this diff.
+
+#### SCORE DELTA (backend, out of 110)
+- W2 "elapsed=0 first pause" remains open (minor severity, never causes agent termination early — only allows slightly longer timeout)
+- W2 "killAgent stale timer" remains open (logs noise only, no functional breakage — ESRCH caught)
+- All 6 stated fixes verified correct — no new T1/T2 introduced
+- Net: no regressions; 2 pre-existing W2s remain
+
+### Audit 2026-03-21 — 5 final fixes commit
+
+#### ALL CONFIRMED RESOLVED
+1. startedAt added to ActiveProcess, used in pauseAgent elapsed fallback chain — RESOLVED: `active.pausedAt ?? active.startedAt ?? Date.now()` is correct; `pausedAt` is cleared by resumeAgent so `startedAt` is the correct fallback for first pause. Both W2s from prior audit closed.
+2. killAgent clears timeoutHandle before delete — RESOLVED: `clearTimeout(proc.timeoutHandle)` at agent-scheduler.ts:126, before `activeProcesses.delete`. Stale-timer W2 closed.
+3. pid > 0 guard in makeTimeoutHandle — RESOLVED: agent-runner.ts:243 guards `!proc.pid || proc.pid <= 0` before `process.kill(-pid)` in timeout callback.
+4. resumeAgent double-call guard + pre-clear existing handle — RESOLVED: `if (!_pausedAgents.has(key)) return false` prevents double-resume; `if (active.timeoutHandle !== undefined) clearTimeout(active.timeoutHandle)` before new setTimeout prevents handle leak.
+5. Schema test boundaries 10000→50000 — RESOLVED: schemas.ts already had max(50000); tests now match. `AgentState.Paused` added to exhaustive enum loop.
+
+#### STILL OPEN (pre-existing, not introduced by this diff)
+- agent-runner.ts: 328 LOC (T2) — over 300-line limit; next split needed
+- agent-scheduler.ts: 353 LOC (T2) — over 300-line limit; next split needed
+- agent-queue.ts pauseAgent/resumeAgent: `logger.info` with `activeKeys` on every call — T3, downgrade to `logger.debug` — RESOLVED by resumedAt commit (downgraded to logger.debug)
+- All T3 agent-prompt.ts / agent-result.ts JSDoc gaps — still open (see list above)
+
+#### NEW FALSE POSITIVES (do not re-flag)
+- `readAgentStream` receives original `timeoutHandle` local var (not a ref to activeEntry.timeoutHandle): intentional — cleanup after `readAgentStream` returns reads `activeEntry.timeoutHandle` directly, which may have been replaced by resumeAgent; the local var passed to readAgentStream is used only for stream-level abort signaling.
+- resumeAgent timeout callback does not call `activeProcesses.delete`: intentional — spawnAndParse cleanup path runs after SIGTERM kills the process; double-delete on Map is benign.
+- `accepts Paused status` test is a duplicate of the exhaustive loop test: intentional minor redundancy for clarity; not a test quality issue.
+
+#### VERDICT: Approve. No T1, no new T2.
+
+#### FALSE POSITIVES (do not re-flag)
+- pauseAgent/resumeAgent using `active.pid!` non-null assertion: safe, guarded by `if (!active?.pid) return false` two lines above.
+- Resume timeout callback capturing `pid` snapshot: safe, pid is immutable after spawn; process may exit but ESRCH is caught.
+- `isAgentPaused` check in completion handlers: correct pattern — paused flag is cleared by resumeAgent before next invocation, so a paused-then-resumed agent will correctly get Done status after its next run.
+
 #### FALSE POSITIVES (added 2026-03-21 — do not re-flag)
 - killAgent double-delete of activeProcesses: benign on Map, not a bug (spawnAndParse deletes on exit, killAgent deletes earlier — second delete is no-op)
 - ws-handlers.ts parseAndValidate return type `result.data as ClientMessage`: cast IS redundant but Zod discriminatedUnion already types result.data as ClientMessage — not a type escape
@@ -110,3 +180,18 @@ These rules were mandated by the user for permanent enforcement on every review 
 - ws-handlers.ts: `any` on ws parameter — documented with eslint-disable, Elysia internals limitation, acceptable
 - config.ts: `throw new Error()` inside ConfigError (subclass) — not generic throw, ConfigError is a typed subclass
 - agent-scheduler.ts: tryMergeOrEnqueue 9 params — private helper (not exported), T3 at most
+
+### Audit 2026-03-21 — resumedAt fix commit
+
+#### ALL CONFIRMED RESOLVED
+1. `resumedAt` added to `ActiveProcess` — RESOLVED: field correctly typed `number | undefined` with accurate JSDoc
+2. pauseAgent elapsed chain `pausedAt ?? resumedAt ?? startedAt ?? Date.now()` — RESOLVED: all state transitions in multi-cycle pause/resume verified correct; prior W2 "elapsed always 0 on first pause" closed
+3. resumeAgent sets `resumedAt = Date.now()` inside try block, after SIGCONT success — RESOLVED: correct placement; ESRCH path leaves resumedAt unchanged (safe, process is gone)
+4. logger.info downgraded to logger.debug — RESOLVED: T3 log-volume finding from prior audit closed
+
+#### STILL OPEN (pre-existing, not introduced by this diff)
+- agent-runner.ts: 328 LOC (T2) — over 300-line limit
+- agent-scheduler.ts: 353 LOC (T2) — over 300-line limit
+- All T3 agent-prompt.ts / agent-result.ts JSDoc gaps — still open
+
+#### VERDICT: Approve. No T1, no new T2. 0 issues, 0 suggestions, 0 nitpicks.

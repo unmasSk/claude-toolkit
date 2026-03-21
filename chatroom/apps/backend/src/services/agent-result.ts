@@ -27,6 +27,7 @@ import { extractMentions } from './mention-parser.js';
 import { updateStatusAndBroadcast, postSystemMessage } from './agent-runner.js';
 import type { InvocationContext } from './agent-scheduler.js';
 import type { AgentStreamResult } from './agent-stream.js';
+import { isAgentPaused } from './agent-queue.js';
 
 const logger = createLogger('agent-result');
 
@@ -178,7 +179,10 @@ export async function handleFailedResult(
   }
 
   const errorMsg = sanitizePromptContent(sr.resultText || 'Agent returned an error result');
-  await updateStatusAndBroadcast(agentName, roomId, AgentState.Error, errorMsg);
+  // Fix 4: do not overwrite Paused status when agent completed while frozen.
+  if (!isAgentPaused(agentName, roomId)) {
+    await updateStatusAndBroadcast(agentName, roomId, AgentState.Error, errorMsg);
+  }
   await postSystemMessage(roomId, `Agent ${agentName} failed: ${errorMsg}`);
   return false;
 }
@@ -224,7 +228,10 @@ export async function handleEmptyResult(
   }
 
   await postSystemMessage(roomId, `Agent ${agentName} returned no response.`);
-  await updateStatusAndBroadcast(agentName, roomId, AgentState.Done);
+  // Fix 4: do not overwrite Paused status when agent completed while frozen.
+  if (!isAgentPaused(agentName, roomId)) {
+    await updateStatusAndBroadcast(agentName, roomId, AgentState.Done);
+  }
   return false;
 }
 
@@ -261,14 +268,21 @@ export async function persistAndBroadcast(
   await broadcast(roomId, { type: 'new_message', message });
   await scheduleChainMentions(resultText, agentName, roomId, context);
 
-  upsertAgentSession({ agentName, roomId, sessionId: sr.resultSessionId, model, status: 'done' });
+  // Read the pause flag once — avoids a race where resumeAgent fires between the two checks
+  // and causes the DB write and the broadcast decision to disagree.
+  const isPaused = isAgentPaused(agentName, roomId);
+  const finalStatus = isPaused ? 'paused' : 'done';
+  upsertAgentSession({ agentName, roomId, sessionId: sr.resultSessionId, model, status: finalStatus });
   if (sr.resultCostUsd > 0) incrementAgentCost(agentName, roomId, sr.resultCostUsd);
   incrementAgentTurnCount(agentName, roomId);
-  await updateStatusAndBroadcast(agentName, roomId, AgentState.Done, undefined, {
-    durationMs: sr.resultDurationMs,
-    numTurns: sr.resultNumTurns,
-    inputTokens: sr.resultInputTokens,
-    outputTokens: sr.resultOutputTokens,
-    contextWindow: sr.resultContextWindow,
-  });
+  // Fix 4: do not overwrite Paused status when the agent completes while frozen.
+  if (!isPaused) {
+    await updateStatusAndBroadcast(agentName, roomId, AgentState.Done, undefined, {
+      durationMs: sr.resultDurationMs,
+      numTurns: sr.resultNumTurns,
+      inputTokens: sr.resultInputTokens,
+      outputTokens: sr.resultOutputTokens,
+      contextWindow: sr.resultContextWindow,
+    });
+  }
 }

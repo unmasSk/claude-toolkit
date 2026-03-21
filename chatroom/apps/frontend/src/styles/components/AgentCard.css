@@ -284,10 +284,15 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
   padding: 0;
 }
 
-.act-btn:hover {
+.act-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ac) 15%, transparent);
   color: var(--ac);
   filter: drop-shadow(0 0 4px var(--ac));
+}
+
+.act-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
 }
 
 .act-btn svg {

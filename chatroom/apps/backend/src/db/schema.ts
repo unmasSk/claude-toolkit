@@ -41,7 +41,7 @@ export function initializeSchema(): void {
       session_id  TEXT,
       model       TEXT NOT NULL,
       status      TEXT NOT NULL DEFAULT 'idle'
-                  CHECK(status IN ('idle', 'thinking', 'tool-use', 'done', 'out', 'error')),
+                  CHECK(status IN ('idle', 'thinking', 'tool-use', 'done', 'out', 'error', 'paused')),
       last_active TEXT,
       total_cost  REAL DEFAULT 0.0,
       turn_count  INTEGER DEFAULT 0,

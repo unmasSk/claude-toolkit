@@ -30,7 +30,7 @@ import {
 } from './agent-prompt.js';
 import type { InvocationContext } from './agent-scheduler.js';
 import { readAgentStream, handleAgentResult } from './agent-stream.js';
-import { activeProcesses } from './agent-queue.js';
+import { activeProcesses, isAgentPaused } from './agent-queue.js';
 
 const logger = createLogger('agent-runner');
 
@@ -168,18 +168,39 @@ export async function spawnAndParse(opts: SpawnAndParseOptions): Promise<boolean
 
   logger.debug({ agentName, roomId, pid: proc.pid }, 'subprocess spawned');
 
-  // Register the process handle so kill_agent can SIGTERM it
+  // Register the process handle so kill_agent can SIGTERM it and pause_agent can freeze it.
+  // Create the timeout handle first so it is included in the activeEntry at registration time.
+  // Registering first and assigning later would leave a window where pauseAgent finds
+  // timeoutHandle === undefined and cannot cancel the timeout correctly.
   const flightKey = `${agentName}:${roomId}`;
-  activeProcesses.set(flightKey, { pid: proc.pid, kill: () => proc.kill() });
-
   const timeoutHandle = makeTimeoutHandle(proc, agentName, roomId);
+  const activeEntry: import('./agent-queue.js').ActiveProcess = {
+    pid: proc.pid,
+    kill: () => proc.kill(),
+    timeoutHandle,
+    remainingTimeoutMs: AGENT_TIMEOUT_MS,
+    startedAt: Date.now(),
+  };
+  activeProcesses.set(flightKey, activeEntry);
+
   const sr = await readAgentStream(proc, agentName, roomId, timeoutHandle);
+  // Cancel whichever timeout is currently in activeEntry — resumeAgent may have replaced
+  // the original handle with a shorter one after a pause/resume cycle.
+  if (activeEntry.timeoutHandle !== undefined) {
+    clearTimeout(activeEntry.timeoutHandle);
+    activeEntry.timeoutHandle = undefined;
+  }
   activeProcesses.delete(flightKey);
   // Fallback: if CLI didn't emit model_usage.contextWindow, use explicit model map
   if (sr.resultContextWindow === 0) {
     const fallback = CONTEXT_WINDOW_MAP[model] ?? DEFAULT_CONTEXT_WINDOW;
     logger.warn({ agentName, roomId, model, fallback }, 'CLI did not emit contextWindow — using model fallback');
     sr.resultContextWindow = fallback;
+  }
+  // Diagnostic: if the agent is still flagged as paused when its process completes,
+  // SIGSTOP failed to reach the subprocess. The result will overwrite Paused status.
+  if (isAgentPaused(agentName, roomId)) {
+    logger.warn({ agentName, roomId }, 'agent completed while flagged as paused — SIGSTOP likely failed');
   }
   return handleAgentResult(sr, roomId, agentName, model, context);
 }
@@ -219,6 +240,7 @@ function makeTimeoutHandle(
     logger.warn({ agentName, roomId, pid: proc.pid }, 'timeout reached — killing subprocess');
     try {
       if (process.platform !== 'win32') {
+        if (!proc.pid || proc.pid <= 0) { proc.kill(); return; }
         process.kill(-(proc.pid as number), 'SIGTERM');
       } else {
         proc.kill();

@@ -27,6 +27,7 @@ import {
 import { updateStatusAndBroadcast } from './agent-runner.js';
 import type { InvocationContext } from './agent-scheduler.js';
 import { persistAndBroadcast, handleFailedResult, handleEmptyResult } from './agent-result.js';
+import { isAgentPaused } from './agent-queue.js';
 
 const logger = createLogger('agent-stream');
 
@@ -244,7 +245,10 @@ export async function handleAgentResult(
   // SKIP mechanism: agent explicitly opted out
   if (/^skip\.?$/i.test(sr.resultText.trim())) {
     logger.debug({ agentName, roomId }, 'SKIP received — suppressing message');
-    await updateStatusAndBroadcast(agentName, roomId, AgentState.Done);
+    // Fix 4: do not overwrite Paused status when agent completed while frozen.
+    if (!isAgentPaused(agentName, roomId)) {
+      await updateStatusAndBroadcast(agentName, roomId, AgentState.Done);
+    }
     return false;
   }
 

@@ -225,11 +225,16 @@ describe('AgentStatusSchema', () => {
   });
 
   it('accepts all valid AgentState values', () => {
-    const states = [AgentState.Idle, AgentState.Thinking, AgentState.ToolUse, AgentState.Done, AgentState.Out, AgentState.Error];
+    const states = [AgentState.Idle, AgentState.Thinking, AgentState.ToolUse, AgentState.Done, AgentState.Out, AgentState.Error, AgentState.Paused];
     for (const status of states) {
       const result = AgentStatusSchema.safeParse(makeAgentStatus({ status }));
       expect(result.success).toBe(true);
     }
+  });
+
+  it('accepts Paused status', () => {
+    const result = AgentStatusSchema.safeParse(makeAgentStatus({ status: AgentState.Paused }));
+    expect(result.success).toBe(true);
   });
 
   it('rejects invalid status value', () => {
@@ -268,18 +273,18 @@ describe('ClientSendMessageSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects content exceeding 10000 chars', () => {
+  it('rejects content exceeding 50000 chars', () => {
     const result = ClientSendMessageSchema.safeParse({
       type: 'send_message',
-      content: 'x'.repeat(10001),
+      content: 'x'.repeat(50001),
     });
     expect(result.success).toBe(false);
   });
 
-  it('accepts content at exactly max length (10000)', () => {
+  it('accepts content at exactly max length (50000)', () => {
     const result = ClientSendMessageSchema.safeParse({
       type: 'send_message',
-      content: 'x'.repeat(10000),
+      content: 'x'.repeat(50000),
     });
     expect(result.success).toBe(true);
   });
@@ -330,11 +335,11 @@ describe('ClientInvokeAgentSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects prompt exceeding 10000 chars', () => {
+  it('rejects prompt exceeding 50000 chars', () => {
     const result = ClientInvokeAgentSchema.safeParse({
       type: 'invoke_agent',
       agent: 'bilbo',
-      prompt: 'x'.repeat(10001),
+      prompt: 'x'.repeat(50001),
     });
     expect(result.success).toBe(false);
   });
@@ -527,6 +532,15 @@ describe('ServerAgentStatusSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts Paused status', () => {
+    const result = ServerAgentStatusSchema.safeParse({
+      type: 'agent_status',
+      agent: 'bilbo',
+      status: AgentState.Paused,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects invalid status', () => {
     const result = ServerAgentStatusSchema.safeParse({
       type: 'agent_status',
@@ -541,6 +555,7 @@ describe('ServerToolEventSchema', () => {
   it('validates a correct tool_event', () => {
     const result = ServerToolEventSchema.safeParse({
       type: 'tool_event',
+      id: 'te-1',
       agent: 'bilbo',
       tool: 'Read',
       description: 'Reading /src/index.ts',
@@ -551,6 +566,7 @@ describe('ServerToolEventSchema', () => {
   it('rejects missing tool field', () => {
     const result = ServerToolEventSchema.safeParse({
       type: 'tool_event',
+      id: 'te-2',
       agent: 'bilbo',
       description: 'Reading file',
     });
@@ -645,6 +661,7 @@ describe('ServerMessageSchema (discriminated union)', () => {
   it('routes tool_event correctly', () => {
     const result = ServerMessageSchema.safeParse({
       type: 'tool_event',
+      id: 'te-3',
       agent: 'bilbo',
       tool: 'Grep',
       description: 'Searching for pattern',

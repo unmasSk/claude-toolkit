@@ -5,10 +5,13 @@
  * agent-scheduler.ts imports everything it needs from here.
  */
 
-import { MAX_CONCURRENT_AGENTS } from '../config.js';
+import { MAX_CONCURRENT_AGENTS, AGENT_TIMEOUT_MS } from '../config.js';
+import { createLogger } from '../logger.js';
 
 // Re-export so callers that previously imported from agent-scheduler still work
 export { MAX_CONCURRENT_AGENTS };
+
+const logger = createLogger('agent-queue');
 
 // ---------------------------------------------------------------------------
 // Context type (exported so agent-runner can reference it)
@@ -48,6 +51,16 @@ export const activeInvocations = new Map<string, Promise<void>>();
 export interface ActiveProcess {
   pid: number | undefined;
   kill: () => void;
+  /** Timeout handle from makeTimeoutHandle — cleared when agent is paused. */
+  timeoutHandle?: ReturnType<typeof setTimeout>;
+  /** Epoch ms when the agent was paused — used to compute remaining timeout. */
+  pausedAt?: number;
+  /** Remaining timeout ms at the time the agent was paused. */
+  remainingTimeoutMs?: number;
+  /** Epoch ms when the agent subprocess was spawned — used for elapsed calculation on first pause. */
+  startedAt: number;
+  /** Epoch ms when the agent was last resumed via SIGCONT — used for elapsed calculation on subsequent pauses. */
+  resumedAt?: number;
 }
 
 export const activeProcesses = new Map<string, ActiveProcess>();
@@ -120,12 +133,40 @@ export function pauseAgent(agentName: string, roomId: string): boolean {
   _pausedAgents.add(`${agentName}:${roomId}`);
   if (process.platform === 'win32') return false;
   const active = activeProcesses.get(`${agentName}:${roomId}`);
-  if (!active?.pid) return false;
+  logger.debug(
+    { agentName, roomId, hasActive: !!active, pid: active?.pid, activeKeys: Array.from(activeProcesses.keys()) },
+    'pauseAgent: looking up process',
+  );
+  if (!active) {
+    logger.warn({ agentName, roomId }, 'pauseAgent: no active process found');
+    return false;
+  }
+  if (typeof active.pid !== 'number' || active.pid <= 0) return false;
   try {
-    process.kill(active.pid, 'SIGSTOP');
+    // Negative PID targets the process GROUP (pgid == pid when spawned with detached: true).
+    // This freezes MCP server children spawned by the claude subprocess as well.
+    process.kill(-active.pid, 'SIGSTOP');
+    // Pause the timeout so elapsed pause time is not counted against the agent budget.
+    if (active.timeoutHandle !== undefined) {
+      const elapsed = Date.now() - (active.pausedAt ?? active.resumedAt ?? active.startedAt ?? Date.now());
+      clearTimeout(active.timeoutHandle);
+      active.timeoutHandle = undefined;
+      active.remainingTimeoutMs = Math.min(
+        AGENT_TIMEOUT_MS,
+        Math.max(0, (active.remainingTimeoutMs ?? AGENT_TIMEOUT_MS) - elapsed),
+      );
+    }
+    active.pausedAt = Date.now();
     return true;
-  } catch {
-    // Process may have already exited — not an error worth surfacing.
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ESRCH') {
+      // Process already exited — clear the pause flag we just set so the agent is not
+      // permanently stuck in a paused state for a process that is no longer alive.
+      _pausedAgents.delete(`${agentName}:${roomId}`);
+    } else {
+      logger.warn({ agentName, roomId, pid: active.pid, err }, 'SIGSTOP failed unexpectedly');
+    }
     return false;
   }
 }
@@ -139,15 +180,47 @@ export function pauseAgent(agentName: string, roomId: string): boolean {
  * @returns true if an active process was unfrozen, false if only the flag was cleared.
  */
 export function resumeAgent(agentName: string, roomId: string): boolean {
-  _pausedAgents.delete(`${agentName}:${roomId}`);
+  const key = `${agentName}:${roomId}`;
+  if (!_pausedAgents.has(key)) return false;
+  _pausedAgents.delete(key);
   if (process.platform === 'win32') return false;
-  const active = activeProcesses.get(`${agentName}:${roomId}`);
-  if (!active?.pid) return false;
+  const active = activeProcesses.get(key);
+  logger.debug(
+    { agentName, roomId, hasActive: !!active, pid: active?.pid, activeKeys: Array.from(activeProcesses.keys()) },
+    'resumeAgent: looking up process',
+  );
+  if (!active) {
+    logger.warn({ agentName, roomId }, 'resumeAgent: no active process found');
+    return false;
+  }
+  if (typeof active.pid !== 'number' || active.pid <= 0) return false;
   try {
-    process.kill(active.pid, 'SIGCONT');
+    // Negative PID targets the process GROUP — mirrors the SIGSTOP call above.
+    process.kill(-active.pid, 'SIGCONT');
+    // Restart the timeout with the remaining budget computed at pause time.
+    const remaining = active.remainingTimeoutMs ?? AGENT_TIMEOUT_MS;
+    if (active.timeoutHandle !== undefined) clearTimeout(active.timeoutHandle);
+    const pid = active.pid!;
+    active.timeoutHandle = setTimeout(() => {
+      logger.warn({ agentName, roomId, pid }, 'timeout reached after resume — killing subprocess');
+      try {
+        if (process.platform !== 'win32') {
+          process.kill(-pid, 'SIGTERM');
+        }
+      } catch {
+        // Process may have already exited
+      }
+    }, remaining);
+    active.pausedAt = undefined;
+    active.resumedAt = Date.now();
+    // Preserve remainingTimeoutMs — it holds the remaining budget for the *next* pause.
+    // Clearing it here would reset the budget to the full AGENT_TIMEOUT_MS on subsequent pauses.
     return true;
-  } catch {
-    // Process may have already exited — not an error worth surfacing.
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ESRCH') {
+      logger.warn({ agentName, roomId, pid: active.pid, err }, 'SIGCONT failed unexpectedly');
+    }
     return false;
   }
 }

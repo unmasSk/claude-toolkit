@@ -138,6 +138,12 @@ export function handlePauseAgent(ws: any, roomId: string, agentName: string): vo
 
   logger.info({ agentName, roomId }, 'WS pause_agent');
   const frozen = pauseAgent(agentName, roomId);
+  // Only broadcast Paused state when a process was actually frozen.
+  // If no process was found, the flag is still set (future invocations blocked)
+  // but we do not lie to the frontend by broadcasting a Paused state it cannot act on.
+  if (frozen) {
+    void updateStatusAndBroadcast(agentName, roomId, AgentState.Paused);
+  }
   const pauseMsg = frozen
     ? `Agent ${agentName} frozen.`
     : `Agent ${agentName} paused — new invocations are suspended.`;
@@ -166,6 +172,12 @@ export function handleResumeAgent(ws: any, roomId: string, agentName: string): v
 
   logger.info({ agentName, roomId }, 'WS resume_agent');
   const unfrozen = resumeAgent(agentName, roomId);
+  // Only broadcast Thinking when a process was actually unfrozen.
+  // If no process was found, there is nothing to think — broadcasting a fake
+  // Thinking state would confuse the frontend into showing the wrong status.
+  if (unfrozen) {
+    void updateStatusAndBroadcast(agentName, roomId, AgentState.Thinking);
+  }
   const resumeMsg = unfrozen
     ? `Agent ${agentName} resumed.`
     : `Agent ${agentName} resumed — invocations enabled.`;

@@ -110,3 +110,20 @@ When `concurrently` runs multiple dev processes (backend, frontend, bridge) WITH
 **Detection:** When an Electron IDE (Cursor, VS Code) shows extreme RAM after killing a child process in a `concurrently` managed terminal, check: (a) does the concurrently script use --kill-others? (b) do surviving processes have reconnect loops to the dead process? (c) how many console.error/warn calls per reconnect cycle?
 
 **Fix pattern:** Add `--kill-others-on-fail` to the concurrently dev script. Reduce reconnect attempt counts for dev environments. Cap or silence intermediate reconnect log output.
+
+## Pattern: Status Overwrite After Async Subprocess Completion
+
+**Project:** agent-chatroom
+**First seen:** 2026-03-21
+**Updated:** 2026-03-21 (runtime verification)
+
+SIGSTOP DOES freeze the `claude` process (confirmed: `ps` shows state `T` on PID). However, SIGSTOP does NOT propagate to child processes (MCP servers). And the completion path unconditionally overwrites Paused status.
+
+**Three compounding failures:**
+1. **SIGSTOP only stops the parent** — `process.kill(pid, 'SIGSTOP')` targets only the `claude` process. Its children (MCP servers spawned via `npm exec`) remain in state `S` (running). To stop the entire process group: `process.kill(-pid, 'SIGSTOP')` (negative PID = process group signal). This works because `detached: true` gives `claude` its own process group.
+2. **Timeout ignores pause** — `makeTimeoutHandle` runs on wall-clock time (5 min). If the agent is paused for 4 minutes, only 1 minute of actual work time remains before the timeout kills it. No mechanism pauses or extends the timeout during SIGSTOP.
+3. **Completion path overwrites status** — `handleAgentResult`, `handleFailedResult`, `handleEmptyResult` in `agent-result.ts` and `agent-stream.ts` unconditionally set status to Done/Error without checking `isAgentPaused()`. When the subprocess eventually completes (after SIGCONT, or after timeout kill), status flips from Paused to Done.
+
+**Detection:** When a control button "doesn't work" but the system message confirms the handler ran, check: (a) `ps -o state` on the process — is it actually `T`? (b) are child processes also stopped? (c) does the timeout fire while paused? (d) does the completion path check pause state?
+
+**Key insight:** The SIGSTOP mechanism fundamentally works (confirmed by runtime test). The real bugs are: missing process-group signal, no timeout suspension during pause, and unconditional status overwrite on completion.

@@ -104,30 +104,104 @@ describe('ParticipantItem — card class based on agent state', () => {
   });
 });
 
-describe('ParticipantItem — pause/resume toggle', () => {
+describe('ParticipantItem — button enabled/disabled states', () => {
+  let mockSend: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
-    // Provide a mock send function so WS calls don't throw
+    mockSend = vi.fn();
     useWsStore.setState({
       status: 'connected',
       roomId: 'default',
-      send: vi.fn(),
+      send: mockSend,
     } as any);
   });
 
-  it('Pause button label switches to Resume after click', async () => {
-    const user = userEvent.setup();
+  it('Play is disabled when agent is Idle (not paused)', () => {
     render(<ParticipantItem agent={makeAgent(AgentState.Idle)} />);
-    const pauseBtn = screen.getByRole('button', { name: /pause/i });
-    await user.click(pauseBtn);
-    expect(screen.getByRole('button', { name: /resume/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /play/i })).toBeDisabled();
   });
 
-  it('Resume button label switches back to Pause after second click', async () => {
+  it('Pause is disabled when agent is Idle', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Idle)} />);
+    expect(screen.getByRole('button', { name: /pause/i })).toBeDisabled();
+  });
+
+  it('Stop is disabled when agent is Idle', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Idle)} />);
+    expect(screen.getByRole('button', { name: /stop/i })).toBeDisabled();
+  });
+
+  it('Chat is enabled when agent is Idle', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Idle)} />);
+    expect(screen.getByRole('button', { name: /chat/i })).not.toBeDisabled();
+  });
+
+  it('Pause is enabled when agent is Thinking', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    expect(screen.getByRole('button', { name: /pause/i })).not.toBeDisabled();
+  });
+
+  it('Stop is enabled when agent is Thinking', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    expect(screen.getByRole('button', { name: /stop/i })).not.toBeDisabled();
+  });
+
+  it('Chat is disabled when agent is Thinking', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    expect(screen.getByRole('button', { name: /chat/i })).toBeDisabled();
+  });
+
+  it('Play is disabled when agent is Thinking (not paused)', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    expect(screen.getByRole('button', { name: /play/i })).toBeDisabled();
+  });
+
+  it('Pause click sends pause_agent and enables Play/Stop', async () => {
+    const user = userEvent.setup();
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    await user.click(screen.getByRole('button', { name: /pause/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: 'pause_agent', agentName: 'bilbo' });
+    expect(screen.getByRole('button', { name: /play/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /stop/i })).not.toBeDisabled();
+  });
+
+  it('after pause, Chat is disabled', async () => {
+    const user = userEvent.setup();
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    await user.click(screen.getByRole('button', { name: /pause/i }));
+    expect(screen.getByRole('button', { name: /chat/i })).toBeDisabled();
+  });
+
+  it('Play click sends resume_agent', async () => {
+    const user = userEvent.setup();
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    // First pause to enable Play
+    await user.click(screen.getByRole('button', { name: /pause/i }));
+    await user.click(screen.getByRole('button', { name: /play/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: 'resume_agent', agentName: 'bilbo' });
+  });
+
+  it('Stop click sends kill_agent when active', async () => {
+    const user = userEvent.setup();
+    render(<ParticipantItem agent={makeAgent(AgentState.Thinking)} />);
+    await user.click(screen.getByRole('button', { name: /stop/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: 'kill_agent', agentName: 'bilbo' });
+  });
+
+  it('Chat click sends read_chat when idle', async () => {
     const user = userEvent.setup();
     render(<ParticipantItem agent={makeAgent(AgentState.Idle)} />);
-    const btn = screen.getByRole('button', { name: /pause/i });
-    await user.click(btn); // → Resume
-    await user.click(screen.getByRole('button', { name: /resume/i })); // → Pause
-    expect(screen.getByRole('button', { name: /pause/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /chat/i }));
+    expect(mockSend).toHaveBeenCalledWith({ type: 'read_chat', agentName: 'bilbo' });
+  });
+
+  it('Chat is enabled when agent is Done', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Done)} />);
+    expect(screen.getByRole('button', { name: /chat/i })).not.toBeDisabled();
+  });
+
+  it('Chat is enabled when agent is Error', () => {
+    render(<ParticipantItem agent={makeAgent(AgentState.Error)} />);
+    expect(screen.getByRole('button', { name: /chat/i })).not.toBeDisabled();
   });
 });
