@@ -2,8 +2,8 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { PORT, HOST, NODE_ENV } from './config.js';
-import { initializeSchema } from './db/schema.js';
-import { loadAgentRegistry } from './services/agent-registry.js';
+import { initializeSchema, seedAgentSessions } from './db/schema.js';
+import { loadAgentRegistry, getAllAgents } from './services/agent-registry.js';
 import { apiRoutes } from './routes/api.js';
 import { wsRoutes } from './routes/ws.js';
 import { createLogger } from './logger.js';
@@ -17,6 +17,10 @@ initializeSchema();
 
 // Load agent registry from disk
 loadAgentRegistry();
+
+// Seed all registered agents as idle in the default room so the sidebar
+// shows every agent immediately — not just those that have been invoked.
+seedAgentSessions(getAllAgents());
 
 /**
  * Elysia application singleton.

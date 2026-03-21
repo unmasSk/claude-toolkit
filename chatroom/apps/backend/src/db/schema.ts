@@ -1,4 +1,5 @@
 import { getDb } from './connection.js';
+import { upsertAgentSession } from './queries.js';
 import { createLogger } from '../logger.js';
 
 const logger = createLogger('schema');
@@ -54,6 +55,33 @@ export function initializeSchema(): void {
     INSERT OR IGNORE INTO rooms (id, name, topic)
     VALUES ('default', 'general', 'Agent chatroom');
   `);
+}
+
+/**
+ * Seed all registered agents into `agent_sessions` for the given room.
+ *
+ * Idempotent via upsert — existing rows are updated only if status has changed.
+ * Excludes the 'user' entry because users are human participants, not agent sessions.
+ * Called once after `initializeSchema()` so the sidebar shows all agents on first load.
+ *
+ * @param agents - Agent definitions to seed (name + model)
+ * @param roomId - Room to seed into (defaults to 'default')
+ */
+export function seedAgentSessions(
+  agents: ReadonlyArray<{ name: string; model: string }>,
+  roomId = 'default',
+): void {
+  for (const agent of agents) {
+    if (agent.name === 'user') continue;
+    upsertAgentSession({
+      agentName: agent.name,
+      roomId,
+      sessionId: null,
+      model: agent.model,
+      status: 'idle',
+    });
+  }
+  logger.info({ count: agents.filter((a) => a.name !== 'user').length, roomId }, 'agent sessions seeded');
 }
 
 // Allow running this file directly to initialize the schema
