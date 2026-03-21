@@ -104,6 +104,11 @@
 
 .mode-badge:hover { opacity: 0.85; }
 
+.mode-label {
+  position: relative;
+  top: -1px;
+}
+
 .mode-badge svg {
   width: 14px;
   height: 14px;
@@ -180,10 +185,13 @@
   cursor: not-allowed;
 }
 
-/* Stop-all button — red square, near send */
+/* Stop-all button — red circle, next to mode badge */
 .input-icon-btn.stop-btn {
   color: #FF5F57;
   opacity: 0.7;
+  position: relative;
+  top: 1px;
+  border-radius: 50%;
 }
 
 .input-icon-btn.stop-btn:hover {

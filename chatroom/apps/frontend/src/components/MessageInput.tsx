@@ -136,11 +136,8 @@ export function MessageInput() {
               aria-label="Toggle input mode"
             >
               {mode === 'execute' ? <Zap size={14} /> : <Brain size={14} />}
-              {mode === 'execute' ? 'Execute' : 'Brainstorm'}
+              <span className="mode-label">{mode === 'execute' ? 'Execute' : 'Brainstorm'}</span>
             </button>
-          </div>
-
-          <div className="input-icons">
             <button
               className="input-icon-btn stop-btn"
               type="button"
@@ -151,6 +148,9 @@ export function MessageInput() {
             >
               <Square size={13} />
             </button>
+          </div>
+
+          <div className="input-icons">
             <button className="input-icon-btn" type="button" aria-label="Attach file" style={{ marginRight: '-6px' }}>
               <Paperclip size={14} />
             </button>
