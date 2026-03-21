@@ -13,8 +13,10 @@ interface ParticipantItemProps {
 export const ParticipantItem = memo(function ParticipantItem({ agent }: ParticipantItemProps) {
   const modelBadge = getModelBadge(agent.model);
   const Icon = getAgentIcon(agent.agentName);
-  // Only Thinking and ToolUse are truly active (agent is running right now)
+  // 3 visual states: active (running now), invoked (worked before), never (idle/out)
   const isActive = agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse;
+  const wasInvoked = agent.status === AgentState.Done || agent.status === AgentState.Error;
+  const neverInvoked = agent.status === AgentState.Idle || agent.status === AgentState.Out;
   const cardClass = isActive ? 'card active-card' : 'card off-card';
   const isAnimating = isActive;
   const agentNameLower = agent.agentName.toLowerCase();
@@ -48,7 +50,7 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
   }, [send, agent.agentName]);
 
   return (
-    <div className={`card-wrap agent-${agentNameLower}`}>
+    <div className={`card-wrap ${neverInvoked ? '' : `agent-${agentNameLower}`}`}>
       {/* Action buttons layer — revealed on hover via CSS shrink-reveal */}
       <div className="card-buttons">
         <div className="btn-panel">
@@ -92,7 +94,7 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
       <div className={cardClass}>
         {/* Cell 1: name + model badge + context percentage */}
         <div className="cell-name">
-          <span className={`name ${agentColorClass(agent.agentName)}`}>
+          <span className={`name ${neverInvoked ? '' : agentColorClass(agent.agentName)}`} style={neverInvoked ? { color: 'var(--text-3)' } : undefined}>
             {agentNameLower}
           </span>
           <span className="model">{modelBadge}</span>
