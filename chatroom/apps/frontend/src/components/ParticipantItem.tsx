@@ -13,10 +13,10 @@ interface ParticipantItemProps {
 export const ParticipantItem = memo(function ParticipantItem({ agent }: ParticipantItemProps) {
   const modelBadge = getModelBadge(agent.model);
   const Icon = getAgentIcon(agent.agentName);
-  const isActive = agent.status !== AgentState.Out && agent.status !== AgentState.Idle;
+  // Only Thinking and ToolUse are truly active (agent is running right now)
+  const isActive = agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse;
   const cardClass = isActive ? 'card active-card' : 'card off-card';
-  const isAnimating =
-    agent.status === AgentState.Thinking || agent.status === AgentState.ToolUse;
+  const isAnimating = isActive;
   const agentNameLower = agent.agentName.toLowerCase();
 
   const send = useWsStore((s) => s.send);
