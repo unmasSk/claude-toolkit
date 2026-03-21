@@ -62,30 +62,6 @@
   --error:   oklch(50% 0.20 25);
   --info:    oklch(58% 0.14 250);
 
-  /* Agent colors — from globals.css */
-  --c-ultron:     oklch(65% 0.18 250);
-  --c-cerberus:   oklch(72% 0.14 85);
-  --c-dante:      oklch(65% 0.14 195);
-  --c-bilbo:      oklch(65% 0.14 195);
-  --c-house:      oklch(60% 0.20 25);
-  --c-yoda:       oklch(60% 0.15 145);
-  --c-alexandria: oklch(65% 0.15 300);
-  --c-gitto:      oklch(72% 0.14 85);
-  --c-argus:      oklch(65% 0.18 55);
-  --c-moriarty:   oklch(60% 0.20 25);
-  --c-bex:        oklch(75% 0.10 145);
-
-  /* Avatar backgrounds */
-  --av-ultron:     oklch(25% 0.06 250);
-  --av-cerberus:   oklch(25% 0.05 85);
-  --av-dante:      oklch(25% 0.05 195);
-  --av-bilbo:      oklch(25% 0.05 195);
-  --av-house:      oklch(25% 0.07 25);
-  --av-yoda:       oklch(25% 0.05 145);
-  --av-alexandria: oklch(25% 0.05 300);
-  --av-gitto:      oklch(25% 0.05 85);
-  --av-argus:      oklch(25% 0.06 55);
-  --av-moriarty:   oklch(25% 0.07 25);
 
   /* Model badges */
   --model-opus-bg:   oklch(25% 0.06 25);
@@ -119,7 +95,7 @@ html, body {
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  background: var(--bg-app);
+  background: var(--bg-sidebar);
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
@@ -800,7 +776,7 @@ svg.icon-tiny { width: 10px; height: 10px; stroke: var(--text-3); fill: none; st
   transition: border-color 150ms;
 }
 .input-box:focus-within {
-  border-color: #333333;
+  border-color: #555555;
 }
 .input-box textarea {
   width: 100%; background: none; border: none; outline: none;
