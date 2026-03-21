@@ -42,6 +42,25 @@
 .statusbar-dot.connected    { background: var(--success); }
 .statusbar-dot.connecting   { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
 .statusbar-dot.disconnected { background: var(--error); }
+.statusbar-dot.offline      { background: #ef4444; }
+
+/* Inline retry button shown when status is offline */
+.sb-retry-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-decoration: underline;
+  line-height: 1;
+}
+
+.sb-retry-btn:hover {
+  color: var(--text-1);
+}
 
 /* Git info section */
 .sb-git {

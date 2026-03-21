@@ -6,7 +6,10 @@ type: feedback
 
 ## Intentional Patterns (do NOT flag)
 
-- `StrictMode WebSocket protection` — useWebSocket.ts uses 100ms deferred disconnect + connectingRoomId guard + AbortController. This is intentional, multi-layered. Do not flag as "unnecessary complexity".
+- `StrictMode WebSocket protection` — ws-store.ts uses connectingRoomId guard + AbortController. The old 2s debounce was removed (incompatible with StrictMode). Do not flag as "unnecessary complexity".
+- `circuit breaker in ws-store` — `consecutiveAuthFailures` counter, resets ONLY on `room_state` message (not onopen — phantom Vite proxy opens are not proof of backend availability). `AbortSignal.any([signal, AbortSignal.timeout(5000)])` on auth fetch is intentional and correct. Do not flag as over-engineering.
+- `reconnectAttempts` not reset in `onopen` — intentional: phantom proxy onopen fires before backend is ready. Only `room_state` resets it. Do not flag.
+- `timeout: 5000` + `proxyTimeout: 5000` on Vite proxy `/ws` entry — known open concern: any quiet WS connection >5s gets dropped. Monitor if spurious disconnects appear.
 - `memo()` on MessageLine, MessageList, ParticipantItem, ToolLine, SystemMessage, QueueGroup — correct. ChatArea, App, Titlebar, StatusBar deliberately NOT memoized (structural, cheap). Do not suggest memoizing them.
 - `seenIds` module-level Set in chat-store.ts — intentional dedup guard for StrictMode double-mount WS duplicate messages. Not a singleton anti-pattern.
 - `as CSSProperties` in agentCardStyle() — needed for CSS custom property injection (`--ac`, `--agent-tint`). Not a type escape.
@@ -20,7 +23,7 @@ type: feedback
 - globals.css: 736 LOC — still over 800 limit? No — 736 < 800, T2 CLOSED. Monitoring: keep under 800.
 - AGENT_COLOR Record in ParticipantItem.tsx duplicates --color-<agent> CSS variable system — DRY violation (still open)
 - `as unknown as React.KeyboardEvent<HTMLInputElement>` in MessageInput.tsx — RESOLVED (cast removed, comment added at line 59)
-- Zero frontend tests — no Vitest/RTL setup for chatroom/apps/frontend/ (still open)
+- Zero frontend tests — PARTIALLY RESOLVED: ws-store.test.ts added (81 tests pass). Full RTL component tests still missing.
 
 ### T3 (non-blocking)
 - TopBar.tsx — dead export, never imported (still open)
@@ -53,3 +56,27 @@ Score: 70/110 (+2 from 68)
 
 **Why:** Structure dimension now full marks. Testing remains the biggest drag.
 **How to apply:** On re-audit after test suite is added, re-score Testing from 0. After AGENT_COLOR DRY fix, +1 Maintainability.
+
+## WS Reconnect Fix — Round 1 Issues (RESOLVED in Round 2)
+
+- T2: `offline` status has no escape path — RESOLVED: retryOffline() + visibilitychange + sb-retry-btn added
+- T2: Two offline-setting paths inconsistent — RESOLVED: both paths now set `roomId: null`
+- T3: Misleading comment — RESOLVED: comment now correctly describes behavior
+
+## Intentional Patterns from WS Reconnect Fix (Round 2 — do NOT flag)
+
+- `timeout: 30000, proxyTimeout: 5000` on Vite proxy `/ws` entry — intentional: `timeout` is the handshake timeout, `proxyTimeout` is the per-message timeout. Asymmetry is correct design.
+- `lastKnownRoomId` not cleared after recovery — intentional: harmless stale module var; retryOffline() guard (`if (!lastKnownRoomId) return`) prevents double-fire. Not a memory leak.
+- `document` guard on visibility listener — correct SSR/test guard. Do not flag.
+- Module-level visibility listener never removed — intentional: ws-store is a singleton module, never unmounted.
+- `MAX_CONSECUTIVE_AUTH_FAILURES = 3` (down from 5) — intentional threshold change, not a magic number.
+
+## Open Issues — WS Reconnect Fix Round 2
+
+### T1 (blocking — bug)
+- `fetch('/api/health', ...)` in ws-store.ts:58 — WRONG PATH. Backend health endpoint is at `/health` (root, not under `/api` prefix). Vite proxy maps `/api/*` → backend `/api/*`. Request will get 404, health check never recovers.
+
+### T3 (non-blocking)
+- `lastKnownRoomId` never reset to `null` after successful recovery — stale after reconnect but harmless (guarded by status check in retryOffline). Low priority.
+- `sb-retry-btn` has no `aria-label` — button text "Retry" is sufficient for screen readers but adding `aria-label="Retry WebSocket connection"` would be more explicit.
+- `SIDEBAR_ORDER` in ParticipantPanel.tsx is a module-level constant with 10 hardcoded agent names — claude is missing from the list (agents falling outside the list sort to end). Not a bug but worth noting.

@@ -31,7 +31,7 @@ bun test          # from apps/backend/
 
 **WS messages** — validated via `ClientMessageSchema` (Zod) before any processing.
 
-**Auth** — one-time-use UUID tokens issued via `POST /api/auth/token`, consumed on WS upgrade. The bridge connects as a normal named-token client (same auth flow as any other participant).
+**Auth** — one-time-use UUID tokens issued via `POST /api/auth/token`, consumed on WS upgrade. All participants use the same token flow.
 
 **Logging** — never use `console.log`. Always:
 ```ts

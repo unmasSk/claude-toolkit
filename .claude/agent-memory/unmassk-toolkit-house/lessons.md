@@ -28,3 +28,20 @@ Do not spend more than 3 hypotheses on static analysis when the data flow appear
 ## Lesson: Always check `overflow: hidden` ancestry for invisible elements
 
 Before assuming a React/state bug when a component "doesn't render," inspect whether the DOM element exists but is visually clipped. CSS `overflow: hidden` on ancestors combined with `position: absolute` on the element can make it invisible while React state is entirely correct. Check with browser DevTools element inspector first.
+
+## Lesson: Vite proxy masks connection-refused as slow timeout
+
+When diagnosing "why does the frontend keep retrying against a dead backend," check whether Vite's dev proxy sits between the fetch and the backend. A direct fetch to a dead port gets an immediate ECONNREFUSED. But Vite's http-proxy converts this to a slow TCP timeout (default 75s on macOS). This means:
+1. Reconnect backoff math is wrong — each attempt takes far longer than expected
+2. Multiple attempts overlap because the previous one hasn't timed out yet
+3. Each pending connection consumes sockets and memory in the host process (Electron/Cursor)
+
+Always add explicit `timeout` to Vite proxy config AND AbortController timeouts on fetch calls that may retry.
+
+## Lesson: Debounce guards that check reconnect state are bypassed by reconnect timers
+
+A debounce guard like `if (reconnectAttempts === 0 && ...) return` protects against HMR-triggered fresh connects but is intentionally bypassed by reconnect timer callbacks (which increment reconnectAttempts before calling connect()). When diagnosing "debounce was added but resource exhaustion persists," check whether the reconnect code path bypasses the debounce. The fix must serialize reconnect attempts (abort previous before starting next) rather than just debouncing entry.
+
+## Lesson: Overlapping async operations through a proxy amplify resource consumption
+
+When backoff delay < proxy TCP timeout, multiple reconnect attempts overlap. Each holds resources (sockets, memory) for the full proxy timeout duration. The visible symptom (RAM/CPU spike) is proportional to `min(max_attempts, proxy_timeout / backoff_delay)` simultaneous connections. The fix requires either (a) fast-fail timeouts on the client side or (b) serialization so attempt N+1 waits for N to complete.

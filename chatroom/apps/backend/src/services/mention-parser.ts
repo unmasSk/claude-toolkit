@@ -13,8 +13,8 @@ const MENTION_RE = /@([a-zA-Z]+)\b/g;
  * Names that are never actionable mentions regardless of the agent registry.
  *
  * - 'user' / 'system' — reserved by the server, never invokable
- * - 'claude' — the orchestrator bridge identity; invoking it as a subprocess
- *   would create a recursive loop (T1-02: prevent @claude loop)
+ * - 'claude' — excluded from subprocess invocation to prevent a recursive
+ *   loop where the server tries to invoke itself (T1-02: prevent @claude loop)
  * - 'everyone' — broadcast alias, not a real agent
  */
 const NEVER_INVOKE = new Set(['user', 'system', 'claude', 'everyone']);

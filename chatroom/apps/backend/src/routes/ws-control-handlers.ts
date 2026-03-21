@@ -137,8 +137,11 @@ export function handlePauseAgent(ws: any, roomId: string, agentName: string): vo
   }
 
   logger.info({ agentName, roomId }, 'WS pause_agent');
-  pauseAgent(agentName, roomId);
-  void postSystemMessage(roomId, `Agent ${agentName} paused — new invocations are suspended.`);
+  const frozen = pauseAgent(agentName, roomId);
+  const pauseMsg = frozen
+    ? `Agent ${agentName} frozen.`
+    : `Agent ${agentName} paused — new invocations are suspended.`;
+  void postSystemMessage(roomId, pauseMsg);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,8 +165,11 @@ export function handleResumeAgent(ws: any, roomId: string, agentName: string): v
   }
 
   logger.info({ agentName, roomId }, 'WS resume_agent');
-  resumeAgent(agentName, roomId);
-  void postSystemMessage(roomId, `Agent ${agentName} resumed — invocations enabled.`);
+  const unfrozen = resumeAgent(agentName, roomId);
+  const resumeMsg = unfrozen
+    ? `Agent ${agentName} resumed.`
+    : `Agent ${agentName} resumed — invocations enabled.`;
+  void postSystemMessage(roomId, resumeMsg);
 }
 
 // ---------------------------------------------------------------------------

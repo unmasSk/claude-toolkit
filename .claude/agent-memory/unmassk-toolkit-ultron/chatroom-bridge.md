@@ -1,10 +1,20 @@
 ---
 name: chatroom-bridge-patterns
-description: Implementation patterns for claude-bridge.ts — the Bun WS+HTTP bridge connecting Claude CLI to the Agent Chatroom
+description: DELETED (2026-03-21) — the bridge was removed. Claude CLI is request-response, not event-driven. No bridge needed.
 type: project
 ---
 
-## Location
+## Status: DELETED (2026-03-21)
+
+`chatroom/apps/bridge/` was deleted. The bridge was designed to relay events from the chatroom backend to Claude CLI, but Claude CLI is request-response — it does not consume a live event stream. The bridge was unnecessary.
+
+The `dev` script in `chatroom/package.json` was updated to remove bridge references and now starts only backend + frontend with `--kill-others-on-fail`.
+
+## Archived patterns (kept for reference only — do not implement again)
+
+The sections below document what the bridge did, preserved in case a future event-driven integration is needed.
+
+### Former location
 `chatroom/apps/bridge/claude-bridge.ts` — single file, no package.json, no dependencies on @agent-chatroom/shared.
 
 ## Architecture

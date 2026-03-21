@@ -19,9 +19,9 @@ const log = createLogger('auth-tokens');
 /**
  * "system" is reserved to prevent impersonation of internal server messages.
  *
- * "claude" is intentionally NOT reserved — the chatroom is private and the
- * bridge uses the normal token flow (POST /api/auth/token) to authenticate
- * as the 'claude' identity (SEC-AUTH-002).
+ * "claude" is intentionally NOT reserved — the chatroom is private and
+ * 'claude' is a valid participant identity that authenticates via the normal
+ * token flow (POST /api/auth/token) (SEC-AUTH-002).
  *
  * "user" is intentionally NOT reserved — it is the default frontend identity
  * and must be obtainable via POST /api/auth/token. Although "user" appears in
@@ -42,7 +42,7 @@ const NAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
  *
  * Both 'user' and 'claude' are excluded from the blocked set — they are valid
  * token-issuance identities. 'user' is the default frontend identity; 'claude'
- * is the bridge identity that authenticates via the normal token flow.
+ * is a valid participant name that authenticates via the normal token flow.
  *
  * @returns Read-only set of names that cannot be issued tokens via the public endpoint
  */

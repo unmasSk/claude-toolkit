@@ -31,7 +31,7 @@ describe('validateName', () => {
     expect(validateName('user')).toBe('user');
   });
 
-  it('allows "claude" (bridge uses normal token flow — chatroom is private)', () => {
+  it('allows "claude" as a valid user name (chatroom is private)', () => {
     expect(validateName('claude')).toBe('claude');
   });
 

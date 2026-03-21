@@ -72,3 +72,41 @@ Absolutely-positioned dropdown (`.mention-dropdown`) renders inside a container 
 3. Whether any ancestor between parent and containing block has `overflow: hidden`
 
 **Key insight:** The React state and DOM are correct (the element exists in the DOM tree). The issue is purely CSS positioning. DevTools element inspector will show the element exists but is positioned outside visible bounds. This pattern is especially common when refactoring from `<input>` to `<textarea>` or reorganizing component hierarchy -- the CSS containment context changes but the dropdown positioning CSS is not updated.
+
+## Pattern: HMR Cascade Amplification of React-Managed Side Effects
+
+**Project:** agent-chatroom
+**First seen:** 2026-03-21
+
+When a side effect (WebSocket, fetch, timer) is managed inside a React `useEffect`, Vite HMR cascades can create unbounded amplification loops. The trigger: backend dies -> Vite proxy loses upstream -> HMR update fires -> React remounts component tree -> `useEffect` restarts the side effect -> side effect fails (backend still down) -> triggers Zustand state updates -> React re-renders -> HMR detects changes -> loop repeats.
+
+**Key factors:**
+1. Side effect initiated in `useEffect` (coupled to React lifecycle)
+2. Vite dev proxy forwarding to the backend (proxy errors trigger HMR)
+3. Each attempt creates Zustand state transitions that trigger re-renders
+4. Debounce/backoff guards bypassed during reconnect cycles
+5. StrictMode cleanup delays (100ms) designed for double-mount, not rapid HMR
+
+**Detection:** When an Electron host (Cursor, VS Code) shows extreme RAM/CPU after a backend process stops, check whether the frontend has React-lifecycle-managed connections to that backend. Look for `useEffect` + `connect()` patterns in root-level components.
+
+**Fix pattern:** Decouple connection lifecycle from React. Run connect/reconnect as a module-level singleton. React hooks should be passive subscribers (read status), not active controllers (trigger connections). Add circuit breakers on repeated failures.
+
+## Pattern: Concurrently Piped Output -> Electron Terminal OOM
+
+**Project:** agent-chatroom
+**First seen:** 2026-03-21
+
+When `concurrently` runs multiple dev processes (backend, frontend, bridge) WITHOUT `--kill-others-on-fail`, killing one process leaves others alive. Surviving processes that have reconnect logic to the dead process produce sustained stderr/stdout floods. Concurrently pipes all child stdio (`['pipe', 'pipe', 'pipe']` in spawn.js). The output flows into Cursor/VS Code's Electron terminal (xterm.js), which retains ALL scrollback in V8 renderer memory without bounds. On machines with <= 16GB RAM this triggers OOM.
+
+**Causal chain:**
+1. Backend killed -> concurrently keeps bridge + frontend alive (no --kill-others)
+2. Bridge: 20 reconnect attempts, each logging to console.error
+3. Frontend: 10 reconnect attempts through Vite proxy (5s timeout per attempt)
+4. Vite proxy: logs its own errors for each failed upstream connection
+5. Health check loop (10s interval) continues producing proxy errors indefinitely
+6. pino-pretty ANSI colorization inflates per-line memory footprint
+7. xterm.js scrollback buffer retains everything in Electron renderer heap
+
+**Detection:** When an Electron IDE (Cursor, VS Code) shows extreme RAM after killing a child process in a `concurrently` managed terminal, check: (a) does the concurrently script use --kill-others? (b) do surviving processes have reconnect loops to the dead process? (c) how many console.error/warn calls per reconnect cycle?
+
+**Fix pattern:** Add `--kill-others-on-fail` to the concurrently dev script. Reduce reconnect attempt counts for dev environments. Cap or silence intermediate reconnect log output.

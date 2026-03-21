@@ -130,6 +130,41 @@ Already present in globals.css. No changes needed.
 ## .gitignore
 Root chatroom/.gitignore covers all plan requirements: node_modules/, dist/, *.db, *.db-shm, *.db-wal, data/, .env.
 
+## WS reconnection circuit breaker (2026-03-21)
+
+### Problem solved
+Cursor IDE RAM spike (2.27GB, 171% CPU) caused by unbounded WS reconnect storm when backend server stops.
+
+### Root causes
+1. Debounce (`CONNECT_DEBOUNCE_MS = 2000`) was incompatible with 100ms StrictMode delay in useWebSocket.ts — removed.
+2. `reconnectAttempts` was reset in `onopen`, but Vite proxy fires phantom `onopen` events (accepts WS upgrade before backend connects) — reset defeats `MAX_RECONNECT_ATTEMPTS`.
+3. No fetch timeout: `fetch('/api/auth/token')` hangs indefinitely when backend is unreachable without TCP RST.
+4. No proxy timeouts in vite.config.ts.
+
+### Fix implemented
+- **Circuit breaker**: `consecutiveAuthFailures` module-level counter. Increments on every auth fetch failure. Resets ONLY on `room_state` message. After 3 failures (was 5): status = `'offline'`, stop reconnecting.
+- **`lastKnownRoomId`**: module-level var saved when entering offline mode — because roomId is set to null on offline entry, `retryOffline()` uses this instead of `get().roomId`.
+- **WsStatus** extended with `'offline'` value.
+- **onopen** does NOT reset counters. Only `room_state` message resets both `reconnectAttempts` and `consecutiveAuthFailures`.
+- **`disconnect()`** resets both counters and calls `clearHealthCheck()` (clean slate for fresh connect).
+- **Fetch timeout**: `AbortSignal.any([signal, AbortSignal.timeout(5000)])` — 5s cap on auth fetch.
+- **vite.config.ts**: `/api` proxy: `timeout: 5000, proxyTimeout: 5000`. `/ws` proxy: `timeout: 30000, proxyTimeout: 5000` — 30s socket timeout is safe for idle WS connections.
+
+### Offline recovery (added 2026-03-21)
+- **`retryOffline()`**: Zustand action. Resets `consecutiveAuthFailures = 0`, `reconnectAttempts = 0`, calls `clearHealthCheck()`, then calls `connect(lastKnownRoomId)`.
+- **Health check**: `setInterval(10s)` started when entering offline mode. `fetch('/api/health', AbortSignal.timeout(3000))` — on 200, calls `retryOffline()`. Cleared in `disconnect()` and by `retryOffline()` before reconnecting.
+- **Visibility listener**: `document.addEventListener('visibilitychange', ...)` at module level (outside React). Calls `retryOffline()` when tab becomes visible AND status is 'offline'. Guard: `typeof document !== 'undefined'`.
+- **StatusBar Retry button**: When `status === 'offline'`, renders inline "Retry" text button calling `useWsStore.getState().retryOffline()`. CSS class `.sb-retry-btn`. Dot class `.statusbar-dot.offline` with `#ef4444` red.
+
+### Key invariant
+`consecutiveAuthFailures` is the primary circuit breaker. `reconnectAttempts` is the secondary (exponential backoff counter). Both are module-level (not Zustand state) — they survive Zustand store resets.
+
+### Tests
+Circuit breaker test updated to 3 failures. Test uses `vi.advanceTimersByTimeAsync(N)` instead of `vi.runAllTimersAsync()` to avoid infinite loop when health check setInterval is active.
+
+### Test runner
+Frontend tests: `npx vitest run` from `apps/frontend/` (NOT `bun test` — that calls vitest but vi.stubGlobal fails with bun's test runner). Run from `apps/frontend/`, not from chatroom root.
+
 ## Build commands (from chatroom root)
 - Backend start: `bun run --cwd apps/backend src/index.ts` — binds to 127.0.0.1:3001
 - Frontend build: `bunx vite build` from apps/frontend — outputs to dist/

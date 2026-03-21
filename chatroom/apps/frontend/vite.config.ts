@@ -9,10 +9,14 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+        timeout: 5000,
+        proxyTimeout: 5000,
       },
       '/ws': {
         target: 'http://localhost:3001',
         ws: true,
+        timeout: 30000,
+        proxyTimeout: 5000,
       },
     },
   },

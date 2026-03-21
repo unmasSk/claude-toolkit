@@ -4,7 +4,7 @@ import { ServerMessageSchema } from '@agent-chatroom/shared';
 import { useChatStore } from './chat-store';
 import { useAgentStore } from './agent-store';
 
-export type WsStatus = 'disconnected' | 'connecting' | 'connected';
+export type WsStatus = 'disconnected' | 'connecting' | 'connected' | 'offline';
 
 interface WsState {
   status: WsStatus;
@@ -12,6 +12,7 @@ interface WsState {
 
   connect: (roomId: string) => void;
   disconnect: () => void;
+  retryOffline: () => void;
   send: (msg: ClientMessage) => void;
 }
 
@@ -29,9 +30,43 @@ let connectingRoomId: string | null = null;
 // FIX StrictMode-fetch: AbortController for the in-flight auth fetch.
 // disconnect() aborts it so a completed fetch from a stale mount can't open a WS.
 let authAbortController: AbortController | null = null;
+// Circuit breaker: counts consecutive auth fetch failures.
+// Resets ONLY on a successful room_state message (proof the backend is alive).
+// Phantom onopen events from the Vite proxy do NOT reset this counter.
+let consecutiveAuthFailures = 0;
+const MAX_CONSECUTIVE_AUTH_FAILURES = 3;
+
+// Health check interval ID — started when entering offline mode, cleared on recovery.
+// Runs outside React; does not trigger re-renders.
+let healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+// Last known room before entering offline mode — used by retryOffline().
+let lastKnownRoomId: string | null = null;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30_000;
+
+function clearHealthCheck() {
+  if (healthCheckInterval !== null) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+  }
+}
+
+function startHealthCheck() {
+  clearHealthCheck();
+  healthCheckInterval = setInterval(() => {
+    fetch('/health', { signal: AbortSignal.timeout(3000) })
+      .then((res) => {
+        if (res.ok) {
+          clearHealthCheck();
+          useWsStore.getState().retryOffline();
+        }
+      })
+      .catch(() => {
+        // Backend still unreachable — wait for next tick
+      });
+  }, 10_000);
+}
 
 // FIX 17: message buffer for batched flush
 let messageBuffer: Message[] = [];
@@ -82,6 +117,10 @@ function handleServerMessage(event: MessageEvent) {
       chatStore.appendMessages(parsed.messages);
       agentStore.setAgents(parsed.agents);
       agentStore.setConnectedUsers(parsed.connectedUsers ?? []);
+      // Circuit breaker reset: room_state is proof the backend is alive.
+      // Only reset here, NOT in onopen (phantom Vite proxy opens don't count).
+      reconnectAttempts = 0;
+      consecutiveAuthFailures = 0;
       break;
 
     case 'new_message':
@@ -138,6 +177,16 @@ export const useWsStore = create<WsState>((set, get) => ({
   roomId: null,
 
   connect: (roomId) => {
+    // Circuit breaker: if too many consecutive auth failures, the server is down.
+    // Enter 'offline' mode — stop reconnecting until a page visibility change or
+    // explicit user action resets the state.
+    if (consecutiveAuthFailures >= MAX_CONSECUTIVE_AUTH_FAILURES) {
+      console.error('[ws-store] Circuit breaker open: too many consecutive auth failures, entering offline mode');
+      lastKnownRoomId = roomId;
+      set({ status: 'offline', roomId: null });
+      return;
+    }
+
     // Cancel any pending reconnect
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
@@ -177,20 +226,42 @@ export const useWsStore = create<WsState>((set, get) => ({
     void (async () => {
       let token: string;
       try {
+        // AbortSignal.any combines the disconnect abort with a 5s timeout.
+        // This prevents fetch from hanging when the backend is unreachable
+        // without a TCP RST (e.g. Vite proxy accepting the connection but backend is down).
         const res = await fetch('/api/auth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: USER_NAME }),
-          signal,
+          signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
         });
         if (!res.ok) throw new Error(`Auth token request failed: ${res.status}`);
         const data = (await res.json()) as { token: string };
         token = data.token;
       } catch (err) {
-        // AbortError means disconnect() was called — do not reconnect
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        console.error('[ws-store] Failed to obtain auth token:', err);
+        // AbortError from disconnect(): return early.
+        // TimeoutError from internal 5s timeout: fall through and count as a failure.
+        if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+          // Only skip reconnect if the abort came from disconnect() (signal aborted),
+          // not from our internal 5s timeout.
+          if (signal.aborted) return;
+        }
+        consecutiveAuthFailures++;
+        console.error(
+          `[ws-store] Failed to obtain auth token (consecutive failures: ${consecutiveAuthFailures}):`,
+          err,
+        );
         connectingRoomId = null;
+
+        // Circuit breaker: after MAX_CONSECUTIVE_AUTH_FAILURES, give up.
+        if (consecutiveAuthFailures >= MAX_CONSECUTIVE_AUTH_FAILURES) {
+          console.error('[ws-store] Circuit breaker open: server appears to be down, entering offline mode');
+          lastKnownRoomId = roomId;
+          set({ status: 'offline', roomId: null });
+          startHealthCheck();
+          return;
+        }
+
         set({ status: 'disconnected' });
 
         const currentRoomId = get().roomId;
@@ -216,8 +287,11 @@ export const useWsStore = create<WsState>((set, get) => ({
       socket = ws;
 
       ws.onopen = () => {
+        // Do NOT reset reconnectAttempts or consecutiveAuthFailures here.
+        // The Vite proxy can fire phantom onopen events (accepts WS upgrade before
+        // backend connects), so onopen alone is not proof the backend is alive.
+        // We wait for the first room_state message to confirm real connectivity.
         connectingRoomId = null;
-        reconnectAttempts = 0;
         set({ status: 'connected' });
       };
 
@@ -251,8 +325,22 @@ export const useWsStore = create<WsState>((set, get) => ({
     })();
   },
 
+  retryOffline: () => {
+    if (get().status !== 'offline') return;
+    if (!lastKnownRoomId) return;
+    const roomId = lastKnownRoomId;
+    consecutiveAuthFailures = 0;
+    reconnectAttempts = 0;
+    clearHealthCheck();
+    get().connect(roomId);
+  },
+
   disconnect: () => {
     connectingRoomId = null;
+    // Reset counters so a fresh connect() after disconnect() starts clean
+    reconnectAttempts = 0;
+    consecutiveAuthFailures = 0;
+    clearHealthCheck();
     // Abort any in-flight auth fetch — prevents stale fetch from opening a WS after disconnect
     authAbortController?.abort();
     authAbortController = null;
@@ -265,6 +353,7 @@ export const useWsStore = create<WsState>((set, get) => ({
       socket.close();
       socket = null;
     }
+    lastKnownRoomId = null;
     set({ status: 'disconnected', roomId: null });
   },
 
@@ -276,3 +365,16 @@ export const useWsStore = create<WsState>((set, get) => ({
     socket.send(JSON.stringify(msg));
   },
 }));
+
+// Module-level visibility listener — added once, never removed.
+// When the tab becomes visible and the store is offline, attempt recovery.
+// Guard prevents HMR from registering duplicate listeners across hot reloads.
+let visibilityListenerAdded = false;
+if (typeof document !== 'undefined' && !visibilityListenerAdded) {
+  visibilityListenerAdded = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && useWsStore.getState().status === 'offline') {
+      useWsStore.getState().retryOffline();
+    }
+  });
+}

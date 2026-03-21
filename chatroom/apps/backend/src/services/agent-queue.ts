@@ -108,22 +108,48 @@ const _pausedAgents = new Set<string>();
 
 /**
  * Pause a single agent's future invocations without killing its current run.
+ * On Unix, also sends SIGSTOP to the active subprocess (if any) to freeze it
+ * mid-stream. The pause flag is always set regardless of whether a process is
+ * running — it prevents new invocations from being scheduled.
  *
  * @param agentName - The agent to pause.
  * @param roomId - The room to scope the pause to.
+ * @returns true if an active process was frozen, false if only the flag was set.
  */
-export function pauseAgent(agentName: string, roomId: string): void {
+export function pauseAgent(agentName: string, roomId: string): boolean {
   _pausedAgents.add(`${agentName}:${roomId}`);
+  if (process.platform === 'win32') return false;
+  const active = activeProcesses.get(`${agentName}:${roomId}`);
+  if (!active?.pid) return false;
+  try {
+    process.kill(active.pid, 'SIGSTOP');
+    return true;
+  } catch {
+    // Process may have already exited — not an error worth surfacing.
+    return false;
+  }
 }
 
 /**
  * Resume a previously paused agent.
+ * On Unix, also sends SIGCONT to the active subprocess (if any) to unfreeze it.
  *
  * @param agentName - The agent to resume.
  * @param roomId - The room scope.
+ * @returns true if an active process was unfrozen, false if only the flag was cleared.
  */
-export function resumeAgent(agentName: string, roomId: string): void {
+export function resumeAgent(agentName: string, roomId: string): boolean {
   _pausedAgents.delete(`${agentName}:${roomId}`);
+  if (process.platform === 'win32') return false;
+  const active = activeProcesses.get(`${agentName}:${roomId}`);
+  if (!active?.pid) return false;
+  try {
+    process.kill(active.pid, 'SIGCONT');
+    return true;
+  } catch {
+    // Process may have already exited — not an error worth surfacing.
+    return false;
+  }
 }
 
 /**

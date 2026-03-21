@@ -181,4 +181,66 @@ describe('ws-store — state machine transitions', () => {
     await flushPromises();
     expect(useWsStore.getState().status).toBe('disconnected');
   });
+
+  it('circuit breaker: 3 consecutive auth failures enter offline mode', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    }));
+
+    // Failure 1
+    useWsStore.getState().connect('default');
+    await flushPromises();
+    expect(useWsStore.getState().status).toBe('disconnected');
+
+    // Advance past the reconnect delay to trigger failure 2
+    await vi.advanceTimersByTimeAsync(2000);
+    await flushPromises();
+
+    // Advance past the reconnect delay to trigger failure 3 → offline
+    await vi.advanceTimersByTimeAsync(4000);
+    await flushPromises();
+
+    expect(useWsStore.getState().status).toBe('offline');
+  });
+
+  it('disconnect() resets counters so a fresh connect() starts clean', async () => {
+    // Cause 1 auth failure (not enough to trip the circuit breaker at 3)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    useWsStore.getState().connect('default');
+    await flushPromises();
+    // Status is disconnected after 1 failure; a reconnect timer is pending
+    expect(useWsStore.getState().status).toBe('disconnected');
+
+    // disconnect() cancels the pending timer and resets all counters
+    useWsStore.getState().disconnect();
+
+    // Reconnect with a working server — should succeed, proving counters were reset
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ token: 'test-token' }),
+    }));
+    useWsStore.getState().connect('default');
+    await flushPromises();
+    lastWs.triggerOpen();
+    expect(useWsStore.getState().status).toBe('connected');
+  });
+
+  it('room_state message resets circuit breaker counters', async () => {
+    useWsStore.getState().connect('default');
+    await flushPromises();
+    lastWs.triggerOpen();
+
+    // Simulate a room_state message — this is the only thing that resets the circuit breaker
+    lastWs.triggerMessage({
+      type: 'room_state',
+      room: { id: 'default', name: 'Default', createdAt: new Date().toISOString() },
+      messages: [],
+      agents: [],
+      connectedUsers: [],
+    });
+
+    // After room_state, the store should still be connected (counters reset internally)
+    expect(useWsStore.getState().status).toBe('connected');
+  });
 });

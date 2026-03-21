@@ -6,19 +6,10 @@
 - `config.ts`: añadida constante `WS_ALLOWED_ORIGINS` leída de env var (comma-separated), con fallback a los dos orígenes por defecto. En dev agrega `''` para wscat/curl.
 - `ws.ts`: eliminado el `Set` hardcodeado de `ALLOWED_ORIGINS`. Ahora importa de config y construye el Set desde ahí.
 
-### Issue #30 — Bridge /health sin auth
-- `claude-bridge.ts`: el handler de `/health` se movió antes del `checkAuth`. Los demás endpoints (`/messages`, `/send`) siguen requiriendo token.
-- El singleton check ya no necesita enviar el token en el probe — `/health` es público.
-
 ### Issue #26 — Markdown en mensajes
 - `bun add react-markdown` (v10.1.0) en `apps/frontend`.
 - `MessageLine.tsx`: reemplaza el render de texto plano con `<ReactMarkdown>`. Usa componentes custom para párrafos (inline, no `<p>` block), code inline, code blocks, listas. Layout IRC-style preservado: timestamp y autor no se tocan.
 - `globals.css`: añadidos estilos para `.md-para`, `.md-code-inline`, `.md-pre`, `.md-code-block`, `.md-ul`, `.md-ol`, `.md-li`.
-
-### Issue #32 — Bridge dedup en reconexión
-- `claude-bridge.ts`: añadido `ringBufferIds: Set<string>` para tracking O(1) de IDs.
-- `pushToBuffer`: omite mensajes cuyo ID ya está en el set.
-- Handler de `room_state`: limpia `ringBufferIds` junto con el buffer al reemplazar con el estado del servidor.
 
 ### Validación
 - `bun test`: 460 pass, 0 fail

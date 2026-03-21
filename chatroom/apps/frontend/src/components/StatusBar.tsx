@@ -10,6 +10,8 @@ export function StatusBar() {
       ? 'statusbar-dot connected'
       : status === 'connecting'
       ? 'statusbar-dot connecting'
+      : status === 'offline'
+      ? 'statusbar-dot offline'
       : 'statusbar-dot disconnected';
 
   return (
@@ -30,6 +32,15 @@ export function StatusBar() {
         <span className="sb-item">
           <div className={dotClass} />
           <span style={{ position: 'relative', top: '-1px' }}>{status}</span>
+          {status === 'offline' && (
+            <button
+              type="button"
+              className="sb-retry-btn"
+              onClick={() => useWsStore.getState().retryOffline()}
+            >
+              Retry
+            </button>
+          )}
         </span>
       </div>
     </div>

@@ -17,7 +17,7 @@ A real-time multi-agent chatroom backend. Human users connect over WebSocket. Cl
 ## Request Flow
 
 ```
-Browser / bridge client
+Browser / WS client
       |
       |  POST /api/auth/token    → get one-time token
       |  POST /api/rooms/:id/invite  → register agents in room

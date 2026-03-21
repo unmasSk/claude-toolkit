@@ -383,3 +383,39 @@ Both useMapEvents (called in MapContainer body) and MapHoverHandler (rendered as
 
 **Performance bloat in production tree:**
 PerformanceProfiler wraps are rendered in ALL production code paths (MapContainer, MapInitializer, MapFeatureHandler, MapHoverHandler, MapCenterer, MapDiagnostics, InfoPanel, AmiantoGestorPanel, AmiantoVisorPanel). PerfTest component (Shift+T debug tool) is rendered on every App mount. PerformanceMonitor (Shift+P debug tool) same. These are dev tools living in the production tree.
+
+## 2026-03-21 — chatroom frontend WS reconnect storm diagnosis (Theory 1 vs Theory 2)
+
+Full trace of crash-on-backend-stop: vite.config.ts → ws-store.ts → useWebSocket → all status subscribers.
+
+**KEY FACTS CONFIRMED:**
+
+WS status subscribers (re-render on status change): MessageInput.tsx:17, StatusBar.tsx:6, useWebSocket.ts:24 — 3 total.
+useWebSocket result is DISCARDED by App.tsx (line 12: `useWebSocket(ROOM_ID)` — no destructuring). App re-renders but has no status-derived JSX.
+ParticipantItem.tsx subscribes to `send` (stable function ref) — does NOT re-render on status change.
+Per reconnect cycle: 2 set() calls (connecting → disconnected). 10 attempts × 2 = 20 transitions. 20 × 3 re-renders = 60 renders total. These are trivial renders.
+
+**THEORY 1 (House 1) — PARTIALLY CORRECT, BUT OVERBLOWN:**
+The debounce fix (CONNECT_DEBOUNCE_MS=2000) is an UNSTAGED change in ws-store.ts — not yet committed.
+The committed code (bc7ff45) has NO debounce. So the storm can happen: Vite HMR cascade → multiple connect() calls.
+BUT: React Fast Refresh does NOT unmount/remount for module edits. Only if component identity changes.
+The real HMR risk: ws-store.ts module reinitialization during HMR resets socket=null + all guards, abandoning the live WebSocket with no cleanup. Resource leak, not a connection storm per se.
+The debounce fix in working copy correctly guards fresh connect() calls (reconnectAttempts===0 && connectingRoomId===null).
+Reconnect timer callbacks bypass debounce (reconnectAttempts > 0) by design.
+
+**THEORY 2 (House 2) — PARTIALLY CORRECT:**
+- Vite proxy NO timeout: CONFIRMED. vite.config.ts has no proxyTimeout. BUT in local dev, backend killed → OS sends TCP RST → ECONNREFUSED → Vite proxy sends 502 immediately (near-instant). The 75s SYN retransmit only applies if packets are silently dropped (firewall). Not the local dev case.
+- AbortController signal IS passed to fetch (ws-store.ts:198) — but only cancels on disconnect(), NOT on timeout.
+- Zustand status churn: CONFIRMED but the scale is 20 transitions × 3 components = 60 renders, not catastrophic.
+- No circuit breaker: CONFIRMED. reconnectAttempts stops at 10, but distinguishes nothing about WHY server is dead.
+
+**REAL ROOT CAUSE (missed by both theories):**
+The debounce (the actual fix) targets HMR storms, not reconnect storms. The reconnect path CORRECTLY bypasses debounce. The actual storm is:
+- Backend dies → WS close → connect() called → fetch '/api/auth/token' → Vite proxy (no timeout configured) → 502 → immediate fail → reconnect timer.
+- In local dev: instant 502. In remote/proxied scenario: could hang up to OS TCP timeout (~75s if SYN-dropped).
+- The 10-attempt exponential backoff (1→2→4→8→16→30→30→30→30→30s) is correct. Total: ~181s. Not a storm.
+
+**UNADDRESSED GAP:**
+fetch('/api/auth/token') has AbortController from disconnect() but NO AbortSignal.timeout(). If a fetch is mid-flight during reconnect and then disconnect() is not called (server just blips), the fetch hangs until OS TCP timeout in non-ECONNREFUSED scenarios.
+
+No escalation needed — structural trace only.
