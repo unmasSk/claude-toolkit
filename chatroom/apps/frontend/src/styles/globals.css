@@ -196,7 +196,7 @@
 .te-gitto     { border-left-color: color-mix(in srgb, var(--color-gitto) 40%, transparent);     background: color-mix(in srgb, var(--color-gitto) 3%, transparent); }
 .te-argus     { border-left-color: color-mix(in srgb, var(--color-argus) 40%, transparent);     background: color-mix(in srgb, var(--color-argus) 3%, transparent); }
 .te-moriarty  { border-left-color: color-mix(in srgb, var(--color-moriarty) 40%, transparent);  background: color-mix(in srgb, var(--color-moriarty) 3%, transparent); }
-.te-claude    { border-left-color: color-mix(in srgb, var(--color-ultron) 40%, transparent);    background: color-mix(in srgb, var(--color-ultron) 3%, transparent); }
+.te-claude    { border-left-color: color-mix(in srgb, var(--color-claude) 40%, transparent);    background: color-mix(in srgb, var(--color-claude) 3%, transparent); }
 .te-default   { border-left-color: color-mix(in srgb, var(--text-3) 40%, transparent);          background: transparent; }
 
 /* Badge tint per agent */
@@ -210,7 +210,7 @@
 .te-gitto     .te-badge { background: color-mix(in srgb, var(--color-gitto) 12%, transparent);     color: var(--color-gitto); }
 .te-argus     .te-badge { background: color-mix(in srgb, var(--color-argus) 12%, transparent);     color: var(--color-argus); }
 .te-moriarty  .te-badge { background: color-mix(in srgb, var(--color-moriarty) 12%, transparent);  color: var(--color-moriarty); }
-.te-claude    .te-badge { background: color-mix(in srgb, var(--color-ultron) 12%, transparent);    color: var(--color-ultron); }
+.te-claude    .te-badge { background: color-mix(in srgb, var(--color-claude) 12%, transparent);    color: var(--color-claude); }
 .te-default   .te-badge { background: var(--bg-card);                                              color: var(--text-2); }
 
 /* ── System pill (queue / join / leave — centered) ── */
@@ -568,7 +568,7 @@
 .c-gitto     { color: var(--color-gitto); }
 .c-argus     { color: var(--color-argus); }
 .c-moriarty  { color: var(--color-moriarty); }
-.c-claude    { color: var(--color-ultron); }
+.c-claude    { color: var(--color-claude); }
 .c-user      { color: var(--color-bex); }
 
 /* ── Avatar backgrounds ── */
@@ -582,7 +582,7 @@
 .av-gitto     { background: color-mix(in srgb, var(--color-gitto) 14%, #1f1f1f);     color: var(--color-gitto); }
 .av-argus     { background: color-mix(in srgb, var(--color-argus) 14%, #1f1f1f);     color: var(--color-argus); }
 .av-moriarty  { background: color-mix(in srgb, var(--color-moriarty) 14%, #1f1f1f);  color: var(--color-moriarty); }
-.av-claude    { background: color-mix(in srgb, var(--color-ultron) 14%, #1f1f1f);    color: var(--color-ultron); }
+.av-claude    { background: color-mix(in srgb, var(--color-claude) 14%, #1f1f1f);    color: var(--color-claude); }
 .av-user      { background: color-mix(in srgb, var(--color-bex) 14%, #1f1f1f);       color: var(--color-bex); }
 
 /* ── Agent message background tints ── */
@@ -596,7 +596,7 @@
 .bg-gitto     { background: color-mix(in srgb, var(--color-gitto) 6%, transparent); }
 .bg-argus     { background: color-mix(in srgb, var(--color-argus) 6%, transparent); }
 .bg-moriarty  { background: color-mix(in srgb, var(--color-moriarty) 6%, transparent); }
-.bg-claude    { background: color-mix(in srgb, var(--color-ultron) 6%, transparent); }
+.bg-claude    { background: color-mix(in srgb, var(--color-claude) 6%, transparent); }
 .bg-user      { background: color-mix(in srgb, var(--color-bex) 6%, transparent); }
 
 /* ── Mention highlights — WoW palette ── */
@@ -610,7 +610,7 @@
 .mention-gitto     { color: var(--color-gitto);     background: color-mix(in srgb, var(--color-gitto) 12%, transparent); }
 .mention-argus     { color: var(--color-argus);     background: color-mix(in srgb, var(--color-argus) 12%, transparent); }
 .mention-moriarty  { color: var(--color-moriarty);  background: color-mix(in srgb, var(--color-moriarty) 12%, transparent); }
-.mention-claude    { color: var(--color-ultron);    background: color-mix(in srgb, var(--color-ultron) 12%, transparent); }
+.mention-claude    { color: var(--color-claude);    background: color-mix(in srgb, var(--color-claude) 12%, transparent); }
 .mention-user      { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
 
 /* ── Markdown rendering inside message content ── */

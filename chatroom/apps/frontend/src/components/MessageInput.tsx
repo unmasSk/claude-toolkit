@@ -137,7 +137,7 @@ export function MessageInput() {
               <Image size={14} />
             </button>
             <button
-              className="input-icon-btn send-btn"
+              className={`input-icon-btn send-btn ${mode === 'brainstorm' ? 'send-brainstorm' : ''}`}
               type="button"
               onClick={submit}
               disabled={!value.trim() || status !== 'connected'}

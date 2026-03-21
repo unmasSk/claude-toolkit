@@ -275,6 +275,7 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
 /* ── Per-agent accent custom properties on .card-wrap ── */
 /* These replace the AGENT_COLOR JS map: --ac drives border/button/hover tints, */
 /* --agent-tint drives the radial gradient on .active-card */
+.card-wrap.agent-claude    { --ac: var(--color-claude);    --agent-tint: color-mix(in srgb, var(--color-claude) 13%, transparent); }
 .card-wrap.agent-ultron    { --ac: var(--color-ultron);    --agent-tint: color-mix(in srgb, var(--color-ultron) 13%, transparent); }
 .card-wrap.agent-cerberus  { --ac: var(--color-cerberus);  --agent-tint: color-mix(in srgb, var(--color-cerberus) 13%, transparent); }
 .card-wrap.agent-dante     { --ac: var(--color-dante);     --agent-tint: color-mix(in srgb, var(--color-dante) 13%, transparent); }

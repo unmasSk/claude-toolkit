@@ -2,6 +2,7 @@
 .chat-input {
   padding: 16px;
   flex-shrink: 0;
+  position: relative;
 }
 
 /* Outer box — replaces old flat input-field */
@@ -164,6 +165,14 @@
 
 .input-icon-btn.send-btn:hover {
   background: rgba(63, 199, 235, 0.25);
+}
+
+.input-icon-btn.send-btn.send-brainstorm {
+  background: rgba(244, 140, 186, 0.15);
+  color: var(--mode-brainstorm);
+}
+.input-icon-btn.send-btn.send-brainstorm:hover {
+  background: rgba(244, 140, 186, 0.25);
 }
 
 .input-icon-btn.send-btn:disabled {
