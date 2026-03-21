@@ -43,6 +43,17 @@ function pillVariant(content: string): string {
   return 'system-pill-inner';
 }
 
+/** Extract event type for badge label */
+function getEventType(content: string): string {
+  const lower = content.toLowerCase();
+  if (lower.includes('queued') || lower.includes('queue') || lower.includes('busy')) return 'queued';
+  if (lower.includes('joined') || lower.includes('started') || lower.includes('session')) return 'joined';
+  if (lower.includes('left') || lower.includes('disconnected')) return 'left';
+  if (lower.includes('error') || lower.includes('failed') || lower.includes('timeout')) return 'error';
+  if (lower.includes('stale') || lower.includes('resume')) return 'retry';
+  return 'system';
+}
+
 /** Derive CSS class for tool-event agent coloring */
 function teAgentClass(agent: string): string {
   const known = ['ultron','cerberus','dante','bilbo','house','yoda','alexandria','gitto','argus','moriarty','claude'];
@@ -73,13 +84,15 @@ export const SystemMessage = memo(function SystemMessage({ message }: SystemMess
     );
   }
 
+  const agentClass = agent ? teAgentClass(agent) : 'te-default';
   const colorClass = agent ? `c-${agent}` : '';
+  const label = agent ? agent : 'system';
   return (
-    <div className="system-pill">
-      <span className={`${pillVariant(message.content)} ${colorClass}`}>
-        {getIcon(message.content)}
-        {formatContent(message.content)}
-      </span>
+    <div className={`tool-event ${agentClass}`}>
+      <span className={`te-agent ${colorClass}`}>{label}</span>
+      <span className="te-arrow">›</span>
+      <span className="te-badge">{getEventType(message.content)}</span>
+      <span className="te-desc">{formatContent(message.content)}</span>
     </div>
   );
 });
