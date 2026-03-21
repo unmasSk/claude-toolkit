@@ -113,6 +113,21 @@
 
 .tb-tab-close:hover { background: rgba(255,255,255,0.08); color: var(--text-2); }
 
+/* Pending-delete state — first X click, waiting for confirmation */
+.tb-tab.pending-delete {
+  color: #FF5F57;
+  background: rgba(255, 95, 87, 0.08);
+}
+
+.tb-tab.pending-delete .tb-tab-close.close-confirm {
+  color: #FF5F57;
+  background: rgba(255, 95, 87, 0.15);
+}
+
+.tb-tab.pending-delete .tb-tab-close.close-confirm:hover {
+  background: rgba(255, 95, 87, 0.3);
+}
+
 .tb-tab-new {
   display: flex;
   align-items: center;

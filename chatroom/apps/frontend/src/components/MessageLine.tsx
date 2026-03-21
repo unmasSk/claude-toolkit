@@ -77,6 +77,8 @@ function splitMentions(text: string): React.ReactNode[] {
 
 /**
  * Walk a React node tree and highlight @mentions in string leaves.
+ * Skips elements that already have the `mention` class to avoid double-processing
+ * tight list items where both the `li` and `p` renderers apply this walk.
  */
 function highlightMentionsInNode(node: React.ReactNode, keyPrefix: string): React.ReactNode {
   if (typeof node === 'string') {
@@ -86,7 +88,11 @@ function highlightMentionsInNode(node: React.ReactNode, keyPrefix: string): Reac
     return node.map((child, i) => highlightMentionsInNode(child, `${keyPrefix}-${i}`));
   }
   if (isValidElement(node)) {
-    const el = node as React.ReactElement<{ children?: React.ReactNode }>;
+    const el = node as React.ReactElement<{ children?: React.ReactNode; className?: string }>;
+    // Skip already-highlighted mention spans to prevent double-wrapping in loose lists
+    if (typeof el.props.className === 'string' && el.props.className.includes('mention')) {
+      return node;
+    }
     const newChildren = highlightMentionsInNode(el.props.children, keyPrefix);
     if (newChildren === el.props.children) return node;
     return React.cloneElement(el, {}, newChildren);
@@ -186,7 +192,11 @@ export const MessageLine = memo(function MessageLine({ message }: MessageLinePro
             // Lists indented 30px
             ul: ({ children }) => <ul className="md-ul">{children}</ul>,
             ol: ({ children }) => <ol className="md-ol">{children}</ol>,
-            li: ({ children }) => <li className="md-li">{children}</li>,
+            // Tight list items don't go through the `p` renderer, so @mentions
+            // inside list items would render as plain text. Apply highlighting here.
+            li: ({ children }) => (
+              <li className="md-li">{highlightMentionsInNode(children, 'li')}</li>
+            ),
             // Blockquote with agent-colored left border (inherits from .msg-text)
             blockquote: ({ children }) => (
               <blockquote className="md-blockquote">{children}</blockquote>

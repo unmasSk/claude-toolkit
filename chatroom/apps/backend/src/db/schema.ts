@@ -75,11 +75,13 @@ export function seedAgentSessions(
   agents: ReadonlyArray<{ name: string; model: string }>,
   roomId = 'default',
 ): void {
+  let count = 0;
   for (const agent of agents) {
     if (agent.name === 'user') continue;
     insertAgentSessionIfMissing(agent.name, roomId, agent.model);
+    count++;
   }
-  logger.info({ count: agents.filter((a) => a.name !== 'user').length, roomId }, 'agent sessions seeded');
+  logger.info({ count, roomId }, 'agent sessions seeded');
 }
 
 // Allow running this file directly to initialize the schema

@@ -294,6 +294,45 @@ export function insertAgentSessionIfMissing(agentName: string, roomId: string, m
 }
 
 /**
+ * Insert a new room into the database.
+ *
+ * @param id - Room ID (UUID or slug)
+ * @param name - Display name
+ * @param topic - Optional topic string
+ * @returns The created room row
+ */
+export function createRoom(id: string, name: string, topic: string): RoomRow {
+  getDb()
+    .query<void, [string, string, string]>(
+      `INSERT INTO rooms (id, name, topic) VALUES (?, ?, ?)`,
+    )
+    .run(id, name, topic);
+  return getDb().query<RoomRow, [string]>('SELECT * FROM rooms WHERE id = ?').get(id)!;
+}
+
+/**
+ * Delete a room and all its messages and agent sessions (CASCADE-style).
+ *
+ * SQLite FK constraints on messages and agent_sessions reference rooms(id) but
+ * are not set to ON DELETE CASCADE, so we delete child rows first.
+ *
+ * @param id - Room ID
+ * @returns True if the room existed and was deleted, false if not found
+ */
+export function deleteRoom(id: string): boolean {
+  if (id === 'default') return false;
+  const db = getDb();
+  let deleted = false;
+  db.transaction(() => {
+    db.query<void, [string]>('DELETE FROM agent_sessions WHERE room_id = ?').run(id);
+    db.query<void, [string]>('DELETE FROM messages WHERE room_id = ?').run(id);
+    const result = db.query<void, [string]>('DELETE FROM rooms WHERE id = ?').run(id);
+    deleted = (result as unknown as { changes: number }).changes > 0;
+  })();
+  return deleted;
+}
+
+/**
  * Clear the session_id for an agent so the next invocation starts fresh.
  *
  * Called when a stale `--resume` session is detected (FIX 2). Clearing

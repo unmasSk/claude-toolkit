@@ -352,3 +352,75 @@ describe('POST /api/rooms/:id/invite — rate limit (429)', () => {
     expect(res.status).toBe(429);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Moriarty findings — edge cases identified during adversarial validation
+// ---------------------------------------------------------------------------
+
+/** Refill the shared test bucket so moriarty-finding tests do not inherit exhausted state. */
+function refillBucket(key: string): void {
+  _inviteBuckets.set(key, { tokens: INVITE_RATE_LIMIT_MAX, lastRefill: Date.now() });
+}
+
+describe('POST /api/rooms/:id/invite — moriarty findings', () => {
+  it('duplicate agent names in body — added array contains duplicates (no dedup today)', async () => {
+    refillBucket('test-global');
+    const issued = issueToken('user');
+
+    // Moriarty finding #1: ["bilbo","bilbo","bilbo"] causes N upserts, not 1
+    const res = await postInvite('default', ['bilbo', 'bilbo', 'bilbo'], `Bearer ${issued!.token}`);
+    const body = (await res.json()) as { added: string[]; skipped: string[] };
+
+    expect(res.status).toBe(201);
+    // Documents current behavior: added has 3 entries, not 1 — no deduplication
+    // Fix: deduplicate body.agents with Set before the loop
+    expect(body.added).toEqual(['bilbo', 'bilbo', 'bilbo']);
+  });
+
+  it('empty agents array is rejected by schema (minItems: 1) — not silent 200', async () => {
+    refillBucket('test-global');
+    const issued = issueToken('user');
+
+    // Moriarty finding #2: empty array should not silently 200
+    // Elysia schema has minItems: 1 — expect 422 validation error
+    const res = await fetch(`${baseUrl}/api/rooms/default/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issued!.token}`,
+      },
+      body: JSON.stringify({ agents: [] }),
+    });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('/invite resets done agent back to idle — semantic inconsistency with seed', async () => {
+    refillBucket('test-global');
+
+    // Arrange: place bilbo in done state (as if it finished a turn)
+    _inviteDb
+      .query(
+        `INSERT INTO agent_sessions (agent_name, room_id, session_id, model, status)
+         VALUES ('bilbo', 'default', 'sess-done', 'claude-sonnet-4-6', 'done')
+         ON CONFLICT (agent_name, room_id) DO UPDATE SET status = 'done', session_id = 'sess-done'`,
+      )
+      .run();
+
+    const issued = issueToken('user');
+    await postInvite('default', ['bilbo'], `Bearer ${issued!.token}`);
+
+    // Act: read back the DB row
+    const row = _inviteDb
+      .query<{ status: string; session_id: string | null }, [string, string]>(
+        'SELECT status, session_id FROM agent_sessions WHERE agent_name = ? AND room_id = ?',
+      )
+      .get('bilbo', 'default');
+
+    // Moriarty finding #3: /invite silently resets done→idle via ON CONFLICT DO UPDATE
+    // Contrast: seed uses ON CONFLICT DO NOTHING and preserves existing state
+    // Any authenticated client can resurrect a done agent without friction
+    expect(row?.status).toBe('idle');
+    expect(row?.session_id).toBeNull();
+  });
+});

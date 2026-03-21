@@ -1,8 +1,9 @@
 import '../styles/components/ChatInput.css';
 import { useState, useRef, useCallback } from 'react';
-import { Paperclip, Image, ArrowUp, Zap, Brain } from 'lucide-react';
+import { Paperclip, Image, ArrowUp, Zap, Brain, Square } from 'lucide-react';
 import { useWsStore } from '../stores/ws-store';
 import { useAgentStore } from '../stores/agent-store';
+import { AgentState } from '@agent-chatroom/shared';
 import { useMentionAutocomplete, replaceMention } from '../hooks/useMentionAutocomplete';
 import { MentionDropdown } from './MentionDropdown';
 import type { AgentDefinition } from '@agent-chatroom/shared';
@@ -92,6 +93,16 @@ export function MessageInput() {
     setMode((m) => (m === 'execute' ? 'brainstorm' : 'execute'));
   }
 
+  const stopAll = useCallback(() => {
+    const agents = useAgentStore.getState().agents;
+    const ACTIVE = new Set<AgentState>([AgentState.Thinking, AgentState.ToolUse, AgentState.Paused]);
+    for (const [name, agent] of agents) {
+      if (ACTIVE.has(agent.status)) {
+        send({ type: 'kill_agent', agentName: name });
+      }
+    }
+  }, [send]);
+
   return (
     <div className="chat-input">
       {showDropdown && (
@@ -130,6 +141,16 @@ export function MessageInput() {
           </div>
 
           <div className="input-icons">
+            <button
+              className="input-icon-btn stop-btn"
+              type="button"
+              onClick={stopAll}
+              disabled={status !== 'connected'}
+              aria-label="Stop all agents"
+              title="Stop all active agents"
+            >
+              <Square size={13} />
+            </button>
             <button className="input-icon-btn" type="button" aria-label="Attach file" style={{ marginRight: '-6px' }}>
               <Paperclip size={14} />
             </button>

@@ -2,6 +2,8 @@ import { Elysia, t } from 'elysia';
 import {
   listRooms,
   getRoomById,
+  createRoom,
+  deleteRoom,
   getRecentMessages,
   getMessagesBefore,
   hasMoreMessagesBefore,
@@ -10,6 +12,8 @@ import {
   upsertAgentSession,
 } from '../db/queries.js';
 import { getAllAgents, getAgentConfig } from '../services/agent-registry.js';
+import { seedAgentSessions } from '../db/schema.js';
+import { generateRoomName } from '../utils-name.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, safeMessage } from '../utils.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
 import { validateName, issueToken, peekToken } from '../services/auth-tokens.js';
@@ -193,7 +197,7 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
       const added: string[] = [];
       const skipped: string[] = [];
 
-      for (const agentName of body.agents) {
+      for (const agentName of [...new Set(body.agents)]) {
         const config = getAgentConfig(agentName);
         if (!config) {
           skipped.push(agentName);
@@ -220,6 +224,75 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
       }),
       // FIX 2: Typed header schema so Elysia provides headers.authorization as string | undefined
       // instead of requiring an unsafe cast to Record<string, string | undefined>.
+      headers: t.Object({ authorization: t.Optional(t.String()) }),
+    },
+  )
+
+  // POST /api/rooms — create a new room with an auto-generated adjective-animal name
+  // Requires a valid auth token in the Authorization header (same pattern as /invite).
+  .post(
+    '/rooms',
+    ({ set, headers }) => {
+      if (!checkApiRateLimit('rooms-create')) {
+        log.warn('POST /api/rooms rate limit exceeded');
+        set.status = 429;
+        return { error: 'Too many requests — try again later', code: 'RATE_LIMIT' };
+      }
+
+      const rawAuth = headers.authorization ?? '';
+      const bearerToken = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7).trim() : undefined;
+      if (!peekToken(bearerToken)) {
+        set.status = 401;
+        return { error: 'Unauthorized. Provide a valid token via Authorization: Bearer <token>', code: 'UNAUTHORIZED' };
+      }
+
+      const id = crypto.randomUUID();
+      const name = generateRoomName();
+      const room = createRoom(id, name, '');
+      seedAgentSessions(getAllAgents(), id);
+      log.info({ roomId: id, name }, 'POST /api/rooms created');
+      set.status = 201;
+      return { room: { id: room.id, name: room.name, topic: room.topic, createdAt: room.created_at } };
+    },
+    {
+      body: t.Object({}),
+      headers: t.Object({ authorization: t.Optional(t.String()) }),
+    },
+  )
+
+  // DELETE /api/rooms/:id — delete room and all its data (forbidden for 'default')
+  // Requires a valid auth token in the Authorization header.
+  .delete(
+    '/rooms/:id',
+    ({ params, set, headers }) => {
+      if (!checkApiRateLimit('rooms-delete')) {
+        log.warn({ roomId: params.id }, 'DELETE /api/rooms/:id rate limit exceeded');
+        set.status = 429;
+        return { error: 'Too many requests — try again later', code: 'RATE_LIMIT' };
+      }
+
+      const rawAuth = headers.authorization ?? '';
+      const bearerToken = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7).trim() : undefined;
+      if (!peekToken(bearerToken)) {
+        set.status = 401;
+        return { error: 'Unauthorized. Provide a valid token via Authorization: Bearer <token>', code: 'UNAUTHORIZED' };
+      }
+
+      if (params.id === 'default') {
+        set.status = 403;
+        return { error: 'Cannot delete the default room', code: 'FORBIDDEN' };
+      }
+      const deleted = deleteRoom(params.id);
+      if (!deleted) {
+        set.status = 404;
+        return { error: 'Room not found', code: 'NOT_FOUND' };
+      }
+      log.info({ roomId: params.id }, 'DELETE /api/rooms/:id deleted');
+      set.status = 200;
+      return { deleted: params.id };
+    },
+    {
+      params: t.Object({ id: t.String() }),
       headers: t.Object({ authorization: t.Optional(t.String()) }),
     },
   );

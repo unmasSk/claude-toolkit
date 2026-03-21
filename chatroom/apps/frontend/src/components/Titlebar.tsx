@@ -1,10 +1,41 @@
 import '../styles/components/Titlebar.css';
 import { Settings } from 'lucide-react';
-import { useAgentStore } from '../stores/agent-store';
+import { useRoomStore } from '../stores/room-store';
 
 export function Titlebar() {
-  const room = useAgentStore((s) => s.room);
-  const roomName = room?.name ?? 'powerful-salamander';
+  const rooms = useRoomStore((s) => s.rooms);
+  const activeRoomId = useRoomStore((s) => s.activeRoomId);
+  const pendingDeleteId = useRoomStore((s) => s.pendingDeleteId);
+  const setActiveRoomId = useRoomStore((s) => s.setActiveRoomId);
+  const markForDelete = useRoomStore((s) => s.markForDelete);
+  const cancelDelete = useRoomStore((s) => s.cancelDelete);
+  const confirmDelete = useRoomStore((s) => s.confirmDelete);
+  const createRoom = useRoomStore((s) => s.createRoom);
+
+  function handleTabClick(roomId: string) {
+    if (pendingDeleteId === roomId) {
+      // Clicking the tab body while it's pending-delete cancels the pending delete
+      cancelDelete();
+      return;
+    }
+    setActiveRoomId(roomId);
+  }
+
+  function handleCloseClick(e: React.MouseEvent, roomId: string) {
+    e.stopPropagation();
+    if (roomId === 'default') return;
+    if (pendingDeleteId === roomId) {
+      // Second click — confirm delete
+      void confirmDelete(roomId);
+    } else {
+      // First click — mark for deletion
+      markForDelete(roomId);
+    }
+  }
+
+  async function handleCreateRoom() {
+    await createRoom();
+  }
 
   return (
     <div className="titlebar">
@@ -20,9 +51,39 @@ export function Titlebar() {
       {/* Right: tabs + user + settings, sits over chat area */}
       <div className="tb-tabs-area">
         <div className="tb-tabs">
-          <div className="tb-tab active">
-            #{roomName}
-            <span className="tb-tab-close">&times;</span>
+          {rooms.map((room) => {
+            const isActive = room.id === activeRoomId;
+            const isPendingDelete = room.id === pendingDeleteId;
+            const isDeletable = room.id !== 'default';
+
+            return (
+              <div
+                key={room.id}
+                className={`tb-tab${isActive ? ' active' : ''}${isPendingDelete ? ' pending-delete' : ''}`}
+                onClick={() => handleTabClick(room.id)}
+                title={isPendingDelete ? 'Click × again to permanently delete' : room.name}
+              >
+                #{room.name}
+                {isDeletable && (
+                  <span
+                    className={`tb-tab-close${isPendingDelete ? ' close-confirm' : ''}`}
+                    onClick={(e) => handleCloseClick(e, room.id)}
+                    title={isPendingDelete ? 'Confirm delete' : 'Delete room'}
+                  >
+                    &times;
+                  </span>
+                )}
+              </div>
+            );
+          })}
+
+          {/* New room button */}
+          <div
+            className="tb-tab-new"
+            onClick={() => void handleCreateRoom()}
+            title="New room"
+          >
+            +
           </div>
         </div>
 
