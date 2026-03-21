@@ -1,0 +1,280 @@
+/* ── Agent Card ── */
+
+/* SVG icon sizes */
+svg.icon-role   { width: 16px; height: 16px; stroke: var(--text-icon); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.icon-status { width: 28px; height: 28px; stroke: var(--text-icon); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+
+.active-card svg.icon-role { stroke: var(--text-2); }
+.off-card svg.icon-status  { stroke: var(--text-icon); opacity: 0.4; }
+
+/* Outer wrapper — fixed height, clips card and buttons */
+.card-wrap {
+  margin-bottom: 4px;
+  position: relative;
+  height: 66px;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+
+/* ── Card grid: 70/30 (info / status icon) ── */
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 66px;
+  padding: 6px;
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 1fr 54px;
+  grid-template-rows: 1fr 1fr 1fr;
+  overflow: hidden;
+  transform-origin: left center;
+  transition:
+    width 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    grid-template-columns 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 300ms;
+  z-index: 1;
+}
+
+/* Shrink-reveal: card slides left to expose action buttons */
+.card-wrap:hover .card {
+  width: calc(100% - 66px);
+  grid-template-columns: 1fr 0px;
+  border-color: color-mix(in srgb, var(--ac) 50%, transparent);
+}
+
+.card-wrap:hover .card .cell-status {
+  opacity: 0;
+}
+
+/* Active card — radial tint from agent color */
+.active-card {
+  background:
+    radial-gradient(circle at 0% 0%, var(--agent-tint, #252525) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, var(--agent-tint, #252525) 0%, transparent 50%),
+    #1f1f1f;
+  border: 1px solid #2a2a2a;
+}
+
+/* Inactive card */
+.off-card {
+  background: var(--bg-sidebar);
+  border: 1px solid #232323;
+}
+
+.off-card .bar-track {
+  background: #1e1e1e;
+}
+
+/* Cell 1: name + model badge + context pct */
+.cell-name {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.cell-name .name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Neon glow on agent name when active */
+.active-card .cell-name .name {
+  animation: neon-glow-text 2.5s ease-in-out infinite;
+}
+
+@keyframes neon-glow-text {
+  0%, 100% { text-shadow: none; }
+  50%       { text-shadow: 0 0 6px rgba(255,255,255,0.2), 0 0 12px rgba(255,255,255,0.1); }
+}
+
+.cell-name .model {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-transform: uppercase;
+  position: relative;
+  top: 1px;
+}
+
+.cell-name .pct {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: auto;
+  position: relative;
+  top: 1px;
+}
+
+/* Cell 2: context bar */
+.cell-bar {
+  grid-column: 1;
+  grid-row: 2;
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Cell 3: token / tool / timing metrics */
+.cell-metrics {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Cell 4: status icon spanning all rows */
+.cell-status {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 6px;
+  transition: opacity 200ms;
+  overflow: hidden;
+}
+
+.cell-status svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* ── Bar — shimmer animation ── */
+.bar-track {
+  flex: 1;
+  height: 7px;
+  background: var(--bar-track);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -100px 0; }
+  100% { background-position:  100px 0; }
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bar-fill) 0%, #6a6a6a 50%, var(--bar-fill) 100%);
+  background-size: 200px 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+.bar-pct {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  display: none;
+}
+
+/* ── Pulse scale ── */
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.08); }
+}
+
+/* ── Neon glow on status icon ── */
+@keyframes neon-glow {
+  0%, 100% { filter: drop-shadow(0 0 0px transparent); }
+  50%       { filter: drop-shadow(0 0 8px rgba(255,255,255,0.24)) drop-shadow(0 0 16px rgba(255,255,255,0.12)); }
+}
+
+.neon-active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.neon-active svg {
+  animation: pulse-scale 2.5s ease-in-out infinite, neon-glow 2.5s ease-in-out infinite;
+}
+
+/* ── Shrink-reveal: action buttons layer ── */
+.card-buttons {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: #141414;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.btn-panel {
+  margin-left: auto;
+  width: 70px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  align-items: center;
+  justify-items: center;
+  padding: 4px 8px;
+}
+
+.act-btn {
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  transition: color 150ms, background 150ms, filter 150ms;
+  padding: 0;
+}
+
+.act-btn:hover {
+  background: color-mix(in srgb, var(--ac) 15%, transparent);
+  color: var(--ac);
+  filter: drop-shadow(0 0 4px var(--ac));
+}
+
+.act-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.act-btn .filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill,
+  .neon-active svg,
+  .active-card .cell-name .name { animation: none !important; }
+}

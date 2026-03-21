@@ -1,0 +1,199 @@
+/* ── Chat Input — Cursor-style chatbox ── */
+.chat-input {
+  padding: 16px;
+  flex-shrink: 0;
+}
+
+/* Outer box — replaces old flat input-field */
+.input-box {
+  background: var(--bg-input);
+  border: 1px solid #3d3d3d;
+  border-radius: var(--radius);
+  padding: 6px 7px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 150ms;
+}
+
+.input-box:focus-within {
+  border-color: #555555;
+}
+
+/* Textarea inside box */
+.input-box textarea {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  resize: none;
+  height: 20px;
+  min-height: 20px;
+  max-height: 200px;
+  line-height: 1.5;
+  overflow-y: auto;
+  padding-left: 2px;
+}
+
+.input-box textarea::placeholder {
+  color: var(--text-3);
+}
+
+/* Bottom row: mode/controls left, icons right */
+.input-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.input-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Generic chip (e.g., agent selector) */
+.input-chip {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 150ms;
+  position: relative;
+  top: 3px;
+}
+
+.input-chip:hover { background: #222222; }
+
+.input-chip .chip-arrow {
+  font-size: 8px;
+  color: var(--text-3);
+  margin-left: 2px;
+}
+
+/* Mode badge — execute / brainstorm */
+.mode-badge {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: opacity 150ms;
+  position: relative;
+  top: 2px;
+  left: 1px;
+}
+
+.mode-badge:hover { opacity: 0.85; }
+
+.mode-badge svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mode-badge .chip-arrow {
+  font-size: 8px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.mode-execute {
+  background: rgba(63, 199, 235, 0.12);
+  color: var(--mode-execute);
+}
+
+.mode-brainstorm {
+  background: rgba(244, 140, 186, 0.12);
+  color: var(--mode-brainstorm);
+}
+
+/* Right-side icon buttons */
+.input-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input-icon-btn {
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-3);
+  transition: color 150ms, background 150ms;
+}
+
+.input-icon-btn:hover {
+  color: var(--text-2);
+  background: #1e1e1e;
+}
+
+/* Send button — round, execute-colored */
+.input-icon-btn.send-btn {
+  background: rgba(63, 199, 235, 0.15);
+  color: var(--mode-execute);
+  border-radius: 50%;
+}
+
+.input-icon-btn.send-btn:hover {
+  background: rgba(63, 199, 235, 0.25);
+}
+
+.input-icon-btn.send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Scroll-to-bottom button */
+.scroll-bottom {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 32px;
+  background: #272727;
+  border: 1px solid #3d3d3d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 14px;
+  z-index: 3;
+  transition: background 150ms, color 150ms;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.scroll-bottom:hover {
+  background: #333333;
+  color: var(--text-1);
+}

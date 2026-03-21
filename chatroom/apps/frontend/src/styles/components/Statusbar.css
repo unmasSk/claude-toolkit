@@ -1,0 +1,77 @@
+/* ── Status Bar ── */
+.statusbar {
+  height: 22px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border-s);
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* Left and right groups */
+.sb-left,
+.sb-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Individual statusbar item */
+.sb-item {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Dot indicator */
+.statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.statusbar-dot.connected    { background: var(--success); }
+.statusbar-dot.connecting   { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
+.statusbar-dot.disconnected { background: var(--error); }
+
+/* Git info section */
+.sb-git {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sb-branch {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+.sb-git-stat {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.sb-git-stat.additions { color: var(--success); }
+.sb-git-stat.deletions { color: var(--error); }
+
+/* Agents count */
+.sb-agents {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.sb-agents span {
+  color: var(--text-2);
+  font-weight: 500;
+}

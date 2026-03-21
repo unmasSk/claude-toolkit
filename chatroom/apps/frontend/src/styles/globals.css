@@ -1,43 +1,113 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ================================================================
+   CURSOR DEEP DARK — Design system tokens
+   Option B: no bubbles, no glassmorphism, text on background.
+   ================================================================ */
 
 :root {
-  --surface-deep: oklch(8% 0.01 250);
-  --surface-base: oklch(13% 0.01 250);
-  --surface-panel: oklch(16% 0.01 250);
-  --surface-card: oklch(20% 0.01 250);
-  --surface-elevated: oklch(25% 0.01 250);
-  --text-primary: oklch(90% 0.005 250);
-  --text-secondary: oklch(62% 0.01 250);
-  --text-muted: oklch(42% 0.01 250);
-  --accent: oklch(65% 0.18 250);
+  /* ── Cursor Deep Dark palette ── */
+  --bg-body:    #050505;
+  --bg-sidebar: #141414;
+  --bg-chat:    #0e0e0e;
+  --bg-card:    #272727;
+  --bg-card-h:  #2c2c2c;
+  --bg-input:   #1f1f1f;
+  --bg-code:    #121212;
+  --border:     #232323;
+  --border-s:   #1a1a1a;
+
+  /* ── Text ── */
+  --text-1:     #ececec;
+  --text-2:     #aeaeae;
+  --text-3:     #858585;
+  --text-dim:   #8a8a8a;
+  --text-icon:  #747474;
+  --text-code:  #aeaeae;
+
+  /* ── Bar ── */
+  --bar-track:  #1a1a1a;
+  --bar-fill:   #4a4a4a;
+
+  /* ── Agent colors — WoW class palette ── */
+  --color-ultron:    #2090EE;
+  --color-cerberus:  #FF7C0A;
+  --color-dante:     #8788EE;
+  --color-bilbo:     #AAD372;
+  --color-house:     #00FF98;
+  --color-yoda:      #33937F;
+  --color-alexandria: #C050E0;
+  --color-gitto:     #FFF468;
+  --color-argus:     #C69B6D;
+  --color-moriarty:  #E03050;
+
+  /* User color */
+  --color-bex: #e6cc80;
+
+  /* Mode colors */
+  --mode-execute:    #3FC7EB;
+  --mode-brainstorm: #F48CBA;
+
+  /* ── Accent ── */
+  --accent:       oklch(65% 0.18 250);
   --accent-muted: oklch(30% 0.06 250);
-  --border: oklch(20% 0.01 250);
-  --border-subtle: oklch(18% 0.01 250);
 
-  /* Agent colors from frontmatter */
-  --agent-claude: oklch(65% 0.16 250);
-  --agent-bilbo: oklch(65% 0.14 195);
-  --agent-ultron: oklch(65% 0.18 250);
-  --agent-cerberus: oklch(72% 0.14 85);
-  --agent-dante: oklch(65% 0.14 195);
-  --agent-argus: oklch(65% 0.18 55);
-  --agent-moriarty: oklch(60% 0.20 25);
-  --agent-house: oklch(60% 0.20 25);
-  --agent-yoda: oklch(60% 0.15 145);
-  --agent-alexandria: oklch(65% 0.15 300);
-  --agent-gitto: oklch(72% 0.14 85);
-  --agent-user: oklch(75% 0.10 145);
-
-  /* Semantic */
+  /* ── Semantic ── */
   --success: oklch(55% 0.15 145);
   --warning: oklch(65% 0.18 60);
-  --error: oklch(50% 0.20 25);
-  --info: oklch(58% 0.14 250);
+  --error:   oklch(50% 0.20 25);
+  --info:    oklch(58% 0.14 250);
+
+  /* ── Model badges ── */
+  --model-opus-bg:     oklch(25% 0.06 25);
+  --model-opus-text:   oklch(65% 0.15 25);
+  --model-sonnet-bg:   oklch(25% 0.05 250);
+  --model-sonnet-text: oklch(65% 0.12 250);
+  --model-haiku-bg:    oklch(25% 0.05 145);
+  --model-haiku-text:  oklch(60% 0.10 145);
+
+  /* ── Fonts ── */
+  --font-ui:   -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* ── Spacing & shape ── */
+  --radius: 14px;
+  --spacing: 16px;
+
+  /* ── Legacy surface aliases (used by existing components) ── */
+  --surface-deep:     var(--bg-body);
+  --surface-base:     var(--bg-chat);
+  --surface-panel:    var(--bg-sidebar);
+  --surface-card:     var(--bg-card);
+  --surface-elevated: #272727;
+  --text-primary:     var(--text-1);
+  --text-secondary:   var(--text-2);
+  --text-muted:       var(--text-3);
+  --border-subtle:    var(--border-s);
 }
 
 html, body, #root {
   height: 100%;
   width: 100%;
+}
+
+html, body {
+  overflow: hidden;
+  background: var(--bg-body);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
 }
 
 #root {
@@ -46,109 +116,31 @@ html, body, #root {
   align-items: center;
 }
 
-body {
-  background: var(--surface-deep);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-weight: 350;
-  font-size: 14px;
-  line-height: 1.5;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 24px;
-}
-
-/* --- Chat container --- */
+/* ── Chat container (App shell) ── */
 .chatroom {
-  width: 920px;
-  height: 768px;
+  width: 1000px;
+  height: 756px;
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--surface-base);
+  background: var(--bg-sidebar);
   border: 1px solid var(--border);
-  box-shadow:
-    0 0 0 1px oklch(20% 0.01 250 / 0.5),
-    0 4px 16px oklch(0% 0 0 / 0.4),
-    0 12px 40px oklch(0% 0 0 / 0.3),
-    0 0 80px oklch(65% 0.08 250 / 0.04);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
 }
 
-/* --- Top bar --- */
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  background: var(--surface-panel);
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.room-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.room-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--accent-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.room-name {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.room-id {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--text-muted);
-  background: var(--surface-card);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.room-meta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.room-meta-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-/* --- Main content --- */
+/* ── Main layout ── */
 .main {
   flex: 1;
   display: flex;
   overflow: hidden;
 }
 
-/* --- Participants panel --- */
+/* ── Participants panel (sidebar) ── */
 .panel {
-  width: 210px;
-  min-width: 210px;
-  background: var(--surface-panel);
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -156,14 +148,16 @@ body {
 }
 
 .section-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  padding: 14px 14px 6px;
+  color: var(--text-3);
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono);
 }
 
+/* ── Participant item ── */
 .participant {
   display: flex;
   align-items: center;
@@ -175,7 +169,7 @@ body {
 }
 
 .participant:hover {
-  background: var(--surface-card);
+  background: var(--bg-card);
 }
 
 .agent-avatar {
@@ -196,20 +190,25 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 2px solid var(--surface-panel);
+  border: 2px solid var(--bg-sidebar);
 }
 
-.status-active { background: var(--success); }
-.status-idle { background: var(--text-muted); }
-.status-thinking { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
-.status-tool { background: var(--info); animation: pulse 2s ease-in-out infinite; }
-.status-done { background: var(--success); opacity: 0.6; }
-.status-out { background: var(--error); }
-.status-error { background: var(--error); }
+.status-active    { background: var(--success); }
+.status-idle      { background: var(--text-muted); }
+.status-thinking  { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
+.status-tool      { background: var(--info);    animation: pulse 2s ease-in-out infinite; }
+.status-done      { background: var(--success); opacity: 0.6; }
+.status-out       { background: var(--error); }
+.status-error     { background: var(--error); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  50%       { opacity: 0.35; }
+}
+
+@keyframes dotpulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(40,200,64,0.4); }
+  50%      { box-shadow: 0 0 10px rgba(40,200,64,0.7); }
 }
 
 .participant-info {
@@ -221,7 +220,7 @@ body {
 
 .participant-name {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -236,11 +235,11 @@ body {
 
 .participant-role {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-3);
 }
 
 .model-badge {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 500;
   padding: 0px 4px;
@@ -248,28 +247,38 @@ body {
   letter-spacing: 0.02em;
 }
 
-.model-opus   { background: oklch(25% 0.06 25);  color: oklch(65% 0.15 25); }
-.model-sonnet { background: oklch(25% 0.05 250); color: oklch(65% 0.12 250); }
-.model-haiku  { background: oklch(25% 0.05 145); color: oklch(60% 0.10 145); }
+.model-opus   { background: var(--model-opus-bg);   color: var(--model-opus-text); }
+.model-sonnet { background: var(--model-sonnet-bg); color: var(--model-sonnet-text); }
+.model-haiku  { background: var(--model-haiku-bg);  color: var(--model-haiku-text); }
 
-/* --- Chat area --- */
+/* ── Chat area ── */
 .chat {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--surface-base);
   overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 85%, rgba(0,0,0,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 35% at 15% 15%, rgba(0,0,0,0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 35% 30% at 85% 40%, rgba(0,0,0,0.08) 0%, transparent 50%),
+    var(--bg-chat);
 }
 
+/* ── Messages list ── */
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 20px;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
+.messages::-webkit-scrollbar        { width: 3px; }
+.messages::-webkit-scrollbar-track  { background: transparent; }
+.messages::-webkit-scrollbar-thumb  { background: oklch(30% 0.01 250); border-radius: 2px; }
+
+/* ── Message ── */
 .message {
   padding: 5px 8px;
   display: flex;
@@ -282,8 +291,8 @@ body {
 
 .msg-time {
   font-size: 10px;
-  color: var(--text-muted);
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  color: var(--text-3);
+  font-family: var(--font-mono);
   margin-left: auto;
   padding-left: 8px;
   user-select: none;
@@ -298,14 +307,15 @@ body {
   font-size: 13px;
   margin-right: 8px;
   flex-shrink: 0;
+  font-family: var(--font-mono);
 }
 
 .msg-metrics {
   display: block;
   width: 100%;
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-3);
   padding: 2px 0 0 0;
   opacity: 0.6;
   line-height: 1.3;
@@ -313,25 +323,30 @@ body {
 }
 
 .msg-content {
-  color: var(--text-primary);
-  font-size: 13.5px;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.65;
 }
 
+/* ── Mention ── */
 .mention {
-  font-weight: 550;
+  font-weight: 500;
   padding: 0 2px;
   border-radius: 3px;
 }
 
+/* ── File reference ── */
 .file-ref {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  background: var(--surface-card);
+  background: var(--bg-card);
   padding: 1px 6px;
   border-radius: 3px;
   color: var(--accent);
 }
 
+/* ── System pill ── */
 .system-pill {
   display: flex;
   justify-content: center;
@@ -342,8 +357,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: var(--surface-elevated);
-  color: var(--text-muted);
+  background: var(--bg-card);
+  color: var(--text-3);
   font-size: 10px;
   padding: 2px 10px;
   border-radius: 999px;
@@ -355,13 +370,8 @@ body {
   color: var(--error);
 }
 
-.system-pill-inner.join {
-  color: var(--success);
-}
-
-.system-pill-inner.leave {
-  color: var(--text-secondary);
-}
+.system-pill-inner.join  { color: var(--success); }
+.system-pill-inner.leave { color: var(--text-2); }
 
 .system-pill-inner.queue-toggle {
   cursor: pointer;
@@ -371,7 +381,7 @@ body {
 }
 
 .system-pill-inner.queue-toggle:hover {
-  background: var(--surface-card);
+  background: var(--bg-card-h);
 }
 
 .system-queue-group {
@@ -380,9 +390,10 @@ body {
   gap: 2px;
 }
 
+/* ── Tool line ── */
 .tool-line {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-2);
   padding: 2px 0 2px 48px;
   display: flex;
   align-items: center;
@@ -393,23 +404,23 @@ body {
 .tool-agent {
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-3);
   min-width: 0;
 }
 
 .tool-badge {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  background: var(--surface-elevated);
+  background: var(--bg-card);
   color: var(--info);
   padding: 1px 6px;
   border-radius: 3px;
 }
 
-/* --- Input area --- */
+/* ── Input area ── */
 .input-area {
-  padding: 10px 18px;
-  border-top: 1px solid var(--border);
+  padding: 16px;
+  border-top: 1px solid var(--border-s);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -419,28 +430,28 @@ body {
 
 .input-field {
   flex: 1;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid #3d3d3d;
+  border-radius: var(--radius);
   padding: 10px 14px;
-  color: var(--text-primary);
-  font-family: inherit;
+  color: var(--text-1);
+  font-family: var(--font-ui);
   font-size: 13px;
-  font-weight: 350;
+  font-weight: 500;
   outline: none;
   transition: border-color 0.2s;
 }
 
-.input-field::placeholder { color: var(--text-muted); }
-.input-field:focus { border-color: var(--accent); }
+.input-field::placeholder { color: var(--text-3); }
+.input-field:focus { border-color: #555555; }
 
 .send-btn {
   width: 36px;
   height: 36px;
-  background: var(--accent);
-  color: oklch(98% 0 0);
+  background: rgba(63, 199, 235, 0.15);
+  color: var(--mode-execute);
   border: none;
-  border-radius: 8px;
+  border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -449,21 +460,21 @@ body {
   flex-shrink: 0;
 }
 
-.send-btn:hover { opacity: 0.85; }
+.send-btn:hover   { background: rgba(63, 199, 235, 0.25); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* --- Mention dropdown --- */
+/* ── Mention dropdown ── */
 .mention-dropdown {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 18px;
   right: 52px;
-  background: var(--surface-elevated);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
   z-index: 100;
-  box-shadow: 0 4px 16px oklch(0% 0 0 / 0.4);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 
 .mention-item {
@@ -477,30 +488,33 @@ body {
 
 .mention-item:hover,
 .mention-item.active {
-  background: var(--surface-card);
+  background: var(--bg-card-h);
 }
 
 .mention-item-name {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .mention-item-role {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-3);
 }
 
-/* --- Status bar --- */
+/* ── Status bar ── */
 .statusbar {
+  height: 22px;
+  min-height: 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 18px;
-  background: var(--surface-panel);
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  padding: 0 10px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border-s);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-3);
+  font-family: var(--font-ui);
   flex-shrink: 0;
 }
 
@@ -526,59 +540,72 @@ body {
 .statusbar-dot.connecting   { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
 .statusbar-dot.disconnected { background: var(--error); }
 
-/* --- Agent color utility classes --- */
-.c-claude    { color: var(--agent-claude); }
-.c-bilbo     { color: var(--agent-bilbo); }
-.c-ultron    { color: var(--agent-ultron); }
-.c-cerberus  { color: var(--agent-cerberus); }
-.c-dante     { color: var(--agent-dante); }
-.c-argus     { color: var(--agent-argus); }
-.c-moriarty  { color: var(--agent-moriarty); }
-.c-house     { color: var(--agent-house); }
-.c-yoda      { color: var(--agent-yoda); }
-.c-alexandria { color: var(--agent-alexandria); }
-.c-gitto     { color: var(--agent-gitto); }
-.c-user      { color: var(--agent-user); }
+/* ── Agent color utility classes — WoW palette ── */
+.c-ultron    { color: var(--color-ultron); }
+.c-cerberus  { color: var(--color-cerberus); }
+.c-dante     { color: var(--color-dante); }
+.c-bilbo     { color: var(--color-bilbo); }
+.c-house     { color: var(--color-house); }
+.c-yoda      { color: var(--color-yoda); }
+.c-alexandria { color: var(--color-alexandria); }
+.c-gitto     { color: var(--color-gitto); }
+.c-argus     { color: var(--color-argus); }
+.c-moriarty  { color: var(--color-moriarty); }
+.c-claude    { color: var(--color-ultron); }
+.c-user      { color: var(--color-bex); }
 
-/* Avatar backgrounds */
-.av-claude    { background: oklch(25% 0.06 250); color: var(--agent-claude); }
-.av-bilbo     { background: oklch(25% 0.05 195); color: var(--agent-bilbo); }
-.av-ultron    { background: oklch(25% 0.06 250); color: var(--agent-ultron); }
-.av-cerberus  { background: oklch(25% 0.05 85);  color: var(--agent-cerberus); }
-.av-dante     { background: oklch(25% 0.05 195); color: var(--agent-dante); }
-.av-argus     { background: oklch(25% 0.06 55);  color: var(--agent-argus); }
-.av-moriarty  { background: oklch(25% 0.07 25);  color: var(--agent-moriarty); }
-.av-house     { background: oklch(25% 0.07 25);  color: var(--agent-house); }
-.av-yoda      { background: oklch(25% 0.05 145); color: var(--agent-yoda); }
-.av-alexandria { background: oklch(25% 0.05 300); color: var(--agent-alexandria); }
-.av-gitto     { background: oklch(25% 0.05 85);  color: var(--agent-gitto); }
-.av-user      { background: oklch(25% 0.04 145); color: var(--agent-user); }
+/* ── Avatar backgrounds ── */
+.av-ultron    { background: color-mix(in srgb, var(--color-ultron) 14%, #1f1f1f);    color: var(--color-ultron); }
+.av-cerberus  { background: color-mix(in srgb, var(--color-cerberus) 14%, #1f1f1f);  color: var(--color-cerberus); }
+.av-dante     { background: color-mix(in srgb, var(--color-dante) 14%, #1f1f1f);     color: var(--color-dante); }
+.av-bilbo     { background: color-mix(in srgb, var(--color-bilbo) 14%, #1f1f1f);     color: var(--color-bilbo); }
+.av-house     { background: color-mix(in srgb, var(--color-house) 14%, #1f1f1f);     color: var(--color-house); }
+.av-yoda      { background: color-mix(in srgb, var(--color-yoda) 14%, #1f1f1f);      color: var(--color-yoda); }
+.av-alexandria { background: color-mix(in srgb, var(--color-alexandria) 14%, #1f1f1f); color: var(--color-alexandria); }
+.av-gitto     { background: color-mix(in srgb, var(--color-gitto) 14%, #1f1f1f);     color: var(--color-gitto); }
+.av-argus     { background: color-mix(in srgb, var(--color-argus) 14%, #1f1f1f);     color: var(--color-argus); }
+.av-moriarty  { background: color-mix(in srgb, var(--color-moriarty) 14%, #1f1f1f);  color: var(--color-moriarty); }
+.av-claude    { background: color-mix(in srgb, var(--color-ultron) 14%, #1f1f1f);    color: var(--color-ultron); }
+.av-user      { background: color-mix(in srgb, var(--color-bex) 14%, #1f1f1f);       color: var(--color-bex); }
 
-/* Agent message background tints — very subtle, almost transparent */
-.bg-claude    { background: color-mix(in oklch, var(--agent-claude) 6%, transparent); }
-.bg-bilbo     { background: color-mix(in oklch, var(--agent-bilbo) 6%, transparent); }
-.bg-ultron    { background: color-mix(in oklch, var(--agent-ultron) 6%, transparent); }
-.bg-cerberus  { background: color-mix(in oklch, var(--agent-cerberus) 6%, transparent); }
-.bg-dante     { background: color-mix(in oklch, var(--agent-dante) 6%, transparent); }
-.bg-argus     { background: color-mix(in oklch, var(--agent-argus) 6%, transparent); }
-.bg-moriarty  { background: color-mix(in oklch, var(--agent-moriarty) 6%, transparent); }
-.bg-house     { background: color-mix(in oklch, var(--agent-house) 6%, transparent); }
-.bg-yoda      { background: color-mix(in oklch, var(--agent-yoda) 6%, transparent); }
-.bg-alexandria { background: color-mix(in oklch, var(--agent-alexandria) 6%, transparent); }
-.bg-gitto     { background: color-mix(in oklch, var(--agent-gitto) 6%, transparent); }
-.bg-user      { background: color-mix(in oklch, var(--agent-user) 6%, transparent); }
+/* ── Agent message background tints ── */
+.bg-ultron    { background: color-mix(in srgb, var(--color-ultron) 6%, transparent); }
+.bg-cerberus  { background: color-mix(in srgb, var(--color-cerberus) 6%, transparent); }
+.bg-dante     { background: color-mix(in srgb, var(--color-dante) 6%, transparent); }
+.bg-bilbo     { background: color-mix(in srgb, var(--color-bilbo) 6%, transparent); }
+.bg-house     { background: color-mix(in srgb, var(--color-house) 6%, transparent); }
+.bg-yoda      { background: color-mix(in srgb, var(--color-yoda) 6%, transparent); }
+.bg-alexandria { background: color-mix(in srgb, var(--color-alexandria) 6%, transparent); }
+.bg-gitto     { background: color-mix(in srgb, var(--color-gitto) 6%, transparent); }
+.bg-argus     { background: color-mix(in srgb, var(--color-argus) 6%, transparent); }
+.bg-moriarty  { background: color-mix(in srgb, var(--color-moriarty) 6%, transparent); }
+.bg-claude    { background: color-mix(in srgb, var(--color-ultron) 6%, transparent); }
+.bg-user      { background: color-mix(in srgb, var(--color-bex) 6%, transparent); }
 
-/* --- Markdown rendering inside message content --- */
+/* ── Mention highlights — WoW palette ── */
+.mention-ultron    { color: var(--color-ultron);    background: color-mix(in srgb, var(--color-ultron) 12%, transparent); }
+.mention-cerberus  { color: var(--color-cerberus);  background: color-mix(in srgb, var(--color-cerberus) 12%, transparent); }
+.mention-dante     { color: var(--color-dante);     background: color-mix(in srgb, var(--color-dante) 12%, transparent); }
+.mention-bilbo     { color: var(--color-bilbo);     background: color-mix(in srgb, var(--color-bilbo) 12%, transparent); }
+.mention-house     { color: var(--color-house);     background: color-mix(in srgb, var(--color-house) 12%, transparent); }
+.mention-yoda      { color: var(--color-yoda);      background: color-mix(in srgb, var(--color-yoda) 12%, transparent); }
+.mention-alexandria { color: var(--color-alexandria); background: color-mix(in srgb, var(--color-alexandria) 12%, transparent); }
+.mention-gitto     { color: var(--color-gitto);     background: color-mix(in srgb, var(--color-gitto) 12%, transparent); }
+.mention-argus     { color: var(--color-argus);     background: color-mix(in srgb, var(--color-argus) 12%, transparent); }
+.mention-moriarty  { color: var(--color-moriarty);  background: color-mix(in srgb, var(--color-moriarty) 12%, transparent); }
+.mention-claude    { color: var(--color-ultron);    background: color-mix(in srgb, var(--color-ultron) 12%, transparent); }
+.mention-user      { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
+
+/* ── Markdown rendering inside message content ── */
 .msg-content .md-para {
-  /* Inline paragraph — no block layout, flows with the message line */
   display: inline;
 }
 
 .msg-content .md-code-inline {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  font-size: 12px;
-  background: var(--surface-card);
-  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-code);
+  color: var(--text-code);
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -586,17 +613,17 @@ body {
 .msg-content .md-pre {
   display: block;
   margin: 4px 0;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  background: var(--bg-code);
+  border: 1px solid var(--border-s);
+  border-radius: var(--radius);
   padding: 8px 12px;
   overflow-x: auto;
 }
 
 .msg-content .md-pre .md-code-block {
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  font-size: 12px;
-  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-code);
   background: transparent;
   padding: 0;
   border-radius: 0;
@@ -611,20 +638,13 @@ body {
 .msg-content .md-li {
   display: list-item;
   margin: 1px 0;
-  font-size: 13.5px;
-  color: var(--text-primary);
+  font-size: 13px;
+  color: var(--text-1);
 }
 
-/* Mention highlight backgrounds */
-.mention-claude    { color: var(--agent-claude);    background: oklch(25% 0.04 250); }
-.mention-bilbo     { color: var(--agent-bilbo);     background: oklch(25% 0.04 195); }
-.mention-ultron    { color: var(--agent-ultron);    background: oklch(25% 0.04 250); }
-.mention-cerberus  { color: var(--agent-cerberus);  background: oklch(25% 0.04 85); }
-.mention-dante     { color: var(--agent-dante);     background: oklch(25% 0.04 195); }
-.mention-argus     { color: var(--agent-argus);     background: oklch(25% 0.04 55); }
-.mention-moriarty  { color: var(--agent-moriarty);  background: oklch(25% 0.05 25); }
-.mention-house     { color: var(--agent-house);     background: oklch(25% 0.05 25); }
-.mention-yoda      { color: var(--agent-yoda);      background: oklch(25% 0.04 145); }
-.mention-alexandria { color: var(--agent-alexandria); background: oklch(25% 0.04 300); }
-.mention-gitto     { color: var(--agent-gitto);     background: oklch(25% 0.04 85); }
-.mention-user      { color: var(--agent-user);      background: oklch(25% 0.03 145); }
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .status-thinking,
+  .status-tool,
+  .statusbar-dot.connecting { animation: none !important; }
+}
