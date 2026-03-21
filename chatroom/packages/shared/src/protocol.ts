@@ -87,10 +87,34 @@ export interface ClientLoadHistory {
   limit: number;
 }
 
+export interface ClientKillAgent {
+  type: 'kill_agent';
+  agentName: string;
+}
+
+export interface ClientPauseAgent {
+  type: 'pause_agent';
+  agentName: string;
+}
+
+export interface ClientResumeAgent {
+  type: 'resume_agent';
+  agentName: string;
+}
+
+export interface ClientReadChat {
+  type: 'read_chat';
+  agentName: string;
+}
+
 export type ClientMessage =
   | ClientSendMessage
   | ClientInvokeAgent
-  | ClientLoadHistory;
+  | ClientLoadHistory
+  | ClientKillAgent
+  | ClientPauseAgent
+  | ClientResumeAgent
+  | ClientReadChat;
 
 // ---------------------------------------------------------------------------
 // Server → Client messages

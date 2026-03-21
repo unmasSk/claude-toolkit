@@ -42,6 +42,10 @@ export {
   isPaused,
   clearQueue,
   drainQueue,
+  killAgent,
+  pauseAgent,
+  resumeAgent,
+  isAgentPaused,
   inFlight,
   activeInvocations,
 } from './agent-scheduler.js';

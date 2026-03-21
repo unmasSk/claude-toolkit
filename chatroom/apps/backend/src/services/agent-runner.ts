@@ -30,6 +30,7 @@ import {
 } from './agent-prompt.js';
 import type { InvocationContext } from './agent-scheduler.js';
 import { readAgentStream, handleAgentResult } from './agent-stream.js';
+import { activeProcesses } from './agent-queue.js';
 
 const logger = createLogger('agent-runner');
 
@@ -159,8 +160,13 @@ export async function spawnAndParse(opts: SpawnAndParseOptions): Promise<boolean
 
   logger.debug({ agentName, roomId, pid: proc.pid }, 'subprocess spawned');
 
+  // Register the process handle so kill_agent can SIGTERM it
+  const flightKey = `${agentName}:${roomId}`;
+  activeProcesses.set(flightKey, { pid: proc.pid, kill: () => proc.kill() });
+
   const timeoutHandle = makeTimeoutHandle(proc, agentName, roomId);
   const sr = await readAgentStream(proc, agentName, roomId, timeoutHandle);
+  activeProcesses.delete(flightKey);
   return handleAgentResult(sr, roomId, agentName, model, context);
 }
 

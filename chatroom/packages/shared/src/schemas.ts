@@ -82,10 +82,34 @@ export const ClientLoadHistorySchema = z.object({
   limit: z.number().int().min(1).max(100),
 });
 
+export const ClientKillAgentSchema = z.object({
+  type: z.literal('kill_agent'),
+  agentName: z.string().min(1).max(64),
+});
+
+export const ClientPauseAgentSchema = z.object({
+  type: z.literal('pause_agent'),
+  agentName: z.string().min(1).max(64),
+});
+
+export const ClientResumeAgentSchema = z.object({
+  type: z.literal('resume_agent'),
+  agentName: z.string().min(1).max(64),
+});
+
+export const ClientReadChatSchema = z.object({
+  type: z.literal('read_chat'),
+  agentName: z.string().min(1).max(64),
+});
+
 export const ClientMessageSchema = z.discriminatedUnion('type', [
   ClientSendMessageSchema,
   ClientInvokeAgentSchema,
   ClientLoadHistorySchema,
+  ClientKillAgentSchema,
+  ClientPauseAgentSchema,
+  ClientResumeAgentSchema,
+  ClientReadChatSchema,
 ]);
 
 // ---------------------------------------------------------------------------

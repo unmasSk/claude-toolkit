@@ -10,7 +10,7 @@ import {
 import { mapMessageRow, mapAgentSessionRow, nowIso, safeMessage } from '../utils.js';
 import { validateToken } from '../services/auth-tokens.js';
 import { ClientMessageSchema } from '@agent-chatroom/shared';
-import type { ServerMessage } from '@agent-chatroom/shared';
+import type { ServerMessage, ClientMessage } from '@agent-chatroom/shared';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
 import { mapRoomRow } from '../utils.js';
 import {
@@ -26,7 +26,15 @@ import {
   getConnectedUsers,
   type WsData,
 } from './ws-state.js';
-import { handleSendMessage, handleInvokeAgent, handleLoadHistory } from './ws-message-handlers.js';
+import {
+  handleSendMessage,
+  handleInvokeAgent,
+  handleLoadHistory,
+  handleKillAgent,
+  handlePauseAgent,
+  handleResumeAgent,
+  handleReadChat,
+} from './ws-message-handlers.js';
 
 // ---------------------------------------------------------------------------
 // open() helpers
@@ -144,7 +152,7 @@ export function open(ws: any): void {
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseAndValidate(ws: any, rawMessage: unknown): ReturnType<typeof ClientMessageSchema.safeParse> | null {
+function parseAndValidate(ws: any, rawMessage: unknown): ClientMessage | null {
   let parsed: unknown;
   try {
     parsed = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage;
@@ -159,7 +167,7 @@ function parseAndValidate(ws: any, rawMessage: unknown): ReturnType<typeof Clien
     return null;
   }
 
-  return result;
+  return result.data as ClientMessage;
 }
 
 /**
@@ -183,10 +191,9 @@ export function message(ws: any, rawMessage: unknown): void {
     return;
   }
 
-  const result = parseAndValidate(ws, rawMessage);
-  if (!result) return;
+  const msg = parseAndValidate(ws, rawMessage);
+  if (!msg) return;
 
-  const msg = result.data;
   switch (msg.type) {
     case 'send_message':
       handleSendMessage(ws, roomId, connId, msg.content);
@@ -196,6 +203,18 @@ export function message(ws: any, rawMessage: unknown): void {
       break;
     case 'load_history':
       handleLoadHistory(ws, roomId, msg.before, msg.limit);
+      break;
+    case 'kill_agent':
+      handleKillAgent(ws, roomId, msg.agentName);
+      break;
+    case 'pause_agent':
+      handlePauseAgent(ws, roomId, msg.agentName);
+      break;
+    case 'resume_agent':
+      handleResumeAgent(ws, roomId, msg.agentName);
+      break;
+    case 'read_chat':
+      handleReadChat(ws, roomId, msg.agentName);
       break;
   }
 }

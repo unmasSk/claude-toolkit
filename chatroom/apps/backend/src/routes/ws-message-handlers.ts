@@ -9,6 +9,7 @@ import {
   getMessagesBefore,
   hasMoreMessagesBefore,
   getMessageCreatedAt,
+  getRecentMessages,
 } from '../db/queries.js';
 import { extractMentions } from '../services/mention-parser.js';
 import { broadcastSync } from '../services/message-bus.js';
@@ -19,10 +20,17 @@ import {
   pauseInvocations,
   resumeInvocations,
   isPaused,
+  killAgent,
+  pauseAgent,
+  resumeAgent,
+  isAgentPaused,
   sanitizePromptContent,
 } from '../services/agent-invoker.js';
 import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapAgentSessionRow, generateId, nowIso, safeMessage } from '../utils.js';
+import { updateStatusAndBroadcast, postSystemMessage } from '../services/agent-runner.js';
+import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
+import { AgentState } from '@agent-chatroom/shared';
 import type { ServerMessage, Message } from '@agent-chatroom/shared';
 import { logger, connStates, EVERYONE_PATTERN } from './ws-state.js';
 
@@ -236,4 +244,155 @@ export function handleLoadHistory(ws: any, roomId: string, before: string, limit
   // getMessagesBefore returns DESC — reverse to chronological order
   const safeMessages = rows.reverse().map((row) => safeMessage(mapMessageRow(row)));
   ws.send(JSON.stringify({ type: 'history_page', messages: safeMessages, hasMore } satisfies ServerMessage));
+}
+
+// ---------------------------------------------------------------------------
+// kill_agent
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle a kill_agent client message.
+ * Sends SIGTERM to the running subprocess for the named agent, clears pending
+ * queue entries for that agent+room, and broadcasts Out status.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The room the agent is running in.
+ * @param agentName - The name of the agent to kill.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function handleKillAgent(ws: any, roomId: string, agentName: string): void {
+  const agentConf = getAgentConfig(agentName);
+  if (!agentConf) {
+    sendError(ws, `Unknown agent: ${agentName}`, 'UNKNOWN_AGENT');
+    return;
+  }
+
+  logger.info({ agentName, roomId }, 'WS kill_agent');
+  const killed = killAgent(agentName, roomId);
+
+  if (!killed) {
+    logger.info({ agentName, roomId }, 'WS kill_agent: agent not running — broadcasting Out anyway');
+  }
+
+  void updateStatusAndBroadcast(agentName, roomId, AgentState.Out);
+  void postSystemMessage(roomId, `Agent ${agentName} was terminated by operator.`);
+}
+
+// ---------------------------------------------------------------------------
+// pause_agent
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle a pause_agent client message.
+ * Marks the agent as paused so future invocations are skipped.
+ * Does not interrupt the currently running invocation (if any).
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The room scope.
+ * @param agentName - The agent to pause.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function handlePauseAgent(ws: any, roomId: string, agentName: string): void {
+  const agentConf = getAgentConfig(agentName);
+  if (!agentConf) {
+    sendError(ws, `Unknown agent: ${agentName}`, 'UNKNOWN_AGENT');
+    return;
+  }
+
+  if (isAgentPaused(agentName, roomId)) {
+    logger.debug({ agentName, roomId }, 'WS pause_agent: already paused');
+    return;
+  }
+
+  logger.info({ agentName, roomId }, 'WS pause_agent');
+  pauseAgent(agentName, roomId);
+  void postSystemMessage(roomId, `Agent ${agentName} paused — new invocations are suspended.`);
+}
+
+// ---------------------------------------------------------------------------
+// resume_agent
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle a resume_agent client message.
+ * Clears the individual pause flag for the agent so future invocations proceed.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The room scope.
+ * @param agentName - The agent to resume.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function handleResumeAgent(ws: any, roomId: string, agentName: string): void {
+  const agentConf = getAgentConfig(agentName);
+  if (!agentConf) {
+    sendError(ws, `Unknown agent: ${agentName}`, 'UNKNOWN_AGENT');
+    return;
+  }
+
+  logger.info({ agentName, roomId }, 'WS resume_agent');
+  resumeAgent(agentName, roomId);
+  void postSystemMessage(roomId, `Agent ${agentName} resumed — invocations enabled.`);
+}
+
+// ---------------------------------------------------------------------------
+// read_chat
+// ---------------------------------------------------------------------------
+
+/** Maximum number of recent messages fed to the agent via read_chat. */
+const READ_CHAT_LIMIT = ROOM_STATE_MESSAGE_LIMIT;
+
+/**
+ * Handle a read_chat client message.
+ * Fetches the most recent messages from the room and invokes the named agent
+ * with a formatted transcript as the trigger prompt, so the agent can orient
+ * itself in the ongoing conversation.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param roomId - The room to read from.
+ * @param agentName - The agent to invoke with the transcript.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function handleReadChat(ws: any, roomId: string, agentName: string): void {
+  const agentConf = getAgentConfig(agentName);
+  if (!agentConf || !agentConf.invokable) {
+    sendError(ws, `Unknown or non-invokable agent: ${agentName}`, 'UNKNOWN_AGENT');
+    return;
+  }
+
+  const room = getRoomById(roomId);
+  if (!room) { sendError(ws, 'Room not found', 'ROOM_NOT_FOUND'); return; }
+
+  const rows = getRecentMessages(roomId, READ_CHAT_LIMIT);
+  if (rows.length === 0) {
+    logger.info({ agentName, roomId }, 'WS read_chat: no messages in room');
+    void postSystemMessage(roomId, `Agent ${agentName} requested chat context but the room has no messages yet.`);
+    return;
+  }
+
+  const transcript = rows
+    .map((row) => {
+      const msg = mapMessageRow(row);
+      return `[${msg.author}]: ${sanitizePromptContent(msg.content)}`;
+    })
+    .join('\n');
+
+  const prompt = `Please review the following recent conversation and respond if appropriate:\n\n${transcript}`;
+
+  logger.info({ agentName, roomId, messageCount: rows.length }, 'WS read_chat: invoking agent with transcript');
+
+  const sysId = generateId();
+  const sysCreatedAt = nowIso();
+  const sysContent = `Agent ${agentName} received recent chat context (${rows.length} messages).`;
+  try {
+    insertMessage({ id: sysId, roomId, author: 'system', authorType: 'system', content: sysContent, msgType: 'system', parentId: null, metadata: '{}' });
+  } catch (err) {
+    logger.error({ err, roomId, agentName }, 'WS read_chat: insertMessage (system) failed');
+    sendError(ws, 'Failed to record action. Please try again.', 'DB_ERROR');
+    return;
+  }
+  const sysMsg: Message = { id: sysId, roomId, author: 'system', authorType: 'system', content: sysContent, msgType: 'system', parentId: null, metadata: {}, createdAt: sysCreatedAt };
+  broadcastSync(roomId, { type: 'new_message', message: sysMsg }, ws);
+  ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(sysMsg) }));
+
+  invokeAgent(roomId, agentName, prompt);
 }

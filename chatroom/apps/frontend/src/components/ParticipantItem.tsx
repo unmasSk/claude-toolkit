@@ -1,9 +1,10 @@
 import '../styles/components/AgentCard.css';
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import type { AgentStatus } from '@agent-chatroom/shared';
 import { AgentState, getModelBadge } from '@agent-chatroom/shared';
 import { agentColorClass } from '../lib/colors';
 import { getAgentIcon } from '../lib/icons';
+import { useWsStore } from '../stores/ws-store';
 
 interface ParticipantItemProps {
   agent: AgentStatus;
@@ -39,32 +40,50 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
   const agentNameLower = agent.agentName.toLowerCase();
   const acColor = AGENT_COLOR[agentNameLower] ?? '#888888';
 
+  const send = useWsStore((s) => s.send);
+
+  const handlePlay = useCallback(() => {
+    send({ type: 'invoke_agent', agent: agent.agentName, prompt: `@${agent.agentName} please continue.` });
+  }, [send, agent.agentName]);
+
+  const handlePause = useCallback(() => {
+    send({ type: 'pause_agent', agentName: agent.agentName });
+  }, [send, agent.agentName]);
+
+  const handleStop = useCallback(() => {
+    send({ type: 'kill_agent', agentName: agent.agentName });
+  }, [send, agent.agentName]);
+
+  const handleReadChat = useCallback(() => {
+    send({ type: 'read_chat', agentName: agent.agentName });
+  }, [send, agent.agentName]);
+
   return (
     <div className="card-wrap" style={agentCardStyle(agent.agentName)}>
       {/* Action buttons layer — revealed on hover via CSS shrink-reveal */}
       <div className="card-buttons">
         <div className="btn-panel">
-          {/* Play */}
-          <button className="act-btn" type="button" aria-label="Play">
+          {/* Play — invoke agent */}
+          <button className="act-btn" type="button" aria-label="Play" onClick={handlePlay}>
             <svg viewBox="0 0 12 12">
               <polygon points="3,1 11,6 3,11" className="filled" />
             </svg>
           </button>
-          {/* Pause */}
-          <button className="act-btn" type="button" aria-label="Pause">
+          {/* Pause — suspend future invocations */}
+          <button className="act-btn" type="button" aria-label="Pause" onClick={handlePause}>
             <svg viewBox="0 0 12 12">
               <rect x="2" y="1" width="3" height="10" rx="1" className="filled" />
               <rect x="7" y="1" width="3" height="10" rx="1" className="filled" />
             </svg>
           </button>
-          {/* Stop */}
-          <button className="act-btn" type="button" aria-label="Stop">
+          {/* Stop — kill running subprocess */}
+          <button className="act-btn" type="button" aria-label="Stop" onClick={handleStop}>
             <svg viewBox="0 0 12 12">
               <rect x="1.5" y="1.5" width="9" height="9" rx="2" className="filled" />
             </svg>
           </button>
-          {/* Chat */}
-          <button className="act-btn" type="button" aria-label="Chat">
+          {/* Chat — feed recent messages to agent */}
+          <button className="act-btn" type="button" aria-label="Chat" onClick={handleReadChat}>
             <svg viewBox="0 0 12 12">
               <path d="M10 1H2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2l2 2 2-2h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z" />
             </svg>

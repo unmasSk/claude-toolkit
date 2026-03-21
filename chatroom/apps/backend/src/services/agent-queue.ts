@@ -41,6 +41,18 @@ export interface InvocationContext {
 export const activeInvocations = new Map<string, Promise<void>>();
 
 /**
+ * Active subprocess handles keyed by "${agentName}:${roomId}".
+ * Populated by agent-runner after spawn; cleared by runInvocation cleanup.
+ * Used by kill_agent WS handler to SIGTERM the running process.
+ */
+export interface ActiveProcess {
+  pid: number | undefined;
+  kill: () => void;
+}
+
+export const activeProcesses = new Map<string, ActiveProcess>();
+
+/**
  * Per-agent-per-room in-flight lock keyed by "${agentName}:${roomId}".
  * An agent with an existing entry is queued rather than started concurrently (FIX 15).
  */
