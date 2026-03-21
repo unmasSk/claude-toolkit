@@ -76,8 +76,7 @@
 /* Agent list scroll container */
 .agent-list {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   padding: 4px;
 }
 
