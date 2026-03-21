@@ -181,10 +181,12 @@
   font-size: 11px;
   color: var(--text-2);
   direction: rtl;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  unicode-bidi: plaintext;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Per-agent tool event colors (border + bg + badge tint) */
@@ -628,6 +630,7 @@
 .mention-moriarty  { color: var(--color-moriarty);  background: color-mix(in srgb, var(--color-moriarty) 12%, transparent); }
 .mention-claude    { color: var(--color-claude);    background: color-mix(in srgb, var(--color-claude) 12%, transparent); }
 .mention-user      { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
+.mention-everyone  { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
 
 /* ── Markdown rendering inside message content ── */
 .msg-text .md-para {
