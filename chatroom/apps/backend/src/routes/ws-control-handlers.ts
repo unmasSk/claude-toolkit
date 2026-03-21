@@ -18,21 +18,12 @@ import { mapMessageRow, generateId, nowIso, safeMessage } from '../utils.js';
 import { updateStatusAndBroadcast, postSystemMessage } from '../services/agent-runner.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
 import { AgentState } from '@agent-chatroom/shared';
-import type { ServerMessage, Message } from '@agent-chatroom/shared';
-import { logger } from './ws-state.js';
+import type { Message } from '@agent-chatroom/shared';
+import { logger, sendError } from './ws-state.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function sendError(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ws: any,
-  message: string,
-  code: string,
-): void {
-  ws.send(JSON.stringify({ type: 'error', message, code } satisfies ServerMessage));
-}
 
 /** Maximum number of recent messages fed to the agent via read_chat. */
 const READ_CHAT_LIMIT = ROOM_STATE_MESSAGE_LIMIT;

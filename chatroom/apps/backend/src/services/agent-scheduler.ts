@@ -16,8 +16,13 @@ import {
   MAX_TRIGGER_CONTENT_BYTES,
   enqueue,
   activeProcesses,
+  pauseAgent,
+  resumeAgent,
+  isAgentPaused,
 } from './agent-queue.js';
 import type { InvocationContext, QueueEntry } from './agent-queue.js';
+
+export { pauseAgent, resumeAgent, isAgentPaused };
 
 // Re-export so existing callers importing from agent-scheduler still work
 export { activeInvocations, inFlight };
@@ -88,46 +93,6 @@ export function clearQueue(roomId: string): number {
     if (pendingQueue[i]!.roomId === roomId) pendingQueue.splice(i, 1);
   }
   return before - pendingQueue.length;
-}
-
-// ---------------------------------------------------------------------------
-// Per-agent pause — individual agent control (Issue #24)
-// ---------------------------------------------------------------------------
-
-/**
- * Agents that have been individually paused via pause_agent.
- * Keyed by "${agentName}:${roomId}" to allow room-scoped control.
- */
-const _pausedAgents = new Set<string>();
-
-/**
- * Pause a single agent's future invocations without killing its current run.
- *
- * @param agentName - The agent to pause.
- * @param roomId - The room to scope the pause to.
- */
-export function pauseAgent(agentName: string, roomId: string): void {
-  _pausedAgents.add(`${agentName}:${roomId}`);
-}
-
-/**
- * Resume a previously paused agent.
- *
- * @param agentName - The agent to resume.
- * @param roomId - The room scope.
- */
-export function resumeAgent(agentName: string, roomId: string): void {
-  _pausedAgents.delete(`${agentName}:${roomId}`);
-}
-
-/**
- * Returns whether a specific agent is individually paused in a room.
- *
- * @param agentName - The agent name to check.
- * @param roomId - The room scope.
- */
-export function isAgentPaused(agentName: string, roomId: string): boolean {
-  return _pausedAgents.has(`${agentName}:${roomId}`);
 }
 
 /**
@@ -282,7 +247,7 @@ export function scheduleInvocation(
     return;
   }
 
-  if (_pausedAgents.has(`${agentName}:${roomId}`)) {
+  if (isAgentPaused(agentName, roomId)) {
     logger.info({ agentName, roomId }, 'scheduleInvocation PAUSED — agent individually paused');
     return;
   }

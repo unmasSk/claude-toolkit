@@ -2,7 +2,7 @@ import { createLogger } from '../logger.js';
 import { createTokenBucket } from '../services/rate-limiter.js';
 import { getReservedAgentNames } from '../services/auth-tokens.js';
 import { WS_ALLOWED_ORIGINS } from '../config.js';
-import type { ConnectedUser } from '@agent-chatroom/shared';
+import type { ConnectedUser, ServerMessage } from '@agent-chatroom/shared';
 
 /** Pino logger instance for the WS module. */
 export const logger = createLogger('ws');
@@ -125,3 +125,19 @@ export const RESERVED_AGENT_NAMES = getReservedAgentNames();
  * connId is stored separately in the module-level wsConnIds map, not here.
  */
 export type WsData = { params: { roomId: string }; query: { name?: string; token?: string } };
+
+// ---------------------------------------------------------------------------
+// Shared WS error helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Send a typed error frame to a single WebSocket client.
+ *
+ * @param ws - The Elysia WebSocket instance.
+ * @param message - Human-readable error description.
+ * @param code - Machine-readable error code (e.g. 'ROOM_NOT_FOUND').
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function sendError(ws: any, message: string, code: string): void {
+  ws.send(JSON.stringify({ type: 'error', message, code } satisfies ServerMessage));
+}

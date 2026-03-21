@@ -95,3 +95,43 @@ export function enqueue(entry: QueueEntry): void {
     pendingQueue.push(entry);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Per-agent pause state — individual agent control (Issue #24)
+// ---------------------------------------------------------------------------
+
+/**
+ * Agents that have been individually paused via pause_agent.
+ * Keyed by "${agentName}:${roomId}" to allow room-scoped control.
+ */
+const _pausedAgents = new Set<string>();
+
+/**
+ * Pause a single agent's future invocations without killing its current run.
+ *
+ * @param agentName - The agent to pause.
+ * @param roomId - The room to scope the pause to.
+ */
+export function pauseAgent(agentName: string, roomId: string): void {
+  _pausedAgents.add(`${agentName}:${roomId}`);
+}
+
+/**
+ * Resume a previously paused agent.
+ *
+ * @param agentName - The agent to resume.
+ * @param roomId - The room scope.
+ */
+export function resumeAgent(agentName: string, roomId: string): void {
+  _pausedAgents.delete(`${agentName}:${roomId}`);
+}
+
+/**
+ * Returns whether a specific agent is individually paused in a room.
+ *
+ * @param agentName - The agent name to check.
+ * @param roomId - The room scope.
+ */
+export function isAgentPaused(agentName: string, roomId: string): boolean {
+  return _pausedAgents.has(`${agentName}:${roomId}`);
+}

@@ -24,23 +24,14 @@ import {
 } from '../services/agent-invoker.js';
 import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapAgentSessionRow, generateId, nowIso, safeMessage } from '../utils.js';
-import type { ServerMessage, Message } from '@agent-chatroom/shared';
-import { logger, connStates, EVERYONE_PATTERN } from './ws-state.js';
+import type { Message, ServerMessage } from '@agent-chatroom/shared';
+import { logger, connStates, EVERYONE_PATTERN, sendError } from './ws-state.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const STOP_DIRECTIVE = /\b(stop|para|callaos|silence|quiet)\b/i;
-
-function sendError(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ws: any,
-  message: string,
-  code: string,
-): void {
-  ws.send(JSON.stringify({ type: 'error', message, code } satisfies ServerMessage));
-}
 
 /**
  * Persist a system directive message to DB and broadcast it to the room.
