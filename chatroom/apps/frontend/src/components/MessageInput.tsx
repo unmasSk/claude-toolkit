@@ -1,6 +1,6 @@
 import '../styles/components/ChatInput.css';
 import { useState, useRef, useCallback } from 'react';
-import { Paperclip, Image, ArrowRight, Zap, Lightbulb } from 'lucide-react';
+import { Paperclip, Image, ArrowRight, Zap, Brain } from 'lucide-react';
 import { useWsStore } from '../stores/ws-store';
 import { useAgentStore } from '../stores/agent-store';
 import { useMentionAutocomplete, replaceMention } from '../hooks/useMentionAutocomplete';
@@ -105,7 +105,7 @@ export function MessageInput() {
       <div className="input-box">
         <textarea
           ref={textareaRef}
-          placeholder={`Message #${roomName} — @ for agents`}
+          placeholder="Message... @ for agents, @everyone for all active agents"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDownWrapper}
@@ -124,14 +124,13 @@ export function MessageInput() {
               type="button"
               aria-label="Toggle input mode"
             >
-              {mode === 'execute' ? <Zap size={14} /> : <Lightbulb size={14} />}
+              {mode === 'execute' ? <Zap size={14} /> : <Brain size={14} />}
               {mode === 'execute' ? 'Execute' : 'Brainstorm'}
-              <span className="chip-arrow">&#9662;</span>
             </button>
           </div>
 
           <div className="input-icons">
-            <button className="input-icon-btn" type="button" aria-label="Attach file">
+            <button className="input-icon-btn" type="button" aria-label="Attach file" style={{ marginRight: '-6px' }}>
               <Paperclip size={14} />
             </button>
             <button className="input-icon-btn" type="button" aria-label="Attach image">

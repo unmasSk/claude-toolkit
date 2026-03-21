@@ -40,7 +40,7 @@
 }
 
 .input-box textarea::placeholder {
-  color: var(--text-3);
+  color: #4a4a4a;
 }
 
 /* Bottom row: mode/controls left, icons right */
@@ -97,7 +97,7 @@
   gap: 5px;
   transition: opacity 150ms;
   position: relative;
-  top: 2px;
+  top: 1px;
   left: 1px;
 }
 

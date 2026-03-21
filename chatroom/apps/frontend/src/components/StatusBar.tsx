@@ -29,7 +29,7 @@ export function StatusBar() {
       <div className="sb-right">
         <span className="sb-item">
           <div className={dotClass} />
-          {status}
+          <span style={{ position: 'relative', top: '-1px' }}>{status}</span>
         </span>
       </div>
     </div>
