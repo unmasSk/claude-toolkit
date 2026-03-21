@@ -132,8 +132,8 @@ export function isAgentPaused(agentName: string, roomId: string): boolean {
 
 /**
  * Kill a running agent subprocess by sending SIGTERM.
- * Also clears any pending queue entries for that agent in the room,
- * removes the in-flight lock, and logs the action.
+ * Clears pending queue entries for that agent+room, releases the in-flight
+ * scheduler slot immediately, and logs the action.
  *
  * @param agentName - The agent to kill.
  * @param roomId - The room the agent is running in.
@@ -155,8 +155,15 @@ export function killAgent(agentName: string, roomId: string): boolean {
     return false;
   }
 
+  // SEC-CRIT-002: Release scheduler slot immediately so drainQueue can unblock waiting agents.
+  // activeInvocations entry is NOT removed here — the in-flight promise still runs its .finally()
+  // cleanup path, but inFlight must be cleared now to unblock the scheduler.
+  inFlight.delete(key);
+  activeProcesses.delete(key);
+
   logger.info({ agentName, roomId, pid: proc.pid }, 'killAgent: sending SIGTERM');
   try {
+    // SEC-CRIT-002: Guard pid before cast — proc.pid may be undefined on some platforms.
     if (process.platform !== 'win32' && proc.pid !== undefined) {
       process.kill(-(proc.pid as number), 'SIGTERM');
     } else {
@@ -167,7 +174,6 @@ export function killAgent(agentName: string, roomId: string): boolean {
     try { proc.kill(); } catch { /* ignore */ }
   }
 
-  activeProcesses.delete(key);
   return true;
 }
 
@@ -347,15 +353,22 @@ function runInvocation(roomId: string, agentName: string, context: InvocationCon
 
 /**
  * Drain the next eligible entry from the pending queue when a concurrency slot opens.
- * Skips entries whose agent is already in-flight in the same room (T2-05).
+ * Skips entries whose agent is already in-flight in the same room (T2-05),
+ * or whose agent is individually paused (T2-01), or whose room is paused.
  * No-op if the queue is empty or the concurrency cap is still reached.
  */
 export function drainQueue(): void {
   if (pendingQueue.length === 0) return;
   if (activeInvocations.size >= MAX_CONCURRENT_AGENTS) return;
 
-  // T2-05: skip entries whose composite key is already in-flight
-  const idx = pendingQueue.findIndex((e) => !inFlight.has(`${e.agentName}:${e.roomId}`));
+  // T2-05: skip entries whose composite key is already in-flight.
+  // T2-01: also skip entries for rooms that are paused or agents that are individually paused.
+  const idx = pendingQueue.findIndex(
+    (e) =>
+      !inFlight.has(`${e.agentName}:${e.roomId}`) &&
+      !_pausedRooms.has(e.roomId) &&
+      !isAgentPaused(e.agentName, e.roomId),
+  );
   if (idx === -1) return;
 
   const [next] = pendingQueue.splice(idx, 1);

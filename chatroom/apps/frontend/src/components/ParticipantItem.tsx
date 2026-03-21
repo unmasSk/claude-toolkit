@@ -1,5 +1,5 @@
 import '../styles/components/AgentCard.css';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import type { AgentStatus } from '@agent-chatroom/shared';
 import { AgentState, getModelBadge } from '@agent-chatroom/shared';
 import { agentColorClass } from '../lib/colors';
@@ -42,13 +42,23 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
 
   const send = useWsStore((s) => s.send);
 
+  // T1: Local toggle so the same button acts as Pause or Resume depending on current state.
+  // The server tracks the authoritative paused flag; this mirrors it optimistically in the UI.
+  const [isPaused, setIsPaused] = useState(false);
+
   const handlePlay = useCallback(() => {
     send({ type: 'invoke_agent', agent: agent.agentName, prompt: `@${agent.agentName} please continue.` });
   }, [send, agent.agentName]);
 
-  const handlePause = useCallback(() => {
-    send({ type: 'pause_agent', agentName: agent.agentName });
-  }, [send, agent.agentName]);
+  const handlePauseOrResume = useCallback(() => {
+    if (isPaused) {
+      send({ type: 'resume_agent', agentName: agent.agentName });
+      setIsPaused(false);
+    } else {
+      send({ type: 'pause_agent', agentName: agent.agentName });
+      setIsPaused(true);
+    }
+  }, [send, agent.agentName, isPaused]);
 
   const handleStop = useCallback(() => {
     send({ type: 'kill_agent', agentName: agent.agentName });
@@ -69,12 +79,20 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
               <polygon points="3,1 11,6 3,11" className="filled" />
             </svg>
           </button>
-          {/* Pause — suspend future invocations */}
-          <button className="act-btn" type="button" aria-label="Pause" onClick={handlePause}>
-            <svg viewBox="0 0 12 12">
-              <rect x="2" y="1" width="3" height="10" rx="1" className="filled" />
-              <rect x="7" y="1" width="3" height="10" rx="1" className="filled" />
-            </svg>
+          {/* Pause/Resume — toggles between pause_agent and resume_agent */}
+          <button className="act-btn" type="button" aria-label={isPaused ? 'Resume' : 'Pause'} onClick={handlePauseOrResume}>
+            {isPaused ? (
+              /* Resume icon: right-pointing triangle */
+              <svg viewBox="0 0 12 12">
+                <polygon points="2,1 10,6 2,11" className="filled" />
+              </svg>
+            ) : (
+              /* Pause icon: two vertical bars */
+              <svg viewBox="0 0 12 12">
+                <rect x="2" y="1" width="3" height="10" rx="1" className="filled" />
+                <rect x="7" y="1" width="3" height="10" rx="1" className="filled" />
+              </svg>
+            )}
           </button>
           {/* Stop — kill running subprocess */}
           <button className="act-btn" type="button" aria-label="Stop" onClick={handleStop}>

@@ -30,11 +30,13 @@ import {
   handleSendMessage,
   handleInvokeAgent,
   handleLoadHistory,
+} from './ws-message-handlers.js';
+import {
   handleKillAgent,
   handlePauseAgent,
   handleResumeAgent,
   handleReadChat,
-} from './ws-message-handlers.js';
+} from './ws-control-handlers.js';
 
 // ---------------------------------------------------------------------------
 // open() helpers
