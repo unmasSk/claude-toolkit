@@ -13,8 +13,11 @@ const ALLOWED_SCHEMES = /^(https?:|mailto:)/i;
 
 function sanitizeHref(href: string | undefined): string | undefined {
   if (!href) return undefined;
-  if (!ALLOWED_SCHEMES.test(href.trim())) return undefined;
-  return href;
+  const trimmed = href.trim();
+  // Allow relative paths from the same server (e.g. /api/uploads/...) — cannot be javascript: or data:
+  if (trimmed.startsWith('/')) return trimmed;
+  if (!ALLOWED_SCHEMES.test(trimmed)) return undefined;
+  return trimmed;
 }
 
 interface MessageLineProps {
