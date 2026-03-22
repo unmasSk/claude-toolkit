@@ -217,6 +217,10 @@ svg.icon-tiny   { width: 10px; height: 10px; stroke: var(--text-3); fill: none; 
   animation: neon-card-glow 2.5s ease-in-out infinite;
 }
 
+.card-wrap:has(.neon-active):hover {
+  animation: none;
+}
+
 @keyframes neon-border-glow {
   0%, 100% {
     border-color: color-mix(in srgb, var(--ac) 0%, transparent);

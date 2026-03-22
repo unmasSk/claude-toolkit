@@ -59,6 +59,10 @@ export function MessageInput() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   // Synchronous guard against double-submit (useState is async, two Enter presses can race)
   const isSubmittingRef = useRef(false);
+  // Message history (terminal-style ArrowUp/ArrowDown navigation)
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const draftRef = useRef('');
 
   const send = useWsStore((s) => s.send);
   const status = useWsStore((s) => s.status);
@@ -183,6 +187,12 @@ export function MessageInput() {
         }
       }
 
+      // Push to history before sending
+      if (trimmed) {
+        historyRef.current.push(trimmed);
+        historyIndexRef.current = -1;
+      }
+
       // Build and send the WS message
       send({
         type: 'send_message',
@@ -216,6 +226,40 @@ export function MessageInput() {
       if (result.newValue !== undefined) {
         setValue(result.newValue);
       }
+      return;
+    }
+
+    // ArrowUp: navigate to previous message (only when cursor is on first line)
+    if (e.key === 'ArrowUp' && historyRef.current.length > 0) {
+      const textBeforeCursor = currentValue.substring(0, pos);
+      if (!textBeforeCursor.includes('\n')) {
+        if (historyIndexRef.current === -1) {
+          draftRef.current = currentValue;
+        }
+        const newIndex = historyIndexRef.current === -1
+          ? historyRef.current.length - 1
+          : Math.max(0, historyIndexRef.current - 1);
+        historyIndexRef.current = newIndex;
+        const newVal = historyRef.current[newIndex];
+        setValue(newVal);
+        if (textareaRef.current) autoResize(textareaRef.current);
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // ArrowDown: navigate forward through history (only when navigating)
+    if (e.key === 'ArrowDown' && historyIndexRef.current !== -1) {
+      const newIndex = historyIndexRef.current + 1;
+      if (newIndex >= historyRef.current.length) {
+        historyIndexRef.current = -1;
+        setValue(draftRef.current);
+      } else {
+        historyIndexRef.current = newIndex;
+        setValue(historyRef.current[newIndex]);
+      }
+      if (textareaRef.current) autoResize(textareaRef.current);
+      e.preventDefault();
       return;
     }
 

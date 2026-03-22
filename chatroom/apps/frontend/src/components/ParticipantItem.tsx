@@ -56,14 +56,10 @@ export const ParticipantItem = memo(function ParticipantItem({ agent }: Particip
     };
   }, [isActive, agent.invocationStartTime]);
 
-  // Context % — accumulated across invocations.
-  // During active: completedInputTokens (past) + lastInputTokens (current progress).
-  // During done/idle: completedInputTokens alone (last invocation already folded in).
-  const displayInputTokens = isActive
-    ? agent.completedInputTokens + (agent.lastInputTokens ?? 0)
-    : agent.completedInputTokens || agent.lastInputTokens;
-  const ctxPct = (displayInputTokens && agent.lastContextWindow && agent.lastContextWindow > 0)
-    ? Math.min(100, Math.max(1, Math.round((displayInputTokens / agent.lastContextWindow) * 100)))
+  // Context % — single invocation window, matches MessageLine calculation.
+  // lastInputTokens reflects the current (or most recent) invocation's context load.
+  const ctxPct = (agent.lastInputTokens && agent.lastContextWindow && agent.lastContextWindow > 0)
+    ? Math.min(100, Math.max(1, Math.round((agent.lastInputTokens / agent.lastContextWindow) * 100)))
     : null;
 
   // Duration display: live timer while active, lastDurationMs when done.
