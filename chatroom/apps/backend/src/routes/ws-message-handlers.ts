@@ -10,6 +10,8 @@ import {
   getMessagesBefore,
   hasMoreMessagesBefore,
   getMessageCreatedAt,
+  linkAttachmentsToMessage,
+  listAttachmentsByMessage,
 } from '../db/queries.js';
 import { extractMentions } from '../services/mention-parser.js';
 import { broadcastSync } from '../services/message-bus.js';
@@ -24,7 +26,7 @@ import {
 } from '../services/agent-invoker.js';
 import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, mapAgentSessionRow, generateId, nowIso, safeMessage } from '../utils.js';
-import type { Message, ServerMessage } from '@agent-chatroom/shared';
+import type { Message, ServerMessage, Attachment } from '@agent-chatroom/shared';
 import { logger, connStates, EVERYONE_PATTERN, sendError } from './ws-state.js';
 
 // ---------------------------------------------------------------------------
@@ -105,7 +107,7 @@ function handleEveryoneDirective(ws: any, roomId: string, content: string, autho
  * @param content - The raw message content from the client.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function handleSendMessage(ws: any, roomId: string, connId: string, content: string): void {
+export function handleSendMessage(ws: any, roomId: string, connId: string, content: string, attachmentIds?: string[]): void {
   const room = getRoomById(roomId);
   if (!room) { sendError(ws, 'Room not found', 'ROOM_NOT_FOUND'); return; }
 
@@ -128,7 +130,23 @@ export function handleSendMessage(ws: any, roomId: string, connId: string, conte
     return;
   }
 
-  const newMsg: Message = { id, roomId, author: authorName, authorType: 'human', content, msgType: 'message', parentId: null, metadata: {}, createdAt };
+  let attachments: Attachment[] = [];
+  if (attachmentIds && attachmentIds.length > 0) {
+    try {
+      linkAttachmentsToMessage(attachmentIds, id, roomId);
+      attachments = listAttachmentsByMessage(id).map((row) => ({
+        id: row.id,
+        filename: row.filename,
+        mimeType: row.mime_type,
+        sizeBytes: row.size_bytes,
+        url: `/api/uploads/${roomId}/${row.id}`,
+      }));
+    } catch (err) {
+      logger.warn({ err, roomId, messageId: id }, 'WS send_message: attachment linking failed — broadcasting message without attachments');
+    }
+  }
+
+  const newMsg: Message = { id, roomId, author: authorName, authorType: 'human', content, msgType: 'message', parentId: null, metadata: { attachments: attachments.length > 0 ? attachments : undefined }, createdAt };
   broadcastSync(roomId, { type: 'new_message', message: newMsg }, ws);
   ws.send(JSON.stringify({ type: 'new_message', message: safeMessage(newMsg) }));
 
