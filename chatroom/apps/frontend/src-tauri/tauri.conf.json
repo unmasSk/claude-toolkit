@@ -1,0 +1,36 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "agent-chatroom",
+  "version": "0.1.0",
+  "identifier": "com.unmassk.agent-chatroom",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:4201"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Agent Chatroom",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:3001 ws://localhost:3001"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

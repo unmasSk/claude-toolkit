@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const TAURI_DEV_HOST = process.env.TAURI_DEV_HOST;
+
 export default defineConfig({
+  // Tauri: prevent Vite from obscuring Rust compile errors
+  clearScreen: false,
   plugins: [react()],
   server: {
     port: 4201,
+    strictPort: true,
+    host: TAURI_DEV_HOST ?? 'localhost',
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
