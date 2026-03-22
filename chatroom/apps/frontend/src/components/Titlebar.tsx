@@ -4,6 +4,14 @@ import { useRoomStore } from '../stores/room-store';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+// Eager import — resolved at module load time so the handler is sync at click time.
+let startDragging: (() => void) | null = null;
+if (isTauri) {
+  import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+    startDragging = () => { void getCurrentWindow().startDragging(); };
+  });
+}
+
 interface TitlebarProps {
   onSettingsClick: () => void;
 }
@@ -43,10 +51,16 @@ export function Titlebar({ onSettingsClick }: TitlebarProps) {
     await createRoom();
   }
 
+  function handleMouseDown(e: React.MouseEvent) {
+    if (!startDragging) return;
+    if ((e.target as HTMLElement).closest('.tb-tab, .tb-tab-new, .tb-tab-close, .tb-icon, .tb-dots, .tb-right-group')) return;
+    e.preventDefault();
+    startDragging();
+  }
+
   return (
-    // data-tauri-drag-region: native drag handling — no async JS, no event timing issues.
-    // Interactive elements (buttons, tabs) inside the region are automatically excluded.
-    <div className="titlebar" data-tauri-drag-region>
+    // data-tauri-drag-region as fallback; JS handler is the primary drag mechanism for WKWebView.
+    <div className="titlebar" data-tauri-drag-region onMouseDown={handleMouseDown}>
       {/* Left: macOS traffic lights zone — native dots shown by OS when titleBarStyle=transparent */}
       <div className="tb-left">
         {!isTauri && (

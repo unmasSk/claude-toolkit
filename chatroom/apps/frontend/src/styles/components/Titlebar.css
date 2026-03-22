@@ -10,6 +10,9 @@
   cursor: default;
   /* Tauri/WKWebView drag region — inherited by all children */
   -webkit-app-region: drag;
+  /* Prevent text selection while dragging */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Interactive elements must opt out of drag so clicks work */
