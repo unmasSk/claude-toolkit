@@ -63,15 +63,23 @@ function formatTime(createdAt: string): string {
 }
 
 /**
- * Parse a text string and highlight @mentions.
+ * Parse a text string and highlight @mentions and bare Bex name variants.
+ * Catches: @bex @Bex @BEX (via @\w+) and bare bex/Bex/BEX (via \bbex\b, case-insensitive).
  */
 function splitMentions(text: string): React.ReactNode[] {
-  const parts = text.split(/(@\w+)/g);
+  const parts = text.split(/(@\w+|\bbex\b)/gi);
   return parts.map((part, i) => {
     if (part.startsWith('@')) {
       const name = part.slice(1).toLowerCase();
       return (
         <span key={i} className={`mention ${mentionClass(name)}`}>
+          {part}
+        </span>
+      );
+    }
+    if (/^bex$/i.test(part)) {
+      return (
+        <span key={i} className="mention mention-bex">
           {part}
         </span>
       );
@@ -87,7 +95,7 @@ function splitMentions(text: string): React.ReactNode[] {
  */
 function highlightMentionsInNode(node: React.ReactNode, keyPrefix: string): React.ReactNode {
   if (typeof node === 'string') {
-    return node.includes('@') ? splitMentions(node) : node;
+    return (node.includes('@') || /\bbex\b/i.test(node)) ? splitMentions(node) : node;
   }
   if (Array.isArray(node)) {
     return node.map((child, i) => highlightMentionsInNode(child, `${keyPrefix}-${i}`));

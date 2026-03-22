@@ -117,3 +117,14 @@ body {
   justify-content: center;
   align-items: center;
 }
+
+/* ── Tauri: fill viewport, no centering ── */
+body:has(.chatroom.tauri) {
+  justify-content: stretch;
+  align-items: stretch;
+}
+
+body:has(.chatroom.tauri) #root {
+  justify-content: stretch;
+  align-items: stretch;
+}

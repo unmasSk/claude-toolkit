@@ -6,8 +6,20 @@
   align-items: stretch;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag;
   flex-shrink: 0;
+  cursor: default;
+  /* Tauri/WKWebView drag region — inherited by all children */
+  -webkit-app-region: drag;
+}
+
+/* Interactive elements must opt out of drag so clicks work */
+.tb-tab,
+.tb-tab-new,
+.tb-tab-close,
+.tb-icon,
+.tb-dots,
+.tb-right-group {
+  -webkit-app-region: no-drag;
 }
 
 /* Left zone — traffic lights, sits over sidebar */
@@ -23,7 +35,6 @@
 .tb-dots {
   display: flex;
   gap: 7px;
-  -webkit-app-region: no-drag;
 }
 
 .tb-dot {
@@ -51,7 +62,6 @@
   display: flex;
   align-items: center;
   gap: 0;
-  -webkit-app-region: no-drag;
   height: 100%;
 }
 
@@ -136,7 +146,6 @@
   font-size: 16px;
   color: var(--text-3);
   cursor: pointer;
-  -webkit-app-region: no-drag;
   transition: color 100ms;
 }
 
@@ -148,7 +157,6 @@
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  -webkit-app-region: no-drag;
 }
 
 .tb-user {

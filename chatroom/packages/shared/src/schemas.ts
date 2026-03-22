@@ -11,6 +11,7 @@ export const RoomSchema = z.object({
   name: z.string(),
   topic: z.string(),
   createdAt: z.string(),
+  cwd: z.string().nullish(),
 });
 
 export const AttachmentSchema = z.object({
@@ -211,6 +212,12 @@ export const ServerGitStatusSchema = z.object({
   repo: z.string(),
 });
 
+export const ServerRoomCwdChangedSchema = z.object({
+  type: z.literal('room_cwd_changed'),
+  roomId: z.string(),
+  cwd: z.string().nullable(),
+});
+
 export const ServerMessageSchema = z.discriminatedUnion('type', [
   ServerRoomStateSchema,
   ServerNewMessageSchema,
@@ -220,6 +227,7 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   ServerErrorSchema,
   ServerUserListUpdateSchema,
   ServerGitStatusSchema,
+  ServerRoomCwdChangedSchema,
 ]);
 
 // Inferred types (for convenience — prefer the types from protocol.ts)

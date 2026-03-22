@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { join } from 'node:path';
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import {
   listRooms,
   getRoomById,
@@ -57,6 +58,9 @@ const checkUploadRateLimit = createTokenBucket(30, 60_000);
 
 /** cwd update rate limiter — separate bucket. */
 const checkCwdRateLimit = createTokenBucket(20, 60_000);
+
+/** Setup validate rate limiter — separate bucket (spawns 2 processes per request). */
+const checkSetupRateLimit = createTokenBucket(10, 60_000);
 
 // ---------------------------------------------------------------------------
 // Upload constants
@@ -367,6 +371,14 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
 
       const { cwd } = body as { cwd: string };
 
+      // Empty string = reset to server default (null in DB)
+      if (cwd === '') {
+        updateRoomCwd(params.id, null);
+        log.info({ roomId: params.id }, 'PUT /api/rooms/:id/cwd reset to default');
+        void broadcast(params.id, { type: 'room_cwd_changed', roomId: params.id, cwd: null });
+        return { cwd: null };
+      }
+
       // Validate: must be absolute, no ".." traversal
       if (!cwd.startsWith('/')) {
         set.status = 400;
@@ -505,6 +517,53 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
       headers: t.Object({ authorization: t.Optional(t.String()) }),
     },
   )
+
+  // GET /api/setup/validate — run environment checks (bun, claude CLI, plugin count).
+  // Returns { bun, claude, plugins } with ok flag and optional version string per check.
+  // No auth required — read-only diagnostic endpoint.
+  // Rate limited: 10/min — each request spawns 2 subprocesses.
+  .get('/setup/validate', async ({ set }) => {
+    if (!checkSetupRateLimit('setup-validate')) {
+      log.warn('GET /api/setup/validate rate limit exceeded');
+      set.status = 429;
+      return { error: 'Too many requests — try again later', code: 'RATE_LIMIT' };
+    }
+    const CHECK_TIMEOUT_MS = 5_000;
+    async function runCheck(cmd: string[]): Promise<{ ok: boolean; version: string }> {
+      try {
+        const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => { proc.kill(); reject(new Error('timeout')); }, CHECK_TIMEOUT_MS),
+        );
+        const text = await Promise.race([new Response(proc.stdout).text(), timeout]);
+        const exit = await proc.exited;
+        if (exit !== 0) return { ok: false, version: '' };
+        return { ok: true, version: text.trim().split('\n')[0] ?? '' };
+      } catch {
+        return { ok: false, version: '' };
+      }
+    }
+
+    const [bunResult, claudeResult] = await Promise.all([
+      runCheck(['bun', '--version']),
+      runCheck(['claude', '--version']),
+    ]);
+
+    let pluginCount = 0;
+    try {
+      const pluginsDir = join(process.env['HOME'] ?? '', '.claude', 'plugins');
+      const entries = await readdir(pluginsDir, { withFileTypes: true });
+      pluginCount = entries.filter((e) => e.isDirectory()).length;
+    } catch {
+      // plugins dir missing or inaccessible — count stays 0
+    }
+
+    return {
+      bun: bunResult,
+      claude: claudeResult,
+      plugins: { ok: pluginCount > 0, count: pluginCount },
+    };
+  })
 
   // GET /api/uploads/:roomId/:fileId — serve an uploaded file from disk.
   // No auth required — URLs are unguessable UUIDs. Content-Type set from DB record.

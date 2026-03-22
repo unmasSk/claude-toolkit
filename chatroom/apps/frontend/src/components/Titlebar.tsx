@@ -2,7 +2,13 @@ import '../styles/components/Titlebar.css';
 import { Settings } from 'lucide-react';
 import { useRoomStore } from '../stores/room-store';
 
-export function Titlebar() {
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+interface TitlebarProps {
+  onSettingsClick: () => void;
+}
+
+export function Titlebar({ onSettingsClick }: TitlebarProps) {
   const rooms = useRoomStore((s) => s.rooms);
   const activeRoomId = useRoomStore((s) => s.activeRoomId);
   const pendingDeleteId = useRoomStore((s) => s.pendingDeleteId);
@@ -38,14 +44,18 @@ export function Titlebar() {
   }
 
   return (
-    <div className="titlebar">
-      {/* Left: macOS traffic lights, aligned over sidebar */}
+    // data-tauri-drag-region: native drag handling — no async JS, no event timing issues.
+    // Interactive elements (buttons, tabs) inside the region are automatically excluded.
+    <div className="titlebar" data-tauri-drag-region>
+      {/* Left: macOS traffic lights zone — native dots shown by OS when titleBarStyle=transparent */}
       <div className="tb-left">
-        <div className="tb-dots">
-          <div className="tb-dot tb-dot-r" />
-          <div className="tb-dot tb-dot-y" />
-          <div className="tb-dot tb-dot-g" />
-        </div>
+        {!isTauri && (
+          <div className="tb-dots">
+            <div className="tb-dot tb-dot-r" />
+            <div className="tb-dot tb-dot-y" />
+            <div className="tb-dot tb-dot-g" />
+          </div>
+        )}
       </div>
 
       {/* Right: tabs + user + settings, sits over chat area */}
@@ -89,7 +99,7 @@ export function Titlebar() {
 
         <div className="tb-right-group">
           <span className="tb-user">bex</span>
-          <span className="tb-icon">
+          <span className="tb-icon" onClick={onSettingsClick} title="Settings">
             <Settings size={14} />
           </span>
         </div>

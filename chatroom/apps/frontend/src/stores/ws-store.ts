@@ -184,6 +184,10 @@ function handleServerMessage(event: MessageEvent) {
       useWsStore.setState({ gitStatus: { branch: parsed.branch, ahead: parsed.ahead, behind: parsed.behind, dirty: parsed.dirty, repo: parsed.repo } });
       break;
 
+    case 'room_cwd_changed':
+      useAgentStore.getState().updateRoomCwd(parsed.roomId, parsed.cwd);
+      break;
+
     case 'error':
       logger.error('[ws-store] Server error:', parsed.code, parsed.message);
       break;

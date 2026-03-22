@@ -21,6 +21,7 @@ interface AgentStoreState {
   setRoom: (room: Room) => void;
   setAgents: (agents: AgentStatus[]) => void;
   setConnectedUsers: (users: ConnectedUser[]) => void;
+  updateRoomCwd: (roomId: string, cwd: string | null) => void;
   updateStatus: (
     agentName: string,
     status: AgentState,
@@ -44,6 +45,12 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
   connectedUsers: [],
 
   setRoom: (room) => set({ room }),
+
+  updateRoomCwd: (roomId, cwd) =>
+    set((state) => {
+      if (!state.room || state.room.id !== roomId) return state;
+      return { room: { ...state.room, cwd } };
+    }),
 
   setAgents: (agents) =>
     set((state) => ({

@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"bun run dev:backend\" \"bun run dev:frontend\"",
+    "tauri:dev": "concurrently --kill-others-on-fail --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"bun run dev:backend\" \"cd apps/frontend && bun run tauri:dev\"",
     "dev:backend": "cd apps/backend && bun run dev",
     "dev:frontend": "cd apps/frontend && bun run dev",
     "build": "bun run build:shared && bun run build:frontend",

@@ -697,6 +697,16 @@
 .mention-claude    { color: var(--color-claude);    background: color-mix(in srgb, var(--color-claude) 12%, transparent); }
 .mention-user      { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
 .mention-everyone  { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 12%, transparent); }
+.mention-bex       { color: var(--color-bex);       background: color-mix(in srgb, var(--color-bex) 15%, transparent); animation: bex-pulse 2s ease-in-out infinite; }
+
+@keyframes bex-pulse {
+  0%, 100% { opacity: 1; text-shadow: none; }
+  50%       { opacity: 0.85; text-shadow: 0 0 8px var(--color-bex), 0 0 16px color-mix(in srgb, var(--color-bex) 50%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mention-bex { animation: none; }
+}
 
 /* ── Markdown rendering inside message content ── */
 .msg-text .md-para {
