@@ -13,6 +13,14 @@ export const RoomSchema = z.object({
   createdAt: z.string(),
 });
 
+export const AttachmentSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number(),
+  url: z.string(),
+});
+
 export const MessageMetadataSchema = z.object({
   tool: z.string().optional(),
   filePath: z.string().optional(),
@@ -25,6 +33,7 @@ export const MessageMetadataSchema = z.object({
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   contextWindow: z.number().optional(),
+  attachments: z.array(AttachmentSchema).optional(),
 });
 
 export const MessageSchema = z.object({
