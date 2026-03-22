@@ -15,7 +15,7 @@ function sanitizeHref(href: string | undefined): string | undefined {
   if (!href) return undefined;
   const trimmed = href.trim();
   // Allow relative paths from the same server (e.g. /api/uploads/...) — cannot be javascript: or data:
-  if (trimmed.startsWith('/')) return trimmed;
+  if (trimmed.startsWith('/api/uploads/')) return trimmed;
   if (!ALLOWED_SCHEMES.test(trimmed)) return undefined;
   return trimmed;
 }
