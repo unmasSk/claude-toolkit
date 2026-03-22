@@ -18,6 +18,7 @@ import {
   incrementAgentTurnCount,
   insertMessage,
   clearAgentSession,
+  updateAgentMetrics,
 } from '../db/queries.js';
 import { generateId, nowIso } from '../utils.js';
 import type { Message } from '@agent-chatroom/shared';
@@ -275,6 +276,15 @@ export async function persistAndBroadcast(
   upsertAgentSession({ agentName, roomId, sessionId: sr.resultSessionId, model, status: finalStatus });
   if (sr.resultCostUsd > 0) incrementAgentCost(agentName, roomId, sr.resultCostUsd);
   incrementAgentTurnCount(agentName, roomId);
+  // Persist metrics to DB so room_state on reconnection includes up-to-date token counts.
+  updateAgentMetrics(agentName, roomId, {
+    inputTokens: sr.resultInputTokens,
+    outputTokens: sr.resultOutputTokens,
+    contextWindow: sr.resultContextWindow,
+    durationMs: sr.resultDurationMs,
+    numTurns: sr.resultNumTurns,
+  });
+
   // Fix 4: do not overwrite Paused status when the agent completes while frozen.
   if (!isPaused) {
     await updateStatusAndBroadcast(agentName, roomId, AgentState.Done, undefined, {

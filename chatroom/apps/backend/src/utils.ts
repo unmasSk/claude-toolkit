@@ -78,6 +78,11 @@ export function mapAgentSessionRow(row: AgentSessionRow): AgentStatus {
     lastActive: row.last_active,
     totalCost: row.total_cost,
     turnCount: row.turn_count,
+    ...(row.last_input_tokens > 0 && { lastInputTokens: row.last_input_tokens }),
+    ...(row.last_output_tokens > 0 && { lastOutputTokens: row.last_output_tokens }),
+    ...(row.last_context_window > 0 && { lastContextWindow: row.last_context_window }),
+    ...(row.last_duration_ms > 0 && { lastDurationMs: row.last_duration_ms }),
+    ...(row.last_num_turns > 0 && { lastNumTurns: row.last_num_turns }),
   };
 }
 

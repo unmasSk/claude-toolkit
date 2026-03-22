@@ -46,14 +46,23 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
   setRoom: (room) => set({ room }),
 
   setAgents: (agents) =>
-    set({
+    set((state) => ({
       agents: new Map(
-        agents.map((a) => [
-          a.agentName,
-          { ...a, completedInputTokens: 0, invocationStartTime: null },
-        ]),
+        agents.map((a) => {
+          const existing = state.agents.get(a.agentName);
+          return [
+            a.agentName,
+            {
+              ...a,
+              // Preserve accumulated frontend metrics across room_state refreshes.
+              // If the agent already ran this session, keep the running total.
+              completedInputTokens: existing?.completedInputTokens ?? 0,
+              invocationStartTime: existing?.invocationStartTime ?? null,
+            },
+          ];
+        }),
       ),
-    }),
+    })),
 
   setConnectedUsers: (users) => set({ connectedUsers: users }),
 

@@ -34,4 +34,9 @@ export interface AgentSessionRow {
   last_active: string | null;
   total_cost: number;
   turn_count: number;
+  last_input_tokens: number;
+  last_output_tokens: number;
+  last_context_window: number;
+  last_duration_ms: number;
+  last_num_turns: number;
 }

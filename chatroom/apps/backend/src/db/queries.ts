@@ -333,6 +333,50 @@ export function deleteRoom(id: string): boolean {
 }
 
 /**
+ * Persist the last-invocation metrics for an agent session.
+ *
+ * Called after persistAndBroadcast completes so that room_state on reconnection
+ * includes the most recent token counts and context window size.
+ *
+ * @param agentName - Agent name
+ * @param roomId    - Room ID
+ * @param metrics   - Metric values from the completed invocation
+ */
+export function updateAgentMetrics(
+  agentName: string,
+  roomId: string,
+  metrics: {
+    inputTokens: number;
+    outputTokens: number;
+    contextWindow: number;
+    durationMs: number;
+    numTurns: number;
+  },
+): void {
+  getDb()
+    .query<void, [number, number, number, number, number, string, string]>(
+      `
+      UPDATE agent_sessions
+      SET last_input_tokens   = ?,
+          last_output_tokens  = ?,
+          last_context_window = ?,
+          last_duration_ms    = ?,
+          last_num_turns      = ?
+      WHERE agent_name = ? AND room_id = ?
+    `,
+    )
+    .run(
+      metrics.inputTokens,
+      metrics.outputTokens,
+      metrics.contextWindow,
+      metrics.durationMs,
+      metrics.numTurns,
+      agentName,
+      roomId,
+    );
+}
+
+/**
  * Clear the session_id for an agent so the next invocation starts fresh.
  *
  * Called when a stale `--resume` session is detected (FIX 2). Clearing

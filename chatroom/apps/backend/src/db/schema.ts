@@ -55,6 +55,19 @@ export function initializeSchema(): void {
     INSERT OR IGNORE INTO rooms (id, name, topic)
     VALUES ('default', 'general', 'Agent chatroom');
   `);
+
+  // Idempotent migrations — add metric columns to existing DBs.
+  // ALTER TABLE fails with "duplicate column" if already present, so we catch and ignore.
+  const metricCols = [
+    'ALTER TABLE agent_sessions ADD COLUMN last_input_tokens INTEGER DEFAULT 0',
+    'ALTER TABLE agent_sessions ADD COLUMN last_output_tokens INTEGER DEFAULT 0',
+    'ALTER TABLE agent_sessions ADD COLUMN last_context_window INTEGER DEFAULT 0',
+    'ALTER TABLE agent_sessions ADD COLUMN last_duration_ms INTEGER DEFAULT 0',
+    'ALTER TABLE agent_sessions ADD COLUMN last_num_turns INTEGER DEFAULT 0',
+  ];
+  for (const sql of metricCols) {
+    try { db.exec(sql); } catch { /* column already exists — safe to ignore */ }
+  }
 }
 
 /**
