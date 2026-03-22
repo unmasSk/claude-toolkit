@@ -75,6 +75,7 @@ export const AgentStatusSchema = z.object({
 export const ClientSendMessageSchema = z.object({
   type: z.literal('send_message'),
   content: z.string().min(1).max(50000),
+  attachmentIds: z.array(z.string().uuid()).max(5).optional(),
 });
 
 export const ClientInvokeAgentSchema = z.object({

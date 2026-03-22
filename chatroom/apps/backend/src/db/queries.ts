@@ -1,5 +1,5 @@
 import { getDb } from './connection.js';
-import type { MessageRow, AgentSessionRow, RoomRow } from '../types.js';
+import type { MessageRow, AgentSessionRow, RoomRow, AttachmentRow } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Rooms
@@ -395,4 +395,101 @@ export function clearAgentSession(agentName: string, roomId: string): void {
     `,
     )
     .run(agentName, roomId);
+}
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+/**
+ * Insert a new attachment record into the database.
+ *
+ * Called immediately after a file is saved to disk. The message_id is null
+ * until the client sends a send_message with the attachment IDs, at which point
+ * linkAttachmentsToMessage is called to associate them.
+ *
+ * @param attachment - Attachment fields to insert
+ */
+export function insertAttachment(attachment: {
+  id: string;
+  roomId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  createdAt: string;
+}): void {
+  getDb()
+    .query<void, [string, string, string, string, number, string, string]>(
+      `
+      INSERT INTO attachments (id, room_id, message_id, filename, mime_type, size_bytes, storage_path, created_at)
+      VALUES (?, ?, NULL, ?, ?, ?, ?, ?)
+    `,
+    )
+    .run(
+      attachment.id,
+      attachment.roomId,
+      attachment.filename,
+      attachment.mimeType,
+      attachment.sizeBytes,
+      attachment.storagePath,
+      attachment.createdAt,
+    );
+}
+
+/**
+ * Fetch all attachments linked to a given message, ordered by creation time.
+ *
+ * @param messageId - Message ID to query attachments for
+ * @returns Attachment rows for the message
+ */
+export function listAttachmentsByMessage(messageId: string): AttachmentRow[] {
+  return getDb()
+    .query<AttachmentRow, [string]>(
+      `
+      SELECT * FROM attachments
+      WHERE message_id = ?
+      ORDER BY created_at ASC
+    `,
+    )
+    .all(messageId);
+}
+
+/**
+ * Set message_id on a batch of attachment rows, linking them to a sent message.
+ *
+ * Only updates attachments that have no message_id yet (unlinked) and belong to
+ * the correct room — prevents cross-room attachment hijacking.
+ *
+ * @param attachmentIds - Array of attachment IDs to link (max 5 per the protocol)
+ * @param messageId - The message to link them to
+ * @param roomId - Room that owns these attachments (ownership guard)
+ */
+export function linkAttachmentsToMessage(attachmentIds: string[], messageId: string, roomId: string): void {
+  if (attachmentIds.length === 0) return;
+  const db = getDb();
+  const placeholders = attachmentIds.map(() => '?').join(', ');
+  db.query<void, string[]>(
+    `
+    UPDATE attachments
+    SET message_id = ?
+    WHERE id IN (${placeholders})
+      AND room_id = ?
+      AND message_id IS NULL
+  `,
+  ).run(messageId, ...attachmentIds, roomId);
+}
+
+/**
+ * Fetch a single attachment by its ID.
+ *
+ * @param id - Attachment UUID
+ * @returns The attachment row, or null if not found
+ */
+export function getAttachmentById(id: string): AttachmentRow | null {
+  return (
+    getDb()
+      .query<AttachmentRow, [string]>('SELECT * FROM attachments WHERE id = ?')
+      .get(id) ?? null
+  );
 }

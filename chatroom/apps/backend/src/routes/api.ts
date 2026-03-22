@@ -1,4 +1,6 @@
 import { Elysia, t } from 'elysia';
+import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
 import {
   listRooms,
   getRoomById,
@@ -10,17 +12,21 @@ import {
   getMessageCreatedAt,
   listAgentSessions,
   upsertAgentSession,
+  insertAttachment,
+  getAttachmentById,
 } from '../db/queries.js';
 import { getAllAgents, getAgentConfig } from '../services/agent-registry.js';
 import { seedAgentSessions } from '../db/schema.js';
 import { generateRoomName } from '../utils-name.js';
 import { mapMessageRow, mapRoomRow, mapAgentSessionRow, safeMessage } from '../utils.js';
-import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
+import { ROOM_STATE_MESSAGE_LIMIT, UPLOADS_DIR } from '../config.js';
 import { validateName, issueToken, peekToken } from '../services/auth-tokens.js';
 import { createLogger } from '../logger.js';
 import { createTokenBucket } from '../services/rate-limiter.js';
+import type { Attachment } from '@agent-chatroom/shared';
 
 const log = createLogger('api');
+const uploadLog = createLogger('upload');
 
 // ---------------------------------------------------------------------------
 // SEC-FIX 7 / SEC-OPEN-002: Token-bucket rate limiters for sensitive API routes.
@@ -43,6 +49,38 @@ const log = createLogger('api');
  * spoofed behind an uncontrolled proxy (SEC-FIX 7).
  */
 const checkApiRateLimit = createTokenBucket(20, 60_000);
+
+/** Upload rate limiter — separate bucket so upload bursts cannot starve auth/invite. */
+const checkUploadRateLimit = createTokenBucket(30, 60_000);
+
+// ---------------------------------------------------------------------------
+// Upload constants
+// ---------------------------------------------------------------------------
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'text/plain',
+  'text/markdown',
+  'application/pdf',
+  'text/x-typescript',
+  'text/javascript',
+  'application/json',
+  'text/yaml',
+]);
+
+/** Strip path separators and non-printable chars from a filename. */
+function sanitizeFilename(raw: string): string {
+  return raw
+    .replace(/[/\\]/g, '_')
+    .replace(/[^\x20-\x7E]/g, '')
+    .slice(0, 200)
+    || 'upload';
+}
 
 // ---------------------------------------------------------------------------
 // API route group
@@ -294,5 +332,139 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
     {
       params: t.Object({ id: t.String() }),
       headers: t.Object({ authorization: t.Optional(t.String()) }),
+    },
+  )
+
+  // POST /api/rooms/:id/upload — upload a file attachment for a room message.
+  // Requires a valid Bearer auth token. File is stored on disk under UPLOADS_DIR.
+  // Returns { attachment: Attachment } with 201 on success.
+  .post(
+    '/rooms/:id/upload',
+    async ({ params, request, set, headers }) => {
+      if (!checkUploadRateLimit('upload')) {
+        uploadLog.warn({ roomId: params.id }, 'POST /api/rooms/:id/upload rate limit exceeded');
+        set.status = 429;
+        return { error: 'Too many upload requests — try again later', code: 'RATE_LIMIT' };
+      }
+
+      const rawAuth = headers.authorization ?? '';
+      const bearerToken = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7).trim() : undefined;
+      if (!peekToken(bearerToken)) {
+        set.status = 401;
+        return { error: 'Unauthorized. Provide a valid token via Authorization: Bearer <token>', code: 'UNAUTHORIZED' };
+      }
+
+      const room = getRoomById(params.id);
+      if (!room) {
+        set.status = 404;
+        return { error: 'Room not found', code: 'NOT_FOUND' };
+      }
+
+      let formData: FormData;
+      try {
+        formData = await request.formData();
+      } catch {
+        set.status = 400;
+        return { error: 'Invalid multipart/form-data body', code: 'INVALID_BODY' };
+      }
+
+      const file = formData.get('file');
+      if (!(file instanceof File)) {
+        set.status = 400;
+        return { error: 'Missing "file" field in form data', code: 'MISSING_FILE' };
+      }
+
+      if (file.size > MAX_UPLOAD_BYTES) {
+        set.status = 413;
+        return { error: 'File exceeds 10MB limit', code: 'FILE_TOO_LARGE' };
+      }
+
+      if (!ALLOWED_MIME_TYPES.has(file.type)) {
+        set.status = 415;
+        return { error: `Unsupported file type: ${file.type}`, code: 'UNSUPPORTED_TYPE' };
+      }
+
+      const fileId = crypto.randomUUID();
+      const safeName = sanitizeFilename(file.name);
+      const roomDir = join(UPLOADS_DIR, params.id);
+      const storageFilename = `${fileId}-${safeName}`;
+      const storagePath = join(roomDir, storageFilename);
+
+      try {
+        mkdirSync(roomDir, { recursive: true });
+        await Bun.write(storagePath, file);
+      } catch (err) {
+        uploadLog.error({ err, roomId: params.id, fileId }, 'POST /api/rooms/:id/upload: disk write failed');
+        set.status = 500;
+        return { error: 'Failed to save file', code: 'STORAGE_ERROR' };
+      }
+
+      const createdAt = new Date().toISOString();
+      try {
+        insertAttachment({
+          id: fileId,
+          roomId: params.id,
+          filename: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          storagePath,
+          createdAt,
+        });
+      } catch (err) {
+        uploadLog.error({ err, roomId: params.id, fileId }, 'POST /api/rooms/:id/upload: DB insert failed');
+        set.status = 500;
+        return { error: 'Failed to record attachment', code: 'DB_ERROR' };
+      }
+
+      const attachment: Attachment = {
+        id: fileId,
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        url: `/api/uploads/${params.id}/${fileId}`,
+      };
+
+      uploadLog.info({ roomId: params.id, fileId, filename: file.name, sizeBytes: file.size }, 'POST /api/rooms/:id/upload saved');
+      set.status = 201;
+      return { attachment };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      headers: t.Object({ authorization: t.Optional(t.String()) }),
+    },
+  )
+
+  // GET /api/uploads/:roomId/:fileId — serve an uploaded file from disk.
+  // No auth required — URLs are unguessable UUIDs. Content-Type set from DB record.
+  .get(
+    '/uploads/:roomId/:fileId',
+    async ({ params, set }) => {
+      const row = getAttachmentById(params.fileId);
+      if (!row || row.room_id !== params.roomId) {
+        set.status = 404;
+        return { error: 'Attachment not found', code: 'NOT_FOUND' };
+      }
+
+      let file: Bun.BunFile;
+      try {
+        file = Bun.file(row.storage_path);
+        const exists = await file.exists();
+        if (!exists) {
+          uploadLog.error({ fileId: params.fileId, storagePath: row.storage_path }, 'GET /api/uploads: file missing from disk');
+          set.status = 404;
+          return { error: 'Attachment file not found', code: 'NOT_FOUND' };
+        }
+      } catch (err) {
+        uploadLog.error({ err, fileId: params.fileId }, 'GET /api/uploads: disk read error');
+        set.status = 500;
+        return { error: 'Failed to read attachment', code: 'STORAGE_ERROR' };
+      }
+
+      set.headers['Content-Type'] = row.mime_type;
+      set.headers['Cache-Control'] = 'private, max-age=31536000, immutable';
+      return file;
+    },
+    {
+      params: t.Object({ roomId: t.String(), fileId: t.String() }),
     },
   );

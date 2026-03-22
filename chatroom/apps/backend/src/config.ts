@@ -70,6 +70,9 @@ export const HOST = stringEnv('HOST', '127.0.0.1');
 /** Path to the SQLite database file */
 export const DB_PATH = stringEnv('DB_PATH', join(import.meta.dir, '../data/chatroom.db'));
 
+/** Root directory for uploaded file storage. Subdirectories are created per room: {UPLOADS_DIR}/{roomId}/ */
+export const UPLOADS_DIR = stringEnv('UPLOADS_DIR', join(import.meta.dir, '../data/uploads'));
+
 /** Current runtime environment — validated against the 'development' | 'production' | 'test' allowlist */
 export const NODE_ENV = requireEnumEnv('NODE_ENV', 'development', ['development', 'production', 'test'] as const);
 

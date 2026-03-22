@@ -203,7 +203,7 @@ export function message(ws: any, rawMessage: unknown): void {
 
   switch (msg.type) {
     case 'send_message':
-      handleSendMessage(ws, roomId, connId, msg.content);
+      handleSendMessage(ws, roomId, connId, msg.content, msg.attachmentIds);
       break;
     case 'invoke_agent':
       handleInvokeAgent(ws, roomId, connId, msg.agent, msg.prompt);

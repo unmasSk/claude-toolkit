@@ -12,6 +12,19 @@ export interface Room {
 }
 
 /**
+ * A file attachment linked to a message.
+ * Uploaded via POST /api/rooms/:id/upload before the message is sent.
+ * Served via GET /api/uploads/:roomId/:fileId (no auth — URLs are unguessable UUIDs).
+ */
+export interface Attachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+}
+
+/**
  * Metadata stored as JSON in the messages.metadata column.
  * FIX 13: documented metadata keys.
  */
@@ -28,6 +41,8 @@ export interface MessageMetadata {
   inputTokens?: number;
   outputTokens?: number;
   contextWindow?: number;
+  /** File attachments linked to this message */
+  attachments?: Attachment[];
 }
 
 /**
@@ -79,6 +94,7 @@ export interface ConnectedUser {
 export interface ClientSendMessage {
   type: 'send_message';
   content: string;
+  attachmentIds?: string[];
 }
 
 export interface ClientInvokeAgent {

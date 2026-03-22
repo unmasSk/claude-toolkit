@@ -49,8 +49,20 @@ export function initializeSchema(): void {
       PRIMARY KEY (agent_name, room_id)
     );
 
+    CREATE TABLE IF NOT EXISTS attachments (
+      id           TEXT PRIMARY KEY,
+      room_id      TEXT NOT NULL REFERENCES rooms(id),
+      message_id   TEXT REFERENCES messages(id),
+      filename     TEXT NOT NULL,
+      mime_type    TEXT NOT NULL,
+      size_bytes   INTEGER NOT NULL,
+      storage_path TEXT NOT NULL,
+      created_at   TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
 
     INSERT OR IGNORE INTO rooms (id, name, topic)
     VALUES ('default', 'general', 'Agent chatroom');

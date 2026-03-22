@@ -24,6 +24,18 @@ export interface MessageRow {
   created_at: string;
 }
 
+/** Raw row from the `attachments` table */
+export interface AttachmentRow {
+  id: string;
+  room_id: string;
+  message_id: string | null;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_path: string;
+  created_at: string;
+}
+
 /** Raw row from the `agent_sessions` table */
 export interface AgentSessionRow {
   agent_name: string;
