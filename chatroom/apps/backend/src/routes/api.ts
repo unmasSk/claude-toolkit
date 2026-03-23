@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { mkdirSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import {
@@ -381,9 +381,10 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
       }
 
       // Validate: must be absolute, no ".." traversal
-      if (!cwd.startsWith('/')) {
+      // isAbsolute() handles both Unix (/home/user) and Windows (C:\Users\...) paths natively.
+      if (!isAbsolute(cwd)) {
         set.status = 400;
-        return { error: 'cwd must be an absolute path (must start with /)', code: 'INVALID_CWD' };
+        return { error: 'cwd must be an absolute path (e.g. /home/user or C:\\Users\\name)', code: 'INVALID_CWD' };
       }
       if (cwd.includes('..')) {
         set.status = 400;

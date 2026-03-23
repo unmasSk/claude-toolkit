@@ -132,21 +132,34 @@ const _pausedAgents = new Set<string>();
  * @returns true if an active process was frozen, false if only the flag was set.
  */
 export function pauseAgent(agentName: string, roomId: string): boolean {
-  _pausedAgents.add(`${agentName}:${roomId}`);
-  if (process.platform === 'win32') return false;
-  const active = activeProcesses.get(`${agentName}:${roomId}`);
+  const key = `${agentName}:${roomId}`;
+  const active = activeProcesses.get(key);
   logger.debug(
     { agentName, roomId, hasActive: !!active, pid: active?.pid, activeKeys: Array.from(activeProcesses.keys()) },
     'pauseAgent: looking up process',
   );
   if (!active) {
-    // No active process — clear the flag we just set. Pausing an agent that is not
+    // No active process — do not set the flag at all. Pausing an agent that is not
     // running has no operational meaning and would block all future invocations permanently.
-    _pausedAgents.delete(`${agentName}:${roomId}`);
-    logger.warn({ agentName, roomId }, 'pauseAgent: no active process found — flag cleared');
+    logger.warn({ agentName, roomId }, 'pauseAgent: no active process found — flag not set');
     return false;
   }
   if (typeof active.pid !== 'number' || active.pid <= 0) return false;
+  // Verify the process is still alive before committing the pause flag.
+  // On all platforms, signal 0 is a live-process check (throws ESRCH if gone).
+  try {
+    process.kill(active.pid, 0);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ESRCH') {
+      // Process already exited — do not set the flag; the agent is not running.
+      logger.warn({ agentName, roomId, pid: active.pid }, 'pauseAgent: process no longer alive — flag not set');
+      return false;
+    }
+    // EPERM or other — process exists but we lack permission (rare). Fall through to set flag.
+  }
+  _pausedAgents.add(key);
+  if (process.platform === 'win32') return false;
   try {
     // Negative PID targets the process GROUP (pgid == pid when spawned with detached: true).
     // This freezes MCP server children spawned by the claude subprocess as well.
@@ -168,7 +181,7 @@ export function pauseAgent(agentName: string, roomId: string): boolean {
     if (code === 'ESRCH') {
       // Process already exited — clear the pause flag we just set so the agent is not
       // permanently stuck in a paused state for a process that is no longer alive.
-      _pausedAgents.delete(`${agentName}:${roomId}`);
+      _pausedAgents.delete(key);
     } else {
       logger.warn({ agentName, roomId, pid: active.pid, err }, 'SIGSTOP failed unexpectedly');
     }
