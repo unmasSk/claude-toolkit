@@ -386,6 +386,12 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
         set.status = 400;
         return { error: 'cwd must be an absolute path (e.g. /home/user or C:\\Users\\name)', code: 'INVALID_CWD' };
       }
+      // SEC-WARN-001: UNC paths (\\server\share or //server/share) pass isAbsolute() on Windows
+      // but must not be permitted — they can point to attacker-controlled network shares.
+      if (cwd.startsWith('\\\\') || cwd.startsWith('//')) {
+        set.status = 400;
+        return { error: 'UNC paths are not permitted', code: 'INVALID_CWD' };
+      }
       if (cwd.includes('..')) {
         set.status = 400;
         return { error: 'cwd must not contain ".." path traversal', code: 'INVALID_CWD' };

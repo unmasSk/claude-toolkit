@@ -216,6 +216,35 @@ and set `activeEntry.remainingTimeoutMs = AGENT_TIMEOUT_MS`.
 `resumeAgent()`: on successful SIGCONT, restart a new setTimeout with remaining budget.
 `AGENT_TIMEOUT_MS` imported into `agent-queue.ts` from `../config.js`.
 
+---
+
+## Session 10 fixes — 2026-03-23 (Cerberus + Argus review findings)
+
+### SEC-WARN-001: UNC path guard (api.ts)
+After `isAbsolute()` check, add explicit UNC block before `statSync`:
+```ts
+if (cwd.startsWith('\\\\') || cwd.startsWith('//')) {
+  set.status = 400;
+  return { error: 'UNC paths are not permitted', code: 'INVALID_CWD' };
+}
+```
+UNC paths pass `isAbsolute()` on Windows but point to attacker-controlled network shares.
+
+### SEC-WARN-002: sanitize cwd before embedding in system prompt (agent-runner.ts)
+`roomCwd` is sanitized via `sanitizePromptContent` before passing to `buildSystemPrompt`:
+```ts
+const sanitizedRoomCwd = roomCwd !== undefined ? sanitizePromptContent(roomCwd) : undefined;
+```
+`sanitizePromptContent` is already imported in `agent-runner.ts` from `./agent-prompt.js`.
+
+### Cerberus: stdin type mismatch (agent-runner.ts line 55)
+`BunSpawnOptionsWithDetached` type parameter for stdin was `"ignore"` but runtime uses `"inherit"`.
+Fixed to `Bun.Spawn.SpawnOptions<"inherit", "pipe", "pipe">`.
+
+### Cerberus: Pin Bun version in CI (.github/workflows/chatroom-ci.yml)
+Both `oven-sh/setup-bun@v2` steps now have `with: bun-version: "1.3.11"` to prevent
+non-deterministic builds from floating Bun version upgrades.
+
 ### Fix 4: Completion handlers must not overwrite Paused status (agent-result.ts + agent-stream.ts)
 Import `isAgentPaused` from `agent-queue.ts` in both files.
 Guard every `updateStatusAndBroadcast(Done/Error)` call with `if (!isAgentPaused(...))`.

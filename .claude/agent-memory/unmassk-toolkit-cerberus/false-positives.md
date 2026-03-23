@@ -66,6 +66,14 @@ In `option-b-cursor-style.html`, agent colors are defined twice: as WoW-palette 
 
 Line 287: `.agent-list { overflow: hidden; }`. The scrollbar CSS at lines 290-292 is defined but inactive because the parent suppresses scroll. This is a confirmed bug (S7). Do not treat the scrollbar CSS as dead code — the fix is changing `hidden` to `auto`.
 
+## BunSpawnOptionsWithDetached stdin generic mismatch is benign
+
+`agent-runner.ts` defines `BunSpawnOptionsWithDetached = Bun.Spawn.SpawnOptions<"ignore", "pipe", "pipe"> & { detached?: boolean }`. The `"ignore"` stdin generic does not match the actual runtime behavior (stdin is not set in `spawnOpts`, so Bun uses its default). This is a type-annotation imprecision only — stdin is never read in this codebase. Do NOT flag as a functional bug.
+
+## connection.test.ts singleton test hits real DB singleton — intentional
+
+After the 2026-03-23 rewrite, the `getDb()` singleton-identity tests in `connection.test.ts` import the cached module without redirecting `DB_PATH`. They test the singleton contract (same ref returned), not the path. The SQL/WAL execution tests use their own `new Database(tempPath)`. This split is intentional design. Do not flag the singleton tests as "testing the wrong database."
+
 ## IGNORECASE=1 replaced by tolower() in dockerfile-validate.sh awk
 
 In `dockerfile-validate.sh` around line 415, the comment explains that BSD awk (macOS) does not honour `IGNORECASE=1` for the `~` dynamic regex operator, only for literal `/patterns/`. Using `tolower()` before the `~` comparison is the correct workaround. Do not flag as inconsistent style.

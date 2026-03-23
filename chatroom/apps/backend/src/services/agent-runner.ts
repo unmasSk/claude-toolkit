@@ -52,7 +52,7 @@ const DEFAULT_CONTEXT_WINDOW = 1_000_000;
  * detached) are statically known. `detached` is already part of BaseOptions
  * in bun-types — this alias just pins the generic IO types to "pipe".
  */
-type BunSpawnOptionsWithDetached = Bun.Spawn.SpawnOptions<"ignore", "pipe", "pipe"> & { detached?: boolean };
+type BunSpawnOptionsWithDetached = Bun.Spawn.SpawnOptions<"inherit", "pipe", "pipe"> & { detached?: boolean };
 
 /** Options bag for spawnAndParse — replaces the 8-argument positional signature. */
 export interface SpawnAndParseOptions {
@@ -124,12 +124,14 @@ export async function doInvoke(
   const existingSession = getAgentSession(agentName, roomId);
   const sessionId = isRetry ? null : validateSessionId(existingSession?.session_id);
   const roomCwd = getRoomById(roomId)?.cwd ?? undefined;
+  // SEC-WARN-002: sanitize cwd before embedding in system prompt to prevent prompt injection.
+  const sanitizedRoomCwd = roomCwd !== undefined ? sanitizePromptContent(roomCwd) : undefined;
   await updateStatusAndBroadcast(agentName, roomId, AgentState.Thinking);
 
   try {
     // For respawned instances (context overflow), pass a high history limit.
     const prompt = buildPrompt(roomId, context.triggerContent, context.isRespawn ? 2000 : undefined);
-    const systemPrompt = buildSystemPrompt(agentName, agentConfig.role, context.isRespawn, context.mode, roomCwd);
+    const systemPrompt = buildSystemPrompt(agentName, agentConfig.role, context.isRespawn, context.mode, sanitizedRoomCwd);
     retryScheduled = await spawnAndParse({
       roomId, agentName, model: agentConfig.model, allowedTools, prompt, systemPrompt, sessionId, context, cwd: roomCwd,
     });

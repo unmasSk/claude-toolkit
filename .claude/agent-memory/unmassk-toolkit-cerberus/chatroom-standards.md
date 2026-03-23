@@ -195,3 +195,25 @@ These rules were mandated by the user for permanent enforcement on every review 
 - All T3 agent-prompt.ts / agent-result.ts JSDoc gaps — still open
 
 #### VERDICT: Approve. No T1, no new T2. 0 issues, 0 suggestions, 0 nitpicks.
+
+### Audit 2026-03-23 — Windows path fix, phantom pause, TypeScript type fix, connection test rewrite, CI v5
+
+#### RESOLVED by this batch
+- Windows path validation `startsWith('/')` → `isAbsolute()`: RESOLVED. `node:path.isAbsolute()` handles both Unix and Win32 paths natively.
+- Phantom pause bug: RESOLVED. Guard reorder in `pauseAgent` — flag never set before activeProcesses lookup, PID liveness probe via `process.kill(pid, 0)` before committing flag.
+- TypeScript TS2312/TS2353 in agent-runner.ts: RESOLVED. `interface extends Bun.SpawnOptions.Readable` replaced with `type = Bun.Spawn.SpawnOptions<"ignore","pipe","pipe"> & { detached?: boolean }`.
+- `resetDb()` test escape hatch in connection.ts: RESOLVED (reverted). No production code should expose internal singleton state.
+- connection.test.ts CI race: RESOLVED. SQL/WAL tests now use own `new Database(tempPath)` instance; singleton tests use cached module import only.
+- actions/checkout and actions/cache: v4 → v5 (Node 20 deprecation fix).
+
+#### STILL OPEN (pre-existing)
+- agent-runner.ts: 348 LOC (T2) — over 300-line limit (was 328 before this diff)
+- agent-scheduler.ts: 353 LOC (T2) — over 300-line limit
+- All T3 agent-prompt.ts / agent-result.ts JSDoc gaps — still open
+
+#### NEW FINDINGS (non-blocking)
+- agent-runner.ts: `BunSpawnOptionsWithDetached` generic pins stdin as `"ignore"` but the actual spawn call omits stdin (runtime default: `"inherit"`). Type/runtime mismatch for stdin channel — benign now, future risk if a caller reads the type to determine stdin availability. (S)
+- chatroom-ci.yml: `oven-sh/setup-bun@v2` unpinned — Bun minor/major bump can break CI without any local code change. Pin with `bun-version: "1.x"` or specific version. (S)
+- connection.test.ts: singleton-identity tests now hit the real DB singleton at config-default DB_PATH. If that path is read-only in CI, tests fail. Low risk in practice. (S — note only)
+
+#### VERDICT: LGTM. 0 issues, 2 suggestions, 2 nitpicks (none blocking).
