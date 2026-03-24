@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-03-24
+
+### Fixed
+- Boot migration `_migrate_untrack_generated_jsons()`: added `-r` flag to `git rm --cached` for `.unmassk/` directory — was failing silently (exit 128) without it.
+- Upgrade tests: replaced stale `"Git Memory Active"` string literals with `"unmassk-toolkit Active"` to match current managed block content.
+- Kill-guard test mock pollution: removed `mock.module()` on `agent-runner.js` and `message-bus.js` that leaked into bun's global module registry, breaking 32 tests across 4 files. Replaced with DB-state assertions and parameterized SQL via `ensureAgentSession()`. Cerberus + Argus reviewed — 0 findings.
+
 ## [1.1.1] - 2026-03-24
 
 ### Fixed
