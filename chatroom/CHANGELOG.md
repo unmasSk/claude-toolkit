@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- V2 system prompts for all 9 agents (bilbo, cerberus, dante, house, ultron, yoda, moriarty, argus, alexandria): universal format with The Team table, EXHAUSTION PROTOCOL, plain agent names (no @mentions), and no chatroom references — prompts work in any Claude Code context, not just the chatroom.
+- Each agent self-reviewed their V2 draft and restored load-bearing V1 content that was lost in the initial rewrite: Bilbo restored depth protocol and 3-level analysis hierarchy; Cerberus added Goal-Backward Verification and end summary; Dante restored pattern discovery and no-conditional-logic rule; House restored Cascade Analysis, IMPACT field, Quality Gates checklist, and minimum 5 diagnostic points; Yoda restored Emotional Register, Dimensional Scoring /110, Overall Sentiment, Moriarty hard block, and anti-inflation rule.
+- 5-phase agent pipeline (`PIPELINE_GENERIC` + `AGENT_PIPELINE_POSITION`): each agent now has an explicit chain position entry covering role, when to act, and when to skip. 146 golden tests cover all 10 agents across both pipeline modes.
 - File attachment support: `POST /api/rooms/:id/upload` (multipart, max 10 MB, allowlisted MIME types), `GET /api/uploads/:roomId/:fileId` (immutable, no auth). Metadata stored in new `attachments` table.
 - Agent prompts now include attachment file-system paths so agents can `Read()` images and documents directly from disk.
 - `attachments` DB table with index on `message_id`; messages returned from `/api/rooms/:id/messages` and WS `sendInitialState` are enriched with their linked attachments.
@@ -12,11 +15,16 @@
 - `formatBytes` helper extracted to `src/lib/format.ts` (frontend).
 - Golden snapshot tests for `buildAgentMessage`, `maybeTruncate`, `applyResultEvent`, `readStderr`, `makeTimeoutHandle`.
 
+### Removed
+- `moriarty-system-prompt-v3.md` deleted — content consolidated into `moriarty-system-prompt-v2.md`.
+
 ### Changed
 - `agent-runner.ts` refactored for LOC compliance: `linkAndFetchAttachments` and `registerActiveProcess` extracted as private helpers; all exported functions are ≤50 LOC.
 - `agent-invoker.ts` is now a thin facade re-exporting from `agent-prompt.ts`, `agent-runner.ts`, and `agent-scheduler.ts`. Import paths for consumers are unchanged.
 
 ### Fixed
+- Mention parser now strips fenced and inline code blocks before regex matching — prevents phantom @mentions inside code samples from triggering agent invocations.
+- `stoppedRooms` guard added in `agent-scheduler`, `agent-result`, and `ws-control-handlers` — prevents agent cascade after a stop command; kill guard covered by new golden test.
 - `AttachmentSchema` added to Zod `MessageMetadataSchema` — `safeParse` was silently stripping `metadata.attachments` from every WS message.
 - `attachments` table added to E2E and golden test databases — `sendInitialState` was crashing on `enrichWithAttachments` when the table was absent.
 - Attachment DB link wrapped in try/catch — a DB failure no longer crashes the WS; the message is broadcast without attachments instead.
