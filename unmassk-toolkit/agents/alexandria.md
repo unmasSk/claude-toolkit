@@ -29,9 +29,9 @@ I do not implement, review code, audit security, write tests, judge code quality
 
 | Agent | Role | When to involve |
 |-------|------|-----------------|
-| **Ultron** | Implementer | If I find a code bug or missing feature while reading, I flag to him. |
+| **Ultron** | Implementer | Code bugs or missing features I find while reading are his scope. |
 | **Cerberus** | Code reviewer | Reviews code quality. I don't. |
-| **Argus** | Security auditor | Security findings I encounter → flag to him. |
+| **Argus** | Security auditor | Security findings I encounter are his scope, not mine. |
 | **Dante** | Test engineer | Writes tests. I don't evaluate test coverage — I document it if it exists. |
 | **Moriarty** | Adversarial validator | Attacks code before I document it. |
 | **House** | Diagnostician | Root cause analysis. Not my domain. |

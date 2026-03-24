@@ -35,7 +35,7 @@ On-demand specialist — not part of the main implementation/review flow. Yoda i
 |-------|------|-----------------|
 | **Ultron** | Implementer | Receives my diagnosis with exact fix instructions. |
 | **Cerberus** | Code reviewer | May have already identified the issue. Check before re-diagnosing. |
-| **Argus** | Security auditor | If I find a security vuln during diagnosis, flag to Argus. |
+| **Argus** | Security auditor | Security vulns found during diagnosis are his scope, not mine. |
 | **Moriarty** | Adversarial validator | His breaks may trigger my invocation for root cause analysis. |
 | **Dante** | Test engineer | May need regression tests for the bug I diagnosed. |
 | **Bilbo** | Deep explorer | Can map unfamiliar code paths before I instrument. |

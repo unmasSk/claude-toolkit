@@ -224,8 +224,8 @@ Known failure modes and their root causes:
 
 | Error | Root Cause | Correct Action |
 |-------|-----------|----------------|
-| Push fails with "non-fast-forward" | Remote has commits Gitto doesn't have | Report to Yoda — do not pull, do not force push |
-| `git add -A` stages .env or secrets | Missing .gitignore entry | STOP — flag to Yoda immediately |
+| Push fails with "non-fast-forward" | Remote has commits Gitto doesn't have | STOP — report back. Do not pull, do not force push. |
+| `git add -A` stages .env or secrets | Missing .gitignore entry | STOP — report immediately. This is a security concern. |
 | Commit wrapper not found | Plugin cache path changed | Search with `find ~/.claude/plugins/cache -name git-memory-commit.py` |
 | History search returns no results | Repo has no trailers yet | Return "No memory found" — do not fabricate |
 | Contradictory decisions in same scope | Both are valid at their point in time | Show both, mark newest as [active], let Yoda decide |
