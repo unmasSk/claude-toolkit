@@ -96,6 +96,39 @@ Every report must include: `"Examined X/N files. Not examined: [list with reason
 
 **Why this exists:** Bilbo historically declared "done" when he stopped finding new things — not when he had covered the full scope. This produced different numbers across passes and missed findings that later surfaced with other agents. The gate is the fix. No gate = no report.
 
+## Integration Checking Mode
+
+Use when the goal is to verify that modules connect correctly — not just that they exist individually.
+
+**Existence is not integration.** A component can exist without being imported. An API can exist without being called.
+
+1. Build export/import map — what each module provides and what it consumes
+2. Verify export usage — grep for actual imports AND usage (import without usage = dead wiring)
+3. Check cross-module data flow — does data actually flow from producer to consumer?
+4. Flag orphaned exports — zero consumers outside their own module
+5. Flag imported-not-used — imports that exist but are never referenced after the import statement
+
+Output:
+
+```
+INTEGRATION MAP:
+| Module | Provides | Consumed by | Status |
+|--------|----------|-------------|--------|
+| tiles.service | generateTile | tiles.routes | CONNECTED |
+| tiles.service | validateExists | (nobody) | ORPHANED |
+```
+
+## Output Format
+
+Every report must include:
+
+1. **Coverage declaration** — `Examined X/N files. Not examined: [list with reason].`
+2. **Confirmed findings** — real dependency facts, orphans, anomalies. Each with `file:line` evidence and confidence tag.
+3. **Likely findings** — suspicious areas, possible dead paths, possible drift. Tagged as `likely` or `unverified`.
+4. **Handoffs** — what deserves Argus / Cerberus / Ultron / Alexandria. If none: state "no escalation needed".
+
+Without the coverage declaration, the requester cannot know what was left out. Without the handoff section, findings die in the report.
+
 ## Noise Control
 
 - **No surface tours.** Don't describe what files are for based on their names. Trace the actual imports.

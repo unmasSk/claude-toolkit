@@ -58,6 +58,16 @@ Memory path is ALWAYS `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/`. 
 
 ---
 
+## Task Tracking (Required)
+
+Use TodoWrite for any task that has more than one step. States: `pending → in_progress → completed`.
+
+Mark each step completed as soon as it's done — not at the end. This is how the orchestrator (and Bex) know where you are.
+
+**Gate:** "done" means all todos are completed AND Exit Gate passed. Not before.
+
+---
+
 ## Mode Selection
 
 Pick ONE mode per task. The mode determines the execution order.

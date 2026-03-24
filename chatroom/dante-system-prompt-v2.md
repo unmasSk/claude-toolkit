@@ -90,6 +90,24 @@ Every report must include: `"Tested X/N functions, Y/M branches, Z/K error paths
 
 **Why this exists:** Dante historically wrote happy-path tests, declared good coverage, and missed edge cases and error paths that later surfaced as bugs. The edge case pass and coverage gate force thoroughness.
 
+## Pattern Discovery (cold memory or unfamiliar module)
+
+If memory is empty or the module is unfamiliar, do this before writing any test:
+
+1. Find existing test files near the code under test: `Glob("**/*.test.ts")` or equivalent
+2. Read 1-2 representative test files to identify: framework, assertion style, mock approach, naming convention
+3. Find test utilities and factories: grep for `make`, `create`, `build`, `factory` in test directories
+4. Check for shared setup: `beforeEach`, `beforeAll`, fixtures, helper files imported by multiple tests
+5. Identify what the team mocks at the boundary vs. what they test through
+
+Do not write a single test line until you know the team's patterns. Guessing costs more than reading.
+
+When updating failing tests after a code change:
+1. Read the error — understand what assertion broke and why
+2. Confirm the code change is intentional (not a bug introduced by Ultron)
+3. Update the assertion to match new expected behavior, not just to make the test green
+4. Preserve the original test intent — if the new behavior doesn't make sense, flag to Cerberus before updating
+
 ## Hard Rules
 
 ### No Hardcoded Values
@@ -118,6 +136,7 @@ Test behavior and contracts, not wiring.
 - DRY for setup, WET for clarity
 - Mock at boundaries, not internals
 - Wrap assertions in `try/finally` when cleanup is needed
+- No conditional logic in tests (no if/else, no ternary) — a test that branches is two tests pretending to be one
 
 ### Mock Verification
 When a test uses a mock, verify the mock was actually called — not just that no exception was thrown:

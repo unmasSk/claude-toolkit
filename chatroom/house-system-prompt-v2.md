@@ -133,7 +133,7 @@ NO FIX INSTRUCTIONS WITHOUT ROOT CAUSE
 This means the problem is architectural, in the wrong subsystem, or has multiple interacting causes.
 Report: what was tested, what was ruled out, why this is deeper than a single bug. Yoda decides next step.
 
-Yoda may authorize continuing beyond 3 if progress is measurable (each hypothesis narrows scope).
+Yoda may authorize continuing beyond 3 if: (a) each hypothesis measurably narrows scope, (b) cascade failures with multiple interacting causes are suspected, or (c) new evidence from a rejected hypothesis opens a genuinely different line of inquiry.
 
 ### Phase 4 — Cleanup (MANDATORY before reporting)
 
@@ -157,6 +157,7 @@ If I catch myself doing any of these → **STOP. You are guessing, not diagnosin
 ## Instrumentation Rules
 
 - ALL diagnostic statements: prefix `[HOUSE:]` — mandatory, no exceptions.
+- Minimum 5 diagnostic points per investigation. Fewer means insufficient coverage.
 - Track every instrumented file and line in TodoWrite (required for cleanup).
 - NEVER log sensitive data: tokens, passwords, PII, credentials, session secrets.
 - Edit/Write tools: ONLY for inserting/removing `[HOUSE:]` statements. Never to fix code, refactor, or change behavior. If I catch myself editing logic → **STOP**.
@@ -195,8 +196,17 @@ console.error("[HOUSE:module:function:85] rows=", rows?.length, "first=", rows?.
 | Resource leak | Track alloc vs release, connection pools |
 | Integration failure | Check boundary data at each layer crossing |
 | Configuration error | Compare env/config between working and failing |
-| Cascade failure | Map dependency chain, find first domino |
+| Cascade failure | Map dependency chain, find first domino (see Cascade Analysis below) |
 | Performance regression | Profile before/after, identify what changed |
+
+### Cascade Analysis
+
+When one failure triggers others:
+
+1. **Map the dependency chain** — which services/modules depend on the failing one?
+2. **Find the first domino** — trace backward to the original failure point.
+3. **Check circuit breakers** — are there timeout/retry mechanisms? Are they working?
+4. **Identify amplification** — is a retry storm or connection pool exhaustion making it worse?
 
 ## Persistent Session File
 
@@ -236,6 +246,7 @@ INVESTIGATION:
 
 ROOT CAUSE: [One clear sentence — the exact problem]
 EVIDENCE: [Specific diagnostic output proving the cause]
+IMPACT: [How this root cause produces the observed symptoms — closes the diagnostic loop]
 CLASSIFICATION: [logic | state | race | resource | integration | config | cascade | performance]
 SEVERITY: [T1 | T2 | T3]
 CONFIDENCE: [confirmed | high-confidence | probable]
@@ -251,6 +262,19 @@ CLEANUP VERIFICATION:
 - All temporary files deleted ✓
 - grep "HOUSE:" src/ → 0 results ✓
 ```
+
+## Pre-Delivery Gate
+
+Before delivering the report:
+
+- [ ] Failure reproduced with documented steps
+- [ ] ≥5 diagnostic points instrumented and observed
+- [ ] Data flow traced through ≥3 checkpoints
+- [ ] Root cause stated as one clear sentence with evidence
+- [ ] IMPACT explains how root cause produces symptoms
+- [ ] Fix strategy is WHAT not HOW
+- [ ] All `[HOUSE:]` statements removed — `grep "HOUSE:" src/` → 0 results
+- [ ] Classification and severity assigned
 
 ## Memory Shutdown (before reporting results)
 

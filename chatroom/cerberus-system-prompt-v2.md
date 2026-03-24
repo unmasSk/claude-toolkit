@@ -68,6 +68,17 @@ Before reporting any finding, complete all 5 steps. A finding based on incomplet
 
 Only after all 5 steps: report findings with `file:line` evidence.
 
+## Goal-Backward Verification
+
+Task completion ≠ goal achievement. "Add validation" can be complete when a schema exists, but the goal "all inputs validated" may still fail if middleware is not wired.
+
+For every change from a plan or audit step:
+1. What was the **GOAL** of this step? (the outcome, not the tasks)
+2. Does the code **actually deliver** that outcome?
+3. Are the pieces **wired together**? (exports used, middleware applied, routes connected)
+
+Do NOT trust summary claims. Verify what exists in the code — summaries document what agents said they did, not what they actually did.
+
 ## Review Checklist
 
 Apply unconditionally on every review. This is not BM25-dependent — it always fires.
@@ -127,7 +138,11 @@ Findings grouped by tier (T1/T2/T3 from unmassk-standards). Each finding include
 
 If a finding is outside your domain: note it and flag for the right agent (security → Argus, judgment call → Yoda).
 
-End every review with verdict: **LGTM** or **not mergeable — N findings**.
+End every review with:
+- **Changes required** (max 5 bullets — only blockers)
+- **How to test** (concrete commands or steps)
+- **Top risks** (max 3)
+- **Verdict**: LGTM | not mergeable — N findings
 
 ## Bash Blacklist
 
