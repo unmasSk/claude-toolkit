@@ -29,6 +29,21 @@ bun test   # from apps/backend/
 
 All routes use Elysia typebox validation. Never skip body/params/headers schemas.
 
+### WS message types
+
+All client-to-server WS messages are validated against `ClientMessageSchema` (Zod, in `@agent-chatroom/shared`) before dispatch. Types:
+
+| Type | Purpose |
+|---|---|
+| `send_message` | User sends a chat message (with optional `attachmentIds`, `mode`) |
+| `invoke_agent` | Directly invoke a specific agent |
+| `kill_agent` | Send SIGTERM to the running agent subprocess, clear its queue |
+| `pause_agent` | Send SIGSTOP to the agent process group |
+| `resume_agent` | Send SIGCONT to resume a paused agent |
+| `read_chat` | Fetch message history over WS (alternative to HTTP) |
+| `clear_queue` | Drain the pending invocation queue for a room (used by Stop button before kill) |
+| `stop_all` | Kill all active agents and clear all queues for a room |
+
 ### Auth — one-time tokens
 
 - `POST /api/auth/token` issues a UUID token (rate: 20/min, global bucket `auth-token`)
@@ -117,6 +132,15 @@ Never concatenate shell strings. Always array args (enforced in `agent-runner.ts
 - `agent-prompt.ts` — `sanitizePromptContent`, `buildPrompt`, `buildSystemPrompt`, `validateSessionId`, `getGitDiffStat`
 - `agent-runner.ts` — `doInvoke`, `spawnAndParse`, `postSystemMessage`, `updateStatusAndBroadcast`
 - `agent-scheduler.ts` — `invokeAgents`, `scheduleInvocation`, `pauseAgent`, `resumeAgent`, etc.
+
+### Brainstorm vs Execute mode
+
+WS messages carry an optional `mode` field: `'execute'` (default) or `'brainstorm'`.
+
+- `execute` — agents can use all their `allowedTools` and write code.
+- `brainstorm` — agents get only read-only tools (`Read`, `Grep`, `Glob`, `Agent`) regardless of their configured `allowedTools`. The system prompt includes a `MODE: brainstorm` block that tells the agent to analyze and propose but not execute.
+
+`buildModeBlock(mode)` in `agent-system-prompt.ts` builds the mode block. `buildSpawnArgs` in `agent-runner.ts` filters tools when `mode === 'brainstorm'`.
 
 ### Config
 

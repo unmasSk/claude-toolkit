@@ -39,7 +39,7 @@ Agent invocation flow: WS message → auth check → mention extraction → `Bun
 | `bun run dev` | Start backend + frontend concurrently |
 | `bun run dev:backend` | Backend only (hot reload) |
 | `bun run build` | Build shared package + frontend |
-| `bun test` | Run all tests (535+ cases) |
+| `bun test` | Run all tests (1200+ cases) |
 
 ## API Endpoints
 

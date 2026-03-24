@@ -285,7 +285,7 @@ def test_upgrade_creates_backup(tmp_path):
     claude_md = os.path.join(repo, "CLAUDE.md")
     with open(claude_md) as f:
         content = f.read()
-    content = content.replace("Git Memory Active", "Git Memory OLD VERSION")
+    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
     with open(claude_md, "w") as f:
         f.write(content)
 
@@ -298,7 +298,7 @@ def test_upgrade_creates_backup(tmp_path):
 
     # CLAUDE.md restored
     with open(claude_md) as f:
-        assert "Git Memory Active" in f.read()
+        assert "unmassk-toolkit Active" in f.read()
 
     result, _ = run_doctor_json(repo)
     assert result.get("status") != "error"

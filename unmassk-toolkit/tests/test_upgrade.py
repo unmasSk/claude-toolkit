@@ -74,7 +74,7 @@ def test_detects_outdated_block(tmp_path):
     claude_md = os.path.join(repo, "CLAUDE.md")
     with open(claude_md) as f:
         content = f.read()
-    content = content.replace("Git Memory Active", "Git Memory OLD")
+    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
     with open(claude_md, "w") as f:
         f.write(content)
 
@@ -91,7 +91,7 @@ def test_upgrade_restores_block(tmp_path):
     claude_md = os.path.join(repo, "CLAUDE.md")
     with open(claude_md) as f:
         content = f.read()
-    content = content.replace("Git Memory Active", "Git Memory OLD")
+    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
     with open(claude_md, "w") as f:
         f.write(content)
 
@@ -99,7 +99,7 @@ def test_upgrade_restores_block(tmp_path):
     assert rc == 0
 
     with open(claude_md) as f:
-        assert "Git Memory Active" in f.read()
+        assert "unmassk-toolkit Active" in f.read()
 
     backup_dir = os.path.join(repo, ".claude", "backups")
     assert os.path.isdir(backup_dir)
@@ -114,7 +114,7 @@ def test_json_output(tmp_path):
     claude_md = os.path.join(repo, "CLAUDE.md")
     with open(claude_md) as f:
         content = f.read()
-    content = content.replace("Git Memory Active", "Git Memory OLD")
+    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
     with open(claude_md, "w") as f:
         f.write(content)
 
@@ -142,7 +142,7 @@ def test_manifest_updated(tmp_path):
     claude_md = os.path.join(repo, "CLAUDE.md")
     with open(claude_md) as f:
         content = f.read()
-    content = content.replace("Git Memory Active", "Git Memory OLD")
+    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
     with open(claude_md, "w") as f:
         f.write(content)
 

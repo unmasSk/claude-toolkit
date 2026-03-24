@@ -53,6 +53,8 @@ Bun.spawn(['claude', '-p', prompt, '--session-id', id, ...])
 
 **File uploads** — `POST /api/rooms/:id/upload` accepts multipart form data (max 10 MB, allowlisted MIME types). Files stored on disk; metadata in `attachments` table. Served via `GET /api/uploads/:roomId/:fileId` (immutable, no auth). Agents receive storage paths in their prompts so they can `Read()` files directly.
 
+**Brainstorm mode** — WS messages carry an optional `mode` field: `'execute'` (default) or `'brainstorm'`. In brainstorm mode, agents are restricted to read-only tools (`Read`, `Grep`, `Glob`, `Agent`) and receive a `MODE: brainstorm` prompt block telling them to analyze/propose without executing. Tool filtering happens in `agent-runner.ts::buildSpawnArgs`.
+
 **Rate limiting** — token bucket enforced on WS (5 messages / 10s) and API (`/auth/token` 20/min, `/invite` 20/min, `/upload` 30/min — each has its own named bucket so one cannot exhaust the other's quota). Do not bypass.
 
 **Config** — never read `process.env` directly. Use `config.ts` exports.

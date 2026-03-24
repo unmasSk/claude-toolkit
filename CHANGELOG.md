@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [1.1.1] - 2026-03-24
 
 ### Fixed
@@ -199,7 +201,7 @@
 - Dashboard date parsing fixed (all dates were null)
 - Stop hook now ignores git-memory runtime files
 
-## [1.1.0] - 2026-03-06
+## [1.1.0-gitmemory] - 2026-03-06
 
 ### Added
 - Static HTML dashboard for visualizing git memory (`git memory dashboard`)

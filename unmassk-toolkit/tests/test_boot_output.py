@@ -250,10 +250,18 @@ class TestMigrateUntrackedGeneratedJsons:
         run_script(INSTALL, repo, ["--auto"])
 
         # Simulate old install: force-add the generated JSONs to the index
+        # .unmassk is a directory, so files go inside it
+        unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
+        os.makedirs(unmassk_dir, exist_ok=True)
+        generated_files = [
+            os.path.join(".unmassk", "context-status.json"),
+            os.path.join(".unmassk", "glossary-cache.json"),
+            os.path.join(".unmassk", "context-warn-state.json"),
+            os.path.join(".unmassk", "manifest.json"),
+        ]
         claude_dir = os.path.join(repo, ".claude")
-        for name in [".context-status.json", ".glossary-cache.json",
-                      ".context-warn-state.json", ".unmassk", "manifest.json"]:
-            fpath = os.path.join(claude_dir, name)
+        for rel_name in generated_files:
+            fpath = os.path.join(claude_dir, rel_name)
             with open(fpath, "w") as f:
                 f.write("{}")
             git_cmd(["add", "-f", fpath], repo)
@@ -261,16 +269,16 @@ class TestMigrateUntrackedGeneratedJsons:
 
         # Verify they are tracked
         rc, out, _ = run_cmd(["git", "ls-files", ".claude/.unmassk/context-status.json"], repo)
-        assert ".context-status.json" in out
+        assert "context-status.json" in out
 
         # Run boot — should untrack them
         run_boot(repo)
 
         # Verify they are no longer tracked
-        for name in [".context-status.json", ".glossary-cache.json",
-                      ".context-warn-state.json", ".unmassk", "manifest.json"]:
-            rc, out, _ = run_cmd(["git", "ls-files", f".claude/{name}"], repo)
-            assert name not in out, f"{name} should be untracked after boot"
+        for rel_name in generated_files:
+            rc, out, _ = run_cmd(["git", "ls-files", f".claude/{rel_name}"], repo)
+            basename = os.path.basename(rel_name)
+            assert basename not in out, f"{basename} should be untracked after boot"
 
     def test_gitignore_entries_added(self, tmp_path):
         """Boot migration should also ensure .gitignore has the entries."""
@@ -302,7 +310,7 @@ class TestMigrateUntrackedGeneratedJsons:
 
         with open(gitignore_path) as f:
             gitignore = f.read()
-        assert ".claude/.unmassk/context-status.json" in gitignore
+        assert ".claude/.unmassk/" in gitignore
 
     def test_no_error_when_already_clean(self, tmp_path):
         """Boot should not fail if JSONs are already untracked."""

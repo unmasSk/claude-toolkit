@@ -16,7 +16,7 @@
 - Golden snapshot tests for `buildAgentMessage`, `maybeTruncate`, `applyResultEvent`, `readStderr`, `makeTimeoutHandle`.
 
 ### Removed
-- `moriarty-system-prompt-v3.md` deleted — content consolidated into `moriarty-system-prompt-v2.md`.
+- All chatroom V2 agent reference files (`chatroom/*-system-prompt-v2.md`) deleted — V2 agent prompts are now canonical only in the plugin source (`unmassk-toolkit/agents/`). This includes the earlier consolidation of `moriarty-system-prompt-v3.md` into v2.
 
 ### Changed
 - `agent-runner.ts` refactored for LOC compliance: `linkAndFetchAttachments` and `registerActiveProcess` extracted as private helpers; all exported functions are ≤50 LOC.

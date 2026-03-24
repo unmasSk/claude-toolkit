@@ -777,7 +777,7 @@ def _migrate_untrack_generated_jsons(project_root: str) -> None:
         if code == 0:
             tracked.append(full_path)
     if tracked:
-        run_git(["rm", "--cached", "--"] + tracked)
+        run_git(["rm", "-r", "--cached", "--"] + tracked)
         ensure_gitignore(project_root)
 
 
