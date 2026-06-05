@@ -254,9 +254,7 @@ class TestMigrateUntrackedGeneratedJsons:
         unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
         os.makedirs(unmassk_dir, exist_ok=True)
         generated_files = [
-            os.path.join(".unmassk", "context-status.json"),
             os.path.join(".unmassk", "glossary-cache.json"),
-            os.path.join(".unmassk", "context-warn-state.json"),
             os.path.join(".unmassk", "manifest.json"),
         ]
         claude_dir = os.path.join(repo, ".claude")
@@ -268,8 +266,8 @@ class TestMigrateUntrackedGeneratedJsons:
         git_cmd(["commit", "-m", "old install committed jsons"], repo)
 
         # Verify they are tracked
-        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.unmassk/context-status.json"], repo)
-        assert "context-status.json" in out
+        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.unmassk/glossary-cache.json"], repo)
+        assert "glossary-cache.json" in out
 
         # Run boot — should untrack them
         run_boot(repo)
@@ -294,13 +292,12 @@ class TestMigrateUntrackedGeneratedJsons:
             content = f.read()
         # Strip out the generated JSON lines
         lines = [l for l in content.splitlines()
-                 if not any(j in l for j in [".context-status", ".glossary-cache",
-                                              ".context-warn-state", "git-memory-manifest"])]
+                 if not any(j in l for j in [".glossary-cache", "git-memory-manifest"])]
         with open(gitignore_path, "w") as f:
             f.write("\n".join(lines) + "\n")
 
         # Force-add a JSON so migration triggers
-        fpath = os.path.join(repo, ".claude", ".unmassk", "context-status.json")
+        fpath = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         with open(fpath, "w") as f:
             f.write("{}")
         git_cmd(["add", "-f", fpath], repo)

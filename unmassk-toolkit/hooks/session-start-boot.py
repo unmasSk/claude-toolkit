@@ -595,69 +595,6 @@ def extract_glossary_cached() -> dict:
     return glossary
 
 
-def _ensure_statusline() -> None:
-    """Ensure the statusline wrapper is configured for context tracking.
-
-    Checks ~/.claude/settings.json for context-writer.py. If not present,
-    configures it (backing up any existing statusline command).
-    """
-    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    wrapper_script = os.path.join(plugin_root, "bin", "context-writer.py")
-    if not os.path.isfile(wrapper_script):
-        return
-
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-
-    try:
-        if os.path.isfile(settings_path):
-            with open(settings_path) as f:
-                settings = json.load(f)
-        else:
-            settings = {}
-    except (json.JSONDecodeError, OSError):
-        return
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Already configured — just update path if plugin root changed
-    if "context-writer" in current_cmd:
-        expected_cmd = f"python3 {wrapper_script.replace(os.sep, '/')}"
-        if current_cmd != expected_cmd:
-            settings["statusLine"] = {
-                "type": "command",
-                "command": expected_cmd,
-                "padding": 0,
-            }
-            try:
-                with open(settings_path, "w") as f:
-                    json.dump(settings, f, indent=2)
-            except OSError:
-                pass
-        return
-
-    # Not configured — backup existing and set ours
-    if current_cmd and not os.path.isfile(backup_path):
-        try:
-            with open(backup_path, "w") as f:
-                f.write(current_cmd)
-        except OSError:
-            pass
-
-    settings["statusLine"] = {
-        "type": "command",
-        "command": f"python3 {wrapper_script.replace(os.sep, '/')}",
-        "padding": 0,
-    }
-    try:
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=2)
-    except OSError:
-        pass
-
-
 # Scaling limits (from design doc)
 BOOT_MAX_BRANCH_DECISIONS = 10
 BOOT_MAX_OTHER_DECISIONS = 10
@@ -733,12 +670,9 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
     claude_dir = os.path.join(project_root, ".claude")
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     migrations = {
-        ".context-status.json": "context-status.json",
         ".glossary-cache.json": "glossary-cache.json",
-        ".context-warn-state.json": "context-warn-state.json",
         "git-memory-manifest.json": "manifest.json",
         ".session-booted": ".session-booted",
-        ".message-counter": ".message-counter",
     }
     for old_name, new_name in migrations.items():
         old_path = os.path.join(claude_dir, old_name)
@@ -799,9 +733,6 @@ def main() -> None:
             os.remove(booted_flag)
         except FileNotFoundError:
             pass
-
-    # 0a. Ensure statusline wrapper is configured
-    _ensure_statusline()
 
     # 0b. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
     if project_root:

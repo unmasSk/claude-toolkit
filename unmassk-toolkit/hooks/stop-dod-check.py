@@ -10,21 +10,15 @@ Exit codes:
     0: Always. This hook never blocks.
 """
 
-import json
 import os
 import re
 import sys
-import time
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
 from git_helpers import run_git, is_git_repo
 from colors import RED, YELLOW, RESET
-
-# Context awareness thresholds (percentage used)
-CTX_WARN_THRESHOLD = 60   # Suggest context commit
-CTX_URGENT_THRESHOLD = 75  # Strongly urge context commit (near auto-compact at ~80%)
 
 # git-memory project files — only CLAUDE.md and manifest live at the project root.
 # The stop hook should not flag these for auto-wip.
@@ -170,30 +164,6 @@ def get_last_commit_next() -> str | None:
     return None
 
 
-def get_context_status() -> dict | None:
-    """Read context window status from .claude/.unmassk/context-status.json.
-
-    Returns:
-        Dict with used_percentage, remaining_percentage, etc., or None.
-    """
-    code, root = run_git(["rev-parse", "--show-toplevel"])
-    if code != 0 or not root:
-        return None
-    status_path = os.path.join(root, ".claude", ".unmassk", "context-status.json")
-    if not os.path.isfile(status_path):
-        return None
-    try:
-        with open(status_path) as f:
-            data = json.load(f)
-        # Stale data check: ignore if older than 5 minutes
-        ts = data.get("timestamp", 0)
-        if time.time() - ts > 300:
-            return None
-        return data
-    except (json.JSONDecodeError, OSError, ValueError):
-        return None
-
-
 def main() -> None:
     """Entry point. Never blocks — always exit 0."""
     # Skip if not in a git repo
@@ -234,21 +204,6 @@ def main() -> None:
         msg += f"\n{YELLOW}>>> Were any decisions, preferences, or requirements discussed this session?{RESET}"
         msg += f"\n{YELLOW}>>> If yes, create decision() or memo() commits NOW before ending. Do NOT skip this.{RESET}"
         messages.append(msg)
-
-    # Check 5: Context window status
-    ctx = get_context_status()
-    if ctx:
-        used = ctx.get("used_percentage")
-        remaining = ctx.get("remaining_percentage")
-        if used is not None and remaining is not None:
-            if used >= CTX_URGENT_THRESHOLD:
-                msg = f"\n{RED}>>> CONTEXT CRITICAL: {used:.0f}% used ({remaining:.0f}% remaining).{RESET}"
-                msg += f"\n{RED}>>> Auto-compact imminent (~80%). Create a context() commit NOW.{RESET}"
-                messages.append(msg)
-            elif used >= CTX_WARN_THRESHOLD:
-                msg = f"\n{YELLOW}>>> Context: {used:.0f}% used ({remaining:.0f}% remaining).{RESET}"
-                msg += f"\n{YELLOW}>>> Consider creating a context() commit to preserve session state.{RESET}"
-                messages.append(msg)
 
     # Check 6: ALWAYS create a context() commit on session end
     # This is mandatory — Claude must not skip this

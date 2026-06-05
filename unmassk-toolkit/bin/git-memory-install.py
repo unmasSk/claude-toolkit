@@ -255,9 +255,6 @@ def create_plan(report: dict[str, Any], source: str, target: str,
     # Manifest
     plan["actions"].append(("create_manifest", "Create/update .claude/.unmassk/manifest.json"))
 
-    # Statusline wrapper for context awareness
-    plan["actions"].append(("setup_statusline", "Configure statusline wrapper for context tracking"))
-
     return plan
 
 
@@ -288,8 +285,6 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
                 _update_claude_md(target)
             elif action == "create_manifest":
                 _create_manifest(target, plan["mode"])
-            elif action == "setup_statusline":
-                _setup_statusline_wrapper(source)
         except Exception as e:
             errors.append(f"{action}: {e}")
 
@@ -443,70 +438,6 @@ def _create_manifest(target: str, mode: str) -> None:
         json.dump(manifest, f, indent=2)
 
     ensure_gitignore(target)
-
-
-def _setup_statusline_wrapper(source: str) -> None:
-    """Configure the statusline wrapper in ~/.claude/settings.json.
-
-    Saves the user's current statusline command (if any) to a backup file,
-    then sets our context-writer.py as the statusline command. The wrapper
-    writes context window data to <project>/.claude/.unmassk/context-status.json
-    and passes through to the user's original statusline.
-    """
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-    wrapper_script = os.path.join(source, "bin", "context-writer.py")
-
-    # Read current settings
-    settings: dict[str, Any] = {}
-    if os.path.isfile(settings_path):
-        with open(settings_path) as f:
-            try:
-                settings = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                return  # Don't touch corrupt settings
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Our wrapper command — use forward slashes for Git Bash compatibility on Windows
-    wrapper_cmd = f"python3 {wrapper_script.replace(os.sep, '/')}"
-
-    # Case 1: Already configured with exact same command — skip
-    if current_cmd == wrapper_cmd:
-        if not os.path.isfile(backup_path):
-            print("  Warning: statusline wrapper active but backup missing")
-        return
-
-    # Case 2: Our wrapper but different path (reinstall/upgrade) — update path only
-    if "context-writer" in current_cmd:
-        settings["statusLine"] = {
-            "type": "command",
-            "command": wrapper_cmd,
-            "padding": current_sl.get("padding", 0) if isinstance(current_sl, dict) else 0,
-        }
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=2)
-            f.write("\n")
-        if not os.path.isfile(backup_path):
-            print("  Warning: statusline wrapper updated but original backup missing — user must restore manually")
-        return
-
-    # Case 3: Fresh install — back up current command (even if empty)
-    with open(backup_path, "w") as f:
-        f.write(current_cmd)
-
-    # Set our wrapper as the statusline
-    settings["statusLine"] = {
-        "type": "command",
-        "command": wrapper_cmd,
-        "padding": current_sl.get("padding", 0) if isinstance(current_sl, dict) else 0,
-    }
-
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
 
 
 # ── Phase 4 & 5: Verify + Health Proof ───────────────────────────────────
