@@ -51,12 +51,20 @@ def ensure_gitignore(project_root: str, entry: str | None = None) -> None:
         print(f"[unmassk-toolkit] WARNING: could not update .gitignore at {gitignore_path}: {e}", file=sys.stderr)
 
 
-def run_git(args: list[str], timeout: int = 10) -> tuple[int, str]:
+GIT_TIMEOUT: int = 10  # seconds — single named constant for all git calls
+
+
+def run_git(
+    args: list[str],
+    timeout: int = GIT_TIMEOUT,
+    cwd: str | None = None,
+) -> tuple[int, str]:
     """Run a git command and return (exit_code, stdout).
 
     Args:
-        args: Git subcommand and arguments (e.g. ["log", "--oneline"]).
+        args:    Git subcommand and arguments (e.g. ["log", "--oneline"]).
         timeout: Max seconds to wait before killing the process.
+        cwd:     Working directory for the git process. None = inherit caller cwd.
 
     Returns:
         Tuple of (exit_code, stripped_stdout). Returns (1, "") on any error.
@@ -65,9 +73,13 @@ def run_git(args: list[str], timeout: int = 10) -> tuple[int, str]:
         result = subprocess.run(
             ["git"] + args,
             capture_output=True, text=True, timeout=timeout,
+            cwd=cwd,
         )
         return result.returncode, result.stdout.strip()
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print(f"[git_helpers] git {args[0]!r} timed out after {timeout}s", file=sys.stderr)
+        return 1, ""
+    except (subprocess.SubprocessError, OSError, ValueError):
         return 1, ""
 
 

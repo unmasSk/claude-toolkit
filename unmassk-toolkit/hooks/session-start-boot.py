@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
+from constants import TOMBSTONE_KEYS
 from git_helpers import ensure_gitignore
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
@@ -395,7 +396,7 @@ def extract_memory() -> dict:
         label = f"({scope})" if scope else "(global)"
 
         # Tombstones (GC markers) — collect in same pass
-        for key in ("Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember"):
+        for key in TOMBSTONE_KEYS:
             if key in trailers:
                 tombstones.add(normalize(trailers[key]))
 
