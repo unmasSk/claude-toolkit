@@ -10,15 +10,13 @@ Exit codes:
     0: Always (never blocks user input).
 """
 
-import json
 import os
 import sys
-import time
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
-from git_helpers import is_git_repo, run_git, ensure_gitignore
+from git_helpers import is_git_repo, run_git
 
 # Plugin root — derived from this script's location in the cache.
 # hooks/user-prompt-memory-check.py → go up one level → plugin root.
@@ -130,120 +128,6 @@ def main() -> None:
         "If yes → create the appropriate commit: decision(), memo(), or remember(). "
         "If not → do nothing."
     )
-
-    # Context window warning — read .context-status.json if it exists
-    # Debounce: don't repeat same-level warnings on consecutive messages.
-    # Severity escalation (warning → critical) bypasses debounce.
-    ctx_status_path = os.path.join(root, ".claude", ".unmassk", "context-status.json")
-    ctx_warn_path = os.path.join(root, ".claude", ".unmassk", "context-warn-state.json")
-    if os.path.isfile(ctx_status_path):
-        try:
-            with open(ctx_status_path) as f:
-                ctx = json.load(f)
-            ts = ctx.get("timestamp", 0)
-            age = time.time() - ts
-            used = ctx.get("used_percentage")
-            remaining = ctx.get("remaining_percentage")
-            # Only use data fresher than 15 minutes
-            if age < 900 and used is not None and remaining is not None:
-                # Determine current level
-                if used >= 75:
-                    level = "critical"
-                elif used >= 60:
-                    level = "warning"
-                else:
-                    level = "info"
-
-                # Read debounce state
-                last_level = None
-                msgs_since_warn = 0
-                try:
-                    if os.path.isfile(ctx_warn_path):
-                        with open(ctx_warn_path) as f:
-                            warn_state = json.load(f)
-                        last_level = warn_state.get("level")
-                        msgs_since_warn = warn_state.get("msgs", 0)
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-                # Info level: always show (just the percentage, no spam)
-                # Reset debounce state when back to info (prevents stale state
-                # from suppressing warnings if context rises again)
-                if level == "info":
-                    lines.append(f"[CTX: {used:.0f}%]")
-                    if last_level is not None:
-                        try:
-                            os.remove(ctx_warn_path)
-                        except OSError:
-                            pass
-                else:
-                    # Emit warning if: first time, severity escalated, or 5+ msgs since last
-                    escalated = level == "critical" and last_level == "warning"
-                    should_warn = last_level is None or escalated or msgs_since_warn >= 5 or last_level != level
-
-                    if should_warn:
-                        if level == "critical":
-                            lines.append(
-                                f"[CONTEXT CRITICAL] {used:.0f}% used ({remaining:.0f}% remaining). "
-                                "Context is nearly exhausted. Inform the user that context is low. "
-                                "Create a context() commit to preserve session state before auto-compact."
-                            )
-                        else:
-                            lines.append(
-                                f"[context-warning] {used:.0f}% used ({remaining:.0f}% remaining). "
-                                "Context is getting limited. Avoid starting new complex work. "
-                                "Consider creating a context() commit to checkpoint."
-                            )
-                        msgs_since_warn = 0
-                    else:
-                        # Suppressed — just show percentage
-                        lines.append(f"[CTX: {used:.0f}%]")
-                        msgs_since_warn += 1
-
-                    # Update debounce state
-                    try:
-                        with open(ctx_warn_path, "w") as f:
-                            json.dump({"level": level, "msgs": msgs_since_warn}, f)
-                        ensure_gitignore(root, ".claude/.unmassk/context-warn-state.json")
-                    except OSError:
-                        pass
-        except (json.JSONDecodeError, OSError, ValueError):
-            pass
-
-    # Periodic context commit reminder.
-    # Count messages via a temp file. Every 20 messages, remind Claude
-    # to create a context() commit if it hasn't made one recently.
-    counter_file = os.path.join(root, ".claude", ".unmassk", ".message-counter")
-    msg_count = 0
-    try:
-        os.makedirs(os.path.dirname(counter_file), exist_ok=True)
-        if os.path.isfile(counter_file):
-            with open(counter_file) as f:
-                msg_count = int(f.read().strip() or "0")
-        msg_count += 1
-        with open(counter_file, "w") as f:
-            f.write(str(msg_count))
-    except (ValueError, OSError):
-        pass
-
-    if msg_count > 0 and msg_count % 20 == 0:
-        # Check if there's a recent context commit (within last 5 commits)
-        code, recent = run_git(["log", "-5", "--pretty=format:%s"])
-        has_recent_context = False
-        if code == 0 and recent:
-            for subj in recent.split("\n"):
-                cleaned = subj.strip().lstrip("🔧💾📌🧭✨🐛♻️🔥📝🚀 ")
-                if cleaned.lower().startswith("context"):
-                    has_recent_context = True
-                    break
-        if not has_recent_context:
-            commit_script = os.path.join(PLUGIN_ROOT, "bin", "git-memory-commit.py")
-            lines.append(
-                "[context-reminder] You have exchanged ~20 messages without "
-                "creating a context() commit. Create one NOW to checkpoint your work. "
-                f'Use: python3 "{commit_script}" context <scope> "<summary>" '
-                "--trailer \"Next=<pending tasks>\" --trailer \"Decision=<decisions made>\""
-            )
 
     print("\n".join(lines))
     sys.exit(0)

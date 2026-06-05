@@ -584,69 +584,6 @@ def extract_glossary_cached() -> dict:
     return glossary
 
 
-def _ensure_statusline() -> None:
-    """Ensure the statusline wrapper is configured for context tracking.
-
-    Checks ~/.claude/settings.json for context-writer.py. If not present,
-    configures it (backing up any existing statusline command).
-    """
-    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    wrapper_script = os.path.join(plugin_root, "bin", "context-writer.py")
-    if not os.path.isfile(wrapper_script):
-        return
-
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-
-    try:
-        if os.path.isfile(settings_path):
-            with open(settings_path) as f:
-                settings = json.load(f)
-        else:
-            settings = {}
-    except (json.JSONDecodeError, OSError):
-        return
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Already configured — just update path if plugin root changed
-    if "context-writer" in current_cmd:
-        expected_cmd = f"python3 {wrapper_script.replace(os.sep, '/')}"
-        if current_cmd != expected_cmd:
-            settings["statusLine"] = {
-                "type": "command",
-                "command": expected_cmd,
-                "padding": 0,
-            }
-            try:
-                with open(settings_path, "w") as f:
-                    json.dump(settings, f, indent=2)
-            except OSError:
-                pass
-        return
-
-    # Not configured — backup existing and set ours
-    if current_cmd and not os.path.isfile(backup_path):
-        try:
-            with open(backup_path, "w") as f:
-                f.write(current_cmd)
-        except OSError:
-            pass
-
-    settings["statusLine"] = {
-        "type": "command",
-        "command": f"python3 {wrapper_script.replace(os.sep, '/')}",
-        "padding": 0,
-    }
-    try:
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=2)
-    except OSError:
-        pass
-
-
 # Scaling limits (from design doc)
 BOOT_MAX_BRANCH_DECISIONS = 10
 BOOT_MAX_OTHER_DECISIONS = 10
@@ -722,12 +659,9 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
     claude_dir = os.path.join(project_root, ".claude")
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     migrations = {
-        ".context-status.json": "context-status.json",
         ".glossary-cache.json": "glossary-cache.json",
-        ".context-warn-state.json": "context-warn-state.json",
         "git-memory-manifest.json": "manifest.json",
         ".session-booted": ".session-booted",
-        ".message-counter": ".message-counter",
     }
     for old_name, new_name in migrations.items():
         old_path = os.path.join(claude_dir, old_name)
@@ -770,6 +704,75 @@ def _migrate_untrack_generated_jsons(project_root: str) -> None:
         ensure_gitignore(project_root)
 
 
+def _migrate_stale_context_writer_statusline() -> None:
+    """One-time migration: remove or restore a statusLine left by old context-writer.py.
+
+    Users who installed the old version have a statusLine.command in
+    ~/.claude/settings.json pointing at context-writer.py (now deleted).
+    This migration runs once per boot and is idempotent.
+
+    Logic:
+      - If settings.json has a statusLine.command containing "context-writer":
+          (a) If ~/.claude/.git-memory-original-statusline exists and is non-empty,
+              restore that value as the new statusLine.command.
+          (b) Otherwise, remove the statusLine key entirely.
+          (c) In both cases, delete the backup file.
+      - If no context-writer statusLine is present, do nothing.
+      - Any exception is silently swallowed — boot must never fail.
+    """
+    try:
+        claude_dir = os.path.join(os.path.expanduser("~"), ".claude")
+        settings_path = os.path.join(claude_dir, "settings.json")
+        backup_path = os.path.join(claude_dir, ".git-memory-original-statusline")
+
+        if not os.path.isfile(settings_path):
+            return
+
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return
+
+        status_line = settings.get("statusLine", {})
+        current_cmd = status_line.get("command", "") if isinstance(status_line, dict) else ""
+
+        if "context-writer" not in current_cmd:
+            return  # Nothing to migrate
+
+        # Determine replacement
+        backup_content = ""
+        if os.path.isfile(backup_path):
+            try:
+                with open(backup_path, "r", encoding="utf-8") as f:
+                    backup_content = f.read().strip()
+            except OSError:
+                pass
+
+        if backup_content:
+            # Restore the original command with a complete statusLine structure
+            settings["statusLine"] = {"type": "command", "command": backup_content, "padding": 0}
+        else:
+            # No backup — remove the stale key entirely
+            settings.pop("statusLine", None)
+
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+                f.write("\n")
+        except OSError:
+            return
+
+        # Remove backup file regardless of which branch was taken
+        try:
+            os.remove(backup_path)
+        except FileNotFoundError:
+            pass
+
+    except Exception:
+        pass  # Boot must never fail due to this migration
+
+
 def main() -> None:
     """Auto-boot: structured briefing with all context pre-extracted."""
     # Check if we're in a git repo
@@ -789,15 +792,16 @@ def main() -> None:
         except FileNotFoundError:
             pass
 
-    # 0a. Ensure statusline wrapper is configured
-    _ensure_statusline()
-
-    # 0b. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
+    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
     if project_root:
         _migrate_runtime_to_unmassk(project_root)
         _migrate_untrack_generated_jsons(project_root)
 
-    # 0c. Fetch remote refs silently
+    # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
+    # (runs unconditionally — this is a user-level config, not project-level)
+    _migrate_stale_context_writer_statusline()
+
+    # 0b. Fetch remote refs silently
     run_git(["fetch", "--quiet"])
 
     # ── HEADER ──────────────────────────────────────────────────────

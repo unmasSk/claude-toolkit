@@ -252,7 +252,6 @@ Besides the 4 memory types, there is `context()` — an empty commit that marks 
 - You've completed a significant block of work and want to mark the state
 - The session is ending (the stop hook does it automatically, but if you see it getting long, do it yourself)
 - There's a clear topic change in the conversation
-- The [context-reminder] hook tells you it's been many messages without a checkpoint
 
 **Format:** `context(<scope>): <summary of where we are>` + trailer `Next: <what remains to be done>`
 
@@ -285,4 +284,4 @@ Apply everything this document says. Stop and save when you detect signals. Don'
 
 ### At pauses (review debt)
 
-The [context-reminder] hook will notify you if you've gone many messages without saving a context(). When you get that notification — or when you notice a natural pause (topic change, user leaves, you finish a block) — ask yourself: did I leave anything unsaved in the last few messages?
+At natural pauses — when the user leaves, when you change topics, when you finish a block — ask yourself: did I leave anything unsaved in the last few messages?

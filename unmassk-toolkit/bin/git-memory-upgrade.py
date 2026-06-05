@@ -173,12 +173,9 @@ def _migrate_runtime_to_unmassk(target: str) -> list[str]:
 
     # Map: old path → new path
     migrations = {
-        os.path.join(claude_dir, ".context-status.json"): os.path.join(unmassk_dir, "context-status.json"),
         os.path.join(claude_dir, ".glossary-cache.json"): os.path.join(unmassk_dir, "glossary-cache.json"),
-        os.path.join(claude_dir, ".context-warn-state.json"): os.path.join(unmassk_dir, "context-warn-state.json"),
         os.path.join(claude_dir, "git-memory-manifest.json"): os.path.join(unmassk_dir, "manifest.json"),
         os.path.join(claude_dir, ".session-booted"): os.path.join(unmassk_dir, ".session-booted"),
-        os.path.join(claude_dir, ".message-counter"): os.path.join(unmassk_dir, ".message-counter"),
     }
 
     for old_path, new_path in migrations.items():
