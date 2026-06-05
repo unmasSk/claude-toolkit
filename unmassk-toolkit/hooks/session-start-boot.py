@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
 from constants import TOMBSTONE_KEYS
-from git_helpers import ensure_gitignore
+from git_helpers import ensure_gitignore, run_git
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
 
@@ -233,18 +233,6 @@ MAX_MEMOS = 10
 # Glossary: deeper scan for full memory picture
 GLOSSARY_MAX_DECISIONS = 10
 GLOSSARY_MAX_MEMOS = 10
-
-
-def run_git(args: list[str]) -> tuple[int, str]:
-    """Run a git command and return (returncode, stdout)."""
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            capture_output=True, text=True, timeout=10,
-        )
-        return result.returncode, result.stdout.strip()
-    except Exception:
-        return 1, ""
 
 
 def run_doctor() -> dict:
