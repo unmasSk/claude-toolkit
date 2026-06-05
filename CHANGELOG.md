@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+- Memory recall engine: `lib/recall.py` + CLI `bin/git-memory-recall.py`. Searches all decision/memo/remember commits by keyword with IDF ranking (rare terms score high, common terms sink), 1.5x bonus for scope matches, alphanumeric tokenization (finds `BM25`, `v2`, `RS256`), deduplication, and full history scan with no commit cap. Robust against context-injection attempts (sanitizes Unicode terminators) and enforces a query length cap.
+
+### Changed
+- `git_helpers.run_git` now accepts a `cwd` parameter, making it usable from any working directory.
+- `TOMBSTONE_KEYS` and `RECALL_KEYS` constants extracted to `lib/constants.py` — shared between the recall engine and the boot hook (eliminates duplication).
+
+### Removed
+- Context-tracking subsystem removed entirely: `bin/context-writer.py`, the statusline wrapper it installed, context percentage warnings in `hooks/user-prompt-memory-check.py`, and all associated install/uninstall/upgrade lifecycle code. The subsystem was designed for the 200k-token context window; with 1M tokens it was noise.
+
+### Fixed
+- Upgrade self-heal: if a user's existing Claude settings still pointed the statusline at the deleted `context-writer.py`, the boot hook now detects this and restores the original statusline value (or removes the key), preventing a broken statusline after upgrading from any older version.
+
+### Security
+- `shell=True` in `context-writer.py` (issue #48, T1) is eliminated as a side-effect of removing the file entirely.
+
 ## [1.1.2] - 2026-03-24
 
 ### Fixed
