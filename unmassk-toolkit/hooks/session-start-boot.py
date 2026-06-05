@@ -761,8 +761,8 @@ def _migrate_stale_context_writer_statusline() -> None:
                 pass
 
         if backup_content:
-            # Restore the original command
-            settings["statusLine"] = {"command": backup_content}
+            # Restore the original command with a complete statusLine structure
+            settings["statusLine"] = {"type": "command", "command": backup_content, "padding": 0}
         else:
             # No backup — remove the stale key entirely
             settings.pop("statusLine", None)
@@ -807,7 +807,10 @@ def main() -> None:
     if project_root:
         _migrate_runtime_to_unmassk(project_root)
         _migrate_untrack_generated_jsons(project_root)
-        _migrate_stale_context_writer_statusline()
+
+    # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
+    # (runs unconditionally — this is a user-level config, not project-level)
+    _migrate_stale_context_writer_statusline()
 
     # 0b. Fetch remote refs silently
     run_git(["fetch", "--quiet"])

@@ -97,7 +97,7 @@ def _write_backup(claude_dir: str, content: str) -> str:
 
 
 def test_restores_from_backup(tmp_path):
-    """context-writer statusLine + backup file → command is restored from backup."""
+    """context-writer statusLine + backup file → full statusLine structure restored from backup."""
     home = str(tmp_path / "home")
     claude_dir = os.path.join(home, ".claude")
     os.makedirs(claude_dir)
@@ -112,7 +112,10 @@ def test_restores_from_backup(tmp_path):
     migrate()
 
     settings = _read_settings(claude_dir)
-    assert settings["statusLine"]["command"] == "/usr/local/bin/my-statusline.sh"
+    restored = settings["statusLine"]
+    assert restored["command"] == "/usr/local/bin/my-statusline.sh"
+    assert restored["type"] == "command"
+    assert restored["padding"] == 0
     assert settings["other"] == "value"
     assert not os.path.exists(os.path.join(claude_dir, ".git-memory-original-statusline"))
 
