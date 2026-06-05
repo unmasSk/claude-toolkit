@@ -1,8 +1,21 @@
 ---
 name: implementation-patterns
-description: Key patterns for chatroom backend WS handlers, process tracking, and protocol extension
+description: Key patterns for chatroom backend WS handlers, process tracking, protocol extension, and unmassk-toolkit Python internals
 type: project
 ---
+
+## recall.py — git-memory BM25 search engine (2026-06-05)
+
+`unmassk-toolkit/lib/recall.py` — importable module, `recall(query, *, limit, scope, _repo_dir) -> str`.
+`unmassk-toolkit/bin/git-memory-recall.py` — thin CLI wrapper.
+
+Key design decisions:
+- **Two-pass tombstone scan**: collect ALL tombstones before evaluating entries. Single-pass would miss tombstones whose GC commits appear earlier in `git log` (newer) than the entry they resolve.
+- **Decisions are never tombstoned**: matches `extract_memory()` in `session-start-boot.py` — only Memos and Remembers are excluded by tombstone markers.
+- **IDF scoring**: `score = sum(log(1 + N / (df[t] + 1)))` per matching token. Scope match gets 1.5x bonus.
+- **`_repo_dir` param on `recall()`**: allows tests to override the git working directory without monkeypatching.
+- **`scan_trailers_memory` from `lib/parsing.py`**: reuse existing full-body scanner (not `parse_trailers` which stops at first non-trailer line from bottom).
+- **Subprocess override for tests**: when `repo_dir` is given, `_scan_commits` calls `subprocess.run(..., cwd=repo_dir)` directly instead of `run_git()` (which uses cwd of the calling process).
 
 ## Bun.spawn type alias pattern (2026-03-23)
 
