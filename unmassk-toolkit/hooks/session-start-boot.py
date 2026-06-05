@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
-from git_helpers import ensure_gitignore
+from constants import TOMBSTONE_KEYS
+from git_helpers import ensure_gitignore, run_git
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
 
@@ -234,18 +235,6 @@ GLOSSARY_MAX_DECISIONS = 10
 GLOSSARY_MAX_MEMOS = 10
 
 
-def run_git(args: list[str]) -> tuple[int, str]:
-    """Run a git command and return (returncode, stdout)."""
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            capture_output=True, text=True, timeout=10,
-        )
-        return result.returncode, result.stdout.strip()
-    except Exception:
-        return 1, ""
-
-
 def run_doctor() -> dict:
     """Run doctor silently and return parsed JSON."""
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -395,7 +384,7 @@ def extract_memory() -> dict:
         label = f"({scope})" if scope else "(global)"
 
         # Tombstones (GC markers) — collect in same pass
-        for key in ("Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember"):
+        for key in TOMBSTONE_KEYS:
             if key in trailers:
                 tombstones.add(normalize(trailers[key]))
 

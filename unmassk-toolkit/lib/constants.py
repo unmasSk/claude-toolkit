@@ -21,6 +21,16 @@ MEMORY_KEYS: set[str] = {
     "Resolved-Memo", "Resolved-Remember",
 }
 
+# Tombstone trailer keys — entries whose values are resolved/excluded from recall.
+# Single source of truth: used by recall.py and session-start-boot.py.
+TOMBSTONE_KEYS: tuple[str, ...] = (
+    "Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember",
+)
+
+# Recall trailer keys — the memory types surfaced by the recall engine.
+# Single source of truth: used by recall.py and session-start-boot.py.
+RECALL_KEYS: tuple[str, ...] = ("Decision", "Memo", "Remember")
+
 # Risk levels for Risk: trailer
 RISK_VALUES: set[str] = {"low", "medium", "high"}
 

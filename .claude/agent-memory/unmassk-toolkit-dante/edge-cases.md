@@ -121,6 +121,36 @@ Key edge cases:
 - 'NaN', 'Infinity' → invalid (Number() converts but isInteger fails)
 - Case-sensitive enum matching: 'DEBUG' is not 'debug'
 
+## recall.py — BM25 Recall Engine Edge Cases
+
+### Tombstone two-pass ordering (non-obvious)
+git log is newest-first. GC commit (newer) appears at log position 0; original entry (older) at position 1.
+Single-pass would process entry before seeing tombstone — include it erroneously.
+Two-pass: first pass collects ALL tombstone values, second pass filters. Order in log is irrelevant.
+Test name: `test_gc_commit_before_target_in_log_still_tombstones`.
+`_TOMBSTONE_KEYS` = ("Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember").
+`Stale-Blocker` suppresses Memo. `Resolved-Next` does NOT suppress Decision (Decisions are never tombstoned).
+
+### Dedup is per-kind, not cross-kind
+`seen_norms` is keyed by kind. Same normalized text in Decision and Remember = two entries (one per section).
+
+### Scope match (1.5x) outranks text-only match
+Token in scope → score × 1.5. Token in text only → score × 1.0.
+Test: entry A with token in scope > entry B with same token only in text, same df.
+
+### limit clamping
+`if limit < 1: limit = 1` — tested with limit=0 and limit=-5, both clamp to exactly 1 result.
+
+### _sanitize() injection chars
+`\n`, `\r` → space. `<!--`, `-->` → empty string. Entry still appears — content sanitized, not dropped.
+
+### Malformed trailer keys
+`scan_trailers_memory` regex: `[A-Z][a-z]+(?:-[A-Z][a-z]+)*` — lowercase key (`decision:`) or missing colon → silently skipped.
+
+### Empty corpus variants
+1. Repo with non-memory commits only → returns "".
+2. Repo with only Resolved-* tombstone commits (no Decision/Memo/Remember) → returns "".
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests
