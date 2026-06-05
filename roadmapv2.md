@@ -6,6 +6,30 @@
 
 ---
 
+## Estado — fin de sesión 2026-06-05 (LEER PRIMERO para retomar)
+
+**HECHO y publicado en `main` (v1.2.0, cada uno 110/110 de Yoda, pipeline completa):**
+- ✅ **Buscador de recall** (Cubo 2, nivel i) — `unmassk-toolkit/lib/recall.py` + `bin/git-memory-recall.py`. Busca memoria por palabra con ranking idf, dedup, historia completa, tokeniza alfanuméricos (BM25/v2/RS256), sanitiza inyección. Probado en uso real. **Merged.**
+- ✅ **Eliminado el subsistema de seguimiento de contexto** (pre-tarea, no estaba en el roadmap original): context-writer + avisos de % + statusline, con auto-cura del statusline al actualizar (no rompe instalaciones viejas). **Merged.** Efecto: cerró el `shell=True` (issue #48).
+- ✅ CHANGELOG `[Unreleased]` (Alexandria) + bump **1.1.0 → 1.2.0** (plugin.json + marketplace.json).
+- ✅ Decisiones de diseño persistidas en git-memory: plugin-no-MCP, recall-por-hook, vectores-diferidos, graphify (robar algoritmo/adoptar nativo), curador=Gitto.
+
+**⏳ SIGUIENTE LADRILLO (empezar por aquí):** el **hook "portero"** — la OTRA mitad del recall. Un hook `PreToolUse/Task` que engancha `lib/recall.py` para **inyectar la memoria en el prompt del subagente automáticamente**. ⚠️ El buscador existe pero **NO está enganchado todavía** → el auto-recall aún no ocurre en el sistema. Esto es lo que lo hace útil de verdad.
+
+**PENDIENTE (sin empezar):**
+- #6 recall del orquestador (hook `UserPromptSubmit`, medir coste de inyección por turno antes).
+- #19 gate "done-sin-merge"; #18 Exit Gate de seguridad de Ultron como **script real** (no checklist).
+- El **bump no está gateado** en el merge → mejora de gate (igual que done-sin-merge).
+- Cubo 3 entero: curador, madurez (draft/validated/core), grafo bicapa, MCP como superficie, higiene.
+- **Bug:** ruta rota de `scaffold.py` en `unmassk-flow-stack/SKILL.md` (apunta a `flow-stack-selection`, no existe).
+- **Huecos de protocolo** (#22/#23/#24): continuar/escanear proyecto existente (no hay), comunicación (mínimo), plantilla de prompt a agente, conexión scaffolding↔memoria.
+- Evaluar 4 skills de **mattpocock** (triage/caveman/grill-me/handoff) para #42.
+- Cerrar issue **#48** a mano (gh del bot sin permiso de cierre).
+
+**Cómo retomar exactamente:** el boot lee git-memory y muestra RESUME con el último `context()` (`b0bc77f`) + todas las decisiones por scope (plugin/memory, /recall, /graph, /curator). Lee este roadmap. Empieza por el hook portero.
+
+---
+
 ## 0. Principio rector (la lente que resuelve la mitad de las dudas)
 
 **Proceso → gate. Información → memoria + recall.**
