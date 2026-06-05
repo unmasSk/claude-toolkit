@@ -205,7 +205,7 @@ def main() -> None:
         msg += f"\n{YELLOW}>>> If yes, create decision() or memo() commits NOW before ending. Do NOT skip this.{RESET}"
         messages.append(msg)
 
-    # Check 6: ALWAYS create a context() commit on session end
+    # Check 5: ALWAYS create a context() commit on session end
     # This is mandatory — Claude must not skip this
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py")

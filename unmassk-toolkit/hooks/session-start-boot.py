@@ -715,6 +715,75 @@ def _migrate_untrack_generated_jsons(project_root: str) -> None:
         ensure_gitignore(project_root)
 
 
+def _migrate_stale_context_writer_statusline() -> None:
+    """One-time migration: remove or restore a statusLine left by old context-writer.py.
+
+    Users who installed the old version have a statusLine.command in
+    ~/.claude/settings.json pointing at context-writer.py (now deleted).
+    This migration runs once per boot and is idempotent.
+
+    Logic:
+      - If settings.json has a statusLine.command containing "context-writer":
+          (a) If ~/.claude/.git-memory-original-statusline exists and is non-empty,
+              restore that value as the new statusLine.command.
+          (b) Otherwise, remove the statusLine key entirely.
+          (c) In both cases, delete the backup file.
+      - If no context-writer statusLine is present, do nothing.
+      - Any exception is silently swallowed — boot must never fail.
+    """
+    try:
+        claude_dir = os.path.join(os.path.expanduser("~"), ".claude")
+        settings_path = os.path.join(claude_dir, "settings.json")
+        backup_path = os.path.join(claude_dir, ".git-memory-original-statusline")
+
+        if not os.path.isfile(settings_path):
+            return
+
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return
+
+        status_line = settings.get("statusLine", {})
+        current_cmd = status_line.get("command", "") if isinstance(status_line, dict) else ""
+
+        if "context-writer" not in current_cmd:
+            return  # Nothing to migrate
+
+        # Determine replacement
+        backup_content = ""
+        if os.path.isfile(backup_path):
+            try:
+                with open(backup_path, "r", encoding="utf-8") as f:
+                    backup_content = f.read().strip()
+            except OSError:
+                pass
+
+        if backup_content:
+            # Restore the original command
+            settings["statusLine"] = {"command": backup_content}
+        else:
+            # No backup — remove the stale key entirely
+            settings.pop("statusLine", None)
+
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+                f.write("\n")
+        except OSError:
+            return
+
+        # Remove backup file regardless of which branch was taken
+        try:
+            os.remove(backup_path)
+        except FileNotFoundError:
+            pass
+
+    except Exception:
+        pass  # Boot must never fail due to this migration
+
+
 def main() -> None:
     """Auto-boot: structured briefing with all context pre-extracted."""
     # Check if we're in a git repo
@@ -734,12 +803,13 @@ def main() -> None:
         except FileNotFoundError:
             pass
 
-    # 0b. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
+    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
     if project_root:
         _migrate_runtime_to_unmassk(project_root)
         _migrate_untrack_generated_jsons(project_root)
+        _migrate_stale_context_writer_statusline()
 
-    # 0c. Fetch remote refs silently
+    # 0b. Fetch remote refs silently
     run_git(["fetch", "--quiet"])
 
     # ── HEADER ──────────────────────────────────────────────────────
