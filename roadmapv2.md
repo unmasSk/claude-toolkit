@@ -17,13 +17,13 @@
 - [x] **Core** (#21 parcial, #38 parcial) — Ultron=código de producción (no docs/skills); standards on-demand en orquestador; quitado el volcado redundante del boot.
 
 **PENDIENTE (orden corregido — el menú se alinea con la realidad PRIMERO):**
-- [x] **0a. Limpiar el CLAUDE.md vivo:** sacar protocols + communication (nombran skills que no existen). HECHO.
-- [ ] **0b. Limpiar el generador** (`managed_blocks.py`): quitar protocols + communication para que no los reescriba. Quedan toolkit/caveman/build-mode.
-- [ ] **1.** `close-session` completa (bump/changelog/limpieza) + **su hook de cierre** (Stop/PreCompact; el hook es PARTE, no extra) → instalar → al menú.
-- [ ] **2.** Bug de `flow-stack` (ANTES de lifecycle, que depende de él).
-- [ ] **3.** `grill`, `council`, `lifecycle` una a una → instalar → al menú (lifecycle tras el bug).
-- [ ] **4.** `communication`: definir o dejar fuera del menú.
-- [ ] **5.** Publicar: bump 1.2→1.3 + CHANGELOG (el ÚLTIMO).
+- [x] **0. Limpiar el CLAUDE.md vivo** (fuera protocols + communication). HECHO (`9f5b2fd`).
+- [x] **1. `close-session`** completa (+ bump/changelog/limpieza) + su **hook de cierre** (Stop) → instalada → en el menú. HECHO (`a1c6675`).
+- [x] **2. Bug de `flow-stack`** (ruta scaffold.py rota) → arreglado. HECHO (`b27a8e8`).
+- [x] **3. `grill`, `council`, `lifecycle`** → instaladas → en el menú. HECHO (`b27a8e8`).
+- [ ] **4. `communication`:** definir el bloque o dejarlo fuera del menú.
+- [ ] **5. Arreglar `unmassk-audit`** (pisadas con repo_type y gate de cobertura — memo `6053f3c`).
+- [ ] **6. Publicar** (el ÚLTIMO): bump 1.2→1.3 + CHANGELOG + reconciliar `managed_blocks.py`. **Nada vivo hasta esto** (instalado = v1.1.0).
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
@@ -31,9 +31,7 @@
 - Protocolo para que Claude SIGA el roadmap en orden ("vamos por el punto 1, en este orden") — idea de Bex, 2026-06-08.
 - **Confeccionar un PRD template perfecto**, y añadir el paso de generar el PRD al protocolo START (skill `lifecycle`) al arrancar un proyecto nuevo — idea de Bex, 2026-06-08 (decisión `e97d96a`).
 
-**OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombraba cosas que no existían.
-
-**OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombra cosas que aún no existen.
+**OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. Ya corregido — ahora el CLAUDE.md solo nombra skills INSTALADAS (regla `241e60f`).
 
 ---
 
