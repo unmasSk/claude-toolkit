@@ -26,13 +26,14 @@
 - [x] **6. Publicar — v1.3.0**: CHANGELOG, bump 1.2→1.3, `managed_blocks.py` reconciliado, **pusheado** + **activado** (reinicio). HECHO.
 
 **PRÓXIMO REAL (no candidato — es trabajo pendiente):**
-- [ ] **Doc/script de release** (tarea #9, memo `2c28f49`): orquestar bump + CHANGELOG + **push** + verificar. Hoy el publish falló por NO pushear. Regla nueva (`c5ddad3`): SIEMPRE `--push` tras cada commit (Bex usa 4 máquinas).
+- [ ] **Script/doc de release** (tarea #9, memo `2c28f49`, decisión `377fbee`): orquestar bump (`plugin.json`+`marketplace.json`) + CHANGELOG (Alexandria) + commit + **push** + verificar `/plugin update`. **SOLO el script** — el hook de push-automático NO va aquí (es candidato, abajo). Hoy el publish falló por no pushear. Regla viva (`c5ddad3`): siempre `--push` tras cada commit (Bex usa 4 máquinas).
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
 **CANDIDATOS (no construir sin firma de Bex):**
 - Protocolo para que Claude SIGA el roadmap en orden ("vamos por el punto 1, en este orden") — idea de Bex, 2026-06-08.
 - **Confeccionar un PRD template perfecto**, y añadir el paso de generar el PRD al protocolo START (skill `lifecycle`) al arrancar un proyecto nuevo — idea de Bex, 2026-06-08 (decisión `e97d96a`).
+- **Hook de push-automático tras cada commit** — SOLO repos trunk; en gitflow JAMÁS (push auto a main = deploy a producción por accidente). Debe heredar `repo_type`. Separado del script de release #9 (decisión `377fbee`).
 
 **OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. Ya corregido — ahora el CLAUDE.md solo nombra skills INSTALADAS (regla `241e60f`).
 
