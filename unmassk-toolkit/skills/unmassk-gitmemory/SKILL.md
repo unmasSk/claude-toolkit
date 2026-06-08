@@ -13,7 +13,7 @@ The file `CALIBRATION.md` next to this SKILL.md contains the memory calibration 
 
 ## Rules
 
-1. Never commit to `main` directly
+1. Never commit code to `main` directly **in a gitflow repo** — feature branch + PR; in a trunk/solo repo `main` is the working branch (see Safety → Repo type)
 2. Never commit without trailers (hooks enforce it for Claude; humans get warnings only)
 3. `context()`, `decision()`, `memo()`, `remember()` always use `--allow-empty`
 4. If conflict/risky op → stop (see Safety section below)
@@ -182,6 +182,12 @@ A `UserPromptSubmit` hook fires on EVERY user message and injects a `[memory-che
 - Examples that warrant it: "user corrected me 3 times for assuming X", "user always responds in Spanish even when I write in English"
 - Examples that do NOT: "user seems tired today", "user typed fast", "user used an emoji once"
 
+**Two distinct paths** (so this does not contradict CALIBRATION's "first correction counts"):
+
+- **Explicit user correction** of a durable thing (stable fact / declared-permanent preference) → save on the 1st (per CALIBRATION).
+- **Claude's own pattern observation** (no explicit correction) → needs 2+ occurrences. One self-noticed instance is feedback, not a pattern.
+- Either path: NEVER a systemic or project-scoped rule — those go to the loaded skill / memo / decision, not a global remember(claude).
+
 **Not memory-worthy** (ignore silently):
 
 - Questions, brainstorming, "what if", "maybe", "let's explore"
@@ -237,15 +243,39 @@ If conflict between sources: acknowledge openly, defer to most recent user confi
 
 ## Safety
 
+### Repo type (decides whether `main` is protected)
+
+**`main` is protected by DEFAULT. A repo is treated as trunk ONLY when explicitly declared so — never inferred from what the repo happens to contain.**
+
+**1. Marker first (primary mechanism).** Read `.claude/git-memory-config.json` → `repo_type` (`trunk` | `gitflow`). If present, use it — done. Every repo carries this marker; set it once.
+
+**2. No marker → fail-closed to gitflow.** Without a marker you do NOT have enough to call it trunk. Treat it as **gitflow** (protected); ask the user to declare the type, then write the marker. Detection signals only *raise suspicion*, never *conclude trunk*:
+- **Any auto-deploy hosting integration (Vercel, Netlify, Cloudflare Pages, …) → gitflow** — even if the deploy config lives OUTSIDE the repo (Vercel↔GitHub is wired in the dashboard, not a repo file). "No CI visible in the repo" is NOT evidence of trunk; it's the absence of one signal.
+- A `dev`/`staging` branch, or CI/CD triggered on `main` → gitflow.
+- Absence of all internal signals → **suspicion, not conclusion** → fail-closed to gitflow until confirmed.
+
+**The defining test** (used to *declare* the marker, not to guess from contents): *does a commit to `main` here, by itself, auto-deploy/publish to users (CD)?* Yes → gitflow. No → trunk. Criterion is auto-deploy **on the commit**, not "is it ever published": a repo that releases via a separate deliberate step (version bump, marketplace publish, manual deploy) is **trunk** — the commit ships nothing by itself.
+
+**Behavior by type:**
+- **gitflow** → `main` protected. Code in `feat/*`, merged via PR. NEVER commit code to `main` directly. (Merging the PR is the deliberate, reviewed production deploy.)
+- **trunk** → `main` IS the working branch (memory repos, toolkits, notes, solo projects). Commit directly to `main`.
+
+**Invariants, regardless of type:**
+- **Force-push to `main` is FORBIDDEN in BOTH** — history integrity (rewriting/losing commits), unrelated to deployment.
+- **Memory commits** (`decision`/`memo`/`remember`/`context`, `--allow-empty`) go to the **current branch**, always allowed — they never deploy.
+
+**Enforcement (prerequisite, not "someday").** Until a PreToolUse gate blocks direct `main` commits in gitflow repos, this protection is doc-only — text the agent must remember, unreliable for a real production repo. The gate is a **prerequisite before working ANY gitflow repo with commits** (e.g. Korven), not a comfortable follow-up.
+
 ### Branches
 
-Base: `dev`. Work in `feat/*`, `fix/*`, `chore/*`. 1 issue = 1 branch. Default merge (not rebase).
+**Gitflow repos:** base `dev`; work in `feat/*`, `fix/*`, `chore/*`; **1 issue = 1 branch**; default merge (not rebase); PR to merge into `main`.
+**Trunk repos:** work directly on `main`; branches and PRs are optional, not required; "1 issue = 1 branch" does NOT apply.
 
 ### Conflict Resolution
 
 - Default: merge, not rebase. If conflict: **stop**, don't improvise.
 - Resolution commits MUST include: `Conflict:` + `Resolution:` + `Why:` + `Touched:` + `Risk:`
-- Force push to `main`: **FORBIDDEN**.
+- Force push to `main`: **FORBIDDEN** (every repo type — history safety, independent of deployment).
 - Force push to `staging`: only with explicit approval + documented reason + `Risk: high`.
 - Rebase: only with explicit user request and risk acceptance.
 
@@ -286,7 +316,7 @@ Type "I understand the risk, proceed" to continue.
 
 ### Releases
 
-- PR mandatory: `dev → staging`. Production: `staging → main` with release protocol.
+- (Gitflow repos) PR mandatory: `dev → staging`. Production: `staging → main` with release protocol. (Trunk repos release from `main` via their own deliberate step — version bump/publish.)
 - No `Next:` on main commits. `Risk:` always required on hotfixes.
 - PR body auto-generated from trailers.
 - Hotfix flow: branch from main → fix → PR to main → **back-merge to dev IMMEDIATELY** (same session, no delay). If you skip this, the bug reappears next time dev merges to staging.
