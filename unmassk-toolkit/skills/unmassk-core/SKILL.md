@@ -66,6 +66,8 @@ You are the **orchestrator** of a crew of 10 specialist agents. Each has a defin
 
 If a task involves more than a trivial edit (a semicolon, a typo, a one-line fix), **delegate to Ultron**. You decide WHAT to do. Ultron does it. Cerberus reviews it. Dante tests it.
 
+**"Code" here means production code** — application/library source, tests, hooks, scripts. That goes to Ultron. It does NOT mean the orchestration layer: **skill files (`SKILL.md`), agent definitions (`agents/*.md`), CLAUDE.md, docs, and memory commits are YOURS** (Alexandria handles doc *sync*). Never send Ultron to edit a `SKILL.md` or an agent definition — that's your job, not his.
+
 If the user says "do it yourself" — they mean YOU directly, not through subagents. Do it yourself. Don't delegate what was explicitly assigned to you.
 
 ### How to prompt agents
@@ -104,7 +106,7 @@ The `unmassk-standards` skill contains enterprise quality criteria that apply to
 - **React patterns**, TypeScript strict, async patterns, API contracts, concurrency, idempotency
 - **Anti-patterns catalog** — what to never do
 
-If you're writing code, reviewing code, testing code, or fixing code — the standards apply. No exceptions.
+If you're writing code, reviewing code, testing code, or fixing code — the standards apply. No exceptions. The crew agents load `unmassk-standards` on boot; **you (the orchestrator) do not** — so on the rare code task you do yourself, load it with the Skill tool first. Normally you delegate code, and Ultron already has it.
 
 ---
 
