@@ -20,6 +20,15 @@ Never ask the user to run commands -- run them yourself.
 
 Detect the situation and load the matching skill (TOOL CALL). Only installed skills are listed here.
 
+**Project lifecycle** — is there toolkit git-memory? is there existing code?
+- git-memory + code → continuing our project → Skill `unmassk-project-lifecycle`
+- code, no git-memory → external repo (scan) → Skill `unmassk-project-lifecycle`
+- nothing → new project → Skill `unmassk-project-lifecycle`
+
+**Before building something significant:**
+- Ambiguous request, or a decision with stakes → Skill `unmassk-grill`
+- A real choice between options / "help me decide / I'm torn" → Skill `unmassk-council`
+
 **Ending a session:**
 - Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, project housekeeping — version bump / changelog / cleanup — and write the resume point)
 
