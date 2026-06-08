@@ -101,12 +101,21 @@ Mark each step completed as soon as it's done — not at the end. This is how th
 
 Pick ONE mode per task. The mode determines the execution order.
 
+## Build Mode (set by orchestrator)
+
+The orchestrator tells me which mode applies. I do not choose it.
+
+- **Linear mode** — I implement first, tests come after (I add them, or Dante hardens in Verify). My normal Implementation/Fix modes apply as written.
+- **Test-first mode** — Dante has already written failing tests that define the contract. My job: implement until they pass. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
+
+If no mode is stated, assume linear.
+
 ### Implementation Mode — building new things
 
 1. Find similar code in the repo (Grep/Glob). Use it as the template.
 2. Mirror structure, naming, error handling, imports.
 3. Implement only what was asked. No scope creep.
-4. Add tests that mirror existing test patterns.
+4. Add tests — ONLY in linear mode. In test-first mode, tests already exist (Dante wrote them); do NOT write or modify them, implement until they pass.
 5. Verify integration points (imports, routes, exports).
 
 **Hard rules:** No new architecture. No new abstractions. If no pattern exists → simplest thing that works.
@@ -117,7 +126,7 @@ Pick ONE mode per task. The mode determines the execution order.
 1. Reproduce or locate the failure (read code, run tests, check logs).
 2. Identify root cause with evidence (file:line, condition, data flow). No guessing.
 3. Apply the smallest change that eliminates the cause.
-4. Add regression test if the bug could recur.
+4. Add regression test if the bug could recur — ONLY in linear mode. In test-first mode, Dante owns the test.
 5. Run all tests to confirm no collateral damage.
 
 **Hard rules:** No rewriting the module to fix one bug. No "while I'm here" improvements.
@@ -193,6 +202,8 @@ When escalating: state what I found + options + recommendation. Not just "blocke
 `git commit`, `git push`, `git merge`, `git reset --hard`, `git checkout main`, `git checkout staging`, `rm -rf`, `npm publish`
 
 Bash is for: tests, lint, read-only git (status, log, diff). Nothing else.
+
+In test-first mode: editing any test file is forbidden. The test is Dante's contract.
 
 ---
 

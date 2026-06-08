@@ -32,6 +32,8 @@ Classify the work BEFORE anything else. Decide together with the user.
 | Standard | Normal feature, clear scope | Full pipeline (steps 1-7) |
 | Big | 3+ new files, 5+ modified, or touches auth/data/permissions | Full pipeline + mandatory Argus + Moriarty + Yoda in VERIFY |
 
+Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
+
 Create issue + branch after triage. Context commit: `context(<scope>): start <type> — issue #N`
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
@@ -64,6 +66,14 @@ Analyze the feature domain and generate specific gray areas (not generic categor
 - All gray areas resolved → proceed to Step 2
 - Feature found infeasible → close issue with rationale, STOP
 - User says "enough, let's build" → proceed with decisions locked so far
+
+### Decide the Build Mode (here, not at Triage)
+
+Now that the gray areas are resolved you finally know the feature's shape — clear contract vs fuzzy exploration. Decide the build mode and record it in the plan (Step 3). Triage's tentative guess does not bind this.
+
+- Clear, testable behavior + costly if wrong → **test-first** (method: `references/test-first.md`).
+- Exploratory / throwaway / shape still unclear → **linear** (method: `references/linear.md`).
+- Uncertain → test-first (the safer default for real code).
 
 ## Step 2 — Research (Bilbo)
 
@@ -102,6 +112,7 @@ Write the plan. This is the SINGLE source of truth for the feature.
 **Issue:** #N
 **Branch:** feat/<name> | fix/<name> | refactor/<name>
 **Triage:** Quick | Standard | Big
+**Build mode:** test-first | linear
 **Created:** YYYY-MM-DD
 
 ## Goal
@@ -147,6 +158,15 @@ One item per task in the plan. Update status as execution progresses.
 ## Step 4 — Execute (Ultron + Dante)
 
 Implement the plan. Wave-based parallel execution where possible.
+
+### Build Mode Router (read the plan's Build mode, then load the matching method)
+
+This step is a **router** — it does NOT spell the method out; it points to the reference doc that does (same pattern as `unmassk-standards` → `references/standards.md`). Load the matching doc and follow it:
+
+- **Linear** → read **`references/linear.md`** (Ultron implements → Dante tests after).
+- **Test-first** → read **`references/test-first.md`** (Dante writes the acceptance contract → Ultron implements until GREEN; Dante's exhaustive hardening is the Verify pass).
+
+Everything below (waves, deviation rules, circuit breaker, tracking) applies to both methods.
 
 ### Pre-execution Gate
 
@@ -201,7 +221,7 @@ Verify the feature works and meets quality standards.
 ### Always (all features)
 
 - **Cerberus** (agent:cerberus.md`) — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks?
-- **Dante** (agent:dante.md`) — tests for code that changed without coverage
+- **Dante** (agent:dante.md`) — tests for code that changed without coverage. In **test-first** mode this is Dante's **hardening pass**: full EXHAUSTION PROTOCOL + coverage gate (≥90% functions / ≥80% error paths) against the now-real code.
 
 ### If Big feature (or touches auth/data/permissions)
 
@@ -250,10 +270,10 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 | Step | Agent | Parallel? | Gate |
 | ---- | ----- | --------- | ---- |
 | 0 | ORCHESTRATOR | - | Triage classification |
-| 1 | ORCHESTRATOR + User | No | Gray areas resolved |
+| 1 | ORCHESTRATOR + User | No | Gray areas resolved + build mode decided |
 | 2 | Bilbo | No | Research complete |
 | 3 | ORCHESTRATOR | No | Plan written + checked |
-| 4 | Ultron (+ Dante) | Waves | All tasks complete |
+| 4 | Ultron (+ Dante), forked by build mode | Waves | All tasks complete |
 | 5 | Cerberus (+ Argus, Moriarty, Yoda) | Depends | VERIFY passes |
 | 6 | Alexandria | No | Docs updated |
 | 7 | ORCHESTRATOR | - | Merged + closed |
