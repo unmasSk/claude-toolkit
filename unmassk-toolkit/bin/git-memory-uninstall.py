@@ -23,12 +23,14 @@ Exit codes:
 
 import argparse
 import os
+import re
 import shutil
 import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from managed_blocks import BLOCKS
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -106,7 +108,7 @@ def safe_rmdir(path: str) -> bool:
 # ── Uninstall Steps ──────────────────────────────────────────────────────
 
 def remove_claude_md_block(target: str) -> bool:
-    """Remove the managed block from CLAUDE.md without touching other content."""
+    """Remove all 5 managed blocks from CLAUDE.md without touching other content."""
     claude_md = os.path.join(target, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return False
@@ -114,33 +116,30 @@ def remove_claude_md_block(target: str) -> bool:
     with open(claude_md) as f:
         content = f.read()
 
-    begin = "<!-- BEGIN unmassk-toolkit (managed block — do not edit) -->"
-    end = "<!-- END unmassk-toolkit -->"
+    original = content
+    removed_any = False
 
-    begin_idx = content.find(begin)
-    end_idx = content.find(end)
+    for block in BLOCKS:
+        begin = block["begin"]
+        end = block["end"]
+        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
+        if pattern.search(content):
+            content = pattern.sub("", content)
+            removed_any = True
 
-    if begin_idx == -1 or end_idx == -1:
+    if not removed_any:
         return False
 
-    end_idx += len(end)
-    # Also remove surrounding blank lines
-    before = content[:begin_idx].rstrip()
-    after = content[end_idx:].lstrip()
+    # Collapse multiple blank lines and trim
+    content = re.sub(r"\n{3,}", "\n\n", content).strip()
 
-    if before and after:
-        new_content = before + "\n\n" + after
-    elif before:
-        new_content = before + "\n"
-    elif after:
-        new_content = after
-    else:
+    if not content:
         # CLAUDE.md would be empty — remove the file
         os.unlink(claude_md)
         return True
 
     with open(claude_md, "w") as f:
-        f.write(new_content)
+        f.write(content + "\n")
     return True
 
 

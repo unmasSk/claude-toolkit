@@ -31,6 +31,7 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from managed_blocks import BLOCKS, all_blocks_present, any_block_outdated
 from version import VERSION
 
 
@@ -95,27 +96,17 @@ def check_upgrade_needed(source: str, target: str, manifest: dict[str, Any]) -> 
         result["needs_update"] = True
         result["reasons"].append(f"Version mismatch: {manifest.get('version')} → {VERSION}")
 
-    # CLAUDE.md managed block outdated or missing
+    # CLAUDE.md managed blocks outdated or missing
     claude_md = os.path.join(target, "CLAUDE.md")
     if os.path.isfile(claude_md):
         with open(claude_md) as f:
             content = f.read()
-        if "BEGIN unmassk-toolkit" not in content:
+        if not all_blocks_present(content):
             result["needs_update"] = True
-            result["reasons"].append("CLAUDE.md managed block missing")
-        else:
-            # Load the current managed block content from install module
-            install_mod = _load_install_module()
-            expected = install_mod.MANAGED_BLOCK_CONTENT
-            begin_marker = install_mod.MANAGED_BLOCK_BEGIN
-            end_marker = install_mod.MANAGED_BLOCK_END
-            begin_idx = content.find(begin_marker)
-            end_idx = content.find(end_marker)
-            if begin_idx != -1 and end_idx != -1:
-                current_block = content[begin_idx + len(begin_marker):end_idx].strip()
-                if current_block != expected.strip():
-                    result["needs_update"] = True
-                    result["reasons"].append("CLAUDE.md managed block content outdated")
+            result["reasons"].append("CLAUDE.md managed blocks missing (one or more)")
+        elif any_block_outdated(content):
+            result["needs_update"] = True
+            result["reasons"].append("CLAUDE.md managed block content outdated")
     else:
         result["needs_update"] = True
         result["reasons"].append("CLAUDE.md missing")
@@ -265,9 +256,10 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
             "managed_blocks": [
                 {
                     "file": "CLAUDE.md",
-                    "begin": "BEGIN unmassk-toolkit",
-                    "end": "END unmassk-toolkit",
+                    "begin": b["begin"].replace("<!-- ", "").split(" (")[0].split(" -->")[0],
+                    "end": b["end"].replace("<!-- ", "").replace(" -->", ""),
                 }
+                for b in BLOCKS
             ],
             "hook_registrations": [
                 "PreToolUse", "PostToolUse", "Stop",

@@ -31,28 +31,17 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git, ensure_gitignore
+from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-MANAGED_BLOCK_BEGIN = "<!-- BEGIN unmassk-toolkit (managed block — do not edit) -->"
-MANAGED_BLOCK_END = "<!-- END unmassk-toolkit -->"
-
-MANAGED_BLOCK_CONTENT = """## unmassk-toolkit Active
-
-This project uses the **unmassk toolkit**.
-
-**On every session start**, you MUST:
-1. Read the `[git-memory-boot]` SessionStart output already in your context
-2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
-3. Use the Skill tool with `skill="unmassk-gitmemory"` (TOOL CALL, not bash)
-4. Read CALIBRATION.md: `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md`
-5. Show the boot summary, then respond to the user
-
-**On every user message**, the `[memory-check]` hook fires. Follow the CALIBRATION rules.
-
-Never ask the user to run commands -- run them yourself."""
+# Keep these aliases so git-memory-upgrade.py can still import them.
+# They refer to the first block (unmassk-toolkit) which is the primary block.
+MANAGED_BLOCK_BEGIN = BLOCKS[0]["begin"]
+MANAGED_BLOCK_END = BLOCKS[0]["end"]
+MANAGED_BLOCK_CONTENT = BLOCKS[0]["body"]
 
 
 # Old-style install files that should be cleaned up from the project root.
@@ -384,28 +373,19 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
 
 
 def _update_claude_md(target: str) -> None:
-    """Add or update the managed block in CLAUDE.md."""
+    """Add or update all 5 managed blocks in CLAUDE.md."""
     claude_md = os.path.join(target, "CLAUDE.md")
 
     if os.path.isfile(claude_md):
         with open(claude_md) as f:
             content = f.read()
-
-        # Replace existing block
-        begin_idx = content.find(MANAGED_BLOCK_BEGIN)
-        end_idx = content.find(MANAGED_BLOCK_END)
-        if begin_idx != -1 and end_idx != -1:
-            end_idx += len(MANAGED_BLOCK_END)
-            new_block = f"{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}"
-            content = content[:begin_idx] + new_block + content[end_idx:]
-        else:
-            # Append
-            content = content.rstrip() + f"\n\n{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}\n"
     else:
-        content = f"# CLAUDE.md\n\n{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}\n"
+        content = "# CLAUDE.md\n\n"
+
+    new_content, _ = upsert_managed_blocks(content)
 
     with open(claude_md, "w") as f:
-        f.write(content)
+        f.write(new_content)
 
 
 def _create_manifest(target: str, mode: str) -> None:
@@ -420,9 +400,10 @@ def _create_manifest(target: str, mode: str) -> None:
         "managed_blocks": [
             {
                 "file": "CLAUDE.md",
-                "begin": "BEGIN unmassk-toolkit",
-                "end": "END unmassk-toolkit",
+                "begin": b["begin"].replace("<!-- ", "").split(" (")[0].split(" -->")[0],
+                "end": b["end"].replace("<!-- ", "").replace(" -->", ""),
             }
+            for b in BLOCKS
         ],
         "hook_registrations": [
             "PreToolUse", "PostToolUse", "Stop",
