@@ -46,6 +46,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-recall.py",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
