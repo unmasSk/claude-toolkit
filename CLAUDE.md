@@ -18,19 +18,24 @@ Never ask the user to run commands -- run them yourself.
 <!-- BEGIN unmassk-protocols (managed block) -->
 ## Protocols
 
-Detect the situation and load the matching skill (TOOL CALL). Only installed skills are listed here.
+These protocols exist as skills. Detect the situation and load the matching skill (TOOL CALL). The list is always visible here so you never need to "remember" a protocol exists — pick from this menu.
 
-**Project lifecycle** — is there toolkit git-memory? is there existing code?
+**Project lifecycle** — detect by checking two facts: is there toolkit git-memory? is there existing code?
+
 - git-memory + code → continuing our project → Skill `unmassk-project-lifecycle`
-- code, no git-memory → external repo (scan) → Skill `unmassk-project-lifecycle`
+- code, no git-memory → external repo → Skill `unmassk-project-lifecycle`
 - nothing → new project → Skill `unmassk-project-lifecycle`
 
+(One skill handles all three; it routes internally. State the detected situation in one line before acting.)
+
 **Before building something significant:**
-- Ambiguous request, or a decision with stakes → Skill `unmassk-grill`
-- A real choice between options / "help me decide / I'm torn" → Skill `unmassk-council`
+
+- Ambiguous request, or a decision with stakes → Skill `unmassk-grill` (interrogate until the decision tree is resolved, before writing code)
+- A real choice between options, or "help me decide / I'm torn" → Skill `unmassk-council` (5-advisor pressure-test; also covers brainstorming and prototyping)
 
 **Ending a session:**
-- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, project housekeeping — version bump / changelog / cleanup — and write the resume point)
+
+- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, write the resume point)
 
 All protocol output persists to **git-memory**, never to `.md` files.
 <!-- END unmassk-protocols -->
