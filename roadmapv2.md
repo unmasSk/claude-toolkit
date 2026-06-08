@@ -16,11 +16,21 @@
 - [x] **Reencuadre "never commit to main" por tipo de repo** — trunk vs gitflow, marcador commiteado, fail-closed.
 - [x] **Core** (#21 parcial, #38 parcial) — Ultron=código de producción (no docs/skills); standards on-demand en orquestador; quitado el volcado redundante del boot.
 
-**PENDIENTE INMEDIATO (el thread abierto — ver lista de tareas visual):**
-- [ ] Completar `close-session` (bump/changelog/limpieza) + su hook de disparo (Stop/PreCompact).
-- [ ] Construir/instalar las 3 skills de protocolo (lifecycle, grill, council) — el CLAUDE.md las nombra pero son borradores.
-- [ ] Definir el bloque `communication` (placeholder vacío).
-- [ ] Publicar: bump 1.2.0→1.3.0 + CHANGELOG. **Nada de esto está vivo hasta publicar.**
+**PENDIENTE (orden corregido — el menú se alinea con la realidad PRIMERO):**
+- [x] **0a. Limpiar el CLAUDE.md vivo:** sacar protocols + communication (nombran skills que no existen). HECHO.
+- [ ] **0b. Limpiar el generador** (`managed_blocks.py`): quitar protocols + communication para que no los reescriba. Quedan toolkit/caveman/build-mode.
+- [ ] **1.** `close-session` completa (bump/changelog/limpieza) + **su hook de cierre** (Stop/PreCompact; el hook es PARTE, no extra) → instalar → al menú.
+- [ ] **2.** Bug de `flow-stack` (ANTES de lifecycle, que depende de él).
+- [ ] **3.** `grill`, `council`, `lifecycle` una a una → instalar → al menú (lifecycle tras el bug).
+- [ ] **4.** `communication`: definir o dejar fuera del menú.
+- [ ] **5.** Publicar: bump 1.2→1.3 + CHANGELOG (el ÚLTIMO).
+
+**Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
+
+**CANDIDATOS (no construir sin firma de Bex):**
+- Protocolo para que Claude SIGA el roadmap en orden ("vamos por el punto 1, en este orden") — idea de Bex, 2026-06-08.
+
+**OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombraba cosas que no existían.
 
 **OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombra cosas que aún no existen.
 

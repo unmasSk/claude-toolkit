@@ -15,31 +15,6 @@ This project uses the **unmassk toolkit**.
 Never ask the user to run commands -- run them yourself.
 <!-- END unmassk-toolkit -->
 
-<!-- BEGIN unmassk-protocols (managed block) -->
-## Protocols
-
-These protocols exist as skills. Detect the situation and load the matching skill (TOOL CALL). The list is always visible here so you never need to "remember" a protocol exists — pick from this menu.
-
-**Project lifecycle** — detect by checking two facts: is there toolkit git-memory? is there existing code?
-
-- git-memory + code → continuing our project → Skill `unmassk-project-lifecycle`
-- code, no git-memory → external repo → Skill `unmassk-project-lifecycle`
-- nothing → new project → Skill `unmassk-project-lifecycle`
-
-(One skill handles all three; it routes internally. State the detected situation in one line before acting.)
-
-**Before building something significant:**
-
-- Ambiguous request, or a decision with stakes → Skill `unmassk-grill` (interrogate until the decision tree is resolved, before writing code)
-- A real choice between options, or "help me decide / I'm torn" → Skill `unmassk-council` (5-advisor pressure-test; also covers brainstorming and prototyping)
-
-**Ending a session:**
-
-- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, write the resume point)
-
-All protocol output persists to **git-memory**, never to `.md` files.
-<!-- END unmassk-protocols -->
-
 <!-- BEGIN unmassk-caveman (managed block) -->
 ## Communication mode: caveman (when active)
 
@@ -54,12 +29,6 @@ Yes: "Bug in auth middleware. Token expiry check uses `<` not `<=`. Fix:"
 
 Drop caveman temporarily for: security warnings, irreversible-action confirmations, multi-step sequences where order matters, or when the user asks to clarify. Resume after.
 <!-- END unmassk-caveman -->
-
-<!-- BEGIN unmassk-communication (managed block) -->
-## Communication
-
-[PLACEHOLDER — aquí van las reglas de comunicación: tono, idioma, qué reportar / qué callar. Por definir.]
-<!-- END unmassk-communication -->
 
 <!-- BEGIN unmassk-build-mode (managed block) -->
 ## Build mode (you decide, before delegating)
