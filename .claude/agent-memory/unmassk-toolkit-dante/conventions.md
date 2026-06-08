@@ -117,6 +117,21 @@ tests must be updated manually. Do NOT test implementation details of other modu
 - +15 tests: `tests/routes/ws-e2e-chain.test.ts` — full WS E2E chain (connect→message→broadcast→invokeAgents→DB)
 - Total as of session 6: 1136 tests, 0 failures
 
+## Python Pytest (unmassk-toolkit/tests/)
+
+Framework: `pytest` (standard). No bun, no Vitest.
+Run: `python -m pytest unmassk-toolkit/tests/<file> -q` from git root.
+CWD for subprocess calls: always a `tmp_path`-based temp git repo (NOT the project repo).
+
+Patterns used:
+- Class-per-scenario (e.g. `TestSubagentTypeAbsentOrEmpty`) with one assert per method.
+- `_make_repo(tmp_path)` + `_commit(repo, subject, trailers)` for fixture setup.
+- `_run_hook(repo, tool_name, tool_input_dict)` → `(rc, parsed, stdout, stderr)`.
+- `_run_hook_raw(repo, payload_str)` for testing malformed inputs.
+- `_hook_specific(parsed)` → `parsed["hookSpecificOutput"]`.
+- Import `run_cmd` from `conftest` for raw subprocess invocations.
+- No `@pytest.fixture` used in hook tests — all setup is inline per test.
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:

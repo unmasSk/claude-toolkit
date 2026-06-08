@@ -228,6 +228,32 @@ To test the full upgrade → message → broadcast → invokeAgents chain:
 **invokeAgents signature**: `invokeAgents(roomId, mentions: Set<string>, triggerContent, Map, boolean)` —
 the stub receives mentions as a Set but can be spread: `_invokeAgentsCalls.push({ mentions: [...mentions] })`.
 
+## Python Pytest — Hook Subprocess Testing Pattern
+
+Hooks under `unmassk-toolkit/hooks/` are tested as subprocesses via `conftest.run_cmd`.
+Conftest is in `unmassk-toolkit/tests/conftest.py`. Key helpers:
+
+```python
+# Run hook with JSON stdin (mirrors Claude Code's invocation contract):
+rc, stdout, stderr = run_cmd([sys.executable, HOOK_PATH], cwd=repo, input_text=json_str)
+parsed = json.loads(stdout)
+hso = parsed.get("hookSpecificOutput", {})
+
+# Or use the _run_hook() helper defined in the test file (wraps run_cmd):
+rc, parsed, raw_stdout, stderr = _run_hook(repo, "Task", tool_input_dict)
+```
+
+`SOURCE_ROOT` = `unmassk-toolkit/` dir. `HOOKS_DIR` = `unmassk-toolkit/hooks/`. `LIB_DIR` = `unmassk-toolkit/lib/`.
+
+For `recall()` calls in helper functions, pass `_repo_dir=repo` — do NOT use the default (which resolves git root of the real project repo).
+
+### Fail-open invariant pattern (deny/block test)
+```python
+output_str = json.dumps(json.loads(stdout))
+assert "deny" not in output_str.lower()
+assert "block" not in output_str.lower()
+```
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.

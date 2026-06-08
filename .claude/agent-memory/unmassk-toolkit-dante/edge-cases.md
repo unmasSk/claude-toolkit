@@ -151,6 +151,35 @@ Test: entry A with token in scope > entry B with same token only in text, same d
 1. Repo with non-memory commits only → returns "".
 2. Repo with only Resolved-* tombstone commits (no Decision/Memo/Remember) → returns "".
 
+## pre-task-recall.py Hook Edge Cases
+
+`_normalize_agent(subagent_type)`: `rsplit(":", 1)[-1].strip().lower()`.
+- `""` → `""` → not in whitelist → passthrough
+- `"ULTRON"` → `"ultron"` → whitelisted
+- `"unmassk-toolkit:Ultron"` → `"ultron"` → whitelisted
+- `"  ultron  "` → `"ultron"` (strip) → whitelisted
+- `"TOOLKIT:Bilbo"` → `"bilbo"` → NOT whitelisted
+
+`updatedInput` = `dict(tool_input)` with only `prompt` overwritten. ALL other keys (model, description, max_turns, nested objects) survive verbatim.
+
+Footer structure: `original_prompt + _FOOTER_HEADER + memory_block + _FOOTER_TAIL`.
+- `_FOOTER_HEADER` starts with `"\n\n---\n"`, `_FOOTER_TAIL` = `"\n---"`.
+- `updated_prompt.endswith("\n---")` → True always when injected.
+- `updated_prompt.count("---") >= 2` → True always when injected.
+
+stdin edge cases that must all fail-open (allow, exit 0, no traceback):
+- `""` (empty), `"not json"`, `'["array"]'`, `"null"`, `'{{{invalid'`
+
+### Long prompt — query truncation does not truncate the prompt (T3 gap closed)
+`recall()` caps its internal BM25 query to `MAX_QUERY_LEN = 2000` chars when the prompt is very long, but the hook passes the FULL original prompt to `_build_prompt()`. The query truncation is a search guard only; it has no effect on `updatedInput.prompt`.
+
+Test pattern:
+- Seed a distinct token (e.g. `xqzlongprompttoken`) that appears within the first 2000 chars of the prompt → survives truncation → recall returns a hit → injection fires.
+- Build prompt with `seed_token + " " + (padding_unit * 200)` → deterministic, ≈12 000 chars.
+- Assert `updated_prompt.startswith(prompt)` (full original, not 2000-char slice).
+- Assert `len(updated_prompt) > len(prompt)` (footer was appended, not a replacement).
+- Assert `"MEMORIA DEL PROYECTO"` present and prompt ends with `"\n---"`.
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests
