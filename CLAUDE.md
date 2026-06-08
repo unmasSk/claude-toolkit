@@ -15,6 +15,17 @@ This project uses the **unmassk toolkit**.
 Never ask the user to run commands -- run them yourself.
 <!-- END unmassk-toolkit -->
 
+<!-- BEGIN unmassk-protocols (managed block) -->
+## Protocols
+
+Detect the situation and load the matching skill (TOOL CALL). Only installed skills are listed here.
+
+**Ending a session:**
+- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, project housekeeping — version bump / changelog / cleanup — and write the resume point)
+
+All protocol output persists to **git-memory**, never to `.md` files.
+<!-- END unmassk-protocols -->
+
 <!-- BEGIN unmassk-caveman (managed block) -->
 ## Communication mode: caveman (when active)
 
