@@ -29,6 +29,7 @@
 
 **CANDIDATOS (no construir sin firma de Bex):**
 - Protocolo para que Claude SIGA el roadmap en orden ("vamos por el punto 1, en este orden") — idea de Bex, 2026-06-08.
+- **Confeccionar un PRD template perfecto**, y añadir el paso de generar el PRD al protocolo START (skill `lifecycle`) al arrancar un proyecto nuevo — idea de Bex, 2026-06-08 (decisión `e97d96a`).
 
 **OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombraba cosas que no existían.
 
