@@ -8,7 +8,7 @@
 
 ## Estado — 2026-06-08 (lunes, LEER PRIMERO)
 
-**HECHO esta sesión (commiteado en `main`, aún SIN publicar — instalado sigue v1.1.0):**
+**HECHO — v1.3.0 PUBLICADA, pusheada y ACTIVADA (el reinicio cargó la 1.3.0, corriendo ahora):**
 - [x] **Portero de recall** (#1 + #2 + #4) — hook `PreToolUse/Task` que inyecta memoria al subagente, whitelist por `subagent_type`, live-read git. Yoda 110/110, 51 tests. **La otra mitad del recall, ya enganchada.**
 - [x] **Build-mode** (NUEVO, no estaba en el roadmap) — dos modos de escritura: lineal vs test-first/ATDD; Flow es el router (Step 4) y delega a `references/linear.md` y `test-first.md`; el orquestador elige por tarea; Build Mode en Ultron/Dante.
 - [x] **Generador de los 5 bloques del CLAUDE.md** (NUEVO) — `lib/managed_blocks.py` (fuente única); el generador escribe toolkit/protocols/caveman/communication/build-mode en cada proyecto, idempotente.
@@ -23,7 +23,10 @@
 - [x] **3. `grill`, `council`, `lifecycle`** → instaladas → en el menú. HECHO (`b27a8e8`).
 - [x] **4. `communication`** definido + en el CLAUDE.md. HECHO (`90307bf`).
 - [x] **5. Arreglar `unmassk-audit`** (repo_type + cobertura excepción + scoring referencia + audit-vs-pipeline). HECHO (`45ffeab`).
-- [x] **6. Publicar — v1.3.0**: CHANGELOG (Alexandria), bump 1.2→1.3 (plugin.json + marketplace.json), `managed_blocks.py` reconciliado. HECHO. (Para activarlo en tu instalación: `/plugin update`.)
+- [x] **6. Publicar — v1.3.0**: CHANGELOG, bump 1.2→1.3, `managed_blocks.py` reconciliado, **pusheado** + **activado** (reinicio). HECHO.
+
+**PRÓXIMO REAL (no candidato — es trabajo pendiente):**
+- [ ] **Doc/script de release** (tarea #9, memo `2c28f49`): orquestar bump + CHANGELOG + **push** + verificar. Hoy el publish falló por NO pushear. Regla nueva (`c5ddad3`): SIEMPRE `--push` tras cada commit (Bex usa 4 máquinas).
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
