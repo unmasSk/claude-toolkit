@@ -6,7 +6,27 @@
 
 ---
 
-## Estado — fin de sesión 2026-06-05 (LEER PRIMERO para retomar)
+## Estado — 2026-06-08 (lunes, LEER PRIMERO)
+
+**HECHO esta sesión (commiteado en `main`, aún SIN publicar — instalado sigue v1.1.0):**
+- [x] **Portero de recall** (#1 + #2 + #4) — hook `PreToolUse/Task` que inyecta memoria al subagente, whitelist por `subagent_type`, live-read git. Yoda 110/110, 51 tests. **La otra mitad del recall, ya enganchada.**
+- [x] **Build-mode** (NUEVO, no estaba en el roadmap) — dos modos de escritura: lineal vs test-first/ATDD; Flow es el router (Step 4) y delega a `references/linear.md` y `test-first.md`; el orquestador elige por tarea; Build Mode en Ultron/Dante.
+- [x] **Generador de los 5 bloques del CLAUDE.md** (NUEVO) — `lib/managed_blocks.py` (fuente única); el generador escribe toolkit/protocols/caveman/communication/build-mode en cada proyecto, idempotente.
+- [x] **Calibración anti-sobreguardado** (#20 aplicado) — scope test (reglas de proyecto NO van a `remember` global), filtro hecho-estable, timing≠volumen, `remember(claude)` gana "When it does NOT fire".
+- [x] **Reencuadre "never commit to main" por tipo de repo** — trunk vs gitflow, marcador commiteado, fail-closed.
+- [x] **Core** (#21 parcial, #38 parcial) — Ultron=código de producción (no docs/skills); standards on-demand en orquestador; quitado el volcado redundante del boot.
+
+**PENDIENTE INMEDIATO (el thread abierto — ver lista de tareas visual):**
+- [ ] Completar `close-session` (bump/changelog/limpieza) + su hook de disparo (Stop/PreCompact).
+- [ ] Construir/instalar las 3 skills de protocolo (lifecycle, grill, council) — el CLAUDE.md las nombra pero son borradores.
+- [ ] Definir el bloque `communication` (placeholder vacío).
+- [ ] Publicar: bump 1.2.0→1.3.0 + CHANGELOG. **Nada de esto está vivo hasta publicar.**
+
+**OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. El CLAUDE.md nombra cosas que aún no existen.
+
+---
+
+## Estado — fin de sesión 2026-06-05 (sesión anterior)
 
 **HECHO y publicado en `main` (v1.2.0, cada uno 110/110 de Yoda, pipeline completa):**
 - ✅ **Buscador de recall** (Cubo 2, nivel i) — `unmassk-toolkit/lib/recall.py` + `bin/git-memory-recall.py`. Busca memoria por palabra con ranking idf, dedup, historia completa, tokeniza alfanuméricos (BM25/v2/RS256), sanitiza inyección. Probado en uso real. **Merged.**
@@ -77,10 +97,10 @@ No dependen de nada, mejoran hoy, no se rompen entre sí. Se hacen sueltos, sin 
 Tu siguiente *proyecto*. No se empieza el curador hasta que esto funcione y se haya usado una semana.
 
 **MVP (nivel i):**
-- [ ] **#1** Hook `PreToolUse/Task` que inyecta memoria en el prompt del subagente antes de trabajar.
-- [ ] **#2** Whitelist por `subagent_type` (decide *si* dispara; no a Bilbo/Plan).
-- [ ] **#3** Ranking blando rol+scope (decide *qué* prioriza; nunca exclusión dura).
-- [ ] **#4** Lectura de git **en vivo** en cada spawn (no caché). Reusa el bloque podado del boot, pero naciendo más pequeño.
+- [x] **#1** Hook `PreToolUse/Task` que inyecta memoria en el prompt del subagente antes de trabajar. ✅ (portero, 110/110)
+- [x] **#2** Whitelist por `subagent_type` (decide *si* dispara; no a Bilbo/Plan). ✅
+- [ ] **#3** Ranking blando rol+scope (decide *qué* prioriza; nunca exclusión dura). ⏳ (el portero usa query=prompt; el ranking blando sigue pendiente)
+- [x] **#4** Lectura de git **en vivo** en cada spawn (no caché). ✅ (recall hace live-read)
 
 **Inmediatamente después (sobre el mismo cimiento):**
 - [ ] **#5** Capa C: el orquestador pasa el scope exacto, gateado en `unmassk-flow`.
