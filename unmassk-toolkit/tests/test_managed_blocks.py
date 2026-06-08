@@ -100,10 +100,13 @@ class TestBlocksDefinition:
         assert "caveman" in body
         assert "/caveman" in body
 
-    def test_communication_block_is_placeholder(self):
-        """PLACEHOLDER block must be included as-is."""
+    def test_communication_block_is_finalised(self):
+        """Communication block must contain the finalised rules, not the placeholder."""
         body = BLOCKS[3]["body"]
-        assert "PLACEHOLDER" in body
+        assert "PLACEHOLDER" not in body
+        assert "Conciso y llano" in body
+        assert "Español" in body
+        assert "Verifica antes de afirmar" in body
 
     def test_build_mode_block_content(self):
         body = BLOCKS[4]["body"]

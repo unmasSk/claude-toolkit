@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-08
+
+### Added
+- Recall gatekeeper (`hooks/pre-task-recall.py`): PreToolUse/Task hook that injects relevant project memory (decisions, memos, remembers) into subagent prompts before they execute. Uses `lib/recall.py` for keyword-ranked retrieval. Fail-open: any error lets the spawn through unchanged. Whitelisted to the 8 crew agents (Ultron, Dante, Cerberus, Argus, Moriarty, House, Yoda, Alexandria); Bilbo and Gitto are excluded. 51 tests.
+- Build mode (`skills/unmassk-flow/references/linear.md`, `references/test-first.md`): two coding modes selectable per task. Linear for straightforward work; test-first/ATDD for complex features (Dante enters twice — acceptance contract before implementation, exhaustive hardening after). Flow acts as router in Execute Step 4 and delegates to the chosen reference document. Ultron and Dante gain explicit build-mode awareness.
+- CLAUDE.md block generator (`lib/managed_blocks.py`): single source of truth for all 5 managed blocks (toolkit, protocols, caveman, communication, build-mode). Idempotent upsert — install, upgrade, and uninstall all import from this module; the blocks can no longer diverge across lifecycle commands. 35 new tests, 0 regressions.
+- Protocol skills installed: `close-session`, `grill`, `council`, `project-lifecycle` — all four built, tested, and registered in the CLAUDE.md menu. Previously listed as planned; now live.
+- Close-session hook (`hooks/stop-close-session.py`): Stop hook that fires at end of session, prompts the orchestrator to run the close-session skill (decisions dump, versioning if applicable, cleanup). Suppressed when the session had no substantive work. Coexists with the existing `stop-dod-check` hook.
+- PRD template saved to `skills/unmassk-project-lifecycle/references/prd-template.md` for use in the START branch of the lifecycle skill.
+- Communication block added to CLAUDE.md: rules for how agents report to the orchestrator (results not process, confirm structural changes with exceptions for security/irreversible/unverifiable, one thing at a time).
+
+### Changed
+- Flow skill (`skills/unmassk-flow/SKILL.md`) updated: Execute phase now routes to `references/linear.md` or `references/test-first.md` instead of inlining the method. Follows the Standards pattern — one rule, one place.
+- Memory calibration tightened (`skills/unmassk-gitmemory/CALIBRATION.md`, `SKILL.md`): three root-cause fixes for over-saving — scope test (project rules belong in project memory, not global remember), stable-done filter (only save what is finished and confirmed, not in-progress reasoning), and timing-not-volume (urgency of a commit is determined by when the signal fires, not how many signals accumulated). `"never commit to main"` rule reframed by repo type: gitflow repos keep the rule; trunk-based repos commit to main by design.
+- `unmassk-audit` skill aligned with session decisions: steps 0 and 13 now inherit `repo_type` from `unmassk-gitmemory` (gitflow → branch from dev + merge; trunk → main directly) instead of always assuming `dev`. The 97% coverage gate is documented as a deliberate audit exception that supersedes the pipeline's "coverage does not block merge" override. Scoring/tiers/weights now reference `unmassk-standards` rather than duplicating them.
+- Core skill clarified: Ultron = production code only (not skills, agent prompts, or docs). Orchestrator loads standards on-demand; it does not load them at boot.
+
+### Fixed
+- Boot hook (`hooks/session-start-boot.py`): removed redundant full-text dump of `unmassk-core`, `unmassk-gitmemory`, and `CALIBRATION.md` from the boot output. These were being injected twice (once by the hook, once by the explicit Skill calls in CLAUDE.md), inflating the session start to ~57 KB that the harness truncated. Explicit Skill calls remain; the duplicate inline dump is gone.
+- Flow-stack scaffold path corrected: `scaffold.py` was referenced as `flow-stack-selection` (does not exist) — fixed to `unmassk-flow-stack/scripts/scaffold.py` in two places, unblocking the lifecycle START branch.
+
+## [1.2.0] - 2026-06-05
+
 ### Added
 - Memory recall engine: `lib/recall.py` + CLI `bin/git-memory-recall.py`. Searches all decision/memo/remember commits by keyword with IDF ranking (rare terms score high, common terms sink), 1.5x bonus for scope matches, alphanumeric tokenization (finds `BM25`, `v2`, `RS256`), deduplication, and full history scan with no commit cap. Robust against context-injection attempts (sanitizes Unicode terminators) and enforces a query length cap.
 

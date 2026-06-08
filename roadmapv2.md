@@ -21,9 +21,9 @@
 - [x] **1. `close-session`** completa (+ bump/changelog/limpieza) + su **hook de cierre** (Stop) → instalada → en el menú. HECHO (`a1c6675`).
 - [x] **2. Bug de `flow-stack`** (ruta scaffold.py rota) → arreglado. HECHO (`b27a8e8`).
 - [x] **3. `grill`, `council`, `lifecycle`** → instaladas → en el menú. HECHO (`b27a8e8`).
-- [ ] **4. `communication`:** definir el bloque o dejarlo fuera del menú.
-- [ ] **5. Arreglar `unmassk-audit`** (pisadas con repo_type y gate de cobertura — memo `6053f3c`).
-- [ ] **6. Publicar** (el ÚLTIMO): bump 1.2→1.3 + CHANGELOG + reconciliar `managed_blocks.py`. **Nada vivo hasta esto** (instalado = v1.1.0).
+- [x] **4. `communication`** definido + en el CLAUDE.md. HECHO (`90307bf`).
+- [x] **5. Arreglar `unmassk-audit`** (repo_type + cobertura excepción + scoring referencia + audit-vs-pipeline). HECHO (`45ffeab`).
+- [x] **6. Publicar — v1.3.0**: CHANGELOG (Alexandria), bump 1.2→1.3 (plugin.json + marketplace.json), `managed_blocks.py` reconciliado. HECHO. (Para activarlo en tu instalación: `/plugin update`.)
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 

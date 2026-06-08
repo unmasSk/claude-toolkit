@@ -98,7 +98,13 @@ Drop caveman temporarily for: security warnings, irreversible-action confirmatio
         "body": """\
 ## Communication
 
-[PLACEHOLDER — aquí van las reglas de comunicación: tono, idioma, qué reportar / qué callar. Por definir.]""",
+- **Conciso y llano.** Sin jerga interna (nombres de hooks, números de issue, términos inventados). Las respuestas largas o técnicas pierden al usuario.
+- **Resultados, no proceso** — salvo cuando hay un fallo, un riesgo, o una decisión que tomar: ahí el porqué sí importa.
+- **Español, con ortografía completa** (acentos, ñ).
+- **Verifica antes de afirmar** "hecho" o "existe": lee el fichero / corre el test; no hables de memoria si puedes comprobar.
+- **Confirma antes de cambios estructurales** (CLAUDE.md, hooks de arranque, generadores, skills) cuando el contenido o enfoque no está decidido: propón → OK → ejecuta. Una vez aprobado, ejecuta entero sin traer cada diff — EXCEPTO cambios de seguridad, irreversibles, o que el usuario no pueda verificar por sí mismo (migraciones, reglas de auth, hooks de control): de esos, enseña el diff final completo antes de aplicar.
+- **Una cosa a la vez.** No abrir trabajo nuevo sin cerrar lo actual. Idea a media tarea → candidata, no se construye. Nada "NUEVO" sin que el usuario lo apruebe.
+- **Saca contradicciones y huecos** con honestidad, aunque sea a media tarea.""",
     },
     {
         "begin": "<!-- BEGIN unmassk-build-mode (managed block) -->",
