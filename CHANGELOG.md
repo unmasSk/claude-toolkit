@@ -7,6 +7,16 @@
 - `git-memory-commit.py --path` flag: allows callers to commit only specific files by pathspec, used by the release script to stage exactly the three release files without touching the rest of the index.
 - `docs/RELEASING.md`: human-readable how-to guide for the release workflow — preconditions, dry-run first, what each step does, flags, version rules, mid-release recovery, and a first-use checklist.
 - Documentation coverage: `unmassk-seo` SKILL.md now documents both active hooks (`pre-commit-seo-check.sh` and `validate-schema.py`) with triggers, what they check, and how to interpret their output. `unmassk-ops/ops-observability` routing table corrected to reference `logql-regression-checks.sh` as the LogQL validator. `unmassk-ops/ops-cicd` documents the usage trigger for `azure-step-walker.py` (traversal library, not invoked directly) and `azure-test-regressions.py` (regression suite). `unmassk-media/media-image-edit` now references `.env.example` for `FAL_KEY` configuration.
+- Documentation discipline (three-audience rule): every new capability must be documented for humans (`README`/`docs`), the team (roadmap/git-memory), and Claude at load (`SKILL.md`/`CLAUDE.md`) in the same change. Encoded in `unmassk-core`, Flow's Document step, `unmassk-close-session`, and Alexandria's mandate.
+- Toolkit discoverability in skills: `unmassk-gitmemory` now documents the `--path` flag, the `git-memory-recall.py` search tool (with ranking internals), the `memo(stack)` category, the release process (`bin/release.py`), and an "Active Hooks" section (merge gate, recall gatekeeper, commit validation, etc.). `unmassk-core` gains a Protocol-skills menu and Gitto Mode B (git ops). `README` gains a Development section and a Protocols row.
+- Config for domain plugins: `unmassk-seo/.env.example` (5 MCP credentials), `unmassk-compliance/.mcp.json` + `.env.example` (Better i18n MCP).
+
+### Fixed
+- Scope-map path in `unmassk-gitmemory` SKILL.md corrected (`unmassk-crew-bilbo` → `unmassk-toolkit-bilbo`) — was a silent failure whenever Claude looked up the scope map.
+- Test isolation bug: `test_migrate_statusline.py` left a stub `git_helpers` (missing `GIT_TIMEOUT`) in `sys.modules` without restoring it, breaking `test_recall.py` in the full suite (58 failures). Now snapshots/restores `sys.modules`. Full suite: 315/315 green.
+
+### Removed
+- Dead weight: `!new_skills/` (already integrated in v1.3.0), empty `generated-images/`, and orphaned `.pyc` files under the root `tests/`.
 
 ## [1.3.0] - 2026-06-08
 
