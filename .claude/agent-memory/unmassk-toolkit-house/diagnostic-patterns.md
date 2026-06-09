@@ -4,6 +4,38 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: pytest sys.modules Stub Leak Across Test Files (Bare ModuleType Poisons Real Import)
+
+**Project:** unmassk-toolkit (git-memory)
+**First seen:** 2026-06-09
+
+A test that stubs a shared module by inserting a bare `types.ModuleType` into `sys.modules` — and only restores `sys.path` in its `finally` (not `sys.modules`) — leaves the stub registered for the entire pytest process. pytest runs all files in one process with a shared `sys.modules`, so a later test that does a real `from <module> import <symbol>` resolves to the stub.
+
+**Concrete instance:** `test_migrate_statusline.py` `_load_migrate_fn()` did:
+```python
+for stub_name in ("git_helpers", "parsing", "version"):
+    if stub_name not in sys.modules:   # guard: only stub if absent
+        stub = types.ModuleType(stub_name)
+        stub.run_git = ...             # but NOT GIT_TIMEOUT
+        sys.modules[stub_name] = stub
+try: spec.loader.exec_module(mod)
+finally: sys.path[:] = saved          # restores sys.path, NOT sys.modules
+```
+The stub `git_helpers` survives. Later `test_recall.py` → `from recall import recall` → `recall.py` line 33 `from git_helpers import run_git, GIT_TIMEOUT` resolves to the stub, which lacks `GIT_TIMEOUT`.
+
+**Signature error:** `ImportError: cannot import name 'GIT_TIMEOUT' from 'git_helpers' (unknown location)`. The "(unknown location)" is the tell: a synthetic `ModuleType` has no `__file__`/`__spec__`, so Python reports its origin as unknown — proof the import resolved to a hand-built stub, not the real `lib/git_helpers.py`.
+
+**Detection:**
+1. Test passes in isolation, fails in full suite (classic shared-global-state signature).
+2. Bisect: `pytest <earlier_file> <failing_file>` for each alphabetically-earlier file until the pair reproduces.
+3. The error names a module "from (unknown location)" → look for a test that builds that module via `types.ModuleType(...)` and assigns into `sys.modules`.
+4. Check the stub's `finally`: does it restore `sys.modules` or only `sys.path`?
+5. The `if stub_name not in sys.modules` guard means the stub is also non-deterministic — whether it leaks depends on whether the real module was imported first by an earlier test.
+
+**Fix pattern (test isolation, not production code):**
+- The polluting test must restore `sys.modules` for every name it stubbed. Snapshot the prior entry (or absence) and restore in `finally`, OR use `monkeypatch.setitem(sys.modules, name, stub)` (auto-reverts), OR an autouse fixture that snapshots/restores `sys.modules` + `sys.path` around each test.
+- Do NOT "fix" this by making recall.py tolerate a missing GIT_TIMEOUT — that masks the leak and weakens the real import contract.
+
 ## Pattern: Schema-Code Divergence (Phantom Tables)
 
 **Project:** omawamapas
