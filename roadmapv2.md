@@ -28,16 +28,17 @@
 **HECHO — 2026-06-09:**
 - [x] **Script de release** (tarea #9): `bin/release.py` (+ `release_helpers.py`, `release_validators.py`) orquesta bump + promoción del CHANGELOG único raíz + commit por **pathspec** (`--path` nuevo en `git-memory-commit.py`, sin `git reset`) + push + verify post-push. Pre-flight fail-closed, `--dry-run`, `--allow-dirty`. **Yoda 110/110** tras 3 rondas (Cerberus+Moriarty). `commit bf5a00e`. Documentado en `docs/RELEASING.md` + skill `unmassk-gitmemory`.
 - [x] **Auditoría de cobertura de TODO el repo** (menos chatroom) + cierre de huecos crítico→medio: bug de ruta de scopes, `--path`, `recall`, memo `stack`, sección de hooks activos, Gitto Modo-B, release docs (commits `944cd2d`); hooks de SEO, `.env.example` SEO/i18n, `.mcp.json` i18n, validador LogQL, scripts azure, FAL_KEY (`d71f661`); dead weight borrado (`60c0d8c`).
-
-**PENDIENTE (de la auditoría de cobertura — candidatos menores, baja prioridad):**
-- [ ] Huecos LOW sin cerrar: las 4 skills de protocolo no aparecen en `unmassk-core` (solo en CLAUDE.md); `flow-stack` sin ruta directa; `suggest_scope_from_paths` / stopwords / scope-bonus de recall sin documentar; footgun del `Co-Authored-By` en `parse_trailers`; cómo correr los tests del toolkit (pyproject); CSVs de `unmassk-design`, README de scripts de marketing.
+- [x] **Huecos LOW del #2 cerrados en TRIPLE superficie** (`03ab0d1`, `0ca7c05`): 4 skills de protocolo + flow-stack (core + README), internals de recall (gitmemory), footgun `Co-Authored-By` (gitmemory + RELEASING), correr tests (gitmemory + README Development), CSVs de design (skill + README, recuento 14→12), MCP opcional de media (skill + README). El "README de scripts de marketing" era falso positivo (no existe).
+- [x] **Regla de las 3 audiencias** (decisión `be567c4`) — "Documentation discipline" en `unmassk-core` + Flow Step 6 + close-session + mandato de Alexandria: cada cosa nueva se documenta para humanos (README/docs), nosotros (roadmap/git-memory) y Claude (skills/CLAUDE.md), duplicado a propósito, mismo commit.
 - [x] **BUG resuelto (`c106c77`):** aislamiento de `test_recall.py`. House halló la causa: `test_migrate_statusline.py` dejaba un stub de `git_helpers` (sin `GIT_TIMEOUT`) en `sys.modules` sin restaurarlo → rompía `test_recall` (58 fallos). Dante arregló la higiene del test. **Suite completa 315/315 verde.** Lección en memo `cfc2076`.
+
+**PRÓXIMO REAL — publicar la v1.4.0:** nada de hoy está publicado (versión sigue en 1.3.0). Reiniciar (cargar skills nuevas) + **estrenar `bin/release.py`** para subir a 1.4.0 (precond.: el `[Unreleased]` ya está relleno). Llega a las 4 máquinas vía `/plugin update`.
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
 **CANDIDATOS (no construir sin firma de Bex):**
 - Protocolo para que Claude SIGA el roadmap en orden ("vamos por el punto 1, en este orden") — idea de Bex, 2026-06-08.
-- **Confeccionar un PRD template perfecto**, y añadir el paso de generar el PRD al protocolo START (skill `lifecycle`) al arrancar un proyecto nuevo — idea de Bex, 2026-06-08 (decisión `e97d96a`).
+- **Enchufar el paso de generar PRD** en el protocolo START (skill `lifecycle`) al arrancar proyecto nuevo. La PLANTILLA YA EXISTE (`unmassk-project-lifecycle/references/prd-template.md`, la dio Bex en v1.3.0) — solo falta cablear el paso, NO crear la plantilla (decisión `e97d96a`).
 
 **OJO (causa del lío de hoy):** metimos el MENÚ (protocols en el CLAUDE.md) ANTES de construir las skills. Ya corregido — ahora el CLAUDE.md solo nombra skills INSTALADAS (regla `241e60f`).
 
