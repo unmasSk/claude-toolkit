@@ -164,3 +164,23 @@ if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState =
 Only close the existing socket when it is for a different room or is in CLOSING/CLOSED state.
 The original `socket.onclose = null; socket.close(); socket = null` block stays intact beneath
 the guard for the different-room case.
+
+## reinvoke_from_context invokable check must use static registry, not runtime registry
+
+`buildRegistry()` in `agent-registry.ts` starts all agents with `invokable: false` and only
+sets `invokable: true` when the agent's `.md` file exists in `AGENT_DIR` AND has at least one
+non-banned tool. In CI (Ubuntu, no `~/.claude/...` directory), `AGENT_DIR` resolves to a
+non-existent path, so ALL agents end up with `invokable: false`.
+
+`handleReinvokeFromContext` was checking `!agentConf.invokable` — this is the wrong source of
+truth. The fix: check `AGENT_BY_NAME.get(name)?.invokable` (the static shared registry) instead.
+The static registry is canonical and environment-independent. Tool availability for the actual
+spawn is validated later by `doInvoke`.
+
+The `_setRegistryForTesting()` pattern in `ws-control-handlers-reinvoke.test.ts` is a workaround
+for this same issue — it injects a fake registry with `invokable: true`. The golden test
+`ws-handlers-golden.test.ts` did NOT use this workaround and relied on the real registry,
+exposing the CI failure.
+
+Rule: for "is this agent name valid?" checks in WS handlers, use `AGENT_BY_NAME` from
+`@agent-chatroom/shared`. For "can it run right now?" (tool config, model, etc.) use `getAgentConfig()`.
