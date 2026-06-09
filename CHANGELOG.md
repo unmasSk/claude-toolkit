@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-09
+
 ### Added
 - Release script (`bin/release.py` + `bin/release_helpers.py`): single command to orchestrate a full plugin release — pre-flight checks (clean tree, semver order, non-empty changelog, upstream configured, not behind remote), version bump, changelog promotion, pathspec commit via `git-memory-commit.py`, push, and post-push verification. Supports `--dry-run` and `--allow-dirty`. Exit codes: 0 = ok, 1 = preflight/execution error, 2 = post-push verify failure.
 - `git-memory-commit.py --path` flag: allows callers to commit only specific files by pathspec, used by the release script to stage exactly the three release files without touching the rest of the index.
