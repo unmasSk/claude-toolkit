@@ -71,6 +71,7 @@ Always installed. Contains everything Claude needs to orchestrate.
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
 | **Standards** | 33 sections of quality criteria — tiers, OWASP, React, TypeScript, async, API contracts, concurrency |
 | **Calibration** | Memory calibration trained on 30 independent analyses of real conversations — teaches Claude when to save, what type to use, and when to shut up |
+| **Protocols** | 4 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (flush decisions to memory, write the resume point) |
 
 ### Domain plugins
 
@@ -85,6 +86,40 @@ Install what you need. Agents discover them automatically.
 | **unmassk-design** | 1 | Design systems, color, typography, motion, accessibility, agentic UX |
 | **unmassk-seo** | 1 | Technical SEO, schema markup, Core Web Vitals, GEO/AEO |
 | **unmassk-marketing** | 1 | CRO, copywriting, email, retention, paid ads, analytics, growth |
+
+---
+
+## Development
+
+### Running tests
+
+Tests live in `unmassk-toolkit/tests/` and are configured in `pyproject.toml`:
+
+```bash
+pytest unmassk-toolkit/tests
+```
+
+### Releasing a plugin
+
+```bash
+python3 bin/release.py <plugin> <new-version>
+```
+
+Always dry-run first:
+
+```bash
+python3 bin/release.py <plugin> <new-version> --dry-run
+```
+
+Full release procedure is documented in [`docs/RELEASING.md`](docs/RELEASING.md).
+
+### Key scripts in `unmassk-toolkit/bin/`
+
+| Script | What it does |
+|--------|-------------|
+| `git-memory-commit.py` | Creates a commit with structured trailers (Why, Touched, Decision…) and the correct emoji prefix |
+| `git-memory-recall.py` | Queries the memory stored in git history — used by agents at boot |
+| `release.py` | Bumps plugin version, promotes CHANGELOG, commits, and pushes in one step |
 
 ---
 

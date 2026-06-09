@@ -68,6 +68,14 @@ python3 bin/release.py <plugin> <new-version>
 5. **Commit + push** — creates the commit via `git-memory-commit.py` using a `--path`
    pathspec so only the three release files enter the commit, then runs `git push`.
 
+   > **Manual commit footgun:** if you ever write the commit message by hand, place
+   > `Co-Authored-By:` **before** the business trailers (`Why:`, `Touched:`,
+   > `Decision:`…), not after them. `parse_trailers()` reads the message bottom-up
+   > and stops at the first blank line or non-trailer line — a trailing
+   > `Co-Authored-By:` at the very end causes it to miss every trailer above it.
+   > `git-memory-commit.py` already handles this correctly; the footgun only affects
+   > hand-written commits.
+
 6. **Verify** — checks two things:
    - The local commit is on `origin/<branch>` (push succeeded)
    - `marketplace.json` and `plugin.json` both show the new version and agree with each other

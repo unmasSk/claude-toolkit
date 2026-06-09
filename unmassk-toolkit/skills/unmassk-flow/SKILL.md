@@ -239,9 +239,10 @@ Separate from closure — documentation deserves its own step.
 
 1. Launch Alexandria agent (agent:alexandria.md`)
 2. Read all WIP commits and changes from the feature
-3. Update module CLAUDE.md if patterns changed
-4. Update CHANGELOG.md under [Unreleased]
-5. Cross-check documentation against current code state
+3. **Document the new capability for ALL THREE audiences** (deliberate duplication — see `unmassk-core` "Documentation discipline"): humans (`README.md` / `docs/`), us (roadmap + git-memory), and Claude at load (the relevant `SKILL.md` / `CLAUDE.md`). A feature documented in only one surface is half-shipped.
+4. Update module CLAUDE.md if patterns changed
+5. Update CHANGELOG.md under [Unreleased]
+6. Cross-check documentation against current code state — same fact, every surface, no drift
 
 ## Step 7 — Close (ORCHESTRATOR)
 

@@ -72,6 +72,9 @@ The boot output terminator provides the plugin root path. Use it:
 
 **For memory search** (ranked, better than manual `git log --grep`): `python3 <plugin-root>/bin/git-memory-recall.py <query> [--limit N] [--scope SCOPE]` — BM25/IDF ranking over all decision/memo/remember commits, 1.5x bonus for scope matches, dedup, full history.
 
+- **Ranking internals** (so you query effectively): rare terms score higher (IDF); a token that matches the commit's `--scope` gets a 1.5x bonus, so passing `--scope` sharpens results. Common stopwords in Spanish AND English (`para`, `con`, `the`, `and`, …) are dropped — a query made only of stopwords returns nothing, so use distinctive terms.
+- **Scope suggestion from a diff**: `lib/parsing.py:suggest_scope_from_paths()` derives a likely scope from changed paths using the scope map (`.claude/git-memory-scopes.json`). Useful when you're unsure which scope a commit belongs to.
+
 ## Active Hooks (automatic behaviors you must account for)
 
 These fire automatically. They are NOT things you invoke — they change what happens around you. Know them so you don't fight them or misread their output:
@@ -133,6 +136,8 @@ Every non-wip commit. Trailers at end of body, contiguous block, no blank lines 
 | `Conflict:` + `Resolution:` | 1 line each          | merge conflict resolution                   |
 
 Keys are case-sensitive, max once per commit, single-line values.
+
+**Footgun — `Co-Authored-By` placement:** `parse_trailers()` reads bottom-up and stops at the first non-trailer/blank line. If `Co-Authored-By` sits at the very end (the common git convention) BELOW your business trailers, it does not break them — but a blank line or any prose between trailers does. Keep the trailer block contiguous, with `Co-Authored-By` adjacent (no blank line splitting it off). The `git-memory-commit.py` wrapper assembles this correctly; this only bites you on manual `git commit` (which the hook blocks anyway).
 
 ## Auto-Git Triggers
 
@@ -343,6 +348,7 @@ Type "I understand the risk, proceed" to continue.
 - Pre-req: fill the root `CHANGELOG.md` `## [Unreleased]` section first (the script aborts if it is empty).
 - Dry-run first, then for real: `python3 bin/release.py <plugin> <new-version> [--dry-run] [--allow-dirty]`. It orchestrates bump (`plugin.json` + `marketplace.json`) → promotes `[Unreleased]` to `## [<version>] - <date>` → commits the 3 files via pathspec → pushes → verifies the commit is on the remote and versions are coherent (so `/plugin update` sees it). Fail-closed: aborts on dirty tree, non-greater version, empty changelog, no upstream, or being behind the remote.
 - Lower-level bump only (no changelog/commit/push): `python3 bin/bump-version.py <plugin> <version>` | `--list` | `--all <version>`.
+- **Verify before releasing**: run the toolkit's own test suite with `pytest unmassk-toolkit/tests` (paths configured in the root `pyproject.toml`). Green suite before any release.
 - See `docs/RELEASING.md` for the full human walkthrough.
 
 ## Issues & Milestones

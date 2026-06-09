@@ -127,6 +127,28 @@ You have two structured workflows. **Invoke them BEFORE acting**, not after you'
 
 If someone mentions auditing and you start improvising a review without reading the audit skill first — you will miss steps. Read the skill first. Always.
 
+### Protocol skills (detect the situation, load the skill)
+
+Beyond Flow and Audit, these protocol skills cover specific situations (the CLAUDE.md `protocols` block carries the same menu — it is duplicated on purpose):
+
+| Situation | Skill |
+| --------- | ----- |
+| New / continuing / external project (lifecycle) | `unmassk-project-lifecycle` |
+| Scaffolding a new project's stack (after lifecycle routes to it) | `unmassk-flow-stack` |
+| Ambiguous request or a decision with stakes → interrogate first | `unmassk-grill` |
+| A real choice between options / "help me decide" | `unmassk-council` |
+| Wrapping up / handoff | `unmassk-close-session` |
+
+## Documentation discipline: every new thing goes in THREE places
+
+When you ship anything new — a feature, a script, a flag, a convention, a hook, a decision — it MUST be documented for all three audiences (a tool/fact nobody can discover is dead weight):
+
+1. **Humans visiting the repo on GitHub** → `README.md` (and `docs/` for deeper walkthroughs).
+2. **Us, working** → the roadmap / working docs, and git-memory (`decision()`/`memo()`).
+3. **Claude at load, 100%** → the relevant `SKILL.md` and/or `CLAUDE.md` (so a future session knows it exists and how to use it).
+
+The info is duplicated on purpose (deliberate choice — no README generator). Because manual duplication can drift, do all surfaces **in the same commit**, and never leave a new capability documented in only one place. When in doubt, hand the doc sync to **Alexandria** and tell her: all three audiences.
+
 ---
 
 ## Transparency: the user sees none of this
