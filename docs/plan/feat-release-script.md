@@ -77,6 +77,11 @@ Exit 0 solo si TODO verifica.
 **Files:** create `docs/RELEASING.md`
 - [ ] Cómo bumpear/liberar: precondiciones (rellenar `[Unreleased]`), comando, `--dry-run` primero, qué verifica, qué hacer si aborta. Documentado contra el comportamiento REAL del script.
 
+## Resolutions (post-contract, antes de Ultron)
+1. **Commit:** `release.py` usa el wrapper `git-memory-commit.py` con trailers válidos (`Why=release v<version>`, `Touched=<paths>`), `--push`. NO `git commit` directo.
+2. **Root override:** env var `UNMASSK_REPO_ROOT`. `release.py` resuelve el root con `git rev-parse --show-toplevel` y exporta `UNMASSK_REPO_ROOT` al subproceso de `bump-version.py`. `bump-version.py` lee `os.environ.get("UNMASSK_REPO_ROOT")` y cae al comportamiento `__file__` actual si no está (retrocompatible).
+3. **Formato changelog:** exactamente UNA línea en blanco entre `## [Unreleased]` y el nuevo `## [<version>] - <fecha>`. Keep a Changelog canónico.
+
 ## Wave Map
 - Wave 1: Task 1 (Dante, contrato en rojo)
 - Wave 2: Task 2 (Ultron, hasta verde)

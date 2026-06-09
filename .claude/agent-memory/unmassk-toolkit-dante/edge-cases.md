@@ -180,6 +180,18 @@ Test pattern:
 - Assert `len(updated_prompt) > len(prompt)` (footer was appended, not a replacement).
 - Assert `"MEMORIA DEL PROYECTO"` present and prompt ends with `"\n---"`.
 
+## Windows git bare repo — clone default branch mismatch
+
+`git init --bare` on Windows defaults HEAD to `master`. If the source repo uses `main`,
+cloning the bare repo produces "warning: remote HEAD refers to nonexistent ref" and the
+clone has no checked-out branch — causing `git push origin main` from the clone to fail
+with "src refspec main does not match any".
+
+Fix: always pass `-b main` to `git init --bare` when the source uses `main`.
+
+Affected: any test that creates a bare remote and then clones from it to simulate a
+second contributor pushing ahead (e.g. the "local behind remote" preflight scenario).
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests

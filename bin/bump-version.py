@@ -22,7 +22,8 @@ import os
 import re
 import sys
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_FILE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.environ.get("UNMASSK_REPO_ROOT") or _FILE_ROOT
 MARKETPLACE_JSON = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
 
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$")
