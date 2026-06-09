@@ -31,7 +31,7 @@
 
 **PENDIENTE (de la auditoría de cobertura — candidatos menores, baja prioridad):**
 - [ ] Huecos LOW sin cerrar: las 4 skills de protocolo no aparecen en `unmassk-core` (solo en CLAUDE.md); `flow-stack` sin ruta directa; `suggest_scope_from_paths` / stopwords / scope-bonus de recall sin documentar; footgun del `Co-Authored-By` en `parse_trailers`; cómo correr los tests del toolkit (pyproject); CSVs de `unmassk-design`, README de scripts de marketing.
-- [ ] **BUG aparte (no es cobertura):** aislamiento de `test_recall.py` — 58 fallos en suite completa, aislado pasa (`git_helpers` "unknown location"). Borrar los `.pyc` huérfanos NO lo arregló. Necesita **House** para diagnóstico. Memo `d798167`.
+- [x] **BUG resuelto (`c106c77`):** aislamiento de `test_recall.py`. House halló la causa: `test_migrate_statusline.py` dejaba un stub de `git_helpers` (sin `GIT_TIMEOUT`) en `sys.modules` sin restaurarlo → rompía `test_recall` (58 fallos). Dante arregló la higiene del test. **Suite completa 315/315 verde.** Lección en memo `cfc2076`.
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
