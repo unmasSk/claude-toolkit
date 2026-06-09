@@ -23,7 +23,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 
 1. **Que la memoria automática también te llegue a TI.** Hoy se la paso a los ayudantes, pero a nuestra conversación principal todavía no. Falta engancharlo. Aparcado a propósito: antes hay que medir que no llene demasiado la conversación.
 2. **Un freno que impida cantar "hecho" cuando no lo está.** Ahora mismo se puede dar algo por terminado sin haberlo integrado del todo. Queremos un control automático que no deje.
-3. **Una lista de comprobación obligatoria para el que programa.** Antes de que el ayudante que escribe código diga "he acabado", que tenga que pasar sí o sí unas comprobaciones de seguridad. Hoy es una lista que se puede saltar; queremos que no se pueda.
+3. **Una lista de comprobación obligatoria para el que programa.** Antes de que el ayudante que escribe código diga "he acabado", que tenga que pasar sí o sí unas comprobaciones (que las pruebas pasen, etc.). Hoy es una lista que se puede saltar; queremos que no se pueda. **Esto es clave:** es el cimiento que haría posible y seguro el "modo trabajar solo" de abajo — sin este freno, un agente en bucle solo acumula basura; con él, se autocorrige.
 4. **Obligar a apuntar la versión y los cambios al integrar.** Para que nunca se publique algo sin actualizar el número de versión y el historial, en vez de fiarlo a que alguien se acuerde.
 5. **Cerrar un aviso viejo en GitHub.** Hay un aviso (el #48) que ya está resuelto —el código problemático se borró hace tiempo— pero quedó abierto. Solo falta cerrarlo con una nota.
 
@@ -33,6 +33,7 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 - **El "cerebro" de la memoria:** que la memoria se organice sola, conecte ideas relacionadas, distinga lo maduro de lo que es un borrador, y se pueda ver como un mapa visual del proyecto.
 - **Arranque de proyecto más sólido:** una guía formal de calidad al empezar un proyecto nuevo, y que Claude elija la herramienta correcta de forma fiable.
+- **Modo "déjalo trabajando solo" (estilo Ralph):** un agente que muele una tarea grande hasta terminarla sin ti, corrigiéndose con cada intento. Depende del freno duro del punto 3 — sin eso, no es seguro.
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
