@@ -25,8 +25,13 @@
 - [x] **5. Arreglar `unmassk-audit`** (repo_type + cobertura excepción + scoring referencia + audit-vs-pipeline). HECHO (`45ffeab`).
 - [x] **6. Publicar — v1.3.0**: CHANGELOG, bump 1.2→1.3, `managed_blocks.py` reconciliado, **pusheado** + **activado** (reinicio). HECHO.
 
-**PRÓXIMO REAL (no candidato — es trabajo pendiente):**
-- [ ] **Script/doc de release** (tarea #9, memo `2c28f49`, decisión `377fbee`): orquestar bump (`plugin.json`+`marketplace.json`) + CHANGELOG (Alexandria) + commit + **push** + verificar `/plugin update`. **SOLO el script.** Hoy el publish falló por no pushear. Regla viva (`c5ddad3`): siempre `--push` tras cada commit (Bex usa 4 máquinas) — **manual, nunca automático.**
+**HECHO — 2026-06-09:**
+- [x] **Script de release** (tarea #9): `bin/release.py` (+ `release_helpers.py`, `release_validators.py`) orquesta bump + promoción del CHANGELOG único raíz + commit por **pathspec** (`--path` nuevo en `git-memory-commit.py`, sin `git reset`) + push + verify post-push. Pre-flight fail-closed, `--dry-run`, `--allow-dirty`. **Yoda 110/110** tras 3 rondas (Cerberus+Moriarty). `commit bf5a00e`. Documentado en `docs/RELEASING.md` + skill `unmassk-gitmemory`.
+- [x] **Auditoría de cobertura de TODO el repo** (menos chatroom) + cierre de huecos crítico→medio: bug de ruta de scopes, `--path`, `recall`, memo `stack`, sección de hooks activos, Gitto Modo-B, release docs (commits `944cd2d`); hooks de SEO, `.env.example` SEO/i18n, `.mcp.json` i18n, validador LogQL, scripts azure, FAL_KEY (`d71f661`); dead weight borrado (`60c0d8c`).
+
+**PENDIENTE (de la auditoría de cobertura — candidatos menores, baja prioridad):**
+- [ ] Huecos LOW sin cerrar: las 4 skills de protocolo no aparecen en `unmassk-core` (solo en CLAUDE.md); `flow-stack` sin ruta directa; `suggest_scope_from_paths` / stopwords / scope-bonus de recall sin documentar; footgun del `Co-Authored-By` en `parse_trailers`; cómo correr los tests del toolkit (pyproject); CSVs de `unmassk-design`, README de scripts de marketing.
+- [ ] **BUG aparte (no es cobertura):** aislamiento de `test_recall.py` — 58 fallos en suite completa, aislado pasa (`git_helpers` "unknown location"). Borrar los `.pyc` huérfanos NO lo arregló. Necesita **House** para diagnóstico. Memo `d798167`.
 
 **Regla anti-reincidencia (decisión `241e60f`):** el CLAUDE.md solo nombra skills INSTALADAS; cada skill entra al menú al terminarse, no al planearse. Nada NUEVO se construye sin que Bex lo añada al roadmap. Ideas a media tarea → candidatas, no se abren.
 
