@@ -29,8 +29,8 @@ Adapted from Matt Pocock's handoff (MIT). Persistence changed: the handoff goes 
 
 Before the resume point, inspect the project and run what applies. Adaptive: check, don't assume.
 
-5. **Versioning** — if the project has a version (`plugin.json`/`package.json`/etc.) and the session shipped changes worth a release → run the version bump. No versioning → skip.
-6. **Changelog** — if there's a `CHANGELOG` → hand to **Alexandria** to update it. No changelog → skip.
+5. **Versioning** — if the project has a version (`plugin.json`/`package.json`/etc.) and the session shipped changes worth a release → run the version bump. For THIS toolkit marketplace, the release is one command: `python3 bin/release.py <plugin> <new-version>` (dry-run first) — it bumps, promotes the changelog, commits, pushes, and verifies. See the `unmassk-gitmemory` skill's "Releases" section. No versioning → skip.
+6. **Changelog** — if there's a `CHANGELOG` → hand to **Alexandria** to update the `[Unreleased]` section. Do this BEFORE the release command (it aborts on an empty `[Unreleased]`). No changelog → skip.
 7. **Cleanup** — remove temporary/scratch files the session created (drafts, tmp, scratch). Never touch real source.
 
 ## Output

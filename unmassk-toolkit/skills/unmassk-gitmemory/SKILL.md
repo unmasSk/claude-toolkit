@@ -63,9 +63,25 @@ On boot, Claude only needs to:
 
 The boot output terminator provides the plugin root path. Use it:
 
-**For commits**: `python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--push]`
+**For commits**: `python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--path PATH]... [--push]`
+
+- `--push` pushes after committing (use it after EVERY commit when the user works across machines).
+- `--path PATH` (repeatable) commits ONLY those paths via pathspec (`git commit -- <paths>`), leaving the rest of the user's index untouched. Without it, the whole staged index is committed.
 
 **For logs**: `python3 <plugin-root>/bin/git-memory-log.py [N] [--all] [--type TYPE]`
+
+**For memory search** (ranked, better than manual `git log --grep`): `python3 <plugin-root>/bin/git-memory-recall.py <query> [--limit N] [--scope SCOPE]` — BM25/IDF ranking over all decision/memo/remember commits, 1.5x bonus for scope matches, dedup, full history.
+
+## Active Hooks (automatic behaviors you must account for)
+
+These fire automatically. They are NOT things you invoke — they change what happens around you. Know them so you don't fight them or misread their output:
+
+- **Merge gate** (`PreToolUse/Bash`): `git merge` and `git pull` (without `--rebase`) are BLOCKED until Cerberus and Alexandria have reviewed. Bypass once reviewed by appending `# merge-reviewed` to the command. So a merge is never a direct op — launch the reviewers first.
+- **Recall gatekeeper** (`PreToolUse/Task`): before a crew subagent (Ultron, Dante, Cerberus, Argus, Moriarty, House, Yoda, Alexandria) spawns, relevant project memory is auto-injected into its prompt. Bilbo and Gitto are excluded. → You do NOT need to hand-copy decisions/memos into their prompts; the hook already does it.
+- **Commit validation** (`PreToolUse` + `PostToolUse/Bash`): direct `git commit`/`git log` are blocked (use the wrapper); trailers are validated, and an invalid just-made commit is auto-undone with `git reset --soft HEAD~1` if HEAD is unpushed.
+- **Memory-path guard** (`PreToolUse/Write|Edit`): writes to `.claude/agent-memory/` outside the repo root are blocked.
+- **Boot + block regen** (`SessionStart`): memory is extracted into the boot output, and the 5 managed CLAUDE.md blocks are regenerated from `lib/managed_blocks.py`. → Editing those managed blocks by hand does NOT persist; change them in the generator.
+- **Stop / PreCompact**: stop hooks auto-wip uncommitted changes and prompt for `context()`; the precompact hook re-injects recent memory before context is compressed and asks for an immediate `context()`.
 
 ## Hierarchical Scopes
 
@@ -77,7 +93,7 @@ Examples:
 - `decision(frontend/ux): usar glassmorphic style`
 - `memo(backend/auth): preference - JWT over sessions`
 
-**Scope map:** read `.claude/git-memory-scopes.json` or `.claude/agent-memory/unmassk-crew-bilbo/scopes.json` if it exists. To generate or update scopes, launch Bilbo (`subagent_type=unmassk-toolkit:bilbo`) to analyze the project structure and write the JSON to `.claude/agent-memory/unmassk-crew-bilbo/scopes.json`. You can use unlisted scopes — the map is a guide, not a constraint.
+**Scope map:** read `.claude/git-memory-scopes.json` or `.claude/agent-memory/unmassk-toolkit-bilbo/scopes.json` if it exists. To generate or update scopes, launch Bilbo (`subagent_type=unmassk-toolkit:bilbo`) to analyze the project structure and write the JSON to `.claude/agent-memory/unmassk-toolkit-bilbo/scopes.json`. You can use unlisted scopes — the map is a guide, not a constraint.
 
 ## Commit Types
 
@@ -112,7 +128,7 @@ Every non-wip commit. Trailers at end of body, contiguous block, no blank lines 
 | `Next:`                     | 1 line               | context() + if work remains                 |
 | `Blocker:`                  | 1 line               | if blocked                                  |
 | `Risk:`                     | low/medium/high      | if applicable                               |
-| `Memo:`                     | category - desc      | memo() (preference/requirement/antipattern) |
+| `Memo:`                     | category - desc      | memo() (category: preference / requirement / antipattern / stack) |
 | `Remember:`                 | category - desc      | remember() (user/claude personality note)   |
 | `Conflict:` + `Resolution:` | 1 line each          | merge conflict resolution                   |
 
@@ -166,6 +182,7 @@ A `UserPromptSubmit` hook fires on EVERY user message and injects a `[memory-che
 - "always X" / "never Y" / "from now on" → `memo(preference)`
 - "client wants X" / "it must" / "mandatory" → `memo(requirement)`
 - "don't ever do X again" / "that broke because" → `memo(antipattern)`
+- a non-derivable stack/tech fact ("uses TypeScript 5.3", "`agents` in plugin.json must be an array") → `memo(stack)`
 
 **Remember signals** → `remember()` personality/working-style notes:
 
@@ -320,6 +337,13 @@ Type "I understand the risk, proceed" to continue.
 - No `Next:` on main commits. `Risk:` always required on hotfixes.
 - PR body auto-generated from trailers.
 - Hotfix flow: branch from main → fix → PR to main → **back-merge to dev IMMEDIATELY** (same session, no delay). If you skip this, the bug reappears next time dev merges to staging.
+
+**Releasing a toolkit plugin** (this marketplace repo): use `bin/release.py`, do NOT bump by hand.
+
+- Pre-req: fill the root `CHANGELOG.md` `## [Unreleased]` section first (the script aborts if it is empty).
+- Dry-run first, then for real: `python3 bin/release.py <plugin> <new-version> [--dry-run] [--allow-dirty]`. It orchestrates bump (`plugin.json` + `marketplace.json`) → promotes `[Unreleased]` to `## [<version>] - <date>` → commits the 3 files via pathspec → pushes → verifies the commit is on the remote and versions are coherent (so `/plugin update` sees it). Fail-closed: aborts on dirty tree, non-greater version, empty changelog, no upstream, or being behind the remote.
+- Lower-level bump only (no changelog/commit/push): `python3 bin/bump-version.py <plugin> <version>` | `--list` | `--all <version>`.
+- See `docs/RELEASING.md` for the full human walkthrough.
 
 ## Issues & Milestones
 
