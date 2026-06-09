@@ -23,3 +23,25 @@
 - Tie-breaking sort → Python's stable sort preserves insertion order deterministically.
 - Race conditions → recall() is fully stateless. No shared mutable state.
 - Regex ReDoS in _tokenize → character class with no backtracking. Safe.
+
+## release.py / bin/bump-version.py (2026-06-09)
+
+- Path traversal `../evil` → rejected by PLUGIN_NAME_RE before any filesystem access.
+- Uppercase plugin name → rejected by PLUGIN_NAME_RE.
+- Empty plugin name → rejected by PLUGIN_NAME_RE.
+- `UNMASSK_REPO_ROOT` env set to external repo → release.py overrides it with the correct root; victim repo not mutated.
+- 1.9.0 → 1.10.0 semver comparison → _semver_tuple uses int(); (1,9,0) < (1,10,0) correctly.
+- 2.0.0 > 1.99.99 comparison → (2,0,0) > (1,99,99) correctly.
+- 1.4.0-rc1 vs 1.4.0 (same core) → rejected as "not greater" (correct behavior).
+- Working tree check without --allow-dirty → correctly aborts.
+- No upstream configured → correctly aborts.
+- CHANGELOG absent → correctly aborts with FileNotFoundError message.
+- CHANGELOG with whitespace-only [Unreleased] body → correctly aborts.
+- Push failure → exits code 2 (VERIFY_FAIL), not 0; local commit preserved; ADVERTENCIA printed.
+- Second release same version → rejected as "not greater".
+- git fetch fails, push also fails → exits code 2 (not silent); files are mutated locally but that is documented behavior.
+- Detached HEAD → correctly aborts (no upstream).
+- CRLF CHANGELOG → handled correctly; output is clean; no double-blank-line corruption.
+- 10,000-line CHANGELOG → processed in <1s, no timeout.
+- Huge version 99999.99999.99999 → accepted as valid (correct: valid semver).
+- Concurrent releases (same version, two threads) → one wins (rc=0), other fails at git add (index lock); final state consistent.

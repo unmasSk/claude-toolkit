@@ -130,6 +130,21 @@ Rule: if the module under test has a module-level cache that varies by environme
 
 `generateId()` in `utils.ts` uses `randomBytes(12).toString('base64url')` — 16 characters matching `/^[A-Za-z0-9_-]{16}$/`. These are NOT RFC4122 UUIDs. Zod's `.uuid()` rejects them. When validating cursor/ID fields in schemas, use `.regex(/^[A-Za-z0-9_-]{16}$/)` instead of `.uuid()`. Test IDs must also match this format (16 base64url chars) or Zod schema validation will reject them before the handler runs.
 
+## release_helpers.py: sys.path al importar como módulo desde tests
+
+Cuando un módulo Python importa un hermano (`release_validators`) con un import directo
+(no relativo), ese import falla si el módulo se carga como `bin.release_helpers` desde
+los tests (el directorio `bin/` no está en `sys.path` del proceso pytest).
+
+Fix: insertar `_BIN_DIR` en `sys.path` al inicio del módulo:
+```python
+_BIN_DIR_RH = os.path.dirname(os.path.abspath(__file__))
+if _BIN_DIR_RH not in sys.path:
+    sys.path.insert(0, _BIN_DIR_RH)
+```
+Este patrón garantiza que funcione tanto como script directo como cuando pytest
+lo importa como módulo `bin.release_helpers`.
+
 ## React StrictMode: second connect() call kills a CONNECTING socket
 
 StrictMode lifecycle: mount → connect(WS1) → unmount → cleanup(schedules disconnect 100ms) →

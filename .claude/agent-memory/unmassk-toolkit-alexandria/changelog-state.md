@@ -4,14 +4,14 @@ description: Tracks the last changelog update date and what was included, so fut
 type: project
 ---
 
-Last full audit: 2026-06-08
-Last commit covered (toolkit root): 90307bf (feat(plugin/communication): communication block + PRD template)
+Last full audit: 2026-06-09
+Last commit covered (toolkit root): c1065ce (docs(docs): roadmap: #9 = solo script de release; hook de push-automatico movido a candidatos)
 Last commit covered (chatroom): f4196fa (fix(plugin/chatroom/frontend): formatContent keeps agent name capitalized in queue messages)
 Current version in plugin.json: 1.1.1 (source of truth) — CHANGELOG written for 1.3.0 but version bump is another agent's job (do NOT touch plugin.json or marketplace.json)
 
 Root CHANGELOG structure note: Three product timelines merged into one file. Old git-memory [1.1.0] entry was renamed [1.1.0-gitmemory] on 2026-03-24 to avoid collision with toolkit [1.1.0].
 
-[Unreleased] now empty (no new commits beyond 90307bf at time of writing).
+[Unreleased] now has entries (2026-06-09): release script (bin/release.py + helpers + --path flag in git-memory-commit.py + docs/RELEASING.md) + documentation coverage improvements (unmassk-seo hooks, ops-observability LogQL validator, ops-cicd azure scripts, media-image-edit .env.example).
 
 [1.3.0] section covers (2026-06-08):
 - Added: recall gatekeeper hook (pre-task-recall.py, 51 tests), build-mode (Flow router + linear/test-first references + Ultron/Dante awareness), CLAUDE.md block generator (lib/managed_blocks.py, 35 tests), 4 protocol skills installed (close-session/grill/council/lifecycle), close-session Stop hook, PRD template, communication block in CLAUDE.md

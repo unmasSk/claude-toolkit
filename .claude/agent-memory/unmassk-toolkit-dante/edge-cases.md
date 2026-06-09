@@ -192,6 +192,32 @@ Fix: always pass `-b main` to `git init --bare` when the source uses `main`.
 Affected: any test that creates a bare remote and then clones from it to simulate a
 second contributor pushing ahead (e.g. the "local behind remote" preflight scenario).
 
+## release.py — Edge Cases (hardening pass, 2026-06-09)
+
+### Semver numeric ordering
+`_semver_tuple` converts to `(int, int, int)` — never string-compare versions.
+Test: `1.10.0 > 1.9.0` (accepted), `1.9.0 < 1.10.0` (rejected), `2.0.0 > 1.99.99` (accepted).
+
+### CHANGELOG format precision
+After promotion: exactly `"\n\n"` between `## [Unreleased]` and `## [<ver>] - <date>`.
+Assert `changelog[idx_unreleased + len("## [Unreleased]"):idx_new_ver] == "\n\n"`.
+Previous content must appear verbatim under the new heading. Heading date = `date.today().isoformat()`.
+
+### Missing / malformed files
+CHANGELOG absent → `_read_file` → `_die` → exit 1, no traceback.
+marketplace.json malformed JSON → `_load_json` → `_die` → exit 1, no traceback.
+plugin.json absent → `_preflight` check → `_die` → exit 1.
+Assert `"Traceback" not in (stdout + stderr)` for all three.
+
+### --dry-run guarantees beyond "no file mutations"
+Also assert: `git diff --cached --name-only` is empty (index untouched).
+Also assert: local HEAD unchanged (no git object created).
+Pre-flight still runs with --dry-run: invalid semver → exit != 0 even with --dry-run.
+
+### bump-version.py retrocompat
+Without `UNMASSK_REPO_ROOT`: resolves via `_FILE_ROOT` (`__file__`-relative). Test with `--list` from a tmp CWD that has no marketplace.json — must succeed and show real PLUGIN_NAME.
+With `UNMASSK_REPO_ROOT`: uses override root. Test with fake marketplace in tmp_path — must show fake plugin, NOT real plugin.
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests

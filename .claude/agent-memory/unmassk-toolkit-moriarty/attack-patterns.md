@@ -17,3 +17,41 @@
 - If entry text contains `<!--` or `-->`, sanitize removes them, normalize sees different string
 - Tombstone norm: `'antipattern - <!-- note --> use bm25'`
 - Entry norm: `'antipattern - note use bm25'` → no match → tombstone fails to suppress
+
+## git add does not clear pre-staged index entries (release.py / --allow-dirty)
+- Pattern: script uses `git add -- [specific files]` to stage only release files
+- If attacker (or user) has pre-staged unrelated files before running with --allow-dirty,
+  those files REMAIN in the git index and are included in the commit
+- `git add -- [files]` ADDS to index; it does NOT reset existing staged changes
+- Root location: `_execute_stage` in `bin/release.py:335`
+- Fix pattern: `git reset HEAD` before selective `git add`, or pass explicit paths to `git commit`
+
+## SEMVER_RE accepts leading zeros (1.04.0, 01.0.0)
+- Pattern: `r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$"` matches `\d+` which allows leading zeros
+- `int('04') = 4` so `_semver_tuple('1.04.0') = (1,4,0)` — semantically same as 1.4.0
+- The invalid version string '1.04.0' passes validation and gets stored verbatim in JSON
+- Root location: `SEMVER_RE` in `bin/release.py:37`, `_semver_tuple` in `bin/release.py:60`
+
+## Pre-release suffix creates one-way ratchet via tuple stripping
+- Pattern: `_semver_tuple` strips suffix before comparison: '1.4.0-rc1' → (1,4,0)
+- Result: 1.4.0-rc1 releases successfully (accepted as > 1.3.0 → passes)
+- But then 1.4.0 FINAL is blocked: (1,4,0) <= (1,4,0) → rejected as "not greater"
+- A single pre-release release permanently blocks the final release of that version
+- Root location: `_semver_tuple` in `bin/release.py:60`
+
+## CHANGELOG regex operates on first match only — multiple [Unreleased] silently ignored
+- Pattern: `re.search(...)` finds first `## [Unreleased]` — second occurrence is silently left
+- Multiple [Unreleased] blocks: only the first one gets promoted; second stays as-is
+- Root: `_promote_changelog` + `_check_unreleased_not_empty` in `bin/release.py:244,270`
+
+## [Unreleased] with only subsection headers passes the "not empty" check
+- `section_body.strip()` is non-empty when body contains `### Added\n\n### Changed`
+- Subsection headers without entries count as "content" → release proceeds
+- An empty-entries changelog gets promoted and committed
+- Root location: `_check_unreleased_not_empty` in `bin/release.py:239`
+
+## Malformed CHANGELOG structure not validated — [Unreleased] after version entry
+- Script does not verify that [Unreleased] is the topmost version section
+- If CHANGELOG has [1.3.0] before [Unreleased], the new [1.4.0] is inserted after [1.3.0]
+- Result: committed changelog with version entries in wrong order
+- Root: `_promote_changelog` in `bin/release.py:260` — no structural validation
