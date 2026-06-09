@@ -26,7 +26,8 @@ _FILE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO_ROOT = os.environ.get("UNMASSK_REPO_ROOT") or _FILE_ROOT
 MARKETPLACE_JSON = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
 
-SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$")
+# Semver estricto: prohíbe ceros a la izquierda en major/minor/patch (semver 2.0.0 §2)
+SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[a-zA-Z0-9.]+)?$")
 PLUGIN_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 MAX_INPUT_LEN = 128
 

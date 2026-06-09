@@ -209,49 +209,50 @@ def build_commit_message(type_: str, scope: str, message: str,
     return "\n".join(parts)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Pretty git commit for git-memory")
-    parser.add_argument("type", help="Commit type (feat, fix, decision, memo, context, wip, ...)")
-    parser.add_argument("scope", help="Scope (auth, api, forms, ...)")
-    parser.add_argument("message", help="Commit message (subject line)")
-    parser.add_argument("--body", default=None, help="Commit body text")
-    parser.add_argument("--trailer", action="append", default=[], dest="trailers",
-                        help="Trailer in KEY=VALUE format (repeatable)")
-    parser.add_argument("--push", action="store_true", help="Push after commit")
-    args = parser.parse_args()
+def _validate_path_args(paths: list[str], repo_real: str | None) -> None:
+    """Valida que todos los --path queden dentro del repo root.
 
-    type_ = args.type
-    if type_ not in EMOJIS:
-        print(f"{RED}{BOLD}Error{RESET}: unknown type '{type_}'. Valid: {', '.join(sorted(EMOJIS))}", file=sys.stderr)
-        sys.exit(1)
+    Rechaza rutas con '..' explícito o que apunten fuera del root resuelto.
+    Llama a sys.exit(1) si alguna ruta es inválida.
+    """
+    for p in paths:
+        if ".." in p.replace("\\", "/").split("/"):
+            print(f"{RED}{BOLD}Error{RESET}: path rechazado (contiene '..'): {p!r}", file=sys.stderr)
+            sys.exit(1)
+        if repo_real:
+            abs_p = os.path.realpath(os.path.join(os.getcwd(), p))
+            if not abs_p.startswith(repo_real + os.sep) and abs_p != repo_real:
+                print(f"{RED}{BOLD}Error{RESET}: path fuera del repo: {p!r}", file=sys.stderr)
+                sys.exit(1)
 
-    # Scope suggestion from staged files (non-blocking hint)
-    if type_ not in MEMORY_TYPES:
-        _suggest_scope(args.scope)
 
-    # Process Next/Resolved-Next trailers for issue management (pre-compute, apply post-commit)
-    processed_trailers = []
-    for t in args.trailers:
+def _process_trailers(trailers: list[str]) -> list[str]:
+    """Resuelve trailers Next/Resolved-Next para la gestión de issues.
+
+    Expande 'Next=texto' con la referencia #N si gh crea el issue.
+    Devuelve la lista de trailers procesados (pre-commit).
+    """
+    processed: list[str] = []
+    for t in trailers:
         key, _, value = t.partition("=")
         if key == "Next":
             issue_ref = _auto_create_issue(value)
-            if issue_ref:
-                processed_trailers.append(f"Next={value} {issue_ref}")
-            else:
-                processed_trailers.append(t)
+            processed.append(f"Next={value} {issue_ref}" if issue_ref else t)
         else:
-            processed_trailers.append(t)
+            processed.append(t)
+    return processed
 
-    # Build message
-    msg = build_commit_message(type_, args.scope, args.message, args.body, processed_trailers)
 
-    # Build git command
+def _do_commit(type_: str, msg: str, paths: list[str]) -> subprocess.CompletedProcess:
+    """Construye y ejecuta el comando git commit. Aborta con exit 1 ante fallos."""
     git_args = ["commit"]
     if type_ in MEMORY_TYPES:
         git_args.append("--allow-empty")
     git_args += ["-m", msg]
-
-    # Execute
+    # Pathspec explícito: cuando se pasan --path, el commit incluye SOLO esas rutas.
+    # Sin --path: comportamiento original (commitea el índice completo).
+    if paths:
+        git_args += ["--"] + paths
     try:
         result = subprocess.run(
             ["git"] + git_args,
@@ -260,30 +261,42 @@ def main() -> None:
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
         print(f"{RED}{BOLD}Error{RESET}: git commit failed: {e}", file=sys.stderr)
         sys.exit(1)
-
     if result.returncode != 0:
-        stderr = result.stderr.strip()
-        print(f"{RED}{BOLD}Error{RESET}: git commit failed: {stderr}", file=sys.stderr)
+        print(f"{RED}{BOLD}Error{RESET}: git commit failed: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return result
+
+
+def _do_push() -> None:
+    """Ejecuta git push. Aborta con exit 1 si falla."""
+    try:
+        push_result = subprocess.run(
+            ["git", "push"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
+        print(f"  {RED}push failed: {e}{RESET}", file=sys.stderr)
+        sys.exit(1)
+    if push_result.returncode == 0:
+        print(f"  {DIM}↑ pushed{RESET}")
+    else:
+        print(f"  {RED}push failed: {push_result.stderr.strip()}{RESET}", file=sys.stderr)
         sys.exit(1)
 
-    # Post-commit: close resolved issues
-    for t in args.trailers:
-        key, _, value = t.partition("=")
-        if key == "Resolved-Next":
-            _auto_close_issue(value)
 
-    # Extract SHA from output (format: "[branch SHA] message")
+def _print_commit_result(type_: str, scope: str, message: str,
+                         result: subprocess.CompletedProcess,
+                         processed_trailers: list[str]) -> None:
+    """Imprime la línea de confirmación del commit y los avisos de issues creados."""
     sha = "?"
     sha_match = re.search(r"\[\S+\s+([a-f0-9]+)\]", result.stdout)
     if sha_match:
         sha = sha_match.group(1)[:7]
 
-    # Pretty output
     emoji = EMOJIS.get(type_, "")
     color = TYPE_COLORS.get(type_, RESET)
-    print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({args.scope}){RESET}: {args.message} {DIM}[{sha}]{RESET}")
+    print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({scope}){RESET}: {message} {DIM}[{sha}]{RESET}")
 
-    # Notify about created issues so Claude fills in the details
     for t in processed_trailers:
         key, _, value = t.partition("=")
         if key == "Next":
@@ -292,21 +305,65 @@ def main() -> None:
                 print(f"  📎 Issue {match.group(0)} created — fill in the body with: "
                       f"gh issue edit {match.group(1)} --body \"<description, context, acceptance criteria>\"")
 
-    # Push if requested
-    if args.push:
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Construye y devuelve el parser de argumentos de la CLI."""
+    parser = argparse.ArgumentParser(description="Pretty git commit for git-memory")
+    parser.add_argument("type", help="Commit type (feat, fix, decision, memo, context, wip, ...)")
+    parser.add_argument("scope", help="Scope (auth, api, forms, ...)")
+    parser.add_argument("message", help="Commit message (subject line)")
+    parser.add_argument("--body", default=None, help="Commit body text")
+    parser.add_argument("--trailer", action="append", default=[], dest="trailers",
+                        help="Trailer in KEY=VALUE format (repeatable)")
+    parser.add_argument("--push", action="store_true", help="Push after commit")
+    parser.add_argument(
+        "--path",
+        action="append",
+        default=[],
+        dest="paths",
+        metavar="PATH",
+        help="Pathspec explícito para el commit (repetible). "
+             "Si se pasan rutas, solo esas entran en el commit. "
+             "Deben quedar dentro del repo (sin .. que escapen del root).",
+    )
+    return parser
+
+
+def main() -> None:
+    args = _build_arg_parser().parse_args()
+
+    type_ = args.type
+    if type_ not in EMOJIS:
+        print(f"{RED}{BOLD}Error{RESET}: unknown type '{type_}'. Valid: {', '.join(sorted(EMOJIS))}", file=sys.stderr)
+        sys.exit(1)
+
+    # Validación de --path: deben quedar dentro del repo root
+    if args.paths:
         try:
-            push_result = subprocess.run(
-                ["git", "push"],
-                capture_output=True, text=True, timeout=30,
-            )
-        except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
-            print(f"  {RED}push failed: {e}{RESET}", file=sys.stderr)
-            sys.exit(1)
-        if push_result.returncode == 0:
-            print(f"  {DIM}↑ pushed{RESET}")
-        else:
-            print(f"  {RED}push failed: {push_result.stderr.strip()}{RESET}", file=sys.stderr)
-            sys.exit(1)
+            _, toplevel = run_git(["rev-parse", "--show-toplevel"])
+            repo_real = os.path.realpath(toplevel.strip()) if toplevel else None
+        except Exception:
+            repo_real = None
+        _validate_path_args(args.paths, repo_real)
+
+    # Scope suggestion from staged files (non-blocking hint)
+    if type_ not in MEMORY_TYPES:
+        _suggest_scope(args.scope)
+
+    processed_trailers = _process_trailers(args.trailers)
+    msg = build_commit_message(type_, args.scope, args.message, args.body, processed_trailers)
+    result = _do_commit(type_, msg, args.paths)
+
+    # Post-commit: close resolved issues
+    for t in args.trailers:
+        key, _, value = t.partition("=")
+        if key == "Resolved-Next":
+            _auto_close_issue(value)
+
+    _print_commit_result(type_, args.scope, args.message, result, processed_trailers)
+
+    if args.push:
+        _do_push()
 
 
 if __name__ == "__main__":

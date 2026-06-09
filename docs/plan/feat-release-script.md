@@ -72,15 +72,32 @@ Exit 0 solo si TODO verifica.
 - [ ] Moriarty: romper estados parciales — push a medias, fetch que falla, changelog malformado, race con el remoto, `--allow-dirty` filtrando cambios ajenos.
 - [ ] Yoda: veredicto production-ready.
 
-### Task 4: Document (Alexandria)
-**Depends on:** Task 3 verde
-**Files:** create `docs/RELEASING.md`
-- [ ] Cómo bumpear/liberar: precondiciones (rellenar `[Unreleased]`), comando, `--dry-run` primero, qué verifica, qué hacer si aborta. Documentado contra el comportamiento REAL del script.
+### Task 4: Document (ORCHESTRATOR + Alexandria)
+**Depends on:** Task 3 verde (la firma de `--path` se documenta contra la versión final)
+**Hueco confirmado por Bilbo (memo 22f41a6):** el tooling es invisible para Claude — lo que Claude lee son las SKILLS, no `docs/`. El release script no vale si ninguna skill lo nombra.
+
+**4a — ORCHESTRATOR actualiza las skills (carril del orquestador, NO Alexandria):**
+- [ ] `unmassk-gitmemory/SKILL.md`: añadir `[--path PATH]...` a la firma de `git-memory-commit.py` (~línea 66).
+- [ ] `unmassk-gitmemory/SKILL.md`: añadir entrada de `git-memory-recall.py <query> [--limit N] [--scope S]` (buscador de memoria, alternativa a `git log --grep`).
+- [ ] `unmassk-gitmemory/SKILL.md` sección "Releases" (~línea 317): documentar `bin/release.py <plugin> <version> [--dry-run] [--allow-dirty]` y `bin/bump-version.py <plugin> <version> | --list | --all V` como el proceso de release.
+- [ ] `unmassk-close-session/SKILL.md` (paso del version bump): nombrar explícitamente `bin/release.py` como el comando de release (hoy solo dice "run the version bump").
+
+**4b — Alexandria escribe `docs/RELEASING.md`** (para humanos): cómo bumpear/liberar, precondición (`[Unreleased]` con contenido), comando, `--dry-run` primero, qué verifica, qué hacer si aborta a mitad. Contra el comportamiento REAL del script.
 
 ## Resolutions (post-contract, antes de Ultron)
 1. **Commit:** `release.py` usa el wrapper `git-memory-commit.py` con trailers válidos (`Why=release v<version>`, `Touched=<paths>`), `--push`. NO `git commit` directo.
 2. **Root override:** env var `UNMASSK_REPO_ROOT`. `release.py` resuelve el root con `git rev-parse --show-toplevel` y exporta `UNMASSK_REPO_ROOT` al subproceso de `bump-version.py`. `bump-version.py` lee `os.environ.get("UNMASSK_REPO_ROOT")` y cae al comportamiento `__file__` actual si no está (retrocompatible).
 3. **Formato changelog:** exactamente UNA línea en blanco entre `## [Unreleased]` y el nuevo `## [<version>] - <fecha>`. Keep a Changelog canónico.
+
+## Verify findings → Fix pass (Cerberus + Moriarty)
+Política de edge-cases (queda fijada aquí):
+- **Semver estricto:** rechazar ceros a la izquierda (`1.04.0`). Precedencia correcta: una versión sin pre-release es MAYOR que la misma con pre-release (`1.4.0-rc1` < `1.4.0`).
+- **--allow-dirty:** el commit contiene EXACTAMENTE los 3 ficheros del release, aunque hubiera otros cambios ya staged → limpiar el índice antes de stagear los 3.
+- **CHANGELOG:** `[Unreleased]` con solo cabeceras de subsección (sin entradas) cuenta como VACÍO → aborta. Múltiples `## [Unreleased]` o `[Unreleased]` que no es la primera entrada de versión → aborta (malformado).
+- **Robustez:** `git fetch` que falla → aborta (fail-closed). Capturar `subprocess.TimeoutExpired` con mensaje limpio. `_die -> NoReturn`. Sin stderr duplicado.
+- **Estructura:** funciones ≤ 50 LOC, fichero ≤ 300 LOC (extraer helpers a un módulo si hace falta).
+
+Cada fix lleva su test de regresión (rojo→verde). No tocar los 32 tests que ya pasan.
 
 ## Wave Map
 - Wave 1: Task 1 (Dante, contrato en rojo)

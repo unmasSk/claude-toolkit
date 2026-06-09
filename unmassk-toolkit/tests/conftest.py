@@ -1,4 +1,11 @@
-"""Shared fixtures and helpers for git-memory tests."""
+"""Shared fixtures and helpers for git-memory tests.
+
+Nota sobre importabilidad de bin.release y módulos vecinos:
+pytest añade el rootdir (donde está pyproject.toml) a sys.path al arrancar.
+Como bin/ no tiene __init__.py, Python lo trata como namespace package,
+lo que permite "import bin.release" y "import bin.release_helpers" sin
+necesidad de sys.path.insert explícito en cada script de test.
+"""
 
 import json
 import os
