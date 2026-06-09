@@ -174,11 +174,15 @@ For advanced prompt techniques: [references/prompt-crafting.md](references/promp
 
 ## Alternative: MCP Tool
 
-If the MCP server is configured, you can also use:
+The CLI above is the PRIMARY path and always works. The MCP tool is OPTIONAL — only use it if the `mcp__media-pipeline__create_asset` tool is actually available in this session (check the tool list / ToolSearch first; if it is not present, do not attempt it — fall back to the CLI). Both paths need `GEMINI_API_KEY`.
+
+If available, you can use:
 
 ```
 mcp__media-pipeline__create_asset
 ```
 
 Parameters: `prompt`, `outputPath`, `aspectRatio`, `model`
+
+(Documented for humans in this plugin's `README.md` Setup note.)
 
