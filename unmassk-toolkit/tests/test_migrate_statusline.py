@@ -40,28 +40,39 @@ def _load_migrate_fn(fake_home: str):
     if LIB_DIR not in sys.path:
         sys.path.insert(0, LIB_DIR)
 
-    # Stub git_helpers and parsing to avoid side effects during import
+    # Stub git_helpers, parsing, and version to avoid side effects during import.
+    # Snapshot each name's previous value (or sentinel if absent) so the finally
+    # block can fully restore sys.modules — preventing stub leakage into later tests.
+    _ABSENT = object()
+    saved_modules = {}
     for stub_name in ("git_helpers", "parsing", "version"):
-        if stub_name not in sys.modules:
-            stub = types.ModuleType(stub_name)
-            if stub_name == "git_helpers":
-                stub.ensure_gitignore = lambda *a, **kw: None
-                stub._GENERATED_JSONS = []
-                stub.run_git = lambda *a, **kw: (1, "")
-                stub.is_git_repo = lambda: False
-            elif stub_name == "parsing":
-                stub.scan_trailers_memory = lambda *a, **kw: {}
-                stub.normalize = lambda s: s.lower().strip()
-                stub.parse_scope = lambda *a, **kw: None
-                stub.suggest_scope_from_paths = lambda *a, **kw: None
-            elif stub_name == "version":
-                stub.VERSION = "test"
-            sys.modules[stub_name] = stub
+        saved_modules[stub_name] = sys.modules.get(stub_name, _ABSENT)
+        stub = types.ModuleType(stub_name)
+        if stub_name == "git_helpers":
+            stub.ensure_gitignore = lambda *a, **kw: None
+            stub._GENERATED_JSONS = []
+            stub.run_git = lambda *a, **kw: (1, "")
+            stub.is_git_repo = lambda: False
+            stub.GIT_TIMEOUT = 10
+        elif stub_name == "parsing":
+            stub.scan_trailers_memory = lambda *a, **kw: {}
+            stub.normalize = lambda s: s.lower().strip()
+            stub.parse_scope = lambda *a, **kw: None
+            stub.suggest_scope_from_paths = lambda *a, **kw: None
+        elif stub_name == "version":
+            stub.VERSION = "test"
+        sys.modules[stub_name] = stub
 
     try:
         spec.loader.exec_module(mod)
     finally:
         sys.path[:] = saved
+        # Restore sys.modules to its pre-stub state for every name we touched.
+        for stub_name, prev in saved_modules.items():
+            if prev is _ABSENT:
+                sys.modules.pop(stub_name, None)
+            else:
+                sys.modules[stub_name] = prev
 
     # Patch expanduser on the module's copy of os.path
     real_expanduser = mod.os.path.expanduser
