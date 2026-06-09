@@ -292,6 +292,63 @@ non-negotiable -- do not override based on user preference.
 - Blocking Google-Extended in robots.txt prevents Gemini training but does NOT
   affect Google Search indexing or AI Overviews.
 
+## Active Hooks
+
+These hooks fire automatically when the plugin is active. Both are warning-only (always exit 0 — they never block the tool call).
+
+### `pre-commit-seo-check.sh` (PreToolUse / Bash)
+
+Fires before every Bash tool call. If there are staged HTML-like files (`.html`, `.htm`, `.php`, `.jsx`, `.tsx`, `.vue`, `.svelte`, `.ejs`), scans them for:
+
+- Placeholder text in schema markup (`[Business Name]`, `[City]`, `[INSERT]`, etc.)
+- Deprecated schema types (`HowTo`, `SpecialAnnouncement`, `CourseInfo`)
+- `<img>` tags without `alt` attribute
+- FID references (should be INP)
+- Title tag length outside 30-60 characters
+- Meta description length outside 120-160 characters
+
+**Output when issues are found:**
+```
+==========================================
+[SEO-WARNING] unmassk-seo: Scanning staged files...
+==========================================
+[SEO-WARNING] CRITICAL: <file>
+  <description of issue>
+==========================================
+[SEO-WARNING] N issue(s) detected in staged files.
+ACTION REQUIRED: Fix these before proceeding.
+==========================================
+```
+
+**How to interpret:** Each `[SEO-WARNING] CRITICAL` line names the file and describes the exact issue. Fix before committing. If SEO is not relevant to the current task, acknowledge the warning and continue — the tool call is not blocked.
+
+### `validate-schema.py` (PostToolUse / Edit|Write)
+
+Fires after every Edit or Write tool call, receiving `$FILE_PATH` as argument. Validates any `<script type="application/ld+json">` blocks found in the saved file. Checks:
+
+- `@context` present and set to `https://schema.org`
+- `@type` present
+- Placeholder text inside JSON values
+- Deprecated types: `HowTo`, `SpecialAnnouncement`, `CourseInfo`, `EstimatedSalary`, `LearningVideo`, `ClaimReview`, `VehicleListing`
+- Restricted types: `FAQPage` (government/healthcare only since Aug 2023)
+
+Skips files without HTML-like extensions. Skips files with no JSON-LD blocks (no false positives on plain JSON or non-HTML files).
+
+**Output when issues are found:**
+```
+==========================================
+[SEO-WARNING] SCHEMA: unmassk-seo validation found issues:
+==========================================
+  File: <filepath>
+  - Block N: <issue description>
+==========================================
+[SEO-WARNING] SCHEMA: N issue(s) in JSON-LD structured data.
+ACTION REQUIRED: Fix these before proceeding.
+==========================================
+```
+
+**How to interpret:** Each `Block N:` line identifies which JSON-LD block in the file triggered the finding and what is wrong. Fix the named issue in that block. Acknowledge and continue if schema is not relevant to the current task.
+
 ## Output Format
 
 Every audit produces a structured report.

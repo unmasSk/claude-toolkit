@@ -1,0 +1,117 @@
+# How to release a plugin
+
+This guide walks through publishing a new version of a plugin in this marketplace repo
+using `bin/release.py`.
+
+## Precondition: fill the CHANGELOG
+
+The release script **aborts** if `## [Unreleased]` in the root `CHANGELOG.md` is empty
+(only headers like `### Added` without entries count as empty). Fill it with the changes
+that will ship in this release before running anything.
+
+## Step 1 — dry run
+
+Always run `--dry-run` first. It prints the full plan without touching any file:
+
+```bash
+python3 bin/release.py <plugin> <new-version> --dry-run
+```
+
+Example:
+
+```bash
+python3 bin/release.py unmassk-seo 1.1.0 --dry-run
+```
+
+Expected output:
+
+```
+[DRY-RUN] Release plan para unmassk-seo v1.1.0
+  1. Bump: bin/bump-version.py unmassk-seo 1.1.0
+     - unmassk-seo/.claude-plugin/plugin.json
+     - .claude-plugin/marketplace.json
+  2. Promover CHANGELOG: ## [Unreleased] -> ## [1.1.0] - 2026-06-09
+     - CHANGELOG.md
+  3. Stage: solo los 3 ficheros anteriores
+  4. Commit + push vía git-memory-commit.py
+  5. Verify: versiones en remoto origin/main
+[DRY-RUN] Sin cambios aplicados.
+```
+
+## Step 2 — real run
+
+```bash
+python3 bin/release.py <plugin> <new-version>
+```
+
+## What the script does (in order)
+
+1. **Pre-flight** — validates all conditions before mutating anything:
+   - Plugin name is valid (lowercase, alphanumeric, hyphens)
+   - Version is valid semver (no leading zeros: `1.04.0` is rejected)
+   - Version is strictly greater than the current version (`1.4.0` > `1.4.0-rc1`)
+   - Working tree is clean (or `--allow-dirty` is passed)
+   - Current branch has an upstream configured
+   - Local branch is not behind the remote (`git fetch` + comparison)
+   - Plugin exists in `marketplace.json` and its `plugin.json` is present
+   - `## [Unreleased]` exists, is unique, is the first version section, and has real content
+
+2. **Bump** — calls `bin/bump-version.py` to write the new version into
+   `<plugin>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`.
+
+3. **Promote changelog** — renames `## [Unreleased]` to `## [<version>] - <date>` and
+   inserts a fresh empty `## [Unreleased]` above it.
+
+4. **Stage** — runs `git add` on exactly the three files: `plugin.json`, `marketplace.json`,
+   `CHANGELOG.md`. No other staged or unstaged changes are touched.
+
+5. **Commit + push** — creates the commit via `git-memory-commit.py` using a `--path`
+   pathspec so only the three release files enter the commit, then runs `git push`.
+
+6. **Verify** — checks two things:
+   - The local commit is on `origin/<branch>` (push succeeded)
+   - `marketplace.json` and `plugin.json` both show the new version and agree with each other
+
+   On success: `Release verificado. '/plugin update' verá ahora <plugin> v<version> en origin/<branch>.`
+
+## Flags
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` | Print the plan, make no changes. Always use first. |
+| `--allow-dirty` | Skip the clean-tree check. Only the 3 release files enter the commit regardless; other dirty files stay in the working tree. |
+
+## Version rules
+
+- Semver strict: `MAJOR.MINOR.PATCH` — no leading zeros (`1.04.0` is invalid)
+- New version must be strictly greater than the current one
+- A final release is greater than its pre-release: `1.4.0` > `1.4.0-rc1`
+
+## If something fails mid-release
+
+The script is fail-closed at pre-flight: no files are touched until all checks pass.
+
+If the script fails **after** promoting the changelog but **before** the commit:
+
+```bash
+git checkout CHANGELOG.md
+```
+
+If the commit was created locally but `git push` failed, the commit exists and is
+recoverable. Run:
+
+```bash
+git push
+```
+
+The verify step will then confirm the commit reached the remote.
+
+## First-use checklist
+
+- [ ] `## [Unreleased]` has real entries (not just headers)
+- [ ] Working tree is clean (`git status` shows nothing, or `--allow-dirty` is intentional)
+- [ ] Branch has upstream (`git push -u origin <branch>` if needed)
+- [ ] Branch is up to date with remote (`git pull` if needed)
+- [ ] Version is strictly greater than current (`python3 bin/release.py <plugin> <new-version> --dry-run` to confirm)
+- [ ] Dry run output looks correct
+- [ ] Run for real, confirm `Release verificado.` message

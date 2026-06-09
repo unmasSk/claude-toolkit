@@ -101,6 +101,17 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-check-best-practices
 bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-yamllint-check.sh azure-pipelines.yml
 ```
 
+### Azure Pipelines — advanced traversal
+
+`azure-step-walker.py` is a shared traversal library imported by `azure-check-security.py` and `azure-check-best-practices.py`. It is not invoked directly; the two checker scripts above call it automatically.
+
+`azure-test-regressions.py` is the regression suite for the step-walker traversal coverage. Run it when editing any of the three azure scripts or after encountering an unexpected scan miss on conditional/deployment blocks:
+
+```bash
+# Run Azure traversal regression suite
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-test-regressions.py
+```
+
 ### Jenkins
 
 ```bash

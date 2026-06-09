@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Release script (`bin/release.py` + `bin/release_helpers.py`): single command to orchestrate a full plugin release — pre-flight checks (clean tree, semver order, non-empty changelog, upstream configured, not behind remote), version bump, changelog promotion, pathspec commit via `git-memory-commit.py`, push, and post-push verification. Supports `--dry-run` and `--allow-dirty`. Exit codes: 0 = ok, 1 = preflight/execution error, 2 = post-push verify failure.
+- `git-memory-commit.py --path` flag: allows callers to commit only specific files by pathspec, used by the release script to stage exactly the three release files without touching the rest of the index.
+- `docs/RELEASING.md`: human-readable how-to guide for the release workflow — preconditions, dry-run first, what each step does, flags, version rules, mid-release recovery, and a first-use checklist.
+- Documentation coverage: `unmassk-seo` SKILL.md now documents both active hooks (`pre-commit-seo-check.sh` and `validate-schema.py`) with triggers, what they check, and how to interpret their output. `unmassk-ops/ops-observability` routing table corrected to reference `logql-regression-checks.sh` as the LogQL validator. `unmassk-ops/ops-cicd` documents the usage trigger for `azure-step-walker.py` (traversal library, not invoked directly) and `azure-test-regressions.py` (regression suite). `unmassk-media/media-image-edit` now references `.env.example` for `FAL_KEY` configuration.
+
 ## [1.3.0] - 2026-06-08
 
 ### Added

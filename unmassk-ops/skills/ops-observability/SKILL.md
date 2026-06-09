@@ -37,7 +37,7 @@ version: 1.0.0
 | Check PromQL best practices | `references/promql-best-practices.md` | `promql-check-best-practices.py` |
 | Detect PromQL anti-patterns | `references/promql-anti-patterns.md` | `promql-check-best-practices.py` |
 | Test PromQL validators | `references/promql-validator-best-practices.md` | `promql-test-validators.py` |
-| Generate LogQL query | `references/logql-best-practices.md` | _(no dedicated validator)_ |
+| Generate LogQL query | `references/logql-best-practices.md` | `logql-regression-checks.sh` |
 | Configure Loki server | `references/loki-config-reference.md` | `loki-generate-config.py` |
 | Deploy Loki best practices | `references/loki-best-practices.md` | `loki-test-config.py` |
 | Generate Fluent Bit config | `references/` (see Fluent Bit section) | `fluentbit-generate-config.py` |
@@ -65,7 +65,7 @@ All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/`.
 | `fluentbit-validate-config.py` | Python | Validate Fluent Bit config structure |
 | `fluentbit-test-config.py` | Python | Test Fluent Bit config end-to-end |
 | `fluentbit-validate.sh` | Bash | Shell-level Fluent Bit syntax validation |
-| `logql-regression-checks.sh` | Bash | Run regression checks on LogQL queries |
+| `logql-regression-checks.sh` | Bash | Run regression suite for the LogQL generator — run after generating or editing LogQL queries, before delivering |
 
 ### Mandatory Script Commands
 
