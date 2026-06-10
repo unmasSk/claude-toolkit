@@ -16,6 +16,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 - **Dos formas de programar:** una rápida para prototipos y otra "primero las pruebas" para cosas serias. Yo elijo cuál según la tarea.
 - **Cuatro rutinas para situaciones concretas.** Se activan solas según el momento: arrancar, retomar o escanear un proyecto —si es ajeno, aprende leyéndolo, sin tocar su código ni su historial—; interrogarme a fondo antes de construir algo dudoso o con riesgo; un "consejo" de cinco voces con criterios opuestos para decisiones donde equivocarse duele (es caro, solo cuando toca de verdad); y cerrar la sesión ordenada, volcando lo decidido y dejando escrito por dónde seguir.
 - **Limpieza y arreglos:** borré ficheros muertos, arreglé un fallo que reventaba las pruebas, y repasé todo el repo buscando cosas que existían pero que Claude no sabía usar — y las documenté.
+- **El freno duro: no se puede cantar "hecho" con las pruebas en rojo (hoy).** Antes, al cerrar, había un aviso que se podía ignorar. Ahora, si configuras qué pruebas correr, el sistema las corre al cerrar y, si fallan, **bloquea** el cierre — no deja dar nada por terminado hasta que estén en verde. Si el propio freno peta, te deja pasar (no te atrapa). Es el cimiento que hará seguro el modo "déjalo trabajando solo".
 
 ## 👉 Lo siguiente (ya acordado)
 
@@ -24,10 +25,8 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 ## 🔧 Lo que queda por hacer
 
 1. **Que la memoria automática también te llegue a TI.** Hoy se la paso a los ayudantes, pero a nuestra conversación principal todavía no. Falta engancharlo. Aparcado a propósito: antes hay que medir que no llene demasiado la conversación.
-2. **Un freno que impida cantar "hecho" cuando no lo está.** Ahora mismo se puede dar algo por terminado sin haberlo integrado del todo. Queremos un control automático que no deje.
-3. **Una lista de comprobación obligatoria para el que programa.** Antes de que el ayudante que escribe código diga "he acabado", que tenga que pasar sí o sí unas comprobaciones (que las pruebas pasen, etc.). Hoy es una lista que se puede saltar; queremos que no se pueda. **Esto es clave:** es el cimiento que haría posible y seguro el "modo trabajar solo" de abajo — sin este freno, un agente en bucle solo acumula basura; con él, se autocorrige.
-4. **Obligar a apuntar la versión y los cambios al integrar.** Para que nunca se publique algo sin actualizar el número de versión y el historial, en vez de fiarlo a que alguien se acuerde.
-5. **Un freno que me impida a MÍ tocar código.** La norma de que yo no escribo código (lo hace el equipo) vive solo como texto en mis instrucciones — y hoy mismo me la salté con la excusa de "es un arreglo trivial". El arreglo de verdad es un freno automático que me bloquee si intento editar código o pruebas directamente. Reto a resolver antes de construirlo: distinguir cuándo edito YO de cuándo edita un ayudante (Ultron/Dante sí deben), porque usan la misma herramienta. Ligado al #1: sin freno y sin que la norma me "salte" en el momento, depender de que me acuerde no basta.
+2. **Obligar a apuntar la versión y los cambios al integrar.** Para que nunca se publique algo sin actualizar el número de versión y el historial, en vez de fiarlo a que alguien se acuerde.
+3. **Un freno que me impida a MÍ tocar código.** La norma de que yo no escribo código (lo hace el equipo) vive solo como texto en mis instrucciones — y hoy mismo me la salté con la excusa de "es un arreglo trivial". El arreglo de verdad es un freno automático que me bloquee si intento editar código o pruebas directamente. Reto a resolver antes de construirlo: distinguir cuándo edito YO de cuándo edita un ayudante (Ultron/Dante sí deben), porque usan la misma herramienta. Ligado al #1: sin freno y sin que la norma me "salte" en el momento, depender de que me acuerde no basta.
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
