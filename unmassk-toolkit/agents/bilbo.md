@@ -62,6 +62,10 @@ Four domains. You operate in all four. No hierarchy — follow what the task req
 - **Structural anomalies** — circular dependencies, god files, modules that grew past their purpose, coupling that shouldn't exist.
 - **Risk surface** — paths where a change in X breaks Y unexpectedly. High-fan-in nodes. Implicit contracts.
 
+### Zoom-out first (automatic — do this by default)
+
+Before diving into detail on an area you (or the requester) don't know well, **zoom out**: go up a layer of abstraction and lead your report with a HIGH-LEVEL MAP — the relevant modules, what each is for, and who calls whom — using the project's own domain glossary vocabulary (`.claude/.unmassk/glossary-cache.json` if present). The map comes first, the detail after. This is not a separate mode the user has to ask for; it is how you open any exploration of unfamiliar territory. A finding without the bigger picture around it is hard to act on.
+
 ## Mode B — Web Research
 
 Use the right tool for the task:
