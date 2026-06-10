@@ -27,6 +27,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 2. **Un freno que impida cantar "hecho" cuando no lo está.** Ahora mismo se puede dar algo por terminado sin haberlo integrado del todo. Queremos un control automático que no deje.
 3. **Una lista de comprobación obligatoria para el que programa.** Antes de que el ayudante que escribe código diga "he acabado", que tenga que pasar sí o sí unas comprobaciones (que las pruebas pasen, etc.). Hoy es una lista que se puede saltar; queremos que no se pueda. **Esto es clave:** es el cimiento que haría posible y seguro el "modo trabajar solo" de abajo — sin este freno, un agente en bucle solo acumula basura; con él, se autocorrige.
 4. **Obligar a apuntar la versión y los cambios al integrar.** Para que nunca se publique algo sin actualizar el número de versión y el historial, en vez de fiarlo a que alguien se acuerde.
+5. **Un freno que me impida a MÍ tocar código.** La norma de que yo no escribo código (lo hace el equipo) vive solo como texto en mis instrucciones — y hoy mismo me la salté con la excusa de "es un arreglo trivial". El arreglo de verdad es un freno automático que me bloquee si intento editar código o pruebas directamente. Reto a resolver antes de construirlo: distinguir cuándo edito YO de cuándo edita un ayudante (Ultron/Dante sí deben), porque usan la misma herramienta. Ligado al #1: sin freno y sin que la norma me "salte" en el momento, depender de que me acuerde no basta.
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
