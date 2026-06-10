@@ -91,6 +91,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-gate.py",
+            "timeout": 90
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-check.py",
             "timeout": 30
           }
