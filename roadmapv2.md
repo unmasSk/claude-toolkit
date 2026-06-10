@@ -3,21 +3,22 @@
 Qué está hecho, qué falta y cómo trabajamos. En cristiano.
 El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí va lo legible.
 
-**Actualizado: 2026-06-09.**
+**Actualizado: 2026-06-10.**
 
 ---
 
 ## ✅ Ya hecho y funcionando
 
 - **La memoria automática del proyecto.** El sistema recuerda entre sesiones lo que decidimos, lo que prefieres y cómo trabajar, y se lo pasa solo a los ayudantes (los que programan, revisan, prueban…) cuando los lanzo. Ya no empiezo de cero cada día.
-- **Publicar una versión es un solo comando.** Antes se hacía a mano y se podía olvidar un paso (de hecho pasó). Ahora un único comando sube el número de versión, apunta los cambios, lo guarda, lo manda a tus máquinas y verifica que llegó — y se niega a publicar si algo está a medias. Construido y probado a fondo hoy.
+- **Un freno al exceso de memoria guardada (hoy, en la 1.5.0).** El sistema guardaba de más: la misma idea apuntada una y otra vez con otras palabras. Ahora hay dos capas. Una: el recordatorio de cada mensaje pide guardar SOLO si vale de verdad y no existe ya (y si es una corrección, retirar la vieja en vez de apilar). Dos: salta un aviso cuando voy a guardar algo casi idéntico a lo que ya hay. El aviso avisa, no bloquea — para no perder nunca una nota legítima por error.
+- **Publicar una versión es un solo comando.** Antes se hacía a mano y se podía olvidar un paso (de hecho pasó). Ahora un único comando sube el número de versión, apunta los cambios, lo guarda, lo manda a tus máquinas y verifica que llegó — y se niega a publicar si algo está a medias. Construido ayer y estrenado de verdad hoy al publicar la 1.5.0.
 - **Documentación en tres sitios a la vez.** Todo lo nuevo queda escrito para quien visita el repo en GitHub, para nosotros, y para que el propio Claude lo sepa — con una norma para que se haga siempre.
 - **Dos formas de programar:** una rápida para prototipos y otra "primero las pruebas" para cosas serias. Yo elijo cuál según la tarea.
 - **Limpieza y arreglos:** borré ficheros muertos, arreglé un fallo que reventaba las pruebas, y repasé todo el repo buscando cosas que existían pero que Claude no sabía usar — y las documenté.
 
 ## 👉 Lo siguiente (ya acordado)
 
-- **Publicar la versión nueva.** Todo lo de hoy está guardado pero aún no ha llegado a tus 4 ordenadores. Hace falta reiniciar y lanzar el comando de publicar. Sería, además, la primera vez que usamos de verdad el comando que construimos hoy.
+- _Nada acordado pendiente ahora mismo._ La **1.5.0 ya está publicada** y llega a cada ordenador al hacer `/plugin update`. El consolidador de memoria y el prompt de Gitto están **parados a propósito** (necesitan juicio, otra liga); lo demás está en la lista de abajo.
 
 ## 🔧 Lo que queda por hacer
 
