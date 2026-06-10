@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Memory dedup gate (`hooks/pre-memory-dedup-gate.py`): PreToolUse/Bash hook that WARNS (non-blocking, fail-open) when a `memo`/`remember` commit is a lexical near-duplicate of an existing entry of the same type — Jaccard ≥ 0.40 over recall's tokenizer with an extended dedup stoplist, naming the match in `permissionDecisionReason`. Decisions are never compared (sacred). Cheap pre-filter regex so the 99% of Bash commands that are not memory commits skip git entirely. 40 tests; validated against the real corpus (does not fire on the iterated "3 memory systems" memos — those are semantic restatements, not lexical dups). Documented in `unmassk-gitmemory` Active Hooks.
+
+### Changed
+- Memory capture reminder (`hooks/user-prompt-memory-check.py`): the per-message `[memory-check]` flipped from "contains memory? → save it" to restraint — save ONLY if durable, non-derivable, and not already captured; on a correction, RETIRE the old entry with a tombstone instead of stacking; systemic/process rules belong in the loaded skill, not memory. Lowers over-saving pressure at the source (the gate is the net; this is the belt).
+
 ## [1.4.0] - 2026-06-09
 
 ### Added

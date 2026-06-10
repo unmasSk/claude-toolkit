@@ -86,6 +86,10 @@ The replacement assertion (`countAgentMessages(ROOM, AGENT) > 0`) only verifies 
 
 Do NOT flag this as a missing assertion bug. The correct long-term fix is DI for the broadcast function so mock.module is not needed — but that is a future Dante task, not a present bug.
 
+## pre-memory-dedup-gate.py: `entry["text"]` in warning reason is already sanitized
+
+In `pre-memory-dedup-gate.py` line 301, `best_entry['text']!r` is embedded in the `permissionDecisionReason` without an explicit `_sanitize()` call. This looks like a missing sanitization step, but it is safe: `entry["text"]` comes from `_scan_commits()` in recall.py, which calls `_sanitize()` at line 174 before storing the value. The text is clean before it ever reaches the hook. Do not flag as unsanitized injection.
+
 ## afterAll scheduler cleanup in kill-guard test is order-dependent by design
 
 `afterAll(() => { activeInvocations.clear(); inFlight.clear(); })` at the bottom of `agent-result-kill-guard.test.ts` deliberately clears global state left by `agent-invoker-schedule.test.ts`. This looks like a test that is cleaning up after a different test file, which would normally be a flaky pattern. It IS that — but it is intentional, documented, and the alternative (running each file in isolation) is not supported by the current bun test runner. Do not flag as a shared-state anti-pattern without reading the comment block first.
