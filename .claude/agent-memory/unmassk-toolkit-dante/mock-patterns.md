@@ -228,6 +228,37 @@ To test the full upgrade → message → broadcast → invokeAgents chain:
 **invokeAgents signature**: `invokeAgents(roomId, mentions: Set<string>, triggerContent, Map, boolean)` —
 the stub receives mentions as a Set but can be spread: `_invokeAgentsCalls.push({ mentions: [...mentions] })`.
 
+## Stop Hook — Freno Duro (decision:block) Pattern
+
+Para Stop hooks que BLOQUEAN (a diferencia de los advisory que solo usan stderr):
+
+```python
+# Bloquear: JSON a stdout + exit 0
+json.dump({"decision": "block", "reason": "..."}, sys.stdout)
+sys.stdout.flush()
+sys.exit(0)  # siempre 0 — el bloqueo se comunica vía JSON, no vía exit code
+
+# Permitir: sin output a stdout + exit 0 (o stdout vacío)
+sys.exit(0)
+```
+
+Invariante de freno duro FAIL-OPEN (contrasta con pre-merge-gate que falla CERRADO):
+- Bug del hook → deja pasar (fail-open). Nunca atrapar al usuario sin poder cerrar sesión.
+- Config ilegible, binario no encontrado, timeout → todos fail-open.
+- Solo bloquea en el camino feliz explícito: config presente + test_command + tests fallidos.
+
+Test de metacaracteres (shell=False vs shell=True):
+- Crear fichero centinela que solo existiría si se expande subshell.
+- Verificar que el fichero NO existe después de correr el hook.
+- Si existe → el hook usa shell=True → inyección confirmada.
+
+```python
+sentinel = os.path.join(workdir, "injected.txt")
+_write_config(workdir, {"test_command": f"python3 -c pass $(python3 -c \"open('{sentinel}','w').close()\")"})
+_run_hook(workdir)
+assert not os.path.exists(sentinel), "shell=True detectado — vulnerabilidad de inyección"
+```
+
 ## Python Pytest — Hook Subprocess Testing Pattern
 
 Hooks under `unmassk-toolkit/hooks/` are tested as subprocesses via `conftest.run_cmd`.

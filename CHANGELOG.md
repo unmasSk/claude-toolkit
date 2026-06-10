@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Hard DoD gate (`hooks/stop-dod-gate.py`): Stop hook that BLOCKS session close (`decision:block`) when the project's configured test command exits non-zero — "done" can no longer be claimed with red tests. Opt-in via `.claude/git-memory-config.json` `test_command`. `shell=False` + `shlex.split(posix=False)` + quote-strip (injection-safe, Windows-compatible); 60s internal timeout (hooks.json 90s). Fail-open on any infra error (missing/unreadable config, missing binary, timeout, shlex `ValueError`, unexpected exception) — a broken gate never traps the user. 23 tests; Cerberus LGTM (0 blocking), both suggestions closed. Foundation for a safe autonomous ("Ralph") mode. Closes roadmap items #2/#3.
+
+### Changed
+- `unmassk-core` SKILL.md hardened: removed the "trivial 1-line edit" carve-out that let the orchestrator touch production code/tests. The orchestrator now edits NO code or tests ever (not even one-liners) — production code → Ultron, tests → Dante; "do it yourself" never licenses touching code. Closes a real loophole the orchestrator had exploited (and the matching `remember(claude)` was retired as a duplicate — the rule belongs in the skill, not memory).
+
 ## [1.5.0] - 2026-06-10
 
 ### Added
