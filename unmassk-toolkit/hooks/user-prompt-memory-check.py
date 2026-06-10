@@ -120,13 +120,19 @@ def main() -> None:
         # Already booted — just plugin root for reference
         lines.append(f"[git-memory] root: {PLUGIN_ROOT}")
 
-    # Memory capture check — always present, covers all memory commit types
+    # Memory capture check — always present, covers all memory commit types.
+    # Default is RESTRAINT, not capture: the reminder must lower the push to save,
+    # not amplify it. The brake (near-dup gate) is the net; this is the belt.
     lines.append(
-        "[memory-check] Evaluate this message: "
-        "does it contain a decision, preference, requirement, anti-pattern, "
-        "or personality/working-style note? "
-        "If yes → create the appropriate commit: decision(), memo(), or remember(). "
-        "If not → do nothing."
+        "[memory-check] Before saving: is this memory-worthy? Save ONLY if it clears ALL of: "
+        "(1) durable — still true next session, not a one-off; "
+        "(2) non-derivable — not already in the code or git-log; "
+        "(3) not already captured. "
+        "FIRST check existing memory: if a memo/remember already covers this, do NOT add another — "
+        "if it's a correction, RETIRE the old one with a Resolved-Memo/Resolved-Remember tombstone "
+        "instead of stacking a new entry. "
+        "Systemic/process rules belong in the loaded skill, NOT in memory. "
+        "If in doubt, or it's just thinking out loud → do nothing. Silence beats noise."
     )
 
     print("\n".join(lines))

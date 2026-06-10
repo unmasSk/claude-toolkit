@@ -34,6 +34,11 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-merge-gate.py",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-memory-dedup-gate.py",
+            "timeout": 10
           }
         ]
       },
