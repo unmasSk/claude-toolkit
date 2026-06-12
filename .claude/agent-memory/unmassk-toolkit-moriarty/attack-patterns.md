@@ -63,3 +63,37 @@
 - Root location: `hooks/user-prompt-memory-check.py:171-174`, `main()` function
 - Trigger: old-style CLAUDE.md block + slow filesystem / network stall during install
 - Severity: T1 — directly violates the stated "exit 0: Always" contract
+
+## post-validate-commit-trailers.py: int() crash on non-numeric exit_code
+- Pattern: `int(exit_code)` at line 183 raises ValueError/TypeError on non-numeric values
+- `exit_code='zero'` → `ValueError: invalid literal for int()`
+- `exit_code=[0]` → `TypeError: int() argument must be a string, a bytes-like object...`
+- Hook exits with rc=1 (crash) instead of rc=0 (fail-open)
+- Root: `post-validate-commit-trailers.py:183`
+
+## pre-validate-commit-trailers.py: overly broad regex blocks legitimate commands
+- Pattern: `re.search(r'\bgit\b.*\blog\b', command)` matches any command with 'git' AND 'log' tokens
+- `echo git log` → blocked with exit=2 (false positive)
+- `cat git.log` → blocked with exit=2 (false positive — git.log is a filename)
+- `git log-remote` → blocked with exit=2 (false positive — different subcommand)
+- Only applies when CLAUDE_CODE=1 env is set (Claude agents)
+- Root: `pre-validate-commit-trailers.py:150-157`
+
+## session-start-crew.py: UnicodeDecodeError on non-UTF-8 CLAUDE.md
+- Pattern: `claude_md.read_text(encoding='utf-8')` with no try/except
+- CLAUDE.md with bytes like 0xff or 0xfe → `UnicodeDecodeError` → exit=1
+- SessionStart hook crash: managed blocks NOT updated
+- Root: `session-start-crew.py:41`
+
+## pre-memory-dedup-gate.py: single-quoted trailer bypasses dedup check
+- Pattern: `_TRAILER_PATTERN` only matches `--trailer "Memo=..."` (double quotes)
+- Single-quoted or unquoted trailer: `--trailer 'Memo=...'` or `--trailer Memo=...` → gate skips entirely
+- Exact duplicate memos can be committed silently without dedup warning
+- Root: `pre-memory-dedup-gate.py:158-161` (_TRAILER_PATTERN)
+
+## pre-merge-gate.py: # merge-reviewed string bypasses gate unconditionally
+- Pattern: `if '# merge-reviewed' in command:` at line 94 — no verification that reviews ran
+- Any command containing `# merge-reviewed` (as a comment, in a string, etc.) bypasses
+- `git pull origin main # merge-reviewed` → approved without reviews
+- `git merge evil-branch # merge-reviewed -- skip gate` → approved
+- Root: `pre-merge-gate.py:94`

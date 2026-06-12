@@ -66,3 +66,20 @@
 - All manifest edge cases (null, missing, corrupt JSON, non-semver): fail-safe returns False, hook exits 0
 - Concurrent first-boot (5 processes, no .session-booted): all exit 0, all emit [memory-check], flag write is idempotent
 - Concurrent git commits during hook reads: all hook invocations exit 0, no corruption
+
+## hooks/bin — adversarial inputs (2026-06-12)
+
+- stop-dod-gate: test_command as list/null/int/empty → all fail-open (exit 0, allow close)
+- stop-dod-gate: test_command with shell metacharacters (`; exit 1`) → shell=False prevents execution
+- stop-dod-gate: test_command with unmatched quotes → ValueError caught in _run_test_command → fail-open
+- stop-dod-gate: test_command with embedded NUL → fail-open
+- pre-validate-commit-trailers: malformed JSON / empty stdin → exit 0 (no exception)
+- pre-task-recall: prompt=int/list/null, subagent_type=int → exceptions caught, decision=allow, exit 0
+- validate-memory-path: ../traversal through agent-memory → normpath resolves it out, no trigger
+- validate-memory-path: file_path in another root's agent-memory → correctly blocked
+- session-start-boot: empty repo (no commits) → exit 0 cleanly
+- precompact-snapshot: detached HEAD → exit 0, no crash
+- stop-dod-check / stop-close-session / precompact-snapshot: run outside git repo → exit 0
+- git-memory-commit: Unicode RTL/ZWJ in scope/message → commits accepted, parsed correctly by scanner
+- git-memory-gc: --days=-1 / --days=0 → runs without crash, no mass-tombstone (interactive asks)
+- session-start-crew: running in empty repo → exit 0 cleanly

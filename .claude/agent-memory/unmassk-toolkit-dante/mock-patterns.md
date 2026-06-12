@@ -429,3 +429,31 @@ Test file: `unmassk-toolkit/tests/test_boot_tombstones.py`
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.
+
+## SessionStart hook — subprocess invocation (no stdin)
+
+`session-start-crew.py` takes no stdin — it is a pure SessionStart hook that
+reads `CLAUDE.md` from the git root. Invoke via `run_script(HOOK_PATH, repo)`
+with NO `input_text`. The `cwd` IS the repo root (hooks call
+`git rev-parse --show-toplevel` to find CLAUDE.md).
+
+```python
+def _run_hook(repo):
+    return run_script(HOOK_PATH, repo)
+```
+
+## PostToolUse hook — exit_code must be cast with try/except
+
+`post-validate-commit-trailers.py` receives `tool_output.exit_code` which can be
+a non-int (string word, list) from exotic tool outputs. The correct pattern is:
+
+```python
+try:
+    if exit_code is not None and int(exit_code) != 0:
+        sys.exit(0)
+except (ValueError, TypeError):
+    pass  # treat as success / fail-open
+```
+
+Always wrap `int(exit_code)` in try/except in PostToolUse hooks — fail-open on
+uncastable values.

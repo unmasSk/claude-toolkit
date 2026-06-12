@@ -154,9 +154,9 @@ _COMMIT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Extracts the trailer value from  --trailer "Memo=..." or --trailer "Remember=..."
+# Extracts the trailer value from  --trailer "Memo=...", --trailer 'Memo=...', or --trailer Memo=...
 _TRAILER_PATTERN = re.compile(
-    r'--trailer\s+"(?:Memo|Remember)=([^"]*)"',
+    r"""--trailer\s+(?:"(?:Memo|Remember)=([^"]*)"|'(?:Memo|Remember)=([^']*)'|(?:Memo|Remember)=(.+?)(?:\s+--|$))""",
     re.IGNORECASE,
 )
 
@@ -252,7 +252,7 @@ def main() -> None:
             _allow_passthrough()
             return
 
-        incoming_text = trailer_match.group(1).strip()
+        incoming_text = next(g for g in trailer_match.groups() if g is not None).strip()
         if not incoming_text:
             _allow_passthrough()
             return

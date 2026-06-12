@@ -38,7 +38,7 @@ def main():
     claude_md = git_root / "CLAUDE.md"
 
     if claude_md.exists():
-        content = claude_md.read_text(encoding="utf-8")
+        content = claude_md.read_text(encoding="utf-8", errors="replace")
     else:
         content = ""
 
