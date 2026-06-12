@@ -25,9 +25,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 
 ## 🔧 Lo que queda por hacer
 
-1. **Que la memoria automática también te llegue a TI.** Hoy se la paso a los ayudantes, pero a nuestra conversación principal todavía no. Falta engancharlo. Aparcado a propósito: antes hay que medir que no llene demasiado la conversación.
-2. **Obligar a apuntar la versión y los cambios al integrar.** Para que nunca se publique algo sin actualizar el número de versión y el historial, en vez de fiarlo a que alguien se acuerde.
-3. **Un freno que me impida a MÍ tocar código.** La norma de que yo no escribo código (lo hace el equipo) vive solo como texto en mis instrucciones — y hoy mismo me la salté con la excusa de "es un arreglo trivial". El arreglo de verdad es un freno automático que me bloquee si intento editar código o pruebas directamente. Reto a resolver antes de construirlo: distinguir cuándo edito YO de cuándo edita un ayudante (Ultron/Dante sí deben), porque usan la misma herramienta. Ligado al #1: sin freno y sin que la norma me "salte" en el momento, depender de que me acuerde no basta.
+1. **Que la memoria automática también te llegue a TI.** Hoy la memoria te llega de dos formas: el volcado completo al arrancar la sesión, y a los ayudantes cuando los lanzo. Lo que falta es que, en cada mensaje, te traiga sola lo relevante a nuestra conversación principal. Aparcado a propósito: hay que medir que no llene demasiado la conversación, y queda la duda de si la memoria "que llega sola" sirve para forzar comportamientos o solo para recordar datos (por eso el foco se fue antes a los frenos).
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
@@ -43,7 +41,7 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
   - **REGLA DE ORO, innegociable:** el color de cada nodo/arista sale SIEMPRE de un hecho verificable en git (un commit de Argus, un test que pasa), JAMÁS de una autodeclaración. Un mapa que miente es peor que no tener mapa.
   - **Orden de construcción:** recall → curador (teje el grafo en git) → graphify renderiza. No construir la vista antes de que haya grafo que ver.
 - **Arranque de proyecto más sólido:** una guía formal de calidad al empezar un proyecto nuevo, y que Claude elija la herramienta correcta de forma fiable.
-- **Modo "déjalo trabajando solo" (estilo Ralph):** un agente que muele una tarea grande hasta terminarla sin ti, corrigiéndose con cada intento. Depende del freno duro del punto 3 — sin eso, no es seguro.
+- **Modo "déjalo trabajando solo" (estilo Ralph):** un agente que muele una tarea grande hasta terminarla sin ti, corrigiéndose con cada intento. Se apoya en el freno duro de cierre (no cantar "hecho" con las pruebas en rojo), que ya está hecho.
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
