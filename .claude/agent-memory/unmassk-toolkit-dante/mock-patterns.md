@@ -392,6 +392,40 @@ with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
 Keep the manifest.json present and version-equal so only check 1 triggers (not check 2).
 This isolates the upgrade path from the install path.
 
+## Boot Tombstone Test — Glossary-Path Fixture Pattern
+
+To test that a tombstoned note does NOT reappear via the glossary merge in
+`session-start-boot.py`, the fixture must push the original note BEYOND `SCAN_DEPTH=30`
+so `extract_memory()` cannot see it, then add the tombstone within the window.
+
+```python
+FILLER_COUNT = 35  # > SCAN_DEPTH=30
+
+def _make_installed_repo(tmp_path, name="repo"):
+    repo = str(tmp_path / name)
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+    run_script(INSTALL, repo, ["--auto"])
+    return repo
+
+def _add_filler_commits(repo, count=FILLER_COUNT):
+    for i in range(count):
+        git_cmd(["commit", "--allow-empty", "-m", f"chore(pad): filler commit {i}"], repo)
+
+# 1. Add the note
+git_cmd(["commit", "--allow-empty", "-m", f"🧠 remember(user): ...\n\nRemember: {note_text}"], repo)
+# 2. Push beyond SCAN_DEPTH
+_add_filler_commits(repo)
+# 3. Add tombstone (inside window — extract_memory() sees it)
+git_cmd(["commit", "--allow-empty", "-m", f"♻️ chore(gc): gc\n\nResolved-Remember: {note_text}"], repo)
+```
+
+The note_text in both commits must be IDENTICAL so normalize() produces the same key.
+Use a unique token (e.g. `xyzretired`) to detect reappearance unambiguously.
+
+Test file: `unmassk-toolkit/tests/test_boot_tombstones.py`
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Boot glossary merge now respects GC tombstones (`hooks/session-start-boot.py`): retired memos/remembers (`Resolved-Memo`/`Resolved-Remember`) no longer reappear at session start. `extract_memory()` now exposes the collected tombstones, and the REMEMBER/MEMOS glossary-merge steps skip any entry whose normalized text is tombstoned (decisions are never tombstoned, by design). Re-applies the fix from stale PR #20 fresh on `main`, with a regression test, without dragging that branch's 3-month-old memory commits. Test-first; full suite green.
+
 ## [1.8.0] - 2026-06-12
 
 ### Added
