@@ -25,7 +25,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 
 ## 🔧 Lo que queda por hacer
 
-1. **Que la memoria automática también te llegue a TI.** Hoy la memoria te llega de dos formas: el volcado completo al arrancar la sesión, y a los ayudantes cuando los lanzo. Lo que falta es que, en cada mensaje, te traiga sola lo relevante a nuestra conversación principal. Aparcado a propósito: hay que medir que no llene demasiado la conversación, y queda la duda de si la memoria "que llega sola" sirve para forzar comportamientos o solo para recordar datos (por eso el foco se fue antes a los frenos).
+1. **Que la memoria relevante me llegue a MÍ (Claude) en cada mensaje.** Hoy solo tengo el volcado completo al arrancar la sesión; los ayudantes sí reciben memoria fresca al lanzarlos, pero la conversación principal no. Lo que falta: que cuando escribas algo (por ejemplo "pipeline"), lo más relevante de la memoria sobre eso me aparezca **a mí** automáticamente, para no repetir errores que ya están anotados. Es el recall del orquestador, ya marcado como prioridad. Único cuidado al construirlo: que no llene demasiado la conversación (buscar siempre, mostrarme solo lo que de verdad destaca).
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
