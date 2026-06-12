@@ -285,6 +285,34 @@ assert "deny" not in output_str.lower()
 assert "block" not in output_str.lower()
 ```
 
+## Python Hook — importlib Direct Import Pattern (not subprocess)
+
+When testing a single function inside a hook file (not the full hook via subprocess),
+import with `importlib.util.spec_from_file_location` — avoids the sys.modules collision
+risk of `importlib.import_module` and the global pollution of `exec()`.
+
+```python
+import importlib.util
+
+HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
+
+def _import_hook(monkeypatch):
+    monkeypatch.syspath_prepend(HOOKS_DIR)
+    monkeypatch.syspath_prepend(os.path.join(SOURCE_ROOT, "lib"))
+    spec = importlib.util.spec_from_file_location("hook_module_name", HOOK_FILE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+```
+
+Then patch module-level constants AFTER loading:
+```python
+hook = _import_hook(monkeypatch)
+monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
+```
+
+`raising=False` is required when the attribute does not yet exist (pre-implementation, RED tests).
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.

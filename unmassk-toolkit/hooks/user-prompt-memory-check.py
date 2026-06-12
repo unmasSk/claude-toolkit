@@ -10,6 +10,7 @@ Exit codes:
     0: Always (never blocks user input).
 """
 
+import json
 import os
 import sys
 
@@ -17,6 +18,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
 from git_helpers import is_git_repo, run_git
+from version import VERSION as PLUGIN_VERSION
 
 # Plugin root — derived from this script's location in the cache.
 # hooks/user-prompt-memory-check.py → go up one level → plugin root.
@@ -38,11 +40,38 @@ def needs_install(root: str) -> bool:
         return "BEGIN unmassk-toolkit" not in f.read()
 
 
-def needs_upgrade(root: str) -> bool:
-    """Check if the CLAUDE.md managed block has outdated content.
+def _parse_semver(version_str) -> tuple[int, int, int] | None:
+    """Parse a semver string into a (major, minor, patch) tuple of ints.
 
-    Detects old-style instructions that reference hardcoded paths like
-    'python3 bin/' instead of dynamic paths from hook output.
+    Returns None if the input is not a string, is empty, or cannot be parsed
+    as semver. Only strings with exactly three numeric components (X.Y.Z) are
+    accepted; anything else returns None. Pre-release suffixes are not
+    supported and will cause a parse failure (returns None).
+    """
+    if not isinstance(version_str, str) or not version_str:
+        return None
+    parts = version_str.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+def needs_upgrade(root: str) -> bool:
+    """Check if the CLAUDE.md managed block has outdated content OR the
+    installed manifest version is older than PLUGIN_VERSION.
+
+    Upgrade triggers (union — any one is enough):
+      1. Old-style CLAUDE.md block markers (stale hardcoded bin/ paths or
+         missing 'Context Checkpoint Commits').
+      2. manifest.version < PLUGIN_VERSION (numeric semver comparison).
+
+    Fail-safe: if the manifest is absent, corrupt, missing the 'version'
+    key, or has an unparseable version string → False (not True).
+    Returning True on a broken manifest would cause an infinite upgrade loop
+    because the manifest is never written before the next hook fires.
     """
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
@@ -51,13 +80,33 @@ def needs_upgrade(root: str) -> bool:
         content = f.read()
     if "BEGIN unmassk-toolkit" not in content:
         return False  # needs_install handles this
-    # Old-style markers: hardcoded bin/ paths in the managed block
+
+    # ── Check 1: Old-style markers in the managed block ──────────────────
     begin = content.find("BEGIN unmassk-toolkit")
     end = content.find("END unmassk-toolkit")
     if begin == -1 or end == -1:
         return False
     block = content[begin:end]
-    return "python3 bin/" in block or "Context Checkpoint Commits" not in block
+    if "python3 bin/" in block or "Context Checkpoint Commits" not in block:
+        return True
+
+    # ── Check 2: Semver comparison — manifest.version < PLUGIN_VERSION ───
+    try:
+        manifest_path = os.path.join(root, ".claude", ".unmassk", "manifest.json")
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        # manifest.get("version", "") guards against a missing key, but JSON
+        # null still arrives as None here. _parse_semver tolerates non-str input.
+        manifest_version = manifest.get("version", "")
+        manifest_tuple = _parse_semver(manifest_version)
+        if manifest_tuple is None:
+            return False  # fail-safe: unparseable or empty version
+        code_tuple = _parse_semver(PLUGIN_VERSION)
+        if code_tuple is None:
+            return False  # fail-safe: PLUGIN_VERSION itself is broken
+        return manifest_tuple < code_tuple
+    except Exception:
+        return False  # fail-safe: missing file, bad JSON, any I/O error
 
 
 def main() -> None:
