@@ -142,6 +142,26 @@ def extract_commit_message(command: str) -> str | None:
     return "\n\n".join(messages)
 
 
+def sanitize_trailer_value(text: str) -> str:
+    """Strip injection characters from a trailer value.
+
+    Canonical sanitizer — used by recall, session-start-boot, and
+    precompact-snapshot. Single source of truth.
+
+    Removes:
+    - Newlines and carriage returns (\\n, \\r)
+    - Unicode line/paragraph separators (U+2028, U+2029)
+    - Vertical tab and form feed (\\x0b, \\x0c)
+    - HTML comment markers (<!-- and -->)
+    - memory-data zone delimiters (<memory-data> / </memory-data>,
+      case-insensitive)
+    """
+    text = re.sub(r"[\r\n  \x0b\x0c]", " ", text)
+    text = text.replace("<!--", "").replace("-->", "")
+    text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
+    return text.strip()
+
+
 def normalize(text: str) -> str:
     """Normalize text for tombstone matching: lowercase, collapse whitespace, strip."""
     return re.sub(r"\s+", " ", text.strip().lower())

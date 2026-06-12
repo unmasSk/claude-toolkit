@@ -132,6 +132,16 @@ Patterns used:
 - Import `run_cmd` from `conftest` for raw subprocess invocations.
 - No `@pytest.fixture` used in hook tests — all setup is inline per test.
 
+Importing internal functions from hooks/bin (no main() side effects):
+- Use `importlib.util.spec_from_file_location("unique_mod_name", SCRIPT_PATH)` + `spec.loader.exec_module(mod)`
+- Prepend LIB_DIR to sys.path BEFORE exec_module so hook's own lib imports resolve
+- Use a unique module name per test class to avoid importlib cache collisions
+- Pattern validated for: session-start-boot._sanitize_trailer_value, git-memory-gc.find_stale_items
+
+Regression test labeling convention (auditoría round 2):
+- [ROJO]: test que DEBE fallar con el código actual (documenta el bug)
+- [GUARDA]: test que DEBE pasar antes y después del fix (invariante de no regresión)
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:

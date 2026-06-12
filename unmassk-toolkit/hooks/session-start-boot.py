@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from constants import TOMBSTONE_KEYS
 from git_helpers import ensure_gitignore, run_git
-from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
+from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
 from version import VERSION as PLUGIN_VERSION
 
 
@@ -142,8 +142,8 @@ def check_skill_drift() -> list[str] | None:
 
 
 def _sanitize_trailer_value(text: str) -> str:
-    """Strip newlines and HTML comment markers from trailer values to prevent section injection."""
-    return text.replace("\n", " ").replace("\r", " ").replace("<!--", "").replace("-->", "").strip()
+    """Strip injection characters from trailer values. Delegates to canonical sanitizer in lib/parsing."""
+    return _sanitize_canonical(text)
 
 
 def check_version_mismatch() -> str | None:

@@ -41,7 +41,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from git_helpers import run_git, GIT_TIMEOUT
-from parsing import scan_trailers_memory, parse_scope, normalize
+from parsing import scan_trailers_memory, parse_scope, normalize, sanitize_trailer_value as _sanitize_canonical
 from constants import TOMBSTONE_KEYS, RECALL_KEYS
 
 # ── Constants ──────────────────────────────────────────────────────────
@@ -123,20 +123,10 @@ def _tokenize(text: str) -> set[str]:
 def _sanitize(text: str) -> str:
     """Strip injection characters from a trailer value.
 
-    Removes:
-    - Newlines and carriage returns (\\n, \\r)
-    - Unicode line/paragraph separators (U+2028, U+2029) — written as explicit
-      escapes (\\u2028 / \\u2029) so formatters cannot silently normalise them.
-    - Vertical tab and form feed (\\x0b, \\x0c)
-    - HTML comment markers (<!-- and -->)
-    - memory-data zone delimiters (<memory-data> / </memory-data>, case-insensitive)
-      so that an entry cannot prematurely close the injection wrapper and escape
-      the untrusted-data zone.
+    Delegates to the canonical sanitizer in lib/parsing.sanitize_trailer_value.
+    Kept as a private wrapper for backward compatibility with internal callers.
     """
-    text = re.sub(r"[\r\n\u2028\u2029\x0b\x0c]", " ", text)
-    text = text.replace("<!--", "").replace("-->", "")
-    text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
-    return text.strip()
+    return _sanitize_canonical(text)
 
 
 # ── Git scanning ────────────────────────────────────────────────────────
@@ -158,11 +148,17 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         repo_dir: If provided, git is run from that directory (tests).
                   If None, uses current working directory.
     """
-    # NOTE: recall runs git log --all on every message — can be slow on repos
-    # with large history (future optimisation: cap/cache).
+    # Filter to commits that contain memory trailers using --extended-regexp --grep.
+    # This avoids scanning every code commit in large repos while guaranteeing
+    # that NO memory entry is lost (a brute -n cap would silently truncate history).
+    # The regex anchors each key at line-start (^) inside the commit body.
+    _all_keys = list(_TOMBSTONE_KEYS) + list(_MEMORY_KEYS)
+    _grep_pattern = "^(" + "|".join(_all_keys) + "):"
     git_args = [
         "log", "--all",
-        "--pretty=format:%h\x1f%s\x1f%b\x1e",
+        "--extended-regexp",
+        "--grep=" + _grep_pattern,
+        "--pretty=format:%h%s%b",
     ]
 
     code, log_output = run_git(git_args, cwd=repo_dir)

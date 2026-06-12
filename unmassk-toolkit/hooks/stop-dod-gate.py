@@ -142,6 +142,10 @@ def main() -> None:
             # Opt-in not configured — allow silently.
             sys.exit(0)
 
+        # TRUST ASSUMPTION: test_command is executed as a subprocess with the
+        # privileges of the current process. The file .claude/git-memory-config.json
+        # must only contain commands from trusted sources (repo authors). It is NOT
+        # sandboxed — do not place commands from untrusted or user-supplied input here.
         passed, exit_code, output = _run_test_command(test_command)
 
         if passed:

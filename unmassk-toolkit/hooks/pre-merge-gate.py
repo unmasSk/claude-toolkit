@@ -91,6 +91,12 @@ def main():
 
         normalized = _normalize(command)
 
+        # POLICY CONTROL (not a security guarantee): '# merge-reviewed' is a
+        # convention token that the orchestrator appends after running Cerberus
+        # and Alexandria. It is intentionally forgeable — its purpose is to
+        # enforce workflow discipline, not to provide a cryptographic proof that
+        # review occurred. A malicious or mistaken actor can bypass it by adding
+        # the token manually; that risk is accepted by design.
         # Bypass: orchestrator has already run reviews and signals approval.
         if '# merge-reviewed' in command:
             json.dump({

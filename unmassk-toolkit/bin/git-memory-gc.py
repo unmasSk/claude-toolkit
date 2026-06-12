@@ -33,6 +33,7 @@ from typing import Any
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git as _run_git
 from parsing import normalize, parse_scope, parse_trailers_full
+from constants import TOMBSTONE_KEYS
 
 
 def run_git(args: list[str]) -> tuple[int, str]:
@@ -148,10 +149,12 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
         if "Blocker" in c["trailers"]:
             blocker_items.append((i, c))
 
-    # Check for existing tombstones (already GC'd items)
+    # Check for existing tombstones (already GC'd items).
+    # Iterates over all four TOMBSTONE_KEYS so that Resolved-Memo and
+    # Resolved-Remember entries are also recognised and not re-proposed.
     existing_tombstones = set()
     for c in commits:
-        for key in ("Resolved-Next", "Stale-Blocker"):
+        for key in TOMBSTONE_KEYS:
             if key in c["trailers"]:
                 existing_tombstones.add(normalize(c["trailers"][key]))
 

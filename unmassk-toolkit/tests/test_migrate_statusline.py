@@ -59,6 +59,7 @@ def _load_migrate_fn(fake_home: str):
             stub.normalize = lambda s: s.lower().strip()
             stub.parse_scope = lambda *a, **kw: None
             stub.suggest_scope_from_paths = lambda *a, **kw: None
+            stub.sanitize_trailer_value = lambda s: s
         elif stub_name == "version":
             stub.VERSION = "test"
         sys.modules[stub_name] = stub

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 
 from constants import TOMBSTONE_KEYS
 from git_helpers import run_git, is_git_repo, is_shallow_clone
-from parsing import normalize, scan_trailers_memory
+from parsing import normalize, scan_trailers_memory, sanitize_trailer_value as _sanitize
 
 
 def extract_memory_from_log() -> dict[str, Any]:
@@ -96,14 +96,14 @@ def extract_memory_from_log() -> dict[str, Any]:
         trailers = scan_trailers_memory(body)
 
         if "Next" in trailers:
-            next_text = trailers["Next"]
+            next_text = _sanitize(trailers["Next"])
             if normalize(next_text) not in tombstones:
                 memory["pending"].append({
                     "sha": sha, "subject": subject, "next": next_text,
                 })
 
         if "Blocker" in trailers:
-            blocker_text = trailers["Blocker"]
+            blocker_text = _sanitize(trailers["Blocker"])
             if normalize(blocker_text) not in tombstones:
                 existing = [b["blocker"].lower() for b in memory["blockers"]]
                 if blocker_text.lower() not in existing:
@@ -115,18 +115,18 @@ def extract_memory_from_log() -> dict[str, Any]:
             if scope not in memory["decisions"]:
                 memory["decisions"][scope] = {
                     "sha": sha, "subject": subject,
-                    "decision": trailers["Decision"],
+                    "decision": _sanitize(trailers["Decision"]),
                 }
 
         if "Memo" in trailers:
-            memo_text = trailers["Memo"]
+            memo_text = _sanitize(trailers["Memo"])
             if scope not in memory["memos"] and normalize(memo_text) not in tombstones:
                 memory["memos"][scope] = {
                     "sha": sha, "memo": memo_text,
                 }
 
         if "Remember" in trailers:
-            text = trailers["Remember"]
+            text = _sanitize(trailers["Remember"])
             if "remembers" not in memory:
                 memory["remembers"] = {}
             if (

@@ -6,6 +6,28 @@
 
 - Boot glossary merge now respects GC tombstones (`hooks/session-start-boot.py`): retired memos/remembers (`Resolved-Memo`/`Resolved-Remember`) no longer reappear at session start. `extract_memory()` now exposes the collected tombstones, and the REMEMBER/MEMOS glossary-merge steps skip any entry whose normalized text is tombstoned (decisions are never tombstoned, by design). Re-applies the fix from stale PR #20 fresh on `main`, with a regression test, without dragging that branch's 3-month-old memory commits. Test-first; full suite green.
 
+#### Multi-agent audit (Bilbo · Argus · Cerberus · Moriarty) — correctness & robustness sweep
+
+- **Three hook crashes that broke the session (fail-open violations):** `post-validate-commit-trailers.py` crashed on a non-numeric `exit_code`; `session-start-crew.py` crashed on a non-UTF-8 `CLAUDE.md`; `pre-validate-commit-trailers.py` blocked legitimate commands (`cat git.log`, `git log-remote`) via an over-broad `git…log` pattern. All three now degrade safely.
+- **Memory dedup gate** (`pre-memory-dedup-gate.py`) was silently skipped when trailers used single quotes or no quotes — pattern now matches all three forms.
+- **Retired notes reappearing:** the boot glossary merge only honored tombstones within the recent scan window (retired notes older than ~30 commits came back); and the pre-compaction snapshot (`precompact-snapshot.py`) only checked 2 of the 4 tombstone kinds. Both now honor tombstones across the full range / all `TOMBSTONE_KEYS`.
+- **Context-commit detection** unified to one predicate across `extract_memory()` and `get_last_context_time()` (a `feat(x): context(...)` subject no longer counts as a session bookmark).
+- **GC** (`git-memory-gc.py`) now recognizes all four `TOMBSTONE_KEYS` when detecting already-tombstoned items.
+
+### Security
+
+- Bounded `sys.stdin.read()` in `pre-merge-gate.py`, `pre-task-recall.py`, `pre-memory-dedup-gate.py`, and `validate-memory-path.py` (was unbounded; only `user-prompt-memory-check.py` was capped).
+- `GIT_MEMORY_CO_AUTHOR` is sanitized before going into commit messages (truncated at the first newline) so a crafted value cannot inject fake trailer lines.
+- `git-memory-log.py` validates `count >= 1` (a negative count previously dumped the entire history).
+- `stop-dod-gate.py` (config-driven `test_command`) and `pre-merge-gate.py` (`# merge-reviewed` token) documented as repo-trust / policy controls, not security boundaries.
+
+### Changed
+
+- One canonical text sanitizer (`lib/parsing.py:sanitize_trailer_value`) now used by recall, boot, and the pre-compaction snapshot — previously three divergent copies (boot/snapshot stripped less than recall).
+- Trailer parsing and text normalization unified: `git-memory-gc.py` and `git-memory-doctor.py` now use the canonical `parse_trailers_full()` and `normalize()` from `lib/parsing.py` instead of hand-rolled, divergent copies — wiring in a previously dead function and fixing silent whitespace-normalization mismatches.
+- Recall scan (`lib/recall.py:_scan_commits`) filters `git log` to memory-bearing commits via `--grep`, bounding the scan on large-history repos without dropping any memory entry.
+- Removed an unreachable `wip:` branch in `parse_commit_type()`.
+
 ## [1.8.0] - 2026-06-12
 
 ### Added
