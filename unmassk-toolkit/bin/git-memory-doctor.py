@@ -30,6 +30,7 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from parsing import normalize, parse_trailers_full
 from version import VERSION
 
 
@@ -236,18 +237,17 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
             last_gc = date
 
         # Check for stale blockers
-        for line in body.split("\n"):
-            line = line.strip()
-            m = re.match(r"^Blocker:\s*(.+)$", line)
-            if m and date:
-                age = (now - date).days
-                if age > STALE_BLOCKER_DAYS:
-                    blocker_text = m.group(1).strip()
-                    stale_blockers.append({
-                        "text": blocker_text,
-                        "sha": parts[0].strip(),
-                        "age_days": age,
-                    })
+        body_trailers = parse_trailers_full(body)
+        if "Blocker" in body_trailers and date:
+            age = (now - date).days
+            if age > STALE_BLOCKER_DAYS:
+                blocker_val = body_trailers["Blocker"]
+                blocker_text = blocker_val[0] if isinstance(blocker_val, list) else blocker_val
+                stale_blockers.append({
+                    "text": blocker_text,
+                    "sha": parts[0].strip(),
+                    "age_days": age,
+                })
 
     # Filter out tombstoned blockers
     tombstoned = set()
@@ -259,12 +259,14 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
         if len(parts) < 3:
             continue
         body = parts[2].strip()
-        for line in body.split("\n"):
-            m = re.match(r"^Stale-Blocker:\s*(.+)$", line.strip())
-            if m:
-                tombstoned.add(m.group(1).strip().lower())
+        body_trailers = parse_trailers_full(body)
+        if "Stale-Blocker" in body_trailers:
+            sb_val = body_trailers["Stale-Blocker"]
+            values = sb_val if isinstance(sb_val, list) else [sb_val]
+            for v in values:
+                tombstoned.add(normalize(v))
 
-    active_stale = [b for b in stale_blockers if b["text"].lower() not in tombstoned]
+    active_stale = [b for b in stale_blockers if normalize(b["text"]) not in tombstoned]
 
     gc_days_ago = (now - last_gc).days if last_gc else None
     return gc_days_ago, len(active_stale), active_stale

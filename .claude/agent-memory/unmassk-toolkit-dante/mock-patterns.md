@@ -424,7 +424,40 @@ git_cmd(["commit", "--allow-empty", "-m", f"♻️ chore(gc): gc\n\nResolved-Rem
 The note_text in both commits must be IDENTICAL so normalize() produces the same key.
 Use a unique token (e.g. `xyzretired`) to detect reappearance unambiguously.
 
-Test file: `unmassk-toolkit/tests/test_boot_tombstones.py`
+**Variant: tombstone also outside window (Bug A T1)**  
+To test the stricter case where BOTH note AND tombstone are pushed beyond SCAN_DEPTH=30,
+add TWO filler batches: one after the note, one after the tombstone.
+
+```python
+# 1. note
+# 2. _add_filler_commits (35+)  → note exits window
+# 3. tombstone
+# 4. _add_filler_commits (35+)  → tombstone exits window
+```
+
+Both are still within the 500-commit glossary range. extract_memory() sees neither;
+the tombstone must still suppress the glossary entry. Test file:
+`unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugA).
+
+## Precompact Snapshot — has_content guard
+
+`precompact-snapshot.py` only prints the snapshot when `has_content=True`:
+`pending OR blockers OR decisions OR memos OR last_context`.  
+`remembers` alone do NOT trigger `has_content`.  
+When testing Remember behaviour in precompact, add a Decision commit as anchor
+to ensure the snapshot is emitted:
+
+```python
+git_cmd(["commit", "--allow-empty",
+         "-m", "🧭 decision(api): use REST\n\nDecision: REST over GraphQL xyzanchor"], repo)
+# Then add remember + tombstone commits
+# Verify anchor in output first (setup assertion)
+assert "xyzanchor" in output, "Test setup error: snapshot not emitted"
+```
+
+Without the anchor, the snapshot is silently skipped and the test passes vacuously.
+
+Test file: `unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugB).
 
 ## Cross-File DB Contamination — historyLimit pattern
 

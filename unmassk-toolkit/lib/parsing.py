@@ -37,10 +37,6 @@ def parse_commit_type(subject: str) -> str | None:
     if match:
         return match.group(1).lower()
 
-    # WIP commits are not conventional but we allow them
-    if cleaned.lower().startswith("wip:"):
-        return "wip"
-
     return None
 
 

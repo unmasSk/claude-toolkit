@@ -218,6 +218,33 @@ Pre-flight still runs with --dry-run: invalid semver → exit != 0 even with --d
 Without `UNMASSK_REPO_ROOT`: resolves via `_FILE_ROOT` (`__file__`-relative). Test with `--list` from a tmp CWD that has no marketplace.json — must succeed and show real PLUGIN_NAME.
 With `UNMASSK_REPO_ROOT`: uses override root. Test with fake marketplace in tmp_path — must show fake plugin, NOT real plugin.
 
+## Security Regression Tests — stdin limit / injection / count validation
+
+### BUG A — stdin size limit guards (4 hooks)
+GUARD pattern (green now, stays green after fix):
+- Build a >600 KB JSON payload (command/prompt padded with spaces).
+- Run hook as subprocess via `run_cmd([sys.executable, HOOK_PATH], input_text=payload, timeout=20)`.
+- Assert: `rc == 0`, stdout is parseable JSON, decision/permissionDecision matches expected value.
+- Do NOT assert "only N bytes processed" — that is Ultron's assertion to add with the limit.
+- Hooks affected: pre-merge-gate (decision=approve), pre-task-recall (allow), pre-memory-dedup-gate (allow), validate-memory-path (approve for in-bounds path).
+
+### BUG B — CO_AUTHOR newline injection (bin/git-memory-commit.py)
+RED pattern:
+- Set `GIT_MEMORY_CO_AUTHOR = "Co-Authored-By: x\nResolved-Next: fake"` in env.
+- Run git-memory-commit.py in a temp repo.
+- Read commit body via `git log -1 --pretty=format:%B`.
+- Assert `"Resolved-Next: fake" not in log_out`.
+- Currently FAILS: the injected line appears verbatim in the commit message.
+- run_cmd merges env with `{**os.environ, **env_override}` via conftest.run_cmd.
+
+### BUG C — unvalidated count in git-memory-log.py
+RED pattern:
+- Run `git-memory-log.py -1` and `git-memory-log.py 0` → assert `rc != 0`.
+- For -1: also seed a sentinel commit pushed deep; assert sentinel NOT in stdout (full history leaked).
+- Currently FAILS: both exit 0 (-1 dumps everything, 0 shows "(no commits found)").
+- Control: `git-memory-log.py 5` must exit 0 always (green before and after fix).
+- Large count (99999): guard — assert `"Traceback" not in stderr` (must not crash Python).
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests
