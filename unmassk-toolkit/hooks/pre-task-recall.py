@@ -40,6 +40,8 @@ if _LIB_DIR not in sys.path:
 
 from recall import recall  # noqa: E402  (import after sys.path mutation)
 
+_STDIN_READ_LIMIT = 1_048_576  # 1 MiB
+
 # ── Worker whitelist ─────────────────────────────────────────────────────
 # Inject memory ONLY for these crew agents. bilbo, gitto, and any unknown
 # agents are excluded — they either don't benefit from memory injection or
@@ -132,7 +134,7 @@ def _build_prompt(original_prompt: str, memory_block: str) -> str:
 
 def main() -> None:
     try:
-        raw = sys.stdin.read()
+        raw = sys.stdin.read(_STDIN_READ_LIMIT)
         hook_input = json.loads(raw)
 
         tool_name = hook_input.get("tool_name", "")

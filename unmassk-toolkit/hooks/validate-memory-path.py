@@ -11,6 +11,8 @@ import os
 import subprocess
 import sys
 
+_STDIN_READ_LIMIT = 1_048_576  # 1 MiB
+
 
 def get_git_root():
     try:
@@ -44,7 +46,7 @@ def resolve_real_path(path, git_root):
 
 def main():
     try:
-        raw = sys.stdin.read()
+        raw = sys.stdin.read(_STDIN_READ_LIMIT)
         hook_input = json.loads(raw)
         tool_name = hook_input.get("tool_name", "")
         tool_input = hook_input.get("tool_input") or {}

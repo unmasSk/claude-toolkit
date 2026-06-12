@@ -14,6 +14,7 @@ import json
 import re
 import sys
 
+_STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
 # Matches `git merge` (with optional .exe, case-insensitive).
 # Exempt check is done separately — see _GIT_MERGE_EXEMPT_RE below.
@@ -71,7 +72,7 @@ INDIRECTION_GATE_MESSAGE = (
 
 def main():
     try:
-        raw = sys.stdin.read()
+        raw = sys.stdin.read(_STDIN_READ_LIMIT)
         hook_input = json.loads(raw)
         tool_name = hook_input.get("tool_name", "")
         tool_input = hook_input.get("tool_input") or {}

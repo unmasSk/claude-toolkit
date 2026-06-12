@@ -52,6 +52,11 @@ def main() -> None:
     parser.add_argument("--type", dest="filter_type", default=None, help="Filter by commit type")
     args = parser.parse_args()
 
+    # Validate count before passing it to git
+    if not args.all and args.count <= 0:
+        print(f"Error: count must be >= 1, got {args.count}", file=sys.stderr)
+        sys.exit(1)
+
     # Get commits
     n = args.count if not args.all else 100
     result = subprocess.run(

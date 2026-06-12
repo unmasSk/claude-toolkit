@@ -32,8 +32,23 @@ from parsing import suggest_scope_from_paths
 
 # ── Config ───────────────────────────────────────────────────────────────
 
-# Co-author line: configurable via env var, falls back to constant
-CO_AUTHOR = os.environ.get("GIT_MEMORY_CO_AUTHOR", DEFAULT_CO_AUTHOR)
+# Co-author line: configurable via env var, falls back to constant.
+# Sanitise: strip everything from the first newline (CR or LF) onwards so
+# a malicious value cannot inject extra trailers into the commit message.
+def _sanitize_co_author(value: str) -> str:
+    """Return the first line of value, stripped.
+
+    If the result is empty or does not look like a valid Co-Authored-By
+    trailer, fall back to DEFAULT_CO_AUTHOR.
+    """
+    # Keep only the text before the first CR or LF
+    first_line = re.split(r"[\r\n]", value)[0].strip()
+    # A valid trailer must match "Co-Authored-By: Name <email>" loosely
+    if not re.match(r"(?i)co-authored-by:\s*\S", first_line):
+        return DEFAULT_CO_AUTHOR
+    return first_line
+
+CO_AUTHOR = _sanitize_co_author(os.environ.get("GIT_MEMORY_CO_AUTHOR", DEFAULT_CO_AUTHOR))
 
 EMOJIS = {
     "feat": "✨", "fix": "🐛", "refactor": "♻️", "perf": "⚡",

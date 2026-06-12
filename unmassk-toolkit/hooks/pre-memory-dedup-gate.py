@@ -83,6 +83,8 @@ if _LIB_DIR not in sys.path:
 
 from recall import _scan_commits  # noqa: E402  (import after sys.path mutation)
 
+_STDIN_READ_LIMIT = 1_048_576  # 1 MiB
+
 # ── Threshold ────────────────────────────────────────────────────────────
 
 # Jaccard similarity threshold for near-duplicate detection.
@@ -207,7 +209,7 @@ def _jaccard(tokens_a: set[str], tokens_b: set[str]) -> float:
 
 def main() -> None:
     try:
-        raw = sys.stdin.read()
+        raw = sys.stdin.read(_STDIN_READ_LIMIT)
 
         # --- Parse stdin ------------------------------------------------
         try:

@@ -376,9 +376,12 @@ def extract_memory() -> dict:
                 ts = 0
         trailers = scan_trailers(body)
 
-        # Last context bookmark
-        if not last_context and "context(" in subject.lower():
-            last_context = f"{sha} {subject}"
+        # Last context bookmark — canonical criterion: type starts with "context("
+        # after stripping leading emoji/whitespace (same predicate as get_last_context_time)
+        if not last_context:
+            _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
+            if _cleaned.lower().startswith("context("):
+                last_context = f"{sha} {subject}"
 
         scope = parse_scope(subject) or ""
         label = f"({scope})" if scope else "(global)"
@@ -460,6 +463,7 @@ def extract_glossary() -> dict:
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
     remember_seen: set[str] = set()
+    glossary_tombstones: set[str] = set()
 
     commits = log_output.split("\x1e")
     for entry in commits:
@@ -473,6 +477,11 @@ def extract_glossary() -> dict:
         trailers = scan_trailers(body)
         scope = parse_scope(subject) or ""
         label = f"({scope})" if scope else "(global)"
+
+        # Collect tombstones from the full glossary range
+        for key in TOMBSTONE_KEYS:
+            if key in trailers:
+                glossary_tombstones.add(normalize(trailers[key]))
 
         if "Decision" in trailers and len(decisions) < GLOSSARY_MAX_DECISIONS:
             if scope not in decision_scopes:
@@ -491,7 +500,12 @@ def extract_glossary() -> dict:
                 remember_seen.add(norm)
                 remembers.append((label, text))
 
-    return {"decisions": decisions, "memos": memos, "remembers": remembers}
+    return {
+        "decisions": decisions,
+        "memos": memos,
+        "remembers": remembers,
+        "tombstones": glossary_tombstones,
+    }
 
 
 GLOSSARY_CACHE_TTL = 86400  # 24 hours
@@ -553,12 +567,15 @@ def _write_glossary_cache(glossary: dict) -> None:
     code, head_sha = run_git(["rev-parse", "HEAD"])
     if code != 0:
         return
+    # tombstones is a set — serialize as sorted list for JSON stability
+    raw_tombstones = glossary.get("tombstones", set())
     cache = {
         "head_sha": head_sha,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "decisions": glossary.get("decisions", []),
         "memos": glossary.get("memos", []),
         "remembers": glossary.get("remembers", []),
+        "tombstones": sorted(raw_tombstones),
     }
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -579,6 +596,7 @@ def extract_glossary_cached() -> dict:
             "decisions": cached.get("decisions", []),
             "memos": cached.get("memos", []),
             "remembers": cached.get("remembers", []),
+            "tombstones": set(cached.get("tombstones", [])),
         }
     glossary = extract_glossary()
     _write_glossary_cache(glossary)
@@ -631,7 +649,7 @@ def get_last_context_time() -> str | None:
             continue
         sha, subject, date_str = parts
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-        if cleaned.lower().startswith("context"):
+        if cleaned.lower().startswith("context("):
             return time_ago(date_str)
     return None
 
@@ -973,7 +991,8 @@ def main() -> None:
     # ── REMEMBER ────────────────────────────────────────────────────
     # Merge recent + glossary remembers
     glossary = extract_glossary_cached()
-    tombstones = memory.get("tombstones", set())
+    # Union: tombstones from recent window + tombstones from the full glossary range
+    tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
 
     all_remembers: list[tuple[str, str]] = list(memory.get("remembers", []))
     recent_remember_texts = {normalize(t) for _, t in all_remembers}

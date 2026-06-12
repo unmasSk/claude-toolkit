@@ -18,6 +18,7 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
+from constants import TOMBSTONE_KEYS
 from git_helpers import run_git, is_git_repo, is_shallow_clone
 from parsing import normalize, scan_trailers_memory
 
@@ -61,7 +62,7 @@ def extract_memory_from_log() -> dict[str, Any]:
             continue
         body = parts[2].strip()
         trailers = scan_trailers_memory(body)
-        for key in ("Resolved-Next", "Stale-Blocker"):
+        for key in TOMBSTONE_KEYS:
             if key in trailers:
                 tombstones.add(normalize(trailers[key]))
 
@@ -118,16 +119,20 @@ def extract_memory_from_log() -> dict[str, Any]:
                 }
 
         if "Memo" in trailers:
-            if scope not in memory["memos"]:
+            memo_text = trailers["Memo"]
+            if scope not in memory["memos"] and normalize(memo_text) not in tombstones:
                 memory["memos"][scope] = {
-                    "sha": sha, "memo": trailers["Memo"],
+                    "sha": sha, "memo": memo_text,
                 }
 
         if "Remember" in trailers:
             text = trailers["Remember"]
             if "remembers" not in memory:
                 memory["remembers"] = {}
-            if text.lower() not in {r["remember"].lower() for r in memory.get("remembers", {}).values()}:
+            if (
+                text.lower() not in {r["remember"].lower() for r in memory.get("remembers", {}).values()}
+                and normalize(text) not in tombstones
+            ):
                 memory["remembers"][f"{scope}:{text[:20]}"] = {
                     "sha": sha, "remember": text,
                 }
