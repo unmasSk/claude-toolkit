@@ -3,7 +3,7 @@
 Qué está hecho, qué falta y cómo trabajamos. En cristiano.
 El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí va lo legible.
 
-**Actualizado: 2026-06-10.**
+**Actualizado: 2026-06-12.**
 
 ---
 
@@ -17,6 +17,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 - **Cuatro rutinas para situaciones concretas.** Se activan solas según el momento: arrancar, retomar o escanear un proyecto —si es ajeno, aprende leyéndolo, sin tocar su código ni su historial—; interrogarme a fondo antes de construir algo dudoso o con riesgo; un "consejo" de cinco voces con criterios opuestos para decisiones donde equivocarse duele (es caro, solo cuando toca de verdad); y cerrar la sesión ordenada, volcando lo decidido y dejando escrito por dónde seguir.
 - **Limpieza y arreglos:** borré ficheros muertos, arreglé un fallo que reventaba las pruebas, y repasé todo el repo buscando cosas que existían pero que Claude no sabía usar — y las documenté.
 - **El freno duro: no se puede cantar "hecho" con las pruebas en rojo (hoy).** Antes, al cerrar, había un aviso que se podía ignorar. Ahora, si configuras qué pruebas correr, el sistema las corre al cerrar y, si fallan, **bloquea** el cierre — no deja dar nada por terminado hasta que estén en verde. Si el propio freno peta, te deja pasar (no te atrapa). Es el cimiento que hará seguro el modo "déjalo trabajando solo".
+- **El número de versión se pone al día solo (hoy).** Cuando actualizas el plugin en una máquina, el marcador de versión de tu proyecto se sincroniza solo a la nueva versión — antes se podía quedar desfasado y no se arreglaba por sí mismo. Compara versiones de verdad (entiende que la 1.10 es más nueva que la 1.9, donde un texto a secas se equivocaría), nunca rebaja la versión, y si el marcador falta o está corrupto no hace nada raro (no se mete en un bucle).
 
 ## 👉 Lo siguiente (ya acordado)
 

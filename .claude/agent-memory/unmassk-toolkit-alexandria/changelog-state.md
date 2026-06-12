@@ -4,16 +4,27 @@ description: Tracks the last changelog update date and what was included, so fut
 type: project
 ---
 
-Last full audit: 2026-06-09
-Last commit covered (toolkit root): c1065ce (docs(docs): roadmap: #9 = solo script de release; hook de push-automatico movido a candidatos)
+Last full audit: 2026-06-12
+Last commit covered (toolkit root): da3970c (feat(plugin/hooks): auto-sync del marcador de version tras /plugin update)
 Last commit covered (chatroom): f4196fa (fix(plugin/chatroom/frontend): formatContent keeps agent name capitalized in queue messages)
-Current version in plugin.json: 1.1.1 (source of truth) — CHANGELOG written for 1.3.0 but version bump is another agent's job (do NOT touch plugin.json or marketplace.json)
+Current version in plugin.json: 1.6.0 (released 2026-06-10) — next release will promote current [Unreleased]
 
 Root CHANGELOG structure note: Three product timelines merged into one file. Old git-memory [1.1.0] entry was renamed [1.1.0-gitmemory] on 2026-03-24 to avoid collision with toolkit [1.1.0].
 
-[Unreleased] now has entries (2026-06-09): release script (bin/release.py + helpers + --path flag in git-memory-commit.py + docs/RELEASING.md) + documentation coverage improvements (unmassk-seo hooks, ops-observability LogQL validator, ops-cicd azure scripts, media-image-edit .env.example).
+[Unreleased] now has entries (2026-06-12): version marker auto-sync — needs_upgrade() SEMVER comparison + _parse_semver() helper + 15 tests (test_needs_upgrade_semver.py). SKILL.md Active Hooks updated to document the silent auto-sync behavior.
 
-Human-surface doc sync (2026-06-09): README.md root → Development section added (tests/release/key scripts), Protocols row added to Core table; docs/RELEASING.md → Co-Authored-By footgun note added to Step 5; unmassk-design/README.md → CSV count corrected 14→12, full CSV table added; unmassk-media/README.md → MCP-optional note added for media-image-gen.
+[1.6.0] section covers (2026-06-10):
+- Added: hard DoD gate (hooks/stop-dod-gate.py, 23 tests)
+- Changed: unmassk-core hardened (no trivial code edits by orchestrator)
+
+[1.5.0] section covers (2026-06-10):
+- Added: memory dedup gate (hooks/pre-memory-dedup-gate.py, 40 tests)
+- Changed: memory capture reminder flipped to restraint
+
+[1.4.0] section covers (2026-06-09):
+- Added: release script (bin/release.py + helpers + --path flag + docs/RELEASING.md) + documentation coverage improvements
+- Fixed: scope-map path in unmassk-gitmemory SKILL.md, test isolation bug in test_migrate_statusline.py
+- Removed: dead weight (!new_skills/, generated-images/, orphaned .pyc)
 
 [1.3.0] section covers (2026-06-08):
 - Added: recall gatekeeper hook (pre-task-recall.py, 51 tests), build-mode (Flow router + linear/test-first references + Ultron/Dante awareness), CLAUDE.md block generator (lib/managed_blocks.py, 35 tests), 4 protocol skills installed (close-session/grill/council/lifecycle), close-session Stop hook, PRD template, communication block in CLAUDE.md
@@ -30,4 +41,4 @@ Human-surface doc sync (2026-06-09): README.md root → Development section adde
 [Unreleased] chatroom CHANGELOG.md: still contains V2 agent prompts, 5-phase pipeline, file attachments, LOC refactor, mention-parser fix, stoppedRooms guard — not yet versioned/released (unchanged from 2026-03-24).
 
 **Why:** Alexandria needs to know where to resume on next launch — only commits after the covered commits need processing.
-**How to apply:** On next run: `git log 90307bf..HEAD --oneline` for toolkit root; `git log f4196fa..HEAD --oneline -- chatroom/` for chatroom. Check for new code changes not yet in either CHANGELOG.md.
+**How to apply:** On next run: `git log da3970c..HEAD --oneline` for toolkit root; `git log f4196fa..HEAD --oneline -- chatroom/` for chatroom. Check for new code changes not yet in either CHANGELOG.md.

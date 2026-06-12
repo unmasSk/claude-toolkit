@@ -86,6 +86,7 @@ These fire automatically. They are NOT things you invoke — they change what ha
 - **Memory-path guard** (`PreToolUse/Write|Edit`): writes to `.claude/agent-memory/` outside the repo root are blocked.
 - **Boot + block regen** (`SessionStart`): memory is extracted into the boot output, and the 5 managed CLAUDE.md blocks are regenerated from `lib/managed_blocks.py`. → Editing those managed blocks by hand does NOT persist; change them in the generator.
 - **Stop / PreCompact**: stop hooks auto-wip uncommitted changes and prompt for `context()`; the precompact hook re-injects recent memory before context is compressed and asks for an immediate `context()`.
+- **Version marker auto-sync** (`UserPromptSubmit`): on every message, `needs_upgrade()` silently compares the project's `.claude/.unmassk/manifest.json` version against the plugin code version (numeric SEMVER — 1.10.0 > 1.9.0). If the manifest is older, `bin/git-memory-install.py --auto` runs transparently with no output to Claude. You will never see a message for this — it just happens. Fail-safe: missing/corrupt/unparseable manifest → no upgrade, no loop. Downgrade (manifest > code) is ignored.
 
 ## Hierarchical Scopes
 
