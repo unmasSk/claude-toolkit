@@ -278,6 +278,14 @@ When a module is refactored to export a shared function (e.g. `getReservedAgentN
 
 Found in: `auth-tokens.ts:49-65` (2026-03-19) — two `export function getReservedAgentNames()` declarations, return types `Set<string>` and `ReadonlySet<string>` respectively.
 
+## Dead `if not top` guard after already-proven non-empty slice
+
+When a list is guaranteed non-empty by a prior guard AND the slice index is clamped to >= 1, the `if not top: return None` after the slice is unreachable dead code. It compiles but misleads readers into thinking the empty case is possible.
+
+Pattern: `if not within_window: return None` (guard) → `within_window.sort(...)` → `top = within_window[:max_results]` → `if not top: return None` (dead).
+
+Found in: `unmassk-toolkit/lib/recall.py:440` in `recall_relevant()` (2026-06-12).
+
 ## Shared sanitizer that does not cover its own delimiters
 
 A sanitizer function that strips all known trust-boundary markers from user content will be incomplete if the system later adds a new delimiter (e.g. box-drawing chars for a RESPAWN notice) without adding a corresponding strip pattern to the sanitizer. The gap means stored messages containing the new delimiter pass through unsanitized.

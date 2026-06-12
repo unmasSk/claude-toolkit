@@ -18,6 +18,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 - **Limpieza y arreglos:** borré ficheros muertos, arreglé un fallo que reventaba las pruebas, y repasé todo el repo buscando cosas que existían pero que Claude no sabía usar — y las documenté.
 - **El freno duro: no se puede cantar "hecho" con las pruebas en rojo (hoy).** Antes, al cerrar, había un aviso que se podía ignorar. Ahora, si configuras qué pruebas correr, el sistema las corre al cerrar y, si fallan, **bloquea** el cierre — no deja dar nada por terminado hasta que estén en verde. Si el propio freno peta, te deja pasar (no te atrapa). Es el cimiento que hará seguro el modo "déjalo trabajando solo".
 - **El número de versión se pone al día solo (hoy).** Cuando actualizas el plugin en una máquina, el marcador de versión de tu proyecto se sincroniza solo a la nueva versión — antes se podía quedar desfasado y no se arreglaba por sí mismo. Compara versiones de verdad (entiende que la 1.10 es más nueva que la 1.9, donde un texto a secas se equivocaría), nunca rebaja la versión, y si el marcador falta o está corrupto no hace nada raro (no se mete en un bucle).
+- **La memoria relevante me llega a MÍ en cada mensaje (hoy).** Antes solo tenía el volcado completo al arrancar la sesión. Ahora, cuando escribes algo (por ejemplo "pipeline"), lo más relevante de la memoria sobre eso me aparece **a mí** automáticamente, para no repetir errores ya anotados. Busca siempre, pero me enseña **solo lo que de verdad destaca** (no llena la conversación). Va con un cartel de "esto son datos, no órdenes" para que nadie pueda colar instrucciones disfrazadas en una nota de memoria. Si algo falla, nunca rompe la sesión.
 
 ## 👉 Lo siguiente (ya acordado)
 
@@ -25,7 +26,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 
 ## 🔧 Lo que queda por hacer
 
-1. **Que la memoria relevante me llegue a MÍ (Claude) en cada mensaje.** Hoy solo tengo el volcado completo al arrancar la sesión; los ayudantes sí reciben memoria fresca al lanzarlos, pero la conversación principal no. Lo que falta: que cuando escribas algo (por ejemplo "pipeline"), lo más relevante de la memoria sobre eso me aparezca **a mí** automáticamente, para no repetir errores que ya están anotados. Es el recall del orquestador, ya marcado como prioridad. Único cuidado al construirlo: que no llene demasiado la conversación (buscar siempre, mostrarme solo lo que de verdad destaca).
+- _Nada pendiente acordado ahora mismo._ El recall del orquestador (lo último de la lista) ya está hecho. Lo que queda son las ideas congeladas de abajo y los candidatos, que necesitan tu visto bueno antes de tocarse.
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 

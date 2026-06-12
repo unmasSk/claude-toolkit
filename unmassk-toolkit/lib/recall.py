@@ -3,10 +3,20 @@ recall — BM25-ranked memory search for unmassk git-memory.
 
 Public interface:
     recall(query, *, limit=8, scope=None) -> str
+    recall_relevant(query, *, max_results=RECALL_MAX_RESULTS,
+                    floor=RECALL_FLOOR, top_fraction=RECALL_TOP_FRACTION,
+                    scope=None, _repo_dir=None) -> str | None
 
-The returned string is a formatted block grouped by type
+recall() returns a formatted block grouped by type
 (DECISIONES / MEMOS / REMEMBER), each entry on its own line.
 Returns empty string when no matches are found.
+
+recall_relevant() applies a relevance gate before returning the block:
+  - Entries with score <= floor are discarded (noise floor).
+  - From the survivors, only entries scoring >= top_fraction * top_score
+    are kept (top-fraction window).
+  - The result is capped to max_results entries (score desc).
+  - Returns None (not empty string) when nothing clears the gate.
 
 Ranking formula (IDF-weighted token overlap):
     score(entry) = sum over matching tokens t of:
@@ -38,6 +48,28 @@ from constants import TOMBSTONE_KEYS, RECALL_KEYS
 
 # Maximum query length — guards against oversized inputs.
 MAX_QUERY_LEN: int = 2000
+
+# Gate constants for recall_relevant() — exported so callers can introspect defaults.
+
+# RECALL_MAX_RESULTS: caps the number of entries recall_relevant() may return.
+# Keep low (3) to avoid flooding Claude's context with marginal matches.
+RECALL_MAX_RESULTS: int = 3
+
+# RECALL_FLOOR: absolute noise floor — entries with score <= this are discarded.
+# Rationale: the minimum realistic IDF score for a single match in a one-entry
+# corpus is log(1 + 1/(0+1)) = log(2) ≈ 0.693.  For a token present in half the
+# corpus (df = N/2) the IDF contribution is log(1 + 1/2) ≈ 0.405.  Setting the
+# floor at 0.01 sits well below that minimum, so only true zero-scorers and
+# floating-point near-zero noise are cut — never a genuine match.
+# If you lower this, you risk surfacing unrelated entries.
+# If you raise it above ~0.4, you risk hiding single-token matches on small corpora.
+RECALL_FLOOR: float = 0.01
+
+# RECALL_TOP_FRACTION: fraction of the top entry's score that all returned entries
+# must reach.  0.5 means "at least half as relevant as the best match".
+# Raise to tighten the window (fewer, more focused results).
+# Lower to widen it (more results, more noise).
+RECALL_TOP_FRACTION: float = 0.5
 
 # Maximum number of query tokens after tokenization.
 MAX_QUERY_TOKENS: int = 50
@@ -93,12 +125,17 @@ def _sanitize(text: str) -> str:
 
     Removes:
     - Newlines and carriage returns (\\n, \\r)
-    - Unicode line/paragraph separators (U+2028, U+2029)
+    - Unicode line/paragraph separators (U+2028, U+2029) — written as explicit
+      escapes (\\u2028 / \\u2029) so formatters cannot silently normalise them.
     - Vertical tab and form feed (\\x0b, \\x0c)
     - HTML comment markers (<!-- and -->)
+    - memory-data zone delimiters (<memory-data> / </memory-data>, case-insensitive)
+      so that an entry cannot prematurely close the injection wrapper and escape
+      the untrusted-data zone.
     """
-    text = re.sub(r"[\r\n  \x0b\x0c]", " ", text)
+    text = re.sub(r"[\r\n\u2028\u2029\x0b\x0c]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
+    text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
@@ -121,6 +158,8 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         repo_dir: If provided, git is run from that directory (tests).
                   If None, uses current working directory.
     """
+    # NOTE: recall runs git log --all on every message — can be slow on repos
+    # with large history (future optimisation: cap/cache).
     git_args = [
         "log", "--all",
         "--pretty=format:%h\x1f%s\x1f%b\x1e",
@@ -234,7 +273,68 @@ def _build_df(entries: list[dict]) -> dict[str, int]:
     return df
 
 
+# ── Shared scoring core ─────────────────────────────────────────────────
+
+def _score_entries(
+    query: str,
+    entries: list[dict],
+    df: dict[str, int],
+    n: int,
+) -> list[tuple[float, int, dict]]:
+    """Tokenize *query* and score every entry in *entries* against it.
+
+    Returns a list of ``(score, original_index, entry)`` tuples for every
+    entry with score > 0, in the order the entries were supplied.
+    The ``original_index`` preserves insertion order so callers can break
+    ties deterministically (stable sort on the index column).
+
+    Query tokenization and the MAX_QUERY_TOKENS cap are applied here so
+    that both ``recall()`` and ``recall_relevant()`` share exactly one
+    tokenization path — no divergence risk.
+
+    Returns an empty list when the query produces no tokens or *entries*
+    is empty.
+    """
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return []
+
+    # Cap token count — sorted for deterministic order.
+    if len(query_tokens) > MAX_QUERY_TOKENS:
+        query_tokens = set(sorted(query_tokens)[:MAX_QUERY_TOKENS])
+
+    scored: list[tuple[float, int, dict]] = []
+    for idx, entry in enumerate(entries):
+        score = _idf_score(entry, query_tokens, df, n)
+        if score > 0.0:
+            scored.append((score, idx, entry))
+    return scored
+
+
 # ── Public API ──────────────────────────────────────────────────────────
+
+def _format_block(entries: list[dict]) -> str:
+    """Format a list of memory entries into a grouped string block.
+
+    Groups entries by kind in canonical order (Decision / Memo / Remember),
+    each under its section header [DECISIONES] / [MEMOS] / [REMEMBER].
+    Returns the joined string (never empty — callers must ensure entries is non-empty).
+    """
+    groups: dict[str, list[dict]] = {k: [] for k in _MEMORY_KEYS}
+    for entry in entries:
+        groups[entry["kind"]].append(entry)
+
+    lines: list[str] = []
+    for kind in _MEMORY_KEYS:
+        bucket = groups[kind]
+        if not bucket:
+            continue
+        lines.append(f"[{_SECTION_HEADERS[kind]}]")
+        for entry in bucket:
+            lines.append(f"  {entry['label']} {entry['text']}")
+
+    return "\n".join(lines)
+
 
 def recall(
     query: str,
@@ -278,44 +378,98 @@ def recall(
         if not entries:
             return ""
 
-    query_tokens = _tokenize(query)
-    if not query_tokens:
+    df = _build_df(entries)
+    n = len(entries)
+
+    scored = _score_entries(query, entries, df, n)
+    if not scored:
         return ""
 
-    # Cap token count after tokenization.
-    if len(query_tokens) > MAX_QUERY_TOKENS:
-        query_tokens = set(list(query_tokens)[:MAX_QUERY_TOKENS])
+    # Sort by score descending, then stable by insertion order (original index).
+    scored.sort(key=lambda x: (-x[0], x[1]))
+
+    # Cap to limit
+    top = [entry for _, _, entry in scored[:limit]]
+
+    return _format_block(top)
+
+
+def recall_relevant(
+    query: str,
+    *,
+    max_results: int = RECALL_MAX_RESULTS,
+    floor: float = RECALL_FLOOR,
+    top_fraction: float = RECALL_TOP_FRACTION,
+    scope: str | None = None,
+    _repo_dir: str | None = None,
+) -> str | None:
+    """Search git memory and return a block only when entries clear the relevance gate.
+
+    The gate (applied in order):
+      1. Discard entries with score <= floor (noise floor).
+      2. Compute top_score = max score of survivors; if none → None.
+      3. Keep only entries with score >= top_fraction * top_score.
+      4. Sort by score desc (stable), cap to max_results.
+      5. If the final list is empty → None; otherwise the formatted block.
+
+    Args:
+        query:        Natural-language search query.
+        max_results:  Maximum entries returned (default RECALL_MAX_RESULTS=3).
+        floor:        Absolute noise floor; entries with score <= this are dropped.
+        top_fraction: Fraction of top score that surviving entries must reach.
+        scope:        Optional scope prefix filter (same semantics as recall()).
+        _repo_dir:    Internal — override git working directory for tests.
+
+    Returns:
+        Formatted string block (str) or None.
+    """
+    # Guard: empty or whitespace-only query.
+    if not query.strip():
+        return None
+
+    # Guard: cap query length.
+    if len(query) > MAX_QUERY_LEN:
+        query = query[:MAX_QUERY_LEN]
+
+    if max_results < 1:
+        max_results = 1
+
+    entries = _scan_commits(repo_dir=_repo_dir)
+    if not entries:
+        return None
+
+    # Optional scope filter — same logic as recall().
+    if scope:
+        scope_lower = scope.lower()
+        entries = [e for e in entries if e["scope"].lower().startswith(scope_lower)]
+        if not entries:
+            return None
 
     df = _build_df(entries)
     n = len(entries)
 
-    scored: list[tuple[float, dict]] = []
-    for entry in entries:
-        score = _idf_score(entry, query_tokens, df, n)
-        if score > 0.0:
-            scored.append((score, entry))
-
+    # Score all entries via shared core (tokenization + IDF scoring).
+    scored = _score_entries(query, entries, df, n)
     if not scored:
-        return ""
+        return None
 
-    # Sort by score descending, then stable by insertion order
-    scored.sort(key=lambda x: x[0], reverse=True)
+    # Step 1: discard noise (score <= floor).
+    above_floor = [(s, i, e) for s, i, e in scored if s > floor]
+    if not above_floor:
+        return None
 
-    # Cap to limit
-    top = [entry for _, entry in scored[:limit]]
+    # Step 2: top score from survivors.
+    top_score = max(s for s, _, _ in above_floor)
 
-    # Group by kind in canonical order
-    groups: dict[str, list[dict]] = {k: [] for k in _MEMORY_KEYS}
-    for entry in top:
-        groups[entry["kind"]].append(entry)
+    # Step 3: apply top-fraction window.
+    threshold = top_fraction * top_score
+    within_window = [(s, i, e) for s, i, e in above_floor if s >= threshold]
+    if not within_window:
+        return None
 
-    lines: list[str] = []
-    for kind in _MEMORY_KEYS:
-        bucket = groups[kind]
-        if not bucket:
-            continue
-        lines.append(f"[{_SECTION_HEADERS[kind]}]")
-        for entry in bucket:
-            lines.append(f"  {entry['label']} {entry['text']}")
+    # Step 4: sort by score desc, stable by original insertion index.
+    within_window.sort(key=lambda x: (-x[0], x[1]))
+    top = [e for _, _, e in within_window[:max_results]]
 
-    return "\n".join(lines)
+    # within_window is non-empty and max_results >= 1, so top is always non-empty here.
+    return _format_block(top)

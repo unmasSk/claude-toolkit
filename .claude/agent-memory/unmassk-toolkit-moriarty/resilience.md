@@ -45,3 +45,24 @@
 - 10,000-line CHANGELOG → processed in <1s, no timeout.
 - Huge version 99999.99999.99999 → accepted as valid (correct: valid semver).
 - Concurrent releases (same version, two threads) → one wins (rc=0), other fails at git add (index lock); final state consistent.
+
+## user-prompt-memory-check.py recall injection (2026-06-12)
+
+- Binary stdin (NUL bytes, 0xff, 0x80) → _read_prompt_text() returns None, hook exits 0 cleanly
+- latin-1 / Windows-1252 encoded stdin (invalid UTF-8) → swallowed by except Exception
+- Lone surrogate \ud800 in JSON → json.loads fails, swallowed, hook exits 0
+- BOM prefix on valid JSON → json.loads fails, swallowed, hook exits 0
+- JSON with trailing garbage → json.loads fails, swallowed, hook exits 0
+- prompt=number/list/object/null/bool → isinstance guard rejects, hook exits 0
+- Deeply nested JSON (depth 500, 990) → json.loads handles or fails silently, hook exits 0
+- 10MB stdin → _read_prompt_text() truncated at 2000 chars by recall.py, hook exits 0 in <210ms
+- Stopwords-only query → _tokenize returns empty set → recall_relevant returns None, no injection
+- Punctuation-only query → same as above
+- Digits-only query → tokenizer requires at least one letter, no injection
+- All-equal-score corpus (6 entries) → top_fraction gate admits all, capped at max_results=3 correctly
+- Determinism: tied scores produce identical output across 10 in-process calls AND 5 subprocess calls (stable sort by insertion index)
+- 300 commits hook latency: avg 140ms (well under 300ms target)
+- Manifest > plugin version: needs_upgrade returns False (no spurious upgrade trigger)
+- All manifest edge cases (null, missing, corrupt JSON, non-semver): fail-safe returns False, hook exits 0
+- Concurrent first-boot (5 processes, no .session-booted): all exit 0, all emit [memory-check], flag write is idempotent
+- Concurrent git commits during hook reads: all hook invocations exit 0, no corruption

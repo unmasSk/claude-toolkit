@@ -313,6 +313,85 @@ monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
 
 `raising=False` is required when the attribute does not yet exist (pre-implementation, RED tests).
 
+## UserPromptSubmit Hook — "Installed Repo" Fixture Pattern
+
+The `user-prompt-memory-check.py` hook checks `needs_install(root)` and `needs_upgrade(root)`
+before reaching the [memory-check] / recall-injection path. Bare `tmp_path` repos fail at
+`needs_install` (no CLAUDE.md) and produce `[git-memory-bootstrap]` output instead of
+`[memory-check]`. Fix: use `_make_installed_repo()` in tests that need the normal path.
+
+```python
+def _make_installed_repo(tmp_path, name="repo"):
+    repo = _make_repo(tmp_path, name)
+    # 1. CLAUDE.md with both required markers
+    with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+        f.write("<!-- BEGIN unmassk-toolkit -->\nContext Checkpoint Commits\n<!-- END unmassk-toolkit -->\n")
+    # 2. manifest.json with version == PLUGIN_VERSION (prevents needs_upgrade)
+    unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
+    os.makedirs(unmassk_dir, exist_ok=True)
+    with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
+        json.dump({"version": _PLUGIN_VERSION}, f)
+    # 3. .session-booted flag (already-booted path → [git-memory] root output)
+    open(os.path.join(unmassk_dir, ".session-booted"), "w").close()
+    return repo
+```
+
+`_PLUGIN_VERSION` comes from reading `SOURCE_ROOT/.claude-plugin/plugin.json["version"]`.
+
+Required markers:
+- `needs_install`: `"BEGIN unmassk-toolkit"` in CLAUDE.md
+- `needs_upgrade` check 1: `"Context Checkpoint Commits"` in managed block, no `"python3 bin/"` 
+- `needs_upgrade` check 2: manifest.version == PLUGIN_VERSION → tuple comparison returns False
+
+## UserPromptSubmit Hook — fail-open upgrade monkeypatch pattern
+
+When testing the `try/except` around `subprocess.run` in the upgrade branch, use
+`monkeypatch.setattr("subprocess.run", ...)` (module-level, not hook-module-level)
+BEFORE calling `hook.main()`. The hook imports `subprocess` lazily inside the try block,
+so patching at module level is sufficient.
+
+```python
+def _raise_timeout(*args, **kwargs):
+    raise subprocess.TimeoutExpired(cmd=args[0], timeout=15)
+
+monkeypatch.setattr("subprocess.run", _raise_timeout)
+```
+
+To capture `main()` output for in-process tests, monkeypatch `builtins.print`:
+
+```python
+captured = []
+monkeypatch.setattr("builtins.print", lambda *a, **kw: captured.append(" ".join(str(x) for x in a)))
+try:
+    hook.main()
+except SystemExit as exc:
+    assert exc.code == 0
+output = "\n".join(captured)
+assert "[memory-check]" in output
+```
+
+Always assert both: (1) no exception propagated, (2) `[memory-check]` present in output.
+A regression (removing the try/except) would fail condition (1). A regression (wrong output)
+would fail condition (2).
+
+## UserPromptSubmit Hook — "needs upgrade" repo fixture
+
+To force `needs_upgrade()` to return True (for testing the upgrade branch), write a CLAUDE.md
+with the OLD-STYLE marker `python3 bin/` inside the managed block — this triggers check 1
+regardless of manifest version:
+
+```python
+with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+    f.write(
+        "<!-- BEGIN unmassk-toolkit -->\n"
+        "python3 bin/git-memory-install.py\n"
+        "<!-- END unmassk-toolkit -->\n"
+    )
+```
+
+Keep the manifest.json present and version-equal so only check 1 triggers (not check 2).
+This isolates the upgrade path from the install path.
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.

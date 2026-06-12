@@ -7,11 +7,12 @@ type: project
 Last full audit: 2026-06-12
 Last commit covered (toolkit root): da3970c (feat(plugin/hooks): auto-sync del marcador de version tras /plugin update)
 Last commit covered (chatroom): f4196fa (fix(plugin/chatroom/frontend): formatContent keeps agent name capitalized in queue messages)
-Current version in plugin.json: 1.6.0 (released 2026-06-10) — next release will promote current [Unreleased]
+Current version in plugin.json: 1.7.0 (released 2026-06-12) — next release will promote current [Unreleased]
 
 Root CHANGELOG structure note: Three product timelines merged into one file. Old git-memory [1.1.0] entry was renamed [1.1.0-gitmemory] on 2026-03-24 to avoid collision with toolkit [1.1.0].
 
-[Unreleased] now has entries (2026-06-12): version marker auto-sync — needs_upgrade() SEMVER comparison + _parse_semver() helper + 15 tests (test_needs_upgrade_semver.py). SKILL.md Active Hooks updated to document the silent auto-sync behavior.
+[Unreleased] now has entries (2026-06-12, Alexandria doc sync):
+- Orchestrator recall: UserPromptSubmit hook injects relevant memory into main Claude thread per message; recall_relevant() BM25/IDF gate; anti prompt-injection framing; _sanitize strips memory-data delimiters; fail-open; 70 tests; Yoda READY 107/110. SKILL.md Active Hooks updated with two distinct recall hooks (subagents + orchestrator) and Conversational Capture updated to document the two-output UserPromptSubmit.
 
 [1.6.0] section covers (2026-06-10):
 - Added: hard DoD gate (hooks/stop-dod-gate.py, 23 tests)

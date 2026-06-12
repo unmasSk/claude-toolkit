@@ -55,3 +55,11 @@
 - If CHANGELOG has [1.3.0] before [Unreleased], the new [1.4.0] is inserted after [1.3.0]
 - Result: committed changelog with version entries in wrong order
 - Root: `_promote_changelog` in `bin/release.py:260` — no structural validation
+
+## subprocess.TimeoutExpired uncaught in upgrade path (user-prompt-memory-check.py)
+- Pattern: `subprocess.run(..., timeout=15)` at lines 171-174 of the hook has NO try/except
+- When `needs_upgrade()` returns True AND the install script runs > 15s: `TimeoutExpired` propagates
+- Hook exits with rc != 0 — breaks the session-level fail-open guarantee
+- Root location: `hooks/user-prompt-memory-check.py:171-174`, `main()` function
+- Trigger: old-style CLAUDE.md block + slow filesystem / network stall during install
+- Severity: T1 — directly violates the stated "exit 0: Always" contract
