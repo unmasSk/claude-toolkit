@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-12
+
 ### Changed
 - Version marker auto-sync after `/plugin update`: `needs_upgrade()` in `hooks/user-prompt-memory-check.py` now also triggers the upgrade flow when the project's installed manifest version (`manifest.json`) is older than the plugin code version — using numeric SEMVER comparison (1.10.0 > 1.9.0), not string comparison. Reuses the existing `bin/git-memory-install.py --auto`. Fail-safe: absent, corrupt, or unparseable manifest → no upgrade, no loop. Downgrade is intentionally ignored (manifest > code → no action). 15 tests covering edge cases (null, empty string, missing key, pre-release strings, numeric ordering).
 
