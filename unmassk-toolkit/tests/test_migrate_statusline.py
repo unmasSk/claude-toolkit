@@ -54,6 +54,7 @@ def _load_migrate_fn(fake_home: str):
             stub.run_git = lambda *a, **kw: (1, "")
             stub.is_git_repo = lambda: False
             stub.GIT_TIMEOUT = 10
+            stub.commits_since_last_consolidation = lambda *a, **kw: 0
         elif stub_name == "parsing":
             stub.scan_trailers_memory = lambda *a, **kw: {}
             stub.normalize = lambda s: s.lower().strip()

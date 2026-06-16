@@ -83,6 +83,66 @@ def run_git(
         return 1, ""
 
 
+_CONSOLIDATION_SENTINEL = 9999  # returned when no context(consolidation) exists
+
+
+def commits_since_last_consolidation(cwd: str | None = None) -> int:
+    """Return the number of commits since the last context(consolidation) commit.
+
+    Scans the full git history (no window limit) for the most recent commit
+    whose subject matches context(consolidation) — ONLY that scope. Any other
+    context(X) scope is ignored.
+
+    Returns:
+        - Number of commits since that SHA (exclusive) up to HEAD.
+        - _CONSOLIDATION_SENTINEL (9999) if no context(consolidation) exists
+          in history — forces a first-time warning.
+        - 0 on any git error (fail-safe: do not alert on broken git).
+    """
+    try:
+        # Find the most recent commit with subject containing "context(consolidation)"
+        # Using --grep with --fixed-strings, no -n limit → full history scan.
+        # The pattern matches "context(consolidation)" anywhere in the subject line.
+        rc, output = run_git(
+            ["log", "--all", "--format=%H %s", "--grep=context(consolidation)", "--fixed-strings"],
+            cwd=cwd,
+        )
+        if rc != 0:
+            return 0
+
+        # Walk through matches top-to-bottom (most recent first) and pick the
+        # first one whose subject actually contains ONLY the consolidation scope.
+        consolidation_sha: str | None = None
+        if output:
+            import re as _re
+            _pat = _re.compile(r"context\(consolidation\)", _re.IGNORECASE)
+            for line in output.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(" ", 1)
+                if len(parts) < 2:
+                    continue
+                sha, subject = parts[0], parts[1]
+                if _pat.search(subject):
+                    consolidation_sha = sha
+                    break  # most recent match
+
+        if not consolidation_sha:
+            return _CONSOLIDATION_SENTINEL
+
+        # Count commits from consolidation_sha (exclusive) to HEAD.
+        rc2, count_str = run_git(
+            ["rev-list", "--count", f"{consolidation_sha}..HEAD"],
+            cwd=cwd,
+        )
+        if rc2 != 0 or not count_str:
+            return 0
+        return int(count_str)
+    except Exception:
+        return 0  # fail-safe: never crash the boot
+
+
 def is_git_repo() -> bool:
     """Check if we're in a git repository."""
     code, _ = run_git(["rev-parse", "--is-inside-work-tree"])

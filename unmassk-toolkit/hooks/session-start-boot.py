@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
 from constants import TOMBSTONE_KEYS
-from git_helpers import ensure_gitignore, run_git
+from git_helpers import ensure_gitignore, run_git, commits_since_last_consolidation
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
 from version import VERSION as PLUGIN_VERSION
 
@@ -643,6 +643,8 @@ def extract_glossary_cached() -> dict:
     return glossary
 
 
+BOOT_CONSOLIDATION_THRESHOLD = 50  # commits since last context(consolidation) before warning
+
 # Scaling limits (from design doc)
 BOOT_MAX_BRANCH_DECISIONS = 10
 BOOT_MAX_OTHER_DECISIONS = 10
@@ -1161,6 +1163,24 @@ def main() -> None:
     if gc_warnings:
         lines.append("GC:")
         lines.extend(gc_warnings)
+        lines.append("")
+
+    # ── CONSOLIDATION TRIGGER ────────────────────────────────────────
+    _consolidation_threshold = BOOT_CONSOLIDATION_THRESHOLD
+    _env_threshold = os.environ.get("GIT_MEMORY_CONSOLIDATION_THRESHOLD", "")
+    if _env_threshold:
+        try:
+            _consolidation_threshold = int(_env_threshold)
+        except (ValueError, TypeError):
+            pass  # invalid override → fall back to default; never crash boot
+
+    _commits_since = commits_since_last_consolidation()
+    if _commits_since >= _consolidation_threshold:
+        lines.append("CONSOLIDATE:")
+        lines.append(
+            f"  ⚠️ {_commits_since} commits desde la última consolidación. "
+            "Toca consolidar: lanza a Gitto (modo consolidador, aditivo — no borra nada)."
+        )
         lines.append("")
 
     # ── TIMELINE ────────────────────────────────────────────────────
