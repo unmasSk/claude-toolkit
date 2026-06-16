@@ -352,9 +352,9 @@ def extract_memory() -> dict:
     commits = log_output.split("\x1e")
     pending: list[dict] = []
     blockers: list[str] = []
-    decisions: list[tuple[str, str]] = []  # (scope, text)
-    memos: list[tuple[str, str]] = []      # (scope, text)
-    remembers: list[tuple[str, str]] = []  # (scope, text)
+    decisions: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
+    memos: list[tuple[str, str, bool]] = []      # (scope, text, is_crown)
+    remembers: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
     last_context: str = ""
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
@@ -412,18 +412,33 @@ def extract_memory() -> dict:
             if normalize(text) not in tombstones:
                 blockers.append(f"{sha}: {text}")
 
-        # Decisions (one per scope)
-        if "Decision" in trailers and len(decisions) < MAX_DECISIONS:
+        # Decisions (one per scope; crowned entries bypass MAX_DECISIONS cap)
+        if "Decision" in trailers:
+            is_crown = (trailers.get("Crown") == "Decision")
             if scope not in decision_scopes:
-                decision_scopes.add(scope)
-                decisions.append((label, _sanitize_trailer_value(trailers["Decision"])))
+                if len(decisions) < MAX_DECISIONS or is_crown:
+                    decision_scopes.add(scope)
+                    decisions.append((label, _sanitize_trailer_value(trailers["Decision"]), is_crown))
+            elif is_crown:
+                # Crown beats a non-crowned entry for the same scope
+                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
+                    if rscope == label and not ris_crown:
+                        decisions[i] = (label, _sanitize_trailer_value(trailers["Decision"]), True)
+                        break
 
-        # Memos (one per scope, skip tombstoned)
-        if "Memo" in trailers and len(memos) < MAX_MEMOS:
+        # Memos (one per scope, skip tombstoned; crowned entries bypass MAX_MEMOS cap)
+        if "Memo" in trailers:
             text = _sanitize_trailer_value(trailers["Memo"])
+            is_crown = (trailers.get("Crown") == "Memo")
             if scope not in memo_scopes and normalize(text) not in tombstones:
-                memo_scopes.add(scope)
-                memos.append((label, text))
+                if len(memos) < MAX_MEMOS or is_crown:
+                    memo_scopes.add(scope)
+                    memos.append((label, text, is_crown))
+            elif is_crown and scope in memo_scopes and normalize(text) not in tombstones:
+                for i, (rscope, rtext, ris_crown) in enumerate(memos):
+                    if rscope == label and not ris_crown:
+                        memos[i] = (label, text, True)
+                        break
 
         # Remembers (personality notes between sessions, skip tombstoned)
         if "Remember" in trailers:
@@ -431,7 +446,8 @@ def extract_memory() -> dict:
             norm = normalize(text)
             if norm not in remember_seen and norm not in tombstones:
                 remember_seen.add(norm)
-                remembers.append((label, text))
+                is_crown = (trailers.get("Crown") == "Remember")
+                remembers.append((label, text, is_crown))
 
     return {
         "last_context": last_context,
@@ -457,9 +473,9 @@ def extract_glossary() -> dict:
     if code != 0 or not log_output:
         return {"decisions": [], "memos": [], "remembers": []}
 
-    decisions: list[tuple[str, str]] = []
-    memos: list[tuple[str, str]] = []
-    remembers: list[tuple[str, str]] = []
+    decisions: list[tuple[str, str, bool]] = []
+    memos: list[tuple[str, str, bool]] = []
+    remembers: list[tuple[str, str, bool]] = []
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
     remember_seen: set[str] = set()
@@ -483,22 +499,38 @@ def extract_glossary() -> dict:
             if key in trailers:
                 glossary_tombstones.add(normalize(trailers[key]))
 
-        if "Decision" in trailers and len(decisions) < GLOSSARY_MAX_DECISIONS:
+        if "Decision" in trailers:
+            is_crown = (trailers.get("Crown") == "Decision")
             if scope not in decision_scopes:
-                decision_scopes.add(scope)
-                decisions.append((label, trailers["Decision"]))
+                if len(decisions) < GLOSSARY_MAX_DECISIONS or is_crown:
+                    decision_scopes.add(scope)
+                    decisions.append((label, trailers["Decision"], is_crown))
+            elif is_crown:
+                # Crown beats a non-crowned entry for the same scope already in the glossary
+                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
+                    if rscope == label and not ris_crown:
+                        decisions[i] = (label, trailers["Decision"], True)
+                        break
 
-        if "Memo" in trailers and len(memos) < GLOSSARY_MAX_MEMOS:
+        if "Memo" in trailers:
+            is_crown = (trailers.get("Crown") == "Memo")
             if scope not in memo_scopes:
-                memo_scopes.add(scope)
-                memos.append((label, trailers["Memo"]))
+                if len(memos) < GLOSSARY_MAX_MEMOS or is_crown:
+                    memo_scopes.add(scope)
+                    memos.append((label, trailers["Memo"], is_crown))
+            elif is_crown:
+                for i, (rscope, rtext, ris_crown) in enumerate(memos):
+                    if rscope == label and not ris_crown:
+                        memos[i] = (label, trailers["Memo"], True)
+                        break
 
         if "Remember" in trailers:
             text = trailers["Remember"]
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
-                remembers.append((label, text))
+                is_crown = (trailers.get("Crown") == "Remember")
+                remembers.append((label, text, is_crown))
 
     return {
         "decisions": decisions,
@@ -548,6 +580,13 @@ def _read_glossary_cache() -> dict | None:
             age = (datetime.now(timezone.utc) - gen_dt).total_seconds()
             if age > GLOSSARY_CACHE_TTL:
                 return None
+        # Check schema_version
+        if cache.get("schema_version") != 1:
+            return None
+        # Check that decisions are 3-element lists
+        decisions = cache.get("decisions", [])
+        if decisions and len(decisions[0]) != 3:
+            return None
         # Check HEAD match
         code, head_sha = run_git(["rev-parse", "HEAD"])
         if code != 0:
@@ -570,6 +609,7 @@ def _write_glossary_cache(glossary: dict) -> None:
     # tombstones is a set — serialize as sorted list for JSON stability
     raw_tombstones = glossary.get("tombstones", set())
     cache = {
+        "schema_version": 1,
         "head_sha": head_sha,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "decisions": glossary.get("decisions", []),
@@ -617,8 +657,13 @@ BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
 
 
-def get_timeline(n: int = 10) -> list[str]:
-    """Get last N commits as timeline entries with time_ago."""
+def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
+    """Get last N commits as timeline entries with time_ago.
+
+    suppress_scopes: if provided, commits whose parsed scope is in this set are
+    omitted. Used to hide non-crowned decision commits when a crowned entry
+    exists for that scope.
+    """
     code, output = run_git([
         "log", f"-n{n}",
         "--pretty=format:%h\x1f%s\x1f%aI"
@@ -631,6 +676,10 @@ def get_timeline(n: int = 10) -> list[str]:
         if len(parts) < 3:
             continue
         sha, subject, date_str = parts
+        if suppress_scopes:
+            commit_scope = parse_scope(subject) or ""
+            if commit_scope in suppress_scopes:
+                continue
         entries.append(f"  {sha} {subject} | {time_ago(date_str)}")
     return entries
 
@@ -994,61 +1043,93 @@ def main() -> None:
     # Union: tombstones from recent window + tombstones from the full glossary range
     tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
 
-    all_remembers: list[tuple[str, str]] = list(memory.get("remembers", []))
-    recent_remember_texts = {normalize(t) for _, t in all_remembers}
-    for scope, text in glossary.get("remembers", []):
-        norm = normalize(text)
+    all_remembers: list[tuple[str, str, bool]] = list(memory.get("remembers", []))
+    recent_remember_texts = {normalize(t) for _, t, _ in all_remembers}
+    for gscope, gtext, gis_crown in glossary.get("remembers", []):
+        norm = normalize(gtext)
         if norm not in recent_remember_texts and norm not in tombstones:
-            all_remembers.append((scope, text))
+            all_remembers.append((gscope, gtext, gis_crown))
             recent_remember_texts.add(norm)
 
     if all_remembers:
+        crowned_remembers = [(s, t, c) for s, t, c in all_remembers if c]
+        normal_remembers = [(s, t, c) for s, t, c in all_remembers if not c]
+
         lines.append("REMEMBER:")
-        for scope, text in all_remembers[:BOOT_MAX_REMEMBERS]:
+        for scope, text, _ in crowned_remembers:
+            lines.append(f"  👑 {scope} {text}")
+        for scope, text, _ in normal_remembers[:BOOT_MAX_REMEMBERS]:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_remembers) - BOOT_MAX_REMEMBERS
+        remaining = len(normal_remembers) - BOOT_MAX_REMEMBERS
         if remaining > 0:
             lines.append(f"  ({remaining} more. Use git-memory-log --type remember)")
         lines.append("")
 
     # ── DECISIONS ───────────────────────────────────────────────────
-    all_decisions: list[tuple[str, str]] = list(memory.get("decisions", []))
-    recent_decision_scopes = {s for s, _ in all_decisions}
-    for scope, text in glossary.get("decisions", []):
-        if scope not in recent_decision_scopes:
-            all_decisions.append((scope, text))
-            recent_decision_scopes.add(scope)
+    all_decisions: list[tuple[str, str, bool]] = list(memory.get("decisions", []))
+    recent_decision_scopes = {s for s, _, _ in all_decisions}
+
+    # Glossary merge: crowned glossary entry beats non-crowned recent at same scope
+    for gscope, gtext, gis_crown in glossary.get("decisions", []):
+        if gscope not in recent_decision_scopes:
+            all_decisions.append((gscope, gtext, gis_crown))
+            recent_decision_scopes.add(gscope)
+        elif gis_crown:
+            # Replace non-crowned recent entry with crowned glossary entry
+            for i, (rscope, rtext, ris_crown) in enumerate(all_decisions):
+                if rscope == gscope and not ris_crown:
+                    all_decisions[i] = (gscope, gtext, True)
+                    break
 
     if all_decisions:
+        crowned_decs = [(s, t, c) for s, t, c in all_decisions if c]
+        normal_decs = [(s, t, c) for s, t, c in all_decisions if not c]
+
         branch_decs, other_decs = partition_by_relevance(
-            all_decisions, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown = branch_decs[:BOOT_MAX_BRANCH_DECISIONS] + other_decs[:BOOT_MAX_OTHER_DECISIONS]
-        shown = shown[:BOOT_MAX_DECISIONS]
+            normal_decs, branch_keywords, lambda x: f"{x[0]} {x[1]}")
+        shown_normal = branch_decs[:BOOT_MAX_BRANCH_DECISIONS] + other_decs[:BOOT_MAX_OTHER_DECISIONS]
+        shown_normal = shown_normal[:BOOT_MAX_DECISIONS]
+
         lines.append("DECISIONS:")
-        for scope, text in shown:
+        # Crowned first, outside budget
+        for scope, text, _ in crowned_decs:
+            lines.append(f"  👑 {scope} {text}")
+        # Then normal entries with their budget
+        for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_decisions) - len(shown)
+        remaining = len(normal_decs) - len(shown_normal)
         if remaining > 0:
             lines.append(f"  ({remaining} more decisions in history. Use git-memory-log --type decision)")
         lines.append("")
 
     # ── MEMOS ───────────────────────────────────────────────────────
-    all_memos: list[tuple[str, str]] = list(memory.get("memos", []))
-    recent_memo_scopes = {s for s, _ in all_memos}
-    for scope, text in glossary.get("memos", []):
-        if scope not in recent_memo_scopes and normalize(text) not in tombstones:
-            all_memos.append((scope, text))
-            recent_memo_scopes.add(scope)
+    all_memos: list[tuple[str, str, bool]] = list(memory.get("memos", []))
+    recent_memo_scopes = {s for s, _, _ in all_memos}
+    for gscope, gtext, gis_crown in glossary.get("memos", []):
+        if gscope not in recent_memo_scopes and normalize(gtext) not in tombstones:
+            all_memos.append((gscope, gtext, gis_crown))
+            recent_memo_scopes.add(gscope)
+        elif gis_crown:
+            for i, (rscope, rtext, ris_crown) in enumerate(all_memos):
+                if rscope == gscope and not ris_crown:
+                    all_memos[i] = (gscope, gtext, True)
+                    break
 
     if all_memos:
+        crowned_memos = [(s, t, c) for s, t, c in all_memos if c]
+        normal_memos = [(s, t, c) for s, t, c in all_memos if not c]
+
         branch_memos, other_memos = partition_by_relevance(
-            all_memos, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown = branch_memos[:BOOT_MAX_BRANCH_MEMOS] + other_memos[:BOOT_MAX_OTHER_MEMOS]
-        shown = shown[:BOOT_MAX_MEMOS]
+            normal_memos, branch_keywords, lambda x: f"{x[0]} {x[1]}")
+        shown_normal = branch_memos[:BOOT_MAX_BRANCH_MEMOS] + other_memos[:BOOT_MAX_OTHER_MEMOS]
+        shown_normal = shown_normal[:BOOT_MAX_MEMOS]
+
         lines.append("MEMOS:")
-        for scope, text in shown:
+        for scope, text, _ in crowned_memos:
+            lines.append(f"  👑 {scope} {text}")
+        for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_memos) - len(shown)
+        remaining = len(normal_memos) - len(shown_normal)
         if remaining > 0:
             lines.append(f"  ({remaining} more memos in history. Use git-memory-log --type memo)")
         lines.append("")
@@ -1063,14 +1144,14 @@ def main() -> None:
             "Consider invoking Yoda for memory cleanup."
         )
 
-    remember_user_count = sum(1 for label, _ in all_remembers if "(user)" in label)
+    remember_user_count = sum(1 for label, _, _ in all_remembers if "(user)" in label)
     if remember_user_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_user_count} remember(user) detected (threshold: 8). "
             "Consider invoking Yoda for memory cleanup."
         )
 
-    remember_claude_count = sum(1 for label, _ in all_remembers if "(claude)" in label)
+    remember_claude_count = sum(1 for label, _, _ in all_remembers if "(claude)" in label)
     if remember_claude_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_claude_count} remember(claude) detected (threshold: 8). "
@@ -1083,7 +1164,12 @@ def main() -> None:
         lines.append("")
 
     # ── TIMELINE ────────────────────────────────────────────────────
-    timeline = get_timeline(BOOT_MAX_TIMELINE)
+    # Suppress commits whose scope has a crowned decision — the crowned entry
+    # is the canonical record; the non-crowned commit is historical noise.
+    crowned_scopes: set[str] = {
+        label[1:-1] for label, _, is_c in all_decisions if is_c and label != "(global)"
+    }
+    timeline = get_timeline(BOOT_MAX_TIMELINE, suppress_scopes=crowned_scopes or None)
     if timeline:
         lines.append(f"TIMELINE (last {len(timeline)}):")
         lines.extend(timeline)

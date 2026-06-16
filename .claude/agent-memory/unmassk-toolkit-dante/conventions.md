@@ -142,6 +142,17 @@ Regression test labeling convention (auditoría round 2):
 - [ROJO]: test que DEBE fallar con el código actual (documenta el bug)
 - [GUARDA]: test que DEBE pasar antes y después del fix (invariante de no regresión)
 
+## Crown modifier pattern (session: 2026-06-16)
+
+When testing hook functions that need `run_git` to point at a tmp repo:
+- Use `importlib.util.spec_from_file_location` + `spec.loader.exec_module`
+- Patch `git_helpers.run_git` AND `boot.run_git` after exec_module
+- Pass env `GIT_DIR`/`GIT_WORK_TREE` in the subprocess env dict
+- Serialize 3-tuples as JSON lists; deserialize and assert `len(first) == 3`
+
+Guard test pattern: if a property is already absent from a set (Crown not in TOMBSTONE_KEYS),
+write a [GUARD] test asserting the absence — it passes now and stays green as protection.
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:

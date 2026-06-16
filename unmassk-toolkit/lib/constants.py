@@ -10,6 +10,7 @@ VALID_KEYS: set[str] = {
     "Issue", "Why", "Touched", "Decision", "Memo", "Next",
     "Blocker", "Risk", "Conflict", "Resolution",
     "Remember",  # Personality/working-style notes between sessions
+    "Crown",     # Modifier: marks the canonical entry for a memory kind
     "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
     "Resolved-Memo", "Resolved-Remember",  # Memory GC tombstone trailers
 }
@@ -17,6 +18,7 @@ VALID_KEYS: set[str] = {
 # Memory-relevant trailer keys for scan_trailers_memory
 MEMORY_KEYS: set[str] = {
     "Decision", "Memo", "Next", "Blocker", "Remember",
+    "Crown",
     "Resolved-Next", "Stale-Blocker",
     "Resolved-Memo", "Resolved-Remember",
 }
