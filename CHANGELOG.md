@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-16
+
 ### Added
 
 - Crown marker (`Crown: <kind>` trailer): any memory commit (`decision`/`memo`/`remember`) can carry `Crown: Decision|Memo|Remember` to designate itself as the canonical entry for its category. At boot, crowned entries appear first in their section (DECISIONS / MEMOS / REMEMBER) and are prefixed with 👑, outside the normal entry budget so they never displace regular entries. Crown wins tie-breaking by scope even when the entry originates in the glossary. Additive and presentational: the "a Decision is never tombstoned" rule is unchanged. `Crown` added to `VALID_KEYS` and `MEMORY_KEYS` in `lib/constants.py`. 21 tests (`tests/test_crown.py`). This is Phase 1 of the memory consolidator — infrastructure only; the auto-consolidation flow (Gitto writing crown entries) is not yet wired (see below).
