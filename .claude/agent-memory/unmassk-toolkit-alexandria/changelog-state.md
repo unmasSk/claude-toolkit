@@ -4,15 +4,19 @@ description: Tracks the last changelog update date and what was included, so fut
 type: project
 ---
 
-Last full audit: 2026-06-12
-Last commit covered (toolkit root): da3970c (feat(plugin/hooks): auto-sync del marcador de version tras /plugin update)
+Last full audit: 2026-06-16
+Last commit covered (toolkit root): aa9b32e (feat(plugin/memory): el disparador del consolidador)
 Last commit covered (chatroom): f4196fa (fix(plugin/chatroom/frontend): formatContent keeps agent name capitalized in queue messages)
 Current version in plugin.json: 1.7.0 (released 2026-06-12) — next release will promote current [Unreleased]
 
 Root CHANGELOG structure note: Three product timelines merged into one file. Old git-memory [1.1.0] entry was renamed [1.1.0-gitmemory] on 2026-03-24 to avoid collision with toolkit [1.1.0].
 
-[Unreleased] now has entries (2026-06-12, Alexandria doc sync):
-- Orchestrator recall: UserPromptSubmit hook injects relevant memory into main Claude thread per message; recall_relevant() BM25/IDF gate; anti prompt-injection framing; _sanitize strips memory-data delimiters; fail-open; 70 tests; Yoda READY 107/110. SKILL.md Active Hooks updated with two distinct recall hooks (subagents + orchestrator) and Conversational Capture updated to document the two-output UserPromptSubmit.
+[Unreleased] now has entries (2026-06-16, Alexandria doc sync):
+- Orchestrator recall (documented 2026-06-12): UserPromptSubmit hook injects relevant memory into main Claude thread per message; recall_relevant() BM25/IDF gate; anti prompt-injection framing; _sanitize strips memory-data delimiters; fail-open; 70 tests; Yoda READY 107/110.
+- Crown marker (2026-06-16, commits 5d5da3e): Crown trailer marks the canonical "king" entry per memory category; boot renders it first with 👑 outside normal budget; VALID_KEYS + MEMORY_KEYS; 21 tests. Phase 1 of consolidator — infrastructure only.
+- Consolidation trigger (2026-06-16, commit aa9b32e): boot emits CONSOLIDATE: block when commits since last context(consolidation) >= threshold (default 50, env-overridable); commits_since_last_consolidation() in lib/git_helpers.py; 11 tests. Phase 2 of consolidator — trigger only; Gitto prompt is draft in docs/gitto-consolidador-DRAFT.md (Phase 4, pending review).
+
+SKILL.md updated: Crown row added to Trailer Spec table; "Memory consolidation trigger" bullet added to Active Hooks; new "Crown entries (👑)" section added between Active Hooks and Hierarchical Scopes.
 
 [1.6.0] section covers (2026-06-10):
 - Added: hard DoD gate (hooks/stop-dod-gate.py, 23 tests)

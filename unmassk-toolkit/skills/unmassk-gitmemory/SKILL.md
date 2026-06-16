@@ -88,6 +88,17 @@ These fire automatically. They are NOT things you invoke — they change what ha
 - **Boot + block regen** (`SessionStart`): memory is extracted into the boot output, and the 5 managed CLAUDE.md blocks are regenerated from `lib/managed_blocks.py`. → Editing those managed blocks by hand does NOT persist; change them in the generator.
 - **Stop / PreCompact**: stop hooks auto-wip uncommitted changes and prompt for `context()`; the precompact hook re-injects recent memory before context is compressed and asks for an immediate `context()`.
 - **Version marker auto-sync** (`UserPromptSubmit`): on every message, `needs_upgrade()` silently compares the project's `.claude/.unmassk/manifest.json` version against the plugin code version (numeric SEMVER — 1.10.0 > 1.9.0). If the manifest is older, `bin/git-memory-install.py --auto` runs transparently with no output to Claude. You will never see a message for this — it just happens. Fail-safe: missing/corrupt/unparseable manifest → no upgrade, no loop. Downgrade (manifest > code) is ignored.
+- **Memory consolidation trigger** (`SessionStart`): if the number of commits since the last `context(consolidation)` reaches the threshold (default 50, overridable via `GIT_MEMORY_CONSOLIDATION_THRESHOLD` env), the boot output emits a `CONSOLIDATE:` block. When you see it, launch Gitto in consolidator mode — the operation is **additive**: Gitto reads the memory, writes crown entries (see Crown below), and closes with a `context(consolidation)` commit that resets the counter. Do not dismiss the block; it means the memory has drifted far enough that a consolidation pass is worth it. Note: as of v1.9.x the Gitto consolidator prompt is under review — automatic consolidation is infrastructure-ready but not yet wired end-to-end.
+
+## Crown entries (👑)
+
+A memory commit (`decision`/`memo`/`remember`) carrying `Crown: Decision|Memo|Remember` is the **canonical entry** for its category. At boot:
+
+- Crowned entries appear **first** in their section (DECISIONS / MEMOS / REMEMBER), prefixed with 👑.
+- They are rendered **outside the normal entry budget** — a crown never displaces a regular entry.
+- A crown wins scope tie-breaking even when the entry originates in the glossary cache.
+
+Crown is **additive and presentational only**: it does not retire or tombstone other entries. The golden rule "a Decision is never tombstoned" is unchanged. Crown entries are the output of a consolidation pass — treat a 👑 entry as the current source of truth for its scope.
 
 ## Hierarchical Scopes
 
@@ -137,6 +148,7 @@ Every non-wip commit. Trailers at end of body, contiguous block, no blank lines 
 | `Memo:`                     | category - desc      | memo() (category: preference / requirement / antipattern / stack) |
 | `Remember:`                 | category - desc      | remember() (user/claude personality note)   |
 | `Conflict:` + `Resolution:` | 1 line each          | merge conflict resolution                   |
+| `Crown:`                    | `Decision` \| `Memo` \| `Remember` | memory commits only — marks this entry as the canonical "king" of its category (see Memory Consolidator below) |
 
 Keys are case-sensitive, max once per commit, single-line values.
 

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Crown marker (`Crown: <kind>` trailer): any memory commit (`decision`/`memo`/`remember`) can carry `Crown: Decision|Memo|Remember` to designate itself as the canonical entry for its category. At boot, crowned entries appear first in their section (DECISIONS / MEMOS / REMEMBER) and are prefixed with 👑, outside the normal entry budget so they never displace regular entries. Crown wins tie-breaking by scope even when the entry originates in the glossary. Additive and presentational: the "a Decision is never tombstoned" rule is unchanged. `Crown` added to `VALID_KEYS` and `MEMORY_KEYS` in `lib/constants.py`. 21 tests (`tests/test_crown.py`). This is Phase 1 of the memory consolidator — infrastructure only; the auto-consolidation flow (Gitto writing crown entries) is not yet wired (see below).
+- Consolidation trigger (`CONSOLIDATE:` block): at boot, if the number of commits since the last `context(consolidation)` reaches the threshold (default 50, overridable via `GIT_MEMORY_CONSOLIDATION_THRESHOLD`), the boot output emits a `CONSOLIDATE:` block telling the orchestrator to launch Gitto in consolidator mode. Helper `commits_since_last_consolidation()` added to `lib/git_helpers.py`; uses `rev-list --count` for robustness on long histories; returns a high sentinel (9999) when no `context(consolidation)` exists so the first-ever run always triggers; fail-safe to 0 on error. Only the scope `context(consolidation)` resets the counter — ordinary `context()` commits do not. 11 tests (`tests/test_consolidation_trigger.py`). Phase 2 of the consolidator — trigger infrastructure only. The Gitto consolidator prompt is a draft under review (`docs/gitto-consolidador-DRAFT.md`, Phase 4, pending external AI review); automatic consolidation is not yet active.
+
 ## [1.9.0] - 2026-06-12
 
 ### Fixed
