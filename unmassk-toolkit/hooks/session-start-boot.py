@@ -21,8 +21,9 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
-from git_helpers import ensure_gitignore
-from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
+from constants import TOMBSTONE_KEYS
+from git_helpers import ensure_gitignore, run_git, commits_since_last_consolidation
+from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
 from version import VERSION as PLUGIN_VERSION
 
 
@@ -141,8 +142,8 @@ def check_skill_drift() -> list[str] | None:
 
 
 def _sanitize_trailer_value(text: str) -> str:
-    """Strip newlines and HTML comment markers from trailer values to prevent section injection."""
-    return text.replace("\n", " ").replace("\r", " ").replace("<!--", "").replace("-->", "").strip()
+    """Strip injection characters from trailer values. Delegates to canonical sanitizer in lib/parsing."""
+    return _sanitize_canonical(text)
 
 
 def check_version_mismatch() -> str | None:
@@ -232,18 +233,6 @@ MAX_MEMOS = 10
 # Glossary: deeper scan for full memory picture
 GLOSSARY_MAX_DECISIONS = 10
 GLOSSARY_MAX_MEMOS = 10
-
-
-def run_git(args: list[str]) -> tuple[int, str]:
-    """Run a git command and return (returncode, stdout)."""
-    try:
-        result = subprocess.run(
-            ["git"] + args,
-            capture_output=True, text=True, timeout=10,
-        )
-        return result.returncode, result.stdout.strip()
-    except Exception:
-        return 1, ""
 
 
 def run_doctor() -> dict:
@@ -363,9 +352,9 @@ def extract_memory() -> dict:
     commits = log_output.split("\x1e")
     pending: list[dict] = []
     blockers: list[str] = []
-    decisions: list[tuple[str, str]] = []  # (scope, text)
-    memos: list[tuple[str, str]] = []      # (scope, text)
-    remembers: list[tuple[str, str]] = []  # (scope, text)
+    decisions: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
+    memos: list[tuple[str, str, bool]] = []      # (scope, text, is_crown)
+    remembers: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
     last_context: str = ""
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
@@ -387,15 +376,18 @@ def extract_memory() -> dict:
                 ts = 0
         trailers = scan_trailers(body)
 
-        # Last context bookmark
-        if not last_context and "context(" in subject.lower():
-            last_context = f"{sha} {subject}"
+        # Last context bookmark — canonical criterion: type starts with "context("
+        # after stripping leading emoji/whitespace (same predicate as get_last_context_time)
+        if not last_context:
+            _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
+            if _cleaned.lower().startswith("context("):
+                last_context = f"{sha} {subject}"
 
         scope = parse_scope(subject) or ""
         label = f"({scope})" if scope else "(global)"
 
         # Tombstones (GC markers) — collect in same pass
-        for key in ("Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember"):
+        for key in TOMBSTONE_KEYS:
             if key in trailers:
                 tombstones.add(normalize(trailers[key]))
 
@@ -420,18 +412,33 @@ def extract_memory() -> dict:
             if normalize(text) not in tombstones:
                 blockers.append(f"{sha}: {text}")
 
-        # Decisions (one per scope)
-        if "Decision" in trailers and len(decisions) < MAX_DECISIONS:
+        # Decisions (one per scope; crowned entries bypass MAX_DECISIONS cap)
+        if "Decision" in trailers:
+            is_crown = (trailers.get("Crown") == "Decision")
             if scope not in decision_scopes:
-                decision_scopes.add(scope)
-                decisions.append((label, _sanitize_trailer_value(trailers["Decision"])))
+                if len(decisions) < MAX_DECISIONS or is_crown:
+                    decision_scopes.add(scope)
+                    decisions.append((label, _sanitize_trailer_value(trailers["Decision"]), is_crown))
+            elif is_crown:
+                # Crown beats a non-crowned entry for the same scope
+                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
+                    if rscope == label and not ris_crown:
+                        decisions[i] = (label, _sanitize_trailer_value(trailers["Decision"]), True)
+                        break
 
-        # Memos (one per scope, skip tombstoned)
-        if "Memo" in trailers and len(memos) < MAX_MEMOS:
+        # Memos (one per scope, skip tombstoned; crowned entries bypass MAX_MEMOS cap)
+        if "Memo" in trailers:
             text = _sanitize_trailer_value(trailers["Memo"])
+            is_crown = (trailers.get("Crown") == "Memo")
             if scope not in memo_scopes and normalize(text) not in tombstones:
-                memo_scopes.add(scope)
-                memos.append((label, text))
+                if len(memos) < MAX_MEMOS or is_crown:
+                    memo_scopes.add(scope)
+                    memos.append((label, text, is_crown))
+            elif is_crown and scope in memo_scopes and normalize(text) not in tombstones:
+                for i, (rscope, rtext, ris_crown) in enumerate(memos):
+                    if rscope == label and not ris_crown:
+                        memos[i] = (label, text, True)
+                        break
 
         # Remembers (personality notes between sessions, skip tombstoned)
         if "Remember" in trailers:
@@ -439,7 +446,8 @@ def extract_memory() -> dict:
             norm = normalize(text)
             if norm not in remember_seen and norm not in tombstones:
                 remember_seen.add(norm)
-                remembers.append((label, text))
+                is_crown = (trailers.get("Crown") == "Remember")
+                remembers.append((label, text, is_crown))
 
     return {
         "last_context": last_context,
@@ -448,6 +456,7 @@ def extract_memory() -> dict:
         "decisions": decisions,
         "memos": memos,
         "remembers": remembers,
+        "tombstones": tombstones,
     }
 
 
@@ -464,12 +473,13 @@ def extract_glossary() -> dict:
     if code != 0 or not log_output:
         return {"decisions": [], "memos": [], "remembers": []}
 
-    decisions: list[tuple[str, str]] = []
-    memos: list[tuple[str, str]] = []
-    remembers: list[tuple[str, str]] = []
+    decisions: list[tuple[str, str, bool]] = []
+    memos: list[tuple[str, str, bool]] = []
+    remembers: list[tuple[str, str, bool]] = []
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
     remember_seen: set[str] = set()
+    glossary_tombstones: set[str] = set()
 
     commits = log_output.split("\x1e")
     for entry in commits:
@@ -484,24 +494,50 @@ def extract_glossary() -> dict:
         scope = parse_scope(subject) or ""
         label = f"({scope})" if scope else "(global)"
 
-        if "Decision" in trailers and len(decisions) < GLOSSARY_MAX_DECISIONS:
-            if scope not in decision_scopes:
-                decision_scopes.add(scope)
-                decisions.append((label, trailers["Decision"]))
+        # Collect tombstones from the full glossary range
+        for key in TOMBSTONE_KEYS:
+            if key in trailers:
+                glossary_tombstones.add(normalize(trailers[key]))
 
-        if "Memo" in trailers and len(memos) < GLOSSARY_MAX_MEMOS:
+        if "Decision" in trailers:
+            is_crown = (trailers.get("Crown") == "Decision")
+            if scope not in decision_scopes:
+                if len(decisions) < GLOSSARY_MAX_DECISIONS or is_crown:
+                    decision_scopes.add(scope)
+                    decisions.append((label, trailers["Decision"], is_crown))
+            elif is_crown:
+                # Crown beats a non-crowned entry for the same scope already in the glossary
+                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
+                    if rscope == label and not ris_crown:
+                        decisions[i] = (label, trailers["Decision"], True)
+                        break
+
+        if "Memo" in trailers:
+            is_crown = (trailers.get("Crown") == "Memo")
             if scope not in memo_scopes:
-                memo_scopes.add(scope)
-                memos.append((label, trailers["Memo"]))
+                if len(memos) < GLOSSARY_MAX_MEMOS or is_crown:
+                    memo_scopes.add(scope)
+                    memos.append((label, trailers["Memo"], is_crown))
+            elif is_crown:
+                for i, (rscope, rtext, ris_crown) in enumerate(memos):
+                    if rscope == label and not ris_crown:
+                        memos[i] = (label, trailers["Memo"], True)
+                        break
 
         if "Remember" in trailers:
             text = trailers["Remember"]
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
-                remembers.append((label, text))
+                is_crown = (trailers.get("Crown") == "Remember")
+                remembers.append((label, text, is_crown))
 
-    return {"decisions": decisions, "memos": memos, "remembers": remembers}
+    return {
+        "decisions": decisions,
+        "memos": memos,
+        "remembers": remembers,
+        "tombstones": glossary_tombstones,
+    }
 
 
 GLOSSARY_CACHE_TTL = 86400  # 24 hours
@@ -544,6 +580,13 @@ def _read_glossary_cache() -> dict | None:
             age = (datetime.now(timezone.utc) - gen_dt).total_seconds()
             if age > GLOSSARY_CACHE_TTL:
                 return None
+        # Check schema_version
+        if cache.get("schema_version") != 1:
+            return None
+        # Check that decisions are 3-element lists
+        decisions = cache.get("decisions", [])
+        if decisions and len(decisions[0]) != 3:
+            return None
         # Check HEAD match
         code, head_sha = run_git(["rev-parse", "HEAD"])
         if code != 0:
@@ -563,12 +606,16 @@ def _write_glossary_cache(glossary: dict) -> None:
     code, head_sha = run_git(["rev-parse", "HEAD"])
     if code != 0:
         return
+    # tombstones is a set — serialize as sorted list for JSON stability
+    raw_tombstones = glossary.get("tombstones", set())
     cache = {
+        "schema_version": 1,
         "head_sha": head_sha,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "decisions": glossary.get("decisions", []),
         "memos": glossary.get("memos", []),
         "remembers": glossary.get("remembers", []),
+        "tombstones": sorted(raw_tombstones),
     }
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -589,74 +636,14 @@ def extract_glossary_cached() -> dict:
             "decisions": cached.get("decisions", []),
             "memos": cached.get("memos", []),
             "remembers": cached.get("remembers", []),
+            "tombstones": set(cached.get("tombstones", [])),
         }
     glossary = extract_glossary()
     _write_glossary_cache(glossary)
     return glossary
 
 
-def _ensure_statusline() -> None:
-    """Ensure the statusline wrapper is configured for context tracking.
-
-    Checks ~/.claude/settings.json for context-writer.py. If not present,
-    configures it (backing up any existing statusline command).
-    """
-    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    wrapper_script = os.path.join(plugin_root, "bin", "context-writer.py")
-    if not os.path.isfile(wrapper_script):
-        return
-
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-
-    try:
-        if os.path.isfile(settings_path):
-            with open(settings_path) as f:
-                settings = json.load(f)
-        else:
-            settings = {}
-    except (json.JSONDecodeError, OSError):
-        return
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Already configured — just update path if plugin root changed
-    if "context-writer" in current_cmd:
-        expected_cmd = f"python3 {wrapper_script.replace(os.sep, '/')}"
-        if current_cmd != expected_cmd:
-            settings["statusLine"] = {
-                "type": "command",
-                "command": expected_cmd,
-                "padding": 0,
-            }
-            try:
-                with open(settings_path, "w") as f:
-                    json.dump(settings, f, indent=2)
-            except OSError:
-                pass
-        return
-
-    # Not configured — backup existing and set ours
-    if current_cmd and not os.path.isfile(backup_path):
-        try:
-            with open(backup_path, "w") as f:
-                f.write(current_cmd)
-        except OSError:
-            pass
-
-    settings["statusLine"] = {
-        "type": "command",
-        "command": f"python3 {wrapper_script.replace(os.sep, '/')}",
-        "padding": 0,
-    }
-    try:
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=2)
-    except OSError:
-        pass
-
+BOOT_CONSOLIDATION_THRESHOLD = 50  # commits since last context(consolidation) before warning
 
 # Scaling limits (from design doc)
 BOOT_MAX_BRANCH_DECISIONS = 10
@@ -672,8 +659,13 @@ BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
 
 
-def get_timeline(n: int = 10) -> list[str]:
-    """Get last N commits as timeline entries with time_ago."""
+def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
+    """Get last N commits as timeline entries with time_ago.
+
+    suppress_scopes: if provided, commits whose parsed scope is in this set are
+    omitted. Used to hide non-crowned decision commits when a crowned entry
+    exists for that scope.
+    """
     code, output = run_git([
         "log", f"-n{n}",
         "--pretty=format:%h\x1f%s\x1f%aI"
@@ -686,6 +678,10 @@ def get_timeline(n: int = 10) -> list[str]:
         if len(parts) < 3:
             continue
         sha, subject, date_str = parts
+        if suppress_scopes:
+            commit_scope = parse_scope(subject) or ""
+            if commit_scope in suppress_scopes:
+                continue
         entries.append(f"  {sha} {subject} | {time_ago(date_str)}")
     return entries
 
@@ -704,7 +700,7 @@ def get_last_context_time() -> str | None:
             continue
         sha, subject, date_str = parts
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-        if cleaned.lower().startswith("context"):
+        if cleaned.lower().startswith("context("):
             return time_ago(date_str)
     return None
 
@@ -733,12 +729,9 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
     claude_dir = os.path.join(project_root, ".claude")
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     migrations = {
-        ".context-status.json": "context-status.json",
         ".glossary-cache.json": "glossary-cache.json",
-        ".context-warn-state.json": "context-warn-state.json",
         "git-memory-manifest.json": "manifest.json",
         ".session-booted": ".session-booted",
-        ".message-counter": ".message-counter",
     }
     for old_name, new_name in migrations.items():
         old_path = os.path.join(claude_dir, old_name)
@@ -781,6 +774,75 @@ def _migrate_untrack_generated_jsons(project_root: str) -> None:
         ensure_gitignore(project_root)
 
 
+def _migrate_stale_context_writer_statusline() -> None:
+    """One-time migration: remove or restore a statusLine left by old context-writer.py.
+
+    Users who installed the old version have a statusLine.command in
+    ~/.claude/settings.json pointing at context-writer.py (now deleted).
+    This migration runs once per boot and is idempotent.
+
+    Logic:
+      - If settings.json has a statusLine.command containing "context-writer":
+          (a) If ~/.claude/.git-memory-original-statusline exists and is non-empty,
+              restore that value as the new statusLine.command.
+          (b) Otherwise, remove the statusLine key entirely.
+          (c) In both cases, delete the backup file.
+      - If no context-writer statusLine is present, do nothing.
+      - Any exception is silently swallowed — boot must never fail.
+    """
+    try:
+        claude_dir = os.path.join(os.path.expanduser("~"), ".claude")
+        settings_path = os.path.join(claude_dir, "settings.json")
+        backup_path = os.path.join(claude_dir, ".git-memory-original-statusline")
+
+        if not os.path.isfile(settings_path):
+            return
+
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return
+
+        status_line = settings.get("statusLine", {})
+        current_cmd = status_line.get("command", "") if isinstance(status_line, dict) else ""
+
+        if "context-writer" not in current_cmd:
+            return  # Nothing to migrate
+
+        # Determine replacement
+        backup_content = ""
+        if os.path.isfile(backup_path):
+            try:
+                with open(backup_path, "r", encoding="utf-8") as f:
+                    backup_content = f.read().strip()
+            except OSError:
+                pass
+
+        if backup_content:
+            # Restore the original command with a complete statusLine structure
+            settings["statusLine"] = {"type": "command", "command": backup_content, "padding": 0}
+        else:
+            # No backup — remove the stale key entirely
+            settings.pop("statusLine", None)
+
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+                f.write("\n")
+        except OSError:
+            return
+
+        # Remove backup file regardless of which branch was taken
+        try:
+            os.remove(backup_path)
+        except FileNotFoundError:
+            pass
+
+    except Exception:
+        pass  # Boot must never fail due to this migration
+
+
 def main() -> None:
     """Auto-boot: structured briefing with all context pre-extracted."""
     # Check if we're in a git repo
@@ -800,15 +862,16 @@ def main() -> None:
         except FileNotFoundError:
             pass
 
-    # 0a. Ensure statusline wrapper is configured
-    _ensure_statusline()
-
-    # 0b. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
+    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
     if project_root:
         _migrate_runtime_to_unmassk(project_root)
         _migrate_untrack_generated_jsons(project_root)
 
-    # 0c. Fetch remote refs silently
+    # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
+    # (runs unconditionally — this is a user-level config, not project-level)
+    _migrate_stale_context_writer_statusline()
+
+    # 0b. Fetch remote refs silently
     run_git(["fetch", "--quiet"])
 
     # ── HEADER ──────────────────────────────────────────────────────
@@ -979,61 +1042,96 @@ def main() -> None:
     # ── REMEMBER ────────────────────────────────────────────────────
     # Merge recent + glossary remembers
     glossary = extract_glossary_cached()
+    # Union: tombstones from recent window + tombstones from the full glossary range
+    tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
 
-    all_remembers: list[tuple[str, str]] = list(memory.get("remembers", []))
-    recent_remember_texts = {normalize(t) for _, t in all_remembers}
-    for scope, text in glossary.get("remembers", []):
-        if normalize(text) not in recent_remember_texts:
-            all_remembers.append((scope, text))
-            recent_remember_texts.add(normalize(text))
+    all_remembers: list[tuple[str, str, bool]] = list(memory.get("remembers", []))
+    recent_remember_texts = {normalize(t) for _, t, _ in all_remembers}
+    for gscope, gtext, gis_crown in glossary.get("remembers", []):
+        norm = normalize(gtext)
+        if norm not in recent_remember_texts and norm not in tombstones:
+            all_remembers.append((gscope, gtext, gis_crown))
+            recent_remember_texts.add(norm)
 
     if all_remembers:
+        crowned_remembers = [(s, t, c) for s, t, c in all_remembers if c]
+        normal_remembers = [(s, t, c) for s, t, c in all_remembers if not c]
+
         lines.append("REMEMBER:")
-        for scope, text in all_remembers[:BOOT_MAX_REMEMBERS]:
+        for scope, text, _ in crowned_remembers:
+            lines.append(f"  👑 {scope} {text}")
+        for scope, text, _ in normal_remembers[:BOOT_MAX_REMEMBERS]:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_remembers) - BOOT_MAX_REMEMBERS
+        remaining = len(normal_remembers) - BOOT_MAX_REMEMBERS
         if remaining > 0:
             lines.append(f"  ({remaining} more. Use git-memory-log --type remember)")
         lines.append("")
 
     # ── DECISIONS ───────────────────────────────────────────────────
-    all_decisions: list[tuple[str, str]] = list(memory.get("decisions", []))
-    recent_decision_scopes = {s for s, _ in all_decisions}
-    for scope, text in glossary.get("decisions", []):
-        if scope not in recent_decision_scopes:
-            all_decisions.append((scope, text))
-            recent_decision_scopes.add(scope)
+    all_decisions: list[tuple[str, str, bool]] = list(memory.get("decisions", []))
+    recent_decision_scopes = {s for s, _, _ in all_decisions}
+
+    # Glossary merge: crowned glossary entry beats non-crowned recent at same scope
+    for gscope, gtext, gis_crown in glossary.get("decisions", []):
+        if gscope not in recent_decision_scopes:
+            all_decisions.append((gscope, gtext, gis_crown))
+            recent_decision_scopes.add(gscope)
+        elif gis_crown:
+            # Replace non-crowned recent entry with crowned glossary entry
+            for i, (rscope, rtext, ris_crown) in enumerate(all_decisions):
+                if rscope == gscope and not ris_crown:
+                    all_decisions[i] = (gscope, gtext, True)
+                    break
 
     if all_decisions:
+        crowned_decs = [(s, t, c) for s, t, c in all_decisions if c]
+        normal_decs = [(s, t, c) for s, t, c in all_decisions if not c]
+
         branch_decs, other_decs = partition_by_relevance(
-            all_decisions, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown = branch_decs[:BOOT_MAX_BRANCH_DECISIONS] + other_decs[:BOOT_MAX_OTHER_DECISIONS]
-        shown = shown[:BOOT_MAX_DECISIONS]
+            normal_decs, branch_keywords, lambda x: f"{x[0]} {x[1]}")
+        shown_normal = branch_decs[:BOOT_MAX_BRANCH_DECISIONS] + other_decs[:BOOT_MAX_OTHER_DECISIONS]
+        shown_normal = shown_normal[:BOOT_MAX_DECISIONS]
+
         lines.append("DECISIONS:")
-        for scope, text in shown:
+        # Crowned first, outside budget
+        for scope, text, _ in crowned_decs:
+            lines.append(f"  👑 {scope} {text}")
+        # Then normal entries with their budget
+        for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_decisions) - len(shown)
+        remaining = len(normal_decs) - len(shown_normal)
         if remaining > 0:
             lines.append(f"  ({remaining} more decisions in history. Use git-memory-log --type decision)")
         lines.append("")
 
     # ── MEMOS ───────────────────────────────────────────────────────
-    all_memos: list[tuple[str, str]] = list(memory.get("memos", []))
-    recent_memo_scopes = {s for s, _ in all_memos}
-    for scope, text in glossary.get("memos", []):
-        if scope not in recent_memo_scopes:
-            all_memos.append((scope, text))
-            recent_memo_scopes.add(scope)
+    all_memos: list[tuple[str, str, bool]] = list(memory.get("memos", []))
+    recent_memo_scopes = {s for s, _, _ in all_memos}
+    for gscope, gtext, gis_crown in glossary.get("memos", []):
+        if gscope not in recent_memo_scopes and normalize(gtext) not in tombstones:
+            all_memos.append((gscope, gtext, gis_crown))
+            recent_memo_scopes.add(gscope)
+        elif gis_crown:
+            for i, (rscope, rtext, ris_crown) in enumerate(all_memos):
+                if rscope == gscope and not ris_crown:
+                    all_memos[i] = (gscope, gtext, True)
+                    break
 
     if all_memos:
+        crowned_memos = [(s, t, c) for s, t, c in all_memos if c]
+        normal_memos = [(s, t, c) for s, t, c in all_memos if not c]
+
         branch_memos, other_memos = partition_by_relevance(
-            all_memos, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown = branch_memos[:BOOT_MAX_BRANCH_MEMOS] + other_memos[:BOOT_MAX_OTHER_MEMOS]
-        shown = shown[:BOOT_MAX_MEMOS]
+            normal_memos, branch_keywords, lambda x: f"{x[0]} {x[1]}")
+        shown_normal = branch_memos[:BOOT_MAX_BRANCH_MEMOS] + other_memos[:BOOT_MAX_OTHER_MEMOS]
+        shown_normal = shown_normal[:BOOT_MAX_MEMOS]
+
         lines.append("MEMOS:")
-        for scope, text in shown:
+        for scope, text, _ in crowned_memos:
+            lines.append(f"  👑 {scope} {text}")
+        for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
-        remaining = len(all_memos) - len(shown)
+        remaining = len(normal_memos) - len(shown_normal)
         if remaining > 0:
             lines.append(f"  ({remaining} more memos in history. Use git-memory-log --type memo)")
         lines.append("")
@@ -1048,14 +1146,14 @@ def main() -> None:
             "Consider invoking Yoda for memory cleanup."
         )
 
-    remember_user_count = sum(1 for label, _ in all_remembers if "(user)" in label)
+    remember_user_count = sum(1 for label, _, _ in all_remembers if "(user)" in label)
     if remember_user_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_user_count} remember(user) detected (threshold: 8). "
             "Consider invoking Yoda for memory cleanup."
         )
 
-    remember_claude_count = sum(1 for label, _ in all_remembers if "(claude)" in label)
+    remember_claude_count = sum(1 for label, _, _ in all_remembers if "(claude)" in label)
     if remember_claude_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_claude_count} remember(claude) detected (threshold: 8). "
@@ -1067,56 +1165,35 @@ def main() -> None:
         lines.extend(gc_warnings)
         lines.append("")
 
+    # ── CONSOLIDATION TRIGGER ────────────────────────────────────────
+    _consolidation_threshold = BOOT_CONSOLIDATION_THRESHOLD
+    _env_threshold = os.environ.get("GIT_MEMORY_CONSOLIDATION_THRESHOLD", "")
+    if _env_threshold:
+        try:
+            _consolidation_threshold = int(_env_threshold)
+        except (ValueError, TypeError):
+            pass  # invalid override → fall back to default; never crash boot
+
+    _commits_since = commits_since_last_consolidation()
+    if _commits_since >= _consolidation_threshold:
+        lines.append("CONSOLIDATE:")
+        lines.append(
+            f"  ⚠️ {_commits_since} commits desde la última consolidación. "
+            "Toca consolidar: lanza a Gitto (modo consolidador, aditivo — no borra nada)."
+        )
+        lines.append("")
+
     # ── TIMELINE ────────────────────────────────────────────────────
-    timeline = get_timeline(BOOT_MAX_TIMELINE)
+    # Suppress commits whose scope has a crowned decision — the crowned entry
+    # is the canonical record; the non-crowned commit is historical noise.
+    crowned_scopes: set[str] = {
+        label[1:-1] for label, _, is_c in all_decisions if is_c and label != "(global)"
+    }
+    timeline = get_timeline(BOOT_MAX_TIMELINE, suppress_scopes=crowned_scopes or None)
     if timeline:
         lines.append(f"TIMELINE (last {len(timeline)}):")
         lines.extend(timeline)
         lines.append("")
-
-    # ── MANDATORY READING ─────────────────────────────────────────
-    lines.append("")
-    lines.append("=" * 80)
-    lines.append("MANDATORY: YOU MUST READ THE FOLLOWING DOCUMENTS COMPLETELY BEFORE DOING ANYTHING.")
-    lines.append("These define how you work, how you use memory, and how you delegate.")
-    lines.append("If you skip them, you WILL make mistakes that have already been solved.")
-    lines.append("READ THEM NOW. NOT LATER. NOW.")
-    lines.append("=" * 80)
-    lines.append("")
-
-    skills_root = os.path.join(plugin_root, "skills")
-    for skill_name in ("unmassk-core", "unmassk-gitmemory"):
-        skill_path = os.path.join(skills_root, skill_name, "SKILL.md")
-        if os.path.isfile(skill_path):
-            try:
-                with open(skill_path, "r") as f:
-                    content = f.read()
-                # Strip frontmatter
-                if content.startswith("---"):
-                    end = content.find("\n---", 3)
-                    if end != -1:
-                        content = content[end + 4:].strip()
-                lines.append("")
-                lines.append(f"<!-- BEGIN {skill_name} — MANDATORY READING -->")
-                lines.append(content)
-                lines.append(f"<!-- END {skill_name} -->")
-                lines.append("")
-            except OSError:
-                pass
-
-    # Inject CALIBRATION.md
-    calibration_path = os.path.join(skills_root, "unmassk-gitmemory", "CALIBRATION.md")
-    if os.path.isfile(calibration_path):
-        try:
-            with open(calibration_path, "r") as f:
-                cal_content = f.read().strip()
-            lines.append("")
-            lines.append("<!-- BEGIN CALIBRATION — MANDATORY READING -->")
-            lines.append(cal_content)
-            lines.append("<!-- END CALIBRATION -->")
-            lines.append("")
-        except OSError:
-            pass
 
     # ── BOOT COMPLETE ───────────────────────────────────────────────
     commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py").replace(os.sep, "/")

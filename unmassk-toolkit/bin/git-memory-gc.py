@@ -32,7 +32,8 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git as _run_git
-from parsing import parse_scope
+from parsing import normalize, parse_scope, parse_trailers_full
+from constants import TOMBSTONE_KEYS
 
 
 def run_git(args: list[str]) -> tuple[int, str]:
@@ -103,12 +104,12 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
         scope = parse_scope(subject)
 
         # Extract trailers from body
-        trailers = {}
-        for line in body.split("\n"):
-            line = line.strip()
-            m = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line)
-            if m:
-                trailers[m.group(1)] = m.group(2).strip()
+        raw_trailers = parse_trailers_full(body)
+        # Flatten multi-value entries: take first value when gc expects a single str
+        trailers = {
+            k: (v[0] if isinstance(v, list) else v)
+            for k, v in raw_trailers.items()
+        }
 
         commits.append({
             "sha": sha,
@@ -148,12 +149,14 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
         if "Blocker" in c["trailers"]:
             blocker_items.append((i, c))
 
-    # Check for existing tombstones (already GC'd items)
+    # Check for existing tombstones (already GC'd items).
+    # Iterates over all four TOMBSTONE_KEYS so that Resolved-Memo and
+    # Resolved-Remember entries are also recognised and not re-proposed.
     existing_tombstones = set()
     for c in commits:
-        for key in ("Resolved-Next", "Stale-Blocker"):
+        for key in TOMBSTONE_KEYS:
             if key in c["trailers"]:
-                existing_tombstones.add(c["trailers"][key].lower().strip())
+                existing_tombstones.add(normalize(c["trailers"][key]))
 
     # H3: Check for explicit Resolution: trailers that reference items
     resolution_texts = set()
@@ -166,7 +169,7 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
         next_text = commit["trailers"]["Next"]
 
         # Skip if already tombstoned
-        if next_text.lower().strip() in existing_tombstones:
+        if normalize(next_text) in existing_tombstones:
             continue
 
         next_keywords = extract_keywords(next_text)
@@ -208,7 +211,7 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
         blocker_text = commit["trailers"]["Blocker"]
 
         # Skip if already tombstoned
-        if blocker_text.lower().strip() in existing_tombstones:
+        if normalize(blocker_text) in existing_tombstones:
             continue
 
         if not commit["date"]:

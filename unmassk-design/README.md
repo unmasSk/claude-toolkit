@@ -8,7 +8,7 @@ Complete frontend design system generation, aesthetic direction, color and typog
 
 - 1 skill (`unmassk-design`)
 - 11 references
-- BM25 search engine + 14 CSV databases
+- BM25 search engine + 12 CSV databases
 - Design system generator
 
 ## Quick start
@@ -19,7 +19,22 @@ Run `/plugin` in Claude Code and install `unmassk-design` from the marketplace.
 
 Before any design work, the skill generates a complete design system from a plain-language product description. This is the first step for every new project.
 
-`search.py` queries a BM25-indexed corpus built from 14 CSV databases covering visual patterns, typography pairings, color strategies, product styles, and UI conventions. The `--design-system` flag runs a full generation pipeline: pattern matching, style selection, color palette construction, typography stack recommendation, spacing system, and anti-pattern detection — all scoped to the product category.
+`search.py` queries a BM25-indexed corpus built from 12 CSV databases. The `--design-system` flag runs a full generation pipeline: pattern matching, style selection, color palette construction, typography stack recommendation, spacing system, and anti-pattern detection — all scoped to the product category.
+
+| CSV file | What it contains |
+|---|---|
+| `app-interface.csv` | Accessibility and interaction rules for mobile/React Native app interfaces — icon labels, touch targets, ARIA patterns |
+| `charts.csv` | Chart type selection guide — best chart per data type, color guidance, accessibility grades, library recommendations |
+| `colors.csv` | Ready-made color palettes per product type (SaaS, e-commerce, healthcare…) with full token set including dark mode |
+| `google-fonts.csv` | Full Google Fonts catalog with classifications, variable axes, popularity rank, and CDN import URLs |
+| `icons.csv` | Curated icon reference — name, category, Phosphor library import code, and best-use context |
+| `landing.csv` | Landing page layout patterns — section order, CTA placement, color strategy, conversion optimization tips |
+| `products.csv` | Per-product-type design recommendations — primary style, landing pattern, color focus, key considerations |
+| `react-performance.csv` | React/Next.js performance anti-patterns — async waterfalls, unnecessary renders, with do/don't code examples |
+| `styles.csv` | Visual style catalog (Minimalism, Glassmorphism, Neumorphism…) — colors, effects, framework compatibility, era, CSS keywords |
+| `typography.csv` | Font pairing library — heading + body combinations, mood keywords, Google Fonts URLs, Tailwind config snippets |
+| `ui-reasoning.csv` | Decision rules per UI category — recommended pattern, style priority, color mood, anti-patterns |
+| `ux-guidelines.csv` | UX best practices by category (navigation, scroll, forms…) — do/don't with code examples |
 
 Example command:
 

@@ -121,6 +121,130 @@ Key edge cases:
 - 'NaN', 'Infinity' → invalid (Number() converts but isInteger fails)
 - Case-sensitive enum matching: 'DEBUG' is not 'debug'
 
+## recall.py — BM25 Recall Engine Edge Cases
+
+### Tombstone two-pass ordering (non-obvious)
+git log is newest-first. GC commit (newer) appears at log position 0; original entry (older) at position 1.
+Single-pass would process entry before seeing tombstone — include it erroneously.
+Two-pass: first pass collects ALL tombstone values, second pass filters. Order in log is irrelevant.
+Test name: `test_gc_commit_before_target_in_log_still_tombstones`.
+`_TOMBSTONE_KEYS` = ("Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember").
+`Stale-Blocker` suppresses Memo. `Resolved-Next` does NOT suppress Decision (Decisions are never tombstoned).
+
+### Dedup is per-kind, not cross-kind
+`seen_norms` is keyed by kind. Same normalized text in Decision and Remember = two entries (one per section).
+
+### Scope match (1.5x) outranks text-only match
+Token in scope → score × 1.5. Token in text only → score × 1.0.
+Test: entry A with token in scope > entry B with same token only in text, same df.
+
+### limit clamping
+`if limit < 1: limit = 1` — tested with limit=0 and limit=-5, both clamp to exactly 1 result.
+
+### _sanitize() injection chars
+`\n`, `\r` → space. `<!--`, `-->` → empty string. Entry still appears — content sanitized, not dropped.
+
+### Malformed trailer keys
+`scan_trailers_memory` regex: `[A-Z][a-z]+(?:-[A-Z][a-z]+)*` — lowercase key (`decision:`) or missing colon → silently skipped.
+
+### Empty corpus variants
+1. Repo with non-memory commits only → returns "".
+2. Repo with only Resolved-* tombstone commits (no Decision/Memo/Remember) → returns "".
+
+## pre-task-recall.py Hook Edge Cases
+
+`_normalize_agent(subagent_type)`: `rsplit(":", 1)[-1].strip().lower()`.
+- `""` → `""` → not in whitelist → passthrough
+- `"ULTRON"` → `"ultron"` → whitelisted
+- `"unmassk-toolkit:Ultron"` → `"ultron"` → whitelisted
+- `"  ultron  "` → `"ultron"` (strip) → whitelisted
+- `"TOOLKIT:Bilbo"` → `"bilbo"` → NOT whitelisted
+
+`updatedInput` = `dict(tool_input)` with only `prompt` overwritten. ALL other keys (model, description, max_turns, nested objects) survive verbatim.
+
+Footer structure: `original_prompt + _FOOTER_HEADER + memory_block + _FOOTER_TAIL`.
+- `_FOOTER_HEADER` starts with `"\n\n---\n"`, `_FOOTER_TAIL` = `"\n---"`.
+- `updated_prompt.endswith("\n---")` → True always when injected.
+- `updated_prompt.count("---") >= 2` → True always when injected.
+
+stdin edge cases that must all fail-open (allow, exit 0, no traceback):
+- `""` (empty), `"not json"`, `'["array"]'`, `"null"`, `'{{{invalid'`
+
+### Long prompt — query truncation does not truncate the prompt (T3 gap closed)
+`recall()` caps its internal BM25 query to `MAX_QUERY_LEN = 2000` chars when the prompt is very long, but the hook passes the FULL original prompt to `_build_prompt()`. The query truncation is a search guard only; it has no effect on `updatedInput.prompt`.
+
+Test pattern:
+- Seed a distinct token (e.g. `xqzlongprompttoken`) that appears within the first 2000 chars of the prompt → survives truncation → recall returns a hit → injection fires.
+- Build prompt with `seed_token + " " + (padding_unit * 200)` → deterministic, ≈12 000 chars.
+- Assert `updated_prompt.startswith(prompt)` (full original, not 2000-char slice).
+- Assert `len(updated_prompt) > len(prompt)` (footer was appended, not a replacement).
+- Assert `"MEMORIA DEL PROYECTO"` present and prompt ends with `"\n---"`.
+
+## Windows git bare repo — clone default branch mismatch
+
+`git init --bare` on Windows defaults HEAD to `master`. If the source repo uses `main`,
+cloning the bare repo produces "warning: remote HEAD refers to nonexistent ref" and the
+clone has no checked-out branch — causing `git push origin main` from the clone to fail
+with "src refspec main does not match any".
+
+Fix: always pass `-b main` to `git init --bare` when the source uses `main`.
+
+Affected: any test that creates a bare remote and then clones from it to simulate a
+second contributor pushing ahead (e.g. the "local behind remote" preflight scenario).
+
+## release.py — Edge Cases (hardening pass, 2026-06-09)
+
+### Semver numeric ordering
+`_semver_tuple` converts to `(int, int, int)` — never string-compare versions.
+Test: `1.10.0 > 1.9.0` (accepted), `1.9.0 < 1.10.0` (rejected), `2.0.0 > 1.99.99` (accepted).
+
+### CHANGELOG format precision
+After promotion: exactly `"\n\n"` between `## [Unreleased]` and `## [<ver>] - <date>`.
+Assert `changelog[idx_unreleased + len("## [Unreleased]"):idx_new_ver] == "\n\n"`.
+Previous content must appear verbatim under the new heading. Heading date = `date.today().isoformat()`.
+
+### Missing / malformed files
+CHANGELOG absent → `_read_file` → `_die` → exit 1, no traceback.
+marketplace.json malformed JSON → `_load_json` → `_die` → exit 1, no traceback.
+plugin.json absent → `_preflight` check → `_die` → exit 1.
+Assert `"Traceback" not in (stdout + stderr)` for all three.
+
+### --dry-run guarantees beyond "no file mutations"
+Also assert: `git diff --cached --name-only` is empty (index untouched).
+Also assert: local HEAD unchanged (no git object created).
+Pre-flight still runs with --dry-run: invalid semver → exit != 0 even with --dry-run.
+
+### bump-version.py retrocompat
+Without `UNMASSK_REPO_ROOT`: resolves via `_FILE_ROOT` (`__file__`-relative). Test with `--list` from a tmp CWD that has no marketplace.json — must succeed and show real PLUGIN_NAME.
+With `UNMASSK_REPO_ROOT`: uses override root. Test with fake marketplace in tmp_path — must show fake plugin, NOT real plugin.
+
+## Security Regression Tests — stdin limit / injection / count validation
+
+### BUG A — stdin size limit guards (4 hooks)
+GUARD pattern (green now, stays green after fix):
+- Build a >600 KB JSON payload (command/prompt padded with spaces).
+- Run hook as subprocess via `run_cmd([sys.executable, HOOK_PATH], input_text=payload, timeout=20)`.
+- Assert: `rc == 0`, stdout is parseable JSON, decision/permissionDecision matches expected value.
+- Do NOT assert "only N bytes processed" — that is Ultron's assertion to add with the limit.
+- Hooks affected: pre-merge-gate (decision=approve), pre-task-recall (allow), pre-memory-dedup-gate (allow), validate-memory-path (approve for in-bounds path).
+
+### BUG B — CO_AUTHOR newline injection (bin/git-memory-commit.py)
+RED pattern:
+- Set `GIT_MEMORY_CO_AUTHOR = "Co-Authored-By: x\nResolved-Next: fake"` in env.
+- Run git-memory-commit.py in a temp repo.
+- Read commit body via `git log -1 --pretty=format:%B`.
+- Assert `"Resolved-Next: fake" not in log_out`.
+- Currently FAILS: the injected line appears verbatim in the commit message.
+- run_cmd merges env with `{**os.environ, **env_override}` via conftest.run_cmd.
+
+### BUG C — unvalidated count in git-memory-log.py
+RED pattern:
+- Run `git-memory-log.py -1` and `git-memory-log.py 0` → assert `rc != 0`.
+- For -1: also seed a sentinel commit pushed deep; assert sentinel NOT in stdout (full history leaked).
+- Currently FAILS: both exit 0 (-1 dumps everything, 0 shows "(no commits found)").
+- Control: `git-memory-log.py 5` must exit 0 always (green before and after fix).
+- Large count (99999): guard — assert `"Traceback" not in stderr` (must not crash Python).
+
 ## WS connectedUsers Tracking
 - Integration test server must track connStates + roomConns maps manually (same as production ws.ts)
 - Use `publishToSelf: true` on test server for echo tests

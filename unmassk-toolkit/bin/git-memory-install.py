@@ -31,28 +31,17 @@ from typing import Any
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git, ensure_gitignore
+from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-MANAGED_BLOCK_BEGIN = "<!-- BEGIN unmassk-toolkit (managed block — do not edit) -->"
-MANAGED_BLOCK_END = "<!-- END unmassk-toolkit -->"
-
-MANAGED_BLOCK_CONTENT = """## unmassk-toolkit Active
-
-This project uses the **unmassk toolkit**.
-
-**On every session start**, you MUST:
-1. Read the `[git-memory-boot]` SessionStart output already in your context
-2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
-3. Use the Skill tool with `skill="unmassk-gitmemory"` (TOOL CALL, not bash)
-4. Read CALIBRATION.md: `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md`
-5. Show the boot summary, then respond to the user
-
-**On every user message**, the `[memory-check]` hook fires. Follow the CALIBRATION rules.
-
-Never ask the user to run commands -- run them yourself."""
+# Keep these aliases so git-memory-upgrade.py can still import them.
+# They refer to the first block (unmassk-toolkit) which is the primary block.
+MANAGED_BLOCK_BEGIN = BLOCKS[0]["begin"]
+MANAGED_BLOCK_END = BLOCKS[0]["end"]
+MANAGED_BLOCK_CONTENT = BLOCKS[0]["body"]
 
 
 # Old-style install files that should be cleaned up from the project root.
@@ -255,9 +244,6 @@ def create_plan(report: dict[str, Any], source: str, target: str,
     # Manifest
     plan["actions"].append(("create_manifest", "Create/update .claude/.unmassk/manifest.json"))
 
-    # Statusline wrapper for context awareness
-    plan["actions"].append(("setup_statusline", "Configure statusline wrapper for context tracking"))
-
     return plan
 
 
@@ -288,8 +274,6 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
                 _update_claude_md(target)
             elif action == "create_manifest":
                 _create_manifest(target, plan["mode"])
-            elif action == "setup_statusline":
-                _setup_statusline_wrapper(source)
         except Exception as e:
             errors.append(f"{action}: {e}")
 
@@ -389,28 +373,19 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
 
 
 def _update_claude_md(target: str) -> None:
-    """Add or update the managed block in CLAUDE.md."""
+    """Add or update all 5 managed blocks in CLAUDE.md."""
     claude_md = os.path.join(target, "CLAUDE.md")
 
     if os.path.isfile(claude_md):
         with open(claude_md) as f:
             content = f.read()
-
-        # Replace existing block
-        begin_idx = content.find(MANAGED_BLOCK_BEGIN)
-        end_idx = content.find(MANAGED_BLOCK_END)
-        if begin_idx != -1 and end_idx != -1:
-            end_idx += len(MANAGED_BLOCK_END)
-            new_block = f"{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}"
-            content = content[:begin_idx] + new_block + content[end_idx:]
-        else:
-            # Append
-            content = content.rstrip() + f"\n\n{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}\n"
     else:
-        content = f"# CLAUDE.md\n\n{MANAGED_BLOCK_BEGIN}\n{MANAGED_BLOCK_CONTENT}\n{MANAGED_BLOCK_END}\n"
+        content = "# CLAUDE.md\n\n"
+
+    new_content, _ = upsert_managed_blocks(content)
 
     with open(claude_md, "w") as f:
-        f.write(content)
+        f.write(new_content)
 
 
 def _create_manifest(target: str, mode: str) -> None:
@@ -425,9 +400,10 @@ def _create_manifest(target: str, mode: str) -> None:
         "managed_blocks": [
             {
                 "file": "CLAUDE.md",
-                "begin": "BEGIN unmassk-toolkit",
-                "end": "END unmassk-toolkit",
+                "begin": b["begin"].replace("<!-- ", "").split(" (")[0].split(" -->")[0],
+                "end": b["end"].replace("<!-- ", "").replace(" -->", ""),
             }
+            for b in BLOCKS
         ],
         "hook_registrations": [
             "PreToolUse", "PostToolUse", "Stop",
@@ -443,70 +419,6 @@ def _create_manifest(target: str, mode: str) -> None:
         json.dump(manifest, f, indent=2)
 
     ensure_gitignore(target)
-
-
-def _setup_statusline_wrapper(source: str) -> None:
-    """Configure the statusline wrapper in ~/.claude/settings.json.
-
-    Saves the user's current statusline command (if any) to a backup file,
-    then sets our context-writer.py as the statusline command. The wrapper
-    writes context window data to <project>/.claude/.unmassk/context-status.json
-    and passes through to the user's original statusline.
-    """
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-    wrapper_script = os.path.join(source, "bin", "context-writer.py")
-
-    # Read current settings
-    settings: dict[str, Any] = {}
-    if os.path.isfile(settings_path):
-        with open(settings_path) as f:
-            try:
-                settings = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                return  # Don't touch corrupt settings
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Our wrapper command — use forward slashes for Git Bash compatibility on Windows
-    wrapper_cmd = f"python3 {wrapper_script.replace(os.sep, '/')}"
-
-    # Case 1: Already configured with exact same command — skip
-    if current_cmd == wrapper_cmd:
-        if not os.path.isfile(backup_path):
-            print("  Warning: statusline wrapper active but backup missing")
-        return
-
-    # Case 2: Our wrapper but different path (reinstall/upgrade) — update path only
-    if "context-writer" in current_cmd:
-        settings["statusLine"] = {
-            "type": "command",
-            "command": wrapper_cmd,
-            "padding": current_sl.get("padding", 0) if isinstance(current_sl, dict) else 0,
-        }
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=2)
-            f.write("\n")
-        if not os.path.isfile(backup_path):
-            print("  Warning: statusline wrapper updated but original backup missing — user must restore manually")
-        return
-
-    # Case 3: Fresh install — back up current command (even if empty)
-    with open(backup_path, "w") as f:
-        f.write(current_cmd)
-
-    # Set our wrapper as the statusline
-    settings["statusLine"] = {
-        "type": "command",
-        "command": wrapper_cmd,
-        "padding": current_sl.get("padding", 0) if isinstance(current_sl, dict) else 0,
-    }
-
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
 
 
 # ── Phase 4 & 5: Verify + Health Proof ───────────────────────────────────

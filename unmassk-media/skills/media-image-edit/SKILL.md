@@ -67,7 +67,7 @@ Here's your edited image:
 
 - Always infer the operation from the user's request — do not ask unless ambiguous.
 - `inpaint` requires `--mask-url`. If missing, ask the user for it before running.
-- `FAL_KEY` must be set. If missing, run with `--add-fal-key` to configure it.
+- `FAL_KEY` must be set. Configure it in `unmassk-media/.env.example` (copy to `.env` and fill `FAL_KEY=`). If still missing at runtime, run with `--add-fal-key` to configure it interactively.
 - Do not invent or search for models — they are hardcoded per operation. See `references/model-selection.md`.
 - Output the final image URL to the user even if display fails.
 

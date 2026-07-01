@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "better-i18n": {
+      "command": "npx",
+      "args": ["-y", "@better-i18n/mcp@latest"],
+      "env": {
+        "BETTER_I18N_API_KEY": "${BETTER_I18N_API_KEY}",
+        "BETTER_I18N_API_URL": "${BETTER_I18N_API_URL}"
+      }
+    }
+  }
+}

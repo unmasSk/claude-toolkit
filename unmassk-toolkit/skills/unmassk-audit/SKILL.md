@@ -17,6 +17,8 @@ Structured 14-step workflow for auditing any module against enterprise quality s
 
 Do NOT use for: one-off code reviews or quick linting checks.
 
+**Audit vs. build pipeline:** this skill is for reviewing an EXISTING module against enterprise standards. Use `unmassk-flow` (the build pipeline) when BUILDING something new. "Auditing" = existing code → standards gap analysis. "Building" = new code → Flow's definition-of-done pipeline. Do not confuse the two.
+
 ## Workflow
 
 ### Initialization
@@ -26,7 +28,9 @@ Before step 0, create a TodoWrite with one item per step (steps 0-13). Update st
 ### Step 0 -- Preparation (ORCHESTRATOR (Claude + User))
 
 1. Select or create a GitHub issue for the audit target.
-2. Create branch from dev: `git checkout -b chore/audit-<module> dev`
+2. Create the audit branch -- branch strategy depends on `repo_type` (defined in `unmassk-gitmemory`; inherit, do not redefine here):
+   - **gitflow** → `git checkout -b chore/audit-<module> dev`
+   - **trunk** → work directly on `main`; no separate audit branch needed
 3. Context commit: `context(audit-<module>): start enterprise audit -- issue #N`
 4. Load `unmassk-standards` skill for quality criteria + read any project-level CLAUDE.md
 
@@ -59,7 +63,7 @@ Characterization testing -- capture current behavior BEFORE any code changes. Ru
 3. Include unit tests and integration tests appropriate for the stack (e.g., supertest for Express, httpx for FastAPI, net/http/httptest for Go).
 4. Each agent runs tests twice for stability.
 
-Gate: all golden tests pass at 97%+ coverage before proceeding past step 4.
+Gate: all golden tests pass at 97%+ coverage before proceeding past step 4. **Coverage exception:** the general "coverage is not a merge gate" override does NOT apply here. In an audit, 97%+ is a hard gate — an audit is more stringent than a normal merge, and this is a conscious, explicit decision to supersede that override.
 
 Prompt template: see `prompts/dante.md` (Template 1: Golden Tests)
 
@@ -69,7 +73,7 @@ Run in parallel with step 3 (independent work). Cerberus and Argus run simultane
 
 **Cerberus** (quality audit):
 1. One Cerberus agent per file (or group of 2-3 small files <100 LOC).
-2. Evaluate ONLY against the enterprise standards (loaded from `unmassk-standards` skill) (Security x3, Error handling x3, Structure x2, Testing x2, Maintainability x1).
+2. Evaluate ONLY against the enterprise standards (loaded from `unmassk-standards` skill — weights and tiers are defined there, not here).
 3. Classify every finding by tier (T1/T2/T3).
 4. Produce weighted score out of 110.
 5. Agents ONLY report -- never fix.
@@ -117,7 +121,7 @@ Verdict: APPROVED or REQUIRES ANOTHER ROUND. If another round needed, return to 
 2. Update golden tests if function signatures or behavior changed.
 3. Run full module suite TWICE.
 
-Gate: coverage maintained at 97%+.
+Gate: coverage maintained at 97%+. Same explicit audit exception as step 3 — the general merge-override does not apply; the audit gate supersedes it.
 
 ### Step 8 -- Adversarial Validation (Moriarty)
 
@@ -173,11 +177,12 @@ Prompt template: see `prompts/alexandria.md`
 1. Delete temporary files (`AUDIT-<module>.tmp.md`).
 2. **MANDATORY: Run FULL test suite** (detect and use the project's test command — e.g., `npx vitest run`, `pytest`, `go test ./...`) — not just the module tests. If any test fails that was passing before the audit started, the audit introduced a regression. Fix before merging.
 3. Final commit with score and closed findings.
-4. Merge to dev: `git checkout dev && git merge --no-ff chore/audit-<module>`
-5. Push: `git push origin dev`
-6. Close issue: `gh issue close N --comment "Enterprise audit complete -- YY/110"`
-7. Delete branch (local and remote).
-8. Context commit: `context(audit-<module>): issue #N CLOSED`
+4. Merge and push — strategy depends on `repo_type` (inherit from `unmassk-gitmemory`; do not redefine here):
+   - **gitflow** → `git checkout dev && git merge --no-ff chore/audit-<module>` then `git push origin dev`
+   - **trunk** → changes already committed to `main`; push directly. No branch merge needed.
+5. Close issue: `gh issue close N --comment "Enterprise audit complete -- YY/110"`
+6. Delete branch (local and remote) if a branch was created (gitflow only).
+7. Context commit: `context(audit-<module>): issue #N CLOSED`
 
 ## Loop Conditions
 
@@ -233,13 +238,12 @@ ORCHESTRATOR (Claude + User) compiles agent outputs into `AUDIT-<module>.tmp.md`
 |----|------|----------|-----------|-------------|--------|
 
 ### Score
+
+Scoring dimensions, weights (Security x3, Error handling x3, Structure x2, Testing x2, Maintainability x1), and tier definitions live in `unmassk-standards`. Do not redefine them here -- agents load `unmassk-standards` to apply them. Only the final table structure lives here:
+
 | Dimension | Score | Weight | Total |
 |-----------|-------|--------|-------|
-| Security | X/10 | x3 | XX |
-| Error handling | X/10 | x3 | XX |
-| Structure | X/10 | x2 | XX |
-| Testing | X/10 | x2 | XX |
-| Maintainability | X/10 | x1 | XX |
+| (see unmassk-standards) | X/10 | per standards | XX |
 | **Total** | | | **XX/110** |
 ```
 
@@ -250,7 +254,7 @@ ORCHESTRATOR (Claude + User) compiles agent outputs into `AUDIT-<module>.tmp.md`
 | 0 | ORCHESTRATOR (Claude + User) | - | Branch + context commit |
 | 1 | Bilbo | No | Summary table |
 | 2 | Ultron | No | Tests pass (if needed) |
-| 3 | Dante | Yes | 97%+ coverage, tests pass x2 |
+| 3 | Dante | Yes | 97%+ coverage, tests pass x2 (audit gate — supersedes merge override) |
 | 4 | Cerberus + Argus | Yes | Score + security findings |
 | 5 | Ultron | Depends | Tests pass after each fix |
 | 6 | Cerberus | No | APPROVED or loop |
@@ -260,7 +264,7 @@ ORCHESTRATOR (Claude + User) compiles agent outputs into `AUDIT-<module>.tmp.md`
 | 10 | Cerberus | No | APPROVED or loop |
 | 11 | Yoda | No | Verdict |
 | 12 | Alexandria | No | Docs updated |
-| 13 | ORCHESTRATOR (Claude + User) | - | Merged + closed |
+| 13 | ORCHESTRATOR (Claude + User) | - | Merged (per repo_type) + closed |
 
 ## Additional Resources
 

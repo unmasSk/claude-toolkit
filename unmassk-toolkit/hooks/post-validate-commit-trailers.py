@@ -180,8 +180,12 @@ def main() -> None:
 
     # Check exit code first (language-agnostic, works with any locale)
     exit_code = tool_output.get("exit_code")
-    if exit_code is not None and int(exit_code) != 0:
-        sys.exit(0)  # Commit failed (linting, conflict, etc.) — don't touch anything
+    if exit_code is not None:
+        try:
+            if int(exit_code) != 0:
+                sys.exit(0)  # Commit failed (linting, conflict, etc.) — don't touch anything
+        except (ValueError, TypeError):
+            pass  # Non-parseable exit_code → fail-open, continue
 
     # Fallback: detect common failure strings in case exit_code is missing
     stdout = tool_output.get("stdout", "").lower()

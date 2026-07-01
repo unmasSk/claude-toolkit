@@ -1,0 +1,4 @@
+{
+  "repo_type": "trunk",
+  "_note": "trunk: main is the working branch, no auto-deploy on commit. See unmassk-gitmemory Safety > Repo type."
+}

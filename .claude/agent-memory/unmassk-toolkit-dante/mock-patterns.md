@@ -228,6 +228,265 @@ To test the full upgrade → message → broadcast → invokeAgents chain:
 **invokeAgents signature**: `invokeAgents(roomId, mentions: Set<string>, triggerContent, Map, boolean)` —
 the stub receives mentions as a Set but can be spread: `_invokeAgentsCalls.push({ mentions: [...mentions] })`.
 
+## Stop Hook — Freno Duro (decision:block) Pattern
+
+Para Stop hooks que BLOQUEAN (a diferencia de los advisory que solo usan stderr):
+
+```python
+# Bloquear: JSON a stdout + exit 0
+json.dump({"decision": "block", "reason": "..."}, sys.stdout)
+sys.stdout.flush()
+sys.exit(0)  # siempre 0 — el bloqueo se comunica vía JSON, no vía exit code
+
+# Permitir: sin output a stdout + exit 0 (o stdout vacío)
+sys.exit(0)
+```
+
+Invariante de freno duro FAIL-OPEN (contrasta con pre-merge-gate que falla CERRADO):
+- Bug del hook → deja pasar (fail-open). Nunca atrapar al usuario sin poder cerrar sesión.
+- Config ilegible, binario no encontrado, timeout → todos fail-open.
+- Solo bloquea en el camino feliz explícito: config presente + test_command + tests fallidos.
+
+Test de metacaracteres (shell=False vs shell=True):
+- Crear fichero centinela que solo existiría si se expande subshell.
+- Verificar que el fichero NO existe después de correr el hook.
+- Si existe → el hook usa shell=True → inyección confirmada.
+
+```python
+sentinel = os.path.join(workdir, "injected.txt")
+_write_config(workdir, {"test_command": f"python3 -c pass $(python3 -c \"open('{sentinel}','w').close()\")"})
+_run_hook(workdir)
+assert not os.path.exists(sentinel), "shell=True detectado — vulnerabilidad de inyección"
+```
+
+## Python Pytest — Hook Subprocess Testing Pattern
+
+Hooks under `unmassk-toolkit/hooks/` are tested as subprocesses via `conftest.run_cmd`.
+Conftest is in `unmassk-toolkit/tests/conftest.py`. Key helpers:
+
+```python
+# Run hook with JSON stdin (mirrors Claude Code's invocation contract):
+rc, stdout, stderr = run_cmd([sys.executable, HOOK_PATH], cwd=repo, input_text=json_str)
+parsed = json.loads(stdout)
+hso = parsed.get("hookSpecificOutput", {})
+
+# Or use the _run_hook() helper defined in the test file (wraps run_cmd):
+rc, parsed, raw_stdout, stderr = _run_hook(repo, "Task", tool_input_dict)
+```
+
+`SOURCE_ROOT` = `unmassk-toolkit/` dir. `HOOKS_DIR` = `unmassk-toolkit/hooks/`. `LIB_DIR` = `unmassk-toolkit/lib/`.
+
+For `recall()` calls in helper functions, pass `_repo_dir=repo` — do NOT use the default (which resolves git root of the real project repo).
+
+### Fail-open invariant pattern (deny/block test)
+```python
+output_str = json.dumps(json.loads(stdout))
+assert "deny" not in output_str.lower()
+assert "block" not in output_str.lower()
+```
+
+## Python Hook — importlib Direct Import Pattern (not subprocess)
+
+When testing a single function inside a hook file (not the full hook via subprocess),
+import with `importlib.util.spec_from_file_location` — avoids the sys.modules collision
+risk of `importlib.import_module` and the global pollution of `exec()`.
+
+```python
+import importlib.util
+
+HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
+
+def _import_hook(monkeypatch):
+    monkeypatch.syspath_prepend(HOOKS_DIR)
+    monkeypatch.syspath_prepend(os.path.join(SOURCE_ROOT, "lib"))
+    spec = importlib.util.spec_from_file_location("hook_module_name", HOOK_FILE_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+```
+
+Then patch module-level constants AFTER loading:
+```python
+hook = _import_hook(monkeypatch)
+monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
+```
+
+`raising=False` is required when the attribute does not yet exist (pre-implementation, RED tests).
+
+## UserPromptSubmit Hook — "Installed Repo" Fixture Pattern
+
+The `user-prompt-memory-check.py` hook checks `needs_install(root)` and `needs_upgrade(root)`
+before reaching the [memory-check] / recall-injection path. Bare `tmp_path` repos fail at
+`needs_install` (no CLAUDE.md) and produce `[git-memory-bootstrap]` output instead of
+`[memory-check]`. Fix: use `_make_installed_repo()` in tests that need the normal path.
+
+```python
+def _make_installed_repo(tmp_path, name="repo"):
+    repo = _make_repo(tmp_path, name)
+    # 1. CLAUDE.md with both required markers
+    with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+        f.write("<!-- BEGIN unmassk-toolkit -->\nContext Checkpoint Commits\n<!-- END unmassk-toolkit -->\n")
+    # 2. manifest.json with version == PLUGIN_VERSION (prevents needs_upgrade)
+    unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
+    os.makedirs(unmassk_dir, exist_ok=True)
+    with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
+        json.dump({"version": _PLUGIN_VERSION}, f)
+    # 3. .session-booted flag (already-booted path → [git-memory] root output)
+    open(os.path.join(unmassk_dir, ".session-booted"), "w").close()
+    return repo
+```
+
+`_PLUGIN_VERSION` comes from reading `SOURCE_ROOT/.claude-plugin/plugin.json["version"]`.
+
+Required markers:
+- `needs_install`: `"BEGIN unmassk-toolkit"` in CLAUDE.md
+- `needs_upgrade` check 1: `"Context Checkpoint Commits"` in managed block, no `"python3 bin/"` 
+- `needs_upgrade` check 2: manifest.version == PLUGIN_VERSION → tuple comparison returns False
+
+## UserPromptSubmit Hook — fail-open upgrade monkeypatch pattern
+
+When testing the `try/except` around `subprocess.run` in the upgrade branch, use
+`monkeypatch.setattr("subprocess.run", ...)` (module-level, not hook-module-level)
+BEFORE calling `hook.main()`. The hook imports `subprocess` lazily inside the try block,
+so patching at module level is sufficient.
+
+```python
+def _raise_timeout(*args, **kwargs):
+    raise subprocess.TimeoutExpired(cmd=args[0], timeout=15)
+
+monkeypatch.setattr("subprocess.run", _raise_timeout)
+```
+
+To capture `main()` output for in-process tests, monkeypatch `builtins.print`:
+
+```python
+captured = []
+monkeypatch.setattr("builtins.print", lambda *a, **kw: captured.append(" ".join(str(x) for x in a)))
+try:
+    hook.main()
+except SystemExit as exc:
+    assert exc.code == 0
+output = "\n".join(captured)
+assert "[memory-check]" in output
+```
+
+Always assert both: (1) no exception propagated, (2) `[memory-check]` present in output.
+A regression (removing the try/except) would fail condition (1). A regression (wrong output)
+would fail condition (2).
+
+## UserPromptSubmit Hook — "needs upgrade" repo fixture
+
+To force `needs_upgrade()` to return True (for testing the upgrade branch), write a CLAUDE.md
+with the OLD-STYLE marker `python3 bin/` inside the managed block — this triggers check 1
+regardless of manifest version:
+
+```python
+with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+    f.write(
+        "<!-- BEGIN unmassk-toolkit -->\n"
+        "python3 bin/git-memory-install.py\n"
+        "<!-- END unmassk-toolkit -->\n"
+    )
+```
+
+Keep the manifest.json present and version-equal so only check 1 triggers (not check 2).
+This isolates the upgrade path from the install path.
+
+## Boot Tombstone Test — Glossary-Path Fixture Pattern
+
+To test that a tombstoned note does NOT reappear via the glossary merge in
+`session-start-boot.py`, the fixture must push the original note BEYOND `SCAN_DEPTH=30`
+so `extract_memory()` cannot see it, then add the tombstone within the window.
+
+```python
+FILLER_COUNT = 35  # > SCAN_DEPTH=30
+
+def _make_installed_repo(tmp_path, name="repo"):
+    repo = str(tmp_path / name)
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+    run_script(INSTALL, repo, ["--auto"])
+    return repo
+
+def _add_filler_commits(repo, count=FILLER_COUNT):
+    for i in range(count):
+        git_cmd(["commit", "--allow-empty", "-m", f"chore(pad): filler commit {i}"], repo)
+
+# 1. Add the note
+git_cmd(["commit", "--allow-empty", "-m", f"🧠 remember(user): ...\n\nRemember: {note_text}"], repo)
+# 2. Push beyond SCAN_DEPTH
+_add_filler_commits(repo)
+# 3. Add tombstone (inside window — extract_memory() sees it)
+git_cmd(["commit", "--allow-empty", "-m", f"♻️ chore(gc): gc\n\nResolved-Remember: {note_text}"], repo)
+```
+
+The note_text in both commits must be IDENTICAL so normalize() produces the same key.
+Use a unique token (e.g. `xyzretired`) to detect reappearance unambiguously.
+
+**Variant: tombstone also outside window (Bug A T1)**  
+To test the stricter case where BOTH note AND tombstone are pushed beyond SCAN_DEPTH=30,
+add TWO filler batches: one after the note, one after the tombstone.
+
+```python
+# 1. note
+# 2. _add_filler_commits (35+)  → note exits window
+# 3. tombstone
+# 4. _add_filler_commits (35+)  → tombstone exits window
+```
+
+Both are still within the 500-commit glossary range. extract_memory() sees neither;
+the tombstone must still suppress the glossary entry. Test file:
+`unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugA).
+
+## Precompact Snapshot — has_content guard
+
+`precompact-snapshot.py` only prints the snapshot when `has_content=True`:
+`pending OR blockers OR decisions OR memos OR last_context`.  
+`remembers` alone do NOT trigger `has_content`.  
+When testing Remember behaviour in precompact, add a Decision commit as anchor
+to ensure the snapshot is emitted:
+
+```python
+git_cmd(["commit", "--allow-empty",
+         "-m", "🧭 decision(api): use REST\n\nDecision: REST over GraphQL xyzanchor"], repo)
+# Then add remember + tombstone commits
+# Verify anchor in output first (setup assertion)
+assert "xyzanchor" in output, "Test setup error: snapshot not emitted"
+```
+
+Without the anchor, the snapshot is silently skipped and the test passes vacuously.
+
+Test file: `unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugB).
+
 ## Cross-File DB Contamination — historyLimit pattern
 
 Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.
+
+## SessionStart hook — subprocess invocation (no stdin)
+
+`session-start-crew.py` takes no stdin — it is a pure SessionStart hook that
+reads `CLAUDE.md` from the git root. Invoke via `run_script(HOOK_PATH, repo)`
+with NO `input_text`. The `cwd` IS the repo root (hooks call
+`git rev-parse --show-toplevel` to find CLAUDE.md).
+
+```python
+def _run_hook(repo):
+    return run_script(HOOK_PATH, repo)
+```
+
+## PostToolUse hook — exit_code must be cast with try/except
+
+`post-validate-commit-trailers.py` receives `tool_output.exit_code` which can be
+a non-int (string word, list) from exotic tool outputs. The correct pattern is:
+
+```python
+try:
+    if exit_code is not None and int(exit_code) != 0:
+        sys.exit(0)
+except (ValueError, TypeError):
+    pass  # treat as success / fail-open
+```
+
+Always wrap `int(exit_code)` in try/except in PostToolUse hooks — fail-open on
+uncastable values.

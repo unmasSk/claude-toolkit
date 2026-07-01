@@ -131,6 +131,14 @@ their logic manually.
 | `core.py` | Internal library used by search.py — BM25 search engine, CSV config, domain routing. Do not invoke directly. Do not delete. | _(imported by search.py)_ |
 | `design_system.py` | Internal library used by search.py — design system generation from search results. Do not invoke directly. Do not delete. | _(imported by search.py)_ |
 
+### Data corpus (`data/*.csv`)
+
+`search.py` queries 12 CSV reference files in `skills/unmassk-design/data/`. You don't read them directly — `search.py` does — but knowing the corpus tells you what `--domain` values exist and what the engine can surface:
+
+`app-interface` · `charts` · `colors` · `google-fonts` · `icons` · `landing` · `products` · `react-performance` · `styles` · `typography` · `ui-reasoning` · `ux-guidelines`.
+
+(Same list documented for humans in this plugin's `README.md`.)
+
 ### search.py Flags
 
 | Flag | What It Does |

@@ -22,14 +22,15 @@ Exit codes:
 """
 
 import argparse
-import json
 import os
+import re
 import shutil
 import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git
+from managed_blocks import BLOCKS
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ def safe_rmdir(path: str) -> bool:
 # ── Uninstall Steps ──────────────────────────────────────────────────────
 
 def remove_claude_md_block(target: str) -> bool:
-    """Remove the managed block from CLAUDE.md without touching other content."""
+    """Remove all 5 managed blocks from CLAUDE.md without touching other content."""
     claude_md = os.path.join(target, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return False
@@ -115,33 +116,30 @@ def remove_claude_md_block(target: str) -> bool:
     with open(claude_md) as f:
         content = f.read()
 
-    begin = "<!-- BEGIN unmassk-toolkit (managed block — do not edit) -->"
-    end = "<!-- END unmassk-toolkit -->"
+    original = content
+    removed_any = False
 
-    begin_idx = content.find(begin)
-    end_idx = content.find(end)
+    for block in BLOCKS:
+        begin = block["begin"]
+        end = block["end"]
+        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
+        if pattern.search(content):
+            content = pattern.sub("", content)
+            removed_any = True
 
-    if begin_idx == -1 or end_idx == -1:
+    if not removed_any:
         return False
 
-    end_idx += len(end)
-    # Also remove surrounding blank lines
-    before = content[:begin_idx].rstrip()
-    after = content[end_idx:].lstrip()
+    # Collapse multiple blank lines and trim
+    content = re.sub(r"\n{3,}", "\n\n", content).strip()
 
-    if before and after:
-        new_content = before + "\n\n" + after
-    elif before:
-        new_content = before + "\n"
-    elif after:
-        new_content = after
-    else:
+    if not content:
         # CLAUDE.md would be empty — remove the file
         os.unlink(claude_md)
         return True
 
     with open(claude_md, "w") as f:
-        f.write(new_content)
+        f.write(content + "\n")
     return True
 
 
@@ -210,51 +208,6 @@ def remove_old_install_files(target: str) -> list[str]:
         safe_rmdir(os.path.join(target, d))
 
     return removed
-
-
-def _restore_statusline() -> bool:
-    """Restore the user's original statusline in ~/.claude/settings.json."""
-    claude_home = os.path.join(os.path.expanduser("~"), ".claude")
-    settings_path = os.path.join(claude_home, "settings.json")
-    backup_path = os.path.join(claude_home, ".git-memory-original-statusline")
-
-    if not os.path.isfile(settings_path):
-        return False
-
-    try:
-        with open(settings_path) as f:
-            settings = json.load(f)
-    except (json.JSONDecodeError, ValueError):
-        return False
-
-    current_sl = settings.get("statusLine", {})
-    current_cmd = current_sl.get("command", "") if isinstance(current_sl, dict) else ""
-
-    # Only restore if our wrapper is active
-    if "context-writer" not in current_cmd:
-        return False
-
-    # Restore original or remove statusline entirely
-    orig_cmd = ""
-    if os.path.isfile(backup_path):
-        with open(backup_path) as f:
-            orig_cmd = f.read().strip()
-        os.unlink(backup_path)
-
-    if orig_cmd:
-        settings["statusLine"] = {
-            "type": "command",
-            "command": orig_cmd,
-            "padding": current_sl.get("padding", 0) if isinstance(current_sl, dict) else 0,
-        }
-    else:
-        del settings["statusLine"]
-
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
-        f.write("\n")
-
-    return True
 
 
 # ── Main ──────────────────────────────────────────────────────────────────
@@ -326,15 +279,6 @@ def main() -> None:
 
     if full_local:
         all_removed.extend(remove_generated_files(target))
-
-    # Restore original statusline
-    if _restore_statusline():
-        all_removed.append("statusline wrapper (original restored)")
-
-    # Remove context status file
-    ctx_file = os.path.join(target, ".claude", ".unmassk", "context-status.json")
-    if safe_remove(ctx_file):
-        all_removed.append(".claude/.unmassk/context-status.json")
 
     print(f"\nRemoved {len(all_removed)} items:")
     for item in all_removed:

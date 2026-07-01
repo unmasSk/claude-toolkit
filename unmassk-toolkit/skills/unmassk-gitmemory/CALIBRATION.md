@@ -20,6 +20,8 @@ The most expensive error in the system: correcting in the moment but not persist
 
 **In long sessions, review memory debt at natural pauses** — when the user leaves, when you change topics, when you finish a block of work. Ask yourself: did I leave anything unsaved in the last 20 messages?
 
+**This urgency is about timing, not volume.** "Stop now and save" means: once something has passed the bar, don't defer it. It does NOT lower the bar. *What* qualifies is still governed by "write little, read often" (see `unmassk-gitmemory`): only durable, non-derivable, correctly-scoped signals. Eager timing + a high bar — not eager saving.
+
 ---
 
 ## Scope: where each thing goes
@@ -138,8 +140,8 @@ A note about the current state of the project. Not architecture, not personality
 > → `memo(plugin): deleting plugin cache breaks hooks — verify cache existence before starting`
 
 **Example — data that seems trivial but isn't:**
-> The client's real name is Raúl Rodríguez Garrote. It's in the code but Claude would have to search for it.
-> → `memo(project): client name is Raúl Rodríguez Garrote`
+> The client's real name is [CLIENT_NAME]. It's in the code but Claude would have to search for it.
+> → `memo(project): client name is [CLIENT_NAME]`
 
 ### Remember(user) — who you're working with
 
@@ -189,7 +191,18 @@ Rules for YOUR behavior. Corrections the user gave you. Lessons you learned from
 - You articulate a lesson yourself: "the lesson is that the prompt to the subagent is the work" → commit it, you already did the cognitive work
 - An operational error taught you something that applies to any project: push to wrong branch, wrong test path, subagent didn't follow instructions
 
-**The first correction is the one that counts.** Don't wait for the user to repeat it. Don't wait for them to shout. If they correct you once, save it.
+**When it does NOT fire:**
+- It's a **systemic process rule** the loaded skill already states (or should state): "follow the pipeline", "delegate code to Ultron", "use Flow before improvising", "read standards before coding". These are NOT memory — they belong in the loaded skill (`unmassk-core` / `unmassk-gitmemory`) as a hard instruction, or behind a gate (a hook that blocks). Saving one as remember(claude) mis-scopes a *toolkit* rule as *global* behavior, piles up as noise (the boot warns at 8+ remember(claude)), and a rule you have saved 3-4 times is proof the skill isn't sticky enough — **fix the skill, don't add another memory.**
+- It's a rule or fact **specific to this project/toolkit** (its pipeline, its build modes, its conventions, its file layout). That is a **memo or decision** (project-scoped, stays in this repo), NOT a remember(claude). remember(claude) is GLOBAL — it travels to every project — so a project rule saved there resurfaces in unrelated work where it's wrong. Scope test before ANY remember(claude): *would this still be true and useful in a completely different project?* If no → memo/decision, not remember.
+- It's derivable, a one-off, or already saved (see "What is NOT memory").
+
+**The first correction counts — but only for durable things.** After ruling out the systemic and project-scoped cases above, save on the FIRST correction only if it is either:
+- a **stable fact** about the user or project (name, location, company, stack), or
+- a preference the user **declares as permanent** ('always do it this way', 'from now on', 'never X').
+
+A **situational** correction — tone in this moment, a choice specific to this one task, a one-off 'not like that, like this' tied to the current context — is NOT durable memory. Respect it in the conversation and move on; do not persist it. Persisting situational corrections is over-saving by another door: they resurface later, applied where they don't belong.
+
+(A stable fact is saved on the first correction even without 'always' — the two bullets are an OR. "I'm called Jose" is saved immediately; it doesn't need "remember it forever".)
 
 **When you say "I learned that..." or "the lesson is..." — that's a commit signal.** You already formulated the rule. Just save it. This applies to any memory type, not just remember(claude).
 
@@ -252,7 +265,6 @@ Besides the 4 memory types, there is `context()` — an empty commit that marks 
 - You've completed a significant block of work and want to mark the state
 - The session is ending (the stop hook does it automatically, but if you see it getting long, do it yourself)
 - There's a clear topic change in the conversation
-- The [context-reminder] hook tells you it's been many messages without a checkpoint
 
 **Format:** `context(<scope>): <summary of where we are>` + trailer `Next: <what remains to be done>`
 
@@ -285,4 +297,4 @@ Apply everything this document says. Stop and save when you detect signals. Don'
 
 ### At pauses (review debt)
 
-The [context-reminder] hook will notify you if you've gone many messages without saving a context(). When you get that notification — or when you notice a natural pause (topic change, user leaves, you finish a block) — ask yourself: did I leave anything unsaved in the last few messages?
+At natural pauses — when the user leaves, when you change topics, when you finish a block — ask yourself: did I leave anything unsaved in the last few messages?

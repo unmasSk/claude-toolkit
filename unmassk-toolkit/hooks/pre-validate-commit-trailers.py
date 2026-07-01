@@ -148,7 +148,7 @@ def main() -> None:
             msg += f"\n{RED}>>> Run: python3 {plugin_root}/bin/git-memory-commit.py <type> <scope> <message> [--trailer KEY=VALUE]...{RESET}"
             print(msg, file=sys.stderr)
             sys.exit(2)
-        if re.search(r"\bgit\b.*\blog\b", command):
+        if re.search(r"(?:^|[;&|]\s*)git(?:\s+-\S+)*\s+log(?:\s|$)", command):
             plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "${CLAUDE_PLUGIN_ROOT}")
             msg = f"\n{RED}>>> BLOCKED: Use the git-memory log script instead of git log directly.{RESET}"
             msg += f"\n{RED}>>> Run: python3 {plugin_root}/bin/git-memory-log.py [N] [--all] [--type TYPE]{RESET}"

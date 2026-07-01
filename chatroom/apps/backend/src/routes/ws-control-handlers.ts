@@ -21,7 +21,7 @@ import { getAgentConfig } from '../services/agent-registry.js';
 import { mapMessageRow, generateId, nowIso, safeMessage } from '../utils.js';
 import { updateStatusAndBroadcast, postSystemMessage } from '../services/agent-runner.js';
 import { ROOM_STATE_MESSAGE_LIMIT } from '../config.js';
-import { AgentState } from '@agent-chatroom/shared';
+import { AgentState, AGENT_BY_NAME } from '@agent-chatroom/shared';
 import type { Message } from '@agent-chatroom/shared';
 import { logger, sendError } from './ws-state.js';
 
@@ -244,8 +244,13 @@ export function handleStopAll(ws: any, roomId: string): void {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleReinvokeFromContext(ws: any, roomId: string, agentName: string): void {
-  const agentConf = getAgentConfig(agentName);
-  if (!agentConf || !agentConf.invokable) {
+  // Use the canonical static registry for the invokable check so that agents
+  // are not rejected when AGENT_DIR is absent (e.g. in CI) and the runtime
+  // registry has no .md-derived tools. The static registry is the source of
+  // truth for whether a name is a real invokable agent; tool availability
+  // is validated later by doInvoke before any subprocess is spawned.
+  const staticDef = AGENT_BY_NAME.get(agentName.toLowerCase());
+  if (!staticDef || !staticDef.invokable) {
     sendError(ws, `Unknown or non-invokable agent: ${agentName}`, 'UNKNOWN_AGENT');
     return;
   }

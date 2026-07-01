@@ -278,6 +278,42 @@ When a module is refactored to export a shared function (e.g. `getReservedAgentN
 
 Found in: `auth-tokens.ts:49-65` (2026-03-19) — two `export function getReservedAgentNames()` declarations, return types `Set<string>` and `ReadonlySet<string>` respectively.
 
+## Dead `if not top` guard after already-proven non-empty slice
+
+When a list is guaranteed non-empty by a prior guard AND the slice index is clamped to >= 1, the `if not top: return None` after the slice is unreachable dead code. It compiles but misleads readers into thinking the empty case is possible.
+
+Pattern: `if not within_window: return None` (guard) → `within_window.sort(...)` → `top = within_window[:max_results]` → `if not top: return None` (dead).
+
+Found in: `unmassk-toolkit/lib/recall.py:440` in `recall_relevant()` (2026-06-12).
+
+## pre-memory-dedup-gate: _TRAILER_PATTERN only matches double-quoted --trailer values
+
+`pre-memory-dedup-gate.py` intercepts `python3 git-memory-commit.py memo ...` commands and looks for `--trailer "Memo=..."` (double-quoted). If Claude writes `--trailer 'Memo=value'` (single quotes) or `--trailer Memo=value` (unquoted), `_TRAILER_PATTERN` returns `None` → `_allow_passthrough()` fires → dedup check is silently skipped.
+
+The COMMIT_PATTERN fires on both forms, so the hook correctly identifies memo/remember commits. Only the TRAILER value extraction is fragile.
+
+Found in: `unmassk-toolkit/hooks/pre-memory-dedup-gate.py:158` (2026-06-12).
+
+## post-validate-commit-trailers.py missing 'remember' commit type
+
+`pre-validate-commit-trailers.py` validates `remember` commits (checks `Remember:` trailer present + valid category). `post-validate-commit-trailers.py` does NOT have a corresponding `elif commit_type == 'remember':` branch — the type falls through to only Memo/Risk/Issue format checks. Belt-and-suspenders are asymmetric for remember commits.
+
+Found in: `unmassk-toolkit/hooks/post-validate-commit-trailers.py` validate_trailers() (2026-06-12).
+
+## Session-start-boot tombstone window: glossary memos bypass retired tombstones
+
+`session-start-boot.py` populates `tombstones` from the `-n30` scan in `extract_memory()`. `extract_glossary_cached()` scans `--all -n500`. If a `Resolved-Memo` tombstone is between commits 31–500 (pushed out of the -n30 window by new work) and the glossary returns the tombstoned memo (no tombstone logic in `extract_glossary()`), the merge step's `normalize(text) not in tombstones` check passes because `tombstones` does NOT contain the now-out-of-window tombstone. The retired memo reappears in the boot output.
+
+Trigger: active project, >30 commits since a Resolved-Memo or Resolved-Remember was written.
+
+Found in: `unmassk-toolkit/hooks/session-start-boot.py` main() MEMOS/REMEMBER merge block (2026-06-12).
+
+## has_recent_memory_commits() misses scopeless memory commits
+
+`stop-dod-check.py has_recent_memory_commits()` checks `cleaned.startswith('decision(')` etc. (open-paren form). Commits with no scope — `memo: prefer X` or `decision: chose JWT` — do NOT match. The reminder fires even when memory was legitimately captured without a scope, incorrectly pushing Claude to write a redundant commit.
+
+Found in: `unmassk-toolkit/hooks/stop-dod-check.py:142` (2026-06-12).
+
 ## Shared sanitizer that does not cover its own delimiters
 
 A sanitizer function that strips all known trust-boundary markers from user content will be incomplete if the system later adds a new delimiter (e.g. box-drawing chars for a RESPAWN notice) without adding a corresponding strip pattern to the sanitizer. The gap means stored messages containing the new delimiter pass through unsanitized.

@@ -10,6 +10,7 @@ VALID_KEYS: set[str] = {
     "Issue", "Why", "Touched", "Decision", "Memo", "Next",
     "Blocker", "Risk", "Conflict", "Resolution",
     "Remember",  # Personality/working-style notes between sessions
+    "Crown",     # Modifier: marks the canonical entry for a memory kind
     "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
     "Resolved-Memo", "Resolved-Remember",  # Memory GC tombstone trailers
 }
@@ -17,9 +18,20 @@ VALID_KEYS: set[str] = {
 # Memory-relevant trailer keys for scan_trailers_memory
 MEMORY_KEYS: set[str] = {
     "Decision", "Memo", "Next", "Blocker", "Remember",
+    "Crown",
     "Resolved-Next", "Stale-Blocker",
     "Resolved-Memo", "Resolved-Remember",
 }
+
+# Tombstone trailer keys — entries whose values are resolved/excluded from recall.
+# Single source of truth: used by recall.py and session-start-boot.py.
+TOMBSTONE_KEYS: tuple[str, ...] = (
+    "Resolved-Next", "Stale-Blocker", "Resolved-Memo", "Resolved-Remember",
+)
+
+# Recall trailer keys — the memory types surfaced by the recall engine.
+# Single source of truth: used by recall.py and session-start-boot.py.
+RECALL_KEYS: tuple[str, ...] = ("Decision", "Memo", "Remember")
 
 # Risk levels for Risk: trailer
 RISK_VALUES: set[str] = {"low", "medium", "high"}

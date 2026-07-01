@@ -117,6 +117,42 @@ tests must be updated manually. Do NOT test implementation details of other modu
 - +15 tests: `tests/routes/ws-e2e-chain.test.ts` — full WS E2E chain (connect→message→broadcast→invokeAgents→DB)
 - Total as of session 6: 1136 tests, 0 failures
 
+## Python Pytest (unmassk-toolkit/tests/)
+
+Framework: `pytest` (standard). No bun, no Vitest.
+Run: `python -m pytest unmassk-toolkit/tests/<file> -q` from git root.
+CWD for subprocess calls: always a `tmp_path`-based temp git repo (NOT the project repo).
+
+Patterns used:
+- Class-per-scenario (e.g. `TestSubagentTypeAbsentOrEmpty`) with one assert per method.
+- `_make_repo(tmp_path)` + `_commit(repo, subject, trailers)` for fixture setup.
+- `_run_hook(repo, tool_name, tool_input_dict)` → `(rc, parsed, stdout, stderr)`.
+- `_run_hook_raw(repo, payload_str)` for testing malformed inputs.
+- `_hook_specific(parsed)` → `parsed["hookSpecificOutput"]`.
+- Import `run_cmd` from `conftest` for raw subprocess invocations.
+- No `@pytest.fixture` used in hook tests — all setup is inline per test.
+
+Importing internal functions from hooks/bin (no main() side effects):
+- Use `importlib.util.spec_from_file_location("unique_mod_name", SCRIPT_PATH)` + `spec.loader.exec_module(mod)`
+- Prepend LIB_DIR to sys.path BEFORE exec_module so hook's own lib imports resolve
+- Use a unique module name per test class to avoid importlib cache collisions
+- Pattern validated for: session-start-boot._sanitize_trailer_value, git-memory-gc.find_stale_items
+
+Regression test labeling convention (auditoría round 2):
+- [ROJO]: test que DEBE fallar con el código actual (documenta el bug)
+- [GUARDA]: test que DEBE pasar antes y después del fix (invariante de no regresión)
+
+## Crown modifier pattern (session: 2026-06-16)
+
+When testing hook functions that need `run_git` to point at a tmp repo:
+- Use `importlib.util.spec_from_file_location` + `spec.loader.exec_module`
+- Patch `git_helpers.run_git` AND `boot.run_git` after exec_module
+- Pass env `GIT_DIR`/`GIT_WORK_TREE` in the subprocess env dict
+- Serialize 3-tuples as JSON lists; deserialize and assert `len(first) == 3`
+
+Guard test pattern: if a property is already absent from a set (Crown not in TOMBSTONE_KEYS),
+write a [GUARD] test asserting the absence — it passes now and stays green as protection.
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:
