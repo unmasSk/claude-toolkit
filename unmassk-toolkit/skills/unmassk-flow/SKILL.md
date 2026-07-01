@@ -34,6 +34,8 @@ Classify the work BEFORE anything else. Decide together with the user.
 
 Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
 
+**Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam pulls Moriarty + Yoda into Verify regardless of size — a Quick or Standard feature with a seam is NOT exempt from Step 5's seam subsection. Record the declaration in the context commit at the end of this step.
+
 Create issue + branch after triage. Context commit: `context(<scope>): start <type> — issue #N`
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
@@ -228,6 +230,17 @@ Verify the feature works and meets quality standards.
 - **Argus** (agent:argus.md`) — deep security audit of the feature
 - **Moriarty** (agent:moriarty.md`) — adversarial attack
 - **Yoda** (agent:yoda.md`) — senior review with verdict
+
+### If producer↔consumer seam exists (network call, DB read/write, file written and reread)
+
+Triggered by the Step 0 seam declaration, regardless of size — this applies to a Quick or Standard feature exactly as it applies to a Big one. Apply `unmassk-standards` §34 (Producer↔Consumer Data Integrity). Not a new pipeline step — it runs inside this one:
+
+- **Dante** owns the round-trip check, never Ultron (the implementer does not verify his own write path). Add it as its own TodoWrite item in the Step 3 plan so it cannot be silently dropped from tracking.
+- **Moriarty** runs his Round-Trip Sabotage mandate against the real dependency before declaring the feature AGUANTA.
+- **Cerberus** confirms no expected value in the round-trip test is a hand-typed literal.
+- **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — before rendering a verdict on this seam.
+
+IF a seam is discovered during Execute that Triage did not flag THEN amend the plan (Plan Amendment Protocol) to add the round-trip task before Verify proceeds.
 
 ### Loop Condition
 

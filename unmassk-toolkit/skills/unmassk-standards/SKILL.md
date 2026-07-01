@@ -36,7 +36,7 @@ The complete standards are in `references/standards.md`. Load it when you need:
 
 ## Sections covered
 
-The standards document covers 33 sections + OWASP A10 amendment:
+The standards document covers 34 sections + OWASP A10 amendment:
 
 - Sections 1-24: Backend patterns (tiers, error handling, security, OWASP, testing, structure, API design, anti-patterns, scoring)
 - Section 25: React Component Patterns (components, hooks, error boundaries, forms, a11y)
@@ -48,4 +48,5 @@ The standards document covers 33 sections + OWASP A10 amendment:
 - Section 31: Async Patterns
 - Section 32: API Response Contract & Pagination
 - Section 33: Concurrency & Idempotency
+- Section 34: Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication)
 - Amendment: OWASP A10 (SSRF)

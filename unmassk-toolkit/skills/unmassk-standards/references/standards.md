@@ -1544,6 +1544,71 @@ IF report/export that must not see partial writes THEN REPEATABLE READ
 
 ---
 
+## 34. Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication)
+
+Origin: a production incident where 6 independent review passes gave unanimous approval on code that shipped ~2 weeks of undetected bugs. Root cause: every check validated against the same hand-typed fixture instead of the real system — the fixture and the bug agreed with each other, so agreement proved nothing. This section closes that failure at four independent checkpoints (Dante, Cerberus, Moriarty, Yoda) so a fabricated fixture can no longer satisfy all four by accident. It is enforced by checklists and gates, not yet by a CI script — treat it as structurally hard to skip, not mechanically impossible to skip.
+
+Applies ONLY where a producer↔consumer seam exists (network call, DB read/write, file written and later reread, IPC, queue publish, HTTP response). IF the code has no such seam (pure function, stateless utility, library with no I/O) THEN this section does not apply — the unit test IS the round-trip.
+
+### 34.1 Seam Classification
+
+```
+IF the changed code or its callees import/call a DB client, network client, or write a file that is read back later
+  THEN a seam exists — this section applies, no exceptions
+IF no such import/call exists anywhere in the changed files or their callees
+  THEN "no seam" MAY be claimed
+```
+
+IF "no seam" is claimed THEN it must be backed by the grep/dependency check above, stated with the exact check run and its empty result — never by an agent's unaided assertion. Two agents asserting "no seam" is not stronger than one; neither replaces the mechanical check.
+
+| Rule | Tier |
+|------|------|
+| Seam presence assumed by default (fail-closed) | T1 |
+| "No seam" claimed without the mechanical check shown | T1 |
+| Round-trip check present for a real seam | T1 |
+
+### 34.2 Data Provenance
+
+```
+IF a value is used as "expected" in an assertion against real system behavior
+  THEN it MUST be either:
+    (a) a value this same test run just wrote, re-read through the real seam, or
+    (b) derived from a contract/schema that neither the implementer nor the test author can edit to fit today's behavior
+IF neither (a) nor (b) THEN the value is fabricated ground truth — T1 finding, regardless of where it was copied from
+```
+
+Capturing a "real" response once and hand-writing it into a fixture file is fabrication the moment that response goes stale relative to the run using it — treat any persisted literal expected-value as fabricated by default. Round-trip assertions are regenerated live, every run, against the real dependency (or a disposable real instance of it in CI). Only the check's logic persists as an artifact — never the captured values.
+
+| Rule | Tier |
+|------|------|
+| Hand-typed literal used as expected value in a producer↔consumer test | T1 |
+| Persisted/committed captured response reused across runs as a fixture | T1 |
+| Expected value not traceable to this run's write or to an independent contract | T1 |
+
+### 34.3 Round-Trip Completeness
+
+```
+IF a test writes a payload with N fields
+  THEN the re-read assertion checks all N fields, enumerated programmatically from the write payload's keys (iterate the object, never a manual list) — a subset hand-picked or hand-typed by the test author does not satisfy this
+IF the test asserts only some of the fields that were written
+  THEN any field NOT asserted is an unverified seam — T2 finding, T1 if it is the field the feature is about
+```
+
+A round-trip that writes 8 fields and asserts on 1 caught nothing about the other 7.
+
+### 34.4 Closed Checklist — Producer↔Consumer Gate
+
+- [ ] Seam classification stated, with the mechanical check shown if "no seam" is claimed
+- [ ] Every expected value traces to this run's write or to an independent contract — none hand-typed against "what the backend returns"
+- [ ] Round-trip assertion covers every field in the write payload, not a hand-picked subset
+- [ ] No persisted/committed fixture value reused across runs — captured data is regenerated live
+- [ ] A sabotage attempt exists against the real dependency (Moriarty's Round-Trip Sabotage mandate) and the check went red
+- [ ] The sabotage effect was confirmed through a channel independent of the path under test
+
+IF any item is unchecked THEN the feature does not satisfy this section. Report which item and why — do not mark "done".
+
+---
+
 ## Amendment to Section 2: OWASP Top 10
 
 Add to existing OWASP table:

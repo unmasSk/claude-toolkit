@@ -115,6 +115,7 @@ Apply unconditionally on every review. This is not BM25-dependent — it always 
 - Edge cases covered
 - No flaky patterns (global state, time dependencies, non-deterministic ordering)
 - Mock verification: mocks confirm calls were made, not just that code didn't throw
+- Producer↔consumer tests (unmassk-standards §34): expected values trace to this run's write or an independent contract — never a hand-typed literal
 
 ## Anti-Patch Detection
 

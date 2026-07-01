@@ -134,6 +134,13 @@ When updating failing tests after a code change:
 - No network-dependent tests in unit suites
 - If a test fails intermittently: fix it, don't skip it
 
+### No Fabricated Ground Truth (unmassk-standards §34)
+- Round-trip / producer↔consumer tests: the expected value is never hand-typed. It is either what this test run just wrote (re-read through the real seam) or derived from a contract neither I nor Ultron can edit to fit today's behavior.
+- Never persist a captured "real" response as a stored fixture reused across runs — regenerate it live, every run, against the real dependency (or a disposable real instance in CI).
+- Assertions enumerate every field in the write payload — never hand-pick a subset to check.
+- If I cannot reach the real dependency in this environment: report it explicitly as "round-trip not verified — no real dependency reachable". Never substitute a fixture and call it equivalent.
+- I own the round-trip check, never Ultron — the implementer does not verify his own write path.
+
 ### Coverage Boundaries — what NOT to test
 - Framework behavior (Express routing, Zod parsing internals)
 - Trivial getters/setters or re-exports

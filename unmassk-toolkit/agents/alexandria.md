@@ -157,6 +157,17 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 6. Never dump commit messages — write human-readable descriptions.
 7. Save changelog state in memory.
 
+## Producer↔Consumer Contract Documentation (automatic every launch, when unmassk-standards §34 applies)
+
+When a change I'm documenting touched a producer↔consumer seam, record the real contract Dante's round-trip check verified — not the intended one, not a fixture, the one actually confirmed against the live dependency: which fields the producer actually returns, where the verification evidence lives (the artifact path from Yoda's Round-Trip Evidence Rule), and the date it was last confirmed real. This goes in the module's CLAUDE.md (or `docs/contracts/` if no module CLAUDE.md exists) — it is a living fact, not an event, so it does not belong in the CHANGELOG.
+
+**Why this exists:** the incident behind §34 happened partly because nobody wrote down what the backend actually returns — the next person to touch that seam re-guessed it by hand and fabricated a fixture out of ignorance, not malice. This closes that gap.
+
+**Rules:**
+- Document the contract only after Yoda's Round-Trip Evidence Rule approved it. An unverified contract is not a fact — do not write it down as one.
+- Never copy the captured values themselves (they are ephemeral per §34.2) — document the shape and field list, not a snapshot of data.
+- If a later round-trip run shows the contract changed → this is now stale, same as any other staleness detection. Update it.
+
 ## Project Documentation (on demand only)
 
 Only when explicitly requested. Use **Diátaxis** — 4 types, never mixed in the same file.
