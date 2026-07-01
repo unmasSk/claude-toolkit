@@ -11,8 +11,19 @@ Alexandria in parallel before retrying.
 """
 
 import json
+import os
 import re
+import shlex
 import sys
+
+# ── Path setup — lib/ must be importable ────────────────────────────────
+
+_HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
+_LIB_DIR = os.path.join(os.path.dirname(_HOOKS_DIR), "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from git_helpers import run_git  # noqa: E402  (import after sys.path mutation)
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
@@ -52,6 +63,100 @@ def _normalize(command: str) -> str:
     return _CONTROL_CHARS_RE.sub('', command)
 
 
+# ── Branch-awareness (same-branch sync exemption) ───────────────────────────
+#
+# The review gate exists to catch integration of a DIFFERENT branch's new
+# work (e.g. `git merge feature/x`), not a plain same-branch catch-up sync
+# (e.g. `git pull origin main` while sitting on `main`). Everything below is
+# fail-closed: any ambiguity or subprocess error means "not exempt" — the
+# existing block-and-require-review behavior always applies.
+
+def _strip_remote_prefix(ref: str) -> str:
+    """Strip a leading remote-name path segment, e.g. 'origin/main' -> 'main'."""
+    if "/" in ref:
+        return ref.split("/", 1)[1]
+    return ref
+
+
+def _extract_positional_args(normalized: str, keyword: str):
+    """Return non-flag tokens following `git <keyword>` in the command,
+    stopping at shell metacharacters (&&, ||, ;, |). Returns [] on any
+    tokenization failure (unbalanced quotes, etc.) — caller treats that as
+    "no target found", which fails closed."""
+    try:
+        tokens = shlex.split(normalized)
+    except ValueError:
+        return []
+
+    n = len(tokens)
+    for i in range(n - 1):
+        if tokens[i].lower() in ("git", "git.exe") and tokens[i + 1].lower() == keyword:
+            args = []
+            j = i + 2
+            while j < n:
+                tok = tokens[j]
+                if tok in ("&&", "||", ";", "|"):
+                    break
+                if not tok.startswith("-"):
+                    args.append(tok)
+                j += 1
+            return args
+    return []
+
+
+def _current_branch(cwd):
+    """Return the current branch name, or None if it cannot be determined
+    (not a git repo, detached HEAD, git missing, etc.)."""
+    rc, out = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
+    if rc != 0 or not out or out == "HEAD":
+        return None
+    return out
+
+
+def _upstream_branch(cwd):
+    """Return the current branch's upstream branch name (remote prefix
+    stripped), or None if there is no tracked upstream."""
+    rc, out = run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=cwd,
+    )
+    if rc != 0 or not out:
+        return None
+    return _strip_remote_prefix(out)
+
+
+def _is_same_branch_exempt(kind: str, normalized: str, cwd: str) -> bool:
+    """True only if this merge/pull command targets the SAME branch as the
+    current branch (a catch-up sync, not integration of foreign work).
+
+    Fails closed: any error, ambiguity, or unresolved target -> False.
+    """
+    try:
+        current = _current_branch(cwd)
+        if not current:
+            return False
+
+        if kind == "pull":
+            args = _extract_positional_args(normalized, "pull")
+            if len(args) >= 2:
+                target = args[1]
+            else:
+                target = _upstream_branch(cwd)
+        elif kind == "merge":
+            args = _extract_positional_args(normalized, "merge")
+            if not args:
+                return False
+            target = _strip_remote_prefix(args[0])
+        else:
+            return False
+
+        if not target:
+            return False
+        return target == current
+    except Exception:
+        return False
+
+
 MERGE_GATE_MESSAGE = (
     "MERGE GATE (blocked command: {cmd!r}): Before merging, launch in parallel: "
     "(1) Cerberus in commit-review mode on the merge diff, "
@@ -89,6 +194,12 @@ def main():
             sys.stdout.flush()
             return
 
+        # cwd for git subprocess calls: prefer an explicit `cwd` in the hook
+        # payload (not provided by Claude Code today, but checked defensively
+        # in case a future version adds it); fall back to the hook process's
+        # own working directory otherwise.
+        cwd = hook_input.get("cwd") or os.getcwd()
+
         normalized = _normalize(command)
 
         # POLICY CONTROL (not a security guarantee): '# merge-reviewed' is a
@@ -117,8 +228,13 @@ def main():
                 sys.stdout.flush()
                 return
 
-        # Check git merge (exempt: --abort / --continue anywhere in command).
+        # Check git merge (exempt: --abort / --continue anywhere in command,
+        # or merging your own same-named branch / remote-tracking counterpart).
         if _GIT_MERGE_RE.search(normalized) and not _GIT_MERGE_EXEMPT_RE.search(normalized):
+            if _is_same_branch_exempt("merge", normalized, cwd):
+                json.dump({"decision": "approve"}, sys.stdout)
+                sys.stdout.flush()
+                return
             json.dump({
                 "decision": "block",
                 "reason": MERGE_GATE_MESSAGE.format(cmd=command)
@@ -126,8 +242,13 @@ def main():
             sys.stdout.flush()
             return
 
-        # Check git pull without --rebase (implicit merge).
+        # Check git pull without --rebase (implicit merge), exempt when the
+        # pull target resolves to the same branch we're already on.
         if _GIT_PULL_RE.search(normalized):
+            if _is_same_branch_exempt("pull", normalized, cwd):
+                json.dump({"decision": "approve"}, sys.stdout)
+                sys.stdout.flush()
+                return
             json.dump({
                 "decision": "block",
                 "reason": MERGE_GATE_MESSAGE.format(cmd=command)

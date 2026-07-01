@@ -153,6 +153,31 @@ When testing hook functions that need `run_git` to point at a tmp repo:
 Guard test pattern: if a property is already absent from a set (Crown not in TOMBSTONE_KEYS),
 write a [GUARD] test asserting the absence — it passes now and stays green as protection.
 
+## Branch-aware hook testing (pre-merge-gate.py style, session 2026-07-01)
+
+When a hook needs to shell out to git to learn current-branch / upstream
+identity (not just regex over the command string), build a REAL git fixture
+rather than mocking git plumbing:
+
+- `git branch -m <name>` after the initial commit to force a deterministic
+  branch name — never rely on `git init -b` / `init.defaultBranch`, it
+  varies across git versions/configs.
+- For upstream-tracking scenarios (`@{u}`, `refs/remotes/origin/<branch>`),
+  create a real local bare repo (`git init --bare` in a sibling tmp_path
+  dir) as `origin`, then `git push -u origin <branch>` from the working
+  repo. Push auto-populates the local remote-tracking ref — no fetch needed,
+  no network.
+- Invoke the hook the same way test_security_regression.py does: subprocess
+  + JSON stdin payload, `cwd=repo`. Do not import-and-call for hooks that
+  shell out — the whole point is exercising the real subprocess/cwd path.
+
+This confirmed a mixed RED/GUARD result is normal and expected within a
+single contract-pass file: scenarios that require NEW logic are RED (fail
+against the unmodified hook), scenarios documented as "already implemented"
+are GUARD (pass now, must keep passing). Don't force all tests in a
+test-first contract file to be RED — report the true split honestly (see
+`test_pre_merge_gate.py`).
+
 ## config.ts Testing
 
 `resolveAgentDir()` is not exported. Test it by:
