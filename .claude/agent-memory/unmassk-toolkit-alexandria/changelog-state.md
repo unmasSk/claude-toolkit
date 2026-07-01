@@ -4,17 +4,16 @@ description: Tracks the last changelog update date and what was included, so fut
 type: project
 ---
 
-Last full audit: 2026-06-16
-Last commit covered (toolkit root): aa9b32e (feat(plugin/memory): el disparador del consolidador)
+Last full audit: 2026-07-01
+Last commit covered (toolkit root): 6611017 (feat(plugin/standards): §34 Producer↔Consumer Data Integrity)
 Last commit covered (chatroom): f4196fa (fix(plugin/chatroom/frontend): formatContent keeps agent name capitalized in queue messages)
-Current version in plugin.json: 1.7.0 (released 2026-06-12) — next release will promote current [Unreleased]
+Current version in plugin.json: 1.10.0 (released 2026-06-16) — next release will promote current [Unreleased]
 
 Root CHANGELOG structure note: Three product timelines merged into one file. Old git-memory [1.1.0] entry was renamed [1.1.0-gitmemory] on 2026-03-24 to avoid collision with toolkit [1.1.0].
 
-[Unreleased] now has entries (2026-06-16, Alexandria doc sync):
-- Orchestrator recall (documented 2026-06-12): UserPromptSubmit hook injects relevant memory into main Claude thread per message; recall_relevant() BM25/IDF gate; anti prompt-injection framing; _sanitize strips memory-data delimiters; fail-open; 70 tests; Yoda READY 107/110.
-- Crown marker (2026-06-16, commits 5d5da3e): Crown trailer marks the canonical "king" entry per memory category; boot renders it first with 👑 outside normal budget; VALID_KEYS + MEMORY_KEYS; 21 tests. Phase 1 of consolidator — infrastructure only.
-- Consolidation trigger (2026-06-16, commit aa9b32e): boot emits CONSOLIDATE: block when commits since last context(consolidation) >= threshold (default 50, env-overridable); commits_since_last_consolidation() in lib/git_helpers.py; 11 tests. Phase 2 of consolidator — trigger only; Gitto prompt is draft in docs/gitto-consolidador-DRAFT.md (Phase 4, pending review).
+[Unreleased] now has entries (2026-07-01, Alexandria doc sync):
+- Fixed (commit 7a564c3, 2026-07-01): `pre-merge-gate.py` exempts same-branch catch-up pulls/merges (e.g. `git pull origin main` while on `main`) from the Cerberus+Alexandria review gate; still fires for merging/pulling a genuinely different branch; fail-closed on ambiguity; 12 tests (`tests/test_pre_merge_gate.py`).
+- Added (commit 6611017, 2026-07-01): `unmassk-standards` §34 Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication) — 4-checkpoint gate (Dante builds round-trip check, Cerberus flags hand-typed literal fixtures, Moriarty corrupts the real dependency not just kill-switches, Yoda's Round-Trip Evidence Rule is fail-closed with no discretion). Flow Step 0 requires mandatory seam declaration. Alexandria documents the real contract post-approval, never the fixture.
 
 SKILL.md updated: Crown row added to Trailer Spec table; "Memory consolidation trigger" bullet added to Active Hooks; new "Crown entries (👑)" section added between Active Hooks and Hierarchical Scopes.
 
@@ -46,4 +45,4 @@ SKILL.md updated: Crown row added to Trailer Spec table; "Memory consolidation t
 [Unreleased] chatroom CHANGELOG.md: still contains V2 agent prompts, 5-phase pipeline, file attachments, LOC refactor, mention-parser fix, stoppedRooms guard — not yet versioned/released (unchanged from 2026-03-24).
 
 **Why:** Alexandria needs to know where to resume on next launch — only commits after the covered commits need processing.
-**How to apply:** On next run: `git log da3970c..HEAD --oneline` for toolkit root; `git log f4196fa..HEAD --oneline -- chatroom/` for chatroom. Check for new code changes not yet in either CHANGELOG.md.
+**How to apply:** On next run: `git log 6611017..HEAD --oneline` for toolkit root; `git log f4196fa..HEAD --oneline -- chatroom/` for chatroom. Check for new code changes not yet in either CHANGELOG.md.

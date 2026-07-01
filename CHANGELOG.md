@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `unmassk-standards` §34 "Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication)": closes a real-world failure class where a downstream project shipped ~2 weeks of undetected bugs because every crew agent validated against the same hand-fabricated mock fixture instead of the real backend. Enforced at four independent checkpoints: Dante (never Ultron) owns building the round-trip check against the real producer; Cerberus flags hand-typed literals used as expected values; Moriarty sabotages the real dependency with realistic corruption (not just connection kill-switches), verified through an independent channel, before declaring a feature resilient; Yoda's new Round-Trip Evidence Rule is fail-closed by default and requires a mechanical artifact he reads himself — never narrated by another agent — before rendering a verdict, with no "approved with conditions" discretion for this gate. `unmassk-flow` Step 0 (Triage) now requires a mandatory seam declaration regardless of feature size. Alexandria gains a new duty: document the real producer↔consumer contract once Yoda approves it, never the fixture.
+
+### Fixed
+
+- Merge gate (`hooks/pre-merge-gate.py`) no longer blocks same-branch catch-up syncs (e.g. `git pull origin main` while on `main`) behind the Cerberus+Alexandria review requirement — that gate now only fires when merging or pulling a genuinely different branch. Fail-closed: any ambiguity in resolving the current branch or the merge/pull target still falls back to requiring review. 12 new tests (`tests/test_pre_merge_gate.py`).
+
 ## [1.10.0] - 2026-06-16
 
 ### Added
