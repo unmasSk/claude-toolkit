@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-02
+
 ### Added
 
 - `unmassk-standards` §34 "Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication)": closes a real-world failure class where a downstream project shipped ~2 weeks of undetected bugs because every crew agent validated against the same hand-fabricated mock fixture instead of the real backend. Enforced at four independent checkpoints: Dante (never Ultron) owns building the round-trip check against the real producer; Cerberus flags hand-typed literals used as expected values; Moriarty sabotages the real dependency with realistic corruption (not just connection kill-switches), verified through an independent channel, before declaring a feature resilient; Yoda's new Round-Trip Evidence Rule is fail-closed by default and requires a mechanical artifact he reads himself — never narrated by another agent — before rendering a verdict, with no "approved with conditions" discretion for this gate. `unmassk-flow` Step 0 (Triage) now requires a mandatory seam declaration regardless of feature size. Alexandria gains a new duty: document the real producer↔consumer contract once Yoda approves it, never the fixture.
