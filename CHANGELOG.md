@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-07-03
+
 ### Changed
 
 - README "Standards" row corrected to say 34 sections (was still showing 33), matching the §34 Producer↔Consumer Data Integrity addition already shipped in v1.11.0.
