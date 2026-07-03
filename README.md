@@ -69,7 +69,7 @@ Always installed. Contains everything Claude needs to orchestrate.
 | **10 Agents** | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document), Gitto (query memory) |
 | **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
-| **Standards** | 33 sections of quality criteria — tiers, OWASP, React, TypeScript, async, API contracts, concurrency |
+| **Standards** | 34 sections of quality criteria — tiers, OWASP, React, TypeScript, async, API contracts, concurrency, producer↔consumer data integrity |
 | **Calibration** | Memory calibration trained on 30 independent analyses of real conversations — teaches Claude when to save, what type to use, and when to shut up |
 | **Protocols** | 4 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (flush decisions to memory, write the resume point) |
 
