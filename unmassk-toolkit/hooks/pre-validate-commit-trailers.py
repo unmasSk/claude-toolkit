@@ -103,6 +103,11 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
     elif commit_type == "wip":
         pass  # All trailers optional for wip
 
+    # Retract-Crown always requires Why:, regardless of commit type
+    # (mirrors every other required-trailer check above).
+    if "Retract-Crown" in trailers and "Why" not in trailers:
+        errors.append("Missing required trailer: Why: (Retract-Crown commits must explain why the crown was retracted)")
+
     # Validate Memo category if present
     if "Memo" in trailers:
         parts = trailers["Memo"].split(" - ", 1)

@@ -11,6 +11,7 @@ VALID_KEYS: set[str] = {
     "Blocker", "Risk", "Conflict", "Resolution",
     "Remember",  # Personality/working-style notes between sessions
     "Crown",     # Modifier: marks the canonical entry for a memory kind
+    "Retract-Crown",  # Modifier: retracts a crown by commit hash (not a tombstone)
     "Resolved-Next", "Stale-Blocker",  # GC tombstone trailers
     "Resolved-Memo", "Resolved-Remember",  # Memory GC tombstone trailers
 }
@@ -18,7 +19,7 @@ VALID_KEYS: set[str] = {
 # Memory-relevant trailer keys for scan_trailers_memory
 MEMORY_KEYS: set[str] = {
     "Decision", "Memo", "Next", "Blocker", "Remember",
-    "Crown",
+    "Crown", "Retract-Crown",
     "Resolved-Next", "Stale-Blocker",
     "Resolved-Memo", "Resolved-Remember",
 }

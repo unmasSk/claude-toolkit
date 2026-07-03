@@ -360,6 +360,29 @@ def extract_memory() -> dict:
     memo_scopes: set[str] = set()
     remember_seen: set[str] = set()  # dedup by normalized text
 
+    # Retracted crown hashes — collected up front over the same commit range.
+    # A retraction only ever targets a commit that is chronologically older
+    # than itself, so a single forward pass is enough regardless of log order.
+    retracted_crowns: set[str] = set()
+    for entry in commits:
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split("\x1f", 3)
+        if len(parts) < 3:
+            continue
+        rc_trailers = scan_trailers(parts[2])
+        if "Retract-Crown" in rc_trailers:
+            retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
+
+    # Per-scope "has the most recent crown for this scope already been
+    # decided" tracker. Only the single newest crown commit per scope is
+    # ever eligible to become active — once resolved (active or retracted),
+    # older crowns for the same scope must stay inert forever (they must
+    # never resurface just because the newest one got retracted).
+    crown_decision_resolved: set[str] = set()
+    crown_memo_resolved: set[str] = set()
+
     for entry in commits:
         entry = entry.strip()
         if not entry:
@@ -414,7 +437,13 @@ def extract_memory() -> dict:
 
         # Decisions (one per scope; crowned entries bypass MAX_DECISIONS cap)
         if "Decision" in trailers:
-            is_crown = (trailers.get("Crown") == "Decision")
+            is_crown = False
+            if trailers.get("Crown") == "Decision":
+                if scope not in crown_decision_resolved:
+                    crown_decision_resolved.add(scope)
+                    is_crown = sha not in retracted_crowns
+                # else: an older crown for this scope was already superseded
+                # (active or retracted) — never let it resurface.
             if scope not in decision_scopes:
                 if len(decisions) < MAX_DECISIONS or is_crown:
                     decision_scopes.add(scope)
@@ -429,7 +458,13 @@ def extract_memory() -> dict:
         # Memos (one per scope, skip tombstoned; crowned entries bypass MAX_MEMOS cap)
         if "Memo" in trailers:
             text = _sanitize_trailer_value(trailers["Memo"])
-            is_crown = (trailers.get("Crown") == "Memo")
+            is_crown = False
+            if trailers.get("Crown") == "Memo":
+                if scope not in crown_memo_resolved:
+                    crown_memo_resolved.add(scope)
+                    is_crown = sha not in retracted_crowns
+                # else: an older crown for this scope was already superseded
+                # (active or retracted) — never let it resurface.
             if scope not in memo_scopes and normalize(text) not in tombstones:
                 if len(memos) < MAX_MEMOS or is_crown:
                     memo_scopes.add(scope)
@@ -446,7 +481,7 @@ def extract_memory() -> dict:
             norm = normalize(text)
             if norm not in remember_seen and norm not in tombstones:
                 remember_seen.add(norm)
-                is_crown = (trailers.get("Crown") == "Remember")
+                is_crown = (trailers.get("Crown") == "Remember") and (sha not in retracted_crowns)
                 remembers.append((label, text, is_crown))
 
     return {
@@ -482,6 +517,10 @@ def extract_glossary() -> dict:
     glossary_tombstones: set[str] = set()
 
     commits = log_output.split("\x1e")
+
+    # Retracted crown hashes, collected up front over the same range (mirrors
+    # extract_memory() — see notes there on why a single forward pass suffices).
+    retracted_crowns: set[str] = set()
     for entry in commits:
         entry = entry.strip()
         if not entry:
@@ -489,7 +528,23 @@ def extract_glossary() -> dict:
         parts = entry.split("\x1f", 2)
         if len(parts) < 3:
             continue
-        subject, body = parts[1], parts[2]
+        rc_trailers = scan_trailers(parts[2])
+        if "Retract-Crown" in rc_trailers:
+            retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
+
+    # Per-scope "newest crown already decided" trackers — see extract_memory()
+    # for why only the single newest crown per scope may ever become active.
+    crown_decision_resolved: set[str] = set()
+    crown_memo_resolved: set[str] = set()
+
+    for entry in commits:
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split("\x1f", 2)
+        if len(parts) < 3:
+            continue
+        sha, subject, body = parts[0], parts[1], parts[2]
         trailers = scan_trailers(body)
         scope = parse_scope(subject) or ""
         label = f"({scope})" if scope else "(global)"
@@ -500,7 +555,11 @@ def extract_glossary() -> dict:
                 glossary_tombstones.add(normalize(trailers[key]))
 
         if "Decision" in trailers:
-            is_crown = (trailers.get("Crown") == "Decision")
+            is_crown = False
+            if trailers.get("Crown") == "Decision":
+                if scope not in crown_decision_resolved:
+                    crown_decision_resolved.add(scope)
+                    is_crown = sha not in retracted_crowns
             if scope not in decision_scopes:
                 if len(decisions) < GLOSSARY_MAX_DECISIONS or is_crown:
                     decision_scopes.add(scope)
@@ -513,7 +572,11 @@ def extract_glossary() -> dict:
                         break
 
         if "Memo" in trailers:
-            is_crown = (trailers.get("Crown") == "Memo")
+            is_crown = False
+            if trailers.get("Crown") == "Memo":
+                if scope not in crown_memo_resolved:
+                    crown_memo_resolved.add(scope)
+                    is_crown = sha not in retracted_crowns
             if scope not in memo_scopes:
                 if len(memos) < GLOSSARY_MAX_MEMOS or is_crown:
                     memo_scopes.add(scope)
@@ -529,7 +592,7 @@ def extract_glossary() -> dict:
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
-                is_crown = (trailers.get("Crown") == "Remember")
+                is_crown = (trailers.get("Crown") == "Remember") and (sha not in retracted_crowns)
                 remembers.append((label, text, is_crown))
 
     return {

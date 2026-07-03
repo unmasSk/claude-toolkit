@@ -184,3 +184,27 @@ exposing the CI failure.
 
 Rule: for "is this agent name valid?" checks in WS handlers, use `AGENT_BY_NAME` from
 `@agent-chatroom/shared`. For "can it run right now?" (tool config, model, etc.) use `getAgentConfig()`.
+
+## unmassk-toolkit Crown retraction: per-scope "newest crown resolved" tracker, not per-commit filter
+
+Implementing `Retract-Crown: <hash>` in `unmassk-toolkit/hooks/session-start-boot.py`
+(`extract_memory()` / `extract_glossary()`), the naive fix —
+`is_crown = (Crown == kind) and (sha not in retracted_hashes)` computed independently
+per commit — passes the single-crown case but fails multi-crown re-consolidation: if
+scope X has older crown A and newer crown B, and B gets retracted, the existing
+"crown beats non-crowned entry" replace loop lets A resurface as active, which the
+spec (and `test_crown_retraction.py::test_11`) explicitly forbids — retracting the
+active crown must fall back to fully uncrowned, never to an older superseded crown.
+
+Fix: track a per-scope, per-kind "already resolved" set (`crown_decision_resolved`,
+`crown_memo_resolved`). Since `git log` without `--reverse` yields newest-first, the
+FIRST Crown-carrying commit encountered per scope is the only retraction candidate —
+mark the scope resolved right there and decide `is_crown` once; any older Crown
+commit for that scope found afterward is ignored outright (never re-enters the
+replace logic), regardless of the first one's retraction status. Collect
+`Retract-Crown` target hashes in a separate up-front pass over the same commit range
+(retraction always targets a chronologically older commit, so a forward pass over
+the full range is simplest and order-independent).
+
+Flagged in advance by Dante's design notes:
+`.claude/agent-memory/unmassk-toolkit-dante/crown-retraction-design-notes.md`.
