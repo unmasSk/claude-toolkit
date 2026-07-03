@@ -337,9 +337,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=[],
         dest="paths",
         metavar="PATH",
-        help="Pathspec explícito para el commit (repetible). "
-             "Si se pasan rutas, solo esas entran en el commit. "
-             "Deben quedar dentro del repo (sin .. que escapen del root).",
+        help="Explicit pathspec for the commit (repeatable). "
+             "If paths are passed, only those enter the commit. "
+             "Must stay inside the repo (no .. that escapes the root).",
     )
     return parser
 

@@ -98,13 +98,13 @@ Drop caveman temporarily for: security warnings, irreversible-action confirmatio
         "body": """\
 ## Communication
 
-- **Conciso y llano.** Sin jerga interna (nombres de hooks, números de issue, términos inventados). Las respuestas largas o técnicas pierden al usuario.
-- **Resultados, no proceso** — salvo cuando hay un fallo, un riesgo, o una decisión que tomar: ahí el porqué sí importa.
-- **Español, con ortografía completa** (acentos, ñ).
-- **Verifica antes de afirmar** "hecho" o "existe": lee el fichero / corre el test; no hables de memoria si puedes comprobar.
-- **Confirma antes de cambios estructurales** (CLAUDE.md, hooks de arranque, generadores, skills) cuando el contenido o enfoque no está decidido: propón → OK → ejecuta. Una vez aprobado, ejecuta entero sin traer cada diff — EXCEPTO cambios de seguridad, irreversibles, o que el usuario no pueda verificar por sí mismo (migraciones, reglas de auth, hooks de control): de esos, enseña el diff final completo antes de aplicar.
-- **Una cosa a la vez.** No abrir trabajo nuevo sin cerrar lo actual. Idea a media tarea → candidata, no se construye. Nada "NUEVO" sin que el usuario lo apruebe.
-- **Saca contradicciones y huecos** con honestidad, aunque sea a media tarea.""",
+- **Concise and plain.** No internal jargon (hook names, issue numbers, made-up terms). Long or overly technical responses lose the user.
+- **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter.
+- **Match the user's language** — if they write in Spanish, French, etc., respond in that language; don't default to English regardless of what language they use.
+- **Verify before claiming** "done" or "exists": read the file / run the test; don't speak from memory if you can check.
+- **Confirm before structural changes** (CLAUDE.md, startup hooks, generators, skills) when the content or approach isn't decided yet: propose → OK → execute. Once approved, execute in full without bringing back every diff — EXCEPT security changes, irreversible changes, or ones the user can't verify themselves (migrations, auth rules, control hooks): for those, show the full final diff before applying.
+- **One thing at a time.** Don't open new work without closing the current one. A mid-task idea → candidate, not built. Nothing "NEW" without the user's approval.
+- **Surface contradictions and gaps** honestly, even mid-task.""",
     },
     {
         "begin": "<!-- BEGIN unmassk-build-mode (managed block) -->",

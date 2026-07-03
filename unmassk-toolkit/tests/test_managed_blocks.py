@@ -104,9 +104,9 @@ class TestBlocksDefinition:
         """Communication block must contain the finalised rules, not the placeholder."""
         body = BLOCKS[3]["body"]
         assert "PLACEHOLDER" not in body
-        assert "Conciso y llano" in body
-        assert "Español" in body
-        assert "Verifica antes de afirmar" in body
+        assert "Concise and plain" in body
+        assert "Match the user's language" in body
+        assert "Verify before claiming" in body
 
     def test_build_mode_block_content(self):
         body = BLOCKS[4]["body"]

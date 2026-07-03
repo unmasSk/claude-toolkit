@@ -847,13 +847,13 @@ Cache service implements fail-open: if Redis is unavailable, a warning is logged
 
 | Element | Language |
 |---------|----------|
-| Comments and JSDoc | Spanish |
+| Comments and JSDoc | Match the project's existing convention |
 | Variable/function names | English (camelCase) |
-| User-facing error messages | Spanish |
-| Log messages | Spanish |
-| TODO/FIXME/STUB | Spanish |
+| User-facing error messages | Match the project's existing convention |
+| Log messages | Match the project's existing convention |
+| TODO/FIXME/STUB | Match the project's existing convention |
 
-RULE: do not mix languages within the same file. Comments always in Spanish. Identifiers always in English. Violation = T3.
+RULE: comments, user-facing error messages, log messages, and TODO/FIXME/STUB follow whatever language the project's existing codebase already uses — check existing comments/messages before writing new ones. If greenfield with no existing convention, default to English (the common baseline for shared/multi-contributor code) unless the user explicitly states a different project language. Identifiers (variable/function/class names) are always in English (camelCase) regardless of comment language — this is a near-universal industry convention independent of natural language. Do not mix languages arbitrarily within the same file; follow the detected convention consistently. Violation = T3.
 
 ---
 
@@ -944,7 +944,7 @@ These files represent the target quality level. Copy structure for new modules.
 #### Maintainability (x1)
 
 - [ ] JSDoc: conforms to section 5 (no @description, no @param {Type}, no @returns {Type}, no @requires)
-- [ ] Comments in Spanish
+- [ ] Comments follow project's existing language convention
 - [ ] Named constants (no magic numbers/strings)
 - [ ] No dead code, console.log, debugger, unused imports
 - [ ] No emojis in log messages (descriptive text)

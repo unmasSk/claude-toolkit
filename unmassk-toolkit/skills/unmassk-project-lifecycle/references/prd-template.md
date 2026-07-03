@@ -1,52 +1,52 @@
-# PRD — [nombre] · (lector: IA + owner, sin audiencia humana externa)
+# PRD — [name] · (reader: AI + owner, no external human audience)
 
 ## 0. META
 - project_name: / version: / last_updated: / owner: / status:
 
-## 1. PROBLEMA Y OBJETIVO
-- problema: (qué falta hoy, concreto)
-- objetivo: (una frase, qué resuelve)
-- por_qué: (la razón — para que la IA no re-cuestione la decisión)
+## 1. PROBLEM AND GOAL
+- problem: (what's missing today, concrete)
+- goal: (one sentence, what it solves)
+- why: (the reason — so the AI doesn't re-question the decision)
 
-## 2. ALCANCE  ← sección crítica para no dispersar
-DENTRO:
+## 2. SCOPE  ← critical section to avoid scope creep
+IN:
 - 
-FUERA / NO-OBJETIVOS (explícito — la IA NO construye nada de aquí):
+OUT / NON-GOALS (explicit — the AI does NOT build anything from here):
 - 
 
-## 3. REQUISITOS FUNCIONALES
-Numerados, sin ambigüedad. Cada uno verificable.
+## 3. FUNCTIONAL REQUIREMENTS
+Numbered, unambiguous. Each one verifiable.
 1. 
 2. 
 
-## 4. CONTRATO / COMPORTAMIENTO  ← precisión para la IA
-Para cada pieza con entrada/salida definida:
-- input: / output: / reglas: / formato_error:
-(Si la pieza no es una función de datos —una skill, un hook—, describir
- el comportamiento esperado en su lugar, sin forzar JSON.)
+## 4. CONTRACT / BEHAVIOR  ← precision for the AI
+For each piece with a defined input/output:
+- input: / output: / rules: / error_format:
+(If the piece isn't a data function —a skill, a hook—, describe the
+ expected behavior instead, without forcing JSON.)
 
-## 5. EDGE CASES Y LÍMITES
-- input_vacío → / inválido → / ambigüedad →
-- límites: (tamaño, tiempo, lo que aplique)
+## 5. EDGE CASES AND LIMITS
+- empty_input → / invalid → / ambiguity →
+- limits: (size, time, whatever applies)
 
-## 6. CRITERIOS DE ÉXITO  (verificables, no "que vaya bien")
+## 6. SUCCESS CRITERIA  (verifiable, not "should go well")
 - 
 - 
 
-## 7. DEPENDENCIAS Y ORDEN
-- depende_de:
-- orden: (qué va antes que qué)
-- bloqueantes_de_producción:
+## 7. DEPENDENCIES AND ORDER
+- depends_on:
+- order: (what goes before what)
+- production_blockers:
 
-## 8. DECISIONES TOMADAS  ← para que la IA no las re-discuta
-- decisión: — razón: — fecha:
+## 8. DECISIONS MADE  ← so the AI doesn't re-discuss them
+- decision: — reason: — date:
 
-## 9. DECISIONES ABIERTAS
-- [ ] (lo que falta decidir ANTES de construir)
+## 9. OPEN DECISIONS
+- [ ] (what's left to decide BEFORE building)
 
-## 10. REGLAS DE EJECUCIÓN (IA)
-- No inferir campos/alcance no especificado. Si falta algo → preguntar, no asumir.
-- No expandir el alcance más allá de la sección 2.
-- Seguir el orden de la sección 7.
-- Determinista sobre creativo.
-- Nada entra en "construido" sin cumplir el DoD del proyecto.
+## 10. EXECUTION RULES (AI)
+- Do not infer unspecified fields/scope. If something is missing → ask, don't assume.
+- Do not expand scope beyond section 2.
+- Follow the order in section 7.
+- Deterministic over creative.
+- Nothing enters "built" without meeting the project's DoD.

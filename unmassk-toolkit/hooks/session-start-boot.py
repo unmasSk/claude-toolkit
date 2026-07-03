@@ -1178,8 +1178,8 @@ def main() -> None:
     if _commits_since >= _consolidation_threshold:
         lines.append("CONSOLIDATE:")
         lines.append(
-            f"  ⚠️ {_commits_since} commits desde la última consolidación. "
-            "Toca consolidar: lanza a Gitto (modo consolidador, aditivo — no borra nada)."
+            f"  ⚠️ {_commits_since} commits since last consolidation. "
+            "Time to consolidate: invoke Gitto (consolidator mode, additive — deletes nothing)."
         )
         lines.append("")
 

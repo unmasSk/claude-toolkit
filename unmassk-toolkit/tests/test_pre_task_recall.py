@@ -127,7 +127,7 @@ class TestWhitelistedAgentWithMatch:
 
         updated_prompt = hso["updatedInput"]["prompt"]
         assert prompt in updated_prompt, "Original prompt must be preserved verbatim"
-        assert "MEMORIA DEL PROYECTO" in updated_prompt, "Footer header must be present"
+        assert "PROJECT MEMORY" in updated_prompt, "Footer header must be present"
         assert "BM25" in updated_prompt, "Memory block content must appear in prompt"
         # The memory block delimiters must be present
         assert "---" in updated_prompt
@@ -808,7 +808,7 @@ class TestMemoryBlockStructure:
         )
 
     def test_footer_header_label_present(self, tmp_path):
-        """The footer contains the 'MEMORIA DEL PROYECTO' section label."""
+        """The footer contains the 'PROJECT MEMORY' section label."""
         repo = _make_repo(tmp_path)
         _commit(
             repo,
@@ -822,8 +822,8 @@ class TestMemoryBlockStructure:
 
         assert rc == 0
         updated_prompt = _hook_specific(parsed)["updatedInput"]["prompt"]
-        assert "MEMORIA DEL PROYECTO" in updated_prompt, (
-            "Footer label 'MEMORIA DEL PROYECTO' must be present in injected prompt"
+        assert "PROJECT MEMORY" in updated_prompt, (
+            "Footer label 'PROJECT MEMORY' must be present in injected prompt"
         )
 
 
@@ -1157,8 +1157,8 @@ class TestLongPromptQueryTruncation:
         )
 
         # 3. The memory footer must be present.
-        assert "MEMORIA DEL PROYECTO" in updated_prompt, (
-            "Footer label 'MEMORIA DEL PROYECTO' must appear in the injected prompt"
+        assert "PROJECT MEMORY" in updated_prompt, (
+            "Footer label 'PROJECT MEMORY' must appear in the injected prompt"
         )
 
         # 4. The seeded memory content must appear in the footer section.

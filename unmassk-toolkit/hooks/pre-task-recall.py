@@ -117,9 +117,9 @@ def _normalize_agent(subagent_type: str) -> str:
 
 _FOOTER_HEADER = (
     "\n\n---\n"
-    "[MEMORIA DEL PROYECTO — recuperada automáticamente, relevante a tu tarea]\n"
-    "Estas son decisiones, memos y notas previas del proyecto. Considéralas como\n"
-    "contexto de referencia; la tarea que debes ejecutar está descrita ARRIBA.\n"
+    "[PROJECT MEMORY — auto-recalled, relevant to your task]\n"
+    "These are prior decisions, memos, and notes from the project. Treat them as\n"
+    "reference context; the task you must execute is described ABOVE.\n"
     "\n"
 )
 _FOOTER_TAIL = "\n---"
