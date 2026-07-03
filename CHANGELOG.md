@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- README "Standards" row corrected to say 34 sections (was still showing 33), matching the §34 Producer↔Consumer Data Integrity addition already shipped in v1.11.0.
+
+### Fixed
+
+- Hardcoded Spanish forced onto every toolkit installer regardless of their own language, across code shared by every install: `lib/managed_blocks.py` (the generic CLAUDE.md communication block literally instructed every installer's Claude to always respond in Spanish — now language-neutral, matches the user's own language instead), `skills/unmassk-standards/references/standards.md` §18 "Language in Code" (was forcing Spanish comments/logs/error messages into the actual code Ultron writes for any installer's project, previously enforced as a T3 finding by Cerberus/Yoda — now follows the project's existing convention, defaults to English if greenfield; "identifiers always English" unchanged), `hooks/pre-task-recall.py` (memory-injection header shown to every subagent), `hooks/session-start-boot.py` (consolidation warning), `skills/unmassk-project-lifecycle/references/prd-template.md` (currently orphaned/unwired, translated anyway), and `bin/git-memory-commit.py` (`--path` argparse help string) — all translated to English. Found via a full Bilbo sweep of the distributed toolkit surface (skills/agents/hooks/lib/bin/README/CHANGELOG) after the first instance surfaced. The maintainer's own Spanish-communication preference is preserved separately as a `remember(user)` entry in git-memory — not lost, just no longer embedded in code shipped to every installer.
+
 ## [1.11.0] - 2026-07-02
 
 ### Added
