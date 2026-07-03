@@ -263,13 +263,14 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 
 **MANDATORY pre-merge gate:** Run FULL test suite (`cd backend && npx vitest run`) — not just the feature tests. If any test that passed before the feature started now fails, the feature introduced a regression. Fix before merging.
 
-1. Final commit with feature summary and trailers
-2. Merge to dev: `git checkout dev && git merge --no-ff <branch>`
-3. Push: `git push origin dev`
-4. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
-5. Delete branch (local + remote)
-6. Context commit: `context(<scope>): issue #N CLOSED`
-7. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
+Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branches on it:
+
+1. Gitto squashes the accumulated pipeline wips (see `unmassk-gitmemory` Wip Strategy) into a final commit with real trailers
+2. **Gitflow:** merge to dev (`git checkout dev && git merge --no-ff <branch>`) → push (`git push origin dev`). **Trunk:** squash lands directly on `main` → push `main` — no branch/merge step, `main` is the working branch.
+3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
+4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
+5. Context commit: `context(<scope>): issue #N CLOSED`
+6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
 
 ### If Merge Fails
 

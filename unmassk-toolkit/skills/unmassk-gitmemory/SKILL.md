@@ -65,7 +65,7 @@ The boot output terminator provides the plugin root path. Use it:
 
 **For commits**: `python3 <plugin-root>/bin/git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]... [--path PATH]... [--push]`
 
-- `--push` pushes after committing (use it after EVERY commit when the user works across machines).
+- `--push` pushes after committing. Use it on EVERY memory commit (`decision`/`memo`/`remember`/`context`) and on the final squashed commit that closes a pipeline — the user works across multiple machines and a local-only *memory* commit is invisible work on the others. Do NOT use it on intermediate `wip:` commits during an active multi-agent pipeline — see Wip Strategy below for why.
 - `--path PATH` (repeatable) commits ONLY those paths via pathspec (`git commit -- <paths>`), leaving the rest of the user's index untouched. Without it, the whole staged index is committed.
 
 **For logs**: `python3 <plugin-root>/bin/git-memory-log.py [N] [--all] [--type TYPE]`
@@ -159,8 +159,9 @@ Keys are case-sensitive, max once per commit, single-line values.
 | Situation                               | Action                                                          |
 | --------------------------------------- | --------------------------------------------------------------- |
 | Code changes + stop hook fires          | `wip:` silent auto-commit (NEVER ask the user)                  |
+| Crew agent (Ultron/Dante/Cerberus/…) returns with a summary | Orchestrator makes a local `wip:` for that sub-step — never pushed. See Wip Strategy. |
 | 3+ consecutive wips accumulated         | Evaluate: suggest squash or proper commit at natural milestones |
-| Task complete                           | Squash WIPs + final commit + merge to dev                       |
+| Pipeline complete (Yoda's verdict + Alexandria's doc sync done) | Gitto squashes all wips into a clean commit — merge to dev + push (gitflow) or squash on `main` + push (trunk) |
 | "I'm done" / "tomorrow"                 | `context()` with Next/Blocker                                   |
 | Design choice made                      | `decision()`                                                    |
 | Preference/requirement stated           | `memo()`                                                        |
@@ -178,15 +179,21 @@ For advanced issue management (milestones, templates, checklists) use `gh issue`
 
 ## Wip Strategy
 
-wip commits are silent checkpoints. The stop hook creates them automatically when it detects uncommitted changes. Rules:
+wip commits are silent checkpoints. They fire in two situations: (a) the stop hook creates one automatically when it detects uncommitted changes at session end, and (b) — the main case in an active task — the orchestrator creates one after every crew sub-step. Rules:
 
 - Use descriptive subjects: `wip: refactor auth middleware` not just `wip`
 - Never ask the user before creating a wip — they are noise-free by design
-- After 3+ consecutive wips, the stop hook suggests a checkpoint. Evaluate with judgement:
-  - If you just completed a feature/fix/refactor → suggest squashing into a real commit with trailers
-  - If the user is mid-flow → let the wips accumulate, don't interrupt
-  - Squashing means: `git reset --soft HEAD~N` + proper commit with Why/Touched/etc. trailers
 - wip commits NEVER have trailers. They are temporary by definition.
+
+**Pipeline-scoped commit/push cadence (VITAL — this is not optional).** Ultron/Dante/Cerberus/Argus/Moriarty/House/Alexandria never commit their own work. Each returns to the orchestrator with a summary of what changed; the orchestrator makes a local `wip:` for that sub-step and moves to the next one. None of these intermediate wips are pushed. A multi-step task (e.g. Ultron writes code → wip, Dante writes tests → wip, Cerberus reviews → wip, …) accumulates a chain of local wips exactly this way. The pipeline is NOT complete until **Yoda gives the final verdict** (the production-readiness judgment, e.g. a 110 score) **and Alexandria has documented** (CHANGELOG + CLAUDE.md/skills + `/docs`, per the three-audience rule in `unmassk-core`). Only at that point does Gitto:
+
+1. `git reset --soft HEAD~N` back through all the wips of this task
+2. Make one clean commit (or a few, if the change genuinely has independent parts) with real trailers (`Why`/`Touched`/etc.)
+3. Push it — gitflow repos merge to `dev` first; trunk repos push `main` directly (see Safety → Repo type)
+
+**Why it's scoped to the pipeline, not the session:** `main`'s history should read as a changelog of shipped, reviewed work — not a scroll of "fix typo," "retry CI," "address review comment." Squashing at pipeline-close makes `git bisect`, `git blame`, and changelog generation actually useful. The trade-off — mid-pipeline work is invisible on the user's other machines until the squash — is accepted deliberately in exchange for that clean history; it does NOT apply to memory commits (`decision`/`memo`/`remember`/`context`), which always push immediately regardless of pipeline state, since those are never squashed and losing them mid-session would be a real loss, not noise.
+
+Separately, if wips pile up outside a driven pipeline (e.g. exploratory work, no crew involved) and reach 3+: evaluate with judgement — if a real feature/fix/refactor just completed, suggest a proper squash+commit; if the user is mid-flow, let them accumulate.
 
 ## Conversational Capture
 
