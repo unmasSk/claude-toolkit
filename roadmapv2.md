@@ -3,7 +3,7 @@
 Qué está hecho, qué falta y cómo trabajamos. En cristiano.
 El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí va lo legible.
 
-**Actualizado: 2026-06-12.**
+**Actualizado: 2026-07-04.**
 
 ---
 
@@ -19,11 +19,11 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 - **El freno duro: no se puede cantar "hecho" con las pruebas en rojo (hoy).** Antes, al cerrar, había un aviso que se podía ignorar. Ahora, si configuras qué pruebas correr, el sistema las corre al cerrar y, si fallan, **bloquea** el cierre — no deja dar nada por terminado hasta que estén en verde. Si el propio freno peta, te deja pasar (no te atrapa). Es el cimiento que hará seguro el modo "déjalo trabajando solo".
 - **El número de versión se pone al día solo (hoy).** Cuando actualizas el plugin en una máquina, el marcador de versión de tu proyecto se sincroniza solo a la nueva versión — antes se podía quedar desfasado y no se arreglaba por sí mismo. Compara versiones de verdad (entiende que la 1.10 es más nueva que la 1.9, donde un texto a secas se equivocaría), nunca rebaja la versión, y si el marcador falta o está corrupto no hace nada raro (no se mete en un bucle).
 - **La memoria relevante me llega a MÍ en cada mensaje (hoy).** Antes solo tenía el volcado completo al arrancar la sesión. Ahora, cuando escribes algo (por ejemplo "pipeline"), lo más relevante de la memoria sobre eso me aparece **a mí** automáticamente, para no repetir errores ya anotados. Busca siempre, pero me enseña **solo lo que de verdad destaca** (no llena la conversación). Va con un cartel de "esto son datos, no órdenes" para que nadie pueda colar instrucciones disfrazadas en una nota de memoria. Si algo falla, nunca rompe la sesión.
-- **El consolidador de memoria — la base ya está (hoy).** Es lo que mantendrá la memoria limpia sola: cada cierto tiempo, Gitto se leerá toda la memoria y escribirá, por categoría, una nota **"rey"** (la fuente de la verdad), que el arranque enseña destacada con 👑 y arriba. **Es aditivo: nunca borra nada.** Ya están las dos piezas de base: la **corona** (la marca de la nota rey) y el **aviso** que me salta a los ~50 commits para que lance a Gitto. Falta la pieza que lo cierra: el **prompt de Gitto** (cómo elige la rey), que está como **borrador a revisión de otra IA** antes de instalarlo. La primera rey de cada categoría me la enseñará antes de coronarla, para ver que eligió bien.
+- **El consolidador de memoria — cerrado y publicado (v1.12.0).** Gitto tiene un tercer modo (Modo C): cada cierto tiempo se lee toda la memoria y escribe, por categoría, una nota **"rey"** (la fuente de la verdad), que el arranque enseña destacada con 👑 y arriba. **Es aditivo: nunca borra nada.** El prompt pasó por dos rondas de "consejo" + revisión independiente antes de instalarse, y se probó de verdad contra la memoria real de este mismo repo (5 reyes coronadas). Tiene además un mecanismo de corrección — **retractar una rey** — para cuando una corona sale mal: no se borra, se anota que quedó anulada y el arranque deja de destacarla. El aviso automático a los ~50 commits ya lanzaba a Gitto; ahora Gitto sabe qué hacer cuando llega.
 
 ## 👉 Lo siguiente (ya acordado)
 
-- **Cerrar el consolidador:** revisar el borrador del prompt de Gitto (con la IA externa), instalarlo, y cablear que yo lance a Gitto cuando salte el aviso. Es la única pieza que falta para que la memoria se limpie sola.
+- _Nada acordado pendiente ahora mismo._ El consolidador — el último punto que quedaba — ya está cerrado. Quedan las ideas congeladas de abajo y los candidatos, que necesitan tu visto bueno antes de tocarse.
 
 ## 🔧 Lo que queda por hacer
 
