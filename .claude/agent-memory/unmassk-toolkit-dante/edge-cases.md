@@ -322,6 +322,46 @@ Confirmed in `unmassk-toolkit/tests/test_boot_output.py`
 `_no_install` variant of the giant-commit repo builder specifically so
 `.claude/.unmassk` did not pre-exist.
 
+## Testing _sanitize_trailer_value() coverage — pick payloads that don't fight Python's own line-splitting
+
+`scan_trailers_memory()` (lib/parsing.py) parses trailer bodies via
+`body.splitlines()`, and Python's `str.splitlines()` treats `\r`, `\n`,
+`\x0b`, `\x0c`, `\x1c-\x1e`, `\x85`, U+2028, U+2029 ALL as line boundaries —
+the exact same set `_sanitize_trailer_value()` targets. Embedding a raw
+`\r`/`\n`/U+2028 etc. *inside* a trailer value in a test commit message
+therefore gets split by `splitlines()` **before** the sanitizer ever runs,
+silently truncating the trailer's parsed value at the control char — the
+test ends up not exercising the sanitizer at all, just proving trailer
+parsing stops early (a different, uninteresting fact).
+
+**Fix:** use a control sequence the sanitizer strips but that is NOT a line
+boundary for `splitlines()` — HTML comment markers (`<!--`/`-->`) or the
+`<memory-data>`/`</memory-data>` zone-delimiter tags are ideal: single-line,
+survives commit-message round-tripping, and unambiguously proves whether
+sanitization ran (`assert "<memory-data>" not in output` and the wrapped
+text still present, proving markers were stripped not the content).
+Confirmed in `test_boot_output.py` (SEC-HIGH-003 / SEC-MED-004 contract,
+session 2026-07-05) for `extract_glossary()`'s missing sanitize call on
+Decision/Memo/Remember, and for Next/Blocker's missing sanitize call in
+`extract_memory()`.
+
+## Symlink-write vulnerability test pattern (write-through-symlink)
+
+To reproduce a hook that writes a fixed-path runtime file via plain
+`open(path, "w")` with no symlink check (SEC-CRIT, e.g. boot-log-latest.txt
+/ glossary-cache.json in session-start-boot.py): create a "victim" file
+OUTSIDE the repo (in `tmp_path`, sibling to the repo dir, never inside it),
+then at the exact runtime-file path the hook would normally write to,
+guard with `if os.path.lexists(path): os.remove(path)` (use `lexists`, not
+`exists` — `exists()` follows the link and can return False for a broken
+symlink, wrongly skipping the cleanup) before `os.symlink(str(victim),
+path)`. Run the hook as a normal subprocess, then assert the victim file's
+content is UNCHANGED. Confirmed the vulnerability is real by running this
+against the unmodified hook (session 2026-07-05): both boot-log-latest.txt
+and glossary-cache.json got silently overwritten with hook-generated
+content through the symlink — no exception raised, `open(path, "w")`
+follows symlinks by default on POSIX.
+
 ## Git branch name length limits — per-component ceiling from the `.lock` file, not NAME_MAX
 
 A single-path-component branch name (no `/`) fails `git checkout -b` once

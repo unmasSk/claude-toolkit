@@ -308,6 +308,18 @@ Trigger: active project, >30 commits since a Resolved-Memo or Resolved-Remember 
 
 Found in: `unmassk-toolkit/hooks/session-start-boot.py` main() MEMOS/REMEMBER merge block (2026-06-12).
 
+**UPDATE (2026-07-04 full-file audit):** The window-gap version of this bug is RESOLVED — `extract_glossary()` now collects and returns its own `tombstones` (from the full `--all -n500` scan), and `main()` unions them with the recent-window tombstones before filtering (`tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())`). Do not re-flag the original window-gap scenario.
+
+However, a narrower **still-open variant** exists: the crown-override REPLACE branch for Memo entries never re-checks tombstones, only the initial-insert branch does. In both `extract_glossary()`'s own internal crown resolution (`memos[i] = (label, trailers["Memo"], True)` around line 611-615) and in `main()`'s MEMOS glossary-merge (`all_memos[i] = (gscope, gtext, True)` around line 1216-1220), the pattern is:
+```python
+if scope not in X and normalize(text) not in tombstones:   # tombstone checked here
+    ...
+elif is_crown:                                               # NOT checked here
+    for i, ...:
+        if match: X[i] = (..., True); break                  # replay of tombstoned text possible
+```
+Repro: an old crowned Memo commit (pushed beyond SCAN_DEPTH into glossary-only territory) whose text is later tombstoned via `Resolved-Memo`, combined with a newer non-crowned Memo commit for the SAME scope that is within SCAN_DEPTH. The crowned-but-retired text overwrites the live entry because the REPLACE path skips the tombstone check that the ADD path has. `test_boot_tombstones.py` only covers the simpler "new scope, glossary insert" tombstone path (`TestTombstonedMemoDoesNotReappearViaGlossary`) — it does not cover "crown replaces an already-populated scope". T2 finding, still open as of 2026-07-04 audit.
+
 ## has_recent_memory_commits() misses scopeless memory commits
 
 `stop-dod-check.py has_recent_memory_commits()` checks `cleaned.startswith('decision(')` etc. (open-paren form). Commits with no scope — `memo: prefer X` or `decision: chose JWT` — do NOT match. The reminder fires even when memory was legitimately captured without a scope, incorrectly pushing Claude to write a redundant commit.

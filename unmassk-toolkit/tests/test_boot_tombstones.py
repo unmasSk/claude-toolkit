@@ -225,3 +225,83 @@ class TestTombstonedMemoDoesNotReappearViaGlossary:
             "Active (non-retired) memo note (xyzactivememo) must appear in MEMOS section "
             "of the boot log file. If this fails, the fix introduced a false-positive suppression."
         )
+
+
+class TestCrownOverrideResurrectsTombstonedMemo:
+    """CRB-01 (Cerberus correctness finding, real bug — not security):
+    the crown-OVERRIDE branches never re-check the tombstone set — only the
+    INITIAL insertion branch does, in both extract_glossary()'s own Memo
+    dedup loop and main()'s glossary-merge loop for MEMOS.
+
+    Sequence that resurrects a retired entry:
+      1. An OLD Memo commit carries `Crown: Memo` for scope X.
+      2. It is later retired via a `Resolved-Memo:` trailer (exact same
+         normalized text).
+      3. Both (1) and (2) are pushed beyond SCAN_DEPTH (30) — so
+         extract_memory() never sees either; only extract_glossary()
+         (full-history scan) does.
+      4. A NEWER, non-crowned Memo commit for the SAME scope X lands inside
+         the recent window (extract_memory() sees this one fine).
+
+    extract_glossary() walks its full history newest-first: it inserts the
+    newer non-crowned entry for scope X first (still un-tombstoned at that
+    point — the insertion branch does check tombstones, but this specific
+    entry was never retired), then later reaches the OLDER crowned commit.
+    Because scope X is already present and non-crowned, it takes the
+    "crown beats a non-crowned entry" override branch — which does NOT
+    check whether the value being restored is tombstoned. The retired
+    OLD crowned text overwrites the newer active entry inside
+    extract_glossary()'s own output. main()'s glossary-merge repeats the
+    same unchecked-override mistake on top of that.
+
+    Net effect: the explicitly-retired old crowned text resurrects and
+    replaces the newer, active, never-retired entry in the final MEMOS
+    output — silently reviving content a human/agent deliberately retired.
+
+    Correct behavior: a crown-override must be a no-op if the crowned
+    commit's own text is in the combined tombstone set — the scope must
+    keep showing the newer active (non-crowned) entry instead.
+
+    [ROJO]: expected to fail against the current hook.
+    """
+
+    def test_retired_crowned_memo_does_not_resurrect_over_newer_noncrowned_memo(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        scope = "crownresurrect"
+
+        old_crowned_text = "old crowned canonical answer xyzoldcrown"
+        git_cmd(["commit", "--allow-empty", "-m",
+                 f"📌 memo({scope}): old canonical\n\n"
+                 f"Memo: {old_crowned_text}\nCrown: Memo"], repo)
+
+        git_cmd(["commit", "--allow-empty", "-m",
+                 f"♻️ chore(gc): retire old crowned memo\n\n"
+                 f"Resolved-Memo: {old_crowned_text}"], repo)
+
+        # Push both commits above beyond SCAN_DEPTH=30 — only extract_glossary()
+        # (full history) will see them; extract_memory() (recent window) won't.
+        _add_filler_commits(repo)
+
+        new_active_text = "newer active answer xyznewactive"
+        git_cmd(["commit", "--allow-empty", "-m",
+                 f"📌 memo({scope}): newer answer\n\nMemo: {new_active_text}"], repo)
+
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        start = content.find("MEMOS:")
+        memos_block = content[start:start + 2000] if start != -1 else ""
+
+        assert "xyzoldcrown" not in memos_block, (
+            f"the retired (Resolved-Memo) crowned text must NOT resurrect via "
+            f"the glossary crown-override path, which skips the tombstone "
+            f"check. Block:\n{memos_block}"
+        )
+        assert "xyznewactive" in memos_block, (
+            f"the newer, non-crowned, non-tombstoned memo must be the entry "
+            f"shown for this scope. Block:\n{memos_block}"
+        )
+        assert "👑" not in memos_block, (
+            f"the scope must render as plain (uncrowned) after its only "
+            f"crown was retired — it must not silently regain a crown. "
+            f"Block:\n{memos_block}"
+        )
