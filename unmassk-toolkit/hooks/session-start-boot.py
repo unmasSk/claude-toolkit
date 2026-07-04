@@ -1206,21 +1206,21 @@ def main() -> None:
     if memo_count > 10:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {memo_count} memos detected (threshold: 10). "
-            "Consider invoking Yoda for memory cleanup."
+            "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
     remember_user_count = sum(1 for label, _, _ in all_remembers if "(user)" in label)
     if remember_user_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_user_count} remember(user) detected (threshold: 8). "
-            "Consider invoking Yoda for memory cleanup."
+            "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
     remember_claude_count = sum(1 for label, _, _ in all_remembers if "(claude)" in label)
     if remember_claude_count > 8:
         gc_warnings.append(
             f"  ⚠️ Memory accumulation: {remember_claude_count} remember(claude) detected (threshold: 8). "
-            "Consider invoking Yoda for memory cleanup."
+            "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
     if gc_warnings:

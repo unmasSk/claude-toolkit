@@ -1,6 +1,6 @@
 # BORRADOR — Prompt del Consolidador (Gitto · Modo C)
 
-> **Estado: revisado por council (5 asesores + revisión cruzada + chairman), correcciones ya aplicadas.** NO instalado en `unmassk-toolkit/agents/gitto.md` todavía — pendiente de que Bex dé el visto bueno final a este borrador antes de instalarlo.
+> **Estado: INSTALADO.** Este borrador fue revisado por council (5 asesores + revisión cruzada + chairman), corregido, y Bex dio el visto bueno final — ya vive en `unmassk-toolkit/agents/gitto.md` (Modo C) desde la v1.12.0, incluyendo el mecanismo de retractación (`Retract-Crown:`). Este fichero se conserva como registro histórico del diseño, no como pendiente.
 > Cambios de esta revisión respecto a la versión original: (1) filtro de confianza por SCOPE, no por categoría; (2) tope de 5 reyes nuevas por pasada; (3) mini-resumen visible en el arranque siguiente, no solo reportado al orquestador; (4) toda rey cita sus commits fuente (`Sources:`); (5) nunca tratar una rey vigente como punto de partida — siempre re-derivar del grupo original (mata la circularidad: antes, una rey mala se heredaba y no se corregía sola); (6) mecanismo de retractación (`Retract-Crown:`) — la salida de emergencia que faltaba para cuando una rey ya publicada resulta estar mal.
 > Objetivo de la revisión (ya cumplido): ¿el scope está bien acotado? ¿los ejemplos enseñan bien qué coronar y qué NO? ¿se nos escapa algún modo de fallo que corrompa la memoria?
 
