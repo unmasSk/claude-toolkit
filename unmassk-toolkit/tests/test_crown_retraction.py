@@ -122,9 +122,38 @@ def _make_installed_repo(tmp_path, name="repo"):
 
 
 def _run_boot(repo):
-    """Run the session-start-boot hook and return stdout."""
+    """Run the session-start-boot hook and return stdout.
+
+    NOTE (contract correction, Bex 2026-07-04): stdout is now always a short
+    banner (STATUS/BRANCH/pointer/BOOT COMPLETE). The DECISIONS/MEMOS
+    content these tests assert on lives only in the boot-log file — use
+    _boot_log_content(repo) (below) to run boot and get that content.
+    """
     rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo)
     return stdout
+
+
+# ── Boot-log file helpers (same pattern as test_boot_output.py) ───────────
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
+
+
+def _boot_log_content(repo):
+    """Run boot (writes the boot-log file) and return its full content.
+
+    DECISIONS:/MEMOS: sections live only here now — never in stdout.
+    """
+    _run_boot(repo)
+    return _read_boot_log(repo)
 
 
 def _decisions_block(output, span=800):
@@ -328,7 +357,7 @@ class TestRetractedCrownStopsRendering:
         crown_sha = _short_sha(repo)
 
         # Sanity: crown is active before retraction.
-        before = _decisions_block(_run_boot(repo))
+        before = _decisions_block(_boot_log_content(repo))
         assert "👑" in before, f"Crown must be active before retraction. Block:\n{before}"
         assert "canonical choice" in before
 
@@ -337,7 +366,7 @@ class TestRetractedCrownStopsRendering:
                 f"Decision: no consensus, reopened for review\n"
                 f"Retract-Crown: {crown_sha}\nWhy: canonical text was outdated after the auth rewrite")
 
-        after = _decisions_block(_run_boot(repo))
+        after = _decisions_block(_boot_log_content(repo))
         assert "👑" not in after, (
             f"Retracted crown must not render with 👑 anymore. Block:\n{after}"
         )
@@ -372,7 +401,7 @@ class TestCrownWithoutRetractionRegression:
                 "🧭 decision(payments): use Stripe",
                 "Decision: Stripe over Adyen\nCrown: Decision\nWhy: consolidation")
 
-        block = _decisions_block(_run_boot(repo))
+        block = _decisions_block(_boot_log_content(repo))
         assert "👑" in block, f"Crown with no retraction must render 👑. Block:\n{block}"
         assert "Stripe over Adyen" in block
 
@@ -410,7 +439,7 @@ class TestRetractCrownNoOp:
                 f"Decision: no change\nRetract-Crown: {non_crown_sha}\n"
                 f"Why: testing a hash that never carried Crown:")
 
-        block = _decisions_block(_run_boot(repo))
+        block = _decisions_block(_boot_log_content(repo))
         assert "👑" in block, (
             f"Retract-Crown referencing a real commit that never carried Crown: "
             f"must be a no-op — the actual crown must remain active. Block:\n{block}"
@@ -439,7 +468,8 @@ class TestRetractCrownNoOp:
             f"Boot must not crash on a Retract-Crown hash matching no commit. "
             f"Output:\n{output[:600]}"
         )
-        block = _decisions_block(output)
+        content = _read_boot_log(repo)
+        block = _decisions_block(content)
         assert "👑" in block, "A garbage Retract-Crown hash must not retract the real crown"
         assert "elastic" in block
 
@@ -550,7 +580,7 @@ class TestRetractionCommitIsNormalEntry:
                 f"Retract-Crown: {crown_sha}\n"
                 f"Why: quarterly caps didn't account for enterprise plans")
 
-        block = _memos_block(_run_boot(repo))
+        block = _memos_block(_boot_log_content(repo))
         assert "👑" not in block, (
             f"Retraction must remove the crown from MEMOS. Block:\n{block}"
         )

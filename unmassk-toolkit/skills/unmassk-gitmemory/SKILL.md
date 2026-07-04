@@ -57,6 +57,8 @@ On boot, Claude only needs to:
 2. Read the SessionStart output already in context
 3. Show a summary to the user
 
+**Boot stdout is always a short banner:** stdout is unconditionally STATUS/BRANCH + a file pointer, for every repo regardless of size — the Claude Code harness only previews a small prefix of SessionStart's stdout, so there is no safe size threshold below which printing the full content inline would be safe. Read `.claude/.unmassk/boot-log-latest.txt` before doing anything else — it always holds the complete, nothing-shortened briefing (RESUME/DECISIONS/MEMOS/TIMELINE included), refreshed every boot. The only case where the full briefing still prints inline is a fallback: if writing that file itself fails (permissions, disk full), stdout carries the full content instead of pointing at a file that doesn't exist.
+
 ## Wrapper Scripts
 
 **NEVER use `git commit` or `git log` directly.** A PreToolUse hook will BLOCK them.
@@ -67,6 +69,7 @@ The boot output terminator provides the plugin root path. Use it:
 
 - `--push` pushes after committing. Use it on EVERY memory commit (`decision`/`memo`/`remember`/`context`) and on the final squashed commit that closes a pipeline — the user works across multiple machines and a local-only *memory* commit is invisible work on the others. Do NOT use it on intermediate `wip:` commits during an active multi-agent pipeline — see Wip Strategy below for why.
 - `--path PATH` (repeatable) commits ONLY those paths via pathspec (`git commit -- <paths>`), leaving the rest of the user's index untouched. Without it, the whole staged index is committed.
+- A `context()` commit's full subject line (emoji + `type(scope): message`) is capped at 100 characters — over that, the wrapper exits 1 and creates no commit. Shorten the message and put the rest in `--body` (unrestricted length). Only `context()` is checked; other types are unaffected.
 
 **For logs**: `python3 <plugin-root>/bin/git-memory-log.py [N] [--all] [--type TYPE]`
 

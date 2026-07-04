@@ -104,9 +104,29 @@ def _make_installed_repo(tmp_path, name="repo"):
 
 
 def _run_boot(repo):
-    """Run the session-start-boot hook and return stdout."""
+    """Run the session-start-boot hook and return stdout.
+
+    NOTE (contract correction, Bex 2026-07-04): stdout is now always a short
+    banner (STATUS/BRANCH/pointer/BOOT COMPLETE). The DECISIONS/MEMOS/
+    REMEMBER sections these tests assert on live only in the boot-log file —
+    use _read_boot_log(repo) after calling this to get the full content.
+    """
     rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo)
     return stdout
+
+
+# ── Boot-log file helpers (same pattern as test_boot_output.py) ───────────
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
 
 
 # ── helpers: import production modules with _repo_dir override ─────────────
@@ -497,12 +517,13 @@ class TestCrownBootDisplay:
                 "🧭 decision(auth): use JWT",
                 "Decision: JWT over sessions\nCrown: Decision")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "DECISIONS:" in output, "DECISIONS section must be present"
+        assert "DECISIONS:" in content, "DECISIONS section must be present"
 
-        decisions_start = output.find("DECISIONS:")
-        decisions_block = output[decisions_start:]
+        decisions_start = content.find("DECISIONS:")
+        decisions_block = content[decisions_start:]
 
         # 👑 must appear in the decisions block
         assert "👑" in decisions_block, (
@@ -532,12 +553,13 @@ class TestCrownBootDisplay:
                 "📌 memo(api): async preference",
                 "Memo: preference - async/await everywhere\nCrown: Memo")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "MEMOS:" in output, "MEMOS section must be present"
+        assert "MEMOS:" in content, "MEMOS section must be present"
 
-        memos_start = output.find("MEMOS:")
-        memos_block = output[memos_start:]
+        memos_start = content.find("MEMOS:")
+        memos_block = content[memos_start:]
 
         assert "👑" in memos_block, (
             "Crowned memo must display with 👑 prefix in MEMOS section. "
@@ -565,12 +587,13 @@ class TestCrownBootDisplay:
                 "🧠 remember(user): prefers Spanish",
                 "Remember: user - prefiere respuestas en español\nCrown: Remember")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "REMEMBER:" in output, "REMEMBER section must be present"
+        assert "REMEMBER:" in content, "REMEMBER section must be present"
 
-        remember_start = output.find("REMEMBER:")
-        remember_block = output[remember_start:]
+        remember_start = content.find("REMEMBER:")
+        remember_block = content[remember_start:]
 
         assert "👑" in remember_block, (
             "Crowned remember must display with 👑 prefix in REMEMBER section. "
@@ -621,14 +644,15 @@ class TestCrownDoesNotConsumeBudget:
                     f"🧭 decision(scope{i:02d}): filler {i}",
                     f"Decision: filler decision number {i} for budget test")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "DECISIONS:" in output, "DECISIONS section must be present"
-        assert "crowned canonical" in output, (
+        assert "DECISIONS:" in content, "DECISIONS section must be present"
+        assert "crowned canonical" in content, (
             "Crowned decision must appear even when normal budget (20) is full. "
             "The crown entry must not be displaced by non-crowned entries. "
             f"DECISIONS block (first 600 chars):\n"
-            f"{output[output.find('DECISIONS:'):output.find('DECISIONS:')+600]}"
+            f"{content[content.find('DECISIONS:'):content.find('DECISIONS:')+600]}"
         )
 
 
@@ -772,12 +796,13 @@ class TestCrownGlossaryWinsOverRecent:
                 "🧭 decision(auth): experiment with sessions",
                 "Decision: experiment with session-based auth")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "DECISIONS:" in output, "DECISIONS section must be present"
+        assert "DECISIONS:" in content, "DECISIONS section must be present"
 
-        decisions_start = output.find("DECISIONS:")
-        decisions_block = output[decisions_start:decisions_start + 800]
+        decisions_start = content.find("DECISIONS:")
+        decisions_block = content[decisions_start:decisions_start + 800]
 
         # The crowned entry must appear (either directly or via glossary merge)
         assert "👑" in decisions_block, (
@@ -826,11 +851,12 @@ class TestCrownGoldenInvariant:
                 "♻️ chore(gc): gc old memo",
                 "Resolved-Memo: JWT over sessions is the canonical choice")
 
-        output = _run_boot(repo)
+        _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "DECISIONS:" in output
-        decisions_start = output.find("DECISIONS:")
-        decisions_block = output[decisions_start:decisions_start + 600]
+        assert "DECISIONS:" in content
+        decisions_start = content.find("DECISIONS:")
+        decisions_block = content[decisions_start:decisions_start + 600]
 
         # The decision must still appear (tombstone does not apply to decisions)
         assert "JWT" in decisions_block, (
@@ -864,20 +890,23 @@ class TestCrownRegressionNonCrowned:
         repo = _make_installed_repo(tmp_path)
 
         output = _run_boot(repo)
+        content = _read_boot_log(repo)
 
-        # Core sections present
+        # Core sections present: STATUS/BRANCH/BOOT COMPLETE stay on the
+        # short stdout banner; RESUME/REMEMBER/DECISIONS are heavy content
+        # and live only in the boot-log file (contract correction, Bex
+        # 2026-07-04: the banner is unconditional for any repo size).
         assert "STATUS:" in output
         assert "BRANCH:" in output
-        assert "RESUME:" in output
-        assert "REMEMBER:" in output
-        assert "DECISIONS:" in output
         assert "BOOT COMPLETE" in output
+        assert "RESUME:" in content
+        assert "REMEMBER:" in content
+        assert "DECISIONS:" in content
 
-        # No spurious 👑 in output (no crowned entries exist)
-        # Check only the memory sections to avoid false positives from other output
-        decisions_start = output.find("DECISIONS:")
-        remember_start = output.find("REMEMBER:")
-        memos_start = output.find("MEMOS:")
+        # No spurious 👑 in the log file (no crowned entries exist)
+        # Check only the memory sections to avoid false positives from other content
+        decisions_start = content.find("DECISIONS:")
+        remember_start = content.find("REMEMBER:")
 
         for section_name, start in [
             ("DECISIONS", decisions_start),
@@ -885,21 +914,23 @@ class TestCrownRegressionNonCrowned:
         ]:
             if start != -1:
                 # Find the next section boundary
-                section_block = output[start:start + 300]
+                section_block = content[start:start + 300]
                 assert "👑" not in section_block, (
                     f"👑 must not appear in {section_name} section when no Crown "
                     f"trailer is present. Section block:\n{section_block}"
                 )
 
-        # Existing content is rendered
-        assert "JWT" in output or "async/await" in output or "español" in output, (
-            "At least one memory entry from the installed repo must appear in output"
+        # Existing content is rendered (in the boot-log file, where the memory
+        # sections live)
+        assert "JWT" in content or "async/await" in content or "español" in content, (
+            "At least one memory entry from the installed repo must appear in the boot log file"
         )
 
-        # Section order is preserved
+        # Section order is preserved in the log file (it carries every section,
+        # unlike the short stdout banner)
         positions = []
         for marker in ["STATUS:", "BRANCH:", "RESUME:", "REMEMBER:", "DECISIONS:", "BOOT COMPLETE"]:
-            pos = output.find(marker)
+            pos = content.find(marker)
             if pos != -1:
                 positions.append(pos)
         assert positions == sorted(positions), (

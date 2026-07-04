@@ -76,9 +76,29 @@ def _add_filler_commits(repo, count=FILLER_COUNT):
 
 
 def run_boot(repo):
-    """Run session-start-boot and return stdout."""
+    """Run session-start-boot and return stdout.
+
+    NOTE (contract correction, Bex 2026-07-04): stdout is now always a short
+    banner (STATUS/BRANCH/pointer/BOOT COMPLETE). The REMEMBER/MEMOS content
+    these tests actually assert on lives only in the boot-log file — use
+    _read_boot_log(repo) after calling this to get the full content.
+    """
     rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo)
     return stdout
+
+
+# ── Boot-log file helpers (same pattern as test_boot_output.py) ───────────
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
 
 
 # ── Tests ──────────────────────────────────────────────────────────────
@@ -113,11 +133,14 @@ class TestTombstonedRememberDoesNotReappearViaGlossary:
         git_cmd(["commit", "--allow-empty", "-m",
                  f"♻️ chore(gc): retire remember\n\nResolved-Remember: {note_text}"], repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
         # The distinctive token is unique — if it appears, the bug is present.
-        assert "xyzretired" not in output, (
-            "Retired remember note (xyzretired) must NOT appear in boot output after "
+        # REMEMBER content now lives only in the boot-log file (stdout is a
+        # short banner), so we assert against the file, not stdout.
+        assert "xyzretired" not in content, (
+            "Retired remember note (xyzretired) must NOT appear in the boot log after "
             "Resolved-Remember tombstone.  If this assertion fails today that is "
             "EXPECTED (pre-fix RED state)."
         )
@@ -138,11 +161,12 @@ class TestTombstonedRememberDoesNotReappearViaGlossary:
         git_cmd(["commit", "--allow-empty", "-m",
                  "♻️ chore(gc): retire unrelated\n\nResolved-Remember: unrelated text xyz000"], repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "xyzkept" in output, (
-            "Active (non-retired) remember note (xyzkept) must appear in REMEMBER section. "
-            "If this fails, the fix introduced a false-positive suppression."
+        assert "xyzkept" in content, (
+            "Active (non-retired) remember note (xyzkept) must appear in REMEMBER section "
+            "of the boot log file. If this fails, the fix introduced a false-positive suppression."
         )
 
 
@@ -170,10 +194,11 @@ class TestTombstonedMemoDoesNotReappearViaGlossary:
         git_cmd(["commit", "--allow-empty", "-m",
                  f"♻️ chore(gc): retire memo\n\nResolved-Memo: {memo_text}"], repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "xyzretiredmemo" not in output, (
-            "Retired memo note (xyzretiredmemo) must NOT appear in boot output after "
+        assert "xyzretiredmemo" not in content, (
+            "Retired memo note (xyzretiredmemo) must NOT appear in the boot log after "
             "Resolved-Memo tombstone.  If this assertion fails today that is "
             "EXPECTED (pre-fix RED state)."
         )
@@ -193,9 +218,10 @@ class TestTombstonedMemoDoesNotReappearViaGlossary:
         git_cmd(["commit", "--allow-empty", "-m",
                  "♻️ chore(gc): retire unrelated\n\nResolved-Memo: unrelated memo xyz000"], repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "xyzactivememo" in output, (
-            "Active (non-retired) memo note (xyzactivememo) must appear in MEMOS section. "
-            "If this fails, the fix introduced a false-positive suppression."
+        assert "xyzactivememo" in content, (
+            "Active (non-retired) memo note (xyzactivememo) must appear in MEMOS section "
+            "of the boot log file. If this fails, the fix introduced a false-positive suppression."
         )

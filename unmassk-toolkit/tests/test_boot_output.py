@@ -37,6 +37,21 @@ BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
 # already gitignores the whole directory, so no new .gitignore entry is
 # needed).
 #
+# CORRECTION (Bex, 2026-07-04): the first version of this contract made the
+# banner CONDITIONAL on a byte threshold (STDOUT_FULL_INLINE_BUDGET_BYTES =
+# 6000): print everything inline if the full briefing measured under that,
+# else switch to the banner. Yoda found this measured the wrong thing — a
+# repo with 25 ordinary scopes (nothing extreme) totalled only 3193 bytes
+# (under the threshold), yet its `Next:` line landed at byte 2491, already
+# past the harness's real ~2KB truncation point. Measuring total size never
+# guarantees where `Next:` falls. Bex's ruling: there is no conditional.
+# The banner is UNCONDITIONAL — every boot, any repo size, gets the short
+# banner on stdout and the full untruncated content in the boot-log file.
+# With no threshold to cross, this whole class of bug is impossible by
+# construction. Tests below that used to construct a "giant commit" JUST to
+# force the banner branch no longer need to — an ordinary small repo now
+# proves the same thing.
+#
 # These markers are unique repeated-character runs (not real words) so a
 # "longest contiguous run" check proves the payload was copied in full,
 # rather than cut short — natural boot-log text never repeats one character
@@ -49,6 +64,12 @@ LONG_REMEMBER_MARKER = "R" * 2030   # Remember: trailer value
 
 BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
 BOOT_LOG_REL_PATH = "/".join(BOOT_LOG_REL_PARTS)
+
+# Contract correction (Bex, 2026-07-04): the stdout banner is UNCONDITIONAL —
+# every boot, any repo size, prints this short banner and writes full content
+# to the boot-log file. There is no byte-threshold branch left to cross.
+# Single source for the "<1000 bytes" budget asserted across this file.
+STDOUT_SAFE_BYTES = 1000
 
 
 def make_repo_with_giant_commit(tmp_path, name="giant-repo"):
@@ -150,7 +171,17 @@ def run_boot(repo):
 
 
 class TestBootSections:
-    """Boot output has all required sections in correct order."""
+    """Boot output always splits in two: a short stdout banner (STATUS,
+    BRANCH, the pointer message, BOOT COMPLETE terminator) and a full
+    boot-log file with every section, untruncated. RESUME/REMEMBER/
+    DECISIONS/TIMELINE never print inline anymore — for ANY repo, not just
+    large ones — so those are asserted against the file, not stdout.
+
+    [ROJO]: the file-based assertions below fail against the current hook,
+    which still prints the full briefing inline for small/normal repos
+    (STDOUT_FULL_INLINE_BUDGET_BYTES conditional) instead of writing it to
+    the boot-log file unconditionally.
+    """
 
     def test_has_status_section(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -164,23 +195,27 @@ class TestBootSections:
 
     def test_has_resume_section(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "RESUME:" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "RESUME:" in content
 
     def test_has_remember_section(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "REMEMBER:" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "REMEMBER:" in content
 
     def test_has_decisions_section(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "DECISIONS:" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "DECISIONS:" in content
 
     def test_has_timeline_section(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "TIMELINE" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "TIMELINE" in content
 
     def test_has_boot_complete_terminator(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -194,16 +229,29 @@ class TestBootSections:
         assert "git-memory-commit.py" in output
         assert "git-memory-log.py" in output
 
-    def test_section_order(self, tmp_path):
-        """Sections appear in the designed order: STATUS, BRANCH, RESUME, REMEMBER, DECISIONS, TIMELINE, BOOT COMPLETE."""
+    def test_section_order_in_stdout_banner(self, tmp_path):
+        """The stdout banner keeps STATUS, BRANCH, BOOT COMPLETE in order."""
         repo = make_repo_with_memory(tmp_path)
         output = run_boot(repo)
         positions = []
-        for marker in ["STATUS:", "BRANCH:", "RESUME:", "REMEMBER:", "DECISIONS:", "TIMELINE", "BOOT COMPLETE"]:
+        for marker in ["STATUS:", "BRANCH:", "BOOT COMPLETE"]:
             pos = output.find(marker)
-            assert pos != -1, f"Missing section: {marker}"
+            assert pos != -1, f"Missing banner section: {marker}"
             positions.append(pos)
-        assert positions == sorted(positions), f"Sections out of order: {positions}"
+        assert positions == sorted(positions), f"Banner sections out of order: {positions}"
+
+    def test_section_order_in_log_file(self, tmp_path):
+        """The full boot-log file keeps the designed section order: STATUS,
+        BRANCH, RESUME, REMEMBER, DECISIONS, TIMELINE, BOOT COMPLETE."""
+        repo = make_repo_with_memory(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        positions = []
+        for marker in ["STATUS:", "BRANCH:", "RESUME:", "REMEMBER:", "DECISIONS:", "TIMELINE", "BOOT COMPLETE"]:
+            pos = content.find(marker)
+            assert pos != -1, f"Missing section in log file: {marker}"
+            positions.append(pos)
+        assert positions == sorted(positions), f"Sections out of order in log file: {positions}"
 
     def test_header_has_version(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -215,27 +263,34 @@ class TestBootSections:
 
     def test_resume_shows_next(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "finish JWT refresh token flow" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "finish JWT refresh token flow" in content
 
     def test_resume_shows_last_context(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
-        assert "pause JWT implementation" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "pause JWT implementation" in content
 
 
 class TestBootTimeAgo:
-    """Boot shows time since last session."""
+    """Boot shows time since last session — the time-ago string lives in the
+    RESUME section, which is no longer printed inline (any repo size), so it
+    is asserted against the full boot-log file."""
 
     def test_last_commit_has_time_ago(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
         # The RESUME section should show a time-ago like "Xm ago" or "just now"
-        assert re.search(r"\d+[mhdw] ago|just now", output)
+        assert re.search(r"\d+[mhdw] ago|just now", content)
 
 
 class TestBootBranchAwareness:
-    """Branch-scoped items appear first in their sections."""
+    """Branch-scoped items appear first in their sections — verified in the
+    full boot-log file, since RESUME/Next items are no longer printed inline
+    (any repo size)."""
 
     def test_branch_scoped_next_first(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -243,14 +298,15 @@ class TestBootBranchAwareness:
         git_cmd(["checkout", "-b", "feat/issue-42-auth-refactor"], repo)
         git_cmd(["commit", "--allow-empty", "-m",
                  "💾 context(api): pause API work\n\nWhy: context switch\nNext: add rate limiting to API"], repo)
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
         # The auth-related Next should appear BEFORE the API Next
         # because branch name contains "auth"
-        auth_pos = output.find("JWT refresh token")
-        api_pos = output.find("rate limiting")
+        auth_pos = content.find("JWT refresh token")
+        api_pos = content.find("rate limiting")
         # Both should exist
-        assert auth_pos != -1, "Branch-matching 'JWT refresh token' item missing from output"
-        assert api_pos != -1, "Non-matching 'rate limiting' item missing from output"
+        assert auth_pos != -1, "Branch-matching 'JWT refresh token' item missing from log file"
+        assert api_pos != -1, "Non-matching 'rate limiting' item missing from log file"
         # Branch-matching items must appear before non-matching items
         assert auth_pos < api_pos, (
             f"Branch-matching item should appear before non-matching item: "
@@ -318,13 +374,18 @@ class TestGlossaryCache:
 
 
 class TestVersionCheck:
-    """Version mismatch detection works correctly."""
+    """Version mismatch detection works correctly. The version warning is a
+    STATUS sub-line, which — like the rest of STATUS detail beyond the bare
+    `STATUS: ok` line — is not guaranteed to fit in the minimal stdout
+    banner, so it is asserted against the full boot-log file, which always
+    carries the complete STATUS section untruncated."""
 
     def test_no_warning_when_versions_match(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
         # STATUS should be ok with no version warning
-        assert "Plugin v" not in output or "available" not in output
+        assert "Plugin v" not in content or "available" not in content
 
     def test_warning_when_versions_mismatch(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -335,9 +396,10 @@ class TestVersionCheck:
         manifest["version"] = "1.0.0"
         with open(manifest_path, "w") as f:
             json.dump(manifest, f)
-        output = run_boot(repo)
-        assert "Plugin v" in output
-        assert "installed: v1.0.0" in output
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "Plugin v" in content
+        assert "installed: v1.0.0" in content
 
 
 class TestMigrateUntrackedGeneratedJsons:
@@ -419,27 +481,68 @@ class TestMigrateUntrackedGeneratedJsons:
         assert "STATUS:" in output
 
 
-class TestBootStdoutMinimalWithHeavyContent:
-    """Acceptance contract: stdout must survive the harness's ~2KB preview
-    window even when the underlying memory has a giant subject/trailers.
+class TestBootStdoutAlwaysMinimal:
+    """Acceptance contract (corrected, Bex 2026-07-04): the stdout banner is
+    UNCONDITIONAL. Every boot — normal small repo or one with a giant
+    subject/trailers — must survive the harness's ~2KB preview window, print
+    only the short banner, and write the full untruncated briefing to the
+    boot-log file. There is no byte threshold left to cross, so each check
+    below is proven twice: once on an ordinary small repo (the case that a
+    conditional-threshold design would have gotten wrong, per Yoda's
+    25-scopes/3193-bytes finding) and once on the original giant-commit
+    reproduction (making sure removing the threshold didn't regress the
+    extreme case).
 
     [ROJO]: every test in this class fails against the current hook, which
-    still prints STATUS/BRANCH/SCOPES/RESUME/REMEMBER/DECISIONS/MEMOS/TIMELINE
-    inline and writes no file at all.
+    still gates the banner behind STDOUT_FULL_INLINE_BUDGET_BYTES and prints
+    STATUS/BRANCH/SCOPES/RESUME/REMEMBER/DECISIONS/MEMOS/TIMELINE inline for
+    anything under that threshold — including a normal small repo.
     """
 
-    STDOUT_SAFE_BYTES = 1000  # comfortably under the harness's ~2KB preview window
+    def test_stdout_stays_under_safe_byte_budget_for_normal_repo(self, tmp_path):
+        repo = make_repo_with_memory(tmp_path)
+        output = run_boot(repo)
+        size = len(output.encode("utf-8"))
+        assert size < STDOUT_SAFE_BYTES, (
+            f"stdout is {size} bytes for a normal repo (no giant commit), "
+            f"expected < {STDOUT_SAFE_BYTES} — the banner must be "
+            "unconditional, not gated behind a byte threshold"
+        )
 
-    def test_stdout_stays_under_safe_byte_budget(self, tmp_path):
+    def test_stdout_excludes_heavy_sections_for_normal_repo(self, tmp_path):
+        repo = make_repo_with_memory(tmp_path)
+        output = run_boot(repo)
+        for heavy_marker in ["SCOPES:", "RESUME:", "REMEMBER:", "DECISIONS:", "MEMOS:", "TIMELINE"]:
+            assert heavy_marker not in output, (
+                f"stdout should never contain heavy section {heavy_marker!r}, "
+                "regardless of repo size — it belongs only in the full boot-log file"
+            )
+
+    def test_stdout_points_to_full_log_file_for_normal_repo(self, tmp_path):
+        repo = make_repo_with_memory(tmp_path)
+        output = run_boot(repo)
+        assert BOOT_LOG_REL_PATH in output.replace(os.sep, "/"), (
+            "stdout banner must reference the fixed-path full boot log file "
+            f"({BOOT_LOG_REL_PATH}) even for a small, everyday repo"
+        )
+
+    def test_stdout_instructs_to_read_the_file_for_normal_repo(self, tmp_path):
+        repo = make_repo_with_memory(tmp_path)
+        output = run_boot(repo)
+        assert re.search(r"(?i)\bread\b", output), (
+            "stdout banner must clearly instruct Claude to read the full file"
+        )
+
+    def test_stdout_stays_under_safe_byte_budget_with_giant_commit(self, tmp_path):
         repo = make_repo_with_giant_commit(tmp_path)
         output = run_boot(repo)
         size = len(output.encode("utf-8"))
-        assert size < self.STDOUT_SAFE_BYTES, (
-            f"stdout is {size} bytes, expected < {self.STDOUT_SAFE_BYTES} "
+        assert size < STDOUT_SAFE_BYTES, (
+            f"stdout is {size} bytes, expected < {STDOUT_SAFE_BYTES} "
             "to survive the harness's preview-window truncation"
         )
 
-    def test_stdout_excludes_heavy_sections(self, tmp_path):
+    def test_stdout_excludes_heavy_sections_with_giant_commit(self, tmp_path):
         repo = make_repo_with_giant_commit(tmp_path)
         output = run_boot(repo)
         for heavy_marker in ["SCOPES:", "RESUME:", "REMEMBER:", "DECISIONS:", "MEMOS:", "TIMELINE"]:
@@ -448,7 +551,7 @@ class TestBootStdoutMinimalWithHeavyContent:
                 "it belongs only in the full boot-log file"
             )
 
-    def test_stdout_points_to_full_log_file(self, tmp_path):
+    def test_stdout_points_to_full_log_file_with_giant_commit(self, tmp_path):
         repo = make_repo_with_giant_commit(tmp_path)
         output = run_boot(repo)
         assert BOOT_LOG_REL_PATH in output.replace(os.sep, "/"), (
@@ -456,7 +559,7 @@ class TestBootStdoutMinimalWithHeavyContent:
             f"({BOOT_LOG_REL_PATH})"
         )
 
-    def test_stdout_instructs_to_read_the_file(self, tmp_path):
+    def test_stdout_instructs_to_read_the_file_with_giant_commit(self, tmp_path):
         repo = make_repo_with_giant_commit(tmp_path)
         output = run_boot(repo)
         assert re.search(r"(?i)\bread\b", output), (
@@ -582,9 +685,14 @@ class TestBootLogWriteFailureFallback:
     failure path) that the stdout-truncation fix exists to prevent.
 
     Correct behavior (what this test enforces): when the log write fails,
-    the hook must fall back to printing the full inline `full_text` — the
-    same thing it does when content is small enough to fit — never a banner
-    that references a file that doesn't exist.
+    the hook must fall back to printing the full inline `full_text` —
+    regardless of repo size — never a banner that references a file that
+    doesn't exist. This is unchanged by the removal of
+    STDOUT_FULL_INLINE_BUDGET_BYTES: the write-failure fallback was never
+    about a byte threshold, it is about the write itself succeeding or not.
+    The giant commit here is still used only so the Z-marker run-length
+    gives an unambiguous, hard-to-fake proof that the FULL content survived
+    (not because it's needed to force any particular stdout mode).
     """
 
     def test_full_text_printed_when_boot_log_write_fails(self, tmp_path):
@@ -631,9 +739,13 @@ class TestBannerByteBudgetWithLongBranchName:
     branch names are "usually short", but nothing in the code caps the
     branch name length before it's embedded verbatim in the `BRANCH:` line.
     Git allows path-segment branch names well beyond what a "short" name
-    implies. A long branch name (combined with the same giant-commit banner
-    trigger used elsewhere in this file) can push the banner past the
-    1000-byte budget the contract itself requires.
+    implies, and a long branch name alone can push the banner past its
+    1000-byte budget.
+
+    Simplification (contract correction, Bex 2026-07-04): the banner is now
+    unconditional, so an ordinary small repo (make_repo_with_memory) already
+    reaches the banner path — a giant commit is no longer needed just to
+    force banner mode before testing the branch-name edge case.
 
     Uses a two-segment branch name (each segment under the filesystem's
     per-component name-length ceiling, so `git checkout -b` itself succeeds)
@@ -643,15 +755,74 @@ class TestBannerByteBudgetWithLongBranchName:
     LONG_BRANCH_NAME = ("a" * 245) + "/" + ("b" * 245)
 
     def test_banner_stays_under_byte_budget_with_long_branch_name(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
+        repo = make_repo_with_memory(tmp_path)
         rc, _, err = git_cmd(["checkout", "-b", self.LONG_BRANCH_NAME], repo)
         assert rc == 0, f"test setup failed: could not create long branch name: {err}"
 
         output = run_boot(repo)
         size = len(output.encode("utf-8"))
-        assert size < 1000, (
+        assert size < STDOUT_SAFE_BYTES, (
             f"banner is {size} bytes with a {len(self.LONG_BRANCH_NAME)}-char "
-            "branch name, expected < 1000 to stay within the contract's "
-            "stdout safety budget — the branch name must be bounded before "
-            "being embedded in the banner"
+            f"branch name, expected < {STDOUT_SAFE_BYTES} to stay within the "
+            "contract's stdout safety budget — the branch name must be "
+            "bounded before being embedded in the banner"
+        )
+
+
+class TestNoByteThresholdRegression:
+    """Regression (Yoda): the FIRST version of this fix used a conditional
+    (STDOUT_FULL_INLINE_BUDGET_BYTES = 6000, measuring TOTAL briefing size)
+    to decide between printing everything inline vs. switching to the
+    banner. Yoda found a repo with 25 ordinary scopes — nothing extreme,
+    just a normal amount of accumulated decisions — whose full briefing
+    totalled only 3193 bytes (comfortably under the 6000-byte threshold, so
+    it still printed everything inline), yet its `Next:` line landed at
+    byte 2491 — already past the harness's real ~2KB stdout truncation
+    point. Measuring total size never guarantees where `Next:` falls, so
+    that threshold left the exact same bug reachable with unremarkable
+    input.
+
+    Bex's ruling: remove the conditional entirely. There is no threshold to
+    measure against, so this class of bug cannot recur by construction —
+    this test is the direct proof, reproducing the same shape (many
+    ordinary scopes, nothing extreme) rather than the giant-single-commit
+    reproduction used elsewhere in this file.
+
+    [ROJO]: fails against the current hook, which still has
+    STDOUT_FULL_INLINE_BUDGET_BYTES and would print this repo's briefing
+    fully inline (it measures under 6000 bytes).
+    """
+
+    def test_normal_repo_with_25_scopes_still_gets_banner(self, tmp_path):
+        repo = str(tmp_path / "twentyfive-scopes-repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+        run_script(INSTALL, repo, ["--auto"])
+
+        # 25 ordinary decision commits across distinct scopes — realistic
+        # content, nothing extreme, reproducing Yoda's exact finding shape.
+        for i in range(25):
+            git_cmd(["commit", "--allow-empty", "-m",
+                     f"🧭 decision(scope{i}): pick option {i}\n\n"
+                     f"Decision: use approach {i} for this scope"], repo)
+        # The actual Next: instruction this session cares about.
+        git_cmd(["commit", "--allow-empty", "-m",
+                 "💾 context(final): pause work\n\nWhy: context switch\n"
+                 "Next: ship the release notes"], repo)
+
+        output = run_boot(repo)
+        size = len(output.encode("utf-8"))
+        assert size < STDOUT_SAFE_BYTES, (
+            f"stdout is {size} bytes for a repo with 25 ordinary scopes — "
+            "expected the short banner regardless, since there is no byte "
+            "threshold left to cross"
+        )
+        assert "Next:" not in output, (
+            "Next: must never appear inline — it belongs only in the full "
+            "boot-log file, regardless of the total briefing size"
+        )
+        content = _read_boot_log(repo)
+        assert "ship the release notes" in content, (
+            "the Next: instruction must survive in full in the boot-log file"
         )

@@ -106,9 +106,29 @@ def _add_filler_commits(repo, count=FILLER_COUNT):
 
 
 def run_boot(repo):
-    """Invoke session-start-boot and return stdout."""
+    """Invoke session-start-boot and return stdout.
+
+    NOTE (contract correction, Bex 2026-07-04): stdout is now always a short
+    banner (STATUS/BRANCH/pointer/BOOT COMPLETE). The RESUME/REMEMBER/MEMOS
+    content Bug A and Bug C's tests assert on lives only in the boot-log
+    file — use _read_boot_log(repo) after calling this to get it.
+    """
     rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo)
     return stdout
+
+
+# ── Boot-log file helpers (same pattern as test_boot_output.py) ───────────
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
 
 
 def run_precompact(repo):
@@ -166,13 +186,16 @@ class TestBugA_TombstoneOutsideScanDepth:
         # Push the tombstone itself beyond SCAN_DEPTH
         _add_filler_commits(repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
         # Bug A: today the note reappears because the tombstone is not collected
         # from the glossary range.  The assertion fails (RED).
-        assert "xyzbugatombstone" not in output, (
+        # REMEMBER content lives only in the boot-log file (stdout is a short
+        # banner), so we assert against the file, not stdout.
+        assert "xyzbugatombstone" not in content, (
             "BUG A (pre-fix RED): Retired remember note (xyzbugatombstone) must NOT "
-            "appear in boot output when its Resolved-Remember tombstone is also beyond "
+            "appear in the boot log when its Resolved-Remember tombstone is also beyond "
             "SCAN_DEPTH=30 but within glossary range (~500 commits).  "
             "After Ultron's fix this must be GREEN."
         )
@@ -205,11 +228,12 @@ class TestBugA_TombstoneOutsideScanDepth:
         # Push tombstone beyond SCAN_DEPTH
         _add_filler_commits(repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "xyzbugatombstonememo" not in output, (
+        assert "xyzbugatombstonememo" not in content, (
             "BUG A (pre-fix RED): Retired memo note (xyzbugatombstonememo) must NOT "
-            "appear in boot output when its Resolved-Memo tombstone is also beyond "
+            "appear in the boot log when its Resolved-Memo tombstone is also beyond "
             "SCAN_DEPTH=30 but within glossary range.  "
             "After Ultron's fix this must be GREEN."
         )
@@ -235,9 +259,10 @@ class TestBugA_TombstoneOutsideScanDepth:
         )
         _add_filler_commits(repo)
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        assert "xyzbugatombstonecontrol" in output, (
+        assert "xyzbugatombstonecontrol" in content, (
             "Control: active (non-retired) remember note (xyzbugatombstonecontrol) "
             "must still appear after the fix.  A failure here means the fix "
             "introduced false-positive suppression."
@@ -472,14 +497,16 @@ class TestBugC_ContextDetectionInconsistency:
             repo,
         )
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
         # The RESUME "Last:" line must NOT contain our false-positive commit.
         # Post-fix: neither extraction path matches this commit as a context commit.
         # NOTE: the commit may legitimately appear in the TIMELINE section (recent
         # commits list) — that is correct behavior and must NOT fail this test.
-        # We assert specifically on the RESUME section, not the whole output.
-        resume_section = _extract_resume_section(output)
+        # We assert specifically on the RESUME section, which (like the rest of
+        # the heavy content) lives only in the boot-log file now, not stdout.
+        resume_section = _extract_resume_section(content)
         last_line = next(
             (line for line in resume_section.splitlines() if "Last:" in line),
             None,
@@ -514,10 +541,12 @@ class TestBugC_ContextDetectionInconsistency:
             repo,
         )
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        # The legitimate context commit must appear under RESUME Last:
-        assert "xyzlegitctx" in output, (
+        # The legitimate context commit must appear under RESUME Last: —
+        # RESUME lives only in the boot-log file now, not stdout.
+        assert "xyzlegitctx" in content, (
             "Regression guard: legitimate context commit (xyzlegitctx) must appear "
             "in RESUME section.  If this fails the fix broke legitimate detection."
         )
@@ -547,12 +576,14 @@ class TestBugC_ContextDetectionInconsistency:
             repo,
         )
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
         # "contextualize" must NOT be treated as a context() commit.
         # The word "contextualize" appears in TIMELINE (always shown), so we
         # assert specifically that it does NOT appear under the RESUME "Last:" line.
-        resume_section = _extract_resume_section(output)
+        # RESUME/TIMELINE live only in the boot-log file now, not stdout.
+        resume_section = _extract_resume_section(content)
         assert "xyzcontextualise" not in resume_section, (
             "BUG C edge case: 'contextualize(db): ...' must NOT be treated as a "
             "context() commit.  The canonical criterion requires the type to be "
@@ -578,17 +609,19 @@ class TestBugC_ContextDetectionInconsistency:
             repo,
         )
 
-        output = run_boot(repo)
+        run_boot(repo)
+        content = _read_boot_log(repo)
 
-        # 1. Subject must appear in output
-        assert "xyzconsistecheck" in output, (
-            "Legitimate context commit must appear in boot output."
+        # 1. Subject must appear in the boot log file (RESUME lives there now,
+        #    not in the short stdout banner)
+        assert "xyzconsistecheck" in content, (
+            "Legitimate context commit must appear in the boot log."
         )
 
         # 2. The Last: line must include a time_ago token
         #    (produced by get_last_context_time() → both paths agree)
         last_line = next(
-            (line for line in output.splitlines() if "Last:" in line and "xyzconsistecheck" in line),
+            (line for line in content.splitlines() if "Last:" in line and "xyzconsistecheck" in line),
             None,
         )
         assert last_line is not None, (

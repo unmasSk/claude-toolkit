@@ -749,17 +749,16 @@ BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
 
 # Stdout-truncation fix: the full briefing (everything, nothing shortened)
-# is always written to this fixed-path file. stdout itself stays a short
-# banner whenever the full briefing is large enough to risk exhausting the
-# Claude Code harness's ~2KB stdout preview window — see House's diagnosis
-# and TestBootStdoutMinimalWithHeavyContent / TestBootLogFileFullContent.
+# is always written to this fixed-path file. stdout itself is UNCONDITIONALLY
+# the short banner, regardless of repo size — see House's diagnosis and
+# TestBootStdoutMinimalWithHeavyContent / TestBootLogFileFullContent. A prior
+# byte-threshold approach (STDOUT_FULL_INLINE_BUDGET_BYTES) left the same bug
+# class open: Yoda found a normal repo with 25 scopes (3193 bytes, under the
+# old 6000-byte threshold) whose Next: still fell past the harness's real
+# stdout truncation point. There is no safe threshold — the banner is always
+# printed, and the only remaining full-text-on-stdout path is the write-
+# failure fallback below (TestBootLogWriteFailureFallback).
 BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
-# Threshold picked with wide margins on both sides: a normal repo's full
-# inline briefing (status/branch/scopes/resume/etc. with realistic content)
-# sits well under this, so today's inline UX is unchanged; a single oversized
-# commit payload (the actual bug) blows past it by a wide margin, which is
-# what flips stdout over to the minimal banner + file-pointer mode.
-STDOUT_FULL_INLINE_BUDGET_BYTES = 6000
 
 
 def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
@@ -1338,13 +1337,15 @@ def main() -> None:
         except OSError:
             pass  # Boot must never fail because the log file couldn't be written
 
-    if not boot_log_path or len(full_text.encode("utf-8")) <= STDOUT_FULL_INLINE_BUDGET_BYTES:
-        # Normal case: full briefing fits comfortably — keep today's inline UX.
+    if not boot_log_path:
+        # Safety fallback: the boot log file could not be written (permissions,
+        # disk full, etc). Printing the short banner would point Claude at a
+        # file that was never written, silently losing the Next: content —
+        # exactly the bug this fix exists to prevent. Print everything inline
+        # instead, even though it risks the harness's stdout preview truncation.
         print(full_text)
     else:
-        # Heavy case: printing everything inline risks losing the Next:
-        # instruction to the harness's stdout preview truncation. Print a
-        # short banner instead and point at the full file.
+        # Unconditional: stdout is always the short banner, for any repo size.
         banner_log_path = boot_log_path.replace(os.sep, "/")
         banner_branch = _truncate_banner_field(branch)
         banner = [
@@ -1353,8 +1354,7 @@ def main() -> None:
             f"STATUS: {status}{status_detail}",
             f"BRANCH: {banner_branch}{ahead_behind}",
             "",
-            "Boot content is large this session — the full briefing (nothing "
-            "shortened) was written to:",
+            "The full briefing (nothing shortened) was written to:",
             f"  {banner_log_path}",
             "Read that file now before doing anything else — it has everything "
             "the inline briefing normally has.",

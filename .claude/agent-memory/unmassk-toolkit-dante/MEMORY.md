@@ -9,3 +9,4 @@
 - [unmassk-toolkit-python-test-conventions.md](unmassk-toolkit-python-test-conventions.md) — pytest conventions for unmassk-toolkit itself (importlib for hyphenated hook files, as_claude gotchas, repo/boot helpers)
 - [crown-retraction-design-notes.md](crown-retraction-design-notes.md) — Crown-retraction multi-crown edge case gotcha (naive per-commit patch resurfaces superseded crowns)
 - [skill-router-contract-notes.md](skill-router-contract-notes.md) — Per-message skill-router contract ("[skill-router]" marker), what the hardening pass still owes
+- [boot-stdout-banner-contract-notes.md](boot-stdout-banner-contract-notes.md) — session-start-boot.py unconditional stdout banner; pattern for migrating N dependent test files (not just the primary contract file) to the boot-log file

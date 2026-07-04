@@ -63,7 +63,13 @@ def _add_consolidation_commit(repo):
 
 
 def _run_boot(repo, extra_env=None):
-    """Ejecuta session-start-boot.py y devuelve stdout."""
+    """Ejecuta session-start-boot.py y devuelve stdout.
+
+    NOTA (corrección de contrato, Bex 2026-07-04): stdout ahora es siempre
+    un banner corto (STATUS/BRANCH/puntero/BOOT COMPLETE). El bloque
+    CONSOLIDATE: que estos tests verifican vive solo en el archivo de log
+    completo — usar _read_boot_log(repo) tras esta llamada.
+    """
     env = {**os.environ, **(extra_env or {})}
     rc, stdout, stderr = run_cmd(
         [sys.executable, BOOT_HOOK],
@@ -71,6 +77,20 @@ def _run_boot(repo, extra_env=None):
         env=extra_env,
     )
     return stdout
+
+
+# ── Boot-log file helpers (mismo patrón que test_boot_output.py) ──────────
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
 
 
 # ── Caso 01 — ≥50 commits desde consolidación → CONSOLIDATE: aparece ──────
@@ -84,10 +104,11 @@ class TestConsolidateTriggerAboveThreshold:
         _add_consolidation_commit(repo)
         # 50 commits normales desde entonces
         _add_regular_commits(repo, 50)
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"Se esperaba bloque CONSOLIDATE: con 50 commits desde la consolidación.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -130,10 +151,11 @@ class TestConsolidateTriggerBelowThreshold:
         assert count == 10, f"Helper debería devolver 10, devolvió {count!r}"
 
         # Si el helper existe y devuelve 10, el boot NO debe emitir CONSOLIDATE:
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" not in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" not in content, (
             f"NO se esperaba bloque CONSOLIDATE: con solo 10 commits desde la consolidación.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -180,11 +202,12 @@ class TestConsolidateCounterResets:
         )
 
         # Si el helper existe y devuelve 5, el boot NO debe emitir CONSOLIDATE:
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" not in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" not in content, (
             f"La consolidación reciente debe resetear el contador. "
             f"Con solo 5 commits después no debe aparecer CONSOLIDATE:.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -203,11 +226,12 @@ class TestNonConsolidationContextIgnored:
         _commit_empty(repo, "💾 context(plugin): cierre de sesión")
         # 20 commits más (total desde consolidación = 30 + 1 + 20 = 51 > 50)
         _add_regular_commits(repo, 20)
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"context(plugin) NO debe resetear el contador. "
             f"Con 51 commits desde la consolidación real debe aparecer CONSOLIDATE:.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -222,9 +246,10 @@ class TestConsolidateThresholdOverride:
         _add_regular_commits(repo, 5)  # exactamente el override
         env = {**os.environ, "GIT_MEMORY_CONSOLIDATION_THRESHOLD": "5"}
         rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo, env=env)
-        assert "CONSOLIDATE:" in stdout, (
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"Con threshold=5 y 5 commits desde consolidación debe aparecer CONSOLIDATE:.\n"
-            f"Salida:\n{stdout}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -266,10 +291,11 @@ class TestConsolidateInvalidOverride:
 
         env = {**os.environ, "GIT_MEMORY_CONSOLIDATION_THRESHOLD": "not-a-number"}
         rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo, env=env)
+        content = _read_boot_log(repo)
         # No debe crashear
-        assert "CONSOLIDATE:" not in stdout, (
+        assert "CONSOLIDATE:" not in content, (
             f"Con override inválido y 10 commits (< default 50) NO debe aparecer CONSOLIDATE:.\n"
-            f"Salida:\n{stdout}"
+            f"Boot log:\n{content}"
         )
         assert "Traceback" not in stderr, (
             f"Override inválido no debe generar excepción no manejada.\n"
@@ -283,9 +309,10 @@ class TestConsolidateInvalidOverride:
         _add_regular_commits(repo, 50)
         env = {**os.environ, "GIT_MEMORY_CONSOLIDATION_THRESHOLD": "abc"}
         rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo, env=env)
-        assert "CONSOLIDATE:" in stdout, (
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"Con override inválido y ≥50 commits debe usar default 50 → CONSOLIDATE: aparece.\n"
-            f"Salida:\n{stdout}"
+            f"Boot log:\n{content}"
         )
         assert "Traceback" not in stderr
 
@@ -301,11 +328,12 @@ class TestConsolidateLongHistory:
         _add_consolidation_commit(repo)
         # 300 commits normales después
         _add_regular_commits(repo, 300)
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"Con 300 commits desde la consolidación (historial largo) debe aparecer CONSOLIDATE:.\n"
             f"El helper no debe truncarse en una ventana corta.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 
@@ -320,11 +348,12 @@ class TestConsolidateFirstTimeNoHistory:
         _commit_empty(repo, "🧭 decision(auth): use JWT\n\nDecision: JWT\nWhy: stateless")
         _commit_empty(repo, "📌 memo(api): prefer async\n\nMemo: async/await everywhere")
         _add_regular_commits(repo, 5)
-        output = _run_boot(repo)
-        assert "CONSOLIDATE:" in output, (
+        _run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "CONSOLIDATE:" in content, (
             f"Sin ningún context(consolidation) en el historial, el sentinel debe forzar "
             f"el primer aviso de consolidación.\n"
-            f"Salida del boot:\n{output}"
+            f"Boot log:\n{content}"
         )
 
 

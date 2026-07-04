@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The `[git-memory-boot]` SessionStart hook (`unmassk-toolkit/hooks/session-start-boot.py`) could lose its `Next:` instruction when the full boot briefing was large: the Claude Code harness only previews a small prefix of SessionStart's stdout, so an oversized briefing (commonly caused by one bloated `context()` commit subject) silently cut off exactly the part telling Claude what to do next. There is no safe size threshold, so stdout is now unconditionally a short banner (status, branch, and a pointer) for every repo, regardless of size, while the complete, nothing-shortened briefing is always written to the fixed path `.claude/.unmassk/boot-log-latest.txt` for Claude to read instead. If writing that file fails for any reason, the hook falls back to printing the full content inline rather than pointing at a file that doesn't exist.
+- `git-memory-commit.py` now rejects (`exit 1`, no commit created) a `context()` commit whose full subject line (emoji + `type(scope): message`) exceeds 100 characters, telling the caller to shorten the message and move the rest into `--body` — closing off the root cause of the truncation bug above at the source, instead of only mitigating its symptom. Other commit types are unaffected.
+
 ## [1.15.0] - 2026-07-04
 
 ### Added
