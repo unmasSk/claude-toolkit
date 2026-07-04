@@ -3,11 +3,15 @@ name: unmassk-council
 description: >
   Run a high-stakes decision through a council of 5 advisors with opposing thinking
   lenses who analyze independently, peer-review anonymously, and synthesize a verdict.
-  Also covers brainstorming and throwaway prototyping as ways to explore before
-  committing. Use when there's a genuine decision with stakes and multiple options —
-  "should I X or Y", "which option", "council this", "pressure-test this", "I'm torn",
-  "help me decide", "let's brainstorm", "prototype this". Do NOT use for trivial
-  choices with one right answer. Reach for this when being wrong would be expensive.
+  Also covers open-ended idea generation and throwaway prototyping — comparing
+  candidate APPROACHES to an already-understood goal, where the goal itself is
+  known and only the path there is open. Use when the OPTIONS are already known
+  and the user must pick
+  between them — "should I X or Y", "which option", "council this", "pressure-test
+  this decision", "I'm torn", "help me decide", "prototype this". NOT for cases where
+  the goal or requirements THEMSELVES are still undefined — that's `unmassk-grill`.
+  Do NOT use for trivial choices with one right answer. Reach for this when being
+  wrong would be expensive.
 ---
 
 # Council

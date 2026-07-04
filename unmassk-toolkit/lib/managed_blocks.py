@@ -64,10 +64,22 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 (One skill handles all three; it routes internally. State the detected situation in one line before acting.)
 
+**Starting a brand new project (scaffolding, tech stack, boilerplate):**
+
+- Scaffold, initialize, or create a new project / decide the tech stack → Skill `unmassk-flow-stack` (IDE-grade scaffolding wizard, 70+ project types)
+
 **Before building something significant:**
 
 - Ambiguous request, or a decision with stakes → Skill `unmassk-grill` (interrogate until the decision tree is resolved, before writing code)
 - A real choice between options, or "help me decide / I'm torn" → Skill `unmassk-council` (5-advisor pressure-test; also covers brainstorming and prototyping)
+
+**Building a feature, fixing a non-trivial bug, or refactoring:**
+
+- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (8-step creative pipeline, idea to shipped code)
+
+**Auditing existing code against enterprise standards:**
+
+- Audit a module or an enterprise review request → Skill `unmassk-audit` (14-step structured audit, weighted score out of 110)
 
 **Ending a session:**
 
@@ -112,7 +124,7 @@ Drop caveman temporarily for: security warnings, irreversible-action confirmatio
         "body": """\
 ## Build mode (you decide, before delegating)
 
-Before running the Flow execute step, decide the build mode and tell the agents which one applies. The agents do not choose — you do.
+Before running the Execute step of `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
 
 - **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
 - **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante tests after (Flow's normal Verify step).

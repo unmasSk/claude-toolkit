@@ -2,11 +2,13 @@
 name: unmassk-grill
 description: >
   Before anything significant, interrogate the user relentlessly to resolve every
-  branch of the decision tree before writing a line of code. Use when a decision
-  has stakes, the request is ambiguous, there are two valid interpretations, or
-  the user says "grill me", "stress-test this plan", "let's think this through",
-  or describes something big without having decided the details. Reach for this
-  instead of guessing what the user meant — guessing builds the wrong thing.
+  branch of the decision tree before writing a line of code. Use when the REQUIREMENTS
+  themselves are still undefined — the request is ambiguous, there are two valid
+  interpretations of WHAT TO BUILD (not which of two known approaches to take), or
+  the user says "grill me", "let's think this through", or describes something big
+  without having decided the details. NOT for choosing between already-known,
+  already-scoped options — that's `unmassk-council`. Reach for this instead of
+  guessing what the user meant — guessing builds the wrong thing.
 ---
 
 # Grill

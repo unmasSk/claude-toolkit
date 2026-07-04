@@ -1,9 +1,11 @@
 ---
 name: unmassk-flow-stack
 description: >
-  Use when the user says "scaffold project", "create new project", "tech stack",
-  "what framework",
-  or asks to create, initialize, or scaffold any application, codebase, or boilerplate.
+  Use when the user asks to pick a tech stack, scaffold a specific framework/boilerplate
+  (React, Next.js, Vue, Astro, FastAPI, Django, etc.), or says "scaffold project",
+  "what framework", "which stack" — i.e. the stack choice IS the ask. If the user is
+  just starting or resuming a project with no stack decided yet, use
+  `unmassk-project-lifecycle` first; it routes here internally.
   IDE-grade project scaffolding wizard for creating new projects with comprehensive configuration.
   Supports 70+ project types: HTML/CSS websites, React, Next.js, Vue, Astro, Remix, React Native,
   Flutter, Expo, FastAPI, Django, Express, NestJS, Go/Gin, Rust/Axum, Spring Boot, Hono, Elysia,

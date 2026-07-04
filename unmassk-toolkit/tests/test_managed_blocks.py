@@ -95,6 +95,83 @@ class TestBlocksDefinition:
         assert "unmassk-council" in body
         assert "unmassk-close-session" in body
 
+    # ── Contract (TDD): the 3 real, shipped protocol skills that were
+    # deliberately excluded from the Protocols menu under an old "only list
+    # installed+referenced skills" policy. All 3 are fully built and tested
+    # (not drafts), so the exclusion reason no longer applies — an 11-agent
+    # council confirmed hiding them from the one menu Claude reads every
+    # session actively hurts routing. These MUST fail against the current
+    # generator (RED) until managed_blocks.py's protocols block body is
+    # updated to include them (Ultron's job).
+
+    def test_protocols_block_includes_flow_skill(self):
+        """unmassk-flow (8-step creative build pipeline) must appear in the menu.
+
+        Source of truth for trigger wording: skills/unmassk-flow/SKILL.md
+        description — 'build a feature', 'create something new', 'implement',
+        'add functionality', 'fix a non-trivial bug', 'refactor'.
+        """
+        body = BLOCKS[1]["body"]
+        assert "`unmassk-flow`" in body, (
+            "unmassk-flow is shipped and tested but missing from the Protocols "
+            "menu — Claude can't route to a skill it can't see here"
+        )
+        trigger_phrases = ("build a feature", "implement", "non-trivial", "refactor")
+        assert any(phrase in body.lower() for phrase in trigger_phrases), (
+            "Protocols row for unmassk-flow must reflect its real trigger "
+            f"situation from SKILL.md's description (expected one of {trigger_phrases})"
+        )
+
+    def test_protocols_block_includes_audit_skill(self):
+        """unmassk-audit (14-step enterprise audit workflow) must appear in the menu.
+
+        Source of truth for trigger wording: skills/unmassk-audit/SKILL.md
+        description — 'audit a module', 'enterprise review', 'launch audit'.
+        """
+        body = BLOCKS[1]["body"]
+        assert "`unmassk-audit`" in body, (
+            "unmassk-audit is shipped and tested but missing from the Protocols "
+            "menu — Claude can't route to a skill it can't see here"
+        )
+        trigger_phrases = ("audit", "enterprise review")
+        assert any(phrase in body.lower() for phrase in trigger_phrases), (
+            "Protocols row for unmassk-audit must reflect its real trigger "
+            f"situation from SKILL.md's description (expected one of {trigger_phrases})"
+        )
+
+    def test_protocols_block_includes_flow_stack_skill(self):
+        """unmassk-flow-stack (project scaffolding wizard) must appear in the menu.
+
+        Source of truth for trigger wording: skills/unmassk-flow-stack/SKILL.md
+        description — 'scaffold project', 'create new project', 'tech stack'.
+        """
+        body = BLOCKS[1]["body"]
+        assert "`unmassk-flow-stack`" in body, (
+            "unmassk-flow-stack is shipped and tested but missing from the "
+            "Protocols menu — Claude can't route to a skill it can't see here"
+        )
+        trigger_phrases = ("scaffold", "new project", "tech stack", "boilerplate")
+        assert any(phrase in body.lower() for phrase in trigger_phrases), (
+            "Protocols row for unmassk-flow-stack must reflect its real trigger "
+            f"situation from SKILL.md's description (expected one of {trigger_phrases})"
+        )
+
+    def test_protocols_block_still_has_original_four_skills(self):
+        """Regression guard: adding the 3 new rows must not silently drop any
+        of the 4 skills already in the menu (duplicates test_protocols_block_content's
+        assertions explicitly, scoped to this contract change so a future
+        edit to that test can't accidentally weaken this guarantee)."""
+        body = BLOCKS[1]["body"]
+        for existing_skill in (
+            "unmassk-project-lifecycle",
+            "unmassk-grill",
+            "unmassk-council",
+            "unmassk-close-session",
+        ):
+            assert existing_skill in body, (
+                f"{existing_skill} was dropped from the Protocols menu"
+            )
+
     def test_caveman_block_content(self):
         body = BLOCKS[2]["body"]
         assert "caveman" in body

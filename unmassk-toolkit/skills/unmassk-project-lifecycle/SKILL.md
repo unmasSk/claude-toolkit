@@ -6,8 +6,14 @@ description: >
   to seed memory. Use this skill at the start of any work on a project — when the
   user says "new project", "let's start", "continue", "where were we", "pick up
   the project", "scan this repo", "I inherited this codebase", or whenever it's
-  unclear what state the project is in. Always reach for this before writing code
-  on a project that hasn't been situated yet.
+  unclear what state the project is in. If the scope or requirements for the new
+  build are still undecided (e.g. "I want an X but I'm not sure what it needs
+  to do"), use `unmassk-grill` first to resolve them — this skill situates a
+  project once what to build is already clear. If the user already names a
+  concrete stack/framework while starting (e.g. "let's build a React app"),
+  go straight to `unmassk-flow-stack` — it routes back here only if it turns
+  out more foundational decisions are still needed. Always reach for this
+  before writing code on a project that hasn't been situated yet.
 ---
 
 # Project Lifecycle

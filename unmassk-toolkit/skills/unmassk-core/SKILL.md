@@ -134,7 +134,7 @@ Beyond Flow and Audit, these protocol skills cover specific situations (the CLAU
 | Situation | Skill |
 | --------- | ----- |
 | New / continuing / external project (lifecycle) | `unmassk-project-lifecycle` |
-| Scaffolding a new project's stack (after lifecycle routes to it) | `unmassk-flow-stack` |
+| Scaffolding a new project's stack — normally reached via lifecycle's START branch, but go straight here if the user's own words are already scaffold-specific ("scaffold a Next.js app", "what stack should I use") with no lifecycle context yet in the conversation | `unmassk-flow-stack` |
 | Ambiguous request or a decision with stakes → interrogate first | `unmassk-grill` |
 | A real choice between options / "help me decide" | `unmassk-council` |
 | Wrapping up / handoff | `unmassk-close-session` |

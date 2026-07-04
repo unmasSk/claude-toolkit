@@ -1,6 +1,6 @@
 ---
 name: unmassk-flow
-description: Use when the user asks to "build a feature", "create something new", "implement", "add functionality", "fix a non-trivial bug", "refactor", or any task that is not trivial. Also use when the user says "brainstorm", "discuss", "plan", or mentions Flow. This is the creative pipeline — from idea to shipped code.
+description: Use when the user asks to "build a feature", "implement", "add functionality", "fix a non-trivial bug", "refactor", or any task that is not trivial and requires writing code. Also use when the user mentions Flow by name. NOT for open-ended idea exploration with no build committed yet, or for picking between known options — those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`. This is the creative pipeline — from idea to shipped code; its own internal Step 1 (Brainstorm) resolves gray areas once a build is already underway, it does not trigger Flow from the outside.
 ---
 
 # Flow — Creative Pipeline

@@ -27,6 +27,16 @@ except Exception as e:
     print(f"[git-memory] recall import fail-open: {e!r}", file=sys.stderr)
     _recall_relevant = None  # type: ignore[assignment]
 
+# ── Skill router — imported defensively, same fail-open discipline as recall ──
+# SKILL_TRIGGER_PHRASES is re-exported (not just match_skills) so tooling that
+# introspects this hook module directly can read the live trigger table.
+try:
+    from skill_router import match_skills as _match_skills, SKILL_TRIGGER_PHRASES
+except Exception as e:
+    print(f"[git-memory] skill_router import fail-open: {e!r}", file=sys.stderr)
+    _match_skills = None  # type: ignore[assignment]
+    SKILL_TRIGGER_PHRASES = {}  # type: ignore[assignment]
+
 # Plugin root — derived from this script's location in the cache.
 # hooks/user-prompt-memory-check.py → go up one level → plugin root.
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -212,6 +222,18 @@ def main() -> None:
     else:
         # Already booted — just plugin root for reference
         lines.append(f"[git-memory] root: {PLUGIN_ROOT}")
+
+    # ── Per-message protocol-skill router — runs on EVERY message, not
+    # gated by session_booted, so it coexists with the first-message
+    # forcing block above. Purely informational nudge; never blocks.
+    if prompt_text and _match_skills is not None:
+        try:
+            matched_skills = _match_skills(prompt_text)
+            if matched_skills:
+                lines.append(f"[skill-router] Possibly relevant skill(s): {', '.join(matched_skills)}")
+        except Exception as e:
+            print(f"[git-memory] skill_router fail-open: {e!r}", file=sys.stderr)
+            # fail-open: router failure must never affect the hook output
 
     # ── Recall injection — prepend relevant memory if recall matches ─────
     # Injected intentionally on both first-boot and already-booted paths so that

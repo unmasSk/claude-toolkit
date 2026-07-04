@@ -4,6 +4,14 @@ description: Key patterns for chatroom backend WS handlers, process tracking, pr
 type: project
 ---
 
+## Per-message skill router + SKILL.md-description drift guard (2026-07-04)
+
+`unmassk-toolkit/lib/skill_router.py` — `SKILL_TRIGGER_PHRASES` dict + `match_skills(prompt_text) -> list[str]`, cheap case-insensitive substring check. Imported by `hooks/user-prompt-memory-check.py` (a `UserPromptSubmit` hook) and wired to run on EVERY message (not gated by the `.session-booted` flag), appending a `[skill-router]` line — purely informational, exit code always 0.
+
+Two non-obvious things about this codebase's test conventions:
+- **Hook modules must re-export data tables imported from `lib/`, not just the functions.** `tests/test_user_prompt_skill_router.py` has a "drift guard" test class that imports the hook file directly via `importlib.util.spec_from_file_location` and reads `mod.SKILL_TRIGGER_PHRASES` — if the hook only does `from skill_router import match_skills as _match_skills` without also importing `SKILL_TRIGGER_PHRASES` into its own namespace, that introspection fails with `AttributeError`. Fix: `from skill_router import match_skills as _match_skills, SKILL_TRIGGER_PHRASES`.
+- **SKILL.md `description` frontmatter is treated as the literal source of truth for trigger-phrase tables**, and this repo has an automated drift guard (reads the live SKILL.md via `yaml.safe_load` at test time, not a snapshot) that fails if a trigger phrase stops being a substring of its skill's current description. If you edit a SKILL.md description, grep for that skill's old phrases across `lib/skill_router.py` (and any test fixtures that assert specific trigger prompts) and reconcile both sides together — editing only one side is a silent regression the drift guard is specifically designed to catch.
+
 ## recall.py — git-memory BM25 search engine (2026-06-05)
 
 `unmassk-toolkit/lib/recall.py` — importable module, `recall(query, *, limit, scope, _repo_dir) -> str`.

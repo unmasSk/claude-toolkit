@@ -1,6 +1,6 @@
 ---
 name: unmassk-audit
-description: Use when the user asks to "audit a module", "enterprise review", "launch audit", or mentions auditing any module against enterprise standards. Works with any stack or language. Also use when resuming an audit in progress.
+description: Use when the user asks to "audit a module", "audit this codebase", "code audit", "enterprise review", "launch audit", "review against standards", or mentions auditing EXISTING code against enterprise standards. Works with any stack or language. Also use when resuming an audit in progress.
 ---
 
 # Enterprise Audit
