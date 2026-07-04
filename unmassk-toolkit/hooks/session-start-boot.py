@@ -21,8 +21,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 
-from constants import TOMBSTONE_KEYS
-from git_helpers import ensure_gitignore, run_git, commits_since_last_consolidation
+from git_helpers import run_git, commits_since_last_consolidation
 try:
     # Reuse the canonical .claude/.unmassk/ creation helper instead of
     # reinventing it locally (Cerberus suggestion). Imported defensively:
@@ -45,8 +44,29 @@ except ImportError:
         flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
         fd = os.open(path, flags, 0o600)
         return os.fdopen(fd, mode, encoding=encoding)
-from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
+from parsing import normalize, parse_scope
 from version import VERSION as PLUGIN_VERSION
+
+# CRB-04: memory extraction (extract_memory/extract_glossary/crown logic/
+# glossary cache) and one-shot migrations live in dedicated lib/ modules —
+# see lib/boot_memory.py and lib/boot_migrations.py. Re-exported here by
+# name so `python3 session-start-boot.py` behaves identically and so tests
+# that load this module directly (e.g. tests/test_crown.py calling
+# boot.extract_memory()) keep working unchanged.
+from boot_memory import (
+    MAX_DECISIONS,
+    _crown_replace,
+    _get_project_root,
+    _sanitize_trailer_value,
+    extract_glossary,
+    extract_glossary_cached,
+    extract_memory,
+)
+from boot_migrations import (
+    _migrate_runtime_to_unmassk,
+    _migrate_stale_context_writer_statusline,
+    _migrate_untrack_generated_jsons,
+)
 
 
 CACHE_BASE_DIR = os.path.join(os.path.expanduser("~"), ".claude", "plugins", "cache", "unmassk-claude-toolkit")
@@ -163,38 +183,6 @@ def check_skill_drift() -> list[str] | None:
     return drifted if drifted else None
 
 
-def _sanitize_trailer_value(text: str) -> str:
-    """Strip injection characters from trailer values. Delegates to canonical sanitizer in lib/parsing."""
-    return _sanitize_canonical(text)
-
-
-def _crown_replace(
-    entries: list[tuple[str, str, bool]],
-    key: str,
-    text: str,
-    tombstones: set[str] | None = None,
-) -> None:
-    """Replace the existing non-crowned entry for `key` with a crowned one, in place.
-
-    Single implementation of the "crown beats a non-crowned entry for the
-    same scope" override, reused by extract_memory(), extract_glossary(),
-    and main()'s glossary-merge for Decisions/Memos/Remembers (Cerberus
-    found this exact loop shape repeated 6 times).
-
-    CRB-01 fix: when `tombstones` is provided, the replace is a no-op if
-    `text` (the crowned commit's own value) has been explicitly retired —
-    a retired crowned entry must never resurrect and overwrite a newer,
-    active, never-retired entry for the same scope. Decisions have no
-    tombstone concept, so their call sites simply omit `tombstones`.
-    """
-    if tombstones is not None and normalize(text) in tombstones:
-        return
-    for i, (rscope, _rtext, ris_crown) in enumerate(entries):
-        if rscope == key and not ris_crown:
-            entries[i] = (key, text, True)
-            return
-
-
 def check_version_mismatch() -> str | None:
     """Compare installed manifest version vs plugin VERSION constant.
 
@@ -291,17 +279,6 @@ def score_branch_relevance(text: str, keywords: list[str]) -> int:
     return sum(1 for kw in keywords if kw in text_lower)
 
 
-SCAN_DEPTH = 30
-MAX_PENDING = 30
-MAX_BLOCKERS = 20
-MAX_DECISIONS = 20
-MAX_MEMOS = 10
-
-# Glossary: deeper scan for full memory picture
-GLOSSARY_MAX_DECISIONS = 10
-GLOSSARY_MAX_MEMOS = 10
-
-
 def run_doctor() -> dict:
     """Run doctor silently and return parsed JSON."""
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -315,8 +292,10 @@ def run_doctor() -> dict:
         )
         if result.returncode == 0:
             return json.loads(result.stdout)
-    except Exception:
-        pass
+    except Exception as e:
+        # CRB-05: boot must never fail here — the design is intentional —
+        # but leave a one-line breadcrumb instead of swallowing silently.
+        print(f"[session-start-boot] BOOT-WARNING: {type(e).__name__} in run_doctor", file=sys.stderr)
     return {"status": "error", "checks": []}
 
 
@@ -332,7 +311,10 @@ def run_repair() -> bool:
             capture_output=True, text=True, timeout=15,
         )
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        # CRB-05: boot must never fail here — the design is intentional —
+        # but leave a one-line breadcrumb instead of swallowing silently.
+        print(f"[session-start-boot] BOOT-WARNING: {type(e).__name__} in run_repair", file=sys.stderr)
         return False
 
 
@@ -406,369 +388,6 @@ def _issue_matches_next(next_text: str, issue_title: str) -> bool:
     return len(keywords(next_text) & keywords(issue_title)) >= 2
 
 
-def extract_memory() -> dict:
-    """Extract memory from recent commits."""
-    code, log_output = run_git([
-        "log", f"-n{SCAN_DEPTH}",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at\x1e"
-    ])
-    if code != 0 or not log_output:
-        return {}
-
-    tombstones: set[str] = set()
-    commits = log_output.split("\x1e")
-    pending: list[dict] = []
-    blockers: list[str] = []
-    decisions: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
-    memos: list[tuple[str, str, bool]] = []      # (scope, text, is_crown)
-    remembers: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
-    last_context: str = ""
-    decision_scopes: set[str] = set()
-    memo_scopes: set[str] = set()
-    remember_seen: set[str] = set()  # dedup by normalized text
-
-    # Retracted crown hashes — collected up front over the same commit range.
-    # A retraction only ever targets a commit that is chronologically older
-    # than itself, so a single forward pass is enough regardless of log order.
-    retracted_crowns: set[str] = set()
-    for entry in commits:
-        entry = entry.strip()
-        if not entry:
-            continue
-        parts = entry.split("\x1f", 3)
-        if len(parts) < 3:
-            continue
-        rc_trailers = scan_trailers(parts[2])
-        if "Retract-Crown" in rc_trailers:
-            retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
-
-    # Per-scope "has the most recent crown for this scope already been
-    # decided" tracker. Only the single newest crown commit per scope is
-    # ever eligible to become active — once resolved (active or retracted),
-    # older crowns for the same scope must stay inert forever (they must
-    # never resurface just because the newest one got retracted).
-    crown_decision_resolved: set[str] = set()
-    crown_memo_resolved: set[str] = set()
-
-    for entry in commits:
-        entry = entry.strip()
-        if not entry:
-            continue
-        parts = entry.split("\x1f", 3)
-        if len(parts) < 3:
-            continue
-        sha, subject, body = parts[0], parts[1], parts[2]
-        ts = 0
-        if len(parts) >= 4:
-            try:
-                ts = int(parts[3].strip()) if parts[3].strip() else 0
-            except ValueError:
-                ts = 0
-        trailers = scan_trailers(body)
-
-        # Last context bookmark — canonical criterion: type starts with "context("
-        # after stripping leading emoji/whitespace (same predicate as get_last_context_time)
-        if not last_context:
-            _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-            if _cleaned.lower().startswith("context("):
-                last_context = f"{sha} {subject}"
-
-        scope = parse_scope(subject) or ""
-        label = f"({scope})" if scope else "(global)"
-
-        # Tombstones (GC markers) — collect in same pass
-        for key in TOMBSTONE_KEYS:
-            if key in trailers:
-                tombstones.add(normalize(trailers[key]))
-
-        # Pending items (include subject for branch-relevance scoring)
-        if "Next" in trailers and len(pending) < MAX_PENDING:
-            text = _sanitize_trailer_value(trailers["Next"])
-            if normalize(text) not in tombstones:
-                scope_prefix = f"({scope}) " if scope else ""
-                issue_match = re.search(r"#(\d+)", text)
-                pending.append({
-                    "sha": sha,
-                    "scope": scope,
-                    "text": text,
-                    "display": f"{sha}: {scope_prefix}{text}",
-                    "issue": int(issue_match.group(1)) if issue_match else None,
-                    "timestamp": ts,
-                })
-
-        # Blockers
-        if "Blocker" in trailers and len(blockers) < MAX_BLOCKERS:
-            text = _sanitize_trailer_value(trailers["Blocker"])
-            if normalize(text) not in tombstones:
-                blockers.append(f"{sha}: {text}")
-
-        # Decisions (one per scope; crowned entries bypass MAX_DECISIONS cap)
-        if "Decision" in trailers:
-            is_crown = False
-            if trailers.get("Crown") == "Decision":
-                if scope not in crown_decision_resolved:
-                    crown_decision_resolved.add(scope)
-                    is_crown = sha not in retracted_crowns
-                # else: an older crown for this scope was already superseded
-                # (active or retracted) — never let it resurface.
-            if scope not in decision_scopes:
-                if len(decisions) < MAX_DECISIONS or is_crown:
-                    decision_scopes.add(scope)
-                    decisions.append((label, _sanitize_trailer_value(trailers["Decision"]), is_crown))
-            elif is_crown:
-                # Crown beats a non-crowned entry for the same scope
-                _crown_replace(decisions, label, _sanitize_trailer_value(trailers["Decision"]))
-
-        # Memos (one per scope, skip tombstoned; crowned entries bypass MAX_MEMOS cap)
-        if "Memo" in trailers:
-            text = _sanitize_trailer_value(trailers["Memo"])
-            is_crown = False
-            if trailers.get("Crown") == "Memo":
-                if scope not in crown_memo_resolved:
-                    crown_memo_resolved.add(scope)
-                    is_crown = sha not in retracted_crowns
-                # else: an older crown for this scope was already superseded
-                # (active or retracted) — never let it resurface.
-            if scope not in memo_scopes and normalize(text) not in tombstones:
-                if len(memos) < MAX_MEMOS or is_crown:
-                    memo_scopes.add(scope)
-                    memos.append((label, text, is_crown))
-            elif is_crown and scope in memo_scopes:
-                _crown_replace(memos, label, text, tombstones)
-
-        # Remembers (personality notes between sessions, skip tombstoned)
-        if "Remember" in trailers:
-            text = _sanitize_trailer_value(trailers["Remember"])
-            norm = normalize(text)
-            if norm not in remember_seen and norm not in tombstones:
-                remember_seen.add(norm)
-                is_crown = (trailers.get("Crown") == "Remember") and (sha not in retracted_crowns)
-                remembers.append((label, text, is_crown))
-
-    return {
-        "last_context": last_context,
-        "pending": pending,
-        "blockers": blockers,
-        "decisions": decisions,
-        "memos": memos,
-        "remembers": remembers,
-        "tombstones": tombstones,
-    }
-
-
-def extract_glossary() -> dict:
-    """Extract a full glossary of decisions and memos from the entire git history.
-
-    Goes deeper than extract_memory() — scans ALL commits, not just last 30.
-    Returns deduplicated lists by scope (most recent wins per scope).
-    """
-    code, log_output = run_git([
-        "log", "--all", "-n500",
-        "--pretty=format:%h\x1f%s\x1f%b\x1e"
-    ])
-    if code != 0 or not log_output:
-        return {"decisions": [], "memos": [], "remembers": []}
-
-    decisions: list[tuple[str, str, bool]] = []
-    memos: list[tuple[str, str, bool]] = []
-    remembers: list[tuple[str, str, bool]] = []
-    decision_scopes: set[str] = set()
-    memo_scopes: set[str] = set()
-    remember_seen: set[str] = set()
-    glossary_tombstones: set[str] = set()
-
-    commits = log_output.split("\x1e")
-
-    # Retracted crown hashes, collected up front over the same range (mirrors
-    # extract_memory() — see notes there on why a single forward pass suffices).
-    retracted_crowns: set[str] = set()
-    for entry in commits:
-        entry = entry.strip()
-        if not entry:
-            continue
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        rc_trailers = scan_trailers(parts[2])
-        if "Retract-Crown" in rc_trailers:
-            retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
-
-    # Per-scope "newest crown already decided" trackers — see extract_memory()
-    # for why only the single newest crown per scope may ever become active.
-    crown_decision_resolved: set[str] = set()
-    crown_memo_resolved: set[str] = set()
-
-    for entry in commits:
-        entry = entry.strip()
-        if not entry:
-            continue
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        sha, subject, body = parts[0], parts[1], parts[2]
-        trailers = scan_trailers(body)
-        scope = parse_scope(subject) or ""
-        label = f"({scope})" if scope else "(global)"
-
-        # Collect tombstones from the full glossary range
-        for key in TOMBSTONE_KEYS:
-            if key in trailers:
-                glossary_tombstones.add(normalize(trailers[key]))
-
-        if "Decision" in trailers:
-            text = _sanitize_trailer_value(trailers["Decision"])
-            is_crown = False
-            if trailers.get("Crown") == "Decision":
-                if scope not in crown_decision_resolved:
-                    crown_decision_resolved.add(scope)
-                    is_crown = sha not in retracted_crowns
-            if scope not in decision_scopes:
-                if len(decisions) < GLOSSARY_MAX_DECISIONS or is_crown:
-                    decision_scopes.add(scope)
-                    decisions.append((label, text, is_crown))
-            elif is_crown:
-                # Crown beats a non-crowned entry for the same scope already in the glossary
-                _crown_replace(decisions, label, text)
-
-        if "Memo" in trailers:
-            text = _sanitize_trailer_value(trailers["Memo"])
-            is_crown = False
-            if trailers.get("Crown") == "Memo":
-                if scope not in crown_memo_resolved:
-                    crown_memo_resolved.add(scope)
-                    is_crown = sha not in retracted_crowns
-            if scope not in memo_scopes:
-                if len(memos) < GLOSSARY_MAX_MEMOS or is_crown:
-                    memo_scopes.add(scope)
-                    memos.append((label, text, is_crown))
-            elif is_crown:
-                # CRB-01: a retired crowned Memo must not resurrect and evict
-                # a newer, active, never-retired entry for the same scope.
-                _crown_replace(memos, label, text, glossary_tombstones)
-
-        if "Remember" in trailers:
-            text = _sanitize_trailer_value(trailers["Remember"])
-            norm = normalize(text)
-            if norm not in remember_seen:
-                remember_seen.add(norm)
-                is_crown = (trailers.get("Crown") == "Remember") and (sha not in retracted_crowns)
-                remembers.append((label, text, is_crown))
-
-    return {
-        "decisions": decisions,
-        "memos": memos,
-        "remembers": remembers,
-        "tombstones": glossary_tombstones,
-    }
-
-
-GLOSSARY_CACHE_TTL = 86400  # 24 hours
-
-
-_project_root_cache: str | None = None
-
-
-def _get_project_root() -> str | None:
-    """Get project root, cached for the process."""
-    global _project_root_cache
-    if _project_root_cache is None:
-        code, root = run_git(["rev-parse", "--show-toplevel"])
-        _project_root_cache = root if code == 0 and root else ""
-    return _project_root_cache or None
-
-
-def _glossary_cache_path() -> str | None:
-    """Return path to .claude/.unmassk/glossary-cache.json, or None if no project root."""
-    root = _get_project_root()
-    if not root:
-        return None
-    return os.path.join(root, ".claude", ".unmassk", "glossary-cache.json")
-
-
-def _read_glossary_cache() -> dict | None:
-    """Read glossary cache if fresh. Returns None if stale or missing."""
-    path = _glossary_cache_path()
-    if not path or not os.path.isfile(path):
-        return None
-    try:
-        with open(path) as f:
-            cache = json.load(f)
-        # Check staleness
-        generated = cache.get("generated_at", "")
-        if generated:
-            gen_dt = datetime.fromisoformat(generated)
-            if gen_dt.tzinfo is None:
-                gen_dt = gen_dt.replace(tzinfo=timezone.utc)
-            age = (datetime.now(timezone.utc) - gen_dt).total_seconds()
-            if age > GLOSSARY_CACHE_TTL:
-                return None
-        # Check schema_version
-        if cache.get("schema_version") != 1:
-            return None
-        # Check that decisions are 3-element lists
-        decisions = cache.get("decisions", [])
-        if decisions and len(decisions[0]) != 3:
-            return None
-        # Check HEAD match
-        code, head_sha = run_git(["rev-parse", "HEAD"])
-        if code != 0:
-            return None
-        if cache.get("head_sha") != head_sha:
-            return None
-        return cache
-    except (json.JSONDecodeError, OSError, ValueError, KeyError):
-        return None
-
-
-def _write_glossary_cache(glossary: dict) -> None:
-    """Write glossary cache to .claude/.unmassk/glossary-cache.json."""
-    path = _glossary_cache_path()
-    if not path:
-        return
-    code, head_sha = run_git(["rev-parse", "HEAD"])
-    if code != 0:
-        return
-    # tombstones is a set — serialize as sorted list for JSON stability
-    raw_tombstones = glossary.get("tombstones", set())
-    cache = {
-        "schema_version": 1,
-        "head_sha": head_sha,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "decisions": glossary.get("decisions", []),
-        "memos": glossary.get("memos", []),
-        "remembers": glossary.get("remembers", []),
-        "tombstones": sorted(raw_tombstones),
-    }
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open_no_follow_symlink(path, "w") as f:
-            json.dump(cache, f, indent=2)
-        try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
-        root = _get_project_root()
-        if root:
-            ensure_gitignore(root)
-    except OSError:
-        pass
-
-
-def extract_glossary_cached() -> dict:
-    """Extract glossary, using cache if available."""
-    cached = _read_glossary_cache()
-    if cached:
-        return {
-            "decisions": cached.get("decisions", []),
-            "memos": cached.get("memos", []),
-            "remembers": cached.get("remembers", []),
-            "tombstones": set(cached.get("tombstones", [])),
-        }
-    glossary = extract_glossary()
-    _write_glossary_cache(glossary)
-    return glossary
-
-
 BOOT_CONSOLIDATION_THRESHOLD = 50  # commits since last context(consolidation) before warning
 
 # Scaling limits (from design doc)
@@ -783,6 +402,16 @@ BOOT_MAX_BRANCH_NEXT = 10
 BOOT_MAX_OTHER_NEXT = 5
 BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
+
+# CRB-06: named GC-warning thresholds (previously inline magic numbers).
+MEMO_GC_THRESHOLD = 10
+REMEMBER_GC_THRESHOLD = 8
+
+# CRB-09: the background `git fetch` is best-effort and non-critical — it
+# must not hold up session start for as long as a real git operation might
+# (GIT_TIMEOUT default is 10s). A short, dedicated timeout bounds the worst
+# case without touching the shared default used by everything else.
+BOOT_FETCH_TIMEOUT = 5
 
 # SEC-MED-005: crowned Decision/Memo/Remember entries intentionally bypass the
 # normal MAX_DECISIONS/MAX_MEMOS/BOOT_MAX_REMEMBERS count-eviction budget (a
@@ -886,161 +515,18 @@ def partition_by_relevance(items, keywords, text_fn):
     return branch_scoped, other
 
 
-def _migrate_runtime_to_unmassk(project_root: str) -> None:
-    """Move legacy runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)."""
-    claude_dir = os.path.join(project_root, ".claude")
-    unmassk_dir = os.path.join(claude_dir, ".unmassk")
-    migrations = {
-        ".glossary-cache.json": "glossary-cache.json",
-        "git-memory-manifest.json": "manifest.json",
-        ".session-booted": ".session-booted",
-    }
-    for old_name, new_name in migrations.items():
-        old_path = os.path.join(claude_dir, old_name)
-        if os.path.isfile(old_path):
-            os.makedirs(unmassk_dir, exist_ok=True)
-            new_path = os.path.join(unmassk_dir, new_name)
-            try:
-                if os.path.isfile(new_path):
-                    os.remove(old_path)
-                else:
-                    os.rename(old_path, new_path)
-            except OSError:
-                pass
-    # Migrate scopes to agent-memory
-    old_scopes = os.path.join(claude_dir, "git-memory-scopes.json")
-    if os.path.isfile(old_scopes):
-        agent_dir = os.path.join(claude_dir, "agent-memory", "unmassk-crew-bilbo")
-        os.makedirs(agent_dir, exist_ok=True)
-        new_scopes = os.path.join(agent_dir, "scopes.json")
-        try:
-            if os.path.isfile(new_scopes):
-                os.remove(old_scopes)
-            else:
-                os.rename(old_scopes, new_scopes)
-        except OSError:
-            pass
+def render_header_section(plugin_root: str) -> list[str]:
+    """Render the HEADER section (plugin version + root path)."""
+    return [f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}", ""]
 
 
-def _migrate_untrack_generated_jsons(project_root: str) -> None:
-    """Retrocompat: untrack generated JSONs that older installs committed."""
-    from git_helpers import _GENERATED_JSONS
-    tracked = []
-    for entry in _GENERATED_JSONS:
-        full_path = os.path.join(project_root, entry)
-        code, _ = run_git(["ls-files", "--error-unmatch", full_path])
-        if code == 0:
-            tracked.append(full_path)
-    if tracked:
-        run_git(["rm", "-r", "--cached", "--"] + tracked)
-        ensure_gitignore(project_root)
+def render_status_section() -> tuple[list[str], str, str]:
+    """Run doctor/repair, check version + skill drift, render the STATUS section.
 
-
-def _migrate_stale_context_writer_statusline() -> None:
-    """One-time migration: remove or restore a statusLine left by old context-writer.py.
-
-    Users who installed the old version have a statusLine.command in
-    ~/.claude/settings.json pointing at context-writer.py (now deleted).
-    This migration runs once per boot and is idempotent.
-
-    Logic:
-      - If settings.json has a statusLine.command containing "context-writer":
-          (a) If ~/.claude/.git-memory-original-statusline exists and is non-empty,
-              restore that value as the new statusLine.command.
-          (b) Otherwise, remove the statusLine key entirely.
-          (c) In both cases, delete the backup file.
-      - If no context-writer statusLine is present, do nothing.
-      - Any exception is silently swallowed — boot must never fail.
+    Returns (lines, status, status_detail) — status/status_detail are also
+    needed later, when the short banner is built at the end of boot.
     """
-    try:
-        claude_dir = os.path.join(os.path.expanduser("~"), ".claude")
-        settings_path = os.path.join(claude_dir, "settings.json")
-        backup_path = os.path.join(claude_dir, ".git-memory-original-statusline")
-
-        if not os.path.isfile(settings_path):
-            return
-
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return
-
-        status_line = settings.get("statusLine", {})
-        current_cmd = status_line.get("command", "") if isinstance(status_line, dict) else ""
-
-        if "context-writer" not in current_cmd:
-            return  # Nothing to migrate
-
-        # Determine replacement
-        backup_content = ""
-        if os.path.isfile(backup_path):
-            try:
-                with open(backup_path, "r", encoding="utf-8") as f:
-                    backup_content = f.read().strip()
-            except OSError:
-                pass
-
-        if backup_content:
-            # Restore the original command with a complete statusLine structure
-            settings["statusLine"] = {"type": "command", "command": backup_content, "padding": 0}
-        else:
-            # No backup — remove the stale key entirely
-            settings.pop("statusLine", None)
-
-        try:
-            with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=2)
-                f.write("\n")
-        except OSError:
-            return
-
-        # Remove backup file regardless of which branch was taken
-        try:
-            os.remove(backup_path)
-        except FileNotFoundError:
-            pass
-
-    except Exception:
-        pass  # Boot must never fail due to this migration
-
-
-def main() -> None:
-    """Auto-boot: structured briefing with all context pre-extracted."""
-    # Check if we're in a git repo
-    code, _ = run_git(["rev-parse", "--is-inside-work-tree"])
-    if code != 0:
-        sys.exit(0)
-
-    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
     lines: list[str] = []
-
-    # 0. Clean session-booted flag (new session = fresh boot)
-    project_root = _get_project_root()
-    if project_root:
-        booted_flag = os.path.join(project_root, ".claude", ".unmassk", ".session-booted")
-        try:
-            os.remove(booted_flag)
-        except FileNotFoundError:
-            pass
-
-    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
-    if project_root:
-        _migrate_runtime_to_unmassk(project_root)
-        _migrate_untrack_generated_jsons(project_root)
-
-    # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
-    # (runs unconditionally — this is a user-level config, not project-level)
-    _migrate_stale_context_writer_statusline()
-
-    # 0b. Fetch remote refs silently
-    run_git(["fetch", "--quiet"])
-
-    # ── HEADER ──────────────────────────────────────────────────────
-    lines.append(f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}")
-    lines.append("")
-
-    # ── STATUS ──────────────────────────────────────────────────────
     doctor_result = run_doctor()
     status = "ok"
     status_detail = ""
@@ -1063,8 +549,17 @@ def main() -> None:
         for drift_warning in skill_drift:
             lines.append(f"  {drift_warning}")
     lines.append("")
+    return lines, status, status_detail
 
-    # ── BRANCH ──────────────────────────────────────────────────────
+
+def render_branch_section() -> tuple[list[str], str, list[str], str | None, str, int]:
+    """Render the BRANCH section.
+
+    Returns (lines, branch, branch_keywords, branch_issue, ahead_behind,
+    behind_n) — all reused downstream (Next-item partitioning, the pull
+    recommendation, the short banner).
+    """
+    lines: list[str] = []
     _, branch = run_git(["branch", "--show-current"])
     branch = branch or "(detached HEAD)"
     branch_keywords, branch_issue = parse_branch_keywords(branch)
@@ -1094,8 +589,12 @@ def main() -> None:
         lines.append(f"  PULL RECOMMENDED: remote is {behind_n} ahead")
 
     lines.append("")
+    return lines, branch, branch_keywords, branch_issue, ahead_behind, behind_n
 
-    # ── SCOPES ──────────────────────────────────────────────────────
+
+def render_scopes_section(project_root: str | None) -> list[str]:
+    """Render the SCOPES section."""
+    lines: list[str] = []
     scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json") if project_root else None
     # Fallback: search in agent-memory directories
     if scopes_file and not os.path.isfile(scopes_file) and project_root:
@@ -1141,11 +640,14 @@ def main() -> None:
             "existing_scopes, and notes. Run it in background."
         )
         lines.append("")
+    return lines
 
-    # ── RESUME ──────────────────────────────────────────────────────
-    memory = extract_memory()
 
-    lines.append("RESUME:")
+def render_resume_section(
+    memory: dict, branch_issue: str | None, branch_keywords: list[str],
+) -> list[str]:
+    """Render the RESUME section (Last context / Issue / Next / Blockers)."""
+    lines: list[str] = ["RESUME:"]
 
     # Last context with time_ago
     if memory.get("last_context"):
@@ -1206,12 +708,18 @@ def main() -> None:
         lines.append("  (no prior session found)")
 
     lines.append("")
+    return lines
 
-    # ── REMEMBER ────────────────────────────────────────────────────
-    # Merge recent + glossary remembers
-    glossary = extract_glossary_cached()
-    # Union: tombstones from recent window + tombstones from the full glossary range
-    tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
+
+def render_remember_section(
+    memory: dict, glossary: dict, tombstones: set[str],
+) -> tuple[list[str], list[tuple[str, str, bool]]]:
+    """Render the REMEMBER section.
+
+    Returns (lines, all_remembers) — all_remembers is reused by the GC
+    WARNINGS section below.
+    """
+    lines: list[str] = []
 
     all_remembers: list[tuple[str, str, bool]] = list(memory.get("remembers", []))
     recent_remember_texts = {normalize(t) for _, t, _ in all_remembers}
@@ -1239,7 +747,19 @@ def main() -> None:
             lines.append(f"  ({remaining} more. Use git-memory-log --type remember)")
         lines.append("")
 
-    # ── DECISIONS ───────────────────────────────────────────────────
+    return lines, all_remembers
+
+
+def render_decisions_section(
+    memory: dict, glossary: dict, branch_keywords: list[str],
+) -> tuple[list[str], list[tuple[str, str, bool]]]:
+    """Render the DECISIONS section.
+
+    Returns (lines, all_decisions) — all_decisions is reused by the TIMELINE
+    section's crowned-scope suppression.
+    """
+    lines: list[str] = []
+
     all_decisions: list[tuple[str, str, bool]] = list(memory.get("decisions", []))
     recent_decision_scopes = {s for s, _, _ in all_decisions}
 
@@ -1274,7 +794,18 @@ def main() -> None:
             lines.append(f"  ({remaining} more decisions in history. Use git-memory-log --type decision)")
         lines.append("")
 
-    # ── MEMOS ───────────────────────────────────────────────────────
+    return lines, all_decisions
+
+
+def render_memos_section(
+    memory: dict, glossary: dict, tombstones: set[str], branch_keywords: list[str],
+) -> tuple[list[str], list[tuple[str, str, bool]]]:
+    """Render the MEMOS section.
+
+    Returns (lines, all_memos) — all_memos is reused by the GC WARNINGS section.
+    """
+    lines: list[str] = []
+
     all_memos: list[tuple[str, str, bool]] = list(memory.get("memos", []))
     recent_memo_scopes = {s for s, _, _ in all_memos}
     for gscope, gtext, gis_crown in glossary.get("memos", []):
@@ -1306,27 +837,36 @@ def main() -> None:
             lines.append(f"  ({remaining} more memos in history. Use git-memory-log --type memo)")
         lines.append("")
 
-    # ── GC WARNINGS ─────────────────────────────────────────────────
+    return lines, all_memos
+
+
+def render_gc_section(
+    all_memos: list[tuple[str, str, bool]], all_remembers: list[tuple[str, str, bool]],
+) -> list[str]:
+    """Render the GC WARNINGS section (memo/remember accumulation thresholds)."""
+    lines: list[str] = []
     gc_warnings: list[str] = []
 
     memo_count = len(all_memos)
-    if memo_count > 10:
+    if memo_count > MEMO_GC_THRESHOLD:
         gc_warnings.append(
-            f"  ⚠️ Memory accumulation: {memo_count} memos detected (threshold: 10). "
+            f"  ⚠️ Memory accumulation: {memo_count} memos detected (threshold: {MEMO_GC_THRESHOLD}). "
             "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
     remember_user_count = sum(1 for label, _, _ in all_remembers if "(user)" in label)
-    if remember_user_count > 8:
+    if remember_user_count > REMEMBER_GC_THRESHOLD:
         gc_warnings.append(
-            f"  ⚠️ Memory accumulation: {remember_user_count} remember(user) detected (threshold: 8). "
+            f"  ⚠️ Memory accumulation: {remember_user_count} remember(user) detected "
+            f"(threshold: {REMEMBER_GC_THRESHOLD}). "
             "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
     remember_claude_count = sum(1 for label, _, _ in all_remembers if "(claude)" in label)
-    if remember_claude_count > 8:
+    if remember_claude_count > REMEMBER_GC_THRESHOLD:
         gc_warnings.append(
-            f"  ⚠️ Memory accumulation: {remember_claude_count} remember(claude) detected (threshold: 8). "
+            f"  ⚠️ Memory accumulation: {remember_claude_count} remember(claude) detected "
+            f"(threshold: {REMEMBER_GC_THRESHOLD}). "
             "Consider invoking Gitto's Mode C (Consolidator) to clean this up."
         )
 
@@ -1335,7 +875,13 @@ def main() -> None:
         lines.extend(gc_warnings)
         lines.append("")
 
-    # ── CONSOLIDATION TRIGGER ────────────────────────────────────────
+    return lines
+
+
+def render_consolidation_section() -> list[str]:
+    """Render the CONSOLIDATE trigger section."""
+    lines: list[str] = []
+
     _consolidation_threshold = BOOT_CONSOLIDATION_THRESHOLD
     _env_threshold = os.environ.get("GIT_MEMORY_CONSOLIDATION_THRESHOLD", "")
     if _env_threshold:
@@ -1353,7 +899,13 @@ def main() -> None:
         )
         lines.append("")
 
-    # ── TIMELINE ────────────────────────────────────────────────────
+    return lines
+
+
+def render_timeline_section(all_decisions: list[tuple[str, str, bool]]) -> list[str]:
+    """Render the TIMELINE section (suppressing commits whose scope has a crowned decision)."""
+    lines: list[str] = []
+
     # Suppress commits whose scope has a crowned decision — the crowned entry
     # is the canonical record; the non-crowned commit is historical noise.
     crowned_scopes: set[str] = {
@@ -1365,13 +917,166 @@ def main() -> None:
         lines.extend(timeline)
         lines.append("")
 
-    # ── BOOT COMPLETE ───────────────────────────────────────────────
+    return lines
+
+
+def render_boot_complete_section(plugin_root: str) -> tuple[list[str], str, str]:
+    """Render the BOOT COMPLETE footer.
+
+    Returns (lines, commit_script, log_script) — the two script paths are
+    also needed later for the short banner.
+    """
     commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py").replace(os.sep, "/")
     log_script = os.path.join(plugin_root, "bin", "git-memory-log.py").replace(os.sep, "/")
-    lines.append("---")
-    lines.append("BOOT COMPLETE. Do NOT run doctor or git-memory-log. All context is above.")
-    lines.append(f'Commit: python3 "{commit_script}"')
-    lines.append(f'Log: python3 "{log_script}"')
+    lines = [
+        "---",
+        "BOOT COMPLETE. Do NOT run doctor or git-memory-log. All context is above.",
+        f'Commit: python3 "{commit_script}"',
+        f'Log: python3 "{log_script}"',
+    ]
+    return lines, commit_script, log_script
+
+
+def write_boot_log(full_text: str, project_root: str | None) -> str | None:
+    """Write the full, untruncated boot briefing to .claude/.unmassk/boot-log-latest.txt.
+
+    Returns the path only after a successful write — boot_log_path must
+    never be treated as "available" just because a path was computed for it.
+    Otherwise, on write failure (permissions, disk full), the caller would
+    still take the short-banner branch and point Claude at a file that was
+    never written, silently losing the Next: content — exactly the bug this
+    fix exists to prevent (Cerberus regression: TestBootLogWriteFailureFallback).
+    """
+    if not project_root:
+        return None
+    try:
+        if ensure_runtime_dir is not None:
+            runtime_dir = ensure_runtime_dir(project_root)
+        else:
+            runtime_dir = os.path.join(project_root, *BOOT_LOG_REL_PARTS[:-1])
+            os.makedirs(runtime_dir, exist_ok=True)
+        candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
+        with open_no_follow_symlink(candidate_log_path, "w") as f:
+            f.write(full_text + "\n")
+        try:
+            os.chmod(candidate_log_path, 0o600)
+        except OSError:
+            pass
+        return candidate_log_path  # only mark available after a successful write
+    except OSError:
+        return None  # Boot must never fail because the log file couldn't be written
+
+
+def render_boot_banner_lines(
+    plugin_root: str, status: str, status_detail: str, branch: str, ahead_behind: str,
+    boot_log_path: str, commit_script: str, log_script: str,
+) -> list[str]:
+    """Build the short banner lines printed to stdout when the boot log write succeeded.
+
+    Unconditional: stdout is always this short banner, for any repo size —
+    see House's diagnosis and TestBootStdoutMinimalWithHeavyContent /
+    TestBootLogFileFullContent for why there is no byte-threshold here.
+    """
+    banner_log_path = boot_log_path.replace(os.sep, "/")
+    banner_branch = _truncate_banner_field(branch)
+    return [
+        f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
+        "",
+        f"STATUS: {status}{status_detail}",
+        f"BRANCH: {banner_branch}{ahead_behind}",
+        "",
+        "The full briefing (nothing shortened) was written to:",
+        f"  {banner_log_path}",
+        "Read that file now before doing anything else — it has everything "
+        "the inline briefing normally has.",
+        "",
+        "---",
+        "BOOT COMPLETE. Do NOT run doctor or git-memory-log.",
+        f'Commit: python3 "{commit_script}"',
+        f'Log: python3 "{log_script}"',
+    ]
+
+
+def run_preboot_migrations(project_root: str | None) -> None:
+    """Run all one-shot pre-boot migrations plus the best-effort background fetch.
+
+    Order matters: session-booted flag cleanup, then the two project-root
+    migrations, then the global statusLine migration (runs even without a
+    project root — it's a user-level config, not project-level), then the
+    non-critical remote fetch.
+    """
+    # 0. Clean session-booted flag (new session = fresh boot)
+    if project_root:
+        booted_flag = os.path.join(project_root, ".claude", ".unmassk", ".session-booted")
+        try:
+            os.remove(booted_flag)
+        except FileNotFoundError:
+            pass
+
+    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
+    if project_root:
+        _migrate_runtime_to_unmassk(project_root)
+        _migrate_untrack_generated_jsons(project_root)
+
+    # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
+    _migrate_stale_context_writer_statusline()
+
+    # 0c. Fetch remote refs silently (CRB-09: short dedicated timeout — this
+    # is a non-critical background refresh, it must not hold up session start).
+    run_git(["fetch", "--quiet"], timeout=BOOT_FETCH_TIMEOUT)
+
+
+def main() -> None:
+    """Auto-boot: structured briefing with all context pre-extracted.
+
+    Pure orchestrator (CRB-02): each `── X ──` section of the briefing is
+    rendered by its own render_*_section() function; main() just runs the
+    pre-boot migrations, calls each renderer in order, concatenates the
+    lines, and decides banner vs full-text-on-stdout for the write.
+    """
+    # Check if we're in a git repo
+    code, _ = run_git(["rev-parse", "--is-inside-work-tree"])
+    if code != 0:
+        sys.exit(0)
+
+    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
+    project_root = _get_project_root()
+    run_preboot_migrations(project_root)
+
+    lines: list[str] = []
+    lines.extend(render_header_section(plugin_root))
+
+    status_lines, status, status_detail = render_status_section()
+    lines.extend(status_lines)
+
+    branch_lines, branch, branch_keywords, branch_issue, ahead_behind, behind_n = render_branch_section()
+    lines.extend(branch_lines)
+
+    lines.extend(render_scopes_section(project_root))
+
+    memory = extract_memory()
+    lines.extend(render_resume_section(memory, branch_issue, branch_keywords))
+
+    # Merge recent + glossary remembers
+    glossary = extract_glossary_cached()
+    # Union: tombstones from recent window + tombstones from the full glossary range
+    tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
+
+    remember_lines, all_remembers = render_remember_section(memory, glossary, tombstones)
+    lines.extend(remember_lines)
+
+    decisions_lines, all_decisions = render_decisions_section(memory, glossary, branch_keywords)
+    lines.extend(decisions_lines)
+
+    memos_lines, all_memos = render_memos_section(memory, glossary, tombstones, branch_keywords)
+    lines.extend(memos_lines)
+
+    lines.extend(render_gc_section(all_memos, all_remembers))
+    lines.extend(render_consolidation_section())
+    lines.extend(render_timeline_section(all_decisions))
+
+    boot_complete_lines, commit_script, log_script = render_boot_complete_section(plugin_root)
+    lines.extend(boot_complete_lines)
 
     # DO NOT create .session-booted flag here — let the UserPromptSubmit hook
     # detect the first message and force skill loading. The flag is created
@@ -1382,32 +1087,7 @@ def main() -> None:
     # Always refresh the full, untruncated boot log file (nothing capped —
     # this is the file Claude is told to read when stdout switches to the
     # minimal banner below).
-    #
-    # boot_log_path stays None unless the write below actually succeeds —
-    # it must never be treated as "available" just because we computed a
-    # path for it. Otherwise, on write failure (permissions, disk full),
-    # the hook would still take the short-banner branch and point Claude at
-    # a file that was never written, silently losing the Next: content —
-    # exactly the bug this fix exists to prevent (Cerberus regression:
-    # TestBootLogWriteFailureFallback).
-    boot_log_path = None
-    if project_root:
-        try:
-            if ensure_runtime_dir is not None:
-                runtime_dir = ensure_runtime_dir(project_root)
-            else:
-                runtime_dir = os.path.join(project_root, *BOOT_LOG_REL_PARTS[:-1])
-                os.makedirs(runtime_dir, exist_ok=True)
-            candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
-            with open_no_follow_symlink(candidate_log_path, "w") as f:
-                f.write(full_text + "\n")
-            try:
-                os.chmod(candidate_log_path, 0o600)
-            except OSError:
-                pass
-            boot_log_path = candidate_log_path  # only mark available after a successful write
-        except OSError:
-            pass  # Boot must never fail because the log file couldn't be written
+    boot_log_path = write_boot_log(full_text, project_root)
 
     if not boot_log_path:
         # Safety fallback: the boot log file could not be written (permissions,
@@ -1417,25 +1097,10 @@ def main() -> None:
         # instead, even though it risks the harness's stdout preview truncation.
         print(full_text)
     else:
-        # Unconditional: stdout is always the short banner, for any repo size.
-        banner_log_path = boot_log_path.replace(os.sep, "/")
-        banner_branch = _truncate_banner_field(branch)
-        banner = [
-            f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
-            "",
-            f"STATUS: {status}{status_detail}",
-            f"BRANCH: {banner_branch}{ahead_behind}",
-            "",
-            "The full briefing (nothing shortened) was written to:",
-            f"  {banner_log_path}",
-            "Read that file now before doing anything else — it has everything "
-            "the inline briefing normally has.",
-            "",
-            "---",
-            "BOOT COMPLETE. Do NOT run doctor or git-memory-log.",
-            f'Commit: python3 "{commit_script}"',
-            f'Log: python3 "{log_script}"',
-        ]
+        banner = render_boot_banner_lines(
+            plugin_root, status, status_detail, branch, ahead_behind,
+            boot_log_path, commit_script, log_script,
+        )
         print("\n".join(banner))
 
     sys.exit(0)

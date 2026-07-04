@@ -247,6 +247,52 @@ hook side instead. Full suite run is the only reliable way to catch this class o
 break; `test_boot_output.py`/`test_boot_tombstones.py` alone won't surface it since
 they don't stub git_helpers.
 
+## Extracting session-start-boot.py code into lib/ modules: defer `parsing` imports inside functions
+
+When splitting `hooks/session-start-boot.py` logic out into a new stably-named
+`lib/*.py` module (done for CRB-04: `lib/boot_memory.py`, `lib/boot_migrations.py`),
+a module-level `from parsing import X` in the NEW lib module is unsafe in a way the
+original hook file never was.
+
+Why: `hooks/session-start-boot.py` is loaded by tests via
+`importlib.util.spec_from_file_location` + `exec_module`, WITHOUT ever inserting it
+into `sys.modules` under a stable name — so every test that loads it re-executes its
+top-level imports fresh. But a new `lib/boot_memory.py` IS a normal importable module;
+the first `import boot_memory` anywhere in the pytest process caches it in
+`sys.modules` for the rest of that process. `tests/test_migrate_statusline.py`
+temporarily replaces `sys.modules["parsing"]` with a stub (e.g.
+`sanitize_trailer_value = lambda s: s`, an identity no-op) while it execs the hook
+file to reach `_migrate_stale_context_writer_statusline`. Since the hook file's own
+`from boot_memory import ...` triggers boot_memory's FIRST-EVER import DURING that
+stub window, `boot_memory`'s module-level `from parsing import sanitize_trailer_value
+as _sanitize_canonical` binds to the STUB forever — even after the test's `finally`
+block correctly restores `sys.modules["parsing"]`, because the poisoned name lives in
+`boot_memory`'s own already-cached namespace, never re-evaluated. Observed effect:
+`tests/test_regression_audit_round2.py::TestBootSanitize` (a completely unrelated
+test file, run later in file-alphabetical order) started failing — `_sanitize_trailer_value`
+stopped stripping U+2028/U+2029/`\x0b`/`\x0c`/`<!--` — only when run as part of the
+FULL suite, not in isolation, which is the tell for this exact bug class.
+
+Fix: move `from parsing import ...` from module level into the body of each function
+that uses it (`_sanitize_trailer_value`, `_crown_replace`, `extract_memory`,
+`extract_glossary` in `lib/boot_memory.py`). A deferred (function-body) import
+re-reads `sys.modules["parsing"]` at CALL time, not at the lib module's own
+(one-time, cached) import time — by the time any function is actually called, the
+stub window has always already closed. This mirrors a pattern already present in
+this codebase (`_migrate_untrack_generated_jsons` already did
+`from git_helpers import _GENERATED_JSONS` inside the function body, not at module
+top) — that precedent should have been a hint from the start.
+
+Rule for future extractions out of `session-start-boot.py`: any new lib module that
+consumes `parsing.py` (or any module a test is known to stub — check
+`test_migrate_statusline.py`'s stub list) must import those specific names inside
+function bodies, not at its own module top level. `git_helpers` names that merely
+fail closed (`run_git` stub → `(1, "")`, `ensure_gitignore` stub → no-op) are lower
+risk since they don't silently produce wrong-but-plausible output the way an
+identity-lambda sanitizer does — but the same hardening is worth applying
+proactively if a future test ever calls a `git_helpers`-dependent function
+in-process (not via subprocess) after this kind of stub window.
+
 ## session-start-boot.py: adaptive stdout budget for the truncation fix
 
 Fixing the harness's ~2KB stdout preview window truncating the `Next:` line
