@@ -194,6 +194,17 @@ def _suggest_scope(given_scope: str) -> None:
               file=sys.stderr)
 
 
+def _build_subject(type_: str, scope: str, message: str) -> str:
+    """Build the commit subject line: '{emoji} {type}({scope}): {message}'.
+
+    Single source of truth for the subject format — used by both
+    _check_subject_length() (to measure it) and build_commit_message() (to
+    emit it), so the two can never drift apart if the format changes.
+    """
+    emoji = EMOJIS.get(type_, "")
+    return f"{emoji} {type_}({scope}): {message}"
+
+
 def _check_subject_length(type_: str, scope: str, message: str) -> None:
     """Fail closed if a context() commit's subject would exceed SUBJECT_MAX_LEN.
 
@@ -207,8 +218,7 @@ def _check_subject_length(type_: str, scope: str, message: str) -> None:
     """
     if type_ != "context":
         return
-    emoji = EMOJIS.get(type_, "")
-    subject = f"{emoji} {type_}({scope}): {message}"
+    subject = _build_subject(type_, scope, message)
     if len(subject) > SUBJECT_MAX_LEN:
         print(
             f"{RED}{BOLD}Error{RESET}: subject line is {len(subject)} chars, "
@@ -226,8 +236,7 @@ def build_commit_message(type_: str, scope: str, message: str,
     Note: does NOT process Next/Resolved-Next issues — that happens
     post-commit in main() to avoid side effects if the commit fails.
     """
-    emoji = EMOJIS.get(type_, "")
-    subject = f"{emoji} {type_}({scope}): {message}"
+    subject = _build_subject(type_, scope, message)
 
     parts = [subject]
 

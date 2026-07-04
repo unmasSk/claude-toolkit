@@ -23,6 +23,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from constants import TOMBSTONE_KEYS
 from git_helpers import ensure_gitignore, run_git, commits_since_last_consolidation
+try:
+    # Reuse the canonical .claude/.unmassk/ creation helper instead of
+    # reinventing it locally (Cerberus suggestion). Imported defensively:
+    # some tests stub out git_helpers with a minimal fake module that
+    # predates this helper, and the boot hook must still import cleanly
+    # against that stub.
+    from git_helpers import ensure_runtime_dir
+except ImportError:
+    ensure_runtime_dir = None
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
 from version import VERSION as PLUGIN_VERSION
 
@@ -214,6 +223,24 @@ def time_ago(iso_or_unix: str) -> str:
             return f"{seconds // 604800}w ago"
     except (ValueError, TypeError, OSError):
         return "unknown"
+
+
+BANNER_FIELD_MAX_LEN = 60  # defensive cap on any single field embedded in the short banner
+
+
+def _truncate_banner_field(text: str, max_len: int = BANNER_FIELD_MAX_LEN) -> str:
+    """Bound a value embedded verbatim in the short banner.
+
+    Git branch names (and, defensively, other embedded paths) have no
+    practical length ceiling, so an unusually long one could alone push the
+    banner past its <1000-byte stdout safety budget (Cerberus regression:
+    TestBannerByteBudgetWithLongBranchName). Truncate with an ellipsis
+    rather than fail — the banner only needs to be recognizable, the full
+    untruncated value is always in the boot log file.
+    """
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
 
 
 def score_branch_relevance(text: str, keywords: list[str]) -> int:
@@ -1288,13 +1315,26 @@ def main() -> None:
     # Always refresh the full, untruncated boot log file (nothing capped —
     # this is the file Claude is told to read when stdout switches to the
     # minimal banner below).
+    #
+    # boot_log_path stays None unless the write below actually succeeds —
+    # it must never be treated as "available" just because we computed a
+    # path for it. Otherwise, on write failure (permissions, disk full),
+    # the hook would still take the short-banner branch and point Claude at
+    # a file that was never written, silently losing the Next: content —
+    # exactly the bug this fix exists to prevent (Cerberus regression:
+    # TestBootLogWriteFailureFallback).
     boot_log_path = None
     if project_root:
-        boot_log_path = os.path.join(project_root, *BOOT_LOG_REL_PARTS)
         try:
-            os.makedirs(os.path.dirname(boot_log_path), exist_ok=True)
-            with open(boot_log_path, "w", encoding="utf-8") as f:
+            if ensure_runtime_dir is not None:
+                runtime_dir = ensure_runtime_dir(project_root)
+            else:
+                runtime_dir = os.path.join(project_root, *BOOT_LOG_REL_PARTS[:-1])
+                os.makedirs(runtime_dir, exist_ok=True)
+            candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
+            with open(candidate_log_path, "w", encoding="utf-8") as f:
                 f.write(full_text + "\n")
+            boot_log_path = candidate_log_path  # only mark available after a successful write
         except OSError:
             pass  # Boot must never fail because the log file couldn't be written
 
@@ -1306,11 +1346,12 @@ def main() -> None:
         # instruction to the harness's stdout preview truncation. Print a
         # short banner instead and point at the full file.
         banner_log_path = boot_log_path.replace(os.sep, "/")
+        banner_branch = _truncate_banner_field(branch)
         banner = [
             f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
             "",
             f"STATUS: {status}{status_detail}",
-            f"BRANCH: {branch}{ahead_behind}",
+            f"BRANCH: {banner_branch}{ahead_behind}",
             "",
             "Boot content is large this session — the full briefing (nothing "
             "shortened) was written to:",
