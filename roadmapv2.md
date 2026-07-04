@@ -48,11 +48,12 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
-- **Una norma para que yo siga el roadmap en orden**, punto por punto, en vez de ir saltando.
+- _Ninguno pendiente ahora mismo._
 
 ## 📐 Cómo trabajamos
 
 - **Una cosa a la vez.** Terminarla, vivir con ella, luego la siguiente. Nada nuevo a medias.
+- **El roadmap se trabaja en el orden en que está escrito.** Lo siguiente es el primer ítem sin marcar de "Lo siguiente (ya acordado)" o, si está vacío, el primer candidato con tu visto bueno — nunca el que me parezca más interesante en el momento. Si yo quiero saltarme el orden, te lo digo explícito y esperas tu confirmación antes de actuar; si tú quieres saltarlo, lo dices y ya está.
 - **Nada se construye sin que tú lo metas aquí.** Una idea a media tarea se anota como candidata, no se abre.
 - **Documentar todo en los tres sitios** (GitHub, nosotros, Claude) en el mismo momento.
 - **El estado sale de hechos reales** (lo que está en el repo), nunca de lo que yo diga de memoria.

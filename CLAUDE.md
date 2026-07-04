@@ -28,10 +28,22 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 (One skill handles all three; it routes internally. State the detected situation in one line before acting.)
 
+**Starting a brand new project (scaffolding, tech stack, boilerplate):**
+
+- Scaffold, initialize, or create a new project / decide the tech stack → Skill `unmassk-flow-stack` (IDE-grade scaffolding wizard, 70+ project types)
+
 **Before building something significant:**
 
 - Ambiguous request, or a decision with stakes → Skill `unmassk-grill` (interrogate until the decision tree is resolved, before writing code)
 - A real choice between options, or "help me decide / I'm torn" → Skill `unmassk-council` (5-advisor pressure-test; also covers brainstorming and prototyping)
+
+**Building a feature, fixing a non-trivial bug, or refactoring:**
+
+- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (8-step creative pipeline, idea to shipped code)
+
+**Auditing existing code against enterprise standards:**
+
+- Audit a module or an enterprise review request → Skill `unmassk-audit` (14-step structured audit, weighted score out of 110)
 
 **Ending a session:**
 
@@ -58,19 +70,19 @@ Drop caveman temporarily for: security warnings, irreversible-action confirmatio
 <!-- BEGIN unmassk-communication (managed block) -->
 ## Communication
 
-- **Conciso y llano.** Sin jerga interna (nombres de hooks, números de issue, términos inventados). Las respuestas largas o técnicas pierden al usuario.
-- **Resultados, no proceso** — salvo cuando hay un fallo, un riesgo, o una decisión que tomar: ahí el porqué sí importa.
-- **Español, con ortografía completa** (acentos, ñ).
-- **Verifica antes de afirmar** "hecho" o "existe": lee el fichero / corre el test; no hables de memoria si puedes comprobar.
-- **Confirma antes de cambios estructurales** (CLAUDE.md, hooks de arranque, generadores, skills) cuando el contenido o enfoque no está decidido: propón → OK → ejecuta. Una vez aprobado, ejecuta entero sin traer cada diff — EXCEPTO cambios de seguridad, irreversibles, o que el usuario no pueda verificar por sí mismo (migraciones, reglas de auth, hooks de control): de esos, enseña el diff final completo antes de aplicar.
-- **Una cosa a la vez.** No abrir trabajo nuevo sin cerrar lo actual. Idea a media tarea → candidata, no se construye. Nada "NUEVO" sin que el usuario lo apruebe.
-- **Saca contradicciones y huecos** con honestidad, aunque sea a media tarea.
+- **Concise and plain.** No internal jargon (hook names, issue numbers, made-up terms). Long or overly technical responses lose the user.
+- **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter.
+- **Match the user's language** — if they write in Spanish, French, etc., respond in that language; don't default to English regardless of what language they use.
+- **Verify before claiming** "done" or "exists": read the file / run the test; don't speak from memory if you can check.
+- **Confirm before structural changes** (CLAUDE.md, startup hooks, generators, skills) when the content or approach isn't decided yet: propose → OK → execute. Once approved, execute in full without bringing back every diff — EXCEPT security changes, irreversible changes, or ones the user can't verify themselves (migrations, auth rules, control hooks): for those, show the full final diff before applying.
+- **One thing at a time.** Don't open new work without closing the current one. A mid-task idea → candidate, not built. Nothing "NEW" without the user's approval.
+- **Surface contradictions and gaps** honestly, even mid-task.
 <!-- END unmassk-communication -->
 
 <!-- BEGIN unmassk-build-mode (managed block) -->
 ## Build mode (you decide, before delegating)
 
-Before running the Flow execute step, decide the build mode and tell the agents which one applies. The agents do not choose — you do.
+Before running the Execute step of `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
 
 - **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
 - **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante tests after (Flow's normal Verify step).
