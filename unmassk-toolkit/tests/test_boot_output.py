@@ -20,6 +20,80 @@ from conftest import (
 
 BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
 
+# ── Stdout-truncation-fix contract (test-first, RED pass) ─────────────────
+#
+# Bug (House diagnosis): a context() commit subject of 1297 bytes, printed in
+# full on the RESUME "Last:" line, plus the SCOPES section printed before it,
+# exhausted the Claude Code harness's ~2KB stdout preview window before the
+# "Next:" line (the most important instruction) was reached. Fix (Bex's
+# design decision, not up for debate): stdout becomes a short banner; ALL
+# real content (STATUS, BRANCH, SCOPES, RESUME with untruncated Last:/Next:,
+# REMEMBER, DECISIONS, MEMOS, GC, CONSOLIDATE, TIMELINE) is written in full,
+# with nothing capped, to a fixed-path file the hook controls:
+# .claude/.unmassk/boot-log-latest.txt (this path follows the existing
+# convention of .claude/.unmassk/ for all generated runtime files — see
+# glossary-cache.json / manifest.json in git_helpers._GENERATED_JSONS, which
+# already gitignores the whole directory, so no new .gitignore entry is
+# needed).
+#
+# These markers are unique repeated-character runs (not real words) so a
+# "longest contiguous run" check proves the payload was copied in full,
+# rather than cut short — natural boot-log text never repeats one character
+# thousands of times in a row.
+LONG_SUBJECT_PAYLOAD = "Q" * 2200   # embedded directly in the commit subject
+LONG_NEXT_MARKER = "Z" * 2100       # Next: trailer value
+LONG_DECISION_MARKER = "D" * 2050   # Decision: trailer value
+LONG_MEMO_MARKER = "M" * 2080       # Memo: trailer value
+LONG_REMEMBER_MARKER = "R" * 2030   # Remember: trailer value
+
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+BOOT_LOG_REL_PATH = "/".join(BOOT_LOG_REL_PARTS)
+
+
+def make_repo_with_giant_commit(tmp_path, name="giant-repo"):
+    """Repo whose most recent commit is a context() commit with a 2000+ char
+    subject and 2000+ char Next/Decision/Memo/Remember trailers — reproduces
+    the real-world 1297-byte-subject truncation bug at a larger scale.
+    """
+    repo = str(tmp_path / name)
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+    run_script(INSTALL, repo, ["--auto"])
+
+    subject = f"💾 context(giant): {LONG_SUBJECT_PAYLOAD}"
+    body = (
+        "Why: reproduces the stdout-truncation bug at a larger scale\n"
+        f"Next: {LONG_NEXT_MARKER}\n"
+        f"Decision: {LONG_DECISION_MARKER}\n"
+        f"Memo: {LONG_MEMO_MARKER}\n"
+        f"Remember: {LONG_REMEMBER_MARKER}\n"
+    )
+    git_cmd(["commit", "--allow-empty", "-m", subject + "\n\n" + body], repo)
+    return repo
+
+
+def _boot_log_path(repo):
+    return os.path.join(repo, *BOOT_LOG_REL_PARTS)
+
+
+def _read_boot_log(repo):
+    with open(_boot_log_path(repo), encoding="utf-8") as f:
+        return f.read()
+
+
+def _longest_char_run(text, char):
+    """Length of the longest contiguous run of `char` in `text`."""
+    longest = 0
+    current = 0
+    for c in text:
+        if c == char:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
 
 def make_repo_with_memory(tmp_path, name="repo"):
     """Create a repo with install + some memory commits."""
@@ -315,3 +389,153 @@ class TestMigrateUntrackedGeneratedJsons:
         # Just run boot — nothing to migrate, should not error
         output = run_boot(repo)
         assert "STATUS:" in output
+
+
+class TestBootStdoutMinimalWithHeavyContent:
+    """Acceptance contract: stdout must survive the harness's ~2KB preview
+    window even when the underlying memory has a giant subject/trailers.
+
+    [ROJO]: every test in this class fails against the current hook, which
+    still prints STATUS/BRANCH/SCOPES/RESUME/REMEMBER/DECISIONS/MEMOS/TIMELINE
+    inline and writes no file at all.
+    """
+
+    STDOUT_SAFE_BYTES = 1000  # comfortably under the harness's ~2KB preview window
+
+    def test_stdout_stays_under_safe_byte_budget(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        output = run_boot(repo)
+        size = len(output.encode("utf-8"))
+        assert size < self.STDOUT_SAFE_BYTES, (
+            f"stdout is {size} bytes, expected < {self.STDOUT_SAFE_BYTES} "
+            "to survive the harness's preview-window truncation"
+        )
+
+    def test_stdout_excludes_heavy_sections(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        output = run_boot(repo)
+        for heavy_marker in ["SCOPES:", "RESUME:", "REMEMBER:", "DECISIONS:", "MEMOS:", "TIMELINE"]:
+            assert heavy_marker not in output, (
+                f"stdout should not contain heavy section {heavy_marker!r} — "
+                "it belongs only in the full boot-log file"
+            )
+
+    def test_stdout_points_to_full_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        output = run_boot(repo)
+        assert BOOT_LOG_REL_PATH in output.replace(os.sep, "/"), (
+            "stdout banner must reference the fixed-path full boot log file "
+            f"({BOOT_LOG_REL_PATH})"
+        )
+
+    def test_stdout_instructs_to_read_the_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        output = run_boot(repo)
+        assert re.search(r"(?i)\bread\b", output), (
+            "stdout banner must clearly instruct Claude to read the full file"
+        )
+
+
+class TestBootLogFileFullContent:
+    """The fixed-path boot-log file must contain everything, untruncated."""
+
+    def test_log_file_created_on_boot(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        assert os.path.isfile(_boot_log_path(repo)), (
+            f"expected boot log file at {_boot_log_path(repo)}"
+        )
+
+    def test_log_file_reflects_new_commits_on_each_boot(self, tmp_path):
+        """File is regenerated (not written once and left stale)."""
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content_before = _read_boot_log(repo)
+        assert "brand-new-marker-xyz" not in content_before
+
+        git_cmd(["commit", "--allow-empty", "-m",
+                 "🧭 decision(freshscope): brand-new-marker-xyz"], repo)
+        run_boot(repo)
+        content_after = _read_boot_log(repo)
+        assert "brand-new-marker-xyz" in content_after, (
+            "boot log file must be rewritten with the latest commit's memory on every boot"
+        )
+
+    def test_log_file_has_all_sections(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        for marker in ["STATUS:", "BRANCH:", "SCOPES:", "RESUME:",
+                       "REMEMBER:", "DECISIONS:", "MEMOS:", "TIMELINE"]:
+            assert marker in content, f"boot log file missing section {marker!r}"
+
+    def test_log_file_has_last_and_next(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        assert "Last:" in content
+        assert "Next:" in content
+
+    def test_long_subject_not_truncated_in_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        run = _longest_char_run(content, "Q")
+        assert run == len(LONG_SUBJECT_PAYLOAD), (
+            f"expected the full {len(LONG_SUBJECT_PAYLOAD)}-char subject payload "
+            f"untruncated, found a run of only {run} 'Q' characters"
+        )
+
+    def test_long_next_not_truncated_in_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        run = _longest_char_run(content, "Z")
+        assert run == len(LONG_NEXT_MARKER), (
+            f"Next: trailer truncated — expected {len(LONG_NEXT_MARKER)} 'Z' chars, found {run}"
+        )
+
+    def test_long_decision_not_truncated_in_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        run = _longest_char_run(content, "D")
+        assert run == len(LONG_DECISION_MARKER), (
+            f"Decision: trailer truncated — expected {len(LONG_DECISION_MARKER)} 'D' chars, found {run}"
+        )
+
+    def test_long_memo_not_truncated_in_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        run = _longest_char_run(content, "M")
+        assert run == len(LONG_MEMO_MARKER), (
+            f"Memo: trailer truncated — expected {len(LONG_MEMO_MARKER)} 'M' chars, found {run}"
+        )
+
+    def test_long_remember_not_truncated_in_log_file(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        run = _longest_char_run(content, "R")
+        assert run == len(LONG_REMEMBER_MARKER), (
+            f"Remember: trailer truncated — expected {len(LONG_REMEMBER_MARKER)} 'R' chars, found {run}"
+        )
+
+    def test_long_subject_appears_untruncated_in_timeline(self, tmp_path):
+        """TIMELINE lists the same giant commit — its subject must not be
+        truncated there either (contract item 4)."""
+        repo = make_repo_with_giant_commit(tmp_path)
+        run_boot(repo)
+        content = _read_boot_log(repo)
+        timeline_section = content[content.find("TIMELINE"):]
+        run = _longest_char_run(timeline_section, "Q")
+        assert run == len(LONG_SUBJECT_PAYLOAD), (
+            "TIMELINE entry for the giant commit must show the full subject, not a cut version"
+        )
+
+    # NOTE: GC is intentionally not asserted here for "untruncated-ness" —
+    # GC only ever prints aggregate counts (e.g. "12 memos detected"), never
+    # raw commit text, so there is no payload for it to truncate. The
+    # TIMELINE/REMEMBER/DECISIONS/MEMOS assertions above already cover every
+    # section that carries raw long-form text from this commit.

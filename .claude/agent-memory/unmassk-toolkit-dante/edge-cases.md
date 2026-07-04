@@ -251,3 +251,51 @@ RED pattern:
 - After disconnect: allow ~50ms yield before asserting user is gone from list
 - room_state broadcast on connect: use `ws.publish(topic, ...)` (does not send to self with publishToSelf)
 - connectedUsers timestamp: assert `!isNaN(new Date(ts).getTime())` — don't check exact value
+
+## "Not truncated" assertions — longest-contiguous-run technique
+
+When a contract requires proving a long payload was copied verbatim (not cut
+short) into some larger blob of text, don't hand-type the expected full
+string and compare equality (fragile — any unrelated formatting change
+breaks it) and don't just do a substring `in` check on the whole marker
+(works, but doesn't measure length precisely at the boundary). Instead:
+seed the payload with a repeated single character not otherwise common in
+the output (e.g. `"Q" * 2200`, `"Z" * 2100` — pick a different char per
+field so multiple long fields in the same blob can't be confused with each
+other), then scan the output for the longest contiguous run of that
+character and assert `run_length == len(payload)`. Natural text (headers,
+words, punctuation) essentially never repeats one character thousands of
+times in a row, so this is robust to any other content differences and
+precisely catches partial truncation (run shorter than expected) without
+requiring exact string reproduction.
+
+Used in `unmassk-toolkit/tests/test_boot_output.py` (`_longest_char_run`)
+for the session-start-boot.py stdout-truncation-fix contract: a synthetic
+context() commit with 2000+ char subject and Next/Decision/Memo/Remember
+trailers (each a distinct repeated character) must appear fully intact in
+the new fixed-path boot-log file, never in truncated form.
+
+## unmassk-toolkit runtime files — fixed-path convention
+
+Any new generated/runtime file for the plugin belongs under
+`.claude/.unmassk/` (see `git_helpers._GENERATED_JSONS` — the whole
+directory is already gitignored via `ensure_gitignore()`, so a new file
+placed there needs no new `.gitignore` entry). Confirmed for the
+boot-log-latest.txt fixed-path file added in the stdout-truncation-fix
+contract (session 2026-07-04).
+
+## Importing a hyphenated bin/ script to read its own constants (not just call it)
+
+When a test needs to build an input that exactly matches a script's own
+internal format string (e.g. a commit subject assembled as
+`f"{EMOJIS[type_]} {type_}({scope}): {message}"` in
+`bin/git-memory-commit.py`), don't hardcode the emoji or prefix as a string
+literal in the test — that duplicates a source of truth Ultron could change
+independently. Instead use the same `importlib.util.spec_from_file_location`
+pattern already documented in
+[unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md)
+to import the hyphenated script as a module and read its real dict/constant
+(e.g. `EMOJIS = _mod.EMOJIS`) directly, then use it to compute boundary-case
+lengths. Confirmed safe: `git-memory-commit.py`'s module-level code (EMOJIS
+dict, CO_AUTHOR resolution) has no side effects outside `if __name__ ==
+"__main__": main()`, so exec_module() is safe to call from a test.
