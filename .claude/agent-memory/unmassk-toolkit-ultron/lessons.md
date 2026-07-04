@@ -208,3 +208,36 @@ the full range is simplest and order-independent).
 
 Flagged in advance by Dante's design notes:
 `.claude/agent-memory/unmassk-toolkit-dante/crown-retraction-design-notes.md`.
+
+## test_release.py: 9 pre-existing failures unrelated to unmassk-toolkit changes
+
+`tests/test_release.py::TestT25TimeoutExpired`, `TestT26NoDuplicateStderr`,
+`TestT27DieNoReturn`, and all of `TestPromoteChangelogUnit` (6 tests) fail with
+`ModuleNotFoundError: No module named 'bin.release_helpers'` — confirmed via
+`git stash` that this happens identically on unmodified `main`, regardless of
+what else changed. Root cause is a `sys.path`/import-order issue when
+`test_release.py` runs in certain orders, not a regression. When running the
+full suite, expect "707 passed, 9 failed" as the clean baseline for these
+specific tests — don't spend time chasing them as caused by an unrelated fix.
+
+## session-start-boot.py: adaptive stdout budget for the truncation fix
+
+Fixing the harness's ~2KB stdout preview window truncating the `Next:` line
+(House's diagnosis: a 1297-byte `context()` subject was enough to blow the
+budget): the full detailed briefing must ALWAYS be written to
+`.claude/.unmassk/boot-log-latest.txt` (untruncated, regenerated every boot),
+but stdout can't unconditionally become a minimal banner — pre-existing tests
+(`TestBootSections` etc. in `test_boot_output.py`) assert `STATUS:`, `BRANCH:`,
+`RESUME:`, `REMEMBER:`, `DECISIONS:`, `TIMELINE` are present in stdout for
+normal-sized repos. Resolution: measure `len(full_text.encode("utf-8"))` and
+only swap to the minimal banner (short STATUS/BRANCH lines + pointer to the
+log file + "read" instruction) when it exceeds `STDOUT_FULL_INLINE_BUDGET_BYTES
+= 6000`. Measured a normal small repo on this dev machine (with real skill-
+drift warnings baked in, since `check_skill_drift()` reads the real
+`~/.claude/plugins/cache` regardless of which tmp repo is under test) at
+~1958 bytes — 6000 gives ~3x margin. A giant single-commit payload (2000+
+char subject/trailers) produces ~14KB, comfortably over the threshold. When
+writing banner text for a "minimal mode", avoid the bare word `TIMELINE`
+entirely (test asserts it's absent with no colon, unlike the other markers
+which are checked with a trailing colon) — even mentioning it in prose breaks
+the exclusion test.

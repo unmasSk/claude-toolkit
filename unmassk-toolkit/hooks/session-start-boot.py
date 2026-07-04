@@ -721,6 +721,19 @@ BOOT_MAX_OTHER_NEXT = 5
 BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
 
+# Stdout-truncation fix: the full briefing (everything, nothing shortened)
+# is always written to this fixed-path file. stdout itself stays a short
+# banner whenever the full briefing is large enough to risk exhausting the
+# Claude Code harness's ~2KB stdout preview window — see House's diagnosis
+# and TestBootStdoutMinimalWithHeavyContent / TestBootLogFileFullContent.
+BOOT_LOG_REL_PARTS = (".claude", ".unmassk", "boot-log-latest.txt")
+# Threshold picked with wide margins on both sides: a normal repo's full
+# inline briefing (status/branch/scopes/resume/etc. with realistic content)
+# sits well under this, so today's inline UX is unchanged; a single oversized
+# commit payload (the actual bug) blows past it by a wide margin, which is
+# what flips stdout over to the minimal banner + file-pointer mode.
+STDOUT_FULL_INLINE_BUDGET_BYTES = 6000
+
 
 def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
     """Get last N commits as timeline entries with time_ago.
@@ -1270,7 +1283,48 @@ def main() -> None:
     # detect the first message and force skill loading. The flag is created
     # by user-prompt-memory-check.py AFTER it tells Claude to load skills.
 
-    print("\n".join(lines))
+    full_text = "\n".join(lines)
+
+    # Always refresh the full, untruncated boot log file (nothing capped —
+    # this is the file Claude is told to read when stdout switches to the
+    # minimal banner below).
+    boot_log_path = None
+    if project_root:
+        boot_log_path = os.path.join(project_root, *BOOT_LOG_REL_PARTS)
+        try:
+            os.makedirs(os.path.dirname(boot_log_path), exist_ok=True)
+            with open(boot_log_path, "w", encoding="utf-8") as f:
+                f.write(full_text + "\n")
+        except OSError:
+            pass  # Boot must never fail because the log file couldn't be written
+
+    if not boot_log_path or len(full_text.encode("utf-8")) <= STDOUT_FULL_INLINE_BUDGET_BYTES:
+        # Normal case: full briefing fits comfortably — keep today's inline UX.
+        print(full_text)
+    else:
+        # Heavy case: printing everything inline risks losing the Next:
+        # instruction to the harness's stdout preview truncation. Print a
+        # short banner instead and point at the full file.
+        banner_log_path = boot_log_path.replace(os.sep, "/")
+        banner = [
+            f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
+            "",
+            f"STATUS: {status}{status_detail}",
+            f"BRANCH: {branch}{ahead_behind}",
+            "",
+            "Boot content is large this session — the full briefing (nothing "
+            "shortened) was written to:",
+            f"  {banner_log_path}",
+            "Read that file now before doing anything else — it has everything "
+            "the inline briefing normally has.",
+            "",
+            "---",
+            "BOOT COMPLETE. Do NOT run doctor or git-memory-log.",
+            f'Commit: python3 "{commit_script}"',
+            f'Log: python3 "{log_script}"',
+        ]
+        print("\n".join(banner))
+
     sys.exit(0)
 
 

@@ -57,6 +57,8 @@ EMOJIS = {
     "remember": "🧠",
 }
 
+SUBJECT_MAX_LEN = 100  # chars, measured on the full built subject line for context() commits
+
 _gh_available_cache: bool | None = None
 
 def _gh_available() -> bool:
@@ -190,6 +192,31 @@ def _suggest_scope(given_scope: str) -> None:
     if suggested != scope_base and suggested != given_scope:
         print(f"  {DIM}hint: files are in {suggested}/, consider scope '{suggested}' or '{suggested}/...'{RESET}",
               file=sys.stderr)
+
+
+def _check_subject_length(type_: str, scope: str, message: str) -> None:
+    """Fail closed if a context() commit's subject would exceed SUBJECT_MAX_LEN.
+
+    Root-cause fix for the boot-hook stdout truncation bug: a 1297-byte
+    context() subject alone was enough to blow the harness's ~2KB stdout
+    preview window. Rather than let an oversized subject land at all, reject
+    it here — exit non-zero, create no commit — and tell the caller to
+    shorten the message and move the rest into --body (which stays
+    unrestricted). Only applies to type "context" (Bex's design decision);
+    other commit types are out of scope.
+    """
+    if type_ != "context":
+        return
+    emoji = EMOJIS.get(type_, "")
+    subject = f"{emoji} {type_}({scope}): {message}"
+    if len(subject) > SUBJECT_MAX_LEN:
+        print(
+            f"{RED}{BOLD}Error{RESET}: subject line is {len(subject)} chars, "
+            f"exceeds the {SUBJECT_MAX_LEN}-char limit for context() commits. "
+            "Shorten the message and move the rest into --body.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def build_commit_message(type_: str, scope: str, message: str,
@@ -351,6 +378,8 @@ def main() -> None:
     if type_ not in EMOJIS:
         print(f"{RED}{BOLD}Error{RESET}: unknown type '{type_}'. Valid: {', '.join(sorted(EMOJIS))}", file=sys.stderr)
         sys.exit(1)
+
+    _check_subject_length(type_, args.scope, args.message)
 
     # Validación de --path: deben quedar dentro del repo root
     if args.paths:
