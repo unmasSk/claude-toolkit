@@ -1,3 +1,9 @@
 {
-    "livePreview.defaultPreviewPath": "/chatroom/design-mocks/sidebar-card-mockup.html"
+    "livePreview.defaultPreviewPath": "/chatroom/design-mocks/sidebar-card-mockup.html",
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#C2410C",
+        "titleBar.activeForeground": "#FFFFFF",
+        "titleBar.inactiveBackground": "#9A3412",
+        "titleBar.inactiveForeground": "#FED7AA"
+    }
 }
