@@ -6,6 +6,10 @@
 
 - Project startup quality floor: `unmassk-project-lifecycle`'s START branch (`unmassk-toolkit/skills/unmassk-project-lifecycle/SKILL.md`) gains a new step, before the first feature commit on a brand-new project, that confirms the scaffold has a working test command (even trivial), a lint/format config, and — if the stack implies secrets — a `.env.example`. Any missing piece is no longer silently skipped: it must be captured as an explicit `decision()` (e.g. "deferred: no test runner yet"). A small, concrete slice of the larger "solid project startup guide" idea, which otherwise stays deliberately frozen in the roadmap pending the memory/consolidator system maturing — a validation council found this specific piece doesn't depend on that maturity, so it shipped now.
 
+### Changed
+
+- Gitto Mode C (Consolidator, `unmassk-toolkit/agents/gitto.md`) now automatically retires superseded `Memo`/`Remember` entries when it crowns a group, instead of relying on the orchestrator to notice a near-duplicate mid-conversation and tombstone it by hand. It reuses the existing, already-tested `Resolved-Memo:`/`Resolved-Remember:` trailer mechanism — still additive, since a tombstone is itself a new commit, nothing is edited or deleted. `Decision` entries remain untouchable, unchanged. A 5-advisor council review closed three real gaps before this shipped: each cited source is checked individually before being tombstoned (a crown can be right on average while one specific source still carries a caveat the crown didn't capture — that source is left alone); the very first time this new tombstoning behavior fires anywhere in the project now requires Bex's approval, separate from the existing first-crown-per-scope gate; and a narrow new rule lets a truly isolated Memo/Remember (one that never grouped with anything, so it could never be crowned) be retired on its own once it's gone 6+ months with zero references, capped at 1-2 per pass.
+
 ## [1.14.0] - 2026-07-04
 
 ### Added
