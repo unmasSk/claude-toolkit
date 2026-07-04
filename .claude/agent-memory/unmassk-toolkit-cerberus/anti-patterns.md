@@ -326,3 +326,13 @@ Correct fix: add a pattern to the sanitizer that strips any sequence matching th
 ```
 
 Found in: `agent-invoker.ts:sanitizePromptContent` (2026-03-19) — RESPAWN delimiters (U+2550) not covered after box-drawing delimiter hardening.
+
+## Fallback path-existence flag not reset when the write it guards fails
+
+When a function writes a file inside a `try/except OSError: pass` (silent-fail, correct on its own — the caller must not crash) but sets the "path exists / is available" variable *before* the try block instead of only on successful write, any downstream branch that checks `if path_var: use path_var` cannot distinguish "wrote successfully" from "write failed, pass'd silently." If that downstream branch is a size/budget check that decides between "print everything inline" vs "print a short pointer to the file," a failed write reproduces the exact bug the pointer-file design was meant to fix: the short banner claims the full content is in the file, but the file was never written (first run) or is stale (later runs) — the real content, e.g. the harness-truncation-preventing "Next:" line, is silently lost.
+
+Reproduced live (not just static reading) in `session-start-boot.py:1291-1301`: `boot_log_path` is set right after `if project_root:`, before the `try/except OSError`. `os.chmod(claude_dir, 0o500)` (read-only, simulating disk-full/permission-denied/read-only-fs, e.g. sandboxed CI) + a giant `context()` commit that exceeds `STDOUT_FULL_INLINE_BUDGET_BYTES` (6000) → hook exits 0, prints the "minimal banner" telling Claude to read `boot-log-latest.txt`, but the file does not exist (`os.path.isfile() == False`). No test in `test_boot_output.py` covers this path (grep for OSError/chmod/PermissionError in that file returns nothing) — the entire 42-test contract was RED/GREEN only for the happy path.
+
+Correct fix: only treat the log path as "available" after the `open()`+`write()` inside the try succeeds — e.g. set `boot_log_path = None` initially and only assign the real path on success, or use a separate `log_write_ok: bool` flag; then in the branch condition, treat write failure the same as "no project root" → fall through to printing `full_text` inline unconditionally (safer than pointing at a promise that isn't there), regardless of size.
+
+General rule when reviewing "write full content to file, print short pointer on stdout" fallback designs: always check whether the "pointer is safe to print" condition is coupled to write *success*, not just to whether a path *could theoretically* be computed. Test the OSError branch explicitly (chmod a parent dir read-only, or monkeypatch `open`) — a happy-path-only contract will pass 100% green while reintroducing the original bug under any permission/disk-full condition.

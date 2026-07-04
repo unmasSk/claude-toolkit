@@ -8,6 +8,7 @@ and the BOOT COMPLETE terminator.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -60,6 +61,33 @@ def make_repo_with_giant_commit(tmp_path, name="giant-repo"):
     git_cmd(["init"], repo)
     git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
     run_script(INSTALL, repo, ["--auto"])
+
+    subject = f"💾 context(giant): {LONG_SUBJECT_PAYLOAD}"
+    body = (
+        "Why: reproduces the stdout-truncation bug at a larger scale\n"
+        f"Next: {LONG_NEXT_MARKER}\n"
+        f"Decision: {LONG_DECISION_MARKER}\n"
+        f"Memo: {LONG_MEMO_MARKER}\n"
+        f"Remember: {LONG_REMEMBER_MARKER}\n"
+    )
+    git_cmd(["commit", "--allow-empty", "-m", subject + "\n\n" + body], repo)
+    return repo
+
+
+def make_repo_with_giant_commit_no_install(tmp_path, name="giant-repo-no-install"):
+    """Same giant commit as make_repo_with_giant_commit(), but deliberately
+    WITHOUT running the installer, so `.claude/.unmassk` does not exist yet.
+
+    Used by the write-failure regression test below: we need the *creation*
+    of `.claude/.unmassk` (i.e. the os.makedirs() call inside the hook) to be
+    the thing that fails when `.claude` is made read-only — matching
+    Cerberus's live repro exactly (chmod 0o500 on a fresh `.claude` before
+    `.unmassk` exists).
+    """
+    repo = str(tmp_path / name)
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
 
     subject = f"💾 context(giant): {LONG_SUBJECT_PAYLOAD}"
     body = (
@@ -539,3 +567,91 @@ class TestBootLogFileFullContent:
     # raw commit text, so there is no payload for it to truncate. The
     # TIMELINE/REMEMBER/DECISIONS/MEMOS assertions above already cover every
     # section that carries raw long-form text from this commit.
+
+
+class TestBootLogWriteFailureFallback:
+    """Regression test for a Cerberus-confirmed gap (BLOQUEANTE): the hook
+    assigns `boot_log_path` to a real path string BEFORE the try/except that
+    attempts the actual write. If the write fails (permissions, disk full —
+    Cerberus reproduced with `chmod 500` on `.claude` before `.unmassk`
+    exists, so the `os.makedirs()` call itself raises PermissionError), the
+    variable is still truthy, so the hook falls into the "heavy case" branch
+    and prints the short banner pointing at a file that was NEVER written.
+
+    This reproduces the exact original bug (losing the Next:/content on the
+    failure path) that the stdout-truncation fix exists to prevent.
+
+    Correct behavior (what this test enforces): when the log write fails,
+    the hook must fall back to printing the full inline `full_text` — the
+    same thing it does when content is small enough to fit — never a banner
+    that references a file that doesn't exist.
+    """
+
+    def test_full_text_printed_when_boot_log_write_fails(self, tmp_path):
+        repo = make_repo_with_giant_commit_no_install(tmp_path)
+        claude_dir = os.path.join(repo, ".claude")
+        os.makedirs(claude_dir, exist_ok=True)
+        os.chmod(claude_dir, 0o500)  # simulate write failure (permissions/disk full)
+        try:
+            output = run_boot(repo)
+        finally:
+            # Restore write permission before tmp_path's teardown tries to
+            # remove the directory tree, or the test leaves garbage on disk.
+            os.chmod(claude_dir, 0o700)
+
+        # Sanity check: prove the log file genuinely was never created —
+        # otherwise this test wouldn't be testing the failure path at all.
+        assert not os.path.isdir(os.path.join(claude_dir, ".unmassk")), (
+            "sanity check failed: .unmassk should not exist — the write "
+            "must genuinely have failed for this test to mean anything"
+        )
+
+        # Today's bug: stdout is the short banner, and it references a boot
+        # log file path that was never written.
+        assert BOOT_LOG_REL_PATH not in output.replace(os.sep, "/"), (
+            "stdout must not point Claude at a boot log file that was never "
+            "successfully written — when the write fails, fall back to "
+            "printing the full text inline instead of the short banner"
+        )
+
+        # Correct behavior: the full inline text (same as the "fits under
+        # budget" branch) must be printed, so the Next: content survives.
+        run = _longest_char_run(output, "Z")
+        assert run == len(LONG_NEXT_MARKER), (
+            "when the boot log file write fails, stdout must contain the "
+            f"full inline briefing (expected {len(LONG_NEXT_MARKER)} 'Z' "
+            f"chars from the Next: trailer, found a run of only {run}) — "
+            "printing the short banner here silently loses this content, "
+            "exactly the bug this fix exists to prevent"
+        )
+
+
+class TestBannerByteBudgetWithLongBranchName:
+    """Non-blocking gap (Cerberus): the banner's <1000-byte budget assumes
+    branch names are "usually short", but nothing in the code caps the
+    branch name length before it's embedded verbatim in the `BRANCH:` line.
+    Git allows path-segment branch names well beyond what a "short" name
+    implies. A long branch name (combined with the same giant-commit banner
+    trigger used elsewhere in this file) can push the banner past the
+    1000-byte budget the contract itself requires.
+
+    Uses a two-segment branch name (each segment under the filesystem's
+    per-component name-length ceiling, so `git checkout -b` itself succeeds)
+    for a total length of ~491 characters — comfortably over "~200+".
+    """
+
+    LONG_BRANCH_NAME = ("a" * 245) + "/" + ("b" * 245)
+
+    def test_banner_stays_under_byte_budget_with_long_branch_name(self, tmp_path):
+        repo = make_repo_with_giant_commit(tmp_path)
+        rc, _, err = git_cmd(["checkout", "-b", self.LONG_BRANCH_NAME], repo)
+        assert rc == 0, f"test setup failed: could not create long branch name: {err}"
+
+        output = run_boot(repo)
+        size = len(output.encode("utf-8"))
+        assert size < 1000, (
+            f"banner is {size} bytes with a {len(self.LONG_BRANCH_NAME)}-char "
+            "branch name, expected < 1000 to stay within the contract's "
+            "stdout safety budget — the branch name must be bounded before "
+            "being embedded in the banner"
+        )

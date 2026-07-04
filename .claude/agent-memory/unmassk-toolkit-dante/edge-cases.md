@@ -299,3 +299,43 @@ to import the hyphenated script as a module and read its real dict/constant
 lengths. Confirmed safe: `git-memory-commit.py`'s module-level code (EMOJIS
 dict, CO_AUTHOR resolution) has no side effects outside `if __name__ ==
 "__main__": main()`, so exec_module() is safe to call from a test.
+
+## Reproducing a write-failure (permissions/disk-full) fallback bug — chmod ordering matters
+
+When a hook's "write a file, fall back on failure" logic has the bug that
+the fallback-trigger variable is set to a truthy path *before* the
+try/except confirms the write succeeded (so the except branch still leaves
+a "we wrote it" signal even though nothing was written), reproduce with:
+`os.chmod(parent_dir, 0o500)` (read+execute, no write) applied to the parent
+directory **before** the target subdirectory exists — this makes
+`os.makedirs(target_subdir, exist_ok=True)` itself raise `PermissionError`
+(a subclass of `OSError`), which is what the hook's `except OSError: pass`
+catches. Do NOT chmod a directory that already has the target subdirectory
+created inside it (e.g. by an installer that already ran) — if the child
+directory already exists and is itself still writable, a read-only parent
+does not block writes into that already-existing child (Unix write
+permission is per-directory, not inherited from ancestors). Always restore
+permissions (`os.chmod(dir, 0o700)`) in a `try/finally` around the
+subprocess call, before any `tmp_path` teardown tries to remove the tree.
+Confirmed in `unmassk-toolkit/tests/test_boot_output.py`
+(`TestBootLogWriteFailureFallback`, session 2026-07-04) — needed a
+`_no_install` variant of the giant-commit repo builder specifically so
+`.claude/.unmassk` did not pre-exist.
+
+## Git branch name length limits — per-component ceiling from the `.lock` file, not NAME_MAX
+
+A single-path-component branch name (no `/`) fails `git checkout -b` once
+it exceeds roughly 250 bytes on APFS (NAME_MAX=255), because git briefly
+creates a `<name>.lock` file in `.git/refs/heads/` during the ref update —
+the lock suffix (`.lock`, 5 bytes) counts against the same 255-byte
+filesystem limit, so the real usable ceiling for a single segment is
+`NAME_MAX - 5`, not `NAME_MAX`. To construct a long branch name well beyond
+what "usually short" code assumes (for testing byte-budget assumptions),
+use a two-segment name with a `/` separator, e.g. `("a"*245) + "/" +
+("b"*245)` — each segment stays under the per-component ceiling so
+`checkout -b` succeeds, while the total branch name (~491 chars here) is
+long enough to expose any code path that embeds the branch name into a
+size-bounded string without capping it. Confirmed in
+`test_boot_output.py::TestBannerByteBudgetWithLongBranchName` (session
+2026-07-04): this pushed a banner from a baseline ~666 bytes to ~1207 bytes,
+comfortably proving the >1000-byte budget isn't guaranteed by construction.
