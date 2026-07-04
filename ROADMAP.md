@@ -39,6 +39,7 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 - **"Fine skills"** — ver qué es exactamente y si vale para algo. _En investigación._
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
 - **MoneyPrinterTurbo** — sumar a la ampliación de la skill de vídeo (junto a OpenMontage). _En investigación._
+- **Sumar a `unmassk-design`: Emil Kowalski, "impeccable", "taste-skill"** — _En investigación._
 
 ## 📐 Cómo trabajamos
 
