@@ -220,6 +220,33 @@ what else changed. Root cause is a `sys.path`/import-order issue when
 full suite, expect "707 passed, 9 failed" as the clean baseline for these
 specific tests — don't spend time chasing them as caused by an unrelated fix.
 
+## session-start-boot.py: any new git_helpers.py export needs a defensive import
+
+`tests/test_migrate_statusline.py::_load_migrate_fn` loads `hooks/session-start-boot.py`
+via `importlib.util.spec_from_file_location` and replaces `sys.modules["git_helpers"]`
+with a hand-written stub `ModuleType` that only defines a fixed, small set of names
+(`ensure_gitignore`, `_GENERATED_JSONS`, `run_git`, `is_git_repo`, `GIT_TIMEOUT`,
+`commits_since_last_consolidation`). Any *new* name added to `lib/git_helpers.py` and
+imported directly (`from git_helpers import new_thing`) at module load time in
+`session-start-boot.py` breaks this test file with `ImportError: cannot import name
+'new_thing' from 'git_helpers'` — even though `new_thing` exists in the real file,
+because the stub shadows it in `sys.modules` during that test's import.
+
+Fix pattern (already used once for `ensure_runtime_dir`, now also for
+`open_no_follow_symlink` added while closing SEC-CRIT-001/CRB-01 findings):
+```python
+try:
+    from git_helpers import new_thing
+except ImportError:
+    def new_thing(...):  # or new_thing = None, if optional
+        ...  # local fallback reimplementing the same behavior
+```
+Do NOT fix this by editing the test's stub (test_migrate_statusline.py is not meant
+to be touched for hook feature work) — always make the import defensive on the
+hook side instead. Full suite run is the only reliable way to catch this class of
+break; `test_boot_output.py`/`test_boot_tombstones.py` alone won't surface it since
+they don't stub git_helpers.
+
 ## session-start-boot.py: adaptive stdout budget for the truncation fix
 
 Fixing the harness's ~2KB stdout preview window truncating the `Next:` line

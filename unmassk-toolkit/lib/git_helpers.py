@@ -26,6 +26,34 @@ def ensure_runtime_dir(project_root: str) -> str:
     return runtime_dir
 
 
+def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
+    """Open `path` for writing without following a pre-existing symlink.
+
+    SEC-CRIT-001: several hooks write generated files at fixed, predictable
+    paths (.gitignore, boot-log-latest.txt, glossary-cache.json) that fire
+    automatically on session start. A malicious repo can commit one of
+    those paths as a symlink (git blob mode 120000) pointing outside the
+    repo (e.g. at the victim's ~/.bashrc) — blindly following it with a
+    plain open(path, "w"/"a") would silently overwrite an arbitrary file
+    the instant the victim opens the project.
+
+    Uses O_NOFOLLOW so the open() call itself atomically refuses to
+    traverse a symlink at the final path component — no separate
+    islink()-then-open() race. Also creates new files at 0o600 (no
+    group/other access) regardless of umask, since 0o600 has no bits for
+    umask to clear.
+
+    Raises OSError (errno ELOOP on POSIX) if `path` is currently a
+    symlink — callers must let that propagate to their existing
+    "never fail the caller's larger operation" fallback, never fall back
+    to following the link.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+    flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
+    fd = os.open(path, flags, 0o600)
+    return os.fdopen(fd, mode, encoding=encoding)
+
+
 def ensure_gitignore(project_root: str, entry: str | None = None) -> None:
     """Ensure generated JSON files are in the project's .gitignore.
 
@@ -45,7 +73,7 @@ def ensure_gitignore(project_root: str, entry: str | None = None) -> None:
             return
         block = "\n".join(missing)
         separator = "" if existing.endswith("\n") or not existing else "\n"
-        with open(gitignore_path, "a") as f:
+        with open_no_follow_symlink(gitignore_path, "a") as f:
             f.write(f"{separator}\n# unmassk-toolkit generated (do not track)\n{block}\n")
     except OSError as e:
         print(f"[unmassk-toolkit] WARNING: could not update .gitignore at {gitignore_path}: {e}", file=sys.stderr)

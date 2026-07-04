@@ -32,6 +32,19 @@ try:
     from git_helpers import ensure_runtime_dir
 except ImportError:
     ensure_runtime_dir = None
+try:
+    # SEC-CRIT-001: symlink-safe writer for boot-log/glossary-cache/.gitignore.
+    # Imported defensively for the same reason as ensure_runtime_dir above —
+    # tests/test_migrate_statusline.py stubs out git_helpers with a fake
+    # module that predates this helper. Fallback reimplements the identical
+    # O_NOFOLLOW logic locally so the safety property holds either way.
+    from git_helpers import open_no_follow_symlink
+except ImportError:
+    def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+        flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
+        fd = os.open(path, flags, 0o600)
+        return os.fdopen(fd, mode, encoding=encoding)
 from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope, sanitize_trailer_value as _sanitize_canonical
 from version import VERSION as PLUGIN_VERSION
 
@@ -153,6 +166,33 @@ def check_skill_drift() -> list[str] | None:
 def _sanitize_trailer_value(text: str) -> str:
     """Strip injection characters from trailer values. Delegates to canonical sanitizer in lib/parsing."""
     return _sanitize_canonical(text)
+
+
+def _crown_replace(
+    entries: list[tuple[str, str, bool]],
+    key: str,
+    text: str,
+    tombstones: set[str] | None = None,
+) -> None:
+    """Replace the existing non-crowned entry for `key` with a crowned one, in place.
+
+    Single implementation of the "crown beats a non-crowned entry for the
+    same scope" override, reused by extract_memory(), extract_glossary(),
+    and main()'s glossary-merge for Decisions/Memos/Remembers (Cerberus
+    found this exact loop shape repeated 6 times).
+
+    CRB-01 fix: when `tombstones` is provided, the replace is a no-op if
+    `text` (the crowned commit's own value) has been explicitly retired —
+    a retired crowned entry must never resurrect and overwrite a newer,
+    active, never-retired entry for the same scope. Decisions have no
+    tombstone concept, so their call sites simply omit `tombstones`.
+    """
+    if tombstones is not None and normalize(text) in tombstones:
+        return
+    for i, (rscope, _rtext, ris_crown) in enumerate(entries):
+        if rscope == key and not ris_crown:
+            entries[i] = (key, text, True)
+            return
 
 
 def check_version_mismatch() -> str | None:
@@ -443,7 +483,7 @@ def extract_memory() -> dict:
 
         # Pending items (include subject for branch-relevance scoring)
         if "Next" in trailers and len(pending) < MAX_PENDING:
-            text = trailers["Next"]
+            text = _sanitize_trailer_value(trailers["Next"])
             if normalize(text) not in tombstones:
                 scope_prefix = f"({scope}) " if scope else ""
                 issue_match = re.search(r"#(\d+)", text)
@@ -458,7 +498,7 @@ def extract_memory() -> dict:
 
         # Blockers
         if "Blocker" in trailers and len(blockers) < MAX_BLOCKERS:
-            text = trailers["Blocker"]
+            text = _sanitize_trailer_value(trailers["Blocker"])
             if normalize(text) not in tombstones:
                 blockers.append(f"{sha}: {text}")
 
@@ -477,10 +517,7 @@ def extract_memory() -> dict:
                     decisions.append((label, _sanitize_trailer_value(trailers["Decision"]), is_crown))
             elif is_crown:
                 # Crown beats a non-crowned entry for the same scope
-                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
-                    if rscope == label and not ris_crown:
-                        decisions[i] = (label, _sanitize_trailer_value(trailers["Decision"]), True)
-                        break
+                _crown_replace(decisions, label, _sanitize_trailer_value(trailers["Decision"]))
 
         # Memos (one per scope, skip tombstoned; crowned entries bypass MAX_MEMOS cap)
         if "Memo" in trailers:
@@ -496,11 +533,8 @@ def extract_memory() -> dict:
                 if len(memos) < MAX_MEMOS or is_crown:
                     memo_scopes.add(scope)
                     memos.append((label, text, is_crown))
-            elif is_crown and scope in memo_scopes and normalize(text) not in tombstones:
-                for i, (rscope, rtext, ris_crown) in enumerate(memos):
-                    if rscope == label and not ris_crown:
-                        memos[i] = (label, text, True)
-                        break
+            elif is_crown and scope in memo_scopes:
+                _crown_replace(memos, label, text, tombstones)
 
         # Remembers (personality notes between sessions, skip tombstoned)
         if "Remember" in trailers:
@@ -582,6 +616,7 @@ def extract_glossary() -> dict:
                 glossary_tombstones.add(normalize(trailers[key]))
 
         if "Decision" in trailers:
+            text = _sanitize_trailer_value(trailers["Decision"])
             is_crown = False
             if trailers.get("Crown") == "Decision":
                 if scope not in crown_decision_resolved:
@@ -590,15 +625,13 @@ def extract_glossary() -> dict:
             if scope not in decision_scopes:
                 if len(decisions) < GLOSSARY_MAX_DECISIONS or is_crown:
                     decision_scopes.add(scope)
-                    decisions.append((label, trailers["Decision"], is_crown))
+                    decisions.append((label, text, is_crown))
             elif is_crown:
                 # Crown beats a non-crowned entry for the same scope already in the glossary
-                for i, (rscope, rtext, ris_crown) in enumerate(decisions):
-                    if rscope == label and not ris_crown:
-                        decisions[i] = (label, trailers["Decision"], True)
-                        break
+                _crown_replace(decisions, label, text)
 
         if "Memo" in trailers:
+            text = _sanitize_trailer_value(trailers["Memo"])
             is_crown = False
             if trailers.get("Crown") == "Memo":
                 if scope not in crown_memo_resolved:
@@ -607,15 +640,14 @@ def extract_glossary() -> dict:
             if scope not in memo_scopes:
                 if len(memos) < GLOSSARY_MAX_MEMOS or is_crown:
                     memo_scopes.add(scope)
-                    memos.append((label, trailers["Memo"], is_crown))
+                    memos.append((label, text, is_crown))
             elif is_crown:
-                for i, (rscope, rtext, ris_crown) in enumerate(memos):
-                    if rscope == label and not ris_crown:
-                        memos[i] = (label, trailers["Memo"], True)
-                        break
+                # CRB-01: a retired crowned Memo must not resurrect and evict
+                # a newer, active, never-retired entry for the same scope.
+                _crown_replace(memos, label, text, glossary_tombstones)
 
         if "Remember" in trailers:
-            text = trailers["Remember"]
+            text = _sanitize_trailer_value(trailers["Remember"])
             norm = normalize(text)
             if norm not in remember_seen:
                 remember_seen.add(norm)
@@ -709,8 +741,12 @@ def _write_glossary_cache(glossary: dict) -> None:
     }
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
+        with open_no_follow_symlink(path, "w") as f:
             json.dump(cache, f, indent=2)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
         root = _get_project_root()
         if root:
             ensure_gitignore(root)
@@ -747,6 +783,30 @@ BOOT_MAX_BRANCH_NEXT = 10
 BOOT_MAX_OTHER_NEXT = 5
 BOOT_MAX_NEXT = 10
 BOOT_MAX_TIMELINE = 10
+
+# SEC-MED-005: crowned Decision/Memo/Remember entries intentionally bypass the
+# normal MAX_DECISIONS/MAX_MEMOS/BOOT_MAX_REMEMBERS count-eviction budget (a
+# crowned entry must never be evicted by a newer, non-crowned one). Contract
+# decided by Dante: reuse MAX_DECISIONS (20) as the ceiling on TOTAL distinct
+# crowned entries shown per section, and cap a single crowned trailer VALUE
+# at 2000 chars (truncated, never discarded) so one oversized crowned commit
+# can't blow up the boot log without limit.
+CROWN_COUNT_CAP = MAX_DECISIONS  # 20 — same ceiling reused for crowned Decisions/Memos/Remembers
+CROWN_VALUE_MAX_LEN = 2000
+
+
+def _truncate_crown_value(text: str, max_len: int = CROWN_VALUE_MAX_LEN) -> str:
+    """Bound a single crowned trailer value's length (SEC-MED-005).
+
+    Crowned entries bypass the normal count-eviction budget, so nothing
+    else bounds how large a single crowned trailer value can grow.
+    Truncate (never discard) so an oversized crowned commit can't blow up
+    the boot log file without limit.
+    """
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "…"
+
 
 # Stdout-truncation fix: the full briefing (everything, nothing shortened)
 # is always written to this fixed-path file. stdout itself is UNCONDITIONALLY
@@ -1055,13 +1115,19 @@ def main() -> None:
             if scope_map:
                 lines.append("SCOPES:")
                 for scope_name, scope_info in scope_map.items():
+                    # SEC-CRIT-002: scopes.json is not exclusively agent-authored
+                    # (compromised collaborator commit, corrupted Bilbo run) — sanitize
+                    # every embedded field the same way Decision/Memo/Remember already are.
+                    safe_name = _sanitize_trailer_value(str(scope_name))
                     desc = scope_info.get("description", "") if isinstance(scope_info, dict) else str(scope_info)
+                    safe_desc = _sanitize_trailer_value(str(desc))
                     children = scope_info.get("children", {}) if isinstance(scope_info, dict) else {}
                     if children:
-                        child_list = ", ".join(f"{scope_name}/{k}" for k in children)
-                        lines.append(f"  {scope_name}: {desc} [{child_list}]")
+                        safe_children = [_sanitize_trailer_value(str(k)) for k in children]
+                        child_list = ", ".join(f"{safe_name}/{k}" for k in safe_children)
+                        lines.append(f"  {safe_name}: {safe_desc} [{child_list}]")
                     else:
-                        lines.append(f"  {scope_name}: {desc}")
+                        lines.append(f"  {safe_name}: {safe_desc}")
                 lines.append("")
         except (json.JSONDecodeError, OSError):
             pass  # Silently skip if file is corrupt
@@ -1156,12 +1222,16 @@ def main() -> None:
             recent_remember_texts.add(norm)
 
     if all_remembers:
-        crowned_remembers = [(s, t, c) for s, t, c in all_remembers if c]
+        # SEC-MED-005: crowned entries intentionally bypass the normal
+        # count-eviction budget — cap the TOTAL shown at CROWN_COUNT_CAP and
+        # bound each value's length so a single crowned commit can't blow up
+        # the boot log without limit.
+        crowned_remembers = [(s, t, c) for s, t, c in all_remembers if c][:CROWN_COUNT_CAP]
         normal_remembers = [(s, t, c) for s, t, c in all_remembers if not c]
 
         lines.append("REMEMBER:")
         for scope, text, _ in crowned_remembers:
-            lines.append(f"  👑 {scope} {text}")
+            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
         for scope, text, _ in normal_remembers[:BOOT_MAX_REMEMBERS]:
             lines.append(f"  {scope} {text}")
         remaining = len(normal_remembers) - BOOT_MAX_REMEMBERS
@@ -1180,13 +1250,11 @@ def main() -> None:
             recent_decision_scopes.add(gscope)
         elif gis_crown:
             # Replace non-crowned recent entry with crowned glossary entry
-            for i, (rscope, rtext, ris_crown) in enumerate(all_decisions):
-                if rscope == gscope and not ris_crown:
-                    all_decisions[i] = (gscope, gtext, True)
-                    break
+            _crown_replace(all_decisions, gscope, gtext)
 
     if all_decisions:
-        crowned_decs = [(s, t, c) for s, t, c in all_decisions if c]
+        # SEC-MED-005: cap total crowned count + per-value length (see REMEMBER above)
+        crowned_decs = [(s, t, c) for s, t, c in all_decisions if c][:CROWN_COUNT_CAP]
         normal_decs = [(s, t, c) for s, t, c in all_decisions if not c]
 
         branch_decs, other_decs = partition_by_relevance(
@@ -1197,7 +1265,7 @@ def main() -> None:
         lines.append("DECISIONS:")
         # Crowned first, outside budget
         for scope, text, _ in crowned_decs:
-            lines.append(f"  👑 {scope} {text}")
+            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
         # Then normal entries with their budget
         for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
@@ -1214,13 +1282,13 @@ def main() -> None:
             all_memos.append((gscope, gtext, gis_crown))
             recent_memo_scopes.add(gscope)
         elif gis_crown:
-            for i, (rscope, rtext, ris_crown) in enumerate(all_memos):
-                if rscope == gscope and not ris_crown:
-                    all_memos[i] = (gscope, gtext, True)
-                    break
+            # CRB-01: a retired crowned Memo must not resurrect and evict a
+            # newer, active, never-retired entry for the same scope.
+            _crown_replace(all_memos, gscope, gtext, tombstones)
 
     if all_memos:
-        crowned_memos = [(s, t, c) for s, t, c in all_memos if c]
+        # SEC-MED-005: cap total crowned count + per-value length (see REMEMBER above)
+        crowned_memos = [(s, t, c) for s, t, c in all_memos if c][:CROWN_COUNT_CAP]
         normal_memos = [(s, t, c) for s, t, c in all_memos if not c]
 
         branch_memos, other_memos = partition_by_relevance(
@@ -1230,7 +1298,7 @@ def main() -> None:
 
         lines.append("MEMOS:")
         for scope, text, _ in crowned_memos:
-            lines.append(f"  👑 {scope} {text}")
+            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
         for scope, text, _ in shown_normal:
             lines.append(f"  {scope} {text}")
         remaining = len(normal_memos) - len(shown_normal)
@@ -1331,8 +1399,12 @@ def main() -> None:
                 runtime_dir = os.path.join(project_root, *BOOT_LOG_REL_PARTS[:-1])
                 os.makedirs(runtime_dir, exist_ok=True)
             candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
-            with open(candidate_log_path, "w", encoding="utf-8") as f:
+            with open_no_follow_symlink(candidate_log_path, "w") as f:
                 f.write(full_text + "\n")
+            try:
+                os.chmod(candidate_log_path, 0o600)
+            except OSError:
+                pass
             boot_log_path = candidate_log_path  # only mark available after a successful write
         except OSError:
             pass  # Boot must never fail because the log file couldn't be written
