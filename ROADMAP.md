@@ -32,7 +32,9 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
-- _Ninguno pendiente ahora mismo._
+- **Humanizar texto** — skill nueva para que el texto escrito (no diseño visual) no suene a IA. _En investigación_ — ya hay varias skills de GitHub similares (mismo enfoque, misma fuente de Wikipedia); confirmado que `unmassk-design` hoy solo cubre "AI slop" visual, no texto escrito.
+- **Ampliar la skill de vídeo con OpenMontage** — `unmassk-media` ya tiene vídeo (Remotion+ffmpeg), añadir OpenMontage y más herramientas que Bex vaya diciendo. _En investigación._
+- **Ampliar `unmassk-design` con skills de animación** — Three.js, "animation designer", Flutter animations, CSS animations, UI-animations. _En investigación._
 
 ## 📐 Cómo trabajamos
 
