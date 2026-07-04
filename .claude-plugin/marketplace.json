@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "unmassk-toolkit",
-      "version": "1.13.0",
+      "version": "1.14.0",
       "description": "Core toolkit \u2014 persistent memory, 10 specialized agents, creative pipeline, enterprise audit, quality standards, and memory calibration",
       "source": {
         "source": "git-subdir",

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-04
+
+### Added
+
+- Per-message skill-router nudge: the `[memory-check]` hook (`unmassk-toolkit/hooks/user-prompt-memory-check.py`) now checks every user message — not just the first — against a lightweight trigger-phrase table (new `unmassk-toolkit/lib/skill_router.py`) covering all 9 protocol skills, sourced directly from each skill's own frontmatter `description`. On a match it appends an informational `[skill-router] Possibly relevant skill(s): ...` line — purely a nudge, it never blocks or denies. A permanent drift-guard test loads the live SKILL.md descriptions at test time and fails if the trigger table ever falls out of sync with them again.
+
+### Changed
+
+- Protocols menu generator (`unmassk-toolkit/lib/managed_blocks.py`) extended with `unmassk-flow`, `unmassk-audit`, and `unmassk-flow-stack` — previously excluded from the CLAUDE.md Protocols menu under an old "only list installed+referenced skills" policy that no longer applied now that all three are fully shipped and tested; a skill Claude can't see in the one menu it reads every session can't be routed to reliably.
+
+### Fixed
+
+- Frontmatter trigger-phrase collisions between protocol skills — the actual mechanism Claude Code uses to pick which skill to invoke — fixed after a 5-advisor validation council tested 12 adversarial phrases against an earlier pass: `unmassk-grill` vs `unmassk-council` still tied on "two valid interpretations" vs "which option" (`unmassk-grill` is now scoped to ambiguity about WHAT to build, `unmassk-council` to choosing between already-scoped approaches to an already-understood goal); `unmassk-council`'s own description contradicted itself (claimed "nothing decided" while also excluding undefined requirements) — clarified that its idea-generation compares approaches to a goal that's already understood, not defines the goal; `unmassk-project-lifecycle` now defers to `unmassk-grill` when scope is undecided and to `unmassk-flow-stack` when a concrete stack is already named (previously only `unmassk-flow-stack` knew to defer, not the reverse).
+- CRLF line endings in `unmassk-audit/SKILL.md` — the only file in the repo affected, likely a leftover from an earlier Windows-compatibility fix — converted to LF; could have broken tooling parsing its frontmatter.
+- `test_user_prompt_skill_router.py` took 4+ minutes because most cases spawned a real subprocess and git repo per test; refactored so the majority call the pure `match_skills()` function in-process, reserving subprocess tests for the 6 that genuinely exercise hook wiring — same 85 tests, same coverage, now runs in well under 1 second.
+
 ## [1.13.0] - 2026-07-04
 
 ### Changed
