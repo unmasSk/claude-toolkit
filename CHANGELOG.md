@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-04
+
 ### Changed
 
 - `unmassk-grill` extended instead of building a new skill: after researching GitHub's `spec-kit` and running a full pressure-test, the proposed new skill's core mechanism turned out to be identical to what `unmassk-grill` already does. Added a "Vagueness preamble" that scans the request's own wording for unquantified qualifiers, missing actors, missing error states, and ambiguous scope before the interview starts; an "Independently testable slice" check in the interview rules to catch a request that's secretly 2-3 bundled features; and a "Bounded mode" for when grill is invoked automatically by `unmassk-project-lifecycle` or `unmassk-flow` (capped at 5 questions, instead of running unbounded, so it doesn't stall an automated pipeline step).
