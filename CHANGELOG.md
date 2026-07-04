@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Project startup quality floor: `unmassk-project-lifecycle`'s START branch (`unmassk-toolkit/skills/unmassk-project-lifecycle/SKILL.md`) gains a new step, before the first feature commit on a brand-new project, that confirms the scaffold has a working test command (even trivial), a lint/format config, and — if the stack implies secrets — a `.env.example`. Any missing piece is no longer silently skipped: it must be captured as an explicit `decision()` (e.g. "deferred: no test runner yet"). A small, concrete slice of the larger "solid project startup guide" idea, which otherwise stays deliberately frozen in the roadmap pending the memory/consolidator system maturing — a validation council found this specific piece doesn't depend on that maturity, so it shipped now.
+
 ## [1.14.0] - 2026-07-04
 
 ### Added
