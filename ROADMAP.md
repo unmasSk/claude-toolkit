@@ -40,6 +40,7 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
 - **MoneyPrinterTurbo** — sumar a la ampliación de la skill de vídeo (junto a OpenMontage). _En investigación._
 - **Sumar a `unmassk-design`: Emil Kowalski, "impeccable", "taste-skill"** — _En investigación._
+- **Plugin de pentesting** (retoma el issue #19, sin alcance definido todavía) — _pendiente de que Bex diga skills/herramientas concretas._
 
 ## 📐 Cómo trabajamos
 
