@@ -38,10 +38,11 @@ State the detected situation to the user in one line before proceeding.
 
 Goal: don't let implementation begin until the base decision tree is seeded.
 
-1. Cascade the requirements from the project type. A SaaS implies: cloud server, cloud DB, possibly Redis, auth, OAuth provider, and so on. Walk the chain so the known-in-advance requirements surface as nodes.
-2. For each major choice (stack, framework, DB, auth), capture a `decision()` with its `Why:`.
-3. Hand off to the scaffolding wizard (`unmassk-flow-stack`) for the actual structure.
-4. **Critical:** ensure the choices made in scaffolding are written to git-memory as decisions. The richest moment in decisions is the start — do not let it evaporate.
+1. Use the Skill tool with `skill="unmassk-grill"` first (pipeline-invoked mode — 5-question cap) on the project description itself, before cascading requirements. Catches vague wording and bundled scope ("build me a marketplace app" hiding 3 separate products) while it's cheap to fix — before any stack/framework decision is seeded on top of a misunderstood request.
+2. Cascade the requirements from the project type. A SaaS implies: cloud server, cloud DB, possibly Redis, auth, OAuth provider, and so on. Walk the chain so the known-in-advance requirements surface as nodes.
+3. For each major choice (stack, framework, DB, auth), capture a `decision()` with its `Why:`.
+4. Hand off to the scaffolding wizard (`unmassk-flow-stack`) for the actual structure.
+5. **Critical:** ensure the choices made in scaffolding are written to git-memory as decisions. The richest moment in decisions is the start — do not let it evaporate.
 
 Do not write feature code until the base tree exists.
 

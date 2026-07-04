@@ -36,11 +36,13 @@ Triage settles **size** (knowable early: files touched, whether it hits auth/dat
 
 **Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam pulls Moriarty + Yoda into Verify regardless of size — a Quick or Standard feature with a seam is NOT exempt from Step 5's seam subsection. Record the declaration in the context commit at the end of this step.
 
+**If Standard or Big:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip for Quick — a 1-2 file obvious fix doesn't carry that risk.
+
 Create issue + branch after triage. Context commit: `context(<scope>): start <type> — issue #N`
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
 
-Identify gray areas — decisions that change the outcome — and resolve them before planning.
+Identify gray areas — decisions that change the outcome — and resolve them before planning. If Triage's `unmassk-grill` call hit its 5-question cap and logged open branches, start from that list before generating new gray areas — don't re-derive what's already flagged.
 
 ### Gray Area Identification
 

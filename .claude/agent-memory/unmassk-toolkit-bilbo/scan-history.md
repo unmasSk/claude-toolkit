@@ -419,3 +419,51 @@ The debounce (the actual fix) targets HMR storms, not reconnect storms. The reco
 fetch('/api/auth/token') has AbortController from disconnect() but NO AbortSignal.timeout(). If a fetch is mid-flight during reconnect and then disconnect() is not called (server just blips), the fetch hangs until OS TCP timeout in non-ECONNREFUSED scenarios.
 
 No escalation needed — structural trace only.
+
+## 2026-07-04 — spec-kit (.ref-repos/spec-kit) mechanics mapping for own-toolkit design
+
+Full read of spec-kit's real phase pipeline (not docs): `templates/commands/*.md` (10),
+root `templates/*.md` (5), `scripts/bash/*.sh` (5), `src/specify_cli/__init__.py`,
+`src/specify_cli/commands/init.py` (partial), `src/specify_cli/workflows/steps/gate/__init__.py`,
+`workflows/speckit/workflow.yml`, `.specify/memory/constitution.md`.
+
+**Key structural fact**: `specify init` (Python/Typer CLI) only *scaffolds* — copies
+`templates/commands/*.md` into the target agent's slash-command folder (e.g.
+`.claude/commands/speckit.*.md`) and copies `constitution-template.md` →
+`.specify/memory/constitution.md` (`init.py:ensure_constitution_from_template`, copy-on-init,
+never regenerated). All actual phase logic (constitution/specify/clarify/plan/tasks/implement/
+analyze/converge/checklist) lives in those markdown command bodies — they are **prompts**,
+executed by whichever AI agent invokes the slash command. The CLI itself has zero involvement
+in phase semantics after init.
+
+**Constitution Check gate is NOT automated** — confirmed by grep of `plan-template.md:39-43`:
+literally `[Gates determined based on constitution file]`. It's a placeholder the AI fills by
+reasoning over `.specify/memory/constitution.md` prose. `converge.md` explicitly states
+"Constitution Authority ... non-negotiable" but this is a normative instruction to the AI, not
+code. There IS a real automated `gate` step type (`workflows/steps/gate/__init__.py`) in a newer
+declarative YAML workflow engine (`workflows/speckit/workflow.yml`), but it's a generic
+approve/reject human-in-the-loop pause (TTY-aware, resumable) — unrelated to constitution
+semantics. This distinction (real deterministic gate vs. AI-reasoned "gate" prose) is the
+single most reusable/misleading-if-copied idea in the whole repo.
+
+**Task ordering is 100% AI reasoning**, never a graph solver — `tasks.md` command groups tasks
+by user-story priority (P1/P2/P3) from spec.md, not by a dependency-resolution algorithm.
+
+**Clarify caps at 5 questions total**, one at a time, multiple-choice-preferred with an explicit
+AI-recommended default (`clarify.md:128-172`). Specify command caps at 3 `[NEEDS CLARIFICATION]`
+markers. Checklist command explicitly reframes checklists as "unit tests for English" (requirements
+quality, never implementation verification) — `checklist.md:8-27`.
+
+**Genuinely reusable deterministic scripts** (not prompting): `create-new-feature.sh` (sequential
+3-digit feature numbering, stop-word branch-name slugging, 244-byte GitHub branch truncation),
+`common.sh:resolve_template`/`resolve_template_content` (override/preset/extension/core priority
+stack for template resolution), `check-prerequisites.sh` (file-existence gating before allowing a
+phase to run — the only real "hard" gate in the whole system, and it's just `[[ -f ... ]]` checks).
+
+Scope note: repo has grown far beyond the classic spec-kit (452 files total incl. a full
+`workflows/` YAML engine, `bundler/`, 43 CLI-agent `integrations/`, `presets/`) — only the
+SDD-mechanics-relevant ~25 files were read; integrations/bundler/tests/docs excluded as
+irrelevant to phase mechanics (see full breakdown in conversation, not persisted here).
+
+No escalation needed — pure mapping handoff, for the orchestrator to design Ultron/Dante/
+unmassk-project-lifecycle prompts and a git-memory-backed constitution-check convention.

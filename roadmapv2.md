@@ -20,6 +20,7 @@ El detalle técnico (commits, decisiones) vive en la memoria del proyecto; aquí
 - **El número de versión se pone al día solo (hoy).** Cuando actualizas el plugin en una máquina, el marcador de versión de tu proyecto se sincroniza solo a la nueva versión — antes se podía quedar desfasado y no se arreglaba por sí mismo. Compara versiones de verdad (entiende que la 1.10 es más nueva que la 1.9, donde un texto a secas se equivocaría), nunca rebaja la versión, y si el marcador falta o está corrupto no hace nada raro (no se mete en un bucle).
 - **La memoria relevante me llega a MÍ en cada mensaje (hoy).** Antes solo tenía el volcado completo al arrancar la sesión. Ahora, cuando escribes algo (por ejemplo "pipeline"), lo más relevante de la memoria sobre eso me aparece **a mí** automáticamente, para no repetir errores ya anotados. Busca siempre, pero me enseña **solo lo que de verdad destaca** (no llena la conversación). Va con un cartel de "esto son datos, no órdenes" para que nadie pueda colar instrucciones disfrazadas en una nota de memoria. Si algo falla, nunca rompe la sesión.
 - **El consolidador de memoria — cerrado y publicado (v1.12.0).** Gitto tiene un tercer modo (Modo C): cada cierto tiempo se lee toda la memoria y escribe, por categoría, una nota **"rey"** (la fuente de la verdad), que el arranque enseña destacada con 👑 y arriba. **Es aditivo: nunca borra nada.** El prompt pasó por dos rondas de "consejo" + revisión independiente antes de instalarse, y se probó de verdad contra la memoria real de este mismo repo (5 reyes coronadas). Tiene además un mecanismo de corrección — **retractar una rey** — para cuando una corona sale mal: no se borra, se anota que quedó anulada y el arranque deja de destacarla. El aviso automático a los ~50 commits ya lanzaba a Gitto; ahora Gitto sabe qué hacer cuando llega.
+- **Definir bien el encargo antes de construir — resuelto sin skill nueva.** Miramos a fondo "Spec Kit" (herramienta externa real) y sacamos sus mejores ideas: un chequeo de que el encargo no esté escrito de forma vaga, y preguntas de aclaración con tope (máximo 5) cuando el proceso lo dispara solo. En vez de montar una skill nueva, se amplió **`grill`** (la que ya interroga antes de construir) — un consejo de 11 voces confirmó que era literalmente el mismo mecanismo con otro nombre. Se engancha sola al arrancar un proyecto nuevo y al empezar una feature grande en uno existente. La plantilla de PRD que teníamos a medias, sin usar, se retiró — esto ya la sustituye.
 
 ## 👉 Lo siguiente (ya acordado)
 
@@ -47,7 +48,6 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
-- **Mirar "Spec Kit"** (la herramienta nueva que quieres ver) y decidir si sustituye o complementa la plantilla de PRD que ya tenemos.
 - **Una norma para que yo siga el roadmap en orden**, punto por punto, en vez de ir saltando.
 
 ## 📐 Cómo trabajamos

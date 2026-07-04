@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `unmassk-grill` extended instead of building a new skill: after researching GitHub's `spec-kit` and running a full pressure-test, the proposed new skill's core mechanism turned out to be identical to what `unmassk-grill` already does. Added a "Vagueness preamble" that scans the request's own wording for unquantified qualifiers, missing actors, missing error states, and ambiguous scope before the interview starts; an "Independently testable slice" check in the interview rules to catch a request that's secretly 2-3 bundled features; and a "Bounded mode" for when grill is invoked automatically by `unmassk-project-lifecycle` or `unmassk-flow` (capped at 5 questions, instead of running unbounded, so it doesn't stall an automated pipeline step).
+- `unmassk-flow` (Step 0 Triage, for Standard/Big scope) and `unmassk-project-lifecycle` (START branch, before the requirements cascade) now call `unmassk-grill` explicitly — previously neither skill invoked it at all, using the toolkit's established phrasing ("use the Skill tool with `skill=\"unmassk-grill\"`") instead of the looser "invoke" wording both had. Flow's Step 1 Brainstorm also picks up any open branches logged by grill's bounded pass instead of re-deriving them from scratch.
+- Removed the orphaned `unmassk-project-lifecycle/references/prd-template.md` — it was never wired into any live skill; git-memory's decision/memo commits already cover what a static PRD file would.
+
 ## [1.12.0] - 2026-07-04
 
 ### Added
