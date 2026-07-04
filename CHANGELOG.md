@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-04
+
+### Added
+
+- Gitto Mode C (Consolidator) installed (`agents/gitto.md`): a periodic memory-consolidation mode that reads all of a project's decision/memo/remember history and writes additive "crown" entries for topics that drifted across many commits, so the canonical version surfaces instead of the reader having to reconcile scattered restatements. Ships with a retraction mechanism — a `Retract-Crown: <hash>` trailer (paired with a required `Why:`, enforced by both commit-trailer validation hooks) that revokes a crown without resurrecting an older, already-superseded one; at boot, `session-start-boot.py` excludes retracted crowns and falls back to the fully un-crowned entry set. `Retract-Crown` added to `VALID_KEYS`/`MEMORY_KEYS` in `lib/constants.py`. 17 new tests (`tests/test_crown_retraction.py`); the existing 21 Crown tests are unaffected.
+
+### Changed
+
+- Commit/push cadence clarified for multi-agent pipelines: the crew (Ultron, Dante, Cerberus, etc.) never commits its own work — each agent returns a summary and the orchestrator records a local `wip:` commit per sub-step without pushing. A pipeline isn't closed until Yoda's verdict and Alexandria's documentation pass are both done; only then does Gitto squash the wips into a clean commit (or a few, with real trailers) and push. Memory commits (`decision`/`memo`/`remember`/`context`) are unaffected and still push immediately. Documented in `unmassk-gitmemory` and `unmassk-flow` SKILL.md, including a repo-type-aware (trunk vs. gitflow) rewrite of Flow's Step 7 Close, which previously assumed gitflow (merge to `dev`) unconditionally.
+
+### Fixed
+
+- Gitto Mode C's own grep pattern for reading memory history (`git log --grep="^\(Decision\|Memo\|Remember\):"`) matched zero commits against this project's real commit format (`<emoji> decision(scope): text`, not `Decision: text`) — caught via a dry-run against the repo's own memory before the feature shipped as done.
+
 ## [1.11.1] - 2026-07-03
 
 ### Changed
