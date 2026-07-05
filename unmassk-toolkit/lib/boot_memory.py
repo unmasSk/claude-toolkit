@@ -19,7 +19,6 @@ import re
 from datetime import datetime, timezone
 
 from constants import TOMBSTONE_KEYS
-from git_helpers import ensure_gitignore, run_git
 try:
     # SEC-CRIT-001 / SEC-MED-NEW-02: symlink-safe reader/writer for
     # glossary-cache.json. Imported defensively: tests/test_migrate_statusline.py
@@ -32,19 +31,21 @@ except ImportError:
     # T3-1 (Cerberus): shared fallback, not a second hand-copied
     # reimplementation — see lib/_symlink_safe_open.py.
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
-# NOTE: the four `parsing` helpers below (scan_trailers_memory, normalize,
-# parse_scope, sanitize_trailer_value) are deliberately imported INSIDE each
-# function that uses them, not once here at module level. lib/boot_memory.py
-# is a real, stably-named module — the first `import boot_memory` anywhere
-# in a process caches it for the rest of that process. If that first import
+# NOTE: the `parsing` helpers below (scan_trailers_memory, normalize,
+# parse_scope, sanitize_trailer_value) AND the `git_helpers` helpers
+# (run_git, ensure_gitignore) are deliberately imported INSIDE each function
+# that uses them, not once here at module level. lib/boot_memory.py is a
+# real, stably-named module — the first `import boot_memory` anywhere in a
+# process caches it for the rest of that process. If that first import
 # happens to run while some other test has temporarily replaced
-# sys.modules["parsing"] with a stub (tests/test_migrate_statusline.py does
-# exactly this, restoring it again in a `finally` block), a module-level
-# `from parsing import X` here would freeze X to the STUB's version forever,
+# sys.modules["parsing"] or sys.modules["git_helpers"] with a stub
+# (tests/test_migrate_statusline.py does exactly this, restoring it again in
+# a `finally` block), a module-level `from parsing import X` or `from
+# git_helpers import Y` here would freeze X/Y to the STUB's version forever,
 # even after the stub is restored — because the binding lives in
 # boot_memory's own namespace, set once, never re-evaluated. A deferred
-# (function-body) import re-reads sys.modules["parsing"] on every call, so
-# it always sees whatever is really installed by the time this code runs.
+# (function-body) import re-reads sys.modules[...] on every call, so it
+# always sees whatever is really installed by the time this code runs.
 # hooks/session-start-boot.py itself doesn't need this: tests load it via
 # spec_from_file_location + exec_module without caching it under a stable
 # name, so it always re-executes fresh and never carries stale bindings.
@@ -100,6 +101,7 @@ def _crown_replace(
 def extract_memory() -> dict:
     """Extract memory from recent commits."""
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
+    from git_helpers import run_git
 
     # SEC-CRIT-NEW-01 (Argus): record boundaries use `-z` (NUL, \x00) instead
     # of an embedded \x1e in the --pretty=format string. A commit body CAN
@@ -175,9 +177,17 @@ def extract_memory() -> dict:
         if not last_context:
             _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
             if _cleaned.lower().startswith("context("):
-                last_context = f"{sha} {subject}"
+                # SEC-CRIT-NEW-04: the raw commit subject is untrusted
+                # (attacker-controlled commit message) and is printed
+                # verbatim on the RESUME section's `Last:` line — sanitize
+                # it the same way Decision/Memo/Remember values already are.
+                last_context = f"{sha} {_sanitize_trailer_value(subject)}"
 
-        scope = parse_scope(subject) or ""
+        # SEC-CRIT-NEW-04: parse_scope(subject) is untrusted (attacker-
+        # controlled commit subject) and feeds the `label`/`scope_prefix`
+        # embedded verbatim in Decision/Memo/Remember/Next entries below —
+        # sanitize it here, once, same as the trailer VALUE right next to it.
+        scope = _sanitize_trailer_value(parse_scope(subject) or "")
         label = f"({scope})" if scope else "(global)"
 
         # Tombstones (GC markers) — collect in same pass
@@ -267,6 +277,7 @@ def extract_glossary() -> dict:
     Returns deduplicated lists by scope (most recent wins per scope).
     """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
+    from git_helpers import run_git
 
     # SEC-CRIT-NEW-01: same NUL-separated record boundary fix as
     # extract_memory() above — see the comment there for why -z closes the
@@ -316,7 +327,8 @@ def extract_glossary() -> dict:
             continue
         sha, subject, body = parts[0], parts[1], parts[2]
         trailers = scan_trailers(body)
-        scope = parse_scope(subject) or ""
+        # SEC-CRIT-NEW-04: same untrusted-scope sanitization as extract_memory()
+        scope = _sanitize_trailer_value(parse_scope(subject) or "")
         label = f"({scope})" if scope else "(global)"
 
         # Collect tombstones from the full glossary range
@@ -376,6 +388,8 @@ _project_root_cache: str | None = None
 
 def _get_project_root() -> str | None:
     """Get project root, cached for the process."""
+    from git_helpers import run_git
+
     global _project_root_cache
     if _project_root_cache is None:
         code, root = run_git(["rev-parse", "--show-toplevel"])
@@ -393,6 +407,8 @@ def _glossary_cache_path() -> str | None:
 
 def _read_glossary_cache() -> dict | None:
     """Read glossary cache if fresh. Returns None if stale or missing."""
+    from git_helpers import run_git
+
     path = _glossary_cache_path()
     if not path or not os.path.isfile(path):
         return None
@@ -432,6 +448,8 @@ def _read_glossary_cache() -> dict | None:
 
 def _write_glossary_cache(glossary: dict) -> None:
     """Write glossary cache to .claude/.unmassk/glossary-cache.json."""
+    from git_helpers import ensure_gitignore, run_git
+
     path = _glossary_cache_path()
     if not path:
         return

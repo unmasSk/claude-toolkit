@@ -6,13 +6,19 @@ runs unconditionally on every boot; each one no-ops once its condition no
 longer holds. Grouped separately from lib/boot_memory.py because these are
 one-time repo/settings repairs, not part of the recurring memory-extraction
 model.
+
+See lib/boot_memory.py's own module docstring and
+tests/test_migrate_statusline.py for why `git_helpers` imports below are
+deferred into each function body rather than hoisted to module level — this
+module is a real, stably-named module (first `import boot_migrations`
+anywhere in a process caches it for that process), and a module-level `from
+git_helpers import X` could freeze X to a test's temporary stub forever if
+this module's first-ever import happened to land inside that stub's window.
 """
 
 import json
 import os
 import sys
-
-from git_helpers import ensure_gitignore, run_git
 
 
 def _migrate_runtime_to_unmassk(project_root: str) -> None:
@@ -53,7 +59,7 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
 
 def _migrate_untrack_generated_jsons(project_root: str) -> None:
     """Retrocompat: untrack generated JSONs that older installs committed."""
-    from git_helpers import _GENERATED_JSONS
+    from git_helpers import _GENERATED_JSONS, ensure_gitignore, run_git
     tracked = []
     for entry in _GENERATED_JSONS:
         full_path = os.path.join(project_root, entry)

@@ -68,7 +68,10 @@ def read_installed_manifest(target: str) -> dict[str, Any] | None:
         if not os.path.isfile(manifest_path):
             return None
     try:
-        with open(manifest_path) as f:
+        # SEC-LOW-NEW-05: never follow a symlink planted at the manifest
+        # path — treat it exactly like "no installation to upgrade", never
+        # read the target file's content as if it were a real manifest.
+        with open_no_follow_symlink(manifest_path, "r") as f:
             data: dict[str, Any] = json.load(f)
             return data
     except (json.JSONDecodeError, OSError):
