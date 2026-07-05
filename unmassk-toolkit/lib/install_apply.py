@@ -74,6 +74,16 @@ def _cleanup_old_install(target: str, source: str) -> None:
     for f in OLD_BIN_FILES + OLD_HOOK_FILES + OLD_LIB_FILES:
         path = os.path.join(target, f)
         if os.path.isfile(path) or os.path.islink(path):
+            # BUG AH / SEC-CRIT-002 sibling: "bin"/"hooks"/"lib" at the
+            # project root may themselves be a symlink to an external,
+            # pre-existing directory that happens to contain a real file
+            # matching one of these fixed names — verify the resolved path
+            # stays inside target before unlinking, mirroring the guard the
+            # ".claude/hooks"/".claude/skills" rmtree section below already has.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             os.unlink(path)
             removed.append(f)
 
@@ -117,6 +127,13 @@ def _cleanup_old_install(target: str, source: str) -> None:
     for d in ["bin", "hooks", "skills", "lib"]:
         path = os.path.join(target, d)
         if os.path.isdir(path):
+            # BUG AI: same symlinked-parent risk as the fixed-name unlink
+            # loop above, but larger blast radius — shutil.rmtree() on
+            # __pycache__ deletes a whole external subtree, not one file.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             pycache = os.path.join(path, "__pycache__")
             if os.path.isdir(pycache):
                 shutil.rmtree(pycache)

@@ -13,7 +13,7 @@ import os
 import re
 from typing import Any
 
-from git_helpers import open_no_follow_symlink
+from git_helpers import open_no_follow_symlink, verify_path_within_project
 from parsing import sanitize_trailer_value
 
 
@@ -289,6 +289,14 @@ def check_existing_memory(root: str) -> dict[str, Any]:
             # barrido finding (same class as SEC-LOW-NEW-05): never follow a
             # symlink planted at the manifest path — treat it exactly like a
             # corrupt manifest, never trust the victim file's content.
+            # BUG AK: open_no_follow_symlink() only guards the FINAL
+            # manifest.json component — if .claude ITSELF is a symlinked
+            # parent pointing at a directory that already contains a REAL
+            # (non-symlink) manifest.json, that guard has nothing to object
+            # to. Verify the full resolved path stays inside root first;
+            # UnsafePathError is an OSError subclass so it's caught below,
+            # exactly like "corrupt manifest".
+            verify_path_within_project(manifest, root)
             with open_no_follow_symlink(manifest, "r") as f:
                 data = json.load(f)
             # SEC-MED-NEW-08: the manifest's "version" field is untrusted —

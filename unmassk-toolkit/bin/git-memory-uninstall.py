@@ -174,6 +174,14 @@ def remove_generated_files(target: str) -> list[str]:
     removed = []
     for rel_path in GENERATED_FILES:
         path = os.path.join(target, rel_path)
+        # BUG AJ: .claude itself may be a symlink to an external directory
+        # that already contains a real dashboard.html/precompact-snapshot.md —
+        # verify the resolved path stays inside target before removing,
+        # mirroring the guard remove_manifest() in this same file already has.
+        try:
+            verify_path_within_project(path, target)
+        except OSError:
+            continue
         if safe_remove(path):
             removed.append(rel_path)
     return removed
@@ -190,6 +198,14 @@ def remove_old_install_files(target: str) -> list[str]:
     # Remove individual files
     for f in OLD_BIN_FILES + OLD_HOOK_FILES + OLD_LIB_FILES:
         path = os.path.join(target, f)
+        # BUG AH: "bin"/"hooks"/"lib" at the project root may themselves be
+        # a symlink to an external, pre-existing directory that happens to
+        # contain a real file matching one of these fixed names — verify
+        # the resolved path stays inside target before removing.
+        try:
+            verify_path_within_project(path, target)
+        except OSError:
+            continue
         if safe_remove(path):
             removed.append(f)
 
