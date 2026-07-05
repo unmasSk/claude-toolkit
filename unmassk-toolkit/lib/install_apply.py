@@ -102,6 +102,13 @@ def _cleanup_old_install(target: str, source: str) -> None:
             shutil.rmtree(path)
             removed.append(d + "/")
         elif os.path.islink(path):
+            # SEC-LOW-001: sibling of the rmtree branch above — an
+            # intermediate component of `d` can equally be a symlink when
+            # `path` itself resolves to a symlink; same guard, same reason.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             os.unlink(path)
             removed.append(d)
 

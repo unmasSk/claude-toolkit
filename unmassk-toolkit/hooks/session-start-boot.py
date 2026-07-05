@@ -38,18 +38,23 @@ except ImportError:
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
 from version import VERSION as PLUGIN_VERSION
 
-# CRB-04: memory extraction (extract_memory/extract_glossary/crown logic/
-# glossary cache) and one-shot migrations live in dedicated lib/ modules —
-# see lib/boot_memory.py and lib/boot_migrations.py. Re-exported here by
-# name so `python3 session-start-boot.py` behaves identically and so tests
-# that load this module directly (e.g. tests/test_crown.py calling
-# boot.extract_memory()) keep working unchanged.
+# CRB-04: memory extraction (extract_memory/extract_glossary/crown logic)
+# and one-shot migrations live in dedicated lib/ modules — see
+# lib/boot_memory.py and lib/boot_migrations.py. Re-exported here by name so
+# `python3 session-start-boot.py` behaves identically and so tests that load
+# this module directly (e.g. tests/test_crown.py calling boot.extract_memory())
+# keep working unchanged.
 from boot_memory import (
-    _get_project_root,
     _sanitize_trailer_value,
     extract_glossary,
-    extract_glossary_cached,
     extract_memory,
+)
+# Glossary cache I/O (further split of boot_memory.py, see
+# lib/boot_glossary_cache.py) — _get_project_root/extract_glossary_cached
+# now live there.
+from boot_glossary_cache import (
+    _get_project_root,
+    extract_glossary_cached,
 )
 from boot_migrations import (
     _migrate_runtime_to_unmassk,

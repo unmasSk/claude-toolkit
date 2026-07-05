@@ -682,3 +682,66 @@ attacker-plantable intermediate symlink between `target` and the file) — do
 not "fix" sites like this just because the script flags them; verify the
 call is actually reachable through an untrusted intermediate directory
 first.
+
+## SEC-LOW-001: elif sibling of an already-guarded if branch needs the same guard
+
+`lib/install_apply.py` and `bin/git-memory-uninstall.py` both had, in the
+`OLD_SKILL_DIRS` loop: `if os.path.isdir(path) and not os.path.islink(path):
+verify_path_within_project(...); shutil.rmtree(path)` (guarded) followed by
+`elif os.path.islink(path): os.unlink(path)` (NOT guarded) — the symlink
+case is exactly the one where `path`'s parent could itself be a symlink
+component, same risk class as the `if` branch right above it. Fix: same
+`try: verify_path_within_project(path, target) / except OSError: continue`
+added to the `elif` too, in both files (identical pattern, no new test
+needed — conceptually already covered by the sibling branch's existing
+security-regression tests).
+
+## lib/boot_memory.py -> lib/boot_glossary_cache.py split (2026-07-05): a real test forces a documented backward-compat re-export, breaking the "no cycle" instruction textually (but not at runtime)
+
+Splitting the glossary-cache I/O functions (`_get_project_root`,
+`_glossary_cache_path`, `_read_glossary_cache`, `_write_glossary_cache`,
+`extract_glossary_cached`) out of `boot_memory.py` into a new
+`lib/boot_glossary_cache.py` (524 -> 394 + 195 LOC), one test
+(`tests/test_security_regression.py::TestBugAOEnsureRuntimeDirFallbackBranchSymlinkedParent::test_write_glossary_cache_does_not_write_outside_repo_via_fallback_branch`)
+loads `lib/boot_memory.py` directly via `spec_from_file_location` under a
+throwaway module name and calls `mod._write_glossary_cache({})` — this
+breaks with `AttributeError` the instant the function moves out, per the
+established "grep the whole suite for `mod.attr` before deleting" rule
+(see the boot_render.py/bootstrap.py split entries above).
+
+Naive fix (add `from boot_glossary_cache import _write_glossary_cache, ...`
+at the bottom of `boot_memory.py`) creates a REAL circular-import crash in
+this specific test scenario, because the probe module is never registered
+in `sys.modules` under the real name `"boot_memory"` (spec_from_file_location
++ module_from_spec does not do that automatically) — so
+`boot_glossary_cache.py`'s own `from boot_memory import extract_glossary`
+(if kept at module level) triggers a SECOND, fresh execution of
+`boot_memory.py` under its real name, which hits its own bottom
+re-export line, finds `boot_glossary_cache` already mid-import in
+`sys.modules`, and fails with "cannot import name ... from partially
+initialized module."
+
+Fix: defer `from boot_memory import extract_glossary` into the body of
+`extract_glossary_cached()` (the only function that needs it) instead of
+importing it at `boot_glossary_cache.py`'s module top level. This means
+`boot_glossary_cache.py`'s top-level code never touches `boot_memory` at
+all, so `boot_memory.py`'s bottom backward-compat re-export
+(`from boot_glossary_cache import _get_project_root, _glossary_cache_path,
+_read_glossary_cache, _write_glossary_cache, extract_glossary_cached`,
+placed after all of boot_memory's own real definitions) can safely run
+without ever entering a cycle. Net result: the "no cycle" instruction
+holds for the real logic dependency (extract_glossary_cached -> extract_glossary
+is one-way and deferred); only a documented test-compatibility shim runs
+the other direction, and it's provably safe because of the deferred import.
+
+Caveat found but NOT fixed (out of scope, flagged for Dante): the
+backward-compat path means `mod.ensure_runtime_dir = None` (the test's
+monkeypatch-after-load technique) no longer affects `_write_glossary_cache`'s
+actual behavior, since the function's `__globals__` is now
+`boot_glossary_cache`'s namespace, not the probe module's. The test still
+passes (the real, non-monkeypatched `ensure_runtime_dir` already guards the
+symlinked case correctly), but it no longer exercises the intended fallback
+(`else`) branch. Whoever owns this test next should either monkeypatch
+`boot_glossary_cache_module.ensure_runtime_dir` instead, or call
+`_write_glossary_cache` through a spec-loaded `boot_glossary_cache.py`
+directly rather than through `boot_memory.py`'s re-export.
