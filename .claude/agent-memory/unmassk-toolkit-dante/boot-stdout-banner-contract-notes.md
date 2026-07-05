@@ -65,6 +65,64 @@ unconditional" — coherent RED, ready for Ultron to remove
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md), [skill-router-contract-notes](skill-router-contract-notes.md) (same "test-first contract, corrected mid-pipeline" shape).
 
+**Round 7 (session 2026-07-05, test-first contract pass) — 8th pass, new
+technique: instrumented open() tracing to prove a READ never happened, not
+just that a downstream WRITE failed closed.** Cerberus + Argus's 7th audit
+round named 4 new unguarded-read sites (2 of which both auditors flagged
+independently) plus a "check the lower-impact siblings too" note. Written
+as BUG T-X in `test_security_regression.py` (TestBugT through TestBugX, 9
+new tests): (T) `hooks/user-prompt-memory-check.py:101` —
+`needs_upgrade()` Check 1 CLAUDE.md read, a separate call site from BUG M's
+already-guarded Check 2 manifest read a few lines later in the *same*
+function — fires on every user message; (U)
+`bin/git-memory-install.py:390` — `_update_claude_md()`'s CLAUDE.md read,
+which happens *before* the already-guarded write BUG K covers; BUG K
+proved the victim is never overwritten, but never proved the victim was
+never *read* — the write failing closed says nothing about the read; (V)
+`lib/git_helpers.py:80` — `ensure_gitignore()`'s existing-content read,
+asymmetric with its own already-guarded append a few lines later
+(SEC-CRIT-001), fires on cold boot via `boot_memory.py`; (W)
+`bin/git-memory-bootstrap.py:283`/`:358` — `scan_package_json()` /
+`scan_pyproject()`, the most severe of the round: unlike every prior
+finding, the leaked content is copied essentially verbatim into
+`output["package_json"]`/`output["pyproject"]` and printed by
+`git memory bootstrap --json`, not just used to derive a boolean. Plus (X,
+optional/lower-impact, done anyway since time allowed) 4 more sibling
+sites: `detect_monorepo()` (`:504`, separate package.json call site from
+scan_package_json), `detect_ci_commitlint()` (`:549`, `.husky/commit-msg`),
+and `install.py`'s `inspect()` (`:149` plugin.json, `:177` package.json
+commitlint check — its CLAUDE.md read in the same function is already
+guarded per BUG P).
+
+**New technique this round — instrumented open() tracing (BUG U/V/X):**
+when the *write* side of a read-then-write pair is already
+symlink-guarded (raises before touching the victim), asserting "victim
+file unchanged" proves nothing about whether the *read* leaked the
+victim's content into memory first. Pattern: monkeypatch `builtins.open`
+via an importlib probe subprocess (load the module first via
+`spec.loader.exec_module`, THEN patch `builtins.open` — patching before
+load avoids false hits from the module's own file-loading opens), record
+`os.path.realpath(file)` for every call (realpath resolves the symlink to
+its true target regardless of which path string the argument used), call
+the target function, restore the real `open`, print the recorded list.
+Assert the victim's `os.path.realpath()` is NOT in the list. After
+Ultron's fix (using `open_no_follow_symlink()`, which calls `os.open()`
+directly, not `builtins.open()`), the guarded read never appears in the
+trace at all — GREEN by construction, not by coincidence. Only use this
+technique when a content/output-based assertion (like BUG W's "secret
+marker not in stdout") isn't available or wouldn't prove the read itself
+happened; prefer the simpler output-based assertion when the leak is
+observable end-to-end.
+
+9/9 new tests RED against current code (confirmed via targeted run and
+full-file run), 0 regressions in the 43 pre-existing tests (BUG A-S, all
+unmodified, all still pass). This is the 7th consecutive round on this
+module family finding genuinely new sites — worth flagging to Yoda that a
+shared "read a fixed-path file safely" helper (wrapping
+`open_no_follow_symlink()` + the standard `except (OSError, JSONDecodeError):
+return None/False` fallback) would eliminate this entire recurring class
+at the source instead of fixing one call site per round.
+
 **Round 6 (session 2026-07-05) — 7th pass, CLAUDE.md joins the symlink-bug
 family (previously only manifest.json/scopes.json/settings.json).** Argus
 named 5 new findings (SEC-CRIT-NEW-09 through SEC-MED-NEW-13) plus a full

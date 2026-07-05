@@ -251,6 +251,83 @@ boundary. A dangling/malicious symlink here causes an attacker-controlled
 external command to run at session close.
 
 This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG T — needs_upgrade() Check 1 reads CLAUDE.md through a symlink
+(7th audit round, Cerberus + Argus)
+--------------------------------------------------------------------------
+hooks/user-prompt-memory-check.py:101, inside needs_upgrade(). BUG M
+already covers Check 2's manifest.json read (guarded with
+open_no_follow_symlink); Check 1's CLAUDE.md read, a few lines earlier in
+the SAME function, is a separate call site and is still plain `open()`.
+This fires on EVERY user message (needs_upgrade() is called unconditionally
+by the UserPromptSubmit hook). A symlink planted at CLAUDE.md pointing to
+an externally-controlled file whose fake managed block lacks "Context
+Checkpoint Commits" is silently trusted, triggering a spurious
+auto-upgrade (which chains into `install.py --auto`) based on content the
+repo never actually committed.
+
+This test is RED now. After Ultron's fix (same fail-safe-to-False pattern
+already used for Check 2) it must be GREEN.
+
+BUG U — _update_claude_md()'s CLAUDE.md READ leaks into memory even though
+its WRITE is already guarded (7th audit round)
+--------------------------------------------------------------------------
+bin/git-memory-install.py:390. TestBugK already proves the final write
+(line ~401, via open_no_follow_symlink) never overwrites the victim file a
+symlink at CLAUDE.md points to. It does NOT prove the read a few lines
+earlier (plain `open(claude_md)`, used to build `content` before
+`upsert_managed_blocks()` merges it) never touched the victim in the first
+place — the write failing closed says nothing about whether the read
+already happened. Verified here by instrumenting builtins.open() to record
+the resolved (symlink-followed) real path of every file opened during the
+call, per Yoda/Cerberus's ask for evidence of "no intermediate observable
+state," not just "final state unchanged."
+
+This test is RED now: the victim's real path appears in the open() trace.
+After Ultron's fix (guarding the read the same way the write already is)
+it must be GREEN.
+
+BUG V — ensure_gitignore()'s existing-content read is unguarded
+(7th audit round)
+--------------------------------------------------------------------------
+lib/git_helpers.py:80. The write side (the `open_no_follow_symlink()`
+append a few lines later) was already fixed under SEC-CRIT-001; the read
+of the existing .gitignore content, used to decide what's already present,
+was not. Fires automatically on cold boot via boot_memory.py whenever the
+glossary cache is cold. Verified the same way as BUG U: instrumented
+open() trace proves the read resolves through a planted symlink.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG W — bootstrap's scan_package_json()/scan_pyproject() leak symlinked
+victim content verbatim into --json output (7th audit round, the most
+severe of this batch)
+--------------------------------------------------------------------------
+bin/git-memory-bootstrap.py:283 (scan_package_json) and :358
+(scan_pyproject). Unlike every other finding in this file, the content
+read here isn't just used to derive a boolean or a path — it's copied
+essentially verbatim into `output["package_json"]` / `output["pyproject"]`
+and printed to stdout by `git memory bootstrap --json`. A symlink planted
+at either package.json or pyproject.toml turns bootstrap into an oracle
+that prints an arbitrary external file's parsed content (including
+whatever "name"/version/secret-shaped field it contains) on every run.
+
+These tests are RED now: the victim's marker string appears verbatim in
+stdout. After Ultron's fix it must be GREEN.
+
+BUG X — bootstrap/install.py: 4 lower-impact sibling read sites of the
+same class (7th audit round, optional/time-permitting)
+--------------------------------------------------------------------------
+Named as lower severity because each only derives a boolean or a resolved
+path from the read content rather than echoing it (unlike BUG W):
+bin/git-memory-bootstrap.py:504 (detect_monorepo's package.json workspaces
+read, a separate call site from scan_package_json()) and :549
+(detect_ci_commitlint's .husky/commit-msg read); bin/git-memory-install.py
+:149 and :177 (inspect()'s plugin_json_path and pkg_path reads — the
+CLAUDE.md read in the same function is already guarded, per TestBugP).
+Verified via the same instrumented open() trace pattern as BUG U/V.
+
+These tests are RED now. After Ultron's fix it must be GREEN.
 """
 
 import json
@@ -1793,6 +1870,434 @@ class TestBugSStopDodGateConfigSymlinkRead:
             "git-memory-config.json and executed the victim's test_command, "
             f"blocking session close. rc={rc}\nstdout: {stdout[:500]}\n"
             f"stderr: {stderr[:300]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG T — needs_upgrade() Check 1 reads CLAUDE.md through a symlink (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugTNeedsUpgradeClaudeMdSymlinkRead:
+    """hooks/user-prompt-memory-check.py's needs_upgrade() reads CLAUDE.md
+    at line ~101 (Check 1) via plain open() — a separate call site from
+    BUG M's already-guarded Check 2 (manifest.json read) a few lines later
+    in the same function. Fires on EVERY user message. A symlink planted
+    at CLAUDE.md pointing to an externally-controlled fake managed block
+    (missing 'Context Checkpoint Commits') is silently trusted, triggering
+    a spurious auto-upgrade based on content the repo never actually has."""
+
+    def test_needs_upgrade_does_not_follow_symlinked_claude_md(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-needsupgrade.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        result = _needs_upgrade(repo)
+
+        assert result is False, (
+            "7th audit round: needs_upgrade() Check 1 followed a symlink "
+            "planted at CLAUDE.md and used the victim file's content "
+            "(missing 'Context Checkpoint Commits') to decide an upgrade "
+            f"is needed. result={result!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG U — _update_claude_md()'s CLAUDE.md READ leaks even though the WRITE
+# is already guarded (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _update_claude_md_open_trace(repo):
+    """Call install.py's _update_claude_md(repo) via importlib with
+    builtins.open instrumented to record the resolved (symlink-followed)
+    real path of every file opened during the call. TestBugK already
+    proves the final write never lands on the victim; this proves the
+    read a few lines earlier never touched the victim in the first place
+    either — the write failing closed says nothing about the read."""
+    code = f"""
+import sys, os, json, builtins, importlib.util
+
+opened_realpaths = []
+_real_open = builtins.open
+
+def _tracking_open(file, *args, **kwargs):
+    try:
+        opened_realpaths.append(os.path.realpath(file))
+    except Exception:
+        pass
+    return _real_open(file, *args, **kwargs)
+
+spec = importlib.util.spec_from_file_location("install_update_claudemd_probe", {repr(INSTALL)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+builtins.open = _tracking_open
+try:
+    mod._update_claude_md({repr(repo)})
+except Exception:
+    pass
+finally:
+    builtins.open = _real_open
+
+print(json.dumps({{"opened_realpaths": opened_realpaths}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_update_claude_md_open_trace failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
+
+
+class TestBugUUpdateClaudeMdReadSymlinkLeak:
+    """bin/git-memory-install.py's _update_claude_md() reads CLAUDE.md at
+    line ~390 via plain open() BEFORE the already-guarded write at line
+    ~401. Instrumented via builtins.open realpath tracking (mocking at the
+    exact boundary the production code calls, not a stand-in of it) to
+    prove the read itself never resolves through the symlink."""
+
+    def test_update_claude_md_never_opens_the_symlink_target_for_reading(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-update-read.txt"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — UPDATE READ TRACE")
+
+        claude_md_path = os.path.join(repo, "CLAUDE.md")
+        _plant_symlink(claude_md_path, str(victim))
+
+        opened_realpaths = _update_claude_md_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: _update_claude_md() opened the victim file "
+            "behind a symlink planted at CLAUDE.md for READING, even "
+            "though the subsequent write is already guarded. "
+            f"opened_realpaths={opened_realpaths!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG V — ensure_gitignore()'s existing-content read is unguarded (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _ensure_gitignore_open_trace(repo):
+    """Call lib/git_helpers.py's ensure_gitignore(repo) via importlib, with
+    builtins.open instrumented the same way as _update_claude_md_open_trace
+    -- proves whether the .gitignore existing-content read (line ~80,
+    plain open(), before the already-guarded open_no_follow_symlink()
+    append) resolves through a planted symlink."""
+    code = f"""
+import sys, os, json, builtins, importlib.util
+
+opened_realpaths = []
+_real_open = builtins.open
+
+def _tracking_open(file, *args, **kwargs):
+    try:
+        opened_realpaths.append(os.path.realpath(file))
+    except Exception:
+        pass
+    return _real_open(file, *args, **kwargs)
+
+spec = importlib.util.spec_from_file_location("git_helpers_gitignore_probe", {repr(os.path.join(LIB_DIR, "git_helpers.py"))})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+builtins.open = _tracking_open
+try:
+    mod.ensure_gitignore({repr(repo)})
+except Exception:
+    pass
+finally:
+    builtins.open = _real_open
+
+print(json.dumps({{"opened_realpaths": opened_realpaths}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_ensure_gitignore_open_trace failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
+
+
+class TestBugVEnsureGitignoreSymlinkRead:
+    """lib/git_helpers.py's ensure_gitignore() reads the existing
+    .gitignore content via plain open() (line ~80) before ever reaching
+    the already-guarded open_no_follow_symlink() append. Fires
+    automatically on cold boot via boot_memory.py whenever the glossary
+    cache is cold. A symlink planted at .gitignore pointing outside the
+    repo is silently followed for the read."""
+
+    def test_ensure_gitignore_never_opens_the_symlink_target_for_reading(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-gitignore.txt"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — GITIGNORE READ TRACE\n")
+
+        gitignore_path = os.path.join(repo, ".gitignore")
+        _plant_symlink(gitignore_path, str(victim))
+
+        opened_realpaths = _ensure_gitignore_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: ensure_gitignore() opened the victim file "
+            "behind a symlink planted at .gitignore for READING. "
+            f"opened_realpaths={opened_realpaths!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG W — bootstrap's scan_package_json()/scan_pyproject() leak symlinked
+# victim content verbatim into --json output (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugWBootstrapPackageJsonPyprojectSymlinkRead:
+    """bin/git-memory-bootstrap.py's scan_package_json() (line ~283) and
+    scan_pyproject() (line ~358) both read via plain open(), unguarded --
+    and unlike every other finding in this file, the leaked content isn't
+    just discarded or used for a boolean: it's copied essentially verbatim
+    into output['package_json'] / output['pyproject'] and printed to
+    stdout by `git memory bootstrap --json`. The worst of this round: a
+    symlink planted at either path turns bootstrap into an oracle that
+    prints an arbitrary external file's parsed content on every run."""
+
+    def test_scan_package_json_does_not_leak_symlinked_victim_into_json_output(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-package-json.json"
+        victim.write_text(json.dumps({"name": "LEAKED-SECRET-PACKAGE-JSON-MARKER"}))
+
+        pkg_path = os.path.join(repo, "package.json")
+        _plant_symlink(pkg_path, str(victim))
+
+        rc, stdout, stderr = run_script(BOOTSTRAP, repo, extra_args=["--json"])
+
+        assert "LEAKED-SECRET-PACKAGE-JSON-MARKER" not in stdout, (
+            "7th audit round: scan_package_json() followed a symlink "
+            "planted at package.json and leaked the victim file's content "
+            f"into --json output. rc={rc}\nstdout (first 800): {stdout[:800]}\n"
+            f"stderr (first 300): {stderr[:300]}"
+        )
+
+    def test_scan_pyproject_does_not_leak_symlinked_victim_into_json_output(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-pyproject.toml"
+        victim.write_text(
+            '[project]\n'
+            'name = "LEAKED-SECRET-PYPROJECT-MARKER"\n'
+            'requires-python = ">=3.11"\n'
+        )
+
+        pyproject_path = os.path.join(repo, "pyproject.toml")
+        _plant_symlink(pyproject_path, str(victim))
+
+        rc, stdout, stderr = run_script(BOOTSTRAP, repo, extra_args=["--json"])
+
+        assert "LEAKED-SECRET-PYPROJECT-MARKER" not in stdout, (
+            "7th audit round: scan_pyproject() followed a symlink planted "
+            "at pyproject.toml and leaked the victim file's content into "
+            f"--json output. rc={rc}\nstdout (first 800): {stdout[:800]}\n"
+            f"stderr (first 300): {stderr[:300]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG X — bootstrap/install.py: 4 lower-impact sibling read sites
+# (optional/time-permitting, RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _detect_monorepo_open_trace(repo):
+    """Call bin/git-memory-bootstrap.py's detect_monorepo(root, tree) via
+    importlib, instrumented the same way as _update_claude_md_open_trace --
+    proves whether the package.json workspaces read (line ~504, a separate
+    call site from scan_package_json()'s read tested in TestBugW) resolves
+    through a planted symlink."""
+    code = f"""
+import sys, os, json, builtins, importlib.util
+
+opened_realpaths = []
+_real_open = builtins.open
+
+def _tracking_open(file, *args, **kwargs):
+    try:
+        opened_realpaths.append(os.path.realpath(file))
+    except Exception:
+        pass
+    return _real_open(file, *args, **kwargs)
+
+spec = importlib.util.spec_from_file_location("bootstrap_monorepo_probe", {repr(BOOTSTRAP)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+tree = mod.scan_tree({repr(repo)})
+
+builtins.open = _tracking_open
+try:
+    mod.detect_monorepo({repr(repo)}, tree)
+except Exception:
+    pass
+finally:
+    builtins.open = _real_open
+
+print(json.dumps({{"opened_realpaths": opened_realpaths}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_detect_monorepo_open_trace failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
+
+
+def _detect_ci_commitlint_open_trace(repo):
+    """Call bin/git-memory-bootstrap.py's detect_ci_commitlint(root) via
+    importlib, instrumented the same way -- proves whether the
+    .husky/commit-msg read (line ~549, plain open()) resolves through a
+    planted symlink."""
+    code = f"""
+import sys, os, json, builtins, importlib.util
+
+opened_realpaths = []
+_real_open = builtins.open
+
+def _tracking_open(file, *args, **kwargs):
+    try:
+        opened_realpaths.append(os.path.realpath(file))
+    except Exception:
+        pass
+    return _real_open(file, *args, **kwargs)
+
+spec = importlib.util.spec_from_file_location("bootstrap_commitlint_probe", {repr(BOOTSTRAP)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+builtins.open = _tracking_open
+try:
+    mod.detect_ci_commitlint({repr(repo)})
+except Exception:
+    pass
+finally:
+    builtins.open = _real_open
+
+print(json.dumps({{"opened_realpaths": opened_realpaths}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_detect_ci_commitlint_open_trace failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
+
+
+def _install_inspect_open_trace(repo):
+    """Call bin/git-memory-install.py's inspect(target) via importlib,
+    instrumented the same way -- proves whether either of inspect()'s two
+    remaining unguarded reads (plugin_json_path line ~149, pkg_path line
+    ~177) resolves through a planted symlink. Separate from TestBugP's
+    _install_inspect(), which only asserts on the CLAUDE.md-derived report
+    fields, not on what was actually opened."""
+    code = f"""
+import sys, os, json, builtins, importlib.util
+
+opened_realpaths = []
+_real_open = builtins.open
+
+def _tracking_open(file, *args, **kwargs):
+    try:
+        opened_realpaths.append(os.path.realpath(file))
+    except Exception:
+        pass
+    return _real_open(file, *args, **kwargs)
+
+spec = importlib.util.spec_from_file_location("install_inspect_open_probe", {repr(INSTALL)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+builtins.open = _tracking_open
+try:
+    mod.inspect({repr(repo)})
+except Exception:
+    pass
+finally:
+    builtins.open = _real_open
+
+print(json.dumps({{"opened_realpaths": opened_realpaths}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_install_inspect_open_trace failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
+
+
+class TestBugXBootstrapLowImpactSymlinkReads:
+    """Lower-impact sibling sites of the same unguarded-open() class:
+    bin/git-memory-bootstrap.py's detect_monorepo() (package.json
+    workspaces, separate call site from scan_package_json()) and
+    detect_ci_commitlint() (.husky/commit-msg), plus
+    bin/git-memory-install.py's inspect() (.claude-plugin/plugin.json and
+    package.json commitlint check). All four only derive booleans/paths
+    from the read content rather than echoing it verbatim (unlike BUG W),
+    but the same unguarded open() pattern applies."""
+
+    def test_detect_monorepo_does_not_open_symlinked_package_json(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-package-json-monorepo.json"
+        victim.write_text(json.dumps({"workspaces": ["packages/*"]}))
+
+        pkg_path = os.path.join(repo, "package.json")
+        _plant_symlink(pkg_path, str(victim))
+
+        opened_realpaths = _detect_monorepo_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: detect_monorepo() opened the victim file "
+            "behind a symlink planted at package.json. "
+            f"opened_realpaths={opened_realpaths!r}"
+        )
+
+    def test_detect_ci_commitlint_does_not_open_symlinked_husky_commit_msg(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        os.makedirs(os.path.join(repo, ".husky"), exist_ok=True)
+        victim = tmp_path / "victim-husky-commit-msg.txt"
+        victim.write_text("commitlint --edit $1\n")
+
+        commit_msg_path = os.path.join(repo, ".husky", "commit-msg")
+        _plant_symlink(commit_msg_path, str(victim))
+
+        opened_realpaths = _detect_ci_commitlint_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: detect_ci_commitlint() opened the victim "
+            "file behind a symlink planted at .husky/commit-msg. "
+            f"opened_realpaths={opened_realpaths!r}"
+        )
+
+    def test_install_inspect_does_not_open_symlinked_plugin_json(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        os.makedirs(os.path.join(repo, ".claude-plugin"), exist_ok=True)
+        victim = tmp_path / "victim-plugin-json.json"
+        victim.write_text(json.dumps({"name": "unmassk-toolkit"}))
+
+        plugin_json_path = os.path.join(repo, ".claude-plugin", "plugin.json")
+        _plant_symlink(plugin_json_path, str(victim))
+
+        opened_realpaths = _install_inspect_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: install.py's inspect() opened the victim "
+            "file behind a symlink planted at .claude-plugin/plugin.json. "
+            f"opened_realpaths={opened_realpaths!r}"
+        )
+
+    def test_install_inspect_does_not_open_symlinked_package_json(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-package-json-install-inspect.json"
+        victim.write_text(json.dumps({"devDependencies": {"commitlint": "1.0.0"}}))
+
+        pkg_path = os.path.join(repo, "package.json")
+        _plant_symlink(pkg_path, str(victim))
+
+        opened_realpaths = _install_inspect_open_trace(repo)
+        victim_realpath = os.path.realpath(str(victim))
+
+        assert victim_realpath not in opened_realpaths, (
+            "7th audit round: install.py's inspect() opened the victim "
+            "file behind a symlink planted at package.json (commitlint "
+            f"check). opened_realpaths={opened_realpaths!r}"
         )
 
 

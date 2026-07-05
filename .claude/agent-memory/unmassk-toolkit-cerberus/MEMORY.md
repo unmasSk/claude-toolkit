@@ -2,7 +2,7 @@
 
 - [conventions.md](conventions.md) — Project conventions: plugin structure, SKILL.md format requirements
 - [false-positives.md](false-positives.md) — Patterns that looked suspicious but are intentional
-- [anti-patterns.md](anti-patterns.md) — Recurring shell/Python/TS anti-patterns (ops-containers, unmassk-crew hooks, chatroom, session-start-boot.py module-split refactor 2026-07-05 rounds 1-6: sys.modules stub-leak RESOLVED; boot_render.py LOC+docstring+dedup RESOLVED round 6; boot_checks.py now 561 LOC — NEW T2, same rule, 100/110)
+- [anti-patterns.md](anti-patterns.md) — Recurring shell/Python/TS anti-patterns (ops-containers, unmassk-crew hooks, chatroom, session-start-boot.py module-split refactor 2026-07-05 rounds 1-7: split fully RESOLVED round 7 (boot_health.py 303, boot_git_checks.py 269, boot_checks.py shim 74); round 7 also found 2 NEW T2 asymmetric symlink-read gaps in the 14-file security sweep (install.py, user-prompt-memory-check.py) — 98/110, NOT MERGEABLE)
 - [chatroom-standards.md](chatroom-standards.md) — Permanent 15-rule enterprise standards for chatroom/apps/backend/src/ + violation baseline as of 2026-03-19
 - [chatroom-frontend-design.md](chatroom-frontend-design.md) — Definitive design reference audit (option-b-cursor-style.html): confirmed bugs, contrast truth table, missing states, color system structure
 - [chatroom-frontend-patterns.md](chatroom-frontend-patterns.md) — Frontend React source audit 2026-03-21: intentional patterns, open violations (T2/T3), scoring baseline 68/110
