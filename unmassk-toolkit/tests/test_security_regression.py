@@ -328,6 +328,59 @@ CLAUDE.md read in the same function is already guarded, per TestBugP).
 Verified via the same instrumented open() trace pattern as BUG U/V.
 
 These tests are RED now. After Ultron's fix it must be GREEN.
+
+BUG Y — .claude ITSELF as a symlink bypasses every open_no_follow_symlink()
+guard fixed in BUG D through X (8th audit round, Argus, SEC-CRIT-NEW)
+--------------------------------------------------------------------------
+Every fix from BUG D onward guards only the FINAL path component (the file
+being opened) against being a pre-planted symlink. None of them guard the
+PARENT directories (.claude, .claude/.unmassk). If .claude itself is a
+symlink (git blob mode 120000, committed by a malicious repo, pointing to
+any directory on the victim's filesystem), every one of those file-level
+guards is moot: lib/git_helpers.py:ensure_runtime_dir() calls
+os.makedirs(runtime_dir, exist_ok=True), and os.makedirs() silently follows
+a directory symlink that resolves to a real, existing directory — the
+"safe" open_no_follow_symlink() write then lands inside THAT directory
+instead of inside the repo.
+
+Argus reproduced 3 scenarios live (session 2026-07-05):
+1. .claude symlinked to an external, pre-existing directory ->
+   `git-memory-install.py --auto` writes manifest.json OUTSIDE the repo,
+   inside the external directory.
+2. Same symlink, but triggered with ZERO user/agent decision involved, via
+   the real, automatic `hooks/session-start-boot.py` SessionStart hook:
+   render_status_section() -> run_doctor() reports "Manifest: not found" as
+   an error (nothing exists yet at the symlinked location) -> run_repair()
+   -> git-memory-repair.py --auto -> install.py's _create_manifest() (same
+   root cause as scenario 1) writes manifest.json externally, AND
+   write_boot_log()'s own ensure_runtime_dir() call independently writes
+   boot-log-latest.txt to the same external directory.
+3. The most severe: .claude symlinked (absolute OR relative) to something
+   that looks like the user's REAL ~/.claude, containing a settings.json
+   with a "hooks" key belonging to OTHER, unrelated plugins.
+   `git-memory-install.py --auto`'s _cleanup_stale_settings_hooks() reads
+   that external settings.json (through the symlinked .claude), deletes
+   the ENTIRE "hooks" key, and writes it back — silently destroying other
+   plugins' hook registrations outside the repo, from a single install run
+   with no confirmation.
+
+hooks/validate-memory-path.py is already immune to this exact class by
+design: it calls os.path.realpath() on the FULL candidate path and compares
+it (as a string, with an exact directory-boundary suffix) against
+os.path.realpath(project_root) — if any path component (including .claude)
+is symlinked outside, the resolved path no longer starts with the expected
+prefix and the hook BLOCKS. That is the pattern these tests hold every
+.claude-touching write to.
+
+These tests are RED now: the manifest/boot-log/settings.json writes land
+outside the repo (or, for settings.json, get silently modified in place).
+After Ultron's fix (validating that os.path.realpath() of every
+.claude-rooted path still starts with os.path.realpath(project_root)
+before creating directories or opening files — mirroring
+validate-memory-path.py's existing pattern, most naturally centralized in
+ensure_runtime_dir() plus each direct .claude/settings.json touch point)
+they must be GREEN: no write ever lands outside the repo, and the
+operation fails safely (rejected) rather than silently redirecting.
 """
 
 import json
@@ -355,6 +408,7 @@ CREW_HOOK               = os.path.join(HOOKS_DIR, "session-start-crew.py")
 DOD_GATE_HOOK           = os.path.join(HOOKS_DIR, "stop-dod-gate.py")
 
 BOOT_CHECKS_PATH = os.path.join(LIB_DIR, "boot_checks.py")
+BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
 
 GIT_MEMORY_COMMIT = os.path.join(BIN_DIR, "git-memory-commit.py")
 GIT_MEMORY_LOG    = os.path.join(BIN_DIR, "git-memory-log.py")
@@ -2298,6 +2352,209 @@ class TestBugXBootstrapLowImpactSymlinkReads:
             "7th audit round: install.py's inspect() opened the victim "
             "file behind a symlink planted at package.json (commitlint "
             f"check). opened_realpaths={opened_realpaths!r}"
+        )
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG Y — .claude ITSELF as a symlink bypasses every file-level guard (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Test-first contract pass (acceptance granularity — see module docstring for
+# the full finding). Each test below reproduces one of Argus's 3 live
+# scenarios. `_plant_symlink()` (defined above, under BUG D) is reused for
+# scenario 3's settings.json write-back proof; scenarios 1/2/3's outer symlink
+# is planted directly with os.symlink() since these tests target .claude as a
+# DIRECTORY symlink, not a file symlink at a fixed leaf path.
+
+class TestBugYClaudeDirSymlinkBypassesAllGuards:
+    """.claude itself as a directory symlink defeats every
+    open_no_follow_symlink() guard fixed in BUG D through BUG X, because
+    every one of those guards only covers the final path component. The
+    parent-directory creation (os.makedirs() inside ensure_runtime_dir())
+    silently follows a directory symlink that resolves to a real, existing
+    directory, redirecting the write there before the file-level guard ever
+    runs."""
+
+    def test_install_manifest_not_written_outside_repo_when_claude_dir_is_symlinked(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not write manifest.json
+        outside the repo when .claude is a symlink to an external,
+        pre-existing directory.
+
+        Root cause: _create_manifest() (bin/git-memory-install.py) calls
+        os.makedirs(claude_dir, exist_ok=True) where
+        claude_dir = target/.claude. Confirmed live (Argus, session
+        2026-07-05): the manifest lands inside the external directory, and
+        install still reports success (rc=0) — the write was silently
+        redirected, not rejected.
+        """
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-install"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        leaked_manifest = external_dir / ".unmassk" / "manifest.json"
+        assert not leaked_manifest.exists(), (
+            "SEC-CRIT-NEW (BUG Y): git-memory-install.py --auto followed a "
+            "symlinked .claude directory and wrote manifest.json outside the "
+            f"repo, at {leaked_manifest}. install rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert rc != 0, (
+            "SEC-CRIT-NEW (BUG Y): install --auto must fail safely (non-zero "
+            "exit, symlinked .claude treated as an unsafe condition to "
+            "reject) instead of silently succeeding while every write is "
+            f"redirected outside the repo. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+    def test_session_start_boot_does_not_write_manifest_or_boot_log_outside_repo_when_claude_dir_is_symlinked(self, tmp_path):
+        """
+        RED: hooks/session-start-boot.py — the real, automatic SessionStart
+        hook, fired with zero user/agent decision involved — must not write
+        boot-log-latest.txt NOR manifest.json outside the repo when .claude
+        is a symlink to an external, pre-existing directory.
+
+        Confirmed live (Argus, session 2026-07-05): on a fresh repo with no
+        manifest yet, render_status_section() -> run_doctor() reports
+        "Manifest: not found" as an error, which triggers run_repair() ->
+        git-memory-repair.py --auto -> install.py's _create_manifest() (same
+        root cause as the install test above), landing manifest.json in the
+        external directory. write_boot_log()'s own ensure_runtime_dir() call
+        independently lands boot-log-latest.txt in the same place. This is
+        the most dangerous of the three scenarios because it requires no
+        install/repair command to be run by anyone — just opening the repo.
+
+        No exit-code assertion here: session-start-boot.py's documented
+        contract is "Exit codes: 0: Always (never blocks session start)" —
+        that fail-open availability guarantee is intentional and unrelated
+        to this bug. The correct fix is to never write outside the repo,
+        not to change the hook's exit code.
+        """
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-boot"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo, timeout=60)
+
+        leaked_manifest = external_dir / ".unmassk" / "manifest.json"
+        leaked_boot_log = external_dir / ".unmassk" / "boot-log-latest.txt"
+
+        assert not leaked_manifest.exists(), (
+            "SEC-CRIT-NEW (BUG Y): session-start-boot.py followed a "
+            "symlinked .claude directory and wrote manifest.json outside "
+            f"the repo, at {leaked_manifest}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert not leaked_boot_log.exists(), (
+            "SEC-CRIT-NEW (BUG Y): session-start-boot.py followed a "
+            "symlinked .claude directory and wrote boot-log-latest.txt "
+            f"outside the repo, at {leaked_boot_log}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+    def test_install_does_not_touch_real_settings_json_when_claude_symlinks_to_real_home_dir(self, tmp_path):
+        """
+        RED (most severe of the three): a repo where .claude symlinks to
+        what simulates the user's REAL ~/.claude — containing a
+        settings.json with hook registrations belonging to OTHER,
+        unrelated plugins — must leave that settings.json BYTE-FOR-BYTE
+        untouched.
+
+        Confirmed live (Argus, session 2026-07-05):
+        _cleanup_stale_settings_hooks() (bin/git-memory-install.py) reads
+        the external settings.json through the symlinked .claude, deletes
+        the entire "hooks" key (because the sample entry looks like a
+        stale local hook path, exactly like a real other-plugin entry
+        would), and writes the file back — destroying every other
+        plugin's hook registration with a single `git memory install
+        --auto`, no confirmation, no warning that a directory outside the
+        repo was ever touched.
+        """
+        repo = _make_repo(tmp_path)
+        fake_home_claude = tmp_path / "fake-home-dot-claude"
+        fake_home_claude.mkdir()
+
+        victim_settings = {
+            "hooks": {
+                "UserPromptSubmit": [
+                    {"hooks": [{"command": "python3 hooks/some-other-plugin-hook.py"}]}
+                ]
+            },
+            "otroAjusteReal": "debe-sobrevivir",
+        }
+        settings_path_external = fake_home_claude / "settings.json"
+        settings_path_external.write_text(json.dumps(victim_settings, indent=2))
+        raw_before = settings_path_external.read_bytes()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(fake_home_claude), claude_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        raw_after = settings_path_external.read_bytes()
+        assert raw_after == raw_before, (
+            "SEC-CRIT-NEW (BUG Y, most severe): git-memory-install.py --auto "
+            "followed a symlinked .claude directory pointing at a "
+            "real-looking ~/.claude and modified settings.json outside the "
+            "repo — this can wipe hook registrations belonging to OTHER "
+            f"plugins with a single install run. install rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}\n"
+            f"before: {raw_before!r}\nafter: {raw_after!r}"
+        )
+
+    def test_install_does_not_touch_real_settings_json_when_claude_symlink_is_relative(self, tmp_path):
+        """
+        Edge case variant of the scenario above: the attacker plants
+        .claude as a RELATIVE symlink (e.g. '../fake-home-dot-claude')
+        instead of an absolute one. This is the more realistic real-world
+        PoC — a committed symlink (git blob mode 120000) with an absolute
+        path only works on the exact machine/path it was authored for,
+        while a relative path resolving into the victim's home directory
+        works across machines and users.
+
+        Must be equally rejected: os.path.realpath() resolves relative
+        symlinks identically to absolute ones, so a correct realpath-prefix
+        guard (the pattern hooks/validate-memory-path.py already uses)
+        must not special-case relative vs. absolute symlink targets.
+        """
+        repo = _make_repo(tmp_path)
+        fake_home_claude = tmp_path / "fake-home-dot-claude-relative"
+        fake_home_claude.mkdir()
+
+        victim_settings = {
+            "hooks": {
+                "UserPromptSubmit": [
+                    {"hooks": [{"command": "python3 hooks/other-plugin.py"}]}
+                ]
+            },
+            "otroAjusteReal": "debe-sobrevivir",
+        }
+        settings_path_external = fake_home_claude / "settings.json"
+        settings_path_external.write_text(json.dumps(victim_settings, indent=2))
+        raw_before = settings_path_external.read_bytes()
+
+        claude_path = os.path.join(repo, ".claude")
+        relative_target = os.path.relpath(str(fake_home_claude), start=os.path.dirname(claude_path))
+        os.symlink(relative_target, claude_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        raw_after = settings_path_external.read_bytes()
+        assert raw_after == raw_before, (
+            "SEC-CRIT-NEW (BUG Y): a RELATIVE symlink at .claude was "
+            "followed just like the absolute case, modifying settings.json "
+            f"outside the repo. install rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}\n"
+            f"before: {raw_before!r}\nafter: {raw_after!r}"
         )
 
 
