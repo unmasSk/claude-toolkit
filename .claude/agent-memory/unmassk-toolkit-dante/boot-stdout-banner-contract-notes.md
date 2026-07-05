@@ -65,6 +65,36 @@ unconditional" — coherent RED, ready for Ultron to remove
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md), [skill-router-contract-notes](skill-router-contract-notes.md) (same "test-first contract, corrected mid-pipeline" shape).
 
+**Round 4 (session 2026-07-05) — re-re-audit findings, 5th pass on this same
+module family.** Three more findings, all written as failing test-first
+contract tests before Ultron touches anything: (1) SEC-CRIT-NEW-04 —
+5 separate sites skip the same `sanitize_trailer_value()` treatment
+Decision/Memo/Remember already get: `parse_scope()`'s output used raw as
+`label`/`scope_prefix` in `boot_memory.py` (both `extract_memory()` and
+`extract_glossary()`), the raw commit subject in `boot_memory.py`'s
+`last_context` and in `boot_render.get_timeline()`, the raw branch name in
+`boot_render.render_branch_section()` (worst of the 5 — reaches the
+UNCONDITIONAL stdout banner, not just the file), and the raw
+`manifest.json` `"version"` field in `check_version_mismatch()`. 11 tests in
+`test_boot_output.py`. (2) SEC-LOW-NEW-05 — `check_version_mismatch()` and
+`bin/git-memory-upgrade.py:read_installed_manifest()` both read
+manifest.json with plain `open()`, no symlink guard (asymmetric with every
+writer of that same file, already fixed). 2 tests in
+`test_security_regression.py` (BUG E). (3) Cerberus's sys.modules
+contamination finding — `boot_memory.py`/`boot_render.py`/`boot_migrations.py`
+all do `from git_helpers import run_git` at MODULE level (unlike the
+deliberately-deferred `parsing` imports right next to them), so any test
+that stubs `sys.modules["git_helpers"]` and restores it afterwards
+permanently freezes those three modules' `run_git` if it's their
+first-ever import in the process. 3 tests in `test_migrate_statusline.py`.
+All 16 new tests RED against current code, 0 regressions (733 passed
+before and after, confirmed via `git stash`). See
+[edge-cases.md](edge-cases.md) for the exact reproduction patterns of all
+three. This is now 4 consecutive audit-then-harden rounds on the same
+module family each surfacing genuinely new findings — worth flagging to
+Yoda if a 5th round starts repeating the same bug class instead of finding
+new ones.
+
 **Round 3 (session 2026-07-05) — re-audit findings, 4th pass on this same
 file/module.** Argus + Cerberus found 4 more issues on the already-hardened
 boot hook + adjacent bin/ scripts: control-byte record injection in

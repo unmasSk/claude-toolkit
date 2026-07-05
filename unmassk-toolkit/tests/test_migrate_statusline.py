@@ -7,18 +7,27 @@ Covers:
   3. Unrelated statusLine (not context-writer) → settings unchanged
   4. Missing settings.json → no exception (idempotent)
   5. Backup file deleted after restore (idempotent second run)
+  6. Cerberus-confirmed sys.modules contamination regression (see
+     TestSysModulesContaminationRegression below): the exact stub-and-restore
+     sequence _load_migrate_fn() runs here freezes lib/boot_memory.py,
+     lib/boot_render.py, and lib/boot_migrations.py's module-level `run_git`
+     name to the stub forever, for the rest of the process.
 """
 
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import types
 
 import pytest
 
+from conftest import git_cmd
+
 HOOKS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks")
 LIB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib")
+THIS_FILE = os.path.abspath(__file__)
 
 
 def _load_migrate_fn(fake_home: str):
@@ -204,6 +213,189 @@ def test_backup_deleted_after_restore(tmp_path):
     migrate()
     settings = _read_settings(claude_dir)
     assert settings["statusLine"]["command"] == "/usr/local/bin/my-statusline.sh"
+
+
+# ── sys.modules contamination regression (Cerberus, session 2026-07-05) ──
+#
+# lib/boot_memory.py, lib/boot_render.py, and lib/boot_migrations.py all do
+# `from git_helpers import ...` at MODULE level. The `parsing` imports right
+# next to them in boot_memory.py are deliberately deferred into each
+# function body instead, specifically because this same test file replaces
+# sys.modules["parsing"]/["git_helpers"]/["version"] with stubs and restores
+# them in a `finally` block — a module-level binding captured while the stub
+# is installed survives the restore, because rebinding sys.modules doesn't
+# touch names already bound in another module's namespace.
+#
+# `_load_migrate_fn()` above triggers exactly this: it stubs git_helpers,
+# then execs hooks/session-start-boot.py, whose module-level
+# `from boot_memory import (...)` causes the FIRST-EVER `import boot_memory`
+# in the process (also pulling in boot_migrations and boot_render the same
+# way). Each of those three modules' own `from git_helpers import ...`
+# line then binds `run_git` to the STUB's `lambda *a, **kw: (1, "")` —
+# permanently, for the rest of the process — even after the `finally` block
+# restores sys.modules["git_helpers"] to the real module.
+#
+# Each probe below runs the exact stub-and-restore sequence in a FRESH
+# subprocess (so the result never depends on whether some other test file
+# already did a real `import boot_memory` earlier in the same pytest
+# session — the bug only bites on the very first import), then exercises a
+# real function through its public behavior (not by asserting on the
+# `run_git` attribute directly, since the eventual fix — deferred imports,
+# mirroring the `parsing` pattern — may remove that module-level name
+# entirely rather than merely rebind it).
+
+
+def _run_after_stub_contamination(fake_home: str, repo: str, action_code: str) -> subprocess.CompletedProcess:
+    """Reproduce _load_migrate_fn()'s stub-and-restore sequence, then run
+    `action_code` (a Python source string) in the SAME fresh subprocess,
+    with CWD set to `repo` and `boot_memory`/`boot_render`/`boot_migrations`
+    already import-cached (contaminated or not) from that sequence.
+    """
+    code = f"""
+import sys, os, json, importlib.util
+
+sys.path.insert(0, {repr(LIB_DIR)})
+sys.path.insert(0, {repr(os.path.dirname(THIS_FILE))})
+
+spec = importlib.util.spec_from_file_location("tms_probe", {repr(THIS_FILE)})
+tms_probe = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tms_probe)
+
+migrate = tms_probe._load_migrate_fn({repr(fake_home)})
+migrate()
+
+os.chdir({repr(repo)})
+
+{action_code}
+"""
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True, text=True, timeout=30,
+    )
+
+
+def _last_json_line(stdout: str) -> dict:
+    return json.loads(stdout.strip().splitlines()[-1])
+
+
+class TestSysModulesContaminationRegression:
+    """RED today: run_git is frozen to the stub in all three modules, so
+    every real function below silently reports "nothing here" regardless of
+    the actual repository state. GREEN after the fix (deferred imports):
+    each function reflects the real repository state again.
+    """
+
+    def test_boot_memory_extract_memory_not_frozen_after_stub_contamination(self, tmp_path):
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["config", "user.email", "test@test.com"], repo)
+        git_cmd(["config", "user.name", "Test"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+        marker = "CONTAMINATION-DECISION-MARKER-58213"
+        git_cmd(["commit", "--allow-empty", "-m",
+                 f"\U0001F9ED decision(contamtest): probe\n\nDecision: {marker}"], repo)
+
+        home = str(tmp_path / "home")
+        os.makedirs(os.path.join(home, ".claude"))
+
+        action = f"""
+import boot_memory
+result = boot_memory.extract_memory()
+decisions = result.get("decisions", [])
+found = any({marker!r} in text for _, text, _ in decisions)
+print(json.dumps({{"found": found, "decisions": decisions}}))
+"""
+        result = _run_after_stub_contamination(home, repo, action)
+        assert result.returncode == 0, (
+            f"probe subprocess crashed: rc={result.returncode}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        payload = _last_json_line(result.stdout)
+        assert payload["found"], (
+            "boot_memory.extract_memory() did not see the real commit after "
+            "the sys.modules stub-and-restore sequence ran once in this "
+            "process — run_git is frozen to the stub's (1, \"\"), proving "
+            f"module-level contamination. decisions={payload['decisions']!r}"
+        )
+
+    def test_boot_render_get_timeline_not_frozen_after_stub_contamination(self, tmp_path):
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["config", "user.email", "test@test.com"], repo)
+        git_cmd(["config", "user.name", "Test"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+        marker = "CONTAMINATION-TIMELINE-MARKER-77123"
+        git_cmd(["commit", "--allow-empty", "-m",
+                 f"✨ feat(contamtest): {marker}"], repo)
+
+        home = str(tmp_path / "home")
+        os.makedirs(os.path.join(home, ".claude"))
+
+        action = f"""
+import boot_render
+timeline = boot_render.get_timeline(10)
+found = any({marker!r} in line for line in timeline)
+print(json.dumps({{"found": found, "timeline": timeline}}))
+"""
+        result = _run_after_stub_contamination(home, repo, action)
+        assert result.returncode == 0, (
+            f"probe subprocess crashed: rc={result.returncode}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        payload = _last_json_line(result.stdout)
+        assert payload["found"], (
+            "boot_render.get_timeline() did not see the real commit after "
+            "the sys.modules stub-and-restore sequence ran once in this "
+            "process — run_git is frozen to the stub's (1, \"\"), proving "
+            f"module-level contamination. timeline={payload['timeline']!r}"
+        )
+
+    def test_boot_migrations_untrack_generated_jsons_not_frozen_after_stub_contamination(self, tmp_path):
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["config", "user.email", "test@test.com"], repo)
+        git_cmd(["config", "user.name", "Test"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+
+        generated_dir = os.path.join(repo, ".claude", ".unmassk")
+        os.makedirs(generated_dir)
+        with open(os.path.join(generated_dir, "foo.json"), "w") as f:
+            f.write("{}")
+        git_cmd(["add", ".claude/.unmassk/foo.json"], repo)
+        git_cmd(["commit", "-m", "add generated json (legacy tracked install)"], repo)
+
+        # Sanity check: the file really is tracked before the probe runs.
+        rc, _, _ = git_cmd(["ls-files", "--error-unmatch", ".claude/.unmassk/foo.json"], repo)
+        assert rc == 0, "sanity check failed: fixture file must be tracked before the migration runs"
+
+        home = str(tmp_path / "home")
+        os.makedirs(os.path.join(home, ".claude"))
+
+        action = f"""
+import boot_migrations
+boot_migrations._migrate_untrack_generated_jsons({repr(repo)})
+print(json.dumps({{"done": True}}))
+"""
+        result = _run_after_stub_contamination(home, repo, action)
+        assert result.returncode == 0, (
+            f"probe subprocess crashed: rc={result.returncode}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+        # Assertion happens back in THIS (uncontaminated) process/repo state,
+        # via a plain git call — independent of whatever run_git was bound
+        # to inside the probe subprocess.
+        rc, _, _ = git_cmd(["ls-files", "--error-unmatch", ".claude/.unmassk/foo.json"], repo)
+        assert rc != 0, (
+            "the tracked generated-JSON file was NOT untracked by "
+            "_migrate_untrack_generated_jsons() — proving "
+            "boot_migrations.run_git was frozen to the sys.modules stub's "
+            "(1, \"\") and the real `git ls-files`/`git rm --cached` calls "
+            "never actually ran against the repository"
+        )
 
 
 if __name__ == "__main__":

@@ -68,6 +68,8 @@ from conftest import SOURCE_ROOT, HOOKS_DIR, BIN_DIR, INSTALL, UPGRADE, git_cmd,
 
 # ── Path constants ─────────────────────────────────────────────────────────────
 
+LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
+
 HOOK_PRE_MERGE_GATE     = os.path.join(HOOKS_DIR, "pre-merge-gate.py")
 HOOK_PRE_TASK_RECALL    = os.path.join(HOOKS_DIR, "pre-task-recall.py")
 HOOK_PRE_DEDUP          = os.path.join(HOOKS_DIR, "pre-memory-dedup-gate.py")
@@ -586,6 +588,102 @@ class TestBugDManifestSymlinkWrite:
             "the manifest.json path and overwrote the file it points to. "
             f"upgrade rc={rc}\nstdout (first 500): {stdout[:500]}\n"
             f"stderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG E — manifest.json READ paths follow a pre-planted symlink (SEC-LOW-NEW-05)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# lib/boot_render.py:check_version_mismatch() (plain `os.path.isfile()` +
+# `open(manifest_path)`) and bin/git-memory-upgrade.py:read_installed_manifest()
+# (plain `open(manifest_path)`) both read .claude/.unmassk/manifest.json without
+# the symlink guard already applied to boot_memory.py's readers
+# (_read_glossary_cache(), SEC-MED-NEW-02, fixed earlier this session) and to
+# every writer of that same directory (SEC-CRIT-001 / SEC-HIGH-NEW-03). A
+# symlink planted at the manifest path, pointing outside the repo, is silently
+# followed and its content trusted as a real, valid manifest.
+#
+# These tests are RED now: the victim file's content is read and acted upon.
+# After Ultron's fix (open_no_follow_symlink() in read mode / an explicit
+# symlink check, mirroring _read_glossary_cache()'s existing pattern) they
+# must be GREEN: a symlinked manifest path is treated exactly like "no
+# manifest present" — never followed, never read.
+
+def _check_version_mismatch(repo):
+    """Call boot_render.check_version_mismatch() with `repo` as CWD.
+
+    Plain isolated subprocess call (no sys.modules stubbing involved) —
+    same direct-import-and-call pattern documented in
+    unmassk-toolkit-python-test-conventions.md, adapted for a lib/ module
+    that isn't hyphenated.
+    """
+    code = f"""
+import sys, os, json, importlib.util
+sys.path.insert(0, {repr(LIB_DIR)})
+os.chdir({repr(repo)})
+spec = importlib.util.spec_from_file_location(
+    "boot_render_probe", os.path.join({repr(LIB_DIR)}, "boot_render.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.check_version_mismatch()
+print(json.dumps({{"result": result}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_check_version_mismatch failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+class TestBugECheckVersionMismatchManifestSymlinkRead:
+    """check_version_mismatch() must not follow a symlink planted at
+    .claude/.unmassk/manifest.json."""
+
+    def test_check_version_mismatch_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-manifest-checkversion.json"
+        victim.write_text(json.dumps({"version": "0.0.1-SYMLINK-VICTIM"}))
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        _plant_symlink(manifest_path, str(victim))
+
+        result = _check_version_mismatch(repo)
+
+        assert result is None or "0.0.1-SYMLINK-VICTIM" not in result, (
+            "BUG SEC-LOW-NEW-05: check_version_mismatch() followed a symlink "
+            "planted at the manifest.json path and read the victim file's "
+            f"content as if it were a real manifest. result={result!r}"
+        )
+
+
+class TestBugEUpgradeReadInstalledManifestSymlinkRead:
+    """bin/git-memory-upgrade.py's read_installed_manifest() must not follow
+    a symlink planted at .claude/.unmassk/manifest.json — the upgrade CLI
+    must behave exactly as if no installation exists."""
+
+    def test_upgrade_check_does_not_follow_symlink_at_manifest_path(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-manifest-upgrade-check.json"
+        victim.write_text(json.dumps({
+            "version": "0.0.1-SYMLINK-VICTIM",
+            "installed_at": "2020-01-01T00:00:00",
+            "runtime_mode": "normal",
+        }))
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        _plant_symlink(manifest_path, str(victim))
+
+        rc, stdout, stderr = run_script(UPGRADE, repo, extra_args=["--auto", "--check", "--json"])
+
+        assert "0.0.1-SYMLINK-VICTIM" not in stdout, (
+            "BUG SEC-LOW-NEW-05: git-memory-upgrade.py --check followed a "
+            "symlink planted at the manifest.json path and reported the "
+            f"victim file's version as the installed version. stdout={stdout!r}"
+        )
+        assert rc == 1, (
+            "read_installed_manifest() must treat a symlinked manifest path "
+            "exactly like a missing manifest — 'no installation to upgrade' "
+            f"(exit 1) — but got rc={rc}, stdout={stdout!r}, stderr={stderr!r}"
         )
 
 
