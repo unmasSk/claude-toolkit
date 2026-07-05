@@ -220,6 +220,7 @@ def _ser(lst):
     return [list(item) for item in lst]
 
 print(json.dumps({{
+    'pending':   result.get('pending', []),
     'decisions': _ser(result.get('decisions', [])),
     'memos':     _ser(result.get('memos', [])),
     'remembers': _ser(result.get('remembers', [])),

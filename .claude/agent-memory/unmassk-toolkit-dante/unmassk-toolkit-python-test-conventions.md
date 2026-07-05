@@ -63,4 +63,21 @@ the check actually ran and produced the expected warning text.
   are `(label, text, is_crown)` 3-tuples, deduped one-per-scope. `label` is
   `"(scope)"` or `"(global)"`.
 
+**Gotcha: `_extract_memory()`'s `json.dumps()` is a hand-picked whitelist, not
+a mirror of `extract_memory()`'s real return dict.** `extract_memory()` (in
+`lib/boot_memory.py`) returns `{last_context, pending, blockers, decisions,
+memos, remembers, tombstones}`, but the test helper in `test_boot_output.py`
+only serializes the keys it happened to need when written. A test written
+later that reads `_extract_memory(repo)["pending"]` (or any other key not yet
+in the whitelist) fails with `KeyError`, and it looks like a production bug —
+it isn't; `git stash` on production code reproduces the identical failure
+because the break is in the test helper's serialization, not the code under
+test. `pending`/`blockers` are lists of plain dicts (already JSON-serializable
+— do NOT run them through `_ser()`, which is only for the `(label, text,
+is_crown)` tuple lists); `tombstones` is a `set` and needs `list()` if a
+future test ever needs it. Rule: whenever a new test needs a top-level key
+from `extract_memory()`/`extract_glossary()`, add it to the helper's
+`json.dumps({...})` dict explicitly — don't assume "the helper already
+returns everything the function does."
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).
