@@ -593,6 +593,34 @@ install, a real config schema) rather than typing a plausible-looking
 string by hand — same root cause as fabricated-fixture risk (unmassk-standards
 §34), just appearing inside a security PoC instead of a round-trip test.
 
+## needs_upgrade() Check 1 must be neutralized before any test targets Check 2 (manifest read)
+
+`hooks/user-prompt-memory-check.py::needs_upgrade()` ORs two independent
+triggers: Check 1 (`"python3 bin/" in block or "Context Checkpoint Commits"
+not in block`, stale CLAUDE.md markers) and Check 2 (manifest.version vs
+PLUGIN_VERSION, read via `open_no_follow_symlink()`). A freshly installed
+repo's CLAUDE.md managed block never contains the literal string "Context
+Checkpoint Commits" (that text lives in the full skill payload, not the
+minimal installed snippet) — so Check 1 fires `True` on every real install,
+short-circuiting `or` before Check 2 (and its manifest read) is ever
+reached. Any test that plants a symlink or a version mismatch at
+`manifest.json` to prove something about Check 2 will pass GREEN even
+against the unguarded code if Check 1 alone already made `needs_upgrade()`
+return `True` for the wrong reason — same "PoC not real" trap as the
+path-traversal/conditional-write notes below.
+
+**Fix:** call `neutralize_needs_upgrade_check1(repo)` (in `conftest.py`,
+shared helper — extracted from `test_needs_upgrade_semver.py`'s
+`make_semver_test_repo()`) right after installing, before planting any
+symlink/version fixture. It patches the managed block in-place: strips
+`"python3 bin/"` and appends `"Context Checkpoint Commits"` if absent, so
+Check 1 is definitively `False` and only Check 2 can drive the result.
+Confirmed this was the actual bug in
+`test_security_regression.py::TestBugMNeedsUpgradeManifestSymlinkRead` — the
+symlink guard fix (Ultron, `open_no_follow_symlink()` on the manifest read)
+was correct; the test just never reached it before this fix (session
+2026-07-05).
+
 ## Barrido (full sweep) technique: grep for the vulnerable call shape across sibling files, don't trust the named sites as exhaustive
 
 When Argus names N confirmed sites of a bug class and asks for a full sweep

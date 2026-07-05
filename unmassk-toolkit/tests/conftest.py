@@ -79,6 +79,51 @@ def run_doctor_json(cwd):
         return {"status": "error", "checks": []}, rc
 
 
+def neutralize_needs_upgrade_check1(repo):
+    """Patch CLAUDE.md's managed block so hooks/user-prompt-memory-check.py's
+    needs_upgrade() Check 1 ("python3 bin/" in block or "Context Checkpoint
+    Commits" not in block) is definitively False.
+
+    Context: a freshly installed repo's CLAUDE.md managed block does not
+    contain the literal string "Context Checkpoint Commits" (that text lives
+    in the full skill payload, not the minimal installed snippet), so Check 1
+    fires True on every real install. Any test that wants to exercise Check 2
+    (manifest.version / semver, or — see BUG M — the symlink guard on the
+    manifest read) must neutralize Check 1 first, or the test never reaches
+    the code path it claims to cover. Originally identified in
+    test_needs_upgrade_semver.py's make_semver_test_repo(); extracted here so
+    other test modules (e.g. test_security_regression.py) can reuse the same
+    patch instead of re-deriving it.
+
+    No-op (returns silently) if CLAUDE.md or the managed block markers are
+    missing — callers that rely on this should have already installed.
+    """
+    claude_md_path = os.path.join(repo, "CLAUDE.md")
+    if not os.path.isfile(claude_md_path):
+        return
+    with open(claude_md_path) as f:
+        content = f.read()
+
+    begin = content.find("BEGIN unmassk-toolkit")
+    end = content.find("END unmassk-toolkit")
+    if begin == -1 or end == -1:
+        return
+
+    block = content[begin:end]
+    patched_block = block
+
+    # Ensure old-style marker is NOT present (it would trigger upgrade).
+    patched_block = patched_block.replace("python3 bin/", "")
+
+    # Ensure the required string IS present (its absence triggers upgrade).
+    if "Context Checkpoint Commits" not in patched_block:
+        patched_block = patched_block + "\nContext Checkpoint Commits\n"
+
+    content = content[:begin] + patched_block + content[end:]
+    with open(claude_md_path, "w") as f:
+        f.write(content)
+
+
 def check_hook_msg(subject, cwd, trailers=None, as_claude=False):
     """Send a commit message to the pre-hook and return the exit code."""
     command = 'git commit -m "' + subject + '"'
