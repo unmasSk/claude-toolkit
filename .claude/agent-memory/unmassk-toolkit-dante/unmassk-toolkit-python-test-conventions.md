@@ -83,24 +83,64 @@ returns everything the function does."
 **Technique: forcing a defensive-import fallback branch (`X = None` on
 ImportError) without stubbing the whole module.** Several hot-path functions
 (`hooks/session-start-boot.py:write_boot_log()`,
-`lib/boot_memory.py:_write_glossary_cache()`) do `try: from git_helpers
-import ensure_runtime_dir; except ImportError: ensure_runtime_dir = None`
-at module level, then branch on that name at call time. To exercise the
-`else` fallback branch in a test, do NOT stub `sys.modules["git_helpers"]`
-(that risks breaking sibling module-level imports and needs careful
-restore/whitelist bookkeeping, see the `_extract_memory()` gotcha above) —
-instead load the target module normally via the importlib
-spec_from_file_location pattern (real git_helpers, real import succeeds),
-then simply overwrite the already-bound name on the loaded module object:
-`mod.ensure_runtime_dir = None`. This forces the fallback branch on the next
-call while every other dependency (boot_memory/boot_migrations/boot_render/
-version) keeps using the real git_helpers. Always do this inside a
-subprocess (`import sys, os, json, importlib.util; ...; print(json.dumps(...))`,
-same pattern as every other importlib probe in test_security_regression.py),
-not in-process, since these are real stably-named modules and an in-process
-load risks sys.modules contamination across test files in the same pytest
-session (see Round 4 in
+`lib/boot_glossary_cache.py:_write_glossary_cache()`) do `try: from
+git_helpers import ensure_runtime_dir; except ImportError:
+ensure_runtime_dir = None` at module level, then branch on that name at call
+time. To exercise the `else` fallback branch in a test, do NOT stub
+`sys.modules["git_helpers"]` (that risks breaking sibling module-level
+imports and needs careful restore/whitelist bookkeeping, see the
+`_extract_memory()` gotcha above) — instead load the target module normally
+via the importlib spec_from_file_location pattern (real git_helpers, real
+import succeeds), then simply overwrite the already-bound name on the loaded
+module object: `mod.ensure_runtime_dir = None`. This forces the fallback
+branch on the next call while every other dependency
+(boot_memory/boot_migrations/boot_render/version) keeps using the real
+git_helpers. Always do this inside a subprocess (`import sys, os, json,
+importlib.util; ...; print(json.dumps(...))`, same pattern as every other
+importlib probe in test_security_regression.py), not in-process, since these
+are real stably-named modules and an in-process load risks sys.modules
+contamination across test files in the same pytest session (see Round 4 in
 [boot-stdout-banner-contract-notes](boot-stdout-banner-contract-notes.md)).
+
+**Gotcha: patch the module that OWNS the function's `__globals__`, not
+whatever module object you happened to load it through.** `_write_glossary_cache()`
+used to live in `lib/boot_memory.py`; Ultron later split it out into
+`lib/boot_glossary_cache.py` (boot_memory.py's theme stayed "commit-history
+parsing"; the new module's theme is "glossary cache I/O"). `boot_memory.py`
+still re-exports the name at its own file tail
+(`from boot_glossary_cache import (..., _write_glossary_cache, ...)`) purely
+so a test that loads `lib/boot_memory.py` via
+`spec_from_file_location(throwaway_name, ...)` can still resolve
+`mod._write_glossary_cache`. But that re-exported name is just a reference
+to the SAME function object — its `__globals__` still points at
+`boot_glossary_cache`'s module dict, not at the throwaway `mod` you loaded.
+Cerberus caught this exact bug in `test_security_regression.py`'s
+`_call_write_glossary_cache_fallback()`: it did `mod.ensure_runtime_dir =
+None` after loading `boot_memory.py` under a throwaway name — that patches
+an unrelated attribute on an unrelated module while the real lookup at call
+time still resolves to the real, non-None `ensure_runtime_dir` in
+`boot_glossary_cache`'s globals. The test stayed green, but for the wrong
+reason: it silently exercised the normal `if ensure_runtime_dir is not
+None` branch instead of the `else` fallback branch it claimed to cover — a
+real regression path (`lib/boot_glossary_cache.py`'s fallback
+`verify_path_within_project()` guard) went uncovered. **Fix pattern:** `import
+boot_glossary_cache` as a REAL (non-throwaway-name) import first — so it
+lands in `sys.modules` under its real name — patch
+`boot_glossary_cache.ensure_runtime_dir = None` on that real module object,
+THEN load `boot_memory.py` via `spec_from_file_location`. Its `from
+boot_glossary_cache import (...)` statement reuses the already-patched
+`sys.modules["boot_glossary_cache"]` entry, so `mod._write_glossary_cache`
+now genuinely sees `ensure_runtime_dir is None` at call time. **Verify with a
+mutation check whenever you can't be 100% sure the assertion is exercising
+the branch it claims:** temporarily strip the guard from the target `else`
+branch, confirm the test NOW fails, then restore the file — a same-result
+green test before AND after a guard is deleted is proof the test isn't
+covering that guard at all, whatever its docstring says. General rule after
+any Ultron file-split: when a test's monkeypatch target is `mod.<name>` on a
+module loaded via `spec_from_file_location`, re-verify which module's
+`__globals__` the patched function's implementation actually lives in post-split
+— re-exports preserve the call site, not the namespace the function reads
+from.
 
 **Recurring test shape: "symlinked-parent-directory" (BUG Y class,
 11 rounds and counting).** A large, recurring family of security regression

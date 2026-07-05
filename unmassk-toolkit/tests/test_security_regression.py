@@ -3878,20 +3878,34 @@ print(json.dumps({{"result": result}}))
 
 
 def _call_write_glossary_cache_fallback(repo):
-    """Call lib/boot_memory.py's _write_glossary_cache() with
-    ensure_runtime_dir forced to None (same monkeypatch-after-real-load
-    technique as _call_write_boot_log_fallback above), isolated in its own
-    subprocess with cwd=repo so _get_project_root()'s
-    run_git(['rev-parse','--show-toplevel']) resolves to `repo`."""
+    """Call _write_glossary_cache() with ensure_runtime_dir forced to None,
+    isolated in its own subprocess with cwd=repo so _get_project_root()'s
+    run_git(['rev-parse','--show-toplevel']) resolves to `repo`.
+
+    _write_glossary_cache() itself now lives in lib/boot_glossary_cache.py
+    (split out of lib/boot_memory.py); lib/boot_memory.py only re-exports the
+    name for backward compatibility (see that file's tail comment). The
+    function's `__globals__` is boot_glossary_cache's module dict, NOT
+    boot_memory's — so patching `mod.ensure_runtime_dir` on a throwaway
+    boot_memory module object (as this helper used to do) is a no-op:
+    it patches an unrelated name in an unrelated namespace while the real
+    lookup at call time still resolves to the real, non-None
+    ensure_runtime_dir in boot_glossary_cache's globals, silently exercising
+    the `if` branch instead of the `else` fallback branch this test exists
+    to cover. Must import boot_glossary_cache directly and patch its own
+    module attribute *before* loading boot_memory (whose
+    `from boot_glossary_cache import (...)` will then reuse the same,
+    already-patched sys.modules entry)."""
     code = f"""
 import sys, os, importlib.util
 sys.path.insert(0, {repr(LIB_DIR)})
 os.chdir({repr(repo)})
+import boot_glossary_cache
+boot_glossary_cache.ensure_runtime_dir = None
 spec = importlib.util.spec_from_file_location(
     "boot_memory_bugAO_probe", os.path.join({repr(LIB_DIR)}, "boot_memory.py"))
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-mod.ensure_runtime_dir = None
 mod._write_glossary_cache({{}})
 print("OK")
 """
