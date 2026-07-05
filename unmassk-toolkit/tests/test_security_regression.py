@@ -36,6 +36,25 @@ is called.
 
 These tests are RED now: negative count exits 0 and dumps output.
 After Ultron's fix they must be GREEN.
+
+BUG D — manifest.json written through a pre-planted symlink (Argus SEC-HIGH-NEW-03)
+-------------------------------------------------------------------------------------
+bin/git-memory-install.py:_create_manifest() and bin/git-memory-upgrade.py's
+inline "Update manifest" block in apply_upgrade() both write
+.claude/.unmassk/manifest.json via plain `open(manifest_path, "w")` — unlike
+lib/boot_memory.py's writers, which already use
+git_helpers.open_no_follow_symlink() (SEC-CRIT-001, fixed earlier this
+session). A malicious repo (or a leftover symlink from a prior compromise)
+can have that path be a symlink (git blob mode 120000, or simply pre-existing
+on disk) pointing outside the repo. Both `install --auto` and `upgrade --auto`
+follow it silently and overwrite the file it points to with generated JSON —
+confirmed live against the unmodified scripts (session 2026-07-05): the
+victim file's original content is destroyed in both cases, no exception
+raised.
+
+These tests are RED now: the victim file is overwritten.
+After Ultron's fix (using open_no_follow_symlink(), matching boot_memory.py's
+existing pattern) they must be GREEN: the victim file is left untouched.
 """
 
 import json
@@ -45,7 +64,7 @@ import sys
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, BIN_DIR, git_cmd, run_script, run_cmd
+from conftest import SOURCE_ROOT, HOOKS_DIR, BIN_DIR, INSTALL, UPGRADE, git_cmd, run_script, run_cmd
 
 # ── Path constants ─────────────────────────────────────────────────────────────
 
@@ -473,6 +492,100 @@ class TestBugCLogCountValidation:
         assert "Traceback" not in stderr, (
             f"git-memory-log.py 99999 raised an unhandled Python exception.\n"
             f"stderr: {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG D — manifest.json write follows a pre-planted symlink (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _plant_symlink(target_path, victim_path):
+    """Point target_path at victim_path, replacing whatever is currently there.
+
+    Uses lexists (not exists) so a broken symlink at target_path is still
+    detected and removed — exists() follows the link and would wrongly report
+    False for a dangling link, skipping the cleanup.
+    """
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    if os.path.lexists(target_path):
+        os.remove(target_path)
+    os.symlink(victim_path, target_path)
+
+
+class TestBugDManifestSymlinkWrite:
+    """
+    BUG D: both git-memory-install.py and git-memory-upgrade.py write
+    .claude/.unmassk/manifest.json via plain open(path, "w"), silently
+    following a pre-existing symlink at that path and overwriting whatever
+    it points to.
+
+    Expected state NOW (before fix): RED — the victim file's content is
+    destroyed.
+    Expected state AFTER fix: GREEN — the victim file is untouched (the
+    write must refuse to follow the symlink, mirroring
+    git_helpers.open_no_follow_symlink() already used for boot-log-latest.txt
+    and glossary-cache.json).
+    """
+
+    def test_install_does_not_follow_symlink_at_manifest_path(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not follow a symlink planted
+        at .claude/.unmassk/manifest.json before install ever runs.
+
+        Setup mirrors the confirmed repro (session 2026-07-05): create a bare
+        repo (no install yet), pre-create .claude/.unmassk/ with the manifest
+        path already a symlink to an outside victim file, then run install.
+        """
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-manifest-install.json"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT")
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        _plant_symlink(manifest_path, str(victim))
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT", (
+            "BUG D: git-memory-install.py --auto followed a symlink planted at "
+            "the manifest.json path and overwrote the file it points to. "
+            f"install rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
+        )
+
+    def test_upgrade_does_not_follow_symlink_at_manifest_path(self, tmp_path):
+        """
+        RED: `git-memory-upgrade.py --auto` must not follow a symlink planted
+        at .claude/.unmassk/manifest.json when it rewrites the manifest as
+        part of applying an upgrade.
+
+        Setup: install normally first, then replace the real manifest with a
+        symlink to an outside victim file. The victim file must itself be
+        valid manifest-shaped JSON with an old version, so
+        read_installed_manifest() succeeds and check_upgrade_needed() finds
+        a genuine version-mismatch reason — otherwise upgrade would exit
+        early ("no installation to upgrade") without ever reaching the
+        write, and the test would prove nothing about the symlink guard.
+        """
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        victim = tmp_path / "victim-manifest-upgrade.json"
+        victim.write_text(json.dumps({
+            "version": "1.0.0",
+            "installed_at": "2020-01-01T00:00:00",
+            "runtime_mode": "normal",
+        }))
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        _plant_symlink(manifest_path, str(victim))
+
+        rc, stdout, stderr = run_script(UPGRADE, repo, extra_args=["--auto"])
+
+        assert "1.0.0" in victim.read_text(), (
+            "BUG D: git-memory-upgrade.py --auto followed a symlink planted at "
+            "the manifest.json path and overwrote the file it points to. "
+            f"upgrade rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
         )
 
 

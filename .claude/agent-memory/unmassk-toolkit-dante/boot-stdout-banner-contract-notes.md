@@ -65,6 +65,24 @@ unconditional" — coherent RED, ready for Ultron to remove
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md), [skill-router-contract-notes](skill-router-contract-notes.md) (same "test-first contract, corrected mid-pipeline" shape).
 
+**Round 3 (session 2026-07-05) — re-audit findings, 4th pass on this same
+file/module.** Argus + Cerberus found 4 more issues on the already-hardened
+boot hook + adjacent bin/ scripts: control-byte record injection in
+`extract_memory()`/`extract_glossary()` (SEC-CRIT-NEW-01), asymmetric
+symlink guard on `_read_glossary_cache()` (write side already fixed via
+SEC-CRIT-001, read side still plain `open()`) (SEC-MED-NEW-02),
+`manifest.json` written unguarded by `bin/git-memory-install.py` and
+`bin/git-memory-upgrade.py` (SEC-HIGH-NEW-03, NOT in session-start-boot.py —
+different files, same class of bug), and `write_boot_log()`'s bare `except
+OSError: return None` leaving zero stderr trace (CRB T2-2). All 4 written as
+failing contract tests before Ultron touches anything — see
+[edge-cases.md](edge-cases.md) for the exact reproduction patterns (control-byte
+injection, and the install/upgrade manifest symlink gotchas). Confirms this
+file/module has now gone through 3 full audit-then-harden cycles in the same
+session — a sign the "hardening pass" after test-first fixes keeps surfacing
+genuinely new findings each round rather than converging, worth flagging to
+Yoda if a 4th round starts finding the same class of bug again.
+
 **Round 2 — Ultron implemented the unconditional banner; 5 OTHER test files broke
 (23 tests), not just `test_boot_output.py`.** Any test file that runs
 `session-start-boot.py` as a subprocess and asserts directly against its

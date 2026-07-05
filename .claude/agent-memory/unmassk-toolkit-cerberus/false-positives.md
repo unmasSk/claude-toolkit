@@ -90,6 +90,10 @@ Do NOT flag this as a missing assertion bug. The correct long-term fix is DI for
 
 In `pre-memory-dedup-gate.py` line 301, `best_entry['text']!r` is embedded in the `permissionDecisionReason` without an explicit `_sanitize()` call. This looks like a missing sanitization step, but it is safe: `entry["text"]` comes from `_scan_commits()` in recall.py, which calls `_sanitize()` at line 174 before storing the value. The text is clean before it ever reaches the hook. Do not flag as unsanitized injection.
 
+## `extract_glossary` (uncached) re-exported into session-start-boot.py but never called there
+
+After the CRB-04 split, `hooks/session-start-boot.py` imports `extract_glossary` from `lib/boot_memory.py` alongside `extract_glossary_cached`, but only calls `extract_glossary_cached()` inside `main()`. `extract_glossary` itself looks like a dead/unused import at first read. It is NOT dead: `tests/test_crown.py:229` loads the hook module directly (`spec_from_file_location`) and calls `boot.extract_glossary()` on it — the re-export exists specifically so tests that reach into the hook module by name keep working unchanged after the split (documented in `lib/boot_memory.py`'s module docstring). Do not flag as an unused import without first grepping `tests/` for `boot.extract_glossary(` or similar attribute access on the loaded hook module.
+
 ## afterAll scheduler cleanup in kill-guard test is order-dependent by design
 
 `afterAll(() => { activeInvocations.clear(); inFlight.clear(); })` at the bottom of `agent-result-kill-guard.test.ts` deliberately clears global state left by `agent-invoker-schedule.test.ts`. This looks like a test that is cleaning up after a different test file, which would normally be a flaky pattern. It IS that — but it is intentional, documented, and the alternative (running each file in isolation) is not supported by the current bun test runner. Do not flag as a shared-state anti-pattern without reading the comment block first.

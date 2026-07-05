@@ -362,6 +362,68 @@ and glossary-cache.json got silently overwritten with hook-generated
 content through the symlink — no exception raised, `open(path, "w")`
 follows symlinks by default on POSIX.
 
+## Symlink-write vulnerability test pattern, part 2 — bin/ scripts (manifest.json)
+
+Same `lexists`+`remove`+`symlink` pattern as above also applies to
+`bin/git-memory-install.py`'s `_create_manifest()` and
+`bin/git-memory-upgrade.py`'s inline manifest-write block — both write
+`.claude/.unmassk/manifest.json` via plain `open(path, "w")`, confirmed
+vulnerable live (session 2026-07-05). Two gotchas specific to these scripts:
+1. **install.py**: the symlink must be planted BEFORE running `--auto`, at a
+   pre-created `.claude/.unmassk/manifest.json` path (in a repo with no prior
+   install) — `_create_manifest()`'s `os.makedirs(unmassk_dir,
+   exist_ok=True)` tolerates the dir already existing, so the symlink survives
+   up to the `open()` call.
+2. **upgrade.py**: the victim file's CONTENT matters, not just its existence.
+   `apply_upgrade()` (which does the vulnerable write) is only reached if
+   `read_installed_manifest()` first succeeds in parsing the manifest as JSON
+   AND `check_upgrade_needed()` finds a real reason (e.g. version mismatch).
+   If the victim file is plain text (not valid manifest JSON), the script
+   exits early with "no installation to upgrade" — never reaching the write —
+   and the test proves nothing about the symlink guard. Fix: write valid
+   JSON to the victim file up front, e.g. `{"version": "1.0.0", ...}` (an
+   old version), so the real upgrade flow organically reaches
+   `apply_upgrade()` and its manifest-write block. Confirmed in
+   `test_security_regression.py::TestBugDManifestSymlinkWrite`.
+
+## Control-byte record-injection test pattern (git log `\x1e`/`\x1f` delimiters)
+
+`lib/boot_memory.py`'s `extract_memory()`/`extract_glossary()` parse `git
+log --pretty=format:...` output by `str.split()`-ing on the LITERAL control
+bytes used as delimiters in the format string itself (`\x1e` = record
+separator, `\x1f` = field separator). A commit BODY containing those same
+raw bytes is treated as real stream delimiters, letting one real commit
+forge an entire fake record (fabricated sha/scope/Decision text) — confirmed
+live (session 2026-07-05): a body embedding `\x1e` + `\x1f`-separated fake
+fields produced exactly `('(pwned-scope)', 'TOTALLY FORGED DECISION
+INJECTED VIA CONTROL CHARS', False)` in `extract_memory()`'s decisions list.
+Reproduce with a REAL git commit (`git_cmd(["commit", "--allow-empty", "-m",
+subject + "\n\n" + malicious_body], repo)` — raw `\x1e`/`\x1f` python string
+chars survive verbatim through argv → git commit → `git log` output, no
+escaping needed) and assert via the direct `_extract_memory(repo)` /
+`_extract_glossary(repo)` importlib-subprocess helpers (see
+[unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md))
+that no entry with the forged scope label appears.
+
+**Important control/GUARD case — `\x1f` alone (no `\x1e`) is inert, not
+exploitable, and this is NOT a gap to chase:** confirmed empirically that a
+payload using ONLY `\x1f` (no `\x1e`) never forges an entry, in either
+function, for two independent structural reasons: (1) `str.split(sep,
+maxsplit=N)` caps the number of fields regardless of how many extra `\x1f`
+occurrences exist in the body — the overflow just gets absorbed into the
+last field (harmlessly corrupting the timestamp/body, never creating a new
+logical record); (2) `\x1f` (0x1F) is NOT one of the boundary characters
+`str.splitlines()` uses (`\n \r \v \f \x1c \x1d \x1e \x85 U+2028 U+2029` —
+note `\x1c-\x1e` are boundaries but `\x1f` is one off and is NOT), so a
+forged `"Decision: ..."` line embedded via `\x1f` alone can never become the
+start of a "line" for `scan_trailers_memory()`'s regex, which requires `^`
+at line-start. Write this as an explicit `[GUARD]` test (must stay green
+before AND after the fix) alongside the `\x1e` RED tests, rather than
+skipping it — it proves the fix is a genuine record-boundary fix, not a
+patch of the exact PoC bytes. Do NOT expect this GUARD test to be RED before
+Ultron's fix; it already passes today by construction. Confirmed in
+`test_boot_output.py::TestControlByteRecordInjection`.
+
 ## Git branch name length limits — per-component ceiling from the `.lock` file, not NAME_MAX
 
 A single-path-component branch name (no `/`) fails `git checkout -b` once
