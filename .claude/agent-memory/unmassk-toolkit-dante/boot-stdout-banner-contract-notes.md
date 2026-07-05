@@ -65,6 +65,46 @@ unconditional" — coherent RED, ready for Ultron to remove
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md), [skill-router-contract-notes](skill-router-contract-notes.md) (same "test-first contract, corrected mid-pipeline" shape).
 
+**Round 6 (session 2026-07-05) — 7th pass, CLAUDE.md joins the symlink-bug
+family (previously only manifest.json/scopes.json/settings.json).** Argus
+named 5 new findings (SEC-CRIT-NEW-09 through SEC-MED-NEW-13) plus a full
+barrido across `bin/*.py`/`hooks/*.py`/`lib/*.py` for any `open()` touching a
+`.claude/` path, CLAUDE.md, or `.gitignore` with no `open_no_follow_symlink()`
+guard. Named: (1) SEC-CRIT-NEW-09 — CLAUDE.md WRITE unguarded in
+`install.py:_update_claude_md()` AND `uninstall.py:remove_claude_md_block()`;
+(2) SEC-HIGH-NEW-10 — `.session-booted` flag write in
+`user-prompt-memory-check.py`, a **dangling** symlink creates an arbitrary
+external file; (3) SEC-HIGH-NEW-11 — `needs_upgrade()` reads manifest.json
+unguarded on **every user message** (not just boot), chaining into an
+auto-triggered `install.py --auto`; (4) SEC-MED-NEW-12 — scopes.json read
+unguarded in both `boot_checks.render_scopes_section()` and
+`git-memory-commit.py:_load_scope_map()`; (5) SEC-MED-NEW-13 — settings.json
+read+write unguarded in `install.py`'s `inspect()` +
+`_cleanup_stale_settings_hooks()`. The barrido found 4 more genuinely new
+sites/classes Argus didn't name: CLAUDE.md **read**-side unguarded across 6
+separate call sites (`bootstrap.check_existing_memory()`,
+`doctor.check_claude_md()`, `install.inspect()`, `repair.diagnose()`,
+`user-prompt-memory-check.needs_install()`,
+`upgrade.check_upgrade_needed()`) — the read-side mirror of finding (1), same
+"asymmetric read/write" shape as the earlier manifest.json BUG E; a
+**completely separate file** `hooks/session-start-crew.py` that reads+writes
+CLAUDE.md via `pathlib.Path.write_text()` (no O_NOFOLLOW-equivalent),
+unconditionally on **every** SessionStart — same "runs on every boot"
+severity as BUG F's doctor.py finding, and arguably the worst of this round
+since it wasn't on anyone's radar as a CLAUDE.md writer at all; a second,
+independent settings.json read site in `doctor.py`'s "Stale hooks" check
+(distinct call site from finding 5); and `stop-dod-gate.py`'s
+`git-memory-config.json` read, which normally has a documented trust
+assumption for file *content* (repo authors are trusted) but a symlink lets
+that trust boundary be crossed by pointing outside the repo entirely. 16 new
+tests (BUG K through S) in `test_security_regression.py`, all RED against
+the current code, 0 regressions in the pre-existing 27 tests (confirmed by
+re-running only `TestBugA`-`TestBugJ` after the additions — all still pass
+unmodified). This is the 6th consecutive round finding genuinely new sites
+of the same symlink-unguarded-`open()` class — the case for a single shared
+helper instead of fixing call sites file-by-file keeps getting stronger every
+round.
+
 **Round 5 (session 2026-07-05) — 6th pass, moved from lib/boot_render.py's
 family to the wider bin/git-memory-*.py sibling scripts.** Three named
 findings + a barrido (full sweep) turned up two more unnamed sites, all on

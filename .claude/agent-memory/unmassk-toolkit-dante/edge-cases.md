@@ -569,6 +569,30 @@ Confirmed in
 `test_security_regression.py::TestBugGUpgradeBackupPathTraversal` (session
 2026-07-05, SEC-HIGH-NEW-07).
 
+## "Make the PoC real" also applies to conditional writes gated on content match, not just path traversal
+
+Same lesson as the path-traversal note below, different shape: when a
+vulnerable write only happens if some earlier parse/match against the
+victim's content succeeds (e.g. `remove_claude_md_block()` in
+`bin/git-memory-uninstall.py` only calls `open(claude_md, "w")` if at least
+one of the 5 managed-block regexes actually matched — `removed_any` stays
+False and the function returns early otherwise), a victim file containing
+arbitrary/unrelated text (e.g. `"SENSITIVE ORIGINAL CONTENT"`) never
+reaches the write path at all — the test passes GREEN today, but for the
+wrong reason (proves nothing about the symlink guard, same trap as a naive
+path-traversal PoC). Confirmed empirically in session 2026-07-05: an initial
+version of this test used plain sentinel text as the victim's content and
+passed even against the unguarded code, until the victim was swapped for a
+REAL, valid CLAUDE.md (harvested by running the real installer once in a
+throwaway/same repo and reading back its output) that genuinely contains a
+BEGIN/END managed block — only then did `removed_any` become True, the
+write path execute, and the test go RED as expected. Rule: whenever a write
+is gated behind "did parsing/matching the current content find something,"
+build the victim content from the real producer of that shape (a genuine
+install, a real config schema) rather than typing a plausible-looking
+string by hand — same root cause as fabricated-fixture risk (unmassk-standards
+§34), just appearing inside a security PoC instead of a round-trip test.
+
 ## Barrido (full sweep) technique: grep for the vulnerable call shape across sibling files, don't trust the named sites as exhaustive
 
 When Argus names N confirmed sites of a bug class and asks for a full sweep

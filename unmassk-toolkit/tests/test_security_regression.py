@@ -151,6 +151,106 @@ stdout unsanitized.
 These tests are RED now. After Ultron's fix (open_no_follow_symlink() on the
 read + sanitizing "version" before embedding it in any finding text) they
 must be GREEN.
+
+BUG K — CLAUDE.md write follows a pre-planted symlink, 2 more sites
+(Argus SEC-CRIT-NEW-09)
+--------------------------------------------------------------------------
+bin/git-memory-install.py:_update_claude_md() and
+bin/git-memory-uninstall.py:remove_claude_md_block() both write CLAUDE.md
+via plain `open(claude_md, "w")` — same bug class as BUG D's manifest.json
+write, different file/target. A CLAUDE.md committed as a symlink pointing
+outside the repo is silently followed and overwritten.
+
+These tests are RED now. After Ultron's fix (open_no_follow_symlink()) they
+must be GREEN.
+
+BUG L — .session-booted flag write follows a pre-planted (dangling) symlink
+(Argus SEC-HIGH-NEW-10)
+--------------------------------------------------------------------------
+hooks/user-prompt-memory-check.py writes the `.session-booted` flag via
+`open(booted_flag, "w").close()`, no guard. A dangling symlink at that path
+(pointing to a nonexistent file outside the repo) causes the hook to
+silently CREATE that external file the instant a session boots.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG M — needs_upgrade() reads manifest.json through a symlink, on EVERY
+user message (Argus SEC-HIGH-NEW-11)
+--------------------------------------------------------------------------
+hooks/user-prompt-memory-check.py:needs_upgrade() reads manifest.json via
+plain `open()`, unguarded — and runs on every user message, not just boot.
+If it decides an upgrade is needed (using a symlinked manifest's untrusted
+version) it auto-triggers `install.py --auto`, chaining into BUG K.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG N — scopes.json read follows a pre-planted symlink, 2 sites
+(Argus SEC-MED-NEW-12)
+--------------------------------------------------------------------------
+lib/boot_checks.py:render_scopes_section() and
+bin/git-memory-commit.py:_load_scope_map() both read
+.claude/git-memory-scopes.json via plain `open()`, unguarded.
+
+These tests are RED now. After Ultron's fix they must be GREEN.
+
+BUG O — .claude/settings.json read+write follows a pre-planted symlink
+(Argus SEC-MED-NEW-13)
+--------------------------------------------------------------------------
+bin/git-memory-install.py's inspect() (read) and
+_cleanup_stale_settings_hooks() (read + write-back) both touch
+.claude/settings.json via plain `open()`, unguarded.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG P — CLAUDE.md READ side unguarded across 6 more call sites (barrido
+finding, same "asymmetric read/write" shape as BUG E)
+--------------------------------------------------------------------------
+Symmetric with BUG K's write-side fix: the READ side that checks for the
+managed block's presence is *also* unguarded, at every site that does it:
+bootstrap.py:check_existing_memory(), doctor.py:check_claude_md(),
+install.py:inspect(), repair.py:diagnose(),
+user-prompt-memory-check.py:needs_install(), and
+upgrade.py:check_upgrade_needed(). A symlink at CLAUDE.md pointing to an
+external file containing (or fully replicating) the managed-block markers
+is silently trusted as if the repo already had a real, valid install.
+
+These tests are RED now. After Ultron's fix (treating a symlinked CLAUDE.md
+exactly like "file absent" at every one of these sites) they must be GREEN.
+
+BUG Q — hooks/session-start-crew.py: CLAUDE.md write via pathlib, zero
+guard, fires on EVERY SessionStart (barrido finding, new file not named by
+Argus)
+--------------------------------------------------------------------------
+Separate from BUG K: this hook reads and unconditionally re-writes CLAUDE.md
+via `pathlib.Path.write_text()` (no O_NOFOLLOW equivalent) on every session
+start, same "runs on every boot" severity class as BUG F's doctor.py
+finding. A symlinked CLAUDE.md is silently overwritten.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG R — bin/git-memory-doctor.py: a second, separate settings.json read site
+(barrido finding, distinct from BUG O)
+--------------------------------------------------------------------------
+run_doctor()'s "Stale hooks in project settings.json" check (used in both
+--json and human-readable report modes) reads .claude/settings.json via
+plain `open()`, unguarded — a different call site from BUG O's
+install.py sites.
+
+This test is RED now. After Ultron's fix it must be GREEN.
+
+BUG S — hooks/stop-dod-gate.py reads git-memory-config.json through a
+symlink and executes the resulting test_command (barrido finding)
+--------------------------------------------------------------------------
+_read_test_command() reads .claude/git-memory-config.json via plain
+`open()`, unguarded. Unlike the other findings, this hook's own docstring
+already documents an explicit trust assumption for the *content* of that
+file (repo authors are trusted to not put malicious commands in it) — but
+a symlink lets that path point OUTSIDE the repo entirely, to a file the
+repo authors never committed and never reviewed, which breaks that trust
+boundary. A dangling/malicious symlink here causes an attacker-controlled
+external command to run at session close.
+
+This test is RED now. After Ultron's fix it must be GREEN.
 """
 
 import json
@@ -162,7 +262,7 @@ import pytest
 
 from conftest import (
     SOURCE_ROOT, HOOKS_DIR, BIN_DIR, INSTALL, UPGRADE, DOCTOR, REPAIR, BOOTSTRAP,
-    git_cmd, run_script, run_cmd,
+    UNINSTALL, git_cmd, run_script, run_cmd,
 )
 
 # ── Path constants ─────────────────────────────────────────────────────────────
@@ -173,6 +273,11 @@ HOOK_PRE_MERGE_GATE     = os.path.join(HOOKS_DIR, "pre-merge-gate.py")
 HOOK_PRE_TASK_RECALL    = os.path.join(HOOKS_DIR, "pre-task-recall.py")
 HOOK_PRE_DEDUP          = os.path.join(HOOKS_DIR, "pre-memory-dedup-gate.py")
 HOOK_VALIDATE_MEM_PATH  = os.path.join(HOOKS_DIR, "validate-memory-path.py")
+HOOK_USER_PROMPT_CHECK  = os.path.join(HOOKS_DIR, "user-prompt-memory-check.py")
+CREW_HOOK               = os.path.join(HOOKS_DIR, "session-start-crew.py")
+DOD_GATE_HOOK           = os.path.join(HOOKS_DIR, "stop-dod-gate.py")
+
+BOOT_CHECKS_PATH = os.path.join(LIB_DIR, "boot_checks.py")
 
 GIT_MEMORY_COMMIT = os.path.join(BIN_DIR, "git-memory-commit.py")
 GIT_MEMORY_LOG    = os.path.join(BIN_DIR, "git-memory-log.py")
@@ -1131,6 +1236,556 @@ class TestBugJBootstrapManifestSymlinkAndVersionLeak:
             "BUG SEC-MED-NEW-08 (barrido, new site): git-memory-bootstrap.py "
             "printed the manifest's raw ANSI escape bytes to stdout "
             f"unsanitized.\nstdout (repr, first 500): {stdout[:500]!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG K — CLAUDE.md write follows a pre-planted symlink, 2 more sites (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugKClaudeMdSymlinkWrite:
+    """bin/git-memory-install.py's _update_claude_md() and
+    bin/git-memory-uninstall.py's remove_claude_md_block() must not follow a
+    symlink planted at CLAUDE.md — same bug class as BUG D (manifest.json),
+    different write target."""
+
+    def test_install_does_not_overwrite_victim_through_symlinked_claude_md(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not follow a symlink
+        planted at CLAUDE.md before install ever runs.
+        """
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-install.txt"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — INSTALL")
+
+        claude_md_path = os.path.join(repo, "CLAUDE.md")
+        _plant_symlink(claude_md_path, str(victim))
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT — INSTALL", (
+            "SEC-CRIT-NEW-09: git-memory-install.py --auto followed a symlink "
+            "planted at CLAUDE.md and overwrote the file it points to. "
+            f"install rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
+        )
+
+    def test_uninstall_does_not_overwrite_victim_through_symlinked_claude_md(self, tmp_path):
+        """
+        RED: `git-memory-uninstall.py` must not follow a symlink planted at
+        CLAUDE.md when removing the managed blocks.
+
+        The victim's content must be a REAL, valid CLAUDE.md (harvested from
+        a genuine install) so remove_claude_md_block() actually finds a
+        BEGIN/END block to strip and reaches its write-back — a victim file
+        with no managed blocks at all would make removed_any stay False and
+        the function return early without ever writing, proving nothing
+        about the symlink guard (same "make the PoC real" lesson as BUG D's
+        upgrade.py test).
+        """
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+        claude_md_path = os.path.join(repo, "CLAUDE.md")
+        with open(claude_md_path) as f:
+            valid_content = f.read()
+
+        victim = tmp_path / "victim-claude-md-uninstall.txt"
+        victim.write_text(valid_content)
+        _plant_symlink(claude_md_path, str(victim))
+
+        rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
+
+        assert victim.read_text() == valid_content, (
+            "SEC-CRIT-NEW-09: git-memory-uninstall.py followed a symlink "
+            "planted at CLAUDE.md and overwrote/removed the file it points "
+            f"to. uninstall rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG L — .session-booted flag write follows a dangling symlink (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugLBootedFlagSymlinkWrite:
+    """hooks/user-prompt-memory-check.py must not follow a (dangling) symlink
+    planted at .claude/.unmassk/.session-booted — that would silently create
+    an arbitrary external file the instant a session boots."""
+
+    def test_hook_does_not_create_file_through_dangling_symlink(self, tmp_path):
+        """
+        RED: a dangling symlink at the booted-flag path, pointing to a
+        nonexistent file OUTSIDE the repo, must not cause that external
+        file to be created when the hook runs its normal first-message flow.
+        """
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        outside_target = tmp_path / "victim-outside-booted-flag.txt"
+        assert not outside_target.exists()
+
+        booted_flag = os.path.join(repo, ".claude", ".unmassk", ".session-booted")
+        _plant_symlink(booted_flag, str(outside_target))
+
+        payload = json.dumps({"prompt": "hello"})
+        rc, stdout, stderr = _run_hook_with_payload(HOOK_USER_PROMPT_CHECK, repo, payload)
+
+        assert not outside_target.exists(), (
+            "SEC-HIGH-NEW-10: user-prompt-memory-check.py followed a dangling "
+            "symlink planted at .session-booted and created the external "
+            f"file it pointed to. rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG M — needs_upgrade() reads manifest.json through a symlink (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _needs_upgrade(repo):
+    """Call user-prompt-memory-check.py's needs_upgrade(repo) via importlib,
+    isolated from the rest of the hook's side effects (no subprocess chain
+    into install.py --auto)."""
+    code = f"""
+import sys, json, importlib.util
+spec = importlib.util.spec_from_file_location("upmc_needs_upgrade_probe", {repr(HOOK_USER_PROMPT_CHECK)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.needs_upgrade({repr(repo)})
+print(json.dumps({{"result": result}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_needs_upgrade failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+class TestBugMNeedsUpgradeManifestSymlinkRead:
+    """needs_upgrade() must not follow a symlink planted at manifest.json —
+    doing so lets an outdated victim version auto-trigger install.py --auto
+    on every subsequent user message."""
+
+    def test_needs_upgrade_does_not_follow_symlinked_manifest(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        victim = tmp_path / "victim-manifest-needsupgrade.json"
+        victim.write_text(json.dumps({"version": "0.0.1"}))
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        _plant_symlink(manifest_path, str(victim))
+
+        result = _needs_upgrade(repo)
+
+        assert result is False, (
+            "SEC-HIGH-NEW-11: needs_upgrade() followed a symlink planted at "
+            "manifest.json and used the victim's outdated version to decide "
+            "an upgrade is needed (which auto-triggers install.py --auto). "
+            f"result={result!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG N — scopes.json read follows a pre-planted symlink, 2 sites (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _render_scopes_section(project_root):
+    """Call lib/boot_checks.render_scopes_section(project_root) via importlib."""
+    code = f"""
+import sys, json, importlib.util
+sys.path.insert(0, {repr(LIB_DIR)})
+spec = importlib.util.spec_from_file_location("boot_checks_probe", {repr(BOOT_CHECKS_PATH)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+lines = mod.render_scopes_section({repr(project_root)})
+print(json.dumps({{"lines": lines}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_render_scopes_section failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["lines"]
+
+
+def _load_scope_map(repo):
+    """Call git-memory-commit.py's _load_scope_map() via importlib, with cwd
+    set to repo (the function discovers the toplevel via run_git with no
+    explicit cwd param)."""
+    code = f"""
+import sys, os, json, importlib.util
+os.chdir({repr(repo)})
+spec = importlib.util.spec_from_file_location("commit_scope_map_probe", {repr(GIT_MEMORY_COMMIT)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod._load_scope_map()
+print(json.dumps({{"result": result}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_load_scope_map failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+class TestBugNScopesJsonSymlinkRead:
+    """lib/boot_checks.py:render_scopes_section() and
+    bin/git-memory-commit.py:_load_scope_map() must not follow a symlink
+    planted at .claude/git-memory-scopes.json."""
+
+    def test_render_scopes_section_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-scopes-boot-checks.json"
+        victim.write_text(json.dumps({
+            "scopes": {"pwned-scope": {"description": "PWNED-SCOPES-MARKER"}}
+        }))
+
+        scopes_path = os.path.join(repo, ".claude", "git-memory-scopes.json")
+        _plant_symlink(scopes_path, str(victim))
+
+        lines = _render_scopes_section(repo)
+        joined = "\n".join(lines)
+
+        assert "PWNED-SCOPES-MARKER" not in joined, (
+            "SEC-MED-NEW-12: render_scopes_section() followed a symlink "
+            "planted at git-memory-scopes.json and rendered the victim "
+            f"file's content. lines={lines!r}"
+        )
+
+    def test_load_scope_map_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-scopes-commit.json"
+        victim.write_text(json.dumps({"scopes": {"pwned-scope-map": "x"}}))
+
+        scopes_path = os.path.join(repo, ".claude", "git-memory-scopes.json")
+        _plant_symlink(scopes_path, str(victim))
+
+        result = _load_scope_map(repo)
+
+        assert "pwned-scope-map" not in result, (
+            "SEC-MED-NEW-12: _load_scope_map() followed a symlink planted "
+            f"at git-memory-scopes.json and loaded the victim file's "
+            f"scopes. result={result!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG O — .claude/settings.json read+write follows a symlink (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugOInstallSettingsJsonSymlinkReadWrite:
+    """bin/git-memory-install.py's inspect() (read) and
+    _cleanup_stale_settings_hooks() (read + write-back) must not follow a
+    symlink planted at .claude/settings.json."""
+
+    def test_install_auto_does_not_overwrite_victim_through_symlinked_settings(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim_content = {
+            "hooks": {
+                "PreToolUse": [
+                    {"hooks": [{"command": "python3 hooks/pre-validate-commit-trailers.py"}]}
+                ]
+            },
+            "sensitive": "DO-NOT-TOUCH",
+        }
+        victim = tmp_path / "victim-settings-install.json"
+        victim.write_text(json.dumps(victim_content))
+
+        settings_path = os.path.join(repo, ".claude", "settings.json")
+        _plant_symlink(settings_path, str(victim))
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        after = json.loads(victim.read_text())
+        assert after == victim_content, (
+            "SEC-MED-NEW-13: git-memory-install.py --auto followed a symlink "
+            "planted at settings.json and modified the victim file it "
+            f"points to. install rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}\nvictim now: {after!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG P — CLAUDE.md READ side unguarded across 6 sites (barrido, RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_FAKE_INSTALLED_MARKER_CLAUDE_MD = (
+    "# CLAUDE.md\n\n"
+    "BEGIN unmassk-toolkit — externally-controlled fake managed block\n"
+    "some fake managed content the attacker fully controls\n"
+    "END unmassk-toolkit\n"
+)
+
+
+def _check_existing_memory(repo):
+    code = f"""
+import sys, json, importlib.util
+spec = importlib.util.spec_from_file_location("bootstrap_claudemd_probe", {repr(BOOTSTRAP)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+signals = mod.check_existing_memory({repr(repo)})
+print(json.dumps({{"signals": signals}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_check_existing_memory failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["signals"]
+
+
+def _check_claude_md_doctor(project_root):
+    code = f"""
+import sys, json, importlib.util
+spec = importlib.util.spec_from_file_location("doctor_claudemd_probe", {repr(DOCTOR)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.check_claude_md({repr(project_root)})
+print(json.dumps({{"result": list(result)}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_check_claude_md_doctor failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+def _install_inspect(repo):
+    code = f"""
+import sys, os, json, importlib.util
+os.chdir({repr(repo)})
+spec = importlib.util.spec_from_file_location("install_claudemd_probe", {repr(INSTALL)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+report = mod.inspect({repr(repo)})
+print(json.dumps({{"report": report}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_install_inspect failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["report"]
+
+
+def _needs_install(repo):
+    code = f"""
+import sys, json, importlib.util
+spec = importlib.util.spec_from_file_location("upmc_needs_install_probe", {repr(HOOK_USER_PROMPT_CHECK)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.needs_install({repr(repo)})
+print(json.dumps({{"result": result}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_needs_install failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+def _check_upgrade_needed(source, target, manifest):
+    code = f"""
+import sys, json, importlib.util
+spec = importlib.util.spec_from_file_location("upgrade_check_probe", {repr(UPGRADE)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.check_upgrade_needed({repr(source)}, {repr(target)}, {manifest!r})
+print(json.dumps({{"result": result}}))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0:
+        raise RuntimeError(f"_check_upgrade_needed failed (rc={proc.returncode}): {proc.stderr}")
+    return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
+
+
+class TestBugPClaudeMdReadSymlink:
+    """barrido finding: the CLAUDE.md READ side is unguarded across every
+    call site that checks for the managed block's presence — asymmetric
+    with BUG K's WRITE-side fix (same 'asymmetric read/write' shape as
+    BUG E's manifest.json read gap). A symlink planted at CLAUDE.md pointing
+    to an external file containing the managed-block markers is silently
+    trusted as if the repo already had a real, valid install."""
+
+    def test_bootstrap_check_existing_memory_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-bootstrap.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        signals = _check_existing_memory(repo)
+
+        assert signals.get("claude_md_exists") is not True, (
+            "barrido: bootstrap.py's check_existing_memory() followed a "
+            f"symlink planted at CLAUDE.md. signals={signals!r}"
+        )
+
+    def test_doctor_check_claude_md_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-doctor.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        block_ok, msg = _check_claude_md_doctor(repo)
+
+        assert block_ok is not True, (
+            "barrido: doctor.py's check_claude_md() followed a symlink "
+            f"planted at CLAUDE.md. result=({block_ok!r}, {msg!r})"
+        )
+
+    def test_install_inspect_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-install.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        report = _install_inspect(repo)
+
+        assert report.get("has_claude_md") is not True, (
+            "barrido: install.py's inspect() followed a symlink planted at "
+            f"CLAUDE.md. report={report!r}"
+        )
+
+    def test_repair_diagnose_does_not_follow_symlink_for_claude_md(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-repair.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        issues = _repair_diagnose(repo)
+        claude_md_issue_types = {i[0] for i in issues if i[1] == "CLAUDE.md"}
+
+        assert claude_md_issue_types, (
+            "barrido: repair.py's diagnose() followed a symlink planted at "
+            "CLAUDE.md and reported zero CLAUDE.md-related issues. "
+            f"issues={issues!r}"
+        )
+
+    def test_needs_install_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-needsinstall.txt"
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
+
+        result = _needs_install(repo)
+
+        assert result is True, (
+            "barrido: user-prompt-memory-check.py's needs_install() "
+            f"followed a symlink planted at CLAUDE.md. result={result!r}"
+        )
+
+    def test_check_upgrade_needed_does_not_follow_symlink(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        claude_md_path = os.path.join(repo, "CLAUDE.md")
+        with open(claude_md_path) as f:
+            valid_content = f.read()
+        victim = tmp_path / "victim-claude-md-upgradecheck.txt"
+        victim.write_text(valid_content)
+        _plant_symlink(claude_md_path, str(victim))
+
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+
+        result = _check_upgrade_needed(SOURCE_ROOT, repo, manifest)
+
+        assert "CLAUDE.md missing" in result.get("reasons", []), (
+            "barrido: upgrade.py's check_upgrade_needed() followed a "
+            "symlink planted at CLAUDE.md and treated the victim's fully "
+            f"valid content as a real, up-to-date install. result={result!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG Q — hooks/session-start-crew.py: CLAUDE.md write via pathlib (barrido, RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugQSessionStartCrewClaudeMdSymlinkWrite:
+    """hooks/session-start-crew.py runs on EVERY SessionStart (same
+    unconditional-every-boot severity class as BUG F's doctor.py finding)
+    and reads+writes CLAUDE.md via pathlib.Path, with zero symlink guard —
+    a completely separate call site from BUG K's install.py/uninstall.py
+    fix, found via the barrido sweep."""
+
+    def test_crew_hook_does_not_overwrite_victim_through_symlinked_claude_md(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-claude-md-crew.txt"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — CREW HOOK")
+
+        claude_md_path = os.path.join(repo, "CLAUDE.md")
+        _plant_symlink(claude_md_path, str(victim))
+
+        rc, stdout, stderr = run_script(CREW_HOOK, repo)
+
+        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT — CREW HOOK", (
+            "barrido: hooks/session-start-crew.py followed a symlink "
+            "planted at CLAUDE.md and overwrote the victim file it points "
+            f"to. rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}\n"
+            f"victim content is now: {victim.read_text()!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG R — doctor.py: second, separate settings.json read site (barrido, RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugRDoctorSettingsJsonSymlinkReadNonJson:
+    """A separate call site from BUG O: bin/git-memory-doctor.py's
+    run_doctor() reads .claude/settings.json (the 'Stale hooks' check,
+    shared by --json and human-readable modes) via plain open(), unguarded
+    — found via the barrido sweep."""
+
+    def test_doctor_does_not_report_stale_hooks_from_symlinked_settings(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        victim = tmp_path / "victim-settings-doctor.json"
+        victim.write_text(json.dumps({
+            "hooks": {
+                "PreToolUse": [
+                    {"hooks": [{"command": "python3 hooks/pre-validate-commit-trailers.py"}]}
+                ]
+            }
+        }))
+
+        settings_path = os.path.join(repo, ".claude", "settings.json")
+        _plant_symlink(settings_path, str(victim))
+
+        rc, stdout, stderr = run_script(DOCTOR, repo, extra_args=["--json"])
+        parsed = json.loads(stdout)
+        stale_checks = [c for c in parsed.get("checks", []) if c.get("component") == "Settings hooks"]
+
+        assert not stale_checks, (
+            "barrido: git-memory-doctor.py --json followed a symlink "
+            "planted at settings.json and reported stale hooks based on "
+            f"the victim file's content. checks={stale_checks!r}\n"
+            f"full stdout: {stdout[:800]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG S — stop-dod-gate.py reads git-memory-config.json through a symlink
+# (barrido, RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugSStopDodGateConfigSymlinkRead:
+    """hooks/stop-dod-gate.py's _read_test_command() reads
+    .claude/git-memory-config.json via plain open(), unguarded — found via
+    the barrido sweep. A symlink at that path pointing to an external file
+    with an attacker-controlled test_command causes it to be executed at
+    session close."""
+
+    def test_stop_gate_does_not_execute_command_from_symlinked_config(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        victim = tmp_path / "victim-dod-config.json"
+        victim.write_text(json.dumps({
+            "test_command": 'python3 -c "import sys; sys.exit(1)"'
+        }))
+
+        config_path = os.path.join(repo, ".claude", "git-memory-config.json")
+        _plant_symlink(config_path, str(victim))
+
+        rc, stdout, stderr = run_script(DOD_GATE_HOOK, repo, input_text="{}")
+
+        assert stdout == "", (
+            "barrido: hooks/stop-dod-gate.py followed a symlink planted at "
+            "git-memory-config.json and executed the victim's test_command, "
+            f"blocking session close. rc={rc}\nstdout: {stdout[:500]}\n"
+            f"stderr: {stderr[:300]}"
         )
 
 
