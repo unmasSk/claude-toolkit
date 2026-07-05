@@ -709,3 +709,79 @@ fix), confirmed RED against the live, unmodified code and 0 regressions in
 the file's other 56 tests. See
 `test_security_regression.py::TestBugZCleanupOldInstallDestroysExternalClaudeDir`
 onward.
+
+## BUG Y class, round 9 (session 2026-07-05) — `os.remove()`/`os.unlink()` sites also need `verify_path_within_project()`, not just `open()`/`makedirs()`/`rmtree()`
+
+Two more independent auditors (Cerberus + Argus) each found the same 3 sites
+in the same round, extending the round-8 lesson above: the "grep for
+`os.makedirs(`/`shutil.rmtree(`" sweep still misses plain `os.unlink()`/
+`os.remove()` delete call sites, which are just as vulnerable to a
+symlinked-parent `.claude` as the create/destroy ops already found. Written
+test-first as `TestBugAE`/`TestBugAF`/`TestBugAG` in
+`test_security_regression.py` (continuing straight after `AD` — do not
+restart the letter sequence per round):
+
+1. **`remove_manifest()`** (`bin/git-memory-uninstall.py:152-155`) —
+   `safe_remove()` → `os.unlink()`, zero `verify_path_within_project()`, while
+   its sibling `remove_old_install_files()` in the *same file* already has
+   the guard (added in the round-8 sweep, line ~211). Confirmed RED: the real
+   external manifest.json is deleted outright when `.claude` symlinks to a
+   directory that already contains one. Direct-call test (no CLI
+   confirmation flow needed) via the same `importlib.util.spec_from_file_location`
+   + `exec_module` pattern as `_call_migrate_runtime_to_unmassk_upgrade`.
+
+2. **`check_manifest()`** (`bin/git-memory-doctor.py:278-296`) — already uses
+   `open_no_follow_symlink()` (fixed for BUG F), which only protects the
+   FINAL `manifest.json` component. When `.claude` itself is the symlinked
+   parent and the external dir already has a REAL (non-symlink)
+   `manifest.json`, `open_no_follow_symlink()` has nothing to object to — the
+   read succeeds and the external "version" field leaks verbatim into
+   `git memory doctor --json`'s "checks" array. This is a **confidentiality**
+   finding distinct from `TestBugAD`'s write-back-timestamp finding on the
+   *same* underlying gap — AD proves the file's bytes are unmodified, AF
+   proves its content must also never reach stdout. Both are needed; neither
+   subsumes the other.
+
+3. **`run_preboot_migrations()`** (`hooks/session-start-boot.py:196-202`) —
+   `os.remove(booted_flag)` with **zero guard of any kind** (not even
+   `open_no_follow_symlink()`), unlike every other site in this bug family.
+   Runs on **every SessionStart**, unconditionally, no user/agent action
+   required. Note this is NOT the "final component is a symlink" shape
+   (`os.remove()`'s own unlink-not-follow-target semantics already protect
+   against that for free, no fix needed there) — it is the BUG Y
+   parent-symlink shape: the REAL file sits behind a symlinked `.claude`, and
+   `os.remove()` deletes it because path *resolution* (not the final
+   unlink call) walks through the symlinked intermediate directory. Tested
+   by calling `run_preboot_migrations(project_root)` directly (isolates step
+   0 from the already-guarded later migration steps in the same function —
+   `_migrate_runtime_to_unmassk()` already has `verify_path_within_project()`
+   per the BUG AC fix, confirmed by reading `lib/boot_migrations.py` before
+   writing this test, so the full-boot-subprocess pattern used by
+   `TestBugYClaudeDirSymlinkBypassesAllGuards` would have been redundant
+   noise here).
+
+All 3 confirmed RED against live, unmodified code; 9 pre-existing
+`test_release.py` failures (unrelated, documented above) plus 797 passed —
+0 regressions from this file's other 63 pre-existing tests.
+
+**Findings reported but NOT turned into new tests, with rationale (Cerberus
+structural findings, not new security sites):**
+- `plan["skipped"]` in `bin/git-memory-install.py` is initialized (line 234)
+  and read in a dead `for desc in plan["skipped"]:` loop (line ~546) but
+  never `.append()`-ed anywhere in the file (confirmed via grep) — pure
+  dead-code cleanup, not a test gap. Ultron can safely delete the loop, or
+  decide the list should actually be populated somewhere; either way no test
+  is owed here since there is no behavior to pin.
+- `lib/git_helpers.py:verify_path_within_project()` (lines ~56-60) doesn't
+  call `os.path.normcase()` before the prefix comparison, unlike
+  `hooks/validate-memory-path.py` (line 108-109) which does. Real gap
+  (Windows case-insensitive-filesystem bypass), but a dedicated test on this
+  macOS/Linux-only test suite would have to mock `os.path.normcase`/
+  `sys.platform` to fake case-insensitivity — that only proves the mock
+  behaves as configured, not real OS behavior (see this project's own "Mock
+  Verification" rule against tests whose only assertion is that a mock
+  returned what you told it to). Recommendation: Ultron applies the
+  `normcase()` fix for consistency with `validate-memory-path.py`, no
+  dedicated test — mirrors how the Windows bare-repo branch-mismatch gap
+  earlier in this file was handled (documented, not test-guarded, since this
+  suite doesn't run on Windows).

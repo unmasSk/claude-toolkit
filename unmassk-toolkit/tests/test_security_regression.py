@@ -3015,5 +3015,195 @@ class TestBugADDoctorManifestTimestampRewriteClaudeDirSymlink:
         )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AE — bin/git-memory-uninstall.py's remove_manifest() destroys an
+# externally-resolved manifest.json when .claude is a symlinked parent
+# (6th sibling-sweep site of the BUG Y class) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _call_remove_manifest(target):
+    """Call bin/git-memory-uninstall.py's remove_manifest(target) directly,
+    in an isolated subprocess (same importlib pattern as the
+    _call_migrate_runtime_to_unmassk_* helpers above). No sys.modules
+    stubbing is involved anywhere in this test file's uninstall.py usage, so
+    a plain spec_from_file_location + exec_module in a throwaway subprocess
+    is sufficient isolation."""
+    code = f"""
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "uninstall_remove_manifest_probe", {repr(UNINSTALL)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod.remove_manifest({repr(target)})
+print("OK-RESULT=" + str(result))
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0 or "OK-RESULT=" not in proc.stdout:
+        raise RuntimeError(f"_call_remove_manifest failed (rc={proc.returncode}): {proc.stderr}")
+
+
+class TestBugAEUninstallRemoveManifestClaudeDirSymlink:
+    """.claude symlinked to an external directory containing a real
+    manifest.json must not have that file destroyed by
+    bin/git-memory-uninstall.py's remove_manifest().
+
+    Root cause: remove_manifest() (lines 152-155) does
+    `os.path.join(target, ".claude", ".unmassk", "manifest.json")` then
+    safe_remove() -> os.unlink(), with zero verify_path_within_project()
+    call — unlike its sibling remove_old_install_files() in the same file
+    (line 211), which already gained the guard in the BUG Z-AD round.
+    os.unlink()/os.path.isfile() both resolve every intermediate path
+    component (including a symlinked .claude), so the external, REAL
+    manifest.json is deleted outright the moment `git memory uninstall`
+    runs — this is destructive on the read+delete side, not just a
+    confidentiality leak.
+    """
+
+    def test_remove_manifest_does_not_delete_external_manifest_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-uninstall-manifest"
+        external_unmassk = external_dir / ".unmassk"
+        external_unmassk.mkdir(parents=True)
+
+        victim_manifest = external_unmassk / "manifest.json"
+        victim_manifest.write_text(json.dumps({
+            "version": "0.0.1-UNINSTALL-VICTIM",
+            "installed_at": "2020-01-01T00:00:00",
+        }))
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        _call_remove_manifest(repo)
+
+        assert victim_manifest.exists(), (
+            "SEC-HIGH-006: bin/git-memory-uninstall.py's remove_manifest() "
+            "followed a symlinked .claude directory and deleted the "
+            f"external manifest.json at {victim_manifest}."
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AF — bin/git-memory-doctor.py's check_manifest() leaks an externally
+# -resolved manifest's "version" field into --json output when .claude is a
+# symlinked parent (7th sibling-sweep site of the BUG Y class) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAFDoctorCheckManifestVersionLeakClaudeDirSymlink:
+    """.claude symlinked to an external directory containing a real
+    manifest.json must not leak that manifest's "version" field into
+    `git memory doctor --json`'s output.
+
+    Root cause: check_manifest() (lines 278-296) already uses
+    open_no_follow_symlink() to guard the FINAL manifest.json component
+    (fixed for BUG F / SEC-CRIT-NEW-06), but has no
+    verify_path_within_project() call on the full manifest_path. When
+    .claude ITSELF is a symlinked parent (BUG Y class) pointing at a
+    directory that already contains a REAL (non-symlink) manifest.json,
+    open_no_follow_symlink() has nothing to object to — the final component
+    genuinely isn't a symlink, only the intermediate .claude is. The
+    external manifest is read as if it were the project's own, and its
+    "version" field is embedded (after only control-byte sanitisation, not
+    confidentiality redaction) into the "checks" array printed by --json —
+    a distinct confidentiality-leak finding from BUG AD's write-back
+    timestamp finding on the same underlying gap (that one proved the
+    external file's content is unmodified; this one proves its content must
+    also never reach stdout).
+    """
+
+    def test_doctor_json_does_not_leak_external_manifest_version_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-doctor-leak"
+        external_unmassk = external_dir / ".unmassk"
+        external_unmassk.mkdir(parents=True)
+
+        secret = "9.9.9-SECRET-DOCTOR-CONFIDENTIAL-TOKEN"
+        victim_manifest = external_unmassk / "manifest.json"
+        victim_manifest.write_text(json.dumps({
+            "version": secret,
+            "installed_at": "2020-01-01T00:00:00",
+        }))
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(DOCTOR, repo, extra_args=["--json"])
+
+        assert secret not in stdout, (
+            "SEC-HIGH-006: git-memory-doctor.py --json followed a symlinked "
+            ".claude directory and leaked the external manifest.json's "
+            f"'version' field into its report. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AG — hooks/session-start-boot.py's run_preboot_migrations() deletes an
+# externally-resolved .session-booted file when .claude is a symlinked parent
+# (8th sibling-sweep site of the BUG Y class) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _call_run_preboot_migrations(project_root):
+    """Call hooks/session-start-boot.py's run_preboot_migrations(project_root)
+    directly, in an isolated subprocess (same importlib pattern as the
+    _call_migrate_runtime_to_unmassk_* helpers above). Calling the function
+    directly — rather than the full `python3 session-start-boot.py`
+    subprocess already used by TestBugYClaudeDirSymlinkBypassesAllGuards —
+    isolates exactly the buggy step (step 0, session-booted flag cleanup)
+    instead of re-exercising the later manifest/boot-log writes those other
+    tests already cover (and which are already guarded per BUG Y/AC)."""
+    code = f"""
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "boot_preboot_migrations_probe", {repr(BOOT_HOOK)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.run_preboot_migrations({repr(project_root)})
+print("OK")
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0 or "OK" not in proc.stdout:
+        raise RuntimeError(f"_call_run_preboot_migrations failed (rc={proc.returncode}): {proc.stderr}")
+
+
+class TestBugAGBootPrebootMigrationsBootedFlagDeletionClaudeDirSymlink:
+    """.claude symlinked to an external directory containing a real
+    .session-booted file must not have that file deleted by
+    hooks/session-start-boot.py's run_preboot_migrations() — the real
+    SessionStart hook, fired automatically on every session with zero
+    user/agent action involved.
+
+    Root cause: run_preboot_migrations() (lines 196-202) does
+    `os.remove(booted_flag)` with ZERO guard at all — no
+    open_no_follow_symlink(), no verify_path_within_project(), unlike every
+    other .claude-touching write/delete site fixed in the BUG D-AF rounds.
+    This is NOT the "final component is a symlink" shape (os.remove()'s own
+    unlink-not-follow-target semantics would already protect against that
+    one for free); it is the BUG Y parent-symlink shape — the REAL file
+    lives behind a symlinked .claude — on a call site with no guard
+    whatsoever.
+    """
+
+    def test_preboot_migrations_does_not_delete_external_booted_flag_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-boot-bootedflag-delete"
+        external_unmassk = external_dir / ".unmassk"
+        external_unmassk.mkdir(parents=True)
+
+        victim_flag = external_unmassk / ".session-booted"
+        victim_flag.write_text("real-session-booted-marker")
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        _call_run_preboot_migrations(repo)
+
+        assert victim_flag.exists(), (
+            "SEC-HIGH-007: hooks/session-start-boot.py's "
+            "run_preboot_migrations() followed a symlinked .claude directory "
+            f"and deleted the external .session-booted file at {victim_flag}."
+        )
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
