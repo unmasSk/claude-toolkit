@@ -82,3 +82,60 @@ strings que antes vivían solo en stdout (👑, CONSOLIDATE, tombstone) → cero
 resultados, y confirmé por separado que sí llaman a `_read_boot_log`/leen
 `boot-log-latest`. Las dos búsquedas juntas prueban migración real, ninguna
 por sí sola lo hace.
+
+## 2026-07-05 — Boot hook pipeline final judgment (14 rondas Cerberus/Argus, sin Moriarty)
+
+**Pattern: verificar un fix de "record injection via control bytes" con un objeto git crafteado a mano, no con mocks.**
+Para confirmar el crítico SEC-CRIT-NEW-01 (forjado de registro falso en el parseo de `git log`)
+no basta con leer el código o correr el test suite existente. Repro propio en 3 pasos:
+(1) Intenté embeber un byte NUL real (`\x00`) en el body de un commit vía `git commit` normal
+y vía `git hash-object` — AMBOS lo rechazan (`fatal: refusing to create malformed object`,
+incluso con `fsck.nulInCommit=ignore`). Pero además, aunque se fuerce el NUL escribiendo el
+objeto suelto directamente en `.git/objects/` (bypaseando toda validación de git), `git log
+--format=%b` TRUNCA el mensaje en el NUL — un hallazgo técnico nuevo: NUL nunca puede ser el
+vector de esta clase de ataque porque git lo trunca en la capa de pretty-print, con o sin `-z`.
+(2) El byte real explotable es `\x1e` (RS, el separador que el código VIEJO usaba) — SÍ
+sobrevive intacto en un commit real y en la salida de `git log`. Escribí un objeto commit
+crafteado a mano (loose object en `.git/objects/`, sha real vía sha1+zlib) con `\x1e` +
+campos `\x1f` falsos (sha/subject/decision forjados) embebidos en el body de un commit
+legítimo, actualicé `refs/heads/main` a ese commit, y corrí `boot_memory.extract_memory()`
+tal cual vive en el repo. Resultado: el diccionario devuelto solo contiene la Decision
+legítima; el sha/subject/decision forjados NUNCA aparecen — el fix (`git log -z` con NUL
+real como separador de registro, `\x1f` solo como separador de campo con maxsplit fijo)
+sostiene bajo ataque real, no solo bajo el test que Dante escribió.
+(3) Symlink de `.claude/settings.json`: creé un repo real donde `.claude` es un symlink
+real (no mock) a un directorio externo con un `settings.json` que simula el real (~/.claude)
+con hooks de otro plugin. Llamé a `_cleanup_stale_settings_hooks()` tal cual vive en
+`lib/install_apply.py` — `UnsafePathError` se lanza, el archivo externo queda intacto byte
+a byte, y `apply_plan()` captura la excepción sin abortar el resto del install.
+
+**Pattern: mutation testing en vivo sobre el fix reportado por Cerberus, no confiar en "confirmado con prueba de mutación real" del commit message.**
+Neutraliza a mano el guard (`if root: verify_path_within_project(...)` → `if False: ...`)
+en `lib/boot_glossary_cache.py`, corrí el test específico
+(`TestBugAOEnsureRuntimeDirFallbackBranchSymlinkedParent`), confirmé que se pone ROJO
+(el archivo SÍ se escribe fuera del repo con el guard neutralizado), `git checkout --` para
+restaurar, confirmé verde de nuevo. La afirmación de la ronda de Cerberus se sostiene.
+
+**Pattern: verificar "9 fallos preexistentes, sin relación" con un worktree, no de memoria.**
+`git worktree add <scratch> <sha-pre-pipeline> --detach` al commit de release anterior al
+inicio de la sesión (v1.15.0, `f1dcb8e`), correr solo `tests/test_release.py` ahí: mismos
+9 nombres de test, mismo `ModuleNotFoundError: No module named 'bin.release_helpers'`.
+Confirma que no son causados por el trabajo de esta noche. `git worktree remove --force`
+al terminar para no dejar basura.
+
+**Pattern: pipeline sin Moriarty no es automáticamente un blocker si Yoda hace la verificación adversarial él mismo.**
+Esta sesión corrió Dante (contrato TDD) → Ultron → Cerberus/Argus en 14 rondas iterativas,
+SIN una ronda separada de Moriarty. Dado que Dante ya escribía tests que explotaban
+literalmente el bug real en cada ronda (no solo happy-path), y que Yo reproduje en vivo
+los 2 ataques de mayor severidad histórica contra el código actual (no contra mocks),
+consideré esto equivalente en sustancia a un pase de Moriarty sobre los vectores más
+críticos — lo señalé como gap de proceso en el veredicto (Observación), no como bloqueante.
+
+**Pattern: line-count convention drift durante hardening de seguridad — revisar TODOS los bin/*.py, no solo los que el orquestador ya señaló.**
+`bin/git-memory-doctor.py` (518 líneas) fue la única excepción documentada/aceptada por Bex.
+Pero `bin/git-memory-upgrade.py` creció de 452 (en f1dcb8e, antes de esta sesión) a 537
+líneas por los mismos guards de seguridad añadidos esta noche — nadie lo dividió ni lo
+declaró como segunda excepción. Los guards SÍ están presentes (12 usos de
+verify_path_within_project/open_no_follow_symlink) — no es un hueco de seguridad, es un
+hueco de convención/mantenibilidad sin decisión explícita. Encontrado corriendo
+`wc -l bin/*.py` y comparando contra el commit pre-sesión, no por lectura línea a línea.

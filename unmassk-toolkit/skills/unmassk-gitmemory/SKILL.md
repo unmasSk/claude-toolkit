@@ -78,6 +78,10 @@ The boot output terminator provides the plugin root path. Use it:
 - **Ranking internals** (so you query effectively): rare terms score higher (IDF); a token that matches the commit's `--scope` gets a 1.5x bonus, so passing `--scope` sharpens results. Common stopwords in Spanish AND English (`para`, `con`, `the`, `and`, …) are dropped — a query made only of stopwords returns nothing, so use distinctive terms.
 - **Scope suggestion from a diff**: `lib/parsing.py:suggest_scope_from_paths()` derives a likely scope from changed paths using the scope map (`.claude/git-memory-scopes.json`). Useful when you're unsure which scope a commit belongs to.
 
+## Filesystem Safety Pattern (when writing/editing bin/hooks/lib code)
+
+Any new code under `.claude/` that does a filesystem read or write must resolve the path through `verify_path_within_project()` (`unmassk-toolkit/lib/git_helpers.py`) before touching it. Two guards exist and are NOT interchangeable: `open_no_follow_symlink()` protects only the final path component; `verify_path_within_project()` (realpath + directory-boundary check against the project root) is the one that catches a symlinked *parent* directory — e.g. `.claude` itself, or a subdirectory like `agent-memory`/`skills`/`bin`, committed as a symlink pointing outside the repo. Without it, `os.makedirs()`/`open()` silently follow the symlink and a "safe" write can land anywhere on disk. Use it at every new site that builds a path under `.claude/` before creating, reading, or deleting it.
+
 ## Active Hooks (automatic behaviors you must account for)
 
 These fire automatically. They are NOT things you invoke — they change what happens around you. Know them so you don't fight them or misread their output:

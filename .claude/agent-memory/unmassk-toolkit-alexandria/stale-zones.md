@@ -22,6 +22,7 @@ Recent commits (Tauri 2 shell, stdin delivery, repo cwd selector, security harde
 ### chatroom/docs/ folder — not deeply audited
 Docs may have drifted given volume of changes. Priority files to re-verify: websocket-protocol.md (brainstorm mode, clear_queue, stop_all not documented there), agent-invocation-pipeline.md (brainstorm mode filter not shown in the spawn example), module-reference.md.
 
-### project-context.md memory file — stale version
-project-context.md says "Current version: 3.6.0 (unmassk-gitmemory)" — this is very stale. The project is now unmassk-toolkit 1.1.1.
+## Cleared zones (fixed 2026-07-05)
+
+- project-context.md memory file version was stale (said 1.1.1) — corrected to 1.15.0.
 

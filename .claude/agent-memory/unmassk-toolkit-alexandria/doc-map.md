@@ -13,6 +13,12 @@ type: project
 | `chatroom/apps/backend/CLAUDE.md` | 2026-03-24 | Updated — added WS message types table, brainstorm mode section |
 | `chatroom/apps/frontend/CLAUDE.md` | 2026-03-24 | Verified current — no changes needed |
 
+## unmassk-toolkit skills (dev-facing)
+
+| Path | Last verified | Status |
+|------|--------------|--------|
+| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-05 | "Boot stdout always banner" note confirmed still accurate. Added "Filesystem Safety Pattern" section documenting `verify_path_within_project()` as the canonical guard for any new `.claude/` filesystem code (parent-dir symlink escape class) — see [changelog-state.md](changelog-state.md) for the incident that produced it. |
+
 ## Other documentation
 
 | Path | Type | Status |
