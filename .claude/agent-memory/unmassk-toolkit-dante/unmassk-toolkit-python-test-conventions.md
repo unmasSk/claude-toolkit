@@ -80,4 +80,45 @@ from `extract_memory()`/`extract_glossary()`, add it to the helper's
 `json.dumps({...})` dict explicitly — don't assume "the helper already
 returns everything the function does."
 
+**Technique: forcing a defensive-import fallback branch (`X = None` on
+ImportError) without stubbing the whole module.** Several hot-path functions
+(`hooks/session-start-boot.py:write_boot_log()`,
+`lib/boot_memory.py:_write_glossary_cache()`) do `try: from git_helpers
+import ensure_runtime_dir; except ImportError: ensure_runtime_dir = None`
+at module level, then branch on that name at call time. To exercise the
+`else` fallback branch in a test, do NOT stub `sys.modules["git_helpers"]`
+(that risks breaking sibling module-level imports and needs careful
+restore/whitelist bookkeeping, see the `_extract_memory()` gotcha above) —
+instead load the target module normally via the importlib
+spec_from_file_location pattern (real git_helpers, real import succeeds),
+then simply overwrite the already-bound name on the loaded module object:
+`mod.ensure_runtime_dir = None`. This forces the fallback branch on the next
+call while every other dependency (boot_memory/boot_migrations/boot_render/
+version) keeps using the real git_helpers. Always do this inside a
+subprocess (`import sys, os, json, importlib.util; ...; print(json.dumps(...))`,
+same pattern as every other importlib probe in test_security_regression.py),
+not in-process, since these are real stably-named modules and an in-process
+load risks sys.modules contamination across test files in the same pytest
+session (see Round 4 in
+[boot-stdout-banner-contract-notes](boot-stdout-banner-contract-notes.md)).
+
+**Recurring test shape: "symlinked-parent-directory" (BUG Y class,
+11 rounds and counting).** A large, recurring family of security regression
+tests in `test_security_regression.py` (BUG Y through AO at last count)
+follows one shape: plant a REAL, ordinary intermediate directory
+(`.claude`, or a deeper one like `.claude/.unmassk`/`.claude/agent-memory`/
+`skills`/`bin`/`lib`) as a symlink to an external, pre-existing directory,
+optionally with a real file/dir inside it matching whatever the code under
+test looks for, then call the write/delete/migrate path and assert nothing
+in the external directory was touched. The project's `verify_path_within_project()` /
+`ensure_runtime_dir()` chokepoint (`lib/git_helpers.py`) is the fix for the
+whole class — when reviewing where Ultron applied it, check whether the
+guard covers ONLY the immediate parent (e.g. `.claude`) or also every
+independently-symlinkable sub-path reached along the way (`.unmassk`,
+`agent-memory`, etc.) — each of those has needed ITS OWN separate
+`verify_path_within_project()` call in this codebase (BUG AC's `claude_dir`
+check, BUG AM's `unmassk_dir` check, and BUG AN's `agent_dir`/`target_dir`
+check are three independent guards in the SAME function, not one guard
+covering all three shapes).
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).
