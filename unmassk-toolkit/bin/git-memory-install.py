@@ -30,7 +30,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, ensure_gitignore
+from git_helpers import run_git, ensure_gitignore, open_no_follow_symlink
 from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
@@ -415,7 +415,11 @@ def _create_manifest(target: str, mode: str) -> None:
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     os.makedirs(unmassk_dir, exist_ok=True)
     manifest_path = os.path.join(unmassk_dir, "manifest.json")
-    with open(manifest_path, "w") as f:
+    # SEC-HIGH-NEW-03 (Argus): symlink-safe write, matching
+    # lib/boot_memory.py's existing open_no_follow_symlink() pattern — a
+    # pre-planted symlink at this fixed path must not be silently followed
+    # and used to overwrite an arbitrary file outside the repo.
+    with open_no_follow_symlink(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
     ensure_gitignore(target)

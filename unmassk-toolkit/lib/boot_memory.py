@@ -21,19 +21,17 @@ from datetime import datetime, timezone
 from constants import TOMBSTONE_KEYS
 from git_helpers import ensure_gitignore, run_git
 try:
-    # SEC-CRIT-001: symlink-safe writer for glossary-cache.json.
-    # Imported defensively: tests/test_migrate_statusline.py stubs out
-    # git_helpers with a minimal fake module that predates this helper, and
-    # this module must still import cleanly against that stub (it is
-    # imported transitively by session-start-boot.py even when only
+    # SEC-CRIT-001 / SEC-MED-NEW-02: symlink-safe reader/writer for
+    # glossary-cache.json. Imported defensively: tests/test_migrate_statusline.py
+    # stubs out git_helpers with a minimal fake module that predates this
+    # helper, and this module must still import cleanly against that stub
+    # (it is imported transitively by session-start-boot.py even when only
     # _migrate_stale_context_writer_statusline() is under test).
     from git_helpers import open_no_follow_symlink
 except ImportError:
-    def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
-        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
-        flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
-        fd = os.open(path, flags, 0o600)
-        return os.fdopen(fd, mode, encoding=encoding)
+    # T3-1 (Cerberus): shared fallback, not a second hand-copied
+    # reimplementation — see lib/_symlink_safe_open.py.
+    from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
 # NOTE: the four `parsing` helpers below (scan_trailers_memory, normalize,
 # parse_scope, sanitize_trailer_value) are deliberately imported INSIDE each
 # function that uses them, not once here at module level. lib/boot_memory.py
@@ -103,15 +101,26 @@ def extract_memory() -> dict:
     """Extract memory from recent commits."""
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 
+    # SEC-CRIT-NEW-01 (Argus): record boundaries use `-z` (NUL, \x00) instead
+    # of an embedded \x1e in the --pretty=format string. A commit body CAN
+    # contain a literal \x1e byte (it's an ordinary control character as far
+    # as git is concerned) — str.split()-ing on it let a single real commit
+    # forge an entire fake record (sha/scope/Decision text chosen by an
+    # attacker). A commit message can never contain a raw NUL byte (git
+    # truncates/rejects it at the object level), so splitting on \x00 has no
+    # forgeable equivalent. \x1f remains as the FIELD separator within a
+    # single record — already confirmed inert on its own (fixed maxsplit
+    # below caps the field count, and \x1f can't start a new line for
+    # scan_trailers_memory's line-based trailer regex either).
     code, log_output = run_git([
-        "log", f"-n{SCAN_DEPTH}",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at\x1e"
+        "log", "-z", f"-n{SCAN_DEPTH}",
+        "--pretty=format:%h\x1f%s\x1f%b\x1f%at"
     ])
     if code != 0 or not log_output:
         return {}
 
     tombstones: set[str] = set()
-    commits = log_output.split("\x1e")
+    commits = log_output.split("\x00")
     pending: list[dict] = []
     blockers: list[str] = []
     decisions: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
@@ -259,9 +268,12 @@ def extract_glossary() -> dict:
     """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
 
+    # SEC-CRIT-NEW-01: same NUL-separated record boundary fix as
+    # extract_memory() above — see the comment there for why -z closes the
+    # control-byte record-forgery hole for good.
     code, log_output = run_git([
-        "log", "--all", "-n500",
-        "--pretty=format:%h\x1f%s\x1f%b\x1e"
+        "log", "-z", "--all", "-n500",
+        "--pretty=format:%h\x1f%s\x1f%b"
     ])
     if code != 0 or not log_output:
         return {"decisions": [], "memos": [], "remembers": []}
@@ -274,7 +286,7 @@ def extract_glossary() -> dict:
     remember_seen: set[str] = set()
     glossary_tombstones: set[str] = set()
 
-    commits = log_output.split("\x1e")
+    commits = log_output.split("\x00")
 
     # Retracted crown hashes, collected up front over the same range (mirrors
     # extract_memory() — see notes there on why a single forward pass suffices).
@@ -385,7 +397,11 @@ def _read_glossary_cache() -> dict | None:
     if not path or not os.path.isfile(path):
         return None
     try:
-        with open(path) as f:
+        # SEC-MED-NEW-02: symlink-safe read, symmetric with
+        # _write_glossary_cache()'s existing open_no_follow_symlink() guard —
+        # a symlink planted at this path (pointing outside the repo) must be
+        # rejected exactly like "no valid cache", not silently followed.
+        with open_no_follow_symlink(path, "r") as f:
             cache = json.load(f)
         # Check staleness
         generated = cache.get("generated_at", "")

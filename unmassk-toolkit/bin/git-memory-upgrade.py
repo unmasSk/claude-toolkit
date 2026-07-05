@@ -30,7 +30,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
+from git_helpers import run_git, open_no_follow_symlink
 from managed_blocks import BLOCKS, all_blocks_present, any_block_outdated
 from version import VERSION
 
@@ -271,7 +271,10 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
         unmassk_dir = os.path.join(claude_dir, ".unmassk")
         os.makedirs(unmassk_dir, exist_ok=True)
         manifest_path = os.path.join(unmassk_dir, "manifest.json")
-        with open(manifest_path, "w") as f:
+        # SEC-HIGH-NEW-03 (Argus): symlink-safe write — same guard as
+        # git-memory-install.py's _create_manifest() and
+        # lib/boot_memory.py's existing open_no_follow_symlink() writers.
+        with open_no_follow_symlink(manifest_path, "w") as f:
             json.dump(new_manifest, f, indent=2)
     except Exception as e:
         errors.append(f"Error updating manifest: {e}")

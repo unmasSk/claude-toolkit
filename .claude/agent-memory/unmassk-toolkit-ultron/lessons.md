@@ -314,3 +314,82 @@ writing banner text for a "minimal mode", avoid the bare word `TIMELINE`
 entirely (test asserts it's absent with no colon, unlike the other markers
 which are checked with a trailing colon) — even mentioning it in prose breaks
 the exclusion test.
+
+## git log control-byte record forgery: fix with `-z` (NUL), not a different embedded byte
+
+`lib/boot_memory.py`'s `extract_memory()`/`extract_glossary()` used to split
+`git log --pretty=format:...` output on a literal `\x1e` (record separator)
+embedded in the format string. Since a commit body CAN legally contain a raw
+`\x1e` byte, one real commit could smuggle a full fake record (forged
+sha/scope/Decision text) — Argus's PoC. The field separator `\x1f` inside a
+record is a different, lower-risk case: a fixed `str.split(sep, maxsplit=N)`
+already caps the field count regardless of extra `\x1f`'s, so it's inert on
+its own (confirmed with dedicated GUARD tests that must stay green after the
+fix too).
+
+Fix: pass `-z` to `git log` (record terminator becomes NUL, `\x00`) and split
+on `\x00` instead. A commit message can never contain a raw NUL — git
+truncates/rejects it at the object level — so this closes the forgery
+class completely, with no size/perf cost. Verified empirically: `git log -z
+--pretty=format:'%h\x1f%s\x1f%b\x1f%at'` still uses `\x1f` normally as a
+literal byte inside each record; only the between-records separator changes
+from a fake `\x1e` embedded in the format string to git's own NUL. No trailing
+NUL after the last record — existing "skip empty entries after split" logic
+handles this already. Rule for future: whenever record boundaries in `git log
+--pretty=format` output must be attacker-proof, prefer `-z` + NUL over any
+other embeddable control byte — NUL is the only byte structurally impossible
+in a commit message.
+
+## Shared fallback for a defensively-imported git_helpers function: put it in its own tiny module
+
+`open_no_follow_symlink()` (SEC-CRIT-001) is imported defensively in both
+`lib/boot_memory.py` and `hooks/session-start-boot.py` because
+`tests/test_migrate_statusline.py` stubs `git_helpers` with a minimal fake
+module. Before this session, each call site carried its own byte-identical
+`except ImportError: def open_no_follow_symlink(...): ...` copy — a duplication
+Cerberus flagged (T3-1). Fix: extracted the fallback into
+`lib/_symlink_safe_open.py` (a new tiny module, never itself stubbed by any
+test — only `git_helpers`/`parsing`/`version` are), and both call sites now do
+`except ImportError: from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink`.
+Rule: when a defensive-import fallback needs to exist at 2+ call sites because
+of a test stub, don't hand-copy it — give it its own tiny module that the
+stub doesn't know about, so there's exactly one implementation to keep in
+sync with the real one.
+
+## Extending session-start-boot.py's render_* split: boot_render.py needed the same deferred-parsing-import treatment as boot_memory.py
+
+CRB T2-1 moved all 12 `render_*_section()` functions (plus small helpers —
+skill drift, branch keywords, time formatting, issue matching, timeline,
+relevance partitioning) from `hooks/session-start-boot.py` into a new
+`lib/boot_render.py` (hook dropped from 1110 to 298 lines). Since
+`boot_render.py` is a real, stably-named module (unlike the hook file, which
+tests always load via `spec_from_file_location` + fresh `exec_module`, never
+caching it), it's subject to the exact same stale-stub-binding risk documented
+above for `lib/boot_memory.py`: `get_timeline()`, `render_remember_section()`,
+and `render_memos_section()` needed their `from parsing import parse_scope`
+/ `from parsing import normalize` calls deferred into the function body, not
+hoisted to module top level, even though no test currently calls
+`boot_render`'s functions in-process after a stub window (only via fresh
+subprocess). `git_helpers.run_git` and `version.VERSION` stayed as ordinary
+module-level imports in `boot_render.py`, mirroring `boot_memory.py`'s own
+precedent that "fail-closed" git_helpers names are lower-risk and don't need
+deferral.
+
+Also: when moving a function's return tuple, check every place that unpacks
+it before assuming a "just move the code" refactor is behavior-neutral —
+`render_branch_section()` was returning an unused `behind_n` (T3-2, Cerberus);
+removed from the signature and the one unpacking call site in `main()`, and
+corrected the docstring, which had claimed `behind_n` was "reused downstream"
+when nothing outside the function ever read it.
+
+Before deleting anything from a file being split like this, grep the WHOLE
+test suite for `\.functionName` patterns against every module alias a test
+uses to `spec_from_file_location`-load the file (not just the literal
+variable name `boot` — one file used `_boot_sanitize_mod`, another
+`mod`) — some tests reach into the hook module's namespace directly
+(`mod._sanitize_trailer_value`, `mod.commits_since_last_consolidation`,
+`mod.run_git`, `boot.extract_memory`, `boot.extract_glossary`) even though
+those functions are no longer defined in that file, only re-exported via
+import. Any of those names accidentally dropped from the hook's own imports
+breaks the test with an `AttributeError` that has nothing to do with the
+function's actual logic.

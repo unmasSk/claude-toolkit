@@ -27,7 +27,7 @@ def ensure_runtime_dir(project_root: str) -> str:
 
 
 def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
-    """Open `path` for writing without following a pre-existing symlink.
+    """Open `path` without following a pre-existing symlink.
 
     SEC-CRIT-001: several hooks write generated files at fixed, predictable
     paths (.gitignore, boot-log-latest.txt, glossary-cache.json) that fire
@@ -37,17 +37,28 @@ def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
     plain open(path, "w"/"a") would silently overwrite an arbitrary file
     the instant the victim opens the project.
 
+    SEC-MED-NEW-02: the same symlink applies symmetrically to READS — a
+    symlink planted at a cache path (e.g. glossary-cache.json) pointing at
+    a file outside the repo would be silently followed by a plain
+    open(path), and its content trusted as if it were the real cache.
+    mode="r" covers this case with the read-side equivalent guard.
+
     Uses O_NOFOLLOW so the open() call itself atomically refuses to
     traverse a symlink at the final path component — no separate
-    islink()-then-open() race. Also creates new files at 0o600 (no
-    group/other access) regardless of umask, since 0o600 has no bits for
-    umask to clear.
+    islink()-then-open() race. Write modes also create new files at 0o600
+    (no group/other access) regardless of umask, since 0o600 has no bits
+    for umask to clear. Read mode never creates a file (no O_CREAT) and
+    has no mode bits to set.
 
     Raises OSError (errno ELOOP on POSIX) if `path` is currently a
     symlink — callers must let that propagate to their existing
-    "never fail the caller's larger operation" fallback, never fall back
-    to following the link.
+    "never fail the caller's larger operation" fallback (or "treat as
+    absent/invalid" for reads), never fall back to following the link.
     """
+    if mode == "r":
+        flags = os.O_RDONLY | os.O_NOFOLLOW
+        fd = os.open(path, flags)
+        return os.fdopen(fd, mode, encoding=encoding)
     flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
     flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
     fd = os.open(path, flags, 0o600)
