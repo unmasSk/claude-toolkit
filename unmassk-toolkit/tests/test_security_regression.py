@@ -433,6 +433,90 @@ These tests are RED now (or, for BUG AD, the external file's content
 changes). After Ultron's fix (routing each site through
 verify_path_within_project()/ensure_runtime_dir(), the same chokepoint BUG Y
 already established) they must be GREEN.
+
+BUG AH — _cleanup_old_install()/remove_old_install_files() delete fixed-name
+files through a symlinked bin/hooks/lib parent (Argus + Cerberus, 10th audit
+round, live-reproduced)
+--------------------------------------------------------------------------
+lib/install_apply.py:_cleanup_old_install() (lines 74-78) and its
+near-duplicate bin/git-memory-uninstall.py:remove_old_install_files()
+(lines 190-194) both loop over the fixed OLD_BIN_FILES + OLD_HOOK_FILES +
+OLD_LIB_FILES name list (~18 entries, e.g. "bin/git-memory-gc.py",
+"hooks/session-start-boot.py") and delete
+`os.path.join(target, f)` via os.unlink()/safe_remove() with zero guard.
+Unlike the ".claude/hooks"/".claude/skills" rmtree section a few lines
+below in the SAME functions (already guarded by verify_path_within_project()
+since BUG Z/SEC-CRIT-002), this unlink loop was never migrated to that
+chokepoint. If the project-root "bin" (or "hooks") directory is itself a
+symlink to an external, pre-existing directory, and that directory happens
+to contain a real file matching one of the ~18 fixed names (which also
+satisfies inspect()'s own has_old_install detection — os.path.isfile()
+follows the same symlink), both --auto flows silently delete that external
+file. Confirmed live (session 2026-07-05) against both call sites.
+
+These tests are RED now: the external file is deleted. After Ultron's fix
+(routing this unlink loop through verify_path_within_project(), mirroring
+the guard its sibling rmtree section already has) they must be GREEN: the
+external file is left untouched.
+
+BUG AI — _cleanup_old_install()'s __pycache__ rmtree destroys an external
+subtree through a symlinked bin/hooks/skills/lib parent (Argus + Cerberus,
+10th audit round)
+--------------------------------------------------------------------------
+lib/install_apply.py:116-126, the last loop inside _cleanup_old_install():
+`for d in ["bin", "hooks", "skills", "lib"]: ... pycache =
+os.path.join(path, "__pycache__"); if os.path.isdir(pycache):
+shutil.rmtree(pycache)`. No guard at all — larger blast radius than BUG AH
+because it deletes an entire subtree via shutil.rmtree(), not a single
+named file. If one of those four project-root directories is a symlink to
+an external directory that already contains a real __pycache__/ subtree,
+the whole subtree is destroyed the instant `git memory install --auto`
+runs (has_old_install can be triggered independently, e.g. via a genuine
+leftover hooks/session-start-boot.py file at the project root).
+
+This test is RED now: the external __pycache__/ subtree is destroyed.
+After Ultron's fix (the same verify_path_within_project() chokepoint) it
+must be GREEN.
+
+BUG AJ — remove_generated_files() deletes .claude/dashboard.html /
+.claude/precompact-snapshot.md through a symlinked .claude parent (Argus +
+Cerberus, 10th audit round)
+--------------------------------------------------------------------------
+bin/git-memory-uninstall.py:168-179, `remove_generated_files()` (only
+reached via `git memory uninstall --auto --full-local`). Loops over
+GENERATED_FILES (".claude/dashboard.html", ".claude/precompact-snapshot.md")
+and deletes each via safe_remove() -> os.unlink(), with zero
+verify_path_within_project() call — unlike remove_manifest() in the same
+file, which already gained that guard (SEC-HIGH-006 / TestBugAE). If
+.claude itself is a symlink to an external directory that already contains
+a real dashboard.html, --full-local silently deletes it.
+
+This test is RED now: the external file is deleted. After Ultron's fix
+(the same verify_path_within_project() chokepoint already applied to
+remove_manifest() in this file) it must be GREEN.
+
+BUG AK — bootstrap's check_existing_memory() leaks a symlinked-parent
+manifest's "version" field, same gap as BUG AF but in bootstrap instead of
+doctor (Argus + Cerberus, 10th audit round)
+--------------------------------------------------------------------------
+lib/bootstrap_deps.py:284-298, `check_existing_memory()`. Already uses
+open_no_follow_symlink() to guard the FINAL manifest.json component (same
+class fixed for BUG J), but has no verify_path_within_project() call on the
+full manifest_path — so when .claude ITSELF is a symlinked parent (BUG Y
+class) pointing at a directory that already contains a REAL (non-symlink)
+manifest.json, open_no_follow_symlink() has nothing to object to. The
+external manifest's "version" field is read, passed through
+sanitize_trailer_value() (control-byte stripping only, not confidentiality
+redaction), and embedded verbatim into `signals["installed_version"]` —
+which `git memory bootstrap --json` prints directly under
+"existing_memory". A plain non-ANSI secret string in that field survives
+sanitize_trailer_value() unchanged and reaches stdout.
+
+This test is RED now: the external manifest's version string appears in
+`git memory bootstrap --json`'s stdout. After Ultron's fix (routing the
+manifest_path through verify_path_within_project() before
+open_no_follow_symlink(), treating a symlinked-parent manifest exactly like
+"no manifest present") it must be GREEN.
 """
 
 import json
@@ -3202,6 +3286,228 @@ class TestBugAGBootPrebootMigrationsBootedFlagDeletionClaudeDirSymlink:
             "SEC-HIGH-007: hooks/session-start-boot.py's "
             "run_preboot_migrations() followed a symlinked .claude directory "
             f"and deleted the external .session-booted file at {victim_flag}."
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AH — _cleanup_old_install()/remove_old_install_files() delete a real
+# file through a symlinked bin/hooks/lib parent (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAHCleanupOldInstallFixedNameFileParentSymlink:
+    """_cleanup_old_install() (lib/install_apply.py:74-78) and its
+    near-duplicate remove_old_install_files() (bin/git-memory-uninstall.py:
+    190-194) must not delete a real file living behind a symlinked
+    bin/hooks/lib directory at the project root, just because its name
+    happens to match one of the ~18 fixed OLD_BIN_FILES/OLD_HOOK_FILES/
+    OLD_LIB_FILES entries. Both loops do `os.path.join(target, f)` then
+    unlink/safe_remove with zero verify_path_within_project() guard, unlike
+    the ".claude/hooks"/".claude/skills" rmtree section a few lines below in
+    the SAME functions (already guarded since BUG Z / SEC-CRIT-002)."""
+
+    def test_install_auto_does_not_delete_external_file_through_symlinked_bin(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not delete a real external
+        file reached through a symlinked "bin" directory at the project
+        root, just because its name matches an OLD_BIN_FILES entry.
+
+        The same planted file independently satisfies inspect()'s
+        has_old_install detection (os.path.isfile() follows the same
+        symlink) -- no separate trigger file is needed.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-bin-install"
+        external_dir.mkdir()
+        victim = external_dir / "git-memory-gc.py"
+        victim_content = "REAL EXTERNAL GC SCRIPT -- MUST SURVIVE"
+        victim.write_text(victim_content)
+
+        bin_path = os.path.join(repo, "bin")
+        os.symlink(str(external_dir), bin_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        assert victim.exists() and victim.read_text() == victim_content, (
+            "SEC (BUG AH): git-memory-install.py --auto's "
+            "_cleanup_old_install() followed a symlinked 'bin' directory at "
+            f"the project root and deleted the external file it points to, "
+            f"at {victim}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+    def test_uninstall_auto_does_not_delete_external_file_through_symlinked_bin(self, tmp_path):
+        """
+        RED: `git-memory-uninstall.py --auto` calls
+        remove_old_install_files() unconditionally on every run (no
+        has_old_install gating) -- it must not delete a real external file
+        reached through a symlinked "bin" directory at the project root.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-bin-uninstall"
+        external_dir.mkdir()
+        victim = external_dir / "git-memory-gc.py"
+        victim_content = "REAL EXTERNAL GC SCRIPT -- MUST SURVIVE"
+        victim.write_text(victim_content)
+
+        bin_path = os.path.join(repo, "bin")
+        os.symlink(str(external_dir), bin_path)
+
+        rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
+
+        assert victim.exists() and victim.read_text() == victim_content, (
+            "SEC (BUG AH): git-memory-uninstall.py --auto's "
+            "remove_old_install_files() followed a symlinked 'bin' "
+            f"directory at the project root and deleted the external file "
+            f"it points to, at {victim}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AI — _cleanup_old_install()'s __pycache__ rmtree destroys an external
+# subtree through a symlinked bin/hooks/skills/lib parent (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAIPycacheRmtreeParentSymlink:
+    """_cleanup_old_install()'s trailing __pycache__ cleanup loop
+    (lib/install_apply.py:116-126) must not destroy a real __pycache__/
+    subtree living behind a symlinked bin/hooks/skills/lib directory at the
+    project root. No guard at all on this site -- larger blast radius than
+    BUG AH because it deletes an entire subtree via shutil.rmtree(), not a
+    single named file."""
+
+    def test_install_auto_does_not_rmtree_external_pycache_through_symlinked_lib(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not delete an external
+        __pycache__/ subtree just because "lib" at the project root is a
+        symlink to the directory containing it.
+
+        A separate, unrelated trigger file (hooks/session-start-boot.py, a
+        real file at the project root -- same trigger shape TestBugZ uses)
+        is needed to make inspect() report has_old_install=True, since
+        OLD_LIB_FILES is not part of that detection loop.
+        """
+        repo = _make_repo(tmp_path)
+
+        os.makedirs(os.path.join(repo, "hooks"), exist_ok=True)
+        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w") as f:
+            f.write("# leftover old-style install file\n")
+
+        external_dir = tmp_path / "external-lib-install"
+        external_dir.mkdir()
+        other_marker = external_dir / "OTHER-FILE.txt"
+        other_marker.write_text("must survive untouched")
+        external_pycache = external_dir / "__pycache__"
+        external_pycache.mkdir()
+        cached_marker = external_pycache / "cached_module.cpython-311.pyc"
+        cached_marker.write_text("cached bytecode -- must survive")
+
+        lib_path = os.path.join(repo, "lib")
+        os.symlink(str(external_dir), lib_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        assert external_pycache.is_dir() and cached_marker.exists(), (
+            "SEC (BUG AI): git-memory-install.py --auto's "
+            "_cleanup_old_install() followed a symlinked 'lib' directory at "
+            f"the project root and rmtree'd the external __pycache__/ "
+            f"subtree at {external_pycache}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert other_marker.exists(), (
+            "The external directory itself was affected beyond its "
+            f"__pycache__ subdir -- unrelated marker file at {other_marker} is gone."
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AJ — remove_generated_files() deletes .claude/dashboard.html through a
+# symlinked .claude parent (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAJGeneratedFilesRemovalClaudeDirSymlink:
+    """remove_generated_files() (bin/git-memory-uninstall.py:168-179, only
+    reached via `git memory uninstall --auto --full-local`) must not delete
+    a real dashboard.html/precompact-snapshot.md living behind a symlinked
+    .claude directory at the project root. Zero verify_path_within_project()
+    guard here, unlike remove_manifest() in the same file (already guarded,
+    SEC-HIGH-006 / TestBugAE)."""
+
+    def test_uninstall_full_local_does_not_delete_external_dashboard_through_symlinked_claude(self, tmp_path):
+        """
+        RED: `git-memory-uninstall.py --auto --full-local` must not delete
+        an external dashboard.html just because .claude at the project root
+        is a symlink to the directory containing it.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-claude-uninstall-generated"
+        external_dir.mkdir()
+        victim = external_dir / "dashboard.html"
+        victim_content = "<html>REAL EXTERNAL DASHBOARD -- MUST SURVIVE</html>"
+        victim.write_text(victim_content)
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto", "--full-local"])
+
+        assert victim.exists() and victim.read_text() == victim_content, (
+            "SEC (BUG AJ): git-memory-uninstall.py --auto --full-local's "
+            "remove_generated_files() followed a symlinked '.claude' "
+            f"directory and deleted the external dashboard.html it points "
+            f"to, at {victim}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AK — bootstrap's check_existing_memory() leaks a symlinked-parent
+# manifest's "version" field (RED now)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAKBootstrapCheckExistingMemoryManifestParentSymlink:
+    """check_existing_memory() (lib/bootstrap_deps.py:284-298) must not leak
+    an external manifest.json's "version" field into
+    `git memory bootstrap --json`'s "existing_memory" output when .claude
+    itself is a symlinked parent directory. Already uses
+    open_no_follow_symlink() to guard the FINAL manifest.json component
+    (same class fixed for BUG J), but has no verify_path_within_project()
+    call on the full manifest_path -- same gap as BUG AF, different call
+    site."""
+
+    def test_bootstrap_json_does_not_leak_external_manifest_version_when_claude_dir_is_symlinked(self, tmp_path):
+        """
+        RED: `git memory bootstrap --json` must not leak a real, external
+        manifest.json's "version" field just because .claude at the project
+        root is a symlink to the directory containing it.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-claude-bootstrap"
+        external_unmassk = external_dir / ".unmassk"
+        external_unmassk.mkdir(parents=True)
+
+        secret = "9.9.9-SECRET-BOOTSTRAP-CONFIDENTIAL-TOKEN"
+        victim_manifest = external_unmassk / "manifest.json"
+        victim_manifest.write_text(json.dumps({
+            "version": secret,
+            "installed_at": "2020-01-01T00:00:00",
+        }))
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(BOOTSTRAP, repo, extra_args=["--json"])
+
+        assert secret not in stdout, (
+            "SEC (BUG AK): git-memory-bootstrap.py --json's "
+            "check_existing_memory() followed a symlinked '.claude' "
+            "directory and leaked the external manifest.json's 'version' "
+            f"field into its 'existing_memory' output. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
         )
 
 
