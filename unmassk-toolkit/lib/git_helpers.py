@@ -77,8 +77,16 @@ def ensure_gitignore(project_root: str, entry: str | None = None) -> None:
     try:
         existing = ""
         if os.path.isfile(gitignore_path):
-            with open(gitignore_path) as f:
-                existing = f.read()
+            try:
+                # 7th audit round (BUG V): never follow a symlink planted at
+                # .gitignore for this existing-content read either — the
+                # append below is already guarded with open_no_follow_symlink;
+                # treat a symlinked path exactly like "no .gitignore present"
+                # here too, and let the guarded write fail closed downstream.
+                with open_no_follow_symlink(gitignore_path, "r") as f:
+                    existing = f.read()
+            except OSError:
+                existing = ""
         missing = [e for e in entries if e not in existing]
         if not missing:
             return

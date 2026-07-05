@@ -146,7 +146,9 @@ def inspect(target: str) -> dict[str, Any]:
     plugin_json_path = os.path.join(target, ".claude-plugin", "plugin.json")
     if os.path.isfile(plugin_json_path):
         try:
-            with open(plugin_json_path) as f:
+            # 7th audit round (BUG X): never follow a symlink planted at
+            # .claude-plugin/plugin.json.
+            with open_no_follow_symlink(plugin_json_path, "r") as f:
                 pj = json.load(f)
             if pj.get("name") == "unmassk-toolkit":
                 is_plugin_source = True
@@ -174,7 +176,9 @@ def inspect(target: str) -> dict[str, Any]:
     pkg_path = os.path.join(target, "package.json")
     if os.path.isfile(pkg_path):
         try:
-            with open(pkg_path) as f:
+            # 7th audit round (BUG X): never follow a symlink planted at
+            # package.json (commitlint check).
+            with open_no_follow_symlink(pkg_path, "r") as f:
                 pkg = json.load(f)
             if "commitlint" in pkg.get("devDependencies", {}):
                 report["has_commitlint"] = True
@@ -387,8 +391,14 @@ def _update_claude_md(target: str) -> None:
     claude_md = os.path.join(target, "CLAUDE.md")
 
     if os.path.isfile(claude_md):
-        with open(claude_md) as f:
-            content = f.read()
+        try:
+            # 7th audit round (BUG U): never follow a symlink planted at
+            # CLAUDE.md for this read either — the write below is already
+            # guarded, but the read must fail closed to "file absent" too.
+            with open_no_follow_symlink(claude_md, "r") as f:
+                content = f.read()
+        except OSError:
+            content = "# CLAUDE.md\n\n"
     else:
         content = "# CLAUDE.md\n\n"
 

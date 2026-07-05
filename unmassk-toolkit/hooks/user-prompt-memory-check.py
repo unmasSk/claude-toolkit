@@ -98,8 +98,14 @@ def needs_upgrade(root: str) -> bool:
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return False  # needs_install handles this
-    with open(claude_md) as f:
-        content = f.read()
+    try:
+        # 7th audit round (BUG T): never follow a symlink planted at
+        # CLAUDE.md for this read either — treat it exactly like the
+        # fail-safe-to-False path used below for the manifest read.
+        with open_no_follow_symlink(claude_md, "r") as f:
+            content = f.read()
+    except OSError:
+        return False  # fail-safe: symlink or unreadable CLAUDE.md
     if "BEGIN unmassk-toolkit" not in content:
         return False  # needs_install handles this
 

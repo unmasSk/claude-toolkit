@@ -280,7 +280,10 @@ def scan_package_json(root: str) -> dict[str, Any] | None:
         return None
 
     try:
-        with open(pkg_path) as f:
+        # 7th audit round (BUG W): never follow a symlink planted at
+        # package.json — the parsed content is copied verbatim into --json
+        # output, so a followed symlink would leak an external file's content.
+        with open_no_follow_symlink(pkg_path, "r") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -355,7 +358,9 @@ def scan_pyproject(root: str) -> dict[str, Any] | None:
         return None
 
     try:
-        with open(pyproject) as f:
+        # 7th audit round (BUG W): never follow a symlink planted at
+        # pyproject.toml — same verbatim-leak concern as scan_package_json().
+        with open_no_follow_symlink(pyproject, "r") as f:
             content = f.read()
     except OSError:
         return None
@@ -501,7 +506,9 @@ def detect_monorepo(root: str, tree: dict[str, list[str]]) -> dict[str, Any]:
     pkg_json = os.path.join(root, "package.json")
     if os.path.isfile(pkg_json) and not scope_map:
         try:
-            with open(pkg_json) as f:
+            # 7th audit round (BUG X): never follow a symlink planted at
+            # package.json — a separate call site from scan_package_json().
+            with open_no_follow_symlink(pkg_json, "r") as f:
                 data = json.load(f)
             workspaces = data.get("workspaces", [])
             if isinstance(workspaces, dict):
@@ -546,7 +553,9 @@ def detect_ci_commitlint(root: str) -> list[str]:
         commit_msg = os.path.join(husky_dir, "commit-msg")
         if os.path.isfile(commit_msg):
             try:
-                with open(commit_msg) as fh:
+                # 7th audit round (BUG X): never follow a symlink planted at
+                # .husky/commit-msg.
+                with open_no_follow_symlink(commit_msg, "r") as fh:
                     content = fh.read()
                 if "commitlint" in content:
                     signals.append("Husky commit-msg runs commitlint")
