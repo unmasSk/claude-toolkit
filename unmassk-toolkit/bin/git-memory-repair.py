@@ -26,7 +26,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
+from git_helpers import run_git, open_no_follow_symlink
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -75,9 +75,13 @@ def diagnose(target: str) -> list[tuple[str, str, str]]:
         issues.append(("missing_manifest", "manifest", "Manifest missing"))
     else:
         try:
-            with open(manifest_path) as f:
+            # barrido finding (same class as SEC-LOW-NEW-05): never follow a
+            # symlink planted at the manifest path — a symlink must be
+            # flagged as an issue (so repair recreates a real file), never
+            # silently trusted as a valid manifest.
+            with open_no_follow_symlink(manifest_path, "r") as f:
                 json.load(f)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, OSError):
             issues.append(("corrupt_manifest", "manifest", "Manifest corrupt (invalid JSON)"))
 
     # Check for old-style install remnants
@@ -136,7 +140,9 @@ def repair_issue(issue_type: str, source: str, target: str) -> bool:
         manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
         if os.path.isfile(manifest_path):
             try:
-                with open(manifest_path) as f:
+                # Same symlink guard as diagnose() — a symlinked manifest
+                # must never be read/trusted here either.
+                with open_no_follow_symlink(manifest_path, "r") as f:
                     data = json.load(f)
                 mode = str(data.get("runtime_mode", "normal"))
             except (json.JSONDecodeError, OSError):

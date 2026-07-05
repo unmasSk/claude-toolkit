@@ -152,11 +152,15 @@ def sanitize_trailer_value(text: str) -> str:
     - Newlines and carriage returns (\\n, \\r)
     - Unicode line/paragraph separators (U+2028, U+2029)
     - Vertical tab and form feed (\\x0b, \\x0c)
+    - ANSI escape byte (\\x1b) — SEC-MED-NEW-08: prevents terminal
+      escape-sequence injection (screen clears, recoloring) when a
+      trailer-adjacent value (e.g. a manifest "version" field) is printed
+      directly to a terminal in non-JSON mode.
     - HTML comment markers (<!-- and -->)
     - memory-data zone delimiters (<memory-data> / </memory-data>,
       case-insensitive)
     """
-    text = re.sub(r"[\r\n  \x0b\x0c]", " ", text)
+    text = re.sub(r"[\r\n  \x0b\x0c\x1b]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
     text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
     return text.strip()

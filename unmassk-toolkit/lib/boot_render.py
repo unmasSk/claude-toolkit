@@ -1,16 +1,24 @@
 """
 Boot briefing section renderers for session-start-boot.py (CRB T2-1 split;
-second split per Cerberus round 4 — see lib/boot_checks.py).
+second I/O extraction per Cerberus round 4, third per Cerberus round 5 —
+see lib/boot_checks.py).
 
-Owns every `render_*_section()` function plus their PURE formatting helpers
-(branch keyword parsing, time-ago formatting, relevance scoring/partitioning,
-timeline/last-context extraction). All subprocess/filesystem/network I/O
-that used to live here (skill-drift + version checks, doctor/repair runners,
-GitHub issue-status checks) has been extracted to lib/boot_checks.py — this
-module re-imports those by name so render_status_section() and
-render_resume_section() call them unchanged, and so a direct `import
-boot_render; boot_render.check_version_mismatch()` (used by
-tests/test_security_regression.py) keeps resolving.
+Owns the `render_*_section()` functions that remain PURE "given inputs,
+produce these briefing lines" formatting — plus their pure helpers
+(relevance scoring/partitioning, crowned-value truncation). All
+subprocess/filesystem/network I/O — including get_timeline(),
+get_last_context_time(), render_branch_section(), render_scopes_section(),
+and render_consolidation_section(), which round 5 moved out because they
+call run_git()/open()/os.listdir() directly — now lives in
+lib/boot_checks.py, alongside skill-drift + version checks and the
+doctor/repair runners moved there in round 4. This module re-imports all of
+it by name so render_status_section()/render_resume_section()/
+render_timeline_section() call it unchanged, so hooks/session-start-boot.py's
+`from boot_render import (render_branch_section, render_consolidation_section,
+render_scopes_section, ...)` keeps resolving without any change there, and so
+a direct `import boot_render; boot_render.check_version_mismatch()` /
+`boot_render.get_timeline()` (used by tests/test_security_regression.py and
+tests/test_migrate_statusline.py respectively) keeps resolving.
 
 Moved out of hooks/session-start-boot.py verbatim (Cerberus T2-1): the hook
 file had grown to 1110 lines, well past the project's 500-line limit, and
@@ -18,13 +26,19 @@ these renderers are cohesive as a unit — pure "given inputs, produce these
 briefing lines" functions — distinct from main()'s orchestration,
 write_boot_log()'s file I/O, render_boot_banner_lines()'s short-banner
 formatting, and run_preboot_migrations()'s one-shot migration concerns, which
-all stay in the hook file. lib/boot_checks.py later took over the I/O-heavy
+all stay in the hook file. lib/boot_checks.py then took over the I/O-heavy
 functions that had crept back in here (Cerberus round-4: 875 lines, past the
 500-line limit again, mixing pure rendering with real subprocess/filesystem
-work).
+work) — and, this round, the remaining ones Cerberus found still doing real
+I/O (round-5: back to 661 lines). parse_branch_keywords() and time_ago(),
+though pure, moved to lib/boot_checks.py together with their only callers
+(render_branch_section(), get_timeline(), get_last_context_time()) rather
+than staying here — boot_checks.py must never import FROM boot_render.py
+(confirmed unidirectional DAG: boot_memory <- boot_checks <- boot_render),
+so leaving them behind would have forced exactly that reverse import.
 
-Pure refactor: behavior is byte-for-byte identical to before either split.
-See lib/boot_memory.py's own module docstring and
+Pure refactor: behavior is byte-for-byte identical to before any of the
+three splits. See lib/boot_memory.py's own module docstring and
 tests/test_migrate_statusline.py for why `parsing` AND `git_helpers` imports
 below are deferred into function bodies rather than hoisted to module level
 — this module is a real, stably-named module (first `import boot_render`
@@ -34,26 +48,26 @@ test's temporary stub forever if this module's first-ever import happened to
 land inside that stub's window.
 """
 
-import json
 import os
-import re
 import time
-from datetime import datetime, timezone
 
 from version import VERSION as PLUGIN_VERSION
 
-from boot_memory import MAX_DECISIONS, _crown_replace, _sanitize_trailer_value
+from boot_memory import MAX_DECISIONS, _crown_replace
 from boot_checks import (
     check_issue_status,
     check_skill_drift,
     check_version_mismatch,
+    get_last_context_time,
+    get_timeline,
+    render_branch_section,
+    render_consolidation_section,
+    render_scopes_section,
     run_doctor,
     run_repair,
     _issue_matches_next,
 )
 
-
-BOOT_CONSOLIDATION_THRESHOLD = 50  # commits since last context(consolidation) before warning
 
 # Scaling limits (from design doc)
 BOOT_MAX_BRANCH_DECISIONS = 10
@@ -96,111 +110,12 @@ def _truncate_crown_value(text: str, max_len: int = CROWN_VALUE_MAX_LEN) -> str:
     return text[:max_len] + "…"
 
 
-def parse_branch_keywords(branch: str) -> tuple[list[str], str | None]:
-    """Extract keywords and issue number from branch name.
-
-    'feat/issue-42-auth-refactor' -> (['auth', 'refactor', '42'], '#42')
-    'main' -> ([], None)
-    """
-    # Strip prefix (feat/, fix/, chore/, etc.)
-    stripped = re.sub(r"^(feat|fix|chore|refactor|docs|test|ci|perf)/", "", branch)
-    # Extract issue number
-    issue_match = re.search(r"(?:issue[- ]?|#)(\d+)", stripped, re.IGNORECASE)
-    issue_ref = f"#{issue_match.group(1)}" if issue_match else None
-    # Extract keywords (split on -, _, /, filter short/noise)
-    tokens = re.split(r"[-_/]", stripped)
-    noise = {"feat", "fix", "chore", "issue", "refactor", "dev", "main", "master", "staging"}
-    keywords = [t.lower() for t in tokens if len(t) > 2 and t.lower() not in noise]
-    return keywords, issue_ref
-
-
-def time_ago(iso_or_unix: str) -> str:
-    """Convert ISO timestamp or unix timestamp to human-readable 'N ago' string.
-
-    '2026-03-13T08:00:00+00:00' -> '2h ago'
-    """
-    try:
-        if iso_or_unix.isdigit():
-            dt = datetime.fromtimestamp(int(iso_or_unix), tz=timezone.utc)
-        else:
-            # git log %aI format
-            dt = datetime.fromisoformat(iso_or_unix)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        delta = now - dt
-        seconds = int(delta.total_seconds())
-        if seconds < 60:
-            return "just now"
-        elif seconds < 3600:
-            return f"{seconds // 60}m ago"
-        elif seconds < 86400:
-            return f"{seconds // 3600}h ago"
-        elif seconds < 604800:
-            return f"{seconds // 86400}d ago"
-        else:
-            return f"{seconds // 604800}w ago"
-    except (ValueError, TypeError, OSError):
-        return "unknown"
-
-
 def score_branch_relevance(text: str, keywords: list[str]) -> int:
     """Score how relevant a text is to branch keywords. Higher = more relevant."""
     if not keywords:
         return 0
     text_lower = text.lower()
     return sum(1 for kw in keywords if kw in text_lower)
-
-
-def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
-    """Get last N commits as timeline entries with time_ago.
-
-    suppress_scopes: if provided, commits whose parsed scope is in this set are
-    omitted. Used to hide non-crowned decision commits when a crowned entry
-    exists for that scope.
-    """
-    from parsing import parse_scope
-    from git_helpers import run_git
-
-    code, output = run_git([
-        "log", f"-n{n}",
-        "--pretty=format:%h\x1f%s\x1f%aI"
-    ])
-    if code != 0 or not output:
-        return []
-    entries = []
-    for line in output.split("\n"):
-        parts = line.strip().split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        sha, subject, date_str = parts
-        if suppress_scopes:
-            commit_scope = parse_scope(subject) or ""
-            if commit_scope in suppress_scopes:
-                continue
-        entries.append(f"  {sha} {_sanitize_trailer_value(subject)} | {time_ago(date_str)}")
-    return entries
-
-
-def get_last_context_time() -> str | None:
-    """Get the timestamp of the last context() commit as time_ago string."""
-    from git_helpers import run_git
-
-    code, output = run_git([
-        "log", "-n30",
-        "--pretty=format:%h\x1f%s\x1f%aI"
-    ])
-    if code != 0 or not output:
-        return None
-    for line in output.split("\n"):
-        parts = line.strip().split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        sha, subject, date_str = parts
-        cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-        if cleaned.lower().startswith("context("):
-            return time_ago(date_str)
-    return None
 
 
 def partition_by_relevance(items, keywords, text_fn):
@@ -257,108 +172,6 @@ def render_status_section() -> tuple[list[str], str, str]:
             lines.append(f"  {drift_warning}")
     lines.append("")
     return lines, status, status_detail
-
-
-def render_branch_section() -> tuple[list[str], str, list[str], str | None, str]:
-    """Render the BRANCH section.
-
-    Returns (lines, branch, branch_keywords, branch_issue, ahead_behind) —
-    reused downstream for Next-item partitioning and the short banner.
-    `behind_n` (the pull recommendation) is only needed inside this
-    function and is not part of the return value (T3-2: it used to be
-    returned but was never actually consumed by any caller).
-    """
-    from git_helpers import run_git
-
-    lines: list[str] = []
-    _, branch = run_git(["branch", "--show-current"])
-    branch = branch or "(detached HEAD)"
-    # SEC-CRIT-NEW-04: git's ref-name rules don't block injection markers in
-    # a branch name, and the RETURNED `branch` value (not just the `lines`
-    # rendered here) reaches the UNCONDITIONAL stdout banner
-    # (render_boot_banner_lines() in hooks/session-start-boot.py) on every
-    # boot — the most severe of the 5 unsanitized sites. Sanitize once, here,
-    # so every downstream consumer of the return value gets the safe value.
-    branch = _sanitize_trailer_value(branch)
-    branch_keywords, branch_issue = parse_branch_keywords(branch)
-
-    # Ahead/behind (single rev-list call with --left-right --count)
-    ahead_behind = ""
-    ahead_n = 0
-    behind_n = 0
-    if branch and branch != "(detached HEAD)":
-        code_ab, ab_out = run_git(["rev-list", "--left-right", "--count", f"HEAD...@{{u}}"])
-        if code_ab == 0 and ab_out.strip():
-            parts = ab_out.strip().split()
-            if len(parts) == 2:
-                ahead_n, behind_n = int(parts[0]), int(parts[1])
-                ahead_behind = f" [{ahead_n}/{behind_n} vs upstream]"
-
-    lines.append(f"BRANCH: {branch}{ahead_behind}")
-
-    # Dirty state
-    _, status_porcelain = run_git(["status", "--porcelain"])
-    if status_porcelain:
-        dirty_count = len([l for l in status_porcelain.splitlines() if l.strip()])
-        lines.append(f"  DIRTY: {dirty_count} files")
-
-    # Pull recommendation (reuses behind_n from the single rev-list call above)
-    if behind_n > 0:
-        lines.append(f"  PULL RECOMMENDED: remote is {behind_n} ahead")
-
-    lines.append("")
-    return lines, branch, branch_keywords, branch_issue, ahead_behind
-
-
-def render_scopes_section(project_root: str | None) -> list[str]:
-    """Render the SCOPES section."""
-    lines: list[str] = []
-    scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json") if project_root else None
-    # Fallback: search in agent-memory directories
-    if scopes_file and not os.path.isfile(scopes_file) and project_root:
-        agent_mem = os.path.join(project_root, ".claude", "agent-memory")
-        if os.path.isdir(agent_mem):
-            for agent_dir in os.listdir(agent_mem):
-                candidate = os.path.join(agent_mem, agent_dir, "scopes.json")
-                if os.path.isfile(candidate):
-                    scopes_file = candidate
-                    break
-    scopes_exist = scopes_file and os.path.isfile(scopes_file)
-    if scopes_exist:
-        try:
-            with open(scopes_file) as f:
-                scopes_data = json.load(f)
-            scope_map = scopes_data.get("scopes", {})
-            if scope_map:
-                lines.append("SCOPES:")
-                for scope_name, scope_info in scope_map.items():
-                    # SEC-CRIT-002: scopes.json is not exclusively agent-authored
-                    # (compromised collaborator commit, corrupted Bilbo run) — sanitize
-                    # every embedded field the same way Decision/Memo/Remember already are.
-                    safe_name = _sanitize_trailer_value(str(scope_name))
-                    desc = scope_info.get("description", "") if isinstance(scope_info, dict) else str(scope_info)
-                    safe_desc = _sanitize_trailer_value(str(desc))
-                    children = scope_info.get("children", {}) if isinstance(scope_info, dict) else {}
-                    if children:
-                        safe_children = [_sanitize_trailer_value(str(k)) for k in children]
-                        child_list = ", ".join(f"{safe_name}/{k}" for k in safe_children)
-                        lines.append(f"  {safe_name}: {safe_desc} [{child_list}]")
-                    else:
-                        lines.append(f"  {safe_name}: {safe_desc}")
-                lines.append("")
-        except (json.JSONDecodeError, OSError):
-            pass  # Silently skip if file is corrupt
-    elif project_root:
-        lines.append("SCOPES: not generated yet")
-        lines.append(
-            "  ACTION: Launch Bilbo (subagent_type=unmassk-toolkit:bilbo) to analyze the project "
-            "structure and generate .claude/agent-memory/unmassk-crew-bilbo/scopes.json. "
-            "The agent should: scan directories, detect frameworks, extract existing scopes "
-            "from git log, and write a JSON with version, project_type, scopes (2 levels max), "
-            "existing_scopes, and notes. Run it in background."
-        )
-        lines.append("")
-    return lines
 
 
 def render_resume_section(
@@ -429,6 +242,67 @@ def render_resume_section(
     return lines
 
 
+def _render_crowned_capped_section(
+    header: str,
+    all_items: list[tuple[str, str, bool]],
+    log_type: str,
+    *,
+    branch_keywords: list[str] | None = None,
+    branch_cap: int = 0,
+    other_cap: int = 0,
+    total_cap: int = 0,
+    more_label: str = "",
+) -> list[str]:
+    """Shared REMEMBER/DECISIONS/MEMOS render body (Cerberus round 5: the
+    three callers had near-identical partition + cap + format logic,
+    duplicated 3x).
+
+    Callers own their own glossary-merge step first (that part differs
+    meaningfully per section — Remembers dedup by normalized TEXT with no
+    scope-uniqueness or crown-replace; Decisions/Memos dedup by SCOPE with
+    crown-replace semantics, and Memos additionally checks tombstones — see
+    SEC-MED-005/CRB-01), then pass the merged list here for the identical
+    part: crowned/normal split (SEC-MED-005's count-eviction-bypass cap),
+    optional branch-relevance partitioning, and the "(N more ...)" trailer.
+
+    branch_keywords=None means "no branch partitioning" (REMEMBER's case —
+    just a flat total_cap slice); otherwise normal entries are partitioned
+    branch-scoped/other first, each capped, then re-capped to total_cap
+    (DECISIONS/MEMOS's case).
+    """
+    lines: list[str] = []
+    if not all_items:
+        return lines
+
+    # SEC-MED-005: crowned entries intentionally bypass the normal
+    # count-eviction budget — cap the TOTAL shown at CROWN_COUNT_CAP and
+    # bound each value's length so a single crowned commit can't blow up
+    # the boot log without limit.
+    crowned = [(s, t, c) for s, t, c in all_items if c][:CROWN_COUNT_CAP]
+    normal = [(s, t, c) for s, t, c in all_items if not c]
+
+    if branch_keywords is not None:
+        branch_items, other_items = partition_by_relevance(
+            normal, branch_keywords, lambda x: f"{x[0]} {x[1]}")
+        shown_normal = branch_items[:branch_cap] + other_items[:other_cap]
+        shown_normal = shown_normal[:total_cap]
+    else:
+        shown_normal = normal[:total_cap]
+
+    lines.append(header)
+    for scope, text, _ in crowned:
+        lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
+    for scope, text, _ in shown_normal:
+        lines.append(f"  {scope} {text}")
+    remaining = len(normal) - len(shown_normal)
+    if remaining > 0:
+        label = f" {more_label}" if more_label else ""
+        lines.append(f"  ({remaining} more{label}. Use git-memory-log --type {log_type})")
+    lines.append("")
+
+    return lines
+
+
 def render_remember_section(
     memory: dict, glossary: dict, tombstones: set[str],
 ) -> tuple[list[str], list[tuple[str, str, bool]]]:
@@ -439,8 +313,6 @@ def render_remember_section(
     """
     from parsing import normalize
 
-    lines: list[str] = []
-
     all_remembers: list[tuple[str, str, bool]] = list(memory.get("remembers", []))
     recent_remember_texts = {normalize(t) for _, t, _ in all_remembers}
     for gscope, gtext, gis_crown in glossary.get("remembers", []):
@@ -449,23 +321,8 @@ def render_remember_section(
             all_remembers.append((gscope, gtext, gis_crown))
             recent_remember_texts.add(norm)
 
-    if all_remembers:
-        # SEC-MED-005: crowned entries intentionally bypass the normal
-        # count-eviction budget — cap the TOTAL shown at CROWN_COUNT_CAP and
-        # bound each value's length so a single crowned commit can't blow up
-        # the boot log without limit.
-        crowned_remembers = [(s, t, c) for s, t, c in all_remembers if c][:CROWN_COUNT_CAP]
-        normal_remembers = [(s, t, c) for s, t, c in all_remembers if not c]
-
-        lines.append("REMEMBER:")
-        for scope, text, _ in crowned_remembers:
-            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
-        for scope, text, _ in normal_remembers[:BOOT_MAX_REMEMBERS]:
-            lines.append(f"  {scope} {text}")
-        remaining = len(normal_remembers) - BOOT_MAX_REMEMBERS
-        if remaining > 0:
-            lines.append(f"  ({remaining} more. Use git-memory-log --type remember)")
-        lines.append("")
+    lines = _render_crowned_capped_section(
+        "REMEMBER:", all_remembers, "remember", total_cap=BOOT_MAX_REMEMBERS)
 
     return lines, all_remembers
 
@@ -478,8 +335,6 @@ def render_decisions_section(
     Returns (lines, all_decisions) — all_decisions is reused by the TIMELINE
     section's crowned-scope suppression.
     """
-    lines: list[str] = []
-
     all_decisions: list[tuple[str, str, bool]] = list(memory.get("decisions", []))
     recent_decision_scopes = {s for s, _, _ in all_decisions}
 
@@ -492,27 +347,11 @@ def render_decisions_section(
             # Replace non-crowned recent entry with crowned glossary entry
             _crown_replace(all_decisions, gscope, gtext)
 
-    if all_decisions:
-        # SEC-MED-005: cap total crowned count + per-value length (see REMEMBER above)
-        crowned_decs = [(s, t, c) for s, t, c in all_decisions if c][:CROWN_COUNT_CAP]
-        normal_decs = [(s, t, c) for s, t, c in all_decisions if not c]
-
-        branch_decs, other_decs = partition_by_relevance(
-            normal_decs, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown_normal = branch_decs[:BOOT_MAX_BRANCH_DECISIONS] + other_decs[:BOOT_MAX_OTHER_DECISIONS]
-        shown_normal = shown_normal[:BOOT_MAX_DECISIONS]
-
-        lines.append("DECISIONS:")
-        # Crowned first, outside budget
-        for scope, text, _ in crowned_decs:
-            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
-        # Then normal entries with their budget
-        for scope, text, _ in shown_normal:
-            lines.append(f"  {scope} {text}")
-        remaining = len(normal_decs) - len(shown_normal)
-        if remaining > 0:
-            lines.append(f"  ({remaining} more decisions in history. Use git-memory-log --type decision)")
-        lines.append("")
+    lines = _render_crowned_capped_section(
+        "DECISIONS:", all_decisions, "decision",
+        branch_keywords=branch_keywords,
+        branch_cap=BOOT_MAX_BRANCH_DECISIONS, other_cap=BOOT_MAX_OTHER_DECISIONS,
+        total_cap=BOOT_MAX_DECISIONS, more_label="decisions in history")
 
     return lines, all_decisions
 
@@ -526,8 +365,6 @@ def render_memos_section(
     """
     from parsing import normalize
 
-    lines: list[str] = []
-
     all_memos: list[tuple[str, str, bool]] = list(memory.get("memos", []))
     recent_memo_scopes = {s for s, _, _ in all_memos}
     for gscope, gtext, gis_crown in glossary.get("memos", []):
@@ -539,25 +376,11 @@ def render_memos_section(
             # newer, active, never-retired entry for the same scope.
             _crown_replace(all_memos, gscope, gtext, tombstones)
 
-    if all_memos:
-        # SEC-MED-005: cap total crowned count + per-value length (see REMEMBER above)
-        crowned_memos = [(s, t, c) for s, t, c in all_memos if c][:CROWN_COUNT_CAP]
-        normal_memos = [(s, t, c) for s, t, c in all_memos if not c]
-
-        branch_memos, other_memos = partition_by_relevance(
-            normal_memos, branch_keywords, lambda x: f"{x[0]} {x[1]}")
-        shown_normal = branch_memos[:BOOT_MAX_BRANCH_MEMOS] + other_memos[:BOOT_MAX_OTHER_MEMOS]
-        shown_normal = shown_normal[:BOOT_MAX_MEMOS]
-
-        lines.append("MEMOS:")
-        for scope, text, _ in crowned_memos:
-            lines.append(f"  👑 {scope} {_truncate_crown_value(text)}")
-        for scope, text, _ in shown_normal:
-            lines.append(f"  {scope} {text}")
-        remaining = len(normal_memos) - len(shown_normal)
-        if remaining > 0:
-            lines.append(f"  ({remaining} more memos in history. Use git-memory-log --type memo)")
-        lines.append("")
+    lines = _render_crowned_capped_section(
+        "MEMOS:", all_memos, "memo",
+        branch_keywords=branch_keywords,
+        branch_cap=BOOT_MAX_BRANCH_MEMOS, other_cap=BOOT_MAX_OTHER_MEMOS,
+        total_cap=BOOT_MAX_MEMOS, more_label="memos in history")
 
     return lines, all_memos
 
@@ -595,32 +418,6 @@ def render_gc_section(
     if gc_warnings:
         lines.append("GC:")
         lines.extend(gc_warnings)
-        lines.append("")
-
-    return lines
-
-
-def render_consolidation_section() -> list[str]:
-    """Render the CONSOLIDATE trigger section."""
-    from git_helpers import commits_since_last_consolidation
-
-    lines: list[str] = []
-
-    _consolidation_threshold = BOOT_CONSOLIDATION_THRESHOLD
-    _env_threshold = os.environ.get("GIT_MEMORY_CONSOLIDATION_THRESHOLD", "")
-    if _env_threshold:
-        try:
-            _consolidation_threshold = int(_env_threshold)
-        except (ValueError, TypeError):
-            pass  # invalid override → fall back to default; never crash boot
-
-    _commits_since = commits_since_last_consolidation()
-    if _commits_since >= _consolidation_threshold:
-        lines.append("CONSOLIDATE:")
-        lines.append(
-            f"  ⚠️ {_commits_since} commits since last consolidation. "
-            "Time to consolidate: invoke Gitto (consolidator mode, additive — deletes nothing)."
-        )
         lines.append("")
 
     return lines

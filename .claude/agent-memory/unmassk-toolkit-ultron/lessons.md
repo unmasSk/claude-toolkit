@@ -393,3 +393,60 @@ those functions are no longer defined in that file, only re-exported via
 import. Any of those names accidentally dropped from the hook's own imports
 breaks the test with an `AttributeError` that has nothing to do with the
 function's actual logic.
+
+## canonical sanitize_trailer_value() didn't strip ESC — extend the single source of truth, don't add a parallel sanitizer
+
+`lib/parsing.py:sanitize_trailer_value()` (aliased as `_sanitize_trailer_value`
+in `boot_memory.py`/`boot_checks.py`/`boot_render.py`) stripped `\r\n`,
+U+2028/U+2029, `\x0b`/`\x0c`, and HTML/memory-data markers — but NOT `\x1b`
+(ESC). A test contract requiring "manifest version field with raw ANSI
+escape bytes must never reach stdout unsanitized" (SEC-MED-NEW-08, session
+2026-07-05) fails silently if you just pipe the value through the existing
+sanitizer without checking what it actually strips byte-for-byte — always
+verify with a quick `python3 -c` round-trip before assuming a named
+"canonical sanitizer" covers a new threat class. Fix: added `\x1b` to the
+character class in `sanitize_trailer_value()` itself (one line), rather than
+writing a second sanitizer in each of the 3 call sites (doctor.py,
+upgrade.py, bootstrap.py) — grepped all non-test callers first (7 files) to
+confirm none of them depend on ESC bytes surviving.
+
+Corollary: when a value gets sanitized for display but is ALSO later
+embedded in a filename that gets printed (e.g. `git-memory-upgrade.py`'s
+`create_backup()` — the backup path string is echoed to the terminal),
+sanitize for terminal-safety at the filename-construction site too, not
+just at the original field's read site — a raw control byte can leak
+through a completely different print statement than the one guarding the
+original field.
+
+## boot_checks.py <- boot_render.py is a strict one-way DAG — moving I/O functions may drag pure helpers along
+
+When Cerberus flags `lib/boot_render.py` for a second round of I/O
+extraction into `lib/boot_checks.py` (round 5, session 2026-07-05: moved
+`get_timeline()`, `get_last_context_time()`, `render_branch_section()`,
+`render_scopes_section()`, `render_consolidation_section()`), check whether
+the functions being moved call any PURE helper still defined in
+`boot_render.py` (`parse_branch_keywords()`, `time_ago()` in this case).
+`boot_checks.py` must never import FROM `boot_render.py` — only the reverse
+— so a moved I/O function that calls a pure boot_render.py-only helper
+forces you to move that helper too, even though it does no I/O itself.
+Before moving, grep every candidate helper's callers across the whole
+file — if ALL its callers are also being moved, take the helper with them;
+if any caller stays behind, the helper must stay too (would need a genuine
+redesign, not just a move).
+
+## boot_render.py REMEMBER/DECISIONS/MEMOS section duplication — safe to extract once glossary-merge stays separate
+
+The three `render_*_section()` functions in `boot_render.py` looked
+identical at a glance but their glossary-merge step differs meaningfully:
+Remembers dedup by normalized TEXT (no scope-uniqueness, no crown-replace);
+Decisions dedup by SCOPE with crown-replace; Memos dedup by SCOPE with
+crown-replace AND a tombstone check (CRB-01). Do NOT merge that part. The
+part that's genuinely identical is everything AFTER the merge: crowned/
+normal split (SEC-MED-005 count-eviction bypass), optional branch-relevance
+partitioning+capping, header/crowned-line/normal-line formatting, and the
+"(N more ...)" trailer message (which differs only in a `more_label`
+string fragment and the `--type` argument — parametrize both, don't
+hardcode). Extracted as `_render_crowned_capped_section()`, called by all
+three after their own distinct merge logic. Full test suite is the only
+reliable check that behavior stayed byte-for-byte identical for this kind
+of "looks like 3x duplication but isn't fully" refactor.

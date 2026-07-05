@@ -23,6 +23,7 @@ Exit codes:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -32,6 +33,7 @@ from typing import Any
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from git_helpers import run_git, open_no_follow_symlink
 from managed_blocks import BLOCKS, all_blocks_present, any_block_outdated
+from parsing import sanitize_trailer_value
 from version import VERSION
 
 
@@ -86,18 +88,24 @@ def check_upgrade_needed(source: str, target: str, manifest: dict[str, Any]) -> 
     Returns:
         Dict with "needs_update", "reasons", and version info.
     """
+    # SEC-MED-NEW-08: the manifest's "version" field is untrusted content —
+    # sanitize once here so every downstream consumer (JSON output and every
+    # non-JSON print site in main()) gets the safe value, never the raw one.
+    raw_installed_version = manifest.get("version", "unknown")
+    safe_installed_version = sanitize_trailer_value(str(raw_installed_version))
     result: dict[str, Any] = {
         "needs_update": False,
-        "installed_version": manifest.get("version", "unknown"),
+        "installed_version": safe_installed_version,
         "available_version": VERSION,
         "reasons": [],
         "has_old_install": False,
     }
 
-    # Version mismatch
-    if manifest.get("version") != VERSION:
+    # Version mismatch (compared against the raw value — sanitization must
+    # never change whether an upgrade is considered needed)
+    if raw_installed_version != VERSION:
         result["needs_update"] = True
-        result["reasons"].append(f"Version mismatch: {manifest.get('version')} → {VERSION}")
+        result["reasons"].append(f"Version mismatch: {safe_installed_version} → {VERSION}")
 
     # CLAUDE.md managed blocks outdated or missing
     claude_md = os.path.join(target, "CLAUDE.md")
@@ -145,7 +153,20 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     version = manifest.get("version", "unknown")
-    backup_name = f"manifest-v{version}-{timestamp}.json"
+    # SEC-HIGH-NEW-07: the manifest's "version" field is untrusted content —
+    # embedding it raw in a filename allows path separators (/, \) to
+    # introduce extra path segments, escaping backup_dir via a pre-planted
+    # placeholder directory (same "attacker controls the whole repo" model
+    # as the manifest-write symlink findings). Strip any path separator
+    # before using it in the filename — the value is never used as a
+    # standalone path component, so this is sufficient to keep the result
+    # inside backup_dir regardless of content. Also run it through the
+    # canonical sanitizer (SEC-MED-NEW-08) since backup_path itself is
+    # later printed to the terminal — a raw control/ESC byte embedded in
+    # the filename would otherwise leak through that print, not just
+    # through the manifest's own "version" field.
+    safe_version = re.sub(r"[\\/]+", "_", sanitize_trailer_value(str(version)))
+    backup_name = f"manifest-v{safe_version}-{timestamp}.json"
     backup_path = os.path.join(backup_dir, backup_name)
 
     with open(backup_path, "w") as f:

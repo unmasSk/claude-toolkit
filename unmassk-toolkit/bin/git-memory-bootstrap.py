@@ -30,7 +30,8 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
+from git_helpers import run_git, open_no_follow_symlink
+from parsing import sanitize_trailer_value
 from version import VERSION
 
 
@@ -581,9 +582,14 @@ def check_existing_memory(root: str) -> dict[str, Any]:
     if os.path.isfile(manifest):
         signals["already_installed"] = True
         try:
-            with open(manifest) as f:
+            # barrido finding (same class as SEC-LOW-NEW-05): never follow a
+            # symlink planted at the manifest path — treat it exactly like a
+            # corrupt manifest, never trust the victim file's content.
+            with open_no_follow_symlink(manifest, "r") as f:
                 data = json.load(f)
-            signals["installed_version"] = data.get("version", "unknown")
+            # SEC-MED-NEW-08: the manifest's "version" field is untrusted —
+            # sanitize before it can ever reach a printed finding.
+            signals["installed_version"] = sanitize_trailer_value(str(data.get("version", "unknown")))
         except (json.JSONDecodeError, OSError):
             signals["installed_version"] = "corrupt"
     else:

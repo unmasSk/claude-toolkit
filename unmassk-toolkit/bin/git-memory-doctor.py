@@ -29,8 +29,8 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
-from parsing import normalize, parse_trailers_full
+from git_helpers import run_git, open_no_follow_symlink
+from parsing import normalize, parse_trailers_full, sanitize_trailer_value
 from version import VERSION
 
 
@@ -282,7 +282,10 @@ def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
     if not os.path.isfile(manifest_path):
         return None, "not found"
     try:
-        with open(manifest_path) as f:
+        # SEC-CRIT-NEW-06: never follow a symlink planted at the manifest
+        # path — treat it exactly like "no manifest present", never read
+        # or trust the target file's content as a real manifest.
+        with open_no_follow_symlink(manifest_path, "r") as f:
             data = json.load(f)
         return data, "ok"
     except (json.JSONDecodeError, OSError) as e:
@@ -391,7 +394,10 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     # 10. Manifest (in project root)
     manifest, manifest_msg = check_manifest(project_root)
     if manifest:
-        results.append(("ok", "Manifest", f"v{manifest.get('version', '?')}"))
+        # SEC-MED-NEW-08: sanitize the manifest's untrusted "version" field
+        # before embedding it in any printed (non-JSON) report line.
+        safe_version = sanitize_trailer_value(str(manifest.get('version', '?')))
+        results.append(("ok", "Manifest", f"v{safe_version}"))
     elif manifest_msg == "not found":
         results.append(("error", "Manifest", "not found (run install to create)"))
         has_errors = True
@@ -460,10 +466,14 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
     if os.path.isfile(manifest_path):
         try:
-            with open(manifest_path) as f:
+            # SEC-CRIT-NEW-06: never follow a symlink planted at the
+            # manifest path — the O_NOFOLLOW guard makes both the read and
+            # the write-back atomically refuse to traverse it, so a victim
+            # file outside the repo is never read from or written to.
+            with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()
-            with open(manifest_path, "w") as f:
+            with open_no_follow_symlink(manifest_path, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception:
             pass
