@@ -531,3 +531,61 @@ git memory install") — proving the symlink was treated as a missing
 manifest, not silently followed. Confirmed in
 `test_security_regression.py::TestBugECheckVersionMismatchManifestSymlinkRead`
 / `TestBugEUpgradeReadInstalledManifestSymlinkRead` (session 2026-07-05).
+
+## Path-traversal PoC via a value embedded MID-STRING in a filename (not a standalone path component) — needs a pre-created placeholder dir
+
+When a vulnerable filename is built as `f"prefix{attacker_value}-suffix.json"`
+(the attacker value is glued onto a literal prefix, not passed to
+`os.path.join()` as its own component), a naive PoC using
+`attacker_value = "../../../etc/passwd"` will NOT actually escape the
+intended directory and will NOT prove the bug — it just raises
+`FileNotFoundError`. Reason: real `open()`/`os.open()` path resolution is
+strict left-to-right component-by-component; the FIRST path segment is
+always `prefix` + (everything in `attacker_value` up to its first `/`), and
+that combined name (e.g. `"manifest-v.."`) is a literal, ordinary filename —
+NOT the special `".."` component — so the kernel needs it to exist as a real
+directory before it can traverse through it. It won't exist, so the open
+fails with ENOENT before any traversal happens. Confirmed empirically (both
+manually with a bare Python repro and via the real CLI) for
+`bin/git-memory-upgrade.py:create_backup()`'s
+`f"manifest-v{version}-{timestamp}.json"`.
+
+**To make the PoC real:** pre-create that placeholder directory yourself in
+the test (`os.makedirs(os.path.join(backup_dir, "manifest-vX"))` for
+`version = "X/../../../../PWNED-MARKER"`) — this mirrors a realistic
+attacker who controls the *whole repo* (same threat model as the existing
+symlink tests: they can commit both the malicious manifest.json AND an
+arbitrary placeholder directory in the same malicious commit). With the
+placeholder present, the traversal resolves for real and the write lands
+outside the intended directory — confirmed landing exactly at the
+grandparent-of-grandparent of the backup dir (repo/.claude/backups → up 1 to
+cancel the placeholder segment + up 3 more to clear repo/.claude/backups →
+lands at the tmp_path level, sibling of the repo). Assert on the *absence*
+of any file matching the marker anywhere outside the intended dir (e.g.
+`os.listdir(str(tmp_path))` for the marker substring), not on an exact
+expected path — the escape depth is fragile to get exactly right and the
+important invariant is "never escapes," not "escapes to this exact spot."
+Confirmed in
+`test_security_regression.py::TestBugGUpgradeBackupPathTraversal` (session
+2026-07-05, SEC-HIGH-NEW-07).
+
+## Barrido (full sweep) technique: grep for the vulnerable call shape across sibling files, don't trust the named sites as exhaustive
+
+When Argus names N confirmed sites of a bug class and asks for a full sweep
+of siblings, `grep -n "manifest.json\|manifest_path\|open(manifest"
+bin/git-memory-*.py` (or the equivalent shape for the specific vulnerable
+pattern) across every file in the same directory, then manually trace each
+hit to confirm it's a genuine instance (read-only vs write, whether the
+value ever reaches a print/filename/comparison). This found two additional
+real sites Argus's SEC-MED-NEW-08/SEC-LOW-NEW-05 list didn't name:
+`bin/git-memory-repair.py:diagnose()` (silently trusts a symlinked manifest
+as valid — zero issues reported, so `git memory repair` never fixes it) and
+`bin/git-memory-bootstrap.py:check_existing_memory()` (both the symlink-read
+gap AND an unsanitized version-print, the latter reaching terminal via
+`classify_findings()`'s finding `"text"` field → `format_human()`). Always
+empirically verify a sweep-discovered site with a live repro (build a real
+tmp repo, run the actual script, inspect real output) before writing the
+test — reasoning about the code alone led to an initially-wrong assumption
+here (see the path-traversal note above) that only got caught by testing.
+Confirmed in `test_security_regression.py::TestBugIRepairDiagnoseTrustsSymlinkedManifest`
+/ `TestBugJBootstrapManifestSymlinkAndVersionLeak` (session 2026-07-05).

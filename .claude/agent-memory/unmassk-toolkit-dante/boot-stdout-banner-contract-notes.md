@@ -65,6 +65,42 @@ unconditional" — coherent RED, ready for Ultron to remove
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md), [skill-router-contract-notes](skill-router-contract-notes.md) (same "test-first contract, corrected mid-pipeline" shape).
 
+**Round 5 (session 2026-07-05) — 6th pass, moved from lib/boot_render.py's
+family to the wider bin/git-memory-*.py sibling scripts.** Three named
+findings + a barrido (full sweep) turned up two more unnamed sites, all on
+`.claude/.unmassk/manifest.json` handling: (1) SEC-CRIT-NEW-06 —
+`bin/git-memory-doctor.py`'s `check_manifest()` (read) AND the end of
+`run_doctor()` (read-then-write-back the healthcheck timestamp) both use
+plain `open()`, no symlink guard — confirmed live: a symlinked manifest
+leaks the victim's version into the JSON report AND gets its content
+silently overwritten with an added `last_healthcheck_at` key. This runs on
+EVERY boot via `lib/boot_checks.py:run_doctor()` → `git-memory-doctor.py
+--json`. (2) SEC-HIGH-NEW-07 — `bin/git-memory-upgrade.py:create_backup()`
+builds a backup filename by gluing the manifest's unsanitized `"version"`
+field into `f"manifest-v{version}-{timestamp}.json"`; confirmed live this
+escapes `.claude/backups/` when the attacker also plants a placeholder
+directory (same "controls the whole repo" model as prior symlink bugs) —
+see [edge-cases.md](edge-cases.md) for why a naive `"../"` PoC alone doesn't
+work here and what actually reproduces it. (3) SEC-MED-NEW-08 — the
+manifest's `"version"` field is printed to the terminal completely
+unsanitized in non-JSON mode at 3+ call sites across
+`git-memory-doctor.py` and `git-memory-upgrade.py` — confirmed with a raw
+ANSI-escape-byte payload reaching stdout verbatim. Barrido turned up two
+more sites of the same two bug classes that Argus hadn't named:
+`git-memory-repair.py:diagnose()` (silently trusts a symlinked manifest as
+healthy — zero issues reported, so `repair` never fixes it) and
+`git-memory-bootstrap.py:check_existing_memory()` (both the symlink-read gap
+and the unsanitized-version-print gap, the latter via
+`classify_findings()`'s finding text → `format_human()`). 9 new RED tests +
+3 GREEN controls in `test_security_regression.py` (BUG F/G/H/I/J), 0
+regressions in the pre-existing 752 tests (confirmed via `git stash`; the
+9 `test_release.py` failures are pre-existing and unrelated). This is now
+the 5th consecutive round finding genuinely new sites of the same
+symlink/sanitization bug classes spreading across the codebase — worth a
+harder push from Yoda toward a single shared "read manifest safely +
+sanitize its fields" helper instead of re-fixing each call site
+individually, since the pattern keeps recurring file by file.
+
 **Round 4 (session 2026-07-05) — re-re-audit findings, 5th pass on this same
 module family.** Three more findings, all written as failing test-first
 contract tests before Ultron touches anything: (1) SEC-CRIT-NEW-04 —
