@@ -91,6 +91,14 @@ def _cleanup_old_install(target: str, source: str) -> None:
     for d in OLD_SKILL_DIRS:
         path = os.path.join(target, d)
         if os.path.isdir(path) and not os.path.islink(path):
+            # Same guard class as the fixed-name file loop above: an
+            # intermediate component of `d` (e.g. "skills") may itself be a
+            # symlink to an external, pre-existing directory — verify the
+            # resolved path stays inside target before rmtree.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             shutil.rmtree(path)
             removed.append(d + "/")
         elif os.path.islink(path):

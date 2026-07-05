@@ -137,7 +137,17 @@ def write_boot_log(full_text: str, project_root: str | None) -> str | None:
         if ensure_runtime_dir is not None:
             runtime_dir = ensure_runtime_dir(project_root)
         else:
+            # Fallback path when ensure_runtime_dir couldn't be imported
+            # (stub or stale git_helpers.py without it). ensure_runtime_dir
+            # itself calls verify_path_within_project() internally, so this
+            # fallback needs the same guard explicitly, or it silently loses
+            # the "parent-directory symlink" protection the normal path gets.
+            # Deferred import (not module-level) for the same reason as the
+            # other verify_path_within_project import in this file — a test
+            # stubs git_helpers without this name during its import window.
+            from git_helpers import verify_path_within_project
             runtime_dir = os.path.join(project_root, *BOOT_LOG_REL_PARTS[:-1])
+            verify_path_within_project(runtime_dir, project_root)
             os.makedirs(runtime_dir, exist_ok=True)
         candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
         with open_no_follow_symlink(candidate_log_path, "w") as f:

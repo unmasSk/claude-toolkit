@@ -216,6 +216,14 @@ def _migrate_runtime_to_unmassk(target: str) -> list[str]:
         return []
 
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
+    # Defense in depth (mirrors _create_manifest()'s pattern further below in
+    # this same file): .unmassk itself could independently be a symlink
+    # escaping the repo even when .claude (just verified above) is not.
+    try:
+        verify_path_within_project(unmassk_dir, target)
+    except UnsafePathError:
+        return []
+
     migrated = []
 
     # Map: old path → new path
@@ -254,7 +262,15 @@ def _migrate_runtime_to_unmassk(target: str) -> list[str]:
         if not target_dir:
             # Default to a generic agent-memory location
             target_dir = os.path.join(agent_mem, "unmassk-crew-bilbo")
-            os.makedirs(target_dir, exist_ok=True)
+        # Defense in depth (same class as claude_dir/unmassk_dir elsewhere in
+        # this file): target_dir (agent_mem itself, or one of its per-agent
+        # subdirectories found via listdir) could independently be a symlink
+        # even when claude_dir is not -- verify before creating/writing.
+        try:
+            verify_path_within_project(target_dir, target)
+        except UnsafePathError:
+            return migrated
+        os.makedirs(target_dir, exist_ok=True)
         new_scopes = os.path.join(target_dir, "scopes.json")
         if not os.path.isfile(new_scopes):
             os.rename(old_scopes, new_scopes)

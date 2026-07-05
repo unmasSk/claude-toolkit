@@ -46,6 +46,13 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
         return
 
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
+    # Defense in depth (mirrors lib/install_apply.py::_create_manifest()):
+    # .unmassk itself could independently be a symlink escaping the repo
+    # even when .claude (just verified above) is not.
+    try:
+        verify_path_within_project(unmassk_dir, project_root)
+    except UnsafePathError:
+        return
     migrations = {
         ".glossary-cache.json": "glossary-cache.json",
         "git-memory-manifest.json": "manifest.json",
@@ -67,6 +74,13 @@ def _migrate_runtime_to_unmassk(project_root: str) -> None:
     old_scopes = os.path.join(claude_dir, "git-memory-scopes.json")
     if os.path.isfile(old_scopes):
         agent_dir = os.path.join(claude_dir, "agent-memory", "unmassk-crew-bilbo")
+        # Defense in depth (same class as unmassk_dir above): agent_dir is a
+        # further subdirectory that could independently be a symlink even
+        # when claude_dir is not.
+        try:
+            verify_path_within_project(agent_dir, project_root)
+        except UnsafePathError:
+            return
         os.makedirs(agent_dir, exist_ok=True)
         new_scopes = os.path.join(agent_dir, "scopes.json")
         try:

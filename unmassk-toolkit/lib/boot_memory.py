@@ -486,7 +486,17 @@ def _write_glossary_cache(glossary: dict) -> None:
         if ensure_runtime_dir is not None and root:
             ensure_runtime_dir(root)
         else:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Fallback when ensure_runtime_dir couldn't be imported (stub or
+            # stale git_helpers.py without it) -- ensure_runtime_dir's own
+            # verify_path_within_project() protection must be replicated
+            # here explicitly, or this branch silently loses the
+            # parent-directory-symlink guard. Deferred import, same reason
+            # as ensure_runtime_dir's own defensive import above.
+            from git_helpers import verify_path_within_project
+            cache_dir = os.path.dirname(path)
+            if root:
+                verify_path_within_project(cache_dir, root)
+            os.makedirs(cache_dir, exist_ok=True)
         with open_no_follow_symlink(path, "w") as f:
             json.dump(cache, f, indent=2)
         try:

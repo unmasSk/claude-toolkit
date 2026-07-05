@@ -631,3 +631,54 @@ populated, check whether the surrounding function already has a
 "detected a condition but did nothing about it" branch before defaulting
 to deleting the loop — populating it can turn a silent gap into
 information the plan printout should have shown all along.
+
+## Round 13 (2026-07-05): the `else` branch of a defensive-import fallback silently drops the security guard
+
+Both `hooks/session-start-boot.py::write_boot_log()` and
+`lib/boot_memory.py::_write_glossary_cache()` have the shape:
+```python
+if ensure_runtime_dir is not None:
+    ensure_runtime_dir(root)   # calls verify_path_within_project() internally
+else:
+    os.makedirs(some_dir, exist_ok=True)   # NO guard at all
+```
+The `else` branch only fires when `ensure_runtime_dir` failed to import
+(test stub or a stale `git_helpers.py` missing the function) — but when it
+fires, it silently reimplements the unguarded pre-fix behavior, losing
+`ensure_runtime_dir`'s internal `verify_path_within_project()` call
+entirely. This is a distinct sub-pattern from the "12 rounds" one
+(`.claude`/`.unmassk` parent-dir symlink escaping a guard that was never
+added) — here the guard EXISTS and is even documented in a comment next to
+the `if` branch, but the `else` branch bypasses it. Rule: whenever a
+function has an `if guarded_helper_available: guarded_helper() else:
+manual_fallback()` shape, check the fallback branch for the same guard
+independently — "the guard exists in this file" is not the same as "this
+branch calls it."
+
+Also found in the same sweep: `lib/boot_migrations.py::_migrate_runtime_to_unmassk()`
+and `bin/git-memory-upgrade.py`'s copy build a THIRD path
+(`claude_dir/agent-memory/<agent-name>/`) beyond the `.unmassk` one that
+already had defense-in-depth — same fix applies (verify the specific
+subdirectory variable right before `os.makedirs`/`os.rename` uses it, not
+just the parent `claude_dir`).
+
+An AST-based sweep script (walk `ast.walk()` sorted by lineno, track
+variable assignments and `verify_path_within_project()`/`ensure_runtime_dir()`
+calls in source order per function) is a decent way to re-run this class of
+check, but it has two known blind spots: (1) it can't resolve a path built
+from a `for x in SOME_LIST:` loop variable or a `dict.items()` value (the
+literal string lives in the list/dict definition, not at the call site,
+so pattern-matching the join expression's text misses it — these need a
+manual `grep` cross-check of the same file for constants like
+`OLD_SKILL_DIRS`/`migrations = {...}`); (2) it can't distinguish
+`os.unlink()`/`os.remove()` on a path with NO further path components below
+a trusted root (inherently safe — unlink never follows the final symlink,
+and there's no intermediate directory to hijack) from the same call several
+directories deep (genuinely risky) — it will flag both as "unprotected."
+Confirmed false-positive case: `bin/git-memory-uninstall.py:144`'s
+`os.unlink(os.path.join(target, "CLAUDE.md"))` where `target` comes
+straight from `git rev-parse --show-toplevel` (already resolved, no
+attacker-plantable intermediate symlink between `target` and the file) — do
+not "fix" sites like this just because the script flags them; verify the
+call is actually reachable through an untrusted intermediate directory
+first.
