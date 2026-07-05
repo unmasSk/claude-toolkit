@@ -62,10 +62,16 @@ def diagnose(target: str) -> list[tuple[str, str, str]]:
     # Check CLAUDE.md managed block
     claude_md = os.path.join(target, "CLAUDE.md")
     if os.path.isfile(claude_md):
-        with open(claude_md) as f:
-            content = f.read()
-        if "BEGIN unmassk-toolkit" not in content:
-            issues.append(("missing_block", "CLAUDE.md", "Managed block missing in CLAUDE.md"))
+        try:
+            # barrido finding: never follow a symlink planted at CLAUDE.md —
+            # flag it as an issue (so repair recreates a real file) instead
+            # of silently trusting whatever external file it points at.
+            with open_no_follow_symlink(claude_md, "r") as f:
+                content = f.read()
+            if "BEGIN unmassk-toolkit" not in content:
+                issues.append(("missing_block", "CLAUDE.md", "Managed block missing in CLAUDE.md"))
+        except OSError:
+            issues.append(("symlinked_claude_md", "CLAUDE.md", "CLAUDE.md is a symlink (refusing to follow)"))
     else:
         issues.append(("missing_claude_md", "CLAUDE.md", "CLAUDE.md not found"))
 

@@ -161,7 +161,10 @@ def check_claude_md(project_root: str) -> tuple[bool, str]:
     if not os.path.isfile(claude_md):
         return False, "CLAUDE.md not found"
     try:
-        with open(claude_md) as f:
+        # barrido finding: never follow a symlink planted at CLAUDE.md —
+        # treat it exactly like a read error, never trust the external
+        # file's content as the real managed block.
+        with open_no_follow_symlink(claude_md, "r") as f:
             content = f.read()
         if "BEGIN unmassk-toolkit" in content and "END unmassk-toolkit" in content:
             return True, "managed block present"
@@ -409,7 +412,8 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     settings_path = os.path.join(project_root, ".claude", "settings.json")
     if os.path.isfile(settings_path):
         try:
-            with open(settings_path) as f:
+            # barrido finding: never follow a symlink planted at settings.json.
+            with open_no_follow_symlink(settings_path, "r") as f:
                 proj_settings = json.load(f)
             if "hooks" in proj_settings:
                 has_stale = False

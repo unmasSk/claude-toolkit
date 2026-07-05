@@ -108,14 +108,23 @@ def check_upgrade_needed(source: str, target: str, manifest: dict[str, Any]) -> 
         result["reasons"].append(f"Version mismatch: {safe_installed_version} → {VERSION}")
 
     # CLAUDE.md managed blocks outdated or missing
+    # barrido finding: never follow a symlink planted at CLAUDE.md — treat
+    # it exactly like "CLAUDE.md missing" rather than trusting whatever
+    # external file it points at as a real, up-to-date install.
     claude_md = os.path.join(target, "CLAUDE.md")
+    claude_md_content = None
     if os.path.isfile(claude_md):
-        with open(claude_md) as f:
-            content = f.read()
-        if not all_blocks_present(content):
+        try:
+            with open_no_follow_symlink(claude_md, "r") as f:
+                claude_md_content = f.read()
+        except OSError:
+            claude_md_content = None
+
+    if claude_md_content is not None:
+        if not all_blocks_present(claude_md_content):
             result["needs_update"] = True
             result["reasons"].append("CLAUDE.md managed blocks missing (one or more)")
-        elif any_block_outdated(content):
+        elif any_block_outdated(claude_md_content):
             result["needs_update"] = True
             result["reasons"].append("CLAUDE.md managed block content outdated")
     else:

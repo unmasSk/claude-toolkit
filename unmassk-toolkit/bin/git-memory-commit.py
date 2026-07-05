@@ -27,7 +27,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR
-from git_helpers import run_git
+from git_helpers import run_git, open_no_follow_symlink
 from parsing import suggest_scope_from_paths
 
 # ── Config ───────────────────────────────────────────────────────────────
@@ -164,7 +164,9 @@ def _load_scope_map() -> dict[str, str]:
                         break
         if not os.path.isfile(scopes_file):
             return {}
-        with open(scopes_file) as f:
+        # SEC-MED-NEW-12: never follow a symlink planted at
+        # git-memory-scopes.json.
+        with open_no_follow_symlink(scopes_file, "r") as f:
             data = json.load(f)
         result: dict[str, str] = {}
         for scope_name, scope_info in data.get("scopes", {}).items():

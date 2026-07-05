@@ -434,6 +434,57 @@ file — if ALL its callers are also being moved, take the helper with them;
 if any caller stays behind, the helper must stay too (would need a genuine
 redesign, not just a move).
 
+## needs_upgrade() Check 1 ("Context Checkpoint Commits" marker) is permanently dead on real installs
+
+`hooks/user-prompt-memory-check.py::needs_upgrade()` Check 1 does
+`if "python3 bin/" in block or "Context Checkpoint Commits" not in block: return True`.
+The phrase "Context Checkpoint Commits" does not exist anywhere in
+`lib/managed_blocks.py`'s current template — confirmed by dumping
+`upsert_managed_blocks('')`'s output. This means Check 1 returns True for
+EVERY real, freshly-installed repo, before Check 2 (the manifest.version
+semver comparison) is ever reached. This is known and already worked
+around in `tests/test_needs_upgrade_semver.py::make_semver_test_repo()`
+(docstring explicitly explains it and patches the block to inject the
+literal string so Check 1 is neutralized for its own tests) — it is NOT a
+bug to silently fix; changing/removing this condition would contradict
+that file's other passing tests. If a new test exercises `needs_upgrade()`
+Check 2 (or the manifest read guard) via a plain `run_script(INSTALL, ...)`
+install without also neutralizing Check 1 the way `make_semver_test_repo()`
+does, it will fail for this unrelated reason, not because Check 2's logic
+is wrong. Verified independently (session 2026-07-05, SEC-HIGH-NEW-11): with
+Check 1 neutralized per that same helper's pattern and a symlink planted at
+manifest.json, the `open_no_follow_symlink()` guard on the manifest read
+correctly returns False — proving the guard works; a test that hits this
+Check-1 quirk is a test-authoring gap, not an implementation defect. Escalate,
+don't patch the check, if this recurs.
+
+## Symlink-guard fix rounds: only session-start-boot.py's transitive imports need the defensive try/except fallback
+
+When applying `open_no_follow_symlink()` across many call sites in one
+sweep (SEC-CRIT-001-class findings), only import it defensively
+(`try: from git_helpers import open_no_follow_symlink / except ImportError:
+from _symlink_safe_open import open_no_follow_symlink_fallback as ...`) in
+modules that are transitively imported during `hooks/session-start-boot.py`'s
+module load — currently `lib/boot_memory.py`, `lib/boot_migrations.py`,
+`lib/boot_render.py`, `lib/boot_checks.py` (the modules
+`tests/test_migrate_statusline.py` stubs `git_helpers` around). Every other
+call site (`bin/git-memory-{install,uninstall,doctor,repair,upgrade,bootstrap,commit}.py`,
+`hooks/{user-prompt-memory-check,stop-dod-gate,session-start-crew}.py`) is
+never imported during that stub window, so a plain
+`from git_helpers import ..., open_no_follow_symlink` at module top level is
+correct and simpler — don't add the defensive fallback there, it's dead
+code. Confirmed by checking `session-start-boot.py`'s own import graph
+before choosing the pattern for each of 9 new call sites (round 2026-07-05).
+
+`open_no_follow_symlink()` also accepts a `pathlib.Path` for its `path` arg
+transparently (it calls `os.open()`, which accepts any `os.PathLike`) — a
+hook using `pathlib.Path.read_text()/write_text()` can switch to
+`with open_no_follow_symlink(path_obj, "r"/"w", encoding=...) as f: f.read()/f.write(...)`
+without converting to `str` first. One caveat: `open_no_follow_symlink()`
+has no `errors=` parameter (unlike `Path.read_text(errors="replace")`) —
+if the original code relied on lenient decode-error handling, wrap the read
+in `except (OSError, UnicodeDecodeError)` to preserve fail-open behavior.
+
 ## boot_render.py REMEMBER/DECISIONS/MEMOS section duplication — safe to extract once glossary-merge stays separate
 
 The three `render_*_section()` functions in `boot_render.py` looked

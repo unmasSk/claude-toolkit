@@ -31,6 +31,10 @@ import subprocess
 import sys
 import traceback
 
+# ── Shared lib ────────────────────────────────────────────────────────────
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from git_helpers import open_no_follow_symlink
+
 TIMEOUT_SECONDS = 60
 CONFIG_SUBPATH = os.path.join(".claude", "git-memory-config.json")
 
@@ -74,7 +78,10 @@ def _read_test_command(cwd: str) -> str | None:
     """
     config_file = os.path.join(cwd, CONFIG_SUBPATH)
     try:
-        with open(config_file, "r", encoding="utf-8") as f:
+        # barrido finding: never follow a symlink planted at
+        # git-memory-config.json — an attacker-controlled test_command must
+        # never be read from (and thus executed via) an external file.
+        with open_no_follow_symlink(config_file, "r") as f:
             config = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None

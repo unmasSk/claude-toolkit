@@ -568,7 +568,9 @@ def check_existing_memory(root: str) -> dict[str, Any]:
     claude_md = os.path.join(root, "CLAUDE.md")
     if os.path.isfile(claude_md):
         try:
-            with open(claude_md) as f:
+            # barrido finding: never follow a symlink planted at CLAUDE.md —
+            # treat it exactly like "no CLAUDE.md present".
+            with open_no_follow_symlink(claude_md, "r") as f:
                 content = f.read()
             signals["claude_md_exists"] = True
             signals["has_memory_block"] = "BEGIN unmassk-toolkit" in content

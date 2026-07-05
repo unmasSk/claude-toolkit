@@ -391,7 +391,9 @@ def render_scopes_section(project_root: str | None) -> list[str]:
     scopes_exist = scopes_file and os.path.isfile(scopes_file)
     if scopes_exist:
         try:
-            with open(scopes_file) as f:
+            # SEC-MED-NEW-12: never follow a symlink planted at
+            # git-memory-scopes.json.
+            with open_no_follow_symlink(scopes_file, "r") as f:
                 scopes_data = json.load(f)
             scope_map = scopes_data.get("scopes", {})
             if scope_map:

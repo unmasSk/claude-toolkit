@@ -17,7 +17,7 @@ import sys
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
-from git_helpers import is_git_repo, run_git
+from git_helpers import is_git_repo, run_git, open_no_follow_symlink
 from version import VERSION as PLUGIN_VERSION
 
 # ── Recall — imported defensively so any import failure is visible but silent ──
@@ -53,8 +53,13 @@ def needs_install(root: str) -> bool:
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return True
-    with open(claude_md) as f:
-        return "BEGIN unmassk-toolkit" not in f.read()
+    try:
+        # barrido finding: never follow a symlink planted at CLAUDE.md —
+        # treat it exactly like "no CLAUDE.md present" (needs install).
+        with open_no_follow_symlink(claude_md, "r") as f:
+            return "BEGIN unmassk-toolkit" not in f.read()
+    except OSError:
+        return True
 
 
 def _parse_semver(version_str) -> tuple[int, int, int] | None:
@@ -110,7 +115,9 @@ def needs_upgrade(root: str) -> bool:
     # ── Check 2: Semver comparison — manifest.version < PLUGIN_VERSION ───
     try:
         manifest_path = os.path.join(root, ".claude", ".unmassk", "manifest.json")
-        with open(manifest_path) as f:
+        # SEC-HIGH-NEW-11: never follow a symlink planted at manifest.json —
+        # the surrounding except below already fails safe to False.
+        with open_no_follow_symlink(manifest_path, "r") as f:
             manifest = json.load(f)
         # manifest.get("version", "") guards against a missing key, but JSON
         # null still arrives as None here. _parse_semver tolerates non-str input.
@@ -216,7 +223,10 @@ def main() -> None:
         try:
             runtime_dir = os.path.join(root, ".claude", ".unmassk")
             os.makedirs(runtime_dir, exist_ok=True)
-            open(booted_flag, "w").close()
+            # SEC-HIGH-NEW-10: never follow a (dangling) symlink planted at
+            # the booted-flag path — fail-open like every other fallback in
+            # this file: don't create the flag, don't break the hook.
+            open_no_follow_symlink(booted_flag, "w").close()
         except OSError:
             pass
     else:

@@ -123,11 +123,17 @@ def inspect(target: str) -> dict[str, Any]:
         return report
 
     # CLAUDE.md
+    # barrido finding: never follow a symlink planted at CLAUDE.md — treat
+    # it exactly like "no CLAUDE.md present" rather than trusting whatever
+    # external file it points at.
     claude_md = os.path.join(target, "CLAUDE.md")
     if os.path.isfile(claude_md):
-        report["has_claude_md"] = True
-        with open(claude_md) as f:
-            report["has_managed_block"] = "BEGIN unmassk-toolkit" in f.read()
+        try:
+            with open_no_follow_symlink(claude_md, "r") as f:
+                report["has_managed_block"] = "BEGIN unmassk-toolkit" in f.read()
+            report["has_claude_md"] = True
+        except OSError:
+            pass
 
     # Manifest
     manifest_path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
@@ -180,7 +186,8 @@ def inspect(target: str) -> dict[str, Any]:
     project_settings_path = os.path.join(target, ".claude", "settings.json")
     if os.path.isfile(project_settings_path):
         try:
-            with open(project_settings_path) as f:
+            # SEC-MED-NEW-13: never follow a symlink planted at settings.json.
+            with open_no_follow_symlink(project_settings_path, "r") as f:
                 project_settings = json.load(f)
             hooks_data = project_settings.get("hooks", {})
             if hooks_data and isinstance(hooks_data, dict):
@@ -355,7 +362,10 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
         return
 
     try:
-        with open(settings_path) as f:
+        # SEC-MED-NEW-13: never follow a symlink planted at settings.json —
+        # neither the read nor the write-back should trust/touch whatever
+        # external file it points at.
+        with open_no_follow_symlink(settings_path, "r") as f:
             settings = json.load(f)
     except (json.JSONDecodeError, OSError):
         return
@@ -365,7 +375,7 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
 
     del settings["hooks"]
 
-    with open(settings_path, "w") as f:
+    with open_no_follow_symlink(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
         f.write("\n")
 
@@ -384,7 +394,11 @@ def _update_claude_md(target: str) -> None:
 
     new_content, _ = upsert_managed_blocks(content)
 
-    with open(claude_md, "w") as f:
+    # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md — refuse
+    # to write through to whatever external file it points at. The caller
+    # (apply_plan) already wraps this action in try/except, so raising here
+    # is reported as an error rather than crashing the whole install.
+    with open_no_follow_symlink(claude_md, "w") as f:
         f.write(new_content)
 
 

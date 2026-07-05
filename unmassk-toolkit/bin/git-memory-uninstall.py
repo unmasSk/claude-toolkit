@@ -29,7 +29,7 @@ import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git
+from git_helpers import run_git, open_no_follow_symlink
 from managed_blocks import BLOCKS
 
 
@@ -113,8 +113,14 @@ def remove_claude_md_block(target: str) -> bool:
     if not os.path.isfile(claude_md):
         return False
 
-    with open(claude_md) as f:
-        content = f.read()
+    try:
+        # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md —
+        # treat it exactly like "nothing to remove" rather than reading or
+        # writing through to whatever external file it points at.
+        with open_no_follow_symlink(claude_md, "r") as f:
+            content = f.read()
+    except OSError:
+        return False
 
     original = content
     removed_any = False
@@ -138,7 +144,7 @@ def remove_claude_md_block(target: str) -> bool:
         os.unlink(claude_md)
         return True
 
-    with open(claude_md, "w") as f:
+    with open_no_follow_symlink(claude_md, "w") as f:
         f.write(content + "\n")
     return True
 
