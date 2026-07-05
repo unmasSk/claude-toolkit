@@ -17,7 +17,7 @@ import sys
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 
-from git_helpers import is_git_repo, run_git, open_no_follow_symlink
+from git_helpers import is_git_repo, run_git, open_no_follow_symlink, ensure_runtime_dir
 from version import VERSION as PLUGIN_VERSION
 
 # ── Recall — imported defensively so any import failure is visible but silent ──
@@ -227,8 +227,11 @@ def main() -> None:
         )
         # Create the flag so subsequent messages don't repeat this
         try:
-            runtime_dir = os.path.join(root, ".claude", ".unmassk")
-            os.makedirs(runtime_dir, exist_ok=True)
+            # SEC-HIGH-004: .claude may be a symlink to an external
+            # directory — ensure_runtime_dir() verifies the resolved path
+            # stays inside root before creating anything (was a bare
+            # os.makedirs() that silently followed the symlink).
+            ensure_runtime_dir(root)
             # SEC-HIGH-NEW-10: never follow a (dangling) symlink planted at
             # the booted-flag path — fail-open like every other fallback in
             # this file: don't create the flag, don't break the hook.

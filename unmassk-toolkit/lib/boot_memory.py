@@ -31,6 +31,16 @@ except ImportError:
     # T3-1 (Cerberus): shared fallback, not a second hand-copied
     # reimplementation — see lib/_symlink_safe_open.py.
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
+try:
+    # SEC-HIGH-003: reuse the canonical .claude/.unmassk/ creation helper
+    # (verify_path_within_project() chokepoint) instead of a bare
+    # os.makedirs() that silently follows a symlinked .claude parent.
+    # Imported defensively for the same reason as open_no_follow_symlink
+    # above — tests/test_migrate_statusline.py stubs git_helpers with a
+    # minimal fake module that predates this helper.
+    from git_helpers import ensure_runtime_dir
+except ImportError:
+    ensure_runtime_dir = None
 # NOTE: the `parsing` helpers below (scan_trailers_memory, normalize,
 # parse_scope, sanitize_trailer_value) AND the `git_helpers` helpers
 # (run_git, ensure_gitignore) are deliberately imported INSIDE each function
@@ -450,6 +460,7 @@ def _write_glossary_cache(glossary: dict) -> None:
     """Write glossary cache to .claude/.unmassk/glossary-cache.json."""
     from git_helpers import ensure_gitignore, run_git
 
+    root = _get_project_root()
     path = _glossary_cache_path()
     if not path:
         return
@@ -468,14 +479,20 @@ def _write_glossary_cache(glossary: dict) -> None:
         "tombstones": sorted(raw_tombstones),
     }
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # SEC-HIGH-003: .claude may be a symlink to an external directory —
+        # ensure_runtime_dir() verifies the resolved path stays inside root
+        # before creating anything. Fall back to the old bare os.makedirs()
+        # only when the import itself failed (test-stub window).
+        if ensure_runtime_dir is not None and root:
+            ensure_runtime_dir(root)
+        else:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
         with open_no_follow_symlink(path, "w") as f:
             json.dump(cache, f, indent=2)
         try:
             os.chmod(path, 0o600)
         except OSError:
             pass
-        root = _get_project_root()
         if root:
             ensure_gitignore(root)
     except OSError:

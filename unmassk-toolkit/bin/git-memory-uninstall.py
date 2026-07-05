@@ -29,7 +29,7 @@ import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, open_no_follow_symlink
+from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS
 
 
@@ -203,6 +203,14 @@ def remove_old_install_files(target: str) -> list[str]:
     for subdir in ["hooks", "skills"]:
         path = os.path.join(target, ".claude", subdir)
         if os.path.isdir(path):
+            # SEC-CRIT-002: .claude may be a symlink to an external,
+            # pre-existing directory — verify the resolved path stays inside
+            # target before rmtree, or this destroys an unrelated directory
+            # outside the project.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             entries = os.listdir(path)
             all_symlinks = all(os.path.islink(os.path.join(path, e)) for e in entries) if entries else True
             if all_symlinks:

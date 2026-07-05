@@ -31,7 +31,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
+from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project, UnsafePathError
 from managed_blocks import BLOCKS, all_blocks_present, any_block_outdated
 from parsing import sanitize_trailer_value
 from version import VERSION
@@ -187,7 +187,9 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
     backup_name = f"manifest-v{safe_version}-{timestamp}.json"
     backup_path = os.path.join(backup_dir, backup_name)
 
-    with open(backup_path, "w") as f:
+    # Cerberus: use the symlink-safe writer consistently, like every other
+    # generated-file write in this file, instead of a plain open().
+    with open_no_follow_symlink(backup_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
     return backup_path
@@ -201,6 +203,18 @@ def _migrate_runtime_to_unmassk(target: str) -> list[str]:
     Returns list of migrated file descriptions.
     """
     claude_dir = os.path.join(target, ".claude")
+
+    # SEC-HIGH-005: .claude may be a symlink to an external, pre-existing
+    # directory — verify the resolved path stays inside target before
+    # creating/moving anything below. apply_upgrade() calls this function
+    # without a wrapping try/except (unlike its other steps), and tests call
+    # it directly too, so UnsafePathError is caught right here and the
+    # migration is simply skipped rather than propagated.
+    try:
+        verify_path_within_project(claude_dir, target)
+    except UnsafePathError:
+        return []
+
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     migrated = []
 

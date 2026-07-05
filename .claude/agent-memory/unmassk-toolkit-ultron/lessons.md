@@ -501,3 +501,57 @@ hardcode). Extracted as `_render_crowned_capped_section()`, called by all
 three after their own distinct merge logic. Full test suite is the only
 reliable check that behavior stayed byte-for-byte identical for this kind
 of "looks like 3x duplication but isn't fully" refactor.
+
+## verify_path_within_project() rollout: check the call site's exception handling BEFORE deciding catch-vs-propagate
+
+Applying the `verify_path_within_project()` chokepoint (SEC-CRIT-002 /
+SEC-HIGH-003/004/005 / SEC-LOW-006, session 2026-07-05: parent-`.claude`-
+symlink class) to 5 new call sites, the right error-handling shape at each
+site depends entirely on what the CALLER already does, not on the site
+itself:
+- If the call is already wrapped in a broad `try/except Exception`/`except
+  OSError` by its only caller (e.g. `bin/git-memory-doctor.py`'s manifest
+  rewrite, already inside `except Exception: pass`), just call
+  `verify_path_within_project()` and let `UnsafePathError` (an `OSError`
+  subclass) propagate into that existing catch — no new try/except needed.
+- If the call site has NO wrapping try/except and boot/the caller must never
+  crash (e.g. `lib/boot_migrations.py`'s `_migrate_runtime_to_unmassk()`,
+  called from `run_preboot_migrations()` directly; `bin/git-memory-
+  upgrade.py`'s copy of the same function, called from `apply_upgrade()`
+  directly — unlike that file's OTHER steps which ARE each wrapped), add a
+  local `try: verify_path_within_project(...); except UnsafePathError:
+  return` INSIDE the function itself. Confirmed necessary here because
+  `tests/test_security_regression.py` calls both `_migrate_runtime_to_unmassk`
+  copies directly via a subprocess probe that treats any non-zero exit as a
+  hard test error (`RuntimeError`), not just an assertion failure — letting
+  the exception propagate would have broken the test, not just looked ugly.
+- `bin/git-memory-upgrade.py`'s `create_backup()` is the third shape: an
+  explicit CLI action with no wrapping try/except where an uncaught
+  `UnsafePathError` IS the desired fail-closed outcome (non-zero exit,
+  documented in a comment already in that function) — don't add a
+  try/except there just for consistency with the other two shapes.
+
+## Loading a lib/*.py module standalone (spec_from_file_location) without lib/ in sys.path breaks its sibling imports
+
+`lib/boot_migrations.py` had zero `git_helpers` imports (module-level or
+deferred) before this session — its own test helper's docstring says so
+explicitly. Adding a deferred `from git_helpers import
+verify_path_within_project, UnsafePathError` inside
+`_migrate_runtime_to_unmassk()` would break
+`tests/test_security_regression.py`'s
+`_call_migrate_runtime_to_unmassk_boot_migrations()` probe, which loads the
+module via `importlib.util.spec_from_file_location` in a **fresh
+subprocess** (`python3 -c "..."`) that never inserts `lib/` into `sys.path`
+(unlike normal execution, where `hooks/session-start-boot.py` always
+inserts `lib/` before importing `boot_migrations`). Fix: at the top of the
+function, before the import, do the same `sys.path` self-insertion already
+used in `bin/release_helpers.py` (see the entry above this one) —
+`_lib_dir = os.path.dirname(os.path.abspath(__file__)); if _lib_dir not in
+sys.path: sys.path.insert(0, _lib_dir)` — then `from git_helpers import
+...`. Works identically whether the module is reached normally (lib/
+already on sys.path, no-op) or standalone (adds its own directory, then
+`git_helpers.py` resolves as a sibling file). Rule: any NEW git_helpers (or
+other sibling-module) import added to a `lib/*.py` file must be checked
+against how that file's OWN tests load it — grep the test file for
+`spec_from_file_location` + the module's filename before assuming a plain
+import will resolve.

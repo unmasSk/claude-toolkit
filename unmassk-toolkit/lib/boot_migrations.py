@@ -24,6 +24,27 @@ import sys
 def _migrate_runtime_to_unmassk(project_root: str) -> None:
     """Move legacy runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)."""
     claude_dir = os.path.join(project_root, ".claude")
+
+    # SEC-HIGH-005: .claude may be a symlink to an external, pre-existing
+    # directory — verify the resolved path stays inside project_root before
+    # creating/moving anything below. This function is called from
+    # run_preboot_migrations() with no wrapping try/except (boot must never
+    # crash), so UnsafePathError is caught right here and the migration is
+    # simply skipped rather than propagated. `_lib_dir` is inserted into
+    # sys.path defensively so `import git_helpers` resolves correctly even
+    # when this module is loaded standalone (e.g. via
+    # importlib.util.spec_from_file_location in a test, without the
+    # session-start-boot.py-provided sys.path setup) — see the
+    # release_helpers.py precedent for this same pattern.
+    _lib_dir = os.path.dirname(os.path.abspath(__file__))
+    if _lib_dir not in sys.path:
+        sys.path.insert(0, _lib_dir)
+    from git_helpers import verify_path_within_project, UnsafePathError
+    try:
+        verify_path_within_project(claude_dir, project_root)
+    except UnsafePathError:
+        return
+
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     migrations = {
         ".glossary-cache.json": "glossary-cache.json",

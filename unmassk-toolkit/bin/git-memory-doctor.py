@@ -29,7 +29,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, open_no_follow_symlink
+from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
 from parsing import normalize, parse_trailers_full, sanitize_trailer_value
 from version import VERSION
 
@@ -470,6 +470,12 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
     if os.path.isfile(manifest_path):
         try:
+            # SEC-LOW-006: .claude may be a symlink to an external directory
+            # that already contains a real (non-symlink) manifest.json — the
+            # O_NOFOLLOW guard below only protects against manifest.json
+            # itself being a symlink, not a symlinked parent. Verify the
+            # resolved path stays inside project_root before touching it.
+            verify_path_within_project(manifest_path, project_root)
             # SEC-CRIT-NEW-06: never follow a symlink planted at the
             # manifest path — the O_NOFOLLOW guard makes both the read and
             # the write-back atomically refuse to traverse it, so a victim

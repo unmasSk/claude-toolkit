@@ -330,6 +330,15 @@ def _cleanup_old_install(target: str, source: str) -> None:
     for subdir in ["hooks", "skills"]:
         path = os.path.join(target, ".claude", subdir)
         if os.path.isdir(path):
+            # SEC-CRIT-002: .claude may be a symlink to an external,
+            # pre-existing directory (old-install shape reproduced there by
+            # coincidence) — verify the resolved path stays inside target
+            # before rmtree, or this destroys an unrelated directory outside
+            # the project.
+            try:
+                verify_path_within_project(path, target)
+            except OSError:
+                continue
             # Only remove if it contains symlinks (our old install pattern)
             entries = os.listdir(path)
             all_symlinks = all(os.path.islink(os.path.join(path, e)) for e in entries) if entries else True
