@@ -152,6 +152,16 @@ def remove_claude_md_block(target: str) -> bool:
 def remove_manifest(target: str) -> bool:
     """Remove the manifest file."""
     path = os.path.join(target, ".claude", ".unmassk", "manifest.json")
+    try:
+        # SEC-HIGH-006: .claude may be a symlink to an external directory
+        # that already contains a real (non-symlink) manifest.json —
+        # safe_remove()'s os.unlink()/os.path.isfile() both resolve every
+        # intermediate path component, so a symlinked .claude would make
+        # this delete an external file. Mirrors the guard already applied
+        # to remove_old_install_files() in this same file.
+        verify_path_within_project(path, target)
+    except OSError:
+        return False
     return safe_remove(path)
 
 

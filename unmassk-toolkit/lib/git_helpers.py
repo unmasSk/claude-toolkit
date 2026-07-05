@@ -56,7 +56,21 @@ def verify_path_within_project(path: str, project_root: str) -> str:
     resolved_root = os.path.realpath(project_root)
     resolved = os.path.realpath(path)
     valid_prefix = resolved_root + os.sep
-    if resolved == resolved_root or resolved.startswith(valid_prefix):
+
+    # Normalize case on Windows to handle drive-letter case mismatches and
+    # case-insensitive filesystem bypasses (mirrors
+    # hooks/validate-memory-path.py's existing pattern for the same class
+    # of check).
+    if sys.platform == "win32":
+        compare_resolved = os.path.normcase(resolved)
+        compare_root = os.path.normcase(resolved_root)
+        compare_prefix = os.path.normcase(valid_prefix)
+    else:
+        compare_resolved = resolved
+        compare_root = resolved_root
+        compare_prefix = valid_prefix
+
+    if compare_resolved == compare_root or compare_resolved.startswith(compare_prefix):
         return resolved
     raise UnsafePathError(
         f"Refusing to use path '{path}': it resolves to '{resolved}', "

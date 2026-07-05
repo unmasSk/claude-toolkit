@@ -196,10 +196,27 @@ def run_preboot_migrations(project_root: str | None) -> None:
     # 0. Clean session-booted flag (new session = fresh boot)
     if project_root:
         booted_flag = os.path.join(project_root, ".claude", ".unmassk", ".session-booted")
+        # SEC-HIGH-007: .claude may be a symlink to an external directory
+        # containing a real .session-booted file — os.remove() resolves
+        # symlinked PARENT components (unlike a symlinked final component,
+        # which os.remove()'s own unlink-not-follow-target semantics would
+        # already refuse to traverse). Deferred import (not module top
+        # level): tests/test_migrate_statusline.py stubs git_helpers only
+        # during THIS module's own load, never while run_preboot_migrations()
+        # is actually called, so importing here avoids ImportError against
+        # that stub. This function runs with no wrapping try/except on every
+        # SessionStart, so UnsafePathError is caught right here — fail
+        # closed (skip the cleanup) without ever crashing the boot.
+        from git_helpers import verify_path_within_project, UnsafePathError
         try:
-            os.remove(booted_flag)
-        except FileNotFoundError:
-            pass
+            verify_path_within_project(booted_flag, project_root)
+        except UnsafePathError:
+            pass  # escapes project_root — never touch it
+        else:
+            try:
+                os.remove(booted_flag)
+            except FileNotFoundError:
+                pass
 
     # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
     if project_root:

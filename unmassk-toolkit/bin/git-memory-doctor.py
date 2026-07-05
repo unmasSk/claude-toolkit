@@ -285,6 +285,14 @@ def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
     if not os.path.isfile(manifest_path):
         return None, "not found"
     try:
+        # SEC-HIGH-006: .claude may be a symlink to an external directory
+        # that already contains a real (non-symlink) manifest.json — the
+        # open_no_follow_symlink() guard below only protects against
+        # manifest.json ITSELF being a symlink, not a symlinked parent
+        # (.claude). Verify the resolved path stays inside project_root
+        # BEFORE reading, so an external manifest's fields (e.g. "version")
+        # are never read and therefore never leaked into --json output.
+        verify_path_within_project(manifest_path, project_root)
         # SEC-CRIT-NEW-06: never follow a symlink planted at the manifest
         # path — treat it exactly like "no manifest present", never read
         # or trust the target file's content as a real manifest.

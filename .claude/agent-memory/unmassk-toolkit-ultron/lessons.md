@@ -555,3 +555,79 @@ other sibling-module) import added to a `lib/*.py` file must be checked
 against how that file's OWN tests load it — grep the test file for
 `spec_from_file_location` + the module's filename before assuming a plain
 import will resolve.
+
+## bin/git-memory-bootstrap.py (953 LOC) and bin/git-memory-install.py (600 LOC) split — 2026-07-05
+
+Both files had grown well past the project's 500 LOC convention (bootstrap
+was never split across 10 rounds; install grew every round as security
+guards were added). Split pattern mirrors `hooks/session-start-boot.py`'s
+own precedent (boot_memory/boot_migrations/boot_render/boot_checks):
+
+- `bin/git-memory-bootstrap.py` (953 → 143 LOC) split into 4 sibling
+  `lib/` modules with NO cross-imports between them (all are pure functions
+  of their arguments, called only from the thin entrypoint):
+  `lib/bootstrap_tree.py` (dir walk + SIGNAL_FILES matching),
+  `lib/bootstrap_deps.py` (package.json/pyproject/monorepo/CI/existing-install),
+  `lib/bootstrap_commits.py` (git history), `lib/bootstrap_report.py`
+  (classify_findings/suggest_actions/format_human).
+- `bin/git-memory-install.py` (600 → 252 LOC) split into 2 modules with a
+  ONE-WAY dependency: `lib/install_apply.py` (Phase 3 execution) imports
+  `OLD_BIN_FILES`/`OLD_HOOK_FILES`/`OLD_LIB_FILES`/`OLD_SKILL_DIRS` from
+  `lib/install_inspect.py` (Phase 1 detection) rather than duplicating them
+  — `inspect()` and `_cleanup_old_install()` must agree on exactly which
+  files count as an old-style install. Never the reverse import.
+
+**Before splitting, grep the WHOLE test suite for `mod.attr` patterns**
+(same rule as the boot_render.py split lesson above) — this is what
+determined which functions/constants had to be re-exported by name (not
+`import *`) into the thin entrypoint file:
+- `bootstrap.py` needed: `check_existing_memory`, `scan_tree`,
+  `detect_monorepo`, `detect_ci_commitlint` (probed directly via
+  `importlib.util.spec_from_file_location` in
+  `tests/test_security_regression.py`).
+- `install.py` needed: `inspect`, `_update_claude_md` (same test file);
+  PLUS `OLD_BIN_FILES`, `OLD_HOOK_FILES`, `_cleanup_old_install`,
+  `_update_claude_md` (consumed by `bin/git-memory-upgrade.py`'s
+  `_load_install_module()` at runtime, not just in tests); PLUS
+  `_update_claude_md`, `_create_manifest` (consumed by
+  `bin/git-memory-repair.py`'s `repair_issue()`). Missing any one of these
+  breaks a DIFFERENT script at runtime, not just a test — check non-test
+  callers (`grep -rn "install_mod\.\|_load_install_module"`) in addition to
+  tests before finalizing which names to re-export.
+- Neither file's tests stub `git_helpers`/`parsing` around
+  `spec_from_file_location` loads (only `tests/test_migrate_statusline.py`
+  does that, and only for `hooks/session-start-boot.py`) — confirmed via
+  `grep -n 'sys.modules\[.git_helpers.\]'` across the whole test dir before
+  concluding plain module-level imports (no defensive try/except) were
+  safe in the 6 new `lib/bootstrap_*.py` / `lib/install_*.py` modules.
+
+**Dead code found and removed during the bootstrap_tree.py extraction**:
+`scan_signal_files()` had a literal `for dirpath in (tree_files): pass  #
+Already handled above` loop — zero effect on any variable, confirmed by
+inspection. Removed as part of the split (not a behavior change, so no new
+test needed) rather than carried forward into the new module.
+
+**Known follow-up, explicitly NOT done this round**: `bin/git-memory-doctor.py`
+was already 510 LOC before this session (already over the 500 LOC
+convention); a since-added `verify_path_within_project()` security fix
+(SEC-HIGH-006, same session) pushed it to 518. Splitting it was out of
+scope for the task that prompted this entry — flagged here as a future
+candidate, same shape as bootstrap.py/install.py (grown over many rounds
+of security-guard additions, never split).
+
+## plan["skipped"] dead-loop in git-memory-install.py: populate, don't delete, when a silent-no-op branch already exists
+
+`bin/git-memory-install.py`'s `main()` had `for desc in plan["skipped"]:
+print(...)` — dead forever because `create_plan()` initialized
+`plan["skipped"] = []` and never appended to it. Grepped the whole repo
+first (`grep -rn '"skipped"'`) — zero test references, safe to change
+either way. Chose to populate rather than delete: `create_plan()` already
+had a silent no-op branch (`if report["has_old_install"] and not is_self:
+append cleanup_old` — when `is_self` is True, nothing happened, no
+explanation surfaced). Added the `else: plan["skipped"].append(...)`
+branch so the self-install condition is now reported instead of silently
+swallowed. Rule: when a dead loop exists BECAUSE a list is never
+populated, check whether the surrounding function already has a
+"detected a condition but did nothing about it" branch before defaulting
+to deleting the loop — populating it can turn a silent gap into
+information the plan printout should have shown all along.
