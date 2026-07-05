@@ -641,3 +641,71 @@ test — reasoning about the code alone led to an initially-wrong assumption
 here (see the path-traversal note above) that only got caught by testing.
 Confirmed in `test_security_regression.py::TestBugIRepairDiagnoseTrustsSymlinkedManifest`
 / `TestBugJBootstrapManifestSymlinkAndVersionLeak` (session 2026-07-05).
+
+## BUG Y class (`.claude` itself a symlinked parent) has more sites than the
+## chokepoint's first 3 verified scenarios — sweep by call shape, not by name
+
+`lib/git_helpers.py`'s `verify_path_within_project()`/`ensure_runtime_dir()`
+chokepoint (added for BUG Y, confirmed correct for 3 scenarios in
+`TestBugYClaudeDirSymlinkBypassesAllGuards`) does NOT automatically protect
+every `.claude`-touching call site — it only helps where a site is actually
+routed through it. Argus/Cerberus found 5 more unmigrated sites in the same
+audit round (session 2026-07-05), tests written test-first as
+`TestBugZ...` / `TestBugAA...` / `TestBugAB...` / `TestBugAC...` /
+`TestBugAD...` (letters exhausted at Y, continued AA/AB/... not "Z2" etc.):
+
+1. **`_cleanup_old_install()` (install.py) / `remove_old_install_files()`
+   (uninstall.py)** — most severe, DESTRUCTIVE: both do
+   `shutil.rmtree(target/.claude/hooks_or_skills)` with zero guard. If
+   `.claude` symlinks to an external dir whose `hooks/`/`skills/` subdir
+   contains only symlinks (real old-install shape — `all_symlinks` check
+   passes), the external directory gets destroyed outright. PoC helper
+   `_make_symlink_farm(dir_path, subdir_name)` builds that exact shape
+   (dangling symlink targets are fine, only `os.path.islink()` is checked).
+   `install.py` needs `has_old_install=True` first — trivially triggered by
+   dropping any one `OLD_HOOK_FILES` path (e.g. `hooks/session-start-boot.py`)
+   at the real project root (unrelated to the `.claude` symlink);
+   `uninstall.py` calls its version unconditionally, no gating needed.
+2. **`_write_glossary_cache()`** (`lib/boot_memory.py`) — unguarded
+   `os.makedirs(os.path.dirname(path), exist_ok=True)`. Reachable via the
+   real `session-start-boot.py` subprocess (`extract_glossary_cached()` runs
+   on every boot) — same driving pattern as `TestBugY`'s boot-hook test.
+3. **`.session-booted` flag's parent dir** (`user-prompt-memory-check.py`)
+   — `open_no_follow_symlink()` on the flag file itself only guards the
+   FINAL component (fixed for BUG L); the `os.makedirs(runtime_dir,
+   exist_ok=True)` one line above it is unguarded. To reach this branch the
+   hook needs `needs_install(root) == False` first (checks CLAUDE.md content
+   only, unrelated to the manifest) — run `INSTALL --auto` once before
+   planting the symlink: `update_claude_md` runs before `create_manifest` in
+   `apply_plan()`, so CLAUDE.md's managed block gets written even though
+   `create_manifest` is correctly rejected by the BUG Y guard when `.claude`
+   is already a symlink at install time.
+4. **`_migrate_runtime_to_unmassk()`** — duplicated near-identically in
+   `lib/boot_migrations.py` (runs every boot via `run_preboot_migrations()`)
+   and `bin/git-memory-upgrade.py` (runs inside `apply_upgrade()`). Both
+   have zero `git_helpers` import, so no sys.modules stub-contamination risk
+   — safe to call directly via the `spec_from_file_location` + `exec_module`
+   probe pattern with the real `project_root`, no subprocess-chain needed.
+   Trigger condition: a legacy file (`git-memory-manifest.json`,
+   `.glossary-cache.json`, `.session-booted`, or `git-memory-scopes.json`)
+   present at wherever `.claude` resolves to.
+5. **doctor.py's healthcheck-timestamp rewrite** (lowest severity, optional)
+   — `open_no_follow_symlink()` already guards the FINAL manifest.json
+   component (BUG F fix), but a REAL (non-symlink) manifest.json sitting
+   inside an externally-resolved `.claude` still gets its
+   `last_healthcheck_at` silently rewritten — O_NOFOLLOW never objects
+   because the final component genuinely isn't a symlink, only an
+   intermediate directory is. Proves the parent-symlink gap is orthogonal to
+   (and not fixed by) every prior final-component guard.
+
+**Lesson for any future `.claude`-parent-symlink sweep**: grep for
+`os.makedirs(` and `shutil.rmtree(` (not just `open(`) across `bin/`,
+`hooks/`, `lib/` — the destructive/creating operations are the ones that
+follow a symlinked intermediate directory silently; `open_no_follow_symlink()`
+call sites are already covered by the BUG D-X sweep and are a red herring for
+this specific bug class unless the *directory containing* the opened file is
+itself unguarded. All 7 tests written test-first (contract before Ultron's
+fix), confirmed RED against the live, unmodified code and 0 regressions in
+the file's other 56 tests. See
+`test_security_regression.py::TestBugZCleanupOldInstallDestroysExternalClaudeDir`
+onward.

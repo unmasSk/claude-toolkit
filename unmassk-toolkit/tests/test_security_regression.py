@@ -381,6 +381,58 @@ validate-memory-path.py's existing pattern, most naturally centralized in
 ensure_runtime_dir() plus each direct .claude/settings.json touch point)
 they must be GREEN: no write ever lands outside the repo, and the
 operation fails safely (rejected) rather than silently redirecting.
+
+BUG Z through AD — 5 more sites of the BUG Y class (.claude itself a
+symlinked parent) that still bypass lib/git_helpers.py's
+verify_path_within_project()/ensure_runtime_dir() chokepoint (Cerberus/Argus,
+9th audit round, live-reproduced)
+--------------------------------------------------------------------------
+BUG Y proved the chokepoint is correct for 3 scenarios (install's manifest
+write, boot's manifest+boot-log write, install's settings.json read/write)
+and fixed all 3 by routing through verify_path_within_project()/
+ensure_runtime_dir(). These 5 sites simply never got migrated to that
+chokepoint — same root cause, different call sites:
+
+BUG Z (SEC-CRIT-002, most severe — DESTRUCTIVE):
+bin/git-memory-install.py:_cleanup_old_install() and its near-duplicate
+bin/git-memory-uninstall.py:remove_old_install_files() both do
+`shutil.rmtree(path)` on `.claude/hooks`/`.claude/skills` with no chokepoint
+guard. If .claude is a symlink to an external directory whose hooks/ or
+skills/ subdirectory contains only symlinks (the exact shape of a real
+old-style install), the resolved external directory is destroyed outright.
+Reachable with zero user action: user-prompt-memory-check.py's Case 1.5
+triggers `install.py --auto` on its own on the very first message of a
+session whenever an upgrade looks needed.
+
+BUG AA (SEC-HIGH-003): lib/boot_memory.py:_write_glossary_cache() does
+`os.makedirs(os.path.dirname(path), exist_ok=True)` before writing
+glossary-cache.json, with no chokepoint guard. Runs on every boot via
+extract_glossary_cached().
+
+BUG AB (SEC-HIGH-004): hooks/user-prompt-memory-check.py creates the runtime
+dir with `os.makedirs(runtime_dir, exist_ok=True)` before writing the
+.session-booted flag, with no chokepoint guard. Runs on every message.
+
+BUG AC (SEC-HIGH-005): lib/boot_migrations.py:_migrate_runtime_to_unmassk()
+(runs on every boot via run_preboot_migrations()) and its near-identical
+copy in bin/git-memory-upgrade.py (runs during apply_upgrade()) both move
+legacy runtime files into `.claude/.unmassk/` via os.makedirs()/os.rename()
+with no chokepoint guard — reachable whenever a legacy file
+(git-memory-manifest.json, .glossary-cache.json, .session-booted, or
+git-memory-scopes.json) is present at the location .claude resolves to.
+
+BUG AD (SEC-LOW-006, optional, lowest impact): bin/git-memory-doctor.py's
+run_doctor() already uses open_no_follow_symlink() for the FINAL manifest.json
+component (fixed for BUG F / SEC-CRIT-NEW-06), but that only protects against
+manifest.json itself being a symlink — it does nothing if the PARENT .claude
+is symlinked to a directory that already contains a real (non-symlink)
+manifest.json. Every real doctor run rewrites that external file's
+last_healthcheck_at timestamp.
+
+These tests are RED now (or, for BUG AD, the external file's content
+changes). After Ultron's fix (routing each site through
+verify_path_within_project()/ensure_runtime_dir(), the same chokepoint BUG Y
+already established) they must be GREEN.
 """
 
 import json
@@ -2553,6 +2605,411 @@ class TestBugYClaudeDirSymlinkBypassesAllGuards:
             "SEC-CRIT-NEW (BUG Y): a RELATIVE symlink at .claude was "
             "followed just like the absolute case, modifying settings.json "
             f"outside the repo. install rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}\n"
+            f"before: {raw_before!r}\nafter: {raw_after!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG Z — _cleanup_old_install()/remove_old_install_files() destroy an
+# external .claude/hooks or .claude/skills directory when .claude is a
+# symlinked parent (SEC-CRIT-002, most severe of the 5 new sites) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _make_symlink_farm(dir_path, subdir_name, num_entries=1):
+    """Create dir_path/subdir_name/ containing only symlink entries — the
+    exact shape _cleanup_old_install()/remove_old_install_files() treat as
+    "safe to rmtree" (the real old-style-install pattern: .claude/hooks full
+    of symlinks pointing into the plugin cache). Targets need not exist —
+    only os.path.islink() is checked, never resolution success."""
+    subdir = dir_path / subdir_name
+    subdir.mkdir()
+    for i in range(num_entries):
+        os.symlink(
+            f"/nonexistent-old-install-target-{subdir_name}-{i}",
+            str(subdir / f"managed-file-{i}.py"),
+        )
+    return subdir
+
+
+class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
+    """SEC-CRIT-002: .claude symlinked to an external, pre-existing directory
+    whose hooks/ or skills/ subdirectory contains only symlinks (old-install
+    shape) gets that external directory destroyed by a plain
+    shutil.rmtree() — in both git-memory-install.py and
+    git-memory-uninstall.py, neither of which routes through
+    verify_path_within_project()/ensure_runtime_dir()."""
+
+    def test_install_auto_does_not_rmtree_external_hooks_or_skills_dirs(self, tmp_path):
+        """
+        RED: `git-memory-install.py --auto` must not delete an external
+        directory's hooks/ or skills/ subdirectory just because .claude is a
+        symlink pointing at it.
+
+        Root cause: _cleanup_old_install() (bin/git-memory-install.py:
+        lines 329-338) resolves `.claude/hooks` and `.claude/skills` through
+        the symlinked .claude and calls shutil.rmtree() on whatever they
+        resolve to, with no chokepoint guard.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-claude-real-home-install"
+        external_dir.mkdir()
+        external_hooks = _make_symlink_farm(external_dir, "hooks")
+        external_skills = _make_symlink_farm(external_dir, "skills")
+        marker = external_dir / "UNRELATED-OTHER-PLUGIN-DATA.txt"
+        marker.write_text("must survive untouched")
+
+        # Trigger has_old_install (unrelated to the .claude symlink — a
+        # plain leftover file at the project root from a prior old-style
+        # install; OLD_HOOK_FILES includes "hooks/session-start-boot.py").
+        os.makedirs(os.path.join(repo, "hooks"), exist_ok=True)
+        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w") as f:
+            f.write("# leftover old-style install file\n")
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
+
+        assert external_hooks.is_dir(), (
+            "SEC-CRIT-002: git-memory-install.py --auto's "
+            "_cleanup_old_install() followed the symlinked .claude directory "
+            f"and deleted the external hooks/ directory at {external_hooks} "
+            f"via shutil.rmtree(). rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert external_skills.is_dir(), (
+            "SEC-CRIT-002: git-memory-install.py --auto's "
+            "_cleanup_old_install() followed the symlinked .claude directory "
+            f"and deleted the external skills/ directory at {external_skills} "
+            f"via shutil.rmtree(). rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert marker.exists(), (
+            "The external directory itself was affected beyond its "
+            f"hooks/skills subdirs — unrelated marker file at {marker} is gone."
+        )
+
+    def test_uninstall_auto_does_not_rmtree_external_hooks_or_skills_dirs(self, tmp_path):
+        """
+        RED: `git-memory-uninstall.py --auto` calls
+        remove_old_install_files() unconditionally on every run (no
+        has_old_install gating) — it must not delete an external directory's
+        hooks/ or skills/ subdirectory just because .claude is a symlink
+        pointing at it.
+        """
+        repo = _make_repo(tmp_path)
+
+        external_dir = tmp_path / "external-claude-real-home-uninstall"
+        external_dir.mkdir()
+        external_hooks = _make_symlink_farm(external_dir, "hooks")
+        external_skills = _make_symlink_farm(external_dir, "skills")
+        marker = external_dir / "UNRELATED-OTHER-PLUGIN-DATA.txt"
+        marker.write_text("must survive untouched")
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
+
+        assert external_hooks.is_dir(), (
+            "SEC-CRIT-002: git-memory-uninstall.py --auto's "
+            "remove_old_install_files() followed the symlinked .claude "
+            f"directory and deleted the external hooks/ directory at "
+            f"{external_hooks} via shutil.rmtree(). rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert external_skills.is_dir(), (
+            "SEC-CRIT-002: git-memory-uninstall.py --auto's "
+            "remove_old_install_files() followed the symlinked .claude "
+            f"directory and deleted the external skills/ directory at "
+            f"{external_skills} via shutil.rmtree(). rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert marker.exists(), (
+            "The external directory itself was affected beyond its "
+            f"hooks/skills subdirs — unrelated marker file at {marker} is gone."
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AA — _write_glossary_cache() creates glossary-cache.json outside the
+# repo when .claude is a symlinked parent (SEC-HIGH-003) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugAAGlossaryCacheClaudeDirSymlink:
+    """.claude symlinked to an external, pre-existing directory must not
+    receive a glossary-cache.json write from session-start-boot.py's normal,
+    automatic boot flow.
+
+    Root cause: lib/boot_memory.py:_write_glossary_cache() (line 471) calls
+    os.makedirs(os.path.dirname(path), exist_ok=True) before writing
+    .claude/.unmassk/glossary-cache.json, with no
+    verify_path_within_project()/ensure_runtime_dir() guard — unlike the
+    manifest/boot-log writers already fixed for BUG Y.
+    extract_glossary_cached() (which calls this) runs unconditionally on
+    EVERY boot via hooks/session-start-boot.py's main(), with zero user
+    action required.
+    """
+
+    def test_boot_does_not_write_glossary_cache_outside_repo_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-glossary"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo, timeout=60)
+
+        leaked_glossary_cache = external_dir / ".unmassk" / "glossary-cache.json"
+        assert not leaked_glossary_cache.exists(), (
+            "SEC-HIGH-003: session-start-boot.py's extract_glossary_cached() "
+            "followed a symlinked .claude directory and wrote "
+            f"glossary-cache.json outside the repo, at {leaked_glossary_cache}. "
+            f"rc={rc}\nstdout (first 500): {stdout[:500]}\n"
+            f"stderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AB — user-prompt-memory-check.py creates the runtime dir (and the
+# booted flag inside it) outside the repo when .claude is a symlinked parent
+# (SEC-HIGH-004) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugABBootedFlagRuntimeDirClaudeDirSymlink:
+    """.claude symlinked to an external, pre-existing directory must not
+    receive a .unmassk/ directory nor a .session-booted flag from
+    user-prompt-memory-check.py's normal first-message flow.
+
+    Root cause: hooks/user-prompt-memory-check.py (lines 229-233) does
+    `os.makedirs(runtime_dir, exist_ok=True)` then
+    `open_no_follow_symlink(booted_flag, "w")`. open_no_follow_symlink()
+    only guards the FINAL component (.session-booted itself, fixed for
+    BUG L) — it does nothing for a symlinked .claude parent, and the flag
+    file is a brand-new file (not itself a pre-existing symlink), so
+    O_NOFOLLOW never objects to it landing inside the resolved external
+    directory. Runs on every first message of a session, with zero user
+    action required (once installed).
+    """
+
+    def test_hook_does_not_create_runtime_dir_or_booted_flag_outside_repo_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-bootedflag"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        # Install first so needs_install() is False and the hook reaches the
+        # booted-flag-write branch instead of exiting early at "not
+        # installed". update_claude_md runs before create_manifest in
+        # apply_plan(), so CLAUDE.md's managed block is written even though
+        # create_manifest is correctly rejected by the BUG Y guard (.claude
+        # is a symlink) — needs_install() only checks CLAUDE.md content.
+        run_script(INSTALL, repo, extra_args=["--auto"])
+
+        payload = json.dumps({"prompt": "hello"})
+        rc, stdout, stderr = _run_hook_with_payload(HOOK_USER_PROMPT_CHECK, repo, payload)
+
+        leaked_runtime_dir = external_dir / ".unmassk"
+        leaked_booted_flag = leaked_runtime_dir / ".session-booted"
+        assert not leaked_booted_flag.exists(), (
+            "SEC-HIGH-004: user-prompt-memory-check.py followed a symlinked "
+            ".claude directory and created .session-booted outside the repo, "
+            f"at {leaked_booted_flag}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+        assert not leaked_runtime_dir.exists(), (
+            "SEC-HIGH-004: user-prompt-memory-check.py's unguarded "
+            "os.makedirs(runtime_dir, exist_ok=True) created .unmassk/ "
+            f"outside the repo, at {leaked_runtime_dir}. rc={rc}\n"
+            f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AC — _migrate_runtime_to_unmassk() (duplicated in lib/boot_migrations.py
+# and bin/git-memory-upgrade.py) moves/creates files inside an
+# externally-resolved .claude when .claude is a symlinked parent
+# (SEC-HIGH-005) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _call_migrate_runtime_to_unmassk_boot_migrations(project_root):
+    """Call lib/boot_migrations.py's _migrate_runtime_to_unmassk(project_root)
+    directly, in an isolated subprocess.
+
+    This module has no git_helpers import at all (module-level or deferred),
+    so there is no sys.modules stub-contamination risk (see
+    unmassk-toolkit-python-test-conventions.md) — a plain
+    spec_from_file_location + exec_module in a throwaway subprocess is
+    sufficient isolation.
+    """
+    code = f"""
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "boot_migrations_probe", {repr(os.path.join(LIB_DIR, "boot_migrations.py"))})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod._migrate_runtime_to_unmassk({repr(project_root)})
+print("OK")
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0 or "OK" not in proc.stdout:
+        raise RuntimeError(
+            f"_migrate_runtime_to_unmassk (boot_migrations) failed "
+            f"(rc={proc.returncode}): {proc.stderr}"
+        )
+
+
+def _call_migrate_runtime_to_unmassk_upgrade(target):
+    """Call bin/git-memory-upgrade.py's _migrate_runtime_to_unmassk(target)
+    directly, in an isolated subprocess (same pattern already used for
+    check_upgrade_needed() probes in this file)."""
+    code = f"""
+import importlib.util
+spec = importlib.util.spec_from_file_location("upgrade_migrate_probe", {repr(UPGRADE)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod._migrate_runtime_to_unmassk({repr(target)})
+print("OK")
+"""
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    if proc.returncode != 0 or "OK" not in proc.stdout:
+        raise RuntimeError(
+            f"_migrate_runtime_to_unmassk (upgrade) failed "
+            f"(rc={proc.returncode}): {proc.stderr}"
+        )
+
+
+class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
+    """SEC-HIGH-005: _migrate_runtime_to_unmassk() — duplicated
+    near-identically in lib/boot_migrations.py (runs on every boot via
+    run_preboot_migrations()) and bin/git-memory-upgrade.py (runs during
+    apply_upgrade()) — moves/creates files inside an externally-resolved
+    .claude when .claude itself is a symlink, because neither copy uses
+    verify_path_within_project()/ensure_runtime_dir(). Triggered whenever a
+    legacy file (git-memory-manifest.json, .glossary-cache.json,
+    .session-booted, or git-memory-scopes.json) is present at the location
+    .claude resolves to."""
+
+    def test_boot_migrations_module_does_not_touch_external_dir(self, tmp_path):
+        """
+        RED: calling lib/boot_migrations.py's _migrate_runtime_to_unmassk()
+        with a project_root whose .claude is a symlink must not create
+        .unmassk/ nor move the legacy manifest file inside the external
+        directory it resolves to.
+        """
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-migrate-bootmod"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        # Legacy file the migration is designed to move — planted directly
+        # at the external location .claude resolves to.
+        legacy_manifest = external_dir / "git-memory-manifest.json"
+        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}))
+
+        _call_migrate_runtime_to_unmassk_boot_migrations(repo)
+
+        leaked_unmassk_dir = external_dir / ".unmassk"
+        assert not leaked_unmassk_dir.exists(), (
+            "SEC-HIGH-005: lib/boot_migrations.py's "
+            "_migrate_runtime_to_unmassk() followed the symlinked .claude "
+            f"directory and created .unmassk/ inside the external directory "
+            f"at {leaked_unmassk_dir}."
+        )
+        assert legacy_manifest.exists(), (
+            "SEC-HIGH-005: the legacy manifest file at the external "
+            f"location {legacy_manifest} was moved/removed by the migration "
+            "instead of being left untouched."
+        )
+
+    def test_upgrade_module_does_not_touch_external_dir(self, tmp_path):
+        """
+        RED: calling bin/git-memory-upgrade.py's
+        _migrate_runtime_to_unmassk() with a target whose .claude is a
+        symlink must not create .unmassk/ nor move the legacy manifest file
+        inside the external directory it resolves to.
+        """
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-migrate-upgrademod"
+        external_dir.mkdir()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        legacy_manifest = external_dir / "git-memory-manifest.json"
+        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}))
+
+        _call_migrate_runtime_to_unmassk_upgrade(repo)
+
+        leaked_unmassk_dir = external_dir / ".unmassk"
+        assert not leaked_unmassk_dir.exists(), (
+            "SEC-HIGH-005: bin/git-memory-upgrade.py's "
+            "_migrate_runtime_to_unmassk() followed the symlinked .claude "
+            f"directory and created .unmassk/ inside the external directory "
+            f"at {leaked_unmassk_dir}."
+        )
+        assert legacy_manifest.exists(), (
+            "SEC-HIGH-005: the legacy manifest file at the external "
+            f"location {legacy_manifest} was moved/removed by the migration "
+            "instead of being left untouched."
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BUG AD — doctor.py rewrites manifest.json's healthcheck timestamp inside an
+# externally-resolved .claude when .claude is a symlinked parent
+# (SEC-LOW-006, optional / lowest impact of the 5 new sites) — RED now
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBugADDoctorManifestTimestampRewriteClaudeDirSymlink:
+    """.claude symlinked to an external directory containing a real
+    manifest.json must not have that file's content changed by
+    `git memory doctor`.
+
+    Root cause: bin/git-memory-doctor.py:run_doctor() (lines 470-481)
+    already uses open_no_follow_symlink() for the FINAL manifest.json
+    component (fixed for BUG F / SEC-CRIT-NEW-06), but that only protects
+    against manifest.json itself being a symlink — it does nothing if the
+    PARENT .claude is symlinked to a directory that already contains a real
+    (non-symlink) manifest.json. Every real doctor run then reads that
+    external file and rewrites its last_healthcheck_at timestamp. Lower
+    severity than the other 4 sites (read+timestamp-rewrite only, not a
+    destructive rmtree or a write to a brand-new path) but proves the same
+    parent-symlink gap reaches this call site too.
+    """
+
+    def test_doctor_does_not_rewrite_external_manifest_when_claude_dir_is_symlinked(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        external_dir = tmp_path / "external-claude-target-doctor"
+        external_unmassk = external_dir / ".unmassk"
+        external_unmassk.mkdir(parents=True)
+
+        victim_manifest = external_unmassk / "manifest.json"
+        victim_content = {
+            "version": "0.0.1-DOCTOR-VICTIM",
+            "installed_at": "2020-01-01T00:00:00",
+            "runtime_mode": "normal",
+        }
+        victim_manifest.write_text(json.dumps(victim_content, indent=2))
+        raw_before = victim_manifest.read_bytes()
+
+        claude_path = os.path.join(repo, ".claude")
+        os.symlink(str(external_dir), claude_path)
+
+        rc, stdout, stderr = run_script(DOCTOR, repo, extra_args=["--json"])
+
+        raw_after = victim_manifest.read_bytes()
+        assert raw_after == raw_before, (
+            "SEC-LOW-006: git-memory-doctor.py followed a symlinked .claude "
+            "directory and rewrote the external manifest.json's healthcheck "
+            f"timestamp, at {victim_manifest}. rc={rc}\n"
             f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}\n"
             f"before: {raw_before!r}\nafter: {raw_after!r}"
         )
