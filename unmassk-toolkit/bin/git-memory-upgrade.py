@@ -31,7 +31,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, open_no_follow_symlink
+from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS, all_blocks_present, any_block_outdated
 from parsing import sanitize_trailer_value
 from version import VERSION
@@ -158,6 +158,15 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
     """
     claude_dir = os.path.join(target, ".claude")
     backup_dir = os.path.join(claude_dir, "backups")
+    # BUG Y / SEC-CRIT-NEW variant: same os.makedirs()-follows-a-directory-
+    # symlink-at-.claude gap as _create_manifest()/apply_upgrade() above,
+    # for the backups directory. Left unguarded here, this call is not
+    # wrapped in try/except by its only caller (main()) — an UnsafePathError
+    # propagates as an uncaught exception, which is an acceptable fail-closed
+    # outcome for this explicit, user-triggered CLI command (non-zero exit,
+    # no silent write outside the repo) even though it isn't as clean as the
+    # try/except-wrapped call sites elsewhere in this file.
+    verify_path_within_project(backup_dir, target)
     os.makedirs(backup_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -279,6 +288,13 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
     try:
         mode = manifest.get("runtime_mode", "normal")
         claude_dir = os.path.join(target, ".claude")
+        # BUG Y / SEC-CRIT-NEW (same variant as install.py's
+        # _create_manifest()): os.makedirs() silently follows a directory
+        # symlink at .claude that resolves outside the repo. Verify before
+        # creating anything — this whole block is already wrapped in the
+        # `except Exception as e: errors.append(...)` a few lines below, so
+        # raising here fails this action closed instead of crashing upgrade.
+        verify_path_within_project(claude_dir, target)
         os.makedirs(claude_dir, exist_ok=True)
 
         new_manifest = {
@@ -302,6 +318,9 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
         }
 
         unmassk_dir = os.path.join(claude_dir, ".unmassk")
+        # Defense in depth: .unmassk itself could independently be a
+        # symlink escaping the repo even when .claude (just verified) is not.
+        verify_path_within_project(unmassk_dir, target)
         os.makedirs(unmassk_dir, exist_ok=True)
         manifest_path = os.path.join(unmassk_dir, "manifest.json")
         # SEC-HIGH-NEW-03 (Argus): symlink-safe write — same guard as

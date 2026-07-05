@@ -30,7 +30,7 @@ from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
-from git_helpers import run_git, ensure_gitignore, open_no_follow_symlink
+from git_helpers import run_git, ensure_gitignore, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
@@ -362,6 +362,16 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
     hooks.json, these entries are stale and should be removed.
     """
     settings_path = os.path.join(target, ".claude", "settings.json")
+
+    # BUG Y / SEC-CRIT-NEW: if .claude itself is a symlink pointing outside
+    # the repo (not just settings.json — the parent directory), this must
+    # be treated as "settings.json is unsafe to touch", never silently
+    # read/modified through the symlinked directory. Raises UnsafePathError
+    # (subclass of OSError), caught by apply_plan()'s existing
+    # `except Exception` around this action — fails the install action
+    # instead of touching anything outside the repo.
+    verify_path_within_project(settings_path, target)
+
     if not os.path.isfile(settings_path):
         return
 
@@ -415,6 +425,15 @@ def _update_claude_md(target: str) -> None:
 def _create_manifest(target: str, mode: str) -> None:
     """Create .claude/.unmassk/manifest.json with install metadata."""
     claude_dir = os.path.join(target, ".claude")
+    # BUG Y / SEC-CRIT-NEW: os.makedirs() silently follows a directory
+    # symlink at .claude (or .claude/.unmassk) that resolves to a real,
+    # existing directory outside the repo — every file-level
+    # open_no_follow_symlink() guard below is moot if the write lands
+    # inside that external directory instead. Verify BEFORE creating
+    # anything. Raises UnsafePathError (OSError subclass); apply_plan()'s
+    # `except Exception` around this action (and repair.py's per-issue
+    # try/except) already fail the calling action closed on this.
+    verify_path_within_project(claude_dir, target)
     os.makedirs(claude_dir, exist_ok=True)
 
     manifest = {
@@ -437,6 +456,9 @@ def _create_manifest(target: str, mode: str) -> None:
     }
 
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
+    # Defense in depth: .unmassk itself could independently be a symlink
+    # escaping the repo even when .claude (just verified above) is not.
+    verify_path_within_project(unmassk_dir, target)
     os.makedirs(unmassk_dir, exist_ok=True)
     manifest_path = os.path.join(unmassk_dir, "manifest.json")
     # SEC-HIGH-NEW-03 (Argus): symlink-safe write, matching

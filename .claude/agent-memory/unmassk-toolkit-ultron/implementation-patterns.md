@@ -607,6 +607,18 @@ In `MessageList.tsx`, the pattern for loading older messages on scroll-to-top:
 
 The `prependHistory` store action already sets `isLoadingHistory: false` — no manual reset needed after WS response. The `history_page` WS case in `ws-store.ts` calls `chatStore.prependHistory()` which handles both prepend and flag reset in one atomic store update.
 
+## verify_path_within_project() — guards symlinked PARENT dirs, not just the final file (unmassk-toolkit, 2026-07-05)
+
+`lib/git_helpers.py` — `verify_path_within_project(path, project_root) -> str` (raises `UnsafePathError`, a subclass of `OSError`).
+
+BUG Y / SEC-CRIT-NEW: every prior symlink guard in this codebase (`open_no_follow_symlink()`) only protects the FINAL path component being opened. If `.claude` itself is a directory symlink (git blob mode 120000) pointing outside the repo, `os.makedirs()` silently follows it and every "safe" file-level write lands outside the project anyway — none of the file-level guards ever get a chance to fire.
+
+Fix pattern (mirrors `hooks/validate-memory-path.py`'s existing approach): `os.path.realpath(path)` resolves every symlinked component of a path, INCLUDING intermediate ones, even when the tail doesn't exist yet (verified empirically — a nonexistent tail appended to an already-resolved symlinked parent is left literal, not an error). Compare against `os.path.realpath(project_root) + os.sep` as an exact directory-boundary prefix (never a bare substring check). No manual "walk up to nearest existing ancestor" logic needed — plain `os.path.realpath()` already handles both existing and not-yet-created paths correctly on POSIX.
+
+`UnsafePathError` deliberately subclasses `OSError` so every call site that already wraps its `.claude`-touching code in `except OSError`/`except Exception` (nearly all of them in this codebase: `apply_plan()` in install.py, `repair_issue()`'s per-issue try/except in repair.py, `apply_upgrade()`'s per-block try/except in upgrade.py, `write_boot_log()`'s try/except OSError) fails closed automatically — zero call-site changes needed beyond adding the `verify_path_within_project(...)` call itself.
+
+Applied to: `ensure_runtime_dir()` (the shared chokepoint — fixes `write_boot_log()` for free), plus 5 direct call sites that build `.claude/`-rooted paths WITHOUT going through that chokepoint: `git-memory-install.py::_create_manifest()` (claude_dir AND unmassk_dir, both checked — .unmassk could independently be symlinked even if .claude isn't), `_cleanup_stale_settings_hooks()` (settings_path, checked before either the read or the write-back), and the mirror-image sites in `git-memory-upgrade.py::apply_upgrade()` (claude_dir, unmassk_dir) and `create_backup()` (backup_dir). Repair's manifest-recreate path (`bin/git-memory-repair.py::repair_issue()`) needed no direct edit — it calls `install.py`'s already-guarded `_create_manifest()` in-process via `spec_from_file_location`.
+
 ## truncatePath helper in agent-prompt.ts (2026-03-21)
 
 `truncatePath(path, maxLen=60)` lives just above `formatToolDescription` in `agent-prompt.ts`.
