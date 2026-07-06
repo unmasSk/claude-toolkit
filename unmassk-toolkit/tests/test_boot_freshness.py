@@ -327,7 +327,7 @@ class TestIncidentBehindShowsRemoteNext:
         )
         assert re.search(r"remot", next_line, re.IGNORECASE), (
             "Expected the remote Next line to carry a remote-provenance "
-            f"label (e.g. '[origen: remoto]'). Got line: {next_line!r}"
+            f"label (e.g. '[source: remote]'). Got line: {next_line!r}"
         )
 
 

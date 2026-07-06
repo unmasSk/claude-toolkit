@@ -368,6 +368,18 @@ def render_consolidation_section() -> list[str]:
 FETCH_RATE_LIMIT_SECONDS = 300  # skip the fetch if .git/FETCH_HEAD is younger than this
 FETCH_TIMEOUT_SECONDS = 3  # short bounded timeout — replaces the old BOOT_FETCH_TIMEOUT=5
 
+# Known residual (Argus SEC-LOW-001, accepted deliberately, not a bug):
+# .git/FETCH_HEAD's mtime is plain local filesystem state, writable by
+# anything with repo access (touch, a crafted checkout, clock changes).
+# The rate limit above and _fetch_head_age_seconds() below trust it as-is.
+# This is intentional — the gate exists purely to avoid redundant network
+# fetches on every boot, not to prove or enforce when a fetch last really
+# happened. A tampered/backdated mtime can only ever cause an extra (or
+# skipped) fetch attempt; every actual freshness claim in the rendered
+# stamp still comes from the fetch's own real exit code, never from this
+# timestamp. Treat it as a best-effort optimization, not a security
+# control.
+
 # GIT_TERMINAL_PROMPT=0 + neutralized askpass + BatchMode=yes: guarantees the
 # boot-time fetch can never hang on an interactive credential prompt.
 #
@@ -377,7 +389,20 @@ FETCH_TIMEOUT_SECONDS = 3  # short bounded timeout — replaces the old BOOT_FET
 # whenever a real GIT_ASKPASS/SSH_ASKPASS happened to be missing/broken
 # already. `cmd /c exit 1` is the Windows equivalent: it exists on every
 # Windows install and returns non-zero immediately with no prompt.
-_ASKPASS_FAILFAST = "cmd /c exit 1" if sys.platform == "win32" else "/bin/false"
+#
+# Argus (low portability, repair round 2): git invokes GIT_ASKPASS/
+# SSH_ASKPASS as a single literal argv[0] (prompt.c's do_askpass() never
+# shell-splits the value — only prepare_shell_cmd(), used for a different
+# knob like GIT_SSH_COMMAND, does that). A hardcoded absolute path like
+# `/bin/false` is not portable: it doesn't exist on macOS (only
+# `/usr/bin/false` does; `/bin/false` is Linux-only). Using the BARE word
+# `false` (no path separator) instead lets git's own has-dir-sep check
+# fall through to a normal PATH lookup — `false` resolves correctly via
+# PATH on both macOS (`/usr/bin/false`) and Linux (`/bin/false` or
+# `/usr/bin/false`, whichever coreutils installs). Verified on this
+# machine: execing "false" with an extra arg (the prompt argv the askpass
+# protocol appends) exits 1 immediately, no exec error.
+_ASKPASS_FAILFAST = "cmd /c exit 1" if sys.platform == "win32" else "false"
 
 # SEC-CRIT-001 (Argus): also disable EVERY configured credential helper
 # (system/global/local config files, including OS-native ones — osxkeychain,
@@ -490,10 +515,6 @@ def fetch_memory_ref(project_root: str | None) -> dict:
         if age is not None and 0 <= age < FETCH_RATE_LIMIT_SECONDS:
             return {"status": "rate_limited", "age_seconds": age}
 
-        code_remote, _ = run_git(["remote", "get-url", "origin"], cwd=project_root)
-        if code_remote != 0:
-            return {"status": "no_remote", "age_seconds": age}
-
         _, branch = run_git(["branch", "--show-current"], cwd=project_root)
         branch = branch.strip()
         if not branch:
@@ -529,6 +550,19 @@ def fetch_memory_ref(project_root: str | None) -> dict:
         remote_name, _, remote_branch = upstream_ref.partition("/")
         if _looks_like_git_option(remote_name) or _looks_like_git_option(remote_branch):
             return {"status": "failed", "age_seconds": age}
+
+        # Moriarty #2 (repair round 2, T2): the liveness check must use the
+        # REAL upstream remote name just derived from `@{u}` above, never a
+        # hardcoded "origin" literal. A repo that ran
+        # `git remote rename origin upstream` (tracking preserved,
+        # coherent) previously always hit this check with the literal
+        # "origin", which no longer resolves, so the check always failed
+        # with "no_remote" and the whole freshness feature was permanently
+        # dead on any repo not using the default remote name. `remote_name`
+        # is already fail-closed validated by _looks_like_git_option above.
+        code_remote, _ = run_git(["remote", "get-url", "--", remote_name], cwd=project_root)
+        if code_remote != 0:
+            return {"status": "no_remote", "age_seconds": age}
 
         code_fetch, _ = run_git(
             # SEC-CRIT-001 (Argus): `--` separates options from the

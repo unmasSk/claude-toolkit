@@ -506,7 +506,7 @@ class TestResolveBootMemory:
 
         result = boot_memory.resolve_boot_memory(0, 0, None)
         assert any(marker in item["display"] for item in result.get("pending", []))
-        assert "[origen: remoto]" not in json.dumps(result.get("pending", []))
+        assert "[source: remote]" not in json.dumps(result.get("pending", []))
 
     def test_up_to_date_with_upstream_reads_local_head_unlabeled(self, tmp_path, monkeypatch):
         repo_a, bare = _setup_freshness_repo(tmp_path)
@@ -517,7 +517,7 @@ class TestResolveBootMemory:
 
         result = boot_memory.resolve_boot_memory(0, 0, "origin/main")
         assert any(marker in item["display"] for item in result.get("pending", []))
-        assert "[origen: remoto]" not in json.dumps(result.get("pending", []))
+        assert "[source: remote]" not in json.dumps(result.get("pending", []))
 
     def test_strictly_ahead_reads_local_head_unlabeled(self, tmp_path, monkeypatch):
         repo = _make_gated_repo(tmp_path)
@@ -528,7 +528,7 @@ class TestResolveBootMemory:
 
         result = boot_memory.resolve_boot_memory(1, 0, "origin/main")
         assert any(marker in item["display"] for item in result.get("pending", []))
-        assert "[origen: remoto]" not in json.dumps(result.get("pending", []))
+        assert "[source: remote]" not in json.dumps(result.get("pending", []))
 
     def test_strictly_behind_reads_and_labels_remote_head(self, tmp_path, monkeypatch):
         repo_a, bare = _setup_freshness_repo(tmp_path)
@@ -541,7 +541,7 @@ class TestResolveBootMemory:
         result = boot_memory.resolve_boot_memory(0, 1, "origin/main")
         matches = [item for item in result.get("pending", []) if marker in item["display"]]
         assert matches, f"expected {marker} in {result.get('pending')}"
-        assert "[origen: remoto]" in matches[0]["display"]
+        assert "[source: remote]" in matches[0]["display"]
 
     def test_diverged_reads_and_labels_both_sides(self, tmp_path, monkeypatch):
         repo_a, bare = _setup_freshness_repo(tmp_path)
@@ -557,8 +557,8 @@ class TestResolveBootMemory:
         pending_display = [item["display"] for item in result.get("pending", [])]
         local_matches = [d for d in pending_display if local_marker in d]
         remote_matches = [d for d in pending_display if remote_marker in d]
-        assert local_matches and "[origen: remoto]" not in local_matches[0]
-        assert remote_matches and "[origen: remoto]" in remote_matches[0]
+        assert local_matches and "[source: remote]" not in local_matches[0]
+        assert remote_matches and "[source: remote]" in remote_matches[0]
 
 
 # ── _label_remote_provenance: empty / anti-spoof / unicode ───────────────
@@ -659,7 +659,7 @@ class TestCrownReplaceMultiMatch:
     def test_replaces_first_match_and_drops_later_duplicate_for_same_scope(self):
         entries = [
             ("(auth)", "local stale text", False),
-            ("(auth)", "remote stale text [origen: remoto]", False),
+            ("(auth)", "remote stale text [source: remote]", False),
             ("(other)", "untouched", False),
         ]
         boot_memory._crown_replace(entries, "(auth)", "crowned text")

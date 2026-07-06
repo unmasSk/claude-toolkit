@@ -277,6 +277,43 @@ def ensure_gitignore(project_root: str, entry: str | None = None) -> None:
 GIT_TIMEOUT: int = 10  # seconds — single named constant for all git calls
 
 
+def _win32_kill_tree(proc: subprocess.Popen) -> None:
+    """Windows-only counterpart to the POSIX os.killpg() branch above
+    (Argus SEC-MED-001, repair round 2): kill `proc`'s WHOLE descendant
+    tree on a timeout, not just the direct child.
+
+    Plain Popen.kill() only terminates "git" itself — a hung
+    ssh.exe/askpass/credential-helper grandchild survives as an orphan,
+    the exact same gap the POSIX branch closes with process groups.
+    `taskkill /F /T /PID <pid>` recurses into every descendant of `pid`
+    (its OS-native process tree, distinct from and unrelated to the
+    CREATE_NEW_PROCESS_GROUP job used at Popen() time — no relationship
+    to POSIX process groups). taskkill.exe ships in System32 on every
+    supported Windows version, so this stays stdlib+OS-native, no
+    pywin32/ctypes dependency.
+
+    Fail-open, same contract as the rest of this function: taskkill being
+    missing, erroring, or the process already having exited must never
+    raise out of here — degrade to plain proc.kill() (direct child only)
+    exactly like the pre-fix behavior, and swallow that too if the process
+    is already gone.
+    """
+    try:
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except Exception:
+        # taskkill missing/erroring/timed out — degrade to killing just the
+        # direct child, same as the pre-fix behavior on Windows.
+        try:
+            proc.kill()
+        except OSError:
+            pass  # already exited — nothing left to kill
+
+
 def run_git(
     args: list[str],
     timeout: int = GIT_TIMEOUT,
@@ -311,11 +348,21 @@ def run_git(
         # context, long after this function has already returned (1, "").
         # start_new_session=True (POSIX only) makes this child the leader of
         # a brand-new process group, so the except-block below can kill the
-        # whole tree with os.killpg() instead of just "git". Windows has no
-        # killpg/getpgid equivalent in this shape — degrades to plain
-        # Popen.kill() on the direct child only, i.e. the pre-fix behavior,
-        # unchanged there.
-        popen_kwargs = {} if sys.platform == "win32" else {"start_new_session": True}
+        # whole tree with os.killpg() instead of just "git".
+        #
+        # Argus SEC-MED-001 (repair round 2): Windows closes the same gap
+        # with a different, OS-native mechanism (no killpg/getpgid
+        # equivalent exists there). CREATE_NEW_PROCESS_GROUP here is the
+        # Windows counterpart of start_new_session=True — it detaches this
+        # child (and whatever it spawns) into its own process group so the
+        # except-block's taskkill /T below can address the whole tree by
+        # its root PID instead of racing/relying on parent-child bookkeeping
+        # shared with this Python process's own console group.
+        popen_kwargs = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if sys.platform == "win32"
+            else {"start_new_session": True}
+        )
         proc = subprocess.Popen(
             ["git"] + args,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -327,7 +374,7 @@ def run_git(
     except subprocess.TimeoutExpired:
         if proc is not None:
             if sys.platform == "win32":
-                proc.kill()
+                _win32_kill_tree(proc)
             else:
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)

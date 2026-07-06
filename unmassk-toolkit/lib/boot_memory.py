@@ -76,18 +76,30 @@ def _crown_replace(
     active, never-retired entry for the same scope. Decisions have no
     tombstone concept, so their call sites simply omit `tombstones`.
 
-    Cerberus (issue #49 repair round): within a SINGLE extract_memory()/
-    extract_glossary() call, decision_scopes/memo_scopes already guarantee
-    at most one entry per scope before this ever runs, so "replace the
-    first match and return" was always equivalent to "there is only one
-    match". That invariant breaks for a merged-diverged memory dict
-    (`_merge_diverged_memory()` concatenates local's and the remote-labeled
-    side's lists, which CAN legitimately share a scope) — replacing only
-    the first match there left a second, stale, non-crowned duplicate for
-    the same scope sitting in the list untouched. A crown beats EVERY
-    non-crowned entry for its scope, not just the first one encountered:
-    replace the first match with the crowned entry, and drop any further
-    non-crowned matches for the same key instead of leaving them behind.
+    Moriarty (issue #49 repair round 2, T3 — NOT reverted, see below):
+    a previous round made this multi-match (replace the first match,
+    delete any further matches) on the theory that a merged-diverged
+    memory dict could hand it more than one entry per scope. VERIFIED:
+    that theory is false as of this call graph — `_merge_diverged_memory()`
+    never calls `_crown_replace` at all, it only concatenates local's and
+    the remote-labeled side's lists. The 4 production call sites
+    (extract_memory() x2, extract_glossary() x2) all run inside a single
+    scan where `decision_scopes`/`memo_scopes` already gate "at most one
+    entry per scope" before this function is ever reached, so in practice
+    at most one match ever exists here today.
+    Kept multi-match anyway (did not simplify to single-match-and-return):
+    tests/test_boot_freshness_hardening.py::TestCrownReplaceMultiMatch
+    pins the multi-match behavior directly as this function's own unit
+    contract (5 assertions, independent of which call sites currently
+    exercise it), and this repair round's mandate is to touch test files
+    only for mechanical literal changes, never test logic/assertions.
+    Simplifying this function back to single-match-and-return would fail
+    `test_replaces_first_match_and_drops_later_duplicate_for_same_scope`
+    (confirmed by running it against a single-match revert). Flagged for
+    Yoda/Bex: either accept this as intentional unit-level defensive
+    headroom with no live call site today, or authorize retiring that
+    test class in a future round so the implementation can be simplified
+    to match actual reachability.
     """
     from parsing import normalize
     if tombstones is not None and normalize(text) in tombstones:
@@ -422,7 +434,7 @@ def extract_glossary() -> dict:
 # hooks/session-start-boot.py's main() with the ahead/behind numbers
 # get_ahead_behind() (lib/boot_git_checks.py) already computed.
 
-REMOTE_PROVENANCE_LABEL = " [origen: remoto]"
+REMOTE_PROVENANCE_LABEL = " [source: remote]"
 
 
 def _label_remote_provenance(memory: dict) -> dict:
