@@ -752,13 +752,6 @@ class TestPullDirectiveGapForUnrelatedUpstream:
     update) the moment this gap is closed.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CONFIRMED GAP (session 2026-07-06): PULL DIRECTIVE still "
-        "recommends `git pull` against an upstream already confirmed to "
-        "share NO history with local HEAD — not covered by the T2 "
-        "identity-confusion fix. Report to Ultron, do not silently fix here.",
-    )
     def test_pull_directive_never_recommends_pull_for_unrelated_upstream(self, tmp_path):
         repo_a, foreign_bare = _setup_foreign_upstream_scenario(tmp_path)
 

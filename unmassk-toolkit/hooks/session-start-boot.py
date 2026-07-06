@@ -330,6 +330,24 @@ def main() -> None:
             # needs its own explicit exclusion signal.
             unrelated_remote_name, _, _ = upstream_ref.partition("/")
             upstream_ref = None
+            # Dante T2/T3 gap (session 2026-07-06,
+            # TestPullDirectiveGapForUnrelatedUpstream): render_branch_section()
+            # builds pull_directive_lines from raw behind_n BEFORE this check
+            # ever runs, so "N commits behind" against an upstream confirmed
+            # to share NO history is not a meaningful pull signal — git
+            # itself would refuse the merge ("refusing to merge unrelated
+            # histories"). Reuse the SAME history_related result computed
+            # once above (no second merge-base call) to strip the
+            # already-built directive from BOTH output surfaces: the full
+            # boot-log content (branch_lines, extended into `lines` below)
+            # and the short-banner copy (pull_directive_lines, passed to
+            # render_boot_banner_lines()). Simplest correct fix: suppress
+            # the directive entirely rather than reword it — there is no
+            # truthful "behind N" figure to report when the two histories
+            # don't share a common ancestor.
+            if pull_directive_lines:
+                branch_lines = [line for line in branch_lines if line not in pull_directive_lines]
+                pull_directive_lines = []
 
     # Cerberus (nitpick, issue #49 repair round): "skipped_gate" ONLY ever
     # means "this repo has no unmassk-toolkit memory installed at all" (see
