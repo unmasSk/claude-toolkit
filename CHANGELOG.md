@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-07-06
+
 ### Fixed
 
 - **Windows startup crash**: `os.O_NOFOLLOW` is POSIX-only, so on Windows every call into `open_no_follow_symlink()` (the symlink-safe file guard used by the boot hook, `doctor`, and several per-message hooks) raised an `AttributeError` — not `OSError`, so it escaped every existing `except OSError` and crashed instead of failing safe. `open_no_follow_symlink()` and its twin `_symlink_safe_open.open_no_follow_symlink_fallback()` (`unmassk-toolkit/lib/git_helpers.py`, `unmassk-toolkit/lib/_symlink_safe_open.py`) now branch on platform: POSIX keeps the original atomic `O_NOFOLLOW` open; Windows uses a two-step guard instead (`os.path.islink()` pre-check, then an `lstat`/`fstat` identity comparison, with the truncate deferred until after that check passes) that raises `OSError` on the same symlink-escape attempts the POSIX path blocks, never `AttributeError`. Two Windows-only residuals are accepted and documented in the docstring rather than silently present: a brand-new path has no prior identity to compare against (accepted TOCTOU gap), and a hard link to a file outside the repo is undetectable on any platform by either guard (deferred to a dedicated change per decision `51a3c44`). The `0o600` mode-bits docstring claim was also corrected — it only denies group/other access on POSIX; on Windows the file inherits its containing directory's ACL instead.
