@@ -85,8 +85,17 @@ def _crown_replace(
             return
 
 
-def extract_memory() -> dict:
-    """Extract memory from recent commits."""
+def extract_memory(ref: str = "HEAD") -> dict:
+    """Extract memory from recent commits.
+
+    `ref` (issue #49, plan Task 4) selects which tip to scan from — defaults
+    to HEAD (byte-identical to the pre-#49 behavior). The boot passes
+    `origin/<branch>` here when local is strictly behind (so the newest
+    memory, which only exists on the remote side, becomes visible instead
+    of a stale local Next), or calls it twice (once per side) when
+    diverged. Same -z/NUL pipeline and sanitization either way — only the
+    log's starting point changes.
+    """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
     from git_helpers import run_git
 
@@ -102,7 +111,7 @@ def extract_memory() -> dict:
     # below caps the field count, and \x1f can't start a new line for
     # scan_trailers_memory's line-based trailer regex either).
     code, log_output = run_git([
-        "log", "-z", f"-n{SCAN_DEPTH}",
+        "log", ref, "-z", f"-n{SCAN_DEPTH}",
         "--pretty=format:%h\x1f%s\x1f%b\x1f%at"
     ])
     if code != 0 or not log_output:
@@ -368,6 +377,89 @@ def extract_glossary() -> dict:
         "remembers": remembers,
         "tombstones": glossary_tombstones,
     }
+
+
+# ── Boot memory freshness — origin-side reads (issue #49, plan Task 4) ──
+#
+# extract_memory(ref=...) above is source-agnostic (it just scans whatever
+# ref it's given). These three functions are the orchestration layer that
+# decides WHICH ref(s) to scan and how to present the result, called from
+# hooks/session-start-boot.py's main() with the ahead/behind numbers
+# get_ahead_behind() (lib/boot_git_checks.py) already computed.
+
+REMOTE_PROVENANCE_LABEL = " [origen: remoto]"
+
+
+def _label_remote_provenance(memory: dict) -> dict:
+    """Tag every displayable field of a memory dict as sourced from
+    origin/<branch>, not local HEAD. Used when local is strictly behind (the
+    incident fix criterion: the newest Next only exists on the remote side,
+    and whatever RESUME line it produces must carry a visible remote label,
+    not read like an ordinary local entry) and for the remote side of a
+    divergence.
+    """
+    labeled = dict(memory)
+    if labeled.get("last_context"):
+        labeled["last_context"] = labeled["last_context"] + REMOTE_PROVENANCE_LABEL
+    if labeled.get("pending"):
+        labeled["pending"] = [
+            {**item, "display": item["display"] + REMOTE_PROVENANCE_LABEL}
+            for item in labeled["pending"]
+        ]
+    if labeled.get("blockers"):
+        labeled["blockers"] = [b + REMOTE_PROVENANCE_LABEL for b in labeled["blockers"]]
+    for key in ("decisions", "memos", "remembers"):
+        if labeled.get(key):
+            labeled[key] = [
+                (label, text + REMOTE_PROVENANCE_LABEL, is_crown)
+                for label, text, is_crown in labeled[key]
+            ]
+    return labeled
+
+
+def _merge_diverged_memory(local_memory: dict, remote_memory: dict) -> dict:
+    """Diverged case (ahead>0 AND behind>0): show BOTH sides, remote side
+    labeled, never silently merged/deduped into one truth (plan Task 4 —
+    "never auto-merge"). `last_context` stays local's own (it genuinely is
+    local HEAD's last context commit; the RESUME section only ever renders
+    one `Last:` line, so the remote's own last_context is dropped here, not
+    the remote's Next/Decision/Memo/Remember/Blocker items — those are all
+    additive below).
+    """
+    labeled_remote = _label_remote_provenance(remote_memory)
+    merged = dict(local_memory)
+    for key in ("pending", "blockers", "decisions", "memos", "remembers"):
+        merged[key] = list(local_memory.get(key, [])) + list(labeled_remote.get(key, []))
+    merged["tombstones"] = (
+        set(local_memory.get("tombstones", set())) | set(remote_memory.get("tombstones", set()))
+    )
+    return merged
+
+
+def resolve_boot_memory(ahead_n: int, behind_n: int, upstream_ref: str | None) -> dict:
+    """Pick which side(s) of history the boot reads memory from (issue #49,
+    plan Task 4), given the ahead/behind numbers get_ahead_behind() already
+    computed for the BRANCH section (never a second, potentially divergent
+    calculation):
+
+      - No upstream at all -> local HEAD, exactly as before #49.
+      - Strictly behind (ahead==0, behind>0) -> read from `upstream_ref`
+        and label it remote-provenance. This is the incident fix criterion:
+        a second machine's newer Next must become visible instead of A's
+        own stale local Next.
+      - Diverged (both>0) -> read BOTH sides, remote labeled, never merged
+        into a single silent truth.
+      - Up to date or strictly ahead -> local HEAD, exactly as before.
+    """
+    if not upstream_ref:
+        return extract_memory()
+    if behind_n > 0 and ahead_n == 0:
+        return _label_remote_provenance(extract_memory(ref=upstream_ref))
+    if ahead_n > 0 and behind_n > 0:
+        local_memory = extract_memory()
+        remote_memory = extract_memory(ref=upstream_ref)
+        return _merge_diverged_memory(local_memory, remote_memory)
+    return extract_memory()
 
 
 # Backward-compat re-export, test-compatibility shim ONLY (not a real logic

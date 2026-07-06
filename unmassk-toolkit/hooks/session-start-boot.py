@@ -48,6 +48,7 @@ from boot_memory import (
     _sanitize_trailer_value,
     extract_glossary,
     extract_memory,
+    resolve_boot_memory,
 )
 # Glossary cache I/O (further split of boot_memory.py, see
 # lib/boot_glossary_cache.py) — _get_project_root/extract_glossary_cached
@@ -87,12 +88,13 @@ from boot_render import (
     render_status_section,
     render_timeline_section,
 )
-# Boot memory freshness (multi-machine, issue #49, plan Task 2) — hardened,
-# gated, rate-limited fetch. boot_git_checks is already transitively loaded
-# via boot_render <- boot_checks <- boot_git_checks, so a plain module-level
-# import here is safe (not on tests/test_migrate_statusline.py's stub list,
-# unlike git_helpers/parsing/version).
-from boot_git_checks import fetch_memory_ref
+# Boot memory freshness (multi-machine, issue #49, plan Task 2/3) — hardened,
+# gated, rate-limited fetch + the MEMORIA: freshness stamp. boot_git_checks
+# is already transitively loaded via boot_render <- boot_checks <-
+# boot_git_checks, so a plain module-level import here is safe (not on
+# tests/test_migrate_statusline.py's stub list, unlike git_helpers/parsing/
+# version).
+from boot_git_checks import fetch_memory_ref, render_memoria_stamp
 
 
 BANNER_FIELD_MAX_LEN = 60  # defensive cap on any single field embedded in the short banner
@@ -179,20 +181,32 @@ def write_boot_log(full_text: str, project_root: str | None) -> str | None:
 def render_boot_banner_lines(
     plugin_root: str, status: str, status_detail: str, branch: str, ahead_behind: str,
     boot_log_path: str, commit_script: str, log_script: str,
+    memoria_stamp: str, pull_directive_lines: list[str] | None = None,
 ) -> list[str]:
     """Build the short banner lines printed to stdout when the boot log write succeeded.
 
     Unconditional: stdout is always this short banner, for any repo size —
     see House's diagnosis and TestBootStdoutMinimalWithHeavyContent /
     TestBootLogFileFullContent for why there is no byte-threshold here.
+
+    `memoria_stamp` and `pull_directive_lines` (issue #49, plan Task 3) are
+    the two exceptions to "banner is short, boot-log has everything" — both
+    are short enough by design to fit the banner AND the full boot-log
+    content, and provenance/behind-signal is important enough to surface
+    even when Claude never opens the boot-log file.
     """
     banner_log_path = boot_log_path.replace(os.sep, "/")
     banner_branch = _truncate_banner_field(branch)
-    return [
+    lines = [
         f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
         "",
+        memoria_stamp,
         f"STATUS: {status}{status_detail}",
         f"BRANCH: {banner_branch}{ahead_behind}",
+    ]
+    if pull_directive_lines:
+        lines.extend(pull_directive_lines)
+    lines.extend([
         "",
         "The full briefing (nothing shortened) was written to:",
         f"  {banner_log_path}",
@@ -203,7 +217,8 @@ def render_boot_banner_lines(
         "BOOT COMPLETE. Do NOT run doctor or git-memory-log.",
         f'Commit: python3 "{commit_script}"',
         f'Log: python3 "{log_script}"',
-    ]
+    ])
+    return lines
 
 
 def run_preboot_migrations(project_root: str | None) -> dict:
@@ -272,26 +287,37 @@ def main() -> None:
 
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
     project_root = _get_project_root()
-    # fetch_state ({"status": ..., "age_seconds": ...}) is Task 3's input
-    # for the MEMORIA: freshness stamp — not consumed yet by this function.
-    fetch_state = run_preboot_migrations(project_root)  # noqa: F841
+    # fetch_state ({"status": ..., "age_seconds": ...}) — issue #49, plan
+    # Task 2's return value, consumed here by Task 3's MEMORIA: stamp.
+    fetch_state = run_preboot_migrations(project_root)
+    memoria_stamp = render_memoria_stamp(fetch_state)
 
     lines: list[str] = []
     lines.extend(render_header_section(plugin_root))
+    # MEMORIA: stamp lands near the top of the full boot-log content too —
+    # see render_boot_banner_lines() for the stdout-banner copy of the same
+    # line (issue #49, plan Task 3: both, not just one).
+    lines.append(memoria_stamp)
+    lines.append("")
 
     status_lines, status, status_detail = render_status_section()
     lines.extend(status_lines)
 
-    branch_lines, branch, branch_keywords, branch_issue, ahead_behind = render_branch_section()
+    (branch_lines, branch, branch_keywords, branch_issue, ahead_behind,
+     ahead_n, behind_n, upstream_ref, pull_directive_lines) = render_branch_section()
     lines.extend(branch_lines)
 
     lines.extend(render_scopes_section(project_root))
 
-    memory = extract_memory()
+    # issue #49, plan Task 4: read from origin/<branch> when strictly behind,
+    # both sides (labeled) when diverged, local HEAD otherwise — ahead_n/
+    # behind_n/upstream_ref are the exact numbers render_branch_section()
+    # already computed for the `[N/M vs upstream]` display, reused here.
+    memory = resolve_boot_memory(ahead_n, behind_n, upstream_ref)
     lines.extend(render_resume_section(memory, branch_issue, branch_keywords))
 
     # Merge recent + glossary remembers
-    glossary = extract_glossary_cached()
+    glossary = extract_glossary_cached(upstream_ref)
     # Union: tombstones from recent window + tombstones from the full glossary range
     tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
 
@@ -333,6 +359,7 @@ def main() -> None:
         banner = render_boot_banner_lines(
             plugin_root, status, status_detail, branch, ahead_behind,
             boot_log_path, commit_script, log_script,
+            memoria_stamp, pull_directive_lines,
         )
         print("\n".join(banner))
 

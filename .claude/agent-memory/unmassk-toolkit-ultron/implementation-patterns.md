@@ -665,6 +665,55 @@ method fully green without implementing part of Task 3's stamp; confirmed
 correct scope boundary, not a bug — flagged to the orchestrator rather than
 patched around.
 
+## Boot memory freshness — origin-read + shared ahead/behind (issue #49, Tasks 3/4, 2026-07-06)
+
+`lib/boot_git_checks.py::get_ahead_behind(branch) -> (ahead, behind, upstream_ref)` is the
+SINGLE `rev-list --left-right --count` calculation, reused by both
+`render_branch_section()` (the `[N/M vs upstream]` display) and
+`hooks/session-start-boot.py::main()`'s origin-read decision — resolves
+`upstream_ref` via `git rev-parse --abbrev-ref @{u}` (e.g. `"origin/main"`)
+instead of hardcoding `"origin/<branch>"`, so it's correct even with a
+differently-named remote. `render_branch_section()`'s return tuple grew to 9
+elements (`ahead_n, behind_n, upstream_ref, pull_directive_lines` appended) —
+only one caller (`main()`) unpacks it, confirmed via grep before extending.
+
+`lib/boot_memory.py::extract_memory(ref: str = "HEAD")` — parametrizing the
+scan ref is additive-safe: every existing caller (`boot.extract_memory()`,
+no args) behaves byte-identically since `git log HEAD ...` == `git log ...`.
+Same pattern applies to `extract_glossary_cached(upstream_ref=None)` /
+`_read_glossary_cache(upstream_ref=None)` / `_write_glossary_cache(glossary,
+upstream_ref=None)` in `lib/boot_glossary_cache.py` — new trailing optional
+param, default preserves old behavior exactly (including the JSON cache
+schema: `cache.get("origin_sha")` on an old cache with no such key returns
+`None`, which equals `_resolve_origin_sha(None)` when the caller also has no
+upstream — no schema-version bump needed).
+
+**Provenance-labeling pattern**: `_label_remote_provenance(memory: dict) ->
+dict` appends a suffix (`" [origen: remoto]"`) to every displayable field of
+the `extract_memory()`-shaped dict (`last_context`, `pending[].display`,
+`blockers[]`, and the `text` component of `decisions/memos/remembers`
+3-tuples) — returns a new dict, never mutates the input. `_merge_diverged_memory(local, remote)`
+reuses this to show both sides of a divergence without ever merging/deduping
+them into one truth: concatenates the list-valued fields, keeps `local`'s own
+`last_context` (RESUME only ever renders one `Last:` line), unions
+`tombstones`. Both live in `lib/boot_memory.py` next to `extract_memory()`
+since they operate on its exact return shape — NOT in `boot_git_checks.py`
+or `boot_render.py`, keeping the module DAG (`boot_memory <- boot_git_checks
+<- boot_checks <- boot_render`) one-directional.
+
+**LOC discipline**: this codebase's OWN in-repo convention (see comments in
+`boot_checks.py`/`boot_render.py`/`session-start-boot.py`) is a 500-line
+file ceiling, not Ultron's generic 300-line default — evidenced repeatedly
+by Cerberus-driven module splits triggered at >500, never at >300. All 4
+files touched here (`boot_git_checks.py` 470, `boot_memory.py` 486,
+`boot_glossary_cache.py` 224, `session-start-boot.py` 370) stayed under that
+real ceiling. Function-level 50-LOC-max still applies per-function though:
+`render_branch_section()` crossed 50 after the Task 3/4 additions purely
+from docstring bulk + an inline branch-resolve-and-sanitize block: trimming
+the docstring wasn't enough alone — extracting `_resolve_sanitized_branch()`
+(branch fetch + sanitize + keyword parse, a genuinely separable concern) was
+what got it under 50, not further docstring-shrinking.
+
 ## truncatePath helper in agent-prompt.ts (2026-03-21)
 
 `truncatePath(path, maxLen=60)` lives just above `formatToolDescription` in `agent-prompt.ts`.

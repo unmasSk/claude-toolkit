@@ -84,7 +84,22 @@ def _glossary_cache_path() -> str | None:
     return os.path.join(root, ".claude", ".unmassk", "glossary-cache.json")
 
 
-def _read_glossary_cache() -> dict | None:
+def _resolve_origin_sha(upstream_ref: str | None) -> str | None:
+    """Resolve `upstream_ref` (e.g. "origin/main") to its current sha, or
+    None if there is no upstream. Issue #49, plan Task 4: the glossary
+    cache's freshness key must include this alongside local HEAD's sha, or
+    a cache generated before a newer origin/<branch> arrived (local HEAD
+    unchanged) would be served as "fresh" even though the remote side moved.
+    """
+    if not upstream_ref:
+        return None
+    from git_helpers import run_git
+
+    code, sha = run_git(["rev-parse", upstream_ref])
+    return sha.strip() if code == 0 and sha.strip() else None
+
+
+def _read_glossary_cache(upstream_ref: str | None = None) -> dict | None:
     """Read glossary cache if fresh. Returns None if stale or missing."""
     from git_helpers import run_git
 
@@ -120,12 +135,19 @@ def _read_glossary_cache() -> dict | None:
             return None
         if cache.get("head_sha") != head_sha:
             return None
+        # Check origin match too (issue #49, plan Task 4) — a cache whose
+        # local HEAD hasn't moved can still be stale if origin/<branch> has.
+        # cache.get(...) defaults to None for caches written before this
+        # field existed, matching _resolve_origin_sha(None) == None when the
+        # caller has no upstream either — old caches stay valid in that case.
+        if cache.get("origin_sha") != _resolve_origin_sha(upstream_ref):
+            return None
         return cache
     except (json.JSONDecodeError, OSError, ValueError, KeyError):
         return None
 
 
-def _write_glossary_cache(glossary: dict) -> None:
+def _write_glossary_cache(glossary: dict, upstream_ref: str | None = None) -> None:
     """Write glossary cache to .claude/.unmassk/glossary-cache.json."""
     from git_helpers import ensure_gitignore, run_git
 
@@ -141,6 +163,7 @@ def _write_glossary_cache(glossary: dict) -> None:
     cache = {
         "schema_version": 1,
         "head_sha": head_sha,
+        "origin_sha": _resolve_origin_sha(upstream_ref),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "decisions": glossary.get("decisions", []),
         "memos": glossary.get("memos", []),
@@ -178,11 +201,17 @@ def _write_glossary_cache(glossary: dict) -> None:
         pass
 
 
-def extract_glossary_cached() -> dict:
-    """Extract glossary, using cache if available."""
+def extract_glossary_cached(upstream_ref: str | None = None) -> dict:
+    """Extract glossary, using cache if available.
+
+    `upstream_ref` (issue #49, plan Task 4) is folded into the cache's
+    freshness key alongside local HEAD's sha — see _read_glossary_cache()/
+    _write_glossary_cache(). None (default) preserves the pre-#49 behavior
+    (HEAD-sha-only freshness) exactly.
+    """
     from boot_memory import extract_glossary
 
-    cached = _read_glossary_cache()
+    cached = _read_glossary_cache(upstream_ref)
     if cached:
         return {
             "decisions": cached.get("decisions", []),
@@ -191,5 +220,5 @@ def extract_glossary_cached() -> dict:
             "tombstones": set(cached.get("tombstones", [])),
         }
     glossary = extract_glossary()
-    _write_glossary_cache(glossary)
+    _write_glossary_cache(glossary, upstream_ref)
     return glossary

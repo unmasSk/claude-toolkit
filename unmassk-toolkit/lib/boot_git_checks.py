@@ -140,55 +140,114 @@ def get_last_context_time() -> str | None:
     return None
 
 
-def render_branch_section() -> tuple[list[str], str, list[str], str | None, str]:
+def get_ahead_behind(branch: str) -> tuple[int, int, str | None]:
+    """Return (ahead, behind, upstream_ref) for `branch` vs its upstream.
+
+    upstream_ref is the resolved tracking-ref name (e.g. "origin/main"), or
+    None when there is no upstream / not on a real branch. Single
+    `rev-list --left-right --count` call — reused by BOTH
+    render_branch_section() (display) and hooks/session-start-boot.py's
+    main() (issue #49, plan Task 4 — deciding whether to read memory from
+    origin/<branch>). Deliberately one calculation, never two divergent
+    ones (plan's own instruction).
+    """
+    from git_helpers import run_git
+
+    if not branch or branch == "(detached HEAD)":
+        return 0, 0, None
+
+    code_ref, upstream_ref = run_git(["rev-parse", "--abbrev-ref", "@{u}"])
+    upstream_ref = upstream_ref.strip() if code_ref == 0 else ""
+    if not upstream_ref:
+        return 0, 0, None
+
+    code_ab, ab_out = run_git(["rev-list", "--left-right", "--count", f"HEAD...{upstream_ref}"])
+    if code_ab == 0 and ab_out.strip():
+        parts = ab_out.strip().split()
+        if len(parts) == 2:
+            return int(parts[0]), int(parts[1]), upstream_ref
+    return 0, 0, upstream_ref
+
+
+def _build_pull_directive_lines(behind_n: int, is_dirty: bool) -> list[str]:
+    """Escalated PULL directive (issue #49, plan Task 3) — replaces the old
+    bare "PULL RECOMMENDED" line. Clean tree: propose `git pull` to the user
+    as the FIRST action of the session (decision d958659 — proposed at boot,
+    not at close). Dirty tree: warn about the uncommitted work and say
+    explicitly NOT to pull, so nothing is silently clobbered.
+    """
+    if is_dirty:
+        return [
+            f"  PULL DIRECTIVE: local is {behind_n} commit(s) behind, but the "
+            "working tree is DIRTY (uncommitted changes) — do NOT pull. "
+            "Inform the user and leave it untouched."
+        ]
+    return [
+        f"  PULL DIRECTIVE: local is {behind_n} commit(s) behind — propose "
+        "`git pull` to the user as the FIRST action of this session."
+    ]
+
+
+def _resolve_sanitized_branch() -> tuple[str, list[str], str | None]:
+    """Current branch name (sanitized) plus its parsed keywords/issue ref.
+
+    SEC-CRIT-NEW-04: git's ref-name rules don't block injection markers in a
+    branch name, and this value reaches the UNCONDITIONAL stdout banner
+    (render_boot_banner_lines() in hooks/session-start-boot.py) on every
+    boot — the most severe of the 5 unsanitized sites found. Sanitize once,
+    here, so every downstream consumer gets the safe value.
+    """
+    from git_helpers import run_git
+
+    _, branch = run_git(["branch", "--show-current"])
+    branch = branch or "(detached HEAD)"
+    branch = _sanitize_trailer_value(branch)
+    branch_keywords, branch_issue = parse_branch_keywords(branch)
+    return branch, branch_keywords, branch_issue
+
+
+def render_branch_section() -> tuple[
+    list[str], str, list[str], str | None, str, int, int, str | None, list[str]
+]:
     """Render the BRANCH section.
 
-    Returns (lines, branch, branch_keywords, branch_issue, ahead_behind) —
-    reused downstream for Next-item partitioning and the short banner.
-    `behind_n` (the pull recommendation) is only needed inside this
-    function and is not part of the return value (T3-2: it used to be
-    returned but was never actually consumed by any caller).
+    Returns (lines, branch, branch_keywords, branch_issue, ahead_behind,
+    ahead_n, behind_n, upstream_ref, pull_directive_lines). ahead_n/
+    behind_n/upstream_ref (issue #49, Task 4) are get_ahead_behind()'s own
+    numbers, reused (not recomputed) by main()'s origin-read decision.
+    pull_directive_lines is also returned standalone (beyond already being
+    folded into `lines`) so main() can fold the same short text into the
+    minimal stdout banner too — both it and the MEMORIA: stamp are short
+    enough to belong in the banner AND the full boot-log content.
     """
     from git_helpers import run_git
 
     lines: list[str] = []
-    _, branch = run_git(["branch", "--show-current"])
-    branch = branch or "(detached HEAD)"
-    # SEC-CRIT-NEW-04: git's ref-name rules don't block injection markers in
-    # a branch name, and the RETURNED `branch` value (not just the `lines`
-    # rendered here) reaches the UNCONDITIONAL stdout banner
-    # (render_boot_banner_lines() in hooks/session-start-boot.py) on every
-    # boot — the most severe of the 5 unsanitized sites. Sanitize once, here,
-    # so every downstream consumer of the return value gets the safe value.
-    branch = _sanitize_trailer_value(branch)
-    branch_keywords, branch_issue = parse_branch_keywords(branch)
+    branch, branch_keywords, branch_issue = _resolve_sanitized_branch()
 
-    # Ahead/behind (single rev-list call with --left-right --count)
-    ahead_behind = ""
-    ahead_n = 0
-    behind_n = 0
-    if branch and branch != "(detached HEAD)":
-        code_ab, ab_out = run_git(["rev-list", "--left-right", "--count", f"HEAD...@{{u}}"])
-        if code_ab == 0 and ab_out.strip():
-            parts = ab_out.strip().split()
-            if len(parts) == 2:
-                ahead_n, behind_n = int(parts[0]), int(parts[1])
-                ahead_behind = f" [{ahead_n}/{behind_n} vs upstream]"
+    ahead_n, behind_n, upstream_ref = get_ahead_behind(branch)
+    ahead_behind = f" [{ahead_n}/{behind_n} vs upstream]" if upstream_ref else ""
 
     lines.append(f"BRANCH: {branch}{ahead_behind}")
 
     # Dirty state
     _, status_porcelain = run_git(["status", "--porcelain"])
+    is_dirty = bool(status_porcelain)
     if status_porcelain:
         dirty_count = len([l for l in status_porcelain.splitlines() if l.strip()])
         lines.append(f"  DIRTY: {dirty_count} files")
 
-    # Pull recommendation (reuses behind_n from the single rev-list call above)
+    # Pull directive (reuses behind_n/is_dirty computed above — no second check)
+    pull_directive_lines: list[str] = []
     if behind_n > 0:
-        lines.append(f"  PULL RECOMMENDED: remote is {behind_n} ahead")
+        pull_directive_lines = _build_pull_directive_lines(behind_n, is_dirty)
+        lines.extend(pull_directive_lines)
 
     lines.append("")
-    return lines, branch, branch_keywords, branch_issue, ahead_behind
+    return (
+        lines, branch, branch_keywords, branch_issue, ahead_behind,
+        ahead_n, behind_n, upstream_ref, pull_directive_lines,
+    )
 
 
 def render_scopes_section(project_root: str | None) -> list[str]:
@@ -370,3 +429,48 @@ def fetch_memory_ref(project_root: str | None) -> dict:
     except Exception:
         # Fail-open: this function must never raise regardless of cause.
         return {"status": "failed", "age_seconds": None}
+
+
+def _format_age_seconds(seconds: float) -> str:
+    """Human-readable age for the MEMORIA: stamp, e.g. '0s' / '5min' / '2h'."""
+    total = max(0, int(seconds))
+    if total < 60:
+        return f"{total}s"
+    minutes = total // 60
+    if minutes < 60:
+        return f"{minutes}min"
+    hours = minutes // 60
+    return f"{hours}h"
+
+
+def render_memoria_stamp(fetch_state: dict) -> str:
+    """Render the MEMORIA: provenance/freshness stamp for the boot header
+    (issue #49, plan Task 3). One short line — printed in BOTH the minimal
+    stdout banner and the full boot-log content, near the top of each.
+
+    Three states, matching fetch_memory_ref()'s `status` field:
+      - "fetched": a fetch against origin completed this boot — content is
+        remote-confirmed fresh.
+      - "rate_limited": the fetch was skipped this boot (still inside the
+        rate-limit window) — local content, not reconfirmed this boot.
+      - anything else ("failed", "no_remote", "skipped_gate"): freshness
+        against origin could not be confirmed this boot — falls back to
+        the "LOCAL ... sin verificar" wording.
+    """
+    status = fetch_state.get("status")
+    age = fetch_state.get("age_seconds")
+
+    if status == "fetched":
+        age_txt = _format_age_seconds(age if age is not None else 0.0)
+        return f"MEMORIA: remoto (fetch hace {age_txt})"
+
+    if status == "rate_limited":
+        age_txt = _format_age_seconds(age) if age is not None else "?"
+        return f"MEMORIA: LOCAL — fetch omitido (rate-limit, hace {age_txt})"
+
+    # "failed" / "no_remote" / "skipped_gate" (or any future fail-open
+    # status): never confirmed fresh against origin this boot.
+    if age is not None:
+        age_txt = _format_age_seconds(age)
+        return f"MEMORIA: LOCAL — último fetch hace {age_txt}, sin verificar"
+    return "MEMORIA: LOCAL — sin verificar (nunca se ha sincronizado con origin)"
