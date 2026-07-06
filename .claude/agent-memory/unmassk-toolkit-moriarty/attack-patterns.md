@@ -281,3 +281,38 @@
   not a currently-live bug -- but nothing in CI would catch either fix regressing in the future.
   T2: real fix today, missing regression protection for exactly the 2 findings this repair round
   was supposed to close.
+
+## Boot freshness round-3/FINAL (issue #49, fix d409805 + regression tests 45ecfd6) -- repo-identity confusion via a fully coherent but UNRELATED tracked ref (formal Round-Trip Sabotage, not a regression of this round)
+- The whole issue #49 stack (fetch_memory_ref/get_ahead_behind/resolve_boot_memory) validates that
+  `@{u}` resolves to a coherent, fetchable branch-shaped ref -- it never validates that the resolved
+  remote is actually a fork/continuation of THIS project's own history. `@{u}` has no concept of
+  "same project"; a branch.<name>.remote/.merge pair pointing at a completely different, disjoint
+  codebase is indistinguishable from a legitimate one purely by ref-resolution machinery.
+- Demonstrated live: real bare "remote.git" (this project's own history) + a second, completely
+  UNRELATED bare repo seeded with its own unrelated commit (`decision(payments): use Stripe not
+  PayPal`, `Crown=Decision`). Pointed a real clone's `branch.main.remote`/`.merge` at the unrelated
+  repo (a real `remote add` + real `fetch` + real `--set-upstream-to`, not a mock). Zero shared
+  history confirmed via an INDEPENDENT channel (`merge-base` between HEAD and the tracked ref exits
+  1 -- no common ancestor -- plus a direct read of the unrelated bare repo's own log, never through
+  the path under test).
+- fetch_memory_ref() reports `{"status": "fetched", "age_seconds": 0.0}` (a REAL, successful fetch --
+  not a lie about that specific fact), render_memoria_stamp() renders the confident, healthy
+  "MEMORY: remote (fetched 0s ago)" line, and resolve_boot_memory() serves the unrelated repo's
+  crowned Decision labeled "[source: remote]" -- confirmed end-to-end through the REAL boot hook
+  (not just the library functions in isolation): the boot log's DECISIONS section shows
+  "(payments) Use Stripe, final [source: remote]" sitting right next to this project's own real
+  crowned decision, with zero distinguishing signal that anything is wrong. `BRANCH: main [7/1 vs
+  upstream]` and a real `PULL DIRECTIVE` line were also computed and rendered against the unrelated
+  repo's ahead/behind counts.
+- Severity bounded to T2, not T1: (a) pre-existing since the very first issue #49 Task 4 design, not
+  introduced or reopened by this repair round; (b) requires LOCAL git-config-level tracking
+  misconfiguration to trigger -- not remotely exploitable by a content-pushing attacker with only
+  push access to the real, correctly-tracked remote; (c) the worst-case escalation (blindly acting on
+  the false PULL DIRECTIVE) is independently blocked by git's own default refusal to combine
+  histories with no common ancestor (confirmed live: a real pull attempt against this exact state
+  fails with "refusing to merge unrelated histories" before anything destructive happens) -- so the
+  actual live impact is confidently-mislabeled, misleading DISPLAYED content, not data loss or a
+  destructive merge.
+- Root: lib/boot_git_checks.py get_ahead_behind()/fetch_memory_ref() (`@{u}` resolution, no
+  same-project identity check) and lib/boot_memory.py resolve_boot_memory() (unconditionally trusts
+  whatever ref get_ahead_behind() resolved).

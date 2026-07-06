@@ -238,3 +238,48 @@
 - Manual/out-of-band `git fetch` run by the user immediately before boot, and CLAUDE.md +
   manifest.json deleted mid-session (gate flap) -- both handled correctly (`rate_limited` and
   `skipped_gate` respectively), no crash.
+
+## Boot freshness round-3/FINAL repair (issue #49, fix d409805 + regression tests 45ecfd6) -- all 4 prior findings confirmed closed, both original breaks re-confirmed fixed, new injection variants held (2026-07-06)
+- English label/stamp: real divergence and real strictly-behind reproductions (bare+multi-clone) both
+  show " [source: remote]" and "MEMORY: remote (fetched Ns ago)" -- zero Spanish literals found via
+  grep across the feature's code path.
+- Renamed remote now fetches: simple `remote rename origin upstream` (tracking preserved), a
+  two-remote setup where "origin" is a broken/unreachable decoy and the real tracked remote has a
+  different name, and a remote literally named `2nd.origin_weird-name` (dots/underscore/hyphen) --
+  all three fetch successfully and correctly surface the new remote content, confirmed via
+  independent `refs/remotes/<name>/main` reads and direct bare-repo ground truth, never through the
+  hook's own claims.
+- Leading-dash injection still blocked at the NEW `remote get-url --` call site: a hand-crafted
+  `-evilremote` remote+matching ref (real `.git/config` edit, git itself allows creating this via
+  `remote add --`) is still caught by `_looks_like_git_option` before reaching the new call --
+  confirmed via independent channel (no FETCH_HEAD created). Also confirmed for the remote_BRANCH
+  half specifically (hand-crafted `refs/remotes/origin/--evil-branch` + matching config so `@{u}`
+  resolves it) -- also blocked, no FETCH_HEAD created.
+- Shell-metacharacter remote names (`evil;touch_CANARY`, `` evil`touch_CANARY2` ``,
+  `evil$(touch_CANARY3)`) all created successfully by real git (no rejection at creation time), then
+  tracked and fetched successfully via the new argv-list `remote get-url --`/`fetch` calls with ZERO
+  canary file created anywhere -- confirms no shell=True anywhere in this path, genuinely argv-safe.
+- Both ORIGINAL round-1 breaks re-verified fixed under this round's exact code: future-dated
+  FETCH_HEAD mtime (clock skew) still forces a real fetch (FETCH_HEAD mtime independently confirmed
+  to move to "now", not stay skewed); a hand-corrupted `branch.main.merge` ghost ref still correctly
+  returns `no_remote`/"MEMORY: LOCAL -- unverified" while an independent `fetch`+`log origin/main`
+  confirms the real remote DOES have new content the stamp correctly refuses to claim.
+- POSIX killpg process-tree kill re-confirmed under the refactored Windows/POSIX `popen_kwargs` split:
+  a real hung TCP listener (not a mock) + real `git fetch` against it -- after the 3s timeout, `ps`
+  independently confirms zero leftover `git`/`git-remote-http` processes.
+- `false`-by-PATH askpass: confirmed the old `/bin/false` literally does not exist on this real macOS
+  box (`ls /bin/false` -> No such file or directory) so the portability claim is true, but also
+  confirmed via a REAL `git ls-remote` against an auth-required https URL that GIT_TERMINAL_PROMPT=0
+  alone already fully prevented any hang/interactive-prompt leak even with the OLD broken
+  `/bin/false` -- the fix is a genuine portability correction with no prior live hang to its name, not
+  overclaimed as fixing a security gap it doesn't.
+- Concurrency on the renamed-remote code path specifically: 6 real concurrent `fetch_memory_ref()`
+  calls (fresh FETCH_HEAD) all correctly report "fetched", `fsck` clean after; a REAL concurrent
+  out-of-band `git fetch upstream` racing the function at the same instant resolves cleanly to
+  `rate_limited` with no crash and `fsck` clean; 50 rapid-fire in-process calls reproduce the exact
+  expected 1-fetched/49-rate-limited pattern in 0.05s with the renamed-remote resolution path.
+- Stress: a renamed-remote clone 600 commits behind resolves ahead/behind and reads/caps `pending` at
+  MAX_PENDING correctly in ~0.1s -- no slowdown from the new dynamic remote-name resolution.
+- _crown_replace's multi-match branch confirmed to introduce NO observable divergence-handling bug:
+  a real true-divergence (both sides crowning the SAME scope, real bare+2-clone) still shows BOTH
+  crowned entries side by side, correctly labeled, never deduped/dropped/merged.
