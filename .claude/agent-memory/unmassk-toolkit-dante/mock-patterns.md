@@ -524,3 +524,41 @@ fixture that attempts a real `os.symlink()` in `tmp_path` and calls
 `pytest.skip(...)` if it raises `OSError` (confirmed: `[WinError 1314]` on a
 Windows box without Developer Mode / SeCreateSymbolicLinkPrivilege) — never
 fake kernel symlink-following behavior with a mock and call it equivalent.
+
+## Fake `git` executable on PATH — asserting subprocess env/timeout without real network
+
+To contract-test that a hook's `subprocess.run(["git", ...])` call passes a
+specific hardened `env` (e.g. `GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with
+`BatchMode=yes`) or respects a short timeout, don't rely on real network
+behavior (dead ports, unreachable hosts) — sandboxed test environments may
+not allow arbitrary outbound sockets, and real-network timing is inherently
+flaky. Instead, write a fake `git` executable (a `#!/usr/bin/env python3`
+script literally named `git`, `chmod 0o755`) into a scratch dir, prepend that
+dir to `PATH` for the subprocess call under test. The fake script:
+1. Logs every invocation (`sys.argv[1:]` + `dict(os.environ)`) to a JSONL
+   file — this captures the EXACT env the real subprocess call received,
+   which is otherwise unobservable from the test process.
+2. Passes through to the REAL git binary (resolved via `shutil.which("git")`
+   *before* prepending the fake dir, then baked into the fake script as a
+   literal string) for every subcommand except the one under test — so the
+   rest of the pipeline (rev-parse, log, branch, status, a doctor subprocess
+   that itself calls git) keeps working unmodified.
+3. Optionally hangs (`time.sleep(N)`) only for the intercepted subcommand,
+   to exercise a timeout deterministically without any real network hang.
+
+To prove an env override actually happened (not just "the value looks
+right by accident"), POISON the ambient environment before the call with a
+value the hardened code must override (e.g. set `GIT_TERMINAL_PROMPT=1` in
+the env passed to the subprocess), then assert the fake git's recorded env
+shows the hardened value instead. Without poisoning, a test can pass
+vacuously if the hardened code never actually sets the var at all (both
+"unset" and "already correct by luck" would go unnoticed).
+
+Windows caveat: a bare extensionless `git` file is not resolved as an
+executable via PATH lookup the way `subprocess.run(["git", ...])` needs —
+skip this technique with `@pytest.mark.skipif(sys.platform == "win32", ...)`.
+
+Confirmed in `unmassk-toolkit/tests/test_boot_freshness.py`
+(`_make_fake_git`, feat-boot-freshness contract, session 2026-07-06) for the
+hardened-fetch-env RED test and the fetch-gate RED test. See
+[feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md).

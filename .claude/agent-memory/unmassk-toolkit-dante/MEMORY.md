@@ -10,3 +10,4 @@
 - [crown-retraction-design-notes.md](crown-retraction-design-notes.md) — Crown-retraction multi-crown edge case gotcha (naive per-commit patch resurfaces superseded crowns)
 - [skill-router-contract-notes.md](skill-router-contract-notes.md) — Per-message skill-router contract ("[skill-router]" marker), what the hardening pass still owes
 - [boot-stdout-banner-contract-notes.md](boot-stdout-banner-contract-notes.md) — session-start-boot.py unconditional stdout banner + 5 rounds of audit-hardening findings across bin/git-memory-*.py (symlink read/write, control-byte injection, manifest.json, path traversal, ANSI injection)
+- [feat-boot-freshness-contract-notes.md](feat-boot-freshness-contract-notes.md) — boot memory freshness (multi-machine, issue #49) acceptance contract: fixture design, RED baseline, marker-naming pitfall

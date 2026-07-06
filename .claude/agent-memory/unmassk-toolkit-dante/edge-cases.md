@@ -879,3 +879,38 @@ POSIX-real-symlink skips), 0 failed, 0 xpass in
   dedicated test — mirrors how the Windows bare-repo branch-mismatch gap
   earlier in this file was handled (documented, not test-guarded, since this
   suite doesn't run on Windows).
+
+## Test-input text that echoes back into output can make a keyword assertion pass vacuously — audit marker names against every regex they're near
+
+When a test writes a commit message / file / marker string that a script
+under test PRINTS BACK VERBATIM (confirmation lines like
+`bin/git-memory-commit.py`'s `_print_commit_result()` echo the commit
+`message` argument), and the same test then does `re.search(r"<keyword>",
+combined_output)` to prove some NEW feature added that keyword to the
+output, the assertion can pass today — before the feature exists — purely
+because the test's OWN input text happened to contain the keyword. Caught
+live in `test_boot_freshness.py`'s write-path warn-only test (Task 1 test
+8): the commit message was `"proceed despite being behind"`, and the
+regex checking for a new "behind" warning matched the echoed message
+itself, making a RED-should-be test pass GREEN for the wrong reason before
+any warning logic existed. Same root cause hit a second time in the same
+file: `INCIDENT_NEXT_MARKER = "INCIDENT-REMOTE-NEXT-..."` and
+`b_remote_marker = "B-REMOTE-NEXT-MARKER"` both contained the substring
+"REMOTE", which a `re.search(r"remot", line, re.IGNORECASE)` check (meant
+to prove a NEW remote-provenance LABEL was added next to the marker) would
+match on the marker's own name alone, regardless of whether the label
+existed.
+
+**Fix / prevention**: before writing an assertion `re.search(r"<kw>",
+text)`, grep every string LITERAL the test itself writes into that same
+commit/file/env (commit messages, trailer values, marker constants,
+filenames) for that keyword (case-insensitive) and rename any collision.
+Prefer marker names built from a scope name + a short random-looking
+suffix (e.g. `"B-NEXT-MARKER-77c2"`) that avoids every word the test's own
+regexes search for. This is a variant of the codebase's existing "make the
+PoC real" / anti-fixture-fabrication family of gotchas — the bug isn't in
+what's asserted, it's in the test's own input data secretly satisfying the
+assertion. Always run the new test once against UNMODIFIED (pre-fix)
+production code and confirm every physical test method is genuinely RED,
+not just the file as a whole — running with `-x` can hide a vacuously
+green test sitting after a real failure.
