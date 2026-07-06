@@ -156,3 +156,73 @@ against in this environment, and mocking `subprocess.run` to assert
 the mock was configured correctly — logic-review only, per this project's
 own "Coverage Boundaries" rule against tests whose only assertion is mock
 configuration.
+
+## Second regression pass (session 2026-07-06) — T2 repo-identity confusion
+
+Same `test_boot_freshness_regression.py` file, extended (not a new file)
+after Ultron closed a SECOND T2 finding: a misconfigured `origin` that
+resolves cleanly (`@{u}` works, fetch succeeds, branch name matches) but
+shares ZERO commit history with local HEAD must never have its content
+rendered as this project's own memory. Fix under test:
+`check_upstream_shares_history()` (`lib/boot_git_checks.py:449`, `git
+merge-base -- HEAD <ref>`, fail-closed-on-trust — every non-zero exit,
+including a shallow-clone false negative, collapses to "not confirmed
+shared"), `render_memoria_stamp(history_related=...)` (:661, short-
+circuits to a fixed "MEMORY: LOCAL — upstream unrelated..." string),
+`session-start-boot.py` main()'s upstream_ref-nulling (:315-333), and
+`extract_glossary(exclude_remote=...)` / `_is_safe_remote_name()` (`lib/
+boot_memory.py:319,340` — `--exclude=refs/remotes/<name>/*` closes the
+SECOND, unlabeled leak surface the labeled resolve_boot_memory() path
+doesn't share).
+
+**Reusable fixture — "foreign bare repo, zero shared history, same remote
+NAME":** `_build_foreign_bare_with_crowned_content()` +
+`_setup_foreign_upstream_scenario()`. Build the foreign content as its own
+independent `git init --bare` + clone + commit lineage (real crowned
+Decision via `_commit_real(..., {"Decision": marker, "Crown":
+"Decision"})` + a real `Next:` context commit), THEN `git remote set-url
+origin <foreign_bare>` on an otherwise-normal `_setup_freshness_repo()`
+repo. Repointing the URL of the SAME remote name is deliberate — it keeps
+`branch.main.remote`/`.merge` tracking config coherent (git never
+re-derives tracking from a remote's URL), reproducing the exact
+misconfiguration shape the guard exists to catch, without needing to hand-
+craft `.git/config` directly. Verified via THREE channels in the same
+test: (a) the stamp string is an exact match regardless of fetch status,
+(b) both marker strings absent from combined stdout+boot-log output
+(covers both leak surfaces at once), (c) an independent `git merge-base
+HEAD origin/main` (run directly by the test, not through the code under
+test) confirms exit 1 — proves the scenario is genuinely unrelated, not
+just "the guard says so."
+
+**`check_upstream_shares_history()` unit tests don't need a remote/clone at
+all** — an orphan branch in a single throwaway repo (`git checkout
+--orphan unrelated`) is a sufficient "no common ancestor" fixture, and a
+plain sibling branch off the same commit is sufficient "shared history."
+Both need `monkeypatch.chdir(repo)` since the function's own `run_git`
+call passes no `cwd=` (relies on ambient process cwd, same as
+`get_ahead_behind()`).
+
+**Mutation-style proof for the second leak surface:** rather than only
+trusting the full-boot scenario, `_extract_glossary_direct(repo,
+exclude_remote=...)` calls `boot_memory.extract_glossary()` directly (out-
+of-process subprocess isolation, same reasoning as
+`test_boot_output.py::_extract_glossary()` — never in-process, this is a
+stably-named module reused across the whole test session) with BOTH
+`exclude_remote=None` (proves the leak is real — the function's own
+default call shape) and `exclude_remote="origin"` (proves the guard closes
+it). Confirmed empirically before writing assertions.
+
+**New confirmed gap found, reported via `xfail(strict=True)`, NOT fixed
+(Absolute Prohibition #4):** the PULL DIRECTIVE line
+(`_build_pull_directive_lines()`, built from raw `ahead_n`/`behind_n` by
+`render_branch_section()`) runs BEFORE
+`check_upstream_shares_history()` in `main()` (:302 vs :318), and `main()`
+never revisits `pull_directive_lines` after learning the upstream is
+unrelated — only `upstream_ref` gets nulled (affecting the memory-read and
+glossary paths, not the branch-section's own already-built lines). Verified
+empirically (see the manual repro below) against real HEAD code: a
+foreign, zero-shared-history upstream still prints "PULL DIRECTIVE: local
+is N commit(s) behind — propose \`git pull\`..." — actively bad advice,
+since pulling would try to merge in a totally unrelated commit graph.
+Pinned as `TestPullDirectiveGapForUnrelatedUpstream::
+test_pull_directive_never_recommends_pull_for_unrelated_upstream`.

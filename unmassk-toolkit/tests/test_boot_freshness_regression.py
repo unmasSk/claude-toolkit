@@ -32,16 +32,38 @@ Findings protected (each class below references its finding explicitly):
   6. `false`-by-PATH askpass (Argus, low portability) — on POSIX,
      _ASKPASS_FAILFAST must resolve via a plain PATH lookup to an
      executable that exits non-zero immediately, with no exec error.
+  7. Repo-identity confusion (Moriarty T2, THIS pass, session 2026-07-06)
+     — check_upstream_shares_history() (lib/boot_git_checks.py:449) +
+     render_memoria_stamp(history_related=...) (:661) +
+     session-start-boot.py main()'s upstream_ref-nulling (:300-333) +
+     extract_glossary(exclude_remote=...)'s `--exclude=refs/remotes/
+     <name>/*` guard (lib/boot_memory.py:340). A misconfigured `origin`
+     that resolves cleanly, fetches successfully, and shares a branch
+     NAME with local, but shares NO commit history at all, must never
+     have its content rendered as this project's own memory — through
+     EITHER the labeled resolve_boot_memory() path or the unlabeled
+     extract_glossary() `--all` history scan.
 
-Test surface for this pass: 6 confirmed findings, 10 test methods (11 test
-cases counting one parametrization), all driven against the REAL,
+Test surface for this pass: 7 confirmed findings, 17 test methods (18 test
+cases counting one parametrization) — 10 methods / 11 cases for findings
+1-6 (pre-existing, unchanged), 7 NEW methods for finding 7 (this session):
+3 direct unit calls to check_upstream_shares_history() (shared/unrelated/
+none-or-option-shaped), 1 end-to-end foreign-upstream boot scenario (stamp
++ content-suppression across both leak surfaces + an independent merge-base
+verification channel), 2 direct extract_glossary(exclude_remote=...) calls
+proving the leak is real without the guard and closed with it, 1 legit-
+multi-machine control case proving the guard does not break the genuine
+flow, and 1 NEW confirmed gap (PULL DIRECTIVE still recommends `git pull`
+against a confirmed-unrelated upstream) pinned as xfail(strict=True) and
+reported, not fixed (Absolute Prohibition #4). All driven against the REAL,
 already-fixed code in HEAD (lib/boot_git_checks.py, lib/boot_memory.py,
 lib/git_helpers.py) — no mocking of the behavior under test, only real git
-repos/remotes and (for findings 5/6) a real subprocess tree / real PATH
-lookup. Excluded from this pass (not requested, out of scope for a
-regression-only pass): the exhaustive branch/error-path re-sweep already
-done in test_boot_freshness_hardening.py — this file only adds NEW
-coverage for the specific fixes Moriarty flagged as unprotected.
+repos/remotes/orphan-branches and (for findings 5/6) a real subprocess tree
+/ real PATH lookup. Excluded from this pass (not requested, out of scope
+for a regression-only pass): the exhaustive branch/line re-sweep already
+done in test_boot_freshness_hardening.py — this file only adds NEW coverage
+for the specific fixes Moriarty flagged as unprotected, plus the one new
+gap found while writing finding 7's coverage.
 
 Build mode: linear (regression pass on already-fixed code). No production
 code is touched by this file — RED results here are reported, not fixed
@@ -55,7 +77,7 @@ import time
 
 import pytest
 
-from conftest import LIB_DIR
+from conftest import LIB_DIR, run_cmd
 
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
@@ -67,6 +89,7 @@ import git_helpers
 from test_boot_freshness import (
     WINDOWS,
     _clone_machine_b,
+    _commit_real,
     _git,
     _line_with,
     _push_commits_from_b,
@@ -422,4 +445,328 @@ class TestAskpassFailfastResolvesViaPath:
         assert result.returncode != 0, (
             "the askpass fail-fast executable must exit non-zero so git "
             "treats any credential prompt as declined, never hangs"
+        )
+
+
+# ── Finding 7: repo-identity confusion (Moriarty T2, THIS pass) ───────────
+#
+# Fixture + shared markers for the foreign-upstream scenario. Marker text
+# deliberately avoids "remote"/"local"/"behind"/"pull"/"memory" — those
+# substrings are reserved for asserting on labels/wording the FEATURE adds,
+# never for an accidental echo of the marker's own name (see
+# feat-boot-freshness-contract-notes.md's "marker naming pitfall").
+
+FOREIGN_DECISION_MARKER = "XENO-DECISION-7f3ab2c1"
+FOREIGN_NEXT_MARKER = "XENO-NEXT-9d114ae2"
+NORMAL_CASE_NEXT_MARKER = "T2-GUARD-CONTROL-NEXT-4b8e21"
+
+
+def _build_foreign_bare_with_crowned_content(tmp_path, name="foreign_bare.git"):
+    """A bare remote with a totally independent commit lineage (zero shared
+    history with any machine-A repo in this file) carrying a real crowned
+    Decision and a real Next resume marker — exactly the shape a
+    legitimate upstream's memory takes, so a leak here would be
+    indistinguishable from genuine remote memory if the T2 guard ever
+    regressed.
+    """
+    foreign_bare = str(tmp_path / name)
+    subprocess.run(["git", "init", "--bare", "-b", "main", foreign_bare], capture_output=True, check=True)
+    foreign_work = str(tmp_path / f"{name}_work")
+    _git(["clone", foreign_bare, foreign_work], str(tmp_path))
+    _git(["config", "user.email", "foreign@test.com"], foreign_work)
+    _git(["config", "user.name", "Foreign Machine"], foreign_work)
+    _git(["commit", "--allow-empty", "-m", "init foreign lineage"], foreign_work)
+    _commit_real(
+        foreign_work, "decision", "xenoscope",
+        f"{FOREIGN_DECISION_MARKER} adopt unrelated policy",
+        {"Decision": FOREIGN_DECISION_MARKER, "Crown": "Decision"},
+    )
+    _commit_real(
+        foreign_work, "context", "xenoscope",
+        f"sync {FOREIGN_NEXT_MARKER}",
+        {"Next": FOREIGN_NEXT_MARKER},
+    )
+    _git(["push", "origin", "main"], foreign_work)
+    return foreign_bare
+
+
+def _setup_foreign_upstream_scenario(tmp_path):
+    """Machine A, toolkit-installed and clean (via _setup_freshness_repo's
+    own baseline), with its `origin` remote repointed at a genuinely
+    FOREIGN bare repo (zero shared history) — repointing the URL of the
+    SAME remote NAME keeps branch.main.remote/.merge tracking config
+    coherent (git never re-derives tracking from the URL), which is
+    exactly the misconfiguration shape check_upstream_shares_history()
+    exists to catch: `@{u}` resolves cleanly, a fetch against it succeeds,
+    and yet the two sides share no commit history at all.
+    """
+    repo_a, _own_bare = _setup_freshness_repo(tmp_path)
+    foreign_bare = _build_foreign_bare_with_crowned_content(tmp_path)
+    _git(["remote", "set-url", "origin", foreign_bare], repo_a)
+    return repo_a, foreign_bare
+
+
+def _extract_glossary_direct(repo, exclude_remote=None):
+    """Call boot_memory.extract_glossary(exclude_remote=...) with the test
+    repo as GIT_DIR/GIT_WORK_TREE — same subprocess-isolation pattern as
+    tests/test_boot_output.py's _extract_glossary(), extended with the
+    exclude_remote passthrough that helper predates. Run out-of-process
+    (not via a monkeypatched in-process import) because boot_memory is a
+    stably-named module reused by every other test file in this suite —
+    see unmassk-toolkit-python-test-conventions.md's sys.modules-
+    contamination warning.
+    """
+    code = f"""
+import sys, os, json, subprocess
+sys.path.insert(0, {repr(LIB_DIR)})
+os.chdir({repr(repo)})
+
+import git_helpers as _gh
+
+def _patched_run_git(args, cwd=None, timeout=None, env=None):
+    merged_env = dict(os.environ)
+    merged_env['GIT_DIR'] = os.path.join({repr(repo)}, '.git')
+    merged_env['GIT_WORK_TREE'] = {repr(repo)}
+    result = subprocess.run(['git'] + args, capture_output=True, text=True, cwd={repr(repo)}, env=merged_env)
+    return result.returncode, result.stdout.strip()
+_gh.run_git = _patched_run_git
+
+import boot_memory
+result = boot_memory.extract_glossary(exclude_remote={exclude_remote!r})
+
+def _ser(lst):
+    return [list(item) for item in lst]
+
+print(json.dumps({{
+    'decisions': _ser(result.get('decisions', [])),
+    'memos': _ser(result.get('memos', [])),
+    'remembers': _ser(result.get('remembers', [])),
+}}))
+"""
+    import json as _json
+
+    rc, stdout, stderr = run_cmd([sys.executable, "-c", code], repo, timeout=30)
+    if rc != 0:
+        raise RuntimeError(f"_extract_glossary_direct failed (rc={rc}): {stderr}")
+    return _json.loads(stdout)
+
+
+class TestCheckUpstreamSharesHistoryDirect:
+    """Direct unit calls to check_upstream_shares_history() (lib/
+    boot_git_checks.py:449) across its three documented return values —
+    real repos/branches, no mocking of git itself. The function relies on
+    ambient process cwd for its own `run_git(["merge-base", ...])` call (no
+    cwd= param — see git_helpers.run_git's own docstring: "None = inherit
+    caller cwd"), so the two repo-backed cases use monkeypatch.chdir()
+    (pytest auto-restores it, no cross-test bleed).
+    """
+
+    def test_shared_history_returns_true(self, tmp_path, monkeypatch):
+        repo = str(tmp_path / "shared_repo")
+        os.makedirs(repo)
+        _git(["init", "-b", "main"], repo)
+        _git(["config", "user.email", "a@test.com"], repo)
+        _git(["config", "user.name", "A"], repo)
+        _git(["commit", "--allow-empty", "-m", "shared ancestor"], repo)
+        _git(["branch", "sibling"], repo)
+        _git(["commit", "--allow-empty", "-m", "main-only commit"], repo)
+
+        monkeypatch.chdir(repo)
+        assert boot_git_checks.check_upstream_shares_history("sibling") is True
+
+    def test_no_common_ancestor_returns_false(self, tmp_path, monkeypatch):
+        repo = str(tmp_path / "orphan_repo")
+        os.makedirs(repo)
+        _git(["init", "-b", "main"], repo)
+        _git(["config", "user.email", "a@test.com"], repo)
+        _git(["config", "user.name", "A"], repo)
+        _git(["commit", "--allow-empty", "-m", "main history"], repo)
+        _git(["checkout", "--orphan", "unrelated"], repo)
+        _git(["commit", "--allow-empty", "-m", "unrelated history"], repo)
+        _git(["checkout", "main"], repo)
+
+        monkeypatch.chdir(repo)
+        assert boot_git_checks.check_upstream_shares_history("unrelated") is False
+
+    @pytest.mark.parametrize("ref", [None, "", "-x", "--evil"], ids=["none", "empty", "dash", "double-dash"])
+    def test_missing_or_option_shaped_ref_returns_none(self, ref):
+        # Short-circuits before any git call — no repo/chdir needed.
+        assert boot_git_checks.check_upstream_shares_history(ref) is None
+
+
+class TestForeignUpstreamBootSuppressesUnrelatedHistory:
+    """Moriarty T2 PoC (issue #49 repair round, repo-identity confusion) —
+    end-to-end regression pin for the FIXED code in HEAD.
+
+    A misconfigured `origin` pointing at a repo with zero shared history
+    must never have its crowned Decision/Next rendered as this project's
+    own memory — through EITHER surface: resolve_boot_memory()'s labeled
+    remote path, or extract_glossary()'s unlabeled `--all` history scan.
+    """
+
+    def test_stamp_exact_and_foreign_content_never_reaches_output(self, tmp_path):
+        repo_a, foreign_bare = _setup_foreign_upstream_scenario(tmp_path)
+
+        rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
+        assert rc == 0, f"stderr: {stderr}"
+
+        # (a) the MEMORY: stamp is EXACTLY the unrelated-history wording,
+        # regardless of the fetch's own status (a fetch against the
+        # foreign remote itself succeeds — the guard overrides the wording
+        # unconditionally).
+        stamp_line = _line_with(combined, "MEMORY:")
+        assert stamp_line is not None, f"no MEMORY: line found in boot output.\n{combined}"
+        assert stamp_line.strip() == (
+            "MEMORY: LOCAL — upstream unrelated (no shared history), not shown"
+        ), f"expected the exact unrelated-history stamp. Got: {stamp_line!r}"
+
+        # (b) neither the crowned Decision nor the Next marker from the
+        # foreign lineage reach stdout or the boot-log — via EITHER the
+        # labeled resolve_boot_memory() path or the unlabeled
+        # extract_glossary() `--all` scan.
+        assert FOREIGN_DECISION_MARKER not in combined, (
+            f"foreign upstream's crowned Decision leaked into boot output "
+            f"despite zero shared history.\n{combined}"
+        )
+        assert FOREIGN_NEXT_MARKER not in combined, (
+            f"foreign upstream's Next marker leaked into boot output "
+            f"despite zero shared history.\n{combined}"
+        )
+
+        # (c) independent channel: prove via a SEPARATE, direct git
+        # invocation (not the code under test) that the two sides
+        # genuinely share no history — confirms the scenario itself, not
+        # just the guard's rendered output.
+        merge_base = _git(["merge-base", "HEAD", "origin/main"], repo_a, check=False)
+        assert merge_base.returncode == 1, (
+            f"test setup error: expected merge-base to confirm NO shared "
+            f"history (exit 1). Got rc={merge_base.returncode}, "
+            f"stdout={merge_base.stdout!r}"
+        )
+
+
+class TestExtractGlossaryExcludeRemoteGuardsForeignRefs:
+    """Moriarty T2's second confirmed variant: extract_glossary()'s `--all`
+    history scan (lib/boot_memory.py:340) walks EVERY ref under refs/,
+    including refs/remotes/<name>/* — a foreign upstream's crowned Decision
+    would leak into this project's OWN glossary with zero provenance
+    label (strictly worse than resolve_boot_memory()'s labeled path).
+    Proves the leak is real with exclude_remote=None (the pre-#49-repair
+    default call shape, still the function's own default) AND that
+    exclude_remote=<name> closes it — direct calls, isolating this ONE
+    mechanism from the full-boot scenario above.
+    """
+
+    def _make_repo_with_fetched_foreign_remote(self, tmp_path):
+        repo = str(tmp_path / "repo_glossary")
+        os.makedirs(repo)
+        _git(["init", "-b", "main"], repo)
+        _git(["config", "user.email", "a@test.com"], repo)
+        _git(["config", "user.name", "A"], repo)
+        _git(["commit", "--allow-empty", "-m", "init"], repo)
+
+        foreign_bare = _build_foreign_bare_with_crowned_content(tmp_path, name="foreign_bare_glossary.git")
+        _git(["remote", "add", "origin", foreign_bare], repo)
+        _git(["fetch", "origin"], repo)
+        return repo
+
+    def test_without_exclude_remote_the_foreign_decision_leaks(self, tmp_path):
+        repo = self._make_repo_with_fetched_foreign_remote(tmp_path)
+
+        glossary = _extract_glossary_direct(repo, exclude_remote=None)
+
+        found = any(FOREIGN_DECISION_MARKER in text for _label, text, _crown in glossary["decisions"])
+        assert found, (
+            "test setup error: expected extract_glossary(exclude_remote=None) "
+            "to see the foreign remote's crowned Decision via its --all scan "
+            f"(this proves the scenario is real). Got: {glossary['decisions']}"
+        )
+
+    def test_with_exclude_remote_the_foreign_decision_is_suppressed(self, tmp_path):
+        repo = self._make_repo_with_fetched_foreign_remote(tmp_path)
+
+        glossary = _extract_glossary_direct(repo, exclude_remote="origin")
+
+        found = any(FOREIGN_DECISION_MARKER in text for _label, text, _crown in glossary["decisions"])
+        assert not found, (
+            f"extract_glossary(exclude_remote='origin') must exclude "
+            f"refs/remotes/origin/* from its --all scan. Got: {glossary['decisions']}"
+        )
+
+
+class TestLegitMultiMachineFlowStillWorksAfterGuard:
+    """The T2 guard (check_upstream_shares_history) must not break the
+    legitimate multi-machine flow it sits alongside — a real second clone
+    (genuinely shared history) pushing ahead must still produce the
+    "remote (fetched...)" stamp and a labeled Next, exactly as before the
+    repair round.
+    """
+
+    def test_legit_behind_machine_shows_remote_stamp_and_labeled_next(self, tmp_path):
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+        repo_b = _clone_machine_b(bare, tmp_path)
+        _push_commits_from_b(repo_b, 2, next_marker=NORMAL_CASE_NEXT_MARKER)
+
+        rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
+        assert rc == 0, f"stderr: {stderr}"
+
+        stamp_line = _line_with(combined, "MEMORY:")
+        assert stamp_line is not None, f"no MEMORY: line found.\n{combined}"
+        assert stamp_line.strip().startswith("MEMORY: remote ("), (
+            f"expected a genuine shared-history upstream to still produce "
+            f"the remote-confirmed stamp. Got: {stamp_line!r}"
+        )
+
+        next_line = _line_with(combined, NORMAL_CASE_NEXT_MARKER)
+        assert next_line is not None, f"expected B's Next marker in boot output.\n{combined}"
+        assert boot_memory.REMOTE_PROVENANCE_LABEL in next_line, (
+            f"expected the remote-provenance label on B's Next line. Got: {next_line!r}"
+        )
+
+        # Independent channel: confirm this really IS the shared-history
+        # case the guard must leave alone.
+        merge_base = _git(["merge-base", "HEAD", "origin/main"], repo_a, check=False)
+        assert merge_base.returncode == 0, (
+            "test setup error: expected a real common ancestor for the "
+            f"legit multi-machine case. Got rc={merge_base.returncode}"
+        )
+
+
+class TestPullDirectiveGapForUnrelatedUpstream:
+    """NEW finding (Dante, this regression pass, session 2026-07-06) — NOT
+    part of Ultron's T2 fix, not protected anywhere else. Confirmed
+    empirically against the real, current HEAD code before writing this
+    test: render_branch_section()'s PULL DIRECTIVE line (lib/
+    boot_git_checks.py:_build_pull_directive_lines, built from raw
+    ahead_n/behind_n) runs BEFORE check_upstream_shares_history() in
+    hooks/session-start-boot.py's main() (:302-333), and main() never
+    revisits pull_directive_lines after learning the upstream is unrelated
+    — it only nulls upstream_ref for the memory-read/glossary paths. For a
+    foreign, zero-shared-history upstream this actively tells the user to
+    `git pull`, which would attempt to merge in a completely unrelated
+    commit graph — the exact confusion this feature exists to prevent, one
+    line up from the (correctly suppressed) MEMORY: stamp.
+
+    Reported here, NOT fixed (Absolute Prohibition #4) — pinned as
+    xfail(strict=True) so it flips to a hard failure (forcing a test
+    update) the moment this gap is closed.
+    """
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CONFIRMED GAP (session 2026-07-06): PULL DIRECTIVE still "
+        "recommends `git pull` against an upstream already confirmed to "
+        "share NO history with local HEAD — not covered by the T2 "
+        "identity-confusion fix. Report to Ultron, do not silently fix here.",
+    )
+    def test_pull_directive_never_recommends_pull_for_unrelated_upstream(self, tmp_path):
+        repo_a, foreign_bare = _setup_foreign_upstream_scenario(tmp_path)
+
+        rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
+        assert rc == 0, f"stderr: {stderr}"
+
+        assert "git pull" not in combined, (
+            "PULL DIRECTIVE recommended `git pull` against an upstream "
+            "already confirmed to share NO history with local HEAD — "
+            f"this would merge in an unrelated commit graph.\n{combined}"
         )
