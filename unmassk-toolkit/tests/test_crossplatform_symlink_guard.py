@@ -1,0 +1,483 @@
+"""
+Test-first contract (Dante, before Ultron) for the Windows/macOS/Linux
+compatibility fix — see docs/plan/fix-windows-crossplatform.md, Task 1.
+
+Decisions already made (git-memory, not up for debate here):
+  - 013b064 decision(plugin/portability): cross-platform is a hard requirement.
+  - 75fdb2f decision(plugin/security): hybrid "option C" anti-symlink guard —
+    POSIX keeps os.O_NOFOLLOW; Windows gets an os.path.islink() pre-open
+    check PLUS an os.lstat()/os.fstat() identity comparison (TOCTOU guard);
+    any rejection raises OSError, closes the fd, never returns it.
+
+Code under test (two twins that MUST behave identically — see
+_symlink_safe_open.py's own docstring: "Must be kept behaviorally identical
+to git_helpers.open_no_follow_symlink()"):
+  - lib/git_helpers.py:open_no_follow_symlink()
+  - lib/_symlink_safe_open.py:open_no_follow_symlink_fallback()
+
+Current bug (House F1, confirmed live in this dev environment — a real
+win32 box): both twins reference `os.O_NOFOLLOW` UNCONDITIONALLY. That
+attribute does not exist on Windows, so EVERY call (symlink or not) raises
+`AttributeError: module 'os' has no attribute 'O_NOFOLLOW'`. AttributeError
+is NOT a subclass of OSError, so it escapes every `except OSError` at every
+call site as an unhandled crash. This file pins that invariant plus the
+Windows-guard contract that replaces it.
+
+Build mode: test-first (contract pass). This is acceptance-granularity —
+the 7 behaviors that define "done" per the plan — not the exhaustive
+branch/line suite. The EXHAUSTION PROTOCOL hardening pass runs AFTER
+Ultron implements (Flow Verify step), against the real code.
+
+NO production code is touched by this file. Only tests.
+"""
+
+import errno
+import json
+import os
+import subprocess
+import sys
+import textwrap
+
+import pytest
+
+from conftest import LIB_DIR
+
+import git_helpers
+import _symlink_safe_open
+
+TWIN_FUNCS = {
+    "git_helpers.open_no_follow_symlink": git_helpers.open_no_follow_symlink,
+    "_symlink_safe_open.open_no_follow_symlink_fallback": (
+        _symlink_safe_open.open_no_follow_symlink_fallback
+    ),
+}
+
+
+class _FakeStat:
+    """Minimal duck-typed stand-in for os.stat_result — the (future)
+    Windows TOCTOU guard only needs to compare (st_dev, st_ino), so a real
+    stat_result is unnecessary ceremony."""
+
+    def __init__(self, st_dev, st_ino):
+        self.st_dev = st_dev
+        self.st_ino = st_ino
+
+
+@pytest.fixture
+def real_symlink_capable(tmp_path):
+    """Skip the test using this fixture if the CURRENT environment cannot
+    create real filesystem symlinks.
+
+    Confirmed live in this dev environment (win32, no Developer Mode /
+    SeCreateSymbolicLinkPrivilege):
+        os.symlink(...) -> OSError: [WinError 1314] El cliente no dispone
+        de un privilegio requerido.
+
+    The POSIX O_NOFOLLOW guarantee is enforced by the kernel at open() time
+    — it cannot be meaningfully mocked (mocking os.path.islink() would only
+    prove our mock works, not that O_NOFOLLOW itself still functions). A
+    real symlink is the only honest way to test it, so when one cannot be
+    created here, this reports an explicit skip rather than faking the
+    result.
+    """
+    probe_target = tmp_path / "_symlink_probe_target.txt"
+    probe_link = tmp_path / "_symlink_probe_link.txt"
+    probe_target.write_text("probe")
+    try:
+        os.symlink(str(probe_target), str(probe_link))
+    except OSError as e:
+        pytest.skip(f"cannot create real symlinks in this environment: {e}")
+    else:
+        os.remove(str(probe_link))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 1 — POSIX guard unchanged (GUARD: passes now, must keep passing)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestPosixGuardUnchanged:
+    """O_NOFOLLOW is real on POSIX today and Task 2 must not touch that
+    branch. These are GUARD tests: expected GREEN now (on a POSIX host —
+    skipped here since this dev box cannot create real symlinks, see
+    `real_symlink_capable`) and GREEN after Task 2.
+    """
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_existing_symlink_at_target_raises_oserror_eloop(
+        self, tmp_path, target_open, real_symlink_capable
+    ):
+        """GUARD — real symlink at the final path component, real kernel
+        O_NOFOLLOW enforcement. Not mockable (see fixture docstring)."""
+        victim = tmp_path / "victim-posix.txt"
+        victim.write_text("SENSITIVE ORIGINAL CONTENT")
+        link_path = tmp_path / "posix-guard-link.txt"
+        os.symlink(str(victim), str(link_path))
+
+        with pytest.raises(OSError) as exc_info:
+            target_open(str(link_path), "w")
+
+        assert exc_info.value.errno == errno.ELOOP, (
+            f"expected ELOOP (symlink refused), got errno={exc_info.value.errno}"
+        )
+        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT"
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_normal_file_opens_and_round_trips_on_posix(
+        self, tmp_path, target_open, real_symlink_capable
+    ):
+        """GUARD — an ordinary (non-symlink) file must open, write, and
+        read back correctly; untouched by the O_NOFOLLOW guard."""
+        path = tmp_path / "posix-normal-file.txt"
+        payload = "contenido normal sin symlink\n"
+
+        with target_open(str(path), "w") as f:
+            f.write(payload)
+        with target_open(str(path), "r") as f:
+            reread = f.read()
+
+        assert reread == payload
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 2 — Windows guard: os.path.islink() pre-open check (RED now)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestWindowsIslinkGuardMocked:
+    """Windows has no O_NOFOLLOW; the fix's first line of defense is an
+    explicit `os.path.islink()` check BEFORE opening. Mocked so this runs
+    on any host OS, per the plan's requirement (no real symlink needed;
+    this dev box has no privilege to create one anyway).
+
+    RED now: neither twin calls os.path.islink() anywhere — the mock is
+    inert — so the call falls straight through to the unconditional
+    `os.O_NOFOLLOW` reference and raises AttributeError (F1), which
+    `pytest.raises(OSError)` below does NOT catch, surfacing as an
+    unhandled-AttributeError test failure. That IS the correct RED signal.
+
+    GREEN after Task 2: islink()==True must raise OSError before os.open()
+    is ever called (spied via `open_calls`).
+    """
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    @pytest.mark.parametrize("mode", ["r", "w"])
+    def test_islink_true_raises_oserror_without_opening_file(
+        self, monkeypatch, tmp_path, target_open, mode
+    ):
+        monkeypatch.setattr(sys, "platform", "win32")
+        path = tmp_path / "windows-guard-target.txt"
+        path.write_text("original content")
+        monkeypatch.setattr(os.path, "islink", lambda p: True)
+
+        open_calls = []
+        real_open = os.open
+
+        def spy_open(*args, **kwargs):
+            open_calls.append((args, kwargs))
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr(os, "open", spy_open)
+
+        with pytest.raises(OSError):
+            target_open(str(path), mode)
+
+        assert not open_calls, (
+            "os.open() must never be called once os.path.islink() reports "
+            "True — the guard must fail BEFORE opening, not open-then-check"
+        )
+        assert path.read_text() == "original content"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 3 — Windows TOCTOU guard: lstat (pre) vs fstat (post) identity (RED now)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestWindowsToctouIdentityMismatch:
+    """Second line of defense: even when os.path.islink() says False at
+    check time, the path could be swapped for a symlink between the check
+    and the open() call (classic TOCTOU). The fix compares os.lstat(path)
+    (pre-open) against os.fstat(fd) (post-open) by (st_dev, st_ino); a
+    mismatch must raise OSError AND close the fd — never return it to the
+    caller (a leaked fd here is a real resource leak on every rejected
+    race, not just a theoretical concern).
+
+    RED now: neither twin calls os.lstat/os.fstat at all — same
+    AttributeError-before-any-of-this-runs failure as above.
+    """
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_lstat_fstat_mismatch_raises_and_closes_fd(
+        self, monkeypatch, tmp_path, target_open
+    ):
+        monkeypatch.setattr(sys, "platform", "win32")
+        path = tmp_path / "toctou-target.txt"
+        path.write_text("original")
+
+        monkeypatch.setattr(os.path, "islink", lambda p: False)
+        # Pre-open identity (what os.lstat(path) would report).
+        monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
+        # Post-open identity (what os.fstat(fd) would report) — DIFFERENT
+        # st_ino simulates the target having been swapped underneath us.
+        monkeypatch.setattr(os, "fstat", lambda fd: _FakeStat(st_dev=1, st_ino=999))
+
+        opened_fds = []
+        real_os_open = os.open
+
+        def spy_os_open(*args, **kwargs):
+            fd = real_os_open(*args, **kwargs)
+            opened_fds.append(fd)
+            return fd
+
+        closed_fds = []
+        real_os_close = os.close
+
+        def spy_os_close(fd):
+            closed_fds.append(fd)
+            real_os_close(fd)
+
+        monkeypatch.setattr(os, "open", spy_os_open)
+        monkeypatch.setattr(os, "close", spy_os_close)
+
+        with pytest.raises(OSError):
+            target_open(str(path), "w")
+
+        assert opened_fds, (
+            "a real fd must be opened before the TOCTOU identity check can "
+            "run (os.fstat(fd) needs a real fd) — if this is empty, the "
+            "guard rejected the path without ever reaching the check it "
+            "claims to perform"
+        )
+        assert closed_fds == opened_fds, (
+            f"every fd opened during a rejected TOCTOU race must be closed "
+            f"before raising — opened={opened_fds}, closed={closed_fds}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 4 — invariant: OSError (or subclass) only, never AttributeError,
+# never a silent falsy return (RED now, on this Windows box)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestExceptionInvariantAcrossPlatforms:
+    """The heart of F1: this test makes NO mocking assumption about
+    platform — it runs the REAL, current, unmodified code path for
+    whatever OS this pytest process is actually on.
+
+    RED now on real Windows (confirmed in this dev environment): raises
+    AttributeError on an ORDINARY file, no symlink involved at all.
+    Already GREEN on POSIX today (O_NOFOLLOW exists there) — this is a
+    GUARD on POSIX and a RED-to-GREEN contract on Windows, both enforced
+    by the same assertion.
+    """
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_never_raises_attributeerror_or_returns_falsy_on_normal_file(
+        self, tmp_path, target_open
+    ):
+        path = tmp_path / "plain-file-no-symlink.txt"
+        path.write_text("hello")
+
+        try:
+            f = target_open(str(path), "r")
+        except AttributeError as e:
+            pytest.fail(
+                "open_no_follow_symlink raised AttributeError on a NORMAL "
+                "file (no symlink involved) instead of either opening it "
+                "successfully or raising OSError — this is the exact F1 "
+                f"crash (os.O_NOFOLLOW missing on win32): {e!r}"
+            )
+        try:
+            assert f is not None and f is not False, (
+                "must never silently return None/False on success — a "
+                "caller checking `if not fh:` would treat this as an "
+                "absent file and mask the real error"
+            )
+            assert f.read() == "hello"
+        finally:
+            f.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 5 — twin parity: same scenario, same result on BOTH implementations
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestTwinParity:
+    """git_helpers.open_no_follow_symlink and
+    _symlink_safe_open.open_no_follow_symlink_fallback must raise the same
+    exception TYPE for the same input — _symlink_safe_open.py's own
+    docstring requires "kept behaviorally identical". This guards against
+    Ultron fixing one twin and forgetting the other in Task 2.
+
+    RED now: both twins raise AttributeError today (they ARE identical —
+    parity itself holds), so the type-equality-to-AttributeError succeeds
+    but the type-equality-to-OSError assertion fails. That is the correct
+    RED signal: parity is not the missing piece, correctness is.
+    """
+
+    def test_islink_guard_scenario_same_outcome_on_both_twins(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(sys, "platform", "win32")
+        path = tmp_path / "parity-islink.txt"
+        path.write_text("x")
+        monkeypatch.setattr(os.path, "islink", lambda p: True)
+
+        results = {}
+        for name, fn in TWIN_FUNCS.items():
+            try:
+                fn(str(path), "w")
+            except Exception as e:
+                results[name] = type(e)
+            else:
+                results[name] = None
+
+        distinct_outcomes = set(results.values())
+        assert len(distinct_outcomes) == 1, (
+            f"the two twins diverged for the SAME islink-guard scenario: "
+            f"{results} — they must be byte-identical in behavior"
+        )
+        assert distinct_outcomes == {OSError}, (
+            f"both twins must raise OSError for a Windows islink-guard hit, "
+            f"got {results}"
+        )
+
+    def test_toctou_scenario_same_outcome_on_both_twins(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(sys, "platform", "win32")
+        path = tmp_path / "parity-toctou.txt"
+        path.write_text("x")
+        monkeypatch.setattr(os.path, "islink", lambda p: False)
+        monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
+        monkeypatch.setattr(os, "fstat", lambda fd: _FakeStat(st_dev=1, st_ino=999))
+
+        results = {}
+        for name, fn in TWIN_FUNCS.items():
+            try:
+                fn(str(path), "w")
+            except Exception as e:
+                results[name] = type(e)
+            else:
+                results[name] = None
+
+        distinct_outcomes = set(results.values())
+        assert len(distinct_outcomes) == 1, (
+            f"the two twins diverged for the SAME TOCTOU scenario: {results}"
+        )
+        assert distinct_outcomes == {OSError}, (
+            f"both twins must raise OSError for a TOCTOU identity mismatch, "
+            f"got {results}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 6 — encoding round-trip: Spanish accents + commit emojis, byte-for-byte
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestEncodingRoundTrip:
+    """SEC-MED-NEW-02's read guard and SEC-CRIT-001's write guard must
+    preserve UTF-8 content exactly through the write -> reread seam, using
+    this project's own real alphabet (Spanish accents/ñ per CLAUDE.md's
+    Communication rule + the commit-emoji vocabulary seen in `git log`:
+    🔧 chore, 📝 docs, ✨ feat, 📌 memo, 👑 crown).
+
+    The expected value is never a hand-retyped duplicate (unmassk-standards
+    §34) — `payload` is written once and the assertion compares the reread
+    content against that SAME variable, not a second independently-typed
+    literal.
+
+    RED now on Windows only: blocked by the F1 AttributeError before the
+    encoding logic is ever reached. Already GREEN on POSIX today, since
+    both twins already default encoding="utf-8" explicitly. GREEN
+    everywhere after Task 2.
+    """
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_write_then_read_preserves_accents_and_commit_emojis_byte_for_byte(
+        self, tmp_path, target_open
+    ):
+        path = tmp_path / "roundtrip-encoding.txt"
+        payload = (
+            "🔧 chore(unmassk-toolkit): versión de mantenimiento\n"
+            "📝 docs(plugin): documentación del consolidador — corazón, señal, año\n"
+            "✨ feat(plugin/memory): disparador automático de la Corona 👑\n"
+            "📌 memo(tests): atención al romperse por símbolo nuevo\n"
+        )
+
+        with target_open(str(path), "w") as f:
+            f.write(payload)
+
+        with target_open(str(path), "r") as f:
+            reread = f.read()
+
+        assert reread == payload
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Item 7 — cp1252 unmasking: explicit encoding must not depend on PYTHONUTF8
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestEncodingIndependentOfPythonUtf8Env:
+    """This dev machine (and most CI) runs with PYTHONUTF8=1, which
+    silently repairs any call site that forgot an explicit `encoding=...`
+    by forcing UTF-8 mode process-wide (House's F2/F3 diagnosis: "hoy
+    enmascarado por PYTHONUTF8=1"). Running the SAME round-trip in a fresh
+    subprocess with PYTHONUTF8 explicitly disabled proves the guarantee
+    comes from open_no_follow_symlink's own explicit `encoding="utf-8"`
+    argument, not from an ambient environment variable a real end user's
+    machine may not have set.
+
+    The child process communicates back via `json.dumps` with the default
+    `ensure_ascii=True` — this keeps the parent<->child pipe pure ASCII so
+    a mangled *console* codepage in the harness itself can never masquerade
+    as a mangled *file* round-trip, which is the only thing this test
+    means to measure.
+
+    RED now on Windows: the subprocess crashes (non-zero exit, AttributeError
+    in stderr) before ever reaching the round-trip. GREEN after Task 2.
+    """
+
+    @pytest.mark.parametrize(
+        "twin_module,twin_func",
+        [
+            ("git_helpers", "open_no_follow_symlink"),
+            ("_symlink_safe_open", "open_no_follow_symlink_fallback"),
+        ],
+    )
+    def test_roundtrip_survives_with_pythonutf8_unset(
+        self, tmp_path, twin_module, twin_func
+    ):
+        path = tmp_path / "cp1252-unmask.txt"
+        payload = "🔧 chore: corazón, señal, año — cp1252 sin PYTHONUTF8\n"
+
+        code = textwrap.dedent(f"""
+            import sys, json
+            sys.path.insert(0, {repr(str(LIB_DIR))})
+            from {twin_module} import {twin_func} as target_open
+
+            payload = {payload!r}
+            path = {repr(str(path))}
+            with target_open(path, "w") as f:
+                f.write(payload)
+            with target_open(path, "r") as f:
+                reread = f.read()
+            print(json.dumps({{"payload": payload, "reread": reread}}))
+        """)
+
+        env = dict(os.environ)
+        env.pop("PYTHONUTF8", None)
+        env["PYTHONUTF8"] = "0"
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True, timeout=30, env=env,
+        )
+
+        assert result.returncode == 0, (
+            f"subprocess crashed with PYTHONUTF8=0 for {twin_module}."
+            f"{twin_func}:\nstdout={result.stdout}\nstderr={result.stderr}"
+        )
+        data = json.loads(result.stdout)
+        assert data["reread"] == data["payload"]
