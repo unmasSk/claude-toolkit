@@ -296,6 +296,36 @@ def _process_trailers(trailers: list[str]) -> list[str]:
     return processed
 
 
+def _check_behind_warn_only(type_: str) -> None:
+    """Aviso (no bloqueo) si la rama local está detrás de su upstream.
+
+    Solo aplica a tipos de memoria (context/decision/memo/remember) — un
+    commit normal (feat/fix/wip/...) no lo necesita. Issue #49: NO hace
+    fetch propio — usa las tracking refs (@{u}) tal cual están, ya que el
+    fetch del boot es quien las mantiene frescas; un commit no puede pagar
+    la latencia de red de un fetch adicional.
+
+    Fail-open total: sin upstream configurado, repo sin remoto, o
+    cualquier error de git -> silencio y el commit sigue su curso normal.
+    Nunca bloquea, nunca llama a sys.exit — warn-only.
+    """
+    if type_ not in MEMORY_TYPES:
+        return
+    code, output = run_git(["rev-list", "--count", "HEAD..@{u}"])
+    if code != 0:
+        return
+    try:
+        behind = int(output.strip() or "0")
+    except ValueError:
+        return
+    if behind > 0:
+        print(
+            f"  {YELLOW}⚠{RESET}  local {behind} commit(s) por detrás del remoto "
+            "— considera hacer 'git pull' antes de seguir. El commit se hace igualmente.",
+            file=sys.stderr,
+        )
+
+
 def _do_commit(type_: str, msg: str, paths: list[str]) -> subprocess.CompletedProcess:
     """Construye y ejecuta el comando git commit. Aborta con exit 1 ante fallos."""
     git_args = ["commit"]
@@ -407,6 +437,7 @@ def main() -> None:
 
     processed_trailers = _process_trailers(args.trailers)
     msg = build_commit_message(type_, args.scope, args.message, args.body, processed_trailers)
+    _check_behind_warn_only(type_)
     result = _do_commit(type_, msg, args.paths)
 
     # Post-commit: close resolved issues
