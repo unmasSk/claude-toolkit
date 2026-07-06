@@ -189,3 +189,52 @@
 - Planting a hanging `post-merge`/`reference-transaction` git hook does not intercept `git fetch`
   at all (neither hook fires on a plain client-side fetch in stock git) -- confirmed N/A, not a
   real vector against this feature.
+
+## Boot freshness round-2 repair (issue #49, commit 2fb3663) -- both originally-reported breaks confirmed FIXED under live re-attack (2026-07-06)
+- Clock-skew (Moriarty #1): `fetch_memory_ref()`'s `0 <= age < FETCH_RATE_LIMIT_SECONDS` gate
+  (lib/boot_git_checks.py:490) correctly forces a real fetch across every boundary tested live:
+  future by 1s, future by 30 days (original repro, real bare+2-clone, marker commit fetched and
+  independently confirmed via `git log origin/main`), future by 10 years, FETCH_HEAD absent, and
+  mtime exactly at "now" (correctly still rate-limits, as intended). FETCH_HEAD's own mtime
+  (independent `stat -f %m` channel) changes exactly when a real fetch happens, never when it
+  should be suppressed.
+- Decoupled stamp (Moriarty #2): `fetch_memory_ref()` now resolves `@{u}` itself and fetches
+  `remote_name`/`remote_branch` from THAT (not the bare branch name) -- reproduced the exact
+  original incident (real bare+2-clone, `branch.main.merge` corrupted to a nonexistent ref, a real
+  marker commit pushed from "machine B") and confirmed the stamp now correctly says
+  "MEMORY: LOCAL -- unverified (never synced with origin)" instead of falsely claiming "remote".
+  No fetch was attempted (independent channel: FETCH_HEAD absent) since there was no coherent
+  upstream to align with -- correct, honest fail path.
+- Real hung remote + Popen/killpg process-tree kill (SEC-MED-001): built a real Python socket
+  server that accepts a TCP connection and never responds (not a mock/fake-git), pointed origin at
+  it -- observed via `ps` DURING the hang a real 3-level-deep process tree (`git fetch` ->
+  `git remote-http` -> `git-remote-http`), all sharing the new session's pgid. After
+  fetch_memory_ref()'s FETCH_TIMEOUT_SECONDS elapsed, `ps` (independent channel, not the
+  function's own claim) showed ZERO leftover processes from that tree -- the whole group was
+  genuinely killed, not just the direct child.
+- Leading-dash / git-option-injection defense (SEC-CRIT-001): hand-crafted `.git/config` with
+  `branch.main.remote = -evilremote` (git DOES allow creating a remote named with a leading dash
+  via `git remote add -- -evilremote <url>`) and a matching `refs/remotes/-evilremote/main` --
+  `_looks_like_git_option()` correctly caught it and returned `{"status": "failed"}` WITHOUT ever
+  invoking `git fetch -evilremote ...` (independent channel: FETCH_HEAD never created).
+- Opportunistic tracking-ref update for the NEW fetch call shape: confirmed via independent
+  `git rev-parse refs/remotes/origin/main` (before/after) cross-checked against the bare repo's
+  own ground-truth ref that `git fetch origin --no-tags -- main` (the exact positional-arg shape
+  `fetch_memory_ref()` now uses) DOES update the local tracking ref opportunistically, even without
+  an explicit refspec colon-mapping -- so a successful fetch genuinely makes `get_ahead_behind()`/
+  `resolve_boot_memory()`'s subsequent read see the new content, not stale data.
+- Real true divergence with BOTH sides crowning the SAME scope with different text (real bare+2-
+  clone, `Crown=Decision` trailer on each side) -- both entries shown side by side in DECISIONS,
+  correctly labeled (remote side carries the provenance suffix), never silently merged or dropped
+  -- matches the explicit "never auto-merge" design contract.
+- Concurrency: 6 real concurrent boot invocations on a fresh clone (no prior FETCH_HEAD) -- no
+  crash, `git fsck` clean, all 6 show the correct "MEMORY: remote" stamp. A genuine real `git
+  fetch` (separate process) racing against `fetch_memory_ref()` at the same instant -- no crash,
+  `git fsck` clean, correctly resolves to `rate_limited` (the user's parallel fetch won the race).
+  50 rapid-fire in-process `fetch_memory_ref()` calls complete in 0.06s with the expected
+  1-fetched-then-49-rate-limited pattern, no FD/resource leak observed.
+- 10,000-char branch name: rejected by git itself at the ref-lock/filesystem layer (`fatal: cannot
+  lock ref`) before ever reaching this module's code -- N/A, not a vector against this feature.
+- Manual/out-of-band `git fetch` run by the user immediately before boot, and CLAUDE.md +
+  manifest.json deleted mid-session (gate flap) -- both handled correctly (`rate_limited` and
+  `skipped_gate` respectively), no crash.

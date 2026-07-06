@@ -218,3 +218,66 @@
 - Root: lib/boot_git_checks.py:159 (`@{u}` resolution feeding `upstream_ref`) vs :420 (`fetch`
   by branch name, independent of `upstream_ref`); lib/boot_memory.py `resolve_boot_memory()`
   (only path that reads origin) is 100% gated on `upstream_ref` being non-None.
+
+## Boot freshness round-2 repair (issue #49, commit 2fb3663): both originally-reported breaks confirmed FIXED live, but the "origin"-hardcoded gate silently disables the whole feature for renamed remotes
+- fetch_memory_ref() (lib/boot_git_checks.py:493) gates on `git remote get-url origin` -- a
+  LITERAL, hardcoded remote name, unrelated to what the branch's `@{u}` tracking config actually
+  resolves to (which correctly uses the real remote name dynamically at :529 for the fetch itself).
+  A repo where "origin" was renamed (e.g. fork workflow: origin=canonical upstream, personal remote
+  named something else and set as the tracking remote) has a 100% coherent, working upstream that
+  get_ahead_behind() resolves and reads fine -- but fetch_memory_ref() returns "no_remote" before
+  ever checking `@{u}`, so NO fetch is ever attempted and the MEMORY stamp permanently reads
+  "unverified", silently reverting the entire issue #49 feature to pre-fix behavior. Not a lie (it
+  correctly avoids claiming "remote"), so lower severity than the original 2 findings, but the
+  freshness feature itself is dead for this (common) remote-naming pattern.
+- Demonstrated live: real bare+clone, `git remote rename origin upstream`, upstream/main tracking
+  fully coherent (get_ahead_behind() correctly resolves "upstream/main" and shows "[0/0 vs
+  upstream]") -- fetch_memory_ref() still returns {"status": "no_remote"} and never creates
+  FETCH_HEAD (independent-channel confirmed: file absent).
+- Root: lib/boot_git_checks.py:493 (hardcoded "origin" liveness gate), pre-existing since Task 2
+  (98862f1), NOT introduced by the round-2 repair -- but never closed by it either.
+
+## Boot freshness round-2: MEMORY stamp docstring claims full English banner unification -- REMOTE_PROVENANCE_LABEL is still Spanish, verified live
+- render_memoria_stamp()'s docstring (lib/boot_git_checks.py:577) explicitly claims: "the whole
+  boot banner (STATUS/BRANCH/RESUME/REMEMBER/DECISIONS/PULL DIRECTIVE) is English -- this stamp
+  used to be the one Spanish outlier." This is FALSE and directly falsifiable: `REMOTE_PROVENANCE_LABEL
+  = " [origen: remoto]"` (lib/boot_memory.py:425) is still Spanish, verbatim, and gets appended to
+  every remote-labeled Decision/Memo/Remember/Next/Blocker line.
+- Demonstrated live: real bare+2-clone true divergence, BOTH sides commit a `Crown=Decision` for
+  the SAME scope with different text -> real boot hook's DECISIONS section shows
+  `👑 (crowntest) REMOTE crowned choice for crowntest [origen: remoto]` -- Spanish label, in a
+  banner whose own code comment claims is now fully English.
+- Low severity (T2, cosmetic mixed-language inconsistency, not a functional/security bug) but a
+  concretely disprovable claim, not merely "unproven" -- Deception Phase 5 finding.
+- Root: lib/boot_memory.py:425 (REMOTE_PROVENANCE_LABEL never touched by the language-unification pass).
+
+## _crown_replace multi-match dedup "fix" is unreachable dead code relative to its own stated justification
+- The docstring/commit for the round-2 _crown_replace() change (lib/boot_memory.py:60) justifies
+  the new while-loop dedup logic by pointing at `_merge_diverged_memory()`'s concatenated
+  local+remote-labeled lists as the scenario that can "legitimately share a scope" and needs
+  dedup -- but `_merge_diverged_memory()` (lib/boot_memory.py:455) NEVER calls `_crown_replace()`
+  on its result; it just concatenates lists directly. `_crown_replace()`'s only 4 call sites (all
+  inside extract_memory()/extract_glossary()) operate on a single side's own per-call walk, where
+  decision_scopes/memo_scopes membership-gating already guarantees at most one entry per scope
+  BEFORE `_crown_replace` ever runs -- exactly what the docstring itself admits ("this was always
+  equivalent to there is only one match"). The new multi-match branch is therefore never exercised
+  by any real production call path today.
+- Confirmed empirically: the actual scenario the docstring describes (both sides crowning the same
+  scope, real divergence) was reproduced live and correctly shows BOTH crowned entries side by
+  side, un-deduped -- which is the CORRECT, DESIGNED behavior per `_merge_diverged_memory()`'s own
+  "never auto-merge, show both sides" contract, not a bug the new dedup logic needed to fix.
+- Tier: T3 (dead-code branch; the function still behaves correctly if it were ever called with a
+  genuinely duplicated list, and its unit tests -- TestCrownReplaceMultiMatch -- call it directly
+  with hand-built lists, never through the real merge pipeline, so no test masks a bug here either).
+
+## Boot freshness round-2: zero regression-test coverage for either of the 2 fixes this round claims to have made
+- Grepped the full test suite (tests/test_boot_freshness.py + tests/test_boot_freshness_hardening.py,
+  85 tests total, all passing): no test exercises a negative/future FETCH_HEAD mtime (clock-skew
+  fix), and no test exercises a mismatched-upstream/ghost-branch fetch-by-branch-name-vs-read-by-
+  `@{u}` scenario (decoupled-stamp fix). TestRenderMemoriaStamp only parametrizes render_memoria_stamp()
+  with static fetch_state dicts -- it never exercises fetch_memory_ref()'s own age/rate-limit
+  computation at all.
+- Both fixes are REAL and hold under live adversarial reproduction (see resilience.md) -- this is
+  not a currently-live bug -- but nothing in CI would catch either fix regressing in the future.
+  T2: real fix today, missing regression protection for exactly the 2 findings this repair round
+  was supposed to close.
