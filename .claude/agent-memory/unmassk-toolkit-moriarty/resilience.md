@@ -83,3 +83,61 @@
 - git-memory-commit: Unicode RTL/ZWJ in scope/message → commits accepted, parsed correctly by scanner
 - git-memory-gc: --days=-1 / --days=0 → runs without crash, no mass-tombstone (interactive asks)
 - session-start-crew: running in empty repo → exit 0 cleanly
+
+## git_helpers.open_no_follow_symlink Windows guard (2026-07-06)
+
+- Real Windows box, real git-checkout-style symlink threat (islink() mocked True): both twins raise OSError
+  BEFORE os.open() is ever called -- 0 open_calls observed, file content untouched. Matches the stated
+  SEC-CRIT-001/SEC-MED-NEW-02 threat model exactly.
+- TOCTOU lstat/fstat identity mismatch (mocked st_ino divergence): OSError raised, fd opened then closed
+  before returning -- no leaked fd, no fd handed to caller.
+- Twin parity: git_helpers._open_no_follow_symlink_windows and _symlink_safe_open's copy are byte-identical
+  in logic (only docstring wording differs) -- no divergence found despite deliberate attempt to diff them.
+- POSIX branch: git diff confirms the O_NOFOLLOW/O_CREAT/O_TRUNC/O_APPEND lines are 100% untouched by this
+  patch (no regression possible from this change on POSIX -- diff-verified, not just asserted).
+- Directory planted at the target path (not a symlink, not a hardlink): Windows os.open() on a directory in
+  read mode raises PermissionError (OSError subclass) -- fails closed, no crash, no silent success.
+- Nonexistent path in read mode: FileNotFoundError (OSError subclass) -- expected, no AttributeError.
+- run_git(): mocked subprocess.run raising UnicodeDecodeError -> caught by except (..., ValueError) ->
+  returns (1, "") as documented, no crash escapes.
+- ensure_gitignore() idempotency: called twice on a fresh .gitignore -- entry appears exactly once, no
+  duplication, no corruption.
+- Concurrent writers (8 threads, same brand-new path, no prior identity to protect): all 8 succeed, final
+  file content is one writer's full payload with zero interleaving/corruption -- Windows-level file writes
+  for these buffer sizes are atomic enough that no torn writes were observed in 1 run.
+- Encoding round-trip (accents + commit emojis via git log vocabulary): payload written once, reread
+  compared against the SAME variable (not a hand-retyped literal) -- genuine round-trip, not fabricated. On
+  disk the bytes are CRLF-translated (not literally "byte for byte" as the test docstring claims), but the
+  str-level round-trip the code actually needs to guarantee holds correctly.
+- 5.8M-character payload (accents + emoji repeated) round-trips correctly in 0.06s -- no stress ceiling hit.
+- PYTHONUTF8=0 subprocess round-trip: both twins still round-trip correctly -- guarantee genuinely comes
+  from the explicit encoding="utf-8" parameter, not from the ambient env var.
+
+## git_helpers.run_git() encoding="utf-8" kwarg -- formal Round-Trip Sabotage (2026-07-06)
+
+- Real commit with accents+emoji subject, ground truth confirmed via an INDEPENDENT channel (raw bytes
+  captured with subprocess.run(capture_output=True) WITHOUT text=/encoding=, manually .decode('utf-8')) --
+  git's own stdout bytes are valid, well-formed UTF-8; the failure mode lives entirely in Python's decode
+  step, never in git itself.
+- Sabotaged the REAL dependency the way a real bug corrupts it (silent decode corruption, not a killed
+  connection): scratch replica of run_git with encoding="utf-8" removed, run in a fresh child process with
+  PYTHONUTF8=0 forced (locale.getpreferredencoding(False) confirmed 'cp1252' in that child) -> produced
+  silent mojibake ('ðŸ"§'-style garbage), returncode 0, NO exception raised. This is the dangerous case: no
+  crash, no warning, just wrong bytes accepted as success.
+- REAL production git_helpers.run_git (lib/git_helpers.py:279, the actual file, not a copy) under the
+  IDENTICAL forced PYTHONUTF8=0 conditions (verified same cp1252/utf8_mode_flag=0 in that child) round-trips
+  the commit subject correctly byte-for-byte. The guarantee genuinely comes from the explicit
+  encoding="utf-8" kwarg at git_helpers.py:298, not from the ambient PYTHONUTF8 env var this dev machine
+  happens to have set.
+- Confirmed via an INDEPENDENT channel throughout: results read back from a side-channel JSON file written
+  with its own explicit encoding="utf-8" + ensure_ascii=True, never through the same in-process stdout the
+  code under test itself produces.
+- SEAM VERDICT: run_git()'s encoding="utf-8" kwarg itself AGUANTA the sabotage -- it is real, load-bearing,
+  and does exactly what it claims under the exact adversarial condition (PYTHONUTF8=0 / no ambient UTF-8
+  mode) it was added to defend against.
+- Caveat (see attack-patterns.md): the TEST that is supposed to prove this ("real round-trip through real
+  git") never forces PYTHONUTF8=0 itself, so it is a false green on any PYTHONUTF8=1 environment -- the
+  kwarg holds, but the round-trip test that claims to prove it does not actually exercise the risk
+  condition. Regression protection for a literal kwarg deletion still exists today via the sibling mock
+  test (test_run_git_passes_encoding_utf8_and_text_true_to_subprocess), which is env-independent by
+  construction.

@@ -203,7 +203,7 @@ def main() -> None:
             install_script = os.path.join(PLUGIN_ROOT, "bin", "git-memory-install.py")
             subprocess.run(
                 [sys.executable, install_script, "--auto"],
-                capture_output=True, text=True, cwd=root, timeout=15,
+                capture_output=True, text=True, encoding="utf-8", cwd=root, timeout=15,
             )
     except Exception as e:
         print(f"[git-memory] upgrade fail-open: {e!r}", file=sys.stderr)

@@ -82,6 +82,8 @@ The boot output terminator provides the plugin root path. Use it:
 
 Any new code under `.claude/` that does a filesystem read or write must resolve the path through `verify_path_within_project()` (`unmassk-toolkit/lib/git_helpers.py`) before touching it. Two guards exist and are NOT interchangeable: `open_no_follow_symlink()` protects only the final path component; `verify_path_within_project()` (realpath + directory-boundary check against the project root) is the one that catches a symlinked *parent* directory — e.g. `.claude` itself, or a subdirectory like `agent-memory`/`skills`/`bin`, committed as a symlink pointing outside the repo. Without it, `os.makedirs()`/`open()` silently follow the symlink and a "safe" write can land anywhere on disk. Use it at every new site that builds a path under `.claude/` before creating, reading, or deleting it.
 
+`open_no_follow_symlink()` is cross-platform (v1.16.1): POSIX keeps the atomic `O_NOFOLLOW` open; Windows (no `O_NOFOLLOW` equivalent) uses `os.path.islink()` pre-check + `lstat`/`fstat` identity comparison instead, raising `OSError` either way — never `AttributeError`. Its twin `_symlink_safe_open.open_no_follow_symlink_fallback()` must stay behaviorally identical on both branches. Don't assume POSIX-only guarantees (`O_NOFOLLOW`, `0o600` denying group/other access) hold on Windows — check `sys.platform` before relying on either.
+
 ## Active Hooks (automatic behaviors you must account for)
 
 These fire automatically. They are NOT things you invoke — they change what happens around you. Know them so you don't fight them or misread their output:

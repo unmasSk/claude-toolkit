@@ -18,7 +18,7 @@ _PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _PLUGIN_JSON = os.path.join(_PLUGIN_ROOT, ".claude-plugin", "plugin.json")
 
 try:
-    with open(_PLUGIN_JSON) as _f:
+    with open(_PLUGIN_JSON, encoding="utf-8") as _f:
         VERSION: str = json.load(_f)["version"]
 except (FileNotFoundError, json.JSONDecodeError, KeyError) as exc:
     raise RuntimeError(

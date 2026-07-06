@@ -203,7 +203,7 @@ def run_doctor() -> dict:
     try:
         result = subprocess.run(
             [sys.executable, doctor, "--json"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", timeout=15,
         )
         if result.returncode == 0:
             return json.loads(result.stdout)
@@ -223,7 +223,7 @@ def run_repair() -> bool:
     try:
         result = subprocess.run(
             [sys.executable, repair, "--auto"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", timeout=15,
         )
         return result.returncode == 0
     except Exception as e:
@@ -261,7 +261,7 @@ def check_issue_status(pending_items: list[dict], timeout: float = 5.0) -> dict[
         try:
             procs[issue_num] = subprocess.Popen(
                 ["gh", "issue", "view", str(issue_num), "--json", "state,title"],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
             )
         except OSError:
             continue

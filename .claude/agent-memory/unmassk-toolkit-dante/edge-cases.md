@@ -772,6 +772,100 @@ structural findings, not new security sites):**
   dead-code cleanup, not a test gap. Ultron can safely delete the loop, or
   decide the list should actually be populated somewhere; either way no test
   is owed here since there is no behavior to pin.
+## os.path.islink() calls os.lstat() internally on Windows — spy on the right layer
+
+When spying on `os.lstat`/`os.fstat` to prove `_open_no_follow_symlink_windows()`
+(`lib/git_helpers.py`, twin `lib/_symlink_safe_open.py`) skips the identity
+check for a brand-new path (no `os.path.exists()` match, the F5/O_CREAT
+case), a naive spy that patches `os.lstat` and then calls the real
+`os.path.islink(path)` will see ONE spurious call — confirmed empirically
+(Windows, Python 3.11): `ntpath.islink()`'s own implementation calls
+`os.lstat()` under the hood. A strict `assert lstat_calls == []` fails for
+the wrong reason (it's islink's internal plumbing, not the guard's own
+explicit `if os.path.exists(path): prior_identity = os.lstat(path)` line).
+Fix: `monkeypatch.setattr(os.path, "islink", lambda p: False)` FIRST, so the
+spy only ever observes the guard's own call. A loose truthy check
+(`assert lstat_calls`, no exact-emptiness assertion) doesn't need this fix
+since one extra call doesn't change truthiness — only exact-count/exact-empty
+assertions are exposed to this gotcha. Confirmed in
+`test_crossplatform_symlink_guard_hardening.py::TestNewFileOCreatSkipsIdentityCheck`
+(hardening pass, session 2026-07-06).
+
+## Moriarty T1 theater fix: in-process round-trip tests of `run_git()`'s `encoding="utf-8"` kwarg are false-green under ambient PYTHONUTF8=1 — force PYTHONUTF8=0 in a child process
+
+`test_run_git_round_trips_utf8_accents_and_emoji_through_real_git`
+(`test_crossplatform_symlink_guard_hardening.py`) originally ran `git
+commit` + `git_helpers.run_git(["log", ...])` in-process and compared to
+the literal `subject` used to create the commit — a genuine round-trip
+(§34-compliant, no fixture), but Moriarty proved it doesn't actually pin
+`run_git()`'s explicit `encoding="utf-8"` kwarg: this dev machine's ambient
+`PYTHONUTF8=1` silently forces UTF-8 decoding process-wide, so the test
+stayed green even with the kwarg deleted from `subprocess.run(...)`. Same
+root cause already documented for `open_no_follow_symlink()` in
+`TestEncodingIndependentOfPythonUtf8Env`
+(`test_crossplatform_symlink_guard.py:422`) — same fix applies to
+`run_git()`.
+
+**Fix:** run the real round-trip (real `git commit`, real `git log` via
+`run_git()`) inside a **child subprocess** with `PYTHONUTF8=0` forced and
+`PYTHONLEGACYWINDOWSFSENCODING` popped from env, so a missing `encoding=`
+kwarg falls back to the locale's ANSI codepage (cp1252) instead of being
+masked. The child imports the REAL `lib/git_helpers.py` (via
+`sys.path.insert(0, LIB_DIR)`), calls `run_git()`, and prints the result as
+`json.dumps({...})` with the default `ensure_ascii=True` — this keeps the
+parent↔child pipe pure ASCII (all non-ASCII \uXXXX-escaped) so a mangled
+*console* codepage in the test harness itself can never masquerade as a
+mangled *file*-decode round-trip. Keep the accented/emoji `subject` OUT of
+the child's `-c` argv entirely (only ASCII paths like `tmp_repo`/`LIB_DIR`
+are embedded) — it stays in the parent process and is only compared
+against the child's decoded-back JSON at the end.
+
+**Verified as Moriarty would**: built a scratch copy of `git_helpers.py`
+with the `encoding="utf-8"` kwarg deleted, pointed a throwaway duplicate
+script's child subprocess at that scratch copy — confirmed RED with the
+exact mojibake Moriarty predicted
+(`'ðŸ”§ ... corazÃ³n, seÃ±al, aÃ±o ...'`). With the real, unmodified
+`lib/git_helpers.py` (kwarg present): GREEN. Scratch copy discarded after
+verification, never committed.
+
+## FIXED (was DISCOVERED-not-fixed-by-Dante): fd leak in `_open_no_follow_symlink_windows()` when `os.fstat(fd)`/`os.ftruncate()` raises — plus a second finding, deferred-truncate-before-check
+
+`lib/git_helpers.py:200-218` / `lib/_symlink_safe_open.py:80-98` (identical
+in both twins). Originally reported as two separate gaps found during the
+2026-07-06 hardening pass, both now fixed by Ultron in the same commit:
+
+1. **fd leak on os.fstat() raising** — `os.close(fd)` used to be reachable
+   only from inside the `if (dev,ino) mismatch` branch, no try/finally
+   around `post_identity = os.fstat(fd)` itself. Originally pinned as
+   `@pytest.mark.xfail(strict=True, ...)` in
+   `TestFstatFailureFdLeak::test_fstat_raises_still_closes_the_fd` (Dante's
+   report, not fix — Absolute Prohibition #4).
+2. **Destructive truncate-before-check (Argus SEC-MED-NEW-03)** —
+   `os.ftruncate(fd, 0)` used to run unconditionally at open() time for
+   mode="w", BEFORE the lstat/fstat identity check could reject a TOCTOU
+   race — so a rejected race still destroyed the victim's real content even
+   though the caller correctly saw an OSError.
+
+**Fix (both twins)**: `os.ftruncate(fd, 0)` is now called only AFTER the
+identity comparison passes, and both the comparison and the ftruncate call
+are wrapped in one `try: ... except BaseException: os.close(fd); raise`
+block — any post-open failure (fstat raising, ftruncate raising, or a
+detected mismatch) now closes the fd before propagating, and truncation
+never happens before the identity check clears.
+
+**Test changes (session 2026-07-06, hardening-pass update after Ultron's
+fix)**: removed the `xfail(strict=True)` marker from
+`TestFstatFailureFdLeak` (now a normal green regression pin — the fix made
+it XPASS(strict), which is a hard FAILED, forcing exactly this update).
+Added `TestDeferredTruncateOnIdentityMismatch` (new class, same file):
+mocks `os.lstat`/`os.fstat` to diverge (dev,ino), spies on `os.ftruncate` to
+assert zero calls, and asserts the target file's real on-disk content
+survives untouched — proving the destructive truncate never fires when the
+TOCTOU check is about to reject the open. Both new/updated tests
+parametrized across `TWIN_FUNCS`. 45 passed, 4 skipped (pre-existing
+POSIX-real-symlink skips), 0 failed, 0 xpass in
+`test_crossplatform_symlink_guard.py` + `test_crossplatform_symlink_guard_hardening.py`.
+
 - `lib/git_helpers.py:verify_path_within_project()` (lines ~56-60) doesn't
   call `os.path.normcase()` before the prefix comparison, unlike
   `hooks/validate-memory-path.py` (line 108-109) which does. Real gap

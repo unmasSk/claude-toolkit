@@ -139,3 +139,119 @@ declaró como segunda excepción. Los guards SÍ están presentes (12 usos de
 verify_path_within_project/open_no_follow_symlink) — no es un hueco de seguridad, es un
 hueco de convención/mantenibilidad sin decisión explícita. Encontrado corriendo
 `wc -l bin/*.py` y comparando contra el commit pre-sesión, no por lectura línea a línea.
+
+## 2026-07-06 — Windows cross-platform fix (git_helpers.py / _symlink_safe_open.py)
+
+**Pattern: cuando Moriarty no deja evidencia del Round-Trip Sabotage obligatorio (§34), hazlo tú mismo antes de aplicar la Round-Trip Evidence Rule.**
+El plan declaraba el seam (fichero escrito y releído, encoding UTF-8) y Moriarty
+reportó el modelo de amenaza DEFENDIDO, pero sus notas de memoria (attack-patterns.md,
+resilience.md) solo registraban pruebas happy-path/mockeadas para el round-trip de
+encoding — ninguna mostraba el paso 2 obligatorio de su propio protocolo ("sabotea la
+dependencia real, no el test"). En vez de rechazar mecánicamente por falta de prueba
+o de aceptar la palabra del agente, reproduje el sabotaje yo mismo: revertí el fix
+(quité `encoding="utf-8"` de una copia de `run_git`), forcé `PYTHONUTF8=0` en un
+subproceso real, e hice un commit real con acentos/emoji vía `git commit`. Confirmé
+por un canal independiente (bytes crudos del stdout de git, decodificados a mano)
+que el contenido real es UTF-8 válido, y que la versión sin el fix SÍ produce mojibake
+real bajo esas condiciones (`ðŸ”§` en vez de 🔧) — probando que el
+test de round-trip de Dante (`TestEncodingIndependentOfPythonUtf8Env`, que SÍ corrí yo
+mismo y vi en verde contra el código actual) no es teatro: de verdad detectaría esta
+clase de regresión si volviera a ocurrir.
+
+**Pattern: un residual de seguridad recién descubierto por Moriarty fuera del modelo de
+amenaza declarado no bloquea si es estructuralmente igual a un residual ya aceptado.**
+El hard-link bypass (`os.link` sobre el path objetivo) que Moriarty encontró rompe
+tanto `os.path.islink()` (Windows) como `O_NOFOLLOW` (POSIX) porque un hard link es
+indistinguible del archivo original a nivel de sistema de ficheros — no es un bug de
+ESTE parche, es una limitación arquitectónica del diseño completo del guard
+"detección por identidad/symlink", presente desde antes de esta sesión. Lo reproduje
+en vivo (`os.link` real + `open_no_follow_symlink` real): escribe sin OSError, sobre
+el contenido de la víctima. Mismo patrón de aceptación que el residual F5 (O_CREAT
+TOCTOU, decisión `75fdb2f`): requiere que el atacante YA tenga escritura local previa
+— un modelo de amenaza materialmente más débil que el declarado (symlink vía git
+checkout). Condición, no bloqueo: debe documentarse en el docstring con el mismo rigor
+que F5 (hoy solo vive en la memoria de Moriarty, no en el código).
+
+**Pattern: la lista de "ficheros a tocar" de un plan puede ser un superset obsoleto — verificar antes de marcar como hueco.**
+El plan (`docs/plan/fix-windows-crossplatform.md`) listaba 4 ficheros
+(`install_apply.py`, `install_inspect.py`, `bootstrap_deps.py`, `boot_git_checks.py`)
+como pendientes de recibir `encoding="utf-8"` explícito, pero el diff real no los toca.
+Grep confirmó que los 4 usan EXCLUSIVAMENTE `open_no_follow_symlink()` para I/O de
+ficheros, cuya firma ya tiene `encoding: str = "utf-8"` por defecto desde antes de esta
+sesión — no hay hueco, el diagnóstico original (House, pre-sesión) enumeró líneas de
+una fase de diagnóstico anterior a la centralización del choke point. Verificado
+leyendo cada línea citada, no asumido.
+
+**Pattern: verificar "N fallos preexistentes" con `git stash` (no worktree) cuando el cambio vive en el working tree sin commitear.**
+`git worktree add` requiere un commit; con cambios sin commitear se usa
+`git stash push -u -- <ficheros del fix>` (stash SOLO los ficheros del parche, dejando
+memoria de otros agentes intacta), correr la muestra de tests, `git stash pop`,
+verificar `git diff --stat` idéntico al estado original. Reproduje 9/9 fallos de una
+muestra con el mismo `WinError 1314` exacto en el código pre-patch.
+
+## 2026-07-06 (ronda 2) — Re-evaluación del fix cross-platform (96 → 101/110), go/no-go v1.16.1
+
+**Pattern: verificar "condición documentada" comparando las DOS gemelas línea a línea, no solo una.**
+La condición 1 del veredicto anterior (documentar el residual hard-link con el mismo rigor que F5)
+se verificó leyendo AMBOS docstrings (`git_helpers.py::open_no_follow_symlink` y
+`_symlink_safe_open.py::open_no_follow_symlink_fallback`) con `git diff HEAD`, confirmando que el
+texto F6 (hard-link bypass) aparece en los dos con el mismo nivel de detalle (por qué islink() y
+O_NOFOLLOW no lo detectan, mismo modelo de amenaza que F5, git no puede commitear un hard-link).
+No basta con que UNA de las gemelas tenga la nota — la asimetría original era exactamente eso.
+
+**Pattern: una decisión de "no cerrar un hallazgo de seguridad" puede ser DEFENDIBLE si está escrita
+como decisión formal con alternativa de diseño explícita, no solo "lo dejamos para después".**
+Commit `51a3c44`: Argus diseñó el cierre de F6 (parámetro opt-in `reject_hardlinks` + `st_nlink>1`)
+y ÉL MISMO destapó el riesgo de falsos positivos en ficheros de usuario con hard-links legítimos
+(worktrees). La decisión de diferir es sólida porque (a) viene con el diseño alternativo ya pensado,
+no una excusa, (b) el riesgo aceptado es exactamente el mismo modelo de amenaza que F5 (ya aceptado),
+(c) low risk explícito, (d) issue de seguimiento dedicado, no silencio. Verifiqué con `grep
+reject_hardlinks|st_nlink` que NO quedó código a medio implementar (solo la mención en docstring de
+la opción descartada) — importante: una decisión de diferir debe dejar CERO código huérfano de la
+opción no tomada.
+
+**Pattern: verificar un fix de "test teatro" repitiendo el sabotaje YO MISMO, no confiando en el
+reporte de Moriarty/Dante aunque esté bien escrito.**
+Moriarty documentó (attack-patterns.md + resilience.md) que
+`test_run_git_round_trips_utf8_accents_and_emoji_through_real_git` pasaba en verde incluso con
+`encoding="utf-8"` borrado de `run_git()`, porque corría bajo el `PYTHONUTF8=1` ambiental de esta
+máquina. Dante lo reescribió para forzar `PYTHONUTF8=0` en un subproceso hijo. En vez de aceptar el
+reporte, repetí el sabotaje a mano: parcheé `git_helpers.py` real (borré `encoding="utf-8"` del
+`subprocess.run`), corrí SOLO esa clase de test → 2 failed (incluyendo el round-trip, con mojibake
+real `ðŸ”§ ... corazÃ³n`), restauré el fichero desde backup, confirmé 4 passed de nuevo y
+`git diff --stat` idéntico al original. Esto es lo que exige la Round-Trip Evidence Rule: canal
+que yo leo directamente, no narración de otro agente.
+
+**Pattern: un hallazgo NUEVO (fd leak + destructive-truncate-before-check) que ningún agente incluyó
+en el resumen de "qué cambió" puede aparecer solo leyendo el diff real — Dante sí lo documentó en su
+propio archivo de memoria (edge-cases.md) aunque no estaba en la lista que el orquestador me dio.**
+`_open_no_follow_symlink_windows()` truncaba con `os.ftruncate(fd,0)` ANTES de que el chequeo
+lstat/fstat pudiera rechazar una carrera TOCTOU — un guard que rechaza correctamente con OSError
+podía igual destruir el contenido real de la víctima. Fix: truncar solo DESPUÉS de que la
+comparación de identidad pase, todo envuelto en `try/except BaseException: os.close(fd); raise`.
+Verificado con `TestDeferredTruncateOnIdentityMismatch` y `TestFstatFailureFdLeak` (ya no
+`xfail(strict=True)`, ahora un pin verde normal) — ambos en el run de 46 passed.
+
+**Puntuación actualizada (96 → 101/110):**
+- Security 8→9: asimetría de documentación resuelta + destructive-truncate cerrado + F6 diferido
+  con decisión formal y sólida. No sube a 10: F6 sigue siendo un hueco real sin ningún check en
+  tiempo de ejecución (ni siquiera opt-in), en ambas plataformas.
+- Error Handling 9→9 (sin cambio): el hueco específico que sostenía el 9 (decode-fail
+  indistinguible/silencioso) está cerrado y verificado (test de stderr), pero el `except
+  (SubprocessError, OSError, ValueError)` genérico sigue sin ningún rastro a stderr para el resto
+  de causas — deliberado y documentado, pero sigue siendo un hueco real articulable, así que no
+  sube a 10.
+- Architecture 9→9 (sin cambio): la decisión de diferir F6 sin bolt-on refuerza la disciplina de
+  scope ya reconocida antes, no añade evidencia nueva para subir.
+- Testing 9→10: Moriarty ejecutó y documentó el Round-Trip Sabotage formal él mismo esta ronda
+  (no tuve que suplirlo como en la ronda 1), y el hallazgo de teatro que él mismo destapó fue
+  arreglado por Dante y reverificado por mí de forma independiente. No encontré ningún hueco
+  adicional articulable tras el barrido — primer 10/10 de esta sesión.
+- Maintainability 9→9 (sin cambio): nada nuevo que mueva la aguja; sigue siendo "gusto sin
+  defecto concreto", igual que antes.
+
+**Veredicto:** READY WITH CONDITIONS (no bloqueante) para v1.16.1 — go de publicación. Única
+condición: abrir issue dedicado para el diseño de cierre de F6 (`reject_hardlinks`/`st_nlink>1`),
+sin bloquear el release. Los ~68-77 fallos de `test_security_regression.py` (WinError 1314, sin
+privilegio de symlink en este host Windows) siguen siendo la misma clase preexistente, reconfirmada
+en vivo esta ronda (no ficticia, no relacionada con este fix).

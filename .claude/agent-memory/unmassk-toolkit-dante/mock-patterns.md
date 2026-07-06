@@ -490,3 +490,37 @@ except (ValueError, TypeError):
 
 Always wrap `int(exit_code)` in try/except in PostToolUse hooks — fail-open on
 uncastable values.
+
+## Simulating a not-yet-written Windows code branch from any host OS (no real Windows, no symlink privilege needed)
+
+To contract-test a future `if sys.platform == "win32":` branch before it
+exists (test-first pass), patch the GLOBAL singleton attributes the branch
+will read — `monkeypatch.setattr(sys, "platform", "win32")`,
+`monkeypatch.setattr(os.path, "islink", lambda p: True)`,
+`monkeypatch.setattr(os, "lstat", ...)` / `monkeypatch.setattr(os, "fstat",
+...)`. Because every module does a plain `import os` / `import sys`, they
+all share the same module objects — patching the global attribute once
+affects every importer, including modules not yet written. This works
+identically whether the test process is real Windows or POSIX CI, and needs
+zero real symlink privilege. For `os.lstat`/`os.fstat`, a duck-typed stub
+class exposing only `.st_dev`/`.st_ino` is enough — no need to construct a
+real `os.stat_result`.
+
+To verify a rejected-path guard "closes the fd, never leaks it" once that
+logic exists: wrap `os.open`/`os.close` with spy functions that record every
+real fd before delegating to the real implementation, call the target inside
+`pytest.raises(OSError)`, then assert `closed_fds == opened_fds` afterward.
+Confirmed in `unmassk-toolkit/tests/test_crossplatform_symlink_guard.py`
+(Windows/macOS/Linux compat fix, Task 1, session 2026-07-06): `os.O_NOFOLLOW`
+does not exist on Windows, so ALL of these tests are RED today via an
+unhandled `AttributeError` from the twin functions' unconditional reference
+to it — `pytest.raises(OSError)` does not catch `AttributeError`, so it
+propagates as the (correct) failure signal without any extra assertion
+needed.
+
+For the one thing that genuinely CANNOT be mocked (real kernel-level
+O_NOFOLLOW enforcement on a real symlink): use a `real_symlink_capable`
+fixture that attempts a real `os.symlink()` in `tmp_path` and calls
+`pytest.skip(...)` if it raises `OSError` (confirmed: `[WinError 1314]` on a
+Windows box without Developer Mode / SeCreateSymbolicLinkPrivilege) — never
+fake kernel symlink-following behavior with a mock and call it equivalent.

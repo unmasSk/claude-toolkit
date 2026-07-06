@@ -4,6 +4,17 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: PYTHONUTF8=1 Masks Windows cp1252 Encoding Defects ("works on my Windows box")
+
+**Project:** unmassk-toolkit (git-memory)
+**First seen:** 2026-07-06
+
+When auditing Windows portability, a machine can report `locale.getpreferredencoding(False) == 'utf-8'` while `locale.getencoding() == 'cp1252'`. That split is the tell that **Python UTF-8 mode is active** (`sys.flags.utf8_mode == 1`, driven by `PYTHONUTF8=1` in the environment). Under UTF-8 mode, `open()` without `encoding=` and `subprocess(..., text=True)` without `encoding=` both default to UTF-8 — so encoding bugs do NOT reproduce on that machine. On a DEFAULT Windows install (no PYTHONUTF8), the same calls default to cp1252 and break: git/gh UTF-8 output (accents, commit emojis) becomes mojibake, and undecodable multi-byte sequences raise `UnicodeDecodeError` — a subclass of `ValueError`, so a wrapper catching `(SubprocessError, OSError, ValueError)` swallows it into a silent failure.
+
+**Detection:** `python -c "import sys,locale;print(sys.flags.utf8_mode, locale.getpreferredencoding(False), locale.getencoding())"`. If utf8_mode=1 with preferred=utf-8 but getencoding=cp1252 → encoding findings are LATENT, not absent. Report them as real defects masked by env config, and do NOT conclude "encoding is fine on Windows" from a single UTF-8-mode box.
+
+**Also confirmed here:** `os.O_NOFOLLOW` — `hasattr(os,'O_NOFOLLOW')` is `False` on win32 (Python 3.11), so any `os.open(..., O_NOFOLLOW)` raises `AttributeError` (NOT `OSError`, so `except OSError` guards do not catch it). An `ImportError`-based fallback to a second copy of the same helper gives zero protection when both copies reference the missing flag. `os.chmod(p,0o600)` / `os.open(p,flags,0o600)` are near-no-ops on Windows (only the read-only bit maps) — any "0o600 = no group/other access regardless of umask" guarantee in the code is FALSE on Windows.
+
 ## Pattern: pytest sys.modules Stub Leak Across Test Files (Bare ModuleType Poisons Real Import)
 
 **Project:** unmassk-toolkit (git-memory)

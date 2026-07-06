@@ -5,6 +5,7 @@ Thin wrappers around subprocess calls to git. Used by hooks,
 CLI scripts to run git commands safely.
 """
 
+import errno
 import os
 import subprocess
 import sys
@@ -111,18 +112,68 @@ def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
     open(path), and its content trusted as if it were the real cache.
     mode="r" covers this case with the read-side equivalent guard.
 
-    Uses O_NOFOLLOW so the open() call itself atomically refuses to
+    POSIX: uses O_NOFOLLOW so the open() call itself atomically refuses to
     traverse a symlink at the final path component — no separate
-    islink()-then-open() race. Write modes also create new files at 0o600
-    (no group/other access) regardless of umask, since 0o600 has no bits
-    for umask to clear. Read mode never creates a file (no O_CREAT) and
-    has no mode bits to set.
+    islink()-then-open() race. Write modes also create new files at 0o600.
+    On POSIX this genuinely denies group/other access regardless of
+    umask, since 0o600 has no bits for umask to clear. Read mode never
+    creates a file (no O_CREAT) and has no mode bits to set.
 
-    Raises OSError (errno ELOOP on POSIX) if `path` is currently a
-    symlink — callers must let that propagate to their existing
-    "never fail the caller's larger operation" fallback (or "treat as
+    Windows (decision 75fdb2f, hybrid "option C"): stdlib has no
+    O_NOFOLLOW equivalent, so the guard is built from two checks instead
+    of one atomic flag —
+      1. os.path.islink(path) BEFORE opening anything. If True, raise
+         OSError without ever calling os.open() (Windows detects
+         symlink/junction reparse points here since Python 3.8).
+      2. A TOCTOU identity check: os.lstat(path) is captured *before* the
+         open, os.fstat(fd) is captured *after* it, and their
+         (st_dev, st_ino) are compared. A mismatch means the path was
+         swapped for a symlink between the check and the open — the fd
+         is closed and OSError is raised; it is never returned to the
+         caller.
+    0o600 on Windows does NOT deny group/other access the way it does on
+    POSIX — a file created here inherits the ACL of its containing
+    directory instead. That is a Windows filesystem semantic, not a bug
+    in this function.
+    Known residual (F5, accepted deliberately, not a bug): when `mode`
+    creates a new file (O_CREAT semantics, i.e. the file did not exist
+    before this call) there is no prior os.lstat() identity to compare
+    against, so the TOCTOU race on Windows for a brand-new path is not
+    closed atomically without a native API (pywin32/ctypes), which this
+    project intentionally does not depend on. The islink() pre-check
+    still applies in that case.
+
+    Known residual (F6, accepted deliberately, not a bug): a hard link
+    planted at `path`, pointing at a file outside the repo, is not
+    detected by this guard on ANY platform. A hard link shares
+    device+inode with its target, so os.path.islink() reports False for
+    it (it is not a reparse point/symlink, just another directory entry
+    for the same inode) and POSIX O_NOFOLLOW does not apply either
+    (O_NOFOLLOW only rejects a symlink at the final path component, not
+    a second hard link to an existing inode) — by construction, a hard
+    link is indistinguishable from an ordinary file to both checks this
+    function relies on. This is the same accepted threat model as F5: it
+    requires the attacker to already have local write access to the
+    runtime directory before this guarded call runs. `git checkout`
+    alone cannot plant a hard link to a file outside the repo (hard
+    links cannot be committed as such — git only stores regular files,
+    directories, and symlinks), so this residual does NOT defeat
+    SEC-CRIT-001 (the committed-symlink attack this guard exists to
+    close). Closing it would require a native stat extension (checking
+    st_nlink > 1, with its own edge cases) outside this project's
+    stdlib-only scope.
+
+    Raises OSError (errno ELOOP on POSIX; errno ELOOP is also used for
+    both Windows guard rejections above, for a consistent errno across
+    platforms) if `path` is currently a symlink, or — on Windows only —
+    if its identity changed between the pre-open check and the open
+    itself. Callers must let that propagate to their existing "never
+    fail the caller's larger operation" fallback (or "treat as
     absent/invalid" for reads), never fall back to following the link.
     """
+    if sys.platform == "win32":
+        return _open_no_follow_symlink_windows(path, mode, encoding)
+
     if mode == "r":
         flags = os.O_RDONLY | os.O_NOFOLLOW
         fd = os.open(path, flags)
@@ -130,6 +181,62 @@ def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
     flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
     flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
     fd = os.open(path, flags, 0o600)
+    return os.fdopen(fd, mode, encoding=encoding)
+
+
+def _open_no_follow_symlink_windows(path: str, mode: str, encoding: str):
+    """Windows half of the option-C hybrid guard — see
+    open_no_follow_symlink()'s docstring for the full rationale.
+
+    Must be kept behaviorally identical to
+    _symlink_safe_open._open_no_follow_symlink_windows() (same twin
+    relationship as the public functions themselves).
+    """
+    if os.path.islink(path):
+        # ELOOP is reused here (not the literal syscall errno) so that both
+        # Windows rejection paths — direct symlink here, and the divergent-
+        # identity race below — share one errno with each other and POSIX.
+        raise OSError(errno.ELOOP, "Refusing to open a symlink", path)
+
+    # Pre-open identity, only meaningful if the path already exists —
+    # a brand-new path (O_CREAT case) has nothing to compare against
+    # (see F5 residual in the caller's docstring).
+    prior_identity = None
+    if os.path.exists(path):
+        prior_identity = os.lstat(path)
+
+    if mode == "r":
+        fd = os.open(path, os.O_RDONLY)
+    else:
+        # O_TRUNC is deliberately withheld here: truncating at open() time
+        # would destroy the target's contents even if the identity check
+        # below goes on to reject the open as a symlink race. For mode
+        # "w" the truncate is deferred until after that check passes,
+        # via the ftruncate() call further down.
+        flags = os.O_WRONLY | os.O_CREAT
+        flags |= os.O_APPEND if mode == "a" else 0
+        fd = os.open(path, flags, 0o600)
+
+    try:
+        if prior_identity is not None:
+            post_identity = os.fstat(fd)
+            if (post_identity.st_dev, post_identity.st_ino) != (
+                prior_identity.st_dev, prior_identity.st_ino,
+            ):
+                # ELOOP reused again here, matching the direct-symlink
+                # rejection above — see the comment on that raise.
+                raise OSError(
+                    errno.ELOOP,
+                    "Refusing to open: file identity changed between the "
+                    "pre-open check and the open() call (possible symlink race)",
+                    path,
+                )
+        if mode == "w":
+            os.ftruncate(fd, 0)
+    except BaseException:
+        os.close(fd)
+        raise
+
     return os.fdopen(fd, mode, encoding=encoding)
 
 
@@ -188,13 +295,34 @@ def run_git(
         result = subprocess.run(
             ["git"] + args,
             capture_output=True, text=True, timeout=timeout,
-            cwd=cwd,
+            cwd=cwd, encoding="utf-8",
         )
         return result.returncode, result.stdout.strip()
     except subprocess.TimeoutExpired:
         print(f"[git_helpers] git {args[0]!r} timed out after {timeout}s", file=sys.stderr)
         return 1, ""
+    except UnicodeDecodeError as e:
+        # Split from the generic except below on purpose: UnicodeDecodeError
+        # is a ValueError subclass, so without this dedicated branch it would
+        # collapse into the same (1, "") as any other failure with zero
+        # trace. The return stays (1, "") — no caller behavior changes — but
+        # a decode failure (git emitted bytes that aren't valid UTF-8) now
+        # leaves a diagnostic breadcrumb on stderr instead of vanishing.
+        print(
+            f"[git_helpers] git {args[0]!r} output was not valid UTF-8 and "
+            f"could not be decoded: {e}",
+            file=sys.stderr,
+        )
+        return 1, ""
     except (subprocess.SubprocessError, OSError, ValueError):
+        # NOTE: an explicit encoding="utf-8" above means git's own UTF-8
+        # output (accents, commit emojis) decodes correctly without relying
+        # on PYTHONUTF8/locale defaults. UnicodeDecodeError (a ValueError
+        # subclass) is handled separately above so a decode failure is
+        # diagnosable instead of silent; every other ValueError still
+        # collapses to (1, "") here exactly as before. Left as-is
+        # deliberately: every call site already treats (1, "") as "could
+        # not get git output" and reacts the same way regardless of cause.
         return 1, ""
 
 

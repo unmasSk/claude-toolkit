@@ -107,6 +107,7 @@ def _run_test_command(test_command: str) -> tuple[bool, int, str]:
             shell=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=TIMEOUT_SECONDS,
         )
         combined = (result.stdout + result.stderr).strip()

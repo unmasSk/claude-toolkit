@@ -97,3 +97,82 @@
 - `git pull origin main # merge-reviewed` → approved without reviews
 - `git merge evil-branch # merge-reviewed -- skip gate` → approved
 - Root: `pre-merge-gate.py:94`
+
+## Hard link defeats "anti-symlink" guards on both Windows and POSIX (git_helpers.open_no_follow_symlink)
+- Pattern: os.path.islink() (Windows) and O_NOFOLLOW (POSIX) only detect symbolic links -- a hard link
+  (os.link(target, victim_path)) is indistinguishable from an ordinary file to both mechanisms, since it
+  is not a reparse point and shares the same inode/file-record as the target.
+- Demonstrated live (real filesystem, no mocking) on Windows: os.link(sensitive, 'boot-log-latest.txt')
+  then git_helpers.open_no_follow_symlink(path, 'w') succeeds with NO OSError, and the write lands on the
+  hard-linked sensitive file's shared data -- confirmed content overwritten.
+- Read-side (SEC-MED-NEW-02) equally bypassed: hard-linking glossary-cache.json to attacker-controlled
+  JSON, open_no_follow_symlink(path, 'r') returns the attacker's content with no rejection.
+- Reached through a REAL production entry point, not just the raw primitive: ensure_gitignore() in
+  git_helpers.py:208 -- hard-linking .gitignore to an outside file and calling ensure_gitignore()
+  appends the generated block onto the outside file's shared content.
+- Threat-model caveat (do not overclaim): git checkout cannot materialize a hard link (only blob content or
+  a symlink-target string), so this bypass is NOT reachable via "clone a malicious repo, do nothing else" --
+  the specific attack SEC-CRIT-001 targets. It requires the attacker to already have local write access to
+  the runtime dir before the guarded write runs (e.g. a separate/earlier local exploit, malicious
+  pre-install hook, or another lower-trust local process) -- a different, adjacent threat model. Also true of
+  the original pre-Windows-fix POSIX O_NOFOLLOW code -- not a regression introduced by this patch.
+- Root: lib/git_helpers.py:167 (_open_no_follow_symlink_windows) and its twin
+  lib/_symlink_safe_open.py:50 -- neither os.path.islink() nor the lstat/fstat (st_dev, st_ino)
+  TOCTOU comparison can ever flag a hard link, because a hard link's identity IS the target's identity by
+  design -- there is no way to distinguish a pre-existing hard link from a legitimately separate file using
+  device+inode alone.
+
+## UnicodeEncodeError (non-OSError) escapes open_no_follow_symlink and truncates pre-existing content first
+- Pattern: write mode opens with O_TRUNC at os.open() time (truncation happens immediately, before any
+  write() call). If the payload contains a lone UTF-16 surrogate code point (invalid for strict UTF-8
+  encoding), f.write(payload) raises UnicodeEncodeError -- a ValueError subclass, NOT OSError.
+- Confirmed live: pre-existing file content is destroyed (0 bytes on disk) by the time the exception
+  propagates, since truncation already happened at open().
+- Callers throughout the codebase wrap these calls in except OSError expecting ALL guard failures to
+  surface that way (the docstring's own contract: "Raises OSError... Callers must let that propagate").
+  UnicodeEncodeError violates that contract and would surface as an unhandled crash at any call site that
+  only catches OSError.
+- Caveat: no current caller in this codebase feeds attacker-controlled content likely to contain lone
+  surrogates (most content is json.dumps(..., ensure_ascii=True) output or hardcoded strings) -- not
+  demonstrated as reachable from an external input in THIS codebase today. Also pre-existing on POSIX and in
+  the pre-fix code (same truncate-then-write structure) -- not introduced by the Windows crossplatform patch.
+
+## run_git()'s "real round-trip" test is a false green on this machine (and per its own docstring, most CI) -- TestEncodingIndependentOfPythonUtf8Env does not cover run_git
+- Formal Round-Trip Sabotage (unmassk-standards §34) executed against lib/git_helpers.py:279 run_git()'s
+  encoding="utf-8" kwarg (added 2026-07-06, fix-windows-crossplatform):
+  1. Independent channel confirms ground truth: real `git commit` with subject containing accents+emoji,
+     read via subprocess WITHOUT text=/encoding= (raw bytes), decoded manually as UTF-8 -- git's own output
+     is valid, well-formed UTF-8 on the wire (hex-verified). Bug is 100% in the Python decode step, not git.
+  2. Scratch replica of run_git with encoding="utf-8" REMOVED, forced PYTHONUTF8=0 in a fresh child
+     process (locale.getpreferredencoding(False) confirmed == 'cp1252' in that child) -> SILENT mojibake,
+     returncode 0 (no exception): '🔧 chore...' became 'ðŸ”§ chore...corazÃ³n, seÃ±al...'. Not a crash --
+     exactly the silent-corruption failure mode the sabotage protocol requires, not a dead connection.
+  3. REAL production git_helpers.run_git under the IDENTICAL forced PYTHONUTF8=0 conditions (same
+     preferredencoding='cp1252', same utf8_mode_flag=0 confirmed in the child) round-trips correctly.
+  4. Checked tests/test_crossplatform_symlink_guard.py:422 TestEncodingIndependentOfPythonUtf8Env (the ONLY
+     test in the suite that forces PYTHONUTF8=0) -- its @pytest.mark.parametrize ONLY covers
+     ("git_helpers","open_no_follow_symlink") and ("_symlink_safe_open","open_no_follow_symlink_fallback").
+     run_git is NOT parametrized into it.
+  5. The dedicated real-git round-trip test for run_git,
+     tests/test_crossplatform_symlink_guard_hardening.py:534
+     TestRunGitEncodingUtf8.test_run_git_round_trips_utf8_accents_and_emoji_through_real_git, never forces
+     PYTHONUTF8=0 -- runs only in the ambient interpreter env.
+  6. Demonstrated concretely: built a scratch copy of the REAL production git_helpers.py with ONLY the
+     encoding="utf-8" kwarg deleted from the run_git() call (diff-confirmed, one line), replayed that
+     test's exact logic (same subject variable, real `git commit --allow-empty`, real `git log`) against
+     the broken copy under this machine's AMBIENT env (PYTHONUTF8=1) -> test assertion PASSES (TEST_WOULD_PASS
+     == True) even though the guarding kwarg is gone. Same broken copy under forced PYTHONUTF8=0 ->
+     assertion correctly FAILS (mojibake). Same broken copy replayed against the SIBLING mock test
+     test_run_git_passes_encoding_utf8_and_text_true_to_subprocess (asserts calls[0]['encoding']=='utf-8'
+     directly on the mocked subprocess.run kwargs) -> that one correctly fails regardless of env, since it
+     inspects the call arguments rather than relying on ambient decode behavior.
+  - Net finding: the "real round-trip through real git" claim specifically (the one unmassk-standards §34
+    requires as authoritative proof, since it is the only non-mocked check) is theater on any environment
+    where PYTHONUTF8=1 is ambient (this dev box; per the sibling test's own docstring, "most CI" too) --
+    it provides ZERO incremental regression protection beyond the mock kwarg-check test, because it never
+    enters the one condition (cp1252 default) that the encoding="utf-8" kwarg exists to guard against.
+    The regression itself IS still caught today, but only by the mock test, not by the round-trip test that
+    is supposed to prove real behavior. If someone later relies on "the real round-trip test is green" as
+    proof of correctness on Windows without PYTHONUTF8=1 forced, that proof is false.
+  - Root: tests/test_crossplatform_symlink_guard_hardening.py:534 (missing env forcing);
+    tests/test_crossplatform_symlink_guard.py:442-448 (parametrize list excludes run_git).

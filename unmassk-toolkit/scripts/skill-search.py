@@ -46,7 +46,7 @@ SEARCH_DIRS = [
 
 _extra_env = os.environ.get("SKILL_SEARCH_EXTRA_DIRS", "")
 if _extra_env:
-    SEARCH_DIRS += [Path(p) for p in _extra_env.split(":") if p]
+    SEARCH_DIRS += [Path(p) for p in _extra_env.split(os.pathsep) if p]
 
 SEARCH_COLS = ["name", "triggers", "domains", "frameworks", "tools"]
 

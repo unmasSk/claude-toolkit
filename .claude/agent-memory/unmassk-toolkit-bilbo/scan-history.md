@@ -109,7 +109,7 @@ Range with N=36: IDF_min=0.0136 (omnipresent terms), IDF_max≈3.21 (hapax terms
 **Tokenizer:** lowercases, strips `[^\w\s\-]`, drops tokens of length <=1.
 All compliance acronyms (NIS2, OWASP, SOC2, ENS, GDPR, LOPDGDD) survive tokenization.
 
-**SKILL_SEARCH_EXTRA_DIRS:** undocumented env var for adding scan dirs at runtime (colon-separated paths). Only noted in Ultron memory. Not used in production.
+**SKILL_SEARCH_EXTRA_DIRS:** undocumented env var for adding scan dirs at runtime (`os.pathsep`-separated paths — `:` on POSIX, `;` on Windows, since v1.16.1). Only noted in Ultron memory. Not used in production.
 
 **1.2.0 vs 1.3.0 skill-search.py:** byte-for-byte identical. Dev-repo copy also identical.
 

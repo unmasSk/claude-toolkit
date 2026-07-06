@@ -17,7 +17,7 @@ type: project
 
 | Path | Last verified | Status |
 |------|--------------|--------|
-| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-05 | "Boot stdout always banner" note confirmed still accurate. Added "Filesystem Safety Pattern" section documenting `verify_path_within_project()` as the canonical guard for any new `.claude/` filesystem code (parent-dir symlink escape class) — see [changelog-state.md](changelog-state.md) for the incident that produced it. |
+| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-06 | Filesystem Safety Pattern section extended with a cross-platform note: `open_no_follow_symlink()` now branches POSIX (`O_NOFOLLOW`) / Windows (`islink()` + `lstat`/`fstat` identity check), never raises bare `AttributeError` on Windows anymore — see [changelog-state.md](changelog-state.md) sixth pass for the fix this documents. |
 
 ## Other documentation
 
