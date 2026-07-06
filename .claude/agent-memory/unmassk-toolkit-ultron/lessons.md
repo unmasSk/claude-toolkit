@@ -712,6 +712,42 @@ added to the `elif` too, in both files (identical pattern, no new test
 needed — conceptually already covered by the sibling branch's existing
 security-regression tests).
 
+## Cerberus "unify banner language" nitpick can be a genuine dead end — escalate, don't force it (issue #49 repair round, 2026-07-06)
+
+Cerberus flagged that `render_memoria_stamp()`'s output is Spanish
+("MEMORIA: remoto...", "sin verificar") while `_build_pull_directive_lines()`'s
+output is English ("PULL DIRECTIVE...", "do NOT pull") in the same boot banner —
+asked to "unify the language, look at what the rest of the banner uses".
+Investigation found BOTH functions have their exact output strings pinned by
+Dante's own hardening tests: `TestRenderMemoriaStamp` asserts full-string
+EQUALITY in Spanish (`== "MEMORIA: remoto (fetch hace 0s)"` etc., 11
+parametrized cases) and `TestBuildPullDirectiveLines` asserts SUBSTRING
+presence of exact English phrases ("DIRTY", "do NOT pull", "FIRST action").
+Translating either function to match the other necessarily breaks the other
+function's already-green hardening tests — there is no single-language change
+that satisfies both without editing Dante's test file, which was out of scope
+for this repair round. Correct move: do NOT force a fix that breaks tests, and
+do NOT silently skip the finding either — implement everything else, then
+explicitly report this specific nitpick as blocked/escalated with the exact
+conflicting test names, so Yoda/Bex can decide whether to touch the tests.
+Rule: when a Cerberus/Argus suggestion's only implementable form contradicts
+an ALREADY-GREEN pinned test outside the two files you're allowed to touch,
+that's an escalation, not a judgment call to make unilaterally.
+
+**Resolution (same day):** Bex decided English (matching STATUS/BRANCH/RESUME/
+DECISIONS/PULL DIRECTIVE, which were already English) — the MEMORIA: stamp in
+`lib/boot_git_checks.py:render_memoria_stamp()` became `MEMORY:` /
+`fetch skipped` / `last fetch Nh ago, unverified` / `unverified (never synced
+with origin)`. Translating it required editing literal-string assertions in
+BOTH `TestRenderMemoriaStamp` (hardening file, explicitly authorized) AND 3
+substring checks in `test_boot_freshness.py` (the acceptance file) that
+Bex's message didn't explicitly name — `"MEMORIA:" in combined` (x3) and
+`re.search(r"sin verificar", ...)`. Once a product decision fixes the
+language, EVERY literal-string assertion tied to that stamp across the whole
+suite needs the same mechanical update, not just the ones in the file the
+orchestrator happened to remember. Grep the whole test dir for the old
+literal before declaring the mechanical change complete.
+
 ## lib/boot_memory.py -> lib/boot_glossary_cache.py split (2026-07-05): a real test forces a documented backward-compat re-export, breaking the "no cycle" instruction textually (but not at runtime)
 
 Splitting the glossary-cache I/O functions (`_get_project_root`,

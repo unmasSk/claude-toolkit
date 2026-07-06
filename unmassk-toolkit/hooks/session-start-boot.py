@@ -89,7 +89,7 @@ from boot_render import (
     render_timeline_section,
 )
 # Boot memory freshness (multi-machine, issue #49, plan Task 2/3) — hardened,
-# gated, rate-limited fetch + the MEMORIA: freshness stamp. boot_git_checks
+# gated, rate-limited fetch + the MEMORY: freshness stamp. boot_git_checks
 # is already transitively loaded via boot_render <- boot_checks <-
 # boot_git_checks, so a plain module-level import here is safe (not on
 # tests/test_migrate_statusline.py's stub list, unlike git_helpers/parsing/
@@ -200,10 +200,16 @@ def render_boot_banner_lines(
     lines = [
         f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}",
         "",
-        memoria_stamp,
+    ]
+    # Cerberus (nitpick): an empty memoria_stamp means main() already
+    # applied the "skipped_gate" gate (no toolkit memory installed) — omit
+    # the line entirely instead of printing a blank one in its place.
+    if memoria_stamp:
+        lines.append(memoria_stamp)
+    lines.extend([
         f"STATUS: {status}{status_detail}",
         f"BRANCH: {banner_branch}{ahead_behind}",
-    ]
+    ])
     if pull_directive_lines:
         lines.extend(pull_directive_lines)
     lines.extend([
@@ -288,17 +294,32 @@ def main() -> None:
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
     project_root = _get_project_root()
     # fetch_state ({"status": ..., "age_seconds": ...}) — issue #49, plan
-    # Task 2's return value, consumed here by Task 3's MEMORIA: stamp.
+    # Task 2's return value, consumed here by Task 3's MEMORY: stamp.
     fetch_state = run_preboot_migrations(project_root)
-    memoria_stamp = render_memoria_stamp(fetch_state)
+    # Cerberus (nitpick, issue #49 repair round): "skipped_gate" ONLY ever
+    # means "this repo has no unmassk-toolkit memory installed at all" (see
+    # fetch_memory_ref's own gate check) — rendering a "LOCAL — never
+    # synced with origin" line for a repo that was never SUPPOSED to sync
+    # in the first place is misleading noise, not a freshness signal. The
+    # gate already skips the fetch itself; the stamp must respect the same
+    # gate and simply not appear. render_memoria_stamp() itself is left
+    # returning its documented string for every status (its own direct unit
+    # tests call it with "skipped_gate" and expect that string back) — the
+    # gate is applied here, at the one real rendering call site, instead.
+    memoria_stamp = (
+        render_memoria_stamp(fetch_state)
+        if fetch_state.get("status") != "skipped_gate"
+        else ""
+    )
 
     lines: list[str] = []
     lines.extend(render_header_section(plugin_root))
-    # MEMORIA: stamp lands near the top of the full boot-log content too —
+    # MEMORY: stamp lands near the top of the full boot-log content too —
     # see render_boot_banner_lines() for the stdout-banner copy of the same
     # line (issue #49, plan Task 3: both, not just one).
-    lines.append(memoria_stamp)
-    lines.append("")
+    if memoria_stamp:
+        lines.append(memoria_stamp)
+        lines.append("")
 
     status_lines, status, status_detail = render_status_section()
     lines.extend(status_lines)

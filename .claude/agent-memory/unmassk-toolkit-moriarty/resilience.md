@@ -141,3 +141,51 @@
   condition. Regression protection for a literal kwarg deletion still exists today via the sibling mock
   test (test_run_git_passes_encoding_utf8_and_text_true_to_subprocess), which is env-independent by
   construction.
+
+## Boot freshness (issue #49) -- hardened fetch + multi-machine memory read (2026-07-06)
+
+- Real hung TCP remote (nc accepting, never responding) over HTTP AND an unroutable ssh:// host
+  (192.0.2.1, TEST-NET-1) -- both bounded at ~3.3s wall clock, boot exits 0, stderr shows
+  "[git_helpers] git 'fetch' timed out after 3s". Fail-open confirmed under a REAL hang, not a
+  mocked/fake-git wrapper.
+- 501-commit-behind real remote (bare + clone triangle, ground truth confirmed via `git ls-remote`)
+  -- boot completes in 0.34s, correctly shows "[0/501 vs upstream]", PULL DIRECTIVE, and the
+  remote-only Next item labeled "[origen: remoto]" in the RESUME section.
+- Genuine shallow clone (`git clone --depth 1 --no-local file://...`, `git rev-parse
+  --is-shallow-repository` confirmed true) -- both at-parity and 1-behind-after-clone states
+  produce correct ahead/behind numbers and correct RESUME content; no crash, no shallow-graft
+  weirdness surfaced in `rev-list --left-right --count`.
+- Detached HEAD -- correctly shows "BRANCH: (detached HEAD)", no fetch attempted (branch name
+  empty), MEMORIA correctly says "sin verificar (nunca se ha sincronizado)" -- accurate, not
+  falsely claiming fresh.
+- True divergence (3 ahead / 5 behind, CONTRADICTORY Decision: trailers on each side, built via a
+  real bare-remote + two-clone triangle) -- both sides shown side by side in DECISIONS and RESUME,
+  remote side correctly labeled "[origen: remoto]", local side unlabeled, NEVER merged/deduped/
+  dropped -- matches the plan's explicit "never auto-merge" requirement exactly, verified end to
+  end with real git history, not a mock.
+- Corrupt SHA planted directly in `.git/refs/remotes/origin/main` (independent-channel confirmed
+  via `git cat-file -t <sha>` failing) -- `get_ahead_behind()`'s `rev-list` call fails silently,
+  falls back to (0,0,upstream_ref); `resolve_boot_memory()` then reads local HEAD (safe default,
+  no crash) -- though the DISPLAYED "[0/0 vs upstream]" is misleading in this specific case (see
+  attack-patterns.md note on the ghost-branch finding for the more severe sibling of this gap).
+- 6 concurrent real boots on the same repo (parallel `git fetch` against the same `.git`) -- no
+  crash, no lock-error propagation to the user, `git fsck` clean afterward, no repo corruption.
+- Real 3MB single-trailer commit (no embedded newline, one giant `Next:` value) fetched from a real
+  remote -- boot completes in 0.4s, full boot-log correctly grows to ~3MB (by design, unshortened),
+  stdout banner stays short as documented -- no truncation bug, no timeout.
+- Old-format (pre-#49) glossary-cache.json missing the `origin_sha` key, WITH a real upstream
+  configured -- correctly treated as stale and regenerated (cache.get("origin_sha") is None !=
+  the real resolved origin sha) rather than served stale. Backward-compat path is safe-by-default
+  (invalidates rather than risks serving pre-#49-shaped stale data).
+- Write-path warn-only (`bin/git-memory-commit.py` while 5 commits behind, real repo) -- prints the
+  yellow warning to stderr and still creates the commit (verified via `git log -1`) -- never blocks.
+- Newline injection into a spoofed "[origen: remoto]"/"MEMORIA:"/"PULL DIRECTIVE:" provenance label
+  via a trailer value is blocked (`sanitize_trailer_value` strips \r\n/U+2028/U+2029/vtab/formfeed
+  before the label is ever appended) -- an attacker with push access to origin can make text
+  WITHIN a `Next:`/`Decision:` line visually blend with the genuine provenance label (same string,
+  glued with no delimiter), but cannot forge a new top-level boot line (no `STATUS:`/`MEMORIA:`
+  banner-header spoof) because no attacker-controlled value can ever contain a real newline by the
+  time it reaches rendering. Low-severity cosmetic confusion only (T3), not a bypass.
+- Planting a hanging `post-merge`/`reference-transaction` git hook does not intercept `git fetch`
+  at all (neither hook fires on a plain client-side fetch in stock git) -- confirmed N/A, not a
+  real vector against this feature.

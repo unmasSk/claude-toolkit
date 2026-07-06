@@ -562,3 +562,63 @@ Confirmed in `unmassk-toolkit/tests/test_boot_freshness.py`
 (`_make_fake_git`, feat-boot-freshness contract, session 2026-07-06) for the
 hardened-fetch-env RED test and the fetch-gate RED test. See
 [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md).
+
+## Hardening-pass direct-call testing — when subprocess isolation is NOT needed
+
+Not every real, stably-named `lib/` module function needs the full
+subprocess-isolation dance (`_extract_memory()`'s `python3 -c` snippet
+pattern above). Three cheaper patterns, all confirmed safe in
+`test_boot_freshness_hardening.py` (session 2026-07-06):
+
+1. **Pure functions** (no I/O, no git, no module-level mutable state) —
+   import the real module directly at the top of the test file (`import
+   boot_git_checks`, `import boot_memory`) and call the function in-process.
+   Safe even though these are the same stably-named modules the
+   sys.modules-stub-contamination warning above targets, BECAUSE the
+   contamination risk only bites module-level `from x import y` bindings
+   evaluated once at first import — a pure function with no such imports in
+   its own call chain has nothing to go stale.
+2. **Functions taking an explicit path param** (e.g. `fetch_memory_ref
+   (project_root)`, `_has_toolkit_memory(project_root)`) — call directly
+   with a real `tmp_path` repo, no chdir needed at all; the function's own
+   `run_git(..., cwd=project_root)` calls already scope everything.
+3. **Functions relying on ambient process cwd** (no `cwd=` passed to their
+   own `run_git` calls, e.g. `get_ahead_behind(branch)`) — use pytest's
+   `monkeypatch.chdir(repo)` fixture, which auto-restores the real cwd after
+   the test; safe against cross-test bleed within the same session.
+
+**Gotcha — process-global cache defeats direct calls for one specific
+function family:** `lib/boot_glossary_cache.py` has a **module-level
+mutable cache**, `_project_root_cache: str | None = None`, set once by
+`_get_project_root()` and never invalidated. Any test that calls
+`_read_glossary_cache()` / `_write_glossary_cache()` / `extract_glossary_
+cached()` directly against a SECOND (different) `tmp_path` repo in the same
+pytest process will silently resolve to the FIRST repo's cached root unless
+you explicitly reset the global first: `boot_glossary_cache._project_root_
+cache = None` before `monkeypatch.chdir(new_repo)` + the call. This is a
+lighter fix than `test_security_regression.py`'s full subprocess-per-call
+pattern (`_call_write_glossary_cache_fallback`) — reach for the subprocess
+version only when the test ALSO needs to patch a defensive-import fallback
+(`ensure_runtime_dir = None`) or otherwise needs true process isolation;
+for a plain "different repo, different cache file" test, resetting the
+global in-process is sufficient and much faster (confirmed: `_resolve_
+origin_sha`/`_read_glossary_cache` migration tests, session 2026-07-06).
+
+## Injecting malformed git output to test a fail-open branch (not just non-zero exit)
+
+To exercise a specific parsing branch inside a `lib/` function that calls
+`run_git()` MULTIPLE times for different subcommands (so you can't just
+monkeypatch the whole function), monkeypatch the single shared
+`git_helpers.run_git` attribute with a wrapper that intercepts only the
+target subcommand shape (`if args and args[0] == "rev-list" and
+"--left-right" in args: return 0, "abc def"`) and delegates everything else
+to the REAL `run_git` (saved as `real_run_git = git_helpers.run_git` before
+patching). Because the target function does a deferred, function-body
+`from git_helpers import run_git`, this takes effect immediately with no
+module-reload needed — `monkeypatch.setattr(git_helpers, "run_git", ...)`
+auto-restores after the test. This is what found a genuine bug (documented
+in [edge-cases.md](edge-cases.md) and
+[feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md)):
+`get_ahead_behind()`'s `int()` conversion on `rev-list --left-right --count`
+output has no try/except, unlike the sibling "wrong token count" fallback
+one line below it.

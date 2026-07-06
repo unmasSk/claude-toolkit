@@ -176,3 +176,45 @@
     proof of correctness on Windows without PYTHONUTF8=1 forced, that proof is false.
   - Root: tests/test_crossplatform_symlink_guard_hardening.py:534 (missing env forcing);
     tests/test_crossplatform_symlink_guard.py:442-448 (parametrize list excludes run_git).
+
+## Boot freshness (issue #49): FETCH_HEAD age computed with unclamped time.time() delta -- future mtime (clock skew) suppresses fetch indefinitely
+- Pattern: `_fetch_head_age_seconds()` (lib/boot_git_checks.py:377) returns `time.time() - mtime`
+  with NO clamp to >=0. `fetch_memory_ref()`'s rate-limit gate (`if age is not None and age <
+  FETCH_RATE_LIMIT_SECONDS`) treats any negative age as "younger than 300s" -> skips the fetch.
+- Demonstrated live: real bare-remote + clone triangle, `touch -t` FETCH_HEAD's mtime 30 days into
+  the future (simulates a second machine's desynced clock, or this machine's own clock drifting/
+  being corrected backward) -> boot shows "MEMORIA: LOCAL — fetch omitido (rate-limit, hace 0s)"
+  (age clamped to 0 for DISPLAY by `_format_age_seconds`'s `max(0, int(seconds))`, hiding that the
+  real number was negative) and FETCH_HEAD's own mtime is UNCHANGED after the boot run (independent
+  verification via `stat -f %m`) -- confirmed no fetch was attempted. This suppresses the entire
+  multi-machine freshness feature for as long as the clock-skew delta lasts (hours to weeks,
+  whatever the skew is) with a message that reads as fresh/healthy ("hace 0s").
+- Root: lib/boot_git_checks.py:377 (`_fetch_head_age_seconds`), :406 (rate-limit comparison),
+  :434 (`_format_age_seconds` clamps for display, masking the negative value that drove the
+  decision).
+
+## Boot freshness (issue #49): MEMORIA: remoto stamp is decoupled from which ref resolve_boot_memory() actually reads -- broken/stale upstream tracking silently reverts to pre-#49 local-only behavior while claiming remote-verified freshness
+- Two independent git ref-resolution paths exist and can disagree:
+  1. `fetch_memory_ref()` (lib/boot_git_checks.py:386) fetches by BRANCH NAME
+     (`git fetch origin <branch> --no-tags`, branch from `git branch --show-current`) -- does NOT
+     depend on the branch's configured upstream (`branch.<name>.merge`/`.remote`).
+  2. `get_ahead_behind()` (lib/boot_git_checks.py:143) resolves `upstream_ref` via
+     `git rev-parse --abbrev-ref @{u}` -- DOES depend on that same tracking config.
+  `resolve_boot_memory()` (lib/boot_memory.py) only ever reads from `upstream_ref` (path 2). If
+  path 2's config is broken (e.g. `branch.main.merge` points at a deleted/renamed/never-existed
+  ref -- realistic after a branch rename or manual git-config mistake) while path 1 still succeeds
+  (the literal branch name "main" exists on origin), the fetch reports "fetched" (status shown as
+  "MEMORIA: remoto (fetch hace 0s)") but the actual memory content displayed is 100% local HEAD --
+  new content genuinely pushed by another machine to origin/main is invisible.
+- Demonstrated live: real bare-remote + clone triangle. Corrupted `branch.main.merge` to
+  `refs/heads/ghost-branch-never-existed` via `git config`. Pushed a real commit with a unique
+  `Next:` marker from a second clone (machine B). Ran the real boot hook: `git fetch origin main`
+  succeeded (independently confirmed via `git log origin/main` showing the new commit), MEMORIA
+  stamp said "remoto"/fresh, but the marker was completely absent from the boot-log RESUME section
+  -- confirmed via direct `grep` on the boot-log file, not via the hook's own claims.
+  This is the exact incident issue #49 was filed to fix (a second machine's memory silently
+  invisible), reproduced through a config path the fetch-hardening work did not close, with a
+  freshness stamp that actively asserts the opposite of what happened.
+- Root: lib/boot_git_checks.py:159 (`@{u}` resolution feeding `upstream_ref`) vs :420 (`fetch`
+  by branch name, independent of `upstream_ref`); lib/boot_memory.py `resolve_boot_memory()`
+  (only path that reads origin) is 100% gated on `upstream_ref` being non-None.

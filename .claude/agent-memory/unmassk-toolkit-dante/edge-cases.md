@@ -914,3 +914,41 @@ assertion. Always run the new test once against UNMODIFIED (pre-fix)
 production code and confirm every physical test method is genuinely RED,
 not just the file as a whole — running with `-x` can hide a vacuously
 green test sitting after a real failure.
+
+## get_ahead_behind() — non-numeric rev-list tokens raise instead of failing open (BUG, reported not fixed)
+
+`lib/boot_git_checks.py:get_ahead_behind()` parses `git rev-list
+--left-right --count HEAD...<upstream>` output by splitting on whitespace
+and doing `int(parts[0]), int(parts[1])` with NO try/except, even though
+the very next line already has a safe `return 0, 0, upstream_ref` fallback
+for the "wrong token COUNT" case (e.g. 1 or 3 tokens). A response with
+exactly 2 tokens that aren't valid integers (confirmed via monkeypatching
+`git_helpers.run_git` to return `(0, "abc def")` for that one call, real
+git untouched otherwise) raises an uncaught `ValueError` instead of hitting
+that same fallback. Since this function is called from
+`render_branch_section()` and (issue #49) from `session-start-boot.py`'s
+`main()` with no enclosing try/except at either site, this is a fail-open
+violation that can crash the entire boot. Pinned as `xfail(strict=True)` in
+`test_boot_freshness_hardening.py::TestGetAheadBehind::test_non_numeric_
+rev_list_output_should_fail_open_but_raises` — will flip to a hard failure
+the moment Ultron wraps the `int()` conversion in the same pattern, forcing
+a test update (remove the marker) rather than silently staying green.
+
+## boot_glossary_cache migration — old cache (pre-`origin_sha` field) validity depends on whether an upstream now exists
+
+`_read_glossary_cache()`'s freshness check does
+`cache.get("origin_sha") != _resolve_origin_sha(upstream_ref)`. A cache
+written before issue #49 added the `origin_sha` field has no such key at
+all, so `cache.get("origin_sha")` defaults to `None`. Two genuinely
+different outcomes from the SAME old cache, both correct and neither a
+crash: (1) if the repo still has no upstream configured when read,
+`_resolve_origin_sha(None)` is also `None` — `None == None`, cache stays
+VALID (no unnecessary full-history rescan just because the schema grew a
+field). (2) if an upstream now resolves to a real sha, `None !=
+"<realsha>"` — cache is correctly treated as STALE (returns `None`,
+triggering a fresh regenerate-and-write on the next call), never raising
+KeyError/crashing. Confirmed empirically both ways — gotcha in the test
+setup: `generated_at` must be a FRESH timestamp
+(`datetime.now(timezone.utc).isoformat()`), or the pre-existing
+`GLOSSARY_CACHE_TTL` (86400s) staleness check fires first and masks
+whichever origin_sha behavior the test actually meant to isolate.

@@ -335,12 +335,15 @@ class TestIncidentBehindShowsRemoteNext:
 
 
 class TestFreshnessStampThreeStates:
-    """Plan Task 1 test 2 — the MEMORIA: freshness stamp must appear in the
+    """Plan Task 1 test 2 — the MEMORY: freshness stamp must appear in the
     header (stdout banner and/or boot-log) in all three states: fresh
     fetch, rate-limited (skipped), and fetch-failed (falls back to
-    "LOCAL ... sin verificar").
+    "LOCAL ... unverified").
 
-    RED today: no MEMORIA: stamp exists anywhere in the codebase yet.
+    Bex (issue #49 repair round): the stamp's wording was decided to be
+    English (matching the rest of the boot banner) — was "MEMORIA:"/"sin
+    verificar"/"omitido" (Spanish) when this file was first written,
+    mechanically updated here to match the just-made language decision.
     """
 
     def test_fresh_fetch_state_shows_stamp(self, tmp_path):
@@ -349,7 +352,7 @@ class TestFreshnessStampThreeStates:
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
 
         assert rc == 0, f"stderr: {stderr}"
-        assert "MEMORIA:" in combined, f"expected a MEMORIA: freshness stamp.\n{combined}"
+        assert "MEMORY:" in combined, f"expected a MEMORY: freshness stamp.\n{combined}"
 
     def test_rate_limited_state_shows_stamp(self, tmp_path):
         repo_a, bare = _setup_freshness_repo(tmp_path)
@@ -361,8 +364,8 @@ class TestFreshnessStampThreeStates:
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
 
         assert rc == 0, f"stderr: {stderr}"
-        assert "MEMORIA:" in combined, f"expected a MEMORIA: freshness stamp.\n{combined}"
-        assert re.search(r"rate.?limit|omitido", combined, re.IGNORECASE), (
+        assert "MEMORY:" in combined, f"expected a MEMORY: freshness stamp.\n{combined}"
+        assert re.search(r"rate.?limit|skipped", combined, re.IGNORECASE), (
             f"expected the rate-limited variant of the stamp.\n{combined}"
         )
 
@@ -376,9 +379,9 @@ class TestFreshnessStampThreeStates:
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a, timeout=20)
 
         assert rc == 0, f"boot must fail open even when fetch fails outright. stderr: {stderr}"
-        assert "MEMORIA:" in combined, f"expected a MEMORIA: freshness stamp.\n{combined}"
-        assert "LOCAL" in combined and re.search(r"sin verificar", combined, re.IGNORECASE), (
-            f"expected 'LOCAL ... sin verificar' when fetch fails outright.\n{combined}"
+        assert "MEMORY:" in combined, f"expected a MEMORY: freshness stamp.\n{combined}"
+        assert "LOCAL" in combined and re.search(r"unverified", combined, re.IGNORECASE), (
+            f"expected 'LOCAL ... unverified' when fetch fails outright.\n{combined}"
         )
 
 
@@ -612,8 +615,8 @@ class TestFetchRateLimit:
         # Tied to the freshness stamp (test 2) so this remains a genuine
         # RED today even though the mtime assertion above already holds
         # against the current (always-fetch) implementation.
-        assert "MEMORIA:" in combined, (
-            f"a fresh fetch (stale-FETCH_HEAD case) must show the MEMORIA: "
+        assert "MEMORY:" in combined, (
+            f"a fresh fetch (stale-FETCH_HEAD case) must show the MEMORY: "
             f"freshness stamp.\n{combined}"
         )
 

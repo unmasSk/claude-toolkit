@@ -19,8 +19,10 @@ Pure refactor: behavior is byte-for-byte identical to before the split.
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 from boot_memory import _sanitize_trailer_value
 
@@ -165,7 +167,15 @@ def get_ahead_behind(branch: str) -> tuple[int, int, str | None]:
     if code_ab == 0 and ab_out.strip():
         parts = ab_out.strip().split()
         if len(parts) == 2:
-            return int(parts[0]), int(parts[1]), upstream_ref
+            try:
+                return int(parts[0]), int(parts[1]), upstream_ref
+            except ValueError:
+                # Dante (BUG, fail-open violation): `rev-list --left-right
+                # --count` returning two whitespace-separated tokens that
+                # aren't valid integers must fall through to the SAME safe
+                # fallback used for the wrong-token-count case below, not
+                # raise an uncaught ValueError that crashes the boot.
+                pass
     return 0, 0, upstream_ref
 
 
@@ -206,19 +216,38 @@ def _resolve_sanitized_branch() -> tuple[str, list[str], str | None]:
     return branch, branch_keywords, branch_issue
 
 
-def render_branch_section() -> tuple[
-    list[str], str, list[str], str | None, str, int, int, str | None, list[str]
-]:
+class BranchSectionResult(NamedTuple):
+    """Cerberus (round of issue #49 repairs): render_branch_section() grew a
+    9-element positional tuple that main() unpacks by position — a silent
+    field swap (e.g. moving ahead_n before behind_n) would type-check fine
+    and fail only at runtime, far from this definition. A NamedTuple keeps
+    positional unpacking working unchanged (it IS a tuple) for the one real
+    caller (hooks/session-start-boot.py's main()) while making every field
+    self-documenting and swap-resistant via attribute access.
+    """
+    lines: list[str]
+    branch: str
+    branch_keywords: list[str]
+    branch_issue: str | None
+    ahead_behind: str
+    ahead_n: int
+    behind_n: int
+    upstream_ref: str | None
+    pull_directive_lines: list[str]
+
+
+def render_branch_section() -> BranchSectionResult:
     """Render the BRANCH section.
 
-    Returns (lines, branch, branch_keywords, branch_issue, ahead_behind,
-    ahead_n, behind_n, upstream_ref, pull_directive_lines). ahead_n/
-    behind_n/upstream_ref (issue #49, Task 4) are get_ahead_behind()'s own
-    numbers, reused (not recomputed) by main()'s origin-read decision.
-    pull_directive_lines is also returned standalone (beyond already being
-    folded into `lines`) so main() can fold the same short text into the
-    minimal stdout banner too — both it and the MEMORIA: stamp are short
-    enough to belong in the banner AND the full boot-log content.
+    Returns a BranchSectionResult(lines, branch, branch_keywords,
+    branch_issue, ahead_behind, ahead_n, behind_n, upstream_ref,
+    pull_directive_lines). ahead_n/behind_n/upstream_ref (issue #49, Task 4)
+    are get_ahead_behind()'s own numbers, reused (not recomputed) by
+    main()'s origin-read decision. pull_directive_lines is also returned
+    standalone (beyond already being folded into `lines`) so main() can
+    fold the same short text into the minimal stdout banner too — both it
+    and the MEMORY: stamp are short enough to belong in the banner AND the
+    full boot-log content.
     """
     from git_helpers import run_git
 
@@ -244,7 +273,7 @@ def render_branch_section() -> tuple[
         lines.extend(pull_directive_lines)
 
     lines.append("")
-    return (
+    return BranchSectionResult(
         lines, branch, branch_keywords, branch_issue, ahead_behind,
         ahead_n, behind_n, upstream_ref, pull_directive_lines,
     )
@@ -341,12 +370,55 @@ FETCH_TIMEOUT_SECONDS = 3  # short bounded timeout — replaces the old BOOT_FET
 
 # GIT_TERMINAL_PROMPT=0 + neutralized askpass + BatchMode=yes: guarantees the
 # boot-time fetch can never hang on an interactive credential prompt.
+#
+# Windows has no `/bin/false` — Cerberus (T3, this round): the askpass
+# override must fail fast on every platform, not just POSIX, or the
+# "hardened" env silently degrades to "no override at all" on Windows
+# whenever a real GIT_ASKPASS/SSH_ASKPASS happened to be missing/broken
+# already. `cmd /c exit 1` is the Windows equivalent: it exists on every
+# Windows install and returns non-zero immediately with no prompt.
+_ASKPASS_FAILFAST = "cmd /c exit 1" if sys.platform == "win32" else "/bin/false"
+
+# SEC-CRIT-001 (Argus): also disable EVERY configured credential helper
+# (system/global/local config files, including OS-native ones — osxkeychain,
+# libsecret, Windows/macOS SSO helpers) for this one fetch. GIT_TERMINAL_PROMPT
+# and the askpass overrides above only stop git's OWN interactive prompt; a
+# configured helper can still pop its own out-of-band dialog. Setting
+# credential.helper to the empty string resets the accumulated helper list
+# (documented git behavior). GIT_CONFIG_COUNT/GIT_CONFIG_KEY_<n>/
+# GIT_CONFIG_VALUE_<n> (stable since git 2.31) apply at the same "command"
+# precedence scope as `-c credential.helper=` WITHOUT changing argv — some
+# tests key a fake-git wrapper's behavior off argv[0] == "fetch", which a
+# leading `-c ...` global option would have broken.
 _FETCH_HARDENED_ENV = {
     "GIT_TERMINAL_PROMPT": "0",
-    "GIT_ASKPASS": "/bin/false",
-    "SSH_ASKPASS": "/bin/false",
+    "GIT_ASKPASS": _ASKPASS_FAILFAST,
+    "SSH_ASKPASS": _ASKPASS_FAILFAST,
     "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "credential.helper",
+    "GIT_CONFIG_VALUE_0": "",
 }
+
+
+def _looks_like_git_option(value: str) -> bool:
+    """Defense-in-depth (Argus SEC-CRIT-001): reject a string that could be
+    misread as a git option/flag if it were ever passed as a positional git
+    argument.
+
+    Normal branch/remote creation already forbids a leading '-'
+    (`git check-ref-format --branch` is documented to be stricter than the
+    general refname rules specifically on this point) — but that gate only
+    runs at CREATION time. A crafted `.git/HEAD` symref or a hand-edited
+    `packed-refs`/`config` entry in a malicious clone can plant a ref or
+    remote name that violates it, and `git branch --show-current` /
+    `git rev-parse --abbrev-ref @{u}` do not re-validate before printing.
+    Every value this module reads back from git config/refs and later
+    passes as a positional argument to another git invocation must be
+    checked with this before use — fail closed (True) on anything empty or
+    leading with '-', never assume the value was pre-validated upstream.
+    """
+    return not value or value.startswith("-")
 
 
 def _has_toolkit_memory(project_root: str) -> bool:
@@ -394,7 +466,11 @@ def fetch_memory_ref(project_root: str | None) -> dict:
          "age_seconds": seconds since the last known successful fetch
                          (FETCH_HEAD mtime), or None if never fetched}
         Consumed by Task 3's freshness-stamp rendering, not by this
-        function.
+        function. "no_remote" now also covers "a remote is configured but
+        the current branch has no coherent upstream tracking ref to align
+        the fetch with" (Moriarty #2) — the stamp must never claim "remote"
+        for a fetch target that isn't the same ref get_ahead_behind()/
+        resolve_boot_memory() will actually read.
     """
     from git_helpers import run_git
 
@@ -403,7 +479,15 @@ def fetch_memory_ref(project_root: str | None) -> dict:
             return {"status": "skipped_gate", "age_seconds": None}
 
         age = _fetch_head_age_seconds(project_root)
-        if age is not None and age < FETCH_RATE_LIMIT_SECONDS:
+        # Moriarty #1 (clock skew): a NEGATIVE age means FETCH_HEAD's mtime
+        # is in the FUTURE relative to this machine's clock (a real scenario
+        # across multiple machines with unsynced clocks) — that is NOT
+        # freshness, it's a broken measurement. Treating it as "fresh" would
+        # permanently suppress every future fetch on this machine (age stays
+        # negative forever, always < the rate-limit window). Only a genuine
+        # non-negative age inside the window counts as rate-limited; a
+        # negative age falls through and forces a real fetch attempt instead.
+        if age is not None and 0 <= age < FETCH_RATE_LIMIT_SECONDS:
             return {"status": "rate_limited", "age_seconds": age}
 
         code_remote, _ = run_git(["remote", "get-url", "origin"], cwd=project_root)
@@ -415,9 +499,42 @@ def fetch_memory_ref(project_root: str | None) -> dict:
         if not branch:
             # Detached HEAD — nothing to fetch a matching branch for.
             return {"status": "failed", "age_seconds": age}
+        if _looks_like_git_option(branch):
+            # SEC-CRIT-001 (Argus): a branch name that could be misread as a
+            # git option (e.g. planted via a crafted .git/HEAD symref or
+            # packed-refs entry in a malicious clone/fork) must never reach
+            # a git invocation as a positional argument. Fail closed — no
+            # fetch attempted — rather than risk option injection.
+            return {"status": "failed", "age_seconds": age}
+
+        # Moriarty #2: align the fetch target with the SAME ref
+        # get_ahead_behind()/resolve_boot_memory() actually read via `@{u}`
+        # — not just the local branch's own name. If tracking is
+        # misconfigured (e.g. after a branch rename, a common real case),
+        # fetching by bare branch name can silently update the wrong
+        # remote-tracking ref (or fail outright) while the MEMORY stamp
+        # still claims "remote" for content that was never really
+        # confirmed — reproducing issue #49 by a different path. Reusing
+        # this exact resolution (not a second, potentially divergent one)
+        # is the same principle get_ahead_behind() itself documents.
+        code_ref, upstream_ref = run_git(["rev-parse", "--abbrev-ref", "@{u}"], cwd=project_root)
+        upstream_ref = upstream_ref.strip() if code_ref == 0 else ""
+        if not upstream_ref or "/" not in upstream_ref:
+            # No coherent upstream to align the fetch with — the stamp must
+            # tell the truth (LOCAL / unverified), never "remote", for
+            # content that was never actually confirmed against a real
+            # tracking ref.
+            return {"status": "no_remote", "age_seconds": age}
+
+        remote_name, _, remote_branch = upstream_ref.partition("/")
+        if _looks_like_git_option(remote_name) or _looks_like_git_option(remote_branch):
+            return {"status": "failed", "age_seconds": age}
 
         code_fetch, _ = run_git(
-            ["fetch", "origin", branch, "--no-tags"],
+            # SEC-CRIT-001 (Argus): `--` separates options from the
+            # positional ref argument — even with the leading-dash guard
+            # above, this must not depend on that invariant holding forever.
+            ["fetch", remote_name, "--no-tags", "--", remote_branch],
             timeout=FETCH_TIMEOUT_SECONDS,
             cwd=project_root,
             env=_FETCH_HARDENED_ENV,
@@ -425,14 +542,23 @@ def fetch_memory_ref(project_root: str | None) -> dict:
         if code_fetch != 0:
             return {"status": "failed", "age_seconds": age}
 
-        return {"status": "fetched", "age_seconds": 0.0}
-    except Exception:
+        # Cerberus (nitpick): reflect FETCH_HEAD's real mtime-derived age
+        # instead of a hardcoded 0.0 — a successful fetch stamps FETCH_HEAD
+        # at completion time, so this is genuinely ~0 in the overwhelming
+        # common case, but it's now MEASURED rather than assumed.
+        fresh_age = _fetch_head_age_seconds(project_root)
+        fresh_age_seconds = float(max(0, int(fresh_age))) if fresh_age is not None else 0.0
+        return {"status": "fetched", "age_seconds": fresh_age_seconds}
+    except Exception as e:
         # Fail-open: this function must never raise regardless of cause.
+        # Cerberus: leave a breadcrumb (same pattern as git_helpers.py's
+        # UnicodeDecodeError branch) instead of failing completely silently.
+        print(f"[boot_git_checks] fetch_memory_ref: unexpected {type(e).__name__}: {e}", file=sys.stderr)
         return {"status": "failed", "age_seconds": None}
 
 
 def _format_age_seconds(seconds: float) -> str:
-    """Human-readable age for the MEMORIA: stamp, e.g. '0s' / '5min' / '2h'."""
+    """Human-readable age for the MEMORY: stamp, e.g. '0s' / '5min' / '2h'."""
     total = max(0, int(seconds))
     if total < 60:
         return f"{total}s"
@@ -444,9 +570,14 @@ def _format_age_seconds(seconds: float) -> str:
 
 
 def render_memoria_stamp(fetch_state: dict) -> str:
-    """Render the MEMORIA: provenance/freshness stamp for the boot header
+    """Render the MEMORY: provenance/freshness stamp for the boot header
     (issue #49, plan Task 3). One short line — printed in BOTH the minimal
     stdout banner and the full boot-log content, near the top of each.
+
+    Bex (issue #49 repair round, language-unification decision): the whole
+    boot banner (STATUS/BRANCH/RESUME/REMEMBER/DECISIONS/PULL DIRECTIVE) is
+    English — this stamp used to be the one Spanish outlier. Wording is
+    English now; the field/state semantics documented below are unchanged.
 
     Three states, matching fetch_memory_ref()'s `status` field:
       - "fetched": a fetch against origin completed this boot — content is
@@ -455,22 +586,22 @@ def render_memoria_stamp(fetch_state: dict) -> str:
         rate-limit window) — local content, not reconfirmed this boot.
       - anything else ("failed", "no_remote", "skipped_gate"): freshness
         against origin could not be confirmed this boot — falls back to
-        the "LOCAL ... sin verificar" wording.
+        the "LOCAL ... unverified" wording.
     """
     status = fetch_state.get("status")
     age = fetch_state.get("age_seconds")
 
     if status == "fetched":
         age_txt = _format_age_seconds(age if age is not None else 0.0)
-        return f"MEMORIA: remoto (fetch hace {age_txt})"
+        return f"MEMORY: remote (fetched {age_txt} ago)"
 
     if status == "rate_limited":
         age_txt = _format_age_seconds(age) if age is not None else "?"
-        return f"MEMORIA: LOCAL — fetch omitido (rate-limit, hace {age_txt})"
+        return f"MEMORY: LOCAL — fetch skipped (rate-limit, {age_txt} ago)"
 
     # "failed" / "no_remote" / "skipped_gate" (or any future fail-open
     # status): never confirmed fresh against origin this boot.
     if age is not None:
         age_txt = _format_age_seconds(age)
-        return f"MEMORIA: LOCAL — último fetch hace {age_txt}, sin verificar"
-    return "MEMORIA: LOCAL — sin verificar (nunca se ha sincronizado con origin)"
+        return f"MEMORY: LOCAL — last fetch {age_txt} ago, unverified"
+    return "MEMORY: LOCAL — unverified (never synced with origin)"

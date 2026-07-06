@@ -72,3 +72,41 @@ See also: [boot-stdout-banner-contract-notes](boot-stdout-banner-contract-notes.
 [skill-router-contract-notes](skill-router-contract-notes.md) (same
 "test-first contract, RED baseline documented for the rest of the pipeline"
 shape, same module family).
+
+## Hardening pass (session 2026-07-06) — `test_boot_freshness_hardening.py`
+
+After Ultron implemented (wips 98862f1, 578ffc6, 9990410), the 12-test
+contract went 12/12 green untouched. Hardening pass added 68 tests (67
+passed + 1 `xfail(strict=True)`) covering 15 functions directly: `fetch_
+memory_ref`, `get_ahead_behind`, `_format_age_seconds`, `render_memoria_
+stamp`, `_build_pull_directive_lines`, `_has_toolkit_memory`, `_fetch_head_
+age_seconds` (`lib/boot_git_checks.py`); `extract_memory(ref=)`, `resolve_
+boot_memory`, `_label_remote_provenance`, `_merge_diverged_memory` (`lib/
+boot_memory.py`); `_resolve_origin_sha`, `_read_glossary_cache` migration
+(`lib/boot_glossary_cache.py`); `run_git`'s `env=` kwarg (`lib/git_helpers.
+py`); `_check_behind_warn_only` (`bin/git-memory-commit.py`). 0 regressions
+in the pre-existing suite (872 passed, same baseline as before).
+
+**Direct-call decision tree confirmed workable for this module family**
+(faster than full-boot subprocess, used wherever safe): pure functions
+(`_format_age_seconds`, `render_memoria_stamp`, `_build_pull_directive_
+lines`, `_label_remote_provenance`, `_merge_diverged_memory`,
+`_resolve_origin_sha(None)`) called in-process with no I/O; functions
+taking an explicit `project_root`/`cwd` param (`fetch_memory_ref`, `_has_
+toolkit_memory`, `_fetch_head_age_seconds`) called directly with a real
+tmp_path repo, no chdir; functions relying on ambient process cwd (`get_
+ahead_behind`) called via `monkeypatch.chdir()` (auto-restored, no
+cross-test bleed). Full detail (including the `_project_root_cache` global
+gotcha and the confirmed real bug) in
+[mock-patterns.md](mock-patterns.md) and [edge-cases.md](edge-cases.md).
+
+**Bug found, reported, NOT fixed (Absolute Prohibition #4):**
+`lib/boot_git_checks.py:get_ahead_behind()` — the `int(parts[0]), int(parts
+[1])` conversion when `git rev-list --left-right --count` returns exactly
+two tokens has no try/except, so non-numeric tokens raise an uncaught
+`ValueError` instead of falling through to the function's own existing
+`(0, 0, upstream_ref)` safe-fallback (used one line below for the
+wrong-token-COUNT case). Pinned as `test_non_numeric_rev_list_output_
+should_fail_open_but_raises` with `@pytest.mark.xfail(strict=True, ...)` —
+will flip to a hard failure the moment Ultron fixes it, forcing a test
+update (same idiom as the fd-leak bug in mock-patterns.md's "FIXED" entry).

@@ -714,6 +714,87 @@ the docstring wasn't enough alone — extracting `_resolve_sanitized_branch()`
 (branch fetch + sanitize + keyword parse, a genuinely separable concern) was
 what got it under 50, not further docstring-shrinking.
 
+## git_helpers.run_git(): Popen+killpg for process-group timeout kill breaks subprocess.run mocks (issue #49 repair round, 2026-07-06)
+
+Fixing Argus SEC-MED-001 (`run_git()`'s `subprocess.run(timeout=...)` only kills the
+direct "git" child on TimeoutExpired — a hung ssh/askpass/credential-helper
+descendant survives as an orphan) required switching the internals from
+`subprocess.run(...)` to `subprocess.Popen(...) + proc.communicate(timeout=...)`,
+because `os.killpg(os.getpgid(proc.pid), SIGKILL)` needs a live Popen handle —
+`subprocess.run`'s own `TimeoutExpired` exception carries no pid/Popen reference,
+so there is no way to reach the process group after the fact while still calling
+`subprocess.run`. POSIX-only `start_new_session=True` makes the child a session
+leader so the whole tree can be killed as a group; Windows has no killpg
+equivalent and degrades to `proc.kill()` on the direct child (pre-fix behavior).
+
+**Consequence found only by running the full test suite** (not visible from
+grepping for `monkeypatch.setattr(subprocess, "run", ...)` scoped to git_helpers —
+a prior grep sweep bucketed this file under "monkeypatch subprocess.run" hits but
+didn't conclusively flag it as targeting `git_helpers.run_git` specifically):
+`tests/test_crossplatform_symlink_guard_hardening.py::TestRunGitEncodingUtf8` had 3
+tests that mock `subprocess.run` directly (mock-verification of the `encoding=`/
+`text=` kwargs and the UnicodeDecodeError branch) — switching to Popen made
+`subprocess.run` never get called, silently no-op'ing the mocks (0 calls instead
+of 1, real git ran underneath). Fixed by updating those 3 tests to mock
+`subprocess.Popen` instead (same behavioral assertions, new call shape) — a
+deliberate, documented exception to "don't touch tests", since the mandated fix's
+exact prescribed API (`os.killpg(os.getpgid(proc.pid), ...)`) is only reachable
+via Popen, and the 3 tests pin an internal implementation detail, not a behavior
+contract. Rule: before believing "no test mocks subprocess.run for this module",
+actually run the full suite after the refactor — a bucketed-but-unconfirmed grep
+hit is not the same as a confirmed non-hit.
+
+## fetch_memory_ref RCE hardening: `--` alone doesn't stop option-injection, only rev/path ambiguity does (issue #49 repair round, 2026-07-06)
+
+Argus SEC-CRIT-001: `git branch --show-current` / `git rev-parse --abbrev-ref @{u}`
+do NOT re-validate their output against `check-ref-format --branch`'s stricter
+"no leading dash" rule — only ref CREATION (`git branch`, `git checkout -b`) does.
+A crafted `.git/HEAD` symref or hand-edited `packed-refs`/`config` entry in a
+malicious clone can produce a branch/remote name like `--upload-pack=<cmd>` that
+general refname rules permit. Two independent, complementary defenses (verified
+live with context7-sourced git docs + a real PoC in this session):
+1. **Leading-dash rejection before ANY positional use** (`_looks_like_git_option()`
+   in `lib/boot_git_checks.py`) — the actual protection. `--` alone does NOT stop
+   a value that looks like a REAL recognized option (e.g. `git log --output=<file>`)
+   from being parsed as that option; `--` only disambiguates revision-vs-PATH
+   arguments in commands like `git log`, it does not disambiguate option-vs-revision.
+   Only explicit validation (or `check-ref-format --branch`) closes that class.
+2. **`--` separator before the positional ref/branch arg anyway** — genuine
+   defense-in-depth per the plan's own instruction ("not exploitable today, but
+   must not depend on that invariant") — layered ON TOP of #1, not instead of it.
+3. **Credential-helper disablement**: `-c credential.helper=` cannot be added as a
+   leading global option without shifting `argv[0]` away from `"fetch"`, which a
+   test's fake-git wrapper keys off (`args[0] == "fetch"`) to decide when to
+   simulate a hang. Fix: same "command"-precedence override via env vars instead —
+   `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=credential.helper`, `GIT_CONFIG_VALUE_0=`
+   (stable since git 2.31) — achieves identical config precedence to `-c` without
+   touching argv. Verified live: a custom credential helper script IS invoked (and
+   would leak cached credentials) without this env override, and is NOT invoked
+   with it — confirmed via direct `git credential fill` calls, not just code
+   inspection.
+4. **Fetch target must align with what's actually READ**: `fetch_memory_ref` used
+   to fetch by local branch NAME; `get_ahead_behind()`/`resolve_boot_memory()` read
+   via `@{u}` (tracking config). If tracking is misconfigured (e.g. after a branch
+   rename), these can diverge — fetching the wrong ref while still stamping
+   "MEMORIA: remoto" is a false-freshness bug (Moriarty #2). Fix: resolve `@{u}`
+   FIRST inside `fetch_memory_ref` too (same resolution `get_ahead_behind()` uses,
+   never a second divergent one), split into `remote_name`/`remote_branch` via
+   `upstream_ref.partition("/")`, and fetch exactly that — falling back to
+   `"no_remote"` (never claiming "remoto") when there's no coherent upstream.
+
+## Clock-skew rate-limit bug: a negative age must never satisfy `age < window` (2026-07-06)
+
+`_fetch_head_age_seconds()` returns `time.time() - mtime`, unbounded — on a
+machine with a clock behind another machine that already fetched (FETCH_HEAD's
+mtime is in the future relative to local time), this goes NEGATIVE. A naive
+`if age < FETCH_RATE_LIMIT_SECONDS: skip fetch` treats any negative number as
+"very fresh" and permanently suppresses fetching on that machine (negative stays
+negative forever). Fix: `if age is not None and 0 <= age < WINDOW`. General rule:
+whenever a "freshness" check is `computed_age < threshold`, always ask whether
+`computed_age` can go negative, and if so, gate on `>= 0` explicitly — never
+assume a duration-like value is naturally non-negative just because it's
+usually true.
+
 ## truncatePath helper in agent-prompt.ts (2026-03-21)
 
 `truncatePath(path, maxLen=60)` lives just above `formatToolDescription` in `agent-prompt.ts`.

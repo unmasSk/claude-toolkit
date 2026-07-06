@@ -7,6 +7,7 @@ CLI scripts to run git commands safely.
 
 import errno
 import os
+import signal
 import subprocess
 import sys
 
@@ -300,15 +301,45 @@ def run_git(
     Returns:
         Tuple of (exit_code, stripped_stdout). Returns (1, "") on any error.
     """
+    proc = None
     try:
         merged_env = {**os.environ, **env} if env is not None else None
-        result = subprocess.run(
+        # SEC-MED-001 (Argus): subprocess.run's own default TimeoutExpired
+        # handling kills only the DIRECT child ("git" itself) — a hung
+        # ssh/askpass/credential-helper descendant survives as an orphan and
+        # can still pop an interactive credential dialog completely out of
+        # context, long after this function has already returned (1, "").
+        # start_new_session=True (POSIX only) makes this child the leader of
+        # a brand-new process group, so the except-block below can kill the
+        # whole tree with os.killpg() instead of just "git". Windows has no
+        # killpg/getpgid equivalent in this shape — degrades to plain
+        # Popen.kill() on the direct child only, i.e. the pre-fix behavior,
+        # unchanged there.
+        popen_kwargs = {} if sys.platform == "win32" else {"start_new_session": True}
+        proc = subprocess.Popen(
             ["git"] + args,
-            capture_output=True, text=True, timeout=timeout,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             cwd=cwd, encoding="utf-8", env=merged_env,
+            **popen_kwargs,
         )
-        return result.returncode, result.stdout.strip()
+        stdout, _stderr = proc.communicate(timeout=timeout)
+        return proc.returncode, stdout.strip()
     except subprocess.TimeoutExpired:
+        if proc is not None:
+            if sys.platform == "win32":
+                proc.kill()
+            else:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    # Group already gone, or we lack permission to signal it
+                    # (e.g. it changed session) — fall back to killing just
+                    # the direct child, same as the pre-fix behavior.
+                    proc.kill()
+            try:
+                proc.communicate(timeout=1)  # reap; discard any late output
+            except (subprocess.TimeoutExpired, ValueError):
+                pass
         print(f"[git_helpers] git {args[0]!r} timed out after {timeout}s", file=sys.stderr)
         return 1, ""
     except UnicodeDecodeError as e:

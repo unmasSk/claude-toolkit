@@ -491,18 +491,31 @@ class TestRunGitEncodingUtf8:
         self, monkeypatch
     ):
         """Mock-verification: confirm the NEW encoding="utf-8" kwarg is
-        actually threaded through to subprocess.run, not just documented."""
+        actually threaded through to the underlying subprocess call, not
+        just documented.
+
+        SEC-MED-001 (Argus, issue #49 repair round) switched run_git()'s
+        internals from subprocess.run(...) to subprocess.Popen(...) +
+        proc.communicate(...), so a process-group SIGKILL (os.killpg) can
+        target a hung descendant (ssh/askpass/credential-helper) on timeout
+        — subprocess.run's own TimeoutExpired handling only ever kills the
+        direct child, leaving orphans that can still pop an interactive
+        dialog out of context. This test now mocks subprocess.Popen instead
+        of subprocess.run — same behavioral assertion (encoding/text kwargs
+        threaded through, return contract preserved), updated for the new
+        (still fully documented) internal call shape.
+        """
         calls = []
 
-        class _FakeResult:
-            returncode = 0
-            stdout = "ok\n"
+        class _FakePopen:
+            def __init__(self, cmd, **kwargs):
+                calls.append(kwargs)
+                self.returncode = 0
 
-        def fake_run(cmd, **kwargs):
-            calls.append(kwargs)
-            return _FakeResult()
+            def communicate(self, timeout=None):
+                return "ok\n", ""
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr(subprocess, "Popen", _FakePopen)
 
         code, out = git_helpers.run_git(["status"])
 
@@ -520,12 +533,18 @@ class TestRunGitEncodingUtf8:
         UnicodeDecodeError, should git ever emit non-UTF-8 bytes despite the
         explicit encoding="utf-8") collapses to the same (1, "") "git
         failed" contract every caller already handles — it must not raise
-        and crash the caller."""
+        and crash the caller. Mocks subprocess.Popen (see this class's first
+        test for why — SEC-MED-001, issue #49 repair round).
+        """
 
-        def fake_run(cmd, **kwargs):
-            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+        class _FakePopen:
+            def __init__(self, cmd, **kwargs):
+                self.returncode = None
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+            def communicate(self, timeout=None):
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+        monkeypatch.setattr(subprocess, "Popen", _FakePopen)
 
         code, out = git_helpers.run_git(["log"])
 
@@ -540,13 +559,19 @@ class TestRunGitEncodingUtf8:
         remaining gap — the dedicated `except UnicodeDecodeError` branch in
         run_git() is also supposed to leave a diagnostic breadcrumb on stderr
         (`[git_helpers] git '<subcommand>' output was not valid UTF-8 ...`)
-        instead of failing silently like the generic except below it. Nothing
-        asserted the breadcrumb was actually written until now."""
+        instead of failing silently like the generic except below it. Mocks
+        subprocess.Popen (see this class's first test for why — SEC-MED-001,
+        issue #49 repair round).
+        """
 
-        def fake_run(cmd, **kwargs):
-            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+        class _FakePopen:
+            def __init__(self, cmd, **kwargs):
+                self.returncode = None
 
-        monkeypatch.setattr(subprocess, "run", fake_run)
+            def communicate(self, timeout=None):
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+        monkeypatch.setattr(subprocess, "Popen", _FakePopen)
 
         code, out = git_helpers.run_git(["log"])
 

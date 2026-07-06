@@ -340,29 +340,6 @@ class TestGetAheadBehind:
 
         assert boot_git_checks.get_ahead_behind("main") == (0, 2, "origin/main")
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "BUG (reported, not fixed — Absolute Prohibition #4): "
-            "lib/boot_git_checks.py:get_ahead_behind() does `int(parts[0]), "
-            "int(parts[1])` with no try/except around the conversion. If "
-            "`git rev-list --left-right --count` ever returns exactly two "
-            "whitespace-separated tokens that are not valid integers, this "
-            "raises an uncaught ValueError instead of falling through to "
-            "the function's OWN existing (0, 0, upstream_ref) safe-fallback "
-            "— the same fallback already used one line below for the "
-            "'wrong token count' case. get_ahead_behind() is called from "
-            "render_branch_section() and (per docs/plan/feat-boot-"
-            "freshness.md Task 4) from session-start-boot.py's main() with "
-            "no enclosing try/except at either call site, so this can crash "
-            "the entire boot — a fail-open violation. Confirmed live "
-            "(session 2026-07-06) by monkeypatching git_helpers.run_git to "
-            "return (0, 'abc def') for the rev-list call: ValueError "
-            "propagates uncaught. Ultron should wrap the int() conversion "
-            "in the same try/except-then-fallback pattern already used for "
-            "the malformed-token-count case a few lines below it."
-        ),
-    )
     def test_non_numeric_rev_list_output_should_fail_open_but_raises(self, tmp_path, monkeypatch):
         repo_a, bare = _setup_freshness_repo(tmp_path)
         monkeypatch.chdir(repo_a)
@@ -406,17 +383,17 @@ class TestRenderMemoriaStamp:
     @pytest.mark.parametrize(
         "fetch_state, expected",
         [
-            ({"status": "fetched", "age_seconds": 0.0}, "MEMORIA: remoto (fetch hace 0s)"),
-            ({"status": "fetched", "age_seconds": None}, "MEMORIA: remoto (fetch hace 0s)"),
-            ({"status": "fetched", "age_seconds": 125.0}, "MEMORIA: remoto (fetch hace 2min)"),
-            ({"status": "rate_limited", "age_seconds": 45.0}, "MEMORIA: LOCAL — fetch omitido (rate-limit, hace 45s)"),
-            ({"status": "rate_limited", "age_seconds": None}, "MEMORIA: LOCAL — fetch omitido (rate-limit, hace ?)"),
-            ({"status": "skipped_gate", "age_seconds": None}, "MEMORIA: LOCAL — sin verificar (nunca se ha sincronizado con origin)"),
-            ({"status": "skipped_gate", "age_seconds": 500.0}, "MEMORIA: LOCAL — último fetch hace 8min, sin verificar"),
-            ({"status": "no_remote", "age_seconds": 7300.0}, "MEMORIA: LOCAL — último fetch hace 2h, sin verificar"),
-            ({"status": "failed", "age_seconds": 3600.0}, "MEMORIA: LOCAL — último fetch hace 1h, sin verificar"),
-            ({"status": "totally_unknown_future_status", "age_seconds": None}, "MEMORIA: LOCAL — sin verificar (nunca se ha sincronizado con origin)"),
-            ({"status": "totally_unknown_future_status", "age_seconds": 10.0}, "MEMORIA: LOCAL — último fetch hace 10s, sin verificar"),
+            ({"status": "fetched", "age_seconds": 0.0}, "MEMORY: remote (fetched 0s ago)"),
+            ({"status": "fetched", "age_seconds": None}, "MEMORY: remote (fetched 0s ago)"),
+            ({"status": "fetched", "age_seconds": 125.0}, "MEMORY: remote (fetched 2min ago)"),
+            ({"status": "rate_limited", "age_seconds": 45.0}, "MEMORY: LOCAL — fetch skipped (rate-limit, 45s ago)"),
+            ({"status": "rate_limited", "age_seconds": None}, "MEMORY: LOCAL — fetch skipped (rate-limit, ? ago)"),
+            ({"status": "skipped_gate", "age_seconds": None}, "MEMORY: LOCAL — unverified (never synced with origin)"),
+            ({"status": "skipped_gate", "age_seconds": 500.0}, "MEMORY: LOCAL — last fetch 8min ago, unverified"),
+            ({"status": "no_remote", "age_seconds": 7300.0}, "MEMORY: LOCAL — last fetch 2h ago, unverified"),
+            ({"status": "failed", "age_seconds": 3600.0}, "MEMORY: LOCAL — last fetch 1h ago, unverified"),
+            ({"status": "totally_unknown_future_status", "age_seconds": None}, "MEMORY: LOCAL — unverified (never synced with origin)"),
+            ({"status": "totally_unknown_future_status", "age_seconds": 10.0}, "MEMORY: LOCAL — last fetch 10s ago, unverified"),
         ],
     )
     def test_states_and_ages(self, fetch_state, expected):
@@ -661,6 +638,69 @@ class TestMergeDivergedMemory:
         assert len(merged["pending"]) == 1
         assert boot_memory.REMOTE_PROVENANCE_LABEL not in merged["pending"][0]["display"]
         assert boot_memory.REMOTE_PROVENANCE_LABEL not in merged["blockers"][0]
+
+
+# ── _crown_replace: same-scope duplicates (Cerberus, issue #49 repair) ───
+
+
+class TestCrownReplaceMultiMatch:
+    """_crown_replace() used to replace only the FIRST non-crowned match for
+    a scope and return immediately, leaving any LATER duplicate for the same
+    scope stale. Within a single extract_memory()/extract_glossary() call
+    this was always equivalent to "there is only one match" (decision_scopes/
+    memo_scopes dedupe per scope before crown-replace ever runs) — but
+    resolve_boot_memory()'s diverged case (_merge_diverged_memory()
+    concatenates local's list with the remote-labeled side's list) CAN
+    legitimately produce two entries sharing the same scope label. A crown
+    must beat EVERY non-crowned entry for its scope, not just the first one
+    encountered.
+    """
+
+    def test_replaces_first_match_and_drops_later_duplicate_for_same_scope(self):
+        entries = [
+            ("(auth)", "local stale text", False),
+            ("(auth)", "remote stale text [origen: remoto]", False),
+            ("(other)", "untouched", False),
+        ]
+        boot_memory._crown_replace(entries, "(auth)", "crowned text")
+
+        assert entries == [
+            ("(auth)", "crowned text", True),
+            ("(other)", "untouched", False),
+        ]
+
+    def test_no_match_leaves_entries_untouched(self):
+        entries = [("(other)", "untouched", False)]
+        boot_memory._crown_replace(entries, "(auth)", "crowned text")
+        assert entries == [("(other)", "untouched", False)]
+
+    def test_single_match_still_replaces_in_place(self):
+        entries = [("(auth)", "old", False), ("(other)", "x", False)]
+        boot_memory._crown_replace(entries, "(auth)", "new crowned")
+        assert entries == [("(auth)", "new crowned", True), ("(other)", "x", False)]
+
+    def test_tombstoned_crown_text_is_a_no_op_even_with_duplicates(self):
+        from parsing import normalize
+
+        entries = [("(memo1)", "a", False), ("(memo1)", "b", False)]
+        tombstones = {normalize("retired crowned text")}
+        boot_memory._crown_replace(entries, "(memo1)", "retired crowned text", tombstones)
+        assert entries == [("(memo1)", "a", False), ("(memo1)", "b", False)]
+
+    def test_existing_crowned_entry_for_scope_is_never_touched(self):
+        """A THIRD entry for the same scope that is already crowned must be
+        left alone by both branches (it doesn't match `not ris_crown`) —
+        crown-replace only ever contests non-crowned duplicates.
+        """
+        entries = [
+            ("(auth)", "already crowned", True),
+            ("(auth)", "stale non-crowned", False),
+        ]
+        boot_memory._crown_replace(entries, "(auth)", "new crowned text")
+        assert entries == [
+            ("(auth)", "already crowned", True),
+            ("(auth)", "new crowned text", True),
+        ]
 
 
 # ── _resolve_origin_sha: freshness key ignores local HEAD, tracks origin ──

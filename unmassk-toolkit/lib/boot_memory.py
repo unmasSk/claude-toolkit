@@ -75,14 +75,36 @@ def _crown_replace(
     a retired crowned entry must never resurrect and overwrite a newer,
     active, never-retired entry for the same scope. Decisions have no
     tombstone concept, so their call sites simply omit `tombstones`.
+
+    Cerberus (issue #49 repair round): within a SINGLE extract_memory()/
+    extract_glossary() call, decision_scopes/memo_scopes already guarantee
+    at most one entry per scope before this ever runs, so "replace the
+    first match and return" was always equivalent to "there is only one
+    match". That invariant breaks for a merged-diverged memory dict
+    (`_merge_diverged_memory()` concatenates local's and the remote-labeled
+    side's lists, which CAN legitimately share a scope) — replacing only
+    the first match there left a second, stale, non-crowned duplicate for
+    the same scope sitting in the list untouched. A crown beats EVERY
+    non-crowned entry for its scope, not just the first one encountered:
+    replace the first match with the crowned entry, and drop any further
+    non-crowned matches for the same key instead of leaving them behind.
     """
     from parsing import normalize
     if tombstones is not None and normalize(text) in tombstones:
         return
-    for i, (rscope, _rtext, ris_crown) in enumerate(entries):
+    replaced = False
+    i = 0
+    while i < len(entries):
+        rscope, _rtext, ris_crown = entries[i]
         if rscope == key and not ris_crown:
-            entries[i] = (key, text, True)
-            return
+            if not replaced:
+                entries[i] = (key, text, True)
+                replaced = True
+                i += 1
+            else:
+                del entries[i]
+        else:
+            i += 1
 
 
 def extract_memory(ref: str = "HEAD") -> dict:
@@ -99,6 +121,15 @@ def extract_memory(ref: str = "HEAD") -> dict:
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
     from git_helpers import run_git
 
+    # SEC-CRIT-001 (Argus, defense-in-depth): `ref` is either the "HEAD"
+    # constant (always safe) or an upstream tracking ref resolved elsewhere
+    # (today always remote-name-prefixed, e.g. "origin/main" — never
+    # exploitable in practice) — but this function must not silently depend
+    # on that invariant holding forever. Reject anything that could be
+    # misread as a git option before it ever reaches a positional argument.
+    if not ref or ref.startswith("-"):
+        return {}
+
     # SEC-CRIT-NEW-01 (Argus): record boundaries use `-z` (NUL, \x00) instead
     # of an embedded \x1e in the --pretty=format string. A commit body CAN
     # contain a literal \x1e byte (it's an ordinary control character as far
@@ -112,7 +143,11 @@ def extract_memory(ref: str = "HEAD") -> dict:
     # scan_trailers_memory's line-based trailer regex either).
     code, log_output = run_git([
         "log", ref, "-z", f"-n{SCAN_DEPTH}",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at"
+        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        # SEC-CRIT-001 (Argus, defense-in-depth): trailing `--` — on top of
+        # the leading-dash rejection above — so `ref` is never depended on
+        # implicitly staying option-safe if this call site is ever changed.
+        "--",
     ])
     if code != 0 or not log_output:
         return {}
