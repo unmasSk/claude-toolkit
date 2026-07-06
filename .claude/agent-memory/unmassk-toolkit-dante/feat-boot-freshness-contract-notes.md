@@ -110,3 +110,49 @@ wrong-token-COUNT case). Pinned as `test_non_numeric_rev_list_output_
 should_fail_open_but_raises` with `@pytest.mark.xfail(strict=True, ...)` —
 will flip to a hard failure the moment Ultron fixes it, forcing a test
 update (same idiom as the fd-leak bug in mock-patterns.md's "FIXED" entry).
+**Update (session 2026-07-06, regression pass):** Ultron fixed this — the
+`xfail` marker was removed and the test now asserts the safe fallback
+directly (confirmed green in the repair-round regression run below).
+
+## Regression pass (session 2026-07-06) — `test_boot_freshness_regression.py`
+
+Moriarty (T2) flagged that the repair-round fixes for issue #49 had zero
+regression coverage in CI. New file (96 total across the 3 boot-freshness
+files, 0 regressions), 10 methods / 11 cases, one per confirmed break:
+clock-skew future-mtime gate (`fetch_memory_ref`'s `0 <= age < window`),
+decoupled-stamp tracking-ref alignment (incoherent `branch.main.merge` must
+never claim "remote (fetched)"), renamed-remote liveness check (`git remote
+rename origin upstream` must still fetch — regression guard against a
+hardcoded `"origin"` literal creeping back into the liveness check),
+`REMOTE_PROVENANCE_LABEL` English-literal pin (guards against the original
+Spanish wording reappearing), POSIX process-group kill-tree (fake `git`
+spawns a real grandchild via `subprocess.Popen`, `run_git`'s timeout must
+`os.killpg()` the whole group — see the new fake-git-with-grandchild helper
+pattern below), and `_ASKPASS_FAILFAST` PATH-resolution (`subprocess.run
+(["false", "x"])` must exit non-zero with no exec error). All 6 pin the
+FIXED code in HEAD — no bug found in this pass.
+
+**New reusable technique — fake `git` that spawns a real grandchild, to
+test process-group kill without mocking `os.killpg` itself:** extends the
+existing "fake git on PATH" pattern (see mock-patterns.md) one step
+further: the fake git script itself calls `subprocess.Popen(...)` (NOT
+`start_new_session=True`) to spawn a real sleeping grandchild, writes the
+grandchild's pid to a file, then hangs itself. Because the fake git was
+launched by `run_git` with `start_new_session=True`, it is the leader of a
+fresh POSIX process group; a child it spawns normally (no `setsid` of its
+own) inherits that SAME group. `run_git`'s timeout path calls
+`os.killpg(getpgid(fake_git_pid), SIGKILL)` — if that call only killed the
+direct child, the grandchild would survive; polling `os.kill(pid, 0)` for
+up to 5s after `run_git` returns proves whether the whole tree actually
+died. No `os.killpg` mock involved anywhere — this observes the REAL
+kernel-level process-group signal delivery.
+
+**Windows gap, explicitly NOT covered (documented, not a trivial-pass
+substitute):** `_win32_kill_tree()` (taskkill /F /T) and the win32 value of
+`_ASKPASS_FAILFAST` ("cmd /c exit 1", a full command-line string rather
+than a bare executable name) have zero real Windows machine to test
+against in this environment, and mocking `subprocess.run` to assert
+`_win32_kill_tree` "calls taskkill with the right args" would only prove
+the mock was configured correctly — logic-review only, per this project's
+own "Coverage Boundaries" rule against tests whose only assertion is mock
+configuration.

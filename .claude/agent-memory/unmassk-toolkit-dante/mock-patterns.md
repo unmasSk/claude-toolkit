@@ -563,6 +563,30 @@ Confirmed in `unmassk-toolkit/tests/test_boot_freshness.py`
 hardened-fetch-env RED test and the fetch-gate RED test. See
 [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md).
 
+## Fake `git` that spawns a real grandchild — testing process-group kill without mocking os.killpg
+
+To regression-test that a subprocess wrapper's timeout path (`git_helpers.
+run_git`'s `os.killpg(getpgid(pid), SIGKILL)`) kills the WHOLE process
+group, not just the direct child, write a fake `git` script (same PATH-
+shadowing technique as above) whose body itself calls `subprocess.Popen
+(...)` — with NO `start_new_session=True` of its own — to spawn a real
+sleeping grandchild (`sys.executable -c "import time; time.sleep(60)"`),
+writes the grandchild's pid to a file, then hangs. Because the fake git
+was launched by the wrapper under test with `start_new_session=True`, it
+already leads a fresh POSIX process group; a child it spawns normally
+inherits that SAME group (no explicit setsid needed on either side). Call
+the real wrapper with a short `timeout=1`, then poll `os.kill(grandchild_
+pid, 0)` for up to ~5s after it returns (`ProcessLookupError` = dead;
+`PermissionError` counts as still-alive) to prove the whole tree died —
+this observes REAL kernel process-group signal delivery, no `os.killpg`
+mock anywhere. Confirmed in
+`unmassk-toolkit/tests/test_boot_freshness_regression.py::
+TestPosixProcessTreeKillOnTimeout` (session 2026-07-06). POSIX only — the
+Windows counterpart (`taskkill /F /T`) has no real-machine way to verify
+here; don't substitute a `subprocess.run` mock and call it equivalent (see
+[feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md)
+for the full rationale on why that would be a vacuous test).
+
 ## Hardening-pass direct-call testing — when subprocess isolation is NOT needed
 
 Not every real, stably-named `lib/` module function needs the full
