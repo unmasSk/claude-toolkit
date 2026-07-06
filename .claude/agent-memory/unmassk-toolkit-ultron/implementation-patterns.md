@@ -619,6 +619,52 @@ Fix pattern (mirrors `hooks/validate-memory-path.py`'s existing approach): `os.p
 
 Applied to: `ensure_runtime_dir()` (the shared chokepoint — fixes `write_boot_log()` for free), plus 5 direct call sites that build `.claude/`-rooted paths WITHOUT going through that chokepoint: `git-memory-install.py::_create_manifest()` (claude_dir AND unmassk_dir, both checked — .unmassk could independently be symlinked even if .claude isn't), `_cleanup_stale_settings_hooks()` (settings_path, checked before either the read or the write-back), and the mirror-image sites in `git-memory-upgrade.py::apply_upgrade()` (claude_dir, unmassk_dir) and `create_backup()` (backup_dir). Repair's manifest-recreate path (`bin/git-memory-repair.py::repair_issue()`) needed no direct edit — it calls `install.py`'s already-guarded `_create_manifest()` in-process via `spec_from_file_location`.
 
+## fetch_memory_ref() — hardened/gated/rate-limited boot fetch (issue #49, Task 2, 2026-07-06)
+
+`lib/boot_git_checks.py::fetch_memory_ref(project_root) -> dict` replaces
+the old unconditional `run_git(["fetch", "--quiet"], timeout=BOOT_FETCH_TIMEOUT)`
+in `hooks/session-start-boot.py`. Returns `{"status": "fetched" |
+"rate_limited" | "skipped_gate" | "no_remote" | "failed", "age_seconds":
+float | None}` — never raises (fail-open on every branch, caught by a
+blanket `except Exception` at the top level of the function body).
+
+- **Gate** (`_has_toolkit_memory()`, same file): `.claude/.unmassk/manifest.json`
+  present OR "BEGIN unmassk-toolkit" marker in CLAUDE.md (mirrors
+  `hooks/user-prompt-memory-check.py::needs_install()`, :51-62). Never use
+  `git-memory-config.json:repo_type` for this — that's the deploy-risk axis.
+- **Rate limit**: `.git/FETCH_HEAD` mtime age < `FETCH_RATE_LIMIT_SECONDS`
+  (300) → skip.
+- **Hardened env**: module-level `_FETCH_HARDENED_ENV` constant (not
+  rebuilt per call) — `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS`/`SSH_ASKPASS`
+  pointed at `/bin/false`, `GIT_SSH_COMMAND="ssh -oBatchMode=yes"`. Passed
+  via `run_git()`'s new `env=` kwarg (`lib/git_helpers.py:279`, additive —
+  `None` default preserves every pre-existing call site's behavior exactly;
+  when given, merges over a COPY of `os.environ`, never mutates it).
+- **Timeout**: `FETCH_TIMEOUT_SECONDS = 3` (both constants live in
+  `boot_git_checks.py`, replacing the old `BOOT_FETCH_TIMEOUT = 5` that
+  used to live in `session-start-boot.py`).
+- Fetches `git fetch origin <current-branch> --no-tags` — branch read via
+  `run_git(["branch", "--show-current"])`; empty (detached HEAD) → status
+  `"failed"` (fetch skipped, nothing crashes).
+
+**Where the fetch state lives for Task 3**: `run_preboot_migrations()` in
+`hooks/session-start-boot.py` now returns this dict directly (its own
+docstring documents it as "Task 3's input"). `main()` captures it as
+`fetch_state = run_preboot_migrations(project_root)  # noqa: F841` — bound
+but intentionally unread by Task 2; Task 3's freshness-stamp rendering
+(`MEMORIA:` in the header, three states) is the first real consumer. Task 3
+should remove the `noqa` once `fetch_state` is actually passed into a
+renderer.
+
+**Known cross-test dependency, NOT closed by Task 2**: `tests/test_boot_freshness.py::TestFetchRateLimit::test_stale_fetch_head_runs_fetch`
+asserts both the FETCH_HEAD-refresh behavior (Task 2, green) AND
+`"MEMORIA:" in combined` (Task 3's stamp, still red) in the same test
+method — Dante's own docstring on that test acknowledges it "remains a
+genuine RED today" for this reason. Task 2 cannot make this specific test
+method fully green without implementing part of Task 3's stamp; confirmed
+correct scope boundary, not a bug — flagged to the orchestrator rather than
+patched around.
+
 ## truncatePath helper in agent-prompt.ts (2026-03-21)
 
 `truncatePath(path, maxLen=60)` lives just above `formatToolDescription` in `agent-prompt.ts`.

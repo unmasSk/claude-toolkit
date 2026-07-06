@@ -87,6 +87,12 @@ from boot_render import (
     render_status_section,
     render_timeline_section,
 )
+# Boot memory freshness (multi-machine, issue #49, plan Task 2) — hardened,
+# gated, rate-limited fetch. boot_git_checks is already transitively loaded
+# via boot_render <- boot_checks <- boot_git_checks, so a plain module-level
+# import here is safe (not on tests/test_migrate_statusline.py's stub list,
+# unlike git_helpers/parsing/version).
+from boot_git_checks import fetch_memory_ref
 
 
 BANNER_FIELD_MAX_LEN = 60  # defensive cap on any single field embedded in the short banner
@@ -107,11 +113,11 @@ def _truncate_banner_field(text: str, max_len: int = BANNER_FIELD_MAX_LEN) -> st
     return text[:max_len] + "…"
 
 
-# CRB-09: the background `git fetch` is best-effort and non-critical — it
-# must not hold up session start for as long as a real git operation might
-# (GIT_TIMEOUT default is 10s). A short, dedicated timeout bounds the worst
-# case without touching the shared default used by everything else.
-BOOT_FETCH_TIMEOUT = 5
+# CRB-09 / issue #49: the background `git fetch` is best-effort and
+# non-critical — it must not hold up session start for as long as a real
+# git operation might. Its own bounded timeout (FETCH_TIMEOUT_SECONDS) now
+# lives in lib/boot_git_checks.py alongside fetch_memory_ref(), which also
+# owns the gate + rate-limit that replaced the old unconditional fetch.
 
 # Stdout-truncation fix: the full briefing (everything, nothing shortened)
 # is always written to this fixed-path file. stdout itself is UNCONDITIONALLY
@@ -200,13 +206,17 @@ def render_boot_banner_lines(
     ]
 
 
-def run_preboot_migrations(project_root: str | None) -> None:
+def run_preboot_migrations(project_root: str | None) -> dict:
     """Run all one-shot pre-boot migrations plus the best-effort background fetch.
 
     Order matters: session-booted flag cleanup, then the two project-root
     migrations, then the global statusLine migration (runs even without a
     project root — it's a user-level config, not project-level), then the
     non-critical remote fetch.
+
+    Returns the fetch_memory_ref() result dict ({"status": ..., "age_seconds":
+    ...}) — consumed by Task 3's freshness-stamp rendering, not by this
+    function itself.
     """
     # 0. Clean session-booted flag (new session = fresh boot)
     if project_root:
@@ -241,9 +251,10 @@ def run_preboot_migrations(project_root: str | None) -> None:
     # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
     _migrate_stale_context_writer_statusline()
 
-    # 0c. Fetch remote refs silently (CRB-09: short dedicated timeout — this
-    # is a non-critical background refresh, it must not hold up session start).
-    run_git(["fetch", "--quiet"], timeout=BOOT_FETCH_TIMEOUT)
+    # 0c. Hardened, gated, rate-limited fetch (issue #49, plan Task 2) —
+    # replaces the previous ungated, unhardened, unthrottled
+    # `run_git(["fetch", "--quiet"])`. Fail-open on every branch.
+    return fetch_memory_ref(project_root)
 
 
 def main() -> None:
@@ -261,7 +272,9 @@ def main() -> None:
 
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
     project_root = _get_project_root()
-    run_preboot_migrations(project_root)
+    # fetch_state ({"status": ..., "age_seconds": ...}) is Task 3's input
+    # for the MEMORIA: freshness stamp — not consumed yet by this function.
+    fetch_state = run_preboot_migrations(project_root)  # noqa: F841
 
     lines: list[str] = []
     lines.extend(render_header_section(plugin_root))

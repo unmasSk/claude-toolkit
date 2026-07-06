@@ -19,6 +19,7 @@ Pure refactor: behavior is byte-for-byte identical to before the split.
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 
 from boot_memory import _sanitize_trailer_value
@@ -267,3 +268,105 @@ def render_consolidation_section() -> list[str]:
         lines.append("")
 
     return lines
+
+
+# ── Boot memory freshness (multi-machine, issue #49, plan Task 2) ───────
+#
+# Hardened, gated, rate-limited replacement for the previous unconditional
+# `run_git(["fetch", "--quiet"], timeout=BOOT_FETCH_TIMEOUT)` call in
+# hooks/session-start-boot.py. Fail-open on every branch: this module must
+# never let a hung, prompting, or absent remote delay or break the boot.
+
+FETCH_RATE_LIMIT_SECONDS = 300  # skip the fetch if .git/FETCH_HEAD is younger than this
+FETCH_TIMEOUT_SECONDS = 3  # short bounded timeout — replaces the old BOOT_FETCH_TIMEOUT=5
+
+# GIT_TERMINAL_PROMPT=0 + neutralized askpass + BatchMode=yes: guarantees the
+# boot-time fetch can never hang on an interactive credential prompt.
+_FETCH_HARDENED_ENV = {
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_ASKPASS": "/bin/false",
+    "SSH_ASKPASS": "/bin/false",
+    "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+}
+
+
+def _has_toolkit_memory(project_root: str) -> bool:
+    """Gate check: does this repo have unmassk-toolkit memory installed?
+
+    Either signal is sufficient: `.claude/.unmassk/manifest.json` present,
+    OR the "BEGIN unmassk-toolkit" marker in CLAUDE.md — mirrors
+    hooks/user-prompt-memory-check.py's needs_install() check (:51-62).
+    This is a DIFFERENT axis than git-memory-config.json's `repo_type`
+    (deploy-risk) — never use that field for this gate.
+    """
+    manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
+    if os.path.isfile(manifest_path):
+        return True
+    claude_md = os.path.join(project_root, "CLAUDE.md")
+    if not os.path.isfile(claude_md):
+        return False
+    try:
+        # SEC: never follow a symlink planted at CLAUDE.md — treat it
+        # exactly like "no CLAUDE.md present" (same guard as
+        # needs_install() and render_scopes_section() above).
+        with open_no_follow_symlink(claude_md, "r") as f:
+            return "BEGIN unmassk-toolkit" in f.read()
+    except OSError:
+        return False
+
+
+def _fetch_head_age_seconds(project_root: str) -> float | None:
+    """Seconds since .git/FETCH_HEAD's mtime, or None if it doesn't exist."""
+    fetch_head = os.path.join(project_root, ".git", "FETCH_HEAD")
+    try:
+        return time.time() - os.path.getmtime(fetch_head)
+    except OSError:
+        return None
+
+
+def fetch_memory_ref(project_root: str | None) -> dict:
+    """Hardened, gated, rate-limited background fetch for multi-machine
+    memory freshness. Never raises (fail-open) — any exception, timeout,
+    or missing remote falls back to "failed" so the boot always continues.
+
+    Returns:
+        {"status": "fetched" | "rate_limited" | "skipped_gate" |
+                    "no_remote" | "failed",
+         "age_seconds": seconds since the last known successful fetch
+                         (FETCH_HEAD mtime), or None if never fetched}
+        Consumed by Task 3's freshness-stamp rendering, not by this
+        function.
+    """
+    from git_helpers import run_git
+
+    try:
+        if not project_root or not _has_toolkit_memory(project_root):
+            return {"status": "skipped_gate", "age_seconds": None}
+
+        age = _fetch_head_age_seconds(project_root)
+        if age is not None and age < FETCH_RATE_LIMIT_SECONDS:
+            return {"status": "rate_limited", "age_seconds": age}
+
+        code_remote, _ = run_git(["remote", "get-url", "origin"], cwd=project_root)
+        if code_remote != 0:
+            return {"status": "no_remote", "age_seconds": age}
+
+        _, branch = run_git(["branch", "--show-current"], cwd=project_root)
+        branch = branch.strip()
+        if not branch:
+            # Detached HEAD — nothing to fetch a matching branch for.
+            return {"status": "failed", "age_seconds": age}
+
+        code_fetch, _ = run_git(
+            ["fetch", "origin", branch, "--no-tags"],
+            timeout=FETCH_TIMEOUT_SECONDS,
+            cwd=project_root,
+            env=_FETCH_HARDENED_ENV,
+        )
+        if code_fetch != 0:
+            return {"status": "failed", "age_seconds": age}
+
+        return {"status": "fetched", "age_seconds": 0.0}
+    except Exception:
+        # Fail-open: this function must never raise regardless of cause.
+        return {"status": "failed", "age_seconds": None}

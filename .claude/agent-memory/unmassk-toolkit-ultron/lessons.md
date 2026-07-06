@@ -220,6 +220,22 @@ what else changed. Root cause is a `sys.path`/import-order issue when
 full suite, expect "707 passed, 9 failed" as the clean baseline for these
 specific tests — don't spend time chasing them as caused by an unrelated fix.
 
+**Addendum (2026-07-06, feat-boot-freshness Task 2):** the SAME 9-failure
+count can shift which file it "appears" to come from depending on what
+else is in the run. `pytest unmassk-toolkit/tests -q
+--ignore=tests/test_boot_freshness.py` reproduced the documented 9
+`test_release.py` failures exactly (twice, before and after a same-session
+refactor). But `pytest unmassk-toolkit/tests -q` (the whole suite,
+`test_boot_freshness.py` included) showed "9 failed, 875 passed" with ALL
+9 failures coming from `test_boot_freshness.py`'s genuinely-still-RED
+Task 3/4/5 acceptance tests and ZERO `test_release.py` failures — same
+`sys.path`/import-order flake, just resolved the other way by a different
+collection order. Rule: when verifying a diff, check the pre-existing-
+failure COUNT (9) as the invariant, not which specific file the summary
+attributes them to on a given run — and run the suite both ways at least
+once (whole suite, and target file isolated from the rest) before
+concluding "0 regressions."
+
 ## session-start-boot.py: any new git_helpers.py export needs a defensive import
 
 `tests/test_migrate_statusline.py::_load_migrate_fn` loads `hooks/session-start-boot.py`

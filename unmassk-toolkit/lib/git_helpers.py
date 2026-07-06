@@ -280,6 +280,7 @@ def run_git(
     args: list[str],
     timeout: int = GIT_TIMEOUT,
     cwd: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Run a git command and return (exit_code, stdout).
 
@@ -287,15 +288,24 @@ def run_git(
         args:    Git subcommand and arguments (e.g. ["log", "--oneline"]).
         timeout: Max seconds to wait before killing the process.
         cwd:     Working directory for the git process. None = inherit caller cwd.
+        env:     Optional overrides merged over a COPY of the current
+                 os.environ (additive — never mutates the real parent
+                 environment). None (default) means "inherit ambient env
+                 unmodified", identical to every call site that predates
+                 this parameter. Used by fetch_memory_ref() (issue #49) to
+                 force GIT_TERMINAL_PROMPT=0/neutralized askpass/BatchMode
+                 on the boot-time background fetch without touching the
+                 rest of the process's environment.
 
     Returns:
         Tuple of (exit_code, stripped_stdout). Returns (1, "") on any error.
     """
     try:
+        merged_env = {**os.environ, **env} if env is not None else None
         result = subprocess.run(
             ["git"] + args,
             capture_output=True, text=True, timeout=timeout,
-            cwd=cwd, encoding="utf-8",
+            cwd=cwd, encoding="utf-8", env=merged_env,
         )
         return result.returncode, result.stdout.strip()
     except subprocess.TimeoutExpired:
