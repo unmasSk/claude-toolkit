@@ -313,22 +313,64 @@ def extract_memory(ref: str = "HEAD") -> dict:
     }
 
 
-def extract_glossary() -> dict:
+_SAFE_REMOTE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _is_safe_remote_name(name: str) -> bool:
+    """Narrow allowlist for a value embedded inside a git ref GLOB pattern
+    (`--exclude=refs/remotes/<name>/*`), not passed as a bare argv token.
+
+    This is intentionally NOT boot_git_checks.py's `_looks_like_git_option`
+    (which guards a different threat: a value passed as its OWN positional
+    argv element that could be misread as a flag). Here `name` is always
+    embedded inside a single `--exclude=...` string we build ourselves, so
+    it can never be split into a separate flag by subprocess.Popen (no
+    shell is involved) — the residual risk is `name` containing glob
+    metacharacters (`*`, `?`, `[`) or path-like segments that widen the
+    exclude pattern beyond the single intended remote. An allowlist (real
+    git remote names are always `[A-Za-z0-9._-]+` in practice) is simpler
+    and safer here than trying to enumerate every glob-widening character.
+    Importing boot_git_checks from here would also violate this module's
+    documented one-way DAG (boot_memory <- boot_git_checks, never the
+    reverse) — see boot_git_checks.py's own module docstring.
+    """
+    return bool(name) and bool(_SAFE_REMOTE_NAME_RE.match(name))
+
+
+def extract_glossary(exclude_remote: str | None = None) -> dict:
     """Extract a full glossary of decisions and memos from the entire git history.
 
     Goes deeper than extract_memory() — scans ALL commits, not just last 30.
     Returns deduplicated lists by scope (most recent wins per scope).
+
+    `exclude_remote` (Moriarty T2, issue #49 repair round — repo-identity
+    confusion): `--all` below walks every ref under refs/, INCLUDING
+    refs/remotes/<name>/* for every configured remote — regardless of
+    ahead/behind or of resolve_boot_memory()'s own remote-provenance
+    labeling. A remote whose tracked upstream has already been confirmed
+    to NOT share history with this project (check_upstream_shares_history()
+    in boot_git_checks.py) must never have its refs feed this scan: unlike
+    resolve_boot_memory()'s "[source: remote]"-labeled path, glossary
+    entries carry NO provenance tag at all, so an unrelated remote's
+    crowned Decision/Memo would render as this project's OWN memory with
+    zero distinguishing signal — a strictly worse variant of the same
+    confusion. None (default) preserves the pre-fix, unrestricted `--all`
+    scan exactly.
     """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
     from git_helpers import run_git
 
+    log_args = ["log", "-z"]
+    if exclude_remote is not None and _is_safe_remote_name(exclude_remote):
+        # `--exclude` must precede the ref-selecting option (`--all`) it
+        # applies to — documented git behavior.
+        log_args.append(f"--exclude=refs/remotes/{exclude_remote}/*")
+    log_args += ["--all", "-n500", "--pretty=format:%h\x1f%s\x1f%b"]
+
     # SEC-CRIT-NEW-01: same NUL-separated record boundary fix as
     # extract_memory() above — see the comment there for why -z closes the
     # control-byte record-forgery hole for good.
-    code, log_output = run_git([
-        "log", "-z", "--all", "-n500",
-        "--pretty=format:%h\x1f%s\x1f%b"
-    ])
+    code, log_output = run_git(log_args)
     if code != 0 or not log_output:
         return {"decisions": [], "memos": [], "remembers": []}
 

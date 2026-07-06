@@ -94,7 +94,7 @@ from boot_render import (
 # boot_git_checks, so a plain module-level import here is safe (not on
 # tests/test_migrate_statusline.py's stub list, unlike git_helpers/parsing/
 # version).
-from boot_git_checks import fetch_memory_ref, render_memoria_stamp
+from boot_git_checks import check_upstream_shares_history, fetch_memory_ref, render_memoria_stamp
 
 
 BANNER_FIELD_MAX_LEN = 60  # defensive cap on any single field embedded in the short banner
@@ -296,6 +296,41 @@ def main() -> None:
     # fetch_state ({"status": ..., "age_seconds": ...}) — issue #49, plan
     # Task 2's return value, consumed here by Task 3's MEMORY: stamp.
     fetch_state = run_preboot_migrations(project_root)
+
+    status_lines, status, status_detail = render_status_section()
+
+    (branch_lines, branch, branch_keywords, branch_issue, ahead_behind,
+     ahead_n, behind_n, upstream_ref, pull_directive_lines) = render_branch_section()
+
+    # T2 fix (Moriarty, issue #49 repair round — Round-Trip Sabotage §34,
+    # repo-identity confusion): an `@{u}` that resolves to a coherent,
+    # fetchable ref is NOT proof that ref is a continuation of THIS
+    # project's history — a misconfigured branch.<x>.remote/.merge can
+    # point at a totally unrelated repo that happens to share a branch
+    # name. Run the ancestry check ONCE here (only meaningful when an
+    # upstream_ref actually exists) and let its result drive BOTH the
+    # MEMORY: stamp wording below AND which ref resolve_boot_memory()/
+    # extract_glossary_cached() are allowed to treat as this project's own
+    # — never two independent decisions that could disagree.
+    history_related: bool | None = None
+    unrelated_remote_name: str | None = None
+    if upstream_ref:
+        history_related = check_upstream_shares_history(upstream_ref)
+        if history_related is False:
+            # Fail closed on TRUST (not on availability): never read,
+            # cache-key, or label an unrelated/unverifiable upstream's
+            # memory as "remote" for this project. Nulling upstream_ref
+            # here reuses resolve_boot_memory()'s and
+            # extract_glossary_cached()'s existing "no upstream" path
+            # unchanged, rather than adding a new branch to either.
+            # remote_name is captured separately (from the ORIGINAL,
+            # not-yet-nulled ref) because extract_glossary()'s `--all`
+            # scan reads refs/remotes/<name>/* directly — independent of
+            # ahead/behind or of upstream_ref being nulled below — so it
+            # needs its own explicit exclusion signal.
+            unrelated_remote_name, _, _ = upstream_ref.partition("/")
+            upstream_ref = None
+
     # Cerberus (nitpick, issue #49 repair round): "skipped_gate" ONLY ever
     # means "this repo has no unmassk-toolkit memory installed at all" (see
     # fetch_memory_ref's own gate check) — rendering a "LOCAL — never
@@ -307,7 +342,7 @@ def main() -> None:
     # tests call it with "skipped_gate" and expect that string back) — the
     # gate is applied here, at the one real rendering call site, instead.
     memoria_stamp = (
-        render_memoria_stamp(fetch_state)
+        render_memoria_stamp(fetch_state, history_related)
         if fetch_state.get("status") != "skipped_gate"
         else ""
     )
@@ -321,11 +356,7 @@ def main() -> None:
         lines.append(memoria_stamp)
         lines.append("")
 
-    status_lines, status, status_detail = render_status_section()
     lines.extend(status_lines)
-
-    (branch_lines, branch, branch_keywords, branch_issue, ahead_behind,
-     ahead_n, behind_n, upstream_ref, pull_directive_lines) = render_branch_section()
     lines.extend(branch_lines)
 
     lines.extend(render_scopes_section(project_root))
@@ -337,8 +368,11 @@ def main() -> None:
     memory = resolve_boot_memory(ahead_n, behind_n, upstream_ref)
     lines.extend(render_resume_section(memory, branch_issue, branch_keywords))
 
-    # Merge recent + glossary remembers
-    glossary = extract_glossary_cached(upstream_ref)
+    # Merge recent + glossary remembers. exclude_remote (T2 fix) drops
+    # refs/remotes/<unrelated_remote_name>/* from extract_glossary()'s own
+    # `--all` scan — see the comment above where unrelated_remote_name is
+    # set for why this can't just ride on the (already-nulled) upstream_ref.
+    glossary = extract_glossary_cached(upstream_ref, exclude_remote=unrelated_remote_name)
     # Union: tombstones from recent window + tombstones from the full glossary range
     tombstones = memory.get("tombstones", set()) | glossary.get("tombstones", set())
 

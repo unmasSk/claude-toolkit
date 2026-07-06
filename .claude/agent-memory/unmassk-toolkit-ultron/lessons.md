@@ -797,3 +797,57 @@ symlinked case correctly), but it no longer exercises the intended fallback
 `boot_glossary_cache_module.ensure_runtime_dir` instead, or call
 `_write_glossary_cache` through a spec-loaded `boot_glossary_cache.py`
 directly rather than through `boot_memory.py`'s re-export.
+
+## T2 fix (Moriarty, issue #49): `git merge-base` confirms shared history, but `extract_glossary()`'s `--all` bypasses that check entirely
+
+Fixing the repo-identity-confusion finding (a misconfigured
+`branch.<x>.remote/.merge` pointing at a totally unrelated bare repo — zero
+shared history — got its crowned Decisions rendered as `[source: remote]`
+memory): the obvious fix is `git merge-base HEAD <upstream_ref>` (plain, NOT
+`--is-ancestor` — the two sides can be mutually diverged, you only care
+whether ANY common ancestor exists) gating `resolve_boot_memory()`'s ref
+choice and the `MEMORY:` stamp wording. That alone is NOT enough: verified
+empirically (build an alien bare repo, point `origin` at it, `git fetch`,
+inspect refs) that `extract_glossary()`'s `git log --all` ALSO walks
+`refs/remotes/<name>/*` completely independently of ahead/behind or of
+`resolve_boot_memory()`'s own logic — and worse, glossary entries carry NO
+`[source: remote]` provenance tag at all, so an unrelated remote's crowned
+Decision would render as if it were this project's OWN memory. Always
+verify a "confirm before trusting a ref" fix with the actual failing PoC run
+through the FULL boot hook (not just the one function you think owns the
+bug) — a second code path can independently reach the same untrusted ref
+via a completely different git flag (`--all` vs `@{u}` resolution).
+
+Fix pattern: `git log --exclude=refs/remotes/<name>/* --all ...` (the
+`--exclude` glob option must precede the ref-selecting `--all`) removes
+exactly that remote's refs from the scan without disabling `--all` for
+everything else (other local branches/tags legitimately still want deep
+scanning). Thread the exclusion as a single explicit parameter
+(`exclude_remote`) captured from the ORIGINAL (pre-nulled) upstream ref's
+remote name — don't try to derive it from the same nulled `upstream_ref`
+variable used for `resolve_boot_memory()`, since by the time you decide to
+null that variable for the memory-read decision, you still need the
+original remote name for the glossary exclusion.
+
+Validating a value that gets embedded inside a single `--exclude=...` argv
+string is a NARROWER problem than validating a value passed as its own
+positional argv token: since `subprocess.Popen` never invokes a shell, a
+crafted remote name can't "break out" of that one string regardless of
+content — the only real risk is glob metacharacters widening the exclude
+pattern. An allowlist (`^[A-Za-z0-9._-]+$`) is simpler and safer here than
+reusing/duplicating a positional-arg-injection guard from a sibling module
+(and reusing one across the module boundary would violate this codebase's
+documented one-way DAG: `boot_memory.py` must never import FROM
+`boot_git_checks.py`).
+
+When a fix needs to run "once" and feed two decisions that must never
+disagree (here: the `MEMORY:` stamp wording AND which ref
+`resolve_boot_memory()`/`extract_glossary_cached()` treat as this
+project's own), watch for ordering traps in the orchestrating `main()`:
+`hooks/session-start-boot.py`'s stamp used to be computed and appended to
+`lines` BEFORE `render_branch_section()` (which resolves `upstream_ref`)
+even ran. Since `lines` is just a plain list built by sequential
+`.append()`/`.extend()` calls, the fix was to reorder the CALL sequence
+(compute `render_status_section()`/`render_branch_section()` first, run the
+one shared check, THEN build `lines` in the original visual order) rather
+than threading a mutable "pending stamp" placeholder through the list.

@@ -446,6 +446,61 @@ def _looks_like_git_option(value: str) -> bool:
     return not value or value.startswith("-")
 
 
+def check_upstream_shares_history(upstream_ref: str | None) -> bool | None:
+    """Does `upstream_ref` share real commit history with local HEAD?
+
+    Moriarty T2 (issue #49 repair round, Round-Trip Sabotage §34):
+    fetch_memory_ref()/resolve_boot_memory() only ever checked that `@{u}`
+    resolves to a coherent, FETCHABLE ref — never that the resolved ref is
+    actually a continuation of THIS project's history. A misconfigured
+    branch.<x>.remote/.merge pointing at a totally unrelated repo (zero
+    shared history) satisfies every existing check (fetch succeeds, `@{u}`
+    resolves cleanly) while that repo's crowned decisions get rendered as
+    "[source: remote]" memory for a project that has never seen them.
+
+    `git merge-base HEAD <upstream_ref>` (deliberately NOT --is-ancestor —
+    the two sides can be mutually diverged, neither an ancestor of the
+    other; we only care whether ANY common ancestor exists at all, which
+    is exactly what plain merge-base answers) resolves this:
+      - exit 0: a common ancestor exists -> True (confirmed continuation).
+      - exit 1: git itself says no common ancestor -> False.
+      - anything else (bad revision, or a run_git-level failure — timeouts
+        and subprocess exceptions collapse to the SAME (1, "") as a
+        genuine "no common ancestor" per run_git's own documented
+        contract, so that case is indistinguishable from real exit-1
+        here) -> also False.
+
+    Deliberate fail-CLOSED-on-TRUST design (the opposite of this module's
+    usual fail-open-on-availability rule elsewhere): a shallow clone can
+    make `merge-base` return a FALSE NEGATIVE (exit 1) even when history
+    really IS shared, because the true common ancestor sits past the
+    shallow boundary. There is no reliable local signal that tells
+    "genuinely unrelated" apart from "shallow clone truncated the graph"
+    — both present identically (exit 1, empty stdout) — so this function
+    deliberately does not try. Every non-0 outcome is treated the same:
+    "not confirmed shared". The cost is that a shallow clone with a
+    legitimate upstream may occasionally get its remote memory suppressed
+    for one boot; the alternative (assuming "shared" on any ambiguity) is
+    exactly the T2 hole this function exists to close — per Moriarty's
+    own framing, better to under-show than to show another project's
+    memory as if it were this one's.
+
+    Returns None (not False) when `upstream_ref` itself is missing or
+    option-shaped — that is "not evaluated", not "confirmed unrelated";
+    callers must treat None as "no signal, behave as before this check
+    existed" rather than as a reason to suppress anything.
+    """
+    from git_helpers import run_git
+
+    if not upstream_ref or _looks_like_git_option(upstream_ref):
+        return None
+    # `--` separates options from the two positional refs — defense in
+    # depth, same rationale as every other positional-ref git call in this
+    # module (SEC-CRIT-001).
+    code, _ = run_git(["merge-base", "--", "HEAD", upstream_ref])
+    return code == 0
+
+
 def _has_toolkit_memory(project_root: str) -> bool:
     """Gate check: does this repo have unmassk-toolkit memory installed?
 
@@ -603,7 +658,7 @@ def _format_age_seconds(seconds: float) -> str:
     return f"{hours}h"
 
 
-def render_memoria_stamp(fetch_state: dict) -> str:
+def render_memoria_stamp(fetch_state: dict, history_related: bool | None = None) -> str:
     """Render the MEMORY: provenance/freshness stamp for the boot header
     (issue #49, plan Task 3). One short line — printed in BOTH the minimal
     stdout banner and the full boot-log content, near the top of each.
@@ -621,7 +676,22 @@ def render_memoria_stamp(fetch_state: dict) -> str:
       - anything else ("failed", "no_remote", "skipped_gate"): freshness
         against origin could not be confirmed this boot — falls back to
         the "LOCAL ... unverified" wording.
+
+    `history_related` (Moriarty T2, issue #49 repair round — repo-identity
+    confusion): None (default) preserves the three branches above exactly,
+    unchanged — every existing caller/test that never passes this argument
+    is unaffected. False means check_upstream_shares_history() found (or
+    could not rule out) that the resolved upstream is NOT a continuation
+    of this project's history. In that case NONE of the fetch-status
+    wording above may be used — a "fetched" or "rate_limited" status only
+    describes whether bytes moved or a timer elapsed, not whose history
+    they belong to, and claiming "remote" for an unrelated repo's content
+    is exactly the incident this fix closes. This check runs first and
+    short-circuits the status branches below.
     """
+    if history_related is False:
+        return "MEMORY: LOCAL — upstream unrelated (no shared history), not shown"
+
     status = fetch_state.get("status")
     age = fetch_state.get("age_seconds")
 

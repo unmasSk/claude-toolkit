@@ -201,13 +201,24 @@ def _write_glossary_cache(glossary: dict, upstream_ref: str | None = None) -> No
         pass
 
 
-def extract_glossary_cached(upstream_ref: str | None = None) -> dict:
+def extract_glossary_cached(upstream_ref: str | None = None, exclude_remote: str | None = None) -> dict:
     """Extract glossary, using cache if available.
 
     `upstream_ref` (issue #49, plan Task 4) is folded into the cache's
     freshness key alongside local HEAD's sha — see _read_glossary_cache()/
     _write_glossary_cache(). None (default) preserves the pre-#49 behavior
     (HEAD-sha-only freshness) exactly.
+
+    `exclude_remote` (Moriarty T2, issue #49 repair round): the remote name
+    (e.g. "origin") whose refs/remotes/<name>/* must be excluded from
+    extract_glossary()'s own `--all` history scan, because the caller has
+    already determined (check_upstream_shares_history()) that this remote
+    is NOT a continuation of this project's history. Only consulted on a
+    cache MISS (extract_glossary() is the only thing that reads it) — a
+    cache HIT is already keyed off the same `upstream_ref` this caller
+    passes, so a genuinely unrelated upstream and a genuinely absent one
+    share the same (None) cache bucket, which is correct: both cases
+    legitimately produce a local-only glossary.
     """
     from boot_memory import extract_glossary
 
@@ -219,6 +230,6 @@ def extract_glossary_cached(upstream_ref: str | None = None) -> dict:
             "remembers": cached.get("remembers", []),
             "tombstones": set(cached.get("tombstones", [])),
         }
-    glossary = extract_glossary()
+    glossary = extract_glossary(exclude_remote=exclude_remote)
     _write_glossary_cache(glossary, upstream_ref)
     return glossary
