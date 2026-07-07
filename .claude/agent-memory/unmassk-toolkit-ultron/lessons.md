@@ -876,3 +876,29 @@ list) and call out explicitly which hunks are mine vs. pre-existing/
 concurrent. Reporting an unattributed 4-hunk diff for a 2-fix task would
 have been misleading even though `git status --porcelain -- <file>` still
 correctly shows only that one file as touched.
+
+## Root pyproject.toml has no [project] requires-python — use [tool.mypy] python_version as the min-version signal for CI
+
+(issue #51, .github/workflows/toolkit-ci.yml) The repo root `pyproject.toml`
+only has `[tool.pytest.ini_options]` and `[tool.mypy]` sections — no
+`[project]` table, so there's no `requires-python` field to read directly.
+`[tool.mypy] python_version = "3.10"` is the only declared version signal in
+the whole file; used it for `actions/setup-python`'s `python-version` input.
+If this file ever gains a real `[project]` table with `requires-python`,
+prefer that over the mypy value (mypy's target can drift from the actual
+minimum supported version over time; `requires-python` is the authoritative
+field once it exists).
+
+Also: `pytest` itself is not declared as a dependency anywhere in the repo
+(no `requirements.txt`, no `[project.dependencies]`) — it's assumed present
+in the dev environment. CI must `pip install pytest` explicitly; don't skip
+this step assuming it's preinstalled on GitHub-hosted runners (it usually
+isn't the exact version the local suite was validated against).
+
+Cosmetic non-issue confirmed while validating YAML: `yaml.safe_load()` on
+ANY GitHub Actions workflow file (including the pre-existing
+`chatroom-ci.yml`) turns the `on:` key into the Python boolean `True` (YAML
+1.1 treats bare `on`/`off`/`yes`/`no` as booleans). This is a PyYAML/YAML-spec
+quirk, not a workflow bug — GitHub's own parser handles `on:` correctly as
+the trigger key. Don't flag it as an error when spot-checking a workflow
+file with `python3 -c "import yaml; yaml.safe_load(...)"`.
