@@ -226,3 +226,26 @@ is N commit(s) behind — propose \`git pull\`..." — actively bad advice,
 since pulling would try to merge in a totally unrelated commit graph.
 Pinned as `TestPullDirectiveGapForUnrelatedUpstream::
 test_pull_directive_never_recommends_pull_for_unrelated_upstream`.
+
+## Third regression pass (session 2026-07-07) — Finding 8, Yoda #49 close-out
+
+`time_ago()` (`lib/boot_git_checks.py:65`)'s `except` tuple was
+`(ValueError, TypeError, OSError)`; Moriarty demonstrated live that its own
+`isdigit()` branch feeds `int(...)` straight into `datetime.fromtimestamp()`,
+which raises `OverflowError` (not `ValueError`) for a digit string whose
+value is out of range for the platform's `time_t` — Python ints themselves
+never overflow, only the C-level `fromtimestamp()` conversion does. Ultron
+fixed it (commit 6fc6386) by adding `OverflowError` to the tuple. Currently
+dead code in production (`git log %aI` only ever feeds ISO8601 into the
+`else` branch) — pinned anyway as defense-in-depth per Yoda's verdict.
+Pinned in `test_boot_freshness_regression.py`'s new `TestTimeAgoOverflow
+FallsBackSafely` (Finding 8): 2 OverflowError cases (`"9"*30`, `"9"*12`) +
+3 companion pre-existing-tuple cases (`not-a-date`, empty string, invalid
+calendar fields) — the latter three exist because **no direct unit test of
+`time_ago()`'s error path existed anywhere before this pass**; the only
+prior coverage was `test_boot_output.py::TestBootTimeAgo`, which only
+asserts a *valid* commit date renders a time-ago string, never touching the
+except branch at all. RED confirmed via a standalone sandboxed copy of the
+function with the OLD 3-member tuple (never edited the real file to check
+this) — `time_ago("9"*30)` raises uncaught `OverflowError: timestamp out of
+range for platform time_t` without the fix, returns `"unknown"` with it.

@@ -998,3 +998,71 @@ class TestPullDirectiveGapForUnrelatedUpstream:
             "already confirmed to share NO history with local HEAD — "
             f"this would merge in an unrelated commit graph.\n{combined}"
         )
+
+
+# ── Finding 8: time_ago() OverflowError must fall back, never propagate ────
+
+
+class TestTimeAgoOverflowFallsBackSafely:
+    """Moriarty (live demo, session 2026-07-07, #49 close-out): lib/
+    boot_git_checks.py:time_ago() (:65) has an `iso_or_unix.isdigit()`
+    branch that feeds the raw int straight into `datetime.fromtimestamp()`.
+    For a digit string whose integer value is out of range for the
+    platform's time_t (Python ints are arbitrary precision, so `int(...)`
+    itself never overflows — the crash is inside `fromtimestamp()`'s C-level
+    conversion), that call raises `OverflowError`, which was NOT in the
+    original `except (ValueError, TypeError, OSError)` tuple — it propagated
+    straight out of time_ago() instead of hitting the same "unknown"
+    fallback every other malformed-input case gets.
+
+    Fix (commit 6fc6386): widened the tuple to `(ValueError, TypeError,
+    OSError, OverflowError)` (lib/boot_git_checks.py:91).
+
+    Currently unreachable from any real call site (git log `%aI` only ever
+    feeds ISO8601 strings into the `else` branch; the `isdigit()` branch is
+    dead in production today) — pinned as pure defense-in-depth per Yoda's
+    #49 verdict, so a future caller that DOES feed raw unix-timestamp
+    strings (or a refactor that narrows the except tuple back) fails loudly
+    here instead of surfacing as an uncaught exception in the field.
+
+    Confirmed RED against the pre-fix tuple (verified by re-running this
+    exact scenario through a standalone copy of the old
+    `except (ValueError, TypeError, OSError)` — without OverflowError in the
+    tuple, `time_ago("9" * 30)` raises `OverflowError: timestamp out of
+    range for platform time_t` instead of returning); confirmed GREEN
+    against the current HEAD implementation.
+    """
+
+    @pytest.mark.parametrize(
+        "iso_or_unix",
+        [
+            "9" * 30,  # digit string -> int() never overflows, but
+                       # datetime.fromtimestamp() does (OverflowError)
+            "9" * 12,  # smaller but still-out-of-range digit string —
+                       # same OverflowError path, different magnitude
+        ],
+        ids=["30-digit-timestamp", "12-digit-timestamp"],
+    )
+    def test_out_of_range_digit_timestamp_returns_unknown(self, iso_or_unix):
+        assert boot_git_checks.time_ago(iso_or_unix) == "unknown"
+
+    @pytest.mark.parametrize(
+        "iso_or_unix",
+        [
+            "not-a-date",  # ValueError from datetime.fromisoformat()
+            "",  # ValueError from datetime.fromisoformat()
+            "2026-13-99T99:99:99",  # ValueError, out-of-range calendar fields
+        ],
+        ids=["not_a_date", "empty_string", "invalid_calendar_fields"],
+    )
+    def test_pre_existing_invalid_iso_input_still_returns_unknown(self, iso_or_unix):
+        """Companion cases for the pre-existing (ValueError, TypeError,
+        OSError) members of the tuple — not new behavior, but there was no
+        direct unit test of time_ago()'s error path anywhere in the suite
+        before this pass (only an indirect assertion in
+        test_boot_output.py::TestBootTimeAgo that a *valid* commit date
+        renders a time-ago string). Parametrized alongside the OverflowError
+        cases above per this project's own convention of covering a
+        function's full invalid-input surface in one place.
+        """
+        assert boot_git_checks.time_ago(iso_or_unix) == "unknown"
