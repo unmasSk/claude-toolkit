@@ -44,10 +44,67 @@ BOOTSTRAP = os.path.join(BIN_DIR, "git-memory-bootstrap.py")
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
+# Deterministic git identity fallback (issue #50/#51). On a CI runner with
+# no git identity configured anywhere (no ~/.gitconfig, no --system config
+# -- e.g. GitHub Actions with `useConfigOnly = true`), every `git commit`
+# spawned by these test helpers exits 128 -- and run_cmd/git_cmd return that
+# rc to callers that routinely never check it (fixtures like tmp_repo just
+# call git_cmd(...) for its side effect). The repo silently ends up with
+# zero commits, and any test asserting on commit content fails downstream
+# with no clue why. House confirmed root cause and reproduced with:
+#   printf '[user]\n\tuseConfigOnly = true\n' > /tmp/fakegitconfig
+#   GIT_CONFIG_GLOBAL=/tmp/fakegitconfig GIT_CONFIG_SYSTEM=/dev/null \
+#       python3 -m pytest unmassk-toolkit/tests/test_boot_output.py -q
+# Fix: inject a deterministic fallback identity into every subprocess
+# spawned via run_cmd -- and therefore git_cmd/run_script, and therefore
+# every test file that imports them from here -- centralized once, no
+# per-test-file patch needed.
+#
+# Coexistence caveat (verified live, do not re-derive without checking):
+# git's GIT_AUTHOR_NAME/EMAIL env vars ALWAYS win over `git config
+# user.name/user.email`, regardless of Python-side dict merge order -- so
+# injecting them unconditionally would silently override the many existing
+# tests that deliberately set their own per-repo identity via
+# `git_cmd(["config", "user.email"/"user.name", ...], repo)` (dozens of
+# call sites across the suite, e.g. test_boot_output.py's
+# _make_repo_no_install). _REPOS_WITH_EXPLICIT_GIT_IDENTITY tracks which
+# repo paths have had identity set that way, so the fallback only ever
+# applies where nothing else already provided one -- an explicit per-repo
+# `git config` call always wins.
+_DEFAULT_GIT_IDENTITY_ENV = {
+    "GIT_AUTHOR_NAME": "unmassk-toolkit-tests",
+    "GIT_AUTHOR_EMAIL": "tests@unmassk-toolkit.invalid",
+    "GIT_COMMITTER_NAME": "unmassk-toolkit-tests",
+    "GIT_COMMITTER_EMAIL": "tests@unmassk-toolkit.invalid",
+}
+
+_REPOS_WITH_EXPLICIT_GIT_IDENTITY = set()
+
+
+def _sets_git_identity(args):
+    """True if args is a `git config user.name|user.email <value>` call --
+    the exact shape every existing test helper already uses to set
+    per-repo identity on purpose (git_cmd always prepends "git", so args[0]
+    is reliably "git" by the time run_cmd sees it for any git_cmd caller)."""
+    return (
+        len(args) >= 4
+        and args[0] == "git"
+        and args[1] == "config"
+        and args[2] in ("user.name", "user.email")
+    )
+
 
 def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
     """Run a command and return (returncode, stdout, stderr)."""
-    merged = {**os.environ, **(env or {})}
+    repo_key = os.path.realpath(cwd)
+    if _sets_git_identity(args):
+        _REPOS_WITH_EXPLICIT_GIT_IDENTITY.add(repo_key)
+        identity_defaults = {}
+    elif repo_key in _REPOS_WITH_EXPLICIT_GIT_IDENTITY:
+        identity_defaults = {}
+    else:
+        identity_defaults = _DEFAULT_GIT_IDENTITY_ENV
+    merged = {**identity_defaults, **os.environ, **(env or {})}
     result = subprocess.run(
         args, capture_output=True, text=True,
         cwd=cwd, timeout=timeout, env=merged, input=input_text,

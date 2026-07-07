@@ -4,6 +4,28 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: CI Runner Has No Git Identity → Test Helpers Silently Swallow `git commit` Failure
+
+**Project:** unmassk-toolkit (git-memory)
+**First seen:** 2026-07-07
+
+Mass boot/memory test failures on GitHub Actions (ubuntu + windows, Python 3.10) with symptoms of "memory content never reaches the boot log": REMEMBER/DECISIONS/TIMELINE sections missing, glossary-cache.json never created (FileNotFoundError), 2200-char giant-commit payload absent, branch-scoped items missing, sanitization tests failing — all *content-absent*, no crashes.
+
+**Root cause:** CI runners have NO git identity (no global/system `user.name`/`user.email`) and git's auto-detect yields `runner@...(none)`, which git rejects → `git commit` exits 128 with "Author identity unknown / unable to auto-detect email address". Test helpers call commits via a `git_cmd`/`run_cmd` wrapper that RETURNS `(rc, out, err)` but callers ignore rc. So the fatal commit is swallowed, the repo ends up with an unborn HEAD (zero commits), and boot (read-only) produces empty output → every content assertion fails with a confusing "missing" symptom instead of a clear git error.
+
+**Why it doesn't reproduce on macOS:** macOS git auto-detects a hostname-based identity (`user@host.local`) and commits succeed (rc=0). Nullifying `GIT_CONFIG_GLOBAL`/`SYSTEM` alone does NOT reproduce — macOS still auto-detects.
+
+**Faithful local reproduction of the CI condition:**
+```
+printf '[user]\n\tuseConfigOnly = true\n' > /tmp/fakegitconfig
+GIT_CONFIG_GLOBAL=/tmp/fakegitconfig GIT_CONFIG_SYSTEM=/dev/null python3 -m pytest tests/test_boot_output.py -q
+```
+`useConfigOnly=true` with no identity forces git to refuse auto-detection → `git commit` fatal, exactly like the runner. Confirming the fix direction: add `GIT_AUTHOR_NAME/EMAIL` + `GIT_COMMITTER_NAME/EMAIL` env vars → suite goes green under the same fatal config.
+
+**Test-only vs production:** This is a TEST defect, not a production bug. Production commit path (`bin/git-memory-commit.py::_do_commit`) also sets no identity, BUT it checks `returncode != 0` and exits 1 with a loud error — a real user without git identity fails visibly, not silently. Fixing the runner ENV (adding `git config --global user.email` in the workflow) would mask the real defect (helpers ignoring git rc) and is the wrong layer.
+
+**Correct fix layer:** centralize a deterministic git identity for tests — set `GIT_AUTHOR_*`/`GIT_COMMITTER_*` in the shared `run_cmd` merged env in `conftest.py` (applies to every git subprocess regardless of cwd, makes tests hermetic vs the runner's global config). `_make_repo_no_install` already did per-repo `git config user.email/name` (its tests passed); the many helpers that forgot (`make_repo_with_giant_commit`, `make_repo_with_memory`, conftest `tmp_repo`/`installed_repo`, and ~5 other test files) are the blast radius — hence centralize rather than patch each helper.
+
 ## Pattern: PYTHONUTF8=1 Masks Windows cp1252 Encoding Defects ("works on my Windows box")
 
 **Project:** unmassk-toolkit (git-memory)

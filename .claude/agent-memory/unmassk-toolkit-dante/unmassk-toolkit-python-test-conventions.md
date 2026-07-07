@@ -321,4 +321,48 @@ usage across the whole suite returned obviously-wrong results — showed
 verification; static grep + class/function line mapping was the reliable
 method here.)
 
+**Issue #50/#51 (2026-07-07) — hermetic-runner git identity: env vars ALWAYS
+beat `git config user.name/email`, so a centralized fallback needs repo
+tracking to coexist with the dozens of tests that set identity on
+purpose.** House root-caused CI failures (35 in `test_boot_output.py` +
+more in tombstones/lifecycle/integration/drift) to `git commit` exiting 128
+on runners with no git identity anywhere (repro:
+`GIT_CONFIG_GLOBAL=/tmp/fakegitconfig GIT_CONFIG_SYSTEM=/dev/null` +
+`useConfigOnly = true` in that fake global config) combined with
+`run_cmd`/`git_cmd` callers routinely discarding the returned rc — repo
+silently ends up with zero commits. Fix landed centrally in
+`conftest.py::run_cmd()`: merge a `_DEFAULT_GIT_IDENTITY_ENV` dict
+(`GIT_AUTHOR_NAME/EMAIL`, `GIT_COMMITTER_NAME/EMAIL`) as the LOWEST-precedence
+layer (`{**identity_defaults, **os.environ, **(env or {})}`), so real
+ambient env or an explicit `env=` kwarg (e.g. `test_drift.py`'s
+`GIT_AUTHOR_DATE` overrides) still win. **Verified live before writing the
+fix** (not assumed): `GIT_AUTHOR_NAME` env always overrides `git config
+user.name` regardless of Python dict merge order — confirmed with a throwaway
+repo (`git config user.name RepoLocalName` + `GIT_AUTHOR_NAME=EnvName git
+commit` → commit author is `EnvName`, config value never used). This means
+unconditionally injecting the fallback would have silently overridden every
+existing test that deliberately sets its own identity via
+`git_cmd(["config", "user.name"/"user.email", ...], repo)` — a pattern used
+in DOZENS of call sites across the whole suite (test_boot_output.py's
+`_make_repo_no_install`, test_crown.py, test_hardening_recall.py,
+test_managed_blocks.py, test_migrate_statusline.py, and more), not just the
+one file House named. **Coexistence mechanism**: a module-level
+`_REPOS_WITH_EXPLICIT_GIT_IDENTITY` set in conftest.py, populated whenever
+`run_cmd` sees an incoming `args == ["git", "config", "user.name"|"user.email",
+<value>]` (git_cmd always prepends `"git"`, so this shape is reliable for
+every git_cmd caller); once a repo path (`os.path.realpath(cwd)`) is in that
+set, the fallback identity is skipped for all later commands in that same
+repo, letting the test's own `git config` win exactly as before. Files with
+their OWN local `_git()` helper that bypasses conftest's `run_cmd`/`git_cmd`
+entirely (`test_boot_freshness.py`, `test_release.py` — both already set
+identity explicitly via their own `_git(["config", ...])` calls) are
+untouched by this change and were correctly out of scope — grep for `from
+conftest import (...)` vs a locally-defined `_git`/`git_cmd` before assuming
+a conftest-level fix reaches every test file uniformly. Verified 3 ways:
+(1) House's exact repro on `test_boot_output.py` alone: 35 failed → 71
+passed; (2) same hermetic env vars on the FULL suite: 984 passed, 2 skipped
+(same as baseline, no hermetic-only failures anywhere else); (3) normal
+(non-hermetic) full suite unchanged: 984 passed, 2 skipped, 0 failed — no
+regression from the new tracking logic.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).
