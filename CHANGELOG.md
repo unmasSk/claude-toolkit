@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-07
+
 ### Added
 
 - **Multi-machine boot memory freshness** (issue #49): the `[git-memory-boot]` SessionStart hook now detects when local git-memory is behind another machine's and reacts instead of silently showing stale state.
