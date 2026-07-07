@@ -259,4 +259,66 @@ platform. Two concrete techniques, both landed in `test_boot_output.py`:
    stays green, exactly the false-negative already documented above for
    `_write_glossary_cache()`.
 
+**Issue #50 (2026-07-07) — `import bin.X` in test_release.py only worked by
+accident of invocation shape; fixed to be cwd-independent.** `test_release.py`
+does `import bin.release_helpers` / `import bin.release` inline inside 9 test
+methods (T25, T26, T27, and all 6 in `TestPromoteChangelogUnit` via its
+shared `_promote()` helper) to reach the git-root `bin/release*.py` modules
+(a DIFFERENT `bin/` than `unmassk-toolkit/bin/`'s hyphenated hook scripts —
+git-root `bin/` has no hyphens and is a plain namespace package, no
+`__init__.py`). This worked when invoked as `python3 -m pytest
+unmassk-toolkit/tests -q` from the git root only because `python -m X`
+inserts the CURRENT WORKING DIRECTORY into `sys.path[0]` — a side effect of
+`-m` invocation, unrelated to pytest's own rootdir logic (the conftest.py
+docstring's claim that "pytest añade el rootdir a sys.path" is not actually
+what makes this work). Reproduced the failure locally simply by running
+pytest from inside `unmassk-toolkit/tests/` instead of the git root:
+`ModuleNotFoundError: No module named 'bin'`. This is exactly what breaks on
+a CI runner or a bare `pytest` entry point (no `-m`) invoked from any cwd
+other than the git root — confirmed as the root cause of the reported
+Windows `bin.release_helpers` failures. **Fix**: explicit
+`if _REPO_ROOT not in sys.path: sys.path.insert(0, _REPO_ROOT)` right after
+`_REPO_ROOT` is computed at the top of `test_release.py`, making the import
+correct by construction regardless of invocation cwd/shape. Verified by
+re-running the same 9 tests from inside `tests/` (previously failing) — all
+pass after the fix, with no change needed to `conftest.py` itself (its
+`BIN_DIR` constant only ever pointed at `unmassk-toolkit/bin/`, unrelated to
+this git-root `bin/`).
+
+**Issue #50 (2026-07-07) — symlink-setup Windows-skip guard: the "~68 tests"
+estimate was exactly right once parametrization is counted.** Before
+touching anything, did an exhaustive line-by-line sweep (every
+`os.symlink(` and every `_plant_symlink(` call site — the latter is
+`test_security_regression.py`'s own local helper that wraps `os.symlink`,
+so a call site through it also needs the guard, not just literal
+`os.symlink(` lines) across the WHOLE `tests/` directory, mapped each to
+its enclosing class/function, and checked whether `real_symlink_capable`
+already covered it (class-level `@pytest.mark.usefixtures` or a direct
+function parameter). Result: **zero unguarded call sites found** — this
+exact fix (fixture promoted to `conftest.py`, applied file-by-file) had
+already landed in a PRIOR session the same day (see the "Windows
+test-hygiene fix (2026-07-07)" entry above this one) via commits
+`543b57b`/`108c6a3`, before issue #50 was handed to me as a fresh task.
+Counting actual pytest-collected test items (not just `def test_` lines —
+`test_crossplatform_symlink_guard.py`'s two guarded functions are each
+`@pytest.mark.parametrize`'d over `TWIN_FUNCS` with 2 entries, so they
+collect as 4 items, not 2): 60 (`test_security_regression.py`) + 3
+(`test_boot_output.py`, `TestSymlinkWriteProtection` x2 +
+`TestGlossaryCacheReadSymlinkProtection` x1) + 1
+(`test_boot_freshness_hardening.py`) + 4 (`test_crossplatform_symlink_guard.py`,
+parametrized) = **68 exactly**, matching the reported "~68" estimate on the
+nose rather than differing from it. Lesson: when a memo/report cites a
+prior-session count, verify it's still current by re-deriving it from the
+live tree (grep + line-based class/function mapping, cheap and exact)
+before assuming either "still needs doing" or "already done" — here it
+turned out fully done, and the number itself needed re-deriving with
+parametrize multiplication to actually reconcile with the estimate.
+(Aside: a naive pytest plugin using `item.fixturenames` to count fixture
+usage across the whole suite returned obviously-wrong results — showed
+`real_symlink_capable` on totally unrelated tests like
+`test_boot_freshness.py` that never reference it. Don't trust
+`item.fixturenames` for "does this test use fixture X" without further
+verification; static grep + class/function line mapping was the reliable
+method here.)
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

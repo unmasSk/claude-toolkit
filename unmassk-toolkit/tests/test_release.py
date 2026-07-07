@@ -26,6 +26,20 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PLUGIN_ROOT = os.path.dirname(_THIS_DIR)          # unmassk-toolkit/
 _REPO_ROOT = os.path.dirname(_PLUGIN_ROOT)          # git root
 
+# `import bin.release_helpers` / `import bin.release` below rely on
+# `_REPO_ROOT` (git root, parent of `bin/`) being on sys.path so `bin/`
+# resolves as a namespace package (no __init__.py). This previously worked
+# ONLY by accident: `python3 -m pytest ...` invoked from the git root
+# inserts the current working directory into sys.path[0], which happened
+# to BE the git root. Any other invocation shape (pytest run from inside
+# tests/, a bare `pytest` entry point instead of `python -m pytest`, or a
+# CI runner with a different cwd -- confirmed on Windows CI, issue #50)
+# leaves `bin` unresolvable and fails every test below with
+# `ModuleNotFoundError: No module named 'bin'`. Insert it explicitly so the
+# import is correct by construction regardless of cwd or invocation method.
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 RELEASE_SCRIPT = os.path.join(_REPO_ROOT, "bin", "release.py")
 BUMP_SCRIPT = os.path.join(_REPO_ROOT, "bin", "bump-version.py")
 

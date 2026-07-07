@@ -1,10 +1,16 @@
 """Shared fixtures and helpers for git-memory tests.
 
 Nota sobre importabilidad de bin.release y módulos vecinos:
-pytest añade el rootdir (donde está pyproject.toml) a sys.path al arrancar.
-Como bin/ no tiene __init__.py, Python lo trata como namespace package,
-lo que permite "import bin.release" y "import bin.release_helpers" sin
-necesidad de sys.path.insert explícito en cada script de test.
+esto NO lo hace pytest (pytest no añade el rootdir a sys.path por su
+cuenta). Cuando test_release.py se invoca como `python3 -m pytest ...`
+desde la raíz del repo, es `python -m` quien inserta el cwd en
+sys.path[0] -- ese cwd resulta ser la raíz, y como bin/ no tiene
+__init__.py, Python lo trata como namespace package, permitiendo
+"import bin.release" / "import bin.release_helpers" sin
+sys.path.insert explícito. Esto se rompe con cualquier otra forma de
+invocar pytest (cwd distinto, entry point `pytest` sin `-m`) -- ver
+issue #50. Por eso test_release.py inserta _REPO_ROOT en sys.path de
+forma explícita en vez de depender de este efecto colateral.
 """
 
 import json
