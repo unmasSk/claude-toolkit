@@ -934,6 +934,89 @@ rev_list_output_should_fail_open_but_raises` — will flip to a hard failure
 the moment Ultron wraps the `int()` conversion in the same pattern, forcing
 a test update (remove the marker) rather than silently staying green.
 
+## Windows fake-`git` process-tree kill test — CreateProcess ignores Popen's `env=` for executable SEARCH; must mutate the real process PATH instead
+
+Closing the two Windows-only gaps in `test_boot_freshness_regression.py`
+(`_win32_kill_tree`/taskkill, and `_ASKPASS_FAILFAST == "cmd /c exit 1"`)
+that were previously documented as "no Windows machine available" —
+session 2026-07-07, first real Windows box for this suite.
+
+**Platform quirk confirmed empirically (not in any doc, easy to get
+wrong)**: on POSIX, `execvpe`/`subprocess.Popen(["cmd"], env={"PATH":
+fake_dir, ...})` resolves the executable using the `env` dict passed in —
+this is exactly what the existing POSIX fake-git-on-PATH pattern relies
+on. On Windows, `CreateProcess` (which is what `Popen(["git"]+args,
+shell=False)` compiles down to when no `executable=` is given) resolves
+the bare command name using the CALLING process's OWN live PATH
+environment block — the `env=` kwarg only populates the CHILD's
+environment AFTER the executable has already been found and started. So
+`git_helpers.run_git(["fetch"], env={"PATH": fake_bin + ...})` is a
+silent no-op for redirecting which "git" runs on Windows: the real
+system git still executes, and a naive test assuming POSIX semantics
+gets a fast, wrong-looking pass/fail (confirmed: got `rc=128` "unable to
+access... getaddrinfo() thread failed to start" from the REAL git,
+looking like a plausible network failure, not "wrong git ran").
+
+**Fix for Windows tests that need a fake `git` on PATH**: use
+`monkeypatch.setenv("PATH", fake_bin + os.pathsep + os.environ.get("PATH",
+""))` (or plain `os.environ["PATH"] = ...` with manual restore) on the
+TEST process itself before calling the function under test — this
+mutates the real live env block `CreateProcess`'s search consults. The
+`env=` kwarg passed to `run_git`/`Popen` is still useful (and still
+production-faithful) for populating the CHILD's own environment (e.g.
+`PYTHONPATH` below), just not for the executable search itself.
+
+**Second problem, specific to needing a fake "git" that does real work
+on Windows**: `CreateProcess`'s implicit search only auto-appends `.exe`
+— it does NOT consider `.bat`/`.cmd` the way `cmd.exe`'s own PATHEXT
+-driven resolution does. A `git.bat` dropped on the prepended PATH dir is
+silently skipped in favor of the real `git.exe` found later in the
+search — confirmed by direct experiment (a `git.bat` printing a sentinel
+and exiting 7 was never invoked; real git ran instead). So the fake must
+be a genuine PE executable, not a script with a shebang-like batch file.
+
+**Working technique**: copy a REAL python interpreter binary to
+`fake_dir/git.exe` — but NOT `sys.executable` directly if the test
+process might be running under a venv/poetry env (its `python.exe` is
+often a small launcher stub that locates the real interpreter via a
+`pyvenv.cfg` file relative to ITS OWN path; copied elsewhere with no
+`pyvenv.cfg` alongside it, the stub fails to start). Use
+`os.path.join(sys.base_exec_prefix, "python.exe")` instead — always the
+base, non-venv install regardless of what venv is active, safe to copy
+and relocate. Then set `PYTHONPATH` (via the real `env=` kwarg, which DOES
+work for child-env population) to a directory containing a
+`sitecustomize.py` that does the real fake-git logic (spawn a real
+grandchild via `subprocess.Popen([sys.executable, "-S", "-c", "import
+time; time.sleep(60)"])`, write its pid to a file, `time.sleep(60)`
+itself). This works because Python's `site` module imports
+`sitecustomize.py` during interpreter STARTUP — before it ever attempts
+to open `argv[1]` ("fetch", the git subcommand) as a script file — so
+the hijack fires unconditionally, with no valid python script needing to
+exist on disk at all. The `-S` flag on the grandchild's own invocation is
+required to stop it from ALSO importing the same `sitecustomize.py` and
+recursively spawning further "grandchildren."
+
+**Third gotcha — `tasklist` output encoding**: `subprocess.run(["tasklist",
+"/FI", f"PID eq {pid}"], text=True)` with the DEFAULT (UTF-8) encoding
+raises `UnicodeDecodeError` on a non-English Windows locale (confirmed:
+Spanish Windows, byte `0xe0`) — `tasklist`'s console output uses the
+OEM/ANSI codepage, not UTF-8. Fix: `encoding="oem", errors="replace"` on
+the `subprocess.run` call. This is a liveness probe, not a content
+assertion, so `errors="replace"` is safe — never let an unrelated
+locale-encoding mismatch fail a process-liveness check.
+
+Verified end-to-end manually (outside pytest) before writing the actual
+test: fake git.exe hangs, `run_git(timeout=1)` returns `(1, "")` in
+~1.2s, grandchild pid written, and dies (confirmed via `tasklist`) within
+the 5s polling deadline after `run_git` returns — proving
+`_win32_kill_tree()`'s real `taskkill /F /T /PID` genuinely kills the
+whole tree, not just the direct "git.exe" child. Classes:
+`TestWin32ProcessTreeKillOnTimeout`,
+`TestWin32AskpassFailfastResolvesAndExitsNonzero` (the latter needed no
+new technique — just `subprocess.run(_ASKPASS_FAILFAST + " " + prompt,
+shell=True)`, faithfully reproducing how git invokes a multi-token
+GIT_ASKPASS command line on Windows).
+
 ## boot_glossary_cache migration — old cache (pre-`origin_sha` field) validity depends on whether an upstream now exists
 
 `_read_glossary_cache()`'s freshness check does

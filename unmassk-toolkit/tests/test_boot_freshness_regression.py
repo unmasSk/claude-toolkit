@@ -71,6 +71,7 @@ code is touched by this file — RED results here are reported, not fixed
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -345,16 +346,12 @@ class TestPosixProcessTreeKillOnTimeout:
     survives as an orphan that can still pop an interactive dialog
     completely out of context.
 
-    Windows note (item 5's "logic-review only" scope): the Windows
-    counterpart (_win32_kill_tree, using `taskkill /F /T /PID`) is NOT
-    exercised anywhere in this suite — there is no Windows machine
-    available in this environment, and `taskkill` has no POSIX
-    equivalent to fake it against. Writing a test that merely calls
-    _win32_kill_tree() with a mocked subprocess.run would only prove the
-    mock was configured correctly, not that a real Windows process tree
-    actually dies — exactly the kind of vacuous test this project's own
-    "Coverage Boundaries" rule forbids. Left as an explicit, documented
-    gap rather than a trivial-pass substitute.
+    Windows update (session 2026-07-07, real Windows box now available):
+    the Windows counterpart (_win32_kill_tree, using `taskkill /F /T
+    /PID`) is now exercised directly by
+    TestWin32ProcessTreeKillOnTimeout below, using a real fake "git.exe"
+    and a real grandchild process — see that class's docstring for the
+    technique (no mocking of subprocess.run or _win32_kill_tree itself).
     """
 
     @pytest.mark.skipif(
@@ -396,6 +393,187 @@ class TestPosixProcessTreeKillOnTimeout:
         )
 
 
+# ── Finding 5 (Windows counterpart, session 2026-07-07) ─────────────────────
+#
+# A real Windows machine is now available in this environment, closing the
+# gap TestPosixProcessTreeKillOnTimeout's docstring used to document as
+# untestable. See TestWin32ProcessTreeKillOnTimeout's docstring for the two
+# Windows-specific platform quirks this fixture had to work around
+# (CreateProcess's PATH search semantics, and using site-processing to
+# hijack a real python.exe copy as a fake "git.exe").
+
+_WIN32_SITECUSTOMIZE_SPAWN_GRANDCHILD_TEMPLATE = '''import subprocess, sys, os, time
+
+pid_file = r"""__PID_FILE__"""
+grandchild = subprocess.Popen([sys.executable, "-S", "-c", "import time; time.sleep(60)"])
+with open(pid_file, "w") as f:
+    f.write(str(grandchild.pid))
+    f.flush()
+    os.fsync(f.fileno())
+
+time.sleep(60)
+'''
+
+
+def _resolve_real_python_exe():
+    """Return a real, standalone python.exe suitable for copying to a new
+    path and running there as a fake "git.exe".
+
+    Deliberately NOT sys.executable directly: under a virtualenv/poetry
+    env, sys.executable is often a small launcher stub that locates the
+    real interpreter via a pyvenv.cfg file relative to its OWN path — copy
+    that stub alone to a different directory (with no pyvenv.cfg next to
+    it) and it fails to start. sys.base_exec_prefix always points at the
+    base (non-venv) installation regardless of what venv is active, so
+    joining it with "python.exe" reliably resolves the real, relocatable
+    interpreter binary. Falls back to sys.executable itself if that
+    candidate somehow doesn't exist (e.g. an unusual install layout).
+    """
+    candidate = os.path.join(sys.base_exec_prefix, "python.exe")
+    if os.path.isfile(candidate):
+        return candidate
+    return sys.executable
+
+
+def _make_fake_win32_git_spawning_grandchild(tmp_path, pid_file):
+    """Windows counterpart to _make_fake_git_spawning_grandchild() above —
+    same contract (a fake "git" that spawns a real, independent grandchild
+    process, writes its pid to `pid_file`, then hangs), different
+    mechanism because Windows has no shebang/executable-script equivalent
+    of the POSIX `#!/usr/bin/env python3` fake git script.
+
+    The fake "git.exe" is a literal copy of a real Python interpreter
+    binary (see _resolve_real_python_exe()). A PYTHONPATH-injected
+    sitecustomize.py does the actual work: Python's `site` module imports
+    sitecustomize.py during interpreter STARTUP, before it ever attempts
+    to open argv[1] ("fetch") as a script file — so the hijack fires
+    regardless of the argv run_git() actually passes, without needing any
+    valid Python script path on disk. The grandchild is spawned with
+    "-S" (skip site processing) so it does NOT itself re-import this same
+    sitecustomize.py and recursively spawn further "grandchildren".
+
+    Returns (fake_bin_dir, sitepkg_dir) — the caller must put fake_bin_dir
+    on the real process's PATH (see TestWin32ProcessTreeKillOnTimeout's
+    docstring for why the env= kwarg alone does not work on Windows) and
+    pass sitepkg_dir via run_git's own env={"PYTHONPATH": ...} kwarg.
+    """
+    fake_dir = tmp_path / "fake_bin_grandchild_win32"
+    fake_dir.mkdir(exist_ok=True)
+    fake_git_path = fake_dir / "git.exe"
+    shutil.copy(_resolve_real_python_exe(), str(fake_git_path))
+
+    sitepkg_dir = tmp_path / "sitepkg_grandchild_win32"
+    sitepkg_dir.mkdir(exist_ok=True)
+    script = _WIN32_SITECUSTOMIZE_SPAWN_GRANDCHILD_TEMPLATE.replace("__PID_FILE__", str(pid_file))
+    (sitepkg_dir / "sitecustomize.py").write_text(script, encoding="utf-8")
+
+    return str(fake_dir), str(sitepkg_dir)
+
+
+def _win32_pid_is_alive(pid):
+    """tasklist-based liveness check for a Windows pid. encoding="oem"
+    (not the default UTF-8) because tasklist's console output uses the
+    OEM/ANSI codepage — decoding it as UTF-8 raises UnicodeDecodeError on
+    a non-English Windows locale (confirmed empirically on this box,
+    Spanish Windows). errors="replace" keeps this a liveness probe, never
+    a source of a spurious test failure over unrelated text encoding.
+    """
+    result = subprocess.run(
+        ["tasklist", "/FI", f"PID eq {pid}"],
+        capture_output=True,
+        text=True,
+        encoding="oem",
+        errors="replace",
+        timeout=5,
+    )
+    return str(pid) in result.stdout
+
+
+class TestWin32ProcessTreeKillOnTimeout:
+    """Argus SEC-MED-001, Windows counterpart to
+    TestPosixProcessTreeKillOnTimeout above — proves run_git()'s
+    TimeoutExpired branch on win32 (_win32_kill_tree(), using `taskkill
+    /F /T /PID`) kills the DIRECT PID process tree rooted at the "git"
+    process it launched (fake "git.exe" -> grandchild spawned via a
+    normal Popen call), mirroring the POSIX os.killpg() guarantee tested
+    there for that same scope. No mocking of subprocess.run, taskkill,
+    or _win32_kill_tree anywhere in this test — a real fake "git.exe"
+    spawns a real, independent grandchild process and this test proves
+    via a real tasklist query that it is dead after run_git's timeout
+    fires.
+
+    Scope, NOT covered by this test (Moriarty, session 2026-07-07,
+    reproducible): a descendant re-parented to a Windows system service
+    — spawned via Task Scheduler (schtasks), WMI (Win32_Process.Create),
+    or a service — is structurally outside the PID tree `taskkill /T`
+    walks, and survives. This is an accepted limitation, not a bug this
+    test hides: it is out of the threat model this defense targets (a
+    hung *legitimate* git child process, e.g. a stuck ssh/askpass
+    prompt), because reparenting a descendant to a system service
+    requires the git binary itself to already be running attacker code
+    — i.e. full local compromise, which needs no such evasion technique
+    to begin with.
+
+    Platform quirk this fixture had to work around (confirmed
+    empirically on this machine, not documented anywhere else in this
+    suite before now): unlike POSIX's execvpe (which resolves the
+    executable name using the envp argument passed to it), Windows'
+    CreateProcess — invoked whenever Popen() is given a bare command name
+    like "git" with shell=False and no explicit executable= — resolves
+    the executable via the CALLING process's own live PATH environment
+    block, NOT the `env=` kwarg passed to Popen/run_git (that kwarg only
+    populates the CHILD's environment after the process has already been
+    resolved and started). Passing env={"PATH": fake_bin + ...} to
+    run_git alone (the POSIX sibling test's technique) is therefore a
+    no-op for redirecting which "git" gets found on Windows — real git
+    from the machine's own PATH still runs. This test instead
+    monkeypatches the TEST PROCESS's own os.environ["PATH"] (auto-restored
+    by pytest's monkeypatch fixture) before calling run_git, and passes
+    the fake's sitepkg dir through run_git's own env={"PYTHONPATH": ...}
+    kwarg for the child-side PYTHONPATH injection described in
+    _make_fake_win32_git_spawning_grandchild()'s docstring.
+    """
+
+    @pytest.mark.skipif(
+        not WINDOWS,
+        reason="Windows-only: exercises _win32_kill_tree()/taskkill, the "
+        "win32 counterpart to POSIX os.killpg() tested in "
+        "TestPosixProcessTreeKillOnTimeout",
+    )
+    def test_timeout_kills_grandchild_process_not_just_direct_child_win32(self, tmp_path, monkeypatch):
+        repo = tmp_path / "killtree_repo_win32"
+        repo.mkdir()
+
+        pid_file = tmp_path / "grandchild_win32.pid"
+        fake_bin, sitepkg = _make_fake_win32_git_spawning_grandchild(tmp_path, pid_file)
+        monkeypatch.setenv("PATH", fake_bin + os.pathsep + os.environ.get("PATH", ""))
+
+        start = time.monotonic()
+        code, _out = git_helpers.run_git(
+            ["fetch"],
+            timeout=1,
+            cwd=str(repo),
+            env={"PYTHONPATH": sitepkg},
+        )
+        elapsed = time.monotonic() - start
+
+        assert code == 1, "a timed-out run_git call must return exit code 1"
+        assert elapsed < 6, f"run_git took {elapsed:.1f}s — timeout not bounding the hang"
+        assert _wait_for_file(str(pid_file)), "grandchild never wrote its own pid — test setup broken"
+
+        grandchild_pid = int(pid_file.read_text().strip())
+
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and _win32_pid_is_alive(grandchild_pid):
+            time.sleep(0.1)
+
+        assert not _win32_pid_is_alive(grandchild_pid), (
+            f"grandchild pid {grandchild_pid} is still alive after run_git's "
+            f"timeout — expected the WHOLE process tree to be killed via "
+            f"taskkill /F /T /PID, not just the direct 'git.exe' child"
+        )
+
+
 # ── Finding 6: `false`-by-PATH askpass resolves and fails fast ─────────────
 
 
@@ -410,12 +588,13 @@ class TestAskpassFailfastResolvesViaPath:
     executable that exits non-zero immediately, with no exec error, the
     exact contract GIT_ASKPASS/SSH_ASKPASS need.
 
-    Windows note: on Windows, `_ASKPASS_FAILFAST` is `"cmd /c exit 1"` — a
-    full command-line string, not a bare executable name (Windows'
-    CreateProcess parses the whole string natively, unlike POSIX argv
-    splitting). That value cannot be executed on this POSIX host at all
-    (no `cmd.exe`) — logic-review only, no trivial-pass substitute
-    written here.
+    Windows update (session 2026-07-07, real Windows box now available):
+    on Windows, `_ASKPASS_FAILFAST` is `"cmd /c exit 1"` — a full
+    command-line string, not a bare executable name (Windows' CreateProcess
+    parses the whole string natively, unlike POSIX argv splitting). That
+    value cannot be executed on this POSIX host at all (no `cmd.exe`) —
+    see TestWin32AskpassFailfastResolvesAndExitsNonzero below for the real
+    Windows-side proof.
     """
 
     @pytest.mark.skipif(
@@ -445,6 +624,62 @@ class TestAskpassFailfastResolvesViaPath:
         assert result.returncode != 0, (
             "the askpass fail-fast executable must exit non-zero so git "
             "treats any credential prompt as declined, never hangs"
+        )
+
+
+class TestWin32AskpassFailfastResolvesAndExitsNonzero:
+    """Argus (low portability, repair round 2), Windows counterpart to
+    TestAskpassFailfastResolvesViaPath above — proves `_ASKPASS_FAILFAST`'s
+    win32 value actually satisfies the GIT_ASKPASS/SSH_ASKPASS contract:
+    exits non-zero immediately, with no exec error.
+
+    On win32 `_ASKPASS_FAILFAST` is the full command-line string
+    `"cmd /c exit 1"`, not a bare executable name — git invokes
+    GIT_ASKPASS/SSH_ASKPASS as a single command line (appending the
+    credential prompt as an extra argument), which on Windows means the
+    whole string is handed to CreateProcess/cmd's own parsing rather than
+    POSIX argv-vector splitting. `shell=True` with the value concatenated
+    to the appended prompt argument faithfully reproduces that invocation
+    shape — this is NOT a case of "shell=True is only for convenience";
+    it is the only faithful way to reproduce how git itself passes a
+    multi-token askpass command line on Windows.
+    """
+
+    @pytest.mark.skipif(
+        not WINDOWS,
+        reason="_ASKPASS_FAILFAST is 'cmd /c exit 1' (a command-line string) "
+        "only on win32 — the POSIX sibling test covers the bare 'false' "
+        "PATH-lookup value used on macOS/Linux",
+    )
+    def test_win32_askpass_failfast_resolves_and_exits_nonzero(self):
+        assert boot_git_checks._ASKPASS_FAILFAST == "cmd /c exit 1", (
+            "test assumes the documented win32 value — if this changed, "
+            "re-derive the assertion from the real constant"
+        )
+
+        start = time.monotonic()
+        try:
+            result = subprocess.run(
+                boot_git_checks._ASKPASS_FAILFAST + " some-prompt-argv-appended-by-git",
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (FileNotFoundError, OSError) as e:
+            pytest.fail(
+                f"'{boot_git_checks._ASKPASS_FAILFAST}' failed to exec as a "
+                f"git-style askpass command line: {e!r}"
+            )
+        elapsed = time.monotonic() - start
+
+        assert result.returncode != 0, (
+            "the askpass fail-fast command line must exit non-zero so git "
+            "treats any credential prompt as declined, never hangs"
+        )
+        assert elapsed < 3, (
+            f"askpass fail-fast took {elapsed:.1f}s — expected an immediate "
+            f"non-zero exit, not a hang"
         )
 
 

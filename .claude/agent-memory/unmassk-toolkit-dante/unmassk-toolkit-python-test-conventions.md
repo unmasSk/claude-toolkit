@@ -161,4 +161,102 @@ check, BUG AM's `unmassk_dir` check, and BUG AN's `agent_dir`/`target_dir`
 check are three independent guards in the SAME function, not one guard
 covering all three shapes).
 
+**Windows test-hygiene fix (2026-07-07): `real_symlink_capable` fixture
+promoted to `conftest.py`, shared by both symlink test files.** All of the
+BUG-Y-class tests above (and BUG D/E/F/I/J/K/L/M/N/O/P/Q/R/S/T/U/V/W/X — 60
+test functions total, confirmed via a real `pytest --collect-only` +
+failure-list diff, not guessed) plant a REAL `os.symlink()` in their own
+setup. On a Windows box without Developer Mode /
+SeCreateSymbolicLinkPrivilege, `os.symlink()` raises `OSError: [WinError
+1314]` — the test never reaches the guard it's supposed to exercise, so it
+FAILED at setup instead of skipping. Fix: the `real_symlink_capable` fixture
+(originally local to `test_crossplatform_symlink_guard.py`) now lives in
+`tests/conftest.py` as the single source of truth (auto-discovered, no
+import needed); the local copy was deleted. Gating pattern used based on
+whether EVERY test in a class plants a symlink or only some do (checked
+per-class with a `pytest --collect-only` vs failure-list diff before
+editing, not assumed from reading test bodies) — do this check again before
+adding new tests to this pattern:
+- Whole class always symlinks → `@pytest.mark.usefixtures("real_symlink_capable")`
+  on the class (34 classes gated this way).
+- Class has a mix (e.g. `TestBugFDoctorManifestSymlinkReadWrite` has one
+  test that checks the REAL manifest still gets its healthcheck timestamp
+  updated — that one must NOT skip) → add `real_symlink_capable` as a
+  plain parameter to only the affected test function(s), never a class
+  marker (3 classes needed this: BugF, BugI, BugJ, 4 functions total).
+Adding the class-level marker to a mixed class would wrongly skip the
+non-symlink test and silently lose its coverage.
+
+**Follow-up (same session): the "69 failures" bug report undercounted by
+scope, not by number.** The original diagnosis said "69 failures, all in
+test_security_regression.py" — actual measurement showed only 60 there.
+Always verify a bug report's failure count by actually running the named
+file before trusting it; don't silently accept "~N" figures. The other 9
+were genuinely elsewhere: `grep -rl "os.symlink(" tests/` across the WHOLE
+tests dir (not just the one file named in the report) found 4 more
+untouched cases in `test_boot_output.py` (`TestSymlinkWriteProtection` x2,
+`TestGlossaryCacheReadSymlinkProtection` x1) and
+`test_boot_freshness_hardening.py` (`TestHasToolkitMemory::test_symlinked_claude_md_is_treated_as_absent`
+x1) — same WinError 1314 root cause, gated with the same fixture. The
+remaining 5 were a DIFFERENT bug class entirely (Windows portability, not
+symlink-creation-privilege): POSIX `0o600` mode-bit assertions (NTFS
+doesn't deny group/other the same way — already documented as an accepted
+decision in `lib/git_helpers.py`'s `open_no_follow_symlink()` docstring, so
+that one stays a genuine `@pytest.mark.skipif(sys.platform=="win32", ...)`
+rather than a rewrite), `os.chmod(dir, 0o500)`-based write-failure
+simulation (doesn't block the owner's own writes on Windows), and
+`git checkout -b` with a branch name that's either too long (Windows
+MAX_PATH) or contains NTFS-reserved characters (`<`/`>`). Lesson: when a
+"failed count" and a "gated count" don't reconcile, grep the WHOLE
+directory for the same root-cause pattern before assuming the gap is noise
+— it wasn't guesswork, it was 4 more of the same bug the report missed by
+scoping to one file.
+
+**Pattern for rewriting a chmod/git-ref-based Windows-incompatible test
+into a cross-platform one that still drives real production code (Bex's
+"enterprise = no lazy skips" directive, same session):** rule used — skip
+ONLY when the property under test is a documented, accepted OS-specific
+decision (the 0o600 case above); otherwise monkeypatch at the real IO
+boundary and keep exercising the same production function on every
+platform. Two concrete techniques, both landed in `test_boot_output.py`:
+1. **Write-failure simulation**: replaced `os.chmod(claude_dir, 0o500)`
+   with a subprocess helper (`_run_boot_with_failing_log_write()`) that
+   loads `hooks/session-start-boot.py` via
+   `importlib.util.spec_from_file_location` (module name `'boot'`) and
+   overwrites `boot.open_no_follow_symlink` with a function that raises
+   `PermissionError` — because `write_boot_log()` imports that name at
+   MODULE level (`from git_helpers import open_no_follow_symlink` inside a
+   try/except at the top of the file), not as a deferred per-call lookup
+   like `run_git`, so the name to patch is on the LOADED HOOK MODULE
+   itself, not on `git_helpers`. Then calls `boot.main()` for real — same
+   `sys.exit(0)` shape as running the file directly, so
+   rc/stdout/stderr match `run_boot()`'s existing shape exactly.
+2. **Branch-name edge cases without creating a real ref**: replaced
+   `git_cmd(["checkout", "-b", <problem name>], repo)` (fails on Windows
+   for both "too long" and "contains `<`/`>`" payloads — MAX_PATH and NTFS
+   reserved chars respectively) with `_render_banner_with_branch()`, which
+   monkeypatches ONLY the single `git_helpers.run_git(["branch",
+   "--show-current"])` call (a passthrough wrapper — every other git
+   command still hits the real repo) so `boot_git_checks.render_branch_section()`'s
+   real `_resolve_sanitized_branch()` -> `parsing.sanitize_trailer_value()`
+   chain runs on the fake string, then feeds the result into the hook's
+   real `render_boot_banner_lines()`. This is safe because
+   `render_branch_section()`'s implementation does `from git_helpers import
+   run_git` as a LOCAL import inside the function body (executed fresh
+   every call) — patching the attribute on the real, already-imported
+   `git_helpers` module object (`import git_helpers as _gh; _gh.run_git =
+   ...`) is picked up regardless of which module re-exports
+   `render_branch_section`'s name (boot_render re-exports from
+   boot_git_checks; the hook re-exports from boot_render) — the deferred
+   import always resolves against the live module in `sys.modules`, not a
+   snapshot. Rule of thumb going forward: check whether the name to patch
+   is a **module-level bound name on the file defining the function under
+   test** (patch that module's own attribute after loading it) vs. a
+   **name looked up fresh via a local `from X import Y` inside the
+   function body at call time** (patch it on the real `X` module instead,
+   regardless of re-export chains) — using the wrong one of these two
+   silently exercises the untouched original code path while the test
+   stays green, exactly the false-negative already documented above for
+   `_write_glossary_cache()`.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

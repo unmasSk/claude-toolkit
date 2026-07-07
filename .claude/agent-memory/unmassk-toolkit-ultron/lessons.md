@@ -851,3 +851,28 @@ even ran. Since `lines` is just a plain list built by sequential
 (compute `render_status_section()`/`render_branch_section()` first, run the
 one shared check, THEN build `lines` in the original visual order) rather
 than threading a mutable "pending stamp" placeholder through the list.
+
+## Multi-agent repair rounds: `git diff` on a shared file mixes YOUR hunks with concurrent agents' hunks — don't assume the whole diff is yours
+
+During issue #49's boot-freshness repair round (2026-07-07), tasked with
+exactly 2 targeted fixes to `lib/git_helpers.py` (symmetric Windows-timeout
+guard in `run_git()`'s `TimeoutExpired` handler; honest docstring boundary
+on `_win32_kill_tree()`), `git diff -- lib/git_helpers.py` after my 2 edits
+showed 4 hunks, not 2 — two OTHER hunks (narrowing `except Exception:` to
+`(OSError, subprocess.SubprocessError)` inside `_win32_kill_tree()` itself,
+and to `(ValueError, TypeError)` in `commits_since_last_consolidation()`)
+were already present, made by a concurrent agent working the same review
+round (confirmed via `git status --porcelain`: 16 files dirty across
+`lib/`, `tests/`, and 3 other agents' own `.claude/agent-memory/*` dirs —
+Cerberus, Dante, Moriarty memory all mid-edit simultaneously). Nothing was
+wrong; multi-agent repair rounds legitimately have several agents editing
+the same file in parallel on different findings.
+
+Rule: when asked to "report the exact diff" for a task scoped to N specific
+changes, don't paste the raw `git diff` output as if all of it is yours.
+Identify each hunk against what you actually changed (I know I wrote
+exactly 2 edits — cross-check the diff hunk-by-hunk against that mental
+list) and call out explicitly which hunks are mine vs. pre-existing/
+concurrent. Reporting an unattributed 4-hunk diff for a 2-fix task would
+have been misleading even though `git status --porcelain -- <file>` still
+correctly shows only that one file as touched.

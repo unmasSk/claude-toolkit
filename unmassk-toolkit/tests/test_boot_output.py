@@ -793,6 +793,64 @@ class TestBootLogFileFullContent:
     # section that carries raw long-form text from this commit.
 
 
+def _run_boot_with_failing_log_write(repo):
+    """Run the REAL hooks/session-start-boot.py main() with the real IO
+    boundary write_boot_log() uses forced to raise OSError, WITHOUT relying
+    on chmod-based permission simulation.
+
+    Why not chmod: the original technique (`os.chmod(claude_dir, 0o500)`)
+    only blocks the OWNER's own writes on POSIX; on Windows this does not
+    restrict the owning process at all, so the write silently SUCCEEDS and
+    the "prove the write genuinely failed" sanity check fails — the test
+    never reaches the code path it claims to cover on that platform.
+
+    Real seam forced instead: write_boot_log() (defined directly in
+    session-start-boot.py) calls the module-level name
+    `open_no_follow_symlink(candidate_log_path, "w")` — imported at module
+    level (try/except ImportError fallback, see the file's own top) rather
+    than looked up fresh from git_helpers at call time. So the fix here
+    mirrors this project's own documented gotcha (see
+    unmassk-toolkit-python-test-conventions.md, "patch the module that OWNS
+    the function's __globals__"): after loading session-start-boot.py via
+    spec_from_file_location (module name 'boot'), `boot.open_no_follow_symlink`
+    IS the exact name write_boot_log() reads at call time (both are defined
+    in/bound directly onto the same `boot` module object), so overwriting
+    it there reaches the real function's real global lookup — no other
+    dependency (git_helpers.run_git, ensure_runtime_dir, etc.) is touched,
+    so every other part of main()'s real flow (branch/status/scopes/
+    memory extraction) still runs unchanged.
+
+    boot.main() itself calls sys.exit(0) at its end exactly like running
+    the file directly would — this subprocess's rc/stdout/stderr are
+    therefore identical in shape to run_boot()'s, just with the write
+    seam forced to fail instead of chmod'd out from under it.
+
+    Isolated in its own subprocess (same convention as _extract_memory()/
+    _extract_glossary() above) so loading the hook under a throwaway module
+    name never leaks into sys.modules for other tests in the same session.
+
+    Returns (rc, stdout, stderr).
+    """
+    code = f"""
+import sys, os
+sys.path.insert(0, {repr(LIB_DIR)})
+sys.path.insert(0, {repr(HOOKS_DIR)})
+os.chdir({repr(repo)})
+
+import importlib.util
+spec = importlib.util.spec_from_file_location('boot', {repr(BOOT_HOOK)})
+boot = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(boot)
+
+def _raise_permission_error(path, mode="w", encoding="utf-8"):
+    raise PermissionError(f"[simulated write failure] cannot open {{path}} for {{mode!r}}")
+boot.open_no_follow_symlink = _raise_permission_error
+
+boot.main()
+"""
+    return run_cmd([sys.executable, "-c", code], repo, timeout=30)
+
+
 class TestBootLogWriteFailureFallback:
     """Regression test for a Cerberus-confirmed gap (BLOQUEANTE): the hook
     assigns `boot_log_path` to a real path string BEFORE the try/except that
@@ -814,25 +872,26 @@ class TestBootLogWriteFailureFallback:
     The giant commit here is still used only so the Z-marker run-length
     gives an unambiguous, hard-to-fake proof that the FULL content survived
     (not because it's needed to force any particular stdout mode).
+
+    Cross-platform rewrite (Bex, enterprise-complete directive): replaced
+    `os.chmod(claude_dir, 0o500)` (POSIX-only — does not block the owner's
+    own writes on Windows) with _run_boot_with_failing_log_write(), which
+    forces the real write_boot_log() -> open_no_follow_symlink() call to
+    raise OSError directly. Same production code path, same assertions,
+    now honest on every platform.
     """
 
     def test_full_text_printed_when_boot_log_write_fails(self, tmp_path):
         repo = make_repo_with_giant_commit_no_install(tmp_path)
         claude_dir = os.path.join(repo, ".claude")
-        os.makedirs(claude_dir, exist_ok=True)
-        os.chmod(claude_dir, 0o500)  # simulate write failure (permissions/disk full)
-        try:
-            output = run_boot(repo)
-        finally:
-            # Restore write permission before tmp_path's teardown tries to
-            # remove the directory tree, or the test leaves garbage on disk.
-            os.chmod(claude_dir, 0o700)
+
+        rc, output, stderr = _run_boot_with_failing_log_write(repo)
 
         # Sanity check: prove the log file genuinely was never created —
         # otherwise this test wouldn't be testing the failure path at all.
-        assert not os.path.isdir(os.path.join(claude_dir, ".unmassk")), (
-            "sanity check failed: .unmassk should not exist — the write "
-            "must genuinely have failed for this test to mean anything"
+        assert not os.path.isfile(os.path.join(claude_dir, ".unmassk", "boot-log-latest.txt")), (
+            "sanity check failed: boot-log-latest.txt should not exist — the "
+            "write must genuinely have failed for this test to mean anything"
         )
 
         # Today's bug: stdout is the short banner, and it references a boot
@@ -855,6 +914,94 @@ class TestBootLogWriteFailureFallback:
         )
 
 
+def _render_banner_with_branch(repo, fake_branch):
+    """Drive the REAL production banner path — boot_git_checks.render_branch_section()
+    (via its boot_render/session-start-boot.py re-export) and
+    hooks/session-start-boot.py's own render_boot_banner_lines() — with an
+    arbitrary branch-name STRING, without ever creating a real git ref for
+    it.
+
+    Why not `git checkout -b <name>`: some payloads worth testing here
+    (very long names, names containing `<`/`>`) cannot exist as real git
+    refs on Windows (MAX_PATH / NTFS-reserved-character rules reject them
+    outright at ref-creation time), which would make the test fail at SETUP
+    for a reason that has nothing to do with the banner code under test —
+    the exact trap this rewrite avoids.
+
+    The ONLY thing faked is the single `git branch --show-current` call
+    inside boot_git_checks._resolve_sanitized_branch() — every other
+    git_helpers.run_git() call this flow makes (status --porcelain,
+    rev-parse @{u}, rev-list --left-right, doctor/repair subprocesses) still
+    goes to the real git binary against the real repo, so ahead/behind,
+    dirty-state, and the REAL sanitizer (parsing.sanitize_trailer_value,
+    reached through _resolve_sanitized_branch()) all run completely
+    unchanged from production. write_boot_log() is also called for real
+    (against a throwaway string) so boot_log_path is a genuine return value,
+    never a hand-computed path.
+
+    Isolated in its own subprocess (same convention as _extract_memory()/
+    _extract_glossary() above in this file) so loading session-start-boot.py
+    under a throwaway module name never leaks into sys.modules for other
+    tests in the same pytest session.
+
+    Returns the joined banner text exactly as main() would print it to stdout.
+    """
+    code = f"""
+import sys, os, json
+sys.path.insert(0, {repr(LIB_DIR)})
+sys.path.insert(0, {repr(HOOKS_DIR)})
+os.chdir({repr(repo)})
+
+import subprocess as _sp
+import git_helpers as _gh
+
+_FAKE_BRANCH = {fake_branch!r}
+
+def _patched_run_git(args, cwd=None):
+    if args[:2] == ["branch", "--show-current"]:
+        return 0, _FAKE_BRANCH
+    env = dict(os.environ)
+    env['GIT_DIR'] = os.path.join({repr(repo)}, '.git')
+    env['GIT_WORK_TREE'] = {repr(repo)}
+    result = _sp.run(
+        ['git'] + args,
+        capture_output=True, text=True, cwd={repr(repo)}, env=env,
+    )
+    return result.returncode, result.stdout.strip()
+_gh.run_git = _patched_run_git
+
+import importlib.util
+spec = importlib.util.spec_from_file_location('boot', {repr(BOOT_HOOK)})
+boot = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(boot)
+# No `boot.run_git = _patched_run_git` here (unlike the sibling
+# _extract_memory()/_extract_glossary() helpers above): this helper never
+# calls boot.main(), only render_status_section()/render_branch_section()/
+# render_boot_complete_section()/write_boot_log() directly, all of which
+# resolve run_git via `from git_helpers import run_git` inside
+# boot_git_checks.py at call time — so patching _gh.run_git above is the
+# only patch that's load-bearing on this call path.
+
+plugin_root = os.path.dirname(os.path.dirname(os.path.abspath({repr(BOOT_HOOK)}))).replace(os.sep, "/")
+
+status_lines, status, status_detail = boot.render_status_section()
+branch_result = boot.render_branch_section()
+boot_complete_lines, commit_script, log_script = boot.render_boot_complete_section(plugin_root)
+boot_log_path = boot.write_boot_log("probe content for banner test", {repr(repo)})
+
+banner = boot.render_boot_banner_lines(
+    plugin_root, status, status_detail, branch_result.branch, branch_result.ahead_behind,
+    boot_log_path, commit_script, log_script,
+    "", branch_result.pull_directive_lines,
+)
+print(json.dumps({{"banner": "\\n".join(banner)}}))
+"""
+    rc, stdout, stderr = run_cmd([sys.executable, "-c", code], repo, timeout=30)
+    if rc != 0:
+        raise RuntimeError(f"_render_banner_with_branch failed (rc={rc}): {stderr}")
+    return json.loads(stdout.strip().splitlines()[-1])["banner"]
+
+
 class TestBannerByteBudgetWithLongBranchName:
     """Non-blocking gap (Cerberus): the banner's <1000-byte budget assumes
     branch names are "usually short", but nothing in the code caps the
@@ -868,19 +1015,20 @@ class TestBannerByteBudgetWithLongBranchName:
     reaches the banner path — a giant commit is no longer needed just to
     force banner mode before testing the branch-name edge case.
 
-    Uses a two-segment branch name (each segment under the filesystem's
-    per-component name-length ceiling, so `git checkout -b` itself succeeds)
-    for a total length of ~491 characters — comfortably over "~200+".
+    Cross-platform rewrite (Bex, enterprise-complete directive): the
+    original version created this name as a REAL git ref via `git checkout
+    -b`, which fails on Windows (MAX_PATH) before the banner code is ever
+    reached. Rewritten to drive render_boot_banner_lines() directly via
+    _render_banner_with_branch() — same 491-char two-segment payload, same
+    real sanitizer + banner code, no real ref ever created.
     """
 
     LONG_BRANCH_NAME = ("a" * 245) + "/" + ("b" * 245)
 
     def test_banner_stays_under_byte_budget_with_long_branch_name(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
-        rc, _, err = git_cmd(["checkout", "-b", self.LONG_BRANCH_NAME], repo)
-        assert rc == 0, f"test setup failed: could not create long branch name: {err}"
 
-        output = run_boot(repo)
+        output = _render_banner_with_branch(repo, self.LONG_BRANCH_NAME)
         size = len(output.encode("utf-8"))
         assert size < STDOUT_SAFE_BYTES, (
             f"banner is {size} bytes with a {len(self.LONG_BRANCH_NAME)}-char "
@@ -964,6 +1112,7 @@ class TestNoByteThresholdRegression:
 # are the contract, not the fix.
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestSymlinkWriteProtection:
     """SEC-CRIT-001: session-start-boot.py writes boot-log-latest.txt and
     glossary-cache.json via plain open(path, "w") with no symlink check. A
@@ -1235,8 +1384,28 @@ class TestBootLogFilePermissions:
 
     [ROJO]: expected to fail against the current hook on any system with a
     default umask like 0o022.
+
+    Windows (Bex, enterprise-complete directive): genuinely OS-specific,
+    kept as an explicit skip, not rewritten. lib/git_helpers.py's
+    open_no_follow_symlink() docstring (~line 135) already documents this
+    as an accepted, deliberate decision: "0o600 on Windows does NOT deny
+    group/other access the way it does on POSIX — a file created here
+    inherits the ACL of its containing directory instead. That is a
+    Windows filesystem semantic, not a bug in this function." Asserting
+    POSIX mode bits against an NTFS file would either be dishonest (fake a
+    result the filesystem cannot produce) or would test the wrong thing
+    entirely (ACL inheritance, a different mechanism this test was never
+    written to check). Skip is the honest outcome here, not laziness.
     """
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="0o600 POSIX mode bits are documented as POSIX-only in "
+        "lib/git_helpers.py's open_no_follow_symlink() docstring — on "
+        "Windows/NTFS a file inherits its containing directory's ACL "
+        "instead, so asserting mode bits here would either fake a result "
+        "NTFS cannot produce or test an unrelated mechanism (ACLs)",
+    )
     def test_boot_log_file_has_restrictive_permissions(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         run_boot(repo)
@@ -1390,6 +1559,7 @@ class TestControlByteRecordInjection:
         )
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestGlossaryCacheReadSymlinkProtection:
     """SEC-MED-NEW-02 (Argus): _write_glossary_cache() already uses
     open_no_follow_symlink() (SEC-CRIT-001, fixed earlier this session), but
@@ -1462,21 +1632,26 @@ class TestBootLogWriteFailureLogsWarning:
     not the fallback behavior itself).
 
     [ROJO]: expected to fail against the current hook (stderr is empty).
+
+    Cross-platform rewrite (Bex, enterprise-complete directive): replaced
+    `os.chmod(claude_dir, 0o500)` (POSIX-only) with
+    _run_boot_with_failing_log_write(), which forces the real
+    write_boot_log() -> open_no_follow_symlink() call to raise OSError
+    directly — see that helper's docstring (defined above, next to
+    TestBootLogWriteFailureFallback) for why chmod cannot honestly
+    reproduce this failure on Windows. Same production code path
+    (write_boot_log()'s real `except OSError` branch), same assertions.
     """
 
     def test_boot_log_write_failure_logs_warning_to_stderr(self, tmp_path):
         repo = make_repo_with_giant_commit_no_install(tmp_path)
         claude_dir = os.path.join(repo, ".claude")
-        os.makedirs(claude_dir, exist_ok=True)
-        os.chmod(claude_dir, 0o500)  # simulate write failure (permissions/disk full)
-        try:
-            rc, stdout, stderr = run_cmd([sys.executable, BOOT_HOOK], repo)
-        finally:
-            os.chmod(claude_dir, 0o700)
 
-        assert not os.path.isdir(os.path.join(claude_dir, ".unmassk")), (
-            "sanity check failed: .unmassk should not exist — the write must "
-            "genuinely have failed for this test to mean anything"
+        rc, stdout, stderr = _run_boot_with_failing_log_write(repo)
+
+        assert not os.path.isfile(os.path.join(claude_dir, ".unmassk", "boot-log-latest.txt")), (
+            "sanity check failed: boot-log-latest.txt should not exist — the "
+            "write must genuinely have failed for this test to mean anything"
         )
         assert "BOOT-WARNING" in stderr, (
             f"write_boot_log()'s except OSError branch must emit a trace to "
@@ -1680,6 +1855,18 @@ class TestBranchNameSanitizationInStdoutBanner:
     file. Git's ref-name rules do not block `<!--`, `-->`, or
     `<memory-data>` in a branch name, and _truncate_banner_field() only
     bounds LENGTH (60 chars), never sanitizes content.
+
+    Cross-platform rewrite (Bex, enterprise-complete directive): the
+    original version created this name as a REAL git ref via `git checkout
+    -b`, which NTFS rejects outright (`<`/`>` are reserved filename
+    characters on Windows), failing at setup before the sanitizer is ever
+    reached. This guards a real injection defense (feature #49) and must
+    keep running on every platform, so it is rewritten — never skipped —
+    via _render_banner_with_branch(), which feeds the exact same malicious
+    string directly to the real _resolve_sanitized_branch() ->
+    parsing.sanitize_trailer_value() -> render_boot_banner_lines() chain
+    without ever creating a git ref for it. Full coverage preserved
+    everywhere.
     """
 
     # Kept under BANNER_FIELD_MAX_LEN (60 chars) so the assertion is not
@@ -1689,10 +1876,8 @@ class TestBranchNameSanitizationInStdoutBanner:
     def test_branch_name_sanitized_in_stdout_banner(self, tmp_path):
         assert len(self.MALICIOUS_BRANCH) <= 60, "keep payload under the banner truncation length"
         repo = make_repo_with_memory(tmp_path)
-        rc, _, err = git_cmd(["checkout", "-b", self.MALICIOUS_BRANCH], repo)
-        assert rc == 0, f"fixture setup failed: could not create branch: {err}"
 
-        output = run_boot(repo)
+        output = _render_banner_with_branch(repo, self.MALICIOUS_BRANCH)
         branch_lines = [line for line in output.splitlines() if line.startswith("BRANCH:")]
         assert branch_lines, f"expected a BRANCH: line in stdout, got: {output!r}"
         _assert_no_injection_markers(branch_lines[0], "stdout BRANCH: banner line")

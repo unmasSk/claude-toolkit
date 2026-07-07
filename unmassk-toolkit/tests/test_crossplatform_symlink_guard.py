@@ -63,32 +63,9 @@ class _FakeStat:
         self.st_ino = st_ino
 
 
-@pytest.fixture
-def real_symlink_capable(tmp_path):
-    """Skip the test using this fixture if the CURRENT environment cannot
-    create real filesystem symlinks.
-
-    Confirmed live in this dev environment (win32, no Developer Mode /
-    SeCreateSymbolicLinkPrivilege):
-        os.symlink(...) -> OSError: [WinError 1314] El cliente no dispone
-        de un privilegio requerido.
-
-    The POSIX O_NOFOLLOW guarantee is enforced by the kernel at open() time
-    — it cannot be meaningfully mocked (mocking os.path.islink() would only
-    prove our mock works, not that O_NOFOLLOW itself still functions). A
-    real symlink is the only honest way to test it, so when one cannot be
-    created here, this reports an explicit skip rather than faking the
-    result.
-    """
-    probe_target = tmp_path / "_symlink_probe_target.txt"
-    probe_link = tmp_path / "_symlink_probe_link.txt"
-    probe_target.write_text("probe")
-    try:
-        os.symlink(str(probe_target), str(probe_link))
-    except OSError as e:
-        pytest.skip(f"cannot create real symlinks in this environment: {e}")
-    else:
-        os.remove(str(probe_link))
+# `real_symlink_capable` fixture lives in conftest.py (shared with
+# test_security_regression.py) — auto-discovered by pytest, no import
+# needed. See conftest.py for the docstring/rationale.
 
 
 # ══════════════════════════════════════════════════════════════════════════

@@ -66,9 +66,13 @@ def _crown_replace(
     """Replace the existing non-crowned entry for `key` with a crowned one, in place.
 
     Single implementation of the "crown beats a non-crowned entry for the
-    same scope" override, reused by extract_memory(), extract_glossary(),
-    and main()'s glossary-merge for Decisions/Memos/Remembers (Cerberus
-    found this exact loop shape repeated 6 times).
+    same scope" override. Six production call sites: extract_memory() x2 and
+    extract_glossary() x2 (both in this module), plus
+    render_decisions_section() and render_memos_section() in
+    lib/boot_render.py — those last two do the actual glossary-merge for
+    Decisions/Memos (main(), in hooks/session-start-boot.py, only calls
+    those renderers; it never calls _crown_replace() itself). Cerberus found
+    this exact loop shape repeated 6 times before this function existed.
 
     CRB-01 fix: when `tombstones` is provided, the replace is a no-op if
     `text` (the crowned commit's own value) has been explicitly retired —
@@ -76,30 +80,24 @@ def _crown_replace(
     active, never-retired entry for the same scope. Decisions have no
     tombstone concept, so their call sites simply omit `tombstones`.
 
-    Moriarty (issue #49 repair round 2, T3 — NOT reverted, see below):
-    a previous round made this multi-match (replace the first match,
-    delete any further matches) on the theory that a merged-diverged
-    memory dict could hand it more than one entry per scope. VERIFIED:
-    that theory is false as of this call graph — `_merge_diverged_memory()`
-    never calls `_crown_replace` at all, it only concatenates local's and
-    the remote-labeled side's lists. The 4 production call sites
-    (extract_memory() x2, extract_glossary() x2) all run inside a single
-    scan where `decision_scopes`/`memo_scopes` already gate "at most one
-    entry per scope" before this function is ever reached, so in practice
-    at most one match ever exists here today.
-    Kept multi-match anyway (did not simplify to single-match-and-return):
-    tests/test_boot_freshness_hardening.py::TestCrownReplaceMultiMatch
-    pins the multi-match behavior directly as this function's own unit
-    contract (5 assertions, independent of which call sites currently
-    exercise it), and this repair round's mandate is to touch test files
-    only for mechanical literal changes, never test logic/assertions.
-    Simplifying this function back to single-match-and-return would fail
-    `test_replaces_first_match_and_drops_later_duplicate_for_same_scope`
-    (confirmed by running it against a single-match revert). Flagged for
-    Yoda/Bex: either accept this as intentional unit-level defensive
-    headroom with no live call site today, or authorize retiring that
-    test class in a future round so the implementation can be simplified
-    to match actual reachability.
+    Moriarty (issue #49 repair round 2, T3): this function is multi-match
+    (replace the first match, delete any further matches for the same
+    scope), not single-match-and-return. A previous round's docstring
+    claimed the multi-match path was dead in practice, reasoning only about
+    extract_memory()/extract_glossary()'s own 4 call sites (each gates "at
+    most one entry per scope" per scan before _crown_replace is ever
+    reached) — but it omitted the two lib/boot_render.py call sites.
+    render_decisions_section()/render_memos_section() build their input
+    list from `_merge_diverged_memory()`'s concatenation of local's and the
+    remote-labeled side's entries (resolve_boot_memory(), diverged case),
+    which routinely contains two same-scope entries (both non-crowned) when
+    the same scope was decided on both sides of a divergence. Folding a
+    crowned glossary entry for that scope over such a list is exactly the
+    multi-match case this function handles. tests/test_boot_freshness_hardening.py::
+    TestCrownReplaceMultiMatch pins this behavior directly (5 assertions) —
+    do not simplify this function back to single-match-and-return; it would
+    both fail that pinned test and silently drop the duplicate in the real
+    divergence path described above.
     """
     from parsing import normalize
     if tombstones is not None and normalize(text) in tombstones:

@@ -283,3 +283,24 @@
 - _crown_replace's multi-match branch confirmed to introduce NO observable divergence-handling bug:
   a real true-divergence (both sides crowning the SAME scope, real bare+2-clone) still shows BOTH
   crowned entries side by side, correctly labeled, never deduped/dropped/merged.
+
+## fetch_memory_ref()'s narrowed except + broad except fallback pattern (polish round, 2026-07-07)
+- Pattern checked: git_helpers.py's `_win32_kill_tree` and `commits_since_last_consolidation`
+  had bare `except Exception` narrowed to specific tuples this round. `fetch_memory_ref()`
+  (lib/boot_git_checks.py:699-716) looks narrowed the same way but actually KEPT a second,
+  broader `except Exception as e:` fallback right after the narrow one — both branches
+  return the identical fail-open value ({"status": "failed", "age_seconds": None}), only the
+  logged message differs. Confirmed by direct code reading: this specific narrowing is
+  cosmetic (better diagnostics), NOT a real reduction of the fail-open safety net. Do not
+  re-flag this site as a narrowing risk without re-checking for the same dual-except pattern.
+- `commits_since_last_consolidation()`'s new `except (ValueError, TypeError)` (git_helpers.py:478)
+  genuinely has no broad fallback, but empirically tried an invalid-UTF-8 commit message
+  through the real function (real repo, real git commit, real call) — result: fails open to 0
+  via run_git's own internal UnicodeDecodeError handling (returns (1,"") upstream), never
+  reaches an exception in this function's own try block. Held under this specific attack.
+- git-memory-commit.py's realpath `except OSError` narrowing (was bare Exception): reasoned
+  that `os.path.realpath(None)`/non-str args raise TypeError (not OSError, would escape) but
+  NOT reachable via the real call site — `toplevel` always comes from run_git()'s guaranteed
+  str return, `.strip()` always succeeds, so realpath always receives a str. Confirmed via
+  isolated os.path.realpath() testing (None/int -> TypeError uncaught) but no live path feeds
+  a non-str here. Logged as latent-not-reachable, not a live break.

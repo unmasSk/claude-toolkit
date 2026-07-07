@@ -19,6 +19,7 @@ Pure refactor: behavior is byte-for-byte identical to before the split.
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -279,19 +280,55 @@ def render_branch_section() -> BranchSectionResult:
     )
 
 
+def _resolve_scopes_file(project_root: str | None) -> str | None:
+    """Locate git-memory-scopes.json: canonical `.claude/` path first, then
+    fall back to searching each `agent-memory/*/scopes.json`.
+
+    Returns None only when `project_root` itself is falsy. Otherwise always
+    returns a path string — the canonical (possibly non-existent) path when
+    no fallback candidate is found, so the caller's own `os.path.isfile()`
+    check still correctly reports "not generated yet".
+    """
+    if not project_root:
+        return None
+    scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json")
+    if os.path.isfile(scopes_file):
+        return scopes_file
+    agent_mem = os.path.join(project_root, ".claude", "agent-memory")
+    if os.path.isdir(agent_mem):
+        for agent_dir in os.listdir(agent_mem):
+            candidate = os.path.join(agent_mem, agent_dir, "scopes.json")
+            if os.path.isfile(candidate):
+                return candidate
+    return scopes_file
+
+
+def _render_scope_entries(scope_map: dict) -> list[str]:
+    """Render one sanitized line per scope.
+
+    SEC-CRIT-002: scopes.json is not exclusively agent-authored (compromised
+    collaborator commit, corrupted Bilbo run) — sanitize every embedded
+    field the same way Decision/Memo/Remember already are.
+    """
+    lines: list[str] = []
+    for scope_name, scope_info in scope_map.items():
+        safe_name = _sanitize_trailer_value(str(scope_name))
+        desc = scope_info.get("description", "") if isinstance(scope_info, dict) else str(scope_info)
+        safe_desc = _sanitize_trailer_value(str(desc))
+        children = scope_info.get("children", {}) if isinstance(scope_info, dict) else {}
+        if children:
+            safe_children = [_sanitize_trailer_value(str(k)) for k in children]
+            child_list = ", ".join(f"{safe_name}/{k}" for k in safe_children)
+            lines.append(f"  {safe_name}: {safe_desc} [{child_list}]")
+        else:
+            lines.append(f"  {safe_name}: {safe_desc}")
+    return lines
+
+
 def render_scopes_section(project_root: str | None) -> list[str]:
     """Render the SCOPES section."""
     lines: list[str] = []
-    scopes_file = os.path.join(project_root, ".claude", "git-memory-scopes.json") if project_root else None
-    # Fallback: search in agent-memory directories
-    if scopes_file and not os.path.isfile(scopes_file) and project_root:
-        agent_mem = os.path.join(project_root, ".claude", "agent-memory")
-        if os.path.isdir(agent_mem):
-            for agent_dir in os.listdir(agent_mem):
-                candidate = os.path.join(agent_mem, agent_dir, "scopes.json")
-                if os.path.isfile(candidate):
-                    scopes_file = candidate
-                    break
+    scopes_file = _resolve_scopes_file(project_root)
     scopes_exist = scopes_file and os.path.isfile(scopes_file)
     if scopes_exist:
         try:
@@ -302,20 +339,7 @@ def render_scopes_section(project_root: str | None) -> list[str]:
             scope_map = scopes_data.get("scopes", {})
             if scope_map:
                 lines.append("SCOPES:")
-                for scope_name, scope_info in scope_map.items():
-                    # SEC-CRIT-002: scopes.json is not exclusively agent-authored
-                    # (compromised collaborator commit, corrupted Bilbo run) — sanitize
-                    # every embedded field the same way Decision/Memo/Remember already are.
-                    safe_name = _sanitize_trailer_value(str(scope_name))
-                    desc = scope_info.get("description", "") if isinstance(scope_info, dict) else str(scope_info)
-                    safe_desc = _sanitize_trailer_value(str(desc))
-                    children = scope_info.get("children", {}) if isinstance(scope_info, dict) else {}
-                    if children:
-                        safe_children = [_sanitize_trailer_value(str(k)) for k in children]
-                        child_list = ", ".join(f"{safe_name}/{k}" for k in safe_children)
-                        lines.append(f"  {safe_name}: {safe_desc} [{child_list}]")
-                    else:
-                        lines.append(f"  {safe_name}: {safe_desc}")
+                lines.extend(_render_scope_entries(scope_map))
                 lines.append("")
         except (json.JSONDecodeError, OSError):
             pass  # Silently skip if file is corrupt
@@ -446,49 +470,43 @@ def _looks_like_git_option(value: str) -> bool:
     return not value or value.startswith("-")
 
 
+# check_upstream_shares_history() background (Moriarty T2, issue #49 repair
+# round, Round-Trip Sabotage §34): fetch_memory_ref()/resolve_boot_memory()
+# only ever checked that `@{u}` resolves to a coherent, FETCHABLE ref — never
+# that the resolved ref is actually a continuation of THIS project's history.
+# A misconfigured branch.<x>.remote/.merge pointing at a totally unrelated
+# repo (zero shared history) satisfies every existing check (fetch succeeds,
+# `@{u}` resolves cleanly) while that repo's crowned decisions get rendered
+# as "[source: remote]" memory for a project that has never seen them.
+#
+# `git merge-base HEAD <upstream_ref>` (deliberately NOT --is-ancestor — the
+# two sides can be mutually diverged, neither an ancestor of the other; we
+# only care whether ANY common ancestor exists at all) resolves this: exit 0
+# means a common ancestor exists (confirmed continuation); exit 1 (or any
+# other run_git-level failure, which collapses to the same (1, "") per its
+# documented contract) means "not confirmed shared".
+#
+# Deliberate fail-CLOSED-on-TRUST design (the opposite of this module's usual
+# fail-open-on-availability rule elsewhere): a shallow clone can make
+# `merge-base` return a FALSE NEGATIVE even when history really IS shared,
+# because the true common ancestor sits past the shallow boundary. There is
+# no reliable local signal that tells "genuinely unrelated" apart from
+# "shallow clone truncated the graph" — both present identically — so this
+# function deliberately does not try to distinguish them. The cost is that a
+# shallow clone with a legitimate upstream may occasionally get its remote
+# memory suppressed for one boot; the alternative (assuming "shared" on any
+# ambiguity) is exactly the T2 hole this function exists to close — per
+# Moriarty's own framing, better to under-show than to show another
+# project's memory as if it were this one's.
 def check_upstream_shares_history(upstream_ref: str | None) -> bool | None:
     """Does `upstream_ref` share real commit history with local HEAD?
 
-    Moriarty T2 (issue #49 repair round, Round-Trip Sabotage §34):
-    fetch_memory_ref()/resolve_boot_memory() only ever checked that `@{u}`
-    resolves to a coherent, FETCHABLE ref — never that the resolved ref is
-    actually a continuation of THIS project's history. A misconfigured
-    branch.<x>.remote/.merge pointing at a totally unrelated repo (zero
-    shared history) satisfies every existing check (fetch succeeds, `@{u}`
-    resolves cleanly) while that repo's crowned decisions get rendered as
-    "[source: remote]" memory for a project that has never seen them.
-
-    `git merge-base HEAD <upstream_ref>` (deliberately NOT --is-ancestor —
-    the two sides can be mutually diverged, neither an ancestor of the
-    other; we only care whether ANY common ancestor exists at all, which
-    is exactly what plain merge-base answers) resolves this:
-      - exit 0: a common ancestor exists -> True (confirmed continuation).
-      - exit 1: git itself says no common ancestor -> False.
-      - anything else (bad revision, or a run_git-level failure — timeouts
-        and subprocess exceptions collapse to the SAME (1, "") as a
-        genuine "no common ancestor" per run_git's own documented
-        contract, so that case is indistinguishable from real exit-1
-        here) -> also False.
-
-    Deliberate fail-CLOSED-on-TRUST design (the opposite of this module's
-    usual fail-open-on-availability rule elsewhere): a shallow clone can
-    make `merge-base` return a FALSE NEGATIVE (exit 1) even when history
-    really IS shared, because the true common ancestor sits past the
-    shallow boundary. There is no reliable local signal that tells
-    "genuinely unrelated" apart from "shallow clone truncated the graph"
-    — both present identically (exit 1, empty stdout) — so this function
-    deliberately does not try. Every non-0 outcome is treated the same:
-    "not confirmed shared". The cost is that a shallow clone with a
-    legitimate upstream may occasionally get its remote memory suppressed
-    for one boot; the alternative (assuming "shared" on any ambiguity) is
-    exactly the T2 hole this function exists to close — per Moriarty's
-    own framing, better to under-show than to show another project's
-    memory as if it were this one's.
-
-    Returns None (not False) when `upstream_ref` itself is missing or
-    option-shaped — that is "not evaluated", not "confirmed unrelated";
-    callers must treat None as "no signal, behave as before this check
-    existed" rather than as a reason to suppress anything.
+    Returns True (confirmed shared ancestor), False (not confirmed shared —
+    covers both "genuinely unrelated" and "shallow clone, can't tell"), or
+    None when `upstream_ref` itself is missing or option-shaped ("not
+    evaluated" — callers must treat this as "no signal, behave as before
+    this check existed", never as "confirmed unrelated"). See the comment
+    block above this function for the full design rationale.
     """
     from git_helpers import run_git
 
@@ -535,10 +553,123 @@ def _fetch_head_age_seconds(project_root: str) -> float | None:
         return None
 
 
+def _fetch_gate_and_rate_limit(project_root: str) -> tuple[dict | None, float | None]:
+    """Gate + rate-limit check, the first two early-exit conditions of
+    fetch_memory_ref(). Returns (early_result, age): `early_result` is not
+    None when the caller must return it immediately (toolkit memory not
+    installed, or still inside the rate-limit window); `age` is FETCH_HEAD's
+    current age either way, reused by every later "failed"/"no_remote"
+    return so it's computed only once.
+
+    Moriarty #1 (clock skew): a NEGATIVE age means FETCH_HEAD's mtime is in
+    the FUTURE relative to this machine's clock (a real scenario across
+    multiple machines with unsynced clocks) — that is NOT freshness, it's a
+    broken measurement. Treating it as "fresh" would permanently suppress
+    every future fetch on this machine. Only a genuine non-negative age
+    inside the window counts as rate-limited; a negative age falls through
+    and forces a real fetch attempt instead.
+    """
+    if not _has_toolkit_memory(project_root):
+        return {"status": "skipped_gate", "age_seconds": None}, None
+
+    age = _fetch_head_age_seconds(project_root)
+    if age is not None and 0 <= age < FETCH_RATE_LIMIT_SECONDS:
+        return {"status": "rate_limited", "age_seconds": age}, age
+    return None, age
+
+
+def _resolve_current_branch(project_root: str, age: float | None) -> tuple[dict | None, str | None]:
+    """Current branch name, validated. Returns (early_result, branch);
+    `early_result` is not None for detached HEAD or an option-shaped name.
+    """
+    from git_helpers import run_git
+
+    _, branch = run_git(["branch", "--show-current"], cwd=project_root)
+    branch = branch.strip()
+    if not branch or _looks_like_git_option(branch):
+        # Detached HEAD, or a branch name that could be misread as a git
+        # option (SEC-CRIT-001, Argus) — fail closed, no fetch attempted.
+        return {"status": "failed", "age_seconds": age}, None
+    return None, branch
+
+
+def _check_remote_is_live(project_root: str, remote_name: str, age: float | None) -> dict | None:
+    """Moriarty #2 (repair round 2, T2): confirm the REAL upstream remote
+    name (never a hardcoded "origin" literal) actually resolves — a `git
+    remote rename origin upstream` repo (tracking preserved) would
+    otherwise always hit "no_remote", permanently dead on non-default
+    remotes. Returns an early-result dict on failure, else None.
+    """
+    from git_helpers import run_git
+
+    code_remote, _ = run_git(["remote", "get-url", "--", remote_name], cwd=project_root)
+    if code_remote != 0:
+        return {"status": "no_remote", "age_seconds": age}
+    return None
+
+
+def _resolve_fetch_target(project_root: str, age: float | None) -> tuple[dict | None, str | None, str | None]:
+    """Resolve (remote_name, remote_branch) to fetch, aligned with the SAME
+    upstream `@{u}` ref get_ahead_behind()/resolve_boot_memory() read
+    (Moriarty #2 — a bare-branch-name fetch can silently target the wrong
+    remote-tracking ref after a rename). Returns (early_result, remote_name,
+    remote_branch); `early_result` is not None when the caller must return
+    it immediately.
+    """
+    from git_helpers import run_git
+
+    early, _branch = _resolve_current_branch(project_root, age)
+    if early is not None:
+        return early, None, None
+
+    code_ref, upstream_ref = run_git(["rev-parse", "--abbrev-ref", "@{u}"], cwd=project_root)
+    upstream_ref = upstream_ref.strip() if code_ref == 0 else ""
+    if not upstream_ref or "/" not in upstream_ref:
+        # No coherent upstream to align the fetch with — the stamp must
+        # tell the truth (LOCAL / unverified), never "remote".
+        return {"status": "no_remote", "age_seconds": age}, None, None
+
+    remote_name, _, remote_branch = upstream_ref.partition("/")
+    if _looks_like_git_option(remote_name) or _looks_like_git_option(remote_branch):
+        return {"status": "failed", "age_seconds": age}, None, None
+
+    early = _check_remote_is_live(project_root, remote_name, age)
+    if early is not None:
+        return early, None, None
+
+    return None, remote_name, remote_branch
+
+
+def _run_hardened_fetch(project_root: str, remote_name: str, remote_branch: str, age: float | None) -> dict:
+    """Run the hardened fetch itself and build the final result dict."""
+    from git_helpers import run_git
+
+    code_fetch, _ = run_git(
+        # SEC-CRIT-001 (Argus): `--` separates options from the positional
+        # ref argument — even with the leading-dash guard upstream, this
+        # must not depend on that invariant holding forever.
+        ["fetch", remote_name, "--no-tags", "--", remote_branch],
+        timeout=FETCH_TIMEOUT_SECONDS,
+        cwd=project_root,
+        env=_FETCH_HARDENED_ENV,
+    )
+    if code_fetch != 0:
+        return {"status": "failed", "age_seconds": age}
+
+    # Cerberus (nitpick): reflect FETCH_HEAD's real mtime-derived age instead
+    # of a hardcoded 0.0 — a successful fetch stamps FETCH_HEAD at completion
+    # time, so this is genuinely ~0 in the overwhelming common case, but it's
+    # now MEASURED rather than assumed.
+    fresh_age = _fetch_head_age_seconds(project_root)
+    fresh_age_seconds = float(max(0, int(fresh_age))) if fresh_age is not None else 0.0
+    return {"status": "fetched", "age_seconds": fresh_age_seconds}
+
+
 def fetch_memory_ref(project_root: str | None) -> dict:
     """Hardened, gated, rate-limited background fetch for multi-machine
-    memory freshness. Never raises (fail-open) — any exception, timeout,
-    or missing remote falls back to "failed" so the boot always continues.
+    memory freshness. Never raises (fail-open) — any expected failure
+    (network down, missing remote, IO error, timeout) falls back to
+    "failed" so the boot always continues.
 
     Returns:
         {"status": "fetched" | "rate_limited" | "skipped_gate" |
@@ -546,103 +677,42 @@ def fetch_memory_ref(project_root: str | None) -> dict:
          "age_seconds": seconds since the last known successful fetch
                          (FETCH_HEAD mtime), or None if never fetched}
         Consumed by Task 3's freshness-stamp rendering, not by this
-        function. "no_remote" now also covers "a remote is configured but
-        the current branch has no coherent upstream tracking ref to align
-        the fetch with" (Moriarty #2) — the stamp must never claim "remote"
-        for a fetch target that isn't the same ref get_ahead_behind()/
+        function. "no_remote" also covers "a remote is configured but the
+        current branch has no coherent upstream tracking ref to align the
+        fetch with" (Moriarty #2) — the stamp must never claim "remote" for
+        a fetch target that isn't the same ref get_ahead_behind()/
         resolve_boot_memory() will actually read.
     """
-    from git_helpers import run_git
-
     try:
-        if not project_root or not _has_toolkit_memory(project_root):
+        if not project_root:
             return {"status": "skipped_gate", "age_seconds": None}
 
-        age = _fetch_head_age_seconds(project_root)
-        # Moriarty #1 (clock skew): a NEGATIVE age means FETCH_HEAD's mtime
-        # is in the FUTURE relative to this machine's clock (a real scenario
-        # across multiple machines with unsynced clocks) — that is NOT
-        # freshness, it's a broken measurement. Treating it as "fresh" would
-        # permanently suppress every future fetch on this machine (age stays
-        # negative forever, always < the rate-limit window). Only a genuine
-        # non-negative age inside the window counts as rate-limited; a
-        # negative age falls through and forces a real fetch attempt instead.
-        if age is not None and 0 <= age < FETCH_RATE_LIMIT_SECONDS:
-            return {"status": "rate_limited", "age_seconds": age}
+        early, age = _fetch_gate_and_rate_limit(project_root)
+        if early is not None:
+            return early
 
-        _, branch = run_git(["branch", "--show-current"], cwd=project_root)
-        branch = branch.strip()
-        if not branch:
-            # Detached HEAD — nothing to fetch a matching branch for.
-            return {"status": "failed", "age_seconds": age}
-        if _looks_like_git_option(branch):
-            # SEC-CRIT-001 (Argus): a branch name that could be misread as a
-            # git option (e.g. planted via a crafted .git/HEAD symref or
-            # packed-refs entry in a malicious clone/fork) must never reach
-            # a git invocation as a positional argument. Fail closed — no
-            # fetch attempted — rather than risk option injection.
-            return {"status": "failed", "age_seconds": age}
+        early, remote_name, remote_branch = _resolve_fetch_target(project_root, age)
+        if early is not None:
+            return early
 
-        # Moriarty #2: align the fetch target with the SAME ref
-        # get_ahead_behind()/resolve_boot_memory() actually read via `@{u}`
-        # — not just the local branch's own name. If tracking is
-        # misconfigured (e.g. after a branch rename, a common real case),
-        # fetching by bare branch name can silently update the wrong
-        # remote-tracking ref (or fail outright) while the MEMORY stamp
-        # still claims "remote" for content that was never really
-        # confirmed — reproducing issue #49 by a different path. Reusing
-        # this exact resolution (not a second, potentially divergent one)
-        # is the same principle get_ahead_behind() itself documents.
-        code_ref, upstream_ref = run_git(["rev-parse", "--abbrev-ref", "@{u}"], cwd=project_root)
-        upstream_ref = upstream_ref.strip() if code_ref == 0 else ""
-        if not upstream_ref or "/" not in upstream_ref:
-            # No coherent upstream to align the fetch with — the stamp must
-            # tell the truth (LOCAL / unverified), never "remote", for
-            # content that was never actually confirmed against a real
-            # tracking ref.
-            return {"status": "no_remote", "age_seconds": age}
-
-        remote_name, _, remote_branch = upstream_ref.partition("/")
-        if _looks_like_git_option(remote_name) or _looks_like_git_option(remote_branch):
-            return {"status": "failed", "age_seconds": age}
-
-        # Moriarty #2 (repair round 2, T2): the liveness check must use the
-        # REAL upstream remote name just derived from `@{u}` above, never a
-        # hardcoded "origin" literal. A repo that ran
-        # `git remote rename origin upstream` (tracking preserved,
-        # coherent) previously always hit this check with the literal
-        # "origin", which no longer resolves, so the check always failed
-        # with "no_remote" and the whole freshness feature was permanently
-        # dead on any repo not using the default remote name. `remote_name`
-        # is already fail-closed validated by _looks_like_git_option above.
-        code_remote, _ = run_git(["remote", "get-url", "--", remote_name], cwd=project_root)
-        if code_remote != 0:
-            return {"status": "no_remote", "age_seconds": age}
-
-        code_fetch, _ = run_git(
-            # SEC-CRIT-001 (Argus): `--` separates options from the
-            # positional ref argument — even with the leading-dash guard
-            # above, this must not depend on that invariant holding forever.
-            ["fetch", remote_name, "--no-tags", "--", remote_branch],
-            timeout=FETCH_TIMEOUT_SECONDS,
-            cwd=project_root,
-            env=_FETCH_HARDENED_ENV,
-        )
-        if code_fetch != 0:
-            return {"status": "failed", "age_seconds": age}
-
-        # Cerberus (nitpick): reflect FETCH_HEAD's real mtime-derived age
-        # instead of a hardcoded 0.0 — a successful fetch stamps FETCH_HEAD
-        # at completion time, so this is genuinely ~0 in the overwhelming
-        # common case, but it's now MEASURED rather than assumed.
-        fresh_age = _fetch_head_age_seconds(project_root)
-        fresh_age_seconds = float(max(0, int(fresh_age))) if fresh_age is not None else 0.0
-        return {"status": "fetched", "age_seconds": fresh_age_seconds}
+        return _run_hardened_fetch(project_root, remote_name, remote_branch, age)
+    except (subprocess.SubprocessError, OSError, ValueError, TypeError) as e:
+        # Expected failure modes for a network/IO-bound operation: a
+        # subprocess-level error, filesystem error, or malformed numeric
+        # data. Every helper above already collapses git-level failures to
+        # (1, "")/None internally — this is defense-in-depth for the glue
+        # code in this function itself. Still fail-open (the boot must
+        # never crash), but logged so it's diagnosable.
+        print(f"[boot_git_checks] fetch_memory_ref: {type(e).__name__}: {e}", file=sys.stderr)
+        return {"status": "failed", "age_seconds": None}
     except Exception as e:
-        # Fail-open: this function must never raise regardless of cause.
-        # Cerberus: leave a breadcrumb (same pattern as git_helpers.py's
-        # UnicodeDecodeError branch) instead of failing completely silently.
-        print(f"[boot_git_checks] fetch_memory_ref: unexpected {type(e).__name__}: {e}", file=sys.stderr)
+        # UNEXPECTED: a real programming bug in this function or one of its
+        # helpers (AttributeError, KeyError, TypeError from a shape the code
+        # above doesn't already guard against, etc). Still fail-open — the
+        # boot must never crash on this non-critical, best-effort feature —
+        # but tagged distinctly so it reads as "investigate this", never as
+        # a routine network/IO hiccup.
+        print(f"[boot_git_checks] fetch_memory_ref: UNEXPECTED (likely a bug, not a routine failure) {type(e).__name__}: {e}", file=sys.stderr)
         return {"status": "failed", "age_seconds": None}
 
 
@@ -658,36 +728,39 @@ def _format_age_seconds(seconds: float) -> str:
     return f"{hours}h"
 
 
+# render_memoria_stamp() background: Bex (issue #49 repair round, language-
+# unification decision) — the whole boot banner (STATUS/BRANCH/RESUME/
+# REMEMBER/DECISIONS/PULL DIRECTIVE) is English; this stamp used to be the
+# one Spanish outlier. Wording is English now; the state semantics below are
+# unchanged. `history_related` (Moriarty T2, repo-identity confusion): None
+# (default) preserves the three fetch-status branches below exactly,
+# unchanged for every caller that never passes this argument. False means
+# check_upstream_shares_history() found (or could not rule out) that the
+# resolved upstream is NOT a continuation of this project's history — in
+# that case NONE of the fetch-status wording may be used, since "fetched" or
+# "rate_limited" only describes whether bytes moved, not whose history they
+# belong to, and claiming "remote" for an unrelated repo's content is
+# exactly the incident this fix closes. That check runs first and
+# short-circuits everything else.
+def _render_confirmed_fetch_stamp(status: str | None, age: float | None) -> str | None:
+    """The two "a fetch attempt happened this boot" states. Returns None
+    when neither applies, so the caller falls through to the "unverified"
+    wording (age known-but-stale, or never fetched at all).
+    """
+    if status == "fetched":
+        age_txt = _format_age_seconds(age if age is not None else 0.0)
+        return f"MEMORY: remote (fetched {age_txt} ago)"
+    if status == "rate_limited":
+        age_txt = _format_age_seconds(age) if age is not None else "?"
+        return f"MEMORY: LOCAL — fetch skipped (rate-limit, {age_txt} ago)"
+    return None
+
+
 def render_memoria_stamp(fetch_state: dict, history_related: bool | None = None) -> str:
     """Render the MEMORY: provenance/freshness stamp for the boot header
     (issue #49, plan Task 3). One short line — printed in BOTH the minimal
-    stdout banner and the full boot-log content, near the top of each.
-
-    Bex (issue #49 repair round, language-unification decision): the whole
-    boot banner (STATUS/BRANCH/RESUME/REMEMBER/DECISIONS/PULL DIRECTIVE) is
-    English — this stamp used to be the one Spanish outlier. Wording is
-    English now; the field/state semantics documented below are unchanged.
-
-    Three states, matching fetch_memory_ref()'s `status` field:
-      - "fetched": a fetch against origin completed this boot — content is
-        remote-confirmed fresh.
-      - "rate_limited": the fetch was skipped this boot (still inside the
-        rate-limit window) — local content, not reconfirmed this boot.
-      - anything else ("failed", "no_remote", "skipped_gate"): freshness
-        against origin could not be confirmed this boot — falls back to
-        the "LOCAL ... unverified" wording.
-
-    `history_related` (Moriarty T2, issue #49 repair round — repo-identity
-    confusion): None (default) preserves the three branches above exactly,
-    unchanged — every existing caller/test that never passes this argument
-    is unaffected. False means check_upstream_shares_history() found (or
-    could not rule out) that the resolved upstream is NOT a continuation
-    of this project's history. In that case NONE of the fetch-status
-    wording above may be used — a "fetched" or "rate_limited" status only
-    describes whether bytes moved or a timer elapsed, not whose history
-    they belong to, and claiming "remote" for an unrelated repo's content
-    is exactly the incident this fix closes. This check runs first and
-    short-circuits the status branches below.
+    stdout banner and the full boot-log content, near the top of each. See
+    the comment block above this function for the full design rationale.
     """
     if history_related is False:
         return "MEMORY: LOCAL — upstream unrelated (no shared history), not shown"
@@ -695,13 +768,9 @@ def render_memoria_stamp(fetch_state: dict, history_related: bool | None = None)
     status = fetch_state.get("status")
     age = fetch_state.get("age_seconds")
 
-    if status == "fetched":
-        age_txt = _format_age_seconds(age if age is not None else 0.0)
-        return f"MEMORY: remote (fetched {age_txt} ago)"
-
-    if status == "rate_limited":
-        age_txt = _format_age_seconds(age) if age is not None else "?"
-        return f"MEMORY: LOCAL — fetch skipped (rate-limit, {age_txt} ago)"
+    confirmed = _render_confirmed_fetch_stamp(status, age)
+    if confirmed is not None:
+        return confirmed
 
     # "failed" / "no_remote" / "skipped_gate" (or any future fail-open
     # status): never confirmed fresh against origin this boot.

@@ -451,7 +451,7 @@ class TestHasToolkitMemory:
         os.makedirs(repo)
         assert boot_git_checks._has_toolkit_memory(repo) is False
 
-    def test_symlinked_claude_md_is_treated_as_absent(self, tmp_path):
+    def test_symlinked_claude_md_is_treated_as_absent(self, tmp_path, real_symlink_capable):
         """SEC guard reused from needs_install()'s own pattern: a symlinked
         CLAUDE.md must never be followed to decide the fetch gate.
         """
@@ -473,13 +473,33 @@ class TestFetchHeadAgeSeconds:
         assert boot_git_checks._fetch_head_age_seconds(repo) is None
 
     def test_existing_fetch_head_returns_nonnegative_float(self, tmp_path):
+        """A freshly-created FETCH_HEAD should read back as ~0 seconds old.
+
+        Tolerance note (Cerberus, session 2026-07-07 — observed one flaky
+        failure in a full suite run, passed in isolation): confirmed via a
+        20k-iteration probe on this exact Windows box that a strict
+        `age >= 0` is a real, frequently-reproducible race, not a one-off
+        — os.path.getmtime() (NTFS FILETIME) and time.time() (system
+        clock read via a different API path) can disagree by a
+        sub-millisecond amount, producing a tiny NEGATIVE age for a file
+        created microseconds ago (measured min ~-2.4e-07s over 20000
+        trials, ~11% of runs negative). This is a clock-source precision
+        artifact, not a bug in _fetch_head_age_seconds() itself — the
+        negative-age case is already a deliberately handled real scenario
+        elsewhere (see _fetch_gate_and_rate_limit()'s "Moriarty #1"
+        clock-skew note for the cross-machine case). -1.0 gives ample
+        margin over the observed sub-millisecond skew while still
+        catching a genuinely wrong/inverted computation; 60.0 keeps the
+        "this is freshly created, not stale" guarantee this test exists
+        for.
+        """
         repo = str(tmp_path / "with_fetch_head")
         os.makedirs(os.path.join(repo, ".git"))
         fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
         open(fetch_head, "w").close()
         age = boot_git_checks._fetch_head_age_seconds(repo)
         assert age is not None
-        assert age >= 0
+        assert -1.0 <= age < 60.0, f"expected age near zero for a freshly-created FETCH_HEAD, got {age}"
 
 
 # ── extract_memory(ref=): nonexistent ref fails open ─────────────────────

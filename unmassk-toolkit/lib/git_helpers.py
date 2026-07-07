@@ -297,6 +297,22 @@ def _win32_kill_tree(proc: subprocess.Popen) -> None:
     raise out of here — degrade to plain proc.kill() (direct child only)
     exactly like the pre-fix behavior, and swallow that too if the process
     is already gone.
+
+    Boundary (Moriarty): `taskkill /F /T /PID` walks the OS-native PID
+    parent tree rooted at `proc.pid` — it kills every descendant that is
+    still structurally part of that tree. A descendant that has been
+    RE-PARENTED away from that tree (e.g. spawned via Task Scheduler
+    `schtasks`, WMI `Win32_Process.Create`, or handed off to a Windows
+    service) is outside the PID tree by construction and will survive
+    this kill. This is an accepted, documented limitation, not a bug:
+    the defense here exists to reap a hung *legitimate* git descendant
+    (ssh.exe/askpass/credential-helper) on timeout, and that threat model
+    doesn't require evading a PID-tree kill. A descendant that actively
+    re-parents itself to a system service implies the invoked `git`
+    binary is already fully compromised — at that point the attacker has
+    arbitrary code execution as this process's user, and no
+    process-tree-kill mechanism (POSIX process groups included) would
+    have contained it either.
     """
     try:
         subprocess.run(
@@ -305,9 +321,14 @@ def _win32_kill_tree(proc: subprocess.Popen) -> None:
             stderr=subprocess.DEVNULL,
             timeout=5,
         )
-    except Exception:
-        # taskkill missing/erroring/timed out — degrade to killing just the
-        # direct child, same as the pre-fix behavior on Windows.
+    except (OSError, subprocess.SubprocessError):
+        # Expected failure modes only: taskkill.exe missing (FileNotFoundError,
+        # an OSError subclass), permission denied, or the 5s guard itself
+        # timing out (subprocess.TimeoutExpired, a SubprocessError subclass).
+        # Degrade to killing just the direct child, same as the pre-fix
+        # behavior on Windows. A real programming bug here (e.g. `proc` not
+        # actually a Popen) is NOT one of these — let it propagate instead of
+        # masquerading as "taskkill failed".
         try:
             proc.kill()
         except OSError:
@@ -374,7 +395,20 @@ def run_git(
     except subprocess.TimeoutExpired:
         if proc is not None:
             if sys.platform == "win32":
-                _win32_kill_tree(proc)
+                try:
+                    _win32_kill_tree(proc)
+                except Exception:
+                    # Defensive guard, symmetric with the POSIX branch
+                    # below: _win32_kill_tree() already swallows its own
+                    # expected failure modes internally (OSError /
+                    # SubprocessError, see its own docstring) and falls
+                    # back to proc.kill() itself — but this local
+                    # try/except ensures run_git()'s "never raises on
+                    # timeout" contract still holds even if a future edit
+                    # to _win32_kill_tree() raises a different exception
+                    # type. Fall back to killing just the direct child,
+                    # same as the pre-fix behavior.
+                    proc.kill()
             else:
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
@@ -470,7 +504,13 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         if rc2 != 0 or not count_str:
             return 0
         return int(count_str)
-    except Exception:
+    except (ValueError, TypeError):
+        # Expected failure mode only: `count_str` came back non-numeric
+        # (unexpected git output). run_git() itself never raises — it
+        # already collapses subprocess/OSError to (1, ""), handled by the
+        # rc2 check above. A different exception here would be a real bug
+        # in this function's own logic and should surface, not be masked as
+        # "0 commits since consolidation".
         return 0  # fail-safe: never crash the boot
 
 

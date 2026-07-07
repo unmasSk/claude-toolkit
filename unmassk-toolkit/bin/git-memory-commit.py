@@ -427,7 +427,13 @@ def main() -> None:
         try:
             _, toplevel = run_git(["rev-parse", "--show-toplevel"])
             repo_real = os.path.realpath(toplevel.strip()) if toplevel else None
-        except Exception:
+        except OSError:
+            # Expected failure mode only: os.path.realpath() can raise OSError
+            # on some platforms/filesystem edge cases. run_git() itself never
+            # raises (already collapses subprocess/OSError to (1, "")). A
+            # different exception here (e.g. AttributeError from a future
+            # refactor) would be a real bug and should surface, not be
+            # silently treated as "no repo root available".
             repo_real = None
         _validate_path_args(args.paths, repo_real)
 

@@ -1043,6 +1043,7 @@ def _plant_symlink(target_path, victim_path):
     os.symlink(victim_path, target_path)
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugDManifestSymlinkWrite:
     """
     BUG D: both git-memory-install.py and git-memory-upgrade.py write
@@ -1164,6 +1165,7 @@ print(json.dumps({{"result": result}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugECheckVersionMismatchManifestSymlinkRead:
     """check_version_mismatch() must not follow a symlink planted at
     .claude/.unmassk/manifest.json."""
@@ -1185,6 +1187,7 @@ class TestBugECheckVersionMismatchManifestSymlinkRead:
         )
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugEUpgradeReadInstalledManifestSymlinkRead:
     """bin/git-memory-upgrade.py's read_installed_manifest() must not follow
     a symlink planted at .claude/.unmassk/manifest.json — the upgrade CLI
@@ -1226,7 +1229,7 @@ class TestBugFDoctorManifestSymlinkReadWrite:
     at .claude/.unmassk/manifest.json — treat it exactly like "no manifest
     present", and never write through it."""
 
-    def test_doctor_json_does_not_modify_victim_through_symlinked_manifest(self, tmp_path):
+    def test_doctor_json_does_not_modify_victim_through_symlinked_manifest(self, tmp_path, real_symlink_capable):
         """
         RED: `git-memory-doctor.py --json` (the exact command lib/boot_checks.py
         runs on every boot) must leave a symlinked manifest's target file
@@ -1254,7 +1257,7 @@ class TestBugFDoctorManifestSymlinkReadWrite:
             f"victim content is now: {victim.read_text()!r}"
         )
 
-    def test_doctor_json_does_not_leak_victim_version_through_symlinked_manifest(self, tmp_path):
+    def test_doctor_json_does_not_leak_victim_version_through_symlinked_manifest(self, tmp_path, real_symlink_capable):
         """
         RED companion: the victim's "version" field must not appear in
         doctor's JSON report — a symlinked manifest must be treated as if
@@ -1470,7 +1473,7 @@ class TestBugIRepairDiagnoseTrustsSymlinkedManifest:
     healthy, valid manifest — it must be flagged as an issue (missing or
     corrupt), same as SEC-LOW-NEW-05/BUG E's read-guard requirement."""
 
-    def test_diagnose_flags_symlinked_manifest_as_an_issue(self, tmp_path):
+    def test_diagnose_flags_symlinked_manifest_as_an_issue(self, tmp_path, real_symlink_capable):
         """
         RED: with a symlink at .claude/.unmassk/manifest.json pointing to a
         syntactically valid external JSON file, diagnose() currently reports
@@ -1521,7 +1524,7 @@ class TestBugJBootstrapManifestSymlinkAndVersionLeak:
     a symlink planted at .claude/.unmassk/manifest.json, and must sanitize
     the "version" field before it reaches any printed finding text."""
 
-    def test_bootstrap_does_not_leak_victim_version_through_symlinked_manifest(self, tmp_path):
+    def test_bootstrap_does_not_leak_victim_version_through_symlinked_manifest(self, tmp_path, real_symlink_capable):
         """
         RED: a symlinked manifest's victim "version" string must not appear
         in bootstrap's stdout. Confirmed live (session 2026-07-05): the
@@ -1568,6 +1571,7 @@ class TestBugJBootstrapManifestSymlinkAndVersionLeak:
 # BUG K — CLAUDE.md write follows a pre-planted symlink, 2 more sites (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugKClaudeMdSymlinkWrite:
     """bin/git-memory-install.py's _update_claude_md() and
     bin/git-memory-uninstall.py's remove_claude_md_block() must not follow a
@@ -1632,6 +1636,7 @@ class TestBugKClaudeMdSymlinkWrite:
 # BUG L — .session-booted flag write follows a dangling symlink (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugLBootedFlagSymlinkWrite:
     """hooks/user-prompt-memory-check.py must not follow a (dangling) symlink
     planted at .claude/.unmassk/.session-booted — that would silently create
@@ -1685,6 +1690,7 @@ print(json.dumps({{"result": result}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugMNeedsUpgradeManifestSymlinkRead:
     """needs_upgrade() must not follow a symlink planted at manifest.json —
     doing so lets an outdated victim version auto-trigger install.py --auto
@@ -1757,6 +1763,7 @@ print(json.dumps({{"result": result}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugNScopesJsonSymlinkRead:
     """lib/boot_checks.py:render_scopes_section() and
     bin/git-memory-commit.py:_load_scope_map() must not follow a symlink
@@ -1802,6 +1809,7 @@ class TestBugNScopesJsonSymlinkRead:
 # BUG O — .claude/settings.json read+write follows a symlink (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugOInstallSettingsJsonSymlinkReadWrite:
     """bin/git-memory-install.py's inspect() (read) and
     _cleanup_stale_settings_hooks() (read + write-back) must not follow a
@@ -1922,6 +1930,7 @@ print(json.dumps({{"result": result}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugPClaudeMdReadSymlink:
     """barrido finding: the CLAUDE.md READ side is unguarded across every
     call site that checks for the managed block's presence — asymmetric
@@ -2025,6 +2034,7 @@ class TestBugPClaudeMdReadSymlink:
 # BUG Q — hooks/session-start-crew.py: CLAUDE.md write via pathlib (barrido, RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugQSessionStartCrewClaudeMdSymlinkWrite:
     """hooks/session-start-crew.py runs on EVERY SessionStart (same
     unconditional-every-boot severity class as BUG F's doctor.py finding)
@@ -2055,6 +2065,7 @@ class TestBugQSessionStartCrewClaudeMdSymlinkWrite:
 # BUG R — doctor.py: second, separate settings.json read site (barrido, RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugRDoctorSettingsJsonSymlinkReadNonJson:
     """A separate call site from BUG O: bin/git-memory-doctor.py's
     run_doctor() reads .claude/settings.json (the 'Stale hooks' check,
@@ -2094,6 +2105,7 @@ class TestBugRDoctorSettingsJsonSymlinkReadNonJson:
 # (barrido, RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugSStopDodGateConfigSymlinkRead:
     """hooks/stop-dod-gate.py's _read_test_command() reads
     .claude/git-memory-config.json via plain open(), unguarded — found via
@@ -2125,6 +2137,7 @@ class TestBugSStopDodGateConfigSymlinkRead:
 # BUG T — needs_upgrade() Check 1 reads CLAUDE.md through a symlink (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugTNeedsUpgradeClaudeMdSymlinkRead:
     """hooks/user-prompt-memory-check.py's needs_upgrade() reads CLAUDE.md
     at line ~101 (Check 1) via plain open() — a separate call site from
@@ -2195,6 +2208,7 @@ print(json.dumps({{"opened_realpaths": opened_realpaths}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugUUpdateClaudeMdReadSymlinkLeak:
     """bin/git-memory-install.py's _update_claude_md() reads CLAUDE.md at
     line ~390 via plain open() BEFORE the already-guarded write at line
@@ -2264,6 +2278,7 @@ print(json.dumps({{"opened_realpaths": opened_realpaths}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugVEnsureGitignoreSymlinkRead:
     """lib/git_helpers.py's ensure_gitignore() reads the existing
     .gitignore content via plain open() (line ~80) before ever reaching
@@ -2295,6 +2310,7 @@ class TestBugVEnsureGitignoreSymlinkRead:
 # victim content verbatim into --json output (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugWBootstrapPackageJsonPyprojectSymlinkRead:
     """bin/git-memory-bootstrap.py's scan_package_json() (line ~283) and
     scan_pyproject() (line ~358) both read via plain open(), unguarded --
@@ -2468,6 +2484,7 @@ print(json.dumps({{"opened_realpaths": opened_realpaths}}))
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugXBootstrapLowImpactSymlinkReads:
     """Lower-impact sibling sites of the same unguarded-open() class:
     bin/git-memory-bootstrap.py's detect_monorepo() (package.json
@@ -2561,6 +2578,7 @@ class TestBugXBootstrapLowImpactSymlinkReads:
 # is planted directly with os.symlink() since these tests target .claude as a
 # DIRECTORY symlink, not a file symlink at a fixed leaf path.
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugYClaudeDirSymlinkBypassesAllGuards:
     """.claude itself as a directory symlink defeats every
     open_no_follow_symlink() guard fixed in BUG D through BUG X, because
@@ -2774,6 +2792,7 @@ def _make_symlink_farm(dir_path, subdir_name, num_entries=1):
     return subdir
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
     """SEC-CRIT-002: .claude symlinked to an external, pre-existing directory
     whose hooks/ or skills/ subdirectory contains only symlinks (old-install
@@ -2880,6 +2899,7 @@ class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
 # repo when .claude is a symlinked parent (SEC-HIGH-003) — RED now
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAAGlossaryCacheClaudeDirSymlink:
     """.claude symlinked to an external, pre-existing directory must not
     receive a glossary-cache.json write from session-start-boot.py's normal,
@@ -2921,6 +2941,7 @@ class TestBugAAGlossaryCacheClaudeDirSymlink:
 # (SEC-HIGH-004) — RED now
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugABBootedFlagRuntimeDirClaudeDirSymlink:
     """.claude symlinked to an external, pre-existing directory must not
     receive a .unmassk/ directory nor a .session-booted flag from
@@ -3026,6 +3047,7 @@ print("OK")
         )
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
     """SEC-HIGH-005: _migrate_runtime_to_unmassk() — duplicated
     near-identically in lib/boot_migrations.py (runs on every boot via
@@ -3110,6 +3132,7 @@ class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
 # (SEC-LOW-006, optional / lowest impact of the 5 new sites) — RED now
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugADDoctorManifestTimestampRewriteClaudeDirSymlink:
     """.claude symlinked to an external directory containing a real
     manifest.json must not have that file's content changed by
@@ -3184,6 +3207,7 @@ print("OK-RESULT=" + str(result))
         raise RuntimeError(f"_call_remove_manifest failed (rc={proc.returncode}): {proc.stderr}")
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAEUninstallRemoveManifestClaudeDirSymlink:
     """.claude symlinked to an external directory containing a real
     manifest.json must not have that file destroyed by
@@ -3231,6 +3255,7 @@ class TestBugAEUninstallRemoveManifestClaudeDirSymlink:
 # symlinked parent (7th sibling-sweep site of the BUG Y class) — RED now
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAFDoctorCheckManifestVersionLeakClaudeDirSymlink:
     """.claude symlinked to an external directory containing a real
     manifest.json must not leak that manifest's "version" field into
@@ -3308,6 +3333,7 @@ print("OK")
         raise RuntimeError(f"_call_run_preboot_migrations failed (rc={proc.returncode}): {proc.stderr}")
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAGBootPrebootMigrationsBootedFlagDeletionClaudeDirSymlink:
     """.claude symlinked to an external directory containing a real
     .session-booted file must not have that file deleted by
@@ -3352,6 +3378,7 @@ class TestBugAGBootPrebootMigrationsBootedFlagDeletionClaudeDirSymlink:
 # file through a symlinked bin/hooks/lib parent (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAHCleanupOldInstallFixedNameFileParentSymlink:
     """_cleanup_old_install() (lib/install_apply.py:74-78) and its
     near-duplicate remove_old_install_files() (bin/git-memory-uninstall.py:
@@ -3428,6 +3455,7 @@ class TestBugAHCleanupOldInstallFixedNameFileParentSymlink:
 # subtree through a symlinked bin/hooks/skills/lib parent (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAIPycacheRmtreeParentSymlink:
     """_cleanup_old_install()'s trailing __pycache__ cleanup loop
     (lib/install_apply.py:116-126) must not destroy a real __pycache__/
@@ -3485,6 +3513,7 @@ class TestBugAIPycacheRmtreeParentSymlink:
 # symlinked .claude parent (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAJGeneratedFilesRemovalClaudeDirSymlink:
     """remove_generated_files() (bin/git-memory-uninstall.py:168-179, only
     reached via `git memory uninstall --auto --full-local`) must not delete
@@ -3526,6 +3555,7 @@ class TestBugAJGeneratedFilesRemovalClaudeDirSymlink:
 # manifest's "version" field (RED now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAKBootstrapCheckExistingMemoryManifestParentSymlink:
     """check_existing_memory() (lib/bootstrap_deps.py:284-298) must not leak
     an external manifest.json's "version" field into
@@ -3574,6 +3604,7 @@ class TestBugAKBootstrapCheckExistingMemoryManifestParentSymlink:
 # is a symlinked parent (POST-FIX regression, GREEN now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugALOldSkillDirsSymlinkedParent:
     """_cleanup_old_install() (lib/install_apply.py:91-106) and its
     near-duplicate remove_old_install_files() (bin/git-memory-uninstall.py:
@@ -3663,6 +3694,7 @@ class TestBugALOldSkillDirsSymlinkedParent:
 # GREEN now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
     """_migrate_runtime_to_unmassk() (duplicated in lib/boot_migrations.py,
     runs on every boot, and bin/git-memory-upgrade.py, runs during
@@ -3754,6 +3786,7 @@ class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
 # .claude (POST-FIX regression, GREEN now)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugANMigrateScopesAgentMemorySymlinkedParent:
     """The same two _migrate_runtime_to_unmassk() copies also re-verify the
     agent_dir/target_dir used for the git-memory-scopes.json ->
@@ -3914,6 +3947,7 @@ print("OK")
         raise RuntimeError(f"_call_write_glossary_cache_fallback failed (rc={proc.returncode}): {proc.stderr}")
 
 
+@pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAOEnsureRuntimeDirFallbackBranchSymlinkedParent:
     """write_boot_log() (hooks/session-start-boot.py) and
     _write_glossary_cache() (lib/boot_memory.py) both fall back to a

@@ -316,3 +316,45 @@
 - Root: lib/boot_git_checks.py get_ahead_behind()/fetch_memory_ref() (`@{u}` resolution, no
   same-project identity check) and lib/boot_memory.py resolve_boot_memory() (unconditionally trusts
   whatever ref get_ahead_behind() resolved).
+
+## Windows Task Scheduler detachment escapes taskkill /T process-tree kill
+- Pattern: `taskkill /F /T /PID <pid>` (and any PID-tree-walk kill mechanism) only
+  recurses through processes whose stored ParentProcessId chains back to the target
+  PID. A grandchild that instead gets its process created via
+  `schtasks /Create ... & schtasks /Run` (Windows Task Scheduler -> svchost.exe
+  creates the actual process) has its own ParentProcessId rooted at the Task
+  Scheduler service, NEVER the spawning process — it is structurally outside any
+  PID-based tree, so taskkill /T of the original ancestor can never find or kill it.
+- Confirmed live on lib/git_helpers.py `_win32_kill_tree()` (git_helpers.py:301-319,
+  invoked from run_git()'s TimeoutExpired branch, git_helpers.py:379-382): a fake
+  "git.exe" (real python.exe via sitecustomize.py PYTHONPATH hijack, same technique
+  as tests/test_boot_freshness_regression.py::TestWin32ProcessTreeKillOnTimeout)
+  that registers+runs a one-shot scheduled task spawning a real grandchild process,
+  then itself hangs — run_git(timeout=1) times out, _win32_kill_tree fires taskkill
+  /F /T /PID against the fake git.exe's own pid, and the scheduled-task-spawned
+  grandchild is CONFIRMED STILL ALIVE 5s later via an independent `tasklist` query
+  (not re-read through run_git). No exception is raised anywhere — taskkill itself
+  reports success against the pid it CAN see; the gap is structural/topological, not
+  an exception-handling bug.
+- Reusable requirement: current user must be able to run `schtasks /Create ... /IT`
+  + `/Run` without admin rights or a stored password (confirmed works out of the box
+  on a standard Windows 11 user account, no elevation prompt).
+- Relevance: TestWin32ProcessTreeKillOnTimeout (added same session, real Windows box)
+  proves ONLY the direct-Popen-chain grandchild case and stays green while this
+  escape exists — its docstring's claim ("kills the WHOLE descendant process tree")
+  is broader than what a PID-tree-walk (taskkill /T) can structurally guarantee.
+  Any real-world credential-helper/askpass/hook that detaches via Task Scheduler
+  (or any other non-PID-parented mechanism: WMI Win32_Process.Create, a Windows
+  service, COM elevation, etc.) survives the boot's supposed hard-kill.
+
+## datetime.fromtimestamp() raises OverflowError, not caught by (ValueError, TypeError, OSError)
+- Pattern: any `except (ValueError, TypeError, OSError)` guarding `datetime.fromtimestamp(int(x))`
+  looks complete but OverflowError (a plain ArithmeticError subclass, NOT a ValueError/OSError
+  subclass) escapes uncaught for out-of-range unix timestamps (e.g. int("99999999999999999999")).
+  Confirmed live: lib/boot_git_checks.py time_ago() (line 65-92, except at line 91) crashes with
+  an uncaught OverflowError when called directly with a huge digit string via its own documented
+  isdigit() unix-timestamp branch. NOT reachable today through any real call site (get_timeline()/
+  get_last_context_time() only ever pass git's %aI ISO8601 strings, never raw digits) — pre-existing
+  latent gap, not introduced by this round's narrowing (this except clause predates the polish
+  round's diff). Reusable check: grep for `except (ValueError, TypeError` near any
+  `datetime.fromtimestamp` call and test with a huge digit string directly.

@@ -151,6 +151,39 @@ def tmp_repo(tmp_path):
 
 
 @pytest.fixture
+def real_symlink_capable(tmp_path):
+    """Skip the test using this fixture if the CURRENT environment cannot
+    create real filesystem symlinks.
+
+    Confirmed live on Windows dev boxes without Developer Mode /
+    SeCreateSymbolicLinkPrivilege:
+        os.symlink(...) -> OSError: [WinError 1314] El cliente no dispone
+        de un privilegio requerido.
+
+    The POSIX/anti-symlink guards under test rely on real filesystem
+    symlink semantics (O_NOFOLLOW, os.path.islink(), directory-symlink
+    traversal) that cannot be meaningfully mocked — mocking os.path.islink()
+    would only prove the mock works, not that the guard itself still
+    functions. A real symlink is the only honest way to test it, so when one
+    cannot be created here, this reports an explicit skip rather than faking
+    the result.
+
+    Shared by test_crossplatform_symlink_guard.py and
+    test_security_regression.py — single source of truth, auto-discovered
+    via conftest.py (no import needed).
+    """
+    probe_target = tmp_path / "_symlink_probe_target.txt"
+    probe_link = tmp_path / "_symlink_probe_link.txt"
+    probe_target.write_text("probe")
+    try:
+        os.symlink(str(probe_target), str(probe_link))
+    except OSError as e:
+        pytest.skip(f"cannot create real symlinks in this environment: {e}")
+    else:
+        os.remove(str(probe_link))
+
+
+@pytest.fixture
 def installed_repo(tmp_path):
     """Create a temporary git repo with git-memory installed."""
     repo = str(tmp_path / "repo")
