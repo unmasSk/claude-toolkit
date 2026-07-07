@@ -9,11 +9,17 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 ## 👉 Lo siguiente (ya acordado)
 
-- _Nada acordado pendiente ahora mismo._
+**Frente: deuda técnica del toolkit** (acordado 2026-07-07, en este orden):
+
+1. Higiene de tests en Windows — skip-guard de symlink + import de test_release (#50)
+2. CI en GitHub Actions con Windows — canal legible para verificar la suite (#51)
+3. UnicodeEncodeError con surrogate en el write-path, T3 (#52)
+4. F6: cierre del bypass por hard-link, diseño de Argus ya hecho — con review dedicado (#53)
 
 ## 🔧 Lo que queda por hacer
 
-- _Nada pendiente acordado._ Quedan las ideas congeladas de abajo y los candidatos, que necesitan tu visto bueno antes de tocarse.
+- Los 4 puntos del frente de arriba. Después: candidatos con visto bueno.
+- **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
