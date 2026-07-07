@@ -88,7 +88,7 @@ def time_ago(iso_or_unix: str) -> str:
             return f"{seconds // 86400}d ago"
         else:
             return f"{seconds // 604800}w ago"
-    except (ValueError, TypeError, OSError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return "unknown"
 
 

@@ -313,6 +313,11 @@ def _win32_kill_tree(proc: subprocess.Popen) -> None:
     arbitrary code execution as this process's user, and no
     process-tree-kill mechanism (POSIX process groups included) would
     have contained it either.
+
+    Cross-ref: reproduced live 2026-07-07 (Moriarty), see
+    .claude/agent-memory/unmassk-toolkit-moriarty/attack-patterns.md
+    ("Windows Task Scheduler detachment escapes taskkill /T process-tree
+    kill") and tests/test_boot_freshness_regression.py::TestWin32ProcessTreeKillOnTimeout.
     """
     try:
         subprocess.run(
