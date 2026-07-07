@@ -65,7 +65,7 @@ Always installed. Contains everything Claude needs to orchestrate.
 
 | Component | What it does |
 |-----------|-------------|
-| **Memory** | Persistent memory via git commits. Decisions, memos, remembers survive across sessions. |
+| **Memory** | Persistent memory via git commits. Decisions, memos, remembers survive across sessions — and across machines: boot detects when local memory is behind another machine's and proposes a pull before you start working. |
 | **10 Agents** | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document), Gitto (query memory) |
 | **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |

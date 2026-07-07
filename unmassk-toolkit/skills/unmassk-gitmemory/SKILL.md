@@ -59,6 +59,14 @@ On boot, Claude only needs to:
 
 **Boot stdout is always a short banner:** stdout is unconditionally STATUS/BRANCH + a file pointer, for every repo regardless of size — the Claude Code harness only previews a small prefix of SessionStart's stdout, so there is no safe size threshold below which printing the full content inline would be safe. Read `.claude/.unmassk/boot-log-latest.txt` before doing anything else — it always holds the complete, nothing-shortened briefing (RESUME/DECISIONS/MEMOS/TIMELINE included), refreshed every boot. The only case where the full briefing still prints inline is a fallback: if writing that file itself fails (permissions, disk full), stdout carries the full content instead of pointing at a file that doesn't exist.
 
+**Multi-machine freshness (issue #49):** the boot also runs a hardened, gated, rate-limited background `git fetch` — skipped entirely if this repo has no unmassk-toolkit memory installed, skipped again if `.git/FETCH_HEAD` is younger than 5 minutes, bounded to a 3s timeout, and run with prompting/credential-helper interaction fully disabled so it can never hang. Fail-open on every branch (network down, no remote, timeout) — the boot never blocks or crashes on this. Its result renders as a `MEMORY:` stamp near the top of both the stdout banner and the boot-log file:
+
+- `MEMORY: remote (fetched Ns ago)` / `MEMORY: LOCAL — fetch skipped (rate-limit, Ns ago)` — a fetch attempt happened this boot, or the rate-limit window is still open.
+- `MEMORY: LOCAL — last fetch Ns ago, unverified` / `MEMORY: LOCAL — unverified (never synced with origin)` — no confirmed fetch this boot.
+- `MEMORY: LOCAL — upstream unrelated (no shared history), not shown` — the configured upstream does not share commit ancestry with this repo (e.g. `@{u}` misconfigured to a different project); its memory is never read or labeled as this project's own.
+
+If local is strictly behind the resolved upstream and the working tree is clean, the boot also emits a `PULL DIRECTIVE: local is N commit(s) behind — propose \`git pull\` to the user as the FIRST action of this session.` line — act on it (actually propose the pull), don't just note it. If the tree is dirty, the directive instead says NOT to pull and to leave the working tree untouched — never pull over uncommitted local changes. The directive (and the origin-side memory read below) is suppressed entirely when the upstream is confirmed unrelated (see the last `MEMORY:` state above) — there's no meaningful "behind N" when git itself would refuse the merge. When local is strictly behind, the RESUME section is read from `origin/<branch>` instead of stale local HEAD, with every entry tagged ` [source: remote]`; when both ahead AND behind (diverged), both sides are shown, remote side labeled — never silently merged into one truth.
+
 ## Wrapper Scripts
 
 **NEVER use `git commit` or `git log` directly.** A PreToolUse hook will BLOCK them.
@@ -70,6 +78,7 @@ The boot output terminator provides the plugin root path. Use it:
 - `--push` pushes after committing. Use it on EVERY memory commit (`decision`/`memo`/`remember`/`context`) and on the final squashed commit that closes a pipeline — the user works across multiple machines and a local-only *memory* commit is invisible work on the others. Do NOT use it on intermediate `wip:` commits during an active multi-agent pipeline — see Wip Strategy below for why.
 - `--path PATH` (repeatable) commits ONLY those paths via pathspec (`git commit -- <paths>`), leaving the rest of the user's index untouched. Without it, the whole staged index is committed.
 - A `context()` commit's full subject line (emoji + `type(scope): message`) is capped at 100 characters — over that, the wrapper exits 1 and creates no commit. Shorten the message and put the rest in `--body` (unrestricted length). Only `context()` is checked; other types are unaffected.
+- A `decision`/`memo`/`remember`/`context` commit also prints a warn-only (never blocking) notice if local is behind its upstream — no extra fetch is performed for this check, it just reads the existing `@{u}` tracking ref, which the boot's own fetch keeps fresh.
 
 **For logs**: `python3 <plugin-root>/bin/git-memory-log.py [N] [--all] [--type TYPE]`
 

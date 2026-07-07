@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-machine boot memory freshness** (issue #49): the `[git-memory-boot]` SessionStart hook now detects when local git-memory is behind another machine's and reacts instead of silently showing stale state.
+  - The previous unconditional `git fetch --quiet` (5s timeout) is replaced by a hardened, gated, rate-limited fetch (`fetch_memory_ref()`, `unmassk-toolkit/lib/boot_git_checks.py`): skipped entirely on a repo with no unmassk-toolkit memory installed, skipped again if `.git/FETCH_HEAD` is younger than 5 minutes, bounded to a 3s timeout, and run with `GIT_TERMINAL_PROMPT=0`, a neutralized askpass (POSIX and Windows), `BatchMode=yes`, and every configured credential helper disabled so it can never hang on an interactive prompt. Fail-open on every branch — network down, a missing remote, or a bug in the fetch path never delays or crashes the boot.
+  - A `MEMORY:` provenance/freshness stamp now renders near the top of both the short stdout banner and the full boot-log file (`render_memoria_stamp()`): `remote (fetched Ns ago)`, `LOCAL — fetch skipped (rate-limit, Ns ago)`, `LOCAL — last fetch Ns ago, unverified`, `LOCAL — unverified (never synced with origin)`, or `LOCAL — upstream unrelated (no shared history), not shown`.
+  - When local is strictly behind its upstream, a `PULL DIRECTIVE:` line proposes `git pull` as the first action of the session — or, if the working tree is dirty, explicitly says not to pull so nothing gets clobbered (`_build_pull_directive_lines()`).
+  - `resolve_boot_memory()` (`unmassk-toolkit/lib/boot_memory.py`) now reads Next/Decision/Memo/Remember/Blocker straight from `origin/<branch>` when local is strictly behind (each entry labeled ` [source: remote]`), and from both sides (remote side labeled) when the branches have diverged — never silently merged into one truth. The glossary cache (`boot_glossary_cache.py`) now keys its freshness on both local HEAD's sha and origin's, so a cache built before the remote moved is no longer served as fresh.
+  - Repo-identity guards added during hardening: `check_upstream_shares_history()` confirms the resolved upstream actually shares commit ancestry with local HEAD (`git merge-base`) before any of its memory is read or labeled "remote" — an unrelated repo that happens to share a branch name can no longer leak its memory into this project's boot, and the PULL DIRECTIVE is suppressed in that case (git itself would refuse the merge). The live remote name is re-resolved (`git remote get-url`) instead of assuming `origin`, so a renamed remote (`git remote rename origin upstream`) still works. A negative `.git/FETCH_HEAD` age (clock skew across machines) is treated as "not fresh" instead of permanently suppressing future fetches.
+  - `git-memory-commit.py` now prints a warn-only (never blocking) notice before a `decision`/`memo`/`remember`/`context` commit if local is behind its upstream, reading the existing `@{u}` tracking ref — no extra fetch is performed for this check.
+  - Cross-platform hardening: `run_git()` (`unmassk-toolkit/lib/git_helpers.py`) now kills the whole descendant process tree on a timeout, not just the direct `git` child — POSIX via process groups (`os.killpg`), Windows via `taskkill /F /T /PID`. One residual is documented rather than silently present: a Windows descendant that re-parents itself via Task Scheduler (`schtasks`) or a Windows service escapes `taskkill /T`'s PID-tree walk — accepted as a known limitation (reproduced live by Moriarty), since a process that self-detaches to a system service already implies the invoked `git` binary is fully compromised.
+
+### Fixed
+
+- `time_ago()` (`unmassk-toolkit/lib/boot_git_checks.py`) could raise an uncaught `OverflowError` on an out-of-range or malformed timestamp instead of degrading to `"unknown"` like every other malformed-input case — added to the existing `except` clause alongside `ValueError`/`TypeError`/`OSError`.
+
 ## [1.16.1] - 2026-07-06
 
 ### Fixed

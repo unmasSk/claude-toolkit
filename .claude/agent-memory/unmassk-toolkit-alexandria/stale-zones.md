@@ -26,3 +26,7 @@ Docs may have drifted given volume of changes. Priority files to re-verify: webs
 
 - project-context.md memory file version was stale (said 1.1.1) — corrected to 1.15.0.
 
+## Cleared zones (fixed 2026-07-07)
+
+- SKILL.md `unmassk-gitmemory` had zero mention of the boot-time `git fetch`/freshness behavior at all (not stale wording — a genuine coverage gap, the whole issue #49 feature was undocumented for Claude). Added Boot Protocol paragraph + Wrapper Scripts bullet. Root README.md Memory row didn't mention multi-machine sync either — added one clause.
+

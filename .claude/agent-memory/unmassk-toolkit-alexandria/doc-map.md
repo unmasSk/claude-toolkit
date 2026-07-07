@@ -17,15 +17,15 @@ type: project
 
 | Path | Last verified | Status |
 |------|--------------|--------|
-| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-06 | Filesystem Safety Pattern section extended with a cross-platform note: `open_no_follow_symlink()` now branches POSIX (`O_NOFOLLOW`) / Windows (`islink()` + `lstat`/`fstat` identity check), never raises bare `AttributeError` on Windows anymore — see [changelog-state.md](changelog-state.md) sixth pass for the fix this documents. |
+| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-07 | Boot Protocol section gained a "Multi-machine freshness (issue #49)" paragraph: hardened/gated/rate-limited fetch, `MEMORY:` stamp states, `PULL DIRECTIVE:` behavior (act on it, dirty-tree exception, suppressed when upstream unrelated), origin-side RESUME read when behind/diverged. Wrapper Scripts gained a bullet for the warn-only behind notice on `decision`/`memo`/`remember`/`context` commits. Pre-existing 100-char `context()` cap bullet and cross-platform Filesystem Safety Pattern note (2026-07-06 pass) verified still accurate, unchanged. |
 
 ## Other documentation
 
 | Path | Type | Status |
 |------|------|--------|
-| `CHANGELOG.md` (root) | Changelog | Audited 2026-03-24 — latest: [1.1.1], [Unreleased] added, duplicate [1.1.0] disambiguated |
+| `CHANGELOG.md` (root) | Changelog | Audited 2026-07-07 — [Unreleased] entry added for issue #49 (multi-machine boot memory freshness) + 2 same-day fixes (time_ago OverflowError, schtasks cross-ref doc note). Latest released: [1.16.1]. |
 | `chatroom/CHANGELOG.md` | Changelog | Audited 2026-03-24 — [Unreleased] Removed section corrected (V2 files all deleted) |
-| `README.md` (root) | Project readme | Verified 2026-03-24 — accurate |
+| `README.md` (root) | Project readme | Updated 2026-07-07 — Memory row in "What's inside" table gained one clause on multi-machine freshness (boot proposes pull when behind) |
 | `chatroom/README.md` | Project readme | Updated 2026-03-24 — test count corrected 535+ → 1200+ |
 
 ## unmassk-design docs
