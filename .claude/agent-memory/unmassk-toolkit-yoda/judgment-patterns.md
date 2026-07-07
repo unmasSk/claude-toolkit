@@ -255,3 +255,65 @@ condición: abrir issue dedicado para el diseño de cierre de F6 (`reject_hardli
 sin bloquear el release. Los ~68-77 fallos de `test_security_regression.py` (WinError 1314, sin
 privilegio de symlink en este host Windows) siguen siendo la misma clase preexistente, reconfirmada
 en vivo esta ronda (no ficticia, no relacionada con este fix).
+
+## 2026-07-06 — Boot memory freshness multi-machine (issue #49) final judgment, 100/110
+
+**Pattern: §34 gate on a fetch/read seam — verify with a real bare remote + real subprocess, never trust the agent's narration of "tests pass".**
+Ran `pytest test_boot_freshness.py test_boot_freshness_hardening.py test_boot_freshness_regression.py`
+myself (107 passed, then full suite 979/979 passed, run twice — once via a background task that
+returned late, once synchronously to get the number directly). Read `TestIncidentBehindShowsRemoteNext`
+directly: expected values (`INCIDENT_NEXT_MARKER`, `COMMITS_BEHIND_INCIDENT`) are constants the test
+itself uses to WRITE the producer's commits (`_push_commits_from_b`), then asserts the SAME constants
+appear in the consumer's (real boot hook subprocess) combined stdout+log output — no hand-typed
+literal anywhere in the assertion chain. This is the textbook §34.2 pass: expected value traces to
+this run's write, not to a captured/memorized "what it usually says".
+
+**Pattern: when Moriarty's own memory notes show more live sabotage than any single report claims, cross-read his topic files directly instead of trusting a one-line "AGUANTA" summary.**
+`attack-patterns.md`/`resilience.md` for this feature show ~6 rounds of real bare-remote/2-clone
+triangulation, a real hung TCP listener + `ps`-confirmed process-tree kill, a real corrupted
+`.git/refs/remotes/origin/main` SHA, `touch -t` clock-skew on FETCH_HEAD, and a genuinely unrelated
+second bare repo used to reproduce the repo-identity (merge-base) T2 — each with an explicit
+independent-verification channel (ps, git cat-file, git log origin/main, merge-base exit code) never
+just "the function's own claim". This is what makes the §34.4 checklist's "sabotage effect confirmed
+through an independent channel" item genuinely satisfiable without me re-doing all of it myself — I
+spot-checked 2 (the incident round-trip, the process-tree-kill class) directly and cross-referenced
+the rest against code that visibly implements the described fix (e.g. `check_upstream_shares_history`
+using `merge-base`, `_ASKPASS_FAILFAST` branching on `sys.platform`).
+
+**Pattern: an honest "untestable here" beats a mocked-Windows test — do not penalize the disclosure.**
+`TestPosixProcessTreeKillOnTimeout`/`TestAskpassFailfastResolvesViaPath` explicitly refuse to fake
+Windows coverage with a `subprocess.run` mock, arguing (correctly) that it would only prove the mock
+was configured right, not that a real Windows process tree dies. Three concrete Windows gaps found by
+grep: `_win32_kill_tree` (taskkill /F /T /PID) has zero test coverage of any kind; `_ASKPASS_FAILFAST`
+= `"cmd /c exit 1"` is never exercised on win32; the 3 hardened-fetch-env tests (`TestFetchHardening`,
+`TestFetchGateSkipsWithoutToolkitMemory`, fake-git PATH-shadowing) are `skipif(WINDOWS)` entirely. All
+three are logic-reviewed only, documented as such in the code/test docstrings themselves (not hidden).
+Scored Security 9/10 (not 10) specifically because of this real, articulable, but non-blocking gap —
+consistent with treating "no Windows machine available" as an environment constraint to disclose, not
+a code defect to reject over.
+
+**Pattern: a Moriarty T3 "dead code relative to its own justification" finding (multi-match `_crown_replace`) is a maintainability/precision nitpick, not a functional bug — verify the unit test still tests real (if currently unreachable) semantics before treating the finding as closed vs. open.** Read `TestCrownReplaceMultiMatch` directly: it calls `_crown_replace` with hand-built lists containing
+a genuine same-scope duplicate (simulating what `_merge_diverged_memory`'s concatenation COULD
+produce if a downstream renderer folds a glossary crown over an already-merged list) — the unit
+contract is real and correctly asserts multi-match-drops-duplicate behavior, even though no
+production call today happens to combine "glossary crown" + "duplicated scope from divergence" in
+one call. Noted as Observation, not a blocking finding.
+
+**Score breakdown (100/110): Security 9, Error Handling 9, Architecture 9, Testing 10, Maintainability 8.**
+First 10/10 I've given on Testing for a security-sensitive network-facing feature — justified by: zero
+fabricated fixtures, real bare-remote round-trip driving the §34 gate, real process-tree kill against a
+real grandchild PID, real hung-TCP-listener timeout test, explicit refusal to fake Windows coverage
+with mocks, and 979/979 green with 0 xfail on a suite I ran myself twice. Maintainability held at 8
+(not 9+) for the same class of issue flagged before in this project (`git-memory-upgrade.py`, session
+2026-07-05): `fetch_memory_ref` (109 lines), `check_upstream_shares_history` (53), `render_scopes_section`
+(51), `render_memoria_stamp` (51) all exceed the project's own 50-LOC-per-function convention, densely
+commented but real code, no explicit Bex exception recorded for this round the way there is for
+`git-memory-doctor.py`/`git-memory-upgrade.py`.
+
+**Verdict:** APPROVED WITH CONDITIONS (non-blocking) — ship now. Follow-ups: (1) run this suite on a
+real Windows CI runner/machine before or shortly after the next boot-hook-touching change, to close
+the 3 documented Windows gaps with real execution instead of logic review; (2) Bex decision needed on
+whether the 4 functions over 50 LOC in `lib/boot_git_checks.py` are an accepted 3rd exception (after
+`git-memory-doctor.py`/`git-memory-upgrade.py`) or should be split; (3) optional, low-priority — either
+find/add the real call path that exercises `_crown_replace`'s multi-match branch, or explicitly retire
+`TestCrownReplaceMultiMatch`'s premise if it's confirmed to stay permanently unreachable.
