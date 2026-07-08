@@ -170,6 +170,39 @@ def _real_epoch_of_head(repo):
     return out
 
 
+# ── ISO-8601 fallback branch: ground truth for both parse_date()s ────────
+#
+# Cerberus follow-up (issue #55, 1 suggestion): the ISO-8601 fallback
+# branch added alongside the %at migration --
+#   dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+#   if dt.tzinfo is None:
+#       dt = dt.replace(tzinfo=timezone.utc)
+# -- is unreachable from any caller in this repo today (every git log call
+# site now emits %at), kept only for external/legacy callers. If someone
+# deletes the `.replace(tzinfo=...)` line tomorrow, naive/aware datetime
+# mixing regresses silently with no test catching it. These two ISO cases
+# close that gap. Expected values are built via `datetime.fromisoformat()`
+# in this file, never hand-typed (unmassk-standards §34) -- the only
+# transformation applied afterward mirrors production's own naive-defaults-
+# to-UTC semantic, not a duplicated re-implementation of parse_date() itself.
+_ISO_NAIVE = "2026-03-13T08:00:00"
+_ISO_WITH_OFFSET = "2026-03-13T08:00:00+02:00"
+
+_ISO_FALLBACK_CASES = [
+    (
+        _ISO_NAIVE,
+        datetime.fromisoformat(_ISO_NAIVE).replace(tzinfo=timezone.utc),
+        timezone.utc,
+    ),
+    (
+        _ISO_WITH_OFFSET,
+        datetime.fromisoformat(_ISO_WITH_OFFSET),
+        datetime.fromisoformat(_ISO_WITH_OFFSET).tzinfo,
+    ),
+]
+_ISO_FALLBACK_IDS = ["iso_naive_becomes_utc_aware", "iso_with_offset_preserves_instant"]
+
+
 # ── parse_date() epoch contract: gc.py ──────────────────────────────────
 
 
@@ -197,6 +230,33 @@ class TestGcParseDateEpochContract:
             "None -- exactly the silent degradation issue #55 describes."
         )
 
+    @pytest.mark.parametrize(
+        "date_str, expected, expected_tzinfo",
+        _ISO_FALLBACK_CASES,
+        ids=_ISO_FALLBACK_IDS,
+    )
+    def test_parse_date_iso_fallback_stays_tz_aware(self, date_str, expected, expected_tzinfo):
+        """The %at branch is gc.py's primary path now, but the ISO-8601
+        fallback (`fromisoformat()` + naive-defaults-to-UTC) still ships for
+        external/legacy callers. Pins its tz-handling so a future edit that
+        drops the `dt.replace(tzinfo=timezone.utc)` naive guard regresses
+        loudly instead of silently reintroducing naive/aware mixing.
+        """
+        gc_mod = _load_hyphenated_module(GC, "contract_gc_iso_fallback_55")
+        result = gc_mod.parse_date(date_str)
+
+        assert result == expected, (
+            f"parse_date({date_str!r}) returned {result!r} -- expected "
+            f"{expected!r} (built via datetime.fromisoformat() on the same "
+            "input, not hand-typed)"
+        )
+        assert result.tzinfo == expected_tzinfo, (
+            f"parse_date({date_str!r}) returned tzinfo={result.tzinfo!r} -- "
+            f"expected {expected_tzinfo!r}. A naive ISO string must become "
+            "UTC-aware; an offset-aware ISO string must keep its original "
+            "offset -- neither should collapse into naive/aware mixing."
+        )
+
 
 # ── parse_date() epoch contract: doctor.py ──────────────────────────────
 
@@ -219,6 +279,30 @@ class TestDoctorParseDateEpochContract:
             "%at). Current parse_date() only tries fromisoformat(), which "
             "raises ValueError on a bare digit string and is swallowed to "
             "None -- exactly the silent degradation issue #55 describes."
+        )
+
+    @pytest.mark.parametrize(
+        "date_str, expected, expected_tzinfo",
+        _ISO_FALLBACK_CASES,
+        ids=_ISO_FALLBACK_IDS,
+    )
+    def test_parse_date_iso_fallback_stays_tz_aware(self, date_str, expected, expected_tzinfo):
+        """Same duplicated ISO-8601 fallback shape as gc.py's -- see
+        TestGcParseDateEpochContract.test_parse_date_iso_fallback_stays_tz_aware.
+        """
+        doctor_mod = _load_hyphenated_module(DOCTOR, "contract_doctor_iso_fallback_55")
+        result = doctor_mod.parse_date(date_str)
+
+        assert result == expected, (
+            f"parse_date({date_str!r}) returned {result!r} -- expected "
+            f"{expected!r} (built via datetime.fromisoformat() on the same "
+            "input, not hand-typed)"
+        )
+        assert result.tzinfo == expected_tzinfo, (
+            f"parse_date({date_str!r}) returned tzinfo={result.tzinfo!r} -- "
+            f"expected {expected_tzinfo!r}. A naive ISO string must become "
+            "UTC-aware; an offset-aware ISO string must keep its original "
+            "offset -- neither should collapse into naive/aware mixing."
         )
 
 

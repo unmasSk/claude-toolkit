@@ -91,3 +91,26 @@ codebase may have moved since the verdict was written.
 See also: [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md),
 [encoding-contract-notes](encoding-contract-notes.md) (same session family,
 same %at/robust-parsing lineage).
+
+**Cerberus follow-up, same session (1 suggestion, micro-encargo, review
+mode not test-first): the ISO-8601 fallback branch inside both
+`parse_date()`s had no direct coverage.** After Ultron's parallel fix
+widened the except tuple to `(ValueError, TypeError, OSError,
+OverflowError)`, the fallback branch itself (`fromisoformat()` +
+`if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)`) is
+unreachable from any in-repo caller (all now emit `%at`) but kept for
+external/legacy callers — a silent regression risk if someone deletes the
+`.replace(tzinfo=...)` line later (naive/aware mixing). Added
+`test_parse_date_iso_fallback_stays_tz_aware` (parametrized, 2 cases: naive
+ISO → asserts `result.tzinfo == timezone.utc`; ISO-with-offset → asserts
+equality against `datetime.fromisoformat()` of the same string, preserving
+the original offset) to both `TestGcParseDateEpochContract` and
+`TestDoctorParseDateEpochContract`. Expected values built via
+`datetime.fromisoformat()` in the test file itself, never hand-typed
+(§34) — the only manual step is `.replace(tzinfo=timezone.utc)` for the
+naive case, which mirrors production's own naive-defaults-to-UTC semantic
+rather than re-deriving parse_date()'s actual logic. Suite now 10/10 green
+(6 pre-existing + 4 new). No conditional logic needed in the test body:
+both cases share one assertion shape by passing `expected` and
+`expected_tzinfo` as separate parametrize columns instead of branching
+inside the test.

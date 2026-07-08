@@ -100,7 +100,7 @@ def parse_date(date_str: str) -> datetime | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    except (ValueError, IndexError, OSError, OverflowError, TypeError):
+    except (ValueError, TypeError, OSError, OverflowError):
         return None
 
 
