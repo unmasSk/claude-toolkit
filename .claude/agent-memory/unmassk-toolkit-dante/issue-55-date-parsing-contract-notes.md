@@ -88,6 +88,72 @@ verify a named target's current content before touching it, especially for
 "fleco" (loose-end) tasks handed down from an earlier scoring round — the
 codebase may have moved since the verdict was written.
 
+**Adversarial round (Argus + Moriarty) follow-up, same session — 5 more
+bugs on the %at-migrated code, test-first.** Added to the same file
+(`test_date_parsing_epoch_contract.py`), 6 new classes / 11 new test
+functions, 6 confirmed genuinely RED (clean `AssertionError`s or a clean
+uncaught `AttributeError` for the right reason), 1 class (5+1 tests)
+honestly GREEN and documented as such rather than faked red:
+- **BUG-1** (`AttributeError` on non-string `parse_date()` input —
+  `None`/`int`/`list`): the except tuple
+  (`ValueError, TypeError, OSError, OverflowError`) never included
+  `AttributeError`, so `date_str.isdigit()` crashes instead of degrading
+  to `None` per the docstring. RED via uncaught `AttributeError` at
+  `lib/date_parsing.py:27`, not a mere `AssertionError` — right-reason
+  confirmed by reading the actual traceback, not assumed.
+- **BUG-2** (no explicit length guard before `int()`): verified live
+  (not assumed) that on this runtime (CPython 3.14, default
+  `sys.get_int_max_str_digits()==4300`) an oversized digit string ALREADY
+  returns `None` today via two accidental, stacking safety nets —
+  CPython's own int-string-conversion limit (`ValueError` above 4300
+  digits) and, independently (confirmed by temporarily calling
+  `sys.set_int_max_str_digits(0)`), `datetime.fromtimestamp()`'s
+  `OverflowError` for any epoch outside its representable range. Wrote
+  the test as the CONTRACT (`len>20 → None`) anyway per the task's
+  explicit instruction to be honest rather than fake red — it is GREEN
+  today, documented in the class docstring as testing "accidental
+  behavior already matching the intended explicit contract," not a
+  currently-proven bug. Stays green unchanged once Ultron adds a real
+  upfront guard; gains real teeth if either accidental safety net is ever
+  weakened.
+- **BUG-3** (`bootstrap_commits.py`'s `--json` "date" field is a raw
+  epoch digit string, not presentable): expected value derived from
+  `git log -1 --pretty=format:%at` on the real fixture repo (§34 — never
+  hand-typed), asserted equal to the actual `--json` field first (setup
+  sanity proving it's the same commit) THEN asserted `not
+  got_date.isdigit()` — the real, minimal, non-speculative assertion of
+  "not presentable," since the eventual readable format Ultron picks is
+  unknown and shouldn't be pre-guessed/hand-typed.
+- **BUG-4 & BUG-5** (`bin/git-memory-doctor.py::check_gc_status()`,
+  overflow-future / negative-days): both reproduced LIVE via bash before
+  writing the test (not assumed from reading code) — a real,
+  `git fsck --full` rc=0-clean commit with
+  `GIT_AUTHOR_DATE="@253402300800 +0000"` (one second past
+  `datetime.max`) produces `parse_date()==None` (caught `ValueError:
+  year must be in 1..9999, not 10000`), and doctor.py's `--json` GC check
+  message is then BYTE-FOR-BYTE `"never run"` — identical to a repo with
+  genuinely zero GC commits. Test proves the contract violation by
+  comparing against a same-shape zero-commits baseline (asserted as
+  setup sanity to actually say "never run" — proving what "never run"
+  is SUPPOSED to mean) rather than hand-guessing what Ultron's fix
+  message should say. BUG-5: a real fsck-clean commit dated exactly
+  `now + 365 days` (still within `datetime`'s representable range, so
+  `parse_date()` returns a real, valid, future datetime — no exception
+  path involved at all) makes line ~266's unclamped
+  `(now - last_gc).days` go negative; live repro showed the exact string
+  `"last run -365 days ago"`. Assertion is a regex
+  (`-\d+\s*days?\s*ago` must NOT match) rather than a hand-typed exact
+  message, since Ultron's clamp-vs-distinct-message choice isn't fixed
+  yet — same "define the contract, don't pre-guess the wording"
+  discipline as BUG-4.
+- All 6 new RED tests reproduced live via raw bash/python BEFORE being
+  encoded as pytest assertions (both the `sys.set_int_max_str_digits`
+  probe for BUG-2 and the two `git commit --allow-empty` + `git fsck
+  --full` + `doctor.py --json` repros for BUG-4/BUG-5) — never assumed
+  from reading the source alone. Confirmed deterministic by running the
+  new/edited file twice: identical 6 failed / 16 passed both times, same
+  test IDs.
+
 See also: [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md),
 [encoding-contract-notes](encoding-contract-notes.md) (same session family,
 same %at/robust-parsing lineage).

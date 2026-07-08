@@ -63,13 +63,14 @@ import pytest
 
 from conftest import (
     BIN_DIR, LIB_DIR,
-    git_cmd, run_script, DOCTOR, GC, run_doctor_json,
+    git_cmd, run_script, DOCTOR, GC, BOOTSTRAP, run_doctor_json,
 )
 
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
 from bootstrap_commits import scan_recent_commits  # noqa: E402
+from date_parsing import parse_date  # noqa: E402
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -466,4 +467,270 @@ class TestDoctorGcStatusSurvivesOldGit:
             "contract not yet met: doctor.py reports GC 'never run' under "
             "an old git that can't expand %aI, even though a real GC "
             f"commit exists 10 days ago. got {old_msg!r}"
+        )
+
+
+# ── Adversarial round (Argus + Moriarty), issue #55 follow-up ───────────
+#
+# Five confirmed bugs on top of the %at migration above. Test-first: these
+# must FAIL against unmodified HEAD (except BUG-2, documented honestly
+# below). No production code touched here -- see Dante's Absolute
+# Prohibition #1.
+
+
+# ── BUG-1 (Argus SEC-LOW-001): parse_date() crashes on non-string input ──
+
+
+class TestParseDateNonStringInputContract:
+    """lib/date_parsing.py::parse_date()'s docstring promises "Returns ...
+    or None if parsing fails" -- for ANY input. But `date_str.isdigit()`
+    is called unconditionally inside the try block, and AttributeError is
+    NOT one of the caught exception types (`except (ValueError, TypeError,
+    OSError, OverflowError)`). None, an int, or a list all have no
+    `.isdigit` attribute, so each one crashes with an uncaught
+    AttributeError instead of degrading to None.
+    """
+
+    @pytest.mark.parametrize(
+        "bad_input",
+        [None, 123456, ["a"]],
+        ids=["none", "int", "list"],
+    )
+    def test_returns_none_instead_of_raising(self, bad_input):
+        result = parse_date(bad_input)
+        assert result is None, (
+            f"parse_date({bad_input!r}) should return None per its own "
+            "docstring contract ('or None if parsing fails'), not raise -- "
+            f"got {result!r}"
+        )
+
+
+# ── BUG-2 (Argus SEC-LOW-002): no explicit length guard before int() ────
+
+
+class TestParseDateLengthGuardContract:
+    """lib/date_parsing.py::parse_date() has no explicit upper bound on
+    input length before calling `int(date_str)` on a digit string. A real
+    unix epoch never needs more than ~12-19 digits (year 9999 is epoch
+    253402300799, 12 digits; a 64-bit signed epoch tops out at 19 digits).
+    This class pins the CONTRACT an explicit length guard (e.g.
+    `len(date_str) > 20: return None`) would enforce, as a regression net
+    for whatever Ultron adds.
+
+    Honesty note (Dante, unmassk-standards -- no fabricated red): on this
+    runtime (CPython 3.11+, `sys.get_int_max_str_digits() == 4300` by
+    default), an oversized digit string ALREADY returns None today -- not
+    via an explicit length guard, but as an accidental side effect of two
+    unrelated safety nets stacking:
+      1. CPython's own int-from-string digit-count limit raises
+         ValueError above 4300 digits (verified: a 4301-digit "9" string
+         raises `ValueError: Exceeds the limit (4300 digits)...`).
+      2. Independently of (1) -- verified below by temporarily calling
+         `sys.set_int_max_str_digits(0)` to remove that limit entirely --
+         `datetime.fromtimestamp()` raises OverflowError for any epoch
+         outside its representable range, and every "9"*N string tested
+         here lands outside it regardless of N.
+    Both exception types are already in parse_date()'s except tuple, so
+    every case below is GREEN today, not RED. It does not currently prove
+    a bug -- only that today's *accidental* behavior already matches the
+    *intended explicit* contract. Kept in the suite so it (a) documents
+    the contract for Ultron's future explicit guard, (b) stays green
+    unchanged once that guard exists, and (c) would catch a REAL
+    regression if either accidental safety net were ever weakened (e.g.
+    `sys.set_int_max_str_digits()` raised elsewhere in the process, or a
+    future refactor swapped `datetime.fromtimestamp` for something with a
+    wider representable range).
+    """
+
+    @pytest.mark.parametrize(
+        "length",
+        [21, 25, 100, 5000, 50000],
+        ids=["21_digits", "25_digits", "100_digits", "5000_digits", "50000_digits"],
+    )
+    def test_oversized_digit_string_returns_none(self, length):
+        result = parse_date("9" * length)
+        assert result is None, (
+            f"parse_date('9'*{length}) returned {result!r} -- a digit "
+            "string this long can never represent a real epoch and must "
+            "resolve to None (today via OverflowError/ValueError; "
+            "the intended contract is an explicit upfront length guard)."
+        )
+
+    def test_oversized_digit_string_returns_none_without_interpreter_digit_limit(self):
+        """Isolates whether OverflowError ALONE (not CPython's own
+        int-string-conversion limit) already protects parse_date() --
+        proves the None result for a 50000-digit string is not solely an
+        artifact of `sys.get_int_max_str_digits()`.
+        """
+        original_limit = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(0)
+        try:
+            result = parse_date("9" * 50000)
+        finally:
+            sys.set_int_max_str_digits(original_limit)
+        assert result is None, (
+            f"parse_date('9'*50000) returned {result!r} with CPython's "
+            "int-string-conversion limit disabled -- OverflowError from "
+            "datetime.fromtimestamp() alone should still catch this."
+        )
+
+
+# ── BUG-3 (Moriarty): bootstrap --json presents a raw epoch, not a ──────
+# ── readable date ─────────────────────────────────────────────────────
+
+
+class TestBootstrapJsonDateFieldReadableForPresentation:
+    """lib/bootstrap_commits.py::scan_recent_commits() migrated its git
+    log call from %aI to %at (issue #55 fix) but never parses the
+    resulting epoch string -- it is stored verbatim in each commit dict's
+    "date" key. The real consumer, bin/git-memory-bootstrap.py --json,
+    documents itself as producing "structured output for Claude to
+    present to the user" (module docstring). Before the %at migration
+    this field held a readable ISO-8601 string
+    ("2026-07-08T21:06:47+02:00"); today it holds a bare epoch digit
+    string ("1783538049"), which is not presentable as-is.
+    """
+
+    def test_recent_commit_date_is_not_a_raw_digit_string(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        real_epoch = _real_epoch_of_head(repo)
+
+        rc, out, err = run_script(BOOTSTRAP, repo, ["--json"])
+        assert rc in (0, 1), f"bootstrap.py --json crashed: rc={rc} err={err!r}"
+        parsed = json.loads(out)
+
+        commits = parsed.get("commits")
+        assert commits and commits.get("recent"), (
+            f"test setup error: no commits in --json output -- {parsed!r}"
+        )
+        got_date = commits["recent"][0]["date"]
+
+        # Setup sanity: confirm this really is the same real commit whose
+        # epoch we read directly from git (not a coincidence / stale
+        # fixture) before asserting the presentation contract on it.
+        assert got_date == real_epoch, (
+            "test setup error: --json 'date' field does not match the "
+            f"real HEAD epoch -- got {got_date!r}, expected {real_epoch!r} "
+            "(fixture assumption broken, not the contract under test)"
+        )
+
+        assert not got_date.isdigit(), (
+            f"contract not yet met: bootstrap --json's commits.recent[0]."
+            f"date is a raw epoch digit string ({got_date!r}) -- not "
+            "presentable to a user per this script's own docstring "
+            "('structured output for Claude to present to the user'). "
+            "Expected a readable/ISO date, mirroring the pre-%at-migration "
+            "behavior."
+        )
+
+
+# ── BUG-4 (Moriarty): overflow-future GC commit reported as "never run" ─
+
+
+class TestDoctorGcNeverRunFalseOnUnparseableFutureDate:
+    """bin/git-memory-doctor.py::check_gc_status() -- a real, fsck-clean
+    commit backdated to an impossible future date
+    (`GIT_AUTHOR_DATE="@253402300800 +0000"`, one second past
+    `datetime.max`) makes `parse_date()` correctly return None (caught
+    ValueError: "year must be in 1..9999, not 10000"). But
+    check_gc_status()'s `if "gc" in subject... and last_gc is None:
+    last_gc = date` then binds `last_gc = None` -- and with only ONE gc
+    commit in range, `last_gc` stays None for the rest of the scan. The
+    result: doctor.py's --json output is byte-for-byte IDENTICAL to a
+    repo that never ran GC at all ("never run"), even though a real GC
+    commit genuinely exists in history. The unparseable date silently
+    erases all trace of the commit instead of being surfaced.
+    """
+
+    def test_gc_commit_with_unparseable_future_date_is_not_indistinguishable_from_never_run(
+        self, tmp_path
+    ):
+        # Baseline: a repo with genuinely ZERO gc commits. "never run" is
+        # the CORRECT message here -- this is what "never run" is
+        # supposed to mean, and proves the fixture/message shape is right
+        # before introducing the impossible-date variable.
+        baseline_repo = _make_repo(tmp_path, name="baseline")
+        parsed_baseline, _ = run_doctor_json(baseline_repo)
+        baseline_msg = _find_check(parsed_baseline, "GC")
+        assert baseline_msg == "never run", (
+            "test setup error: a repo with genuinely zero GC commits "
+            f"should say 'never run' -- got {baseline_msg!r}"
+        )
+
+        # Repro: one real, fsck-clean GC commit with an impossible future
+        # date -- the only GC commit in this repo's history.
+        overflow_repo = _make_repo(tmp_path, name="overflow")
+        git_cmd(
+            ["commit", "--allow-empty", "-m",
+             "🔧 chore(memory): gc — 1 items cleaned\n\n"
+             "Why: automated memory garbage collection\nResolved-Next: xoverflow55"],
+            overflow_repo,
+            env={
+                "GIT_AUTHOR_DATE": "@253402300800 +0000",
+                "GIT_COMMITTER_DATE": "@253402300800 +0000",
+            },
+        )
+        rc_fsck, _, err_fsck = git_cmd(["fsck", "--full"], overflow_repo)
+        assert rc_fsck == 0, (
+            f"test setup error: overflow-dated commit is not fsck-clean -- "
+            f"rc={rc_fsck} err={err_fsck!r} (fixture broken, not the "
+            "contract under test)"
+        )
+
+        parsed_overflow, _ = run_doctor_json(overflow_repo)
+        overflow_msg = _find_check(parsed_overflow, "GC")
+        assert overflow_msg != "never run", (
+            "contract not yet met: a real, fsck-clean GC commit exists "
+            "(backdated to an impossible future date) but doctor.py "
+            "reports the exact same 'never run' message as a repo with "
+            f"zero GC commits ever -- got {overflow_msg!r}. An unparseable "
+            "date must leave some observable trace instead of being "
+            "silently indistinguishable from 'GC never ran'."
+        )
+
+
+# ── BUG-5 (Moriarty): negative "days ago" for a future-but-valid date ───
+
+
+class TestDoctorGcNegativeDaysAgoClamped:
+    """bin/git-memory-doctor.py::check_gc_status() line ~266:
+    `gc_days_ago = (now - last_gc).days if last_gc else None` has no
+    clamp when `last_gc > now`. A real, fsck-clean commit backdated (well,
+    forward-dated) to exactly one year in the future produces a NEGATIVE
+    `.days` value, surfaced verbatim to the user as
+    "last run -365 days ago" -- nonsensical, never a acceptable output
+    shape for a diagnostic message.
+    """
+
+    def test_future_dated_gc_commit_never_reports_negative_days_ago(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        future_epoch = int(time.time()) + 365 * 86400
+        git_cmd(
+            ["commit", "--allow-empty", "-m",
+             "🔧 chore(memory): gc — 1 items cleaned\n\n"
+             "Why: automated memory garbage collection\nResolved-Next: xfuture55"],
+            repo,
+            env={
+                "GIT_AUTHOR_DATE": f"@{future_epoch} +0000",
+                "GIT_COMMITTER_DATE": f"@{future_epoch} +0000",
+            },
+        )
+        rc_fsck, _, err_fsck = git_cmd(["fsck", "--full"], repo)
+        assert rc_fsck == 0, (
+            f"test setup error: future-dated commit is not fsck-clean -- "
+            f"rc={rc_fsck} err={err_fsck!r} (fixture broken, not the "
+            "contract under test)"
+        )
+
+        parsed, _ = run_doctor_json(repo)
+        msg = _find_check(parsed, "GC")
+        assert msg is not None, (
+            f"test setup error: no 'GC' check in --json output -- "
+            f"checks={parsed.get('checks')!r}"
+        )
+        assert not re.search(r"-\d+\s*days?\s*ago", msg), (
+            f"contract not yet met: doctor.py reported a negative "
+            f"days-ago figure -- {msg!r}. A future-dated last GC run must "
+            "be clamped to a sensible value (e.g. 0) or use a distinct "
+            "message, never '-N days ago'."
         )
