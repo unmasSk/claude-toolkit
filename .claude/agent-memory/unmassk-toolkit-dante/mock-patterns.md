@@ -688,3 +688,30 @@ TestRunGitLogStderrOnFailure` (7 tests, all via `capsys` since the print
 happens in-process — no subprocess wrapper needed for THIS assertion,
 unlike the fake-git-on-PATH pattern above which is for asserting the
 *subprocess's own* env/argv).
+
+## Fake `git` that mangles a specific `%`-token to inert literal text — simulating "old git can't expand this directive" without a real ancient git binary
+
+Extends the fake-git-on-PATH pattern above one step further: to reproduce
+what happens when an old git release doesn't recognize a specific
+pretty-format directive (e.g. `%aI`, ISO-8601 date), rewrite that literal
+substring to plain non-`%` text INSIDE any `--pretty=format:` arg before
+delegating to the real git binary — since the rewritten text no longer
+contains a `%` placeholder, real git emits it verbatim, exactly matching
+how an old git emits an unrecognized directive (literally, unexpanded).
+This needs no fake-command-logging/hanging machinery, just a 3-line rewrite
+loop over `sys.argv[1:]`. Crucially, any OTHER `%` token in the same format
+string (e.g. `%at`, unix epoch — much older and universally supported) is
+left untouched, so this technique proves a migration fix works: run the
+SAME "hostile" PATH against code that has already switched from the
+mangled token to the untouched one, and it must produce correct output.
+Confirmed in `unmassk-toolkit/tests/test_date_parsing_epoch_contract.py`
+(issue #55, session 2026-07-08) reproducing two real degradations end-to-
+end: `bin/git-memory-gc.py`'s H2 stale-blocker heuristic
+(`if not commit["date"]: continue`) and `bin/git-memory-doctor.py`'s
+`check_gc_status()` (both its stale-blocker count and "days since last GC"
+figure) silently stop firing when `%aI` can't be expanded, because the
+project's own `parse_date()` swallows the resulting `ValueError` to `None`.
+Each test runs the real-git control pass FIRST (setup-sanity assertion — a
+real backdated commit, via `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` env, must
+already trigger the heuristic with unmodified git) before switching PATH to
+the mangling fake and asserting the contract still holds.
