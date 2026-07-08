@@ -72,10 +72,10 @@ def test_detects_outdated_block(tmp_path):
 
     # Tamper with the managed block
     claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w") as f:
+    with open(claude_md, "w", encoding="utf-8") as f:
         f.write(content)
 
     rc, stdout, _ = run_upgrade(repo, ["--dry-run"])
@@ -89,16 +89,16 @@ def test_upgrade_restores_block(tmp_path):
 
     # Tamper with the managed block
     claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w") as f:
+    with open(claude_md, "w", encoding="utf-8") as f:
         f.write(content)
 
     rc, stdout, _ = run_upgrade(repo, ["--auto"])
     assert rc == 0
 
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         assert "unmassk-toolkit Active" in f.read()
 
     backup_dir = os.path.join(repo, ".claude", "backups")
@@ -112,10 +112,10 @@ def test_json_output(tmp_path):
 
     # Tamper to trigger update_available
     claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w") as f:
+    with open(claude_md, "w", encoding="utf-8") as f:
         f.write(content)
 
     rc, stdout, _ = run_upgrade(repo, ["--check", "--json"])
@@ -140,16 +140,16 @@ def test_manifest_updated(tmp_path):
 
     # Tamper with CLAUDE.md to trigger upgrade
     claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w") as f:
+    with open(claude_md, "w", encoding="utf-8") as f:
         f.write(content)
 
     run_upgrade(repo, ["--auto"])
 
     manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-    with open(manifest_path) as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
     assert "upgraded_at" in manifest

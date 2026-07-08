@@ -145,8 +145,23 @@ def run_snapshot(cwd):
 
     Filters out any post-snapshot instructions (e.g. context checkpoint
     reminder) by extracting only lines between the snapshot markers.
+
+    Issue #52 (House, round 2): stderr used to be silently discarded here
+    (`rc, out, _ = ...`). Every one of this helper's callers asserts on the
+    RETURNED SNAPSHOT STRING (e.g. "Snapshot returned empty"), which gives
+    zero diagnostic trail if precompact-snapshot.py actually crashed --
+    exactly the situation for the 7 ubuntu-only CI failures under issue #52
+    that don't reproduce locally. Fail loudly here with rc/stdout/stderr
+    embedded the moment the script doesn't exit 0, so the NEXT CI run
+    surfaces the real cause in the pytest failure message instead of a
+    downstream assert with no clue why the snapshot was empty/malformed.
     """
-    rc, out, _ = run_cmd([sys.executable, PRECOMPACT_SCRIPT], cwd, timeout=15)
+    rc, out, err = run_cmd([sys.executable, PRECOMPACT_SCRIPT], cwd, timeout=15)
+    assert rc == 0, (
+        f"precompact-snapshot.py exited {rc} (expected 0).\n"
+        f"--- stdout ---\n{out}\n"
+        f"--- stderr ---\n{err}"
+    )
     # Extract only the snapshot block (between markers)
     lines = out.split("\n")
     snapshot_lines = []

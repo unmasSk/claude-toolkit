@@ -105,8 +105,18 @@ def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
     else:
         identity_defaults = _DEFAULT_GIT_IDENTITY_ENV
     merged = {**identity_defaults, **os.environ, **(env or {})}
+    # W2 (issue #52, House round 2): text=True without an explicit encoding=
+    # makes subprocess.run decode the child's stdout/stderr bytes using
+    # locale.getpreferredencoding(False) -- on Windows that's the console's
+    # ANSI codepage (e.g. cp1252), not UTF-8. Once Ultron's #52 fix forces
+    # every entry point to emit UTF-8 on stdout/stderr (W1), the PARENT side
+    # here still needs to decode those UTF-8 bytes as UTF-8 explicitly, or
+    # any non-cp1252 byte sequence (emoji, arrows) raises UnicodeDecodeError
+    # in the test process itself -- confirmed as the root cause of 16
+    # decode failures on the Windows CI run. Pin it explicitly so this
+    # helper's behavior doesn't depend on the host's locale.
     result = subprocess.run(
-        args, capture_output=True, text=True,
+        args, capture_output=True, text=True, encoding="utf-8",
         cwd=cwd, timeout=timeout, env=merged, input=input_text,
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()
@@ -123,7 +133,7 @@ def write_file(repo, path, content):
     """Write a file inside a repo directory."""
     full = os.path.join(repo, path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
-    with open(full, "w") as f:
+    with open(full, "w", encoding="utf-8") as f:
         f.write(content)
 
 
@@ -134,12 +144,26 @@ def run_script(script_path, cwd, extra_args=None, timeout=30, env=None, input_te
 
 
 def run_doctor_json(cwd):
-    """Run doctor --json and return (parsed_dict, returncode)."""
-    rc, out, _ = run_script(DOCTOR, cwd, ["--json"])
+    """Run doctor --json and return (parsed_dict, returncode).
+
+    Issue #52 (House): stderr used to be silently discarded here. If
+    doctor.py crashes before it can print valid JSON (e.g. an
+    encoding-related UnicodeEncodeError), every caller previously only saw
+    {"status": "error", "checks": []} with zero trace of why. The "_debug"
+    key below carries rc/stdout/stderr for exactly that case -- it doesn't
+    change the shape any existing caller already relies on (nothing reads
+    "_debug" today), so a test that wants a better failure message can
+    assert on result.get("_debug") without every other caller needing to
+    change.
+    """
+    rc, out, err = run_script(DOCTOR, cwd, ["--json"])
     try:
         return json.loads(out), rc
     except json.JSONDecodeError:
-        return {"status": "error", "checks": []}, rc
+        return {
+            "status": "error", "checks": [],
+            "_debug": f"doctor.py --json rc={rc} stdout={out!r} stderr={err!r}",
+        }, rc
 
 
 def neutralize_needs_upgrade_check1(repo):
@@ -164,7 +188,7 @@ def neutralize_needs_upgrade_check1(repo):
     claude_md_path = os.path.join(repo, "CLAUDE.md")
     if not os.path.isfile(claude_md_path):
         return
-    with open(claude_md_path) as f:
+    with open(claude_md_path, encoding="utf-8") as f:
         content = f.read()
 
     begin = content.find("BEGIN unmassk-toolkit")
@@ -183,7 +207,7 @@ def neutralize_needs_upgrade_check1(repo):
         patched_block = patched_block + "\nContext Checkpoint Commits\n"
 
     content = content[:begin] + patched_block + content[end:]
-    with open(claude_md_path, "w") as f:
+    with open(claude_md_path, "w", encoding="utf-8") as f:
         f.write(content)
 
 

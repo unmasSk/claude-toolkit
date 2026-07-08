@@ -71,7 +71,7 @@ def _write_config(repo: str, config: dict) -> None:
     """Escribe .claude/git-memory-config.json en el repo temporal."""
     claude_dir = os.path.join(repo, ".claude")
     os.makedirs(claude_dir, exist_ok=True)
-    with open(os.path.join(claude_dir, "git-memory-config.json"), "w") as f:
+    with open(os.path.join(claude_dir, "git-memory-config.json"), "w", encoding="utf-8") as f:
         json.dump(config, f)
 
 
@@ -269,7 +269,7 @@ class TestInfraErrorsFailOpen:
         os.makedirs(claude_dir)
         config_path = os.path.join(claude_dir, "git-memory-config.json")
         # Crear un fichero con JSON inválido para simular config corrupta
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write("{ INVALID JSON }")
 
         rc, parsed, stdout, _ = _run_hook(workdir)

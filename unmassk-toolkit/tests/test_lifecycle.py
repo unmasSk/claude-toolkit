@@ -76,11 +76,11 @@ def test_install(lifecycle_repo):
     assert rc == 0
 
     # CLAUDE.md
-    with open(os.path.join(lifecycle_repo, "CLAUDE.md")) as f:
+    with open(os.path.join(lifecycle_repo, "CLAUDE.md"), encoding="utf-8") as f:
         assert "BEGIN unmassk-toolkit" in f.read()
 
     # Manifest
-    with open(os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json")) as f:
+    with open(os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json"), encoding="utf-8") as f:
         manifest = json.load(f)
         assert manifest["version"] == VERSION
 
@@ -124,7 +124,7 @@ def test_repair_missing_claude_md_block(lifecycle_repo):
     claude_md = os.path.join(lifecycle_repo, "CLAUDE.md")
 
     # Break: remove the managed block
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     begin = "<!-- BEGIN unmassk-toolkit"
     end = "<!-- END unmassk-toolkit -->"
@@ -132,7 +132,7 @@ def test_repair_missing_claude_md_block(lifecycle_repo):
     end_idx = content.find(end)
     if begin_idx != -1 and end_idx != -1:
         content = content[:begin_idx] + content[end_idx + len(end):]
-        with open(claude_md, "w") as f:
+        with open(claude_md, "w", encoding="utf-8") as f:
             f.write(content)
 
     # Doctor detects the problem
@@ -143,7 +143,7 @@ def test_repair_missing_claude_md_block(lifecycle_repo):
     # Repair fixes it
     rc, _, _ = run_repair(lifecycle_repo)
     assert rc == 0
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         assert "BEGIN unmassk-toolkit" in f.read()
 
 
@@ -157,7 +157,7 @@ def test_uninstall(lifecycle_repo):
     # CLAUDE.md block gone
     claude_md = os.path.join(lifecycle_repo, "CLAUDE.md")
     if os.path.isfile(claude_md):
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             assert "BEGIN unmassk-toolkit" not in f.read()
 
     # Manifest gone
@@ -188,7 +188,7 @@ def test_uninstall_full_local(lifecycle_repo):
     """Uninstall --full-local removes generated files too."""
     dashboard = os.path.join(lifecycle_repo, ".claude", "dashboard.html")
     os.makedirs(os.path.dirname(dashboard), exist_ok=True)
-    with open(dashboard, "w") as f:
+    with open(dashboard, "w", encoding="utf-8") as f:
         f.write("<html>dashboard</html>")
 
     rc, _, _ = run_uninstall(lifecycle_repo, ["--full-local"])

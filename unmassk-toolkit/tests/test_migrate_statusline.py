@@ -362,7 +362,7 @@ print(json.dumps({{"found": found, "timeline": timeline}}))
 
         generated_dir = os.path.join(repo, ".claude", ".unmassk")
         os.makedirs(generated_dir)
-        with open(os.path.join(generated_dir, "foo.json"), "w") as f:
+        with open(os.path.join(generated_dir, "foo.json"), "w", encoding="utf-8") as f:
             f.write("{}")
         git_cmd(["add", ".claude/.unmassk/foo.json"], repo)
         git_cmd(["commit", "-m", "add generated json (legacy tracked install)"], repo)

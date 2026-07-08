@@ -160,7 +160,7 @@ def test_memory_already_installed(tmp_path):
     claude_dir = os.path.join(repo, ".claude")
     unmassk_dir = os.path.join(claude_dir, ".unmassk")
     os.makedirs(unmassk_dir, exist_ok=True)
-    with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
+    with open(os.path.join(unmassk_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump({"version": "2.1.0", "runtime_mode": "normal"}, f)
     subprocess.run(["git", "-C", repo, "add", "-A"], capture_output=True)
     subprocess.run(["git", "-C", repo, "commit", "-m", "installed"], capture_output=True)

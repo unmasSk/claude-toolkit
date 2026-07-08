@@ -63,7 +63,7 @@ if LIB_DIR not in sys.path:
 
 # Plugin version — needed to write a matching manifest so needs_upgrade() → False
 _PLUGIN_JSON = os.path.join(SOURCE_ROOT, ".claude-plugin", "plugin.json")
-with open(_PLUGIN_JSON) as _f:
+with open(_PLUGIN_JSON, encoding="utf-8") as _f:
     _PLUGIN_VERSION = json.load(_f)["version"]
 
 
@@ -108,7 +108,7 @@ def _make_installed_repo(tmp_path, name="repo"):
     repo = _make_repo(tmp_path, name)
 
     claude_md_path = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md_path, "w") as f:
+    with open(claude_md_path, "w", encoding="utf-8") as f:
         f.write(
             "<!-- BEGIN unmassk-toolkit -->\n"
             "Context Checkpoint Commits\n"
@@ -119,11 +119,11 @@ def _make_installed_repo(tmp_path, name="repo"):
     os.makedirs(unmassk_dir, exist_ok=True)
 
     manifest_path = os.path.join(unmassk_dir, "manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump({"version": _PLUGIN_VERSION}, f)
 
     booted_flag = os.path.join(unmassk_dir, ".session-booted")
-    open(booted_flag, "w").close()
+    open(booted_flag, "w", encoding="utf-8").close()
 
     return repo
 
@@ -169,7 +169,7 @@ class TestFailOpenUpgrade:
 
         # CLAUDE.md con marker antiguo 'python3 bin/' → necesita upgrade
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path, "w") as f:
+        with open(claude_md_path, "w", encoding="utf-8") as f:
             f.write(
                 "<!-- BEGIN unmassk-toolkit -->\n"
                 "python3 bin/git-memory-install.py\n"
@@ -179,11 +179,11 @@ class TestFailOpenUpgrade:
         # Manifest presente con versión igual para que sólo el marker actúe.
         unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
         os.makedirs(unmassk_dir, exist_ok=True)
-        with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
+        with open(os.path.join(unmassk_dir, "manifest.json"), "w", encoding="utf-8") as f:
             json.dump({"version": _PLUGIN_VERSION}, f)
 
         # session-booted para ir a la rama normal
-        open(os.path.join(unmassk_dir, ".session-booted"), "w").close()
+        open(os.path.join(unmassk_dir, ".session-booted"), "w", encoding="utf-8").close()
 
         return repo
 

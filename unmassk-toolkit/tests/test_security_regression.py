@@ -1292,7 +1292,7 @@ class TestBugFDoctorManifestSymlinkReadWrite:
 
         rc, stdout, stderr = run_script(DOCTOR, repo, extra_args=["--json"])
 
-        after = json.load(open(manifest_path))
+        after = json.load(open(manifest_path, encoding="utf-8"))
         assert "last_healthcheck_at" in after, (
             f"Real (non-symlinked) manifest was not updated with a healthcheck "
             f"timestamp. doctor rc={rc}, stdout={stdout[:300]}, manifest={after!r}"
@@ -1329,9 +1329,9 @@ class TestBugGUpgradeBackupPathTraversal:
         os.makedirs(os.path.join(backup_dir, "manifest-vX"), exist_ok=True)
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-        manifest = json.load(open(manifest_path))
+        manifest = json.load(open(manifest_path, encoding="utf-8"))
         manifest["version"] = "X/../../../../PWNED-TRAVERSAL-MARKER"
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump(manifest, f)
 
         rc, stdout, stderr = run_script(UPGRADE, repo, extra_args=["--auto"])
@@ -1357,9 +1357,9 @@ class TestBugGUpgradeBackupPathTraversal:
         run_script(INSTALL, repo, extra_args=["--auto"])
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-        manifest = json.load(open(manifest_path))
+        manifest = json.load(open(manifest_path, encoding="utf-8"))
         manifest["version"] = "1.0.0"
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump(manifest, f)
 
         rc, stdout, stderr = run_script(UPGRADE, repo, extra_args=["--auto"])
@@ -1382,9 +1382,9 @@ _MALICIOUS_VERSION = f"{_ESC}[2J{_ESC}[31mPWNED-ESC-MARKER{_ESC}[0m"
 
 def _write_manifest_version(manifest_path, version):
     """Overwrite an installed manifest.json's "version" field in place."""
-    manifest = json.load(open(manifest_path))
+    manifest = json.load(open(manifest_path, encoding="utf-8"))
     manifest["version"] = version
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f)
 
 
@@ -1615,7 +1615,7 @@ class TestBugKClaudeMdSymlinkWrite:
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, extra_args=["--auto"])
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path) as f:
+        with open(claude_md_path, encoding="utf-8") as f:
             valid_content = f.read()
 
         victim = tmp_path / "victim-claude-md-uninstall.txt"
@@ -2011,14 +2011,14 @@ class TestBugPClaudeMdReadSymlink:
         run_script(INSTALL, repo, extra_args=["--auto"])
 
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path) as f:
+        with open(claude_md_path, encoding="utf-8") as f:
             valid_content = f.read()
         victim = tmp_path / "victim-claude-md-upgradecheck.txt"
         victim.write_text(valid_content)
         _plant_symlink(claude_md_path, str(victim))
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
 
         result = _check_upgrade_needed(SOURCE_ROOT, repo, manifest)
@@ -2825,7 +2825,7 @@ class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
         # plain leftover file at the project root from a prior old-style
         # install; OLD_HOOK_FILES includes "hooks/session-start-boot.py").
         os.makedirs(os.path.join(repo, "hooks"), exist_ok=True)
-        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w") as f:
+        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w", encoding="utf-8") as f:
             f.write("# leftover old-style install file\n")
 
         claude_path = os.path.join(repo, ".claude")
@@ -3478,7 +3478,7 @@ class TestBugAIPycacheRmtreeParentSymlink:
         repo = _make_repo(tmp_path)
 
         os.makedirs(os.path.join(repo, "hooks"), exist_ok=True)
-        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w") as f:
+        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w", encoding="utf-8") as f:
             f.write("# leftover old-style install file\n")
 
         external_dir = tmp_path / "external-lib-install"
@@ -3632,7 +3632,7 @@ class TestBugALOldSkillDirsSymlinkedParent:
         repo = _make_repo(tmp_path)
 
         os.makedirs(os.path.join(repo, "hooks"), exist_ok=True)
-        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w") as f:
+        with open(os.path.join(repo, "hooks", "session-start-boot.py"), "w", encoding="utf-8") as f:
             f.write("# leftover old-style install file\n")
 
         external_dir = tmp_path / "external-skills-install"
@@ -3726,7 +3726,7 @@ class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
         os.symlink(str(external_dir), unmassk_path)
 
         legacy_cache = os.path.join(repo, ".claude", ".glossary-cache.json")
-        with open(legacy_cache, "w") as f:
+        with open(legacy_cache, "w", encoding="utf-8") as f:
             f.write(json.dumps({"decisions": []}))
 
         _call_migrate_runtime_to_unmassk_boot_migrations(repo)
@@ -3761,7 +3761,7 @@ class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
         os.symlink(str(external_dir), unmassk_path)
 
         legacy_cache = os.path.join(repo, ".claude", ".glossary-cache.json")
-        with open(legacy_cache, "w") as f:
+        with open(legacy_cache, "w", encoding="utf-8") as f:
             f.write(json.dumps({"decisions": []}))
 
         _call_migrate_runtime_to_unmassk_upgrade(repo)
@@ -3815,7 +3815,7 @@ class TestBugANMigrateScopesAgentMemorySymlinkedParent:
         os.symlink(str(external_dir), agent_memory_path)
 
         legacy_scopes = os.path.join(repo, ".claude", "git-memory-scopes.json")
-        with open(legacy_scopes, "w") as f:
+        with open(legacy_scopes, "w", encoding="utf-8") as f:
             f.write(json.dumps({"scopes": {}}))
 
         _call_migrate_runtime_to_unmassk_boot_migrations(repo)
@@ -3854,7 +3854,7 @@ class TestBugANMigrateScopesAgentMemorySymlinkedParent:
         os.symlink(str(external_dir), agent_memory_path)
 
         legacy_scopes = os.path.join(repo, ".claude", "git-memory-scopes.json")
-        with open(legacy_scopes, "w") as f:
+        with open(legacy_scopes, "w", encoding="utf-8") as f:
             f.write(json.dumps({"scopes": {}}))
 
         _call_migrate_runtime_to_unmassk_upgrade(repo)

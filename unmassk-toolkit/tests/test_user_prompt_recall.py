@@ -45,7 +45,7 @@ HOOK_PATH = os.path.join(HOOKS_DIR, "user-prompt-memory-check.py")
 # Read the real plugin version so _make_installed_repo can write a matching
 # manifest — prevents needs_upgrade() from triggering the auto-upgrade branch.
 _PLUGIN_JSON = os.path.join(SOURCE_ROOT, ".claude-plugin", "plugin.json")
-with open(_PLUGIN_JSON) as _f:
+with open(_PLUGIN_JSON, encoding="utf-8") as _f:
     _PLUGIN_VERSION = json.load(_f)["version"]
 
 
@@ -80,7 +80,7 @@ def _make_installed_repo(tmp_path, name="repo"):
 
     # 1. Minimal CLAUDE.md managed block
     claude_md_path = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md_path, "w") as f:
+    with open(claude_md_path, "w", encoding="utf-8") as f:
         f.write(
             "<!-- BEGIN unmassk-toolkit -->\n"
             "Context Checkpoint Commits\n"
@@ -91,13 +91,13 @@ def _make_installed_repo(tmp_path, name="repo"):
     unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
     os.makedirs(unmassk_dir, exist_ok=True)
     manifest_path = os.path.join(unmassk_dir, "manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump({"version": _PLUGIN_VERSION}, f)
 
     # 3. Create the session-booted flag so the hook emits [git-memory] root
     #    (already-booted path) rather than the verbose first-boot block.
     booted_flag = os.path.join(unmassk_dir, ".session-booted")
-    open(booted_flag, "w").close()
+    open(booted_flag, "w", encoding="utf-8").close()
 
     return repo
 

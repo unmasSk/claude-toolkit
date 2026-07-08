@@ -68,7 +68,7 @@ def test_install_over_existing(tmp_path):
     assert rc == 0
     assert os.path.isfile(os.path.join(repo, ".claude", "my-settings.json"))
 
-    with open(os.path.join(repo, "CLAUDE.md")) as f:
+    with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
         claude_md = f.read()
     assert "Instrucciones personalizadas" in claude_md
     assert "BEGIN unmassk-toolkit" in claude_md
@@ -79,11 +79,11 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
     repo = make_installed_repo(tmp_path)
 
     # CLAUDE.md exists
-    with open(os.path.join(repo, "CLAUDE.md")) as f:
+    with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
         assert "BEGIN unmassk-toolkit" in f.read()
 
     # Manifest exists
-    with open(os.path.join(repo, ".claude", ".unmassk", "manifest.json")) as f:
+    with open(os.path.join(repo, ".claude", ".unmassk", "manifest.json"), encoding="utf-8") as f:
         manifest = json.load(f)
         assert manifest["version"] == VERSION
 
@@ -257,7 +257,7 @@ def test_uninstall_reinstall_data_intact(tmp_path):
     # After uninstall: CLAUDE.md block gone, manifest gone
     claude_md = os.path.join(repo, "CLAUDE.md")
     if os.path.isfile(claude_md):
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             assert "BEGIN unmassk-toolkit" not in f.read()
     assert not os.path.isfile(os.path.join(repo, ".claude", ".unmassk", "manifest.json"))
 
@@ -270,7 +270,7 @@ def test_uninstall_reinstall_data_intact(tmp_path):
 
     # Reinstall
     run_script(INSTALL, repo, ["--auto"])
-    with open(os.path.join(repo, "CLAUDE.md")) as f:
+    with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
         assert "BEGIN unmassk-toolkit" in f.read()
 
     _, log_final, _ = git_cmd(["log", "--oneline"], repo)
@@ -283,10 +283,10 @@ def test_upgrade_creates_backup(tmp_path):
 
     # Tamper with the managed block to trigger an upgrade
     claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         content = f.read()
     content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w") as f:
+    with open(claude_md, "w", encoding="utf-8") as f:
         f.write(content)
 
     rc, _, _ = run_script(UPGRADE, repo, ["--auto"])
@@ -297,7 +297,7 @@ def test_upgrade_creates_backup(tmp_path):
     assert os.path.isdir(backup_dir) and len(os.listdir(backup_dir)) > 0
 
     # CLAUDE.md restored
-    with open(claude_md) as f:
+    with open(claude_md, encoding="utf-8") as f:
         assert "unmassk-toolkit Active" in f.read()
 
     result, _ = run_doctor_json(repo)

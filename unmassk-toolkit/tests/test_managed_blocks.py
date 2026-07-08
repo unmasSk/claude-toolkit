@@ -327,7 +327,7 @@ class TestInstallFiveBlocks:
         assert rc == 0
 
         claude_md = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content = f.read()
 
         assert all_blocks_present(content), (
@@ -339,7 +339,7 @@ class TestInstallFiveBlocks:
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, ["--auto"])
 
-        with open(os.path.join(repo, "CLAUDE.md")) as f:
+        with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
             content = f.read()
 
         assert not any_block_outdated(content), (
@@ -351,12 +351,12 @@ class TestInstallFiveBlocks:
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, ["--auto"])
 
-        with open(os.path.join(repo, "CLAUDE.md")) as f:
+        with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
             content_after_first = f.read()
 
         run_script(INSTALL, repo, ["--auto"])
 
-        with open(os.path.join(repo, "CLAUDE.md")) as f:
+        with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
             content_after_second = f.read()
 
         assert content_after_first == content_after_second, (
@@ -367,12 +367,12 @@ class TestInstallFiveBlocks:
         """Install does not wipe existing non-managed content in CLAUDE.md."""
         repo = _make_repo(tmp_path)
         claude_md = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md, "w") as f:
+        with open(claude_md, "w", encoding="utf-8") as f:
             f.write("# My Project\n\nCustom instructions here.\n")
 
         run_script(INSTALL, repo, ["--auto"])
 
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content = f.read()
 
         assert "Custom instructions here." in content
@@ -384,12 +384,12 @@ class TestInstallFiveBlocks:
         # Write only the first block
         claude_md = os.path.join(repo, "CLAUDE.md")
         b0 = BLOCKS[0]
-        with open(claude_md, "w") as f:
+        with open(claude_md, "w", encoding="utf-8") as f:
             f.write(f"{b0['begin']}\n{b0['body']}\n{b0['end']}\n")
 
         run_script(INSTALL, repo, ["--auto"])
 
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content = f.read()
 
         assert all_blocks_present(content), (
@@ -409,7 +409,7 @@ class TestCrewHookFiveBlocks:
         claude_md = os.path.join(repo, "CLAUDE.md")
         assert os.path.isfile(claude_md), "crew hook must create CLAUDE.md"
 
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content = f.read()
 
         assert all_blocks_present(content), (
@@ -423,13 +423,13 @@ class TestCrewHookFiveBlocks:
         claude_md = os.path.join(repo, "CLAUDE.md")
         b0 = BLOCKS[0]
         stale_body = "## unmassk-toolkit Active\n\nOLD VERSION OF INSTRUCTIONS."
-        with open(claude_md, "w") as f:
+        with open(claude_md, "w", encoding="utf-8") as f:
             f.write(f"{b0['begin']}\n{stale_body}\n{b0['end']}\n")
 
         rc, stdout, _ = run_cmd([sys.executable, CREW_HOOK], cwd=repo)
         assert rc == 0
 
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content = f.read()
 
         assert "OLD VERSION OF INSTRUCTIONS" not in content
@@ -442,11 +442,11 @@ class TestCrewHookFiveBlocks:
         claude_md = os.path.join(repo, "CLAUDE.md")
 
         run_cmd([sys.executable, CREW_HOOK], cwd=repo)
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content_first = f.read()
 
         run_cmd([sys.executable, CREW_HOOK], cwd=repo)
-        with open(claude_md) as f:
+        with open(claude_md, encoding="utf-8") as f:
             content_second = f.read()
 
         assert content_first == content_second, (
@@ -473,7 +473,7 @@ class TestUninstallFiveBlocks:
 
         claude_md = os.path.join(repo, "CLAUDE.md")
         if os.path.isfile(claude_md):
-            with open(claude_md) as f:
+            with open(claude_md, encoding="utf-8") as f:
                 content = f.read()
             for b in BLOCKS:
                 assert b["begin"] not in content, (
@@ -487,13 +487,13 @@ class TestUninstallFiveBlocks:
         """Uninstall removes blocks but preserves user content in CLAUDE.md."""
         repo = _make_repo(tmp_path)
         claude_md = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md, "w") as f:
+        with open(claude_md, "w", encoding="utf-8") as f:
             f.write("# My Project\n\nUser notes here.\n")
 
         run_script(INSTALL, repo, ["--auto"])
         run_script(UNINSTALL, repo, ["--auto"])
 
         if os.path.isfile(claude_md):
-            with open(claude_md) as f:
+            with open(claude_md, encoding="utf-8") as f:
                 content = f.read()
             assert "User notes here." in content

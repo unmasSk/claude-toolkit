@@ -109,7 +109,7 @@ SKILLS_DIR = os.path.join(SOURCE_ROOT, "skills")
 # Read the real plugin version so _make_installed_repo can write a matching
 # manifest -- prevents needs_upgrade() from triggering the auto-upgrade branch.
 _PLUGIN_JSON = os.path.join(SOURCE_ROOT, ".claude-plugin", "plugin.json")
-with open(_PLUGIN_JSON) as _f:
+with open(_PLUGIN_JSON, encoding="utf-8") as _f:
     _PLUGIN_VERSION = json.load(_f)["version"]
 
 # The bracket-label marker this contract locks the nudge line to (see module
@@ -148,7 +148,7 @@ def _make_installed_repo(tmp_path, name="repo", booted=True):
     repo = _make_repo(tmp_path, name)
 
     claude_md_path = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md_path, "w") as f:
+    with open(claude_md_path, "w", encoding="utf-8") as f:
         f.write(
             "<!-- BEGIN unmassk-toolkit -->\n"
             "Context Checkpoint Commits\n"
@@ -158,12 +158,12 @@ def _make_installed_repo(tmp_path, name="repo", booted=True):
     unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
     os.makedirs(unmassk_dir, exist_ok=True)
     manifest_path = os.path.join(unmassk_dir, "manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump({"version": _PLUGIN_VERSION}, f)
 
     if booted:
         booted_flag = os.path.join(unmassk_dir, ".session-booted")
-        open(booted_flag, "w").close()
+        open(booted_flag, "w", encoding="utf-8").close()
 
     return repo
 
@@ -542,7 +542,7 @@ def _read_skill_description(skill_name):
     than yaml.safe_load's real folding rules.
     """
     skill_md_path = os.path.join(SKILLS_DIR, skill_name, "SKILL.md")
-    with open(skill_md_path) as f:
+    with open(skill_md_path, encoding="utf-8") as f:
         content = f.read()
     _, frontmatter_text, _ = content.split("---", 2)
     frontmatter = yaml.safe_load(frontmatter_text)

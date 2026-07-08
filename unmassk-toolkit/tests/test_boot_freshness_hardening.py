@@ -124,7 +124,7 @@ def _make_gated_repo(tmp_path, name="gated_repo"):
     _git(["commit", "--allow-empty", "-m", "init"], repo)
     unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
     os.makedirs(unmassk_dir, exist_ok=True)
-    with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
+    with open(os.path.join(unmassk_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump({"version": "1.0.0"}, f)
     return repo
 
@@ -428,21 +428,21 @@ class TestHasToolkitMemory:
     def test_manifest_present_is_sufficient(self, tmp_path):
         repo = str(tmp_path / "r1")
         os.makedirs(os.path.join(repo, ".claude", ".unmassk"))
-        with open(os.path.join(repo, ".claude", ".unmassk", "manifest.json"), "w") as f:
+        with open(os.path.join(repo, ".claude", ".unmassk", "manifest.json"), "w", encoding="utf-8") as f:
             json.dump({"version": "1.0.0"}, f)
         assert boot_git_checks._has_toolkit_memory(repo) is True
 
     def test_claude_md_marker_without_manifest_is_sufficient(self, tmp_path):
         repo = str(tmp_path / "r2")
         os.makedirs(repo)
-        with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+        with open(os.path.join(repo, "CLAUDE.md"), "w", encoding="utf-8") as f:
             f.write("<!-- BEGIN unmassk-toolkit -->\nfoo\n<!-- END unmassk-toolkit -->\n")
         assert boot_git_checks._has_toolkit_memory(repo) is True
 
     def test_claude_md_without_marker_is_insufficient(self, tmp_path):
         repo = str(tmp_path / "r3")
         os.makedirs(repo)
-        with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
+        with open(os.path.join(repo, "CLAUDE.md"), "w", encoding="utf-8") as f:
             f.write("just some project notes\n")
         assert boot_git_checks._has_toolkit_memory(repo) is False
 
@@ -496,7 +496,7 @@ class TestFetchHeadAgeSeconds:
         repo = str(tmp_path / "with_fetch_head")
         os.makedirs(os.path.join(repo, ".git"))
         fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
-        open(fetch_head, "w").close()
+        open(fetch_head, "w", encoding="utf-8").close()
         age = boot_git_checks._fetch_head_age_seconds(repo)
         assert age is not None
         assert -1.0 <= age < 60.0, f"expected age near zero for a freshly-created FETCH_HEAD, got {age}"
@@ -777,7 +777,7 @@ class TestReadGlossaryCacheMigration:
             "remembers": [],
             "tombstones": [],
         }
-        with open(os.path.join(cache_dir, "glossary-cache.json"), "w") as f:
+        with open(os.path.join(cache_dir, "glossary-cache.json"), "w", encoding="utf-8") as f:
             json.dump(old_cache, f)
 
     def test_old_cache_without_origin_sha_stays_valid_when_no_upstream(self, tmp_path, monkeypatch):

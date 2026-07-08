@@ -102,7 +102,7 @@ def make_semver_test_repo(tmp_path, name="repo"):
     repo = make_installed_repo(tmp_path, name)
 
     claude_md_path = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md_path) as f:
+    with open(claude_md_path, encoding="utf-8") as f:
         content = f.read()
 
     # Locate the managed block.
@@ -121,7 +121,7 @@ def make_semver_test_repo(tmp_path, name="repo"):
             patched_block = patched_block + "\nContext Checkpoint Commits\n"
 
         content = content[:begin] + patched_block + content[end:]
-        with open(claude_md_path, "w") as f:
+        with open(claude_md_path, "w", encoding="utf-8") as f:
             f.write(content)
 
     return repo
@@ -134,14 +134,14 @@ def write_manifest(repo, version, extra=None):
     data = {"version": version, "runtime_mode": "normal"}
     if extra:
         data.update(extra)
-    with open(os.path.join(manifest_dir, "manifest.json"), "w") as f:
+    with open(os.path.join(manifest_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(data, f)
 
 
 def read_manifest_version(repo):
     """Read back the version from manifest.json."""
     manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-    with open(manifest_path) as f:
+    with open(manifest_path, encoding="utf-8") as f:
         return json.load(f)["version"]
 
 
@@ -282,7 +282,7 @@ class TestNeedsUpgradeFailSafe:
         repo = make_semver_test_repo(tmp_path)
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             f.write("{ this is not valid json !!!")
 
         hook = _import_hook(monkeypatch)
@@ -296,7 +296,7 @@ class TestNeedsUpgradeFailSafe:
         repo = make_semver_test_repo(tmp_path)
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({"runtime_mode": "normal"}, f)  # no "version" key
 
         hook = _import_hook(monkeypatch)
@@ -344,7 +344,7 @@ class TestNeedsUpgradeFailSafe:
         repo = make_semver_test_repo(tmp_path)
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump({"version": None}, f)  # produces {"version": null} in JSON
 
         hook = _import_hook(monkeypatch)
@@ -407,10 +407,10 @@ class TestNeedsUpgradePreexistingReasons:
 
         # Tamper CLAUDE.md to contain the old-style marker.
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path) as f:
+        with open(claude_md_path, encoding="utf-8") as f:
             content = f.read()
         content = content.replace("unmassk-toolkit Active", "python3 bin/git-memory-install.py")
-        with open(claude_md_path, "w") as f:
+        with open(claude_md_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         hook = _import_hook(monkeypatch)
@@ -428,11 +428,11 @@ class TestNeedsUpgradePreexistingReasons:
         write_manifest(repo, VERSION)
 
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path) as f:
+        with open(claude_md_path, encoding="utf-8") as f:
             content = f.read()
         # Remove the 'Context Checkpoint Commits' text from inside the managed block.
         content = content.replace("Context Checkpoint Commits", "Checkpoint Notes")
-        with open(claude_md_path, "w") as f:
+        with open(claude_md_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         hook = _import_hook(monkeypatch)
@@ -450,10 +450,10 @@ class TestNeedsUpgradePreexistingReasons:
 
         # Also tamper CLAUDE.md (stale-block trigger).
         claude_md_path = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md_path) as f:
+        with open(claude_md_path, encoding="utf-8") as f:
             content = f.read()
         content = content.replace("unmassk-toolkit Active", "python3 bin/git-memory-install.py")
-        with open(claude_md_path, "w") as f:
+        with open(claude_md_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         hook = _import_hook(monkeypatch)

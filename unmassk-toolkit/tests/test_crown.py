@@ -687,7 +687,7 @@ class TestGlossaryCacheWithCrown:
         cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         assert os.path.isfile(cache_path), "Glossary cache must be created by boot"
 
-        with open(cache_path) as f:
+        with open(cache_path, encoding="utf-8") as f:
             cache = json.load(f)
 
         # schema_version must be present
@@ -729,19 +729,19 @@ class TestGlossaryCacheWithCrown:
         assert os.path.isfile(cache_path)
 
         # Simulate old 2-tuple cache (no schema_version)
-        with open(cache_path) as f:
+        with open(cache_path, encoding="utf-8") as f:
             cache = json.load(f)
 
         # Downgrade: remove schema_version and convert decisions to 2-tuples
         cache.pop("schema_version", None)
         cache["decisions"] = [[d[0], d[1]] for d in cache.get("decisions", [])]
-        with open(cache_path, "w") as f:
+        with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(cache, f)
 
         # Boot again: must detect stale format and regenerate
         _run_boot(repo)
 
-        with open(cache_path) as f:
+        with open(cache_path, encoding="utf-8") as f:
             refreshed = json.load(f)
 
         assert "schema_version" in refreshed, (

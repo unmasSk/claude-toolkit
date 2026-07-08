@@ -4,6 +4,12 @@ description: Recurring shell, Python, and TypeScript/Bun anti-patterns found in 
 type: project
 ---
 
+## Commit touches an agent-memory MEMORY.md index without the topic file it points to
+
+Confirmed 2026-07-07 in commit 38f5728 (encoding_guard.py fix, issue #52): the commit added a line to `.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md` pointing to `unmassk-toolkit-python-entrypoints.md`, but that topic file itself was never `git add`-ed — it existed only as an untracked file on the author's disk (`git show <sha>:<path>` failed with "exists on disk, but not in <sha>"). Anyone who clones/checks out that commit alone gets a dangling memory link. This is Issue-tier, not a nitpick — it breaks the memory system's own integrity contract.
+
+Check pattern for future commit reviews: whenever a diff touches any `agent-memory/*/MEMORY.md`, extract every new `[Title](file.md)` line added, then run `git show <sha>:<path-to-file.md>` for each — if it fails, the commit is incomplete.
+
 ## set -e without -u or -o pipefail
 
 Scripts in ops-containers/scripts/ use mixed `set -e` (generate_chart_structure.sh, generate_standard_helpers.sh, k8s-detect-crd-wrapper.sh, k8s-setup-tools.sh) while most others use `set -euo pipefail`. The correct baseline for all scripts in this project is:
