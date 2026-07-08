@@ -1069,3 +1069,88 @@ class TestTimeAgoOverflowFallsBackSafely:
         function's full invalid-input surface in one place.
         """
         assert boot_git_checks.time_ago(iso_or_unix) == "unknown"
+
+
+# ── Contract A (2026-07-08, Bex): time_ago() type guard, mirrors the ─────
+# ── BUG-1 fix in lib/date_parsing.py::parse_date() ───────────────────────
+
+
+class TestTimeAgoNonStringInputContract:
+    """lib/boot_git_checks.py:time_ago() calls `iso_or_unix.isdigit()`
+    unconditionally inside the try block -- the identical pre-fix shape as
+    lib/date_parsing.py::parse_date() (see
+    test_date_parsing_epoch_contract.py::TestParseDateNonStringInputContract,
+    BUG-1, Argus SEC-LOW-001). AttributeError is not in time_ago()'s except
+    tuple (`ValueError, TypeError, OSError, OverflowError`), so a non-string
+    input crashes instead of degrading to the same "unknown" fallback every
+    other malformed-input case in this function already gets (see
+    TestTimeAgoOverflowFallsBackSafely above). parse_date() was already
+    fixed with an explicit `if not isinstance(date_str, str): return None`
+    guard -- time_ago() is its mirror function in the same "git log date
+    parsing" lineage (same module docstring cross-reference, both directions)
+    and needs the identical guard, returning "unknown" instead of raising.
+    """
+
+    @pytest.mark.parametrize(
+        "bad_input",
+        [None, 123456, ["a"]],
+        ids=["none", "int", "list"],
+    )
+    def test_returns_unknown_instead_of_raising(self, bad_input):
+        result = boot_git_checks.time_ago(bad_input)
+        assert result == "unknown", (
+            f"time_ago({bad_input!r}) should return \"unknown\" -- the same "
+            "fallback every other parse failure in this function already "
+            f"gets -- not raise. Got {result!r}."
+        )
+
+
+# ── Contract B (2026-07-08, Bex): non-ASCII Unicode digits accepted by ───
+# ── str.isdigit() (and by int()) must be rejected, not silently parsed ───
+
+
+class TestTimeAgoNonAsciiDigitsContract:
+    """str.isdigit() returns True for non-ASCII Unicode digit characters
+    (fullwidth, arabic-indic, devanagari, ...) that int() also happily
+    parses -- so time_ago()'s `iso_or_unix.isdigit()` branch treats them as
+    a valid %at unix epoch and returns a plausible-but-wrong "N ago"
+    string instead of rejecting the input. A real `git log %at` call never
+    emits non-ASCII digits, so any such string reaching time_ago() is
+    malformed input, not a valid epoch, and must resolve to the same
+    "unknown" fallback every other unparseable input gets -- not a
+    fabricated (if superficially plausible) date. Mirrors the identical
+    gap in lib/date_parsing.py::parse_date()'s own isdigit() branch -- see
+    test_date_parsing_epoch_contract.py::TestParseDateNonAsciiDigitsContract.
+
+    Expected result is derived from the contract itself (rejection -- the
+    same "unknown" every other unparseable input already resolves to), not
+    from a hand-invented epoch: whatever plausible-but-wrong "N ago" string
+    today's code derives from these strings is exactly the bug, so it is
+    never used as an expected value.
+    """
+
+    @pytest.mark.parametrize(
+        "non_ascii_digits",
+        ["１２３", "٢٠٢٤", "१२३"],
+        ids=["fullwidth", "arabic_indic", "devanagari"],
+    )
+    def test_non_ascii_digit_string_returns_unknown(self, non_ascii_digits):
+        assert non_ascii_digits.isdigit(), (
+            "test setup error: fixture string is not a str.isdigit() == "
+            "True case -- this test targets the exact isdigit()-but-not-"
+            "ASCII gap"
+        )
+        assert not non_ascii_digits.isascii(), (
+            "test setup error: fixture string is ASCII digits -- must be "
+            "non-ASCII to target this gap"
+        )
+
+        result = boot_git_checks.time_ago(non_ascii_digits)
+
+        assert result == "unknown", (
+            f"time_ago({non_ascii_digits!r}) returned {result!r} -- a "
+            "plausible-but-wrong date derived from a non-ASCII digit "
+            "string that str.isdigit() accepts but no real `git log %at` "
+            "call ever emits. Must be rejected as unparseable (\"unknown\"), "
+            "not silently converted via int()."
+        )

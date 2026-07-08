@@ -535,6 +535,58 @@ class TestParseDateNonStringInputContract:
         )
 
 
+# ── Contract B (2026-07-08, Bex): non-ASCII Unicode digits accepted by ───
+# ── str.isdigit() (and by int()) must be rejected, not silently parsed ───
+
+
+class TestParseDateNonAsciiDigitsContract:
+    """str.isdigit() returns True for non-ASCII Unicode digit characters
+    (fullwidth, arabic-indic, devanagari, ...) that int() also happily
+    parses -- so parse_date()'s `date_str.isdigit()` branch treats them as
+    a valid %at unix epoch and returns a plausible-but-wrong datetime
+    instead of rejecting the input. A real `git log --pretty=format:%at`
+    call never emits non-ASCII digits, so any such string reaching
+    parse_date() is malformed input, not a valid epoch, and must resolve
+    to None like every other unparseable input -- not a fabricated (if
+    superficially plausible) date. Mirrors the identical gap in
+    lib/boot_git_checks.py::time_ago()'s own isdigit() branch (same "%at
+    parsing" lineage) -- see
+    test_boot_freshness_regression.py::TestTimeAgoNonAsciiDigitsContract.
+
+    Expected result is derived from the contract itself (rejection -- the
+    same None every other unparseable input already resolves to), not from
+    a hand-invented epoch: whatever plausible-but-wrong datetime today's
+    code derives from these strings is exactly the bug, so it is never
+    used as an expected value.
+    """
+
+    @pytest.mark.parametrize(
+        "non_ascii_digits",
+        ["１２３", "٢٠٢٤", "१२३"],
+        ids=["fullwidth", "arabic_indic", "devanagari"],
+    )
+    def test_non_ascii_digit_string_returns_none(self, non_ascii_digits):
+        assert non_ascii_digits.isdigit(), (
+            "test setup error: fixture string is not a str.isdigit() == "
+            "True case -- this test targets the exact isdigit()-but-not-"
+            "ASCII gap"
+        )
+        assert not non_ascii_digits.isascii(), (
+            "test setup error: fixture string is ASCII digits -- must be "
+            "non-ASCII to target this gap"
+        )
+
+        result = parse_date(non_ascii_digits)
+
+        assert result is None, (
+            f"parse_date({non_ascii_digits!r}) returned {result!r} -- a "
+            "plausible-but-wrong date derived from a non-ASCII digit "
+            "string that str.isdigit() accepts but no real `git log %at` "
+            "call ever emits. Must be rejected as unparseable (None), not "
+            "silently converted via int()."
+        )
+
+
 # ── BUG-2 (Argus SEC-LOW-002): no explicit length guard before int() ────
 
 

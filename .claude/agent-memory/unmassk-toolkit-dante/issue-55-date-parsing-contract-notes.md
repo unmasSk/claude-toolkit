@@ -187,6 +187,50 @@ See also: [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-note
 [encoding-contract-notes](encoding-contract-notes.md) (same session family,
 same %at/robust-parsing lineage).
 
+**Follow-up (2026-07-08): `time_ago()` never got the same two guards
+`parse_date()` did, even though both are explicitly documented as mirror
+functions.** After Ultron fixed `lib/date_parsing.py::parse_date()`'s BUG-1
+(non-string `AttributeError`) and the reconciliation pass above, its sibling
+`lib/boot_git_checks.py::time_ago()` (same isdigit()-then-int() shape, same
+module-docstring cross-reference in both directions) still had both gaps
+live: `time_ago(None)`/`time_ago(123)`/`time_ago(['a'])` raise uncaught
+`AttributeError` instead of degrading to `"unknown"`; AND `str.isdigit()`
+accepts non-ASCII Unicode digits (fullwidth `１２３`, arabic-indic `٢٠٢٤`,
+devanagari `१२३`) that `int()` also parses, so both `parse_date()` (before
+BUG-1's isinstance guard covered it structurally, but the isdigit()-Unicode
+gap is separate from BUG-1 and was NEVER fixed) and `time_ago()` silently
+produce a plausible-but-wrong date/`"N ago"` string instead of rejecting.
+Added 3 test classes, 9 parametrized cases total, all confirmed genuinely
+RED against unmodified HEAD:
+- `test_boot_freshness_regression.py::TestTimeAgoNonStringInputContract`
+  (3 cases) — RED via uncaught `AttributeError` at
+  `lib/boot_git_checks.py:71`, same right-reason verification discipline as
+  BUG-1 (read the actual traceback, not assumed).
+- `test_boot_freshness_regression.py::TestTimeAgoNonAsciiDigitsContract`
+  (3 cases) — RED via clean `AssertionError` (`'2948w ago' != 'unknown'`).
+- `test_date_parsing_epoch_contract.py::TestParseDateNonAsciiDigitsContract`
+  (3 cases) — same Unicode-digit gap, `parse_date()` side. Placed
+  immediately after `TestParseDateNonStringInputContract` (BUG-1) in the
+  same file since it's a closely related but functionally distinct gap in
+  the same function.
+**Both new test files were added to the file that ALREADY imports the
+target module directly** (`test_boot_freshness_regression.py` does
+`import boot_git_checks` at module level via the standard `LIB_DIR` +
+`sys.path.insert` pattern — no importlib-hyphenated-script dance needed
+here since `boot_git_checks.py` is a normal importable `lib/` module, not a
+`bin/`-hyphenated script) rather than creating a new file — this project's
+convention is one contract file per already-established test surface, not
+one file per bug.
+**Expected-value technique**: no epoch/date value is ever hand-typed for
+the Unicode-digit cases — the assertion is simply "must reject"
+(`None`/`"unknown"`, the exact fallback value every other malformed-input
+case in the same function already returns), derived directly from the
+contract's own rejection semantics rather than from a computed-but-still-
+invented epoch. Each test also asserts its own fixture precondition
+(`.isdigit() is True` and `.isascii() is False`) as setup-sanity, so a
+future accidental change to the fixture strings fails loudly as a distinct
+"test setup error" rather than silently testing the wrong gap.
+
 **Cerberus follow-up, same session (1 suggestion, micro-encargo, review
 mode not test-first): the ISO-8601 fallback branch inside both
 `parse_date()`s had no direct coverage.** After Ultron's parallel fix
