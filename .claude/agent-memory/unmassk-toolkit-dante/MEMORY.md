@@ -12,4 +12,4 @@
 - [boot-stdout-banner-contract-notes.md](boot-stdout-banner-contract-notes.md) — session-start-boot.py unconditional stdout banner + 5 rounds of audit-hardening findings across bin/git-memory-*.py (symlink read/write, control-byte injection, manifest.json, path traversal, ANSI injection)
 - [feat-boot-freshness-contract-notes.md](feat-boot-freshness-contract-notes.md) — boot memory freshness (multi-machine, issue #49) acceptance contract: fixture design, RED baseline, marker-naming pitfall
 - [encoding-contract-notes.md](encoding-contract-notes.md) — issue #52 cp1252 contract: parent-decode gotcha (child RC=0 can still be RED), `--runxfail` verification pattern, AST-based open()-encoding sweep
-- [issue-55-date-parsing-contract-notes.md](issue-55-date-parsing-contract-notes.md) — issue #55 %aI/fromisoformat fragile-date contract: sites tested, dead-field exclusion, "verify a stale fleco before editing" finding
+- [issue-55-date-parsing-contract-notes.md](issue-55-date-parsing-contract-notes.md) — issue #55 %aI/fromisoformat fragile-date contract; bootstrap_commits.py reconciled back to %aI (presentation-only field, never parsed)

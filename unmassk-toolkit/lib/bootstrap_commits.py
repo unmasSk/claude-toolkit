@@ -25,7 +25,13 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     """
     code, output = run_git([
         "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1f%an%x1e",
+        # %aI (not %at): this date is never parsed, only carried through to
+        # bin/git-memory-bootstrap.py's --json output for presentation to
+        # the user (see that script's own docstring). %aI gives a readable
+        # ISO-8601 string; do not "fix" this back to %at (issue #55 scope
+        # excludes this site -- see test_date_parsing_epoch_contract.py's
+        # RECONCILED note).
+        "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1f%an%x1e",
     ])
     if code != 0 or not output:
         return None

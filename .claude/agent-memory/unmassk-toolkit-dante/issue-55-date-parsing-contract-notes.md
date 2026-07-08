@@ -154,6 +154,35 @@ honestly GREEN and documented as such rather than faked red:
   new/edited file twice: identical 6 failed / 16 passed both times, same
   test IDs.
 
+**Reconciliation pass, same session: two bootstrap tests contradicted each
+other and had to be fixed.** `TestBootstrapCommitsDateFieldContract` (1st
+round) wrongly folded `lib/bootstrap_commits.py` into the six-site %at
+migration; BUG-3's `TestBootstrapJsonDateFieldReadableForPresentation`
+(adversarial round) then asserted, on the SAME unreassigned variable,
+`got_date == real_epoch` (guarantees digits) AND `not got_date.isdigit()`
+(forbids digits) -- mathematically unsatisfiable. Root cause: bootstrap
+never parses the date at all (presentation-only, per
+bin/git-memory-bootstrap.py's own "structured output for Claude to present
+to the user" docstring), so it never had the %aI+fromisoformat crash issue
+#55 fixes at the other five sites -- %at buys it nothing but an
+unpresentable value. Orchestrator decision: revert bootstrap to %aI:
+readable ISO-8601 is the ONE correct, final contract for this field, not
+%at. Fix applied to `tests/test_date_parsing_epoch_contract.py`: added a
+`_real_iso_of_head()` helper (mirrors `_real_epoch_of_head()`, reads real
+`git log -1 --pretty=format:%aI` -- never hand-typed, §34); rewrote both
+classes' single assertion to `got_date == real_iso` (equality to a real
+ISO string already implies "not a digit string," so no second
+contradictory assertion is needed); updated the module-level docstring
+with a "RECONCILED" note excluding bootstrap from the five-site list.
+Verified both tests now fail for the SAME coherent reason against
+unmodified HEAD (got epoch digits, expected ISO) -- clean, non-contradictory
+red that will flip green together once Ultron reverts the git log format
+string. Lesson: when two contract tests for the same field disagree, check
+whether the field is ever actually *parsed* downstream before picking a
+side -- a presentation-only field has a different (and sometimes opposite)
+correct format than a parsed one, even when both come from the same "issue
+#55 sites" migration sweep.
+
 See also: [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md),
 [encoding-contract-notes](encoding-contract-notes.md) (same session family,
 same %at/robust-parsing lineage).

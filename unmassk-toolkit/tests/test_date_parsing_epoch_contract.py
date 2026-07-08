@@ -2,12 +2,10 @@
 Issue #55 -- contract tests for the fragile `git log %aI` +
 datetime.fromisoformat() date-parsing pattern.
 
-Six sites share this shape (Yoda/Bex triage, issue #55):
+Five sites share this shape (Yoda/Bex triage, issue #55):
   - bin/git-memory-gc.py:73 (parse_date()), :88 (the %aI pretty-format call)
   - bin/git-memory-doctor.py:91 (parse_date()), :187 (check_hook_execution's
     %aI call), :220 (check_gc_status's %aI call)
-  - lib/bootstrap_commits.py:28 (the %aI pretty-format call; there is no
-    parse_date() here at all -- the raw ISO string is stored unparsed)
 
 All wrap (or would wrap) any parse failure in a bare
 `except (ValueError, IndexError): return None` -- so an old/quirky git
@@ -16,6 +14,20 @@ becomes None) instead of raising. That silence has an observable cost: any
 downstream heuristic gated on "if commit date is truthy" (gc.py's H2 stale-
 blocker TTL, doctor.py's GC-last-run / stale-blocker-count checks) quietly
 stops firing for that commit instead of reporting the real value.
+
+RECONCILED (same session, after an adversarial round surfaced a
+contradiction and the orchestrator reviewed the design): lib/
+bootstrap_commits.py:28 was wrongly folded into this six-site list in the
+first round. It has no parse_date() at all -- the date string is stored
+unparsed, purely for presentation in bin/git-memory-bootstrap.py --json
+("structured output for Claude to present to the user", per that script's
+own module docstring). It never had the %aI+fromisoformat CRASH this issue
+fixes at the other five sites, so it is excluded from the %at migration.
+Its contract is the opposite of the other five: %aI (readable ISO-8601) is
+correct, %at (a raw epoch digit string) is the bug -- see
+TestBootstrapCommitsDateFieldContract and
+TestBootstrapJsonDateFieldReadableForPresentation below for the reasoning
+and Ultron's pending revert back to %aI.
 
 lib/boot_git_checks.py's time_ago() already solved exactly this problem for
 its own callers by switching the git log token from %aI to %at (unix
@@ -171,6 +183,18 @@ def _real_epoch_of_head(repo):
     return out
 
 
+def _real_iso_of_head(repo):
+    """Read the REAL %aI ISO-8601 date git just emitted for HEAD -- never
+    hand-typed (unmassk-standards §34). Used by the bootstrap_commits.py
+    contract below: that module is presentation-only (never parses the
+    date), so %aI -- not %at -- is its correct, single contract."""
+    rc, out, err = git_cmd(["log", "-1", "--pretty=format:%aI"], repo)
+    assert rc == 0 and out and not out.isdigit(), (
+        f"setup failed reading real git %aI: rc={rc} out={out!r} err={err!r}"
+    )
+    return out
+
+
 # ── ISO-8601 fallback branch: ground truth for both parse_date()s ────────
 #
 # Cerberus follow-up (issue #55, 1 suggestion): the ISO-8601 fallback
@@ -311,18 +335,21 @@ class TestDoctorParseDateEpochContract:
 
 
 class TestBootstrapCommitsDateFieldContract:
-    """lib/bootstrap_commits.py:28 has no parse_date() at all -- the raw
-    %aI (ISO-8601) string is stored unparsed in each commit dict's "date"
-    key. There is no crash today (nothing parses it), but the contract
-    requires the same %at migration for consistency with the other five
-    sites, so any future consumer of this field inherits a robust,
-    version-independent format instead of an ISO string that would repeat
-    the exact fragility fixed elsewhere in this same issue.
+    """lib/bootstrap_commits.py:28 has no parse_date() at all -- the date
+    string is stored unparsed in each commit dict's "date" key, feeding
+    bin/git-memory-bootstrap.py --json, whose own module docstring
+    describes its output as "structured output for Claude to present to
+    the user." Because nothing here ever parses the field, it never had
+    the %aI+fromisoformat CRASH issue #55 fixes at the other five sites --
+    it was wrongly folded into that migration in an earlier round of this
+    same issue (see the RECONCILED note in this file's module docstring).
+    The correct, single contract for this field is %aI (readable
+    ISO-8601): a raw %at epoch digit string is the bug here, not the fix.
     """
 
-    def test_recent_commit_date_should_be_epoch_not_iso(self, tmp_path, monkeypatch):
+    def test_recent_commit_date_is_real_iso_string(self, tmp_path, monkeypatch):
         repo = _make_repo(tmp_path)
-        real_epoch = _real_epoch_of_head(repo)
+        real_iso = _real_iso_of_head(repo)
 
         monkeypatch.chdir(repo)
         result = scan_recent_commits(depth=1)
@@ -330,10 +357,13 @@ class TestBootstrapCommitsDateFieldContract:
         assert result is not None, "scan_recent_commits() returned None -- fixture broken"
         assert result["recent"], "no commits scanned -- fixture broken"
         got_date = result["recent"][0]["date"]
-        assert got_date == real_epoch, (
+        assert got_date == real_iso, (
             "contract not yet met: lib/bootstrap_commits.py's git log call "
-            f"still uses %aI (ISO-8601) -- got {got_date!r}, expected the "
-            f"real epoch {real_epoch!r} from `git log --pretty=format:%at`"
+            f"does not emit %aI -- got {got_date!r}, expected the real "
+            f"ISO-8601 date {real_iso!r} from "
+            "`git log --pretty=format:%aI` on the same commit (this module "
+            "never parses the date; it is presentation-only, per "
+            "bin/git-memory-bootstrap.py's own docstring)"
         )
 
 
@@ -580,20 +610,28 @@ class TestParseDateLengthGuardContract:
 
 
 class TestBootstrapJsonDateFieldReadableForPresentation:
-    """lib/bootstrap_commits.py::scan_recent_commits() migrated its git
-    log call from %aI to %at (issue #55 fix) but never parses the
-    resulting epoch string -- it is stored verbatim in each commit dict's
-    "date" key. The real consumer, bin/git-memory-bootstrap.py --json,
-    documents itself as producing "structured output for Claude to
-    present to the user" (module docstring). Before the %at migration
-    this field held a readable ISO-8601 string
-    ("2026-07-08T21:06:47+02:00"); today it holds a bare epoch digit
-    string ("1783538049"), which is not presentable as-is.
+    """lib/bootstrap_commits.py::scan_recent_commits() never parses its
+    "date" field -- it is stored verbatim in each commit dict, and the
+    real consumer, bin/git-memory-bootstrap.py --json, documents itself as
+    producing "structured output for Claude to present to the user"
+    (module docstring). An earlier round of issue #55 wrongly migrated
+    this git log call from %aI to %at, leaving a bare epoch digit string
+    ("1783538049") in place of a readable ISO-8601 string
+    ("2026-07-08T21:06:47+02:00") -- not presentable as-is. Reconciled
+    (see this file's module docstring, RECONCILED note): the single
+    correct contract for this field is the real %aI string, not %at.
+
+    This is the end-to-end counterpart of
+    TestBootstrapCommitsDateFieldContract (which pins the same contract
+    directly on scan_recent_commits()) -- this class instead exercises the
+    full bin/git-memory-bootstrap.py --json wiring (script invocation +
+    JSON serialization), proving the contract survives the entire path a
+    real caller uses, not just the library call.
     """
 
-    def test_recent_commit_date_is_not_a_raw_digit_string(self, tmp_path):
+    def test_recent_commit_date_is_real_iso_not_raw_epoch(self, tmp_path):
         repo = _make_repo(tmp_path)
-        real_epoch = _real_epoch_of_head(repo)
+        real_iso = _real_iso_of_head(repo)
 
         rc, out, err = run_script(BOOTSTRAP, repo, ["--json"])
         assert rc in (0, 1), f"bootstrap.py --json crashed: rc={rc} err={err!r}"
@@ -605,22 +643,14 @@ class TestBootstrapJsonDateFieldReadableForPresentation:
         )
         got_date = commits["recent"][0]["date"]
 
-        # Setup sanity: confirm this really is the same real commit whose
-        # epoch we read directly from git (not a coincidence / stale
-        # fixture) before asserting the presentation contract on it.
-        assert got_date == real_epoch, (
-            "test setup error: --json 'date' field does not match the "
-            f"real HEAD epoch -- got {got_date!r}, expected {real_epoch!r} "
-            "(fixture assumption broken, not the contract under test)"
-        )
-
-        assert not got_date.isdigit(), (
-            f"contract not yet met: bootstrap --json's commits.recent[0]."
-            f"date is a raw epoch digit string ({got_date!r}) -- not "
-            "presentable to a user per this script's own docstring "
-            "('structured output for Claude to present to the user'). "
-            "Expected a readable/ISO date, mirroring the pre-%at-migration "
-            "behavior."
+        assert got_date == real_iso, (
+            "contract not yet met: bootstrap --json's "
+            f"commits.recent[0].date is {got_date!r}, expected the real "
+            f"readable ISO-8601 date {real_iso!r} from "
+            "`git log --pretty=format:%aI` on the same commit. A bare "
+            "epoch digit string is not presentable to a user per this "
+            "script's own docstring ('structured output for Claude to "
+            "present to the user')."
         )
 
 
