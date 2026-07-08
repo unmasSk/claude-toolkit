@@ -115,8 +115,17 @@ def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
     # in the test process itself -- confirmed as the root cause of 16
     # decode failures on the Windows CI run. Pin it explicitly so this
     # helper's behavior doesn't depend on the host's locale.
+    # errors="replace" (test-only regression from commit 72805bc's encoding
+    # sweep, House root cause): the CHILD (git, or any bin/hooks script run
+    # via run_script()) still emits bytes in the OS locale codepage when
+    # PYTHONUTF8 isn't set (e.g. a Windows CI runner), not guaranteed UTF-8.
+    # A strict utf-8 decode dies inside subprocess's _readerthread on the
+    # first non-ASCII byte, leaving stdout/stderr as None -- surfacing as a
+    # TypeError wherever a caller concatenates them. errors="replace" keeps
+    # the decode alive (U+FFFD substitution) so every caller of
+    # run_cmd/git_cmd/run_script always gets a real string.
     result = subprocess.run(
-        args, capture_output=True, text=True, encoding="utf-8",
+        args, capture_output=True, text=True, encoding="utf-8", errors="replace",
         cwd=cwd, timeout=timeout, env=merged, input=input_text,
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()

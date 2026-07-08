@@ -4,6 +4,20 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: Barrido `encoding='utf-8'` OVER-CORRECTED — Pinning PARENT Read to utf-8 While CHILD Writes Locale Encoding Breaks Only on Non-utf8 CI Runner (run 28933635507)
+
+**Project:** unmassk-toolkit (git-memory) · **Seen:** 2026-07-08 · confirmed 1:1 locally on real Windows
+
+The #51 barrido added `encoding='utf-8'` to 140 subprocess/read/write sites. In `tests/test_release.py` that was WRONG for the sites that READ a child process which itself emits in the OS **locale** encoding. Two culprit sites: `_run_release` (reads `bin/release.py` stdout/stderr, line ~192) and `_git` (reads git output, line ~82). `bin/release.py` prints Spanish-accented text (`vía`, `falló`, `versión`, `Múltiples`, `malformado`, `sección`) and has NO utf-8 stream guard, so on a cp1252 runner it emits á=0xe1/ó=0xf3/í=0xed/ú=0xfa. The test parent, now pinned to `encoding='utf-8'` STRICT, decodes those cp1252 bytes → `UnicodeDecodeError` inside `subprocess.py:_readerthread` (visible symptom #1) → the reader thread dies → `stdout` comes back **None** → `combined = stdout + stderr` → `TypeError: unsupported operand +: NoneType and str` (symptom #2). BOTH symptoms are ONE event. The 4 failing tests are exactly the ones doing `combined = stdout + stderr` on accented release output (`test_dry_run_prints_plan`, `test_push_failure...`, `test_multiple_unreleased_aborts`, `test_unreleased_not_first_version_aborts`); siblings that only use stdout in f-strings tolerate None and pass.
+
+**Why green on dev's Windows but red on CI:** dev box has `PYTHONUTF8=1` (utf8_mode=1) → the child `release.py` inherits utf-8 mode → emits utf-8 → matches the parent's forced utf-8 read → pass. CI runner has NO PYTHONUTF8 → child emits cp1252 → mismatch → crash. Same `PYTHONUTF8=1 masks cp1252` trap. Pre-barrido (`text=True`, no explicit encoding) the parent decoded with the SAME locale as the child → always matched (mojibake but no crash; asserts are ASCII substrings) → passed everywhere.
+
+**Reproduced 1:1:** child `sys.stdout.reconfigure(encoding='cp1252'); print('...falló...versión...')` read by parent `subprocess.run(..., text=True, encoding='utf-8')` → `UnicodeDecodeError byte 0xf3 pos 26 in _readerthread` + `stdout=None` + `TypeError NoneType + str`. Exact CI bytes.
+
+**Owner = Dante (TEST).** Fix: the two parent reads that consume localizable child output must decode tolerantly — keep `encoding='utf-8'` but add `errors='replace'` (or read bytes) at `_run_release` and `_git`. This never crashes, stdout never None, ASCII asserts still pass, and it covers BOTH release.py AND git output. NOT a product bug: `release.py` emits only cp1252-SAFE accents at runtime (its only non-cp1252 char, `─` U+2500, is comment-only, never printed) so a real cp1252 user sees correct output, no crash. NOTE: contrary to an earlier memory, `force_utf8_streams()` is ABSENT from ALL bin/hooks entry points at HEAD 72805bc (grep-verified) — there is no repo-wide utf-8-guard convention to be "consistent" with, so do NOT assign product work; `errors='replace'` in `run_git`-style child reads cannot be replaced by a product-side guard anyway (git output is out of product's control).
+
+**Lesson:** a blanket `encoding='utf-8'` barrido is not safe on subprocess READS whose child emits in the OS locale encoding (git, or any product script lacking a utf-8 stream guard). For parent reads of possibly-non-utf8 child output, pair `encoding='utf-8'` with `errors='replace'`. WRITES and reads of files YOU control can stay strict utf-8.
+
 ## Pattern: cp1252 Write-Path Recurs in NEW Test-Harness Spots After conftest.run_cmd Was Fixed (CI run 28922061708)
 
 **Project:** unmassk-toolkit (git-memory) · **Seen:** 2026-07-08 · confirmed from real CI log

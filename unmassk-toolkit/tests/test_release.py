@@ -79,7 +79,7 @@ def _git(args, cwd, check=True, env=None):
         ["git"] + args,
         cwd=cwd,
         capture_output=True,
-        text=True, encoding='utf-8',
+        text=True, encoding='utf-8', errors='replace',
         env=merged_env,
         check=check,
     )
@@ -189,7 +189,16 @@ def _run_release(repo, args, env=None):
         [sys.executable, RELEASE_SCRIPT] + args,
         cwd=repo,
         capture_output=True,
-        text=True, encoding='utf-8',
+        # errors='replace' (House root cause, issue with commit 72805bc's encoding
+        # sweep): release.py is a CHILD process that prints Spanish diagnostic
+        # text ("vía", "falló", "versión", ...) encoded in the CI runner's OS
+        # locale (cp1252 on Windows without PYTHONUTF8=1), not UTF-8. A strict
+        # utf-8 decode here died inside subprocess's _readerthread, leaving
+        # result.stdout as None -- causing a TypeError two lines down in every
+        # caller that does `stdout + stderr`. errors='replace' keeps the decode
+        # alive (substitutes U+FFFD for undecodable bytes) so stdout is never
+        # None; the ASCII substrings these tests assert on are unaffected.
+        text=True, encoding='utf-8', errors='replace',
         env=merged_env,
         timeout=60,
     )
@@ -202,7 +211,7 @@ def _commit_count_on_remote(bare):
         ["git", "rev-list", "--count", "HEAD"],
         cwd=bare,
         capture_output=True,
-        text=True, encoding='utf-8',
+        text=True, encoding='utf-8', errors='replace',
     )
     return int(result.stdout.strip()) if result.returncode == 0 else 0
 
@@ -213,7 +222,7 @@ def _get_remote_head(bare):
         ["git", "rev-parse", "HEAD"],
         cwd=bare,
         capture_output=True,
-        text=True, encoding='utf-8',
+        text=True, encoding='utf-8', errors='replace',
     )
     return result.stdout.strip()
 
@@ -1142,7 +1151,7 @@ class TestBumpVersionRetrocompat:
             [sys.executable, BUMP_SCRIPT, "--list"],
             cwd=str(tmp_path),  # CWD has NO marketplace.json
             capture_output=True,
-            text=True, encoding='utf-8',
+            text=True, encoding='utf-8', errors='replace',
             env=env_without_override,
             timeout=30,
         )
@@ -1185,7 +1194,7 @@ class TestBumpVersionRetrocompat:
             [sys.executable, BUMP_SCRIPT, "--list"],
             cwd=str(tmp_path),
             capture_output=True,
-            text=True, encoding='utf-8',
+            text=True, encoding='utf-8', errors='replace',
             env=env_with_override,
             timeout=30,
         )
@@ -1836,7 +1845,7 @@ class TestGitMemoryCommitPathFlag:
              "chore", "test-scope", "test commit message"] + extra_args,
             cwd=repo,
             capture_output=True,
-            text=True, encoding='utf-8',
+            text=True, encoding='utf-8', errors='replace',
             env=merged_env,
             timeout=30,
         )

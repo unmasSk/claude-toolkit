@@ -203,7 +203,7 @@ def test_human_commits_not_blocked(tmp_path):
     env_no_claude = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE"}
     result = subprocess.run(
         [sys.executable, hook_path],
-        input=hook_input, capture_output=True, text=True, encoding='utf-8',
+        input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
         cwd=repo, timeout=15, env=env_no_claude,
     )
     assert result.returncode == 0
@@ -211,7 +211,7 @@ def test_human_commits_not_blocked(tmp_path):
     # With CLAUDE_CODE → blocked
     result = subprocess.run(
         [sys.executable, hook_path],
-        input=hook_input, capture_output=True, text=True, encoding='utf-8',
+        input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
         cwd=repo, timeout=15, env={**env_no_claude, "CLAUDE_CODE": "1"},
     )
     assert result.returncode == 2

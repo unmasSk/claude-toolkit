@@ -32,7 +32,7 @@ def make_installed_repo(tmp_path, name="repo"):
     subprocess.run(["git", "-C", repo, "commit", "--allow-empty", "-m", "init"], capture_output=True)
     subprocess.run(
         [sys.executable, INSTALL, "--auto"],
-        capture_output=True, text=True, encoding='utf-8', cwd=repo, timeout=15,
+        capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=repo, timeout=15,
     )
     return repo
 
