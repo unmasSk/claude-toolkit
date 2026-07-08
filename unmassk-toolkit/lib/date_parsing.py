@@ -3,9 +3,10 @@ Shared git-log date parsing.
 
 parse_date() was duplicated byte-for-byte in bin/git-memory-gc.py and
 bin/git-memory-doctor.py. Centralized here, following the same
-extraction precedent as lib/_symlink_safe_open.py (see
-.claude/agent-memory/unmassk-toolkit-ultron/lessons.md's "Shared
-fallback for a defensively-imported git_helpers function" entry).
+extraction precedent as lib/_symlink_safe_open.py: a shared fallback
+for functionality that entry points import defensively from
+git_helpers, so both callers degrade the same way if that import
+fails.
 """
 
 from datetime import datetime, timezone
