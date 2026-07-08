@@ -236,6 +236,54 @@ attributes them to on a given run — and run the suite both ways at least
 once (whole suite, and target file isolated from the rest) before
 concluding "0 regressions."
 
+## Issue #55: migrating parse_date() from %aI+fromisoformat to %at+epoch requires making `now` tz-aware too, at every call site
+
+Extending the `%at` migration (see the `boot_git_checks.py` entry above) to
+the two duplicated `parse_date()` helpers in `bin/git-memory-gc.py` and
+`bin/git-memory-doctor.py`, plus the unparsed date field in
+`lib/bootstrap_commits.py:scan_recent_commits()`. The naive fix — just swap
+`%aI` for `%at` in the `git log --pretty=format:` string and add an
+`.isdigit()` branch to `parse_date()` returning
+`datetime.fromtimestamp(int(date_str), tz=timezone.utc)` — silently breaks
+every downstream age computation: both files compute `now = datetime.now()`
+(naive, no tzinfo) and then do `(now - commit["date"]).days`. Subtracting a
+naive datetime from a tz-AWARE one raises `TypeError: can't subtract
+offset-naive and offset-aware datetimes` at runtime — not caught by the
+`except (ValueError, IndexError)` in `parse_date()` itself, since the crash
+happens later, in `find_stale_items()`/`check_gc_status()`. Fix: change
+`now = datetime.now()` to `now = datetime.now(timezone.utc)` at BOTH call
+sites (`git-memory-gc.py`'s `find_stale_items()`, `git-memory-doctor.py`'s
+`check_gc_status()`) in the same change, and make `parse_date()`'s ISO-8601
+fallback branch also return tz-aware datetimes (mirror `time_ago()`'s `if
+dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)` pattern) instead of
+the old `.split("+")[0]` (which silently discarded the offset and produced a
+naive datetime) — so ALL of `parse_date()`'s return paths agree on
+awareness, not just the new epoch branch.
+
+Rule: whenever a `parse_date()`-style helper is migrated to return tz-aware
+datetimes, grep the same file for every `datetime.now()` it gets subtracted
+against and make that call tz-aware too, in the same commit — a passing
+contract test for `parse_date()` in isolation (e.g.
+`test_date_parsing_epoch_contract.py`'s `test_parse_date_resolves_real_epoch_string`)
+will NOT catch this, since it only calls `parse_date()` directly and never
+exercises the subtraction. The end-to-end tests in that same file
+(`TestGcStaleBlockerSurvivesOldGit`, `TestDoctorGcStatusSurvivesOldGit`,
+which run the real CLI end-to-end and assert on stdout/JSON output) are what
+actually catch a naive/aware mismatch — a "helper-only" contract test suite
+without at least one full-script-execution test would have shipped this bug
+green.
+
+`lib/bootstrap_commits.py`'s `date` field needed only the format-string
+swap (`%aI` -> `%at`) with no parsing/awareness fix, since that module never
+parses the field — it's stored and returned as a raw string, unconsumed
+downstream (confirmed via the contract test module's own docstring, which
+flags this as "no parse_date() here at all").
+
+Also: `bin/git-memory-doctor.py:check_hook_execution()` fetches the date
+field via the same `git log` call but never consumes it (only `body =
+parts[2]` is read) — migrate the format string for DoD consistency but
+there's nothing to fix in its (nonexistent) date-parsing logic.
+
 ## session-start-boot.py: any new git_helpers.py export needs a defensive import
 
 `tests/test_migrate_statusline.py::_load_migrate_fn` loads `hooks/session-start-boot.py`

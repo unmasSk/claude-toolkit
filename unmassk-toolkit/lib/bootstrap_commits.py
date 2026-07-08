@@ -25,7 +25,7 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     """
     code, output = run_git([
         "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1f%an%x1e",
+        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1f%an%x1e",
     ])
     if code != 0 or not output:
         return None

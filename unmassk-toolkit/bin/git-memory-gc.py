@@ -26,7 +26,7 @@ import argparse
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
@@ -68,10 +68,25 @@ def extract_keywords(text: str) -> set[str]:
 
 
 def parse_date(date_str: str) -> datetime | None:
-    """Parse ISO date from git log."""
+    """Parse a git log date string.
+
+    Accepts %at (unix epoch, e.g. from `git log --pretty=format:%at`) --
+    robust across git versions/locales -- or ISO-8601 (%aI) as a fallback
+    for any external/legacy caller. Mirrors lib/boot_git_checks.py's
+    time_ago() (issue #55: %aI + fromisoformat() silently degraded to None
+    on some git versions).
+
+    Returns:
+        Parsed datetime (UTC-aware), or None if parsing fails.
+    """
     try:
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00").split("+")[0])
-    except (ValueError, IndexError):
+        if date_str.isdigit():
+            return datetime.fromtimestamp(int(date_str), tz=timezone.utc)
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, IndexError, OSError, OverflowError, TypeError):
         return None
 
 
@@ -85,7 +100,7 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
     """
     code, output = run_git([
         "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1e",
+        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
     ])
 
     if code != 0 or not output:
@@ -139,7 +154,7 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
     Returns:
         List of candidate dicts with type, text, reason, and evidence.
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     candidates = []
 
     # Build list of all Next: and Blocker: items with their positions

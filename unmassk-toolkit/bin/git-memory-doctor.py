@@ -24,7 +24,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 # ── Shared lib ────────────────────────────────────────────────────────────
@@ -82,14 +82,25 @@ def find_project_root() -> str:
 
 
 def parse_date(date_str: str) -> datetime | None:
-    """Parse an ISO 8601 date string from git log output.
+    """Parse a git log date string.
+
+    Accepts %at (unix epoch, e.g. from `git log --pretty=format:%at`) --
+    robust across git versions/locales -- or ISO-8601 (%aI) as a fallback
+    for any external/legacy caller. Mirrors lib/boot_git_checks.py's
+    time_ago() (issue #55: %aI + fromisoformat() silently degraded to None
+    on some git versions).
 
     Returns:
-        Parsed datetime, or None if parsing fails.
+        Parsed datetime (UTC-aware), or None if parsing fails.
     """
     try:
-        return datetime.fromisoformat(date_str.replace("Z", "+00:00").split("+")[0])
-    except (ValueError, IndexError):
+        if date_str.isdigit():
+            return datetime.fromtimestamp(int(date_str), tz=timezone.utc)
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, IndexError, OSError, OverflowError, TypeError):
         return None
 
 
@@ -184,7 +195,7 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     """
     code, output = run_git([
         "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1e",
+        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
     ])
     if code != 0 or not output:
         return 0, 0, depth
@@ -217,12 +228,12 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
     """
     code, output = run_git([
         "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1e",
+        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
     ])
     if code != 0 or not output:
         return None, 0, []
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     last_gc: datetime | None = None
     stale_blockers: list[dict[str, Any]] = []
 
