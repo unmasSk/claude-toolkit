@@ -10,6 +10,12 @@ Confirmed 2026-07-07 in commit 38f5728 (encoding_guard.py fix, issue #52): the c
 
 Check pattern for future commit reviews: whenever a diff touches any `agent-memory/*/MEMORY.md`, extract every new `[Title](file.md)` line added, then run `git show <sha>:<path-to-file.md>` for each — if it fails, the commit is incomplete.
 
+## "Mirror" functions drift out of sync on defense-in-depth guards (parse_date / time_ago)
+
+Confirmed 2026-07-08, issue #55 final round (`lib/date_parsing.py::parse_date()` vs `lib/boot_git_checks.py::time_ago()`). Both functions share the same docstring cross-reference ("mirrors the other's ... shape") and got the same `isinstance(str)` + `isascii()` guards added in lockstep across two review rounds. But `parse_date()` also has an explicit `if len(date_str) > 20: return None` length guard (defense-in-depth ahead of `int()`, added for SEC-LOW-002) that was never mirrored onto `time_ago()`. Not a live bug — CPython's own `sys.get_int_max_str_digits()` limit and `datetime.fromtimestamp()`'s `OverflowError` both land inside `time_ago()`'s existing except tuple, so it fails safe by accident, same as `parse_date()` did before its own explicit guard existed (see `TestParseDateLengthGuardContract`'s honesty note in `test_date_parsing_epoch_contract.py`).
+
+Lesson: when two functions are documented as mirroring each other and a guard is added to one under an explicit "defense-in-depth, not dependent on interpreter limits" rationale, check whether the twin function needs the identical guard — don't just check that both got the same `isinstance`/`isascii()` treatment. Grep for the guard's own justification comment; if it says "not dependent on X", the other function inherits the same argument.
+
 ## set -e without -u or -o pipefail
 
 Scripts in ops-containers/scripts/ use mixed `set -e` (generate_chart_structure.sh, generate_standard_helpers.sh, k8s-detect-crd-wrapper.sh, k8s-setup-tools.sh) while most others use `set -euo pipefail`. The correct baseline for all scripts in this project is:
