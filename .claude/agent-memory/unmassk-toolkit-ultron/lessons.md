@@ -902,3 +902,47 @@ ANY GitHub Actions workflow file (including the pre-existing
 quirk, not a workflow bug — GitHub's own parser handles `on:` correctly as
 the trigger key. Don't flag it as an error when spot-checking a workflow
 file with `python3 -c "import yaml; yaml.safe_load(...)"`.
+
+## boot_git_checks.py: unify on %at (unix epoch), never %aI (ISO-8601), for any git-log date read by time_ago()
+
+CI issue #49 group A (run 28922061708): `get_timeline()`/`get_last_context_time()`
+(`lib/boot_git_checks.py`) used `git log --pretty=%h\x1f%s\x1f%aI` + `time_ago()`'s
+`datetime.fromisoformat()` branch, while `extract_memory()` (`lib/boot_memory.py`)
+already used the robust `%at` (epoch) + `.isdigit()` branch. The two paths agreeing
+was accidental, not structural — an older CI runner's git produced an `%aI` string
+`fromisoformat()` couldn't parse, silently dropping the `Last: ... | <time_ago>`
+suffix (not reproducible locally with git 2.49/Python 3.11; House confirmed the
+mechanism, not the exact git-version trigger). Fix: switch both call sites to
+`%at`, add explicit `"HEAD"` + trailing `"--"` (matching `extract_memory()`'s own
+SEC-CRIT-001 positional-arg-hygiene shape), and let `time_ago()`'s existing
+`.isdigit()` branch do the parsing — the two readers now agree by construction,
+not by coincidence. Rule: any NEW git-log date read in this codebase should default
+to `%at`, never `%aI` — grep for `%aI` before adding one.
+
+**Observability side-fix**: `git_helpers.run_git()` unconditionally discarded
+`stderr` (`stdout, _stderr = proc.communicate(...)`), so a future git-level
+failure on this same read path would be a silent empty result with zero
+breadcrumb. Did NOT make this print unconditionally on every non-zero exit —
+run_git's non-zero exit is an EXPECTED outcome at a great many call sites (no
+upstream configured, detached HEAD, etc.) and blanket-printing would be log
+noise plus a real risk of breaking existing "silent on expected failure" test
+assertions (`test_boot_freshness_hardening.py`'s `test_*_is_silent` tests check
+`captured.err` for absence of specific words). Instead added an opt-in
+`log_stderr_on_failure: bool = False` parameter (default preserves 100% of old
+behavior for every pre-existing call site) and only passed `True` from the two
+call sites actually being hardened. Pattern for future "surface previously
+silent stderr" asks on a widely-shared helper: opt-in parameter, not a global
+behavior change.
+
+**Environment note**: this session ran on a shared dev machine with a
+DIFFERENT concurrent agent (House, mid-writing its own memory file, plus what
+looked like an automated encoding-hardening pass touching many `tests/*.py`
+files with `encoding="utf-8"` additions) actively modifying the SAME working
+tree at the same time. This produced a transient, self-resolving
+`ast.parse()` SyntaxError in `tests/test_security_regression.py` (an orphaned
+`, encoding="utf-8"` line from an in-flight edit) that was gone by the next
+read moments later — a real race, not a bug to fix. When `git status`/full-
+suite pytest shows unexpected dirty test files or a fleeting collection
+error you didn't cause, check for concurrent agent activity (other python/
+pytest PIDs via `wmic process where "name='python.exe'" get ProcessId,CommandLine`)
+before assuming your own change broke something.

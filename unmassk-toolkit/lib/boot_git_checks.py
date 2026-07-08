@@ -69,9 +69,15 @@ def time_ago(iso_or_unix: str) -> str:
     """
     try:
         if iso_or_unix.isdigit():
+            # %at (unix epoch) — the format every in-repo caller now uses
+            # (get_timeline(), get_last_context_time(), extract_memory() in
+            # boot_memory.py). Robust across git versions/locales, unlike
+            # %aI below.
             dt = datetime.fromtimestamp(int(iso_or_unix), tz=timezone.utc)
         else:
-            # git log %aI format
+            # ISO-8601 (git log %aI) fallback — kept for any external/legacy
+            # caller still passing this shape; no in-repo git log call in
+            # this module produces it anymore.
             dt = datetime.fromisoformat(iso_or_unix)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
@@ -102,10 +108,25 @@ def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[s
     from parsing import parse_scope
     from git_helpers import run_git
 
+    # %at (author date, unix epoch) — NOT %aI (ISO-8601). Same date token
+    # (%at), HEAD ref, and trailing "--" terminator as extract_memory()'s
+    # git log call (boot_memory.py) — not an identical invocation (that
+    # call also uses `-z` for NUL-separated records) — so both code paths
+    # that render a commit's age agree by construction, instead of relying
+    # on two different git date formatters staying in sync
+    # (House root-cause, CI issue: an older git runner's %aI/locale
+    # interaction produced a date string time_ago()'s ISO branch could not
+    # parse, silently dropping the " | <time_ago>" suffix). %at is plain
+    # digits regardless of git version or locale, and time_ago() already has
+    # a dedicated `.isdigit()` branch for it. Explicit "HEAD" + trailing "--"
+    # mirror extract_memory()'s own SEC-CRIT-001 defense-in-depth shape used
+    # throughout this module — no external `ref` reaches this call today,
+    # but the same positional-argument hygiene applies uniformly on principle.
     code, output = run_git([
-        "log", f"-n{n}",
-        "--pretty=format:%h\x1f%s\x1f%aI"
-    ])
+        "log", "HEAD", f"-n{n}",
+        "--pretty=format:%h\x1f%s\x1f%at",
+        "--",
+    ], log_stderr_on_failure=True)
     if code != 0 or not output:
         return []
     entries = []
@@ -123,13 +144,22 @@ def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[s
 
 
 def get_last_context_time() -> str | None:
-    """Get the timestamp of the last context() commit as time_ago string."""
+    """Get the timestamp of the last context() commit as time_ago string.
+
+    Uses %at (unix epoch), same rationale/token as get_timeline() above.
+    Shares the %at date token, HEAD ref, and trailing "--" terminator with
+    extract_memory()'s git log call (boot_memory.py) — not an identical
+    invocation (that call also uses `-z`) — one robust date format shared
+    by every "how long ago" reader, so this and get_timeline() can never
+    disagree just because a different git version renders %aI differently.
+    """
     from git_helpers import run_git
 
     code, output = run_git([
-        "log", "-n30",
-        "--pretty=format:%h\x1f%s\x1f%aI"
-    ])
+        "log", "HEAD", "-n30",
+        "--pretty=format:%h\x1f%s\x1f%at",
+        "--",
+    ], log_stderr_on_failure=True)
     if code != 0 or not output:
         return None
     for line in output.split("\n"):

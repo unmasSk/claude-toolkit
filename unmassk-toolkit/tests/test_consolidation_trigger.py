@@ -141,7 +141,7 @@ class TestConsolidateTriggerBelowThreshold:
         def _rg(args, timeout=10, cwd=None):
             env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
                    "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True,
+            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8',
                         cwd=repo, env=env, timeout=timeout)
             return r.returncode, r.stdout.strip()
 
@@ -189,7 +189,7 @@ class TestConsolidateCounterResets:
         def _rg(args, timeout=10, cwd=None):
             env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
                    "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True,
+            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8',
                         cwd=repo, env=env, timeout=timeout)
             return r.returncode, r.stdout.strip()
 
@@ -280,7 +280,7 @@ class TestConsolidateInvalidOverride:
         def _rg(args, timeout=10, cwd=None):
             env_inner = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
                          "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True,
+            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8',
                         cwd=repo, env=env_inner, timeout=timeout)
             return r.returncode, r.stdout.strip()
 
@@ -382,7 +382,7 @@ class TestCommitsSinceLastConsolidationHelper:
             env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"), "GIT_WORK_TREE": repo}
             result = _sp.run(
                 ["git"] + args,
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding='utf-8',
                 cwd=repo, env=env, timeout=timeout,
             )
             return result.returncode, result.stdout.strip()
@@ -413,7 +413,7 @@ class TestCommitsSinceLastConsolidationHelper:
             env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"), "GIT_WORK_TREE": repo}
             result = _sp.run(
                 ["git"] + args,
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding='utf-8',
                 cwd=repo, env=env, timeout=timeout,
             )
             return result.returncode, result.stdout.strip()

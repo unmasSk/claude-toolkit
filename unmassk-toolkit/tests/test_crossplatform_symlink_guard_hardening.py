@@ -110,7 +110,7 @@ class TestExistingFileIdentityMatchSucceeds:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / f"existing-match-{mode}.txt"
-        path.write_text("original\n")
+        path.write_text("original\n", encoding='utf-8')
 
         real_lstat = os.lstat
         lstat_calls = []
@@ -159,12 +159,12 @@ class TestAppendModePreservesExistingContent:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "append-target.txt"
-        path.write_text("first line\n")
+        path.write_text("first line\n", encoding='utf-8')
 
         with target_open(str(path), "a") as f:
             f.write("second line\n")
 
-        assert path.read_text() == "first line\nsecond line\n"
+        assert path.read_text(encoding='utf-8') == "first line\nsecond line\n"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -180,7 +180,7 @@ class TestToctouMismatchAllModes:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / f"toctou-{mode}.txt"
-        path.write_text("original")
+        path.write_text("original", encoding='utf-8')
 
         monkeypatch.setattr(os.path, "islink", lambda p: False)
         monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
@@ -233,7 +233,7 @@ class TestLstatRaisesMidGuard:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "lstat-raises.txt"
-        path.write_text("x")  # must exist so os.path.exists() takes the lstat branch
+        path.write_text("x", encoding='utf-8')  # must exist so os.path.exists() takes the lstat branch
 
         monkeypatch.setattr(os.path, "islink", lambda p: False)
 
@@ -315,7 +315,7 @@ class TestFstatFailureFdLeak:
     def test_fstat_raises_still_closes_the_fd(self, monkeypatch, tmp_path, target_open):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "fstat-raises.txt"
-        path.write_text("original")
+        path.write_text("original", encoding='utf-8')
 
         monkeypatch.setattr(os.path, "islink", lambda p: False)
         monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
@@ -381,7 +381,7 @@ class TestDeferredTruncateOnIdentityMismatch:
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "deferred-truncate-target.txt"
         original_content = "SENSITIVE ORIGINAL CONTENT — must not be truncated"
-        path.write_text(original_content)
+        path.write_text(original_content, encoding='utf-8')
 
         monkeypatch.setattr(os.path, "islink", lambda p: False)
         monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
@@ -426,7 +426,7 @@ class TestDeferredTruncateOnIdentityMismatch:
             f"the fd opened during a rejected mismatch must be closed — "
             f"opened={opened_fds}, closed={closed_fds}"
         )
-        assert path.read_text() == original_content, (
+        assert path.read_text(encoding='utf-8') == original_content, (
             "the target file's content must survive a rejected TOCTOU race "
             "unchanged — a destructive truncate-before-check would corrupt it"
         )
@@ -468,7 +468,7 @@ class TestTwinParityHardening:
         outcomes = {}
         for name, fn in TWIN_FUNCS.items():
             path = tmp_path / f"parity-lstat-{name.replace('.', '_')}.txt"
-            path.write_text("x")
+            path.write_text("x", encoding='utf-8')
             try:
                 fn(str(path), "w")
             except Exception as e:
@@ -643,7 +643,7 @@ class TestRunGitEncodingUtf8:
 
         result = subprocess.run(
             [sys.executable, "-c", code_snippet],
-            capture_output=True, text=True, timeout=30, env=env,
+            capture_output=True, text=True, encoding='utf-8', timeout=30, env=env,
         )
 
         assert result.returncode == 0, (

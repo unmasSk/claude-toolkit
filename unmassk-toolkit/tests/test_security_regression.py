@@ -1070,14 +1070,14 @@ class TestBugDManifestSymlinkWrite:
         """
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-install.json"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT", encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
 
         rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
 
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT", (
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT", (
             "BUG D: git-memory-install.py --auto followed a symlink planted at "
             "the manifest.json path and overwrote the file it points to. "
             f"install rc={rc}\nstdout (first 500): {stdout[:500]}\n"
@@ -1106,14 +1106,14 @@ class TestBugDManifestSymlinkWrite:
             "version": "1.0.0",
             "installed_at": "2020-01-01T00:00:00",
             "runtime_mode": "normal",
-        }))
+        }), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
 
         rc, stdout, stderr = run_script(UPGRADE, repo, extra_args=["--auto"])
 
-        assert "1.0.0" in victim.read_text(), (
+        assert "1.0.0" in victim.read_text(encoding='utf-8'), (
             "BUG D: git-memory-upgrade.py --auto followed a symlink planted at "
             "the manifest.json path and overwrote the file it points to. "
             f"upgrade rc={rc}\nstdout (first 500): {stdout[:500]}\n"
@@ -1159,7 +1159,7 @@ spec.loader.exec_module(mod)
 result = mod.check_version_mismatch()
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_check_version_mismatch failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1173,7 +1173,7 @@ class TestBugECheckVersionMismatchManifestSymlinkRead:
     def test_check_version_mismatch_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-checkversion.json"
-        victim.write_text(json.dumps({"version": "0.0.1-SYMLINK-VICTIM"}))
+        victim.write_text(json.dumps({"version": "0.0.1-SYMLINK-VICTIM"}), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1200,7 +1200,7 @@ class TestBugEUpgradeReadInstalledManifestSymlinkRead:
             "version": "0.0.1-SYMLINK-VICTIM",
             "installed_at": "2020-01-01T00:00:00",
             "runtime_mode": "normal",
-        }))
+        }), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1242,19 +1242,19 @@ class TestBugFDoctorManifestSymlinkReadWrite:
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-doctor.json"
         original_content = json.dumps({"version": "0.0.1-VICTIM-ORIGINAL", "secret": "do-not-touch"})
-        victim.write_text(original_content)
+        victim.write_text(original_content, encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
 
         rc, stdout, stderr = run_script(DOCTOR, repo, extra_args=["--json"])
 
-        assert victim.read_text() == original_content, (
+        assert victim.read_text(encoding='utf-8') == original_content, (
             "BUG SEC-CRIT-NEW-06: git-memory-doctor.py --json followed a "
             "symlink planted at the manifest.json path and modified the "
             f"victim file it points to. doctor rc={rc}\n"
             f"stdout (first 500): {stdout[:500]}\nstderr (first 500): {stderr[:500]}\n"
-            f"victim content is now: {victim.read_text()!r}"
+            f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
         )
 
     def test_doctor_json_does_not_leak_victim_version_through_symlinked_manifest(self, tmp_path, real_symlink_capable):
@@ -1265,7 +1265,7 @@ class TestBugFDoctorManifestSymlinkReadWrite:
         """
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-doctor-leak.json"
-        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-LEAK-MARKER"}))
+        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-LEAK-MARKER"}), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1462,7 +1462,7 @@ spec.loader.exec_module(mod)
 issues = mod.diagnose({repr(target)})
 print(json.dumps({{"issues": issues}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_repair_diagnose failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["issues"]
@@ -1484,7 +1484,7 @@ class TestBugIRepairDiagnoseTrustsSymlinkedManifest:
         """
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-repair.json"
-        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-REPAIR"}))
+        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-REPAIR"}), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1533,7 +1533,7 @@ class TestBugJBootstrapManifestSymlinkAndVersionLeak:
         """
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-manifest-bootstrap.json"
-        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-BOOTSTRAP"}))
+        victim.write_text(json.dumps({"version": "0.0.1-VICTIM-BOOTSTRAP"}), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1585,14 +1585,14 @@ class TestBugKClaudeMdSymlinkWrite:
         """
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-install.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT — INSTALL")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — INSTALL", encoding='utf-8')
 
         claude_md_path = os.path.join(repo, "CLAUDE.md")
         _plant_symlink(claude_md_path, str(victim))
 
         rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
 
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT — INSTALL", (
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT — INSTALL", (
             "SEC-CRIT-NEW-09: git-memory-install.py --auto followed a symlink "
             "planted at CLAUDE.md and overwrote the file it points to. "
             f"install rc={rc}\nstdout (first 500): {stdout[:500]}\n"
@@ -1619,12 +1619,12 @@ class TestBugKClaudeMdSymlinkWrite:
             valid_content = f.read()
 
         victim = tmp_path / "victim-claude-md-uninstall.txt"
-        victim.write_text(valid_content)
+        victim.write_text(valid_content, encoding='utf-8')
         _plant_symlink(claude_md_path, str(victim))
 
         rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
 
-        assert victim.read_text() == valid_content, (
+        assert victim.read_text(encoding='utf-8') == valid_content, (
             "SEC-CRIT-NEW-09: git-memory-uninstall.py followed a symlink "
             "planted at CLAUDE.md and overwrote/removed the file it points "
             f"to. uninstall rc={rc}\nstdout (first 500): {stdout[:500]}\n"
@@ -1684,7 +1684,7 @@ spec.loader.exec_module(mod)
 result = mod.needs_upgrade({repr(repo)})
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_needs_upgrade failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1708,7 +1708,7 @@ class TestBugMNeedsUpgradeManifestSymlinkRead:
         neutralize_needs_upgrade_check1(repo)
 
         victim = tmp_path / "victim-manifest-needsupgrade.json"
-        victim.write_text(json.dumps({"version": "0.0.1"}))
+        victim.write_text(json.dumps({"version": "0.0.1"}), encoding='utf-8')
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
         _plant_symlink(manifest_path, str(victim))
@@ -1738,7 +1738,7 @@ spec.loader.exec_module(mod)
 lines = mod.render_scopes_section({repr(project_root)})
 print(json.dumps({{"lines": lines}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_render_scopes_section failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["lines"]
@@ -1757,7 +1757,7 @@ spec.loader.exec_module(mod)
 result = mod._load_scope_map()
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_load_scope_map failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1774,7 +1774,7 @@ class TestBugNScopesJsonSymlinkRead:
         victim = tmp_path / "victim-scopes-boot-checks.json"
         victim.write_text(json.dumps({
             "scopes": {"pwned-scope": {"description": "PWNED-SCOPES-MARKER"}}
-        }))
+        }), encoding='utf-8')
 
         scopes_path = os.path.join(repo, ".claude", "git-memory-scopes.json")
         _plant_symlink(scopes_path, str(victim))
@@ -1791,7 +1791,7 @@ class TestBugNScopesJsonSymlinkRead:
     def test_load_scope_map_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-scopes-commit.json"
-        victim.write_text(json.dumps({"scopes": {"pwned-scope-map": "x"}}))
+        victim.write_text(json.dumps({"scopes": {"pwned-scope-map": "x"}}), encoding='utf-8')
 
         scopes_path = os.path.join(repo, ".claude", "git-memory-scopes.json")
         _plant_symlink(scopes_path, str(victim))
@@ -1826,14 +1826,14 @@ class TestBugOInstallSettingsJsonSymlinkReadWrite:
             "sensitive": "DO-NOT-TOUCH",
         }
         victim = tmp_path / "victim-settings-install.json"
-        victim.write_text(json.dumps(victim_content))
+        victim.write_text(json.dumps(victim_content), encoding='utf-8')
 
         settings_path = os.path.join(repo, ".claude", "settings.json")
         _plant_symlink(settings_path, str(victim))
 
         rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
 
-        after = json.loads(victim.read_text())
+        after = json.loads(victim.read_text(encoding='utf-8'))
         assert after == victim_content, (
             "SEC-MED-NEW-13: git-memory-install.py --auto followed a symlink "
             "planted at settings.json and modified the victim file it "
@@ -1863,7 +1863,7 @@ spec.loader.exec_module(mod)
 signals = mod.check_existing_memory({repr(repo)})
 print(json.dumps({{"signals": signals}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_check_existing_memory failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["signals"]
@@ -1878,7 +1878,7 @@ spec.loader.exec_module(mod)
 result = mod.check_claude_md({repr(project_root)})
 print(json.dumps({{"result": list(result)}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_check_claude_md_doctor failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1894,7 +1894,7 @@ spec.loader.exec_module(mod)
 report = mod.inspect({repr(repo)})
 print(json.dumps({{"report": report}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_install_inspect failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["report"]
@@ -1909,7 +1909,7 @@ spec.loader.exec_module(mod)
 result = mod.needs_install({repr(repo)})
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_needs_install failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1924,7 +1924,7 @@ spec.loader.exec_module(mod)
 result = mod.check_upgrade_needed({repr(source)}, {repr(target)}, {manifest!r})
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_check_upgrade_needed failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -1942,7 +1942,7 @@ class TestBugPClaudeMdReadSymlink:
     def test_bootstrap_check_existing_memory_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-bootstrap.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         signals = _check_existing_memory(repo)
@@ -1955,7 +1955,7 @@ class TestBugPClaudeMdReadSymlink:
     def test_doctor_check_claude_md_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-doctor.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         block_ok, msg = _check_claude_md_doctor(repo)
@@ -1968,7 +1968,7 @@ class TestBugPClaudeMdReadSymlink:
     def test_install_inspect_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-install.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         report = _install_inspect(repo)
@@ -1981,7 +1981,7 @@ class TestBugPClaudeMdReadSymlink:
     def test_repair_diagnose_does_not_follow_symlink_for_claude_md(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-repair.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         issues = _repair_diagnose(repo)
@@ -1996,7 +1996,7 @@ class TestBugPClaudeMdReadSymlink:
     def test_needs_install_does_not_follow_symlink(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-needsinstall.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         result = _needs_install(repo)
@@ -2014,7 +2014,7 @@ class TestBugPClaudeMdReadSymlink:
         with open(claude_md_path, encoding="utf-8") as f:
             valid_content = f.read()
         victim = tmp_path / "victim-claude-md-upgradecheck.txt"
-        victim.write_text(valid_content)
+        victim.write_text(valid_content, encoding='utf-8')
         _plant_symlink(claude_md_path, str(victim))
 
         manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
@@ -2045,19 +2045,19 @@ class TestBugQSessionStartCrewClaudeMdSymlinkWrite:
     def test_crew_hook_does_not_overwrite_victim_through_symlinked_claude_md(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-crew.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT — CREW HOOK")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — CREW HOOK", encoding='utf-8')
 
         claude_md_path = os.path.join(repo, "CLAUDE.md")
         _plant_symlink(claude_md_path, str(victim))
 
         rc, stdout, stderr = run_script(CREW_HOOK, repo)
 
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT — CREW HOOK", (
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT — CREW HOOK", (
             "barrido: hooks/session-start-crew.py followed a symlink "
             "planted at CLAUDE.md and overwrote the victim file it points "
             f"to. rc={rc}\nstdout (first 500): {stdout[:500]}\n"
             f"stderr (first 500): {stderr[:500]}\n"
-            f"victim content is now: {victim.read_text()!r}"
+            f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
         )
 
 
@@ -2083,7 +2083,7 @@ class TestBugRDoctorSettingsJsonSymlinkReadNonJson:
                     {"hooks": [{"command": "python3 hooks/pre-validate-commit-trailers.py"}]}
                 ]
             }
-        }))
+        }), encoding='utf-8')
 
         settings_path = os.path.join(repo, ".claude", "settings.json")
         _plant_symlink(settings_path, str(victim))
@@ -2118,7 +2118,7 @@ class TestBugSStopDodGateConfigSymlinkRead:
         victim = tmp_path / "victim-dod-config.json"
         victim.write_text(json.dumps({
             "test_command": 'python3 -c "import sys; sys.exit(1)"'
-        }))
+        }), encoding='utf-8')
 
         config_path = os.path.join(repo, ".claude", "git-memory-config.json")
         _plant_symlink(config_path, str(victim))
@@ -2150,7 +2150,7 @@ class TestBugTNeedsUpgradeClaudeMdSymlinkRead:
     def test_needs_upgrade_does_not_follow_symlinked_claude_md(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-needsupgrade.txt"
-        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD)
+        victim.write_text(_FAKE_INSTALLED_MARKER_CLAUDE_MD, encoding='utf-8')
         _plant_symlink(os.path.join(repo, "CLAUDE.md"), str(victim))
 
         result = _needs_upgrade(repo)
@@ -2202,7 +2202,7 @@ finally:
 
 print(json.dumps({{"opened_realpaths": opened_realpaths}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_update_claude_md_open_trace failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
@@ -2219,7 +2219,7 @@ class TestBugUUpdateClaudeMdReadSymlinkLeak:
     def test_update_claude_md_never_opens_the_symlink_target_for_reading(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-claude-md-update-read.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT — UPDATE READ TRACE")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — UPDATE READ TRACE", encoding='utf-8')
 
         claude_md_path = os.path.join(repo, "CLAUDE.md")
         _plant_symlink(claude_md_path, str(victim))
@@ -2272,7 +2272,7 @@ finally:
 
 print(json.dumps({{"opened_realpaths": opened_realpaths}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_ensure_gitignore_open_trace failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
@@ -2290,7 +2290,7 @@ class TestBugVEnsureGitignoreSymlinkRead:
     def test_ensure_gitignore_never_opens_the_symlink_target_for_reading(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-gitignore.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT — GITIGNORE READ TRACE\n")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT — GITIGNORE READ TRACE\n", encoding='utf-8')
 
         gitignore_path = os.path.join(repo, ".gitignore")
         _plant_symlink(gitignore_path, str(victim))
@@ -2324,7 +2324,7 @@ class TestBugWBootstrapPackageJsonPyprojectSymlinkRead:
     def test_scan_package_json_does_not_leak_symlinked_victim_into_json_output(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-package-json.json"
-        victim.write_text(json.dumps({"name": "LEAKED-SECRET-PACKAGE-JSON-MARKER"}))
+        victim.write_text(json.dumps({"name": "LEAKED-SECRET-PACKAGE-JSON-MARKER"}), encoding='utf-8')
 
         pkg_path = os.path.join(repo, "package.json")
         _plant_symlink(pkg_path, str(victim))
@@ -2345,7 +2345,7 @@ class TestBugWBootstrapPackageJsonPyprojectSymlinkRead:
             '[project]\n'
             'name = "LEAKED-SECRET-PYPROJECT-MARKER"\n'
             'requires-python = ">=3.11"\n'
-        )
+        , encoding='utf-8')
 
         pyproject_path = os.path.join(repo, "pyproject.toml")
         _plant_symlink(pyproject_path, str(victim))
@@ -2400,7 +2400,7 @@ finally:
 
 print(json.dumps({{"opened_realpaths": opened_realpaths}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_detect_monorepo_open_trace failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
@@ -2438,7 +2438,7 @@ finally:
 
 print(json.dumps({{"opened_realpaths": opened_realpaths}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_detect_ci_commitlint_open_trace failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
@@ -2478,7 +2478,7 @@ finally:
 
 print(json.dumps({{"opened_realpaths": opened_realpaths}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_install_inspect_open_trace failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["opened_realpaths"]
@@ -2498,7 +2498,7 @@ class TestBugXBootstrapLowImpactSymlinkReads:
     def test_detect_monorepo_does_not_open_symlinked_package_json(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-package-json-monorepo.json"
-        victim.write_text(json.dumps({"workspaces": ["packages/*"]}))
+        victim.write_text(json.dumps({"workspaces": ["packages/*"]}), encoding='utf-8')
 
         pkg_path = os.path.join(repo, "package.json")
         _plant_symlink(pkg_path, str(victim))
@@ -2516,7 +2516,7 @@ class TestBugXBootstrapLowImpactSymlinkReads:
         repo = _make_repo(tmp_path)
         os.makedirs(os.path.join(repo, ".husky"), exist_ok=True)
         victim = tmp_path / "victim-husky-commit-msg.txt"
-        victim.write_text("commitlint --edit $1\n")
+        victim.write_text("commitlint --edit $1\n", encoding='utf-8')
 
         commit_msg_path = os.path.join(repo, ".husky", "commit-msg")
         _plant_symlink(commit_msg_path, str(victim))
@@ -2534,7 +2534,7 @@ class TestBugXBootstrapLowImpactSymlinkReads:
         repo = _make_repo(tmp_path)
         os.makedirs(os.path.join(repo, ".claude-plugin"), exist_ok=True)
         victim = tmp_path / "victim-plugin-json.json"
-        victim.write_text(json.dumps({"name": "unmassk-toolkit"}))
+        victim.write_text(json.dumps({"name": "unmassk-toolkit"}), encoding='utf-8')
 
         plugin_json_path = os.path.join(repo, ".claude-plugin", "plugin.json")
         _plant_symlink(plugin_json_path, str(victim))
@@ -2551,7 +2551,7 @@ class TestBugXBootstrapLowImpactSymlinkReads:
     def test_install_inspect_does_not_open_symlinked_package_json(self, tmp_path):
         repo = _make_repo(tmp_path)
         victim = tmp_path / "victim-package-json-install-inspect.json"
-        victim.write_text(json.dumps({"devDependencies": {"commitlint": "1.0.0"}}))
+        victim.write_text(json.dumps({"devDependencies": {"commitlint": "1.0.0"}}), encoding='utf-8')
 
         pkg_path = os.path.join(repo, "package.json")
         _plant_symlink(pkg_path, str(victim))
@@ -2704,7 +2704,7 @@ class TestBugYClaudeDirSymlinkBypassesAllGuards:
             "otroAjusteReal": "debe-sobrevivir",
         }
         settings_path_external = fake_home_claude / "settings.json"
-        settings_path_external.write_text(json.dumps(victim_settings, indent=2))
+        settings_path_external.write_text(json.dumps(victim_settings, indent=2), encoding='utf-8')
         raw_before = settings_path_external.read_bytes()
 
         claude_path = os.path.join(repo, ".claude")
@@ -2751,7 +2751,7 @@ class TestBugYClaudeDirSymlinkBypassesAllGuards:
             "otroAjusteReal": "debe-sobrevivir",
         }
         settings_path_external = fake_home_claude / "settings.json"
-        settings_path_external.write_text(json.dumps(victim_settings, indent=2))
+        settings_path_external.write_text(json.dumps(victim_settings, indent=2), encoding='utf-8')
         raw_before = settings_path_external.read_bytes()
 
         claude_path = os.path.join(repo, ".claude")
@@ -2819,7 +2819,7 @@ class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
         external_hooks = _make_symlink_farm(external_dir, "hooks")
         external_skills = _make_symlink_farm(external_dir, "skills")
         marker = external_dir / "UNRELATED-OTHER-PLUGIN-DATA.txt"
-        marker.write_text("must survive untouched")
+        marker.write_text("must survive untouched", encoding='utf-8')
 
         # Trigger has_old_install (unrelated to the .claude symlink — a
         # plain leftover file at the project root from a prior old-style
@@ -2867,7 +2867,7 @@ class TestBugZCleanupOldInstallDestroysExternalClaudeDir:
         external_hooks = _make_symlink_farm(external_dir, "hooks")
         external_skills = _make_symlink_farm(external_dir, "skills")
         marker = external_dir / "UNRELATED-OTHER-PLUGIN-DATA.txt"
-        marker.write_text("must survive untouched")
+        marker.write_text("must survive untouched", encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
@@ -3019,7 +3019,7 @@ spec.loader.exec_module(mod)
 mod._migrate_runtime_to_unmassk({repr(project_root)})
 print("OK")
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0 or "OK" not in proc.stdout:
         raise RuntimeError(
             f"_migrate_runtime_to_unmassk (boot_migrations) failed "
@@ -3039,7 +3039,7 @@ spec.loader.exec_module(mod)
 mod._migrate_runtime_to_unmassk({repr(target)})
 print("OK")
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0 or "OK" not in proc.stdout:
         raise RuntimeError(
             f"_migrate_runtime_to_unmassk (upgrade) failed "
@@ -3076,7 +3076,7 @@ class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
         # Legacy file the migration is designed to move — planted directly
         # at the external location .claude resolves to.
         legacy_manifest = external_dir / "git-memory-manifest.json"
-        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}))
+        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}), encoding='utf-8')
 
         _call_migrate_runtime_to_unmassk_boot_migrations(repo)
 
@@ -3108,7 +3108,7 @@ class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
         os.symlink(str(external_dir), claude_path)
 
         legacy_manifest = external_dir / "git-memory-manifest.json"
-        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}))
+        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}), encoding='utf-8')
 
         _call_migrate_runtime_to_unmassk_upgrade(repo)
 
@@ -3162,7 +3162,7 @@ class TestBugADDoctorManifestTimestampRewriteClaudeDirSymlink:
             "installed_at": "2020-01-01T00:00:00",
             "runtime_mode": "normal",
         }
-        victim_manifest.write_text(json.dumps(victim_content, indent=2))
+        victim_manifest.write_text(json.dumps(victim_content, indent=2), encoding='utf-8')
         raw_before = victim_manifest.read_bytes()
 
         claude_path = os.path.join(repo, ".claude")
@@ -3202,7 +3202,7 @@ spec.loader.exec_module(mod)
 result = mod.remove_manifest({repr(target)})
 print("OK-RESULT=" + str(result))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0 or "OK-RESULT=" not in proc.stdout:
         raise RuntimeError(f"_call_remove_manifest failed (rc={proc.returncode}): {proc.stderr}")
 
@@ -3235,7 +3235,7 @@ class TestBugAEUninstallRemoveManifestClaudeDirSymlink:
         victim_manifest.write_text(json.dumps({
             "version": "0.0.1-UNINSTALL-VICTIM",
             "installed_at": "2020-01-01T00:00:00",
-        }))
+        }), encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
@@ -3289,7 +3289,7 @@ class TestBugAFDoctorCheckManifestVersionLeakClaudeDirSymlink:
         victim_manifest.write_text(json.dumps({
             "version": secret,
             "installed_at": "2020-01-01T00:00:00",
-        }))
+        }), encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
@@ -3328,7 +3328,7 @@ spec.loader.exec_module(mod)
 mod.run_preboot_migrations({repr(project_root)})
 print("OK")
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=30)
     if proc.returncode != 0 or "OK" not in proc.stdout:
         raise RuntimeError(f"_call_run_preboot_migrations failed (rc={proc.returncode}): {proc.stderr}")
 
@@ -3359,7 +3359,7 @@ class TestBugAGBootPrebootMigrationsBootedFlagDeletionClaudeDirSymlink:
         external_unmassk.mkdir(parents=True)
 
         victim_flag = external_unmassk / ".session-booted"
-        victim_flag.write_text("real-session-booted-marker")
+        victim_flag.write_text("real-session-booted-marker", encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
@@ -3406,14 +3406,14 @@ class TestBugAHCleanupOldInstallFixedNameFileParentSymlink:
         external_dir.mkdir()
         victim = external_dir / "git-memory-gc.py"
         victim_content = "REAL EXTERNAL GC SCRIPT -- MUST SURVIVE"
-        victim.write_text(victim_content)
+        victim.write_text(victim_content, encoding='utf-8')
 
         bin_path = os.path.join(repo, "bin")
         os.symlink(str(external_dir), bin_path)
 
         rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
 
-        assert victim.exists() and victim.read_text() == victim_content, (
+        assert victim.exists() and victim.read_text(encoding='utf-8') == victim_content, (
             "SEC (BUG AH): git-memory-install.py --auto's "
             "_cleanup_old_install() followed a symlinked 'bin' directory at "
             f"the project root and deleted the external file it points to, "
@@ -3434,14 +3434,14 @@ class TestBugAHCleanupOldInstallFixedNameFileParentSymlink:
         external_dir.mkdir()
         victim = external_dir / "git-memory-gc.py"
         victim_content = "REAL EXTERNAL GC SCRIPT -- MUST SURVIVE"
-        victim.write_text(victim_content)
+        victim.write_text(victim_content, encoding='utf-8')
 
         bin_path = os.path.join(repo, "bin")
         os.symlink(str(external_dir), bin_path)
 
         rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
 
-        assert victim.exists() and victim.read_text() == victim_content, (
+        assert victim.exists() and victim.read_text(encoding='utf-8') == victim_content, (
             "SEC (BUG AH): git-memory-uninstall.py --auto's "
             "remove_old_install_files() followed a symlinked 'bin' "
             f"directory at the project root and deleted the external file "
@@ -3484,11 +3484,11 @@ class TestBugAIPycacheRmtreeParentSymlink:
         external_dir = tmp_path / "external-lib-install"
         external_dir.mkdir()
         other_marker = external_dir / "OTHER-FILE.txt"
-        other_marker.write_text("must survive untouched")
+        other_marker.write_text("must survive untouched", encoding='utf-8')
         external_pycache = external_dir / "__pycache__"
         external_pycache.mkdir()
         cached_marker = external_pycache / "cached_module.cpython-311.pyc"
-        cached_marker.write_text("cached bytecode -- must survive")
+        cached_marker.write_text("cached bytecode -- must survive", encoding='utf-8')
 
         lib_path = os.path.join(repo, "lib")
         os.symlink(str(external_dir), lib_path)
@@ -3534,14 +3534,14 @@ class TestBugAJGeneratedFilesRemovalClaudeDirSymlink:
         external_dir.mkdir()
         victim = external_dir / "dashboard.html"
         victim_content = "<html>REAL EXTERNAL DASHBOARD -- MUST SURVIVE</html>"
-        victim.write_text(victim_content)
+        victim.write_text(victim_content, encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
 
         rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto", "--full-local"])
 
-        assert victim.exists() and victim.read_text() == victim_content, (
+        assert victim.exists() and victim.read_text(encoding='utf-8') == victim_content, (
             "SEC (BUG AJ): git-memory-uninstall.py --auto --full-local's "
             "remove_generated_files() followed a symlinked '.claude' "
             f"directory and deleted the external dashboard.html it points "
@@ -3583,7 +3583,7 @@ class TestBugAKBootstrapCheckExistingMemoryManifestParentSymlink:
         victim_manifest.write_text(json.dumps({
             "version": secret,
             "installed_at": "2020-01-01T00:00:00",
-        }))
+        }), encoding='utf-8')
 
         claude_path = os.path.join(repo, ".claude")
         os.symlink(str(external_dir), claude_path)
@@ -3641,14 +3641,14 @@ class TestBugALOldSkillDirsSymlinkedParent:
         external_git_memory.mkdir()
         marker = external_git_memory / "REAL-SKILL-FILE.md"
         marker_content = "REAL EXTERNAL SKILL CONTENT -- MUST SURVIVE"
-        marker.write_text(marker_content)
+        marker.write_text(marker_content, encoding='utf-8')
 
         skills_path = os.path.join(repo, "skills")
         os.symlink(str(external_dir), skills_path)
 
         rc, stdout, stderr = run_script(INSTALL, repo, extra_args=["--auto"])
 
-        assert external_git_memory.is_dir() and marker.exists() and marker.read_text() == marker_content, (
+        assert external_git_memory.is_dir() and marker.exists() and marker.read_text(encoding='utf-8') == marker_content, (
             "BUG AL: git-memory-install.py --auto's _cleanup_old_install() "
             "followed a symlinked 'skills' directory at the project root and "
             f"deleted the external 'git-memory' subdirectory it points to, at "
@@ -3672,14 +3672,14 @@ class TestBugALOldSkillDirsSymlinkedParent:
         external_git_memory.mkdir()
         marker = external_git_memory / "REAL-SKILL-FILE.md"
         marker_content = "REAL EXTERNAL SKILL CONTENT -- MUST SURVIVE"
-        marker.write_text(marker_content)
+        marker.write_text(marker_content, encoding='utf-8')
 
         skills_path = os.path.join(repo, "skills")
         os.symlink(str(external_dir), skills_path)
 
         rc, stdout, stderr = run_script(UNINSTALL, repo, extra_args=["--auto"])
 
-        assert external_git_memory.is_dir() and marker.exists() and marker.read_text() == marker_content, (
+        assert external_git_memory.is_dir() and marker.exists() and marker.read_text(encoding='utf-8') == marker_content, (
             "BUG AL: git-memory-uninstall.py --auto's "
             "remove_old_install_files() followed a symlinked 'skills' "
             f"directory at the project root and deleted the external "
@@ -3904,7 +3904,7 @@ mod.ensure_runtime_dir = None
 result = mod.write_boot_log({repr(full_text)}, {repr(repo)})
 print(json.dumps({{"result": result}}))
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0:
         raise RuntimeError(f"_call_write_boot_log_fallback failed (rc={proc.returncode}): {proc.stderr}")
     return json.loads(proc.stdout.strip().splitlines()[-1])["result"]
@@ -3942,7 +3942,7 @@ spec.loader.exec_module(mod)
 mod._write_glossary_cache({{}})
 print("OK")
 """
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
     if proc.returncode != 0 or "OK" not in proc.stdout:
         raise RuntimeError(f"_call_write_glossary_cache_fallback failed (rc={proc.returncode}): {proc.stderr}")
 

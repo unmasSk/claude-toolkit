@@ -120,4 +120,61 @@ silently expanding scope.
 counted as real passes instead of xfailed). Contract closed exactly as
 designed: no test logic needed to change, only the markers came off.
 
+**Follow-up session (2026-07-08, real Windows box, HEAD 82645d8) — hardening
+the TEST SIDE after #52's production fix landed.** House root-caused 2 fresh
+CI crashes (`test_security_regression.py` BUG K/P, `test_crown_retraction.py`)
+to test-only `write_text()`/`_sp.run(text=True)` calls missing `encoding=`
+— the W1 production guard doesn't reach test helper code or `-c` code-strings
+run as a child subprocess. Full tree sweep (AST for `write_text`/`read_text`/
+`open`, regex paren-matching for `subprocess.run`/`_sp.run` since many of
+those live INSIDE triple-quoted f-string code blocks, invisible to
+`ast.parse()` of the outer file) found **140 unencoded sites across 16
+files** (50 subprocess-class, 90 write_text/read_text-class, 0 remaining
+`open()` — that class was already fully swept in the #52 session above).
+Only 3 of the 140 were the ones House named explicitly — the other 137 were
+genuinely latent, never having crashed yet. Two NEW script bugs surfaced
+while automating this, both reusable lessons:
+
+1. **`ast` `col_offset`/`end_col_offset` are UTF-8 BYTE offsets, not
+   character offsets.** A naive `line[end_col_offset - 1]` insertion breaks
+   silently (produces a stray line, not even a clean crash) on any line
+   containing a multi-byte char BEFORE the target column — e.g.
+   `"SENSITIVE ORIGINAL CONTENT — INSTALL"` (em-dash, 3 UTF-8 bytes) shifted
+   the byte offset 2 past the true character position. Fix: encode the line
+   to UTF-8 bytes, slice by the byte offset, decode back, take `len()` of
+   that to get the real character index — `len(line.encode("utf-8")[:col].decode("utf-8"))`.
+   Caught immediately by `py_compile`-ing every touched file after each
+   automated pass (mandatory step, not optional, whenever a script inserts
+   text by computed offset).
+2. **Nested same-quote f-strings are a SyntaxError below Python 3.12
+   (PEP 701).** Auto-inserting `encoding="utf-8"` (double quotes) into a
+   call that sits inside `f"...{victim.read_text()!r}"` (also double-quoted)
+   produces `f"...{victim.read_text(encoding="utf-8")!r}"` — invalid syntax
+   pre-3.12. Fix: always insert the encoding value with single quotes
+   (`encoding='utf-8'`) since call sites are never themselves inside a
+   single-quoted f-string in this codebase — cheap, universally safe,
+   costs nothing when the call isn't inside an f-string at all.
+   Both bugs were caught by the same cheap gate: `python3 -m py_compile`
+   (or a full `ast.parse()` sweep) on every file immediately after an
+   automated multi-site edit, BEFORE running pytest — never trust an
+   automated insert-by-offset script without a compile check in between.
+
+**Verification gotcha: ambient `PYTHONUTF8=1` in this shell masks the very
+bug being fixed.** `locale.getpreferredencoding(False)` reported `utf-8` on
+this real Windows box on first check — looked like the box just doesn't
+have a cp1252 problem. Re-checked with `python3 -X utf8=0 -c "..."`: revealed
+`PYTHONUTF8=1` was set ambient in the shell env, and Python's UTF-8 mode
+overrides `locale.getpreferredencoding()` to always report `utf-8`
+regardless of the OS ANSI codepage. With `PYTHONUTF8=0` explicitly, the same
+call reports `cp1252` — the box's TRUE codepage, and the actual condition
+that broke CI. Re-ran the full verification suite with `PYTHONUTF8=0`
+(not just `PYTHONIOENCODING`, which only affects stdout/stderr text mode,
+NOT `open()`/`write_text()`/`subprocess.run(text=True)` default encoding) —
+103 passed, 64 skipped (symlink tests gated by `real_symlink_capable`, no
+privilege on this box), 0 failed, matching the plain run. **Lesson: on a
+real target box, don't trust `locale.getpreferredencoding()` at face value
+without also checking `PYTHONUTF8`/`sys.flags.utf8_mode` — an ambient env
+var in the CURRENT shell can silently make the "real Windows repro" not
+actually exercise the failure mode you're trying to verify against.**
+
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md) (git identity / symlink-guard sessions earlier the same day).

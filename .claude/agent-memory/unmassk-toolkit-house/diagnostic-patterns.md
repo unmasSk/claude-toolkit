@@ -4,6 +4,24 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: cp1252 Write-Path Recurs in NEW Test-Harness Spots After conftest.run_cmd Was Fixed (CI run 28922061708)
+
+**Project:** unmassk-toolkit (git-memory) · **Seen:** 2026-07-08 · confirmed from real CI log
+
+After #52/#54 fixed conftest.run_cmd (added `encoding="utf-8"`) and added `force_utf8_streams()` to all 25 entry points, the SAME cp1252 write-path defect resurfaced in TWO test-harness spots the fix never touched. Both windows-latest / Python 3.10.11 only.
+
+1. **`pathlib.Path.write_text()` without `encoding=`** — `tests/test_security_regression.py:1622` and `:2017` (`victim.write_text(valid_content)`). `valid_content` is a REAL installed CLAUDE.md (UTF-8 skill text containing `→` U+2192 at offset 1144). `Path.write_text(data)` with no encoding uses the locale codepage → cp1252/strict on the runner → `UnicodeEncodeError: '→' position 1144` inside `encodings/cp1252.py`. Traceback root frame is `pathlib.py:1155 write_text -> f.write(data)`, NOT product code, NOT pytest rendering, NOT the subprocess child. Sibling TestBugP tests pass because they write the plain-ASCII `_FAKE_INSTALLED_MARKER_CLAUDE_MD` constant. TEST bug (Dante), not product — product write paths are guarded. Fix: `victim.write_text(content, encoding="utf-8")` (and every peer `.write_text` of UTF-8 content in that file).
+
+2. **Inline monkeypatched `run_git` in `-c` probe helpers** — `tests/test_crown_retraction.py:227` (and the twin `_extract_memory`/`_extract_glossary` in `test_boot_output.py:203,250`). These `_sp.run(['git']+args, capture_output=True, text=True, cwd=..., env=...)` with NO `encoding="utf-8"` — the exact bug conftest.run_cmd already had, re-introduced by hand in the probe code string. On cp1252 the emoji subjects (🧭 = `F0 9F A7 AD`; byte `0x9F` is undefined in cp1252) fail to decode in the subprocess `_readerthread` (visible as `PytestUnhandledThreadExceptionWarning ... _readerthread` at `subprocess.py:1515`); the thread dies, stdout returns EMPTY, `extract_memory()` hits `if code!=0 or not output: return {}`, decisions come back `[]`, and crown-dedup asserts fail `0 == 1` (`Expected one deduped entry for (auth): []`). Note the monkeypatched run_git also lacks the real `git_helpers.run_git`'s UnicodeDecodeError guard. TEST bug (Dante). Fix: add `encoding="utf-8"` to those inline `_sp.run(...)` calls.
+
+**Lesson:** when fixing a cross-cutting encoding defect, grep the WHOLE test tree for `subprocess.run(`/`_sp.run(` without `encoding=` AND for `.write_text(`/`.read_text(`/`open(` without `encoding=` — the central-helper fix does not reach per-test-file helpers or `-c` code strings.
+
+## Pattern: get_last_context_time()/get_timeline() Use Fragile %aI+fromisoformat vs extract_memory()'s Robust %at (boot time_ago absent on runner git ~2.43)
+
+**Project:** unmassk-toolkit · **Seen:** 2026-07-08 · confirmed mechanism, exact git trigger not locally reproducible
+
+`test_boot_output.py::test_last_commit_has_time_ago` (`assert re.search(r"\d+[mhdw] ago|just now", content)` → `assert None`) and `test_regression_memory_correctness.py::test_consistent_detection_both_paths_agree` (`assert has_time` → None) fail on BOTH ubuntu AND windows (so NOT encoding, NOT OS). CI trace shows the `Last:` line HAS the subject (so `extract_memory()` found the context commit) but NO time — i.e. `get_last_context_time()` returned empty AND the TIMELINE section (also `time_ago`-based) had no time strings either. The two code paths diverge in `lib/boot_git_checks.py`: `get_last_context_time()`/`get_timeline()` use `git log ... --pretty=%h\x1f%s\x1f%aI` (no `-z`, no explicit `HEAD`, no `--`) + `datetime.fromisoformat()`, while `extract_memory()` (lib/boot_memory.py:154) uses the robust `git log HEAD -z ... %at --` (unix epoch, parsed via time_ago's `.isdigit()` branch). Verified NOT Python 3.10 (fromisoformat parses strict `%aI` `+00:00` fine on 3.10.18) and NOT reproducible with local git 2.49 (boot renders `just now` under py3.10+git2.49). Sole remaining variable is the runner's older git (~2.43) on the `%aI` reading path — same conclusion as the prior round. FIX (product robustness, Ultron): unify `get_last_context_time()`/`get_timeline()` onto `%at` (+ explicit `HEAD` + `--`) exactly like `extract_memory()`, removing the `%aI`/`fromisoformat` fragility and making the two "paths agree" by construction. Observability gap that hides the real cause: boot subprocess reads discard stderr — surface it before the next round.
+
 ## Pattern: CI Runner Has No Git Identity → Test Helpers Silently Swallow `git commit` Failure
 
 **Project:** unmassk-toolkit (git-memory)

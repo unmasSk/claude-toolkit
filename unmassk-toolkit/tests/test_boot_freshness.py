@@ -87,7 +87,7 @@ def _git(args, cwd, check=True, env=None):
         ["git"] + args,
         cwd=cwd,
         capture_output=True,
-        text=True,
+        text=True, encoding='utf-8',
         env=merged_env,
         check=check,
     )

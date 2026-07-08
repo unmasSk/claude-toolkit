@@ -270,7 +270,7 @@ os.chdir({repr(repo)})
 """
     return subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, encoding='utf-8', timeout=30,
     )
 
 

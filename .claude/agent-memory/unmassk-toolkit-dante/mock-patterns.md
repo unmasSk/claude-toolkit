@@ -646,3 +646,45 @@ in [edge-cases.md](edge-cases.md) and
 `get_ahead_behind()`'s `int()` conversion on `rev-list --left-right --count`
 output has no try/except, unlike the sibling "wrong token count" fallback
 one line below it.
+
+## Forcing a controlled (returncode, stdout, stderr) out of `run_git()` without a real git failure
+
+`lib/git_helpers.py:run_git()` calls `subprocess.Popen(["git"] + args, ...)`
+then `proc.communicate(timeout=...)` then reads `proc.returncode`. To test a
+branch that only fires on a SPECIFIC exit code + stderr combination (e.g. the
+`log_stderr_on_failure` diagnostic-breadcrumb kwarg, issue-driven Cerberus
+follow-up, session 2026-07-08) — don't try to make a real git command fail
+with a specific stderr string; monkeypatch `subprocess.Popen` itself with a
+duck-typed fake:
+
+```python
+class _FakeProc:
+    def __init__(self, returncode, stdout="", stderr=""):
+        self.returncode = returncode
+        self.pid = 424242
+        self._stdout, self._stderr = stdout, stderr
+    def communicate(self, timeout=None):
+        return self._stdout, self._stderr
+
+monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: _FakeProc(1, stderr="fatal: x"))
+code, out = git_helpers.run_git(["status"], log_stderr_on_failure=True)
+```
+
+Patch the `subprocess` module the TEST FILE already imported (`import
+subprocess` at file top) — it is the same object in `sys.modules` that
+`git_helpers.py`'s own `import subprocess` resolved to, so no need to reach
+into `git_helpers.subprocess` specifically. This is the same "patch the
+module that owns the callee's globals" principle as the `_write_glossary_
+cache()` gotcha in unmassk-toolkit-python-test-conventions.md, just applied
+to a stdlib module instead of a project one. Since `run_git()`'s print is
+gated by a 4-operand conditional (`log_stderr_on_failure and returncode != 0
+and stderr and stderr.strip()`), enumerate all the ways it can flip: flag
+True/False/omitted, returncode 0 vs non-zero, stderr empty/whitespace-only/
+real text, and the `[:300]` truncation boundary (`"X"*300 in captured.err`
++ `"X"*301 not in captured.err` proves the exact cutoff, not just "some
+truncation happened"). Confirmed in
+`unmassk-toolkit/tests/test_boot_freshness_hardening.py::
+TestRunGitLogStderrOnFailure` (7 tests, all via `capsys` since the print
+happens in-process — no subprocess wrapper needed for THIS assertion,
+unlike the fake-git-on-PATH pattern above which is for asserting the
+*subprocess's own* env/argv).

@@ -458,7 +458,7 @@ class TestHasToolkitMemory:
         repo = str(tmp_path / "r5")
         os.makedirs(repo)
         victim = tmp_path / "victim.md"
-        victim.write_text("<!-- BEGIN unmassk-toolkit -->\nfoo\n<!-- END unmassk-toolkit -->\n")
+        victim.write_text("<!-- BEGIN unmassk-toolkit -->\nfoo\n<!-- END unmassk-toolkit -->\n", encoding='utf-8')
         os.symlink(str(victim), os.path.join(repo, "CLAUDE.md"))
         assert boot_git_checks._has_toolkit_memory(repo) is False
 
@@ -848,6 +848,121 @@ class TestRunGitEnvKwarg:
         assert code == 0
         assert "Frescura Override" in out
         assert "AMBIENT-POISON" not in out
+
+
+# ── run_git log_stderr_on_failure: opt-in diagnostic breadcrumb ──────────
+
+
+class TestRunGitLogStderrOnFailure:
+    """lib/git_helpers.py:run_git()'s log_stderr_on_failure kwarg (~L348,
+    ~L414-423) — new observability path added for boot-freshness's
+    get_timeline()/get_last_context_time() callers, zero prior test
+    coverage (Cerberus review follow-up). subprocess.Popen is monkeypatched
+    at the module level (the same `subprocess` module object git_helpers
+    imported — sys.modules is a singleton, so patching the attribute here
+    reaches git_helpers's own `subprocess.Popen(...)` call without needing
+    to reach into git_helpers's namespace) to force a controlled
+    (returncode, stdout, stderr) triple without depending on a real git
+    failure, per this task's explicit ask. The `_patched_run_git` fakes
+    used elsewhere (test_boot_output.py, test_crown.py,
+    test_crown_retraction.py, test_consolidation_trigger.py,
+    test_boot_freshness_regression.py) monkeypatch run_git ITSELF and do
+    not accept this new kwarg — untouched here; these tests call the REAL
+    git_helpers.run_git directly instead, so the fakes' signatures are
+    irrelevant to this class.
+
+    Test surface (EXHAUSTION PROTOCOL step 1): 1 function's new branch —
+    a single compound conditional with 4 operands (log_stderr_on_failure,
+    proc.returncode != 0, stderr truthy, stderr.strip() truthy) plus the
+    [:300] truncation formatting. 7 scenarios cover every short-circuit
+    combination that can flip the outcome (print vs. silent) plus the
+    truncation boundary. Excluded: the rest of run_git (env= merge, POSIX/
+    Windows kill-tree, timeout) — already covered by TestRunGitEnvKwarg
+    above and test_boot_freshness_regression.py's process-group-kill
+    tests; out of scope for this task.
+    """
+
+    class _FakeProc:
+        def __init__(self, returncode, stdout="", stderr=""):
+            self.returncode = returncode
+            self.pid = 424242
+            self._stdout = stdout
+            self._stderr = stderr
+
+        def communicate(self, timeout=None):
+            return self._stdout, self._stderr
+
+    def _patch_popen(self, monkeypatch, returncode, stdout="", stderr=""):
+        fake_proc = self._FakeProc(returncode, stdout, stderr)
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: fake_proc)
+        return fake_proc
+
+    def test_failure_with_flag_true_prints_breadcrumb_with_prefix(self, monkeypatch, capsys):
+        self._patch_popen(monkeypatch, returncode=128, stderr="fatal: not a git repository")
+
+        code, out = git_helpers.run_git(["status"], log_stderr_on_failure=True)
+
+        assert code == 128
+        assert out == ""
+        captured = capsys.readouterr()
+        assert "[git_helpers] git 'status' exited 128: fatal: not a git repository" in captured.err
+
+    def test_stderr_truncated_to_300_chars(self, monkeypatch, capsys):
+        long_stderr = "E" * 500
+        self._patch_popen(monkeypatch, returncode=1, stderr=long_stderr)
+
+        git_helpers.run_git(["fetch"], log_stderr_on_failure=True)
+
+        captured = capsys.readouterr()
+        assert ("E" * 300) in captured.err
+        assert ("E" * 301) not in captured.err
+
+    def test_flag_false_stays_silent_on_failure(self, monkeypatch, capsys):
+        self._patch_popen(monkeypatch, returncode=1, stderr="fatal: some failure")
+
+        code, _out = git_helpers.run_git(["status"], log_stderr_on_failure=False)
+
+        assert code == 1
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_flag_omitted_defaults_to_silent_on_failure(self, monkeypatch, capsys):
+        self._patch_popen(monkeypatch, returncode=1, stderr="fatal: some failure")
+
+        code, _out = git_helpers.run_git(["status"])  # log_stderr_on_failure not passed
+
+        assert code == 1
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_flag_true_but_success_returncode_is_silent(self, monkeypatch, capsys):
+        # A successful git call can still write hint/advisory text to
+        # stderr (git does this for some commands even on rc=0) — the
+        # breadcrumb must only fire on genuine failure, not merely because
+        # stderr is non-empty.
+        self._patch_popen(monkeypatch, returncode=0, stderr="hint: some advisory text")
+
+        code, _out = git_helpers.run_git(["status"], log_stderr_on_failure=True)
+
+        assert code == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_flag_true_failure_but_empty_stderr_is_silent(self, monkeypatch, capsys):
+        self._patch_popen(monkeypatch, returncode=1, stderr="")
+
+        git_helpers.run_git(["status"], log_stderr_on_failure=True)
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_flag_true_failure_but_whitespace_only_stderr_is_silent(self, monkeypatch, capsys):
+        self._patch_popen(monkeypatch, returncode=1, stderr="   \n  ")
+
+        git_helpers.run_git(["status"], log_stderr_on_failure=True)
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
 
 
 # ── _check_behind_warn_only: every fail-open branch + the warn itself ────

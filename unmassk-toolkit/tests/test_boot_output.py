@@ -202,7 +202,7 @@ def _patched_run_git(args, cwd=None):
     env['GIT_WORK_TREE'] = {repr(repo)}
     result = _sp.run(
         ['git'] + args,
-        capture_output=True, text=True, cwd={repr(repo)}, env=env,
+        capture_output=True, text=True, encoding='utf-8', cwd={repr(repo)}, env=env,
     )
     return result.returncode, result.stdout.strip()
 _gh.run_git = _patched_run_git
@@ -249,7 +249,7 @@ def _patched_run_git(args, cwd=None):
     env['GIT_WORK_TREE'] = {repr(repo)}
     result = _sp.run(
         ['git'] + args,
-        capture_output=True, text=True, cwd={repr(repo)}, env=env,
+        capture_output=True, text=True, encoding='utf-8', cwd={repr(repo)}, env=env,
     )
     return result.returncode, result.stdout.strip()
 _gh.run_git = _patched_run_git
@@ -965,7 +965,7 @@ def _patched_run_git(args, cwd=None):
     env['GIT_WORK_TREE'] = {repr(repo)}
     result = _sp.run(
         ['git'] + args,
-        capture_output=True, text=True, cwd={repr(repo)}, env=env,
+        capture_output=True, text=True, encoding='utf-8', cwd={repr(repo)}, env=env,
     )
     return result.returncode, result.stdout.strip()
 _gh.run_git = _patched_run_git
@@ -1134,7 +1134,7 @@ class TestSymlinkWriteProtection:
     def test_boot_log_write_does_not_follow_symlink_to_outside_file(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         victim = tmp_path / "victim-boot-log.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT\n")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT\n", encoding='utf-8')
 
         log_path = _boot_log_path(repo)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -1144,7 +1144,7 @@ class TestSymlinkWriteProtection:
 
         run_boot(repo)
 
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT\n", (
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT\n", (
             "boot must not follow a symlink planted at the boot-log path and "
             "overwrite the file it points to — a malicious repo could commit "
             "that path as a symlink (git blob mode 120000) to overwrite an "
@@ -1155,7 +1155,7 @@ class TestSymlinkWriteProtection:
     def test_glossary_cache_write_does_not_follow_symlink_to_outside_file(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
         victim = tmp_path / "victim-glossary-cache.json"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT", encoding='utf-8')
 
         cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
@@ -1165,7 +1165,7 @@ class TestSymlinkWriteProtection:
 
         run_boot(repo)
 
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT", (
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT", (
             "boot must not follow a symlink planted at the glossary-cache "
             "path and overwrite the file it points to, same attack shape as "
             "the boot-log-latest.txt case"
@@ -1594,7 +1594,7 @@ class TestGlossaryCacheReadSymlinkProtection:
             "remembers": [],
             "tombstones": [],
         }
-        victim.write_text(json.dumps(forged_cache))
+        victim.write_text(json.dumps(forged_cache), encoding='utf-8')
 
         cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
         if os.path.lexists(cache_path):

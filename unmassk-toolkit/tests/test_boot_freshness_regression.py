@@ -380,7 +380,7 @@ class TestPosixProcessTreeKillOnTimeout:
         assert elapsed < 6, f"run_git took {elapsed:.1f}s — timeout not bounding the hang"
         assert _wait_for_file(str(pid_file)), "grandchild never wrote its own pid — test setup broken"
 
-        grandchild_pid = int(pid_file.read_text().strip())
+        grandchild_pid = int(pid_file.read_text(encoding='utf-8').strip())
 
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and _pid_is_alive(grandchild_pid):
@@ -561,7 +561,7 @@ class TestWin32ProcessTreeKillOnTimeout:
         assert elapsed < 6, f"run_git took {elapsed:.1f}s — timeout not bounding the hang"
         assert _wait_for_file(str(pid_file)), "grandchild never wrote its own pid — test setup broken"
 
-        grandchild_pid = int(pid_file.read_text().strip())
+        grandchild_pid = int(pid_file.read_text(encoding='utf-8').strip())
 
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and _win32_pid_is_alive(grandchild_pid):
@@ -663,7 +663,7 @@ class TestWin32AskpassFailfastResolvesAndExitsNonzero:
                 boot_git_checks._ASKPASS_FAILFAST + " some-prompt-argv-appended-by-git",
                 shell=True,
                 capture_output=True,
-                text=True,
+                text=True, encoding='utf-8',
                 timeout=5,
             )
         except (FileNotFoundError, OSError) as e:
@@ -762,7 +762,7 @@ def _patched_run_git(args, cwd=None, timeout=None, env=None):
     merged_env = dict(os.environ)
     merged_env['GIT_DIR'] = os.path.join({repr(repo)}, '.git')
     merged_env['GIT_WORK_TREE'] = {repr(repo)}
-    result = subprocess.run(['git'] + args, capture_output=True, text=True, cwd={repr(repo)}, env=merged_env)
+    result = subprocess.run(['git'] + args, capture_output=True, text=True, encoding='utf-8', cwd={repr(repo)}, env=merged_env)
     return result.returncode, result.stdout.strip()
 _gh.run_git = _patched_run_git
 

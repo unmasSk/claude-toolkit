@@ -226,7 +226,7 @@ def _patched_run_git(args, cwd=None):
     env['GIT_WORK_TREE'] = {repr(repo)}
     result = _sp.run(
         ['git'] + args,
-        capture_output=True, text=True, cwd={repr(repo)}, env=env,
+        capture_output=True, text=True, encoding='utf-8', cwd={repr(repo)}, env=env,
     )
     return result.returncode, result.stdout.strip()
 _gh.run_git = _patched_run_git

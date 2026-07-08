@@ -87,7 +87,7 @@ class TestPosixGuardUnchanged:
         """GUARD — real symlink at the final path component, real kernel
         O_NOFOLLOW enforcement. Not mockable (see fixture docstring)."""
         victim = tmp_path / "victim-posix.txt"
-        victim.write_text("SENSITIVE ORIGINAL CONTENT")
+        victim.write_text("SENSITIVE ORIGINAL CONTENT", encoding='utf-8')
         link_path = tmp_path / "posix-guard-link.txt"
         os.symlink(str(victim), str(link_path))
 
@@ -97,7 +97,7 @@ class TestPosixGuardUnchanged:
         assert exc_info.value.errno == errno.ELOOP, (
             f"expected ELOOP (symlink refused), got errno={exc_info.value.errno}"
         )
-        assert victim.read_text() == "SENSITIVE ORIGINAL CONTENT"
+        assert victim.read_text(encoding='utf-8') == "SENSITIVE ORIGINAL CONTENT"
 
     @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
     def test_normal_file_opens_and_round_trips_on_posix(
@@ -144,7 +144,7 @@ class TestWindowsIslinkGuardMocked:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "windows-guard-target.txt"
-        path.write_text("original content")
+        path.write_text("original content", encoding='utf-8')
         monkeypatch.setattr(os.path, "islink", lambda p: True)
 
         open_calls = []
@@ -163,7 +163,7 @@ class TestWindowsIslinkGuardMocked:
             "os.open() must never be called once os.path.islink() reports "
             "True — the guard must fail BEFORE opening, not open-then-check"
         )
-        assert path.read_text() == "original content"
+        assert path.read_text(encoding='utf-8') == "original content"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -190,7 +190,7 @@ class TestWindowsToctouIdentityMismatch:
     ):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "toctou-target.txt"
-        path.write_text("original")
+        path.write_text("original", encoding='utf-8')
 
         monkeypatch.setattr(os.path, "islink", lambda p: False)
         # Pre-open identity (what os.lstat(path) would report).
@@ -255,7 +255,7 @@ class TestExceptionInvariantAcrossPlatforms:
         self, tmp_path, target_open
     ):
         path = tmp_path / "plain-file-no-symlink.txt"
-        path.write_text("hello")
+        path.write_text("hello", encoding='utf-8')
 
         try:
             f = target_open(str(path), "r")
@@ -298,7 +298,7 @@ class TestTwinParity:
     def test_islink_guard_scenario_same_outcome_on_both_twins(self, monkeypatch, tmp_path):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "parity-islink.txt"
-        path.write_text("x")
+        path.write_text("x", encoding='utf-8')
         monkeypatch.setattr(os.path, "islink", lambda p: True)
 
         results = {}
@@ -323,7 +323,7 @@ class TestTwinParity:
     def test_toctou_scenario_same_outcome_on_both_twins(self, monkeypatch, tmp_path):
         monkeypatch.setattr(sys, "platform", "win32")
         path = tmp_path / "parity-toctou.txt"
-        path.write_text("x")
+        path.write_text("x", encoding='utf-8')
         monkeypatch.setattr(os.path, "islink", lambda p: False)
         monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
         monkeypatch.setattr(os, "fstat", lambda fd: _FakeStat(st_dev=1, st_ino=999))
@@ -449,7 +449,7 @@ class TestEncodingIndependentOfPythonUtf8Env:
 
         result = subprocess.run(
             [sys.executable, "-c", code],
-            capture_output=True, text=True, timeout=30, env=env,
+            capture_output=True, text=True, encoding='utf-8', timeout=30, env=env,
         )
 
         assert result.returncode == 0, (

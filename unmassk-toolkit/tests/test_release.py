@@ -79,7 +79,7 @@ def _git(args, cwd, check=True, env=None):
         ["git"] + args,
         cwd=cwd,
         capture_output=True,
-        text=True,
+        text=True, encoding='utf-8',
         env=merged_env,
         check=check,
     )
@@ -189,7 +189,7 @@ def _run_release(repo, args, env=None):
         [sys.executable, RELEASE_SCRIPT] + args,
         cwd=repo,
         capture_output=True,
-        text=True,
+        text=True, encoding='utf-8',
         env=merged_env,
         timeout=60,
     )
@@ -202,7 +202,7 @@ def _commit_count_on_remote(bare):
         ["git", "rev-list", "--count", "HEAD"],
         cwd=bare,
         capture_output=True,
-        text=True,
+        text=True, encoding='utf-8',
     )
     return int(result.stdout.strip()) if result.returncode == 0 else 0
 
@@ -213,7 +213,7 @@ def _get_remote_head(bare):
         ["git", "rev-parse", "HEAD"],
         cwd=bare,
         capture_output=True,
-        text=True,
+        text=True, encoding='utf-8',
     )
     return result.stdout.strip()
 
@@ -1142,7 +1142,7 @@ class TestBumpVersionRetrocompat:
             [sys.executable, BUMP_SCRIPT, "--list"],
             cwd=str(tmp_path),  # CWD has NO marketplace.json
             capture_output=True,
-            text=True,
+            text=True, encoding='utf-8',
             env=env_without_override,
             timeout=30,
         )
@@ -1185,7 +1185,7 @@ class TestBumpVersionRetrocompat:
             [sys.executable, BUMP_SCRIPT, "--list"],
             cwd=str(tmp_path),
             capture_output=True,
-            text=True,
+            text=True, encoding='utf-8',
             env=env_with_override,
             timeout=30,
         )
@@ -1836,7 +1836,7 @@ class TestGitMemoryCommitPathFlag:
              "chore", "test-scope", "test commit message"] + extra_args,
             cwd=repo,
             capture_output=True,
-            text=True,
+            text=True, encoding='utf-8',
             env=merged_env,
             timeout=30,
         )

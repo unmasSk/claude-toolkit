@@ -345,6 +345,7 @@ def run_git(
     timeout: int = GIT_TIMEOUT,
     cwd: str | None = None,
     env: dict[str, str] | None = None,
+    log_stderr_on_failure: bool = False,
 ) -> tuple[int, str]:
     """Run a git command and return (exit_code, stdout).
 
@@ -360,6 +361,20 @@ def run_git(
                  force GIT_TERMINAL_PROMPT=0/neutralized askpass/BatchMode
                  on the boot-time background fetch without touching the
                  rest of the process's environment.
+        log_stderr_on_failure: when True and the process exits non-zero,
+                 print git's own stderr (truncated) to this process's
+                 stderr. Default False preserves the exact pre-existing
+                 behavior (stderr silently discarded) for every call site
+                 that predates this parameter — a great many callers treat
+                 a non-zero exit as an EXPECTED outcome (no upstream
+                 configured, detached HEAD, etc.), and printing git's fatal:
+                 text for every one of those would be log noise, not a
+                 diagnostic. Opt in only where a failure here is a genuine
+                 "something we didn't expect" case whose silence previously
+                 hid the real cause (House root-cause, boot_git_checks.py's
+                 get_timeline()/get_last_context_time() — a future git-level
+                 read failure must leave a breadcrumb, not a silent empty
+                 result).
 
     Returns:
         Tuple of (exit_code, stripped_stdout). Returns (1, "") on any error.
@@ -395,7 +410,17 @@ def run_git(
             cwd=cwd, encoding="utf-8", env=merged_env,
             **popen_kwargs,
         )
-        stdout, _stderr = proc.communicate(timeout=timeout)
+        stdout, stderr = proc.communicate(timeout=timeout)
+        if log_stderr_on_failure and proc.returncode != 0 and stderr and stderr.strip():
+            # Truncated: this is a diagnostic breadcrumb, not a transcript —
+            # keep it well short of anything that could carry embedded
+            # commit-body content back out (git's own fatal:/error: text
+            # never approaches this length in practice).
+            print(
+                f"[git_helpers] git {args[0]!r} exited {proc.returncode}: "
+                f"{stderr.strip()[:300]}",
+                file=sys.stderr,
+            )
         return proc.returncode, stdout.strip()
     except subprocess.TimeoutExpired:
         if proc is not None:

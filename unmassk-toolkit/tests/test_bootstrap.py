@@ -199,7 +199,7 @@ def test_silent_exit_code(tmp_path):
 
     result_empty = subprocess.run(
         [sys.executable, BOOTSTRAP, "--silent"],
-        capture_output=True, text=True, cwd=repo, timeout=15,
+        capture_output=True, text=True, encoding='utf-8', cwd=repo, timeout=15,
     )
 
     write_file(repo, "package.json", '{"name": "test"}')
@@ -208,7 +208,7 @@ def test_silent_exit_code(tmp_path):
 
     result_full = subprocess.run(
         [sys.executable, BOOTSTRAP, "--silent"],
-        capture_output=True, text=True, cwd=repo, timeout=15,
+        capture_output=True, text=True, encoding='utf-8', cwd=repo, timeout=15,
     )
 
     assert result_empty.returncode == 1

@@ -261,7 +261,7 @@ def real_symlink_capable(tmp_path):
     """
     probe_target = tmp_path / "_symlink_probe_target.txt"
     probe_link = tmp_path / "_symlink_probe_link.txt"
-    probe_target.write_text("probe")
+    probe_target.write_text("probe", encoding='utf-8')
     try:
         os.symlink(str(probe_target), str(probe_link))
     except OSError as e:
