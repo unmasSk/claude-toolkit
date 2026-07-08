@@ -14,6 +14,20 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
+# ── Shared lib — encoding guard (issue #52, T1) ─────────────────────────
+# This file lives at skills/unmassk-flow-stack/scripts/scaffold.py — one
+# level deeper than bin/hooks/scripts, so it needs one more dirname() hop
+# to reach unmassk-toolkit/lib. Always invoked via
+# ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-flow-stack/scripts/scaffold.py (see
+# SKILL.md), i.e. always from within the plugin tree — lib/ is always
+# alongside it, same as every bin/hooks entry point.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))),
+    "lib",
+))
+from encoding_guard import force_utf8_streams  # noqa: E402  (import after sys.path mutation)
+force_utf8_streams()
+
 
 class Language(Enum):
     TYPESCRIPT = "typescript"

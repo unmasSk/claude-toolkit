@@ -26,6 +26,26 @@ GIT_CONFIG_GLOBAL=/tmp/fakegitconfig GIT_CONFIG_SYSTEM=/dev/null python3 -m pyte
 
 **Correct fix layer:** centralize a deterministic git identity for tests — set `GIT_AUTHOR_*`/`GIT_COMMITTER_*` in the shared `run_cmd` merged env in `conftest.py` (applies to every git subprocess regardless of cwd, makes tests hermetic vs the runner's global config). `_make_repo_no_install` already did per-repo `git config user.email/name` (its tests passed); the many helpers that forgot (`make_repo_with_giant_commit`, `make_repo_with_memory`, conftest `tmp_repo`/`installed_repo`, and ~5 other test files) are the blast radius — hence centralize rather than patch each helper.
 
+## Pattern: cp1252 Default stdout on Windows CI Runner Crashes Every UTF-8-Emitting Entry Point (masked on dev's own Windows box)
+
+**Project:** unmassk-toolkit (git-memory)
+**First seen:** 2026-07-07
+
+GitHub `windows-latest` runner ran the suite with the Python child-process stdout defaulting to **cp1252** (not UTF-8 mode). Every production entry point in `bin/*.py` and `hooks/*.py` prints emoji (🧭📌🧠💾✨🔧), arrows (`→` U+2192, `↑` U+2191) and box-drawing chars to stdout/stderr with NO UTF-8 guard (no `sys.stdout.reconfigure(encoding="utf-8")` anywhere in the codebase). Result on cp1252: `print()` raises `UnicodeEncodeError: 'charmap' codec can't encode character` → script exits rc=1. Reproduced locally 1:1 with `PYTHONIOENCODING=cp1252 python3 <script>`:
+- `git-memory-install.py --auto` → rc=1, CLAUDE.md + manifest.json NEVER written → cascades into ~72 `FileNotFoundError` + many AssertionError downstream.
+- `hooks/user-prompt-memory-check.py` → rc=1 on EVERY invocation (even empty/garbage stdin) because its own static output contains `→`. Claude Code runs this per prompt ⇒ memory injection fully broken for Windows cp1252 users. **T1.**
+- `git-memory-commit.py` → commit is made (line 447) then crashes at the emoji result print (line 381/455) ⇒ rc=1 after a successful commit.
+
+**Why it was green on the dev's real Windows box:** that box was almost certainly in Python UTF-8 mode (`PYTHONUTF8=1`) or a UTF-8 console (`chcp 65001` / Windows Terminal). Same latent-defect-masked-by-UTF-8-mode trap as the sibling pattern below. Do NOT trust a single green Windows run.
+
+**Two compounding TEST-harness bugs (separate from the production T1):**
+1. `tests/conftest.py::run_cmd` calls `subprocess.run(..., text=True)` with **no `encoding="utf-8"`** → on Windows the PARENT decodes the child's UTF-8 output as cp1252 → `UnicodeDecodeError` in `subprocess._readerthread` (byte 0x8f/0x90). Central harness ⇒ wide blast radius.
+2. `tests/test_user_prompt_skill_router.py::_read_skill_description` (and peers) `open()` SKILL.md with no `encoding="utf-8"` → decode byte 0x90 pos 15660 under cp1252.
+
+**Fix layers (WHAT):** (a) Production: force UTF-8 on every entry point's stdout/stderr (e.g. `sys.stdout.reconfigure(encoding="utf-8", errors="...")` at startup, or emit a UTF-8 wrapper) — this is the T1. (b) Tests: add `encoding="utf-8"` to conftest `run_cmd`'s subprocess and to every `open()` of a UTF-8 file. Fixing only the runner env (PYTHONUTF8=1 in the workflow) would mask the production T1 for real cp1252 Windows users — WRONG layer, same trap as the git-identity round.
+
+**Ubuntu sibling cluster (same run, NOT encoding):** 7 ubuntu failures (drift snapshot/post-hook empty, boot time_ago absent, recall-beyond-500, regression context detection) did NOT reproduce locally on macOS across Python 3.10 (real, via uv) OR 3.14, in isolation OR full suite (984 passed). Ruled out: git identity (fix holds), Python version, test ordering/shared-state, and locale-read (`lib/git_helpers.run_git` forces `encoding="utf-8"`). Sole remaining variable: runner git version (~2.43 vs local 2.50) on Linux — not reproducible without that git. Observability gap that hid it: the failing tests route through production subprocesses (`precompact-snapshot.py`, post-hook) via `run_cmd`/`run_snapshot` that **discard stderr** (`rc, out, _ = ...`) — recommend surfacing that stderr so the runner reveals the actual crash before re-diagnosing.
+
 ## Pattern: PYTHONUTF8=1 Masks Windows cp1252 Encoding Defects ("works on my Windows box")
 
 **Project:** unmassk-toolkit (git-memory)

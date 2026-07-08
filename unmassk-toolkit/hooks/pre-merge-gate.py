@@ -23,6 +23,9 @@ _LIB_DIR = os.path.join(os.path.dirname(_HOOKS_DIR), "lib")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
+from encoding_guard import force_utf8_streams  # noqa: E402  (import after sys.path mutation)
+force_utf8_streams()
+
 from git_helpers import run_git  # noqa: E402  (import after sys.path mutation)
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB

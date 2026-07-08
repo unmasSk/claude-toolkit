@@ -19,6 +19,8 @@ import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams
+force_utf8_streams()
 
 from constants import CODE_TYPES, MEMO_CATEGORIES, MEMORY_TYPES, RISK_VALUES, VALID_KEYS
 from git_helpers import run_git

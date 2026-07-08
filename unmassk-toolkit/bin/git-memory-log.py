@@ -21,6 +21,8 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams
+force_utf8_streams()
 
 # ANSI colors
 RESET = "\033[0m"

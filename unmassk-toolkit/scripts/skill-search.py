@@ -32,6 +32,12 @@ from pathlib import Path
 from math import log
 from collections import defaultdict
 
+# ── Shared lib — encoding guard (issue #52, T1) ─────────────────────────
+# scripts/ sits one level under unmassk-toolkit/, same depth as bin/hooks.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams  # noqa: E402  (import after sys.path mutation)
+force_utf8_streams()
+
 
 # ============ CONFIGURATION ============
 

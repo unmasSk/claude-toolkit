@@ -33,6 +33,9 @@ import traceback
 
 # ── Shared lib ────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams
+force_utf8_streams()
+
 from git_helpers import open_no_follow_symlink
 
 TIMEOUT_SECONDS = 60

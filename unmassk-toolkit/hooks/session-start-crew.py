@@ -13,6 +13,9 @@ _LIB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
+from encoding_guard import force_utf8_streams  # noqa: E402
+force_utf8_streams()
+
 from managed_blocks import upsert_managed_blocks  # noqa: E402
 from git_helpers import open_no_follow_symlink  # noqa: E402
 

@@ -14,6 +14,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams
+force_utf8_streams()
 
 from git_helpers import run_git, commits_since_last_consolidation
 try:

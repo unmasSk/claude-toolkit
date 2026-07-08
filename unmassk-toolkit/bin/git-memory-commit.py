@@ -26,6 +26,9 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams
+force_utf8_streams()
+
 from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR
 from git_helpers import run_git, open_no_follow_symlink
 from parsing import suggest_scope_from_paths

@@ -11,6 +11,13 @@ import os
 import subprocess
 import sys
 
+# ── Shared lib ────────────────────────────────────────────────────────────
+# This hook has no other lib/ dependency (self-contained on purpose), but
+# still needs the UTF-8 stream guard -- see lib/encoding_guard.py.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from encoding_guard import force_utf8_streams  # noqa: E402  (import after sys.path mutation)
+force_utf8_streams()
+
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
 
