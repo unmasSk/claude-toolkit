@@ -52,7 +52,35 @@ legacy codepage (reproducible anywhere via `PYTHONIOENCODING=cp1252`).
 fix (`subprocess.run(..., encoding="utf-8")`) -- don't re-fix that, it's a
 test file (Dante's territory).
 
-## No twin/fallback needed for encoding_guard.py
+## date_parsing.py extraction: parse_date() centralized, time_ago() deliberately left alone
+
+`bin/git-memory-gc.py` and `bin/git-memory-doctor.py` each had a
+byte-identical `parse_date()` (the `%at`-epoch-first, ISO-8601-fallback
+shape from the issue #55 migration, see [[lessons]]). Centralized into
+`lib/date_parsing.py` (new tiny module, same precedent as
+`_symlink_safe_open.py`), imported with a plain module-level
+`from date_parsing import parse_date` in both bins -- variant 1 header,
+no defensive fallback needed (grepped `tests/` for a `date_parsing` stub:
+none exists, unlike `git_helpers`/`parsing`/`version`). Tests that load
+these hyphenated bins via `spec_from_file_location` + `exec_module` and
+call `mod.parse_date(...)` (`tests/test_date_parsing_epoch_contract.py`)
+keep working unchanged since the import binds `parse_date` into each
+bin's own module namespace -- no re-export shim needed, unlike the
+`session-start-boot.py` split cases in [[lessons]].
+
+Evaluated folding `lib/boot_git_checks.py::time_ago()` on top of the
+same `parse_date()` -- did NOT do it. `time_ago()`'s ISO-8601 branch is
+`datetime.fromisoformat(iso_or_unix)` with no `"Z"` -> `"+00:00"`
+replace, while `parse_date()`'s ISO branch does that replace. On Python
+3.10 (this repo's declared `[tool.mypy] python_version`), `fromisoformat()`
+doesn't accept a trailing `Z` -- so swapping `time_ago()` to call
+`parse_date()` would silently start accepting `Z`-suffixed input it
+currently rejects (returns `"unknown"` today). No test pins this either
+way, but it's a real behavior change bundled into what should be a
+pure dedup refactor, not something to force through unilaterally
+(`unmassk-standards`'s "no hidden feature changes" rule for
+Refactoring Mode). Reported instead of merged; `time_ago()` still has
+its own independent, duplicated-in-spirit ISO/epoch parsing.
 
 `lib/_symlink_safe_open.py` exists because `tests/test_migrate_statusline.py`
 stubs `sys.modules["git_helpers"]`/`["parsing"]`/`["version"]` with minimal

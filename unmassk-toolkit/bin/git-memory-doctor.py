@@ -35,6 +35,7 @@ force_utf8_streams()
 from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
 from parsing import normalize, parse_trailers_full, sanitize_trailer_value
 from version import VERSION
+from date_parsing import parse_date
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -79,29 +80,6 @@ def find_project_root() -> str:
     if code == 0 and git_root:
         return git_root
     return os.getcwd()
-
-
-def parse_date(date_str: str) -> datetime | None:
-    """Parse a git log date string.
-
-    Accepts %at (unix epoch, e.g. from `git log --pretty=format:%at`) --
-    robust across git versions/locales -- or ISO-8601 (%aI) as a fallback
-    for any external/legacy caller. Mirrors lib/boot_git_checks.py's
-    time_ago() (issue #55: %aI + fromisoformat() silently degraded to None
-    on some git versions).
-
-    Returns:
-        Parsed datetime (UTC-aware), or None if parsing fails.
-    """
-    try:
-        if date_str.isdigit():
-            return datetime.fromtimestamp(int(date_str), tz=timezone.utc)
-        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except (ValueError, TypeError, OSError, OverflowError):
-        return None
 
 
 # ── Checks ────────────────────────────────────────────────────────────────

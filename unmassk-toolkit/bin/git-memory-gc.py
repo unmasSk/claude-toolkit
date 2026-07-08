@@ -37,6 +37,7 @@ force_utf8_streams()
 from git_helpers import run_git as _run_git
 from parsing import normalize, parse_scope, parse_trailers_full
 from constants import TOMBSTONE_KEYS
+from date_parsing import parse_date
 
 
 def run_git(args: list[str]) -> tuple[int, str]:
@@ -65,29 +66,6 @@ def extract_keywords(text: str) -> set[str]:
     """Extract meaningful keywords from text, filtering out stop words and short tokens."""
     words = re.findall(r"[a-zA-Z0-9_-]+", text.lower())
     return {w for w in words if len(w) >= MIN_KEYWORD_LENGTH and w not in STOP_WORDS}
-
-
-def parse_date(date_str: str) -> datetime | None:
-    """Parse a git log date string.
-
-    Accepts %at (unix epoch, e.g. from `git log --pretty=format:%at`) --
-    robust across git versions/locales -- or ISO-8601 (%aI) as a fallback
-    for any external/legacy caller. Mirrors lib/boot_git_checks.py's
-    time_ago() (issue #55: %aI + fromisoformat() silently degraded to None
-    on some git versions).
-
-    Returns:
-        Parsed datetime (UTC-aware), or None if parsing fails.
-    """
-    try:
-        if date_str.isdigit():
-            return datetime.fromtimestamp(int(date_str), tz=timezone.utc)
-        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except (ValueError, TypeError, OSError, OverflowError):
-        return None
 
 
 # ── Core: Read commits ────────────────────────────────────────────────────
