@@ -153,9 +153,9 @@ def check_claude_md(project_root: str) -> tuple[bool, str]:
     if not os.path.isfile(claude_md):
         return False, "CLAUDE.md not found"
     try:
-        # barrido finding: never follow a symlink planted at CLAUDE.md —
-        # treat it exactly like a read error, never trust the external
-        # file's content as the real managed block.
+        # Never follow a symlink planted at CLAUDE.md — treat it exactly
+        # like a read error, never trust the external file's content as
+        # the real managed block.
         with open_no_follow_symlink(claude_md, "r") as f:
             content = f.read()
         if "BEGIN unmassk-toolkit" in content and "END unmassk-toolkit" in content:
@@ -204,12 +204,12 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
         Tuple of (days_since_last_gc or None, gc_date_unparseable,
         stale_blocker_count, list of stale blocker details).
 
-        `gc_date_unparseable` (FIX-4, Moriarty) distinguishes "a GC commit
-        exists but its date could not be parsed" (e.g. an overflow/future
-        date past datetime.max) from "no GC commit exists at all" -- both
-        used to collapse to `days_since_last_gc is None`, making doctor.py
-        report "never run" even when a real GC commit is sitting in
-        history. See the caller in run_doctor() for how this is surfaced.
+        `gc_date_unparseable` distinguishes "a GC commit exists but its
+        date could not be parsed" (e.g. an overflow/future date past
+        datetime.max) from "no GC commit exists at all" -- both used to
+        collapse to `days_since_last_gc is None`, making doctor.py report
+        "never run" even when a real GC commit is sitting in history. See
+        the caller in run_doctor() for how this is surfaced.
     """
     code, output = run_git([
         "log", "-n", str(depth),
@@ -236,13 +236,12 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
         body = parts[2].strip()
         date = parse_date(parts[3].strip())
 
-        # Check for GC commits. FIX-4: gate on `gc_commit_seen` (not
-        # `last_gc is None`) so the FIRST (newest) matching commit is the
-        # one we report on even when its date fails to parse -- the old
-        # `last_gc is None` gate would silently keep scanning past an
+        # Check for GC commits. Gate on `gc_commit_seen` (not `last_gc is
+        # None`) so the FIRST (newest) matching commit is the one we
+        # report on even when its date fails to parse -- gating on
+        # `last_gc is None` instead would silently keep scanning past an
         # unparseable newest GC commit and could report an OLDER commit's
-        # date instead, which is exactly the kind of silent degradation
-        # this fix closes.
+        # date, a silent degradation this guard exists to avoid.
         if "gc" in subject.lower() and "memory" in subject.lower() and not gc_commit_seen:
             gc_commit_seen = True
             if date is not None:
@@ -282,13 +281,13 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
 
     active_stale = [b for b in stale_blockers if normalize(b["text"]) not in tombstoned]
 
-    # FIX-5 (Moriarty): a real, fsck-clean commit backdated to the future
-    # (last_gc > now) produces a negative `.days` value, which would
-    # surface verbatim as e.g. "last run -365 days ago" -- never an
-    # acceptable diagnostic shape. Clamp to 0 rather than propagate a
-    # negative figure; run_doctor() formats gc_days_ago=0 as "last run 0
-    # days ago", which is honest (GC ran "now or in the future" from this
-    # process's clock) without a nonsensical negative count.
+    # A real, fsck-clean commit backdated to the future (last_gc > now)
+    # produces a negative `.days` value, which would surface verbatim as
+    # e.g. "last run -365 days ago" -- never an acceptable diagnostic
+    # shape. Clamp to 0 rather than propagate a negative figure;
+    # run_doctor() formats gc_days_ago=0 as "last run 0 days ago", which is
+    # honest (GC ran "now or in the future" from this process's clock)
+    # without a nonsensical negative count.
     gc_days_ago = max((now - last_gc).days, 0) if last_gc else None
     return gc_days_ago, gc_date_unparseable, len(active_stale), active_stale
 
@@ -303,17 +302,17 @@ def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
     if not os.path.isfile(manifest_path):
         return None, "not found"
     try:
-        # SEC-HIGH-006: .claude may be a symlink to an external directory
-        # that already contains a real (non-symlink) manifest.json — the
+        # .claude may be a symlink to an external directory that already
+        # contains a real (non-symlink) manifest.json — the
         # open_no_follow_symlink() guard below only protects against
         # manifest.json ITSELF being a symlink, not a symlinked parent
         # (.claude). Verify the resolved path stays inside project_root
         # BEFORE reading, so an external manifest's fields (e.g. "version")
         # are never read and therefore never leaked into --json output.
         verify_path_within_project(manifest_path, project_root)
-        # SEC-CRIT-NEW-06: never follow a symlink planted at the manifest
-        # path — treat it exactly like "no manifest present", never read
-        # or trust the target file's content as a real manifest.
+        # Never follow a symlink planted at the manifest path — treat it
+        # exactly like "no manifest present", never read or trust the
+        # target file's content as a real manifest.
         with open_no_follow_symlink(manifest_path, "r") as f:
             data = json.load(f)
         return data, "ok"
@@ -408,9 +407,9 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     if gc_days is not None:
         results.append(("ok", "GC", f"last run {gc_days} days ago"))
     elif gc_date_unparseable:
-        # FIX-4 (Moriarty): a GC commit exists but its date could not be
-        # parsed (e.g. year-10000+ overflow) -- must not be indistinguishable
-        # from a repo where GC genuinely never ran.
+        # A GC commit exists but its date could not be parsed (e.g.
+        # year-10000+ overflow) -- must not be indistinguishable from a
+        # repo where GC genuinely never ran.
         results.append(("warn", "GC", "GC commit found but its date could not be parsed"))
         has_warnings = True
     else:
@@ -429,8 +428,8 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     # 10. Manifest (in project root)
     manifest, manifest_msg = check_manifest(project_root)
     if manifest:
-        # SEC-MED-NEW-08: sanitize the manifest's untrusted "version" field
-        # before embedding it in any printed (non-JSON) report line.
+        # Sanitize the manifest's untrusted "version" field before
+        # embedding it in any printed (non-JSON) report line.
         safe_version = sanitize_trailer_value(str(manifest.get('version', '?')))
         results.append(("ok", "Manifest", f"v{safe_version}"))
     elif manifest_msg == "not found":
@@ -444,7 +443,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     settings_path = os.path.join(project_root, ".claude", "settings.json")
     if os.path.isfile(settings_path):
         try:
-            # barrido finding: never follow a symlink planted at settings.json.
+            # Never follow a symlink planted at settings.json.
             with open_no_follow_symlink(settings_path, "r") as f:
                 proj_settings = json.load(f)
             if "hooks" in proj_settings:
@@ -502,16 +501,16 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     manifest_path = os.path.join(project_root, ".claude", ".unmassk", "manifest.json")
     if os.path.isfile(manifest_path):
         try:
-            # SEC-LOW-006: .claude may be a symlink to an external directory
-            # that already contains a real (non-symlink) manifest.json — the
+            # .claude may be a symlink to an external directory that
+            # already contains a real (non-symlink) manifest.json — the
             # O_NOFOLLOW guard below only protects against manifest.json
             # itself being a symlink, not a symlinked parent. Verify the
             # resolved path stays inside project_root before touching it.
             verify_path_within_project(manifest_path, project_root)
-            # SEC-CRIT-NEW-06: never follow a symlink planted at the
-            # manifest path — the O_NOFOLLOW guard makes both the read and
-            # the write-back atomically refuse to traverse it, so a victim
-            # file outside the repo is never read from or written to.
+            # Never follow a symlink planted at the manifest path — the
+            # O_NOFOLLOW guard makes both the read and the write-back
+            # atomically refuse to traverse it, so a victim file outside
+            # the repo is never read from or written to.
             with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()

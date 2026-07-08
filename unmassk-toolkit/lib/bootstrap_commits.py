@@ -28,9 +28,11 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
         # %aI (not %at): this date is never parsed, only carried through to
         # bin/git-memory-bootstrap.py's --json output for presentation to
         # the user (see that script's own docstring). %aI gives a readable
-        # ISO-8601 string; do not "fix" this back to %at (issue #55 scope
-        # excludes this site -- see test_date_parsing_epoch_contract.py's
-        # RECONCILED note).
+        # ISO-8601 string; do not "fix" this back to a raw epoch digit
+        # string -- a bare epoch is not presentable as-is, and this module
+        # never parses the field, so there is no equivalent robustness
+        # argument for %at here (see test_date_parsing_epoch_contract.py's
+        # TestBootstrapCommitsDateFieldContract for the full reasoning).
         "--pretty=format:%h%x1f%s%x1f%b%x1f%aI%x1f%an%x1e",
     ])
     if code != 0 or not output:

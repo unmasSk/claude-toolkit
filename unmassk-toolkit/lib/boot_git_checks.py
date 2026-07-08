@@ -66,9 +66,28 @@ def time_ago(iso_or_unix: str) -> str:
     """Convert ISO timestamp or unix timestamp to human-readable 'N ago' string.
 
     '2026-03-13T08:00:00+00:00' -> '2h ago'
+
+    Returns "unknown" whenever parsing fails -- including non-str input and
+    non-ASCII digit strings. Mirrors lib/date_parsing.py's parse_date(),
+    this function's sibling in the same "git log date parsing" lineage.
     """
+    # iso_or_unix.isdigit() below has no .isdigit attribute on non-str
+    # input (None, int, list, ...) -- AttributeError is not in the except
+    # tuple, so it would crash instead of degrading to the "unknown"
+    # fallback every other malformed-input case in this function already
+    # gets. Explicit type guard up front, mirroring parse_date()'s own
+    # guard for the identical shape.
+    if not isinstance(iso_or_unix, str):
+        return "unknown"
     try:
-        if iso_or_unix.isdigit():
+        # isascii() gate: str.isdigit() also accepts non-ASCII Unicode
+        # digits (fullwidth, arabic-indic, devanagari, ...) that int()
+        # would happily convert -- but no real `git log %at` call ever
+        # emits those, so a non-ASCII digit string here is malformed input,
+        # not a valid epoch, and must fall through to the ISO-8601 branch
+        # (which will also fail to parse it) rather than be silently
+        # accepted.
+        if iso_or_unix.isascii() and iso_or_unix.isdigit():
             # %at (unix epoch) — the format every in-repo caller now uses
             # (get_timeline(), get_last_context_time(), extract_memory() in
             # boot_memory.py). Robust across git versions/locales, unlike
