@@ -304,3 +304,33 @@
   str return, `.strip()` always succeeds, so realpath always receives a str. Confirmed via
   isolated os.path.realpath() testing (None/int -> TypeError uncaught) but no live path feeds
   a non-str here. Logged as latent-not-reachable, not a live break.
+
+## issue #55 date-parsing migration (%aI→%at) — held under real adversarial dates
+- Negative epoch: git's own CLI date validator rejects it outright (`fatal: invalid date format`)
+  for every format tried (`@-N`, ISO with `-`, raw negative). Only reachable via
+  `hash-object --literally` (bypasses fsck's `badDate` check) — a deliberate raw-object-surgery
+  scenario, not something a normal commit can produce. When forced, real git's own `%at` renders
+  as an EMPTY string for the malformed date (not a crash, not garbage digits) — `parse_date("")`
+  correctly returns `None` via the ISO fallback's `ValueError`.
+- Year-10000+ overflow (`OverflowError` inside `datetime.fromtimestamp`) is caught cleanly by
+  `parse_date()`'s broad except clause — no traceback, no crash, in both `git-memory-gc.py` and
+  `git-memory-doctor.py` end-to-end real runs (see attack-patterns.md for the visibility-loss
+  finding this causes downstream, which IS real).
+- `\x1f`/`\x1e` field-separator injection into subject/body can never produce a wrong-but-valid
+  DATE (mathematically proven + empirically confirmed) — always safely collapses to `None`.
+- Huge digit strings (2,000,000 digits) for the `int(date_str)` path: Python 3.11+'s built-in
+  `sys.int_max_str_digits` guard (default 4300) rejects it via `ValueError` in ~1ms — no CVE-2020-
+  10735-style quadratic DoS reachable. Same for a 5,000,000-char garbage string through the ISO
+  `fromisoformat` fallback (fast rejection, no backtracking).
+- Concurrency: two real parallel `git memory gc --auto` processes on the same repo, and 5 parallel
+  `doctor.py --json` reads racing a `gc.py --auto` write — no corruption, `git fsck --full` clean,
+  single consistent history in both cases. No NEW race introduced by the %aI→%at date migration
+  itself (git's own commit-ref-move race between two writers is pre-existing/orthogonal, unrelated
+  to date parsing).
+- Tombstone (`Stale-Blocker:`/`Resolved-*`) suppression is date-independent by design (`normalize()`
+  text matching only, no `commit["date"]` check in that path) — confirmed by code read, holds
+  regardless of a target blocker's own date parseability.
+- `parse_date()`'s ISO fallback ALWAYS returns a tz-AWARE datetime (never naive) — confirmed no
+  input produces a naive return value, which is what makes the fix's `datetime.now(timezone.utc)`
+  comparison genuinely crash-proof (see attack-patterns.md for the confirmed OLD-code crash this
+  replaces).

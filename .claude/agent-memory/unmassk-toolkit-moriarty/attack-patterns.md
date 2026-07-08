@@ -358,3 +358,60 @@
   latent gap, not introduced by this round's narrowing (this except clause predates the polish
   round's diff). Reusable check: grep for `except (ValueError, TypeError` near any
   `datetime.fromtimestamp` call and test with a huge digit string directly.
+
+## Out-of-range author date (year 10000+) silently blinds staleness tracking (issue #55)
+- `git commit --allow-empty` with `GIT_AUTHOR_DATE="@253402300800 +0000"` (1s past year 9999) is
+  **fsck-clean, plain CLI, no hash-object trickery needed** — git's own date validator only rejects
+  negative epochs (`fatal: invalid date format`), not future overflow past `datetime.MAXYEAR`.
+- `datetime.fromtimestamp(253402300800, tz=utc)` raises `OverflowError`, caught by
+  `lib/date_parsing.py`'s `parse_date()`, returns `None` — correct fail-safe *for the crash*, but:
+  - `bin/git-memory-gc.py find_stale_items()`: `if not commit["date"]: continue` — a `Blocker:` on
+    such a commit becomes PERMANENTLY un-flaggable, no matter how much real time passes.
+  - `bin/git-memory-doctor.py check_gc_status()`: same guard hides the blocker from the "Stale
+    blockers" count with zero diagnostic trace.
+  - If the OVERFLOW-dated commit is itself the GC commit (subject matches `"gc"+"memory"`),
+    `last_gc = date = None` → doctor reports `"GC: never run"` even though it demonstrably did.
+- Separately: a **future**-but-in-range date (`GIT_AUTHOR_DATE` +365 days, fully valid, fsck-clean)
+  makes `check_gc_status()` print `"✅ last run -365 days ago"` — negative day count, marked OK.
+  `gc_days_ago = (now - last_gc).days` has no clamping for `last_gc > now`.
+- Repro: plain `git commit --allow-empty -m "..."` with `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` env
+  vars set to the target epoch — no `hash-object --literally` needed for either variant.
+
+## Field-separator (\x1f/\x1e) injection into commit subject/body is safe for the DATE field specifically
+- `git log --pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e` + `raw.split("\x1f", 3)` (maxsplit=3, exactly
+  4 parts) means: for ANY N≥1 injected `\x1f` bytes inside subject/body (git does not sanitize
+  control bytes in commit messages — only NUL is forbidden), `parts[3]` (the date field) will
+  ALWAYS retain at least one literal `\x1f` character merged in from the real template's own
+  remaining separators — this makes `.isdigit()` False every time, forcing the ISO fallback, which
+  then fails too → `parse_date()` always safely returns `None`. Proven both by direct string-split
+  math and empirically with a real `--literally`-injected commit object. Cannot be used to make a
+  WRONG-but-valid date parse silently.
+- BUT the injection DOES corrupt `parts[1]`/`parts[2]` (subject/body) themselves, and with 3+
+  injected `\x1e` (record sep) + exactly-aligned `\x1f` counts, a single hostile subject can
+  fabricate an entire fake 4-field pseudo-"commit record" (fake sha, fake subject, fake body/
+  trailers incl. a forged `Resolution:`) inline inside one real commit's message. This split()
+  logic itself predates issue #55 (untouched by the %aI→%at diff) — flag for Argus/future review,
+  not a regression of this diff.
+
+## Old %aI + fromisoformat().split("+")[0] genuinely crashed on negative-UTC-offset authors
+- Pre-#55 code: `datetime.fromisoformat(s.replace("Z","+00:00").split("+")[0])` only strips
+  POSITIVE tz offsets (splits on literal `"+"`). A commit authored at e.g. `-05:00` keeps its full
+  offset, producing a tz-AWARE datetime, then compared against `datetime.now()` (naive) →
+  `TypeError: can't subtract offset-naive and offset-aware datetimes`. Reproduced directly with the
+  literal old function body. Confirms the migration's `%at` + always-tz-aware `parse_date()` +
+  `datetime.now(timezone.utc)` genuinely fixes a real, easily-reachable crash (any US/Americas
+  committer), not theater.
+
+## bootstrap_commits.py %aI→%at swap has no consumer-side format adaptation (contract drift)
+- `lib/bootstrap_commits.py` migrated the git-log token to `%at` but never calls the new shared
+  `parse_date()` — the raw string is stored verbatim in `commits["recent"][i]["date"]`. Pre-diff
+  this was a human-readable ISO string (`"2026-07-08T21:06:47+02:00"`); post-diff it's a raw epoch
+  string (`"1783538049"`).
+- `tests/test_date_parsing_epoch_contract.py::TestBootstrapCommitsDateFieldContract` explicitly
+  REQUIRES the raw-epoch behavior and justifies it with "There is no crash today (nothing parses
+  it)". That claim is about internal parsing only — `bin/git-memory-bootstrap.py --json` (whose own
+  docstring says "Produces structured output for Claude to present to the user") re-exposes this
+  exact field verbatim in `output["commits"]`. Confirmed live: running the real binary end-to-end
+  prints `"date": "1783538049"` instead of a readable timestamp in output meant for
+  presentation/consumption. Bounded T2 (no crash, no data loss, but a real display-format
+  regression the test's own justification doesn't fully cover).

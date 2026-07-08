@@ -5,6 +5,43 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
+Target: issue #55 date-parsing migration (%aI+fromisoformat -> %at epoch, lib/date_parsing.py
+centralization) -- dedicated adversarial round requested by Yoda after 106/110, diff 0ff8bfe..HEAD
+-- bin/git-memory-gc.py, bin/git-memory-doctor.py, lib/bootstrap_commits.py, lib/date_parsing.py.
+Real disposable repos in scratchpad, real `git commit`/`hash-object --literally` object-level
+corruption (never touched the project repo), real end-to-end binary runs (gc.py --dry-run/--auto,
+doctor.py --json, bootstrap.py --json), independent-channel verification via `git cat-file`/`git
+fsck --full` throughout.
+Verdict: DEBIL -- the parse_date() core (isdigit/int/fromtimestamp + ISO fallback, all exception
+paths) holds solidly: negative epoch is rejected by git's own CLI/fsck entirely (only reachable via
+deliberate --literally object surgery, and even then %at renders empty -> clean None, no crash);
+\x1f/\x1f field-separator injection into subject/body mathematically + empirically can NEVER
+produce a wrong-but-valid date (always collapses safely to None); huge digit-string DoS is blocked
+by Python 3.11+'s int_max_str_digits guard; concurrent gc/doctor runs (parallel real subprocesses)
+never corrupted repo state (fsck-clean throughout); the old %aI+.split("+")[0] code's negative-UTC-
+offset crash (TypeError: naive/aware subtraction) is CONFIRMED real and CONFIRMED fixed by this
+diff (reproduced with the literal old function body). 3 confirmed real breaks, none catastrophic:
+(1) a year-10000+ author date (plain fsck-clean `git commit`, no trickery -- git's CLI only rejects
+NEGATIVE dates, not future overflow past datetime.MAXYEAR) makes a Blocker: PERMANENTLY invisible
+to both gc.py's H2 heuristic and doctor.py's stale-blocker count, with zero diagnostic trace, and
+if the overflow-dated commit IS the GC commit itself, doctor falsely reports "GC: never run" despite
+one having genuinely happened; (2) a future-but-in-range author date (+365 days, fully valid/fsck-
+clean) makes doctor print "last run -365 days ago" -- a negative day count marked OK, no clamping
+on check_gc_status()'s `(now - last_gc).days`; (3) lib/bootstrap_commits.py's %aI->%at swap has NO
+consumer-side format adaptation -- the "date" field silently changed from a human-readable ISO
+string to a raw epoch string, directly re-exposed verbatim in `git-memory-bootstrap.py --json`'s
+output (documented as "structured output for Claude to present to the user"), confirmed live; the
+test suite's own justification ("no crash today because nothing parses it") is narrower than the
+real external consumer surface (T2 deception, not a blocking claim but inaccurate as stated). Two
+UNREACHABLE-today findings logged but not counted as breaks per proof standard: parse_date()'s
+isdigit() accepts several non-ASCII Unicode digit scripts that int() also silently accepts (produces
+a wrong-but-valid date), but neither of the two real production call sites can ever feed it anything
+but plain ASCII %at output; a truncated mid-digit git-log output would silently misparse to a wrong
+date, but real run_git()'s blocking `proc.communicate()` is atomic (full output or clean timeout),
+so this isn't reachable through the actual subprocess pipeline today. See attack-patterns.md /
+resilience.md for full detail and exact repro steps.
+
+## Previous attack
 Target: boot memory freshness multi-machine re-attack round 3/FINAL (issue #49, fix commit d409805 +
 regression tests 45ecfd6, diff 82c5ecb..HEAD) -- lib/boot_git_checks.py, lib/boot_memory.py,
 lib/git_helpers.py. Real bare-remote + up to 14 clone triangulation in scratchpad (renamed remotes,
