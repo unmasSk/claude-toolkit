@@ -236,6 +236,18 @@ attributes them to on a given run — and run the suite both ways at least
 once (whole suite, and target file isolated from the rest) before
 concluding "0 regressions."
 
+## Issue #55 adversarial round: a Dante contract test can be self-contradictory even when RED-before-fix looks legitimate
+
+`tests/test_date_parsing_epoch_contract.py::TestBootstrapJsonDateFieldReadableForPresentation::test_recent_commit_date_is_not_a_raw_digit_string` (BUG-3, Moriarty) asserts, on the SAME variable `got_date` with no reassignment in between:
+1. `assert got_date == real_epoch` (a "setup sanity" check — `real_epoch` is asserted pure-digit by its own producer, `_real_epoch_of_head()`)
+2. `assert not got_date.isdigit()` (the actual contract)
+
+These two assertions are mutually exclusive for ANY string value — `got_date` cannot simultaneously equal a pure-digit string and not be all-digits. Confirmed via `bin/git-memory-bootstrap.py:96,122`: `commits = scan_recent_commits(); output["commits"] = commits` passes the dict through unmodified, no transformation layer exists between `scan_recent_commits()`'s epoch-string `"date"` field and the `--json` output — and a SIBLING test in the same file (`TestBootstrapCommitsDateFieldContract::test_recent_commit_date_should_be_epoch_not_iso`) requires that exact same field to STAY a raw epoch string when `scan_recent_commits()` is called directly. Since `--json` surfaces that dict unmodified, satisfying one test's contract (epoch) necessarily violates the other's (not-digit) — and even a presentation-layer-only transform (copy the dict, convert only the `--json` output's date to ISO, leave `scan_recent_commits()` itself untouched) still fails BUG-3's own first assertion, because THAT test's `got_date` is read from the very `--json` output being transformed.
+
+Verified empirically: after implementing FIX-1/2/4/5/6 (all straightforward), reran BUG-3 alone — same "contract not yet met" failure at the SECOND assert, unchanged, exactly as before any code was touched. This is not something a production code change can fix.
+
+Rule: when a test's two assertions on the same untouched variable are logically incompatible, don't try transformation tricks (copy-before-serialize, separate presentation field, etc.) to satisfy both — verify the contradiction algebraically first (can ANY value satisfy both lines?), then STOP and report instead of guessing at production code. Escalate with the exact two conflicting assertions cited, plus a concrete resolution suggestion (e.g., "add a new `date_display`/`date_iso` key for the readable value, keep `date` as the raw epoch, update BUG-3's test to check the new key" — but don't implement that yourself if it requires editing Dante's test file in test-first mode).
+
 ## Issue #55: migrating parse_date() from %aI+fromisoformat to %at+epoch requires making `now` tz-aware too, at every call site
 
 Extending the `%at` migration (see the `boot_git_checks.py` entry above) to

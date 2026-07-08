@@ -197,22 +197,31 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     return with_trailers, total, depth
 
 
-def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, Any]]]:
+def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[str, Any]]]:
     """Check when GC last ran and count stale blockers.
 
     Returns:
-        Tuple of (days_since_last_gc or None, stale_blocker_count,
-        list of stale blocker details).
+        Tuple of (days_since_last_gc or None, gc_date_unparseable,
+        stale_blocker_count, list of stale blocker details).
+
+        `gc_date_unparseable` (FIX-4, Moriarty) distinguishes "a GC commit
+        exists but its date could not be parsed" (e.g. an overflow/future
+        date past datetime.max) from "no GC commit exists at all" -- both
+        used to collapse to `days_since_last_gc is None`, making doctor.py
+        report "never run" even when a real GC commit is sitting in
+        history. See the caller in run_doctor() for how this is surfaced.
     """
     code, output = run_git([
         "log", "-n", str(depth),
         "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
     ])
     if code != 0 or not output:
-        return None, 0, []
+        return None, False, 0, []
 
     now = datetime.now(timezone.utc)
     last_gc: datetime | None = None
+    gc_commit_seen = False
+    gc_date_unparseable = False
     stale_blockers: list[dict[str, Any]] = []
 
     for raw in output.split("\x1e"):
@@ -227,9 +236,19 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
         body = parts[2].strip()
         date = parse_date(parts[3].strip())
 
-        # Check for GC commits
-        if "gc" in subject.lower() and "memory" in subject.lower() and last_gc is None:
-            last_gc = date
+        # Check for GC commits. FIX-4: gate on `gc_commit_seen` (not
+        # `last_gc is None`) so the FIRST (newest) matching commit is the
+        # one we report on even when its date fails to parse -- the old
+        # `last_gc is None` gate would silently keep scanning past an
+        # unparseable newest GC commit and could report an OLDER commit's
+        # date instead, which is exactly the kind of silent degradation
+        # this fix closes.
+        if "gc" in subject.lower() and "memory" in subject.lower() and not gc_commit_seen:
+            gc_commit_seen = True
+            if date is not None:
+                last_gc = date
+            else:
+                gc_date_unparseable = True
 
         # Check for stale blockers
         body_trailers = parse_trailers_full(body)
@@ -263,8 +282,15 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, int, list[dict[str, A
 
     active_stale = [b for b in stale_blockers if normalize(b["text"]) not in tombstoned]
 
-    gc_days_ago = (now - last_gc).days if last_gc else None
-    return gc_days_ago, len(active_stale), active_stale
+    # FIX-5 (Moriarty): a real, fsck-clean commit backdated to the future
+    # (last_gc > now) produces a negative `.days` value, which would
+    # surface verbatim as e.g. "last run -365 days ago" -- never an
+    # acceptable diagnostic shape. Clamp to 0 rather than propagate a
+    # negative figure; run_doctor() formats gc_days_ago=0 as "last run 0
+    # days ago", which is honest (GC ran "now or in the future" from this
+    # process's clock) without a nonsensical negative count.
+    gc_days_ago = max((now - last_gc).days, 0) if last_gc else None
+    return gc_days_ago, gc_date_unparseable, len(active_stale), active_stale
 
 
 def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
@@ -378,9 +404,15 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
         results.append(("ok", "Hook activity", f"{with_trailers}/{total_commits} commits have trailers ({pct}%)"))
 
     # 8. GC status
-    gc_days, stale_count, stale_items = check_gc_status()
+    gc_days, gc_date_unparseable, stale_count, stale_items = check_gc_status()
     if gc_days is not None:
         results.append(("ok", "GC", f"last run {gc_days} days ago"))
+    elif gc_date_unparseable:
+        # FIX-4 (Moriarty): a GC commit exists but its date could not be
+        # parsed (e.g. year-10000+ overflow) -- must not be indistinguishable
+        # from a repo where GC genuinely never ran.
+        results.append(("warn", "GC", "GC commit found but its date could not be parsed"))
+        has_warnings = True
     else:
         results.append(("warn", "GC", "never run"))
         has_warnings = True
