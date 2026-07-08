@@ -1018,12 +1018,15 @@ class TestTimeAgoOverflowFallsBackSafely:
     Fix (commit 6fc6386): widened the tuple to `(ValueError, TypeError,
     OSError, OverflowError)` (lib/boot_git_checks.py:91).
 
-    Currently unreachable from any real call site (git log `%aI` only ever
-    feeds ISO8601 strings into the `else` branch; the `isdigit()` branch is
-    dead in production today) — pinned as pure defense-in-depth per Yoda's
-    #49 verdict, so a future caller that DOES feed raw unix-timestamp
-    strings (or a refactor that narrows the except tuple back) fails loudly
-    here instead of surfacing as an uncaught exception in the field.
+    Was unreachable from any real call site when this was written
+    (2026-07-07) — git log `%aI` only fed ISO8601 strings into the `else`
+    branch, so the `isdigit()` branch was dead in production. That changed
+    with #49's freshness fix: `get_timeline()` and `get_last_context_time()`
+    (lib/boot_git_checks.py) now emit `%at` (unix epoch) instead of `%aI`,
+    so the `isdigit()` branch IS the primary production path for those call
+    sites today, not dead code. This test verifies its robustness against
+    OverflowError on out-of-range digit strings regardless of which call
+    sites feed it — defense-in-depth then, load-bearing now.
 
     Confirmed RED against the pre-fix tuple (verified by re-running this
     exact scenario through a standalone copy of the old
