@@ -26,14 +26,42 @@ SCAN_COMMITS = 20
 # so this is a distinct, deliberately generic regex (catches any tag name,
 # not just "system") applied alongside it, local to this module rather than
 # folded into the shared canonical sanitizer.
-_GENERIC_TAG_RE = re.compile(r"</?[a-zA-Z][\w-]*\s*>")
+#
+# issue #57 round 2e (decision e861680, Moriarty EXPLOIT-3): the original
+# regex assumed a "naked" tag -- no attributes, and a single `.sub()` pass.
+# Three constructions bypassed it: `<system role="root">` (an attribute
+# breaks the bare-`>` assumption -- `[\w-]*\s*>` never consumes `role="root"`
+# so the whole tag never matches), `<system/>` (the literal `/` before `>`
+# isn't consumed by `[\w-]*` or `\s*` either, so it survives verbatim), and
+# `<sy<system>stem>` (nested -- one pass strips only the innermost
+# `<system>`, leaving the outer `<system>...>` intact). Structural fix:
+# 1) tolerate anything between the tag name and the closing `>` (attributes,
+# a trailing `/`, whitespace) instead of assuming a bare tag, and 2) iterate
+# to a fixed point instead of a single substitution, so a nested tag
+# revealed by stripping the inner one gets caught on the next pass. Ordinary
+# arithmetic (`a < b`) is unaffected: the regex still requires a letter
+# immediately after `<` (`[a-zA-Z]`), so a bare `< b` with a space never
+# matches. `Foo<Bar>`-style generics ARE still neutralized (accepted
+# trade-off for this bootstrap-json context, per the round's decision).
+_GENERIC_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+_GENERIC_TAG_FIXED_POINT_MAX_ITERATIONS = 10
 
 
 def _strip_generic_tags(text: str) -> str:
-    """Strip any HTML/XML-like tag from commit-derived text before --json output."""
+    """Strip any HTML/XML-like tag from commit-derived text before --json output.
+
+    Runs to a fixed point (bounded) so a nested construction like
+    `<sy<system>stem>` -- whose inner tag is stripped first, revealing an
+    outer tag that a single pass would miss -- is fully neutralized.
+    """
     if not text:
         return text
-    return _GENERIC_TAG_RE.sub("", text)
+    for _ in range(_GENERIC_TAG_FIXED_POINT_MAX_ITERATIONS):
+        stripped = _GENERIC_TAG_RE.sub("", text)
+        if stripped == text:
+            return stripped
+        text = stripped
+    return text
 
 
 def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:

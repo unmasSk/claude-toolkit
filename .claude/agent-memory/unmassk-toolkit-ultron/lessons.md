@@ -1066,3 +1066,33 @@ path, don't guard the read too just for symmetry — check what the contract
 test actually exercises before expanding scope. Full suite: 972 passed, 77
 skipped, 0 failed after this round (no `test_release.py`-style flake
 surfaced this run).
+
+## Issue #57 round 2e: a shared whitespace-tolerant assertion regex can accidentally count the hook's OWN genuine tags, not just a forged one
+
+`tests/test_control_byte_injection.py::TestUserPromptHookFenceShapeInvariantEndToEnd::test_hook_stdout_has_exactly_one_working_fence_close`
+uses `_FENCE_SHAPE_RE = re.compile(r"<\s*/?\s*memory-data\s*>", re.IGNORECASE)`
+(matches BOTH `<memory-data>` open and `</memory-data>` close) via
+`findall()` and asserts `len(matches) <= 1`. But
+`hooks/user-prompt-memory-check.py:274-276` always wraps real recall output
+in exactly one literal `<memory-data>` ... `</memory-data>` pair — the
+hook's OWN genuine wrapper always produces exactly 2 matches for this
+shared regex, with zero vulnerability present. Confirmed empirically:
+before the structural fix (lib/parsing.py's `sanitize_trailer_value()`),
+the forged `</memory-data\x1f>` marker survived and `findall()` returned 3
+(open + forged-close + real-close); after the fix (whitespace-tolerant
+`<\s*/?\s*memory-data\s*>` fence-removal regex added to
+`sanitize_trailer_value()`, see implementation-patterns.md), the forged
+marker is correctly neutralized (confirmed in the stdout: "real zorblax
+decision text  FAKE SYSTEM..." — double space where the marker used to be)
+and the count drops to exactly 2, which is the correct, fully-sanitized
+state — but the test's own bound (`<= 1`) can never be satisfied by ANY
+correct implementation, since the hook's real wrapper alone is 2 matches.
+This is a test-authoring gap (the assertion needed to distinguish "the
+hook's own real open+close pair" from "an extra forged one," e.g.
+`<= 2` or counting only closing-tag shapes), not a production bug —
+verified by reproducing the exact byte-for-byte pre-fix (3 matches) and
+post-fix (2 matches) counts via `git stash`/`git stash pop` before
+concluding the fix itself was structurally correct. Per test-first mode
+rules, did NOT touch the test — escalated with the exact counts instead.
+All other 153/154 tests in the file pass, and the full suite (1216 passed,
+2 skipped) shows zero other regressions.

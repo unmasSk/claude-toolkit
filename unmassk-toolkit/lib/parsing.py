@@ -198,13 +198,27 @@ def sanitize_trailer_value(text: str) -> str:
       \\x1c/\\x1d/\\x1e above, just a Unicode control byte the earlier
       round's character class didn't cover yet (</memory-data\\x85>
       survived byte-for-byte before this).
+    - Unit Separator (\\x1f) — issue #57 round 2e (decision e861680,
+      Moriarty gap): not previously in this class at all, so
+      </memory-data\\x1f> survived 100% raw/unconverted.
     - HTML comment markers (<!-- and -->)
     - memory-data zone delimiters (<memory-data> / </memory-data>,
-      case-insensitive)
+      case-insensitive) — issue #57 round 2e (decision e861680, memo
+      b49eb60): this is the STRUCTURAL closure, not another byte added to
+      the list above. The control-byte-to-space substitution above turns
+      ANY interleaved byte into a literal space INSIDE the marker (e.g.
+      </memory-data\\x1e> -> </memory-data >), and the old exact
+      (no-`\\s`) `</?memory-data>` regex never matched that shape, so the
+      fence marker survived intact regardless of which byte produced the
+      space. The fix asserts the INVARIANT instead of a byte: any run of
+      whitespace (`\\s*`) around the "memory-data" token, any interleaved
+      control byte or none, open or close tag — closes the mechanism, not
+      one more byte. Runs AFTER the control-byte-to-space substitution so
+      it catches the space that substitution introduces.
     """
-    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x1c\x1d\x1e\x7f\x85]", " ", text)
+    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x1c\x1d\x1e\x1f\x7f\x85]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
-    text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<\s*/?\s*memory-data\s*>", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 

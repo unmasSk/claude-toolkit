@@ -102,7 +102,16 @@ def main() -> None:
             # guaranteed path any commit message reaches Claude's context
             # through -- sanitize the matched message the same way every
             # other commit-derived field in the codebase already is.
-            print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({scope}){RESET}: {sanitize_trailer_value(msg)} {DIM}[{sha}]{RESET}")
+            #
+            # issue #57 round 2e (decision e861680, Moriarty EXPLOIT-4):
+            # that round only wrapped "msg" (group 4). "scope" (group 3)
+            # and the emoji/prefix token (group 1) are also
+            # attacker-controlled substrings of the matched subject and
+            # were still printed raw -- a hostile ANSI escape placed
+            # inside either one survived unsanitized. type_ (group 2)
+            # needs no sanitization: it can only be one of the fixed
+            # alternatives in SUBJECT_RE, never attacker-controlled text.
+            print(f"  {sanitize_trailer_value(emoji)} {color}{BOLD}{type_}{RESET}{DIM}({sanitize_trailer_value(scope)}){RESET}: {sanitize_trailer_value(msg)} {DIM}[{sha}]{RESET}")
         else:
             print(f"  {DIM}[{sha}]{RESET} {sanitize_trailer_value(subject)}")
 
