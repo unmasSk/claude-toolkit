@@ -163,12 +163,14 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
     backup_dir = os.path.join(claude_dir, "backups")
     # BUG Y / SEC-CRIT-NEW variant: same os.makedirs()-follows-a-directory-
     # symlink-at-.claude gap as _create_manifest()/apply_upgrade() above,
-    # for the backups directory. Left unguarded here, this call is not
-    # wrapped in try/except by its only caller (main()) — an UnsafePathError
-    # propagates as an uncaught exception, which is an acceptable fail-closed
-    # outcome for this explicit, user-triggered CLI command (non-zero exit,
-    # no silent write outside the repo) even though it isn't as clean as the
-    # try/except-wrapped call sites elsewhere in this file.
+    # for the backups directory. An UnsafePathError from this call still
+    # propagates as an uncaught exception (main() does not catch it), which
+    # is an acceptable fail-closed outcome for this explicit, user-triggered
+    # CLI command (non-zero exit, no silent write outside the repo). OSError
+    # from the write below (reject_hardlinks=True, issue #53, decision
+    # 51a3c44) IS caught by main() now, using the same message-then-clean-
+    # degrade pattern as apply_upgrade()'s try/except blocks — see main()'s
+    # backup step.
     verify_path_within_project(backup_dir, target)
     os.makedirs(backup_dir, exist_ok=True)
 
@@ -502,7 +504,24 @@ def main() -> None:
     # Backup
     if not as_json:
         print("Creating backup...")
-    backup_path = create_backup(target, manifest)
+    try:
+        # reject_hardlinks=True (issue #53, decision 51a3c44) on the backup
+        # write means create_backup() can now raise OSError (EMLINK) if a
+        # hard link is planted at the backup path. Catch it here — same
+        # OSError-handling pattern as apply_upgrade()'s try/except blocks
+        # below (a message, then a clean degradation instead of an
+        # uncaught crash) — so a hard-link attack fails this command
+        # cleanly rather than crashing the whole upgrade.
+        backup_path = create_backup(target, manifest)
+    except OSError as e:
+        errors = [f"Error creating backup: {e}"]
+        if as_json:
+            print(json.dumps({"status": "error", "errors": errors}))
+        else:
+            print(f"\n{len(errors)} error(s):")
+            for err in errors:
+                print(f"  ❌ {err}")
+        sys.exit(1)
     if not as_json:
         print(f"  Backup: {backup_path}")
 

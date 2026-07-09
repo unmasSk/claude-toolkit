@@ -515,6 +515,9 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             # read: a read of a hard-linked file cannot corrupt the victim
             # (only a write can), so omitting it here is a deliberate
             # scope choice, not an oversight — see the write below.
+            # Same read-vs-write hard-link criterion documented in
+            # lib/boot_glossary_cache.py:_read_glossary_cache() for that
+            # toolkit-generated cache file.
             with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()

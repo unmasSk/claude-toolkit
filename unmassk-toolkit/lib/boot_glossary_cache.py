@@ -114,6 +114,9 @@ def _read_glossary_cache(upstream_ref: str | None = None) -> dict | None:
         # reject_hardlinks=True (issue #53, decision 51a3c44): glossary-
         # cache.json is toolkit-generated-only, never a legitimate user
         # file, so a hard link here can only be an attack.
+        # Same read-vs-write hard-link criterion documented in
+        # bin/git-memory-doctor.py's manifest healthcheck read (a read of
+        # a hard-linked file cannot corrupt the victim, only a write can).
         with open_no_follow_symlink(path, "r", reject_hardlinks=True) as f:
             cache = json.load(f)
         # Check staleness
