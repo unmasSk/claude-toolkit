@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-09
+
 ### Added
 
 - **Toolkit CI on GitHub Actions** (issue #51): `.github/workflows/toolkit-ci.yml` runs the full test suite on both `windows-latest` and `ubuntu-latest` (`fail-fast: false`, so a failure on one OS never hides the other) — there was previously no automated channel to verify Windows results at all. Getting the matrix green surfaced two more real bugs, fixed in the same push: `get_timeline()`/`get_last_context_time()` (`lib/boot_git_checks.py`) used the same fragile `%aI` + `datetime.fromisoformat()` date parsing described below and were unified onto `%at` (unix epoch); 140 sites across 16 test files were missing an explicit `encoding="utf-8"` on subprocess/file reads, which only worked by accident locally under `PYTHONUTF8=1`. A follow-up fix added `errors="replace"` to the subprocess reads that consume externally-produced, locale-dependent output (`git`, `bin/release.py`) — the strict `utf-8` decode from the first pass broke on Windows runners without `PYTHONUTF8` set, since their locale output real accented characters as cp1252 bytes.
