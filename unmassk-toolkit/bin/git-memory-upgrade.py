@@ -163,14 +163,12 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
     backup_dir = os.path.join(claude_dir, "backups")
     # BUG Y / SEC-CRIT-NEW variant: same os.makedirs()-follows-a-directory-
     # symlink-at-.claude gap as _create_manifest()/apply_upgrade() above,
-    # for the backups directory. An UnsafePathError from this call still
-    # propagates as an uncaught exception (main() does not catch it), which
-    # is an acceptable fail-closed outcome for this explicit, user-triggered
-    # CLI command (non-zero exit, no silent write outside the repo). OSError
-    # from the write below (reject_hardlinks=True, issue #53, decision
-    # 51a3c44) IS caught by main() now, using the same message-then-clean-
-    # degrade pattern as apply_upgrade()'s try/except blocks — see main()'s
-    # backup step.
+    # for the backups directory. verify_path_within_project() raises
+    # UnsafePathError, which subclasses OSError (git_helpers.py:24) — so it
+    # is caught by the SAME `except OSError` in main() that also catches
+    # the write below (reject_hardlinks=True, issue #53, decision 51a3c44).
+    # Both failure modes share one message-then-clean-degrade path — see
+    # main()'s backup step.
     verify_path_within_project(backup_dir, target)
     os.makedirs(backup_dir, exist_ok=True)
 

@@ -512,12 +512,20 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             # atomically refuse to traverse it, so a victim file outside
             # the repo is never read from or written to.
             # reject_hardlinks=True is intentionally NOT passed on this
-            # read: a read of a hard-linked file cannot corrupt the victim
-            # (only a write can), so omitting it here is a deliberate
-            # scope choice, not an oversight — see the write below.
-            # Same read-vs-write hard-link criterion documented in
-            # lib/boot_glossary_cache.py:_read_glossary_cache() for that
-            # toolkit-generated cache file.
+            # read: `data` is used for nothing except being reserialized
+            # and written straight back to this same manifest_path a few
+            # lines below, and that write already carries
+            # reject_hardlinks=True + O_NOFOLLOW. If manifest_path is a
+            # hard link, the write raises and the surrounding
+            # `except Exception: pass` discards `data` without ever
+            # persisting or otherwise exposing it — so the write is the
+            # real enforcement point here, and checking on the read too
+            # would be redundant. Contrast with
+            # lib/boot_glossary_cache.py:_read_glossary_cache(), whose
+            # read result is returned straight to the caller and trusted
+            # with NO paired write on a cache hit — there, the read itself
+            # must be the enforcement point, which is why it DOES pass
+            # reject_hardlinks=True.
             with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()

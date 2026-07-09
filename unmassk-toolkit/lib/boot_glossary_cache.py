@@ -113,10 +113,16 @@ def _read_glossary_cache(upstream_ref: str | None = None) -> dict | None:
         # rejected exactly like "no valid cache", not silently followed.
         # reject_hardlinks=True (issue #53, decision 51a3c44): glossary-
         # cache.json is toolkit-generated-only, never a legitimate user
-        # file, so a hard link here can only be an attack.
-        # Same read-vs-write hard-link criterion documented in
-        # bin/git-memory-doctor.py's manifest healthcheck read (a read of
-        # a hard-linked file cannot corrupt the victim, only a write can).
+        # file, so a hard link here can only be an attack. Unlike
+        # bin/git-memory-doctor.py's manifest healthcheck read (which
+        # reads a value only to immediately reserialize and write it back
+        # to the same path, under a write that already guards with
+        # reject_hardlinks=True — making a read-side check redundant),
+        # this read's result is returned straight to
+        # extract_glossary_cached()'s caller and trusted as-is on a cache
+        # hit, with NO write anywhere in that path. There is no later
+        # guard to catch a hard-link swap, so this read must be the
+        # enforcement point itself.
         with open_no_follow_symlink(path, "r", reject_hardlinks=True) as f:
             cache = json.load(f)
         # Check staleness

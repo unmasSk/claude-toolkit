@@ -73,10 +73,12 @@ import importlib.util
 import json
 import os
 import re
+import sys
 
 import pytest
 
-from conftest import INSTALL, UPGRADE, DOCTOR, git_cmd, run_script
+from conftest import INSTALL, UPGRADE, DOCTOR, git_cmd, run_cmd, run_script
+from parsing import sanitize_trailer_value
 
 
 def _make_repo(tmp_path, name="repo"):
@@ -358,5 +360,164 @@ class TestSecHigh001Variant01UpgradeBackupHardlinkWrite:
             "call site because open_no_follow_symlink(backup_path, \"w\") "
             "there is called WITHOUT reject_hardlinks=True. "
             f"create_backup() raised: {raised!r}\n"
+            f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Coverage gap (Yoda finding, F6 closure to 110) — main()'s try/except
+# around create_backup() (bin/git-memory-upgrade.py:502-524), exercised via
+# the real CLI end-to-end. GREEN expected: this is NOT a new vulnerability
+# contract, it closes a COVERAGE gap on an already-fixed guard.
+# ══════════════════════════════════════════════════════════════════════════
+#
+# TestSecHigh001Variant01UpgradeBackupHardlinkWrite above calls
+# create_backup() DIRECTLY, so it never exercises main()'s own
+# `try: backup_path = create_backup(target, manifest) / except OSError as e:`
+# block (lines ~505-522) -- the code that turns the guard's raised OSError
+# into a clean "N error(s): Error creating backup: ..." message + sys.exit(1)
+# instead of an uncaught traceback. That block currently has zero
+# automated coverage. This test drives it end-to-end through main() itself.
+#
+# Why not a plain run_script() subprocess (the mechanism the 3
+# TestSecHigh001*ManifestHardlinkWrite classes above use for their fixed
+# .../manifest.json path): create_backup()'s backup_path embeds a live
+# datetime.now() at second precision, which must be known BEFORE the CLI
+# runs in order to pre-plant the hard link at the exact path it will try to
+# open. A real subprocess's clock cannot be controlled from outside it. This
+# codebase's own established fix for that exact class of problem (see
+# test_boot_output.py::_run_boot_with_failing_log_write and
+# unmassk-toolkit-python-test-conventions.md's "Write-failure simulation"
+# entry) is: launch a FRESH subprocess (`python -c "..."`) that loads the
+# real script via importlib.util.spec_from_file_location, freezes the one
+# name the module reads for time (`datetime`, the exact class VARIANT-01
+# above already patches to `_FrozenDatetime`), sets sys.argv the same way a
+# real `python git-memory-upgrade.py --auto` invocation would, and calls the
+# real main() -- main()'s own sys.exit(N) becomes this fresh process's real
+# exit code. This is still the real CLI flow end-to-end (real argparse, real
+# find_target_root()/read_installed_manifest()/check_upgrade_needed()/
+# create_backup()/main()'s try/except), just not launched via
+# `python script.py` directly.
+
+
+def _run_upgrade_main_with_frozen_time(repo):
+    """Run the REAL bin/git-memory-upgrade.py main() (--auto) in a fresh
+    subprocess with `datetime` frozen to 2026-07-09T12:00:00 -- the same
+    frozen instant TestSecHigh001Variant01UpgradeBackupHardlinkWrite above
+    uses to predict create_backup()'s backup_path, so a hard link planted at
+    that predicted path (by the caller, before invoking this helper) lands
+    exactly where the real, unmocked create_backup() call inside main() will
+    try to write.
+
+    Returns (rc, stdout, stderr) -- same shape as run_script().
+    """
+    code = f"""
+import sys, os
+os.chdir({repr(repo)})
+
+import importlib.util
+spec = importlib.util.spec_from_file_location('upgrade_main_variant01b', {repr(UPGRADE)})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+import datetime as _dt
+class _FrozenDatetime(_dt.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return cls(2026, 7, 9, 12, 0, 0)
+mod.datetime = _FrozenDatetime
+
+sys.argv = ['git-memory-upgrade.py', '--auto']
+mod.main()
+"""
+    return run_cmd([sys.executable, "-c", code], repo, timeout=30)
+
+
+@pytest.mark.usefixtures("real_hardlink_capable")
+class TestSecHigh001Variant01MainBackupErrorHandling:
+    """main()'s `try/except OSError` around create_backup() must fail
+    clean -- exit code 1, a formatted "Error creating backup" message, no
+    raw traceback -- and must leave the hard-linked victim file's content
+    completely untouched, when create_backup()'s reject_hardlinks=True
+    guard raises. This is the end-to-end counterpart to
+    TestSecHigh001Variant01UpgradeBackupHardlinkWrite (which calls
+    create_backup() directly and never reaches main()'s error handling).
+    """
+
+    def test_main_fails_clean_when_backup_path_is_hardlinked(self, tmp_path):
+        repo = str(tmp_path / "repo")
+        os.makedirs(repo)
+        git_cmd(["init"], repo)
+        git_cmd(["config", "user.email", "test@test.com"], repo)
+        git_cmd(["config", "user.name", "Test"], repo)
+        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+
+        # Old manifest (no CLAUDE.md either) so check_upgrade_needed() finds
+        # needs_update=True and main() reaches the backup step -- same setup
+        # shape as TestSecHigh001UpgradeManifestHardlinkWrite above.
+        manifest_version = "1.0.0"
+        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+        os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "version": manifest_version,
+                "installed_at": "2020-01-01T00:00:00",
+                "runtime_mode": "normal",
+            }, f)
+
+        # Predict the exact backup_path create_backup() will compute, using
+        # the SAME frozen instant _run_upgrade_main_with_frozen_time() below
+        # freezes datetime.now() to, and the SAME sanitize_trailer_value()
+        # the production module itself imports and uses (never hand-typed) —
+        # §34, derived not fabricated.
+        frozen_now = _datetime_module.datetime(2026, 7, 9, 12, 0, 0)
+        safe_version = re.sub(r"[\\/]+", "_", sanitize_trailer_value(manifest_version))
+        timestamp = frozen_now.strftime("%Y%m%d_%H%M%S")
+        expected_backup_path = os.path.join(
+            repo, ".claude", "backups", f"manifest-v{safe_version}-{timestamp}.json"
+        )
+
+        victim = tmp_path / "victim-main-backup-hardlink.json"
+        original_content = "SENSITIVE ORIGINAL CONTENT - MAIN BACKUP HARDLINK"
+        victim.write_text(original_content, encoding="utf-8")
+
+        os.makedirs(os.path.dirname(expected_backup_path), exist_ok=True)
+        if os.path.lexists(expected_backup_path):
+            os.remove(expected_backup_path)
+        os.link(str(victim), expected_backup_path)
+        nlink_before = os.stat(str(victim)).st_nlink
+        assert nlink_before > 1, (
+            f"fixture setup invariant broken: expected st_nlink>1 after a "
+            f"real os.link(), got {nlink_before}"
+        )
+
+        rc, stdout, stderr = _run_upgrade_main_with_frozen_time(repo)
+        combined = stdout + "\n" + stderr
+
+        assert rc == 1, (
+            "main() must exit 1 (documented error exit code, see this "
+            "script's own module docstring) when create_backup() raises "
+            f"OSError from the hard-link guard -- got rc={rc}\n"
+            f"stdout (first 800): {stdout[:800]}\nstderr (first 800): {stderr[:800]}"
+        )
+        assert "Traceback (most recent call last)" not in combined, (
+            "main()'s try/except OSError around create_backup() must catch "
+            "the guard's OSError and print a formatted message -- an "
+            f"uncaught traceback means the except block did not fire.\n"
+            f"stdout (first 800): {stdout[:800]}\nstderr (first 800): {stderr[:800]}"
+        )
+        assert "Error creating backup" in combined, (
+            "main() must print its formatted "
+            "f\"Error creating backup: {e}\" message (bin/git-memory-"
+            "upgrade.py's `except OSError as e: errors = [f\"Error creating "
+            "backup: {e}\"]` block) -- not found in output.\n"
+            f"stdout (first 800): {stdout[:800]}\nstderr (first 800): {stderr[:800]}"
+        )
+        assert victim.read_text(encoding="utf-8") == original_content, (
+            "main()'s try/except around create_backup() caught the OSError "
+            "and reported it, but the hard-linked victim file's content was "
+            "still modified before the guard raised -- the guard must "
+            "reject the open before any write/truncate reaches the shared "
+            "inode.\n"
             f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
         )
