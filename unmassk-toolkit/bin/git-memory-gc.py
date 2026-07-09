@@ -35,7 +35,7 @@ from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
 from git_helpers import run_git as _run_git
-from parsing import normalize, parse_scope, parse_trailers_full
+from parsing import normalize, parse_scope, parse_trailers_full, sanitize_trailer_value
 from constants import TOMBSTONE_KEYS
 from date_parsing import parse_date
 
@@ -276,6 +276,15 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
                 "reason": f">{age_days} days old, no recent mention",
                 "evidence": [],
             })
+
+    # SEC-MED-09 (issue #57): sanitize every candidate's text ONCE, right
+    # here -- the single shared choke point before candidates ever reach
+    # print_candidates() (terminal) or create_gc_commit() (new tombstone
+    # commit body). Covers H1 (Resolved-Next), H2 (Stale-Blocker), and H3
+    # (Resolution, tagged as Resolved-Next above) uniformly since all three
+    # paths funnel through this same `candidates` list before returning.
+    for c in candidates:
+        c["text"] = sanitize_trailer_value(c["text"])
 
     return candidates
 

@@ -21,6 +21,7 @@ force_utf8_streams()
 
 from git_helpers import run_git, is_git_repo
 from colors import RED, YELLOW, RESET
+from parsing import sanitize_trailer_value
 
 # git-memory project files — only CLAUDE.md and manifest live at the project root.
 # The stop hook should not flag these for auto-wip.
@@ -167,7 +168,11 @@ def get_last_commit_next() -> str | None:
         line = line.strip()
         match = re.match(r"^Next:\s*(.+)$", line)
         if match:
-            return match.group(1)
+            # SEC-LOW-11 (issue #57): HEAD's Next: value is fully
+            # attacker-controlled (it's just commit body text) and main()
+            # prints it verbatim to stderr. Sanitize with the canonical
+            # sanitizer before it ever leaves this function.
+            return sanitize_trailer_value(match.group(1))
 
     return None
 
