@@ -5,6 +5,45 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
+Target: issue #57 log-parsing fix re-validation round (post-remediation, commit ff538f1) --
+lib/recall.py, bin/git-memory-gc.py, bin/git-memory-doctor.py, lib/bootstrap_commits.py, plus
+hooks/precompact-snapshot.py (checked as the fix's own held-up "reference" site) and
+lib/parsing.py:sanitize_trailer_value(). Real disposable repos in scratchpad, real hostile
+`git commit -m $'...'` payloads with literal \x1f/\x1e/\x1b/\x7f/\x1c/\x1d bytes, real
+production functions called directly (never mocked), independent-channel verification via
+`git cat-file`/`git log --pretty=format:%at`/`%b` queried separately from the code under test.
+Verdict: FALLA. All 5 originally-reported breaks (a stray \x1f in the commit BODY before a
+real trailer) are CONFIRMED FIXED live: HOSTILE-MEMO-B, HOSTILE-BLOCKER-C (aged 90 days)
+survive intact through recall.py/gc.py/doctor.py with correct date/scope/trailers; -z's NUL
+record boundary holds even under a body saturated with 300x \x1e\x1f (no bleed into
+neighboring commits); the empty-body/body-only-separators .strip() edge case is handled
+correctly (no parts[] index corruption). BUT the reorder-%b-last fix only protects the LAST
+field -- %s (subject) sits in a MIDDLE position in every format string, and a commit SUBJECT
+carrying one stray \x1f (trivial: `git commit -m $'type(x): subject\x1fjunk'`) desyncs every
+downstream field the identical way the original bug did: reproduced live across ALL FIVE sites
+sharing this pattern -- recall.py._scan_commits (real Decision silently lost), gc.py.scan_commits
++find_stale_items (date->None, real aged Blocker invisible), doctor.py.check_hook_execution
+(undercount, confirmed exact -2 over 12 commits), doctor.py.check_gc_status (a real,
+fsck-clean, 100-day-old Blocker completely invisible), bootstrap_commits.py.scan_recent_commits
+(date/author swapped + a phantom "author" entry -- literally a date string -- pollutes the
+contributor-count stat fed to `git memory bootstrap --json`), AND hooks/precompact-snapshot.py
+(the exact file decision commit 45cba61 calls "la referencia a calcar" is equally vulnerable).
+Two more confirmed EXPLOITs: (1) sanitize_trailer_value() strips \x1b/\x7f/literal
+`</memory-data>` but not \x1c/\x1d/\x1e -- splicing one of these invisible bytes INSIDE the
+literal fence-tag text (`</memory-data\x1e>`) defeats the regex while leaving every
+human-visible tag character intact, full end-to-end PoC reproduced via recall_relevant() +
+the exact wrapping logic from hooks/user-prompt-memory-check.py, producing what visually reads
+as a forged early `</memory-data>` close followed by attacker-controlled "SYSTEM:" text; (2)
+gc.py's `find_stale_items()` sanitizes `c["text"]` but never `c["evidence"]` (built raw from
+`sha + " " + subject`), so a hostile ANSI byte in a resolution commit's subject reaches
+`print_candidates()`'s real stdout unescaped, confirmed via captured output. DECEPTION (T1):
+decision commit 45cba61 explicitly frames the round as "closing the whole class, not just the
+instance, so #55->#57 doesn't repeat" -- the live PoCs above prove the class was only partially
+closed. RACE declared N/A (all audited functions are stateless read-only git-log scans, no
+shared mutable state in scope). See attack-patterns.md for the field-displacement/fence-splice/
+evidence-leak patterns in full detail.
+
+## Previous attack
 Target: F6 hard-link bypass rejection, issue #53 -- lib/git_helpers.py:open_no_follow_symlink()
 and lib/_symlink_safe_open.py:open_no_follow_symlink_fallback() (twins), new opt-in
 `reject_hardlinks=True` param + st_nlink>1 post-open fstat(fd) check, wired into 3 real call
@@ -152,11 +191,5 @@ claim remote-verified freshness while resolve_boot_memory() silently falls back 
 clone, detached HEAD, concurrent boots, stress, write-path warn-only, cache backward-compat) held
 under real (non-mocked) adversarial conditions. See attack-patterns.md / resilience.md for detail.
 
-## Previous attack
-Target: `unmassk-toolkit/lib/git_helpers.py` run_git() encoding="utf-8" seam — formal Round-Trip Sabotage (§34)
-Branch: main (working tree, uncommitted)
-Date: 2026-07-06
-Verdict: seam AGUANTA the sabotage (encoding="utf-8" kwarg genuinely prevents mojibake under forced
-PYTHONUTF8=0) but the "real round-trip" test claiming to prove it is a false green on this env (see
-attack-patterns.md) — regression protection today survives only via a sibling mock test, T1 test-coverage
-deception, does not affect the seam's own verdict.
+## Previous attack (older rounds)
+See attack-patterns.md / resilience.md for full detail on rounds older than the ones above (git_helpers.py encoding seam Round-Trip Sabotage, 2026-07-06, and earlier).
