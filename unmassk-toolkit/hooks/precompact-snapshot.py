@@ -92,16 +92,26 @@ def extract_memory_from_log() -> dict[str, Any]:
         # Strip emoji prefix before parsing type/scope
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
 
-        # Extract scope from subject
+        # Extract scope from subject.
+        # SEC-CRIT-NEW-04 (issue #57, Task 2b, mirrored from
+        # lib/boot_memory.py): `scope` comes straight from the fully
+        # attacker-controlled commit subject, yet it feeds the "Active
+        # decisions:"/"Active memos:" lines below with no sanitization --
+        # unlike every trailer VALUE in this function, which already goes
+        # through _sanitize(). Sanitizing once here propagates to every
+        # downstream use (dict keys for decisions/memos/remembers).
         scope_match = re.match(r"^\w+\(([^)]+)\)", cleaned)
-        scope = scope_match.group(1) if scope_match else "global"
+        scope = _sanitize(scope_match.group(1)) if scope_match else "global"
 
         # Check if context commit
         if cleaned.lower().startswith("context"):
             if memory["last_context"] is None:
+                # SEC-CRIT-NEW-04: the raw commit subject is untrusted and
+                # is printed verbatim on the "Last session:" line below --
+                # sanitize it the same way scope/trailer values are.
                 memory["last_context"] = {
                     "sha": sha,
-                    "subject": subject,
+                    "subject": _sanitize(subject),
                     "scope": scope,
                 }
 

@@ -88,9 +88,17 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
     # equivalent. \x1f remains the FIELD separator within a single
     # record -- already confirmed inert on its own (fixed maxsplit below
     # caps the field count).
+    #
+    # T1 (issue #57, Task 2b): %b (the fully attacker-controlled body) is
+    # placed LAST in the format string, not %at. A stray \x1f embedded in
+    # the body can only ever bleed into the trailing, uncapped body field
+    # this way -- it can never displace %at, which now comes BEFORE body.
+    # (Previously %at trailed %b, so a stray \x1f in the body stole the
+    # split slot meant for the real epoch, corrupting `date` and
+    # truncating `body` before any real trailer line.)
     code, output = run_git([
         "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--pretty=format:%h\x1f%s\x1f%at\x1f%b",
         "--",
     ])
 
@@ -99,17 +107,25 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
 
     commits = []
     for raw in output.split("\x00"):
+        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
+        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
+        # now the last field) produces a raw record ending in a bare \x1f
+        # with nothing after it -- .strip() eats that trailing separator,
+        # so `parts` legitimately has only 3 elements (sha/subject/date)
+        # for a perfectly ordinary, real commit. Threshold is `< 3`, not
+        # `< 4`, and `body` is read defensively -- an empty/absent body is
+        # not malformed, it's just a commit with no trailers.
         raw = raw.strip()
         if not raw:
             continue
         parts = raw.split("\x1f", 3)
-        if len(parts) < 4:
+        if len(parts) < 3:
             continue
 
         sha = parts[0].strip()
         subject = parts[1].strip()
-        body = parts[2].strip()
-        date = parse_date(parts[3].strip())
+        date = parse_date(parts[2].strip())
+        body = parts[3].strip() if len(parts) > 3 else ""
         scope = parse_scope(subject)
 
         # Extract trailers from body

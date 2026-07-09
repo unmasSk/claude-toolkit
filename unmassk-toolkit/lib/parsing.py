@@ -156,11 +156,14 @@ def sanitize_trailer_value(text: str) -> str:
       escape-sequence injection (screen clears, recoloring) when a
       trailer-adjacent value (e.g. a manifest "version" field) is printed
       directly to a terminal in non-JSON mode.
+    - DEL byte (\\x7f) — issue #57 Task 2b (Moriarty gap): the same
+      class of terminal control-byte injection as \\x1b, just a
+      different byte.
     - HTML comment markers (<!-- and -->)
     - memory-data zone delimiters (<memory-data> / </memory-data>,
       case-insensitive)
     """
-    text = re.sub(r"[\r\n  \x0b\x0c\x1b]", " ", text)
+    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x7f]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
     text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
     return text.strip()

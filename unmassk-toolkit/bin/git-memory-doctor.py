@@ -179,9 +179,15 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     # record (inflating both counters below). A commit message can never
     # contain a raw NUL byte, so splitting on \x00 has no forgeable
     # equivalent. \x1f remains the FIELD separator within a record.
+    #
+    # T1 (issue #57, Task 2b): %b is placed LAST (after %at, not before
+    # it) -- a stray \x1f in the fully attacker-controlled body can then
+    # only bleed into the trailing, uncapped body field, never into %at.
+    # Previously %at trailed %b, so a stray \x1f there truncated `body`
+    # before a real trailer line, undercounting `with_trailers`.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--pretty=format:%h\x1f%s\x1f%at\x1f%b",
         "--",
     ])
     if code != 0 or not output:
@@ -192,6 +198,12 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     with_trailers = 0
 
     for raw in output.split("\x00"):
+        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
+        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
+        # now the last field) produces a raw record ending in a bare \x1f
+        # -- .strip() eats it, so `parts` legitimately has only 3 elements
+        # (sha/subject/date) for a perfectly ordinary real commit.
+        # Threshold is `< 3`, not `< 4`; `body` is read defensively.
         raw = raw.strip()
         if not raw:
             continue
@@ -199,7 +211,7 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
         if len(parts) < 3:
             continue
         total += 1
-        body = parts[2]
+        body = parts[3] if len(parts) > 3 else ""
         if trailer_re.search(body):
             with_trailers += 1
 
@@ -227,9 +239,18 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
     # ONE git call here feeds TWO loops below (stale-blocker collection,
     # then Stale-Blocker tombstone collection) -- both must split on the
     # same \x00 boundary consistently.
+    #
+    # T1 (issue #57, Task 2b): %b is placed LAST (after %at, not before
+    # it) -- a stray \x1f in the fully attacker-controlled body can then
+    # only bleed into the trailing, uncapped body field, never into %at.
+    # Previously %at trailed %b, so a stray \x1f there truncated `body`
+    # before a real Blocker: line and corrupted `date`, making a real
+    # stale blocker invisible to this scan (Moriarty's finding). BOTH
+    # loops below (and their parts[] indices) must stay consistent with
+    # this field order.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--pretty=format:%h\x1f%s\x1f%at\x1f%b",
         "--",
     ])
     if code != 0 or not output:
@@ -242,16 +263,22 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
     stale_blockers: list[dict[str, Any]] = []
 
     for raw in output.split("\x00"):
+        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
+        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
+        # now the last field) produces a raw record ending in a bare \x1f
+        # -- .strip() eats it, so `parts` legitimately has only 3 elements
+        # (sha/subject/date) for a perfectly ordinary real commit.
+        # Threshold is `< 3`, not `< 4`; `body` is read defensively.
         raw = raw.strip()
         if not raw:
             continue
         parts = raw.split("\x1f", 3)
-        if len(parts) < 4:
+        if len(parts) < 3:
             continue
 
         subject = parts[1].strip()
-        body = parts[2].strip()
-        date = parse_date(parts[3].strip())
+        date = parse_date(parts[2].strip())
+        body = parts[3].strip() if len(parts) > 3 else ""
 
         # Check for GC commits. Gate on `gc_commit_seen` (not `last_gc is
         # None`) so the FIRST (newest) matching commit is the one we
@@ -280,6 +307,10 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
                 })
 
     # Filter out tombstoned blockers
+    # T1 (issue #57, Task 2b): same reordered field layout as the loop
+    # above (%h\x1f%s\x1f%at\x1f%b) -- body is parts[3], not parts[2].
+    # Same empty-body .strip() gotcha as above: threshold `< 3`, body read
+    # defensively.
     tombstoned = set()
     for raw in output.split("\x00"):
         raw = raw.strip()
@@ -288,7 +319,7 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
         parts = raw.split("\x1f", 3)
         if len(parts) < 3:
             continue
-        body = parts[2].strip()
+        body = parts[3].strip() if len(parts) > 3 else ""
         body_trailers = parse_trailers_full(body)
         if "Stale-Blocker" in body_trailers:
             sb_val = body_trailers["Stale-Blocker"]

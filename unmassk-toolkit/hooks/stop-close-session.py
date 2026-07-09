@@ -54,7 +54,11 @@ def _commits_since_last_context(depth: int = _ACTIVITY_SCAN_DEPTH) -> int:
         return 0
 
     count = 0
-    for line in output.splitlines():
+    # FIX3 (issue #57, Task 2b): split("\n"), not .splitlines() -- the
+    # latter also treats \x1c/\x1d/\x1e/\x85 as line boundaries, so a
+    # single hostile commit subject embedding a raw \x1e would masquerade
+    # as two iterated "commits" here.
+    for line in output.split("\n"):
         subject = line.strip()
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip().lower()
         if cleaned.startswith("context(") or cleaned.startswith("context:"):
@@ -81,7 +85,9 @@ def _has_substantive_commits(count: int) -> bool:
     if code != 0 or not output:
         return False
 
-    for line in output.splitlines():
+    # FIX3 (issue #57, Task 2b): split("\n"), not .splitlines() -- see
+    # _commits_since_last_context() above for the rationale.
+    for line in output.split("\n"):
         subject = line.strip()
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip().lower()
         # Match conventional commit types: "feat(scope):" or "decision:"

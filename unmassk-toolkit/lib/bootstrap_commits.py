@@ -32,6 +32,14 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     # `git memory bootstrap --json`. A commit message can never contain a
     # raw NUL byte, so splitting on \x00 has no forgeable equivalent. \x1f
     # remains the FIELD separator within a single record.
+    #
+    # T1 (issue #57, Task 2b): %b (fully attacker-controlled) is placed
+    # LAST in the format string, not %aI/%an. Previously %b sat between
+    # %s and %aI/%an, so a stray \x1f in the body shifted BOTH trailing
+    # fields: `date` ended up holding the discarded trailer text (failing
+    # the ISO-8601 shape) and `author` ended up holding the real date
+    # glued to the real author name via the one remaining separator. With
+    # %b last, a stray \x1f inside it has nowhere left to displace.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
         # %aI (not %at): this date is never parsed, only carried through to
@@ -42,7 +50,7 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
         # never parses the field, so there is no equivalent robustness
         # argument for %at here (see test_date_parsing_epoch_contract.py's
         # TestBootstrapCommitsDateFieldContract for the full reasoning).
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%aI\x1f%an",
+        "--pretty=format:%h\x1f%s\x1f%aI\x1f%an\x1f%b",
         "--",
     ])
     if code != 0 or not output:
@@ -55,14 +63,22 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     scope_re = re.compile(r"^\w+\(([^)]+)\)")
 
     for raw in output.split("\x00"):
+        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
+        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
+        # now the last field) produces a raw record ending in a bare \x1f
+        # with nothing after it -- .strip() eats that trailing separator,
+        # so `parts` legitimately has only 4 elements (sha/subject/date/
+        # author) for a perfectly ordinary, real commit. Threshold is
+        # `< 4`, not `< 5`; `body` is read defensively.
         raw = raw.strip()
         if not raw:
             continue
         parts = raw.split("\x1f", 4)
-        if len(parts) < 5:
+        if len(parts) < 4:
             continue
 
-        sha, subject, body, date, author = parts
+        sha, subject, date, author = parts[0], parts[1], parts[2], parts[3]
+        body = parts[4] if len(parts) > 4 else ""
         authors[author.strip()] += 1
 
         if trailer_re.search(body):

@@ -109,7 +109,11 @@ def count_consecutive_wips() -> int:
         return 0
 
     count = 0
-    for line in output.splitlines():
+    # FIX3 (issue #57, Task 2b): split("\n"), not .splitlines() -- the
+    # latter also treats \x1c/\x1d/\x1e/\x85 as line boundaries, so a
+    # single hostile commit subject embedding a raw \x1e would masquerade
+    # as an extra "commit" line and could prematurely break this scan.
+    for line in output.split("\n"):
         subject = line.strip().lower()
         # Strip emoji prefix before checking
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
@@ -137,7 +141,9 @@ def has_recent_memory_commits(depth: int = 10) -> bool:
     if code != 0 or not output:
         return True  # If git fails, don't nag
 
-    for line in output.splitlines():
+    # FIX3 (issue #57, Task 2b): split("\n"), not .splitlines() -- see
+    # count_consecutive_wips() above for the rationale.
+    for line in output.split("\n"):
         subject = line.strip().lower()
         # Strip emoji prefix before checking
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()

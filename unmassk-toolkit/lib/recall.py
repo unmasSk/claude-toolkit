@@ -191,7 +191,13 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 3)
+        # T1 (issue #57, Task 2b): maxsplit must equal the real separator
+        # count for this 3-field record (%h\x1f%s\x1f%b -- 2 separators).
+        # A maxsplit of 3 left a never-reached 4th slot, which let a stray
+        # \x1f inside `body` (the last, fully attacker-controlled field)
+        # steal the split before a real trailer line, truncating body and
+        # silently discarding the trailer.
+        parts = entry.split("\x1f", 2)
         if len(parts) < 3:
             continue
         body = parts[2]
@@ -206,13 +212,21 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 3)
+        # T1 (issue #57, Task 2b): same maxsplit=2 fix as the tombstone
+        # pass above — see comment there.
+        parts = entry.split("\x1f", 2)
         if len(parts) < 3:
             continue
         sha, subject, body = parts[0], parts[1], parts[2]
         trailers = scan_trailers_memory(body)
 
-        scope = parse_scope(subject) or ""
+        # SEC-CRIT-NEW-04 (issue #57, Task 2b, mirrored from
+        # lib/boot_memory.py): `scope` comes straight from the fully
+        # attacker-controlled commit subject via parse_scope(), yet it
+        # was embedded into `label` (fed straight into _format_block()'s
+        # LLM-facing output) with no sanitization — unlike every trailer
+        # VALUE in this function, which already goes through _sanitize().
+        scope = _sanitize(parse_scope(subject) or "")
         label = f"({scope})" if scope else "(global)"
 
         for kind in _MEMORY_KEYS:
