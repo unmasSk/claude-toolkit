@@ -49,12 +49,32 @@ Cosmetic (fix = validate/rescue the trailing `%at` field, e.g. rsplit or digit-c
 
 ### Task 3: Verify (Cerberus ∥ Argus ∥ Moriarty, then Dante hardening, then Yoda)
 **Depends on:** Task 2
-- [ ] Cerberus: goal-backward review; no hand-typed expected literals in round-trip tests; doctor.py one-call/two-loops consistency
-- [ ] Argus: security audit incl. severity call on the LLM-facing sites (recall.py, precompact-snapshot.py) + sanitize-layer check
-- [ ] Moriarty: round-trip sabotage against real git (hostile payload variants: nested separators, NUL attempts, huge records, subject-only `\x1f`)
-- [ ] Dante hardening pass (exhaustion + coverage gate)
-- [ ] Loop to Task 2 on T1/T2 findings; then Yoda verdict — 110/110 required
-- [ ] wip commits per sub-step
+- [x] Cerberus — goal-backward review. Verdict: not mergeable. 1 issue (recall.py maxsplit=3 should be 2), 1 suggestion (doctor.py one-call/two-loops), 2 nitpicks
+- [x] Argus — security audit. Verdict: 2 CRIT, 1 MED, 2 LOW. `-z` closes record forgery, but sanitization gaps re-open the class on LLM-facing sites
+- [x] Moriarty — round-trip sabotage. Verdict: FALLA. 5/6 sites lose/corrupt real trailer data under a stray `\x1f`; `-z` boundary itself solid (real NUL-forgery + push tested)
+- [ ] **Loop → Task 2b (findings consolidated below)**
+- [ ] Dante hardening pass (exhaustion + coverage gate) — after 2b GREEN
+- [ ] Re-verify (Argus re-audit mandatory per his rule; Cerberus/Moriarty re-check) then Yoda verdict — 110/110 required
+
+### Task 2b: Remediation round (Dante extends contract RED → Ultron GREEN)
+**Consolidated findings — same vuln class as #57 (hostile git history → parsed fields / LLM context). Decision commit `45cba61`.**
+
+Field-alignment (T1 — the DoD "no field displacement" is not met):
+- [ ] `lib/recall.py:194,209` — `maxsplit` 3→2 (3-field record)
+- [ ] `bin/git-memory-gc.py:113` — `%b` not last (`%at` follows); align maxsplit / reorder so injectable field is last
+- [ ] `bin/git-memory-doctor.py:198,248,288` — same, both loops
+- [ ] `bin/git-memory-bootstrap`→`lib/bootstrap_commits.py:61` — same (5-field; date/author corruption)
+- [ ] Pattern reference: `hooks/precompact-snapshot.py:73,84` (already correct — copy its shape)
+
+Sanitization (CRIT/MED/LOW — LLM-facing fence + terminal/commit injection):
+- [ ] `lib/recall.py:215-216` — sanitize `scope` before building `label` (mirror `boot_memory.py:231` SEC-CRIT-NEW-04) — closes `</memory-data>` fence break
+- [ ] `hooks/precompact-snapshot.py:96-106` — sanitize `scope` + `subject` (mirror `boot_memory.py:224-225`)
+- [ ] `bin/git-memory-gc.py:213,259,278,297` — apply `sanitize_trailer_value` to trailer text before print + before embedding in new tombstone commit
+- [ ] `hooks/stop-close-session.py:57,84` + `hooks/stop-dod-check.py:112,140` — `.splitlines()` → `.split("\n")`
+- [ ] `hooks/stop-dod-check.py:156-166` — sanitize `Next:` value
+- [ ] `lib/parsing.py:163` `sanitize_trailer_value` — add `\x7f` (DEL) to stripped set (verify no legit use; Moriarty gap)
+
+Order: Dante extends `test_control_byte_injection.py` with RED cases for field-displacement (real trailer after stray `\x1f` survives) + fence-break (scope with `</memory-data>` sanitized) + splitlines + `\x7f`; then Ultron GREEN; wip per sub-step.
 
 ### Task 4: Document (Alexandria)
 **Depends on:** Task 3
