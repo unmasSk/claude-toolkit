@@ -77,6 +77,30 @@ is a DIFFERENT construction than one placed in the emoji/prefix token
 itself (`🧭\x1b[31mFAKE decision(auth): ...`) — confirmed live, both leak
 raw ANSI independently.
 
+## Off-by-one in the E2E hook test: counting BOTH shapes vs. counting CLOSES
+
+`TestUserPromptHookFenceShapeInvariantEndToEnd::test_hook_stdout_has_exactly_one_working_fence_close`
+originally asserted `len(_FENCE_SHAPE_RE.findall(stdout)) <= 1`. That bound
+is unsatisfiable by ANY correct implementation: the real hook
+(`hooks/user-prompt-memory-check.py:274-276`) always wraps stdout in a
+genuine `<memory-data>` + `</memory-data>` pair, so the open-or-close
+regex always finds >= 2 matches on legitimate, zero-vulnerability output.
+Fixed by adding a sibling closing-only regex
+(`_FENCE_CLOSE_ONLY_RE = re.compile(r"<\s*/\s*memory-data\s*>", re.IGNORECASE)`)
+and asserting `len(closes) == 1` — the real invariant is "exactly one
+close survives" (the wrapper's own), not "at most one shape total". The
+other 4 uses of `_FENCE_SHAPE_RE` in the file (unit-level
+`sanitize_trailer_value` tests and `recall_relevant` e2e, which do NOT
+go through the hook's wrapper) correctly assert ZERO shapes and were left
+untouched — different layer, different invariant, both correct for their
+own context. Verified both directions live: reconstructed the pre-fix
+`sanitize_trailer_value` (commit c8a6b2d, before decision e861680's fix
+in 81a4f6f) in a scratch script — closes == 2 (fails new bound, correct
+RED); post-fix — closes == 1 (passes). Lesson: when asserting an
+invariant on output that includes a real, expected structural wrapper,
+count the specific sub-shape that must be unique, not the union of all
+shapes — the union is contaminated by the legitimate wrapper's own count.
+
 ## Verification discipline (2026-07-10)
 
 Every RED/GUARD here was reproduced live in a scratch script against the

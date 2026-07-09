@@ -3058,6 +3058,17 @@ class TestCommitsSinceLastConsolidationSplitlinesInflation:
 
 _FENCE_SHAPE_RE = re.compile(r"<\s*/?\s*memory-data\s*>", re.IGNORECASE)
 
+# Closing-only variant of the invariant above. The end-to-end hook test
+# (TestUserPromptHookFenceShapeInvariantEndToEnd) runs against the REAL
+# UserPromptSubmit hook, which always wraps its output in a real
+# <memory-data>...</memory-data> pair (hooks/user-prompt-memory-check.py
+# lines ~274-276) -- so _FENCE_SHAPE_RE (open OR close) always finds >= 2
+# matches on legitimate output, making "<= 1 total" unsatisfiable by any
+# correct implementation. The actual invariant that test needs is about
+# CLOSES specifically: exactly one real </memory-data> (the wrapper's),
+# never two (which would mean a forged close survived alongside it).
+_FENCE_CLOSE_ONLY_RE = re.compile(r"<\s*/\s*memory-data\s*>", re.IGNORECASE)
+
 _SANITIZER_BYTE_CLASS = [
     pytest.param("\r", id="CR"),
     pytest.param("\n", id="LF"),
@@ -3218,10 +3229,16 @@ class TestUserPromptHookFenceShapeInvariantEndToEnd:
 
         assert rc == 0
         assert "[memoria relevante" in stdout, f"setup error: recall did not inject: {stdout!r}"
-        matches = _FENCE_SHAPE_RE.findall(stdout)
-        assert len(matches) <= 1, (
-            f"expected at most ONE working </memory-data> fence close (the "
-            f"hook's own real wrapper) in hook stdout; found {len(matches)} "
+        # NOTE: the hook always wraps stdout in a real <memory-data> +
+        # </memory-data> pair, so _FENCE_SHAPE_RE (open-or-close) always
+        # finds >= 2 matches on legitimate output -- "<= 1 total" would be
+        # unsatisfiable by any correct implementation. The real invariant
+        # is about CLOSES only: there must be exactly one (the wrapper's
+        # own real close); two would mean a forged close survived too.
+        closes = _FENCE_CLOSE_ONLY_RE.findall(stdout)
+        assert len(closes) == 1, (
+            f"expected exactly ONE working </memory-data> fence close (the "
+            f"hook's own real wrapper) in hook stdout; found {len(closes)} "
             f"-- a \\x1f-interleaved forged close from the hostile Decision "
             f"trailer survived unsanitized:\n{stdout!r}"
         )
