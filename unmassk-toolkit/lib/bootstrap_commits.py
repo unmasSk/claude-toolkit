@@ -33,13 +33,23 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     # raw NUL byte, so splitting on \x00 has no forgeable equivalent. \x1f
     # remains the FIELD separator within a single record.
     #
-    # T1 (issue #57, Task 2b): %b (fully attacker-controlled) is placed
-    # LAST in the format string, not %aI/%an. Previously %b sat between
-    # %s and %aI/%an, so a stray \x1f in the body shifted BOTH trailing
-    # fields: `date` ended up holding the discarded trailer text (failing
-    # the ISO-8601 shape) and `author` ended up holding the real date
-    # glued to the real author name via the one remaining separator. With
-    # %b last, a stray \x1f inside it has nowhere left to displace.
+    # Structural fix (issue #57 root-fix round, decision 0682e75): this
+    # site has THREE fully/semi attacker-controlled free-text fields --
+    # %s (subject, never contains a real newline, git-guaranteed), %an
+    # (author name, no such guarantee), and %b (body). Only ONE free-text
+    # field can be "last in its header" and safely absorb a stray \x1f --
+    # you cannot protect two independent free-text fields with a single
+    # %n split. Two narrower git log calls, each shaped so its own single
+    # free-text field is the LAST thing split on, closes this cleanly
+    # instead of chasing per-field reorderings (Task 2b's previous round,
+    # which only handled a stray \x1f in the BODY -- a stray \x1f in the
+    # SUBJECT alone still corrupted `date`/`author`, confirmed live in
+    # this round's contract).
+    #
+    # Call 1: %h/%aI (both structured, never contain \x1f or a newline),
+    # then %s last-in-header (absorbs any stray \x1f in the subject),
+    # then %b after the first real "\n" (%n) -- git guarantees %s has no
+    # literal newline, so this split is always unambiguous.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
         # %aI (not %at): this date is never parsed, only carried through to
@@ -50,11 +60,32 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
         # never parses the field, so there is no equivalent robustness
         # argument for %at here (see test_date_parsing_epoch_contract.py's
         # TestBootstrapCommitsDateFieldContract for the full reasoning).
-        "--pretty=format:%h\x1f%s\x1f%aI\x1f%an\x1f%b",
+        "--pretty=format:%h\x1f%aI\x1f%s%n%b",
         "--",
     ])
     if code != 0 or not output:
         return None
+
+    # Call 2: %h/%an ONLY -- %an is the last (and only) field after %h in
+    # THIS record, so it independently absorbs any stray \x1f embedded in
+    # the author name, the same way %s does above. Looked up by sha below;
+    # a missing/failed second call degrades to an empty author per commit
+    # rather than failing the whole scan.
+    authors_by_sha: dict[str, str] = {}
+    code2, output2 = run_git([
+        "log", "-n", str(depth), "-z",
+        "--pretty=format:%h\x1f%an",
+        "--",
+    ])
+    if code2 == 0 and output2:
+        for araw in output2.split("\x00"):
+            araw = araw.strip()
+            if not araw:
+                continue
+            aparts = araw.split("\x1f", 1)
+            if len(aparts) < 2:
+                continue
+            authors_by_sha[aparts[0].strip()] = aparts[1].strip()
 
     commits: list[dict[str, Any]] = []
     authors: defaultdict[str, int] = defaultdict(int)
@@ -63,39 +94,40 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     scope_re = re.compile(r"^\w+\(([^)]+)\)")
 
     for raw in output.split("\x00"):
-        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
-        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
-        # now the last field) produces a raw record ending in a bare \x1f
-        # with nothing after it -- .strip() eats that trailing separator,
-        # so `parts` legitimately has only 4 elements (sha/subject/date/
-        # author) for a perfectly ordinary, real commit. Threshold is
-        # `< 4`, not `< 5`; `body` is read defensively.
+        # Field-displacement gotcha (issue #57, Task 2b, Dante; still
+        # applies after the root-fix restructure): str.strip() treats
+        # \x1c-\x1f (and "\n") as whitespace. A commit with an EMPTY body
+        # produces a raw record ending in a bare "\n" (the %n separator)
+        # -- .strip() eats it, so `body` legitimately comes back empty
+        # for a perfectly ordinary, real commit; `body` is read
+        # defensively either way.
         raw = raw.strip()
         if not raw:
             continue
-        parts = raw.split("\x1f", 4)
-        if len(parts) < 4:
+        header, _, body = raw.partition("\n")
+        parts = header.split("\x1f", 2)
+        if len(parts) < 3:
             continue
 
-        sha, subject, date, author = parts[0], parts[1], parts[2], parts[3]
-        body = parts[4] if len(parts) > 4 else ""
-        authors[author.strip()] += 1
+        sha, date, subject = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        author = authors_by_sha.get(sha, "")
+        authors[author] += 1
 
         if trailer_re.search(body):
             has_trailers += 1
 
         # Extract scope
         scope = None
-        m = scope_re.match(subject.strip())
+        m = scope_re.match(subject)
         if m:
             scope = m.group(1)
 
         commits.append({
-            "sha": sha.strip(),
-            "subject": subject.strip(),
+            "sha": sha,
+            "subject": subject,
             "scope": scope,
-            "date": date.strip(),
-            "author": author.strip(),
+            "date": date,
+            "author": author,
         })
 
     return {

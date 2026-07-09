@@ -165,11 +165,23 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
     # commit message can never contain a raw NUL byte, so splitting on
     # \x00 has no forgeable equivalent. \x1f remains the FIELD separator
     # within a single record.
+    #
+    # Structural fix (issue #57 root-fix round, decision 0682e75): %s
+    # (subject) is last in the header, separated from %b (body) by %n
+    # (a real newline), not by \x1f. git guarantees %s never contains a
+    # literal newline, so the FIRST "\n" in a record reliably separates
+    # the header zone (sha\x1fsubject) from the body zone -- a stray
+    # \x1f embedded anywhere in the SUBJECT alone (no \x1e, no forged
+    # record) used to consume the maxsplit slot meant for the real
+    # subject/body boundary, gluing the discarded tail onto the FRONT of
+    # the real body and erasing the real trailer. Now any extra \x1f in
+    # the subject is simply absorbed into `subject` itself
+    # (header.split("\x1f", 1) below), never bleeding into `body`.
     git_args = [
         "log", "--all", "-z",
         "--extended-regexp",
         "--grep=" + _grep_pattern,
-        "--pretty=format:%h%s%b",
+        "--pretty=format:%h%s%n%b",
         "--",
     ]
 
@@ -191,16 +203,17 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         entry = entry.strip()
         if not entry:
             continue
-        # T1 (issue #57, Task 2b): maxsplit must equal the real separator
-        # count for this 3-field record (%h\x1f%s\x1f%b -- 2 separators).
-        # A maxsplit of 3 left a never-reached 4th slot, which let a stray
-        # \x1f inside `body` (the last, fully attacker-controlled field)
-        # steal the split before a real trailer line, truncating body and
-        # silently discarding the trailer.
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
+        # Structural fix (issue #57 root-fix round, decision 0682e75):
+        # the header zone (sha\x1fsubject) ends at the FIRST real "\n" --
+        # %n in the format string, never present inside %s itself. Split
+        # there first, THEN split the header on \x1f with maxsplit=1 so
+        # `subject` (last in the header) absorbs any stray \x1f embedded
+        # in it, instead of that byte stealing the split meant for the
+        # subject/body boundary.
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
-        body = parts[2]
         trailers = scan_trailers_memory(body)
         for key in _TOMBSTONE_KEYS:
             if key in trailers:
@@ -212,12 +225,12 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         entry = entry.strip()
         if not entry:
             continue
-        # T1 (issue #57, Task 2b): same maxsplit=2 fix as the tombstone
-        # pass above — see comment there.
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
+        # Same header/body split as the tombstone pass above — see comment there.
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
-        sha, subject, body = parts[0], parts[1], parts[2]
+        sha, subject = parts[0], parts[1]
         trailers = scan_trailers_memory(body)
 
         # SEC-CRIT-NEW-04 (issue #57, Task 2b, mirrored from

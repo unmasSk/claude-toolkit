@@ -89,16 +89,20 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
     # record -- already confirmed inert on its own (fixed maxsplit below
     # caps the field count).
     #
-    # T1 (issue #57, Task 2b): %b (the fully attacker-controlled body) is
-    # placed LAST in the format string, not %at. A stray \x1f embedded in
-    # the body can only ever bleed into the trailing, uncapped body field
-    # this way -- it can never displace %at, which now comes BEFORE body.
-    # (Previously %at trailed %b, so a stray \x1f in the body stole the
-    # split slot meant for the real epoch, corrupting `date` and
-    # truncating `body` before any real trailer line.)
+    # Structural fix (issue #57 root-fix round, decision 0682e75):
+    # structured fields FIRST (%h, %at -- never contain \x1f or a literal
+    # newline), then %s last-in-header, then %b after the first real "\n"
+    # (%n). Previously %s sat BEFORE %at, so a stray \x1f embedded in the
+    # SUBJECT alone (no \x1e, no forged record) stole the split slot
+    # meant for the real epoch, corrupting `date` to None and gluing the
+    # real trailer line onto a numeric fragment (never matching
+    # parse_trailers_full()'s line regex). Now any extra \x1f in the
+    # subject is absorbed into `subject` itself (header.split("\x1f", 2)
+    # below, subject is the last of the 3 header fields), never bleeding
+    # into `date` or `body`.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%s\x1f%at\x1f%b",
+        "--pretty=format:%h\x1f%at\x1f%s%n%b",
         "--",
     ])
 
@@ -107,25 +111,28 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
 
     commits = []
     for raw in output.split("\x00"):
-        # Field-displacement gotcha (issue #57, Task 2b, Dante): str.strip()
-        # treats \x1c-\x1f as whitespace. A commit with an EMPTY body (%b,
-        # now the last field) produces a raw record ending in a bare \x1f
-        # with nothing after it -- .strip() eats that trailing separator,
-        # so `parts` legitimately has only 3 elements (sha/subject/date)
-        # for a perfectly ordinary, real commit. Threshold is `< 3`, not
-        # `< 4`, and `body` is read defensively -- an empty/absent body is
-        # not malformed, it's just a commit with no trailers.
+        # Field-displacement gotcha (issue #57, Task 2b, Dante; still
+        # applies after the root-fix restructure): str.strip() treats
+        # \x1c-\x1f (and "\n") as whitespace. A commit with an EMPTY body
+        # produces a raw record ending in a bare "\n" (the %n separator)
+        # with nothing after it -- .strip() eats that trailing newline,
+        # so `raw.partition("\n")` finds no real newline and `body`
+        # legitimately comes back empty for a perfectly ordinary, real
+        # commit. `body` is read defensively either way -- an
+        # empty/absent body is not malformed, it's just a commit with no
+        # trailers.
         raw = raw.strip()
         if not raw:
             continue
-        parts = raw.split("\x1f", 3)
+        header, _, body = raw.partition("\n")
+        parts = header.split("\x1f", 2)
         if len(parts) < 3:
             continue
 
         sha = parts[0].strip()
-        subject = parts[1].strip()
-        date = parse_date(parts[2].strip())
-        body = parts[3].strip() if len(parts) > 3 else ""
+        date = parse_date(parts[1].strip())
+        subject = parts[2].strip()
+        body = body.strip()
         scope = parse_scope(subject)
 
         # Extract trailers from body
@@ -283,8 +290,16 @@ def find_stale_items(commits: list[dict[str, Any]], stale_days: int) -> list[dic
     # commit body). Covers H1 (Resolved-Next), H2 (Stale-Blocker), and H3
     # (Resolution, tagged as Resolved-Next above) uniformly since all three
     # paths funnel through this same `candidates` list before returning.
+    #
+    # Moriarty (issue #57 root-fix round, PART K): `evidence` is a SEPARATE
+    # field on the same candidate dict (built earlier from
+    # `c["sha"] + " " + c["subject"]` for H1's keyword-overlap matches --
+    # fully attacker-controlled commit subjects), never touched by the
+    # loop above. print_candidates() prints it verbatim to the terminal
+    # under "Evidence:" -- sanitize it here too, same choke point.
     for c in candidates:
         c["text"] = sanitize_trailer_value(c["text"])
+        c["evidence"] = [sanitize_trailer_value(e) for e in c.get("evidence", [])]
 
     return candidates
 

@@ -48,9 +48,20 @@ def extract_memory_from_log() -> dict[str, Any]:
     # impossible to type as an ordinary keystroke, but not immune to being
     # embedded programmatically, which is why the record boundary (not the
     # field separator) is the one that must resist forgery.
+    #
+    # Structural fix (issue #57 root-fix round, decision 0682e75): %s
+    # (subject) is last in the header, separated from %b (body) by %n (a
+    # real newline), not by \x1f. git guarantees %s never contains a
+    # literal newline, so the FIRST "\n" in a record reliably separates
+    # the header zone (sha\x1fsubject) from the body zone -- a stray
+    # \x1f embedded anywhere in the SUBJECT alone used to consume the
+    # maxsplit slot meant for the real subject/body boundary, erasing the
+    # real trailer entirely from stdout. Now any extra \x1f in the
+    # subject is absorbed into `subject` itself (header.split("\x1f", 1)
+    # below), never bleeding into `body`.
     code, output = run_git([
         "log", "-n", "30", "-z",
-        "--pretty=format:%h\x1f%s\x1f%b",
+        "--pretty=format:%h\x1f%s%n%b",
         "--",
     ])
 
@@ -70,10 +81,11 @@ def extract_memory_from_log() -> dict[str, Any]:
     # First pass: collect GC tombstones (Resolved-Next:, Stale-Blocker:)
     tombstones = set()
     for commit in commits:
-        parts = commit.strip().split("\x1f", 2)
-        if len(parts) < 3:
+        header, _, body = commit.strip().partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
-        body = parts[2].strip()
+        body = body.strip()
         trailers = scan_trailers_memory(body)
         for key in TOMBSTONE_KEYS:
             if key in trailers:
@@ -81,13 +93,14 @@ def extract_memory_from_log() -> dict[str, Any]:
 
     # Second pass: extract memory, skipping tombstoned items
     for commit in commits:
-        parts = commit.strip().split("\x1f", 2)
-        if len(parts) < 3:
+        header, _, body = commit.strip().partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
 
         sha = parts[0].strip()
         subject = parts[1].strip()
-        body = parts[2].strip() if len(parts) > 2 else ""
+        body = body.strip()
 
         # Strip emoji prefix before parsing type/scope
         cleaned = re.sub(r"^[^\w#]+", "", subject).strip()

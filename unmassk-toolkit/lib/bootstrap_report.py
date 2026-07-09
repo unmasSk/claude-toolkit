@@ -11,6 +11,8 @@ bootstrap_deps, bootstrap_commits) and returns/prints derived data.
 
 from typing import Any
 
+from parsing import sanitize_trailer_value
+
 
 # ── Classification ────────────────────────────────────────────────────────
 
@@ -140,7 +142,19 @@ def classify_findings(signals: list[dict[str, str]], pkg_info: dict[str, Any] | 
             num_authors = len(commits["authors"])
             if num_authors > 1:
                 authors_list = sorted(commits["authors"].items(), key=lambda x: -x[1])
-                top = ", ".join(f"{a} ({n})" for a, n in authors_list[:3])
+                # SEC-MED-15 (issue #57 root-fix round, Argus): author
+                # names (%an, git-memory-bootstrap.py's own commit
+                # history scan) are fully attacker-controlled and were
+                # never sanitized before landing in this "team" finding's
+                # `text` -- format_human() prints facts verbatim to a
+                # terminal, so a raw ANSI ESC byte in a hostile author
+                # name reached stdout unsanitized in human mode. --json
+                # mode was already safe (json.dumps() escapes it), so
+                # this sanitize-at-the-source fix is transparent there
+                # too (it further cleans an already-safe string).
+                top = ", ".join(
+                    f"{sanitize_trailer_value(a)} ({n})" for a, n in authors_list[:3]
+                )
                 findings.append({
                     "level": "fact",
                     "category": "team",

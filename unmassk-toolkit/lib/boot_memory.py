@@ -151,9 +151,19 @@ def extract_memory(ref: str = "HEAD") -> dict:
     # single record — already confirmed inert on its own (fixed maxsplit
     # below caps the field count, and \x1f can't start a new line for
     # scan_trailers_memory's line-based trailer regex either).
+    #
+    # Structural fix (issue #57 root-fix round, decision 0682e75):
+    # structured fields FIRST (%h, %at), then %s last-in-header, then %b
+    # after the first real "\n" (%n). The previous shape here (%b before
+    # %at, i.e. %b not last at all) was explicitly named in the decision
+    # commit as needing this same alignment: a stray \x1f embedded in the
+    # SUBJECT alone (no \x1e, no forged record) erased the real
+    # 'Decision:' trailer entirely (confirmed live). Now any extra \x1f
+    # in the subject is absorbed into `subject` itself (header.split
+    # ("\x1f", 2) below), never bleeding into `body`.
     code, log_output = run_git([
         "log", ref, "-z", f"-n{SCAN_DEPTH}",
-        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--pretty=format:%h\x1f%at\x1f%s%n%b",
         # SEC-CRIT-001 (Argus, defense-in-depth): trailing `--` — on top of
         # the leading-dash rejection above — so `ref` is never depended on
         # implicitly staying option-safe if this call site is ever changed.
@@ -182,10 +192,11 @@ def extract_memory(ref: str = "HEAD") -> dict:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 3)
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 2)
         if len(parts) < 3:
             continue
-        rc_trailers = scan_trailers(parts[2])
+        rc_trailers = scan_trailers(body)
         if "Retract-Crown" in rc_trailers:
             retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
 
@@ -201,14 +212,15 @@ def extract_memory(ref: str = "HEAD") -> dict:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 3)
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 2)
         if len(parts) < 3:
             continue
-        sha, subject, body = parts[0], parts[1], parts[2]
+        sha, ts_raw, subject = parts[0], parts[1], parts[2]
         ts = 0
-        if len(parts) >= 4:
+        if ts_raw.strip():
             try:
-                ts = int(parts[3].strip()) if parts[3].strip() else 0
+                ts = int(ts_raw.strip())
             except ValueError:
                 ts = 0
         trailers = scan_trailers(body)
@@ -363,7 +375,12 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
         # `--exclude` must precede the ref-selecting option (`--all`) it
         # applies to — documented git behavior.
         log_args.append(f"--exclude=refs/remotes/{exclude_remote}/*")
-    log_args += ["--all", "-n500", "--pretty=format:%h\x1f%s\x1f%b"]
+    # Structural fix (issue #57 root-fix round, decision 0682e75): %s
+    # last-in-header, %b after the first real "\n" (%n) — same alignment
+    # as extract_memory() above, closing the subject-vector displacement
+    # here too (a stray \x1f in the subject alone used to erase the real
+    # Decision:/Memo: entirely from the glossary).
+    log_args += ["--all", "-n500", "--pretty=format:%h\x1f%s%n%b"]
 
     # SEC-CRIT-NEW-01: same NUL-separated record boundary fix as
     # extract_memory() above — see the comment there for why -z closes the
@@ -389,10 +406,11 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
-        rc_trailers = scan_trailers(parts[2])
+        rc_trailers = scan_trailers(body)
         if "Retract-Crown" in rc_trailers:
             retracted_crowns.add(rc_trailers["Retract-Crown"].strip())
 
@@ -405,10 +423,11 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
         entry = entry.strip()
         if not entry:
             continue
-        parts = entry.split("\x1f", 2)
-        if len(parts) < 3:
+        header, _, body = entry.partition("\n")
+        parts = header.split("\x1f", 1)
+        if len(parts) < 2:
             continue
-        sha, subject, body = parts[0], parts[1], parts[2]
+        sha, subject = parts[0], parts[1]
         trailers = scan_trailers(body)
         # SEC-CRIT-NEW-04: same untrusted-scope sanitization as extract_memory()
         scope = _sanitize_trailer_value(parse_scope(subject) or "")

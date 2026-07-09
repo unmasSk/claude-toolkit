@@ -108,9 +108,36 @@ def scan_trailers_memory(body: str) -> dict[str, str]:
     at the end breaks bottom-up parsing.
 
     Returns first occurrence of each memory key found.
+
+    Splits on a literal "\n" only (NOT str.splitlines()) — issue #57
+    root-fix round (decision 0682e75, Argus SEC-CRIT-14, bullet C):
+    splitlines() also treats \x1c/\x1d/\x1e (plus \r/\v/\f/U+2028/U+2029/
+    etc) as line boundaries. A real trailer line immediately followed by
+    one of those bytes (no real newline) would masquerade as a second,
+    independent line from the SAME commit body, letting it forge an
+    extra trailer of a different key or a phantom Resolved-<Key>
+    tombstone line that erases a real, active entry. Only a genuine "\n"
+    is a real line break for git commit body text. parse_trailers()/
+    parse_trailers_full() in this same file already use split("\n") —
+    this aligns scan_trailers_memory() with them.
+
+    Within each real "\n"-delimited line, the value is additionally
+    truncated at the first \x1c/\x1d/\x1e byte (issue #57 root-fix round,
+    Dante's live repro): a real trailer immediately followed by one of
+    these bytes with no real newline is one physical line, so whatever
+    comes after the byte is NOT scanned as its own trailer (that would
+    reopen the forgery this function exists to close) -- but it also
+    must not survive glued onto the real value, or the forged text
+    (e.g. a fake "Memo: ..." key) would still reach LLM-facing output
+    verbatim as part of the real trailer's own text. Discarding it
+    outright is the only shape that satisfies both invariants at once.
     """
     found: dict[str, str] = {}
-    for line in body.splitlines():
+    for line in body.split("\n"):
+        for ctrl in ("\x1c", "\x1d", "\x1e"):
+            idx = line.find(ctrl)
+            if idx != -1:
+                line = line[:idx]
         match = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line.strip())
         if match:
             key, value = match.group(1), match.group(2).strip()
@@ -159,11 +186,18 @@ def sanitize_trailer_value(text: str) -> str:
     - DEL byte (\\x7f) — issue #57 Task 2b (Moriarty gap): the same
       class of terminal control-byte injection as \\x1b, just a
       different byte.
+    - File/Group/Record/Unit separators (\\x1c, \\x1d, \\x1e) — issue #57
+      root-fix round (decision 0682e75, Argus/Moriarty bullet D): without
+      these, a control byte interleaved INSIDE the </memory-data> fence
+      marker (e.g. </memory-data\\x1e>) broke the exact-substring match
+      below and let the whole marker survive intact. Stripping these
+      bytes FIRST (before the fence-marker substring removal) closes that
+      evasion for any of the three bytes, in any position.
     - HTML comment markers (<!-- and -->)
     - memory-data zone delimiters (<memory-data> / </memory-data>,
       case-insensitive)
     """
-    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x7f]", " ", text)
+    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x1c\x1d\x1e\x7f]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
     text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
     return text.strip()

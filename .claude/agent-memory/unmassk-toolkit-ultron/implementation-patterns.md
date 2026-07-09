@@ -802,3 +802,52 @@ Logic: if path ≤ maxLen return as-is; otherwise slice the last maxLen chars, f
 that slice (if any) to cut at a clean segment boundary, prepend `…` (U+2026).
 Applied only to `file_path` and `path` branches — `pattern` and `command` branches untouched.
 Golden tests use short paths (< 60 chars) so they pass through unchanged — no test updates needed.
+
+## git log robust field parsing: structured-first + %n subject/body split (issue #57 root-fix round, decision 0682e75, 2026-07-09)
+
+Reusable pattern for ANY future site that parses `git log --pretty=format:...` output in
+unmassk-toolkit — a stray `\x1f` (field separator) embedded in a fully attacker-controlled
+free-text field (commit SUBJECT or BODY) used to desync every field parsed after it via
+plain `str.split("\x1f", maxsplit)`. Reordering `%b` to be last (an earlier round's fix)
+only protects ONE free-text field — `%s` (subject) is equally attacker-controlled and, at
+every site, still sat before at least one other structured field.
+
+**The fix**: put every structured field (`%h` sha, `%at` epoch, `%aI` ISO date — none of
+these can ever contain `\x1f` or a real newline) FIRST in the format string, then `%s`
+LAST in the header, separated from `%b` by `%n` (a real newline) — NOT by `\x1f`. Git
+guarantees `%s` never contains a literal newline, so the first real `"\n"` in a record
+always reliably separates the header zone from the body zone.
+
+Parse as: `header, _, body = record.partition("\n")` then `parts = header.split("\x1f", k)`
+where `k` = (number of structured fields). Subject is `parts[-1]` and absorbs any stray
+`\x1f` inside it harmlessly (maxsplit caps the split count, so overflow stays glued to the
+last piece) — it can never bleed into a structured field or into `body`.
+
+**Two free-text fields at one site (e.g. `bootstrap_commits.py`'s subject+author)**: only
+ONE free-text field can be "last in the header" per git log call. Don't try to reorder your
+way out of it — use TWO separate `git log` calls, each shaped so its own single free-text
+field is the last (and only, in the author-only call) thing split on, then correlate by
+sha. Confirmed acceptable per Bex's decision (`0682e75`) when a single-call structural fix
+isn't possible.
+
+**scan_trailers_memory() control-byte gotcha (`lib/parsing.py`)**: `str.splitlines()`
+treats `\x1c`/`\x1d`/`\x1e` (plus `\r`/`\v`/`\f`/U+2028/U+2029/etc) as line boundaries —
+`split("\n")` does not. But merely switching to `split("\n")` isn't enough: a real trailer
+line immediately followed by one of those bytes (no real `\n`) is then ONE physical line,
+and the greedy `.+` value-capture regex glues whatever comes after the byte onto the real
+trailer's value verbatim — including a forged `"Memo: ..."` marker, which still reaches
+LLM-facing/stdout output as a substring even though no separate trailer got created. Fix:
+truncate each real line at the first `\x1c`/`\x1d`/`\x1e` BEFORE regex-matching it, so the
+tail is discarded outright rather than either (a) forged as an independent trailer or
+(b) glued onto the real value.
+
+**sanitize_trailer_value() fence evasion**: it strips an exact `</memory-data>` substring;
+a control byte interleaved inside the marker (`</memory-data\x1e>`) broke the exact match
+and let the whole marker survive. Fix: strip `\x1c`/`\x1d`/`\x1e` (added to the existing
+`\r\n\x0b\x0c\x1b\x7f`/U+2028/U+2029 char class) BEFORE the marker-removal regex runs, not
+after.
+
+Sites fixed this round: `lib/recall.py:_scan_commits()`, `bin/git-memory-gc.py:scan_commits()`,
+`bin/git-memory-doctor.py:check_hook_execution()` + `check_gc_status()` (2 loops),
+`lib/bootstrap_commits.py:scan_recent_commits()` (2-call split), `hooks/precompact-snapshot.py:
+extract_memory_from_log()`, `lib/boot_memory.py:extract_memory()` + `extract_glossary()`.
