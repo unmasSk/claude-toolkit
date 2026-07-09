@@ -130,6 +130,32 @@ def _looks_like_hardlink_rejection_message(exc: OSError) -> bool:
     return "hard" in msg and "link" in msg
 
 
+def _make_hardlinked_triple(tmp_path, name_prefix, content="original content — hard-link contract\n"):
+    """Like _make_hardlinked_pair() but creates a SECOND additional hard
+    link (three directory entries total for the same inode, st_nlink==3)
+    -- Cerberus nitpick #6: proves the `st_nlink > 1` check generalizes
+    past the minimal st_nlink==2 case every other test in this file
+    exercises, rather than being an accidental `== 2` check in disguise.
+
+    Returns (primary_path, sibling_path, sibling2_path, nlink_before) where
+    nlink_before is read back via a real os.stat() call on the file this
+    call just linked twice -- never hardcoded to a literal "3".
+    """
+    primary = tmp_path / f"{name_prefix}-primary.txt"
+    sibling = tmp_path / f"{name_prefix}-sibling.txt"
+    sibling2 = tmp_path / f"{name_prefix}-sibling2.txt"
+    primary.write_text(content, encoding="utf-8")
+    os.link(str(primary), str(sibling))
+    os.link(str(primary), str(sibling2))
+    nlink_before = os.stat(str(primary)).st_nlink
+    assert not os.path.islink(str(primary)), (
+        "sanity check: a hard link must never be reported as a symlink by "
+        "os.path.islink() -- if this fails, the fixture itself is wrong, "
+        "not the code under test"
+    )
+    return str(primary), str(sibling), str(sibling2), nlink_before
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Case 1 — reject_hardlinks=True rejects a file with st_nlink > 1 (RED now)
 # ══════════════════════════════════════════════════════════════════════════
@@ -145,7 +171,7 @@ class TestRejectHardlinksTrueRejectsMultilinkFile:
     Ultron implements the parameter and the fstat(fd).st_nlink check.
     """
 
-    @pytest.mark.parametrize("mode", ["r", "w"])
+    @pytest.mark.parametrize("mode", ["r", "w", "a"])
     @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
     def test_multilink_file_raises_oserror_with_reject_hardlinks_true(
         self, tmp_path, target_open, mode
@@ -175,6 +201,56 @@ class TestRejectHardlinksTrueRejectsMultilinkFile:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Case 1b — reject_hardlinks=True rejects st_nlink == 3, not just == 2
+# (Cerberus nitpick #6 -- GUARD, expected GREEN once Case 1 is GREEN)
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.usefixtures("real_hardlink_capable")
+class TestRejectHardlinksTrueRejectsTripleLinkFile:
+    """Contract extension (Cerberus nitpick #6): the `st_nlink > 1` check
+    must reject a file with st_nlink == 3 (three real hard links to the
+    same inode), not only the minimal st_nlink == 2 case Case 1 above
+    exercises -- the check is a strict inequality, not an equality, so
+    this proves it generalizes.
+
+    The reject_hardlinks parameter and its fstat(fd).st_nlink check are
+    already implemented in both twins (issue #53 base contract landed) --
+    this is a GREEN regression-style guard, not a new RED contract.
+    """
+
+    @pytest.mark.parametrize("mode", ["r", "w", "a"])
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_triple_link_file_raises_oserror_with_reject_hardlinks_true(
+        self, tmp_path, target_open, mode
+    ):
+        primary, sibling, sibling2, nlink_before = _make_hardlinked_triple(
+            tmp_path, f"reject-true-triple-{mode}"
+        )
+        assert nlink_before == 3, (
+            f"fixture setup invariant broken: expected st_nlink==3 after two "
+            f"real os.link() calls, got {nlink_before}"
+        )
+
+        with pytest.raises(OSError) as exc_info:
+            target_open(primary, mode, reject_hardlinks=True)
+
+        assert _looks_like_hardlink_rejection_message(exc_info.value), (
+            f"OSError raised but its message doesn't mention hard links -- "
+            f"got: {exc_info.value!r}. This must be rejected FOR the "
+            f"nlink>1 reason, not some other coincidental OSError."
+        )
+        # Independent-channel content check via BOTH sibling paths (different
+        # filenames, same inode) using a plain, unguarded open() -- proves
+        # the rejected call never truncated the shared inode's content, even
+        # for mode="w", and even with a third link in play.
+        with open(sibling, "r", encoding="utf-8") as f:
+            assert f.read() == "original content — hard-link contract\n"
+        with open(sibling2, "r", encoding="utf-8") as f:
+            assert f.read() == "original content — hard-link contract\n"
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Case 2 — reject_hardlinks=True allows a normal (st_nlink == 1) file (RED now)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -187,7 +263,7 @@ class TestRejectHardlinksTrueAllowsSingleLinkFile:
     RED now: same TypeError-on-unknown-kwarg reason as Case 1.
     """
 
-    @pytest.mark.parametrize("mode", ["r", "w"])
+    @pytest.mark.parametrize("mode", ["r", "w", "a"])
     @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
     def test_single_link_file_opens_and_round_trips_with_reject_hardlinks_true(
         self, tmp_path, target_open, mode
@@ -234,7 +310,7 @@ class TestRejectHardlinksExplicitFalseAllowsMultilinkFile:
     guard logic runs).
     """
 
-    @pytest.mark.parametrize("mode", ["r", "w"])
+    @pytest.mark.parametrize("mode", ["r", "w", "a"])
     @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
     def test_multilink_file_opens_with_reject_hardlinks_explicit_false(
         self, tmp_path, target_open, mode
@@ -276,7 +352,7 @@ class TestRejectHardlinksParamOmittedPreservesCurrentBehavior:
     behavior for every existing call site -- a regression, not a feature.
     """
 
-    @pytest.mark.parametrize("mode", ["r", "w"])
+    @pytest.mark.parametrize("mode", ["r", "w", "a"])
     @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
     def test_multilink_file_opens_when_parameter_is_never_passed(
         self, tmp_path, target_open, mode

@@ -68,8 +68,11 @@ _symlink_safe_open.py themselves, only 3 call-site kwargs).
 NO production code is touched by this file. Only tests.
 """
 
+import datetime as _datetime_module
+import importlib.util
 import json
 import os
+import re
 
 import pytest
 
@@ -240,5 +243,120 @@ class TestSecHigh001DoctorManifestHardlinkWrite:
             "shared inode's content. "
             f"doctor rc={rc}\nstdout (first 500): {stdout[:500]}\n"
             f"stderr (first 500): {stderr[:500]}\n"
+            f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SEC-HIGH-001-VARIANT-01 site 4 — bin/git-memory-upgrade.py:195
+# create_backup(), invoked from main() before apply_upgrade() (RED now)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Argus follow-up finding, same class as SEC-HIGH-001 above but a DIFFERENT
+# call site: create_backup() writes .claude/backups/manifest-v{version}-
+# {timestamp}.json via open_no_follow_symlink(backup_path, "w") with NO
+# reject_hardlinks argument at all (bin/git-memory-upgrade.py:195). The path
+# is toolkit-generated only (never a legitimate user file), same
+# no-false-positive-risk reasoning as the 3 manifest.json sites above -- it
+# was simply missed when reject_hardlinks=True was applied to apply_upgrade()'s
+# OWN manifest.json write a few lines below in the same file (line 362,
+# already GREEN, see conftest/test_hardlink_reject_guard.py base contract).
+#
+# Unlike the 3 sites above (fixed filename, exercised end-to-end via the
+# real CLI), this backup filename embeds a live datetime.now() (second
+# precision) that this test process cannot predict without controlling
+# time. So this test freezes upgrade.datetime to a fixed value (a real
+# datetime.datetime subclass, not a mock of the guard itself) and calls
+# create_backup() directly -- this reproduces exactly what main() --auto
+# does at this call site (see main(): `backup_path = create_backup(target,
+# manifest)`, called unconditionally before apply_upgrade()), just without
+# the surrounding CLI/confirmation-prompt plumbing that isn't needed to
+# reach this specific write. The predicted backup_path is derived by
+# calling the SAME sanitize_trailer_value()/re.sub() the production module
+# itself imports and uses (never hand-typed), against a version string this
+# test also controls -- not a fabricated expectation.
+
+
+def _load_upgrade_module():
+    """Load bin/git-memory-upgrade.py as an importable module (hyphenated
+    filename, same importlib pattern as every other bin/ script in this
+    suite -- see conftest.py / test_crown.py)."""
+    spec = importlib.util.spec_from_file_location("upgrade_variant01", UPGRADE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.mark.usefixtures("real_hardlink_capable")
+class TestSecHigh001Variant01UpgradeBackupHardlinkWrite:
+    """create_backup() must not write through a hard link planted at its
+    own computed backup_path -- the 4th unprotected call site of the same
+    manifest-write bypass class (SEC-HIGH-001-VARIANT-01)."""
+
+    def test_create_backup_does_not_write_through_hardlinked_backup_path(self, tmp_path):
+        target = str(tmp_path / "target")
+        os.makedirs(target)
+
+        mod = _load_upgrade_module()
+
+        class _FrozenDatetime(_datetime_module.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 7, 9, 12, 0, 0)
+
+        # create_backup() calls datetime.now() via the module-level `from
+        # datetime import datetime` binding -- patch that bound name so the
+        # timestamp component of backup_path is deterministic and known to
+        # this test BEFORE calling create_backup(), without touching the
+        # symlink/hard-link guard itself.
+        mod.datetime = _FrozenDatetime
+
+        manifest = {"version": "1.0.0"}
+        # Same algorithm create_backup() itself runs (reusing the real,
+        # already-imported sanitize_trailer_value -- not reimplemented here)
+        # so the predicted path is derived, never hand-typed.
+        safe_version = re.sub(r"[\\/]+", "_", mod.sanitize_trailer_value(str(manifest["version"])))
+        timestamp = _FrozenDatetime.now().strftime("%Y%m%d_%H%M%S")
+        expected_backup_path = os.path.join(
+            target, ".claude", "backups", f"manifest-v{safe_version}-{timestamp}.json"
+        )
+
+        victim = tmp_path / "victim-backup-hardlink.json"
+        original_content = "SENSITIVE ORIGINAL CONTENT - BACKUP HARDLINK"
+        victim.write_text(original_content, encoding="utf-8")
+
+        os.makedirs(os.path.dirname(expected_backup_path), exist_ok=True)
+        os.link(str(victim), expected_backup_path)
+        nlink_before = os.stat(str(victim)).st_nlink
+        assert nlink_before > 1, (
+            f"fixture setup invariant broken: expected st_nlink>1 after a "
+            f"real os.link(), got {nlink_before}"
+        )
+
+        returned_path = None
+        raised = None
+        try:
+            returned_path = mod.create_backup(target, manifest)
+        except Exception as e:
+            raised = e
+
+        assert returned_path == expected_backup_path or raised is not None, (
+            "sanity check: create_backup() must either return the exact "
+            f"path this test pre-planted a hard link at, or raise -- got "
+            f"path={returned_path!r} raised={raised!r}. If this fails, this "
+            "test's own path prediction (frozen datetime + "
+            "sanitize_trailer_value) has drifted from create_backup()'s "
+            "real algorithm and the test proves nothing about the guard."
+        )
+
+        assert victim.read_text(encoding="utf-8") == original_content, (
+            "SEC-HIGH-001-VARIANT-01: create_backup() "
+            "(bin/git-memory-upgrade.py:195) wrote through a hard link "
+            "planted at the backup path and clobbered the shared inode's "
+            "content -- the same bypass class already closed for the 3 "
+            "manifest.json call sites above, left unprotected at this 4th "
+            "call site because open_no_follow_symlink(backup_path, \"w\") "
+            "there is called WITHOUT reject_hardlinks=True. "
+            f"create_backup() raised: {raised!r}\n"
             f"victim content is now: {victim.read_text(encoding='utf-8')!r}"
         )
