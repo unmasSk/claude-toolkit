@@ -67,6 +67,39 @@ for the general repo pytest conventions (TWIN_FUNCS pattern,
 `real_symlink_capable`/skip-guard discipline this file's
 `real_hardlink_capable` mirrors).
 
+**SEC-HIGH-001 extension (2026-07-09, Argus barrido after the base F6
+contract shipped):** the opt-in param itself was fully implemented and
+wired into 3 call sites (boot_glossary_cache.py x2, user-prompt-memory-
+check.py's booted flag, session-start-boot.py's boot log) but left
+UNAPPLIED at 3 more call sites that all write the SAME fixed,
+toolkit-only path `.claude/.unmassk/manifest.json` (never a legitimate
+user file, so no false-positive risk there unlike CLAUDE.md/settings.json/
+package.json/.gitignore/scopes — those correctly stay reject_hardlinks=
+False by design): `lib/install_apply.py:276` (`_create_manifest()`),
+`bin/git-memory-doctor.py:517` (healthcheck write-back), `bin/git-memory-
+upgrade.py:362` (`apply_upgrade()`). New contract file:
+`unmassk-toolkit/tests/test_manifest_hardlink_reject.py` — 3
+behavior-level end-to-end tests (one per call site), each running the real
+CLI (`run_script(INSTALL/UPGRADE/DOCTOR, ...)`) against a manifest.json
+path that is a REAL `os.link()` hard link to a victim file, mirroring
+`test_security_regression.py`'s existing BUG D (install/upgrade symlink
+write) and BUG F (doctor symlink read+write) tests but swapping
+`os.symlink()` for `os.link()`. All 3 confirmed RED live
+(2026-07-09): the victim's real content gets silently overwritten by the
+manifest write in every case (grepped each failure — all three fail
+because `victim.read_text() != original content`, the correct reason, not
+a setup error). Zero regression confirmed: `test_hardlink_reject_guard.py`
++ `test_crossplatform_symlink_guard.py` (32 passed/4 skipped) and
+`test_security_regression.py` full file (19 passed/60 skipped, the skips
+are `real_symlink_capable` unavailable in this sandboxed bash — pre-existing,
+unrelated) both stayed green, plus a broad `-k "install or upgrade or
+doctor or manifest"` sweep (64 passed/41 skipped, only the 3 new tests
+red). **Lesson confirmed again:** unlike `os.symlink()`, `os.link()` needs
+no privilege in this exact sandboxed bash tool environment either — the
+`real_hardlink_capable` fixture never skipped for these 3 new tests, while
+sibling `real_symlink_capable`-gated tests in the same run did skip. Don't
+assume "skipped in this shell" applies uniformly to both fixtures.
+
 **Post-implementation ripple, fixed 2026-07-09:** once Ultron wired
 `write_boot_log()` to actually pass `reject_hardlinks=True` at its real
 call site, two UNRELATED tests in `test_boot_output.py`

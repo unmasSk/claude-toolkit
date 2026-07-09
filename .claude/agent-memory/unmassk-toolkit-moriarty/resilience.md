@@ -334,3 +334,33 @@
   input produces a naive return value, which is what makes the fix's `datetime.now(timezone.utc)`
   comparison genuinely crash-proof (see attack-patterns.md for the confirmed OLD-code crash this
   replaces).
+
+## F6 hard-link reject guard (issue #53) — held under real adversarial pressure (2026-07-09)
+
+`open_no_follow_symlink(..., reject_hardlinks=True)` and its fallback twin, both on the real
+Windows branch (`_open_no_follow_symlink_windows`). 8 real PoCs, 0 breaks:
+
+- Monkeypatch-injected TOCTOU race (attacker's `os.link()` fired exactly inside the
+  `os.path.exists()` → `os.open()` window on a brand-new path) still gets caught: the
+  `os.fstat(fd).st_nlink > 1` check is unconditional post-open, independent of the
+  already-documented-and-accepted F5 new-file-race residual. `os.link()` to an existing file
+  always yields `st_nlink >= 2`, so the nlink check catches it regardless of race timing.
+- Real 500-iteration multi-threaded race (background thread hammering `os.link()` against the
+  main thread's open loop, no mocking/injection) — 0 bypasses, victim content untouched.
+- §34 end-to-end sabotage against all 3 real production call sites (`write_boot_log()`,
+  `_write_glossary_cache()`, `_read_glossary_cache()`), independent-channel verification via
+  `certutil -hashfile` (never python's own `open()`) — deferred-truncate correctly preserves the
+  shared inode's content on rejection every time; no fallback-to-plain-open() anywhere in the
+  `except OSError` handling at any of the 3 sites.
+- 2000-iteration hammering of the rejection path — handle count verified via independent
+  PowerShell `Get-Process ... HandleCount` — delta 0.
+- `mode="a"` + `reject_hardlinks=True` (edge case NOT covered by the existing contract test file,
+  which only parametrizes r/w) — the POSIX branch's `if mode=="a" / elif reject_hardlinks` order
+  does not skip the nlink check for append mode; correctly rejected on both twins.
+- `st_nlink=3` (two extra links, not just one) — `>1` threshold generalizes, twin parity holds.
+
+Non-bug observation (not a break, logged for context): `user-prompt-memory-check.py`'s
+booted_flag call site never reaches the guarded open at all when a hard link is pre-planted
+before first boot (`os.path.isfile()` short-circuits `if not session_booted:` first) — safer
+than reaching the guard, not weaker (confirmed via certutil: no open() call touches the
+attacker's link that session).

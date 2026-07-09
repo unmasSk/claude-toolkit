@@ -5,6 +5,43 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
+Target: F6 hard-link bypass rejection, issue #53 -- lib/git_helpers.py:open_no_follow_symlink()
+and lib/_symlink_safe_open.py:open_no_follow_symlink_fallback() (twins), new opt-in
+`reject_hardlinks=True` param + st_nlink>1 post-open fstat(fd) check, wired into 3 real call
+sites: boot_glossary_cache.py read+write, session-start-boot.py write_boot_log(),
+user-prompt-memory-check.py booted_flag write. Real Windows machine (the branch that actually
+runs in prod here), real os.link() hard links throughout, no mocking.
+Verdict: AGUANTA -- 8 distinct real PoCs, 0 breaks. (1) TOCTOU race simulation (monkeypatched
+os.path.exists to inject the attacker's os.link() at the exact production checkpoint, Windows
+new-file branch) confirmed the nlink check is unconditional post-open regardless of the
+documented-accepted F5 residual -- even a brand-new-path race cannot bypass F6, because
+os.link() to an existing file always produces nlink>=2 and the check fires on the already-open
+fd regardless of timing. (2) Real 500-iteration multi-threaded concurrent race (background
+thread hammering os.link() against the main thread's open loop, not simulated) produced 0
+bypasses. (3) End-to-end sabotage (§34, real hard link pre-planted at the exact runtime path,
+independent-channel verification via `certutil -hashfile` subprocess, never python's own open())
+against all 3 real production entry points -- write_boot_log(), _write_glossary_cache(),
+_read_glossary_cache() -- confirmed deferred-truncate correctly preserves the shared inode's
+content on rejection, on both read and write paths, with zero fallback-to-plain-open() anywhere
+in the exception handling (`except OSError: pass` swallows cleanly, no unsafe fallback exists).
+(4) 2000-iteration hammering of the rejection path, handle count verified via independent
+PowerShell `Get-Process ... HandleCount` query (not python's own fd tracking) -- delta 0, no
+leak. (5) mode="a" + reject_hardlinks=True (NOT covered by the existing contract test file,
+which only parametrizes r/w) -- confirmed the if/elif flag-building order on the POSIX branch
+does not skip the nlink check for append mode; rejected correctly on both twins, sibling content
+unchanged. (6) nlink=3 (not just 2) -- '>1' threshold generalizes correctly, twin parity holds.
+One notable non-bug observation: user-prompt-memory-check.py's booted_flag call site never even
+reaches the reject_hardlinks-guarded open when a hard link is PRE-planted before first boot --
+`os.path.isfile(booted_flag)` short-circuits `if not session_booted:` first, so the guard is
+literally unreachable in that specific scenario -- but this is SAFER, not weaker (no open() call
+happens on the attacker's link at all this session, confirmed via certutil hash unchanged).
+Attacked 8/8 identified vectors across BREAK/REGRESSION/STRESS/RACE phases (EXPLOIT/ABUSE/
+DECEPTION phases: no viable distinct vector beyond what BREAK/REGRESSION already covered for
+this specific, narrow feature -- logged as N/A with reasoning, not skipped silently). See
+attack-patterns.md is NOT updated this round (nothing broke); see resilience.md for the full
+per-vector detail.
+
+## Previous attack
 Target: issue #55 date-parsing migration (%aI+fromisoformat -> %at epoch, lib/date_parsing.py
 centralization) -- dedicated adversarial round requested by Yoda after 106/110, diff 0ff8bfe..HEAD
 -- bin/git-memory-gc.py, bin/git-memory-doctor.py, lib/bootstrap_commits.py, lib/date_parsing.py.
