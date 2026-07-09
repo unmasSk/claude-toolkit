@@ -1035,3 +1035,64 @@ setup: `generated_at` must be a FRESH timestamp
 (`datetime.now(timezone.utc).isoformat()`), or the pre-existing
 `GLOSSARY_CACHE_TTL` (86400s) staleness check fires first and masks
 whichever origin_sha behavior the test actually meant to isolate.
+
+## Control-byte record forgery, generalized to 8 sibling sites (issue #57) — forged payload field count must be N-1, not N, or it corrupts instead of forging cleanly
+
+Extends the single-module note above (`extract_memory()`/`extract_glossary()`,
+SEC-CRIT-NEW-01) to 8 more `git log --pretty=format:...%x1f...%x1e` call
+sites Bilbo inventoried across the repo, each independently vulnerable to
+the same "a commit body containing the same \x1e/\x1f bytes forges a fake
+record" bug. 6 are full-forgery (record boundary itself forgeable):
+`bin/git-memory-gc.py:scan_commits()`,
+`bin/git-memory-doctor.py:check_hook_execution()` /
+`check_gc_status()` (one git call, two independently-attackable loops —
+stale-blocker collection AND Stale-Blocker-tombstone collection; a forged
+tombstone can illegitimately SUPPRESS a real, unrelated stale blocker, not
+just fabricate a new one), `lib/recall.py:_scan_commits()` (highest blast
+radius — feeds LLM context via UserPromptSubmit/PreToolUse),
+`lib/bootstrap_commits.py:scan_recent_commits()`,
+`hooks/precompact-snapshot.py:extract_memory_from_log()` (also LLM-facing,
+printed to stdout after PreCompact). Confirmed all 6 live via real
+`git commit --allow-empty`, 2026-07-09. Contract file:
+`unmassk-toolkit/tests/test_control_byte_injection.py`.
+
+**Non-obvious construction gotcha — the forged payload must embed exactly
+(real-field-count − 1) separators, not more:** each site's `str.split(sep,
+maxsplit=K)` produces `K+1` parts. When a hostile record has *one embedded
+`\x1e`* splitting the raw output into two chunks, the SECOND chunk (the
+forged one) inherits whatever real trailing field the actual commit's
+format string emits last (its real `%at`/`%aI` timestamp) — but only if
+the forged payload's own field count leaves exactly one slot free for that
+real trailing field. Adding one extra fake field (e.g. a bogus epoch
+string) beyond that budget shoves the real trailing field into an already-
+full last part, producing garbled concatenated text (`"9999999999\n\x1f
+1774980550"`) instead of a clean forgery — confirmed empirically: adding a
+4th fake field after `Blocker: <text>` in a 4-field format broke the
+forged stale-blocker reproduction entirely (`check_gc_status()` returned
+zero stale blockers, not the expected forged one) until the extra field
+was removed, at which point the forged record cleanly inherited the real
+backdated commit's own `%at` (giving the forged entry a fully plausible
+`age_days: 100`). When constructing a forgery PoC/test for any N-field
+`%x1f`-delimited format, use exactly N-1 embedded `\x1f` in the payload
+(fakesha + fake-subject + fake-trailer-text, nothing more for a 4-field
+format) — verify live with a scratch probe before trusting the reasoning,
+the off-by-one is easy to get wrong by pure inspection.
+
+**2 sibling sites are ALREADY SAFE by construction, no fix needed —
+confirmed, not assumed:** `lib/boot_git_checks.py:get_timeline()` /
+`get_last_context_time()` have NO `%x1e` in their format at all (one
+commit per output line, `%h\x1f%s\x1f%at`, split with `maxsplit=2`), so no
+record can ever be forged. A raw `\x1f` embedded in the (fully attacker-
+controlled) commit subject can only shift where the subject/date field
+boundary falls — but `split(sep, maxsplit=2)` always leaves the git
+format's own real pre-date `\x1f` un-consumed and literally embedded in
+the resulting date_str (since the subject's injected separator is
+consumed as the "2nd split", the real one is never reached), and
+`time_ago()`'s `str.isdigit()` + ISO-8601-fallback guards both fail to
+parse a string containing a leftover control byte — the result always
+degrades to `"unknown"`, never a forged/attacker-chosen date. Verified
+live with `git commit -m "feat(x): AAA\x1f9999999999"` → `get_timeline()`
+entry ends `"| unknown"`, `get_last_context_time()` on an equivalent
+`context(...)` subject → returns `"unknown"` (not `None`, not the forged
+epoch). Written as `[GUARD]` tests, not `[ROJO]` — see
+conventions.md's "mixed RED/GUARD is expected" note.

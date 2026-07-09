@@ -23,7 +23,7 @@ type: project
 
 | Path | Type | Status |
 |------|------|--------|
-| `CHANGELOG.md` (root) | Changelog | Audited 2026-07-07 — [Unreleased] entry added for issue #49 (multi-machine boot memory freshness) + 2 same-day fixes (time_ago OverflowError, schtasks cross-ref doc note). Latest released: [1.16.1]. |
+| `CHANGELOG.md` (root) | Changelog | Audited 2026-07-09 — [Unreleased] entries added for issue #55 (date parsing robustness: new `lib/date_parsing.py` module + 3 Fixed bullets covering the `%aI`→`%at` degradation, shared input-hardening, and doctor.py's `gc_date_unparseable`/negative-clamp with the accepted overflow-date residual folded in). Latest released: [1.17.0] (already includes #49). |
 | `chatroom/CHANGELOG.md` | Changelog | Audited 2026-03-24 — [Unreleased] Removed section corrected (V2 files all deleted) |
 | `README.md` (root) | Project readme | Updated 2026-07-07 — Memory row in "What's inside" table gained one clause on multi-machine freshness (boot proposes pull when behind) |
 | `chatroom/README.md` | Project readme | Updated 2026-03-24 — test count corrected 535+ → 1200+ |

@@ -8,7 +8,7 @@ unmassk-toolkit is a Claude Code plugin monorepo providing persistent memory, 10
 
 - Author: unmasSk
 - License: MIT
-- Current version: 1.16.1 (source of truth: unmassk-toolkit/.claude-plugin/plugin.json) — verified 2026-07-07, released. [Unreleased] now holds issue #49 (multi-machine boot memory freshness), GO from Yoda at 107/110, squash/release still pending.
+- Current version: 1.17.0 (source of truth: unmassk-toolkit/.claude-plugin/plugin.json) — verified 2026-07-09, released (already includes issue #49, multi-machine boot memory freshness). [Unreleased] now holds issue #55 (date-parsing robustness: `%aI`→`%at` migration, new `lib/date_parsing.py`), commits still wip/unsquashed.
 - Core language: Python (lib/, bin/) for git-memory; TypeScript/Bun for chatroom
 - Distribution: Claude Code plugin marketplace (marketplace.json at repo root)
 - Commit convention: conventional commits with emojis (feat, fix, refactor, etc.)
