@@ -11,14 +11,14 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 **Frente: deuda técnica del toolkit** (acordado 2026-07-07, en este orden):
 
-1. Higiene de tests en Windows — skip-guard de symlink + import de test_release (#50)
-2. CI en GitHub Actions con Windows — canal legible para verificar la suite (#51)
-3. UnicodeEncodeError con surrogate en el write-path, T3 (#52)
-4. F6: cierre del bypass por hard-link, diseño de Argus ya hecho — con review dedicado (#53)
+1. F6: cierre del bypass por hard-link, diseño de Argus ya hecho — con review dedicado (#53)
+
+_Cerrados de este frente: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52) y unificación de fechas a %at (#55). Viven en CHANGELOG + git-memory._
 
 ## 🔧 Lo que queda por hacer
 
-- Los 4 puntos del frente de arriba. Después: candidatos con visto bueno.
+- F6 (#53) del frente de arriba. Después: candidatos con visto bueno.
+- Flecos T3 en backlog: UnicodeEncodeError con surrogate suelto (#54), semver `isdigit()` sin `isascii()` (#58), split de campos `\x1f/\x1e` (#57), timeline mermaid en grill (#56).
 - **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
 
 ## 🧊 Ideas futuras (congeladas a propósito)
