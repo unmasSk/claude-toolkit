@@ -171,9 +171,18 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     Returns:
         Tuple of (commits_with_trailers, total_commits, scan_depth).
     """
+    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
+    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
+    # record boundaries instead of an embedded \x1e in the --pretty=format
+    # string -- a commit body can contain a literal \x1e byte, and
+    # splitting on it let a single real commit forge an entire fake
+    # record (inflating both counters below). A commit message can never
+    # contain a raw NUL byte, so splitting on \x00 has no forgeable
+    # equivalent. \x1f remains the FIELD separator within a record.
     code, output = run_git([
-        "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
+        "log", "-n", str(depth), "-z",
+        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--",
     ])
     if code != 0 or not output:
         return 0, 0, depth
@@ -182,7 +191,7 @@ def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
     total = 0
     with_trailers = 0
 
-    for raw in output.split("\x1e"):
+    for raw in output.split("\x00"):
         raw = raw.strip()
         if not raw:
             continue
@@ -211,9 +220,17 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
         "never run" even when a real GC commit is sitting in history. See
         the caller in run_doctor() for how this is surfaced.
     """
+    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
+    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
+    # record boundaries instead of an embedded \x1e in the --pretty=format
+    # string -- see check_hook_execution() above for the full rationale.
+    # ONE git call here feeds TWO loops below (stale-blocker collection,
+    # then Stale-Blocker tombstone collection) -- both must split on the
+    # same \x00 boundary consistently.
     code, output = run_git([
-        "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
+        "log", "-n", str(depth), "-z",
+        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--",
     ])
     if code != 0 or not output:
         return None, False, 0, []
@@ -224,7 +241,7 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
     gc_date_unparseable = False
     stale_blockers: list[dict[str, Any]] = []
 
-    for raw in output.split("\x1e"):
+    for raw in output.split("\x00"):
         raw = raw.strip()
         if not raw:
             continue
@@ -264,7 +281,7 @@ def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[
 
     # Filter out tombstoned blockers
     tombstoned = set()
-    for raw in output.split("\x1e"):
+    for raw in output.split("\x00"):
         raw = raw.strip()
         if not raw:
             continue

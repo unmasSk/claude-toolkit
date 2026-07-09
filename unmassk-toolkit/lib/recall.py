@@ -154,11 +154,23 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
     # The regex anchors each key at line-start (^) inside the commit body.
     _all_keys = list(_TOMBSTONE_KEYS) + list(_MEMORY_KEYS)
     _grep_pattern = "^(" + "|".join(_all_keys) + "):"
+    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
+    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
+    # record boundaries instead of an embedded \x1e in the
+    # --pretty=format string. A commit body CAN contain a literal \x1e
+    # byte -- str.split()-ing on it let a single real commit forge an
+    # entire fake memory entry (this function's output feeds
+    # UserPromptSubmit/PreToolUse hooks, which inject directly into the
+    # LLM's context -- highest blast radius of the 6 forgery sites). A
+    # commit message can never contain a raw NUL byte, so splitting on
+    # \x00 has no forgeable equivalent. \x1f remains the FIELD separator
+    # within a single record.
     git_args = [
-        "log", "--all",
+        "log", "--all", "-z",
         "--extended-regexp",
         "--grep=" + _grep_pattern,
-        "--pretty=format:%h%s%b",
+        "--pretty=format:%h%s%b",
+        "--",
     ]
 
     code, log_output = run_git(git_args, cwd=repo_dir)
@@ -170,7 +182,7 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
     seen_norms: dict[str, set[str]] = {k: set() for k in _MEMORY_KEYS}
     entries: list[dict] = []
 
-    commits = log_output.split("\x1e")
+    commits = log_output.split("\x00")
 
     # Two-pass: first collect tombstones, then entries.
     # Because tombstones may appear AFTER their targets in log order

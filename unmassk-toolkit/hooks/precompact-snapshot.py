@@ -35,12 +35,23 @@ def extract_memory_from_log() -> dict[str, Any]:
         Dict with keys: pending, blockers, decisions, memos, last_context.
         Empty dict if git log fails.
     """
-    # Use ASCII Unit Separator (\x1f) and Record Separator (\x1e) as delimiters.
-    # These are impossible to type in commit messages, preventing delimiter collision
-    # if a message accidentally contains "|---END---|" or "|" characters.
+    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
+    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
+    # record boundaries instead of an embedded \x1e in the --pretty=format
+    # string. A commit BODY is fully attacker-controlled and CAN contain a
+    # literal \x1e byte -- str.split()-ing on it let a single real commit
+    # forge an entire fake decision/memo/blocker entry that this hook then
+    # prints verbatim to stdout, which Claude receives directly as context
+    # right after PreCompact. A commit message can never contain a raw NUL
+    # byte, so splitting on \x00 has no forgeable equivalent. \x1f (ASCII
+    # Unit Separator) remains the FIELD separator within a single record --
+    # impossible to type as an ordinary keystroke, but not immune to being
+    # embedded programmatically, which is why the record boundary (not the
+    # field separator) is the one that must resist forgery.
     code, output = run_git([
-        "log", "-n", "30",
-        "--pretty=format:%h%x1f%s%x1f%b%x1e",
+        "log", "-n", "30", "-z",
+        "--pretty=format:%h\x1f%s\x1f%b",
+        "--",
     ])
 
     if code != 0 or not output:
@@ -54,7 +65,7 @@ def extract_memory_from_log() -> dict[str, Any]:
         "last_context": None,  # Last context() commit
     }
 
-    commits = [c for c in output.split("\x1e") if c.strip()]
+    commits = [c for c in output.split("\x00") if c.strip()]
 
     # First pass: collect GC tombstones (Resolved-Next:, Stale-Blocker:)
     tombstones = set()

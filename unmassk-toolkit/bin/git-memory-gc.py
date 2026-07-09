@@ -76,16 +76,29 @@ def scan_commits(depth: int) -> list[dict[str, Any]]:
     Parses each commit's SHA, subject, body, date, scope, trailers,
     and keywords into a list of dicts (most recent first).
     """
+    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
+    # extract_memory()/extract_glossary(), issue #57): record boundaries
+    # use `-z` (NUL, \x00) instead of an embedded \x1e in the
+    # --pretty=format string. A commit body CAN contain a literal \x1e
+    # byte (an ordinary control character as far as git is concerned) --
+    # str.split()-ing on it let a single real commit forge an entire fake
+    # record (sha/scope/trailer text chosen by an attacker). A commit
+    # message can never contain a raw NUL byte (git truncates/rejects it
+    # at the object level), so splitting on \x00 has no forgeable
+    # equivalent. \x1f remains the FIELD separator within a single
+    # record -- already confirmed inert on its own (fixed maxsplit below
+    # caps the field count).
     code, output = run_git([
-        "log", "-n", str(depth),
-        "--pretty=format:%h%x1f%s%x1f%b%x1f%at%x1e",
+        "log", "-n", str(depth), "-z",
+        "--pretty=format:%h\x1f%s\x1f%b\x1f%at",
+        "--",
     ])
 
     if code != 0 or not output:
         return []
 
     commits = []
-    for raw in output.split("\x1e"):
+    for raw in output.split("\x00"):
         raw = raw.strip()
         if not raw:
             continue
