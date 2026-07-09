@@ -155,3 +155,57 @@ the scratchpad BEFORE being written into the test file — not reasoned
 about from reading the source. Full-suite confirmation after writing:
 `1086 passed, 2 skipped, 13 failed` (the 13 new RED cases, exact expected
 count, zero unexpected regressions in the other 1086).
+
+## Round 2b close-out (2026-07-09) — narrowing a stale contract test + PART E (SEC-MED-09/SEC-LOW-11)
+
+After Ultron's Task 2b fix landed (gc.py's `-z` NUL record boundary + %b
+moved last in the format string), `TestGcScanCommitsForgery::test_x1e_forges_fake_commit_dict`
+(written in round 1, before field-displacement was understood) started
+failing — but for the RIGHT reason turning into the WRONG assertion, not a
+regression: it asserted the forged substring appears NOWHERE in
+`json.dumps(scan_commits())`. That assertion only ever passed because the
+pre-fix truncation bug (the exact data-loss Moriarty flagged) cut the
+hostile body short before the forged text could survive anywhere. Once %b
+correctly became the last field and is preserved whole, the hostile text
+legitimately reappears as literal BODY content of its own real commit
+(scope `'realscope'`) — that is correct behavior, not a forgery. **Fix:**
+narrowed the assertion to the actual security invariant — no OTHER
+commit's record gets forged (no dict under the attacker's scope/sha) AND
+the forged `Decision:` line does not parse into that real commit's
+`trailers` dict (`"Decision" not in real_commit["trailers"]`) — plus a
+sanity check that the hostile text DOES survive in `real_commit["body"]`
+(proves the assertion isn't vacuously passing due to truncation
+regressing). Lesson: a contract test written before understanding a
+second, independent bug class (field-displacement, discovered later by 3
+auditors) can accidentally encode "the bug's side effect" as the pass
+condition instead of the real invariant — when the first bug gets fixed,
+re-derive what the test SHOULD have asserted from first principles, don't
+just patch it to pass.
+
+**PART E — two new closing test classes for Argus's SEC-MED-09/SEC-LOW-11**
+(`TestGcTombstoneSanitization`, `TestStopDodCheckGetLastCommitNextSanitization`)
+close the remaining sanitization gaps in the same contract file
+(`sanitize_trailer_value()` itself already strips `\x1b`/`\x7f`/fence
+markers — PART D above — these two sites simply never CALL it):
+- `bin/git-memory-gc.py` never calls `sanitize_trailer_value()` on
+  `c['text']` before `print_candidates()` (stdout) or
+  `create_gc_commit()` (embeds it in a NEW, permanent tombstone commit
+  body) — confirmed live with a real `--auto` run: `\x1b`, `\x7f`, and a
+  literal `</memory-data>` all survive verbatim in BOTH stdout and the new
+  commit's `%B`. Test drives the real CLI end-to-end (backdated Blocker:
+  trailer via `GIT_AUTHOR_DATE`, `run_cmd([sys.executable, GC, "--auto"],
+  repo)`, then reads back `git log -1 --pretty=format:%B` on the real
+  repo) rather than calling internal functions directly — needed because
+  the bug spans two separate call sites (print + commit-message
+  construction) that only a full run exercises together.
+- `hooks/stop-dod-check.py:get_last_commit_next()` (lines 156-166) has no
+  sanitize call at all; confirmed live via direct call (same
+  `_load_hyphenated_module` pattern already used for the PART C
+  `.splitlines()` tests in this same file) that a `\x1b` byte in HEAD's
+  Next: trailer survives unstripped.
+
+Both written with a paired `[GUARD]` (clean trailer text, no control
+bytes) proving the eventual `sanitize_trailer_value()` call won't blank
+legitimate content. Verified RED against live, unmodified code: `2 failed,
+38 passed` (36 pre-existing tests all green after the Task 1 narrowing +
+2 new GUARD tests green + 2 new RED cases) — 0 unexpected regressions.
