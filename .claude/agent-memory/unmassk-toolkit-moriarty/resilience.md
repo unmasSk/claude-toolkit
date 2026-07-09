@@ -446,3 +446,24 @@ attacker's link that session).
   undiscovered, or misrepresented gap -- it is exactly what the team already found, tested,
   and consciously accepted as out of scope for the #57 structural fix (the invariant
   protected is "never forge a date," not "always show the correct one").
+
+## Issue #57 round 2d re-validation (2026-07-10) — what held
+- Exact-literal snapshot header/footer spoof in precompact-snapshot.py: a Blocker/Decision
+  trailer containing the EXACT string `=== END SNAPSHOT ===` or `=== GIT MEMORY SNAPSHOT
+  (pre-compact) ===` is correctly neutralized to `[snapshot-frame-text-neutralized]` by
+  `_neutralize_snapshot_delimiters()` — confirmed via the real `extract_memory_from_log()` +
+  `format_snapshot()` against a real hostile repo; `stdout.count(delimiter) == 1` holds for
+  both header and footer, real frame only.
+- scan_trailers_memory()'s truncate-on-\x1c/\x1d/\x1e still works correctly: a trailer value
+  with one of those three bytes is truncated at the byte (not glued, not forged) — no
+  regression from this round's other changes.
+- \x1c/\x1d/\x1e fence-splice via scan_trailers_memory's truncation path specifically (NOT via
+  sanitize_trailer_value alone, which still leaves a decoy — see attack-patterns.md): the
+  truncation happens BEFORE sanitize_trailer_value ever sees the fence tag, so nothing after
+  the byte (including "SYSTEM:" text) survives at all for these three specific bytes when
+  routed through scan_trailers_memory().
+- git_helpers.py commits_since_last_consolidation(): real `\n`-only split confirmed still in
+  effect; a \x1e byte in an unrelated commit's subject does not bleed across git-log lines.
+- ReDoS / pathological input: `_strip_generic_tags()` on a 10k-char malformed-tag string and
+  `sanitize_trailer_value()` on 20k repeated fence-fragments both complete in <5ms. No
+  catastrophic backtracking in either regex.
