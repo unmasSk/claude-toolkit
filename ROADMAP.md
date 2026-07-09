@@ -9,15 +9,13 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 ## 👉 Lo siguiente (ya acordado)
 
-**Frente: deuda técnica del toolkit** (acordado 2026-07-07, en este orden):
+**Frente: deuda técnica del toolkit** (acordado 2026-07-07): ✅ **cerrado completo** (2026-07-09).
 
-1. F6: cierre del bypass por hard-link, diseño de Argus ya hecho — con review dedicado (#53)
-
-_Cerrados de este frente: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52) y unificación de fechas a %at (#55). Viven en CHANGELOG + git-memory._
+_Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52), unificación de fechas a %at (#55) y cierre del bypass por hard-link (#53, Yoda 110/110, v1.19.0). Viven en CHANGELOG + git-memory._
 
 ## 🔧 Lo que queda por hacer
 
-- F6 (#53) del frente de arriba. Después: candidatos con visto bueno.
+- Candidatos con visto bueno.
 - Flecos T3 en backlog: UnicodeEncodeError con surrogate suelto (#54), semver `isdigit()` sin `isascii()` (#58), split de campos `\x1f/\x1e` (#57), timeline mermaid en grill (#56).
 - **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
 
