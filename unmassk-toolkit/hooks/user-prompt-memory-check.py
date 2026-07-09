@@ -237,7 +237,11 @@ def main() -> None:
             # SEC-HIGH-NEW-10: never follow a (dangling) symlink planted at
             # the booted-flag path — fail-open like every other fallback in
             # this file: don't create the flag, don't break the hook.
-            open_no_follow_symlink(booted_flag, "w").close()
+            # reject_hardlinks=True (issue #53, decision 51a3c44): the
+            # .session-booted flag is toolkit-generated-only, never a
+            # legitimate user file, so a hard link here can only be an
+            # attack.
+            open_no_follow_symlink(booted_flag, "w", reject_hardlinks=True).close()
         except OSError:
             pass
     else:

@@ -111,7 +111,10 @@ def _read_glossary_cache(upstream_ref: str | None = None) -> dict | None:
         # _write_glossary_cache()'s existing open_no_follow_symlink() guard —
         # a symlink planted at this path (pointing outside the repo) must be
         # rejected exactly like "no valid cache", not silently followed.
-        with open_no_follow_symlink(path, "r") as f:
+        # reject_hardlinks=True (issue #53, decision 51a3c44): glossary-
+        # cache.json is toolkit-generated-only, never a legitimate user
+        # file, so a hard link here can only be an attack.
+        with open_no_follow_symlink(path, "r", reject_hardlinks=True) as f:
             cache = json.load(f)
         # Check staleness
         generated = cache.get("generated_at", "")
@@ -189,7 +192,9 @@ def _write_glossary_cache(glossary: dict, upstream_ref: str | None = None) -> No
             if root:
                 verify_path_within_project(cache_dir, root)
             os.makedirs(cache_dir, exist_ok=True)
-        with open_no_follow_symlink(path, "w") as f:
+        # reject_hardlinks=True (issue #53, decision 51a3c44): same
+        # toolkit-generated-only rationale as the read above.
+        with open_no_follow_symlink(path, "w", reject_hardlinks=True) as f:
             json.dump(cache, f, indent=2)
         try:
             os.chmod(path, 0o600)

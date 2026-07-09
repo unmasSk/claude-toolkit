@@ -165,7 +165,11 @@ def write_boot_log(full_text: str, project_root: str | None) -> str | None:
             verify_path_within_project(runtime_dir, project_root)
             os.makedirs(runtime_dir, exist_ok=True)
         candidate_log_path = os.path.join(runtime_dir, BOOT_LOG_REL_PARTS[-1])
-        with open_no_follow_symlink(candidate_log_path, "w") as f:
+        # reject_hardlinks=True (issue #53, decision 51a3c44): this path is
+        # a toolkit-generated-only file (never a legitimate user file, so a
+        # hard link planted here can only be an attack, not a worktree-
+        # sharing setup) — safe to close the F6 residual for this call site.
+        with open_no_follow_symlink(candidate_log_path, "w", reject_hardlinks=True) as f:
             f.write(full_text + "\n")
         try:
             os.chmod(candidate_log_path, 0o600)

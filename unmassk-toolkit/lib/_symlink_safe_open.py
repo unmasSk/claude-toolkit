@@ -27,31 +27,64 @@ import os
 import sys
 
 
-def open_no_follow_symlink_fallback(path: str, mode: str = "w", encoding: str = "utf-8"):
+def open_no_follow_symlink_fallback(
+    path: str,
+    mode: str = "w",
+    encoding: str = "utf-8",
+    reject_hardlinks: bool = False,
+):
     """Fallback reimplementation — see git_helpers.open_no_follow_symlink() for the
     full rationale (SEC-CRIT-001 write guard, SEC-MED-NEW-02 read guard) and
     the full Windows hybrid-guard (option C, decision 75fdb2f) writeup,
     including the F4 (0o600 is POSIX-only), F5 (O_CREAT TOCTOU residual,
-    accepted deliberately), and F6 (hard-link bypass, accepted deliberately —
-    a hard link shares device+inode with its target, so it is undetected by
-    both os.path.islink() on Windows and O_NOFOLLOW on POSIX; same accepted
-    threat model as F5, does not defeat SEC-CRIT-001 since git cannot commit
-    a hard link) notes. Must be kept behaviorally identical to
-    git_helpers.open_no_follow_symlink() on both branches."""
+    accepted deliberately), and F6 (hard-link bypass, issue #53, decision
+    51a3c44 — closed via the opt-in `reject_hardlinks` parameter below; a
+    hard link shares device+inode with its target, so it is undetected by
+    both os.path.islink() on Windows and O_NOFOLLOW on POSIX) notes. Must
+    be kept behaviorally identical to git_helpers.open_no_follow_symlink()
+    on both branches, including the new reject_hardlinks behavior."""
     if sys.platform == "win32":
-        return _open_no_follow_symlink_windows(path, mode, encoding)
+        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks)
 
+    defer_truncate = False
     if mode == "r":
         flags = os.O_RDONLY | os.O_NOFOLLOW
         fd = os.open(path, flags)
-        return os.fdopen(fd, mode, encoding=encoding)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
-    flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
-    fd = os.open(path, flags, 0o600)
+    else:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+        if mode == "a":
+            flags |= os.O_APPEND
+        elif reject_hardlinks:
+            # Defer O_TRUNC: truncating a shared inode before the
+            # st_nlink check below would destroy the sibling hard link's
+            # content even when the check is about to reject the open
+            # outright.
+            defer_truncate = True
+        else:
+            flags |= os.O_TRUNC
+        fd = os.open(path, flags, 0o600)
+
+    if reject_hardlinks:
+        try:
+            if os.fstat(fd).st_nlink > 1:
+                raise OSError(
+                    errno.EMLINK,
+                    "Refusing to open a hard-linked file (st_nlink > 1); "
+                    "reject_hardlinks=True forbids opening a multi-link path",
+                    path,
+                )
+            if defer_truncate:
+                os.ftruncate(fd, 0)
+        except BaseException:
+            os.close(fd)
+            raise
+
     return os.fdopen(fd, mode, encoding=encoding)
 
 
-def _open_no_follow_symlink_windows(path: str, mode: str, encoding: str):
+def _open_no_follow_symlink_windows(
+    path: str, mode: str, encoding: str, reject_hardlinks: bool = False
+):
     """Windows half of the option-C hybrid guard — must be kept
     behaviorally identical to
     git_helpers._open_no_follow_symlink_windows(). See that function's
@@ -93,6 +126,16 @@ def _open_no_follow_symlink_windows(path: str, mode: str, encoding: str):
                     errno.ELOOP,
                     "Refusing to open: file identity changed between the "
                     "pre-open check and the open() call (possible symlink race)",
+                    path,
+                )
+        if reject_hardlinks:
+            # Checked on the already-open fd (never os.stat(path)) to keep
+            # the same TOCTOU discipline as the identity check above.
+            if os.fstat(fd).st_nlink > 1:
+                raise OSError(
+                    errno.EMLINK,
+                    "Refusing to open a hard-linked file (st_nlink > 1); "
+                    "reject_hardlinks=True forbids opening a multi-link path",
                     path,
                 )
         if mode == "w":

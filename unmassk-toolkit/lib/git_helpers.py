@@ -96,7 +96,12 @@ def ensure_runtime_dir(project_root: str) -> str:
     return runtime_dir
 
 
-def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
+def open_no_follow_symlink(
+    path: str,
+    mode: str = "w",
+    encoding: str = "utf-8",
+    reject_hardlinks: bool = False,
+):
     """Open `path` without following a pre-existing symlink.
 
     SEC-CRIT-001: several hooks write generated files at fixed, predictable
@@ -144,48 +149,80 @@ def open_no_follow_symlink(path: str, mode: str = "w", encoding: str = "utf-8"):
     project intentionally does not depend on. The islink() pre-check
     still applies in that case.
 
-    Known residual (F6, accepted deliberately, not a bug): a hard link
-    planted at `path`, pointing at a file outside the repo, is not
-    detected by this guard on ANY platform. A hard link shares
-    device+inode with its target, so os.path.islink() reports False for
-    it (it is not a reparse point/symlink, just another directory entry
-    for the same inode) and POSIX O_NOFOLLOW does not apply either
-    (O_NOFOLLOW only rejects a symlink at the final path component, not
-    a second hard link to an existing inode) — by construction, a hard
-    link is indistinguishable from an ordinary file to both checks this
-    function relies on. This is the same accepted threat model as F5: it
-    requires the attacker to already have local write access to the
-    runtime directory before this guarded call runs. `git checkout`
-    alone cannot plant a hard link to a file outside the repo (hard
-    links cannot be committed as such — git only stores regular files,
-    directories, and symlinks), so this residual does NOT defeat
-    SEC-CRIT-001 (the committed-symlink attack this guard exists to
-    close). Closing it would require a native stat extension (checking
-    st_nlink > 1, with its own edge cases) outside this project's
-    stdlib-only scope.
+    Hard-link guard (F6, issue #53, design decision 51a3c44 — opt-in,
+    closes what used to be an accepted residual): a hard link planted at
+    `path`, pointing at a file outside the repo, shares device+inode with
+    its target, so os.path.islink() reports False for it (it is not a
+    reparse point/symlink, just another directory entry for the same
+    inode) and POSIX O_NOFOLLOW does not apply either (O_NOFOLLOW only
+    rejects a symlink at the final path component, not a second hard link
+    to an existing inode) — by construction, a hard link is
+    indistinguishable from an ordinary file to both checks above. Passing
+    `reject_hardlinks=True` closes this gap: after the fd is open, this
+    function checks os.fstat(fd).st_nlink (on the ALREADY-OPEN descriptor,
+    never os.stat(path), to avoid a TOCTOU gap between check and open) and
+    raises OSError if it is greater than 1, closing the fd first. Default
+    is False — every existing call site (none of which pass this
+    parameter) keeps its exact current behavior. This must stay opt-in:
+    a hard link between git worktrees pointing at the same user file
+    (CLAUDE.md, settings.json, package.json, .gitignore, scopes) is a
+    legitimate, common setup, not an attack — only call sites that write
+    toolkit-generated-only files (boot-log-latest.txt, glossary-cache.json,
+    the .session-booted flag) should pass True.
 
     Raises OSError (errno ELOOP on POSIX; errno ELOOP is also used for
     both Windows guard rejections above, for a consistent errno across
-    platforms) if `path` is currently a symlink, or — on Windows only —
-    if its identity changed between the pre-open check and the open
-    itself. Callers must let that propagate to their existing "never
-    fail the caller's larger operation" fallback (or "treat as
-    absent/invalid" for reads), never fall back to following the link.
+    platforms; errno EMLINK for a reject_hardlinks=True rejection, kept
+    distinct from ELOOP so the two rejection reasons aren't conflated) if
+    `path` is currently a symlink, or — on Windows only — if its identity
+    changed between the pre-open check and the open itself, or — when
+    reject_hardlinks=True — if the opened file has st_nlink > 1. Callers
+    must let that propagate to their existing "never fail the caller's
+    larger operation" fallback (or "treat as absent/invalid" for reads),
+    never fall back to following the link.
     """
     if sys.platform == "win32":
-        return _open_no_follow_symlink_windows(path, mode, encoding)
+        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks)
 
+    defer_truncate = False
     if mode == "r":
         flags = os.O_RDONLY | os.O_NOFOLLOW
         fd = os.open(path, flags)
-        return os.fdopen(fd, mode, encoding=encoding)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
-    flags |= os.O_APPEND if mode == "a" else os.O_TRUNC
-    fd = os.open(path, flags, 0o600)
+    else:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+        if mode == "a":
+            flags |= os.O_APPEND
+        elif reject_hardlinks:
+            # Defer O_TRUNC: truncating a shared inode before the
+            # st_nlink check below would destroy the sibling hard link's
+            # content even when the check is about to reject the open
+            # outright.
+            defer_truncate = True
+        else:
+            flags |= os.O_TRUNC
+        fd = os.open(path, flags, 0o600)
+
+    if reject_hardlinks:
+        try:
+            if os.fstat(fd).st_nlink > 1:
+                raise OSError(
+                    errno.EMLINK,
+                    "Refusing to open a hard-linked file (st_nlink > 1); "
+                    "reject_hardlinks=True forbids opening a multi-link path",
+                    path,
+                )
+            if defer_truncate:
+                os.ftruncate(fd, 0)
+        except BaseException:
+            os.close(fd)
+            raise
+
     return os.fdopen(fd, mode, encoding=encoding)
 
 
-def _open_no_follow_symlink_windows(path: str, mode: str, encoding: str):
+def _open_no_follow_symlink_windows(
+    path: str, mode: str, encoding: str, reject_hardlinks: bool = False
+):
     """Windows half of the option-C hybrid guard — see
     open_no_follow_symlink()'s docstring for the full rationale.
 
@@ -230,6 +267,16 @@ def _open_no_follow_symlink_windows(path: str, mode: str, encoding: str):
                     errno.ELOOP,
                     "Refusing to open: file identity changed between the "
                     "pre-open check and the open() call (possible symlink race)",
+                    path,
+                )
+        if reject_hardlinks:
+            # Checked on the already-open fd (never os.stat(path)) to keep
+            # the same TOCTOU discipline as the identity check above.
+            if os.fstat(fd).st_nlink > 1:
+                raise OSError(
+                    errno.EMLINK,
+                    "Refusing to open a hard-linked file (st_nlink > 1); "
+                    "reject_hardlinks=True forbids opening a multi-link path",
                     path,
                 )
         if mode == "w":

@@ -1006,3 +1006,43 @@ suite pytest shows unexpected dirty test files or a fleeting collection
 error you didn't cause, check for concurrent agent activity (other python/
 pytest PIDs via `wmic process where "name='python.exe'" get ProcessId,CommandLine`)
 before assuming your own change broke something.
+
+## Issue #53 (reject_hardlinks opt-in param): a fixed-signature monkeypatch stub breaks the instant a new opt-in kwarg is activated at its call site
+
+Adding `reject_hardlinks: bool = False` to both `open_no_follow_symlink()`
+twins (git_helpers.py / _symlink_safe_open.py) and activating
+`reject_hardlinks=True` at 3 toolkit-generated-only call sites
+(session-start-boot.py's `write_boot_log()`, boot_glossary_cache.py's read
++ write, user-prompt-memory-check.py's booted_flag) is purely additive for
+every call site that keeps calling with the OLD 3-arg shape — confirmed via
+the full contract suite (18/18 green) and the full existing symlink-guard
+regression suite (65 passed, 64 skipped, zero change). But the full-suite
+run still surfaced 2 regressions: `test_boot_output.py`'s
+`_run_boot_with_failing_log_write()` helper injects a hand-written
+subprocess-script monkeypatch `def _raise_permission_error(path, mode="w",
+encoding="utf-8"): raise PermissionError(...)` assigned directly onto
+`boot.open_no_follow_symlink`. That stub has a FIXED 3-parameter signature
+with no `**kwargs` catch-all — the instant `write_boot_log()` calls it with
+a 4th argument (`reject_hardlinks=True`, keyword or positional, doesn't
+matter — the stub only declares 3 params total), Python raises `TypeError:
+_raise_permission_error() got an unexpected keyword argument
+'reject_hardlinks'` INSTEAD of the intended `PermissionError`, which two
+tests (`TestBootLogWriteFailureFallback`,
+`TestBootLogWriteFailureLogsWarning`) depend on to exercise the "log write
+failed" fallback path. Confirmed isolated (grepped the whole test suite for
+`.open_no_follow_symlink = ` and `_raise_permission_error` — exactly one
+stub, exactly matching the 2 failures) — not a production bug, not a wider
+pattern.
+
+Rule: whenever adding a new opt-in parameter to a widely-shared helper and
+activating it at specific call sites, grep the WHOLE test suite for
+`<helper_name>\s*=\s*` (module-attribute monkeypatch assignment, not just
+`mock.patch`/`monkeypatch.setattr` calls) before declaring "zero
+regressions" — a hand-rolled stub function with a fixed positional/keyword
+signature and no `**kwargs` is invisible to a simple call-site grep and
+only surfaces as a `TypeError` deep in a subprocess's stderr. This is
+Dante/test-file territory to fix (`def _raise_permission_error(path,
+mode="w", encoding="utf-8", **kwargs)` — one line, no assertion changes)
+— per test-first mode's "never touch tests, report instead" rule, escalate
+this instead of patching it yourself, even though it's a different file
+than the actual Dante contract for the issue.
