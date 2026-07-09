@@ -364,3 +364,85 @@ booted_flag call site never reaches the guarded open at all when a hard link is 
 before first boot (`os.path.isfile()` short-circuits `if not session_booted:` first) — safer
 than reaching the guard, not weaker (confirmed via certutil: no open() call touches the
 attacker's link that session).
+
+## Issue #57 root-fix round (structural parsing, decision 0682e75) -- subject-x1f class re-attacked, holds everywhere claimed
+- All 7 named sites re-attacked live with real hostile `git commit -m $'...x1f...'` payloads
+  in disposable scratch repos, real production functions called directly (never mocked):
+  lib/recall.py._scan_commits(), bin/git-memory-gc.py (scan_commits + find_stale_items),
+  bin/git-memory-doctor.py (check_hook_execution + check_gc_status), lib/bootstrap_commits.py
+  .scan_recent_commits() (dual git-log-call sha correlation), hooks/precompact-snapshot.py
+  .extract_memory_from_log(), lib/boot_memory.py.extract_memory(). A stray x1f anywhere in
+  the SUBJECT (a middle-positioned but now-last-in-header field, thanks to the %n
+  subject/body real-newline split) no longer desyncs date/scope/author/trailers at any of
+  the 7 sites -- confirmed via independent-channel `git log --pretty=format:...`/`git
+  cat-file` reads matching the parsed output exactly, including a genuine 90-day-old
+  Blocker correctly surfaced as stale by both gc.py and doctor.py despite carrying an x1f
+  in its own commit subject.
+- bootstrap_commits.py's two-git-log-call design (structured fields in call 1, `%h + author`
+  in call 2, correlated by sha) also holds against an x1f embedded in %an (author name) in
+  call 2 -- confirmed the sha/date/subject/scope from call 1 never desyncs from the author
+  looked up via call 2's dict, live, across 4 different real commits in the same repo.
+- Unicode "line-separator-equivalent" bytes in the SUBJECT -- U+2028 (LINE SEPARATOR),
+  U+0085 (NEL), U+2029 (PARAGRAPH SEPARATOR), and bare CR (\r) -- were tested live (real
+  commit objects confirmed via `git cat-file -p` to contain the raw bytes in the subject,
+  independently confirmed via `git log --pretty=format:%s`/`%b` that git's OWN %s/%b never
+  treat these as newline-equivalent). Python's `str.partition("\n")` only matches the
+  literal 0x0A byte, so none of these desync the header/body boundary at any of the 4
+  sites tested. Holds.
+- Short-hash (%h) ambiguity/collision: forced `core.abbrev=4` and generated 1200 commits in
+  a disposable repo -- git's own abbreviation algorithm self-heals by extending %h length
+  dynamically whenever a fixed-length prefix would collide (confirmed via independent
+  `git log --pretty=format:%h | awk '{print length}'` showing BOTH 4-char and 5-char hashes
+  in the same output), so a genuine %h collision between two different commits within one
+  git-log invocation is not achievable through the codebase's actual (un-flagged) %h usage,
+  regardless of core.abbrev config. bootstrap_commits.py's sha-correlation between its two
+  calls is not exploitable via this vector.
+- scan_trailers_memory()'s per-line \x1c/\x1d/\x1e truncation: a real legit "Memo: keep this
+  alive please" commit, plus a SEPARATE attacker commit gluing "Decision: real decision D" +
+  x1e + "Resolved-Memo: keep this alive please" + x1e + "Blocker: FORGED BLOCKER" onto ONE
+  physical line (no real newline) -- confirmed live neither the forged tombstone nor the
+  forged Blocker materialize; the real Memo survives un-tombstoned, exactly as designed.
+- gc.py's find_stale_items(): the previously-flagged evidence-field ANSI-leak bug (evidence
+  built from sha+subject, bypassing the c["text"] sanitize choke point) is confirmed FIXED --
+  a real hostile subject containing a raw ESC (x1b) byte in a keyword-overlap-matched
+  "resolution" commit no longer reaches real captured stdout (byte absent, replaced by a
+  space), confirmed via print_candidates()'s actual output.
+- Empty-subject/empty-body/subject-only-looks-like-a-trailer edge cases: a real
+  `--allow-empty-message` commit (empty subject, empty body) parses cleanly with no crash
+  across gc.py and bootstrap_commits.py. A commit whose SUBJECT ALONE reads exactly like a
+  trailer ("Decision: this looks like a trailer...") but has zero body produces zero memory
+  entries in recall.py -- correctly matched by --grep (grep scans the whole message) but
+  correctly rejected by the body-only trailer scan (no phantom entry).
+- Stress: a 50,000-char subject saturated with 25,000x alternating x1f/x1e parsed in ~16ms
+  with the real trailing Decision surviving; a real 600-commit repo (--all scan) completed
+  in ~31ms with all 600 real Memo entries found; a single commit with a 20,000-line
+  trailer-shaped body parsed in ~52ms with the real trailing Decision surviving. No hang,
+  no crash, no timeout at any scale tested.
+- Race: 6 real threads (3x gc.scan_commits, 3x doctor's two check functions) hammering the
+  same repo concurrently, 20 iterations each -- zero errors, `git fsck --full` clean after.
+  Two REAL OS processes launched simultaneously running `git-memory-gc.py --auto` against
+  the same repo -- git's own index.lock naturally serialized commit creation (the losing
+  process's `git commit` failed cleanly, printed the existing "Failed to create GC commit"
+  error path, no crash) -- exactly 1 Stale-Blocker tombstone in the final history, no
+  duplicate/corrupted state.
+
+## lib/boot_git_checks.py get_timeline()/get_last_context_time() -- re-confirmed [GUARD], not a gap
+- These 2 functions were NEVER migrated to the new -z/%n structural pattern (git blame
+  confirms their last touch was issue #55's %aI->%at date-format migration, unrelated to
+  #57). They still use the OLD `%h\x1fsubject\x1f%at` shape with subject in the MIDDLE and
+  `\n`-based (not `-z`) record splitting.
+- Re-attacked live anyway (x1f embedded in a real commit subject, including a real
+  `context(...)` commit made moments earlier): confirmed `get_timeline()` and
+  `get_last_context_time()` both degrade to the literal string "unknown" for the
+  corrupted-date commit, exactly matching the already-existing, already-passing tests
+  `test_x1f_in_subject_degrades_get_timeline_to_unknown` /
+  `..._get_last_context_time_to_unknown` in tests/test_control_byte_injection.py (Sites
+  7-8, documented [GUARD] not [ROJO]) -- the team's own written rationale (`str.isdigit()`
+  gate + maxsplit=2 arithmetic can never produce a forged/plausible wrong timestamp, only a
+  safe "unknown") holds under live re-verification with a different injected payload text
+  than the existing test uses. This is a REAL residual UX degradation (a real recent commit
+  can show "unknown" instead of "just now" in the live "RESUME:" boot banner via
+  lib/boot_render.py's render_resume_section(), confirmed live) but it is NOT a new,
+  undiscovered, or misrepresented gap -- it is exactly what the team already found, tested,
+  and consciously accepted as out of scope for the #57 structural fix (the invariant
+  protected is "never forge a date," not "always show the correct one").
