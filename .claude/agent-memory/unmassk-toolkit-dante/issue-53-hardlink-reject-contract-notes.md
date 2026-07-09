@@ -66,3 +66,21 @@ See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-
 for the general repo pytest conventions (TWIN_FUNCS pattern,
 `real_symlink_capable`/skip-guard discipline this file's
 `real_hardlink_capable` mirrors).
+
+**Post-implementation ripple, fixed 2026-07-09:** once Ultron wired
+`write_boot_log()` to actually pass `reject_hardlinks=True` at its real
+call site, two UNRELATED tests in `test_boot_output.py`
+(`TestBootLogWriteFailureFallback`,
+`TestBootLogWriteFailureLogsWarning`) broke — not because the new param's
+behavior was wrong, but because their fixed-arity monkeypatch stub
+`_raise_permission_error(path, mode="w", encoding="utf-8")` (helper
+`_run_boot_with_failing_log_write()`, ~line 845) doesn't accept unknown
+kwargs, so the call raised `TypeError` instead of the `PermissionError`
+the test simulates. Fix: widen the stub to `**kwargs` — do NOT touch the
+assertions, since the fallback/warning contract itself never changed.
+**General lesson:** any test double that stands in for
+`open_no_follow_symlink()` (or any twin function likely to gain future
+opt-in params) should accept `**kwargs` from the start, not just fixed
+positional/keyword args — otherwise every unrelated feature that adds a
+new opt-in param to the real function silently breaks doubles elsewhere
+in the suite that were never touched by that feature's own test file.

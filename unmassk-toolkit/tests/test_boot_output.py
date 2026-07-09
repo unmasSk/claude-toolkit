@@ -842,7 +842,7 @@ spec = importlib.util.spec_from_file_location('boot', {repr(BOOT_HOOK)})
 boot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(boot)
 
-def _raise_permission_error(path, mode="w", encoding="utf-8"):
+def _raise_permission_error(path, mode="w", encoding="utf-8", **kwargs):
     raise PermissionError(f"[simulated write failure] cannot open {{path}} for {{mode!r}}")
 boot.open_no_follow_symlink = _raise_permission_error
 
