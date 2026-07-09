@@ -168,7 +168,8 @@ def open_no_follow_symlink(
     (CLAUDE.md, settings.json, package.json, .gitignore, scopes) is a
     legitimate, common setup, not an attack — only call sites that write
     toolkit-generated-only files (boot-log-latest.txt, glossary-cache.json,
-    the .session-booted flag) should pass True.
+    the .session-booted flag, manifest.json, and the upgrade's manifest
+    backup) should pass True.
 
     Raises OSError (errno ELOOP on POSIX; errno ELOOP is also used for
     both Windows guard rejections above, for a consistent errno across

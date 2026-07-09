@@ -192,7 +192,10 @@ def create_backup(target: str, manifest: dict[str, Any]) -> str:
 
     # Cerberus: use the symlink-safe writer consistently, like every other
     # generated-file write in this file, instead of a plain open().
-    with open_no_follow_symlink(backup_path, "w") as f:
+    # reject_hardlinks=True (issue #53, decision 51a3c44): this backup path
+    # is toolkit-generated-only, never a legitimate user file, so a hard
+    # link here can only be an attack.
+    with open_no_follow_symlink(backup_path, "w", reject_hardlinks=True) as f:
         json.dump(manifest, f, indent=2)
 
     return backup_path
@@ -359,6 +362,9 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
         # SEC-HIGH-NEW-03 (Argus): symlink-safe write — same guard as
         # git-memory-install.py's _create_manifest() and
         # lib/boot_memory.py's existing open_no_follow_symlink() writers.
+        # reject_hardlinks=True (issue #53, decision 51a3c44): manifest.json
+        # is toolkit-generated-only, never a legitimate user file, so a hard
+        # link here can only be an attack.
         with open_no_follow_symlink(manifest_path, "w", reject_hardlinks=True) as f:
             json.dump(new_manifest, f, indent=2)
     except Exception as e:

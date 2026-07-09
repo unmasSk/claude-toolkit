@@ -511,9 +511,16 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             # O_NOFOLLOW guard makes both the read and the write-back
             # atomically refuse to traverse it, so a victim file outside
             # the repo is never read from or written to.
+            # reject_hardlinks=True is intentionally NOT passed on this
+            # read: a read of a hard-linked file cannot corrupt the victim
+            # (only a write can), so omitting it here is a deliberate
+            # scope choice, not an oversight — see the write below.
             with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()
+            # reject_hardlinks=True (issue #53, decision 51a3c44): manifest.json
+            # is toolkit-generated-only, never a legitimate user file, so a
+            # hard link here can only be an attack.
             with open_no_follow_symlink(manifest_path, "w", reject_hardlinks=True) as f:
                 json.dump(data, f, indent=2)
         except Exception:
