@@ -23,7 +23,7 @@ force_utf8_streams()
 
 from constants import CODE_TYPES, MEMO_CATEGORIES, MEMORY_TYPES, RISK_VALUES, VALID_KEYS
 from git_helpers import run_git
-from parsing import extract_commit_message, parse_commit_type, parse_trailers
+from parsing import extract_commit_message, parse_commit_type, parse_trailers, sanitize_trailer_value
 from colors import RED, YELLOW, RESET
 
 
@@ -114,22 +114,27 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
     if "Memo" in trailers:
         parts = trailers["Memo"].split(" - ", 1)
         if len(parts) < 2 or parts[0].strip() not in MEMO_CATEGORIES:
-            errors.append(f"Invalid Memo format: '{trailers['Memo']}'. Must be: preference|requirement|antipattern - description")
+            # issue #57 round 2d (Argus SEC-CRIT-A): a hostile Memo value
+            # was reflected raw into this error message, reaching stderr
+            # (and the LLM's context, since stderr is captured by the
+            # hook harness) unsanitized -- sanitize the same way every
+            # trailer VALUE elsewhere in the codebase already is.
+            errors.append(f"Invalid Memo format: '{sanitize_trailer_value(trailers['Memo'])}'. Must be: preference|requirement|antipattern - description")
 
     # Validate Remember category if present
     if "Remember" in trailers:
         parts = trailers["Remember"].split(" - ", 1)
         if len(parts) < 2 or parts[0].strip() not in ("user", "claude"):
-            errors.append(f"Invalid Remember format: '{trailers['Remember']}'. Must be: user|claude - description")
+            errors.append(f"Invalid Remember format: '{sanitize_trailer_value(trailers['Remember'])}'. Must be: user|claude - description")
 
     # Validate Risk values if present
     if "Risk" in trailers and trailers["Risk"] not in RISK_VALUES:
-        errors.append(f"Invalid Risk value: '{trailers['Risk']}'. Must be: low, medium, high")
+        errors.append(f"Invalid Risk value: '{sanitize_trailer_value(trailers['Risk'])}'. Must be: low, medium, high")
 
     # Validate Issue format if present
     if "Issue" in trailers:
         if not re.match(r"^(CU-\d+|#\d+)", trailers["Issue"]):
-            errors.append(f"Invalid Issue format: '{trailers['Issue']}'. Must match CU-xxx or #xxx")
+            errors.append(f"Invalid Issue format: '{sanitize_trailer_value(trailers['Issue'])}'. Must match CU-xxx or #xxx")
 
     return errors
 
@@ -181,7 +186,11 @@ def main() -> None:
 
     if commit_type is None:
         error_msg = f"\n{RED}>>> {'BLOCKED' if is_claude else 'WARNING'}: Not a conventional commit format{RESET}"
-        error_msg += f"\n{RED}>>> Subject: {subject}{RESET}"
+        # issue #57 round 2d (Argus SEC-CRIT-A): the raw commit subject was
+        # reflected unsanitized to stderr for any non-conventional-format
+        # commit -- sanitize the same way every other commit-derived field
+        # in this codebase already is.
+        error_msg += f"\n{RED}>>> Subject: {sanitize_trailer_value(subject)}{RESET}"
         error_msg += f"\n{RED}>>> Expected: type(scope): description{RESET}"
         print(error_msg, file=sys.stderr)
         sys.exit(2 if is_claude else 0)

@@ -193,11 +193,16 @@ def sanitize_trailer_value(text: str) -> str:
       below and let the whole marker survive intact. Stripping these
       bytes FIRST (before the fence-marker substring removal) closes that
       evasion for any of the three bytes, in any position.
+    - NEL / Next Line (\\x85, U+0085) — issue #57 round 2d (Moriarty
+      bullet A): the same fence-marker-interleaving evasion as
+      \\x1c/\\x1d/\\x1e above, just a Unicode control byte the earlier
+      round's character class didn't cover yet (</memory-data\\x85>
+      survived byte-for-byte before this).
     - HTML comment markers (<!-- and -->)
     - memory-data zone delimiters (<memory-data> / </memory-data>,
       case-insensitive)
     """
-    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x1c\x1d\x1e\x7f]", " ", text)
+    text = re.sub(r"[\r\n  \x0b\x0c\x1b\x1c\x1d\x1e\x7f\x85]", " ", text)
     text = text.replace("<!--", "").replace("-->", "")
     text = re.sub(r"</?memory-data>", "", text, flags=re.IGNORECASE)
     return text.strip()

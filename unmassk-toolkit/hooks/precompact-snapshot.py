@@ -24,6 +24,48 @@ from constants import TOMBSTONE_KEYS
 from git_helpers import run_git, is_git_repo, is_shallow_clone
 from parsing import normalize, scan_trailers_memory, sanitize_trailer_value as _sanitize
 
+# Issue #57 round 2d (Moriarty bullet B, decision 0cef65c): the snapshot's
+# own header/footer are ordinary printable strings, not control bytes --
+# sanitize_trailer_value() has no reason to touch them, so a hostile
+# Decision/Memo/Next/Blocker/subject value containing this literal text
+# reproduces the real frame byte-for-byte INSIDE the snapshot body, making
+# a forged frame indistinguishable from the genuine one. This is a
+# different class from byte-sanitization (no control byte involved at
+# all), so it's deliberately NOT folded into the canonical
+# sanitize_trailer_value() in lib/parsing.py -- that function is shared by
+# every hook/script in the repo and shouldn't be coupled to a delimiter
+# that only this one hook defines. Instead, every commit-derived field
+# below is neutralized for these two specific strings right before it
+# enters the snapshot, so the real frame can only ever appear once.
+_SNAPSHOT_HEADER = "=== GIT MEMORY SNAPSHOT (pre-compact) ==="
+_SNAPSHOT_FOOTER = "=== END SNAPSHOT ==="
+
+
+def _neutralize_snapshot_delimiters(text: str) -> str:
+    """Neutralize literal occurrences of the snapshot's own frame delimiters.
+
+    Replaces (not blanks) any exact occurrence of the header or footer
+    string so real surrounding content survives while the forged frame no
+    longer reads as an exact match -- keeps `stdout.count(delimiter) == 1`
+    true for the real frame regardless of what a commit tries to smuggle.
+    """
+    if not text:
+        return text
+    text = text.replace(_SNAPSHOT_HEADER, "[snapshot-frame-text-neutralized]")
+    text = text.replace(_SNAPSHOT_FOOTER, "[snapshot-frame-text-neutralized]")
+    return text
+
+
+def _sanitize_for_snapshot(text: str) -> str:
+    """Canonical control-byte sanitization plus snapshot-delimiter neutralization.
+
+    Every commit-derived field rendered into format_snapshot()'s output
+    must go through this (not the bare `_sanitize()` alias) so the whole
+    output-sanitization class -- control bytes AND this hook's own
+    plain-text frame -- is closed at the same choke point.
+    """
+    return _neutralize_snapshot_delimiters(_sanitize(text))
+
 
 def extract_memory_from_log() -> dict[str, Any]:
     """Read the last 30 commits and extract memory trailers.
@@ -114,7 +156,7 @@ def extract_memory_from_log() -> dict[str, Any]:
         # through _sanitize(). Sanitizing once here propagates to every
         # downstream use (dict keys for decisions/memos/remembers).
         scope_match = re.match(r"^\w+\(([^)]+)\)", cleaned)
-        scope = _sanitize(scope_match.group(1)) if scope_match else "global"
+        scope = _sanitize_for_snapshot(scope_match.group(1)) if scope_match else "global"
 
         # Check if context commit
         if cleaned.lower().startswith("context"):
@@ -124,7 +166,7 @@ def extract_memory_from_log() -> dict[str, Any]:
                 # sanitize it the same way scope/trailer values are.
                 memory["last_context"] = {
                     "sha": sha,
-                    "subject": _sanitize(subject),
+                    "subject": _sanitize_for_snapshot(subject),
                     "scope": scope,
                 }
 
@@ -132,14 +174,14 @@ def extract_memory_from_log() -> dict[str, Any]:
         trailers = scan_trailers_memory(body)
 
         if "Next" in trailers:
-            next_text = _sanitize(trailers["Next"])
+            next_text = _sanitize_for_snapshot(trailers["Next"])
             if normalize(next_text) not in tombstones:
                 memory["pending"].append({
                     "sha": sha, "subject": subject, "next": next_text,
                 })
 
         if "Blocker" in trailers:
-            blocker_text = _sanitize(trailers["Blocker"])
+            blocker_text = _sanitize_for_snapshot(trailers["Blocker"])
             if normalize(blocker_text) not in tombstones:
                 existing = [b["blocker"].lower() for b in memory["blockers"]]
                 if blocker_text.lower() not in existing:
@@ -151,18 +193,18 @@ def extract_memory_from_log() -> dict[str, Any]:
             if scope not in memory["decisions"]:
                 memory["decisions"][scope] = {
                     "sha": sha, "subject": subject,
-                    "decision": _sanitize(trailers["Decision"]),
+                    "decision": _sanitize_for_snapshot(trailers["Decision"]),
                 }
 
         if "Memo" in trailers:
-            memo_text = _sanitize(trailers["Memo"])
+            memo_text = _sanitize_for_snapshot(trailers["Memo"])
             if scope not in memory["memos"] and normalize(memo_text) not in tombstones:
                 memory["memos"][scope] = {
                     "sha": sha, "memo": memo_text,
                 }
 
         if "Remember" in trailers:
-            text = _sanitize(trailers["Remember"])
+            text = _sanitize_for_snapshot(trailers["Remember"])
             if "remembers" not in memory:
                 memory["remembers"] = {}
             if (

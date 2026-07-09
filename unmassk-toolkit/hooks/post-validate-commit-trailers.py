@@ -24,7 +24,7 @@ force_utf8_streams()
 
 from constants import CODE_TYPES, MEMO_CATEGORIES, MEMORY_TYPES, RISK_VALUES, VALID_KEYS
 from git_helpers import run_git
-from parsing import parse_commit_type, parse_trailers
+from parsing import parse_commit_type, parse_trailers, sanitize_trailer_value
 from colors import RED, YELLOW, RESET
 
 
@@ -142,15 +142,19 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
     if "Memo" in trailers:
         parts = trailers["Memo"].split(" - ", 1)
         if len(parts) < 2 or parts[0].strip() not in MEMO_CATEGORIES:
-            errors.append(f"Memo: (invalid format '{trailers['Memo']}')")
+            # issue #57 round 2d (Argus SEC-CRIT-A): a hostile Memo value
+            # from a REAL committed commit was reflected raw into this
+            # error message -- sanitize the same way every trailer VALUE
+            # elsewhere in the codebase already is.
+            errors.append(f"Memo: (invalid format '{sanitize_trailer_value(trailers['Memo'])}')")
 
     # Validate values
     if "Risk" in trailers and trailers["Risk"] not in RISK_VALUES:
-        errors.append(f"Risk: (invalid value '{trailers['Risk']}')")
+        errors.append(f"Risk: (invalid value '{sanitize_trailer_value(trailers['Risk'])}')")
 
     if "Issue" in trailers:
         if not re.match(r"^(CU-\d+|#\d+)", trailers["Issue"]):
-            errors.append(f"Issue: (invalid format '{trailers['Issue']}')")
+            errors.append(f"Issue: (invalid format '{sanitize_trailer_value(trailers['Issue'])}')")
 
     return errors
 

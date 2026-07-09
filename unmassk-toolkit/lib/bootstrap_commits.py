@@ -13,8 +13,27 @@ from collections import defaultdict
 from typing import Any
 
 from git_helpers import run_git
+from parsing import sanitize_trailer_value
 
 SCAN_COMMITS = 20
+
+# issue #57 round 2d (Argus SEC-MED, bullet E): `git memory bootstrap
+# --json` does json.dumps(output, ...), which escapes control bytes but
+# has no reason to touch '<'/'>' -- a literal generic tag (e.g. <system>,
+# </system>) in a commit subject survives byte-for-byte and is fully
+# reconstructable by anything reading the JSON text. sanitize_trailer_value()
+# only strips its OWN </memory-data> fence marker, not arbitrary tag names,
+# so this is a distinct, deliberately generic regex (catches any tag name,
+# not just "system") applied alongside it, local to this module rather than
+# folded into the shared canonical sanitizer.
+_GENERIC_TAG_RE = re.compile(r"</?[a-zA-Z][\w-]*\s*>")
+
+
+def _strip_generic_tags(text: str) -> str:
+    """Strip any HTML/XML-like tag from commit-derived text before --json output."""
+    if not text:
+        return text
+    return _GENERIC_TAG_RE.sub("", text)
 
 
 def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
@@ -122,12 +141,20 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
         if m:
             scope = m.group(1)
 
+        # issue #57 round 2d (Argus SEC-MED, bullet E): subject/author are
+        # fully commit-derived and reach `git memory bootstrap --json`'s
+        # stdout via json.dumps() unmodified -- json.dumps() escapes
+        # control bytes but has no reason to touch '<'/'>' tag-like
+        # substrings (e.g. </memory-data>, <system>), which survive intact
+        # and are fully reconstructable by anything reading the JSON text.
+        # Sanitize once here so both --json and any other consumer of
+        # "recent" are covered by a single choke point.
         commits.append({
             "sha": sha,
-            "subject": subject,
+            "subject": _strip_generic_tags(sanitize_trailer_value(subject)),
             "scope": scope,
             "date": date,
-            "author": author,
+            "author": _strip_generic_tags(sanitize_trailer_value(author)),
         })
 
     return {

@@ -23,6 +23,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
 from encoding_guard import force_utf8_streams
 force_utf8_streams()
+from parsing import sanitize_trailer_value
 
 # ANSI colors
 RESET = "\033[0m"
@@ -95,9 +96,15 @@ def main() -> None:
 
         color = TYPE_COLORS.get(type_, RESET)
         if scope:
-            print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({scope}){RESET}: {msg} {DIM}[{sha}]{RESET}")
+            # issue #57 round 2d (Argus SEC-CRIT-B): this script is the
+            # MANDATORY substitute for `git log` (enforced by
+            # pre-validate-commit-trailers.py), making its stdout the
+            # guaranteed path any commit message reaches Claude's context
+            # through -- sanitize the matched message the same way every
+            # other commit-derived field in the codebase already is.
+            print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({scope}){RESET}: {sanitize_trailer_value(msg)} {DIM}[{sha}]{RESET}")
         else:
-            print(f"  {DIM}[{sha}]{RESET} {subject}")
+            print(f"  {DIM}[{sha}]{RESET} {sanitize_trailer_value(subject)}")
 
         shown += 1
 

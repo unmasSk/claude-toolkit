@@ -559,7 +559,16 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         if output:
             import re as _re
             _pat = _re.compile(r"context\(consolidation\)", _re.IGNORECASE)
-            for line in output.splitlines():
+            # issue #57 round 2d (Argus LOW, bullet F): .splitlines() treats
+            # \x1c-\x1e (and other Unicode line-boundary bytes) as line
+            # boundaries, not just real "\n". A commit whose subject embeds
+            # a raw \x1e BEFORE the "context(consolidation)" keyword split
+            # this function's own %H %s output line into two fragments,
+            # neither of which matched "<sha> <subject with keyword>" --
+            # making the real checkpoint invisible and inflating the result
+            # to _CONSOLIDATION_SENTINEL. `git log --format=%H %s` output is
+            # newline (\n)-delimited only; split on the real character.
+            for line in output.split("\n"):
                 line = line.strip()
                 if not line:
                     continue
