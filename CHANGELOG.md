@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Hard-link bypass of the symlink-safe write guard closed** (issue #53): the two symlink-safe open helpers, `open_no_follow_symlink()` (`lib/git_helpers.py`) and its Windows-path twin `open_no_follow_symlink_fallback()` (`lib/_symlink_safe_open.py`), gain an opt-in `reject_hardlinks=True` parameter. When set, both check `os.fstat(fd).st_nlink` on the already-open file descriptor (TOCTOU-safe — the check runs after the symlink guard has already resolved the real file, not before) and raise `OSError` (`errno.EMLINK`) if the file has more than one link, deferring truncation in write mode so a rejected file's shared inode is never destroyed before the reject fires. Applied to the 5 file categories the toolkit generates and writes to itself — `boot-log-latest.txt` (`hooks/session-start-boot.py`), `glossary-cache.json` read and write (`lib/boot_glossary_cache.py`), `.session-booted` (`hooks/user-prompt-memory-check.py`), `manifest.json` across install/doctor/upgrade (`lib/install_apply.py`, `bin/git-memory-doctor.py`, `bin/git-memory-upgrade.py`), and the upgrade backup (`bin/git-memory-upgrade.py`) — closing SEC-HIGH-001 plus a variant the first pass missed on the upgrade backup path. Deliberately NOT applied to user-owned files (`CLAUDE.md`, `settings.json`, `.gitignore`), where a legitimate hard link between worktrees is valid and should not be rejected. `git-memory-upgrade.py`'s backup caller now wraps `create_backup()` in try/except so a rejected hard link at the backup path fails the upgrade cleanly instead of crashing uncaught. New contract tests: `tests/test_hardlink_reject_guard.py`, `tests/test_manifest_hardlink_reject.py`. Originally deferred out of the v1.16.1 cross-platform fix pending its own dedicated review (decision `51a3c44`); closed here.
+
 ## [1.18.0] - 2026-07-09
 
 ### Added
