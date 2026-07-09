@@ -359,7 +359,7 @@ def apply_upgrade(source: str, target: str, manifest: dict[str, Any], check_resu
         # SEC-HIGH-NEW-03 (Argus): symlink-safe write — same guard as
         # git-memory-install.py's _create_manifest() and
         # lib/boot_memory.py's existing open_no_follow_symlink() writers.
-        with open_no_follow_symlink(manifest_path, "w") as f:
+        with open_no_follow_symlink(manifest_path, "w", reject_hardlinks=True) as f:
             json.dump(new_manifest, f, indent=2)
     except Exception as e:
         errors.append(f"Error updating manifest: {e}")

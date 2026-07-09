@@ -1046,3 +1046,23 @@ mode="w", encoding="utf-8", **kwargs)` — one line, no assertion changes)
 — per test-first mode's "never touch tests, report instead" rule, escalate
 this instead of patching it yourself, even though it's a different file
 than the actual Dante contract for the issue.
+
+**Follow-up (SEC-HIGH-001, issue #53 extension, session 2026-07-09):** Argus
+found 3 MORE manifest.json write call sites missing `reject_hardlinks=True`
+— `lib/install_apply.py:276` (`_create_manifest()`), `bin/git-memory-
+upgrade.py:362` (`apply_upgrade()`), `bin/git-memory-doctor.py:517`
+(healthcheck write-back). Dante's `tests/test_manifest_hardlink_reject.py`
+(3 tests, one per site) went RED→GREEN by adding the kwarg to exactly those
+3 lines — no other production code needed (the parameter and its
+`st_nlink>1` check already existed from the base F6 fix). `bin/git-memory-
+doctor.py`'s call site is a read-then-write pair on the same path
+(`open_no_follow_symlink(manifest_path, "r")` at line 514, then `"w")` at
+517) — only the write got `reject_hardlinks=True`; the read was left
+unguarded on purpose, matching Dante's test docstring which explicitly
+scoped the read as "a separate, already-unguarded-by-design call site, out
+of scope here" (a hard-link read doesn't corrupt the victim, only a write
+does). Rule: when a guarded write follows an unguarded read of the same
+path, don't guard the read too just for symmetry — check what the contract
+test actually exercises before expanding scope. Full suite: 972 passed, 77
+skipped, 0 failed after this round (no `test_release.py`-style flake
+surfaced this run).

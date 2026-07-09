@@ -514,7 +514,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             with open_no_follow_symlink(manifest_path, "r") as f:
                 data = json.load(f)
             data["last_healthcheck_at"] = datetime.now().isoformat()
-            with open_no_follow_symlink(manifest_path, "w") as f:
+            with open_no_follow_symlink(manifest_path, "w", reject_hardlinks=True) as f:
                 json.dump(data, f, indent=2)
         except Exception:
             pass

@@ -273,7 +273,7 @@ def _create_manifest(target: str, mode: str) -> None:
     # lib/boot_memory.py's existing open_no_follow_symlink() pattern — a
     # pre-planted symlink at this fixed path must not be silently followed
     # and used to overwrite an arbitrary file outside the repo.
-    with open_no_follow_symlink(manifest_path, "w") as f:
+    with open_no_follow_symlink(manifest_path, "w", reject_hardlinks=True) as f:
         json.dump(manifest, f, indent=2)
 
     ensure_gitignore(target)
