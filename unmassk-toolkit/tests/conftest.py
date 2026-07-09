@@ -281,6 +281,39 @@ def real_symlink_capable(tmp_path):
 
 
 @pytest.fixture
+def real_hardlink_capable(tmp_path):
+    """Skip the test using this fixture if the CURRENT environment cannot
+    create real filesystem hard links.
+
+    Unlike os.symlink() (which needs Developer Mode /
+    SeCreateSymbolicLinkPrivilege on Windows), os.link() works on
+    NTFS/ext4/APFS without any special privilege on every OS this project
+    targets -- confirmed live on this Windows dev box (2026-07-09, issue
+    #53). Still guarded explicitly rather than assumed universally
+    available, because some CI/container filesystems (network mounts,
+    certain overlay/tmpfs configurations) reject hard-link creation across
+    mount boundaries or entirely. st_nlink > 1 is the ONLY signal a
+    reject_hardlinks=True guard can act on, so a test that cannot create a
+    real multi-link file cannot meaningfully exercise that guard -- skip
+    explicitly rather than faking the result.
+
+    Shared by any test file exercising reject_hardlinks (issue #53,
+    design decision 51a3c44) -- single source of truth, auto-discovered
+    via conftest.py (no import needed), same pattern as
+    real_symlink_capable above.
+    """
+    probe_target = tmp_path / "_hardlink_probe_target.txt"
+    probe_link = tmp_path / "_hardlink_probe_link.txt"
+    probe_target.write_text("probe", encoding='utf-8')
+    try:
+        os.link(str(probe_target), str(probe_link))
+    except OSError as e:
+        pytest.skip(f"cannot create real hard links in this environment: {e}")
+    else:
+        os.remove(str(probe_link))
+
+
+@pytest.fixture
 def installed_repo(tmp_path):
     """Create a temporary git repo with git-memory installed."""
     repo = str(tmp_path / "repo")
