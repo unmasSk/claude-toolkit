@@ -18,6 +18,7 @@ extract_glossary() from here, never the reverse).
 """
 
 import re
+import sys
 
 from constants import TOMBSTONE_KEYS
 # NOTE: the `parsing` helpers below (scan_trailers_memory, normalize,
@@ -169,6 +170,15 @@ def extract_memory(ref: str = "HEAD") -> dict:
         # implicitly staying option-safe if this call site is ever changed.
         "--",
     ])
+    # House root-cause (issue #61): a transient git failure here used to
+    # collapse to {} with zero trace, indistinguishable from "no memory in
+    # history yet". Breadcrumb printed at the call site (not via run_git's
+    # log_stderr_on_failure kwarg) because several test doubles for run_git
+    # in this codebase have a fixed `(args, cwd=None)` signature with no
+    # **kwargs catch-all — passing a new kwarg here would raise TypeError
+    # inside those tests. The {} return value is unchanged.
+    if code != 0:
+        print(f"[boot_memory] extract_memory(): git log exited {code}", file=sys.stderr)
     if code != 0 or not log_output:
         return {}
 
@@ -386,6 +396,11 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
     # extract_memory() above — see the comment there for why -z closes the
     # control-byte record-forgery hole for good.
     code, log_output = run_git(log_args)
+    # House root-cause (issue #61): same silent-collapse fix, and same
+    # call-site-breadcrumb rationale, as extract_memory() above (see that
+    # function's comment) — the return value is unchanged.
+    if code != 0:
+        print(f"[boot_memory] extract_glossary(): git log exited {code}", file=sys.stderr)
     if code != 0 or not log_output:
         return {"decisions": [], "memos": [], "remembers": []}
 

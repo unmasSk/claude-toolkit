@@ -562,9 +562,14 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         # Find the most recent commit with subject containing "context(consolidation)"
         # Using --grep with --fixed-strings, no -n limit → full history scan.
         # The pattern matches "context(consolidation)" anywhere in the subject line.
+        # House root-cause (issue #61): a transient failure here used to
+        # collapse to 0 with zero trace, indistinguishable from "no commits
+        # since consolidation". log_stderr_on_failure=True leaves a
+        # breadcrumb on stderr when rc != 0; the return value is unchanged.
         rc, output = run_git(
             ["log", "--all", "--format=%H %s", "--grep=context(consolidation)", "--fixed-strings"],
             cwd=cwd,
+            log_stderr_on_failure=True,
         )
         if rc != 0:
             return 0
@@ -603,6 +608,7 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         rc2, count_str = run_git(
             ["rev-list", "--count", f"{consolidation_sha}..HEAD"],
             cwd=cwd,
+            log_stderr_on_failure=True,
         )
         if rc2 != 0 or not count_str:
             return 0

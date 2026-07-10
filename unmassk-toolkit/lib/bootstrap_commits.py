@@ -120,6 +120,10 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     # then %s last-in-header (absorbs any stray \x1f in the subject),
     # then %b after the first real "\n" (%n) -- git guarantees %s has no
     # literal newline, so this split is always unambiguous.
+    # House root-cause (issue #61): a transient git failure here used to
+    # collapse to None with zero trace, indistinguishable from "not a git
+    # repo" / "no commits". log_stderr_on_failure=True leaves a breadcrumb
+    # on stderr when code != 0; the None return value is unchanged.
     code, output = run_git([
         "log", "-n", str(depth), "-z",
         # %aI (not %at): this date is never parsed, only carried through to
@@ -132,7 +136,7 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
         # TestBootstrapCommitsDateFieldContract for the full reasoning).
         "--pretty=format:%h\x1f%aI\x1f%s%n%b",
         "--",
-    ])
+    ], log_stderr_on_failure=True)
     if code != 0 or not output:
         return None
 
@@ -142,11 +146,14 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     # a missing/failed second call degrades to an empty author per commit
     # rather than failing the whole scan.
     authors_by_sha: dict[str, str] = {}
+    # Same breadcrumb rationale as Call 1 above — a failure here degrades
+    # to an empty author dict silently; log_stderr_on_failure=True at least
+    # leaves a trace that the second git call itself failed.
     code2, output2 = run_git([
         "log", "-n", str(depth), "-z",
         "--pretty=format:%h\x1f%an",
         "--",
-    ])
+    ], log_stderr_on_failure=True)
     if code2 == 0 and output2:
         for araw in output2.split("\x00"):
             araw = araw.strip()

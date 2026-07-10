@@ -102,11 +102,15 @@ def extract_memory_from_log() -> dict[str, Any]:
     # real trailer entirely from stdout. Now any extra \x1f in the
     # subject is absorbed into `subject` itself (header.split("\x1f", 1)
     # below), never bleeding into `body`.
+    # House root-cause (issue #61): a transient git failure here used to
+    # collapse to {} with zero trace, indistinguishable from "no recent
+    # commits". log_stderr_on_failure=True leaves a breadcrumb on stderr
+    # when code != 0; the {} return value is unchanged.
     code, output = run_git([
         "log", "-n", "30", "-z",
         "--pretty=format:%h\x1f%s%n%b",
         "--",
-    ])
+    ], log_stderr_on_failure=True)
 
     if code != 0 or not output:
         return {}
@@ -252,7 +256,11 @@ def format_snapshot(memory: dict[str, Any]) -> str:
         lines.append("!!! WARNING: Shallow clone detected. Memory may be incomplete. !!!")
 
     # Branch
-    code, branch = run_git(["branch", "--show-current"])
+    # House root-cause (issue #61): a transient failure here silently
+    # omitted the "Branch:" line with zero trace. log_stderr_on_failure=True
+    # leaves a breadcrumb on stderr when code != 0; behavior (omit the
+    # line) is unchanged.
+    code, branch = run_git(["branch", "--show-current"], log_stderr_on_failure=True)
     if code == 0:
         lines.append(f"Branch: {branch}")
 
