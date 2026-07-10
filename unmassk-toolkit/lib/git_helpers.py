@@ -419,10 +419,16 @@ def run_git(
                  text for every one of those would be log noise, not a
                  diagnostic. Opt in only where a failure here is a genuine
                  "something we didn't expect" case whose silence previously
-                 hid the real cause (House root-cause, boot_git_checks.py's
-                 get_timeline()/get_last_context_time() — a future git-level
-                 read failure must leave a breadcrumb, not a silent empty
-                 result).
+                 hid the real cause (House root-cause, issue #61,
+                 boot_git_checks.py's get_timeline()/get_last_context_time()
+                 — a future git-level read failure must leave a breadcrumb,
+                 not a silent empty result). This is the canonical
+                 explanation for the pattern: every other
+                 log_stderr_on_failure=True call site in the codebase (and
+                 boot_memory.py's two manual-print sites, which can't take
+                 this kwarg — see their own short comments) only carries a
+                 one-line "breadcrumb #61" pointer back here, not a repeat
+                 of this reasoning.
 
     Returns:
         Tuple of (exit_code, stripped_stdout). Returns (1, "") on any error.
@@ -562,10 +568,9 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         # Find the most recent commit with subject containing "context(consolidation)"
         # Using --grep with --fixed-strings, no -n limit → full history scan.
         # The pattern matches "context(consolidation)" anywhere in the subject line.
-        # House root-cause (issue #61): a transient failure here used to
-        # collapse to 0 with zero trace, indistinguishable from "no commits
-        # since consolidation". log_stderr_on_failure=True leaves a
-        # breadcrumb on stderr when rc != 0; the return value is unchanged.
+        # breadcrumb #61: transient git failure here used to collapse to 0
+        # with zero trace; log_stderr_on_failure leaves a trace, return
+        # value unchanged (see run_git()'s docstring above).
         rc, output = run_git(
             ["log", "--all", "--format=%H %s", "--grep=context(consolidation)", "--fixed-strings"],
             cwd=cwd,
@@ -605,6 +610,7 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
             return _CONSOLIDATION_SENTINEL
 
         # Count commits from consolidation_sha (exclusive) to HEAD.
+        # breadcrumb #61: same rationale as the run_git() call above.
         rc2, count_str = run_git(
             ["rev-list", "--count", f"{consolidation_sha}..HEAD"],
             cwd=cwd,

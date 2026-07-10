@@ -185,12 +185,9 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         "--",
     ]
 
-    # House root-cause (issue #61): a transient git subprocess failure here
-    # used to collapse to an empty [] with zero trace — indistinguishable
-    # from "no memory entries exist". log_stderr_on_failure=True (same
-    # run_git kwarg already used by boot_git_checks.py's get_timeline()/
-    # get_last_context_time()) leaves a breadcrumb on stderr when rc != 0;
-    # the [] return value is unchanged.
+    # breadcrumb #61: transient git failure here used to collapse to an
+    # empty [] with zero trace; log_stderr_on_failure leaves a trace, []
+    # return value unchanged (see run_git()'s docstring in git_helpers.py).
     code, log_output = run_git(git_args, cwd=repo_dir, log_stderr_on_failure=True)
 
     if code != 0 or not log_output:
