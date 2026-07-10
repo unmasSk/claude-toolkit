@@ -1096,3 +1096,66 @@ concluding the fix itself was structurally correct. Per test-first mode
 rules, did NOT touch the test — escalated with the exact counts instead.
 All other 153/154 tests in the file pass, and the full suite (1216 passed,
 2 skipped) shows zero other regressions.
+
+## Issue #60 v3: re-base a test's FAILURE-INJECTION TECHNIQUE, never its assertions, when a legitimate identity check invalidates the technique (2026-07-10)
+
+Implementing decision 787b698 (own-stamp identity now includes the real
+`git remote get-url` value, not just alias+branch — closes Moriarty's
+cross-repo stamp-copy PoC) broke two PRE-EXISTING, non-contract tests that
+simulate "the remote breaks" via `git remote set-url origin <bogus-path>`:
+`test_boot_freshness.py::TestRateLimitedStampSurvivesRemoteBreakage` and
+`test_boot_freshness_hardening.py::test_fetch_failure_returns_failed_with_prior_age`.
+Root cause: `git remote set-url` changes the CONFIGURED URL, which under
+strict URL identity is itself a mismatch — a different scenario ("remote
+reconfigured") than what those tests actually simulate ("the same remote,
+now unreachable"). `git remote get-url` never touches the filesystem at
+the URL's path; it only reads config. So the fix is to break reachability
+WITHOUT changing the configured URL: `shutil.rmtree(bare_remote_path,
+ignore_errors=True)` on the local bare-repo directory the URL already
+points at, instead of `git remote set-url` to a different nonexistent
+path. `git remote get-url` still returns the exact same string (matches
+the stamp's stored identity), `git fetch` still fails deterministically
+(the directory is gone) — zero assertion changes needed in either test,
+only the setup helper's ONE line.
+
+Rule confirmed from a prior round of this SAME issue (see the entry above
+this one): in test-first mode, re-basing a NON-contract test's SETUP
+MECHANISM (how a scenario is simulated) is in scope for Ultron when a
+legitimate design change invalidates that specific technique — this
+precedent already existed in this pipeline (commit eb3e554, the v1->v2
+GREEN round, edited 3 test files' `os.utime()`-on-FETCH_HEAD seeding to
+target the new stamp file instead, with zero assertion changes). What
+stays strictly off-limits is: (1) the specific Dante RED contract class
+named as protected in the task brief, and (2) any test's ASSERTIONS —
+if satisfying the new design requires changing what a test actually
+checks (not just how it sets up the scenario), that is a contradiction to
+escalate, not silently resolve. Before concluding "this test needs
+re-basing," verify algebraically that a same-assertions fix exists (trace
+the exact code path the new identity check takes for that setup) — only
+then is it a mechanical re-base; if no such fix exists, stop and report
+per the earlier entry's rule.
+
+## Two-strictness-level identity check for a locally-written trust stamp (issue #60 v3, decision 787b698)
+
+When a fail-open "own success stamp" file (`.claude/.unmassk/*.json`) needs
+an identity check to prevent cross-repo reuse (e.g. copying the file
+between two repos that share a common alias/branch convention like
+"origin"/"main"), one strict comparison function is not enough if the
+SAME identity fields are also useful for a lower-stakes, purely
+informational purpose elsewhere. Pattern used in
+`lib/boot_fetch_stamp.py`: a shared `_load_own_stamp()` does the
+expensive/shared part (symlink-safe read, JSON parse, schema_version
+validation) and returns `(data, age)` with NO identity opinion; two thin
+callers each apply their own strictness: `_read_own_stamp_age()` (remote +
+branch + real URL, ALL must match — the only path allowed to produce a
+"rate_limited"/trust-skip-the-real-check result) and
+`_read_stamp_age_by_alias_only()` (remote + branch only, deliberately
+ignoring URL — used ONLY where the caller's own return status can never
+be the trusted/skip-real-check one, so a looser match is safe: it can only
+ever improve an already-degraded "unverified, age unknown" message into
+"unverified, aged N ago", never grant trust it shouldn't). Document the
+asymmetry directly in both functions' docstrings (why the loose one is
+safe, and an explicit "do NOT reuse this helper anywhere its result could
+feed a rate-limit/trust decision" warning) — this is the kind of
+security-relevant design nuance that gets silently violated by future
+callers if only implied, not stated.

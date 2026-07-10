@@ -476,7 +476,21 @@ class TestRateLimitedStampSurvivesRemoteBreakage:
             "FETCH_HEAD is the seam the rate-limit gate reads"
         )
 
-        _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist.git")], repo_a)
+        # Re-based for issue #60 v3 (decision 787b698): the own-stamp's
+        # identity now includes the remote's REAL URL (`git remote
+        # get-url`), resolved fresh on every boot. The old technique here
+        # (`git remote set-url origin <bogus>`) CHANGES that URL, which
+        # under v3 is itself an identity mismatch — a legitimately
+        # different scenario ("this repo's own remote got reconfigured
+        # to somewhere else") than the one this fixture simulates ("the
+        # SAME remote is still configured but has become unreachable").
+        # Deleting the bare repo's files on disk instead keeps `git
+        # remote get-url origin` returning the EXACT SAME URL string the
+        # stamp already recorded (get-url only reads git config, it never
+        # touches the filesystem at that path) while still making a real
+        # `git fetch` against it fail deterministically — the correct way
+        # to simulate "this exact remote just broke" under URL identity.
+        shutil.rmtree(bare, ignore_errors=True)
         return repo_a, fetch_head
 
     def test_within_window_broken_remote_still_shows_synced_not_fetched(self, tmp_path):

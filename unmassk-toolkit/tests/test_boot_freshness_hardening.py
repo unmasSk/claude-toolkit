@@ -70,6 +70,7 @@ fixes, Dante reports).
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -298,15 +299,23 @@ class TestFetchMemoryRefStates:
 
     def test_fetch_failure_returns_failed_with_prior_age(self, tmp_path):
         repo = _make_gated_repo(tmp_path)
-        _add_bare_remote(repo, tmp_path)
+        bare = _add_bare_remote(repo, tmp_path)
         boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp first
 
-        # Deterministic, no-network failure — same technique as the
-        # acceptance contract's fetch-failed test: point origin at a path
-        # that never existed. The remote NAME stays "origin" (only its URL
-        # changes), so the stamp's stored identity still matches and its
-        # age is genuinely preserved through the failed refetch below.
-        _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist.git")], repo)
+        # Deterministic, no-network failure. Re-based for issue #60 v3
+        # (decision 787b698): the own-stamp's identity now includes the
+        # remote's REAL URL (`git remote get-url`), so the old technique
+        # here (`git remote set-url origin <bogus>`) would itself be an
+        # identity mismatch — a different scenario ("the remote got
+        # reconfigured") than the one under test ("the SAME remote is
+        # still configured but became unreachable"). Deleting the bare
+        # repo's files instead keeps `git remote get-url origin` returning
+        # the EXACT SAME URL the stamp already recorded (get-url only
+        # reads git config, never the filesystem at that path), so the
+        # stamp's stored identity still matches and its age is genuinely
+        # preserved through the failed refetch below — while the refetch
+        # itself still fails deterministically (the bare repo is gone).
+        shutil.rmtree(bare, ignore_errors=True)
         stamp_path = self._own_stamp_path(repo)
         assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         stale_time = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 60)
