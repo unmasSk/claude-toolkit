@@ -342,13 +342,24 @@ class TestIncidentBehindShowsRemoteNext:
 class TestFreshnessStampThreeStates:
     """Plan Task 1 test 2 — the MEMORY: freshness stamp must appear in the
     header (stdout banner and/or boot-log) in all three states: fresh
-    fetch, rate-limited (skipped), and fetch-failed (falls back to
-    "LOCAL ... unverified").
+    fetch, rate-limited (still fresh — memory synced within the last 5min,
+    fetch was simply skipped because it wasn't needed), and fetch-failed
+    (falls back to "LOCAL ... unverified").
 
     Bex (issue #49 repair round): the stamp's wording was decided to be
     English (matching the rest of the boot banner) — was "MEMORIA:"/"sin
     verificar"/"omitido" (Spanish) when this file was first written,
     mechanically updated here to match the just-made language decision.
+
+    Issue #60 (decision ceef426): the rate-limited variant was originally
+    labeled "MEMORY: LOCAL — fetch skipped (rate-limit, ... ago)" — reading
+    as a failure when it is actually the GOOD case (FETCH_HEAD < 300s old,
+    memory confirmed fresh, a real fetch just wasn't needed). Relabeled to
+    "MEMORY: remote (synced ... ago)" — "remote" (not "LOCAL"), no more
+    "skipped". `test_rate_limited_state_shows_stamp` below asserts the new
+    wording precisely, on the real MEMORY: line only (not a loose substring
+    search over the whole combined output, which would also match text
+    elsewhere in the banner).
     """
 
     def test_fresh_fetch_state_shows_stamp(self, tmp_path):
@@ -359,19 +370,61 @@ class TestFreshnessStampThreeStates:
         assert rc == 0, f"stderr: {stderr}"
         assert "MEMORY:" in combined, f"expected a MEMORY: freshness stamp.\n{combined}"
 
-    def test_rate_limited_state_shows_stamp(self, tmp_path):
+    def test_rate_limited_state_shows_remote_synced_stamp_not_local(self, tmp_path):
+        """Issue #60: rate-limited is the GOOD case (FETCH_HEAD < 300s old,
+        memory already confirmed fresh this window) — the stamp must read
+        "MEMORY: remote (synced {age} ago)" and must NOT contain "LOCAL" or
+        "skipped" anywhere on that line. Real subprocess channel (§34): runs
+        the actual hooks/session-start-boot.py hook twice over a real git
+        repo, reading the real boot-log-latest.txt — no literal copied from
+        today's output, the exact wording is quoted from the plan/decision
+        (ceef426) as the target contract, not derived by running the
+        unmodified code.
+        """
         repo_a, bare = _setup_freshness_repo(tmp_path)
 
         # First boot performs a real fetch, leaving .git/FETCH_HEAD with a
         # fresh mtime. The very next boot, still inside the rate-limit
-        # window, must report the RATE-LIMITED variant of the stamp.
+        # window, must report the rate-limited (fresh, "remote") variant of
+        # the stamp — not fall back to a "fetched" or "LOCAL" line.
         _run_boot(repo_a)
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
 
         assert rc == 0, f"stderr: {stderr}"
-        assert "MEMORY:" in combined, f"expected a MEMORY: freshness stamp.\n{combined}"
-        assert re.search(r"rate.?limit|skipped", combined, re.IGNORECASE), (
-            f"expected the rate-limited variant of the stamp.\n{combined}"
+        memory_line = _line_with(combined, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: freshness stamp.\n{combined}"
+        assert memory_line.startswith("MEMORY: remote (synced "), (
+            f"expected the rate-limited stamp to read 'MEMORY: remote (synced "
+            f"... ago)', got: {memory_line!r}"
+        )
+        assert "LOCAL" not in memory_line, (
+            f"rate-limited (fresh) memory must never be labeled LOCAL: {memory_line!r}"
+        )
+        assert "skipped" not in memory_line, (
+            f"rate-limited (fresh) memory must never say 'skipped' (reads as "
+            f"failure): {memory_line!r}"
+        )
+
+        # The original bug (issue #60): SessionStart can fire multiple boots
+        # per session, and the LAST boot's output is what persists to disk in
+        # boot-log-latest.txt — so the persisted FILE, not just this process's
+        # stdout, is what a human or another tool actually reads afterward.
+        # Assert directly against log_content (the file's contents), not just
+        # the stdout+log "combined" blob, to pin that the second (rate-
+        # limited) boot's persisted file itself carries the good label.
+        log_memory_line = _line_with(log_content, "MEMORY:")
+        assert log_memory_line is not None, (
+            f"expected a MEMORY: freshness stamp in the persisted boot-log "
+            f"file itself.\n{log_content}"
+        )
+        assert log_memory_line.startswith("MEMORY: remote (synced "), (
+            f"expected the persisted boot-log-latest.txt to carry the "
+            f"rate-limited 'MEMORY: remote (synced ... ago)' stamp after the "
+            f"second boot, got: {log_memory_line!r}"
+        )
+        assert "LOCAL" not in log_memory_line and "skipped" not in log_memory_line, (
+            f"persisted boot-log-latest.txt must never show the rate-limited "
+            f"(fresh) state as LOCAL/skipped: {log_memory_line!r}"
         )
 
     def test_fetch_failed_state_shows_local_unverified(self, tmp_path):

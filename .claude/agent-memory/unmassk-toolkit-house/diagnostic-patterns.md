@@ -4,6 +4,25 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: Boot MEMORY stamp shows "rate-limit/skip" because multiple SessionStart boots overwrite the single per-repo boot-log (last-writer-wins), not because fetch is broken
+
+**Project:** unmassk-toolkit (git-memory boot) · **Seen:** 2026-07-10 · confirmed from session transcripts
+
+Symptom: user reports "the boot fetch never works — every project shows `MEMORY: LOCAL — fetch skipped (rate-limit, Ns ago)`". The fetch actually WORKS.
+
+Root cause is an interaction of three facts, none of them a fetch bug:
+1. `hooks/hooks.json` registers `SessionStart` with NO `matcher`, so the boot hook (`session-start-boot.py`) fires on EVERY session-start source: `startup`, `resume`, `clear`, `compact`. Each invocation runs the full boot.
+2. Every boot unconditionally overwrites the single per-repo file `.claude/.unmassk/boot-log-latest.txt` (`write_boot_log`) and prints its own banner. There is NO dedupe — the boot hook deliberately does NOT create/read `.session-booted` (that flag is UserPromptSubmit's).
+3. The fetch is rate-limited to `FETCH_RATE_LIMIT_SECONDS = 300` keyed on `.git/FETCH_HEAD` mtime (`_fetch_gate_and_rate_limit` / `_fetch_head_age_seconds`, `lib/boot_git_checks.py`). The FIRST boot in a 5-min window fetches successfully (writes FETCH_HEAD → banner `MEMORY: remote (fetched 0s ago)`); every SUBSEQUENT boot within 5 min sees fresh FETCH_HEAD → `rate_limited` → banner `LOCAL — fetch skipped`.
+
+Because users open/resume/clear the same repo several times within a few minutes, the LAST boot to write boot-log-latest.txt is almost always a rate-limited one, and that stale last-writer banner is what the user sees. Proof in transcripts: a single session jsonl (`7a658028`, claude-toolkit) contains TWO real boots with DIFFERENT stamps (`2min ago` @13:32Z, `24s ago` @13:54Z) → SessionStart re-fires within one session. Across three antonio-alsara opens in 4 min: `failed(15h)`@15:27 → `rate-limit 1min`@15:28 → `rate-limit 24s`@15:31, FETCH_HEAD advancing the whole time = fetches ARE happening.
+
+Verified NON-causes (rejected hypotheses): (a) a single boot CANNOT fetch-then-relabel-skip — `render_memoria_stamp` uses the same `fetch_state` dict returned once by `fetch_memory_ref`, never re-reads age (main() lines 304→369); rate-limit is an early return BEFORE the fetch. (b) The 15:37/15:40 "sessions that didn't regenerate boot-log" were NOT new boots — jsonl mtime is last-message time, not a boot event; no SessionStart fired then, so nothing was expected to regenerate.
+
+Secondary: FETCH_HEAD mtime is shared, non-authoritative state (documented residual Argus SEC-LOW-001) — a user/IDE `git pull` also resets the rate-limit clock, so boots can be gated by non-boot git activity (seen in omawaMapas where boots never show "fetched" yet FETCH_HEAD advances).
+
+Fix direction (WHAT, not implemented): make the banner/boot-log reflect the freshest KNOWN state instead of last-writer-wins. Options for Ultron/Yoda to choose: (a) don't overwrite a "fetched" boot-log with a later "rate-limited" one within the window (compare-and-keep-fresher); (b) render the stamp from FETCH_HEAD age alone (a fresh FETCH_HEAD IS fresh memory — "rate-limit skip" is not a degraded state, it means "already fresh"); (c) reword `rate_limited` so it reads as "memory is fresh (synced Ns ago)" rather than "skipped", which users read as failure. This is a UX/labeling + last-writer bug, not a fetch bug.
+
 ## Pattern: Barrido `encoding='utf-8'` OVER-CORRECTED — Pinning PARENT Read to utf-8 While CHILD Writes Locale Encoding Breaks Only on Non-utf8 CI Runner (run 28933635507)
 
 **Project:** unmassk-toolkit (git-memory) · **Seen:** 2026-07-08 · confirmed 1:1 locally on real Windows

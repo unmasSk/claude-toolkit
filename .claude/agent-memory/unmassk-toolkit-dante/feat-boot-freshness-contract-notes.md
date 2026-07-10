@@ -286,3 +286,45 @@ independently hand-typed `10` that only coincidentally matches today. Spy
 pattern mirrors the pre-existing `_fake_run_git` idiom in
 `test_boot_freshness_hardening.py::TestGetAheadBehind::
 test_non_numeric_rev_list_output_should_fail_open_but_raises`.
+
+## Issue #60 — rate_limited relabel, RED contract (session 2026-07-10, decision ceef426)
+
+Test-first Task 1. `rate_limited` (FETCH_HEAD < 300s = memory already fresh,
+a GOOD state) was mislabeled `MEMORY: LOCAL — fetch skipped (rate-limit,
+{age} ago)` — read as a failure. New contract: `MEMORY: remote (synced
+{age_txt} ago)` (`?` for `age=None`), never containing `LOCAL` or
+`skipped`. Real failure states (`failed`/`no_remote`/age-None) are
+UNCHANGED — do not touch those literals when relabeling a rate-limit-shaped
+bug in this module again.
+
+Two files touched: `test_boot_freshness_hardening.py::TestRenderMemoriaStamp::
+test_states_and_ages` (2 parametrize literals updated) and
+`test_boot_freshness.py::TestFreshnessStampThreeStates::
+test_rate_limited_state_shows_remote_synced_stamp_not_local` (renamed from
+`test_rate_limited_state_shows_stamp` — old name/assertion
+`re.search(r"rate.?limit|skipped", combined)` would have passed vacuously
+forever since both the OLD and NEW wording contain neither "rate-limit" nor
+"skipped" as a hard requirement in the old regex — the old assert was a
+loose substring match over stdout+log combined, not the actual `MEMORY:`
+line. Fixed to extract the real `MEMORY:` line via the file's existing
+`_line_with()` helper and assert `.startswith("MEMORY: remote (synced ")` +
+absence of `LOCAL`/`skipped` on that exact line — same "marker leaks into
+its own assertion" family of bug as the "echoes back into output" entry in
+edge-cases.md, just the inverse (loose regex, not embedded marker).
+
+**Double-boot-rapid gap folded into the same test, not a new one:** the
+original bug was SessionStart multi-firing and the LAST boot's write to
+`boot-log-latest.txt` (the persisted FILE, not just that process's stdout)
+carrying the bad label. Added a second block of assertions in the same test
+against `log_content` specifically (the file's own contents, read via
+`_read_boot_log()`), not just the `combined` stdout+log blob — this is the
+real regression shape, so it belongs in the same real two-boot fixture
+rather than a separate synthetic test.
+
+RED confirmed: `python3 -m pytest unmassk-toolkit/tests/
+test_boot_freshness_hardening.py unmassk-toolkit/tests/test_boot_freshness.py
+unmassk-toolkit/tests/test_boot_freshness_regression.py -q` → 3 failed
+(exactly the touched tests, clean `AssertionError`s comparing old text vs
+new contract) + 124 passed + 2 skipped (pre-existing Windows-only guards,
+same 2 as always — see the "Windows gap" note above). Exit code checked
+directly (no `| tail`/`| head`), per this repo's hard rule.

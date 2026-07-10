@@ -397,8 +397,11 @@ class TestRenderMemoriaStamp:
             ({"status": "fetched", "age_seconds": 0.0}, "MEMORY: remote (fetched 0s ago)"),
             ({"status": "fetched", "age_seconds": None}, "MEMORY: remote (fetched 0s ago)"),
             ({"status": "fetched", "age_seconds": 125.0}, "MEMORY: remote (fetched 2min ago)"),
-            ({"status": "rate_limited", "age_seconds": 45.0}, "MEMORY: LOCAL — fetch skipped (rate-limit, 45s ago)"),
-            ({"status": "rate_limited", "age_seconds": None}, "MEMORY: LOCAL — fetch skipped (rate-limit, ? ago)"),
+            # Issue #60 relabel: rate-limited means "memory is fresh, FETCH_HEAD
+            # < 300s old" — a GOOD state, not a failure. Must read as "remote"
+            # (not "LOCAL") and never use the word "skipped" (reads as failure).
+            ({"status": "rate_limited", "age_seconds": 45.0}, "MEMORY: remote (synced 45s ago)"),
+            ({"status": "rate_limited", "age_seconds": None}, "MEMORY: remote (synced ? ago)"),
             ({"status": "skipped_gate", "age_seconds": None}, "MEMORY: LOCAL — unverified (never synced with origin)"),
             ({"status": "skipped_gate", "age_seconds": 500.0}, "MEMORY: LOCAL — last fetch 8min ago, unverified"),
             ({"status": "no_remote", "age_seconds": 7300.0}, "MEMORY: LOCAL — last fetch 2h ago, unverified"),
