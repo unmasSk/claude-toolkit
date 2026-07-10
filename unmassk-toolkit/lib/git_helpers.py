@@ -454,11 +454,27 @@ def run_git(
         )
         proc = subprocess.Popen(
             ["git"] + args,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            cwd=cwd, encoding="utf-8", env=merged_env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=cwd, env=merged_env,
             **popen_kwargs,
         )
-        stdout, stderr = proc.communicate(timeout=timeout)
+        stdout_bytes, stderr_bytes = proc.communicate(timeout=timeout)
+        # SEC-CRIT-16 (issue #59, Argus): the previous `text=True,
+        # encoding="utf-8"` (no `newline=` kwarg) made Python's own
+        # universal-newlines decoding silently translate every raw `\r`
+        # (and `\r\n`) in git's stdout into `\n` BEFORE any caller (e.g.
+        # scan_trailers_memory()) ever saw the string — forging a second
+        # physical line out of what git itself stored as one, reopening the
+        # exact record/field-forgery class the root-fix round already
+        # closed for \x1c/\x1d/\x1e. Capturing raw bytes here and decoding
+        # manually with bytes.decode() performs NO newline translation at
+        # all, so a `\r` git actually wrote is preserved exactly.
+        # UnicodeDecodeError (invalid UTF-8) still surfaces the same way it
+        # did before and is still caught by the dedicated except clause
+        # below — decode failure behavior is unchanged, only the newline
+        # handling is.
+        stdout = stdout_bytes.decode("utf-8")
+        stderr = stderr_bytes.decode("utf-8")
         if log_stderr_on_failure and proc.returncode != 0 and stderr and stderr.strip():
             # Truncated: this is a diagnostic breadcrumb, not a transcript —
             # keep it well short of anything that could carry embedded

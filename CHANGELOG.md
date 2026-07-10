@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Carriage-return transport forgery in the git-log→memory pipeline** (issue #59): `run_git()` (`lib/git_helpers.py`) and the independent inline `git log` subprocess in `bin/git-memory-log.py` both decoded with `text=True` universal-newline translation, collapsing any `\r` in a commit body to `\n` before the parser saw it — a raw carriage return in a trailer could forge or erase a memory line. Both now capture raw bytes and decode manually (no newline translation), preserving `\r` literally. Verified end-to-end through a real subprocess round-trip against `git cat-file`.
+- **Unclosed `memory-data` marker after control-byte truncation** (issue #59, SEC-LOW-17): `scan_trailers_memory()` (`lib/parsing.py`) truncates a line at the first `\x1c`/`\x1d`/`\x1e`; when that byte fell inside a `</memory-data…>` marker it dropped the closing `>`, leaving a dangling marker the fence stripper could not match. A trailing-remnant sweep now neutralizes it.
+- **Quadratic-time input bound on generic-tag stripping** (issue #59): `_strip_generic_tags()` (`lib/bootstrap_commits.py`) is capped to 4096 chars before the tag regex runs, bounding a crafted-long-subject O(n²) case.
+
+### Changed
+
+- **Best-effort framing nonce on the memory-injection markers** (issue #59): the `UserPromptSubmit` recall block and the pre-compact snapshot carry a per-invocation nonce alongside their delimiters. The injection-fence hardening in #59 is intentionally **partial** — the threat requires repo write access (a hostile commit), which is outside the single-user trust model this toolkit targets. The remaining hardening (nonce bound *inside* the delimiter, invisible-Unicode/Cf stripping, disguised-marker regex, and a length bound on the new unclosed-marker sweep) is documented and deferred as risk-accepted.
+
 ## [1.19.0] - 2026-07-09
 
 ### Security

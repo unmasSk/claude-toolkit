@@ -12,6 +12,7 @@ Exit codes:
 
 import os
 import re
+import secrets
 import sys
 from typing import Any
 
@@ -231,7 +232,20 @@ def format_snapshot(memory: dict[str, Any]) -> str:
         Multi-line string ready to print to stdout.
     """
     lines = []
-    lines.append("=== GIT MEMORY SNAPSHOT (pre-compact) ===")
+    # A2 token-fence (issue #59, decision feed852): a per-invocation,
+    # cryptographically unpredictable nonce rides on both frame delimiters
+    # so two invocations over identical repo state stop being
+    # byte-identical -- no value committed in advance (necessarily static)
+    # can ever reproduce today's real frame. The delimiter literals
+    # themselves ("=== GIT MEMORY SNAPSHOT (pre-compact) ===" /
+    # "=== END SNAPSHOT ===") are left byte-exact and unchanged: they are
+    # asserted verbatim elsewhere (test_drift.py, this file's own PART M
+    # delimiter-spoofing tests in test_control_byte_injection.py) as the
+    # anchor a consumer greps/counts on, and _neutralize_snapshot_delimiters()
+    # above still needs the exact literal to recognize and strip a spoofed
+    # copy from commit-derived content.
+    fence_nonce = secrets.token_hex(8)
+    lines.append(f"=== GIT MEMORY SNAPSHOT (pre-compact) === (nonce:{fence_nonce})")
 
     # Shallow clone warning
     if is_shallow_clone():
@@ -296,7 +310,7 @@ def format_snapshot(memory: dict[str, Any]) -> str:
         for key, item in list(memory["remembers"].items())[:3]:
             lines.append(f"  🧠 {trunc(item['remember'])}")
 
-    lines.append("=== END SNAPSHOT ===")
+    lines.append(f"=== END SNAPSHOT === (nonce:{fence_nonce})")
     return "\n".join(lines)
 
 

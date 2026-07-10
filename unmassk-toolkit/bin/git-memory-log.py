@@ -64,14 +64,30 @@ def main() -> None:
     n = args.count if not args.all else 100
     result = subprocess.run(
         ["git", "log", f"-n{n}", "--pretty=format:%h %s"],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True, timeout=15,
     )
 
     if result.returncode != 0:
         print(f"Error: git log failed", file=sys.stderr)
         sys.exit(1)
 
-    lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    # SEC-CRIT-16 (issue #59, Argus): the previous `text=True` (no
+    # `newline=` kwarg) let Python's universal-newlines decoding silently
+    # translate a raw `\r` embedded mid-subject into `\n` before the
+    # `.split("\n")` below ever ran -- splitting ONE real "sha subject"
+    # line into two, the second fragment carrying no real sha, so
+    # `sha = line[:7]` below would manufacture a phantom sha from
+    # attacker-controlled subject text and render a fabricated extra
+    # commit entry indistinguishable from a real one. bytes.decode()
+    # performs no newline translation, so a `\r` git actually wrote stays
+    # a `\r` and never fragments the line.
+    try:
+        stdout = result.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        print(f"Error: git log output was not valid UTF-8", file=sys.stderr)
+        sys.exit(1)
+
+    lines = stdout.strip().split("\n") if stdout.strip() else []
 
     print()
     shown = 0

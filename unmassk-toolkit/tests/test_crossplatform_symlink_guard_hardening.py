@@ -487,25 +487,36 @@ class TestTwinParityHardening:
 
 
 class TestRunGitEncodingUtf8:
-    def test_run_git_passes_encoding_utf8_and_text_true_to_subprocess(
+    def test_run_git_captures_bytes_and_decodes_utf8_without_newline_translation(
         self, monkeypatch
     ):
-        """Mock-verification: confirm the NEW encoding="utf-8" kwarg is
-        actually threaded through to the underlying subprocess call, not
-        just documented.
+        """Mock-verification of the CURRENT contract (issue #59,
+        SEC-CRIT-16, Argus): run_git() no longer passes text=True/
+        encoding="utf-8" to subprocess.Popen — it captures raw BYTES from
+        proc.communicate() and decodes them itself with
+        `stdout_bytes.decode("utf-8")`. The old text=True contract this
+        test used to pin is gone by design: Python's own universal-newlines
+        decoding under text=True silently translated every raw `\\r` in
+        git's stdout into `\\n` before any caller ever saw the string,
+        forging a second physical line out of what git itself stored as
+        one (the exact record/field-forgery class the #57 root-fix round
+        closed for \\x1c/\\x1d/\\x1e — reopened for \\r by text=True). This
+        test locks in the replacement contract: (1) Popen is called WITHOUT
+        text=True/encoding=, (2) run_git still decodes multi-byte UTF-8
+        (accented characters) correctly, and (3) a raw `\\r` byte survives
+        untranslated instead of becoming `\\n`.
 
-        SEC-MED-001 (Argus, issue #49 repair round) switched run_git()'s
-        internals from subprocess.run(...) to subprocess.Popen(...) +
-        proc.communicate(...), so a process-group SIGKILL (os.killpg) can
-        target a hung descendant (ssh/askpass/credential-helper) on timeout
-        — subprocess.run's own TimeoutExpired handling only ever kills the
-        direct child, leaving orphans that can still pop an interactive
-        dialog out of context. This test now mocks subprocess.Popen instead
-        of subprocess.run — same behavioral assertion (encoding/text kwargs
-        threaded through, return contract preserved), updated for the new
-        (still fully documented) internal call shape.
+        The expected output is derived from the same `payload` string this
+        test encodes to bytes for the fake `communicate()` to return
+        (round-trip: encode here -> decode inside run_git -> compare to
+        `payload.strip()`, matching run_git's own `.strip()` on the
+        decoded string) — never an independently hand-typed literal.
         """
         calls = []
+        # Raw `\r` (not `\r\n`) plus a multi-byte UTF-8 accented character,
+        # to prove both guarantees (no newline translation + correct UTF-8
+        # decoding) in one round trip.
+        payload = "línea-uno\rlínea-dos\n"
 
         class _FakePopen:
             def __init__(self, cmd, **kwargs):
@@ -513,17 +524,21 @@ class TestRunGitEncodingUtf8:
                 self.returncode = 0
 
             def communicate(self, timeout=None):
-                return "ok\n", ""
+                return payload.encode("utf-8"), b""
 
         monkeypatch.setattr(subprocess, "Popen", _FakePopen)
 
         code, out = git_helpers.run_git(["status"])
 
         assert len(calls) == 1
-        assert calls[0].get("encoding") == "utf-8"
-        assert calls[0].get("text") is True
+        assert "text" not in calls[0]
+        assert "encoding" not in calls[0]
         assert code == 0
-        assert out == "ok"
+        # The raw \r must survive untranslated (not become \n) — proof the
+        # manual bytes.decode("utf-8") path performs no universal-newlines
+        # translation, unlike the old text=True contract this replaces.
+        assert "\r" in out
+        assert out == payload.strip()
 
     def test_run_git_unicode_decode_error_returns_1_empty_not_raising(
         self, monkeypatch

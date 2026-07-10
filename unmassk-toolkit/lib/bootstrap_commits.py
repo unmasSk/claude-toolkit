@@ -46,6 +46,24 @@ SCAN_COMMITS = 20
 _GENERIC_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
 _GENERIC_TAG_FIXED_POINT_MAX_ITERATIONS = 10
 
+# issue #59 (ReDoS, plan docs/plan/fix-fence-a2-close-57.md task b, Dante):
+# _GENERIC_TAG_RE's negated character class ([^>]*) has no catastrophic
+# (exponential) backtracking risk, but is still O(n^2) against a long run of
+# unmatched "<letter" openers with no closing ">" anywhere -- for EVERY
+# "<letter" start position the engine scans to the end of the remaining
+# string before concluding there's no match. Empirically confirmed
+# (2026-07-10, this machine): "<a" * 200000 (400,000 chars) took ~41s;
+# "<a" * 60000 (120,000 chars) took ~4.2s. This function only ever runs on a
+# single commit subject or author name (both already passed through
+# sanitize_trailer_value() by every call site below) -- no legitimate value
+# is remotely close to this length, so a hard cap on the INPUT before the
+# regex ever runs closes the DoS at the source instead of trying to
+# out-optimize the regex itself. 4096 chars keeps worst-case processing time
+# far under the 2.0s bound (quadratic scaling from the 120K/4.2s measurement
+# puts a 4096-char worst case at ~5ms) while being generous enough that no
+# real subject/author is ever affected.
+_GENERIC_TAG_MAX_INPUT_LEN = 4096
+
 
 def _strip_generic_tags(text: str) -> str:
     """Strip any HTML/XML-like tag from commit-derived text before --json output.
@@ -53,9 +71,14 @@ def _strip_generic_tags(text: str) -> str:
     Runs to a fixed point (bounded) so a nested construction like
     `<sy<system>stem>` -- whose inner tag is stripped first, revealing an
     outer tag that a single pass would miss -- is fully neutralized.
+
+    Input longer than _GENERIC_TAG_MAX_INPUT_LEN is truncated BEFORE the
+    regex ever runs (issue #59, ReDoS) -- see that constant's comment.
     """
     if not text:
         return text
+    if len(text) > _GENERIC_TAG_MAX_INPUT_LEN:
+        text = text[:_GENERIC_TAG_MAX_INPUT_LEN]
     for _ in range(_GENERIC_TAG_FIXED_POINT_MAX_ITERATIONS):
         stripped = _GENERIC_TAG_RE.sub("", text)
         if stripped == text:

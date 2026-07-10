@@ -890,7 +890,12 @@ class TestRunGitLogStderrOnFailure:
             self._stderr = stderr
 
         def communicate(self, timeout=None):
-            return self._stdout, self._stderr
+            # SEC-CRIT-16 (issue #59): run_git() now captures raw bytes
+            # from a real Popen (no text=True/encoding=) and decodes them
+            # itself with bytes.decode("utf-8") — so this fake must mimic
+            # a real subprocess and return bytes, not str, or run_git's
+            # `.decode("utf-8")` call raises AttributeError on a str.
+            return self._stdout.encode("utf-8"), self._stderr.encode("utf-8")
 
     def _patch_popen(self, monkeypatch, returncode, stdout="", stderr=""):
         fake_proc = self._FakeProc(returncode, stdout, stderr)

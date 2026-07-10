@@ -100,6 +100,13 @@ def parse_trailers_full(body: str) -> dict[str, str | list[str]]:
     return trailers
 
 
+# issue #59 (LOW-17): matches an unclosed "<memory-data" / "</memory-data"
+# fence-marker remnant anchored at end-of-string only (see the usage site's
+# comment in scan_trailers_memory() below for why the end-anchor makes this
+# safe to apply unconditionally after control-byte truncation).
+_UNCLOSED_FENCE_TAIL_RE = re.compile(r"<\s*/?\s*memory-data\b[^>]*$", re.IGNORECASE)
+
+
 def scan_trailers_memory(body: str) -> dict[str, str]:
     """Scan entire body for memory-relevant trailers (full-body, not bottom-up).
 
@@ -138,6 +145,21 @@ def scan_trailers_memory(body: str) -> dict[str, str]:
             idx = line.find(ctrl)
             if idx != -1:
                 line = line[:idx]
+        # LOW-17 (issue #59, plan docs/plan/fix-fence-a2-close-57.md task c):
+        # if the control byte just discarded above sat INSIDE a
+        # "</memory-data...>" (or "<memory-data...>") fence marker, right
+        # before its closing ">", the truncation above discarded that ">"
+        # along with the byte -- leaving an unclosed "<...memory-data"
+        # prefix at the very end of the line. sanitize_trailer_value()'s
+        # fence regex requires a literal closing ">" to match, so it
+        # structurally cannot catch this shape (there is none left to find).
+        # [^>]*$ is safe precisely because it's anchored to end-of-string:
+        # by construction there is no ">" between "memory-data" and the end
+        # (the byte that would have preceded one was just discarded), so
+        # this only ever fires on a genuinely truncated, unclosed marker --
+        # never on a complete, closed one (which sanitize_trailer_value()
+        # already handles on its own).
+        line = _UNCLOSED_FENCE_TAIL_RE.sub("", line)
         match = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line.strip())
         if match:
             key, value = match.group(1), match.group(2).strip()

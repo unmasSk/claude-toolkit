@@ -467,3 +467,45 @@ attacker's link that session).
 - ReDoS / pathological input: `_strip_generic_tags()` on a 10k-char malformed-tag string and
   `sanitize_trailer_value()` on 20k repeated fence-fragments both complete in <5ms. No
   catastrophic backtracking in either regex.
+
+## Issue #59 (A2 token-fence + transport bytes-decode + ReDoS cap + LOW-17) -- what held, 2026-07-10
+- CR/\r round-trip transport (SEC-CRIT-16 fix): a REAL commit with a raw \r (not \r\n) embedded
+  mid-body between a real Decision: trailer and a Memo:-shaped forged fragment, independent-
+  channel confirmed via git cat-file -p (raw \r present in the object) -- both
+  lib/git_helpers.py:461-477 run_git()'s new stdout_bytes.decode("utf-8") (no text=True/
+  universal-newlines) AND bin/git-memory-log.py:84-90's equivalent manual decode preserve the
+  literal \r with zero translation to \n; scan_trailers_memory() sees ONE physical line
+  ("\n"-split only), so the "Memo:" fragment glued via \r never materializes as a separate,
+  forged trailer -- it stays as harmless trailing text inside the real Decision's own value.
+  git-memory-log.py's own subprocess: a \r-embedded subject prints as exactly ONE commit line
+  (not two), with the \r correctly space-substituted by sanitize_trailer_value().
+- Invalid-UTF-8 decode-failure path: code-inspection confirmed except UnicodeDecodeError as e:
+  (lib/git_helpers.py:520) is unchanged and still catches bytes.decode("utf-8")'s strict-mode
+  failure identically to the old text=True, encoding="utf-8" path -- isolated .decode('utf-8')
+  on a genuinely invalid byte sequence confirmed to still raise as expected. (Live full-commit
+  reproduction of a truly-invalid-UTF-8 commit MESSAGE was not achievable on this Windows/msys-
+  git box specifically: git commit -F <file> silently re-encodes lone high bytes like \x80\x81
+  into valid UTF-8 \xc2\x80\xc2\x81 before storing the object -- a git-for-windows message-
+  encoding behavior unrelated to this codebase, not a gap in the #59 fix itself.)
+- ReDoS/DoS: lib/bootstrap_commits.py's _GENERIC_TAG_MAX_INPUT_LEN = 4096 cap genuinely bounds
+  _strip_generic_tags() regardless of input size -- a 4,000,000-char pathological "<a"*N string
+  completes in 8ms (truncated to 4096 chars before the regex ever runs); the 4096-char worst
+  case itself (AT the cap) also completes in ~9ms. lib/parsing.py's new _UNCLOSED_FENCE_TAIL_RE
+  (LOW-17, [^>]*$) on a 5,000,000-char string: 5ms. Canonical sanitize_trailer_value() on a
+  4.5M-char string of repeated fence-fragments: 0.21s. scan_trailers_memory() on a single
+  6M-char pathological line: 13ms; on 48M chars across 2000 pathological lines: 0.17s. No
+  catastrophic/quadratic backtracking found in any regex touched by this round's fix.
+- LOW-17 (_UNCLOSED_FENCE_TAIL_RE, lib/parsing.py:107): re-attacked directly through the real
+  scan_trailers_memory() (not just the isolated regex) for its EXACT designed scenario --
+  </memory-data\x1c> / \x1d / \x1e all correctly truncate-then-strip to a clean "real decision
+  text" with zero unclosed-tag remnant surviving. A double-fragment line
+  (<memory-data>middle</memory-data\x1e>) correctly leaves the well-formed FIRST tag
+  (<memory-data>) for the LATER sanitize_trailer_value() stage to close (by design, two-stage
+  split) -- confirmed that stage does close it. An invisible ZWSP placed immediately BEFORE the
+  truncation byte (</memory-data + U+200B + \x1e>) is still correctly swept by [^>]*$ (unlike
+  the CLOSED-tag ZWSP exploit in attack-patterns.md, which is a structurally different,
+  unrelated code path -- LOW-17 only ever fires on genuinely UNCLOSED remnants).
+- Concurrency: 10 real concurrent hooks/user-prompt-memory-check.py subprocess invocations
+  against unchanged repo state -- all rc=0, all correctly inject the real recall content, all
+  show stdout.count("</memory-data>") == 1, all 10 fence-nonce: values are distinct
+  (secrets.token_hex(8) is safe under real OS-level process concurrency).
