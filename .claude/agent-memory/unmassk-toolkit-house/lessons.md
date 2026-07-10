@@ -56,6 +56,20 @@ Mechanism (documented CreateProcess semantics, NOT verifiable on macOS — POSIX
 
 **Rule for this repo:** to intercept `subprocess.Popen(["git"])` (bare, shell=False) on Windows you need one of: (1) a real `git.exe` wrapper on PATH (distlib launcher — fragile), or (2) intercept at the Python layer (wrap `subprocess.Popen` via a `sitecustomize.py` on PYTHONPATH for subprocess-launched hooks, or `monkeypatch.setattr(subprocess,"Popen",...)` for in-process calls). The Python-layer wrap is cross-platform and can retire the PATH shim entirely. NEVER rely on a `.cmd`/`.bat` shim for a bare-name `Popen`.
 
+## Lesson: Ubuntu-only intermittent "found fewer than expected" in git-scan tests — rule out these 4 before blaming logic
+
+**Project:** unmassk-toolkit (#61, test_recall/test_drift/test_consolidation family) · **Seen:** 2026-07-11 · rejections confirmed empirically; trigger high-confidence (not locally reproduced)
+
+Symptom: heavy fixtures build hundreds of empty commits then `git log --all` scans; a DIFFERENT test fails each ubuntu run with "found N < expected" (recall→empty, drift→`assert 4>=12`), green on retry, never on macOS/windows. CI command is serial (`pytest -q`, no xdist, no random plugin) — identical on all 3 OSes.
+
+Four hypotheses tested and REJECTED (do not re-run these dead ends):
+1. **10s git timeout** (`GIT_TIMEOUT` in `run_git`) — REJECTED: a timeout prints `git 'log' timed out after 10s` to stderr; NO such breadcrumb in any failing CI log. Also 500 commits scan in ms.
+2. **Stale/partial commit-graph from auto-gc** — REJECTED empirically (`repro_graph.py`): writing a graph mid-build / leaving it stale / gc mid-build all still return the deep entry. git traverses reachable commits correctly regardless of graph staleness.
+3. **Auto-gc race** — REJECTED: `--allow-empty` commits share ONE empty tree, so 510 commits ≈ 511 loose objects, well below `gc.auto=6700`. No gc fires, no background maintenance (needs explicit `maintenance start`).
+4. **Same-second timestamps dropping commits** — REJECTED: linear chains walk topologically via parent pointers; date collisions don't drop commits. drift SETS explicit `GIT_COMMITTER_DATE` yet still failed, so date theory can't explain it anyway. Also deterministic-env-leak REJECTED: intermittency + green-on-retry contradicts a deterministic ordering/env bug; `monkeypatch.setenv` auto-restores and no in-process `os.environ["GIT_*"]` mutation leaks.
+
+What remains (high-confidence): transient git-subprocess failure under ubuntu-runner resource pressure (2-core/7GB, thousands of git forks in ~177s), made INVISIBLE by callers that ignore/silently-swallow git's exit code (drift `_, out, _ = git_cmd(...)`; `recall._scan_commits` `if code!=0: return []` with no breadcrumb; `commits_since_last_consolidation` `return 0`). Could NOT reproduce locally (10-core/16GB too capable — 6 parallel workers + 4 CPU hogs, 0 fails). Lesson: when a CI-env-only intermittent can't be reproduced on capable local hardware, the actionable root cause is the code that HIDES the transient failure, not the transient itself. Fix = make callers fail LOUD (assert rc==0 with stderr) + breadcrumb on the scan path — same treatment already applied to `run_snapshot`/#52.
+
 ## Lesson: "Not X" user reports require tracing the actual displayed text, not the code string
 
 When a user reports seeing "NOT RESPONSE", do not grep for that exact string. Trace what text actually renders in each UI component at each step of the flow. The system message "Agent X returned no response." renders through SystemMessage.tsx with formatting applied — the user may paraphrase or truncate what they see. Start from the symptom (what renders visible text) and work backward through the data flow.
