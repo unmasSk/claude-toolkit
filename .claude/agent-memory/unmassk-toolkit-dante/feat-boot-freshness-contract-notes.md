@@ -667,3 +667,65 @@ identity, schema_version) untouched and still fully green. Exit code
 checked directly (no `| tail`/`| head`), per this repo's hard rule.
 Production code (`lib/boot_git_checks.py`, `lib/boot_fetch_stamp.py`)
 untouched by this pass — test file only.
+
+### GREEN re-seed after Ultron's fix — one RED test's own PREMISE became impossible (same session)
+
+Ultron implemented the guard in `_check_remote_is_live()` (`url ==
+remote_name` -> treated exactly like an unresolved remote, same
+"no_remote" bucket as `git remote get-url` failing outright). That closes
+BOTH directions at once, because `_check_remote_is_live()` is the only
+call site that ever produces `remote_url` — no fetch is attempted at all
+once the alias-fallback shape is detected, so `_write_own_stamp()` is
+never reached. Consequence: `test_own_alias_fallback_stamp_never_rate_
+limits_a_second_boot_of_the_same_repo` went green for free (renamed to
+`test_own_alias_fallback_never_writes_a_stamp_so_no_boot_claims_synced` —
+its OLD `stamp_existed_after_boot1` variable was captured but never
+asserted on; now explicitly `assert not os.path.isfile(stamp_path)` after
+EACH boot, pinning the write-side guard directly instead of leaving it as
+an unasserted side observation). But
+`test_stamp_written_via_alias_fallback_is_not_trusted_by_an_unrelated_repo`
+broke at its own **setup sanity** step (`assert os.path.isfile(stamp_x)`)
+— its premise ("repo X's real boot writes the poisoned stamp") is now
+categorically impossible by design, since the fix makes exactly that
+write path a no-op. This is the correct, intended failure (Ultron's fix
+IS the wanted behavior per decision 174d82b — "sin escritura de stamp") —
+not a bug to route back to Ultron, but a fixture whose story needed
+re-telling.
+
+**Fix applied to the test, not the assertion under test**: re-seeded the
+poisoned stamp by mutating a REAL stamp a HEALTHY, non-degenerate boot (a
+third repo, W — normal `_setup_freshness_repo`, no degeneration, no
+trap) wrote for real, then read-mutate-rewrite ONLY the `remote_url`
+field to the literal alias `"origin"` (same pattern as the pre-existing
+`test_stamp_with_unknown_schema_version_is_treated_as_absent`'s
+schema_version mutation — never hand-typed JSON from scratch,
+unmassk-standards §34) before placing it in target repo Z. This is
+actually a STRONGER test of the read-side guard than the original: it no
+longer depends on ANY one repo being able to produce the poisoned shape
+itself — it proves the read side rejects the CLAIM regardless of
+provenance (old plugin version predating the guard, hand-restored
+backup, copy between repos), which is the real-world threat shape this
+guard exists for. Renamed
+`test_stamp_written_via_alias_fallback_is_not_trusted_by_an_unrelated_repo`
+-> `test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo`
+to match (no longer claims anything about HOW the stamp was written).
+
+**Lesson for next time a write-side guard changes**: any test whose
+`assert os.path.isfile(stamp_path)` (or equivalent "the buggy write
+happened") is itself the fixture's SEED step, not the behavior under
+test, is fragile against exactly this kind of fix — the write path being
+closed makes the seed impossible, not just the final assertion. When a
+write-side guard is the thing being contracted, prefer seeding the
+poisoned artifact by mutating a real artifact from an UNRELATED, still-
+healthy write path (read-mutate-rewrite) rather than degenerating the
+same repo whose write you're about to also assert never happens — keeps
+the read-side test's fixture immune to the write-side guard landing
+first.
+
+Verification after the re-seed, same session: `tests/test_boot_freshness.py
+tests/test_boot_freshness_hardening.py tests/test_boot_freshness_
+regression.py -q` -> 141 passed, 2 skipped, exit 0. Full suite `python3
+-m pytest tests -q` -> 1246 passed, 2 skipped, exit 0 (took ~4m35s — full
+suite needs a longer-than-default timeout, plain `python3 -m pytest
+tests -q` with no extra flags). Production code untouched by this
+re-seed pass — test file only.

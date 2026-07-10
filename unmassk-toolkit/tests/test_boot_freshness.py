@@ -1037,10 +1037,22 @@ class TestOwnStampIdentityIncludesRemoteURL:
 # shown" guard and masks this vector behind a different one), a real `git
 # fetch origin -- <branch>` from inside that repo genuinely SUCCEEDS (git
 # itself falls back to treating the empty-URL remote's positional name as
-# a relative path when no URL is configured) — so the write path really
-# does write a stamp with `remote_url: "origin"`, a value that is
-# indistinguishable from any OTHER repo whose remote also happens to be in
-# this same degenerate shape.
+# a relative path when no URL is configured) — that mechanical fact about
+# git itself is what made this identity collision reachable in the first
+# place. Ultron's fix (`_check_remote_is_live()`, `url == remote_name` ->
+# treated exactly like an unresolved remote) closes it at the SOURCE:
+# fetch_memory_ref() now short-circuits to "no_remote" before ever
+# attempting the fetch above, so this degenerate config can no longer
+# write a stamp AT ALL (see
+# test_own_alias_fallback_never_writes_a_stamp_so_no_boot_claims_synced
+# below, which pins that explicitly). The READ-side half of the guard —
+# a stamp that merely CLAIMS `remote_url: "origin"`, regardless of how it
+# got onto disk (an older plugin version that predates this guard, a
+# stamp copied between repos, ...) — is covered separately by
+# test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo,
+# which seeds the poisoned stamp by mutating a REAL stamp a healthy boot
+# just wrote (never hand-typed JSON, unmassk-standards §34), since a real
+# boot can no longer produce that shape on its own anymore.
 
 
 def _degenerate_remote_url_to_alias(repo, remote_name="origin"):
@@ -1086,49 +1098,63 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
     Ultron's implementation choice.
     """
 
-    def test_stamp_written_via_alias_fallback_is_not_trusted_by_an_unrelated_repo(self, tmp_path):
-        """The full Moriarty PoC, A -> Z. Repo X's remote URL is emptied
-        and a same-history "origin"-named trap directory is planted, so a
-        real fetch genuinely succeeds and X's own boot writes a real
-        stamp carrying `remote_url: "origin"` (setup sanity, asserted
-        below — confirms the fixture reproduces the bug's write path, not
-        just a hypothetical). That stamp's raw bytes are copied verbatim
-        (never hand-typed, unmassk-standards §34) into an entirely
-        unrelated repo Z, independently set up with its OWN different
-        remote, then ALSO degenerated the same way (same alias-fallback
-        shape — the class of repos this vector affects) but WITHOUT a
-        trap directory of its own — the more severe half of Moriarty's
-        report: Z's own remote cannot even be honestly reached. Booting Z
-        inside the 300s rate-limit window must never render "remote
-        (synced" off the back of X's copied stamp.
-        """
-        repo_x, bare_x = _setup_freshness_repo(tmp_path / "site_x")
-        _degenerate_remote_url_to_alias(repo_x)
-        _plant_alias_named_trap(repo_x, bare_x)
+    def test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo(self, tmp_path):
+        """The read-side half of decision 174d82b. Ultron's fix closed the
+        WRITE side (`_check_remote_is_live()` treats `url == remote_name`
+        as unresolved -> `fetch_memory_ref()` short-circuits to
+        "no_remote" before ever attempting a fetch), so a real boot can no
+        longer manufacture a stamp with `remote_url: "origin"` on its own
+        (see test_own_alias_fallback_never_writes_a_stamp_so_no_boot_claims_synced
+        below, which pins that directly). But a stamp CLAIMING that shape
+        can still reach disk from elsewhere — an older plugin version that
+        predates this guard, a stamp copied between repos (the original
+        Moriarty PoC), a hand-restored backup — and the read side must
+        reject it regardless of provenance.
 
-        rc_x, stdout_x, stderr_x = _run_boot(repo_x, timeout=20)
-        assert rc_x == 0, f"seeding boot (X) must succeed. stderr: {stderr_x}"
-        stamp_x = os.path.join(repo_x, ".claude", ".unmassk", "boot-fetch-stamp.json")
-        assert os.path.isfile(stamp_x), (
-            "setup sanity: X's real fetch (via the alias-fallback trap) "
-            "must have written its own stamp — otherwise this fixture "
-            "isn't reproducing the write-path bug at all"
+        Seeded by mutating a REAL stamp a healthy, non-degenerate boot (W)
+        just wrote (read-mutate-rewrite, never hand-typed JSON from
+        scratch — unmassk-standards §34, same pattern as
+        test_stamp_with_unknown_schema_version_is_treated_as_absent
+        above): only the `remote_url` field is changed, to the literal
+        alias "origin". That mutated stamp is written into an entirely
+        unrelated repo Z (independently set up with its OWN different
+        remote, then degenerated the same way — the class of repos this
+        vector affects — and deliberately given NO trap directory, since
+        Z's own remote can no longer be honestly reached either way).
+        Booting Z inside the 300s rate-limit window must never render
+        "remote (synced" off the back of the mutated stamp.
+        """
+        repo_w, bare_w = _setup_freshness_repo(tmp_path / "site_w")
+
+        rc_w, stdout_w, stderr_w = _run_boot(repo_w, timeout=20)
+        assert rc_w == 0, f"seeding boot (W, healthy/non-degenerate) must succeed. stderr: {stderr_w}"
+        stamp_w = os.path.join(repo_w, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_w), (
+            "setup sanity: W's real, healthy fetch must have written its "
+            "own stamp — otherwise there is nothing real to mutate"
         )
-        with open(stamp_x, encoding="utf-8") as f:
-            stamp_x_data = json.load(f)
-        assert stamp_x_data.get("remote_url") == "origin", (
-            "setup sanity: confirms the alias-fallback identity bug is "
-            "genuinely present in the seeded stamp (remote_url resolved "
-            f"to the literal alias, not a real URL). Got: {stamp_x_data!r}"
+        with open(stamp_w, encoding="utf-8") as f:
+            stamp_data = json.load(f)
+        assert stamp_data.get("remote_url") not in (None, "", "origin"), (
+            "setup sanity: W's real remote_url must be a genuine URL, "
+            "distinct from the literal alias 'origin' — otherwise "
+            "mutating it below wouldn't introduce anything. "
+            f"Got: {stamp_data!r}"
         )
+
+        # Mutate ONLY remote_url — every other field is exactly what
+        # production code itself wrote for W's real, honest sync.
+        stamp_data["remote_url"] = "origin"
 
         repo_z, bare_z = _setup_freshness_repo(tmp_path / "site_z")
-        assert bare_z != bare_x, "setup sanity: Z must have a genuinely different, unrelated remote"
+        assert bare_z != bare_w, "setup sanity: Z's real remote is genuinely different from the donor's"
         _degenerate_remote_url_to_alias(repo_z)
         # Deliberately NO trap directory in Z.
 
         stamp_z = os.path.join(repo_z, ".claude", ".unmassk", "boot-fetch-stamp.json")
-        shutil.copyfile(stamp_x, stamp_z)
+        os.makedirs(os.path.dirname(stamp_z), exist_ok=True)
+        with open(stamp_z, "w", encoding="utf-8") as f:
+            json.dump(stamp_data, f)
         assert os.path.isfile(stamp_z)
 
         rc_z, stdout_z, stderr_z = _run_boot(repo_z, timeout=20)
@@ -1139,10 +1165,10 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
         memory_line = _line_with(combined_z, "MEMORY:")
         assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined_z}"
         assert "remote (synced" not in memory_line, (
-            f"a stamp written via the empty-url/alias-fallback identity "
-            f"('origin' resolved as if it were a real URL) must never be "
-            f"trusted as evidence of an UNRELATED repo's own sync. "
-            f"Got: {memory_line!r}"
+            f"a stamp CLAIMING the empty-url/alias-fallback identity "
+            f"('origin' as if it were a real URL) must never be trusted "
+            f"as evidence of an UNRELATED repo's own sync, regardless of "
+            f"how that claim reached disk. Got: {memory_line!r}"
         )
 
         log_memory_line = _line_with(log_content_z, "MEMORY:")
@@ -1154,39 +1180,48 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
             f"Got: {log_memory_line!r}"
         )
 
-    def test_own_alias_fallback_stamp_never_rate_limits_a_second_boot_of_the_same_repo(self, tmp_path):
-        """Vector B (write side) of decision 174d82b: the guard must hold
-        even WITHOUT copying anything between repos. A single repo whose
-        remote URL degenerates to the empty-string/alias-fallback shape
-        must never earn genuine rate-limit trust from its OWN stamp
-        either — the "identity" that stamp records was never a real URL
-        to begin with, so a second boot of the SAME repo, still well
-        inside the 300s window and with its alias-named trap still in
-        place, must not claim "remote (synced" off the back of it.
+    def test_own_alias_fallback_never_writes_a_stamp_so_no_boot_claims_synced(self, tmp_path):
+        """The write side of decision 174d82b, pinned directly. A repo
+        whose remote URL degenerates to the empty-string/alias-fallback
+        shape (even with its own alias-named trap directory present,
+        which — mechanically — still lets a raw `git fetch` succeed, see
+        the module comment above) must NEVER write a confidence-bearing
+        stamp for that identity: `_check_remote_is_live()` treats
+        `url == remote_name` exactly like an unresolved remote, so
+        `fetch_memory_ref()` short-circuits to "no_remote" before
+        `_run_hardened_fetch()`/`_write_own_stamp()` are ever reached.
+        Both boots (no stamp ever exists to begin with, and none appears
+        after either boot) must never claim "remote (synced".
         """
         repo_x, bare_x = _setup_freshness_repo(tmp_path)
         _degenerate_remote_url_to_alias(repo_x)
         _plant_alias_named_trap(repo_x, bare_x)
+        stamp_path = os.path.join(repo_x, ".claude", ".unmassk", "boot-fetch-stamp.json")
 
         rc1, stdout1, stderr1 = _run_boot(repo_x, timeout=20)
-        assert rc1 == 0, f"boot #1 must succeed. stderr: {stderr1}"
-        stamp_path = os.path.join(repo_x, ".claude", ".unmassk", "boot-fetch-stamp.json")
-        stamp_existed_after_boot1 = os.path.isfile(stamp_path)
+        assert rc1 == 0, f"boot #1 must fail open. stderr: {stderr1}"
+        assert not os.path.isfile(stamp_path), (
+            "write-side guard (decision 174d82b): an alias-fallback "
+            "identity must never earn a stamp write, even though the "
+            "underlying `git fetch` mechanically succeeds via the trap "
+            "directory — 'resolved to the alias' must collapse to "
+            "'unresolved', the same bucket a genuinely dead remote uses"
+        )
 
         rc2, stdout2, stderr2 = _run_boot(repo_x, timeout=20)
         log_content2 = _read_boot_log(repo_x)
         combined2 = stdout2 + "\n" + log_content2
         assert rc2 == 0, f"boot #2 must fail open. stderr: {stderr2}"
+        assert not os.path.isfile(stamp_path), (
+            "a second boot against the same degenerate config must also "
+            "never write a stamp — the guard is not a one-time skip"
+        )
 
         memory_line = _line_with(combined2, "MEMORY:")
         assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined2}"
         assert "remote (synced" not in memory_line, (
-            f"an alias-fallback ('origin' resolved as if it were a real "
-            f"URL) stamp must never grant rate-limit confidence, even "
-            f"against the SAME repo that wrote it (decision 174d82b: an "
-            f"unresolved URL stays unresolved — no confidence, ever). "
-            f"stamp existed after boot #1: {stamp_existed_after_boot1}. "
-            f"Got: {memory_line!r}"
+            f"with no stamp ever written, no boot can claim rate-limited "
+            f"confidence off the back of one. Got: {memory_line!r}"
         )
 
         log_memory_line = _line_with(log_content2, "MEMORY:")

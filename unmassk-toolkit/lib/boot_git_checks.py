@@ -678,10 +678,27 @@ def _check_remote_is_live(project_root: str, remote_name: str, remote_branch: st
     since the last successful sync), or its URL is option-shaped/empty
     (SEC-CRIT-001 defense-in-depth, same pattern already used for
     remote/branch — a value that could be misread as a git flag is never
-    trusted as identity evidence). On success, `early_result` is None and
-    `remote_url` carries the resolved URL (never None on that branch) — the
-    own-stamp identity check (lib/boot_fetch_stamp.py, v3) needs it
-    alongside remote_name/remote_branch.
+    trusted as identity evidence), OR the "URL" is byte-identical to
+    `remote_name` itself (round 4, decision 174d82b — Moriarty round 3's
+    confirmed break: `git remote get-url <name>` falls back to printing the
+    remote's own NAME, not a URL, whenever `remote.<name>.url` is set to
+    the empty string; that fallback is indistinguishable across repos —
+    ANY repo degenerated the same way resolves to the same literal
+    "origin" — so it carries zero identity evidence and must be treated
+    exactly like an unresolved remote, never as a resolved one). On
+    success, `early_result` is None and `remote_url` carries the resolved
+    URL (never None on that branch) — the own-stamp identity check
+    (lib/boot_fetch_stamp.py, v3) needs it alongside
+    remote_name/remote_branch. This is the only call site that produces
+    `remote_url` (threaded through `_resolve_fetch_target()` to both the
+    stamp read and the stamp write), so rejecting the alias-fallback shape
+    here covers both directions: no fetch is attempted (nothing gets
+    written under a fake identity) and no pre-existing/copied stamp
+    carrying that same fake identity is ever trusted as evidence of a
+    genuine sync (v3's `if not remote_url: return` guard in
+    `_write_own_stamp()` already refuses to write without a real URL —
+    this closes the gap where the alias fallback was wrongly accepted AS
+    one).
 
     Cerberus S1 (round 3, decision 787b698 — fixes a false docstring: this
     used to claim "no own-stamp identity is known yet at this point" and
@@ -697,13 +714,15 @@ def _check_remote_is_live(project_root: str, remote_name: str, remote_branch: st
     age can only ever reach the "LOCAL — last fetch Xs ago, unverified"
     wording, never a "remote (synced ...)" claim — it does not reopen the
     v3 cross-repo vector (see lib/boot_fetch_stamp.py's docstring for that
-    helper's own safety argument).
+    helper's own safety argument). The same reasoning applies verbatim to
+    the alias-fallback branch added above (round 4): it too can only ever
+    reach "no_remote".
     """
     from git_helpers import run_git
 
     code_remote, url = run_git(["remote", "get-url", "--", remote_name], cwd=project_root)
     url = url.strip() if code_remote == 0 else ""
-    if code_remote != 0 or _looks_like_git_option(url):
+    if code_remote != 0 or _looks_like_git_option(url) or url == remote_name:
         age = _read_stamp_age_by_alias_only(project_root, remote_name, remote_branch)
         return {"status": "no_remote", "age_seconds": age}, None
     return None, url
