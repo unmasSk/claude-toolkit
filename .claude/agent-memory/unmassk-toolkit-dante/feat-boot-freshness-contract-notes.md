@@ -387,3 +387,108 @@ test_boot_freshness.py test_boot_freshness_hardening.py
 test_boot_freshness_regression.py -q` → 131 passed, 2 skipped
 (same pre-existing Windows-only guards), exit 0. No bugs found in this
 pass (pure coverage-closing, no new break).
+
+## Issue #60 AMENDMENT v2 — own-success-stamp RED contract (session 2026-07-10, decision 90d096d)
+
+Moriarty broke v1's relabel (still valid, untouched): the SOURCE of the
+freshness signal was always `.git/FETCH_HEAD`'s mtime, which (A) a FAILED
+fetch also truncates+refreshes (confirmed empirically first, via a bare
+shell repro, BEFORE writing any test — a nonexistent-path remote's `git
+fetch` exits 128 but still creates/truncates FETCH_HEAD to 0 bytes with a
+fresh mtime, even on a repo that never had a prior successful fetch), and
+(B) a successful fetch to an UNRELATED remote also touches (FETCH_HEAD is
+not per-remote). v2: boot writes its OWN success stamp (location/format is
+Ultron's implementation choice — every new test asserts only observable
+boot BEHAVIOR: the MEMORY: line's wording, and whether a real `git fetch`
+subprocess call was actually attempted, never the stamp file's own
+name/shape). New class `test_boot_freshness.py::
+TestOwnSuccessStampNotFetchHeadMtime` (4 tests, all real-subprocess §34,
+inserted after `TestRateLimitedStampSurvivesRemoteBreakage`):
+
+- **Vector A** (`test_vector_a_failed_fetch_never_falsely_rate_limits_next_boot`):
+  origin broken from before boot #1 ever runs → boot #1 fails/LOCAL
+  (sanity, passes today) → boot #2 immediate (<300s, fake-git installed
+  only for boot #2 to count fetch attempts without touching boot #1's real
+  behavior): must NOT say "remote (synced" and must have retried the fetch
+  (fake-git log non-empty). RED today: `'MEMORY: remote (synced 0s ago)'`,
+  zero fetch attempts recorded in boot #2 (the old gate short-circuits on
+  FETCH_HEAD's freshly-refreshed mtime before ever calling fetch again).
+- **Vector B** (`test_vector_b_unrelated_remote_fetch_never_falsely_rate_limits`):
+  a real `git fetch secondary` (an unrelated second bare remote, added and
+  fetched directly, bypassing the hook) touches FETCH_HEAD; boot #1 (never
+  fetched origin via the hook before) must still perform + record a real
+  `fetch origin` call and say "remote (fetched", never "synced". RED
+  today: same false "synced 0s ago", zero fetch calls recorded.
+- **Vector D** (migration, `test_vector_d_migration_external_origin_fetch_without_own_stamp_still_fetches`):
+  same shape as B but the EXTERNAL fetch targets origin itself (simulates
+  a pre-v2 upgrade / IDE auto-fetch) rather than a foreign remote —
+  deliberately distinct from B to prove the fix keys off "does the own
+  stamp exist" and not "was a different remote name involved". Explicitly
+  documented as fine to collapse into the same code path as B in the real
+  implementation — kept as two tests anyway since they pin the invariant
+  from two angles.
+- **Round-trip discriminant** (`test_round_trip_own_stamp_survives_fetch_head_deletion`):
+  boot #1 real successful fetch → delete `.git/FETCH_HEAD` outright (not
+  aged, gone) → boot #2 still inside the window must STILL say "remote
+  (synced ..." (own stamp untouched by FETCH_HEAD's disappearance). RED
+  today: deleting FETCH_HEAD forces a genuine new fetch under the old
+  mtime-sourced gate, flipping the status back to "fetched" instead —
+  `memory_line2 == 'MEMORY: remote (fetched 0s ago)'`, fails the
+  `.startswith("MEMORY: remote (synced ")` assertion. This is the test
+  that turns the "boot OK, boot again inside window → synced" round trip
+  (which already passes today via the WRONG mechanism, so alone proves
+  nothing) into a genuine discriminant between the two possible sources.
+
+Empirical pre-check (via a scratch shell repro, not part of the test
+suite) confirmed FETCH_HEAD's truncate+refresh-on-failure behavior BEFORE
+any test was written — this is real git behavior (upload-pack round trip
+never starts against a nonexistent local path, yet FETCH_HEAD still gets
+touched), not a bug in this project's code, so the fix cannot "correct
+git" — it must stop trusting the file at all for freshness claims.
+
+RED confirmed exactly as predicted: `python3 -m pytest
+test_boot_freshness.py test_boot_freshness_hardening.py
+test_boot_freshness_regression.py -q` → 4 failed (only the 4 new tests,
+clean AssertionErrors with the exact predicted wrong string) + 131 passed
++ 2 skipped (same pre-existing Windows-only guards). v1 contract (relabel
+wording, rate_limited-boundary, remote-breakage-within-window) untouched
+and still fully green.
+
+**v1 tests that assume FETCH_HEAD's mtime IS the gate's source (via
+`os.utime` on `.git/FETCH_HEAD` directly, or via a raw `git fetch` done
+outside the hook to seed it) — flagged for Ultron to re-base onto the new
+own-stamp file once v2 lands, NOT touched by this pass**:
+- `test_boot_freshness.py::TestFetchRateLimit::test_fresh_fetch_head_skips_fetch`
+  — seeds FETCH_HEAD via a raw `git fetch origin` (bypassing the hook) and
+  asserts the boot must SKIP its own fetch. **Directly contradicted by the
+  new Vector D contract** — this is the single test most likely to need a
+  real behavior change (not just a re-seed), since v2 requires the OPPOSITE
+  outcome for this exact setup shape.
+- `test_boot_freshness.py::TestFetchRateLimit::test_stale_fetch_head_runs_fetch`
+  — ages FETCH_HEAD via `os.utime` to force a refetch.
+- `test_boot_freshness.py::TestRateLimitedStampSurvivesRemoteBreakage::
+  test_past_window_broken_remote_reverts_to_local_unverified_with_age` —
+  ages FETCH_HEAD via `os.utime` to force the post-window refetch (the
+  window-entry seed itself is a real boot, fine; only the "past window"
+  aging step targets the wrong file under v2).
+- `test_boot_freshness_hardening.py::TestFetchMemoryRefStates::
+  test_stale_fetch_head_past_window_allows_refetch` /
+  `test_age_just_inside_window_is_rate_limited` /
+  `test_age_just_outside_window_forces_refetch` /
+  `test_fetch_failure_returns_failed_with_prior_age` — all four seed via a
+  real `fetch_memory_ref()` call then directly `os.utime()` FETCH_HEAD to
+  hit a specific age/boundary.
+- `test_boot_freshness_regression.py::TestClockSkewFutureFetchHeadMtime::
+  test_future_mtime_never_rate_limits` / `test_mtime_exactly_now_still_
+  rate_limits` — clock-skew tests keyed entirely on FETCH_HEAD's mtime.
+
+**NOT flagged (checked, still fine under v2, no dependency on WHICH file
+carries the signal)**: `test_boot_freshness_hardening.py::
+TestFetchMemoryRefStates::test_successful_fetch_returns_fetched_with_zero_age`
+(only checks git's own FETCH_HEAD-on-fetch side effect, unrelated to gate
+source) and `::test_immediate_second_call_is_rate_limited` (calls the real
+function twice in-process, no direct file manipulation — structurally
+agnostic to where the signal lives); `TestFetchHeadAgeSeconds` (tests the
+low-level `_fetch_head_age_seconds()` helper directly — likely survives as
+a utility, e.g. for the "fetched Ns ago" age report on a just-completed
+real fetch, independent of the gate's own source-of-truth change).

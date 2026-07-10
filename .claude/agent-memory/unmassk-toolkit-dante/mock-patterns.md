@@ -715,3 +715,38 @@ Each test runs the real-git control pass FIRST (setup-sanity assertion — a
 real backdated commit, via `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` env, must
 already trigger the heuristic with unmodified git) before switching PATH to
 the mangling fake and asserting the contract still holds.
+
+## Discriminant test to prove a signal moved from file/source X to file/source Y — delete X, assert Y is untouched
+
+When a fix's whole point is "the freshness/state signal must stop coming
+from source X (e.g. a file git itself writes as a side effect) and must
+come from a new, application-owned source Y instead," a plain "do the
+happy-path round trip" test (write via the new mechanism, read it back
+immediately) is NOT a real discriminant — it typically already passes
+today via the OLD (wrong) mechanism too, since X and Y are both freshly
+written at the same moment in the common case. Prove it moved by making
+the two sources diverge: after the producing action, **delete or corrupt
+X outright** (not age it — genuinely remove it), then re-run the read path
+and assert the SAME correct output still comes back. If the code still
+secretly depends on X, deleting it flips the observable output (forces a
+real recompute / falls back to a different, distinguishable state); if the
+signal genuinely lives in Y now, X's disappearance has zero effect.
+Confirmed in `test_boot_freshness.py::TestOwnSuccessStampNotFetchHeadMtime::
+test_round_trip_own_stamp_survives_fetch_head_deletion` (issue #60
+AMENDMENT v2, session 2026-07-10): deleting `.git/FETCH_HEAD` after a real
+successful fetch, then re-booting inside the rate-limit window, must still
+render "remote (synced ...)" from the new own-stamp source — confirmed RED
+against the unfixed code (which forces a real refetch instead, flipping
+the status to "fetched"), for exactly the predicted reason.
+
+Companion technique for the SAME family of bug — proving X gets falsely
+credited by two independent categories of "ambient touch" the fix must
+reject: (a) a FAILED write/side-effect to X (e.g. a failed `git fetch`
+still truncates+refreshes `FETCH_HEAD`'s mtime — verified with a bare
+shell repro against a nonexistent-path remote BEFORE writing any test,
+confirmed real git behavior, not a bug to "fix" in git itself), and (b) a
+successful write to X caused by something UNRELATED to the feature (e.g. a
+fetch of a totally different, foreign remote, which touches the same
+non-per-remote `FETCH_HEAD` file). Both need their own test — a fix that
+closes (a) doesn't automatically close (b) and vice versa. See the "Vector
+A" / "Vector B" tests in the same class.

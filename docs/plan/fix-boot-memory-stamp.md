@@ -69,6 +69,34 @@ El stamp `MEMORY:` del boot comunica estado bueno cuando la memoria está fresca
 - [ ] Verificar CI verde (`gh run list`/`gh run watch`)
 - [ ] Cerrar #60, marcar plan COMPLETED, context()
 
+## AMENDMENT v2 (tras Verify — Moriarty FALLA T1)
+
+**Hallazgo (Moriarty, canal real):** el relabel v1 miente al revés. (A) Un fetch FALLIDO trunca `.git/FETCH_HEAD` a 0 bytes y refresca su mtime (efecto real de git, verificado) → boot siguiente dentro de la ventana muestra `remote (synced 0s ago)` sin haber sincronizado jamás. (B) Un fetch exitoso a un remote NO relacionado (IDE/mirror) produce el mismo falso "synced". Cerberus además señaló que el comentario SEC-LOW-001 (`boot_git_checks.py:449-459`, "el mtime nunca alimenta un freshness claim") quedó contradicho por la rama nueva.
+
+**Decisión v2 (90d096d):** la fuente de la señal de frescura deja de ser el mtime de FETCH_HEAD. El boot escribe un **stamp propio de éxito** SOLO cuando SU fetch al upstream de memoria termina con exit 0; el rate-limit del gate y el rótulo `remote (synced Ns ago)` leen ese stamp. Sin stamp o stamp viejo → se intenta el fetch (fail-open hacia fetchear). El fetch en sí sigue intacto.
+
+### Task 6: Dante — contrato RED v2 (stamp de éxito propio)
+**Files:** tests/test_boot_freshness*.py
+- [ ] Vector A en rojo: fetch fallido → segundo boot < 300s NO dice `remote (synced` (dice LOCAL/unverified) y SÍ reintenta el fetch (el fallo no rate-limita)
+- [ ] Vector B en rojo: fetch real exitoso a remote secundario (FETCH_HEAD tocado) → boot NO dice `remote (synced` sin haber fetcheado su upstream; fetchea de verdad
+- [ ] Round-trip del stamp propio: boot con fetch OK escribe el registro; boot siguiente < 300s lee `rate_limited` y rotula `remote (synced Ns ago)` (canal subprocess real, valores derivados del contrato)
+- [ ] Migración: repo sin stamp (primer boot tras upgrade) → fetchea
+- [ ] Verificar RED por la razón correcta; el contrato v1 que siga siendo válido (relabel del texto, estados de fallo) no se toca
+
+### Task 7: Ultron — GREEN v2
+**Depends on:** Task 6
+**Files:** lib/boot_git_checks.py (gate + escritura del stamp), posiblemente hooks/session-start-boot.py
+- [ ] Escritura del stamp de éxito (ubicación: `.claude/.unmassk/`, vía `verify_path_within_project()` + patrón symlink-safe; stdlib-only; Windows-aware desde el diseño)
+- [ ] `_fetch_gate_and_rate_limit` lee el stamp propio (edad 0<=age<300s → rate_limited con esa edad); FETCH_HEAD mtime deja de alimentar gate y rótulo
+- [ ] Actualizar el comentario SEC-LOW-001 (:449-459) — hallazgo de Cerberus — para reflejar la nueva fuente
+- [ ] Fail-open intacto: error leyendo/escribiendo el stamp nunca rompe el boot
+- [ ] GREEN en los 3 ficheros del contrato + suite completa
+
+### Re-Verify (dentro de Task 3)
+- [ ] Moriarty re-ataca los vectores A y B contra el stamp propio + intenta corromper el stamp mismo (contenido basura, symlink, borrado)
+- [ ] Cerberus re-revisa el diff v2
+- [ ] Yoda veredicto final 110
+
 ## Wave Map
 
 - Wave 1: Task 1

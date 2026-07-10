@@ -5,42 +5,32 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
-Target: issue #59 (A2 token-fence infalsifiability, decision feed852) validation. Real
-disposable repos in scratchpad, real `git commit -F <bytes-file>` hostile payloads, real
-production functions called directly (sanitize_trailer_value, scan_trailers_memory,
-recall_relevant, extract_memory_from_log/format_snapshot), real hooks/user-prompt-memory-check.py
-AND hooks/precompact-snapshot.py invoked as subprocesses with raw stdout byte inspection,
-independent-channel verification via `git cat-file -p`/`git log --pretty=%B` throughout.
-Verdict: FALLA. 2 live T1 EXPLOITs + 1 T1 structural DECEPTION, all in the code this issue
-shipped:
-(1) A brand-new class (not another missing byte): Unicode invisible "format" characters
-(Cf category -- ZWSP U+200B, ZWJ U+200D, WORD JOINER U+2060, BOM U+FEFF, SOFT HYPHEN U+00AD,
-+10 more, 15 tested, ALL survive) defeat sanitize_trailer_value()'s fence regex AND its `\s*`
-structural invariant entirely (neither the char-class substitution nor `\s` covers Cf).
-`</memory-data` + U+200B + `>` survives 100% byte-intact through the real
-recall_relevant() -> hooks/user-prompt-memory-check.py pipeline, renders visually identical to
-the real closing tag, `stdout.count("</memory-data>") == 1` stays true throughout.
-(2) SAME root cause, second live consumer: hooks/precompact-snapshot.py's
-`_neutralize_snapshot_delimiters()` (naive str.replace, even more brittle) -- confirmed live via
-its own real subprocess with a U+200B-spliced `=== END SNAPSHOT ===`.
-(3) DECEPTION (T1, structural): the A2 token-fence nonce (`secrets.token_hex(8)`) is placed in
-the LABEL text OUTSIDE the actual `<memory-data>`/`</memory-data>` tags and `=== ... ===`
-delimiters (Ultron's own commit flagged this as "desviacion nonce por revisar") -- the real
-trust boundary stays 100% static/predictable across invocations (proven: isolating just the
-`<memory-data>...</memory-data>` substring across 3 real runs shows it byte-identical despite
-full stdout differing), directly contradicting decision feed852's stated purpose ("a delimiter
-the commit cannot guess or reproduce cannot forge the output"). The existing regression test
-passes only because it checks the WHOLE stdout, not the isolated fence.
-Confirmed HELD: CR/\r round-trip transport fix (SEC-CRIT-16) in both git_helpers.run_git() and
-bin/git-memory-log.py, verified via real `git cat-file -p` ground truth; ReDoS caps (4096 in
-_strip_generic_tags, LOW-17's `[^>]*$`, sanitize_trailer_value) all sub-second on multi-million-
-char pathological input; LOW-17's own designed \x1c/\x1d/\x1e scenario genuinely closed;
-10-way concurrency on the real hook, no corruption. Also found (T3/collateral, not security):
-legitimate Decision/Memo text documenting the fence's own literal tag names gets silently
-corrupted/neutralized by the same defenses, in both consumers.
-See attack-patterns.md for full PoC detail, resilience.md for the held cases.
+Target: issue #60 (boot MEMORY stamp relabel, decision ceef426, commit d630e14) Round-Trip
+Sabotage (mandatory sect. 34). Real disposable repos in scratchpad (bare origin + bare unrelated
+remote + real clones), real hardened-fetch subprocess via `git_helpers.run_git`, real
+`hooks/session-start-boot.py` invoked twice in sequence as a subprocess, 2 independent read
+channels (stdout banner + persisted `boot-log-latest.txt`), zero manual FETCH_HEAD tampering in
+the winning PoCs. Verdict: FALLA (T1, Moriarty FALLA Rule -- round-trip check does not go red
+under sabotage). The relabel's `rate_limited` -> `MEMORY: remote (synced {age} ago)`
+(boot_git_checks.py:814-816) renders on bare FETCH_HEAD-mtime-age alone, no same-boot fetch exit
+code required -- and TWO fully realistic, zero-attacker scenarios make it lie:
+(1) origin unreachable from the start; boot #1 honestly says LOCAL/unverified, but its own
+FAILED fetch attempt truncates+refreshes FETCH_HEAD as a side effect; boot #2 seconds later,
+origin still dead, renders `MEMORY: remote (synced Ns ago)` -- no sync ever occurred.
+(2) origin never fetched even once (alive, untouched); a real successful `git fetch` of a
+totally unrelated second remote (simulating an IDE mirror/fork auto-fetch) touches FETCH_HEAD;
+the next boot renders the same false "remote (synced)" claim.
+Existing shipped test suite (96 tests, test_boot_freshness.py + _hardening.py) passes 100% green
+with both live breaks present -- confirmed gap: every hardening test's "first boot" is a
+genuinely SUCCESSFUL fetch before the remote breaks; none exercises a first boot whose OWN fetch
+attempt fails, then a second boot in-window. Contrast (correctly HELD, not a break): real
+successful fetch first, remote breaks after, second boot in-window -- "synced" is honest there,
+matches the shipped `TestRateLimitedStampSurvivesRemoteBreakage` tests exactly. Clock skew
+(future FETCH_HEAD mtime) and `history_related=False` short-circuit both verified unaffected/
+still correct. See attack-patterns.md for full mechanism + PoC detail.
 
 ## Previous attack (older rounds, compact)
+- Issue #59 (A2 token-fence infalsifiability, decision feed852) -- FALLA, 2 live T1 EXPLOITs (Unicode Cf invisible-format-char fence bypass in both user-prompt-memory-check.py and precompact-snapshot.py) + 1 T1 structural DECEPTION (nonce placed outside the actual trust boundary). See attack-patterns.md for detail.
 - Issue #57 round 2d FIRST pass (structural %h/%at/%n fix) -- DEBIL, 7/7 field-displacement
   sites held, 2 NEW exploits found then (NEL fence-splice, precompact plain-text delimiter
   spoof) -- both re-verified this round, see "Last attack" above for outcome.

@@ -573,6 +573,282 @@ class TestRateLimitedStampSurvivesRemoteBreakage:
         )
 
 
+# ── Issue #60 AMENDMENT v2 (decision 90d096d): own success stamp, not ───
+#    .git/FETCH_HEAD's mtime, must be the freshness signal ──────────────
+
+
+class TestOwnSuccessStampNotFetchHeadMtime:
+    """Plan Task 6 (docs/plan/fix-boot-memory-stamp.md, AMENDMENT v2).
+
+    Moriarty broke the v1 relabel (which stays valid and untouched — see
+    TestFreshnessStampThreeStates / TestRateLimitedStampSurvivesRemoteBreakage
+    above): the SOURCE of the freshness signal was always
+    `.git/FETCH_HEAD`'s mtime, and that file is touched by things that are
+    NOT "this project's own memory was just confirmed fresh":
+
+    (A) a FAILED fetch attempt also truncates FETCH_HEAD to 0 bytes and
+        refreshes its mtime — real, confirmed git behavior (verified
+        empirically against a live nonexistent-path remote before writing
+        this test: `git fetch` against a bogus URL exits 128 but still
+        creates/truncates FETCH_HEAD with a fresh mtime, even on a repo
+        that has never had a single successful fetch before).
+    (B) a successful fetch to a totally UNRELATED remote touches the same
+        file — FETCH_HEAD is not per-remote.
+
+    Decision v2: the boot now writes its OWN success stamp (location is
+    Ultron's implementation choice, per the task instructions — these tests
+    assert only OBSERVABLE BEHAVIOR through the real boot subprocess
+    channel: what the MEMORY: line says, and whether a real `git fetch` was
+    actually attempted, never the stamp file's own name/format/location).
+    `_fetch_gate_and_rate_limit` and the rendered stamp must read THAT
+    stamp; no stamp, or a stale one, must always fall through to a real
+    fetch attempt (fail-open toward fetching, per the plan).
+
+    Real subprocess channel throughout (§34) — every assertion runs the
+    actual hooks/session-start-boot.py hook over a real git repo with a
+    real bare remote, mirroring TestRateLimitedStampSurvivesRemoteBreakage's
+    own fixture style. Expected strings are quoted from the plan's
+    contract, never captured from today's (buggy) output.
+    """
+
+    def test_vector_a_failed_fetch_never_falsely_rate_limits_next_boot(self, tmp_path):
+        """Vector A. Origin is broken BEFORE boot #1 ever runs — this repo
+        has never once had a successful fetch. Boot #1: the fetch fails,
+        correctly showing LOCAL/unverified (already passes today, sanity
+        checked below). Boot #2, immediately after (well inside the 300s
+        window): the FAILED fetch in boot #1 already refreshed
+        `.git/FETCH_HEAD`'s mtime (see class docstring, point A). Today's
+        mtime-sourced gate reads that as fresh and rate-limits — WITHOUT
+        ever retrying the fetch — falsely rendering "MEMORY: remote (synced
+        ...)" for a remote that has never once been reached. Fixed
+        behavior: no own success stamp exists (boot #1's fetch failed, so
+        nothing was stamped) -> the gate must not rate-limit -> boot #2
+        must retry the fetch for real (it fails again, same broken remote)
+        -> LOCAL/unverified again. The retry itself is verified via a fake
+        `git` on PATH (installed only for boot #2, so boot #1 runs against
+        real, unmodified git) that logs every invocation.
+        """
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+        _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist.git")], repo_a)
+
+        # Boot #1 — real, unmodified git, no fake wrapper. Already passes
+        # today; this is a setup-sanity check, not the RED assertion.
+        rc1, stdout1, stderr1, log1, combined1 = _run_boot_combined(repo_a, timeout=20)
+        assert rc1 == 0, f"boot must fail open. stderr: {stderr1}"
+        memory_line1 = _line_with(combined1, "MEMORY:")
+        assert memory_line1 is not None, f"expected a MEMORY: stamp.\n{combined1}"
+        assert memory_line1.startswith("MEMORY: LOCAL") and re.search(
+            r"unverified", memory_line1, re.IGNORECASE
+        ), (
+            f"setup sanity: boot #1 (origin broken from the start, never "
+            f"fetched) must show LOCAL/unverified. Got: {memory_line1!r}"
+        )
+
+        fetch_head = os.path.join(repo_a, ".git", "FETCH_HEAD")
+        assert os.path.isfile(fetch_head), (
+            "setup sanity: the failed fetch attempt must still have "
+            "created FETCH_HEAD — this is the exact seam the bug lives in"
+        )
+
+        # Boot #2, immediately after (well inside the 300s window). Fake
+        # git installed now only, to count fetch attempts without touching
+        # boot #1's already-real behavior above.
+        log_path = str(tmp_path / "fake_git_vector_a.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc2, stdout2, stderr2 = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        log_content2 = _read_boot_log(repo_a)
+        combined2 = stdout2 + "\n" + log_content2
+        assert rc2 == 0, f"boot must fail open. stderr: {stderr2}"
+
+        memory_line2 = _line_with(combined2, "MEMORY:")
+        assert memory_line2 is not None, f"expected a MEMORY: stamp.\n{combined2}"
+        assert "remote (synced" not in memory_line2, (
+            f"a remote that has NEVER been successfully fetched must never "
+            f"be rendered as 'synced', even immediately after a failed "
+            f"fetch attempt refreshed .git/FETCH_HEAD's mtime. "
+            f"Got: {memory_line2!r}"
+        )
+        assert memory_line2.startswith("MEMORY: LOCAL") and re.search(
+            r"unverified", memory_line2, re.IGNORECASE
+        ), f"expected LOCAL/unverified. Got: {memory_line2!r}"
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert fetch_calls, (
+            "a failed fetch must never rate-limit the NEXT boot's retry — "
+            "expected boot #2 to attempt its own fetch again, but no "
+            "fetch call was observed at all"
+        )
+
+    def test_vector_b_unrelated_remote_fetch_never_falsely_rate_limits(self, tmp_path):
+        """Vector B. Origin is alive but has never been fetched by the
+        boot's own logic yet. A SEPARATE, unrelated remote ("secondary") is
+        fetched directly with real git — bypassing the hook entirely —
+        immediately before boot #1 runs. That fetch is real and
+        successful, and it touches the SAME `.git/FETCH_HEAD` file
+        origin's own fetch would use (FETCH_HEAD is not per-remote): the
+        mtime-sourced gate reads that ambient touch as "this project's
+        memory is fresh" without ever having reached origin at all. Fixed
+        behavior: the own success stamp only exists after a fetch that
+        targets THIS project's actual upstream (origin) succeeds — a
+        foreign remote's fetch must never satisfy it, so boot #1 must still
+        perform a real fetch of origin (verified via the fake-git call
+        log), ending in status "fetched" (never the false "synced").
+        """
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+
+        secondary_bare = str(tmp_path / "secondary.git")
+        subprocess.run(["git", "init", "--bare", "-b", "main", secondary_bare], capture_output=True, check=True)
+        secondary_seed = str(tmp_path / "secondary_seed")
+        _git(["clone", secondary_bare, secondary_seed], str(tmp_path))
+        _git(["config", "user.email", "sec@test.com"], secondary_seed)
+        _git(["config", "user.name", "Secondary"], secondary_seed)
+        _git(["commit", "--allow-empty", "-m", "unrelated secondary content"], secondary_seed)
+        _git(["push", "origin", "main"], secondary_seed)
+
+        _git(["remote", "add", "secondary", secondary_bare], repo_a)
+        _git(["fetch", "secondary"], repo_a)  # real, successful, unrelated to origin
+
+        fetch_head = os.path.join(repo_a, ".git", "FETCH_HEAD")
+        assert os.path.isfile(fetch_head), "setup sanity: the secondary fetch must have touched FETCH_HEAD"
+
+        log_path = str(tmp_path / "fake_git_vector_b.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        log_content = _read_boot_log(repo_a)
+        combined = stdout + "\n" + log_content
+        assert rc == 0, f"stderr: {stderr}"
+
+        memory_line = _line_with(combined, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined}"
+        assert "remote (synced" not in memory_line, (
+            f"a foreign remote's own successful fetch must never be read "
+            f"as THIS project's upstream being in sync — boot must "
+            f"attempt its own fetch of origin. Got: {memory_line!r}"
+        )
+        assert memory_line.startswith("MEMORY: remote (fetched "), (
+            f"expected boot to perform a genuine new fetch of its OWN "
+            f"upstream (origin) and report 'fetched', not silently trust "
+            f"the secondary remote's touch. Got: {memory_line!r}"
+        )
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert fetch_calls, (
+            "expected boot to attempt a real fetch of its own upstream "
+            "despite FETCH_HEAD already being fresh from the unrelated "
+            "secondary fetch"
+        )
+        origin_fetch_calls = [r for r in fetch_calls if len(r["args"]) > 1 and r["args"][1] == "origin"]
+        assert origin_fetch_calls, (
+            f"expected the fetch to target 'origin' (this project's real "
+            f"upstream), not skip fetching entirely. All fetch calls: {fetch_calls}"
+        )
+
+    def test_vector_d_migration_external_origin_fetch_without_own_stamp_still_fetches(self, tmp_path):
+        """Vector D (migration). Simulates upgrading a repo that pre-dates
+        the v2 own-success-stamp mechanism: `.git/FETCH_HEAD` is fresh
+        because of an EXTERNAL fetch against the SAME upstream (origin)
+        that happened outside of — and before — the new hook's own
+        stamp-writing logic ever ran (e.g. the old ungated v1 boot, an IDE
+        auto-fetch, or a plain `git fetch` done by hand). No own stamp file
+        exists yet anywhere. The fix must not treat "FETCH_HEAD happens to
+        be fresh" as proof that its OWN gated/hardened fetch already ran —
+        it must still perform a real fetch of its own before it can
+        honestly claim "synced"/"fetched" (verified via the fetch call
+        log, not inferred from wording alone).
+
+        Distinguishing detail vs Vector B: here the SAME remote (origin) is
+        the one externally touched, not an unrelated secondary — this
+        proves the fix keys off "does the own-stamp file exist", not off
+        "was a different remote name involved". If Ultron's real
+        implementation makes this indistinguishable in practice from
+        Vector B (e.g. both collapse to the exact same code path with no
+        remote-name branching at all), that is expected and fine — the two
+        tests together are what pin the invariant from both angles.
+        """
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+
+        # External fetch against origin itself, done directly (not via the
+        # hook) — simulates a pre-v2 install/upgrade or an IDE auto-fetch.
+        _git(["fetch", "origin"], repo_a)
+        fetch_head = os.path.join(repo_a, ".git", "FETCH_HEAD")
+        assert os.path.isfile(fetch_head), "setup sanity: external fetch must have touched FETCH_HEAD"
+
+        log_path = str(tmp_path / "fake_git_vector_d.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        log_content = _read_boot_log(repo_a)
+        combined = stdout + "\n" + log_content
+        assert rc == 0, f"stderr: {stderr}"
+
+        memory_line = _line_with(combined, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined}"
+        assert "remote (synced" not in memory_line, (
+            f"a repo migrating from before the own-stamp mechanism existed "
+            f"must never trust an externally-fresh FETCH_HEAD as proof of "
+            f"its OWN successful fetch. Got: {memory_line!r}"
+        )
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert fetch_calls, (
+            "expected the first boot after migration to attempt its own "
+            "real fetch, not skip it because FETCH_HEAD was already fresh "
+            "from an external/legacy fetch"
+        )
+
+    def test_round_trip_own_stamp_survives_fetch_head_deletion(self, tmp_path):
+        """Discriminant round-trip variant (combines with Vector A/B/D
+        above to pin the full contract — the plain "boot OK, boot again
+        inside the window -> synced" round trip already passes today via
+        the WRONG mechanism, so it alone proves nothing new).
+
+        Boot #1: origin alive, real successful fetch -> "fetched". Then
+        `.git/FETCH_HEAD` is deleted entirely (not aged, not corrupted —
+        gone). Boot #2, still inside the 300s window: if the freshness
+        signal genuinely lives in the boot's OWN stamp (never in
+        FETCH_HEAD), deleting FETCH_HEAD must have NO effect — boot #2 must
+        still read the own stamp and render "remote (synced ... ago)"
+        without needing a new fetch. Today the signal lives EXCLUSIVELY in
+        FETCH_HEAD's mtime, so deleting it forces a genuine new fetch
+        instead (status flips back to "fetched", never "synced").
+        """
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+
+        rc1, stdout1, stderr1, log1, combined1 = _run_boot_combined(repo_a)
+        assert rc1 == 0, f"stderr: {stderr1}"
+        memory_line1 = _line_with(combined1, "MEMORY:")
+        assert memory_line1 is not None and memory_line1.startswith("MEMORY: remote (fetched "), (
+            f"setup sanity: boot #1 must perform a real successful fetch. "
+            f"Got: {memory_line1!r}"
+        )
+
+        fetch_head = os.path.join(repo_a, ".git", "FETCH_HEAD")
+        assert os.path.isfile(fetch_head), "setup sanity: boot #1's real fetch must have created FETCH_HEAD"
+        os.remove(fetch_head)
+        assert not os.path.exists(fetch_head)
+
+        rc2, stdout2, stderr2, log2, combined2 = _run_boot_combined(repo_a)
+        assert rc2 == 0, f"stderr: {stderr2}"
+
+        memory_line2 = _line_with(combined2, "MEMORY:")
+        assert memory_line2 is not None, f"expected a MEMORY: stamp.\n{combined2}"
+        assert memory_line2.startswith("MEMORY: remote (synced "), (
+            f"the freshness signal must survive FETCH_HEAD's deletion — it "
+            f"must live in the boot's OWN success stamp, not in "
+            f".git/FETCH_HEAD (which git itself may prune/rewrite/delete "
+            f"for reasons entirely unrelated to this project's own fetch "
+            f"tracking). Got: {memory_line2!r}"
+        )
+
+
 # ── Test 3: pull directive (clean vs dirty tree) ────────────────────────
 
 
