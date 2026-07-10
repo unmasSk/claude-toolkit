@@ -92,7 +92,6 @@ from parsing import sanitize_trailer_value, scan_trailers_memory
 from test_boot_freshness import (
     BOOT_HOOK,
     COMMIT_SCRIPT,
-    WINDOWS,
     _clone_machine_b,
     _commit_real,
     _git,
@@ -345,7 +344,6 @@ class TestFetchMemoryRefStates:
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result == {"status": "failed", "age_seconds": None}
 
-    @pytest.mark.skipif(WINDOWS, reason="fake-git PATH-shadowing needs a POSIX-executable named exactly 'git'")
     def test_hung_fetch_is_bounded_by_timeout_and_returns_failed(self, tmp_path, monkeypatch):
         """Direct-call complement to the acceptance contract's full-boot
         hardening test: proves fetch_memory_ref() ITSELF is responsible for

@@ -554,13 +554,34 @@ shows the hardened value instead. Without poisoning, a test can pass
 vacuously if the hardened code never actually sets the var at all (both
 "unset" and "already correct by luck" would go unnoticed).
 
-Windows caveat: a bare extensionless `git` file is not resolved as an
-executable via PATH lookup the way `subprocess.run(["git", ...])` needs —
-skip this technique with `@pytest.mark.skipif(sys.platform == "win32", ...)`.
+Windows: a bare extensionless `git` file is NOT resolved as an executable
+via PATH lookup the way `subprocess.run(["git", ...])` needs (Windows only
+searches PATH for entries with a PATHEXT extension — .COM/.EXE/.BAT/.CMD/
+...) — a `subprocess.Popen(["git", ...])` on Windows silently skips the
+fake and falls through to the real git.exe elsewhere on PATH. This is NOT
+a crash/skip signal — it is a silent OBSERVATION blind spot: the boot
+under test behaves correctly against the real git, but the fake's JSONL
+call log stays empty, so any assertion on that log (`assert fetch_calls`)
+fails for the wrong reason, and any assertion of the OPPOSITE shape
+(`assert not fetch_calls`) passes VACUOUSLY (confirmed root cause of a
+real Windows CI failure, issue #60 close-out, run 29110579481 — 5 tests
+failed on `assert fetch_calls` against an empty log, 2 more were
+vacuously green on `assert not fetch_calls`). Portable fix (no
+`skipif(win32)` needed): on `sys.platform == "win32"`, write the SAME
+Python logging/pass-through body to a `fake_git.py` sidecar file, then
+write a `git.cmd` wrapper (`.cmd` IS PATHEXT-resolved) whose one line is
+`@"{sys.executable}" "{fake_git_py_path}" %*` — always `sys.executable`
+(never a bare `"python"`, which may not exist or resolve to the wrong
+interpreter on a given machine), both paths double-quoted (either can
+contain spaces). On POSIX, behavior is byte-identical to before (shebang
++ chmod 0o755, no `.cmd`/sidecar).
 
 Confirmed in `unmassk-toolkit/tests/test_boot_freshness.py`
-(`_make_fake_git`, feat-boot-freshness contract, session 2026-07-06) for the
-hardened-fetch-env RED test and the fetch-gate RED test. See
+(`_make_fake_git`, feat-boot-freshness contract, session 2026-07-06; made
+cross-platform in the issue #60 close-out round, session 2026-07-10) for
+the hardened-fetch-env test, the fetch-gate test, and the rate-limit
+tests. `tests/test_boot_freshness_hardening.py` imports `_make_fake_git`/
+`WINDOWS` from this same module — fix once, both files benefit. See
 [feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md).
 
 ## Fake `git` that spawns a real grandchild — testing process-group kill without mocking os.killpg

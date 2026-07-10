@@ -321,3 +321,19 @@ When `Bun.spawn` is called with `stdin: Uint8Array` on Windows, the write end of
 - These are all in the same Bun libuv/Windows-API integration layer
 
 **Fix approach:** Use `-p` flag with a stdin-fallback pattern: pass a short marker via `-p` and the full prompt via stdin, OR pipe through a shell wrapper that explicitly closes stdin after writing, OR detect the empty-result-after-tool-use condition and retry with `-p` arg directly (truncated to Windows limits).
+
+## Pattern: Windows-only CI red = extensionless fake-git shim on PATH is silently bypassed (missing @skipif(WINDOWS) guard), NOT a product bug
+
+**Project:** unmassk-toolkit (git-memory boot) · **Seen:** 2026-07-10 · confirmed from CI run 29110579481 (sha 174d82b) + source + git history
+
+Symptom shape: N Windows-latest test failures, ALL identical `assert fetch_calls` -> `assert []` (empty), while every product-behavior assert BEFORE that line PASSES on Windows (e.g. vector B's `assert memory_line.startswith("MEMORY: remote (fetched ")` passes -> product DID fetch for real). macOS/Linux all green.
+
+Root cause: `tests/test_boot_freshness.py::_make_fake_git` (~L261) writes an extensionless, chmod-755 file literally named `git` (POSIX shebang script) into a dir prepended to PATH, to observe whether boot attempted a fetch (it logs every invocation to a jsonl). The boot's `run_git` does `subprocess.Popen(["git"] + args)` (lib/git_helpers.py:456) — bare name. On POSIX, PATH lookup finds `fake_bin/git` first (executable). On Windows, `Popen(["git"])` resolves the bare name via PATHEXT and does NOT treat an extensionless file as executable, so the REAL `git.exe` further down PATH runs -> the fake jsonl stays empty -> `fetch_calls == []` -> assert fails. The product ran real git and behaved correctly the whole time; only the TEST's observation instrument is Windows-blind.
+
+The class already DOCUMENTS this (comment ~L234-236 "POSIX only — Windows does not resolve a bare extensionless `git`...") and the repo-wide convention is `@pytest.mark.skipif(WINDOWS, reason="fake-git PATH-shadowing needs a POSIX-executable named exactly 'git'")` — present on sibling tests at test_boot_freshness.py:1305/1379, test_boot_freshness_hardening.py:348, test_date_parsing_epoch_contract.py:374/429. The failing tests are simply NEW and forgot the guard. `WINDOWS = sys.platform == "win32"` at L68.
+
+Latent secondary (not a red, worth flagging): `assert not fetch_calls` tests (test_boot_freshness.py ~L1401/1468) RUN on Windows and pass vacuously there (empty log makes `not fetch_calls` trivially true, for the wrong reason) — they stay honest only because the author also pins stamp-file evidence (self-noted ~L1458). A Windows-portable shim would fix that blindness too.
+
+Fix (Dante, TEST-ONLY — NO product change): (A) cheap/matches precedent: add `@skipif(WINDOWS, ...)` to the failing tests -> instant green but ZERO Windows coverage of fetch-gate logic. (B) better: make `_make_fake_git` Windows-portable — on win32 write `fake_bin/git.cmd` (or .bat) = `@"<sys.executable>" "<fake_git.py>" %*`; bare `["git"]`+PATHEXT then finds it before git.exe -> ALL fake-git tests (incl. the currently-skipif'd ones) run on Windows, closing the gap. Precedent for B exists: test_boot_freshness_regression.py:455 already has a "Windows counterpart" shim helper. Use sys.executable, never bare `python`.
+
+**Lesson:** for this suite, Windows-only red with a uniform `assert []` on a fetch/call-observation list = the extensionless fake-git PATH-shadow instrument, not product. Before diagnosing product, check: (1) do the pre-assert product-behavior asserts PASS on Windows? (2) is `@skipif(WINDOWS)` present like on the sibling fake-git tests? Grep `_make_fake_git` + `skipif(WINDOWS)` to find un-guarded new tests.

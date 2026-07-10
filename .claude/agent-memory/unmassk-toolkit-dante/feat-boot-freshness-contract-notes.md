@@ -729,3 +729,106 @@ regression.py -q` -> 141 passed, 2 skipped, exit 0. Full suite `python3
 suite needs a longer-than-default timeout, plain `python3 -m pytest
 tests -q` with no extra flags). Production code untouched by this
 re-seed pass — test file only.
+
+## Issue #60 CLOSE-OUT round (session 2026-07-10) — Windows CI fix + Cerberus mutation-testing gap
+
+Two independent, unrelated fixes landed in the same pass, both test-only,
+`tests/test_boot_freshness.py` (+ 2-line import cleanup in
+`test_boot_freshness_hardening.py`).
+
+### 1. `_make_fake_git()` made cross-platform (real Windows CI failure, run 29110579481)
+
+House's diagnosis (confirmed from CI logs, not re-derived here): the fake
+`git` shim was a bare extensionless file with `chmod 0o755` — POSIX-only,
+per the "Windows caveat" already documented in mock-patterns.md. On
+Windows, `subprocess.Popen(["git", ...])` never resolves it (no PATHEXT
+match) and silently falls through to the real `git.exe` elsewhere on
+PATH — not a crash, an OBSERVATION blind spot. 5 tests asserting
+`assert fetch_calls` failed on an empty log even though the boot under
+test behaved correctly; 2 more (`TestFetchGateSkipsWithoutToolkitMemory`,
+`TestFetchRateLimit::test_fresh_fetch_head_skips_fetch`) asserted `assert
+not fetch_calls` and were passing VACUOUSLY on Windows for the same
+reason (empty log either way).
+
+Fix: `_make_fake_git()` branches on `WINDOWS` (module-level constant,
+already existed). POSIX path byte-identical to before. Windows path
+writes the same Python logging/pass-through body to a `fake_git.py`
+sidecar, then a `git.cmd` wrapper (`.cmd` IS PATHEXT-resolved):
+`@"{sys.executable}" "{fake_git_py}" %*` — always `sys.executable` (never
+bare `"python"`), both paths quoted (spaces). Full pattern recorded in
+[mock-patterns.md](mock-patterns.md)'s "Fake `git` executable on PATH"
+section — read there before touching this helper again.
+
+Consequence: the 3 `@pytest.mark.skipif(WINDOWS, reason="fake-git
+PATH-shadowing...")` guards this same blind spot forced
+(`test_boot_freshness.py::TestFetchHardening::
+test_fetch_uses_hardened_env_and_bounded_timeout`,
+`::TestFetchGateSkipsWithoutToolkitMemory::
+test_no_toolkit_memory_never_attempts_fetch`,
+`test_boot_freshness_hardening.py::TestFetchMemoryRefStates::
+test_hung_fetch_is_bounded_by_timeout_and_returns_failed`) are removed —
+each was checked individually first to confirm PATH-shadowing was its
+ONLY stated reason (none had a second, real Windows-specific blocker).
+`test_date_parsing_epoch_contract.py`'s two `skipif(win32)` guards
+(`TestGcStaleBlockerSurvivesOldGit`, `TestDoctorGcStatusSurvivesOldGit`)
+use a DIFFERENT helper (`_make_old_git_no_aI`, a `%`-token-mangling fake,
+see mock-patterns.md) — deliberately NOT touched this round, flagged as a
+candidate for the same fix in a future pass.
+
+Verification limit (documented, not silently assumed): the Windows branch
+was exercised locally by monkeypatching `WINDOWS = True` and inspecting
+the generated `git.cmd`/`fake_git.py` file *content* only (plausible
+`.cmd` syntax, correct quoting, real `sys.executable`) — it was NOT
+executed, since this environment has no Windows shell. Actual behavior
+(whether `cmd.exe`/CreateProcess's PATHEXT resolution genuinely picks up
+`git.cmd` the way `subprocess.Popen(["git", ...])` needs) is validated by
+CI on a real Windows runner, not locally.
+
+### 2. Cerberus mutation-testing gap in `test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo`
+
+The last re-seed (previous section above) still had one bug: repo Z (the
+stamp's RECEIVING repo) was ALSO degenerated
+(`_degenerate_remote_url_to_alias(repo_z)`), so Z's OWN remote
+resolution tripped the WRITE-side guard (`_check_remote_is_live()` ->
+`no_remote`) BEFORE `_read_own_stamp_age()`'s `remote_url` comparison —
+the function this test claims to cover — was ever reached. Cerberus
+proved this by mutation: deleting `or data.get("remote_url") !=
+remote_url` from `_read_own_stamp_age()`'s OR-chain in
+`lib/boot_fetch_stamp.py` left the test green. **Lesson, generalizes
+beyond this one test: a fixture that degenerates BOTH the donor's write
+path AND the receiver's own resolution can silently short-circuit
+through an EARLIER guard than the one the test's docstring claims to
+exercise — when two guards sit on the same call chain, verify by
+mutation which one the test actually kills, don't infer it from the
+docstring's stated intent.**
+
+Fix: rebuilt Z to be HEALTHY/non-degenerate (own genuine, resolvable,
+distinct remote URL — `_degenerate_remote_url_to_alias()` no longer
+applied to Z). This forces Z's own resolution past
+`_check_remote_is_live()` cleanly, so `_read_own_stamp_age()`'s
+`remote_url` comparison against the poisoned stamp (still seeded via
+read-mutate-rewrite from a real healthy boot W, §34, unchanged) is what
+actually decides the outcome. Consequence, positive not just negative: a
+genuine `remote_url` mismatch means "no evidence" -> a REAL refetch of
+Z's own live remote is forced -> the test now also asserts
+`memory_line.startswith("MEMORY: remote (fetched ")` (added; the old
+version only asserted the negative "not synced", which is weaker and
+would also pass if the mismatch accidentally routed to `no_remote`/LOCAL
+instead of a genuine refetch).
+
+Mutation-kill re-verified directly (not assumed from the fix alone):
+removed the same `remote_url` comparison line from
+`lib/boot_fetch_stamp.py`, confirmed
+`test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo`
+now FAILS (`'MEMORY: remote (synced 0s ago)'` — the false-positive the
+guard exists to prevent), then restored the file byte-for-byte
+(`git diff --stat -- lib/` empty afterward, confirmed) before re-running
+the real suite. Production code (`lib/`) untouched in the final diff —
+test file only.
+
+Verification, this round: `tests/test_boot_freshness.py tests/
+test_boot_freshness_hardening.py tests/test_boot_freshness_regression.py
+-q` -> 141 passed, 2 skipped (same pre-existing win32-only-counterpart
+guards as always, unrelated to this fix), exit 0. Full suite `python3 -m
+pytest tests -q` (no pipe, real `$?` checked directly per this repo's
+hard rule) -> 1246 passed, 2 skipped, exit 0, ~272s.

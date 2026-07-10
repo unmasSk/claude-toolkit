@@ -231,12 +231,26 @@ def _line_with(text, marker):
 # calls) keeps working unmodified. `fetch` calls can additionally be made
 # to hang for FAKE_GIT_FETCH_HANG_SECONDS, to exercise a timeout without
 # depending on real network behavior (sandboxed test environments may not
-# allow arbitrary outbound sockets, even to a dead port). POSIX only —
-# Windows does not resolve a bare extensionless `git` file as executable
-# via PATH lookup the way `subprocess.run(["git", ...])` needs here.
+# allow arbitrary outbound sockets, even to a dead port).
+#
+# Cross-platform (issue #60 CI-closure round, run 29110579481): a bare,
+# extensionless `git` file with chmod 755 is a valid executable on POSIX
+# (shebang + exec bit), but Windows never resolves it — CreateProcess's
+# PATH search only matches entries with a PATHEXT extension
+# (.COM/.EXE/.BAT/.CMD/...), so `subprocess.Popen(["git", ...])` silently
+# skips this fake and falls through to the real git.exe elsewhere on
+# PATH. That isn't a hang or a crash — it's an OBSERVATION blind spot:
+# every test that asserts on the fake git's JSONL call log sees an empty
+# log (`assert fetch_calls` fails on `assert []`) even though the boot
+# under test behaved correctly against the real git binary. On win32 the
+# same logging/pass-through Python logic is written to a `fake_git.py`
+# sidecar file instead, and `git.cmd` — an extension Windows DOES resolve
+# via PATH — invokes it with `sys.executable` (never a bare "python",
+# which may not exist or may resolve to the wrong interpreter/version on
+# a given machine) so it runs under the exact same interpreter as the
+# test process itself.
 
-_FAKE_GIT_TEMPLATE = '''#!/usr/bin/env python3
-import sys, os, json, subprocess, time
+_FAKE_GIT_BODY = '''import sys, os, json, subprocess, time
 
 args = sys.argv[1:]
 log_path = r"""__LOG_PATH__"""
@@ -263,13 +277,30 @@ def _make_fake_git(tmp_path, log_path):
     assert real_git, "real git binary not found on PATH — cannot build fake git wrapper"
     fake_dir = tmp_path / "fake_bin"
     fake_dir.mkdir(exist_ok=True)
-    fake_git_path = fake_dir / "git"
     script = (
-        _FAKE_GIT_TEMPLATE
+        _FAKE_GIT_BODY
         .replace("__LOG_PATH__", str(log_path))
         .replace("__REAL_GIT__", real_git)
     )
-    fake_git_path.write_text(script, encoding="utf-8")
+
+    if WINDOWS:
+        # git.cmd (PATHEXT-resolved) delegates to a fake_git.py sidecar
+        # via sys.executable — see the module comment above for why a
+        # bare extensionless `git` file (the POSIX shape below) is
+        # invisible to Windows's PATH search, and why sys.executable
+        # specifically (never a bare "python"). Both paths are quoted —
+        # either can contain spaces (e.g. "Program Files", a tmp_path
+        # under a spaced username directory).
+        fake_git_py = fake_dir / "fake_git.py"
+        fake_git_py.write_text(script, encoding="utf-8")
+        fake_git_cmd = fake_dir / "git.cmd"
+        fake_git_cmd.write_text(
+            f'@"{sys.executable}" "{fake_git_py}" %*\n', encoding="utf-8"
+        )
+        return str(fake_dir)
+
+    fake_git_path = fake_dir / "git"
+    fake_git_path.write_text("#!/usr/bin/env python3\n" + script, encoding="utf-8")
     os.chmod(fake_git_path, 0o755)
     return str(fake_dir)
 
@@ -1052,7 +1083,12 @@ class TestOwnStampIdentityIncludesRemoteURL:
 # test_stamp_claiming_alias_as_url_is_never_trusted_by_an_unrelated_repo,
 # which seeds the poisoned stamp by mutating a REAL stamp a healthy boot
 # just wrote (never hand-typed JSON, unmassk-standards §34), since a real
-# boot can no longer produce that shape on its own anymore.
+# boot can no longer produce that shape on its own anymore. That test's
+# receiving repo (Z) is deliberately kept HEALTHY/non-degenerate — a
+# degenerate Z would trip the WRITE-side guard on Z's own resolution
+# first and never actually reach `_read_own_stamp_age()`'s remote_url
+# comparison at all (a mutation-testing gap Cerberus caught in an earlier
+# revision of that test; see its docstring).
 
 
 def _degenerate_remote_url_to_alias(repo, remote_name="origin"):
@@ -1108,21 +1144,37 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
         below, which pins that directly). But a stamp CLAIMING that shape
         can still reach disk from elsewhere — an older plugin version that
         predates this guard, a stamp copied between repos (the original
-        Moriarty PoC), a hand-restored backup — and the read side must
-        reject it regardless of provenance.
+        Moriarty PoC), a hand-restored backup — and the read side
+        (`_read_own_stamp_age()`'s `remote_url` comparison) must reject it
+        regardless of provenance.
 
         Seeded by mutating a REAL stamp a healthy, non-degenerate boot (W)
         just wrote (read-mutate-rewrite, never hand-typed JSON from
         scratch — unmassk-standards §34, same pattern as
         test_stamp_with_unknown_schema_version_is_treated_as_absent
         above): only the `remote_url` field is changed, to the literal
-        alias "origin". That mutated stamp is written into an entirely
-        unrelated repo Z (independently set up with its OWN different
-        remote, then degenerated the same way — the class of repos this
-        vector affects — and deliberately given NO trap directory, since
-        Z's own remote can no longer be honestly reached either way).
-        Booting Z inside the 300s rate-limit window must never render
-        "remote (synced" off the back of the mutated stamp.
+        alias "origin". That mutated stamp is planted into an entirely
+        unrelated repo Z — Z itself is set up HEALTHY, with its own
+        genuine, resolvable, distinct remote URL
+        (`_degenerate_remote_url_to_alias()` is deliberately NOT applied
+        to Z, unlike the write-side test below).
+
+        This matters for what the test actually proves: if Z's own remote
+        were degenerate too, `_check_remote_is_live()` would short-circuit
+        Z's OWN resolution to "no_remote" before
+        `_read_own_stamp_age()`'s `remote_url` comparison is ever reached
+        — the assertion below would then pass for the WRONG reason
+        (caught by Cerberus via mutation testing: deleting the
+        `remote_url` comparison from `_read_own_stamp_age()` left this
+        test green while Z was degenerate, proving it wasn't exercising
+        the read-side guard at all). With Z healthy, its real resolved
+        URL is compared against the poisoned stamp's claimed "origin" — a
+        genuine mismatch — so `_read_own_stamp_age()` correctly reports no
+        evidence, forcing a real refetch of Z's own (genuinely reachable)
+        remote. The assertion holds because that refetch reports
+        "fetched", never "synced" off the stale claim — booting Z inside
+        the 300s rate-limit window must never render "remote (synced" off
+        the back of the mutated stamp.
         """
         repo_w, bare_w = _setup_freshness_repo(tmp_path / "site_w")
 
@@ -1146,10 +1198,15 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
         # production code itself wrote for W's real, honest sync.
         stamp_data["remote_url"] = "origin"
 
+        # Z is deliberately HEALTHY (non-degenerate): its own remote
+        # resolves to a genuine, distinct URL, so `_check_remote_is_live()`
+        # never short-circuits Z to "no_remote" on its own account. That
+        # is what forces execution to actually reach
+        # `_read_own_stamp_age()`'s remote_url comparison against the
+        # poisoned stamp planted below — see the docstring above for the
+        # mutation-testing gap this closes.
         repo_z, bare_z = _setup_freshness_repo(tmp_path / "site_z")
         assert bare_z != bare_w, "setup sanity: Z's real remote is genuinely different from the donor's"
-        _degenerate_remote_url_to_alias(repo_z)
-        # Deliberately NO trap directory in Z.
 
         stamp_z = os.path.join(repo_z, ".claude", ".unmassk", "boot-fetch-stamp.json")
         os.makedirs(os.path.dirname(stamp_z), exist_ok=True)
@@ -1169,6 +1226,17 @@ class TestAliasFallbackURLIsNotResolvedIdentity:
             f"('origin' as if it were a real URL) must never be trusted "
             f"as evidence of an UNRELATED repo's own sync, regardless of "
             f"how that claim reached disk. Got: {memory_line!r}"
+        )
+        # Positive half, not just the negative "not synced": Z's own
+        # remote is genuinely reachable, so rejecting the poisoned stamp
+        # must fall through to a REAL refetch of Z's own upstream, not to
+        # a LOCAL/unverified failure mode — pins the mismatch actually
+        # took the "no evidence -> refetch" path rather than some other
+        # accidental route to the same negative assertion.
+        assert memory_line.startswith("MEMORY: remote (fetched "), (
+            f"expected the remote_url mismatch to force a genuine refetch "
+            f"of Z's own (live) upstream, reported as 'fetched'. "
+            f"Got: {memory_line!r}"
         )
 
         log_memory_line = _line_with(log_content_z, "MEMORY:")
@@ -1302,7 +1370,6 @@ class TestFetchHardening:
     AMBIENT_SSH_ASKPASS = "/nonexistent/ambient-ssh-askpass.sh"
     AMBIENT_GIT_SSH_COMMAND = "ssh"  # no BatchMode
 
-    @pytest.mark.skipif(WINDOWS, reason="fake-git PATH-shadowing needs a POSIX-executable named exactly 'git'")
     def test_fetch_uses_hardened_env_and_bounded_timeout(self, tmp_path):
         repo_a, bare = _setup_freshness_repo(tmp_path)
         local_marker = "FAILOPEN-LOCAL-CONTENT-MARKER"
@@ -1376,7 +1443,6 @@ class TestFetchGateSkipsWithoutToolkitMemory:
     it runs on every repo regardless of toolkit-memory presence.
     """
 
-    @pytest.mark.skipif(WINDOWS, reason="fake-git PATH-shadowing needs a POSIX-executable named exactly 'git'")
     def test_no_toolkit_memory_never_attempts_fetch(self, tmp_path):
         repo = str(tmp_path / "ungated_repo")
         os.makedirs(repo)
