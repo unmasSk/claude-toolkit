@@ -46,6 +46,16 @@ A debounce guard like `if (reconnectAttempts === 0 && ...) return` protects agai
 
 When backoff delay < proxy TCP timeout, multiple reconnect attempts overlap. Each holds resources (sockets, memory) for the full proxy timeout duration. The visible symptom (RAM/CPU spike) is proportional to `min(max_attempts, proxy_timeout / backoff_delay)` simultaneous connections. The fix requires either (a) fast-fail timeouts on the client side or (b) serialization so attempt N+1 waits for N to complete.
 
+## Lesson: `git.cmd`/`.bat` shim is NOT found by `subprocess.Popen(["git"], shell=False)` on Windows — CreateProcess ignores PATHEXT
+
+**Project:** unmassk-toolkit (git-memory boot, #60) · **Seen:** 2026-07-10 · confirmed from CI run 29122808531 (sha 4b10931)
+
+Round 1 diagnosed the extensionless `fake_bin/git` shim as Windows-invisible (correct) and proposed option B: write `fake_bin/git.cmd = @"<sys.executable>" "<fake_git.py>" %*`, on the DOCTRINE that "bare `["git"]` + PATHEXT finds `git.cmd` before `git.exe`". That doctrine was WRONG and cost a full CI round.
+
+Mechanism (documented CreateProcess semantics, NOT verifiable on macOS — POSIX uses execvp): `subprocess.Popen(["git"]+args, shell=False)` on Windows calls `CreateProcess(lpApplicationName=NULL, lpCommandLine="git ...")`. CreateProcess, when the module name has no extension, appends ONLY `.exe` and searches PATH — it does NOT consult PATHEXT. PATHEXT (.CMD/.BAT/...) is a **cmd.exe / shell / `where` / `shutil.which`** concept, NOT a CreateProcess one. CPython's subprocess with shell=False does NOT call `shutil.which`; it hands the bare name to CreateProcess. Therefore `git.cmd` is as invisible as the extensionless `git` — only `git.exe` (or shell=True, or a full path) is resolvable. Empirical proof in the CI run: `git.cmd` was on PATH yet the fake JSONL log stayed empty AND `test_hung_fetch` returned `'fetched'` (real git.exe ran the fetch), giving the same "fake git was never invoked" signature as round 1.
+
+**Rule for this repo:** to intercept `subprocess.Popen(["git"])` (bare, shell=False) on Windows you need one of: (1) a real `git.exe` wrapper on PATH (distlib launcher — fragile), or (2) intercept at the Python layer (wrap `subprocess.Popen` via a `sitecustomize.py` on PYTHONPATH for subprocess-launched hooks, or `monkeypatch.setattr(subprocess,"Popen",...)` for in-process calls). The Python-layer wrap is cross-platform and can retire the PATH shim entirely. NEVER rely on a `.cmd`/`.bat` shim for a bare-name `Popen`.
+
 ## Lesson: "Not X" user reports require tracing the actual displayed text, not the code string
 
 When a user reports seeing "NOT RESPONSE", do not grep for that exact string. Trace what text actually renders in each UI component at each step of the flow. The system message "Agent X returned no response." renders through SystemMessage.tsx with formatting applied — the user may paraphrase or truncate what they see. Start from the symptom (what renders visible text) and work backward through the data flow.

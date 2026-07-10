@@ -96,12 +96,13 @@ from test_boot_freshness import (
     _commit_real,
     _git,
     _line_with,
-    _make_fake_git,
     _push_commits_from_b,
     _read_fake_git_log,
     _run_boot_combined,
     _setup_freshness_repo,
 )
+
+from _git_intercept import make_intercepted_popen
 
 COMMIT_SCRIPT_PATH = os.path.join(BIN_DIR, "git-memory-commit.py")
 
@@ -348,21 +349,33 @@ class TestFetchMemoryRefStates:
         """Direct-call complement to the acceptance contract's full-boot
         hardening test: proves fetch_memory_ref() ITSELF is responsible for
         the bounded timeout (not something downstream in session-start-
-        boot.py papering over a hang), by calling it directly with a fake
-        `git` that hangs on `fetch` for far longer than FETCH_TIMEOUT_SECONDS.
+        boot.py papering over a hang), by calling it directly with a real
+        hung child in place of `git fetch`.
+
+        In-process vehicle (B) of the shared tests/_git_intercept.py
+        module (issue #60 close-out round 2, House's spec) — this test
+        never goes through a subprocess/PATH lookup for "git" at all, so
+        it needs neither the sitecustomize/PYTHONPATH plumbing
+        test_boot_freshness.py's subprocess-vehicle tests use, nor any
+        Windows-specific PATH-shimming: monkeypatch.setattr targets the
+        REAL subprocess.Popen attribute directly (the same module object
+        lib/git_helpers.py's own `import subprocess` binds to — see
+        _git_intercept.py's module docstring), so fetch_memory_ref() ->
+        git_helpers.run_git() -> subprocess.Popen(["git", "fetch", ...])
+        is intercepted regardless of platform.
         """
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
 
         log_path = str(tmp_path / "fake_git_log.jsonl")
-        fake_bin = _make_fake_git(tmp_path, log_path)
-        monkeypatch.setenv("PATH", fake_bin + os.pathsep + os.environ.get("PATH", ""))
-        # Must safely OUTLAST FETCH_TIMEOUT_SECONDS, or the fake fetch just
-        # finishes on its own (fake git exits 0 after its sleep) before
-        # run_git's own timeout ever fires — proving nothing about the
-        # timeout itself. The process gets killed at ~FETCH_TIMEOUT_SECONDS
-        # regardless of how long this is set to, so a large margin costs
-        # nothing in wall-clock time.
+        real_popen = subprocess.Popen
+        monkeypatch.setattr(subprocess, "Popen", make_intercepted_popen(real_popen, log_path))
+        # Must safely OUTLAST FETCH_TIMEOUT_SECONDS, or the substituted
+        # sleeper just finishes on its own before run_git's own timeout
+        # ever fires — proving nothing about the timeout itself. The
+        # process gets killed at ~FETCH_TIMEOUT_SECONDS regardless of how
+        # long this is set to, so a large margin costs nothing in
+        # wall-clock time.
         monkeypatch.setenv(
             "FAKE_GIT_FETCH_HANG_SECONDS", str(boot_git_checks.FETCH_TIMEOUT_SECONDS + 20)
         )

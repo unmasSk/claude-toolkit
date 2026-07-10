@@ -223,86 +223,79 @@ def _line_with(text, marker):
     return None
 
 
-# ── Fake `git` executable (Task 1 tests 4 and 5) ────────────────────────
+# ── Git interceptor (Task 1 tests 4 and 5, issue #60 close-out round 2) ──
 #
-# Logs every invocation (argv + full env) to a JSONL file, then passes
-# through to the REAL git for everything except `fetch`, so the rest of
-# the boot pipeline (rev-parse, log, branch, status, doctor's own git
-# calls) keeps working unmodified. `fetch` calls can additionally be made
-# to hang for FAKE_GIT_FETCH_HANG_SECONDS, to exercise a timeout without
-# depending on real network behavior (sandboxed test environments may not
-# allow arbitrary outbound sockets, even to a dead port).
+# Logs every real git invocation (argv without the leading "git" token +
+# the env it actually received) to a JSONL file, then delegates
+# transparently to the REAL subprocess.Popen — see tests/_git_intercept.py
+# for the full contract and the fetch-hang substitution used to exercise
+# a timeout deterministically, without depending on real network behavior.
 #
-# Cross-platform (issue #60 CI-closure round, run 29110579481): a bare,
-# extensionless `git` file with chmod 755 is a valid executable on POSIX
-# (shebang + exec bit), but Windows never resolves it — CreateProcess's
-# PATH search only matches entries with a PATHEXT extension
-# (.COM/.EXE/.BAT/.CMD/...), so `subprocess.Popen(["git", ...])` silently
-# skips this fake and falls through to the real git.exe elsewhere on
-# PATH. That isn't a hang or a crash — it's an OBSERVATION blind spot:
-# every test that asserts on the fake git's JSONL call log sees an empty
-# log (`assert fetch_calls` fails on `assert []`) even though the boot
-# under test behaved correctly against the real git binary. On win32 the
-# same logging/pass-through Python logic is written to a `fake_git.py`
-# sidecar file instead, and `git.cmd` — an extension Windows DOES resolve
-# via PATH — invokes it with `sys.executable` (never a bare "python",
-# which may not exist or may resolve to the wrong interpreter/version on
-# a given machine) so it runs under the exact same interpreter as the
-# test process itself.
-
-_FAKE_GIT_BODY = '''import sys, os, json, subprocess, time
-
-args = sys.argv[1:]
-log_path = r"""__LOG_PATH__"""
-try:
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"args": args, "env": dict(os.environ)}) + "\\n")
-except OSError:
-    pass
-
-if args and args[0] == "fetch":
-    hang = os.environ.get("FAKE_GIT_FETCH_HANG_SECONDS")
-    if hang:
-        time.sleep(float(hang))
-        sys.exit(0)
-
-real_git = r"""__REAL_GIT__"""
-result = subprocess.run([real_git] + args)
-sys.exit(result.returncode)
-'''
+# Cross-platform BY CONSTRUCTION (issue #60 close-out round 2, House):
+# the PREVIOUS approach here shadowed "git" on PATH with a fake executable
+# (POSIX: a bare extensionless file with the exec bit; a first Windows-fix
+# attempt, commit 4b10931, added a git.cmd wrapper). Both are permanently
+# invisible to this project's own call shape,
+# `subprocess.Popen(["git", ...], shell=False)`: on Windows that resolves
+# the child via CreateProcess, which for an extensionless name like "git"
+# only ever tries appending ".exe" — PATHEXT-based fallback (what would
+# ALSO try .cmd/.bat/...) is a cmd.exe behavior, never consulted by
+# CreateProcess directly (confirmed root cause of CI run 29110579481, then
+# again of run 29122808531 after the git.cmd attempt — neither shim was
+# ever found; the real git.exe elsewhere on PATH silently ran instead).
+# Not a crash or a hang — an OBSERVATION blind spot: `assert fetch_calls`
+# fails on an empty log even though the boot under test behaved correctly,
+# and the inverse `assert not fetch_calls` passes VACUOUSLY for the same
+# reason (empty log either way).
+#
+# Fix: intercept subprocess.Popen itself (tests/_git_intercept.py),
+# invocation-path-independent by construction — no PATH/PATHEXT resolution
+# involved anywhere. For the real boot subprocess launched via
+# run_script() below, a per-test sitecustomize.py is placed on the
+# child's PYTHONPATH — `site` imports it automatically during interpreter
+# startup because run_script() invokes `[sys.executable, script]` with no
+# -S/-I flag — and it installs the patch inside the CHILD process before
+# session-start-boot.py's own code ever runs. Byte-identical behavior on
+# every platform: no POSIX/Windows branch needed in this file anymore.
 
 
 def _make_fake_git(tmp_path, log_path):
-    real_git = shutil.which("git")
-    assert real_git, "real git binary not found on PATH — cannot build fake git wrapper"
-    fake_dir = tmp_path / "fake_bin"
-    fake_dir.mkdir(exist_ok=True)
+    """Prepare the sitecustomize-based git interceptor for a real boot
+    subprocess. Returns a directory to prepend to the child's PYTHONPATH
+    (see _fake_git_env()) — NOT PATH; this no longer shadows an
+    executable. Callers must also set GIT_INTERCEPT_LOG_PATH (done by
+    _fake_git_env()) so the child's tests/_git_intercept.py.install_via_env()
+    knows where to write its JSONL log. `log_path` itself is unused here
+    (kept as a parameter only so callers keep their existing two-argument
+    call shape) — it reaches the child exclusively via the
+    GIT_INTERCEPT_LOG_PATH env var set by _fake_git_env(), not at prepare
+    time.
+    """
+    site_dir = tmp_path / "fake_bin"
+    site_dir.mkdir(exist_ok=True)
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
     script = (
-        _FAKE_GIT_BODY
-        .replace("__LOG_PATH__", str(log_path))
-        .replace("__REAL_GIT__", real_git)
+        "import sys\n"
+        f"sys.path.insert(0, {tests_dir!r})\n"
+        "import _git_intercept\n"
+        "_git_intercept.install_via_env()\n"
     )
+    (site_dir / "sitecustomize.py").write_text(script, encoding="utf-8")
+    return str(site_dir)
 
-    if WINDOWS:
-        # git.cmd (PATHEXT-resolved) delegates to a fake_git.py sidecar
-        # via sys.executable — see the module comment above for why a
-        # bare extensionless `git` file (the POSIX shape below) is
-        # invisible to Windows's PATH search, and why sys.executable
-        # specifically (never a bare "python"). Both paths are quoted —
-        # either can contain spaces (e.g. "Program Files", a tmp_path
-        # under a spaced username directory).
-        fake_git_py = fake_dir / "fake_git.py"
-        fake_git_py.write_text(script, encoding="utf-8")
-        fake_git_cmd = fake_dir / "git.cmd"
-        fake_git_cmd.write_text(
-            f'@"{sys.executable}" "{fake_git_py}" %*\n', encoding="utf-8"
-        )
-        return str(fake_dir)
 
-    fake_git_path = fake_dir / "git"
-    fake_git_path.write_text("#!/usr/bin/env python3\n" + script, encoding="utf-8")
-    os.chmod(fake_git_path, 0o755)
-    return str(fake_dir)
+def _fake_git_env(fake_bin, log_path, extra=None):
+    """Env overrides to route a boot subprocess's git invocations through
+    the sitecustomize-based interceptor prepared by _make_fake_git().
+    PYTHONPATH is prepended (existing ambient PYTHONPATH, if any, is
+    preserved) — mirrors the old PATH-prepend convention this replaces."""
+    env = {
+        "PYTHONPATH": fake_bin + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        "GIT_INTERCEPT_LOG_PATH": log_path,
+    }
+    if extra:
+        env.update(extra)
+    return env
 
 
 def _read_fake_git_log(log_path):
@@ -716,7 +709,7 @@ class TestOwnSuccessStampNotFetchHeadMtime:
         # boot #1's already-real behavior above.
         log_path = str(tmp_path / "fake_git_vector_a.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc2, stdout2, stderr2 = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
         log_content2 = _read_boot_log(repo_a)
@@ -777,7 +770,7 @@ class TestOwnSuccessStampNotFetchHeadMtime:
 
         log_path = str(tmp_path / "fake_git_vector_b.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
         log_content = _read_boot_log(repo_a)
@@ -842,7 +835,7 @@ class TestOwnSuccessStampNotFetchHeadMtime:
 
         log_path = str(tmp_path / "fake_git_vector_d.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
         log_content = _read_boot_log(repo_a)
@@ -968,7 +961,7 @@ class TestOwnStampIdentityIncludesRemoteURL:
 
         log_path = str(tmp_path / "fake_git_identity_collision.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc_b, stdout_b, stderr_b = run_script(BOOT_HOOK, repo_b, env=env, timeout=20)
         log_content_b = _read_boot_log(repo_b)
@@ -1023,7 +1016,7 @@ class TestOwnStampIdentityIncludesRemoteURL:
 
         log_path = str(tmp_path / "fake_git_schema_version.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc2, stdout2, stderr2 = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
         log_content2 = _read_boot_log(repo_a)
@@ -1382,14 +1375,13 @@ class TestFetchHardening:
         # its sleep) before run_git's own timeout ever fires — which would
         # prove nothing about the timeout actually bounding the hang.
         hang_seconds = FETCH_TIMEOUT_SECONDS + 20
-        env = {
-            "PATH": fake_bin + os.pathsep + os.environ.get("PATH", ""),
+        env = _fake_git_env(fake_bin, log_path, extra={
             "FAKE_GIT_FETCH_HANG_SECONDS": str(hang_seconds),
             "GIT_TERMINAL_PROMPT": self.AMBIENT_GIT_TERMINAL_PROMPT,
             "GIT_ASKPASS": self.AMBIENT_GIT_ASKPASS,
             "SSH_ASKPASS": self.AMBIENT_SSH_ASKPASS,
             "GIT_SSH_COMMAND": self.AMBIENT_GIT_SSH_COMMAND,
-        }
+        })
 
         start = time.monotonic()
         rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=FETCH_TIMEOUT_SECONDS + 20)
@@ -1465,7 +1457,7 @@ class TestFetchGateSkipsWithoutToolkitMemory:
 
         log_path = str(tmp_path / "fake_git_calls.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc, stdout, stderr = run_script(BOOT_HOOK, repo, env=env, timeout=20)
         assert rc == 0, f"stderr: {stderr}"
@@ -1532,12 +1524,27 @@ class TestFetchRateLimit:
 
         log_path = str(tmp_path / "fake_git_fresh_skip.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
-        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+        env = _fake_git_env(fake_bin, log_path)
 
         rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
         assert rc == 0, f"boot must fail open. stderr: {stderr}"
 
         records = _read_fake_git_log(log_path)
+        # Populated-log guard (issue #60 close-out round 2): without this,
+        # the "no fetch calls" assertion below would pass VACUOUSLY if the
+        # interceptor were silently never engaged at all (the exact blind
+        # spot the old PATH-shimmed fake git suffered on Windows — see
+        # tests/_git_intercept.py's module docstring) — an empty log is
+        # indistinguishable from "correctly skipped" unless something else
+        # is proven to have reached it. This boot does run other real git
+        # commands (rev-parse, status, log, ...) regardless of whether it
+        # fetches, so a non-empty log here proves the interceptor is
+        # genuinely active for the RIGHT reason, not by construction.
+        assert records, (
+            "the git interceptor logged nothing at all for this boot — "
+            "cannot distinguish a genuine rate-limit skip from the "
+            "interceptor never having engaged"
+        )
         fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
         assert not fetch_calls, (
             "a boot within the rate-limit window, with a valid own-success "

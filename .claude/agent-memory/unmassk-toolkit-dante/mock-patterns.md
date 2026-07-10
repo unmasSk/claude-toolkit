@@ -525,7 +525,26 @@ fixture that attempts a real `os.symlink()` in `tmp_path` and calls
 Windows box without Developer Mode / SeCreateSymbolicLinkPrivilege) — never
 fake kernel symlink-following behavior with a mock and call it equivalent.
 
-## Fake `git` executable on PATH — asserting subprocess env/timeout without real network
+## Fake `git` executable on PATH — SUPERSEDED (issue #60 close-out round 2, session 2026-07-10)
+
+**This whole PATH-shimming technique (the POSIX shim below AND the
+`git.cmd`/`fake_git.py` Windows variant that used to follow it) is
+retired for `lib/git_helpers.py:run_git()`'s exact call shape,
+`subprocess.Popen(["git"] + args, shell=False)`.** House confirmed: on
+Windows, CreateProcess's PATH search for an extensionless name like "git"
+only ever tries appending ".exe" — PATHEXT-based fallback (.COM/.BAT/
+.CMD/...) is a cmd.exe behavior, never consulted by CreateProcess
+directly. So NEITHER a bare `git` file NOR a `git.cmd` wrapper is ever
+found this way; the real git.exe elsewhere on PATH silently wins instead
+(confirmed root cause of two separate real Windows CI failures: run
+29110579481 for the bare-file shim, then run 29122808531 for the
+git.cmd attempt). Replaced by directly patching `subprocess.Popen` itself
+(`unmassk-toolkit/tests/_git_intercept.py`, see the new entry below this
+one) — invocation-path-independent, no PATH/PATHEXT resolution involved
+at all, one shared implementation for both a real boot subprocess AND an
+in-process direct call. Kept below for historical context only — do not
+copy this pattern for any NEW `subprocess.Popen(["git", ...])`
+interception need; use `_git_intercept.make_intercepted_popen()` instead.
 
 To contract-test that a hook's `subprocess.run(["git", ...])` call passes a
 specific hardened `env` (e.g. `GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with
@@ -771,3 +790,83 @@ fetch of a totally different, foreign remote, which touches the same
 non-per-remote `FETCH_HEAD` file). Both need their own test — a fix that
 closes (a) doesn't automatically close (b) and vice versa. See the "Vector
 A" / "Vector B" tests in the same class.
+
+## Patching `subprocess.Popen` directly, cross-platform, instead of PATH-shimming "git" — `tests/_git_intercept.py` (issue #60 close-out round 2, session 2026-07-10)
+
+Supersedes the PATH-shim entry above for `lib/git_helpers.py:run_git()`'s
+exact call shape (`subprocess.Popen(["git"] + args, shell=False)`; see
+that entry for why PATH-shimming can never work here on Windows). Shared
+module `unmassk-toolkit/tests/_git_intercept.py` exports
+`make_intercepted_popen(real_popen, log_path)`: a Popen-shaped wrapper
+that (1) logs every git invocation's `args` (excluding the leading "git"
+token — same JSONL shape the old fake-git-on-PATH shim produced, so every
+pre-existing `r["args"][0] == "fetch"` assertion needed zero changes) and
+`env` actually received, (2) delegates UNCHANGED to the real `Popen` for
+everything except one case, (3) for a `git fetch` whose env carries
+`FAKE_GIT_FETCH_HANG_SECONDS`, swaps the argv for a REAL
+`[sys.executable, "-c", "import time; time.sleep(N)"]` child before
+delegating — so `run_git()`'s own `communicate(timeout=...)` and
+`os.killpg()`/`_win32_kill_tree()` process-group-kill paths are exercised
+against a genuinely hung real process, never synthesized. All other
+kwargs (`cwd`, `env`, `stdout`, `stderr`, `creationflags`/
+`start_new_session`) pass through untouched, so the killed child is still
+the leader of its own process group exactly as before.
+
+Two install vehicles share this one implementation:
+1. **Subprocess** (a real boot launched via `tests/conftest.py`'s
+   `run_script()`, i.e. `[sys.executable, script]` with no `-S`/`-I`):
+   `test_boot_freshness.py::_make_fake_git(tmp_path, log_path)` now
+   writes a `sitecustomize.py` (not a `git`/`git.cmd` executable) into a
+   scratch dir, self-contained (bakes the absolute `tests/` dir path into
+   its own source so it can `import _git_intercept` without any extra
+   `sys.path`/`PYTHONPATH` entry beyond itself). The CALLER prepends that
+   dir to the child's **`PYTHONPATH`** (never `PATH` — nothing is being
+   shadowed anymore) via `_fake_git_env(fake_bin, log_path, extra=None)`,
+   which also sets `GIT_INTERCEPT_LOG_PATH` in the child's env. `site`
+   imports `sitecustomize.py` automatically at interpreter startup
+   (because `run_script()`'s invocation has no `-S`/`-I`), which calls
+   `_git_intercept.install_via_env()` — reads `GIT_INTERCEPT_LOG_PATH`
+   from `os.environ` and patches `subprocess.Popen` inside the CHILD
+   process before `session-start-boot.py`'s own code ever runs.
+2. **In-process** (a test calling a `lib/` function directly, e.g.
+   `boot_git_checks.fetch_memory_ref()` — no subprocess at all):
+   `monkeypatch.setattr(subprocess, "Popen", make_intercepted_popen(subprocess.Popen, log_path))`
+   — patches the REAL `subprocess` module's own `Popen` attribute (not
+   `git_helpers.subprocess`, not any re-exported reference); works
+   regardless of how `git_helpers.py` imported `subprocess` because
+   `import subprocess` binds the SAME module object from `sys.modules`,
+   and `run_git()`'s `subprocess.Popen(...)` call looks up `.Popen` fresh
+   at call time. `pytest`'s `monkeypatch` auto-restores it — no
+   `install()`/`uninstall()` bookkeeping needed for this vehicle.
+   Confirmed in `test_boot_freshness_hardening.py::TestFetchMemoryRefStates::
+   test_hung_fetch_is_bounded_by_timeout_and_returns_failed` (migrated off
+   `monkeypatch.setenv("PATH", ...)` this round).
+
+**Populated-log guard for `assert not fetch_calls` tests** — a negative
+assertion on the fake-git call log (`assert not fetch_calls`) passes
+VACUOUSLY if the interceptor never engaged at all (exactly the blind spot
+that caused this whole migration), indistinguishable from a genuine
+"correctly skipped" result. Pair every `assert not fetch_calls` with
+`assert records` (the log is non-empty overall — the boot always runs
+OTHER real git commands regardless of whether it fetches) BEFORE the
+narrower fetch-specific check. Verified as a real discriminant, not
+decorative, via a live mutation-kill: monkeypatching `_looks_like_git()`
+to always return `False` (simulating "interceptor silently never
+engages") made all three `assert records`/`assert fetch_calls` guards
+fail for exactly the predicted reason (empty log), confirmed byte-for-byte
+file restoration afterward via `diff` before re-running the real suite.
+
+**Cross-platform BY CONSTRUCTION, not by a POSIX/Windows branch** — unlike
+the old `_make_fake_git()` (which forked into a POSIX shim vs a
+`git.cmd`/`fake_git.py` pair based on a `WINDOWS` module constant), the
+new `_make_fake_git()` has no platform branch at all: the exact same
+`sitecustomize.py`-on-`PYTHONPATH` mechanism, exercised identically on
+macOS/Linux/Windows, since `subprocess.Popen` patching never touches OS
+executable-resolution machinery. Verification limit (documented, not
+silently assumed): local verification here (macOS) exercises this IDENTICAL
+code path Windows CI will run — there is no separate Windows branch left
+to verify locally. What's still Windows-CI-only: whether `site` truly
+imports `sitecustomize.py` from a `PYTHONPATH` entry the same way on a
+real Windows Python install (expected per CPython's own `site` module
+contract, not previously exercised on a real Windows runner for this
+project).

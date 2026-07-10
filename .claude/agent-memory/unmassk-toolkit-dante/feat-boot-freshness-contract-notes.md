@@ -832,3 +832,58 @@ test_boot_freshness_hardening.py tests/test_boot_freshness_regression.py
 guards as always, unrelated to this fix), exit 0. Full suite `python3 -m
 pytest tests -q` (no pipe, real `$?` checked directly per this repo's
 hard rule) -> 1246 passed, 2 skipped, exit 0, ~272s.
+
+## Issue #60 close-out ROUND 2 — git.cmd Windows shim also blind, migrated to subprocess.Popen patching (session 2026-07-10, House's spec)
+
+Round 1's `git.cmd`/`fake_git.py` Windows fix (commit 4b10931, previous
+section above) failed in real CI (run 29122808531): House root-caused
+that `subprocess.Popen(["git", ...], shell=False)` uses CreateProcess,
+which for an extensionless name only ever tries appending ".exe" —
+PATHEXT (which is what would try `.cmd`/`.bat`/...) is a cmd.exe
+behavior, never consulted by CreateProcess directly. So `git.cmd` was
+JUST as invisible as the bare `git` file it replaced. No PATH-shimming
+variant can ever work for this call shape — the whole approach was
+retired, replaced by directly patching `subprocess.Popen`. Full pattern
+recorded in [mock-patterns.md](mock-patterns.md)'s "Patching
+subprocess.Popen directly" section (supersedes its own "Fake git
+executable on PATH" section, kept for history) — read there before
+touching `_make_fake_git()`/`_git_intercept.py` again.
+
+New shared module: `unmassk-toolkit/tests/_git_intercept.py`
+(`make_intercepted_popen`, `install`, `install_via_env`). Migrated ALL 9
+tests that depended on the old shim (a full sweep found 9, not the
+initially-cited "7" — 8 subprocess-vehicle tests in
+`test_boot_freshness.py` via `_make_fake_git`/`_fake_git_env`, plus 1
+in-process vehicle test in `test_boot_freshness_hardening.py`
+(`test_hung_fetch_is_bounded_by_timeout_and_returns_failed`, now
+`monkeypatch.setattr(subprocess, "Popen", ...)` directly, no more
+PATH/PYTHONPATH plumbing at all for that one). Test-only change — `lib/`,
+`hooks/`, `bin/` untouched (confirmed via `git diff --stat`).
+
+**Windows-counterpart candidate checked, NOT migrated (House's item 5,
+confirmed not the same bug):** `test_boot_freshness_regression.py:455`
+(`_make_fake_win32_git_spawning_grandchild`, feeding
+`TestWin32ProcessTreeKillOnTimeout`) uses a DIFFERENT, sound technique —
+a literal COPY of a real Python interpreter renamed to `git.exe` (not a
+bare extensionless file, not `.cmd`), combined with
+`monkeypatch.setenv("PATH", ...)` on the TEST PROCESS's own `os.environ`
+(not an `env=` kwarg passed to `Popen`) — its own docstring already
+documents that CreateProcess resolves the executable via the CALLING
+process's live PATH block, not the child's `env=` kwarg. Since the file
+genuinely IS named `git.exe`, CreateProcess's own ".exe eventual
+appending" behavior finds it directly — this does not depend on PATHEXT
+at all, so House's confirmed root cause does not apply here. This test is
+`@pytest.mark.skipif(not WINDOWS, ...)` (skipped on this POSIX dev
+machine, part of the "2 skipped" baseline everywhere in this file family)
+and was NOT reported red in CI, matching the task instruction to verify
+but not migrate unless it's actually broken.
+
+Verification this round: same 3-file run -> 141 passed, 2 skipped, exit
+0. Full suite `python3 -m pytest unmassk-toolkit/tests -q` (no pipe) ->
+1246 passed, 2 skipped, exit 0, ~276s — byte-identical pass/skip counts to
+round 1, confirming zero regressions from the mechanism swap. Mutation-kill
+verified live: monkeypatching `_git_intercept._looks_like_git()` to always
+return `False` made exactly the 3 tests predicted (2 positive
+`assert fetch_calls`-style + the new `assert records` populated-log guard)
+fail for the exact predicted reason (empty log) — file restored
+byte-for-byte (`diff` confirmed) before the final green re-run.
