@@ -439,7 +439,12 @@ def render_consolidation_section() -> list[str]:
 # never let a hung, prompting, or absent remote delay or break the boot.
 
 FETCH_RATE_LIMIT_SECONDS = 300  # skip the fetch if .git/FETCH_HEAD is younger than this
-FETCH_TIMEOUT_SECONDS = 3  # short bounded timeout — replaces the old BOOT_FETCH_TIMEOUT=5
+FETCH_TIMEOUT_SECONDS = 10  # bounded timeout, raised from 3s (decision b2a32b9): 3s let the
+# fetch time out under normal network conditions, leaving boot to read a stale local
+# briefing instead of origin's fresh one (resolve_boot_memory() only picks up origin
+# when the fetch actually completes). 10s gives the fetch enough margin to complete on
+# ordinary network — still a bounded timeout, boot never hangs indefinitely; fail-open
+# on every branch is unchanged.
 
 # Known residual (Argus SEC-LOW-001, accepted deliberately, not a bug):
 # .git/FETCH_HEAD's mtime is plain local filesystem state, writable by

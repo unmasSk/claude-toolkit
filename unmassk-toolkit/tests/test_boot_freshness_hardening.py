@@ -278,14 +278,25 @@ class TestFetchMemoryRefStates:
         log_path = str(tmp_path / "fake_git_log.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
         monkeypatch.setenv("PATH", fake_bin + os.pathsep + os.environ.get("PATH", ""))
-        monkeypatch.setenv("FAKE_GIT_FETCH_HANG_SECONDS", "8")
+        # Must safely OUTLAST FETCH_TIMEOUT_SECONDS, or the fake fetch just
+        # finishes on its own (fake git exits 0 after its sleep) before
+        # run_git's own timeout ever fires — proving nothing about the
+        # timeout itself. The process gets killed at ~FETCH_TIMEOUT_SECONDS
+        # regardless of how long this is set to, so a large margin costs
+        # nothing in wall-clock time.
+        monkeypatch.setenv(
+            "FAKE_GIT_FETCH_HANG_SECONDS", str(boot_git_checks.FETCH_TIMEOUT_SECONDS + 20)
+        )
 
         start = time.monotonic()
         result = boot_git_checks.fetch_memory_ref(repo)
         elapsed = time.monotonic() - start
 
         assert result["status"] == "failed"
-        assert elapsed < 6, f"fetch_memory_ref took {elapsed:.1f}s — timeout not bounding the hang"
+        assert elapsed < boot_git_checks.FETCH_TIMEOUT_SECONDS + 5, (
+            f"fetch_memory_ref took {elapsed:.1f}s — timeout not bounding the hang "
+            f"(expected bound ~{boot_git_checks.FETCH_TIMEOUT_SECONDS}s)"
+        )
 
         records = _read_fake_git_log(log_path)
         fetch_records = [r for r in records if r["args"] and r["args"][0] == "fetch"]

@@ -249,3 +249,40 @@ except branch at all. RED confirmed via a standalone sandboxed copy of the
 function with the OLD 3-member tuple (never edited the real file to check
 this) — `time_ago("9"*30)` raises uncaught `OverflowError: timestamp out of
 range for platform time_t` without the fix, returns `"unknown"` with it.
+
+## FETCH_TIMEOUT_SECONDS 3s -> 10s (session 2026-07-10, decision b2a32b9)
+
+Small test-first change, contract-then-implement in parallel (Ultron had
+already landed `FETCH_TIMEOUT_SECONDS = 10` at `lib/boot_git_checks.py:442`
+by the time this pass ran). **Gotcha that would have silently broken two
+existing hardening/contract tests if not caught**: both
+`test_boot_freshness.py::TestFetchHardening::
+test_fetch_uses_hardened_env_and_bounded_timeout` and
+`test_boot_freshness_hardening.py::TestFetchMemoryRefStates::
+test_hung_fetch_is_bounded_by_timeout_and_returns_failed` hardcoded the fake
+`git`'s `FAKE_GIT_FETCH_HANG_SECONDS` to `"8"`, tuned against the OLD 3s
+timeout (8s comfortably exceeds 3s, so the timeout — not the fake sleep
+finishing — is what ends the fetch). Once the real timeout rose to 10s, an
+8s hang no longer exceeds it: the fake fetch would just complete on its own
+(exit 0) at ~8s, so the assertion `result["status"] == "failed"` /
+`elapsed < 6` would flip to false and the test would falsely appear to
+prove nothing about the timeout at all — a change to production made an
+*unrelated-looking* test constant silently stale. Both fixed to derive the
+hang length from `FETCH_TIMEOUT_SECONDS + 20` (import the constant, never a
+second hand-typed literal) and to bound `elapsed` against
+`FETCH_TIMEOUT_SECONDS + 5` — self-adjusting if the constant changes again.
+**Lesson: when a timeout/threshold constant changes, grep for every fixture
+that races against it (hang/sleep durations, `elapsed <` assertions), not
+just literal `== <old value>` assertions on the constant itself** — those
+are the ones that go quietly stale instead of failing loudly.
+
+New regression pin: `TestFetchTimeoutSecondsRaisedTo10` (Finding 9,
+`test_boot_freshness_regression.py`) — two tests: (1)
+`FETCH_TIMEOUT_SECONDS == 10` directly, (2) a spy on `git_helpers.run_git`
+(delegates to the real function, only records the `timeout=` kwarg when
+`args[0] == "fetch"`) proves `_run_hardened_fetch()` genuinely threads
+`FETCH_TIMEOUT_SECONDS` itself into the real call — not a second,
+independently hand-typed `10` that only coincidentally matches today. Spy
+pattern mirrors the pre-existing `_fake_run_git` idiom in
+`test_boot_freshness_hardening.py::TestGetAheadBehind::
+test_non_numeric_rev_list_output_should_fail_open_but_raises`.

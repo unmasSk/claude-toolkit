@@ -1154,3 +1154,59 @@ class TestTimeAgoNonAsciiDigitsContract:
             "call ever emits. Must be rejected as unparseable (\"unknown\"), "
             "not silently converted via int()."
         )
+
+
+# ── Finding 9 (2026-07-10, Bex decision b2a32b9): FETCH_TIMEOUT_SECONDS ────
+# ── raised 3s -> 10s ─────────────────────────────────────────────────────
+
+
+class TestFetchTimeoutSecondsRaisedTo10:
+    """Bex (decision b2a32b9): FETCH_TIMEOUT_SECONDS (lib/boot_git_checks.py
+    :442) raised from 3s to 10s. The old 3s bound let the boot-time fetch
+    time out under ordinary network conditions, leaving `resolve_boot_
+    memory()` reading a stale local briefing instead of origin's fresh one
+    -- it only ever prefers origin when the fetch actually completes
+    (`fetch_memory_ref()` -> `_run_hardened_fetch()`). Boot never hangs
+    indefinitely either way: this only widens the bound, it does not
+    remove it, and fail-open on every branch is unchanged.
+
+    Two-part pin: (1) the constant itself reads 10, and (2) the real
+    hardened fetch call genuinely threads THAT constant through to
+    run_git's `timeout=` kwarg -- not a second, independently hand-typed
+    literal that only happens to also read 10 today. A spy on
+    git_helpers.run_git (delegating to the real implementation, per this
+    project's own anti-fixture-fabrication rule -- the fetch itself is
+    real, against a real local bare remote) captures the exact `timeout`
+    value `_run_hardened_fetch()` passes for its `["fetch", ...]` call.
+    """
+
+    def test_fetch_timeout_seconds_constant_is_10(self):
+        assert boot_git_checks.FETCH_TIMEOUT_SECONDS == 10
+
+    def test_hardened_fetch_passes_the_constant_itself_as_run_git_timeout(self, tmp_path, monkeypatch):
+        repo = _make_gated_repo(tmp_path)
+        _add_bare_remote(repo, tmp_path)
+
+        real_run_git = git_helpers.run_git
+        captured_fetch_timeouts = []
+
+        def _spy_run_git(args, timeout=None, cwd=None, env=None):
+            if args and args[0] == "fetch":
+                captured_fetch_timeouts.append(timeout)
+            return real_run_git(args, timeout=timeout, cwd=cwd, env=env)
+
+        monkeypatch.setattr(git_helpers, "run_git", _spy_run_git)
+
+        result = boot_git_checks.fetch_memory_ref(repo)
+
+        assert result["status"] == "fetched", (
+            "sanity: the spy must not have broken the real fetch call -- "
+            f"got {result!r}"
+        )
+        assert captured_fetch_timeouts == [boot_git_checks.FETCH_TIMEOUT_SECONDS], (
+            "expected the hardened fetch to pass the module's own "
+            f"FETCH_TIMEOUT_SECONDS ({boot_git_checks.FETCH_TIMEOUT_SECONDS}) as "
+            f"run_git's timeout kwarg -- got {captured_fetch_timeouts!r}. If this "
+            "ever passes a different, hand-typed literal, the constant and the "
+            "real call have silently drifted apart."
+        )

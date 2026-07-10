@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Boot memory fetch now reliably completes** (plugin/boot): `FETCH_TIMEOUT_SECONDS` (`lib/boot_git_checks.py`) raised from 3s to 10s. The old 3s bound let the SessionStart fetch time out under normal network latency, so `origin/<branch>` stayed stale, the boot never detected local was behind, and `resolve_boot_memory()` served a stale *local* briefing instead of reading the fresh one from origin (observed live: a boot showed a 19h-old `Next:` while local was actually 36 commits behind). 10s stays a bounded timeout (boot never hangs) with fail-open unchanged; the "LOCAL — unverified" freshness stamp still fires as the safety net if a fetch genuinely fails. Two hung-fetch tests that used an 8s stall calibrated to beat the old 3s bound were re-derived from the constant so they no longer break silently.
+
 ## [1.19.1] - 2026-07-10
 
 ### Fixed

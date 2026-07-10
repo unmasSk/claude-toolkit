@@ -55,7 +55,12 @@ import time
 
 import pytest
 
-from conftest import HOOKS_DIR, BIN_DIR, INSTALL, run_script, write_file
+from conftest import HOOKS_DIR, BIN_DIR, INSTALL, LIB_DIR, run_script, write_file
+
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from boot_git_checks import FETCH_TIMEOUT_SECONDS  # decision b2a32b9: 3s -> 10s
 
 BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
 COMMIT_SCRIPT = os.path.join(BIN_DIR, "git-memory-commit.py")
@@ -463,9 +468,14 @@ class TestFetchHardening:
 
         log_path = str(tmp_path / "fake_git_fetch_calls.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)
+        # The fake git's hang must safely OUTLAST FETCH_TIMEOUT_SECONDS, or
+        # the fake fetch just finishes on its own (fake git exits 0 after
+        # its sleep) before run_git's own timeout ever fires — which would
+        # prove nothing about the timeout actually bounding the hang.
+        hang_seconds = FETCH_TIMEOUT_SECONDS + 20
         env = {
             "PATH": fake_bin + os.pathsep + os.environ.get("PATH", ""),
-            "FAKE_GIT_FETCH_HANG_SECONDS": "8",
+            "FAKE_GIT_FETCH_HANG_SECONDS": str(hang_seconds),
             "GIT_TERMINAL_PROMPT": self.AMBIENT_GIT_TERMINAL_PROMPT,
             "GIT_ASKPASS": self.AMBIENT_GIT_ASKPASS,
             "SSH_ASKPASS": self.AMBIENT_SSH_ASKPASS,
@@ -473,13 +483,13 @@ class TestFetchHardening:
         }
 
         start = time.monotonic()
-        rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=FETCH_TIMEOUT_SECONDS + 20)
         elapsed = time.monotonic() - start
 
         assert rc == 0, f"boot must fail open even if the fetch hangs. stderr: {stderr}"
-        assert elapsed < 10, (
-            f"boot took {elapsed:.1f}s — a hung fetch must be bounded by a "
-            f"short (~3s) timeout, not the harness's own subprocess timeout"
+        assert elapsed < FETCH_TIMEOUT_SECONDS + 5, (
+            f"boot took {elapsed:.1f}s — a hung fetch must be bounded by the "
+            f"{FETCH_TIMEOUT_SECONDS}s fetch timeout, not the harness's own subprocess timeout"
         )
 
         records = _read_fake_git_log(log_path)
