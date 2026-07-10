@@ -785,8 +785,12 @@ def _format_age_seconds(seconds: float) -> str:
 # render_memoria_stamp() background: Bex (issue #49 repair round, language-
 # unification decision) — the whole boot banner (STATUS/BRANCH/RESUME/
 # REMEMBER/DECISIONS/PULL DIRECTIVE) is English; this stamp used to be the
-# one Spanish outlier. Wording is English now; the state semantics below are
-# unchanged. `history_related` (Moriarty T2, repo-identity confusion): None
+# one Spanish outlier. Wording is English now. Issue #60 (relabel decision
+# ceef426) later corrected the `rate_limited` branch below: FETCH_HEAD < 300s
+# (measured by the gate in `_fetch_gate_and_rate_limit`) means memory is
+# confirmed fresh, so it renders as "remote", not "LOCAL" — labeling a good
+# state as a local-only fallback read as a failure that wasn't one.
+# `history_related` (Moriarty T2, repo-identity confusion): None
 # (default) preserves the three fetch-status branches below exactly,
 # unchanged for every caller that never passes this argument. False means
 # check_upstream_shares_history() found (or could not rule out) that the
@@ -797,7 +801,10 @@ def _format_age_seconds(seconds: float) -> str:
 # exactly the incident this fix closes. That check runs first and
 # short-circuits everything else.
 def _render_confirmed_fetch_stamp(status: str | None, age: float | None) -> str | None:
-    """The two "a fetch attempt happened this boot" states. Returns None
+    """The two "memory is confirmed fresh against origin this boot" states.
+    Both `fetched` and `rate_limited` mean FETCH_HEAD is known-recent (the
+    latter only fires when the gate in `_fetch_gate_and_rate_limit` measured
+    age < 300s), so both render as "remote" — never "LOCAL". Returns None
     when neither applies, so the caller falls through to the "unverified"
     wording (age known-but-stale, or never fetched at all).
     """
@@ -806,7 +813,7 @@ def _render_confirmed_fetch_stamp(status: str | None, age: float | None) -> str 
         return f"MEMORY: remote (fetched {age_txt} ago)"
     if status == "rate_limited":
         age_txt = _format_age_seconds(age) if age is not None else "?"
-        return f"MEMORY: LOCAL — fetch skipped (rate-limit, {age_txt} ago)"
+        return f"MEMORY: remote (synced {age_txt} ago)"
     return None
 
 
