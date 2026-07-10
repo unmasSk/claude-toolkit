@@ -17,7 +17,7 @@ type: project
 
 | Path | Last verified | Status |
 |------|--------------|--------|
-| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-07 | Boot Protocol section gained a "Multi-machine freshness (issue #49)" paragraph: hardened/gated/rate-limited fetch, `MEMORY:` stamp states, `PULL DIRECTIVE:` behavior (act on it, dirty-tree exception, suppressed when upstream unrelated), origin-side RESUME read when behind/diverged. Wrapper Scripts gained a bullet for the warn-only behind notice on `decision`/`memo`/`remember`/`context` commits. Pre-existing 100-char `context()` cap bullet and cross-platform Filesystem Safety Pattern note (2026-07-06 pass) verified still accurate, unchanged. |
+| `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` | 2026-07-10 | Issue #60 pass (`ac3e805..3e971fa`): rewrote the "Multi-machine freshness" paragraph (lines ~62-64) — `rate_limited` reagrouped with `fetched` as a confirmed-fresh GOOD state (`MEMORY: remote (synced Ns ago)`, `LOCAL` reserved for real failures only); freshness source corrected from `.git/FETCH_HEAD` mtime to the boot's own success stamp (`.claude/.unmassk/boot-fetch-stamp.json`, keyed remote+branch+URL+schema); stale "3s timeout" corrected to 10s (v1.19.2, decision b2a32b9). Everything else in the section (2026-07-07 pass: PULL DIRECTIVE behavior, Wrapper Scripts bullet, 100-char cap, Filesystem Safety Pattern) verified still accurate, unchanged. |
 
 ## Other documentation
 

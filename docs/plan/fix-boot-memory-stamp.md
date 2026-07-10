@@ -109,11 +109,13 @@ Con `remote.<alias>.url` VACÍA, `git remote get-url` devuelve el alias literal 
 
 ## CIERRE — hallazgos de Yoda ronda 1 (NOT READY, evidencia no diseño)
 
-- [ ] Blocker: CI de Windows ROJO en los tests de esta feature (run 29110579481, sha 174d82b): 5 fallos en TestOwnSuccessStampNotFetchHeadMtime + TestOwnStampIdentityIncludesRemoteURL. Hipótesis Yoda: `_make_fake_git` escribe shim sin extensión + chmod POSIX → Windows lo ignora vía PATHEXT → canal de observación ciego. House diagnostica desde logs; Dante lo arregla (test-only) si se confirma.
-- [ ] Blocker: los wips v4 (32379b7, 154a80d) sin pushear → no hay CI del HEAD. Pushear tras el fix del shim y leer CI verde en ambas plataformas (Yoda directamente).
-- [ ] Minor: Cerberus pasa por el guard v4 (no lo revisó).
-- [x] Minor: este plan actualizado con v3/v4 (esta edición).
-- [ ] Obs: commitear las notas de Moriarty v4 (working tree).
+- [x] Blocker: CI de Windows ROJO → RESUELTO en 2 iteraciones: el fix `.cmd` de Dante falló (House ronda 2: CreateProcess solo busca `.exe`, PATHEXT es de cmd.exe); fix definitivo = interceptor de Popen en capa Python (`tests/_git_intercept.py`, sitecustomize + monkeypatch, mecanismo único en 3 plataformas, shims de PATH eliminados, 3 skips de Windows retirados, mutation-killed). Windows verde en run 29125050400.
+- [x] Blocker: wips pusheados (HEAD 3e971fa = origin/main); CI verde en ambas plataformas (run 29125050400; Ubuntu necesitó 2 reruns por la familia flaky preexistente → issue #61). Leído por Yoda directamente.
+- [x] Minor: Cerberus pasó por el guard v4 — LGTM producción + 1 hallazgo en test (read-side redundante, verde por razón equivocada, cazado por mutación) corregido por Dante con mutation-check verificado.
+- [x] Minor: este plan actualizado con v3/v4.
+- [x] Obs: notas de Moriarty v4 commiteadas (e62ba37).
+
+**VEREDICTO FINAL (Yoda, re-render): READY — GO. 101/110** (Security 9, Error handling 9, Architecture 9, Testing 10, Maintainability 9). Los 9 responden al modelo de amenaza residual risk-accepted (decisiones de Bex) y no a hallazgos accionables; el único hallazgo cosmético (estas casillas) queda corregido en esta edición.
 - Nota de proceso (antipatrón re-pisado, ya memorizado): los push de decisiones arrastraron los wips intermedios a origin/main → el squash limpio de cierre ya no es posible sin force-push (prohibido). El cierre squashea solo lo no pusheado o cierra con commit final normal; la historia carga los wips esta vez.
 
 ## Wave Map

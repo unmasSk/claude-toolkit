@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Boot `MEMORY:` stamp no longer labels fresh memory as a failure** (issue #60): when the boot's background fetch was skipped because memory was already confirmed synced within the last 5 minutes, the banner read `MEMORY: LOCAL — fetch skipped (rate-limit, Ns ago)` — worded as a failure even though memory was genuinely fresh. That state now renders `MEMORY: remote (synced Ns ago)`, grouped with `remote (fetched Ns ago)` as a confirmed-fresh state; `LOCAL` is reserved for real failures (no fetch this boot, no remote, never synced).
+
+### Changed
+
+- **Boot fetch freshness signal moved off `.git/FETCH_HEAD`** (issue #60): the rate-limit gate and the `MEMORY:` stamp used to read `.git/FETCH_HEAD`'s mtime, which a *failed* fetch also refreshes (git truncates it to 0 bytes on failure) and which any unrelated `git fetch` (IDE, mirror) touches too — both could produce a false "synced" claim. The boot now writes its own success stamp (`lib/boot_fetch_stamp.py`, `.claude/.unmassk/boot-fetch-stamp.json`, gitignored, per-machine) immediately after ITS OWN fetch against the resolved memory upstream exits 0, keyed to the remote's real URL (not just its local alias) plus branch and a schema version — a stamp copied between unrelated repos sharing a common `origin`/`main` naming convention (template scaffolding, backups) is never trusted as evidence of a real sync.
+- **Toolkit CI gained real Windows coverage for the boot fetch path**: a unified `Popen` interceptor (`tests/_git_intercept.py`) replaces the previous PATH-shim approach, which silently no-opped on Windows because `CreateProcess` only resolves `.exe` and ignores `PATHEXT`. The fetch-gate and freshness-stamp tests now exercise real subprocess behavior on all three CI platforms instead of being skipped on Windows.
+
 ## [1.19.2] - 2026-07-10
 
 ### Fixed
