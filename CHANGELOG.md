@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.4] - 2026-07-11
+
 ### Fixed
 
 - **Transient git failures during memory scans no longer vanish without a trace** (issue #61): the boot/recall/snapshot code paths that shell out to `git log` — `_scan_commits()` in `lib/recall.py`, `extract_memory()`/`extract_glossary()` in `lib/boot_memory.py`, `scan_recent_commits()` in `lib/bootstrap_commits.py`, `commits_since_last_consolidation()` in `lib/git_helpers.py`, and the precompact snapshot hook — used to collapse any transient subprocess failure straight to an empty result (`[]`, `{}`, `None`, `0`), indistinguishable from "no memories exist". These call sites now opt into `run_git()`'s existing stderr-breadcrumb diagnostic, so a real git failure prints a trace instead of presenting as silence. The fail-safe return values themselves are unchanged — diagnostics only, no behavior change.
