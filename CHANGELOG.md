@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-07-10
+
 ### Fixed
 
 - **Carriage-return transport forgery in the git-log→memory pipeline** (issue #59): `run_git()` (`lib/git_helpers.py`) and the independent inline `git log` subprocess in `bin/git-memory-log.py` both decoded with `text=True` universal-newline translation, collapsing any `\r` in a commit body to `\n` before the parser saw it — a raw carriage return in a trailer could forge or erase a memory line. Both now capture raw bytes and decode manually (no newline translation), preserving `\r` literally. Verified end-to-end through a real subprocess round-trip against `git cat-file`.
