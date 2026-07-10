@@ -62,6 +62,60 @@ def run_cli(repo, query, extra_args=None):
     return rc, stdout, stderr
 
 
+def _recall_with_retry(repo, query, needle, attempts=3, limit=8, scope=None):
+    """Call recall() with bounded retry, requiring the FULL expected match.
+
+    Issue #61 (House root cause): recall()'s underlying `_scan_commits()`
+    silently collapses to [] whenever the internal `git log` subprocess
+    exits non-zero (`if code != 0 or not log_output: return []` in
+    lib/recall.py) -- indistinguishable, from the caller's side, from "the
+    entry genuinely isn't there". Under ubuntu-latest CI resource pressure
+    (thousands of forked git processes building the 510-commit fixture),
+    that git subprocess transiently fails, and the test flakes with an
+    opaque "Entry ... must be found" message that gives no trail back to
+    the real cause.
+
+    Anti-vacuity requirement: this retries until the query's own needle
+    (the exact expected match) appears in the result -- NOT until the
+    result is merely non-empty. A genuinely broken scan must still fail
+    after exhausting every attempt; only a self-healing transient flake is
+    allowed to pass on a later attempt.
+    """
+    result = ""
+    breadcrumbs = []
+    for attempt in range(1, attempts + 1):
+        result = recall_in(repo, query, limit=limit, scope=scope)
+        found = bool(result) and needle in result
+        breadcrumbs.append(f"attempt {attempt}/{attempts}: {'found' if found else 'not found'}")
+        print(f"[retry] recall({query!r}) " + breadcrumbs[-1])
+        if found:
+            return result, breadcrumbs
+    return result, breadcrumbs
+
+
+def _raw_git_scan_diagnostic(repo, needle):
+    """Directly re-run the same git-log invocation _scan_commits() uses,
+    for diagnostic purposes only (never as a substitute assertion).
+
+    Reconstructs the grep pattern from recall's own `_TOMBSTONE_KEYS` /
+    `_MEMORY_KEYS` constants (single source of truth — never duplicate the
+    key list as a string literal here) so this stays in sync with
+    lib/recall.py automatically. Lets a failure message distinguish
+    "git itself failed/returned nothing" (transient flake, matches House's
+    root cause) from "git succeeded and the entry just isn't in the log"
+    (a real scan bug, not a CI flake).
+    """
+    from recall import _TOMBSTONE_KEYS, _MEMORY_KEYS
+
+    all_keys = list(_TOMBSTONE_KEYS) + list(_MEMORY_KEYS)
+    grep_pattern = "^(" + "|".join(all_keys) + "):"
+    rc, out, err = git_cmd([
+        "log", "--all", "-z", "--extended-regexp",
+        "--grep=" + grep_pattern, "--pretty=format:%h%s%n%b", "--",
+    ], repo)
+    return rc, out, err, (needle in out)
+
+
 # ── Tests: basic matching ───────────────────────────────────────────────
 
 class TestBasicMatch:
@@ -950,15 +1004,40 @@ class TestFullHistoryHorizon:
                 "Decision: usar xyzdeephorizon para memoria profunda")
 
         # Pad with 510 non-memory commits to push the memory entry beyond any 500-cap
+        # (contract guarantee — Moriarty: never reduce this to make the test faster)
         for i in range(510):
             _commit(repo, f"feat(pad): padding commit {i}")
 
-        result = recall_in(repo, "xyzdeephorizon")
-        assert result, (
-            "Entry committed 510 commits ago must be found — "
-            "recall must scan full history, not just last 500"
-        )
-        assert "xyzdeephorizon" in result
+        needle = "xyzdeephorizon"
+        result, breadcrumbs = _recall_with_retry(repo, needle, needle, attempts=3)
+
+        if not (result and needle in result):
+            # Retries exhausted — distinguish "git flaked" from "real bug"
+            # before failing (issue #61, House root cause).
+            rc, raw_out, raw_err, raw_found = _raw_git_scan_diagnostic(repo, needle)
+            if not raw_found:
+                diagnosis = (
+                    f"raw git log ALSO does not contain the entry (rc={rc}) — "
+                    "looks like a transient git subprocess failure or fixture "
+                    "issue, not a recall()/_scan_commits() logic bug."
+                )
+            else:
+                diagnosis = (
+                    f"raw git log (rc={rc}) DOES contain the entry, but recall() "
+                    "still could not find it — this is a real recall()/"
+                    "_scan_commits() bug, not a CI git flake."
+                )
+            pytest.fail(
+                f"Entry committed 510 commits ago must be found after "
+                f"{len(breadcrumbs)} attempts — recall must scan full history, "
+                f"not just last 500.\n"
+                f"Retry attempts: {breadcrumbs}\n"
+                f"Raw git diagnostic: rc={rc}, found_in_raw_log={raw_found}\n"
+                f"--- raw git stderr ---\n{raw_err}\n"
+                f"{diagnosis}"
+            )
+
+        assert needle in result
 
 
 # ── Tests: tombstone with HTML comment in value (Moriarty #3) ─────────

@@ -1159,3 +1159,75 @@ safe, and an explicit "do NOT reuse this helper anywhere its result could
 feed a rate-limit/trust decision" warning) — this is the kind of
 security-relevant design nuance that gets silently violated by future
 callers if only implied, not stated.
+
+## run_git's log_stderr_on_failure kwarg breaks several fixed-signature test doubles — use a call-site breadcrumb instead for extract_memory()/extract_glossary()
+
+Issue #61 (House diagnosis, LOW observability): several git_helpers.run_git()
+callers collapsed a non-zero git exit code to a silent empty/zero return with
+no trace. The precedent fix (boot_git_checks.py's get_timeline()/
+get_last_context_time()) is `run_git([...], log_stderr_on_failure=True)` —
+run_git itself prints `[git_helpers] git {args[0]!r} exited {rc}: {stderr}`
+to stderr when the kwarg is True and rc != 0.
+
+That kwarg is safe to add at most call sites (lib/recall.py's _scan_commits,
+lib/git_helpers.py's own commits_since_last_consolidation, lib/
+bootstrap_commits.py's scan_recent_commits, hooks/precompact-snapshot.py's
+extract_memory_from_log/format_snapshot) — confirmed via full-suite run,
+because every test that exercises those functions either calls the REAL
+run_git against a real repo, or monkeypatches it with a `**kwargs`-tolerant
+signature.
+
+**lib/boot_memory.py's `extract_memory()`/`extract_glossary()` are the
+exception.** Four test files (test_crown.py x2, test_boot_output.py x3,
+test_crown_retraction.py x1, test_boot_freshness_regression.py x1) load
+`session-start-boot.py` in a **fresh subprocess** and monkeypatch
+`git_helpers.run_git` with a hand-written stub of the fixed shape
+`def _patched_run_git(args, cwd=None): ...` — no `**kwargs` catch-all.
+Adding `log_stderr_on_failure=True` to either call in boot_memory.py raises
+`TypeError: _patched_run_git() got an unexpected keyword argument` inside
+all of those tests (confirmed: 19 of 24 full-suite failures, reproducible,
+not a flake). These 4 test files are NOT part of any agent's declared
+in-flight edit scope and are off-limits ("no toques tests/") — so the kwarg
+approach cannot be used here.
+
+**Fix used instead:** keep the bare `run_git([...])` call (no kwarg) and add
+a manual `if code != 0: print(f"[boot_memory] extract_memory(): git log
+exited {code}", file=sys.stderr)` immediately after, before the existing
+`if code != 0 or not log_output: return {}` gate. Same non-silent-failure
+outcome, zero dependency on run_git's signature, so it's immune to any test
+double regardless of what kwargs it accepts. `import sys` had to be added to
+boot_memory.py's top-level imports (it previously had none).
+
+**Rule:** before adding a new kwarg to a shared `run_git()` (or similar)
+call, grep the WHOLE test suite for hand-written stub/monkeypatch functions
+of that same name — a fixed positional/keyword signature with no `**kwargs`
+will TypeError on any new kwarg, even though the change is 100%
+behavior-preserving from the production code's own point of view. Prefer a
+call-site-local breadcrumb (no new argument) over a shared-helper kwarg for
+call sites proven to be exercised by such stubs.
+
+## git stash conflict when a parallel agent is actively editing the same test files
+
+While iterating on the fix above, `git stash` (to get a clean baseline) then
+`git stash pop` failed with "local changes would be overwritten by merge"
+on `tests/test_consolidation_trigger.py`, `test_drift.py`, `test_recall.py`
+— Dante was running in parallel on those exact 3 files (per the
+orchestrator's explicit instruction) and had written NEWER changes to them
+during the window the stash was held. Popping blindly risks clobbering
+another agent's in-progress work.
+
+**Safe recovery:** do NOT force the pop. Instead
+`git checkout stash@{0} -- <only the files you own>` to pull just your own
+changes back out of the stash into the working tree (leaves whatever the
+other agent has since written to its own files untouched), verify with a
+grep for your own marker/comment, then `git stash drop stash@{0}` once
+confirmed. Also check the stash for unrelated uncommitted files that existed
+before your own edits (in this case a `.claude/agent-memory/.../lessons.md`
+from a concurrent House run) — restore those too before dropping, rather
+than silently discarding another agent's memory write.
+
+**Rule:** when multiple agents run in parallel and touch the same repo,
+avoid `git stash` / `git stash pop` as a "get a clean baseline" trick unless
+you're prepared to reconcile file-by-file — `git checkout stash@{0} --
+<path>` (selective restore) is safer than a full pop when you don't control
+every file that might have changed underneath you.

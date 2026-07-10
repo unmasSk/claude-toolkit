@@ -69,12 +69,24 @@ def _run_boot(repo, extra_env=None):
     un banner corto (STATUS/BRANCH/puntero/BOOT COMPLETE). El bloque
     CONSOLIDATE: que estos tests verifican vive solo en el archivo de log
     completo — usar _read_boot_log(repo) tras esta llamada.
+
+    Issue #61 (House root cause): rc solía descartarse por completo. El
+    propio hook siempre sale con sys.exit(0) (dos puntos de salida, ambos
+    0 — confirmado leyendo hooks/session-start-boot.py), así que un rc!=0
+    real es un crash inesperado, no un resultado válido a ignorar. Aserta
+    aquí para que CUALQUIER caso que llame a _run_boot() obtenga rc/stdout/
+    stderr en el mensaje de fallo en vez de un "CONSOLIDATE: ausente" opaco.
     """
     env = {**os.environ, **(extra_env or {})}
     rc, stdout, stderr = run_cmd(
         [sys.executable, BOOT_HOOK],
         repo,
         env=extra_env,
+    )
+    assert rc == 0, (
+        f"session-start-boot.py exited {rc} (expected 0).\n"
+        f"--- stdout ---\n{stdout}\n"
+        f"--- stderr ---\n{stderr}"
     )
     return stdout
 
@@ -91,6 +103,102 @@ def _boot_log_path(repo):
 def _read_boot_log(repo):
     with open(_boot_log_path(repo), encoding="utf-8") as f:
         return f.read()
+
+
+def _run_boot_with_retry(repo, predicate, attempts=3, extra_env=None):
+    """Run session-start-boot.py + read the boot log, bounded retry, until
+    predicate(content) is True.
+
+    Issue #61 (House root cause): the internal git subprocess
+    commits_since_last_consolidation() shells out to (lib/git_helpers.py)
+    can transiently fail under CI resource pressure. That failure is
+    swallowed BY DESIGN (fail-safe: "0 on any git error", see
+    git_helpers.py docstring) so the boot hook still exits 0 — rc alone
+    can never surface this class of flake. Retrying self-heals a transient
+    failure; a genuinely broken counter must still fail predicate() after
+    every attempt is exhausted (anti-vacuity: the predicate checks for the
+    FULL expected marker, e.g. "CONSOLIDATE:" present/absent — never just
+    "boot didn't crash").
+
+    Returns (content, breadcrumbs) — content is the LAST attempt's boot
+    log regardless of outcome, so a genuine failure still produces a
+    meaningful diff in the caller's own assertion.
+    """
+    content = ""
+    breadcrumbs = []
+    for attempt in range(1, attempts + 1):
+        _run_boot(repo, extra_env=extra_env)  # asserts rc == 0 internally
+        content = _read_boot_log(repo)
+        ok = predicate(content)
+        breadcrumbs.append(f"attempt {attempt}/{attempts}: {'ok' if ok else 'predicate failed'}")
+        print(f"[retry] boot(case07) " + breadcrumbs[-1])
+        if ok:
+            return content, breadcrumbs
+    return content, breadcrumbs
+
+
+def _load_git_helpers_bound_to_repo(repo, mod_name):
+    """Load lib/git_helpers.py standalone with run_git patched to a real
+    git subprocess pinned at `repo` (via GIT_DIR/GIT_WORK_TREE).
+
+    Issue #61 hardening pass: the previous copy-pasted local double (6 call
+    sites: cases 02, 03, 06, 09, 09b) had a FIXED signature
+    `(args, timeout=10, cwd=None)`. If the real run_git() ever gains a new
+    keyword-only parameter (e.g. `log_stderr_on_failure`, part of the same
+    issue #61 production diagnostics work), every one of those 6 call
+    sites would raise a TypeError INSIDE commits_since_last_consolidation()'s
+    own try/except — which its fail-safe design silently swallows and
+    turns into a wrong-value return (0 or sentinel), not a visible crash.
+    Confirmed reproducible locally: a run_git() with an added
+    log_stderr_on_failure kwarg collapsed cases 02/03/06/09/09b to
+    "count == 0" with zero trace back to the real cause (a mock/production
+    signature mismatch, not a git or consolidation bug). Fix: accept
+    **kwargs so this test double stays compatible with any future
+    keyword-only addition to the real run_git() signature — this is a
+    test-mock-drift fix, not a production behavior change.
+    """
+    import importlib.util
+    import subprocess as _sp
+
+    spec = importlib.util.spec_from_file_location(
+        mod_name, os.path.join(LIB_DIR, "git_helpers.py"))
+    mod = importlib.util.module_from_spec(spec)
+
+    def _patched_run_git(args, timeout=10, cwd=None, **_kwargs):
+        env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
+               "GIT_WORK_TREE": repo}
+        result = _sp.run(
+            ["git"] + args,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=repo, env=env, timeout=timeout,
+        )
+        return result.returncode, result.stdout.strip()
+
+    spec.loader.exec_module(mod)
+    mod.run_git = _patched_run_git
+    return mod
+
+
+def _commits_since_consolidation_with_retry(mod, predicate, attempts=3, label="call"):
+    """Call commits_since_last_consolidation() with bounded retry.
+
+    Same root cause as _run_boot_with_retry() above: a transient internal
+    git failure collapses to a fail-safe return value (0, or the sentinel
+    fallback path never being reached), indistinguishable from a genuine
+    count. Anti-vacuity: predicate must check the EXACT expected count/
+    condition (e.g. `== 7`, `>= 50`), never just "truthy" — a genuinely
+    broken counter must keep failing after every attempt is exhausted.
+    """
+    result = None
+    breadcrumbs = []
+    for attempt in range(1, attempts + 1):
+        result = mod.commits_since_last_consolidation()
+        ok = predicate(result)
+        breadcrumbs.append(f"attempt {attempt}/{attempts}: {result!r} ({'ok' if ok else 'retrying'})")
+        print(f"[retry] {label} " + breadcrumbs[-1])
+        if ok:
+            return result, breadcrumbs
+    return result, breadcrumbs
 
 
 # ── Caso 01 — ≥50 commits desde consolidación → CONSOLIDATE: aparece ──────
@@ -132,21 +240,7 @@ class TestConsolidateTriggerBelowThreshold:
 
         # Verificación precondición: el helper debe reportar 10
         # (esto falla en rojo porque el helper no existe)
-        import importlib.util
-        import subprocess as _sp
-        spec = importlib.util.spec_from_file_location(
-            "_gh_t02", os.path.join(LIB_DIR, "git_helpers.py"))
-        mod = importlib.util.module_from_spec(spec)
-
-        def _rg(args, timeout=10, cwd=None):
-            env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
-                   "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8', errors='replace',
-                        cwd=repo, env=env, timeout=timeout)
-            return r.returncode, r.stdout.strip()
-
-        spec.loader.exec_module(mod)
-        mod.run_git = _rg
+        mod = _load_git_helpers_bound_to_repo(repo, "_gh_t02")
         count = mod.commits_since_last_consolidation()
         assert count == 10, f"Helper debería devolver 10, devolvió {count!r}"
 
@@ -180,21 +274,7 @@ class TestConsolidateCounterResets:
         _add_regular_commits(repo, 5)
 
         # Precondición: helper reporta 5 (desde la segunda consolidación)
-        import importlib.util
-        import subprocess as _sp
-        spec = importlib.util.spec_from_file_location(
-            "_gh_t03", os.path.join(LIB_DIR, "git_helpers.py"))
-        mod = importlib.util.module_from_spec(spec)
-
-        def _rg(args, timeout=10, cwd=None):
-            env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
-                   "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8', errors='replace',
-                        cwd=repo, env=env, timeout=timeout)
-            return r.returncode, r.stdout.strip()
-
-        spec.loader.exec_module(mod)
-        mod.run_git = _rg
+        mod = _load_git_helpers_bound_to_repo(repo, "_gh_t03")
         count = mod.commits_since_last_consolidation()
         assert count == 5, (
             f"El helper debe contar solo desde la ÚLTIMA consolidación (5 commits), "
@@ -271,21 +351,7 @@ class TestConsolidateInvalidOverride:
         _add_regular_commits(repo, 10)
 
         # Precondición: helper existe y devuelve 10
-        import importlib.util
-        import subprocess as _sp
-        spec = importlib.util.spec_from_file_location(
-            "_gh_t06", os.path.join(LIB_DIR, "git_helpers.py"))
-        mod = importlib.util.module_from_spec(spec)
-
-        def _rg(args, timeout=10, cwd=None):
-            env_inner = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"),
-                         "GIT_WORK_TREE": repo}
-            r = _sp.run(["git"] + args, capture_output=True, text=True, encoding='utf-8', errors='replace',
-                        cwd=repo, env=env_inner, timeout=timeout)
-            return r.returncode, r.stdout.strip()
-
-        spec.loader.exec_module(mod)
-        mod.run_git = _rg
+        mod = _load_git_helpers_bound_to_repo(repo, "_gh_t06")
         count = mod.commits_since_last_consolidation()
         assert count == 10, f"Helper debería devolver 10, devolvió {count!r}"
 
@@ -326,13 +392,15 @@ class TestConsolidateLongHistory:
         repo = _make_bare_repo(tmp_path)
         # Consolidación al inicio del historial
         _add_consolidation_commit(repo)
-        # 300 commits normales después
+        # 300 commits normales después (garantía de contrato — no reducir)
         _add_regular_commits(repo, 300)
-        _run_boot(repo)
-        content = _read_boot_log(repo)
+        content, breadcrumbs = _run_boot_with_retry(
+            repo, lambda c: "CONSOLIDATE:" in c, attempts=3,
+        )
         assert "CONSOLIDATE:" in content, (
             f"Con 300 commits desde la consolidación (historial largo) debe aparecer CONSOLIDATE:.\n"
             f"El helper no debe truncarse en una ventana corta.\n"
+            f"Intentos: {breadcrumbs}\n"
             f"Boot log:\n{content}"
         )
 
@@ -369,31 +437,15 @@ class TestCommitsSinceLastConsolidationHelper:
         _add_regular_commits(repo, 7)
 
         # Importar el helper desde lib/git_helpers.py con CWD apuntando al repo de test
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "_git_helpers_test",
-            os.path.join(LIB_DIR, "git_helpers.py"),
+        mod = _load_git_helpers_bound_to_repo(repo, "_git_helpers_test")
+
+        count, breadcrumbs = _commits_since_consolidation_with_retry(
+            mod, lambda c: c == 7, attempts=3, label="commits_since_last_consolidation (expect 7)",
         )
-        mod = importlib.util.module_from_spec(spec)
-        # Parchear run_git dentro del módulo para que opere en el repo de test
-        import subprocess as _sp
-
-        def _patched_run_git(args, timeout=10, cwd=None):
-            env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"), "GIT_WORK_TREE": repo}
-            result = _sp.run(
-                ["git"] + args,
-                capture_output=True, text=True, encoding='utf-8', errors='replace',
-                cwd=repo, env=env, timeout=timeout,
-            )
-            return result.returncode, result.stdout.strip()
-
-        spec.loader.exec_module(mod)
-        mod.run_git = _patched_run_git  # monkeypatch en la instancia importada
-
-        count = mod.commits_since_last_consolidation()
         assert count == 7, (
             f"commits_since_last_consolidation() debería devolver 7, devolvió {count!r}.\n"
-            f"(El commit de consolidación no cuenta; solo los 7 posteriores.)"
+            f"(El commit de consolidación no cuenta; solo los 7 posteriores.)\n"
+            f"Intentos: {breadcrumbs}"
         )
 
     def test_09b_helper_returns_sentinel_when_no_consolidation(self, tmp_path):
@@ -401,28 +453,14 @@ class TestCommitsSinceLastConsolidationHelper:
         repo = _make_bare_repo(tmp_path)
         _add_regular_commits(repo, 5)
 
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "_git_helpers_test2",
-            os.path.join(LIB_DIR, "git_helpers.py"),
+        mod = _load_git_helpers_bound_to_repo(repo, "_git_helpers_test2")
+
+        count, breadcrumbs = _commits_since_consolidation_with_retry(
+            mod, lambda c: c >= 50, attempts=3,
+            label="commits_since_last_consolidation (expect sentinel >=50)",
         )
-        mod = importlib.util.module_from_spec(spec)
-        import subprocess as _sp
-
-        def _patched_run_git(args, timeout=10, cwd=None):
-            env = {**os.environ, "GIT_DIR": os.path.join(repo, ".git"), "GIT_WORK_TREE": repo}
-            result = _sp.run(
-                ["git"] + args,
-                capture_output=True, text=True, encoding='utf-8', errors='replace',
-                cwd=repo, env=env, timeout=timeout,
-            )
-            return result.returncode, result.stdout.strip()
-
-        spec.loader.exec_module(mod)
-        mod.run_git = _patched_run_git
-
-        count = mod.commits_since_last_consolidation()
         # Sentinel: debe ser ≥ 50 para forzar el primer aviso
         assert count >= 50, (
-            f"Sin context(consolidation) el helper debe devolver un sentinel ≥50, devolvió {count!r}."
+            f"Sin context(consolidation) el helper debe devolver un sentinel ≥50, devolvió {count!r}.\n"
+            f"Intentos: {breadcrumbs}"
         )

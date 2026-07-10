@@ -195,22 +195,42 @@ def drift_repo():
 # ── Tests ──────────────────────────────────────────────────────────────
 
 
+def _git_log_or_fail(args, cwd):
+    """Run a `git log` query and assert success, embedding rc/stderr on failure.
+
+    Issue #61 (House root cause): this function's callers used to discard
+    rc entirely (`_, out, _ = git_cmd(...)`), so a transient git subprocess
+    failure under CI resource pressure (thousands of forked git processes
+    on a 2-core/7GB ubuntu-latest runner) surfaced as an opaque downstream
+    count assertion (e.g. "assert 4 >= 12") with zero trail back to the
+    real cause. Same rationale/pattern already applied to run_snapshot()
+    above (issue #52, House round 2).
+    """
+    rc, out, err = git_cmd(args, cwd)
+    assert rc == 0, (
+        f"git {' '.join(args)} exited {rc} (expected 0).\n"
+        f"--- stdout ---\n{out}\n"
+        f"--- stderr ---\n{err}"
+    )
+    return out
+
+
 def test_deep_search(drift_repo):
     """Verify deep search returns results by Issue/scope/recency."""
     cwd = drift_repo
 
     # All decisions findable
-    _, out, _ = git_cmd(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s %b"], cwd)
+    out = _git_log_or_fail(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s %b"], cwd)
     decision_lines = [l for l in out.split("\n") if "Decision:" in l]
     assert len(decision_lines) >= DECISION_COUNT
 
     # All memos findable
-    _, out, _ = git_cmd(["log", "--all", "--grep=Memo:", "--pretty=format:%h %s %b"], cwd)
+    out = _git_log_or_fail(["log", "--all", "--grep=Memo:", "--pretty=format:%h %s %b"], cwd)
     memo_lines = [l for l in out.split("\n") if "Memo:" in l]
     assert len(memo_lines) >= MEMO_COUNT
 
     # Deep search finds decisions across multiple scopes
-    _, out, _ = git_cmd(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s"], cwd)
+    out = _git_log_or_fail(["log", "--all", "--grep=Decision:", "--pretty=format:%h %s"], cwd)
     all_d_scopes = set()
     for line in out.strip().split("\n"):
         sm = re.search(r"decision\((\w+)\)", line, re.IGNORECASE)
@@ -219,7 +239,7 @@ def test_deep_search(drift_repo):
     assert len(all_d_scopes) >= 2
 
     # Issue filter
-    _, out, _ = git_cmd(["log", "--all", "--grep=Issue: CU-042", "--oneline"], cwd)
+    out = _git_log_or_fail(["log", "--all", "--grep=Issue: CU-042", "--oneline"], cwd)
     issue_count = len([l for l in out.strip().split("\n") if l.strip()])
     assert issue_count >= 50
 
