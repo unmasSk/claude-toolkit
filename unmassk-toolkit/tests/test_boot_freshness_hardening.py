@@ -227,6 +227,58 @@ class TestFetchMemoryRefStates:
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result["status"] == "fetched"
 
+    def test_age_just_inside_window_is_rate_limited(self, tmp_path):
+        """Issue #60 hardening gap: no existing test pins the EXACT
+        rate-limit boundary (`0 <= age < FETCH_RATE_LIMIT_SECONDS` in
+        `_fetch_gate_and_rate_limit`). Existing coverage only exercises
+        age~0s ("immediate second call") and age=window+60s (comfortably
+        stale) — never the two seconds straddling the literal edge. 299s
+        (one second inside the 300s window) must still rate-limit, and
+        the resulting stamp must carry the "remote (synced ... ago)"
+        wording issue #60 introduced — not just the right status field.
+        """
+        repo = _make_gated_repo(tmp_path)
+        _add_bare_remote(repo, tmp_path)
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD
+
+        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        just_inside = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS - 1)  # 299s old
+        os.utime(fetch_head, (just_inside, just_inside))
+
+        result = boot_git_checks.fetch_memory_ref(repo)
+        assert result["status"] == "rate_limited", (
+            f"299s (one second inside the {boot_git_checks.FETCH_RATE_LIMIT_SECONDS}s "
+            f"window) must still rate-limit. Got: {result}"
+        )
+        assert result["age_seconds"] is not None
+        assert result["age_seconds"] < boot_git_checks.FETCH_RATE_LIMIT_SECONDS
+
+        stamp = boot_git_checks.render_memoria_stamp(result)
+        assert stamp.startswith("MEMORY: remote (synced "), stamp
+        assert "LOCAL" not in stamp and "skipped" not in stamp
+
+    def test_age_just_outside_window_forces_refetch(self, tmp_path):
+        """301s old (one second past the 300s window) must NOT rate-limit
+        — a real refetch is attempted; since the remote is still live it
+        succeeds, flipping status back to 'fetched'. Complements the 299s
+        boundary test above — together they pin both sides of the literal
+        `< FETCH_RATE_LIMIT_SECONDS` edge, which no prior test exercised
+        this tightly.
+        """
+        repo = _make_gated_repo(tmp_path)
+        _add_bare_remote(repo, tmp_path)
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD
+
+        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        just_outside = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 1)  # 301s old
+        os.utime(fetch_head, (just_outside, just_outside))
+
+        result = boot_git_checks.fetch_memory_ref(repo)
+        assert result["status"] == "fetched", (
+            f"301s (one second past the {boot_git_checks.FETCH_RATE_LIMIT_SECONDS}s "
+            f"window) must trigger a real refetch, not stay rate-limited. Got: {result}"
+        )
+
     def test_fetch_failure_returns_failed_with_prior_age(self, tmp_path):
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)

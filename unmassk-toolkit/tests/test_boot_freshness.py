@@ -443,6 +443,136 @@ class TestFreshnessStampThreeStates:
         )
 
 
+# ── Hardening (issue #60): rate-limit seam is robust to a remote that ────
+#    breaks BETWEEN two real boots ───────────────────────────────────────
+
+
+class TestRateLimitedStampSurvivesRemoteBreakage:
+    """Hardening pass, issue #60 (docs/plan/fix-boot-memory-stamp.md, Task
+    3). The relabel's whole design argument (decision ceef426's
+    "refinamiento de diseño") is that "no pisar estado mas fresco" is
+    satisfied FOR FREE by the rate-limit gate itself:
+    `_fetch_gate_and_rate_limit` (lib/boot_git_checks.py) short-circuits on
+    FETCH_HEAD's measured age alone, BEFORE ever resolving or touching the
+    remote — so a rate-limited stamp can never be contaminated by the
+    remote's CURRENT health. These two tests exercise that seam for real,
+    through the actual boot subprocess (not fetch_memory_ref()'s dict in
+    isolation — that's already covered directly in
+    test_boot_freshness_hardening.py) — a real fetch succeeds, the remote
+    THEN breaks, and a second real boot runs both inside and past the
+    300s rate-limit window, reading the persisted boot-log-latest.txt FILE
+    (not just stdout) each time — the same file whose staleness was the
+    original issue #60 bug shape.
+    """
+
+    def _seed_good_fetch_then_break_remote(self, tmp_path):
+        repo_a, bare = _setup_freshness_repo(tmp_path)
+
+        first_rc, _first_out, first_err = _run_boot(repo_a)
+        assert first_rc == 0, f"first (real-fetch) boot must succeed. stderr: {first_err}"
+        fetch_head = os.path.join(repo_a, ".git", "FETCH_HEAD")
+        assert os.path.isfile(fetch_head), (
+            "first boot must have performed a real, successful fetch — "
+            "FETCH_HEAD is the seam the rate-limit gate reads"
+        )
+
+        _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist.git")], repo_a)
+        return repo_a, fetch_head
+
+    def test_within_window_broken_remote_still_shows_synced_not_fetched(self, tmp_path):
+        """Fetch OK, remote breaks, second boot lands INSIDE the 300s
+        window: the stamp must still read "remote (synced ... ago)"
+        (truthful — a sync really did happen Ns ago) and must never say
+        "fetched" (no new fetch is attempted at all — the gate
+        short-circuits before the broken remote is ever resolved) nor fall
+        back to "LOCAL".
+        """
+        repo_a, _fetch_head = self._seed_good_fetch_then_break_remote(tmp_path)
+
+        rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
+        assert rc == 0, f"boot must fail open. stderr: {stderr}"
+
+        memory_line = _line_with(combined, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined}"
+        assert memory_line.startswith("MEMORY: remote (synced "), (
+            f"expected the still-fresh (rate-limited) stamp despite the "
+            f"remote breaking after the sync. Got: {memory_line!r}"
+        )
+        assert "fetched" not in memory_line, (
+            f"no new fetch should have been attempted at all (the gate "
+            f"short-circuits on FETCH_HEAD age before touching the "
+            f"remote) — 'fetched' must not appear. Got: {memory_line!r}"
+        )
+        assert "LOCAL" not in memory_line and "skipped" not in memory_line, (
+            f"a rate-limited (still-fresh) sync must never be labeled "
+            f"LOCAL/skipped, regardless of the remote's current health: "
+            f"{memory_line!r}"
+        )
+
+        # Persisted-file channel (issue #60's original bug shape): the same
+        # assertions against the FILE boot-log-latest.txt actually wrote,
+        # not just this process's stdout.
+        log_memory_line = _line_with(log_content, "MEMORY:")
+        assert log_memory_line is not None, (
+            f"expected a MEMORY: stamp in boot-log-latest.txt.\n{log_content}"
+        )
+        assert log_memory_line.startswith("MEMORY: remote (synced "), (
+            f"expected the persisted boot-log to carry the same "
+            f"rate-limited stamp. Got: {log_memory_line!r}"
+        )
+        assert "LOCAL" not in log_memory_line and "skipped" not in log_memory_line, (
+            f"persisted boot-log-latest.txt must never show the "
+            f"rate-limited (still-fresh) state as LOCAL/skipped: "
+            f"{log_memory_line!r}"
+        )
+
+    def test_past_window_broken_remote_reverts_to_local_unverified_with_age(self, tmp_path):
+        """Same setup, but the second boot lands PAST the 300s rate-limit
+        window — a real refetch IS attempted this time, fails against the
+        now-broken remote, and the stamp must honestly fall back to
+        "LOCAL ... unverified", still carrying the age of the LAST
+        successful sync (never "remote", and never the "never synced with
+        origin" wording, which is reserved for a repo that has never once
+        fetched successfully — this repo HAD a good fetch before the
+        remote broke). Checked on both channels: stdout+log combined AND
+        the persisted boot-log-latest.txt FILE alone.
+        """
+        repo_a, fetch_head = self._seed_good_fetch_then_break_remote(tmp_path)
+
+        stale_time = time.time() - (RATE_LIMIT_WINDOW_SECONDS + 300)
+        os.utime(fetch_head, (stale_time, stale_time))
+
+        rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a, timeout=20)
+        assert rc == 0, f"boot must fail open even when the refetch fails. stderr: {stderr}"
+
+        memory_line = _line_with(combined, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined}"
+        assert memory_line.startswith("MEMORY: LOCAL — last fetch "), (
+            f"expected the post-window refetch failure to fall back to "
+            f"the age-known LOCAL/unverified wording, not stay 'remote' "
+            f"or claim 'never synced'. Got: {memory_line!r}"
+        )
+        assert memory_line.endswith("ago, unverified"), f"Got: {memory_line!r}"
+        assert "remote (" not in memory_line, (
+            f"a failed post-window refetch must never claim 'remote': {memory_line!r}"
+        )
+
+        log_memory_line = _line_with(log_content, "MEMORY:")
+        assert log_memory_line is not None, (
+            f"expected the persisted boot-log-latest.txt to carry a "
+            f"MEMORY: stamp.\n{log_content}"
+        )
+        assert (
+            log_memory_line.startswith("MEMORY: LOCAL — last fetch ")
+            and log_memory_line.endswith("ago, unverified")
+        ), (
+            f"persisted boot-log-latest.txt must show the honest "
+            f"LOCAL/unverified fallback after a real remote-broken "
+            f"refetch attempt, not a stale 'remote (synced...)' stamp "
+            f"from before the remote broke. Got: {log_memory_line!r}"
+        )
+
+
 # ── Test 3: pull directive (clean vs dirty tree) ────────────────────────
 
 

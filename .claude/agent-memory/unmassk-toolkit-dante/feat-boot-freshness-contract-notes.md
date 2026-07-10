@@ -328,3 +328,62 @@ unmassk-toolkit/tests/test_boot_freshness_regression.py -q` → 3 failed
 new contract) + 124 passed + 2 skipped (pre-existing Windows-only guards,
 same 2 as always — see the "Windows gap" note above). Exit code checked
 directly (no `| tail`/`| head`), per this repo's hard rule.
+
+## Issue #60 — hardening pass on the seam, post-GREEN (session 2026-07-10)
+
+After Ultron's relabel landed (wip d630e14), ran EXHAUSTION on the
+boot→FETCH_HEAD/boot-log→next-boot seam. Key finding: the plan's design
+argument ("no pisar estado más fresco" is satisfied for free by the
+relabel, no cross-boot comparison machinery needed) rests entirely on
+`_fetch_gate_and_rate_limit()` short-circuiting on FETCH_HEAD's age
+BEFORE ever resolving/touching the remote — that specific invariant had
+zero test coverage before this pass, at either the unit or the real-
+subprocess level. Closed with 4 new tests, 0 duplicated:
+
+- `test_boot_freshness.py::TestRateLimitedStampSurvivesRemoteBreakage`
+  (real subprocess boot, §34) — two tests sharing a
+  `_seed_good_fetch_then_break_remote()` helper (real fetch succeeds,
+  THEN `git remote set-url origin <nonexistent path>`): (1) second boot
+  INSIDE the 300s window still reads `MEMORY: remote (synced ... ago)`,
+  never `fetched` (proves no refetch was even attempted) — checked on
+  both `combined` (stdout+log) AND `log_content` alone (the persisted
+  boot-log-latest.txt FILE, issue #60's original bug shape); (2) second
+  boot PAST the window (FETCH_HEAD mtime rewound via `os.utime`, same
+  pattern as the pre-existing rate-limit tests) DOES attempt a real
+  refetch, fails against the broken remote, and correctly falls back to
+  `MEMORY: LOCAL — last fetch ... ago, unverified` (age preserved from
+  the prior good sync — distinct from the "never synced" wording, which
+  is reserved for a repo with no prior successful fetch at all) — same
+  dual-channel (combined + log_content) check.
+- `test_boot_freshness_hardening.py::TestFetchMemoryRefStates::
+  test_age_just_inside_window_is_rate_limited` /
+  `test_age_just_outside_window_forces_refetch` — direct `fetch_memory_ref()`
+  calls pinning the EXACT `0 <= age < FETCH_RATE_LIMIT_SECONDS` boundary
+  (299s → still rate-limited + stamp text asserted; 301s → real refetch,
+  status flips to `fetched`). Prior boundary tests only ever used age~0s
+  ("immediate") or window+60s ("comfortably stale") — never the two
+  seconds straddling the literal edge. 1s margin around the boundary is
+  safe in practice (`os.utime` → function call is microseconds, not a
+  real race) — confirmed stable across 3 repeated runs before reporting.
+
+**Verified NOT a gap (avoided duplicating)**: `fetch_memory_ref()`'s
+"fetch OK → remote breaks → PAST window → fails, age preserved" *status
+dict* shape was already pinned directly by pre-existing
+`TestFetchMemoryRefStates::test_fetch_failure_returns_failed_with_prior_age`
+— but only at the dict level, never through the real boot subprocess nor
+against the rendered stamp TEXT nor the persisted file. The new
+`test_past_window_broken_remote_reverts_to_local_unverified_with_age`
+above is the seam-level complement, not a duplicate, of that dict-level
+test.
+
+pytest-cov / coverage module not installed in this environment — no
+tool-reported percentage available; coverage verified by manual branch
+enumeration against `_render_confirmed_fetch_stamp` (3 branches),
+`render_memoria_stamp` (4 branches), `_fetch_gate_and_rate_limit` (3
+branches + the boundary edge), all represented pre- and post-pass.
+
+Full suite after this pass: `python3 -m pytest
+test_boot_freshness.py test_boot_freshness_hardening.py
+test_boot_freshness_regression.py -q` → 131 passed, 2 skipped
+(same pre-existing Windows-only guards), exit 0. No bugs found in this
+pass (pure coverage-closing, no new break).

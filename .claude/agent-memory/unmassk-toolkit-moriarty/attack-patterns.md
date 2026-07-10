@@ -647,3 +647,50 @@
   security bypass -- a genuine usability/collateral-damage cost of a blunt exact-match defense
   that cannot distinguish "attacker forging the fence" from "developer legitimately discussing
   the fence in prose."
+
+## rate-limit gate's "confirmed fresh" label trusts a bare mtime that a FAILED fetch itself corrupts, or that ANY unrelated remote's fetch touches (issue #60, decision ceef426 relabel)
+- Root mechanism (real git behavior, verified empirically, no synthetic tampering needed): a
+  `git fetch <remote>` call that FAILS outright (unreachable/rotted URL) still truncates
+  `.git/FETCH_HEAD` to 0 bytes AND refreshes its mtime to "now". A completely separate, healthy,
+  unrelated remote (`git fetch <other-remote>`, e.g. an IDE's background auto-fetch of a
+  fork/mirror) also refreshes `.git/FETCH_HEAD`'s mtime on real success -- FETCH_HEAD is shared,
+  ungated state that ANY `git fetch` invocation (any remote, any branch, success or failure)
+  moves. This is the SEC-LOW-001 residual (boot_git_checks.py:449-459), long known and
+  risk-accepted -- but only under the OLD wording.
+- `_fetch_gate_and_rate_limit` (boot_git_checks.py:610-632) only ever reads this mtime's AGE
+  (0<=age<300 -> "rate_limited") -- it never checks which remote/branch produced it, nor whether
+  a fetch actually succeeded.
+- Pre-#60, `_render_confirmed_fetch_stamp`'s `rate_limited` branch rendered
+  `MEMORY: LOCAL — fetch skipped (rate-limit, {age} ago)` -- weak/local framing, never claimed
+  "remote" or "synced". Issue #60's relabel (commit d630e14, boot_git_checks.py:814-816) changed
+  this SAME branch, on the SAME untrustworthy mtime-only evidence, to
+  `MEMORY: remote (synced {age} ago)` -- an affirmative, false claim of confirmed sync against
+  origin. This directly contradicts this module's own adjacent documented invariant (:449-459):
+  "every actual freshness claim in the rendered stamp still comes from the fetch's own real exit
+  code, never from this timestamp" -- the new `rate_limited` text IS now a freshness claim
+  derived purely from the timestamp (by definition, no fetch executes on the rate_limited path).
+- Confirmed live, end-to-end, through the REAL `hooks/session-start-boot.py` subprocess, two
+  independent read channels (stdout banner AND the persisted `boot-log-latest.txt` file), with
+  ZERO manual file tampering, ZERO external attacker needed:
+  1. Origin broken from the start (real URL rot) -> boot #1 correctly shows
+     `MEMORY: LOCAL — unverified (never synced with origin)`. Its own failed fetch attempt
+     truncates+touches FETCH_HEAD as a pure side effect. Boot #2, seconds later, same broken
+     origin, shows `MEMORY: remote (synced Ns ago)` -- false, no sync ever happened.
+  2. Origin never touched at all (never fetched, alive and reachable); a real, successful
+     `git fetch <second-remote>` to a totally unrelated repo (simulating an IDE's background
+     fetch of a mirror/fork remote) touches FETCH_HEAD. The very next boot renders
+     `MEMORY: remote (synced Ns ago)` even though the CONFIGURED memory upstream (origin) has
+     literally never been fetched once in this repo's lifetime.
+- Contrast (held, NOT a break): when a real successful fetch of origin genuinely happens first,
+  then the remote breaks, the rate-limited "synced Ns ago" claim during the window IS honest (a
+  sync did happen). This exact ordering is what the shipped hardening tests
+  (`TestRateLimitedStampSurvivesRemoteBreakage`, tests/test_boot_freshness.py) cover -- but
+  ONLY that ordering. Neither that test class nor
+  `test_fetch_failed_state_shows_local_unverified` ever runs a SECOND boot after a first boot
+  whose OWN fetch attempt failed -- the exact gap this PoC lands in. Full suite (96 tests, both
+  freshness files) passes green with this live break present -- confirms it's a real,
+  undetected gap, not theater misread by me.
+- Lesson: a relabel that upgrades a status word's *epistemic strength* ("LOCAL/skipped" ->
+  "remote/synced") without adding any NEW evidence is itself the attack surface -- re-verify the
+  underlying evidence's trust level actually supports the stronger word choice, independent of
+  whether the branch-selection LOGIC changed at all (it didn't, here).
