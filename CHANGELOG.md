@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Transient git failures during memory scans no longer vanish without a trace** (issue #61): the boot/recall/snapshot code paths that shell out to `git log` — `_scan_commits()` in `lib/recall.py`, `extract_memory()`/`extract_glossary()` in `lib/boot_memory.py`, `scan_recent_commits()` in `lib/bootstrap_commits.py`, `commits_since_last_consolidation()` in `lib/git_helpers.py`, and the precompact snapshot hook — used to collapse any transient subprocess failure straight to an empty result (`[]`, `{}`, `None`, `0`), indistinguishable from "no memories exist". These call sites now opt into `run_git()`'s existing stderr-breadcrumb diagnostic, so a real git failure prints a trace instead of presenting as silence. The fail-safe return values themselves are unchanged — diagnostics only, no behavior change.
+- **Stabilized the Ubuntu-CI-only flaky test family** (issue #61): the tests in `test_consolidation_trigger.py`, `test_drift.py`, and `test_recall.py` that build large commit-history fixtures (hundreds of commits) were intermittently failing only on `ubuntu-latest` under resource pressure, with opaque assertion messages and no trail back to the cause. They now retry (bounded, anti-vacuity-checked — a genuinely broken result still fails after every attempt) and, on exhaustion, run a raw-git diagnostic to distinguish a transient git subprocess flake from a real logic bug. Local `run_git` test doubles used across these suites now accept `**kwargs` so they stay compatible with future keyword-only additions to the real `run_git()` signature. 16 new tests in `test_issue61_breadcrumbs.py` cover the new stderr breadcrumb behavior directly.
+
 ## [1.19.3] - 2026-07-11
 
 ### Fixed
