@@ -694,3 +694,12 @@
   "remote/synced") without adding any NEW evidence is itself the attack surface -- re-verify the
   underlying evidence's trust level actually supports the stronger word choice, independent of
   whether the branch-selection LOGIC changed at all (it didn't, here).
+
+## Issue #60 v2 own-fetch-success-stamp: identity binding by NAME not by URL/repo-identity (2026-07-10)
+- Target: `_read_own_stamp_age()` / `_check_own_stamp_rate_limit()` in `unmassk-toolkit/lib/boot_git_checks.py:665-814`, consumed by `_render_confirmed_fetch_stamp()` (:1002-1017) → both stdout banner and `boot-log-latest.txt`.
+- v2 replaced FETCH_HEAD-mtime freshness with a self-written stamp (`.claude/.unmassk/boot-fetch-stamp.json`), gated on `data.get("remote") == remote_name and data.get("branch") == remote_branch` — but `remote_name`/`remote_branch` are the LOCAL alias strings from `@{u}` (e.g. `"origin"`/`"main"`), never the remote URL or any repo-identity signal.
+- PoC: real repo A, real successful fetch → real stamp `{"remote":"origin","branch":"main",...}`. `cp` that stamp file verbatim into unrelated repo B (totally different history, different/unreachable origin URL, same conventional alias names `origin`/`main` — the overwhelming majority default). `touch` to refresh mtime. Boot repo B (its own real origin literally nonexistent on disk) via the real hook subprocess → `MEMORY: remote (synced 0s ago)` on BOTH stdout and `boot-log-latest.txt`, gate skips the real fetch entirely (`_run_hardened_fetch` never called).
+- No git operation of any kind is required to plant this (unlike the v1 FETCH_HEAD bug it replaced, which needed at least one real `git fetch` — even a failed/foreign one — to touch the file). An ordinary `cp -r project-A/.claude project-B/.claude` (template scaffolding, monorepo split, dotfile sync tool, Time Machine restore) is enough — no adversary needed.
+- `check_upstream_shares_history()` (merge-base check in `session-start-boot.py main()`) does NOT catch this: it validates the LOCAL remote-tracking ref's own git ancestry, never the stamp file's claimed identity — the two mechanisms don't intersect.
+- Round-Trip Sabotage (§34): shipped suite (`test_boot_freshness*.py`, 133 tests) stayed 100% green with this live gap present — confirmed by running it. Vectors A/B/D (unrelated remote NAME, external-origin-fetch migration) ARE tested and DO hold; same-name-different-repo stamp forgery is not covered by any test.
+- Verdict when found: T1, Moriarty FALLA Rule (round-trip check did not go red under sabotage).

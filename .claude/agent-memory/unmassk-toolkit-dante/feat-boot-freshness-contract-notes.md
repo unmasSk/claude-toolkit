@@ -492,3 +492,83 @@ agnostic to where the signal lives); `TestFetchHeadAgeSeconds` (tests the
 low-level `_fetch_head_age_seconds()` helper directly — likely survives as
 a utility, e.g. for the "fetched Ns ago" age report on a just-completed
 real fetch, independent of the gate's own source-of-truth change).
+
+## Issue #60 v3 — own-stamp identity RED contract (session 2026-07-10, decision 787b698)
+
+Moriarty v2: 14/15 vectors held, broke a new one (T1). `_read_own_stamp_
+age()` (`lib/boot_git_checks.py:665-722`) compared identity ONLY by alias
+(`data.get("remote")`/`data.get("branch")`, e.g. `"origin"`/`"main"`) —
+those are conventional names, not identity. Copying `boot-fetch-stamp.
+json` from a genuinely-synced repo A into an unrelated repo B that merely
+shares the alias convention (template/backup/dotfiles-sync scenario) made
+B's boot claim `MEMORY: remote (synced 0s ago)` without B ever reaching
+its own remote. v3 fix (Ultron's job, not yet landed at the time this
+contract was written): identity must include the real remote URL (`git
+remote get-url`), and an unrecognized `schema_version` must collapse to
+the same "no evidence" outcome as a missing stamp.
+
+New class `test_boot_freshness.py::TestOwnStampIdentityIncludesRemoteURL`
+(2 tests, real-subprocess §34, inserted right after
+`TestOwnSuccessStampNotFetchHeadMtime`):
+
+- **PoC test** (`test_stamp_copied_between_repos_with_matching_alias_but_
+  different_remote_url_is_not_trusted`): two independent `_setup_
+  freshness_repo()` sites under the SAME `tmp_path` via subdirs
+  (`tmp_path / "site_a"`, `tmp_path / "site_b"` — `_setup_freshness_repo()`
+  only ever does `tmp_path / "repo_a"` / `"bare.git"` internally, so two
+  calls under the SAME bare tmp_path would collide on those hardcoded
+  names; passing a subdir Path as the `tmp_path` param sidesteps this with
+  zero changes to the helper). Boot A for real (writes a real stamp) →
+  copy A's raw stamp bytes verbatim into B (`shutil.copyfile`, never
+  hand-typed JSON, §34) → B's own origin is pointed at a DEAD path
+  (deliberately the more severe half of Moriarty's report — a repo whose
+  origin may not even be reachable, not just a live-but-different one) →
+  boot B inside the window must NOT say "remote (synced" and must show a
+  real fetch attempt in the fake-git call log (honest failure, not silent
+  trust). RED today for exactly the predicted reason: today's identity
+  check matches on alias alone, so `_check_own_stamp_rate_limit` returns
+  early as `rate_limited` BEFORE `_run_hardened_fetch()` is ever reached —
+  confirmed empirically: the fake-git log is EMPTY (zero fetch calls) in
+  the unfixed run, not just a wrong status string.
+- **schema_version test** (`test_stamp_with_unknown_schema_version_is_
+  treated_as_absent`): single repo, real boot writes a real stamp, then
+  ONLY the `schema_version` field is mutated (read back the real JSON,
+  change one field, rewrite — never hand-crafted from scratch) to `999`.
+  Since today's code never even looks at `schema_version`, the mutated
+  stamp is still accepted as valid (remote/branch still match, mtime still
+  fresh from the rewrite) → same false "synced" line. RED today for the
+  same reason.
+
+RED confirmed exactly as predicted: `python3 -m pytest test_boot_
+freshness.py test_boot_freshness_hardening.py test_boot_freshness_
+regression.py -q` → 2 failed (only the 2 new tests, clean AssertionErrors
+comparing `'MEMORY: remote (synced 0s ago)'` against the "must not contain
+remote (synced" assertion) + 137 passed + 2 skipped (same pre-existing
+Windows-only guards). v1/v2 contract (relabel wording, own-stamp Vectors
+A/B/D, rate-limit boundaries) untouched and still fully green.
+
+**Cerberus S3 (pinning, not contract) — `test_boot_freshness_hardening.
+py::TestReadOwnStampAgeDirectCalls`** (4 tests, direct calls, no git repo
+needed — `_read_own_stamp_age()` takes an explicit `project_root` and
+never touches git): JSON-corrupt → None, wrong top-level shape (a list,
+not a dict) → None, symlink planted at the stamp path → None (wrapped in
+`try/except OSError: pytest.skip(...)` around the `os.symlink()` call
+itself, not a blanket `skipif(WINDOWS)` — matches the project's existing
+`real_symlink_capable`-style convention for "attempt the real privileged
+op, skip only if the environment genuinely can't grant it" rather than
+assuming POSIX==capable), hard link at the stamp path → None (same
+try/except-around-`os.link()` skip pattern, `reject_hardlinks=True` is
+already the read call's kwarg in production). All 4 confirmed GREEN on
+first run, as expected for pinning (the underlying guards — `json.loads()`
+ValueError, `isinstance(dict)`, `open_no_follow_symlink()`'s O_NOFOLLOW +
+`reject_hardlinks=True` — already existed before this pass).
+
+**Cerberus S4 fix** — `test_boot_freshness.py::TestFetchRateLimit::
+test_fresh_fetch_head_skips_fetch` now asserts `os.path.isfile(stamp_path)`
+immediately after the seeding boot, before installing the fake-git and
+running boot #2. Without it, a regression that makes `fetch_memory_ref()`
+short-circuit to `skipped_gate` (e.g. toolkit-memory detection silently
+breaking) would ALSO produce zero fetch calls in boot #2 — the pre-existing
+"no fetch calls observed" assertion alone can't tell a genuine rate-limit
+skip apart from a differently-broken skip. Confirmed still GREEN after the
+addition (the seeding boot genuinely does write the stamp today).

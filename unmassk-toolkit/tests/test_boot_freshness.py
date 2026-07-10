@@ -865,6 +865,143 @@ class TestOwnSuccessStampNotFetchHeadMtime:
         )
 
 
+class TestOwnStampIdentityIncludesRemoteURL:
+    """Plan Task 6 v3 (docs/plan/fix-boot-memory-stamp.md, decision
+    787b698). Moriarty v2 confirmed 14/15 vectors hold, but broke a new
+    one (T1): `_read_own_stamp_age()`'s identity check compares ONLY the
+    remote ALIAS ("origin") and branch ("main") — both are conventional
+    names that collide across totally unrelated repos (templates, backups,
+    dotfiles-sync). Copying `.claude/.unmassk/boot-fetch-stamp.json` from a
+    genuinely-synced repo A into an unrelated repo B that merely shares the
+    same alias/branch convention makes B's boot claim "remote (synced ...)"
+    without B ever having reached its own remote — a forged sync claim with
+    zero real fetch behind it.
+
+    v3 fix (decision 787b698): the identity recorded and compared must
+    include the REAL remote URL (`git remote get-url`), not just the
+    alias; an unrecognized `schema_version` must collapse to the same "no
+    evidence" outcome as a missing stamp. Both are fail-open-toward-
+    fetching, same philosophy as every other invalidation path in
+    _read_own_stamp_age().
+
+    Both tests assert only observable BEHAVIOR — the MEMORY: line's
+    wording, and whether a real fetch attempt was actually made (via the
+    fake-git call log) — never the stamp file's own field names/shape,
+    which remain Ultron's implementation choice per the task instructions.
+    """
+
+    def test_stamp_copied_between_repos_with_matching_alias_but_different_remote_url_is_not_trusted(self, tmp_path):
+        """The exact Moriarty PoC. Repo A syncs for real and writes its own
+        stamp. That stamp file is copied VERBATIM (the same bytes A's own
+        boot wrote — never hand-crafted, per unmassk-standards §34) into
+        unrelated repo B, which uses the same "origin"/"main"
+        alias/branch convention but a DIFFERENT, and in this variant DEAD,
+        remote URL — the more severe half of Moriarty's report: a
+        template/backup/dotfiles-sync repo whose origin may not even be
+        reachable. Boot on B, still well inside the 300s rate-limit
+        window, must NOT render "remote (synced" — it must genuinely
+        attempt (and here, honestly fail) its own fetch.
+        """
+        repo_a, bare_a = _setup_freshness_repo(tmp_path / "site_a")
+        repo_b, bare_b = _setup_freshness_repo(tmp_path / "site_b")
+        assert bare_a != bare_b, "setup sanity: A and B must have genuinely different remote URLs"
+
+        # Boot A for real — its own successful fetch writes a real stamp.
+        rc_a, stdout_a, stderr_a = _run_boot(repo_a, timeout=20)
+        assert rc_a == 0, f"seeding boot (A) must succeed. stderr: {stderr_a}"
+        stamp_a = os.path.join(repo_a, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_a), "setup sanity: A's real fetch must have written its own stamp"
+
+        # B's own remote is now DEAD — a different, unreachable URL, never
+        # the same repo as A's bare remote (the more severe Moriarty case).
+        _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist-b.git")], repo_b)
+
+        # Copy A's REAL stamp bytes into B verbatim — no hand-typed JSON.
+        stamp_b = os.path.join(repo_b, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        shutil.copyfile(stamp_a, stamp_b)
+        assert os.path.isfile(stamp_b)
+
+        log_path = str(tmp_path / "fake_git_identity_collision.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc_b, stdout_b, stderr_b = run_script(BOOT_HOOK, repo_b, env=env, timeout=20)
+        log_content_b = _read_boot_log(repo_b)
+        combined_b = stdout_b + "\n" + log_content_b
+        assert rc_b == 0, f"boot must fail open. stderr: {stderr_b}"
+
+        memory_line = _line_with(combined_b, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined_b}"
+        assert "remote (synced" not in memory_line, (
+            f"a stamp copied from an UNRELATED repo (matching alias/branch, "
+            f"different real remote URL) must never be trusted as evidence "
+            f"of THIS repo's own sync. Got: {memory_line!r}"
+        )
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert fetch_calls, (
+            "a stamp with a mismatched remote identity must never "
+            "rate-limit away B's own fetch attempt — expected a real "
+            "(here, honestly failing) fetch to be attempted"
+        )
+
+    def test_stamp_with_unknown_schema_version_is_treated_as_absent(self, tmp_path):
+        """A stamp whose remote/branch identity genuinely matches, but
+        whose `schema_version` field the reading code does not recognize,
+        must be treated exactly like "no stamp" — never partially trusted.
+        Built by mutating ONLY the schema_version field of a REAL stamp a
+        real boot just wrote (§34 — never hand-typed JSON from scratch), so
+        every other field/shape is exactly what production code itself
+        produces.
+        """
+        repo_a, bare_a = _setup_freshness_repo(tmp_path)
+
+        rc1, stdout1, stderr1 = _run_boot(repo_a, timeout=20)
+        assert rc1 == 0, f"seeding boot must succeed. stderr: {stderr1}"
+        stamp_path = os.path.join(repo_a, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_path), "setup sanity: real fetch must have written the own stamp"
+
+        with open(stamp_path, encoding="utf-8") as f:
+            stamp_data = json.load(f)
+        original_schema_version = stamp_data.get("schema_version")
+        assert original_schema_version is not None, (
+            "setup sanity: the real stamp must carry a schema_version "
+            "field to mutate — nothing to test if the field doesn't exist"
+        )
+        # Any value the reading code doesn't recognize as current — mutate
+        # only this one field, everything else stays exactly as production
+        # code wrote it.
+        stamp_data["schema_version"] = 999
+        with open(stamp_path, "w", encoding="utf-8") as f:
+            json.dump(stamp_data, f)
+
+        log_path = str(tmp_path / "fake_git_schema_version.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc2, stdout2, stderr2 = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        log_content2 = _read_boot_log(repo_a)
+        combined2 = stdout2 + "\n" + log_content2
+        assert rc2 == 0, f"boot must fail open. stderr: {stderr2}"
+
+        memory_line = _line_with(combined2, "MEMORY:")
+        assert memory_line is not None, f"expected a MEMORY: stamp.\n{combined2}"
+        assert "remote (synced" not in memory_line, (
+            f"a stamp with an unrecognized schema_version must be treated "
+            f"exactly like a missing stamp, never partially trusted "
+            f"(status must be recomputed by a real fetch attempt, never "
+            f"'rate_limited'). Got: {memory_line!r}"
+        )
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert fetch_calls, (
+            "an unrecognized schema_version must never rate-limit away a "
+            "real fetch attempt — expected a real refetch"
+        )
+
+
 # ── Test 3: pull directive (clean vs dirty tree) ────────────────────────
 
 
@@ -1082,6 +1219,20 @@ class TestFetchRateLimit:
 
         first_rc, _first_out, first_err = _run_boot(repo_a)
         assert first_rc == 0, f"seeding boot must succeed. stderr: {first_err}"
+
+        # Cerberus S4 (round 3, decision 787b698): without this, the
+        # "skip" assertion below could pass for the WRONG reason — e.g. a
+        # regression that makes fetch_memory_ref() short-circuit to
+        # skipped_gate (no toolkit memory detected) would also produce zero
+        # fetch calls, vacuously satisfying the assertion without the own
+        # stamp ever existing. Pin the actual seeding evidence directly.
+        stamp_path = os.path.join(repo_a, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_path), (
+            "setup sanity: the seeding boot's own successful fetch must "
+            "have written the own-success stamp — without this file, a "
+            "'no fetch calls observed' result below would prove nothing "
+            "about a genuine rate-limit skip"
+        )
 
         log_path = str(tmp_path / "fake_git_fresh_skip.jsonl")
         fake_bin = _make_fake_git(tmp_path, log_path)

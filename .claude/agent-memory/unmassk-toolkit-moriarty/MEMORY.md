@@ -5,31 +5,25 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
-Target: issue #60 (boot MEMORY stamp relabel, decision ceef426, commit d630e14) Round-Trip
-Sabotage (mandatory sect. 34). Real disposable repos in scratchpad (bare origin + bare unrelated
-remote + real clones), real hardened-fetch subprocess via `git_helpers.run_git`, real
-`hooks/session-start-boot.py` invoked twice in sequence as a subprocess, 2 independent read
-channels (stdout banner + persisted `boot-log-latest.txt`), zero manual FETCH_HEAD tampering in
-the winning PoCs. Verdict: FALLA (T1, Moriarty FALLA Rule -- round-trip check does not go red
-under sabotage). The relabel's `rate_limited` -> `MEMORY: remote (synced {age} ago)`
-(boot_git_checks.py:814-816) renders on bare FETCH_HEAD-mtime-age alone, no same-boot fetch exit
-code required -- and TWO fully realistic, zero-attacker scenarios make it lie:
-(1) origin unreachable from the start; boot #1 honestly says LOCAL/unverified, but its own
-FAILED fetch attempt truncates+refreshes FETCH_HEAD as a side effect; boot #2 seconds later,
-origin still dead, renders `MEMORY: remote (synced Ns ago)` -- no sync ever occurred.
-(2) origin never fetched even once (alive, untouched); a real successful `git fetch` of a
-totally unrelated second remote (simulating an IDE mirror/fork auto-fetch) touches FETCH_HEAD;
-the next boot renders the same false "remote (synced)" claim.
-Existing shipped test suite (96 tests, test_boot_freshness.py + _hardening.py) passes 100% green
-with both live breaks present -- confirmed gap: every hardening test's "first boot" is a
-genuinely SUCCESSFUL fetch before the remote breaks; none exercises a first boot whose OWN fetch
-attempt fails, then a second boot in-window. Contrast (correctly HELD, not a break): real
-successful fetch first, remote breaks after, second boot in-window -- "synced" is honest there,
-matches the shipped `TestRateLimitedStampSurvivesRemoteBreakage` tests exactly. Clock skew
-(future FETCH_HEAD mtime) and `history_related=False` short-circuit both verified unaffected/
-still correct. See attack-patterns.md for full mechanism + PoC detail.
+Target: issue #60 (boot MEMORY stamp) v2 re-attack (decision 90d096d, wip eb3e554) -- own-
+fetch-success-stamp (.claude/.unmassk/boot-fetch-stamp.json) replacing FETCH_HEAD-mtime as the
+freshness source. Real disposable repos (bare origins + real clones), real hook subprocess
+(hooks/session-start-boot.py), 2 independent read channels (stdout + boot-log-latest.txt), 8-way
+real concurrency, 20MB stress payload -- zero manual internal-function mocking. Verdict: FALLA
+(T1, Moriarty FALLA Rule -- round-trip check does not go red). Live EXPLOIT: the stamp binds
+identity by LOCAL ALIAS STRINGS ("origin"/"main"), never by remote URL or any repo-identity
+signal -- a stamp `cp`'d verbatim from an unrelated repo (same, extremely common, alias names)
+into a project whose own real origin is unreachable makes the boot claim `MEMORY: remote
+(synced 0s ago)` on both channels and skip its own real fetch entirely, no git operation
+required to plant it (unlike the v1 bug it replaced). Shipped suite (133 tests) stayed green
+throughout. Contrast (correctly HELD): vectors A/B/D re-verified fixed; stamp
+garbage/empty/wrong-fields/20MB-malformed content, symlink (file AND parent dir), hard link,
+future-mtime skew, 8-way concurrent real boots, detached HEAD/no-upstream/dead-remote/removed-
+remote, deleted-stamp-mid-window, and the legit happy-path round-trip all held correctly. See
+attack-patterns.md / resilience.md for full detail.
 
 ## Previous attack (older rounds, compact)
+- Issue #60 v1 relabel (decision ceef426, commit d630e14) -- FALLA, T1 Round-Trip Sabotage: bare FETCH_HEAD-mtime rate-limit rendered false `remote (synced)` both when the boot's OWN failed fetch refreshed FETCH_HEAD and when an unrelated remote's real successful fetch touched it; 96-test suite stayed green throughout. Led directly to v2 (own-stamp mechanism, see "Last attack" above for its own re-attack result).
 - Issue #59 (A2 token-fence infalsifiability, decision feed852) -- FALLA, 2 live T1 EXPLOITs (Unicode Cf invisible-format-char fence bypass in both user-prompt-memory-check.py and precompact-snapshot.py) + 1 T1 structural DECEPTION (nonce placed outside the actual trust boundary). See attack-patterns.md for detail.
 - Issue #57 round 2d FIRST pass (structural %h/%at/%n fix) -- DEBIL, 7/7 field-displacement
   sites held, 2 NEW exploits found then (NEL fence-splice, precompact plain-text delimiter

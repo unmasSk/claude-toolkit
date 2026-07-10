@@ -509,3 +509,16 @@ attacker's link that session).
   against unchanged repo state -- all rc=0, all correctly inject the real recall content, all
   show stdout.count("</memory-data>") == 1, all 10 fence-nonce: values are distinct
   (secrets.token_hex(8) is safe under real OS-level process concurrency).
+
+## Issue #60 v2 own-fetch-success-stamp hardening (2026-07-10, real repos + real hook subprocess)
+- Vector A re-run (failed fetch to dead/unreachable remote URL) → stamp never written, next boot within window still retries honestly (`fetched`/`LOCAL — unverified`, never `synced`). Held.
+- Vector B/D re-run (real successful fetch of an unrelated remote name, or of the SAME remote externally before the hook's own stamp exists) → own stamp untouched (write only happens inside `_run_hardened_fetch` after ITS OWN fetch), boot still performs its own real fetch. Held (matches shipped `test_vector_b_*`/`test_vector_d_*`).
+- Stamp content attacks: garbage JSON, empty file, valid JSON with wrong remote/branch strings, 20MB malformed JSON — all fall through to honest fetch, no crash, fast (`json.loads` on 20MB still sub-second).
+- Stamp as symlink to an external file (even with byte-identical correct-looking content) → rejected by `open_no_follow_symlink` on read (falls to honest fetch); on write, `verify_path_within_project` raises `UnsafePathError` on the resolved (through-symlink) destination → write silently no-ops, external target file confirmed untouched (no write-through-symlink).
+- Stamp as a hard link to an otherwise-correct stamp file → rejected via `reject_hardlinks=True` on read (st_nlink>1 check on the open fd). Falls to honest fetch.
+- `.claude/.unmassk` directory itself replaced with a symlink pointing outside the project root, with a real, reachable, tracked upstream (fetch WOULD succeed) → `verify_path_within_project` refuses both the stamp write and the boot-log write (`UnsafePathError`, caught, fail-open); nothing landed in the external target directory; boot still completes with the correct `fetched` status, exit 0, one stderr breadcrumb.
+- Future-mtime clock skew on the stamp (`touch -t 2030...`) → negative age computed, correctly NOT treated as fresh (falls through to a real fetch), matching the pre-existing FETCH_HEAD-skew contract.
+- 8 fully concurrent real boot subprocesses racing the SAME empty-stamp repo → all 8 completed, final stamp file is valid single JSON (no interleaving/truncation), zero leftover `mkstemp` temp files. atomic `mkstemp`+`os.replace` held under real concurrency.
+- Reordered `fetch_memory_ref()` (identity resolved before rate-limit) re-tested against detached HEAD, a branch with no upstream at all, a remote entirely removed (`git remote remove origin`), and a remote whose URL is unreachable — all correctly report `LOCAL — unverified`, exit 0, no crash, no stamp written, no false "remote" claim.
+- Stamp deleted between two boots (mid-window) → next boot degrades cleanly to a real fetch (`fetched`), not a crash or a stale cached claim.
+- Happy path (real fetch OK, second boot <300s) → `MEMORY: remote (synced Ns ago)`, confirmed via two independent channels (stdout banner + persisted `boot-log-latest.txt`). Not broken by the v2 change.

@@ -375,6 +375,97 @@ class TestFetchMemoryRefStates:
         assert fetch_records, "the fake git was never invoked for fetch — cannot verify the timeout was exercised"
 
 
+# ── _read_own_stamp_age: malformed-evidence PINNING (Cerberus S3, round 3) ──
+
+
+class TestReadOwnStampAgeDirectCalls:
+    """Cerberus S3 (round 3, decision 787b698): `_read_own_stamp_age()`
+    already promises, in its own docstring, to collapse several malformed-
+    evidence shapes to None — corrupt JSON, wrong top-level shape (not a
+    dict), a symlink planted at the stamp path, a hard link at the stamp
+    path — but nothing pinned those promises directly before this pass.
+
+    All 4 tests are PINNING, not contract: they are expected to be GREEN
+    from the very first run. The underlying guards already exist in the
+    code as written — json.loads()'s ValueError, the isinstance(dict)
+    check, and open_no_follow_symlink()'s O_NOFOLLOW +
+    reject_hardlinks=True. This class exists so a future regression in any
+    of those guards fails loudly here, at the unit level, instead of only
+    being noticed indirectly through a full-boot behavior test.
+
+    Direct calls, no chdir/subprocess needed — _read_own_stamp_age()
+    takes an explicit project_root and doesn't touch git at all, so a
+    plain directory (not even a git repo) is sufficient.
+    """
+
+    @staticmethod
+    def _stamp_repo(tmp_path, name="stamp_repo"):
+        repo = str(tmp_path / name)
+        unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
+        os.makedirs(unmassk_dir, exist_ok=True)
+        return repo, os.path.join(unmassk_dir, boot_git_checks._OWN_STAMP_FILENAME)
+
+    def test_corrupt_json_returns_none(self, tmp_path):
+        repo, stamp_path = self._stamp_repo(tmp_path)
+        with open(stamp_path, "w", encoding="utf-8") as f:
+            f.write("{not valid json::")
+
+        age = boot_git_checks._read_own_stamp_age(repo, "origin", "main")
+        assert age is None
+
+    def test_wrong_shape_list_returns_none(self, tmp_path):
+        repo, stamp_path = self._stamp_repo(tmp_path)
+        with open(stamp_path, "w", encoding="utf-8") as f:
+            json.dump(["origin", "main"], f)
+
+        age = boot_git_checks._read_own_stamp_age(repo, "origin", "main")
+        assert age is None
+
+    def test_symlink_planted_returns_none(self, tmp_path):
+        repo, stamp_path = self._stamp_repo(tmp_path)
+        victim = tmp_path / "victim_stamp.json"
+        victim.write_text(
+            json.dumps(
+                {
+                    "schema_version": boot_git_checks._OWN_STAMP_SCHEMA_VERSION,
+                    "remote": "origin",
+                    "branch": "main",
+                }
+            ),
+            encoding="utf-8",
+        )
+        if os.path.lexists(stamp_path):
+            os.remove(stamp_path)
+        try:
+            os.symlink(str(victim), stamp_path)
+        except OSError:
+            pytest.skip("real symlink privilege not available in this environment")
+
+        age = boot_git_checks._read_own_stamp_age(repo, "origin", "main")
+        assert age is None
+
+    def test_hard_link_returns_none(self, tmp_path):
+        repo, stamp_path = self._stamp_repo(tmp_path)
+        victim = tmp_path / "victim_stamp_hardlink.json"
+        victim.write_text(
+            json.dumps(
+                {
+                    "schema_version": boot_git_checks._OWN_STAMP_SCHEMA_VERSION,
+                    "remote": "origin",
+                    "branch": "main",
+                }
+            ),
+            encoding="utf-8",
+        )
+        try:
+            os.link(str(victim), stamp_path)
+        except OSError:
+            pytest.skip("hard-link creation not available in this environment (e.g. cross-device tmp_path)")
+
+        age = boot_git_checks._read_own_stamp_age(repo, "origin", "main")
+        assert age is None
+
+
 # ── get_ahead_behind: every branch, including one genuine bug found ──────
 
 
