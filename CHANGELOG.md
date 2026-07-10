@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.3] - 2026-07-11
+
 ### Fixed
 
 - **Boot `MEMORY:` stamp no longer labels fresh memory as a failure** (issue #60): when the boot's background fetch was skipped because memory was already confirmed synced within the last 5 minutes, the banner read `MEMORY: LOCAL — fetch skipped (rate-limit, Ns ago)` — worded as a failure even though memory was genuinely fresh. That state now renders `MEMORY: remote (synced Ns ago)`, grouped with `remote (fetched Ns ago)` as a confirmed-fresh state; `LOCAL` is reserved for real failures (no fetch this boot, no remote, never synced).
