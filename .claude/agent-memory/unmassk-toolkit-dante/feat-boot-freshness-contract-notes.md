@@ -572,3 +572,98 @@ breaking) would ALSO produce zero fetch calls in boot #2 — the pre-existing
 "no fetch calls observed" assertion alone can't tell a genuine rate-limit
 skip apart from a differently-broken skip. Confirmed still GREEN after the
 addition (the seeding boot genuinely does write the stamp today).
+
+## Issue #60 v4 — alias-fallback URL is not identity, RED contract (session 2026-07-10, decision 174d82b)
+
+Moriarty round 3 broke the v3 guard (`TestOwnStampIdentityIncludesRemoteURL`
+above) from a different angle: `git remote set-url origin ""` leaves the
+fetch refspec in place but empties `remote.origin.url`; `git remote
+get-url origin` then falls back and prints the remote's own NAME
+("origin") as if it were a URL, exit 0 — `_check_remote_is_live()`
+(`lib/boot_git_checks.py:668`) only rejects empty/option-shaped
+`get-url` output (`_looks_like_git_option`), so "origin" sails through as
+"resolved identity". Decision 174d82b: a "resolved" URL identical to the
+remote's own alias must collapse to the SAME "not resolved" bucket as
+`git remote get-url` failing outright — no confidence, ever, no stamp
+write.
+
+**Empirical pre-check (mandatory before writing the test, done via raw
+shell in scratch, not the suite) confirmed two non-obvious mechanics**,
+both load-bearing for the fixture:
+1. With the URL emptied, `git fetch origin -- <branch>` (the EXACT argv
+   `_run_hardened_fetch()` uses, including the positional branch) only
+   succeeds if a directory literally named `origin` exists in the fetch's
+   `cwd` (= `project_root`) AND that directory has the target branch ref
+   — git's own fallback treats the empty-URL remote's positional name as
+   a relative path. An empty bare repo at `origin/` is NOT enough (`fatal:
+   couldn't find remote ref main`); it must be seeded with a commit on
+   that branch first.
+2. **The trap directory's history must be a real continuation of the
+   test repo's OWN history** (built via `git clone --bare <this repo's
+   own real bare remote> origin`, not an unrelated freshly-seeded repo).
+   An unrelated trap's content diverges from local HEAD, and
+   `check_upstream_shares_history()` (the pre-existing #49/Moriarty-T2
+   guard) then renders `"MEMORY: LOCAL — upstream unrelated (no shared
+   history), not shown"` — which incidentally also doesn't say "remote
+   (synced", MASKING the alias-fallback vector behind a different,
+   already-fixed guard instead of exercising it. Caught by literally
+   running the fixture by hand and reading the rendered line before
+   writing any assertion — first attempt used an unrelated trap and the
+   masking was silent (test would have been RED for the wrong reason, or
+   worse, accidentally green post-fix without ever proving anything).
+
+New helpers (`tests/test_boot_freshness.py`, module level, right before
+the new class): `_degenerate_remote_url_to_alias(repo, remote_name=
+"origin")` (`git remote set-url <name> ""`), `_plant_alias_named_trap
+(repo, bare, alias="origin")` (bare-clones `bare` — the repo's OWN real
+remote — into `repo/<alias>`).
+
+New class `TestAliasFallbackURLIsNotResolvedIdentity` (2 tests, real
+subprocess §34, inserted right after `TestOwnStampIdentityIncludesRemoteURL`):
+
+- **PoC A→Z** (`test_stamp_written_via_alias_fallback_is_not_trusted_by_an_unrelated_repo`):
+  X degenerated + alias-trap planted → real boot writes a real stamp
+  (setup-sanity-asserted: `remote_url == "origin"`, proves the write-path
+  bug is genuinely reproduced, not hypothetical) → stamp bytes copied
+  verbatim into unrelated Z (own different bare remote, ALSO degenerated
+  the same way per Moriarty's literal PoC shape, deliberately NO trap of
+  its own — the more severe half) → boot Z inside the window must not
+  say "remote (synced" on EITHER channel (combined stdout+log, and the
+  persisted log FILE alone — same double-channel convention as every
+  other test in this file family).
+- **Vector B, write-side self-consistency**
+  (`test_own_alias_fallback_stamp_never_rate_limits_a_second_boot_of_the_same_repo`):
+  no cross-repo copy at all — X degenerated + trapped, boot #1 writes the
+  bogus stamp, boot #2 of the SAME repo (still degenerate+trapped, still
+  inside the window) must also not say "remote (synced" — the decision
+  text explicitly frames this as "sin confianza... nunca... y sin
+  escritura de stamp", i.e. the guard belongs at URL-resolution time
+  (`_check_remote_is_live`), which would make it fire identically for a
+  repo checking against its OWN prior stamp, not only against a foreign
+  one.
+
+**Deliberately did NOT assert on fetch-call counts (fake-git log) in
+either new test**, unlike the sibling `TestOwnStampIdentityIncludesRemoteURL`
+tests above. Reasoning worked through before writing: the natural fix
+location (`_check_remote_is_live`, called from `_resolve_fetch_target`,
+BEFORE `_check_own_stamp_rate_limit`/`_run_hardened_fetch` ever run) is
+the same function that already returns an early "no_remote" result when
+`git remote get-url` fails outright — extending that same early-return to
+the alias-fallback case means NO fetch attempt happens at all once fixed
+(fails closed at resolution time, like the dead-remote branch), not "a
+fetch is attempted and merely not trusted" like the v3 cross-repo vector.
+Asserting `fetch_calls` non-empty here would very likely start failing
+against the CORRECT fix — asserted only the unambiguous, orchestrator-
+specified observable (the MEMORY: line, both channels).
+
+RED confirmed exactly as predicted: `python3 -m pytest tests/
+test_boot_freshness.py tests/test_boot_freshness_hardening.py tests/
+test_boot_freshness_regression.py -q` → 2 failed (only the 2 new tests,
+clean `AssertionError`s: `'MEMORY: remote (synced 0s ago)'` present when
+the assertion requires its absence) + 139 passed + 2 skipped (same
+pre-existing Windows-only guards). v1/v2/v3 contract (relabel wording,
+own-stamp Vectors A/B/D, rate-limit boundaries, cross-repo dead/foreign-URL
+identity, schema_version) untouched and still fully green. Exit code
+checked directly (no `| tail`/`| head`), per this repo's hard rule.
+Production code (`lib/boot_git_checks.py`, `lib/boot_fetch_stamp.py`)
+untouched by this pass — test file only.

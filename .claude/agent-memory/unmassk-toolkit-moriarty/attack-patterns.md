@@ -703,3 +703,43 @@
 - `check_upstream_shares_history()` (merge-base check in `session-start-boot.py main()`) does NOT catch this: it validates the LOCAL remote-tracking ref's own git ancestry, never the stamp file's claimed identity — the two mechanisms don't intersect.
 - Round-Trip Sabotage (§34): shipped suite (`test_boot_freshness*.py`, 133 tests) stayed 100% green with this live gap present — confirmed by running it. Vectors A/B/D (unrelated remote NAME, external-origin-fetch migration) ARE tested and DO hold; same-name-different-repo stamp forgery is not covered by any test.
 - Verdict when found: T1, Moriarty FALLA Rule (round-trip check did not go red under sabotage).
+
+## Issue #60 v3 (787b698): `git remote get-url` falls back to the literal remote NAME when `remote.<name>.url` is unset/empty -- collapses the "real URL" identity signal back to the alias it was built to replace
+- Live-confirmed (git 2.50.1, macOS): `git remote set-url origin ""` (one ordinary, non-adversarial
+  command -- also reachable via `git config --unset remote.origin.url`, or any script that does
+  `git remote set-url origin "$VAR"` with an empty `$VAR`) leaves `remote.origin.fetch` intact but
+  `url` empty/absent. `git remote get-url origin` STILL exits 0 and prints the literal string
+  `"origin"` (the remote's own alias) instead of erroring or returning empty.
+- `boot_git_checks._check_remote_is_live()` (lib/boot_git_checks.py:704-709) only rejects an empty
+  string or a leading-dash value (`_looks_like_git_option`) -- a URL that is non-empty, doesn't
+  start with `-`, but happens to equal the remote's own alias name passes through as a legitimate,
+  resolved `remote_url`, exactly as if it were a real URL.
+- End-to-end exploit, both channels real (no internal mocking): repoX (real clone of bare-A.git,
+  `remote.origin.url` unset, a relative-path dir literally named `origin` present so the REAL
+  `git fetch origin -- main` succeeds) -> hook writes a genuine stamp with `remote_url: "origin"`.
+  repoZ (real clone of an UNRELATED bare-B.git, own unrelated commit content, ALSO
+  `remote.origin.url` unset via the same ordinary command, NO local "origin" dir needed at all on
+  this side) -> copying repoX's stamp into repoZ and running the real hook produces
+  `MEMORY: remote (synced 0s ago)` on BOTH stdout and boot-log-latest.txt, with zero real fetch
+  ever attempted against repoZ's actual remote. Reopens EXACTLY the "template/backup/dotfiles-sync
+  stamp copy" threat model that decision 787b698 explicitly named as v3's reason to exist.
+- Root: lib/boot_git_checks.py:704-709 `_check_remote_is_live()` -- `_looks_like_git_option()`
+  (lib/boot_git_checks.py:557-574) does not reject a URL value that is identical to the remote's
+  own alias name; that degenerate value is indistinguishable, downstream, from a genuine URL.
+- What HELD in the same round (v3's URL identity fix does work for the cases it targets): a stamp
+  cp'd verbatim between two repos with a REAL, distinct configured URL (the exact v2 PoC replayed)
+  is correctly rejected -> honest fetch. URL string variants that a human would call "the same
+  remote" (trailing slash, duplicated .git suffix, uppercased, embedded user@ credentials) are all
+  correctly treated as non-matching (literal `!=` compare, no normalization anywhere) -> always an
+  extra honest fetch, never a false positive in that direction. `_read_stamp_age_by_alias_only()`
+  traced to its one real call site (`_check_remote_is_live`'s dead-remote branch) -- confirmed live
+  it can only ever feed the "no_remote"/"LOCAL -- unverified" wording, never rate_limited/synced.
+  schema_version edge cases (v1-legacy shape, string/null/list) all collapse to "absent stamp,
+  honest fetch" with zero crashes (pure `!=` comparison, never int()-cast). A literal embedded
+  newline + NUL + ANSI escape crammed into remote_url round-trips through json.dumps/json.loads
+  byte-for-byte with proper JSON escaping -- remote_url is never passed to any git subprocess argv
+  (only remote_name/remote_branch are, and those are constrained by git's own ref-name validation
+  upstream) and never rendered to any output surface, so no injection/spoofing path exists for it.
+  Module-split regression (symlink stamp file, symlink .claude/.unmassk parent, 8-way concurrent
+  real boots, corrupt JSON, future-mtime clock skew, 5MB pathological remote_url) -- all 6 held
+  exactly as round 2 already established, confirming the Cerberus S2 file-split didn't regress them.
