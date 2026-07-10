@@ -536,11 +536,27 @@ class TestRateLimitedStampSurvivesRemoteBreakage:
         fetched successfully — this repo HAD a good fetch before the
         remote broke). Checked on both channels: stdout+log combined AND
         the persisted boot-log-latest.txt FILE alone.
-        """
-        repo_a, fetch_head = self._seed_good_fetch_then_break_remote(tmp_path)
 
+        v1->v2 RE-BASE (issue #60 AMENDMENT v2, decision 90d096d): the
+        "age evidence" aged past the window is now the boot's own success
+        stamp (`.claude/.unmassk/boot-fetch-stamp.json`), not
+        .git/FETCH_HEAD — only the seeding mechanic (which file os.utime()
+        targets) changed; the remote (still named "origin", only its URL
+        breaks) is unchanged between the seeding fetch and the second boot,
+        so the stamp's remote/branch identity still matches and its age is
+        genuinely preserved and reported, exactly as this test's semantic
+        assertion (LOCAL/unverified with the LAST-known age, not "never
+        synced") already required.
+        """
+        repo_a, _fetch_head = self._seed_good_fetch_then_break_remote(tmp_path)
+
+        stamp_path = os.path.join(repo_a, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_path), (
+            "setup sanity: the seeding boot's real successful fetch must "
+            "have written the own-success stamp"
+        )
         stale_time = time.time() - (RATE_LIMIT_WINDOW_SECONDS + 300)
-        os.utime(fetch_head, (stale_time, stale_time))
+        os.utime(stamp_path, (stale_time, stale_time))
 
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a, timeout=20)
         assert rc == 0, f"boot must fail open even when the refetch fails. stderr: {stderr}"
@@ -1034,58 +1050,82 @@ class TestFetchGateSkipsWithoutToolkitMemory:
 
 
 class TestFetchRateLimit:
-    """Plan Task 1 test 6 — .git/FETCH_HEAD's mtime gates whether the
-    boot's fetch actually runs: fresh (< 300s old) must skip it, stale
-    (>= 300s old) must run it. Verified by observing whether FETCH_HEAD's
-    mtime is touched by the boot at all.
+    """Plan Task 1 test 6 — the rate-limit gate skips the boot's fetch when
+    there is fresh evidence of a prior own successful sync, and runs it
+    when that evidence is stale or absent.
 
-    RED today: there is no rate-limit at all — the existing fetch call
-    runs unconditionally on every boot, so FETCH_HEAD's mtime always
-    advances regardless of how recent the previous fetch was.
+    v1->v2 RE-BASE (issue #60 AMENDMENT v2, decision 90d096d, session
+    2026-07-10): the evidence source moved from .git/FETCH_HEAD's mtime
+    (touched by ANY git fetch, including a raw one bypassing the hook) to
+    the boot's own success stamp (written ONLY by a real boot's own
+    successful fetch — see lib/boot_git_checks.py's
+    TestOwnSuccessStampNotFetchHeadMtime class in this file). The seeding
+    mechanic in both tests below changed accordingly (a raw `git fetch
+    origin`, bypassing the hook, no longer counts as evidence at all —
+    that exact shape is Vector D's own contract now) and the "skipped"
+    assertion is verified via the fake-git call log instead of FETCH_HEAD's
+    mtime (v2 does not read or care about that file at all anymore). The
+    SEMANTIC each test pins is unchanged: fresh evidence -> skip re-fetch;
+    stale evidence -> re-fetch for real.
     """
 
-    def _fetch_head_path(self, repo):
-        return os.path.join(repo, ".git", "FETCH_HEAD")
-
-    def _seed_fetch_head(self, repo_a):
-        """Perform one real fetch (outside the hook, directly via git) so
-        FETCH_HEAD exists, then return its path for the test to
-        manipulate the mtime of.
-        """
-        _git(["fetch", "origin"], repo_a)
-        path = self._fetch_head_path(repo_a)
-        assert os.path.isfile(path), "FETCH_HEAD must exist after a real fetch"
-        return path
-
     def test_fresh_fetch_head_skips_fetch(self, tmp_path):
+        """Re-based seeding: a full real boot (through the hook) is the
+        only thing that can write a valid own-success stamp under v2, so
+        seed via one real boot cycle first (its real successful fetch
+        writes the stamp), then assert the immediately-following boot
+        (well inside the 300s window) skips re-fetching entirely — checked
+        via the fake-git invocation log, since FETCH_HEAD's mtime is no
+        longer the observable signal.
+        """
         repo_a, bare = _setup_freshness_repo(tmp_path)
-        fetch_head = self._seed_fetch_head(repo_a)
-        fresh_mtime = os.path.getmtime(fetch_head)
 
-        _run_boot(repo_a)
+        first_rc, _first_out, first_err = _run_boot(repo_a)
+        assert first_rc == 0, f"seeding boot must succeed. stderr: {first_err}"
 
-        assert os.path.getmtime(fetch_head) == fresh_mtime, (
-            "a FETCH_HEAD younger than the rate-limit window must not be "
-            "touched by the boot's fetch (it must be skipped)"
+        log_path = str(tmp_path / "fake_git_fresh_skip.jsonl")
+        fake_bin = _make_fake_git(tmp_path, log_path)
+        env = {"PATH": fake_bin + os.pathsep + os.environ.get("PATH", "")}
+
+        rc, stdout, stderr = run_script(BOOT_HOOK, repo_a, env=env, timeout=20)
+        assert rc == 0, f"boot must fail open. stderr: {stderr}"
+
+        records = _read_fake_git_log(log_path)
+        fetch_calls = [r for r in records if r["args"] and r["args"][0] == "fetch"]
+        assert not fetch_calls, (
+            "a boot within the rate-limit window, with a valid own-success "
+            "stamp from the previous boot, must skip re-fetching entirely"
         )
 
     def test_stale_fetch_head_runs_fetch(self, tmp_path):
+        """Re-based seeding: seed via one real boot cycle (writes the own
+        stamp), then age the STAMP FILE itself past the 300s window
+        (instead of FETCH_HEAD) — the stale evidence must force a real
+        refetch, provably refreshing the stamp file's own mtime, and the
+        MEMORY: freshness stamp must still appear.
+        """
         repo_a, bare = _setup_freshness_repo(tmp_path)
-        fetch_head = self._seed_fetch_head(repo_a)
+
+        first_rc, _first_out, first_err = _run_boot(repo_a)
+        assert first_rc == 0, f"seeding boot must succeed. stderr: {first_err}"
+
+        stamp_path = os.path.join(repo_a, ".claude", ".unmassk", "boot-fetch-stamp.json")
+        assert os.path.isfile(stamp_path), (
+            "setup sanity: the seeding boot's real successful fetch must "
+            "have written the own-success stamp"
+        )
         stale_time = time.time() - (RATE_LIMIT_WINDOW_SECONDS + 300)
-        os.utime(fetch_head, (stale_time, stale_time))
+        os.utime(stamp_path, (stale_time, stale_time))
 
         rc, stdout, stderr, log_content, combined = _run_boot_combined(repo_a)
+        assert rc == 0, f"stderr: {stderr}"
 
-        assert os.path.getmtime(fetch_head) > stale_time + 60, (
-            "a FETCH_HEAD older than the rate-limit window must be "
-            "refreshed by the boot's fetch"
+        assert os.path.getmtime(stamp_path) > stale_time + 60, (
+            "a stamp older than the rate-limit window must be refreshed by "
+            "the boot's real refetch"
         )
-        # Tied to the freshness stamp (test 2) so this remains a genuine
-        # RED today even though the mtime assertion above already holds
-        # against the current (always-fetch) implementation.
         assert "MEMORY:" in combined, (
-            f"a fresh fetch (stale-FETCH_HEAD case) must show the MEMORY: "
+            f"a fresh fetch (stale-stamp case) must show the MEMORY: "
             f"freshness stamp.\n{combined}"
         )
 

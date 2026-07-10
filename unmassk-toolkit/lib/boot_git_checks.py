@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from typing import NamedTuple
@@ -38,6 +39,22 @@ except ImportError:
     # T3-1 (Cerberus): shared fallback, not a second hand-copied
     # reimplementation — see lib/_symlink_safe_open.py.
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
+
+try:
+    # Issue #60 AMENDMENT v2 (decision 90d096d): the boot's own fetch-
+    # success stamp (see the block above _run_hardened_fetch()) is written
+    # under .claude/.unmassk/, so it needs the same symlinked-parent guard
+    # (verify_path_within_project) and canonical directory-creation helper
+    # (ensure_runtime_dir) every other generated file under that directory
+    # already uses. Imported defensively for the same reason as
+    # open_no_follow_symlink above — tests/test_migrate_statusline.py stubs
+    # git_helpers with a minimal fake module that predates these helpers;
+    # None here means "stamp read/write is a no-op", the correct fail-open
+    # behavior for a best-effort freshness optimization.
+    from git_helpers import ensure_runtime_dir, verify_path_within_project
+except ImportError:
+    ensure_runtime_dir = None
+    verify_path_within_project = None
 
 
 # Commits since last context(consolidation) before warning.
@@ -438,7 +455,7 @@ def render_consolidation_section() -> list[str]:
 # hooks/session-start-boot.py. Fail-open on every branch: this module must
 # never let a hung, prompting, or absent remote delay or break the boot.
 
-FETCH_RATE_LIMIT_SECONDS = 300  # skip the fetch if .git/FETCH_HEAD is younger than this
+FETCH_RATE_LIMIT_SECONDS = 300  # skip the fetch if the own success stamp (see below) is younger than this
 FETCH_TIMEOUT_SECONDS = 10  # bounded timeout, raised from 3s (decision b2a32b9): 3s let the
 # fetch time out under normal network conditions, leaving boot to read a stale local
 # briefing instead of origin's fresh one (resolve_boot_memory() only picks up origin
@@ -446,17 +463,34 @@ FETCH_TIMEOUT_SECONDS = 10  # bounded timeout, raised from 3s (decision b2a32b9)
 # ordinary network — still a bounded timeout, boot never hangs indefinitely; fail-open
 # on every branch is unchanged.
 
-# Known residual (Argus SEC-LOW-001, accepted deliberately, not a bug):
-# .git/FETCH_HEAD's mtime is plain local filesystem state, writable by
-# anything with repo access (touch, a crafted checkout, clock changes).
-# The rate limit above and _fetch_head_age_seconds() below trust it as-is.
-# This is intentional — the gate exists purely to avoid redundant network
-# fetches on every boot, not to prove or enforce when a fetch last really
-# happened. A tampered/backdated mtime can only ever cause an extra (or
-# skipped) fetch attempt; every actual freshness claim in the rendered
-# stamp still comes from the fetch's own real exit code, never from this
-# timestamp. Treat it as a best-effort optimization, not a security
-# control.
+# Historical residual (Argus SEC-LOW-001, issue #49) + restored invariant
+# (issue #60 AMENDMENT v2, decision 90d096d): .git/FETCH_HEAD's mtime is
+# plain local filesystem state, writable by anything with repo access
+# (touch, a crafted checkout, clock changes, ANY git fetch to ANY remote —
+# not just this project's own memory upstream), and even a FAILED fetch
+# truncates+refreshes it. Issue #60's v1 relabel briefly let this mtime
+# feed a real freshness CLAIM (`MEMORY: remote (synced ... ago)`) — Cerberus
+# flagged that this directly contradicted the invariant this comment used
+# to state ("every actual freshness claim ... never from this timestamp"),
+# and Moriarty confirmed it live (T1): a failed fetch, or a successful
+# fetch of an unrelated remote, both produced a false "synced" claim.
+#
+# v2 (this state) restores the invariant for real, by changing the SOURCE
+# instead of layering a comparison on top of the same untrustworthy file:
+# FETCH_HEAD is no longer read AT ALL by the gate or the rendered stamp —
+# `_fetch_head_age_seconds()`, the old reader, has been removed entirely
+# (not just stopped-being-called; see "no dead code"). The rate limit and
+# the "synced Ns ago" wording now read ONLY `_read_own_stamp_age()`'s own
+# success record (`.claude/.unmassk/boot-fetch-stamp.json`, gitignored,
+# per-machine — see the block above `_run_hardened_fetch()`), written
+# EXCLUSIVELY by this module after ITS OWN `git fetch` against the resolved
+# memory upstream exits 0, and keyed to that exact remote/branch (a
+# mismatch is treated as "no evidence at all", closing the unrelated-remote
+# vector too). A tampered/backdated stamp file can still only ever cause an
+# extra (or skipped) fetch attempt — same fail-open philosophy as before —
+# but a false "synced" claim now requires forging THIS project's own
+# success record, not just touching a file every git operation on the
+# machine already touches as a side effect.
 
 # GIT_TERMINAL_PROMPT=0 + neutralized askpass + BatchMode=yes: guarantees the
 # boot-time fetch can never hang on an interactive credential prompt.
@@ -598,43 +632,193 @@ def _has_toolkit_memory(project_root: str) -> bool:
         return False
 
 
-def _fetch_head_age_seconds(project_root: str) -> float | None:
-    """Seconds since .git/FETCH_HEAD's mtime, or None if it doesn't exist."""
-    fetch_head = os.path.join(project_root, ".git", "FETCH_HEAD")
+# ── Own fetch-success stamp (issue #60 AMENDMENT v2, decision 90d096d) ──
+#
+# Replaces .git/FETCH_HEAD's mtime as the ONLY source for the rate-limit
+# gate and the rendered "synced Ns ago" wording — see the SEC-LOW-001
+# comment block above FETCH_RATE_LIMIT_SECONDS for the full history/
+# rationale. Written EXCLUSIVELY by _run_hardened_fetch() immediately after
+# ITS OWN `git fetch` against the resolved memory upstream (remote_name/
+# remote_branch, from `@{u}`) exits 0 — never by any other code path.
+
+_OWN_STAMP_FILENAME = "boot-fetch-stamp.json"
+_OWN_STAMP_SCHEMA_VERSION = 1
+
+
+def _own_stamp_path(project_root: str) -> str | None:
+    """Resolve the own-success-stamp path, verified to stay inside
+    project_root (SEC-HIGH-003 pattern: a symlinked .claude parent must not
+    let this escape the repo). Returns None on any resolution failure —
+    including the test-stub window where verify_path_within_project itself
+    could not be imported — callers must treat None exactly like "no
+    stamp", fail-open toward fetching.
+    """
+    if verify_path_within_project is None:
+        return None
+    path = os.path.join(project_root, ".claude", ".unmassk", _OWN_STAMP_FILENAME)
     try:
-        return time.time() - os.path.getmtime(fetch_head)
+        return verify_path_within_project(path, project_root)
     except OSError:
         return None
 
 
-def _fetch_gate_and_rate_limit(project_root: str) -> tuple[dict | None, float | None]:
-    """Gate + rate-limit check, the first two early-exit conditions of
-    fetch_memory_ref(). Returns (early_result, age): `early_result` is not
-    None when the caller must return it immediately (toolkit memory not
-    installed, or still inside the rate-limit window); `age` is FETCH_HEAD's
-    current age either way, reused by every later "failed"/"no_remote"
-    return so it's computed only once.
+def _read_own_stamp_age(project_root: str, remote_name: str, remote_branch: str) -> float | None:
+    """Age (seconds) of this project's own last confirmed-successful fetch
+    against `remote_name`/`remote_branch`, or None when there is no valid
+    evidence: no stamp file, a symlink planted at the stamp path, an
+    unreadable/corrupt/empty/malformed-JSON file, or a stamp recorded for a
+    DIFFERENT remote/branch than the one currently resolved. That last case
+    is deliberate (Moriarty's Vector B/D): an ambient fetch of a foreign
+    remote, or a stale stamp surviving a `git remote rename`/upstream
+    switch, must never be read as evidence for the CURRENT upstream — a
+    mismatch collapses to the exact same "no evidence" outcome as a missing
+    file.
 
-    Moriarty #1 (clock skew): a NEGATIVE age means FETCH_HEAD's mtime is in
-    the FUTURE relative to this machine's clock (a real scenario across
-    multiple machines with unsynced clocks) — that is NOT freshness, it's a
-    broken measurement. Treating it as "fresh" would permanently suppress
-    every future fetch on this machine. Only a genuine non-negative age
-    inside the window counts as rate-limited; a negative age falls through
-    and forces a real fetch attempt instead.
+    Age is the STAMP FILE'S OWN mtime, fstat'd on the already-open
+    descriptor (never a separate os.path.getmtime() call afterwards — that
+    would reopen a TOCTOU gap between the symlink-safety check and the
+    measurement this function replaces FETCH_HEAD's mtime with). Never
+    derived from any field inside the JSON content, and never from
+    .git/FETCH_HEAD. Mirrors the exact clock-skew contract the old
+    FETCH_HEAD-mtime gate had: a negative age (this machine's clock behind
+    the stamp's mtime, or any other reason the mtime reads as "future") is
+    returned as-is, never clamped to 0 or treated as fresh —
+    `_check_own_stamp_rate_limit()`'s own `0 <= age < window` check is what
+    rejects it as "not rate-limited", exactly as it did for FETCH_HEAD
+    (Moriarty #1).
+
+    Never raises — every expected failure mode (missing file, symlink,
+    permission error, malformed JSON, wrong shape) collapses to None.
     """
-    if not _has_toolkit_memory(project_root):
-        return {"status": "skipped_gate", "age_seconds": None}, None
+    path = _own_stamp_path(project_root)
+    if path is None:
+        return None
+    try:
+        # Symlink-safe read (SEC-CRIT-001/SEC-MED-NEW-02 pattern, same as
+        # every other generated-file reader in this codebase): a symlink
+        # planted at this path must be rejected exactly like "no stamp",
+        # never followed. reject_hardlinks=True — this file is
+        # toolkit-generated-only (never a legitimate user file), same
+        # rationale as glossary-cache.json's read guard
+        # (lib/boot_glossary_cache.py).
+        with open_no_follow_symlink(path, "r", reject_hardlinks=True) as f:
+            mtime = os.fstat(f.fileno()).st_mtime
+            content = f.read()
+        data = json.loads(content)
+        if (
+            not isinstance(data, dict)
+            or data.get("remote") != remote_name
+            or data.get("branch") != remote_branch
+        ):
+            return None
+        return time.time() - mtime
+    except (OSError, ValueError, TypeError):
+        # OSError: missing file / symlink / hard link / permission error.
+        # ValueError: json.JSONDecodeError (a ValueError subclass) for
+        # corrupt/empty content. TypeError: defense-in-depth for a
+        # malformed .get() target. Fail-open toward fetching in every case
+        # — this stamp is a best-effort optimization, never a trust boundary
+        # (same philosophy the old FETCH_HEAD-mtime comment documented).
+        return None
 
-    age = _fetch_head_age_seconds(project_root)
+
+def _write_own_stamp(project_root: str, remote_name: str, remote_branch: str) -> None:
+    """Record a confirmed-successful fetch against remote_name/remote_branch.
+    Called ONLY by _run_hardened_fetch(), immediately after its real `git
+    fetch` exits 0.
+
+    Atomic (temp file + os.replace): a crash or a concurrent boot mid-write
+    can never leave a truncated/partial stamp for the next read to trip
+    over. os.replace() itself never follows a symlink planted at the
+    DESTINATION — it unlinks/relinks the directory entry, exactly like
+    every atomic rename — which is what makes the destination side of this
+    write symlink-safe by construction, unlike a plain open(path, "w")
+    would be (Windows-safe too: os.replace() has been atomic on Windows
+    since Python 3.3, unlike the older os.rename()). The temp file is
+    created via tempfile.mkstemp() in the SAME directory (same filesystem,
+    so the final os.replace() is atomic across POSIX and Windows alike) —
+    mkstemp()'s own O_EXCL-based creation at a randomly-generated name is
+    already immune to a pre-planted symlink, so a separate
+    open_no_follow_symlink() call is not needed for the temp file itself
+    (it IS needed, and used, for every READ of the final path — see
+    _read_own_stamp_age() above).
+
+    Never raises (fail-open, same contract as the rest of this module) —
+    any failure here must never break the boot or mask the fetch's own
+    real success.
+    """
+    if ensure_runtime_dir is None or verify_path_within_project is None:
+        return
+    tmp_path = None
+    try:
+        runtime_dir = ensure_runtime_dir(project_root)
+        final_path = verify_path_within_project(
+            os.path.join(runtime_dir, _OWN_STAMP_FILENAME), project_root
+        )
+        payload = json.dumps({
+            "schema_version": _OWN_STAMP_SCHEMA_VERSION,
+            "remote": remote_name,
+            "branch": remote_branch,
+            # Debug-only, human-readable — the canonical age signal is
+            # ALWAYS the final file's own mtime (see _read_own_stamp_age()'s
+            # docstring); this field is never read back for that purpose.
+            "written_at": datetime.now(timezone.utc).isoformat(),
+        })
+        fd, tmp_path = tempfile.mkstemp(
+            dir=runtime_dir, prefix=f".{_OWN_STAMP_FILENAME}.", suffix=".tmp"
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, final_path)
+        tmp_path = None  # replaced — no longer ours to clean up
+        try:
+            os.chmod(final_path, 0o600)
+        except OSError:
+            pass
+        from git_helpers import ensure_gitignore
+        ensure_gitignore(project_root)
+    except (OSError, ValueError, TypeError):
+        pass
+    finally:
+        if tmp_path is not None:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _check_own_stamp_rate_limit(
+    project_root: str, remote_name: str, remote_branch: str
+) -> tuple[dict | None, float | None]:
+    """Rate-limit check against the own success stamp (replaces the old
+    FETCH_HEAD-mtime half of _fetch_gate_and_rate_limit — the
+    toolkit-memory-installed half of that gate now lives inline at the top
+    of fetch_memory_ref(), since it doesn't depend on the resolved
+    remote/branch at all). Returns (early_result, age): `early_result` is
+    not None when the caller must return it immediately (still inside the
+    rate-limit window); `age` is the stamp's current age either way (or
+    None), reused by the caller's final "failed" status so a failed refetch
+    still reports how long ago the LAST successful sync was.
+
+    Moriarty #1 (clock skew), preserved exactly, just re-sourced: a
+    NEGATIVE age means the stamp's mtime is in the FUTURE relative to this
+    machine's clock — not freshness, a broken measurement. Only a genuine
+    non-negative age inside the window counts as rate-limited; a negative
+    age falls through and forces a real fetch attempt instead.
+    """
+    age = _read_own_stamp_age(project_root, remote_name, remote_branch)
     if age is not None and 0 <= age < FETCH_RATE_LIMIT_SECONDS:
         return {"status": "rate_limited", "age_seconds": age}, age
     return None, age
 
 
-def _resolve_current_branch(project_root: str, age: float | None) -> tuple[dict | None, str | None]:
+def _resolve_current_branch(project_root: str) -> tuple[dict | None, str | None]:
     """Current branch name, validated. Returns (early_result, branch);
     `early_result` is not None for detached HEAD or an option-shaped name.
+    No own-stamp identity is known yet at this point in the resolution
+    flow, so every early-exit here reports age_seconds=None.
     """
     from git_helpers import run_git
 
@@ -643,36 +827,39 @@ def _resolve_current_branch(project_root: str, age: float | None) -> tuple[dict 
     if not branch or _looks_like_git_option(branch):
         # Detached HEAD, or a branch name that could be misread as a git
         # option (SEC-CRIT-001, Argus) — fail closed, no fetch attempted.
-        return {"status": "failed", "age_seconds": age}, None
+        return {"status": "failed", "age_seconds": None}, None
     return None, branch
 
 
-def _check_remote_is_live(project_root: str, remote_name: str, age: float | None) -> dict | None:
+def _check_remote_is_live(project_root: str, remote_name: str) -> dict | None:
     """Moriarty #2 (repair round 2, T2): confirm the REAL upstream remote
     name (never a hardcoded "origin" literal) actually resolves — a `git
     remote rename origin upstream` repo (tracking preserved) would
     otherwise always hit "no_remote", permanently dead on non-default
-    remotes. Returns an early-result dict on failure, else None.
+    remotes. Returns an early-result dict on failure, else None. No
+    own-stamp identity is known yet at this point, so age_seconds=None.
     """
     from git_helpers import run_git
 
     code_remote, _ = run_git(["remote", "get-url", "--", remote_name], cwd=project_root)
     if code_remote != 0:
-        return {"status": "no_remote", "age_seconds": age}
+        return {"status": "no_remote", "age_seconds": None}
     return None
 
 
-def _resolve_fetch_target(project_root: str, age: float | None) -> tuple[dict | None, str | None, str | None]:
+def _resolve_fetch_target(project_root: str) -> tuple[dict | None, str | None, str | None]:
     """Resolve (remote_name, remote_branch) to fetch, aligned with the SAME
     upstream `@{u}` ref get_ahead_behind()/resolve_boot_memory() read
     (Moriarty #2 — a bare-branch-name fetch can silently target the wrong
     remote-tracking ref after a rename). Returns (early_result, remote_name,
     remote_branch); `early_result` is not None when the caller must return
-    it immediately.
+    it immediately. Runs BEFORE any own-stamp check (issue #60 v2): the
+    stamp's age is only meaningful once we know which remote/branch it must
+    match.
     """
     from git_helpers import run_git
 
-    early, _branch = _resolve_current_branch(project_root, age)
+    early, _branch = _resolve_current_branch(project_root)
     if early is not None:
         return early, None, None
 
@@ -681,13 +868,13 @@ def _resolve_fetch_target(project_root: str, age: float | None) -> tuple[dict | 
     if not upstream_ref or "/" not in upstream_ref:
         # No coherent upstream to align the fetch with — the stamp must
         # tell the truth (LOCAL / unverified), never "remote".
-        return {"status": "no_remote", "age_seconds": age}, None, None
+        return {"status": "no_remote", "age_seconds": None}, None, None
 
     remote_name, _, remote_branch = upstream_ref.partition("/")
     if _looks_like_git_option(remote_name) or _looks_like_git_option(remote_branch):
-        return {"status": "failed", "age_seconds": age}, None, None
+        return {"status": "failed", "age_seconds": None}, None, None
 
-    early = _check_remote_is_live(project_root, remote_name, age)
+    early = _check_remote_is_live(project_root, remote_name)
     if early is not None:
         return early, None, None
 
@@ -710,13 +897,15 @@ def _run_hardened_fetch(project_root: str, remote_name: str, remote_branch: str,
     if code_fetch != 0:
         return {"status": "failed", "age_seconds": age}
 
-    # Cerberus (nitpick): reflect FETCH_HEAD's real mtime-derived age instead
-    # of a hardcoded 0.0 — a successful fetch stamps FETCH_HEAD at completion
-    # time, so this is genuinely ~0 in the overwhelming common case, but it's
-    # now MEASURED rather than assumed.
-    fresh_age = _fetch_head_age_seconds(project_root)
-    fresh_age_seconds = float(max(0, int(fresh_age))) if fresh_age is not None else 0.0
-    return {"status": "fetched", "age_seconds": fresh_age_seconds}
+    # Issue #60 AMENDMENT v2: record OUR OWN success, keyed to the exact
+    # remote/branch just fetched — this write (not FETCH_HEAD's mtime) is
+    # what the rate-limit gate and the rendered stamp read from now on.
+    # age_seconds is hardcoded 0.0 (not re-measured): this process controls
+    # exactly when the stamp is written, synchronously right here, unlike
+    # FETCH_HEAD, which git itself could touch for unrelated reasons — no
+    # separate measurement can be more accurate than "right now".
+    _write_own_stamp(project_root, remote_name, remote_branch)
+    return {"status": "fetched", "age_seconds": 0.0}
 
 
 def fetch_memory_ref(project_root: str | None) -> dict:
@@ -728,8 +917,11 @@ def fetch_memory_ref(project_root: str | None) -> dict:
     Returns:
         {"status": "fetched" | "rate_limited" | "skipped_gate" |
                     "no_remote" | "failed",
-         "age_seconds": seconds since the last known successful fetch
-                         (FETCH_HEAD mtime), or None if never fetched}
+         "age_seconds": seconds since this project's own last confirmed
+                         successful fetch (issue #60 v2's own-success
+                         stamp — see _read_own_stamp_age()), or None if
+                         never fetched (or no evidence for the CURRENT
+                         resolved remote/branch)}
         Consumed by Task 3's freshness-stamp rendering, not by this
         function. "no_remote" also covers "a remote is configured but the
         current branch has no coherent upstream tracking ref to align the
@@ -741,11 +933,17 @@ def fetch_memory_ref(project_root: str | None) -> dict:
         if not project_root:
             return {"status": "skipped_gate", "age_seconds": None}
 
-        early, age = _fetch_gate_and_rate_limit(project_root)
+        if not _has_toolkit_memory(project_root):
+            return {"status": "skipped_gate", "age_seconds": None}
+
+        # Resolve the target BEFORE checking the own stamp (issue #60 v2):
+        # the stamp's age is only meaningful once we know which
+        # remote/branch it must match against.
+        early, remote_name, remote_branch = _resolve_fetch_target(project_root)
         if early is not None:
             return early
 
-        early, remote_name, remote_branch = _resolve_fetch_target(project_root, age)
+        early, age = _check_own_stamp_rate_limit(project_root, remote_name, remote_branch)
         if early is not None:
             return early
 
@@ -786,10 +984,11 @@ def _format_age_seconds(seconds: float) -> str:
 # unification decision) — the whole boot banner (STATUS/BRANCH/RESUME/
 # REMEMBER/DECISIONS/PULL DIRECTIVE) is English; this stamp used to be the
 # one Spanish outlier. Wording is English now. Issue #60 (relabel decision
-# ceef426) later corrected the `rate_limited` branch below: FETCH_HEAD < 300s
-# (measured by the gate in `_fetch_gate_and_rate_limit`) means memory is
-# confirmed fresh, so it renders as "remote", not "LOCAL" — labeling a good
-# state as a local-only fallback read as a failure that wasn't one.
+# ceef426) later corrected the `rate_limited` branch below: a confirmed-
+# recent own success stamp (issue #60 AMENDMENT v2, decision 90d096d — see
+# `_check_own_stamp_rate_limit()`) means memory is confirmed fresh, so it
+# renders as "remote", not "LOCAL" — labeling a good state as a local-only
+# fallback read as a failure that wasn't one.
 # `history_related` (Moriarty T2, repo-identity confusion): None
 # (default) preserves the three fetch-status branches below exactly,
 # unchanged for every caller that never passes this argument. False means
@@ -802,11 +1001,12 @@ def _format_age_seconds(seconds: float) -> str:
 # short-circuits everything else.
 def _render_confirmed_fetch_stamp(status: str | None, age: float | None) -> str | None:
     """The two "memory is confirmed fresh against origin this boot" states.
-    Both `fetched` and `rate_limited` mean FETCH_HEAD is known-recent (the
-    latter only fires when the gate in `_fetch_gate_and_rate_limit` measured
-    age < 300s), so both render as "remote" — never "LOCAL". Returns None
-    when neither applies, so the caller falls through to the "unverified"
-    wording (age known-but-stale, or never fetched at all).
+    Both `fetched` and `rate_limited` mean this project's OWN success stamp
+    is known-recent (issue #60 AMENDMENT v2 — the latter only fires when
+    `_check_own_stamp_rate_limit()` measured age < 300s against the CURRENT
+    resolved remote/branch), so both render as "remote" — never "LOCAL".
+    Returns None when neither applies, so the caller falls through to the
+    "unverified" wording (age known-but-stale, or never fetched at all).
     """
     if status == "fetched":
         age_txt = _format_age_seconds(age if age is not None else 0.0)

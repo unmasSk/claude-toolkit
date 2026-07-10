@@ -8,7 +8,7 @@ branch/error-path granularity) against the real, already-implemented code:
 
   - lib/boot_git_checks.py: fetch_memory_ref, get_ahead_behind,
     _format_age_seconds, render_memoria_stamp, _build_pull_directive_lines,
-    _has_toolkit_memory, _fetch_head_age_seconds
+    _has_toolkit_memory
   - lib/boot_memory.py: extract_memory(ref=), resolve_boot_memory,
     _label_remote_provenance, _merge_diverged_memory
   - lib/boot_glossary_cache.py: _resolve_origin_sha, _read_glossary_cache
@@ -34,8 +34,8 @@ mock-patterns.md:
     _merge_diverged_memory, _resolve_origin_sha(None)) — imported and called
     directly, in-process, no git/filesystem needed.
   - Functions taking an explicit project_root/cwd param (fetch_memory_ref,
-    _has_toolkit_memory, _fetch_head_age_seconds) — called directly with a
-    real tmp_path repo, no chdir needed.
+    _has_toolkit_memory) — called directly with a real tmp_path repo, no
+    chdir needed.
   - Functions relying on ambient process cwd (get_ahead_behind, run_git
     calls with no cwd=) — called with `monkeypatch.chdir()`, which pytest
     restores automatically after each test — safe against cross-test bleed.
@@ -215,14 +215,29 @@ class TestFetchMemoryRefStates:
         assert second["age_seconds"] is not None
         assert second["age_seconds"] < boot_git_checks.FETCH_RATE_LIMIT_SECONDS
 
+    @staticmethod
+    def _own_stamp_path(repo):
+        """v1->v2 RE-BASE (issue #60 AMENDMENT v2, decision 90d096d):
+        every test below that used to os.utime() .git/FETCH_HEAD now
+        targets this file instead — the boot's own success stamp is the
+        SOLE age/rate-limit source since v2. The remote/branch identity
+        stored in the stamp (still "origin"/"main" throughout this class'
+        seeding helper, `_add_bare_remote`) keeps matching across every
+        test here, so aging the file's mtime alone is a faithful re-seed
+        of "how long ago was the last confirmed successful sync",
+        unchanged in semantic from the old FETCH_HEAD-mtime mechanic.
+        """
+        return os.path.join(repo, ".claude", ".unmassk", "boot-fetch-stamp.json")
+
     def test_stale_fetch_head_past_window_allows_refetch(self, tmp_path):
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed FETCH_HEAD
+        boot_git_checks.fetch_memory_ref(repo)  # seed the own stamp
 
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         stale_time = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 60)
-        os.utime(fetch_head, (stale_time, stale_time))
+        os.utime(stamp_path, (stale_time, stale_time))
 
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result["status"] == "fetched"
@@ -230,7 +245,7 @@ class TestFetchMemoryRefStates:
     def test_age_just_inside_window_is_rate_limited(self, tmp_path):
         """Issue #60 hardening gap: no existing test pins the EXACT
         rate-limit boundary (`0 <= age < FETCH_RATE_LIMIT_SECONDS` in
-        `_fetch_gate_and_rate_limit`). Existing coverage only exercises
+        `_check_own_stamp_rate_limit`). Existing coverage only exercises
         age~0s ("immediate second call") and age=window+60s (comfortably
         stale) — never the two seconds straddling the literal edge. 299s
         (one second inside the 300s window) must still rate-limit, and
@@ -239,11 +254,12 @@ class TestFetchMemoryRefStates:
         """
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp
 
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         just_inside = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS - 1)  # 299s old
-        os.utime(fetch_head, (just_inside, just_inside))
+        os.utime(stamp_path, (just_inside, just_inside))
 
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result["status"] == "rate_limited", (
@@ -267,11 +283,12 @@ class TestFetchMemoryRefStates:
         """
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp
 
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         just_outside = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 1)  # 301s old
-        os.utime(fetch_head, (just_outside, just_outside))
+        os.utime(stamp_path, (just_outside, just_outside))
 
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result["status"] == "fetched", (
@@ -282,15 +299,18 @@ class TestFetchMemoryRefStates:
     def test_fetch_failure_returns_failed_with_prior_age(self, tmp_path):
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD first
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp first
 
         # Deterministic, no-network failure — same technique as the
         # acceptance contract's fetch-failed test: point origin at a path
-        # that never existed.
+        # that never existed. The remote NAME stays "origin" (only its URL
+        # changes), so the stamp's stored identity still matches and its
+        # age is genuinely preserved through the failed refetch below.
         _git(["remote", "set-url", "origin", str(tmp_path / "does-not-exist.git")], repo)
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         stale_time = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 60)
-        os.utime(fetch_head, (stale_time, stale_time))
+        os.utime(stamp_path, (stale_time, stale_time))
 
         result = boot_git_checks.fetch_memory_ref(repo)
         assert result["status"] == "failed"
@@ -532,40 +552,20 @@ class TestHasToolkitMemory:
 # ── _fetch_head_age_seconds ───────────────────────────────────────────────
 
 
-class TestFetchHeadAgeSeconds:
-    def test_missing_fetch_head_returns_none(self, tmp_path):
-        repo = str(tmp_path / "no_fetch_head")
-        os.makedirs(os.path.join(repo, ".git"))
-        assert boot_git_checks._fetch_head_age_seconds(repo) is None
-
-    def test_existing_fetch_head_returns_nonnegative_float(self, tmp_path):
-        """A freshly-created FETCH_HEAD should read back as ~0 seconds old.
-
-        Tolerance note (Cerberus, session 2026-07-07 — observed one flaky
-        failure in a full suite run, passed in isolation): confirmed via a
-        20k-iteration probe on this exact Windows box that a strict
-        `age >= 0` is a real, frequently-reproducible race, not a one-off
-        — os.path.getmtime() (NTFS FILETIME) and time.time() (system
-        clock read via a different API path) can disagree by a
-        sub-millisecond amount, producing a tiny NEGATIVE age for a file
-        created microseconds ago (measured min ~-2.4e-07s over 20000
-        trials, ~11% of runs negative). This is a clock-source precision
-        artifact, not a bug in _fetch_head_age_seconds() itself — the
-        negative-age case is already a deliberately handled real scenario
-        elsewhere (see _fetch_gate_and_rate_limit()'s "Moriarty #1"
-        clock-skew note for the cross-machine case). -1.0 gives ample
-        margin over the observed sub-millisecond skew while still
-        catching a genuinely wrong/inverted computation; 60.0 keeps the
-        "this is freshly created, not stale" guarantee this test exists
-        for.
-        """
-        repo = str(tmp_path / "with_fetch_head")
-        os.makedirs(os.path.join(repo, ".git"))
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
-        open(fetch_head, "w", encoding="utf-8").close()
-        age = boot_git_checks._fetch_head_age_seconds(repo)
-        assert age is not None
-        assert -1.0 <= age < 60.0, f"expected age near zero for a freshly-created FETCH_HEAD, got {age}"
+# _fetch_head_age_seconds() REMOVED (issue #60 AMENDMENT v2, decision
+# 90d096d, session 2026-07-10): its only two callers in lib/boot_git_checks.py
+# — the old FETCH_HEAD-mtime rate-limit gate and the "fetched" status's
+# fresh_age re-measurement — were both replaced by the own-success-stamp
+# mechanism (_read_own_stamp_age() / _write_own_stamp() /
+# _check_own_stamp_rate_limit()), leaving the helper with zero real callers
+# anywhere in the codebase (confirmed via grep). Per the plan's explicit
+# instruction ("si queda sin usos reales, elimínala — nada de código
+# muerto"), the function itself and this TestFetchHeadAgeSeconds class
+# (its only remaining reference) were deleted together, not just stopped
+# being called. No replacement test needed: the new stamp helpers'
+# equivalent missing/fresh-file behavior is already covered end-to-end by
+# TestFetchMemoryRefStates above and the acceptance contract's
+# TestOwnSuccessStampNotFetchHeadMtime in test_boot_freshness.py.
 
 
 # ── extract_memory(ref=): nonexistent ref fails open ─────────────────────

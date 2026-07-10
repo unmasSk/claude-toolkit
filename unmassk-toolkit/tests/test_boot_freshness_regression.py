@@ -112,39 +112,54 @@ class TestClockSkewFutureFetchHeadMtime:
     naturally enters the [0, window) range again).
 
     Verified via TWO independent channels per test, never trusting the
-    status field alone: (1) the returned status, and (2) FETCH_HEAD's own
-    mtime actually advancing — proof a real fetch attempt happened (a
-    skipped/rate-limited call would leave it untouched).
+    status field alone: (1) the returned status, and (2) the evidence
+    file's own mtime actually advancing — proof a real fetch attempt
+    happened (a skipped/rate-limited call would leave it untouched).
+
+    v1->v2 RE-BASE (issue #60 AMENDMENT v2, decision 90d096d): the evidence
+    file is now the boot's own success stamp
+    (.claude/.unmassk/boot-fetch-stamp.json), not .git/FETCH_HEAD — only
+    the seeding/skewing mechanic (which file gets seeded via
+    fetch_memory_ref() then os.utime()'d) changed; the clock-skew semantic
+    each test asserts (negative age never rate-limits; age==0 still does)
+    is identical to before, just measured against the new source per
+    _check_own_stamp_rate_limit()'s docstring in lib/boot_git_checks.py.
     """
+
+    @staticmethod
+    def _own_stamp_path(repo):
+        return os.path.join(repo, ".claude", ".unmassk", "boot-fetch-stamp.json")
 
     def _seed_and_skew_future(self, tmp_path, offset_seconds):
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed a real FETCH_HEAD
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         future_time = time.time() + offset_seconds
-        os.utime(fetch_head, (future_time, future_time))
-        return repo, fetch_head
+        os.utime(stamp_path, (future_time, future_time))
+        return repo, stamp_path
 
     @pytest.mark.parametrize(
         "offset_seconds", [1, 10_000_000], ids=["future_by_1s", "future_massive"]
     )
     def test_future_mtime_never_rate_limits(self, tmp_path, offset_seconds):
-        repo, fetch_head = self._seed_and_skew_future(tmp_path, offset_seconds)
-        skewed_mtime = os.path.getmtime(fetch_head)
+        repo, stamp_path = self._seed_and_skew_future(tmp_path, offset_seconds)
+        skewed_mtime = os.path.getmtime(stamp_path)
 
         result = boot_git_checks.fetch_memory_ref(repo)
 
         assert result["status"] != "rate_limited", (
-            f"a FUTURE FETCH_HEAD mtime (offset +{offset_seconds}s) must "
+            f"a FUTURE own-stamp mtime (offset +{offset_seconds}s) must "
             f"never be treated as fresh/rate-limited. Got: {result}"
         )
         # Independent channel: a real fetch attempt must have actually run —
-        # proven by FETCH_HEAD's mtime moving away from the skewed value
-        # (a skipped/rate-limited call would leave it untouched).
-        assert os.path.getmtime(fetch_head) != skewed_mtime, (
-            "FETCH_HEAD's mtime was never touched — no fetch was actually "
-            "attempted despite the future-mtime clock-skew scenario"
+        # proven by the stamp's mtime moving away from the skewed value (a
+        # skipped/rate-limited call would leave it untouched; a real
+        # successful refetch rewrites the stamp via _write_own_stamp()).
+        assert os.path.getmtime(stamp_path) != skewed_mtime, (
+            "the own stamp's mtime was never touched — no fetch was "
+            "actually attempted despite the future-mtime clock-skew scenario"
         )
         assert result["status"] == "fetched", (
             f"expected a real fetch against the live bare remote to "
@@ -158,21 +173,22 @@ class TestClockSkewFutureFetchHeadMtime:
         """
         repo = _make_gated_repo(tmp_path)
         _add_bare_remote(repo, tmp_path)
-        boot_git_checks.fetch_memory_ref(repo)  # seed
-        fetch_head = os.path.join(repo, ".git", "FETCH_HEAD")
+        boot_git_checks.fetch_memory_ref(repo)  # seed a real own stamp
+        stamp_path = self._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "seeding call must have written the own stamp"
         now = time.time()
-        os.utime(fetch_head, (now, now))
-        mtime_before = os.path.getmtime(fetch_head)
+        os.utime(stamp_path, (now, now))
+        mtime_before = os.path.getmtime(stamp_path)
 
         result = boot_git_checks.fetch_memory_ref(repo)
 
         assert result["status"] == "rate_limited", (
             f"expected age≈0 to still be rate-limited. Got: {result}"
         )
-        # Independent channel: a rate-limited call must never touch
-        # FETCH_HEAD at all.
-        assert os.path.getmtime(fetch_head) == mtime_before, (
-            "a rate-limited call must never touch FETCH_HEAD's mtime"
+        # Independent channel: a rate-limited call must never touch the
+        # own stamp at all.
+        assert os.path.getmtime(stamp_path) == mtime_before, (
+            "a rate-limited call must never touch the own stamp's mtime"
         )
 
 
