@@ -522,3 +522,53 @@ attacker's link that session).
 - Reordered `fetch_memory_ref()` (identity resolved before rate-limit) re-tested against detached HEAD, a branch with no upstream at all, a remote entirely removed (`git remote remove origin`), and a remote whose URL is unreachable — all correctly report `LOCAL — unverified`, exit 0, no crash, no stamp written, no false "remote" claim.
 - Stamp deleted between two boots (mid-window) → next boot degrades cleanly to a real fetch (`fetched`), not a crash or a stale cached claim.
 - Happy path (real fetch OK, second boot <300s) → `MEMORY: remote (synced Ns ago)`, confirmed via two independent channels (stdout banner + persisted `boot-log-latest.txt`). Not broken by the v2 change.
+
+## boot_git_checks.py / boot_fetch_stamp.py -- issue #60 v4 round-4 FINAL check (2026-07-10)
+
+Guard added at lib/boot_git_checks.py:725 (`url == remote_name` treated as unresolved,
+alongside the pre-existing `_looks_like_git_option(url)`) -- re-attacked as a bounded/acotado
+FINAL check, 0 new breaks:
+
+- Exact v2/v3 PoC replayed (config-degenerate `git config remote.origin.url ""` -> get-url
+  fallback prints the literal alias "origin"): now dies at the FIRST step -- `_check_remote_is_live`
+  routes to `no_remote`, `_write_own_stamp` is never even reached (real end-to-end run via
+  `fetch_memory_ref()`, confirmed no stamp file written). The whole v3 cross-repo-copy chain never
+  gets a foothold.
+- Evasion attempts against the guard, all failed to produce a resolved-but-fake URL:
+  - url set to whitespace-only (" ", tab) -> git prints the literal whitespace (NOT the alias
+    fallback), but `.strip()` collapses it to "" -> already caught by the pre-existing
+    `_looks_like_git_option()` empty-string check, never reaches the new `==` guard at all.
+    Confirmed via direct `_check_remote_is_live()` call, not just raw git output.
+  - remote name containing '/', embedded space, or trailing space (e.g. "../peer", "pe er",
+    "peer ") -> git's own `remote add`/`config` validation rejects these outright
+    ("not a valid remote name") -- unreachable via ordinary commands, no need for the module to
+    defend against a shape git itself never allows into a remote name.
+  - `url.<X>.insteadOf` global rewrite (including the maximally-permissive empty-prefix
+    `insteadOf ""`, which matches every URL as a prefix) -- DOES change `get-url`'s printed
+    output, but only ever as a PREFIX substitution: the original distinguishing URL/tail always
+    survives as a suffix of the rewritten string. Two genuinely different real remotes never
+    collapse to the identical rewritten string under one shared/global rule; forcing a real
+    collision would require a separate insteadOf rule keyed by each repo's FULL literal URL --
+    equivalent to hand-tampering that repo's own local config, already out of scope per this
+    module's documented trust boundary.
+- Legit-rare coincidence case (`git remote add peer peer` -- name and URL genuinely,
+  non-adversarially identical; git allows this for any local relative-path remote with no
+  slash in the name): real fetchable remote, real upstream tracking, real shared history --
+  guard still routes it to `no_remote` PERMANENTLY. Confirmed across repeated runs: never once
+  renders "remote (synced ...)", always the honest "LOCAL -- unverified (never synced with
+  origin)" wording. Classified DEGRADADO ACEPTABLE, not a bug: the multi-machine freshness
+  feature is silently disabled for this narrow, rare shape, but the tool never lies about it --
+  exactly the fail-closed-on-trust trade-off the module's own docstrings describe elsewhere
+  (check_upstream_shares_history()'s shallow-clone case has the identical shape/trade-off).
+- Regression sample (4/4 held): stamp copied between two repos with REAL DISTINCT URLs ->
+  correctly ignored (age mismatch), forces a real refetch against the CORRECT own remote,
+  stamp legitimately overwritten with the right identity afterward; legacy `schema_version=1`
+  stamp -> treated as fully absent, real refetch runs; stamp path replaced with a symlink to
+  `/etc/passwd` -> read ignored (treated as absent, fail-open toward fetching), WRITE silently
+  no-ops (`verify_path_within_project` / os.replace machinery declines rather than following the
+  symlink) -- `/etc/passwd` confirmed untouched, stamp mechanism just stays permanently disabled
+  for that repo (safe degrade, not a hole); happy path (real fetch -> "fetched", immediate
+  re-run -> "rate_limited"/"synced") still works end-to-end; 8-way concurrent `fetch_memory_ref()`
+  calls -> no corruption, valid final JSON, consistent atomic-write behavior.
+
+Verdict: AGUANTA. See MEMORY.md "Last attack" for the compact pointer.

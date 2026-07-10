@@ -5,6 +5,20 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
+Target: issue #60 v4 round 4 (FINAL, acotado) -- re-attacked the `url == remote_name` guard
+(lib/boot_git_checks.py:725, wips 32379b7+154a80d) that closed round 3's alias-fallback break.
+Verdict: AGUANTA, 0 breaks. v3 PoC replayed -> dies at step 1 (no_remote, no stamp written).
+Evasion attempts (whitespace url, invalid remote-name shapes, `insteadOf` global URL rewrite
+incl. empty-prefix collision attempt) -- 0 successes, all either already caught by the
+pre-existing `_looks_like_git_option()` check or structurally incapable of producing a same-
+string collision for two genuinely different repos. Legit-rare coincidence (`git remote add
+peer peer`, name==url genuinely, real fetchable) -- confirmed DEGRADADO ACEPTABLE: permanently
+`no_remote`/LOCAL, never once renders a false "synced". 4/4 regression sample held (cross-repo
+stamp w/ real distinct URLs, legacy schema_version=1, stamp-path symlinked to /etc/passwd,
+happy-path fetched->synced) + 8-way concurrency clean. Full detail: resilience.md's newest
+entry ("boot_git_checks.py / boot_fetch_stamp.py -- issue #60 v4 round-4 FINAL check").
+
+## Previous attack (round 3, compact)
 Target: issue #60 (boot MEMORY stamp) v3 re-attack, round 3 (decision 787b698, wip df1bb4f) --
 identity model gained remote URL (`git remote get-url`) + schema_version alongside alias/branch,
 split into lib/boot_fetch_stamp.py. Real disposable repos, real hook subprocess
@@ -18,14 +32,15 @@ repoX (real fetch success, url-unset + local `origin/` dir trick) writes a genui
 ordinary command, no local trick needed on this side) + a copied stamp -> false
 `MEMORY: remote (synced 0s ago)` on both channels, zero real fetch against repoZ's actual remote.
 Reopens exactly the template/backup/dotfiles-sync threat model 787b698 named as v3's reason to
-exist. Root: lib/boot_git_checks.py:704-709 `_check_remote_is_live()`. Contrast (HELD): the v2
-PoC replayed (real distinct URLs) rejected correctly; URL-variant false positives (trailing
-slash/.git dup/case/embedded creds) -- none, literal compare only ever causes harmless extra
-fetches; `_read_stamp_age_by_alias_only()` traced live to its one call site, confirmed it can
-never feed rate_limited/synced; schema_version v1-legacy/string/null/list -- 0 crashes, always
-"absent stamp"; newline+NUL+ANSI crammed into remote_url round-trips safely via JSON escaping,
-never reaches any subprocess argv or output surface; 6/6 quick regression re-checks after the
-module split (symlink file/dir, 8-way concurrency, corrupt JSON, future mtime, 5MB stress) held.
+exist. Root: lib/boot_git_checks.py:704-709 `_check_remote_is_live()`. Led to round 4's guard
+(see "Last attack" above, now confirmed holding). Contrast (HELD in round 3): the v2 PoC replayed
+(real distinct URLs) rejected correctly; URL-variant false positives (trailing slash/.git dup/
+case/embedded creds) -- none, literal compare only ever causes harmless extra fetches;
+`_read_stamp_age_by_alias_only()` traced live to its one call site, confirmed it can never feed
+rate_limited/synced; schema_version v1-legacy/string/null/list -- 0 crashes, always "absent
+stamp"; newline+NUL+ANSI crammed into remote_url round-trips safely via JSON escaping, never
+reaches any subprocess argv or output surface; 6/6 quick regression re-checks after the module
+split (symlink file/dir, 8-way concurrency, corrupt JSON, future mtime, 5MB stress) held.
 See attack-patterns.md / resilience.md for full detail.
 
 ## Previous attack (v2 round, compact)

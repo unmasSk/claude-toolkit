@@ -97,6 +97,25 @@ El stamp `MEMORY:` del boot comunica estado bueno cuando la memoria está fresca
 - [ ] Cerberus re-revisa el diff v2
 - [ ] Yoda veredicto final 110
 
+## AMENDMENT v3 (Moriarty ronda 2 — FALLA T1 identidad por alias)
+
+Copiar el stamp entre repos con alias comunes (origin/main) producía falso 'synced' (plantillas, backups). Decisión 787b698: identidad del stamp = alias + branch + **URL real** (`git remote get-url`) + `schema_version` (1→2, mismatch → ausente). Misma ronda: los 6 hallazgos de Cerberus v2 (S1 fidelidad de edad en no_remote vía `_read_stamp_age_by_alias_only` confinada a esa rama; S2 split a `lib/boot_fetch_stamp.py`; S3 pinning unitario del stamp; S4 assert de siembra; N1 comentario chmod Windows; N2 validación schema_version). Cerberus re-review v3: LGTM 0/0/0.
+
+## AMENDMENT v4 (Moriarty ronda 3 — FALLA T1 fallback de get-url)
+
+Con `remote.<alias>.url` VACÍA, `git remote get-url` devuelve el alias literal ("origin"), que pasaba como URL resuelta → stamp copiado entre repos degenerados volvía a colar. Decisión 174d82b: `url == remote_name` → identidad NO resuelta (rama no_remote, sin confianza y sin escritura de stamp; guard en `_check_remote_is_live`, único call site de get-url). Escalada de Ultron resuelta: el guard cierra también la escritura, así que el fixture del test cross-repo se re-sembró vía read-mutate-rewrite de un stamp sano (Dante). Moriarty check final v4: **AGUANTA** 12/12 (PoC ronda 3 muere, sin esquivas, caso legítimo name==url degrada honesto a LOCAL, regresión 4/4).
+
+**Modelo de amenaza residual documentado (aceptado, juicio de Yoda: línea defendible):** (a) escritura local directa en `.claude/.unmassk/` = acceso local total, fuera de alcance como el resto de cachés; (b) manipulación de git config local más allá de los casos degenerados cerrados; (c) name==url genuino degrada a LOCAL permanente (honesto, nunca miente).
+
+## CIERRE — hallazgos de Yoda ronda 1 (NOT READY, evidencia no diseño)
+
+- [ ] Blocker: CI de Windows ROJO en los tests de esta feature (run 29110579481, sha 174d82b): 5 fallos en TestOwnSuccessStampNotFetchHeadMtime + TestOwnStampIdentityIncludesRemoteURL. Hipótesis Yoda: `_make_fake_git` escribe shim sin extensión + chmod POSIX → Windows lo ignora vía PATHEXT → canal de observación ciego. House diagnostica desde logs; Dante lo arregla (test-only) si se confirma.
+- [ ] Blocker: los wips v4 (32379b7, 154a80d) sin pushear → no hay CI del HEAD. Pushear tras el fix del shim y leer CI verde en ambas plataformas (Yoda directamente).
+- [ ] Minor: Cerberus pasa por el guard v4 (no lo revisó).
+- [x] Minor: este plan actualizado con v3/v4 (esta edición).
+- [ ] Obs: commitear las notas de Moriarty v4 (working tree).
+- Nota de proceso (antipatrón re-pisado, ya memorizado): los push de decisiones arrastraron los wips intermedios a origin/main → el squash limpio de cierre ya no es posible sin force-push (prohibido). El cierre squashea solo lo no pusheado o cierra con commit final normal; la historia carga los wips esta vez.
+
 ## Wave Map
 
 - Wave 1: Task 1
