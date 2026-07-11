@@ -3,7 +3,6 @@
 SessionStart hook for unmassk-toolkit crew.
 Ensures all 5 managed blocks exist in CLAUDE.md.
 """
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -18,42 +17,7 @@ from encoding_guard import force_utf8_streams  # noqa: E402
 force_utf8_streams()
 
 from managed_blocks import upsert_managed_blocks  # noqa: E402
-from git_helpers import open_no_follow_symlink, verify_path_within_project  # noqa: E402
-from version import VERSION  # noqa: E402
-
-
-def _manifest_version_matches(git_root: Path) -> bool:
-    """True only if .claude/.unmassk/manifest.json's "version" field equals
-    the running plugin's VERSION exactly.
-
-    Fail-open by design (issue #63, boot simplification, point 1): any
-    reason the signal can't be trusted -- missing file, corrupt JSON, a
-    symlink planted at the manifest path, a missing/mismatched "version"
-    key -- returns False, so the caller falls through to the existing
-    unconditional diff+rewrite. A trustworthy match is the ONLY way to
-    skip regeneration; every other outcome regenerates exactly like before
-    this gate existed.
-    """
-    manifest_path = git_root / ".claude" / ".unmassk" / "manifest.json"
-    try:
-        # SEC-T1-002 (Argus, issue #63): open_no_follow_symlink() below only
-        # guards manifest.json's FINAL path component -- a .claude (or
-        # .unmassk) parent that is ITSELF a symlink pointing at a directory
-        # with a real, non-symlink manifest.json slips past it untouched.
-        # verify_path_within_project() resolves every intermediate component
-        # via realpath() and rejects anything that escapes git_root; caught
-        # below exactly like any other untrustworthy manifest.
-        verify_path_within_project(str(manifest_path), str(git_root))
-        with open_no_follow_symlink(manifest_path, "r", encoding="utf-8") as f:
-            manifest = json.load(f)
-    except Exception:
-        # SEC-T1-001 (Argus, issue #63): a maliciously deep-nested manifest
-        # raises RecursionError from json.load, which is not an OSError or
-        # JSONDecodeError -- broadened to Exception so a poisoned manifest
-        # falls through to fail-open (same as missing/corrupt) instead of
-        # crashing the SessionStart hook.
-        return False
-    return manifest.get("version") == VERSION
+from git_helpers import open_no_follow_symlink  # noqa: E402
 
 
 def find_git_root():
@@ -75,18 +39,19 @@ def main():
         print("[crew] Not a git repo, skipping CLAUDE.md check")
         return
 
-    # Issue #63 (boot simplification, point 1): trust an up-to-date manifest
-    # instead of diffing+rewriting CLAUDE.md on every single SessionStart.
-    # Skip is the ONLY new behavior -- every other outcome (mismatch,
-    # missing, corrupt) falls through to the exact regenerate path that
-    # already existed. hooks/session-start-boot.py runs before this hook
-    # (hooks.json SessionStart order) and syncs manifest.version there when
-    # an upgrade is pending, so by the time this gate reads it the version
-    # marker is trustworthy.
-    if _manifest_version_matches(git_root):
-        print("[crew] manifest.version matches VERSION, skipping CLAUDE.md check")
-        return
-
+    # Issue #63 (boot simplification, P1 v2 -- decision 2d56444): the gate
+    # verifies CONTENT, never manifest.json's "version" field. That field is
+    # only a proxy for "an install ran", not "CLAUDE.md's managed blocks are
+    # correct right now" -- Moriarty broke the version-only gate with 3 live
+    # T1 PoCs (producer stamps version even when the CLAUDE.md write failed;
+    # a poisoned block sits untouched next to a version-matching manifest;
+    # CLAUDE.md deleted while a matching manifest survives is never
+    # recreated). CLAUDE.md is therefore ALWAYS read (existence check comes
+    # first, below) and always diffed against the canonical blocks via
+    # upsert_managed_blocks(); reading+diffing is cheap and always happens.
+    # The only thing ever skipped is the WRITE, and only when the diff is
+    # empty (new_content == content) -- Bex's "write the minimum" goal,
+    # preserved without trusting any external proxy for content state.
     claude_md = git_root / "CLAUDE.md"
     claude_md_exists = claude_md.exists()
 

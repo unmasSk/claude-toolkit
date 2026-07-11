@@ -1231,3 +1231,32 @@ avoid `git stash` / `git stash pop` as a "get a clean baseline" trick unless
 you're prepared to reconcile file-by-file — `git checkout stash@{0} --
 <path>` (selective restore) is safer than a full pop when you don't control
 every file that might have changed underneath you.
+
+## Removing a proxy-based skip gate: check if the wrapped function already IS the content diff before adding a new one
+
+Issue #63 P1 v2 (decision 2d56444): `hooks/session-start-crew.py`'s v1 gate
+(`_manifest_version_matches()`) trusted `manifest.json`'s `"version"` field
+as a proxy for "CLAUDE.md's managed blocks are correct now" — Moriarty broke
+it with 3 T1 PoCs (producer stamps version despite a failed CLAUDE.md write;
+a poisoned block survives next to a version-matching manifest; a deleted
+CLAUDE.md is never recreated because the version check ran before the
+existence check). The GREEN fix was NOT to add a new explicit
+`any_block_outdated()` pre-check — it was to delete the version gate
+entirely and restore the pre-gate flow: always read CLAUDE.md (existence
+check first), always call `upsert_managed_blocks(content)`, and only write
+when `new_content != content`. That equality check IS the content diff —
+`upsert_managed_blocks()` is idempotent for already-canonical content (each
+`BLOCKS[i]["begin"] in content` branch replaces in place with byte-identical
+rendered output when nothing changed), so no separate outdated-check was
+needed to satisfy either the 3 regenerate-on-divergence tests or the
+skip-write-when-canonical control test. Also deleted the now-orphaned
+imports (`json`, `version.VERSION`, `git_helpers.verify_path_within_project`)
+since they were only used inside the removed function — `grep` for every
+use of an import before deleting the function that used it, don't assume
+one caller.
+
+Rule: when a "trust an external proxy, skip the real check" gate gets
+proven unsafe, check whether the function it was gating (here
+`upsert_managed_blocks`) already performs an idempotent diff before writing
+back a redundant explicit outdated-check — the minimal-diff fix may just be
+deleting the gate, not adding a new comparison function call.
