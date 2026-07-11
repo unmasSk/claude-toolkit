@@ -8,6 +8,8 @@ type: project
 
 Confirmed 2026-07-07 in commit 38f5728 (encoding_guard.py fix, issue #52): the commit added a line to `.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md` pointing to `unmassk-toolkit-python-entrypoints.md`, but that topic file itself was never `git add`-ed — it existed only as an untracked file on the author's disk (`git show <sha>:<path>` failed with "exists on disk, but not in <sha>"). Anyone who clones/checks out that commit alone gets a dangling memory link. This is Issue-tier, not a nitpick — it breaks the memory system's own integrity contract.
 
+Recurred 2026-07-11, issue #63 boot-simplification branch (`feat/issue-63-simplificacion-boot`, HEAD `25ef9fa`): `.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md` gained a line pointing to `issue-63-boot-simplification-contract-notes.md`, but `git show HEAD:<path>` fails ("exists on disk, but not in 'HEAD'") — `git status --porcelain` confirms it as `??` (untracked). Same pattern as the 38f5728 case, different agent (Dante this time, not Ultron). Check pattern generalizes across all agent-memory dirs, not just Ultron's — always grep every changed `agent-memory/*/MEMORY.md` for new `[Title](file.md)` lines and `git show HEAD:<path>` each one, regardless of which agent's memory dir it lives in.
+
 Check pattern for future commit reviews: whenever a diff touches any `agent-memory/*/MEMORY.md`, extract every new `[Title](file.md)` line added, then run `git show <sha>:<path-to-file.md>` for each — if it fails, the commit is incomplete.
 
 ## "Mirror" functions drift out of sync on defense-in-depth guards (parse_date / time_ago)
