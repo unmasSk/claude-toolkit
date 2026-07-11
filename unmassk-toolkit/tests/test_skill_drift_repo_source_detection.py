@@ -157,7 +157,12 @@ class TestPureCacheLayoutWithoutSourceShowsNoDrift:
 
         repo = _make_repo(tmp_path)
         boot_hook_copy = str(real_copy / "hooks" / "session-start-boot.py")
-        env = {"HOME": str(home)}
+        # os.path.expanduser("~") on Windows ignores HOME and resolves via
+        # USERPROFILE (falling back to HOMEDRIVE+HOMEPATH) -- without also
+        # redirecting those, CACHE_BASE_DIR resolves to the real runner
+        # home instead of this fixture's `home`, and the whole cache-layout
+        # scenario silently scans the wrong directory.
+        env = {"HOME": str(home), "USERPROFILE": str(home), "HOMEDRIVE": "", "HOMEPATH": str(home)}
 
         rc, stdout, stderr, combined = _combined_output(boot_hook_copy, repo, env)
 
@@ -192,7 +197,11 @@ class TestRealDevRepoStillWarnsOnGenuineDrift:
         assert real_content != DRIFTED_CACHED_CONTENT
 
         repo = _make_repo(tmp_path)
-        env = {"HOME": str(home)}
+        # os.path.expanduser("~") on Windows ignores HOME and resolves via
+        # USERPROFILE (falling back to HOMEDRIVE+HOMEPATH) -- redirect all
+        # of them so CACHE_BASE_DIR points at this fixture's `home` instead
+        # of the real runner home, the same fix as Test A above.
+        env = {"HOME": str(home), "USERPROFILE": str(home), "HOMEDRIVE": "", "HOMEPATH": str(home)}
 
         # The REAL, in-place hook -- this process's own file location is a
         # genuine git checkout (this repo), so REPO_BASE_DIR resolves

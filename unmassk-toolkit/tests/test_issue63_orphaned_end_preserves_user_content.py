@@ -665,6 +665,20 @@ class TestOrphanedBeginAtLiteralEOFNoTrailingNewline:
             raw_after = f.read()
         content_after = raw_after.decode("utf-8")
 
+        # EOL-normalized view for STRING/semantic comparisons only. On
+        # Windows the hook's text-mode write translates every "\n" it
+        # emits to "\r\n" UNIFORMLY (not a mixed-EOL corruption -- a
+        # genuine, correct Windows text file), while `expected_rendered`
+        # below is built in-memory with bare "\n" and `prefix` was derived
+        # from `content_before`, itself read via `_read()`'s universal-
+        # newline text mode (always "\n"). Comparing those LF-built values
+        # against the raw CRLF bytes would fail for a purely cosmetic EOL
+        # reason having nothing to do with the behavior under test.
+        # Byte-exact assertions (marker occurrence counts below) do NOT
+        # depend on EOL -- the markers never embed a newline -- so those
+        # stay on the raw-decoded `content_after`.
+        content_after_text = content_after.replace("\r\n", "\n").replace("\r", "\n")
+
         assert content_after.count(target["begin"]) == 1, (
             "the block's BEGIN marker must be regenerated exactly once, not "
             f"duplicated. content_after={content_after!r}"
@@ -679,7 +693,7 @@ class TestOrphanedBeginAtLiteralEOFNoTrailingNewline:
         # (managed_blocks._render_block), never hand-typed -- unmassk-standards
         # §34: the expected value must come from the real producer seam.
         expected_rendered = _render_block(target)
-        assert expected_rendered in content_after, (
+        assert expected_rendered in content_after_text, (
             "the regenerated block must match the real canonical render "
             f"exactly (BEGIN+body+END). content_after={content_after!r}"
         )
@@ -687,13 +701,15 @@ class TestOrphanedBeginAtLiteralEOFNoTrailingNewline:
         # Nothing before the dangling BEGIN (earlier blocks, file header)
         # may be touched -- the fix's own "safe by construction" claim for
         # this exact edge (no bytes after the BEGIN line to accidentally
-        # eat, but also none before it that should ever move).
-        assert content_after.startswith(prefix), (
+        # eat, but also none before it that should ever move). `prefix`
+        # is LF-normalized (derived from `content_before`), so it must be
+        # compared against the LF-normalized view too.
+        assert content_after_text.startswith(prefix), (
             "regenerating a BEGIN orphaned at EOF must not alter any byte "
             f"that came before it. prefix={prefix!r} content_after={content_after!r}"
         )
 
-        assert not any_block_outdated(content_after), (
+        assert not any_block_outdated(content_after_text), (
             "after regeneration every block (not just the corrupted one) "
             f"must match canonical content exactly. content_after={content_after!r}"
         )
@@ -701,8 +717,11 @@ class TestOrphanedBeginAtLiteralEOFNoTrailingNewline:
         # ── Idempotency: a second real run must be a genuine no-op ──────
         rc2, stdout2, stderr2 = _run_crew(repo)
         assert rc2 == 0, f"second crew run must exit 0. stderr={stderr2!r}"
+        # `_read()` uses text-mode universal newlines (always "\n"), so
+        # compare against the LF-normalized view for the same EOL reason
+        # as the assertions above -- not the raw CRLF-preserving one.
         content_after_2 = _read(claude_md)
-        assert content_after_2 == content_after, (
+        assert content_after_2 == content_after_text, (
             "a second run against already-regenerated, canonical content "
             "must be a genuine no-op (idempotent)"
         )
