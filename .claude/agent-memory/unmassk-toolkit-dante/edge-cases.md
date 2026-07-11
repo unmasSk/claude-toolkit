@@ -203,6 +203,22 @@ After promotion: exactly `"\n\n"` between `## [Unreleased]` and `## [<ver>] - <d
 Assert `changelog[idx_unreleased + len("## [Unreleased]"):idx_new_ver] == "\n\n"`.
 Previous content must appear verbatim under the new heading. Heading date = `date.today().isoformat()`.
 
+### Date-at-import vs date-at-subprocess-invocation rollover (issue #62, fixed 2026-07-11)
+A module-level `TODAY = date.today().isoformat()` computed once at test-file
+import time WILL diverge from a subprocess-under-test that computes "today"
+at its own invocation time, whenever the two moments straddle a (UTC)
+midnight — confirmed twice (Yoda locally, CI Windows run 29131458089).
+Never hardcode/precompute a date constant for comparison against a live
+subprocess write. Fix pattern (no clock mocking needed — less machinery):
+capture `date.today().isoformat()` immediately BEFORE and immediately AFTER
+the subprocess call, then assert the value written by the subprocess is one
+of those 2 candidates — stays strict (exact date, exact heading format), not
+relaxed to a substring check. See `_extract_changelog_version_heading()` in
+`test_release.py` for the shared regex-based extraction helper used across
+all 4 affected tests. General rule: any test asserting a date/timestamp a
+subprocess computes independently needs this before/after window, not a
+constant computed anywhere earlier in the test process.
+
 ### Missing / malformed files
 CHANGELOG absent → `_read_file` → `_die` → exit 1, no traceback.
 marketplace.json malformed JSON → `_load_json` → `_die` → exit 1, no traceback.

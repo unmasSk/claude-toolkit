@@ -67,7 +67,15 @@ INITIAL_CHANGELOG = """\
 - Previous release note here.
 """
 
-TODAY = date.today().isoformat()
+# NOTE (issue #62): a module-level `TODAY = date.today().isoformat()` used to
+# live here. It is computed once at import time, but release.py computes the
+# date at subprocess-invocation time — if a UTC midnight rollover falls
+# between import and invocation, the two dates diverge and the assertion
+# fails for a reason that has nothing to do with a real bug (reproduced twice:
+# Yoda locally, and CI Windows run 29131458089). Removed in favor of capturing
+# date.today() immediately before AND after each _run_release() call in the
+# affected tests, and accepting either candidate — see
+# _extract_changelog_version_heading() below.
 
 
 # ── Fixture helpers ────────────────────────────────────────────────────
@@ -232,6 +240,28 @@ def _get_local_head(repo):
     return result.stdout.strip()
 
 
+def _extract_changelog_version_heading(changelog, new_ver):
+    """
+    Locate the '## [<new_ver>] - <date>' heading written by release.py and
+    return (full_header_string, start_index, date_str).
+
+    Does NOT assume which exact date release.py used. Callers must capture
+    date.today().isoformat() immediately before AND after the _run_release()
+    call and assert the returned date_str is one of those two candidates
+    (issue #62 — see the NOTE near the removed module-level TODAY constant).
+    The assertion stays strict either way: exact heading format
+    (## [<ver>] - YYYY-MM-DD), exact date match against one of exactly 2
+    candidates — never relaxed to a substring/version-only check.
+    """
+    match = re.search(
+        re.escape(f"## [{new_ver}] - ") + r"(\d{4}-\d{2}-\d{2})", changelog
+    )
+    assert match is not None, (
+        f"No '## [{new_ver}] - YYYY-MM-DD' heading found in CHANGELOG.\n{changelog}"
+    )
+    return match.group(0), match.start(), match.group(1)
+
+
 # ── Fixtures ──────────────────────────────────────────────────────────
 
 
@@ -267,7 +297,14 @@ class TestHappyPath:
         repo, bare = _setup_release_repo(tmp_path)
         new_ver = "1.4.0"
 
+        # Capture the date window immediately around the subprocess call
+        # (issue #62): release.py computes "today" at invocation time, so a
+        # UTC midnight rollover between before/after is the only case where
+        # they differ — accept either candidate rather than a value computed
+        # at test-module import time.
+        before_date = date.today().isoformat()
         rc, stdout, stderr = _run_release(repo, [PLUGIN_NAME, new_ver])
+        after_date = date.today().isoformat()
 
         assert rc == 0, f"Expected exit 0, got {rc}.\nstdout: {stdout}\nstderr: {stderr}"
 
@@ -291,10 +328,13 @@ class TestHappyPath:
         # --- CHANGELOG assertions ---
         changelog = _read(os.path.join(repo, "CHANGELOG.md"))
 
-        # New version header present with today's date
-        expected_header = f"## [{new_ver}] - {TODAY}"
-        assert expected_header in changelog, (
-            f"Expected '{expected_header}' in CHANGELOG.md.\n{changelog}"
+        # New version header present with today's date (rollover-robust: the
+        # date must be exactly one of the 2 candidates captured around the
+        # subprocess call, and the heading format is still checked exactly)
+        expected_header, _, heading_date = _extract_changelog_version_heading(changelog, new_ver)
+        assert heading_date in (before_date, after_date), (
+            f"Heading date {heading_date!r} not in expected window "
+            f"{{{before_date!r}, {after_date!r}}}.\n{changelog}"
         )
 
         # [Unreleased] content promoted: "New feature A" was under [Unreleased]
@@ -869,16 +909,24 @@ class TestChangelogPromotion:
         repo, _ = _setup_release_repo(tmp_path)
         new_ver = "1.4.0"
 
+        # Rollover-robust date window (issue #62) — see
+        # _extract_changelog_version_heading()'s docstring.
+        before_date = date.today().isoformat()
         rc, stdout, stderr = _run_release(repo, [PLUGIN_NAME, new_ver])
+        after_date = date.today().isoformat()
 
         assert rc == 0, f"exit {rc}\nstdout: {stdout}\nstderr: {stderr}"
 
         changelog = _read(os.path.join(repo, "CHANGELOG.md"))
         unreleased_header = "## [Unreleased]"
-        new_header = f"## [{new_ver}] - {TODAY}"
+
+        new_header, idx_new_ver, heading_date = _extract_changelog_version_heading(changelog, new_ver)
+        assert heading_date in (before_date, after_date), (
+            f"Heading date {heading_date!r} not in expected window "
+            f"{{{before_date!r}, {after_date!r}}}.\n{changelog}"
+        )
 
         idx_unreleased = changelog.index(unreleased_header)
-        idx_new_ver = changelog.index(new_header)
 
         # The text between end of "## [Unreleased]" and start of "## [<ver>]"
         between = changelog[idx_unreleased + len(unreleased_header):idx_new_ver]
@@ -902,12 +950,19 @@ class TestChangelogPromotion:
         # The INITIAL_CHANGELOG has two items under [Unreleased]:
         #   "New feature A that improves workflow."
         #   "Improvement B for better performance."
+        # Rollover-robust date window (issue #62) — see
+        # _extract_changelog_version_heading()'s docstring.
+        before_date = date.today().isoformat()
         rc, stdout, stderr = _run_release(repo, [PLUGIN_NAME, new_ver])
+        after_date = date.today().isoformat()
         assert rc == 0, f"exit {rc}\nstdout: {stdout}\nstderr: {stderr}"
 
         changelog = _read(os.path.join(repo, "CHANGELOG.md"))
-        new_header = f"## [{new_ver}] - {TODAY}"
-        idx_new_ver = changelog.index(new_header)
+        new_header, idx_new_ver, heading_date = _extract_changelog_version_heading(changelog, new_ver)
+        assert heading_date in (before_date, after_date), (
+            f"Heading date {heading_date!r} not in expected window "
+            f"{{{before_date!r}, {after_date!r}}}.\n{changelog}"
+        )
 
         # Content after the new heading (up to next ## or end)
         after_new = changelog[idx_new_ver + len(new_header):]
@@ -932,13 +987,20 @@ class TestChangelogPromotion:
         repo, _ = _setup_release_repo(tmp_path)
         new_ver = "1.4.0"
 
+        # Rollover-robust date window (issue #62) — see
+        # _extract_changelog_version_heading()'s docstring. The assertion
+        # below stays strict: exact heading format, exact date match against
+        # one of exactly 2 candidates — never relaxed to "contains [1.4.0]".
+        before_date = date.today().isoformat()
         rc, stdout, stderr = _run_release(repo, [PLUGIN_NAME, new_ver])
+        after_date = date.today().isoformat()
         assert rc == 0, f"exit {rc}\nstdout: {stdout}\nstderr: {stderr}"
 
         changelog = _read(os.path.join(repo, "CHANGELOG.md"))
-        expected_heading = f"## [{new_ver}] - {TODAY}"
-        assert expected_heading in changelog, (
-            f"Expected heading '{expected_heading}' not found in CHANGELOG.\n{changelog}"
+        expected_heading, _, heading_date = _extract_changelog_version_heading(changelog, new_ver)
+        assert heading_date in (before_date, after_date), (
+            f"Expected heading date to be one of {{{before_date!r}, {after_date!r}}}, "
+            f"got {heading_date!r} (heading: {expected_heading!r}).\n{changelog}"
         )
 
     def test_new_unreleased_section_is_empty_after_promotion(self, tmp_path):
