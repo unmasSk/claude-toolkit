@@ -406,10 +406,39 @@ class TestNeedsUpgradePreexistingReasons:
     (stale CLAUDE.md markers) must continue to fire independently.
     """
 
-    def test_stale_block_still_triggers_upgrade(self, tmp_path, monkeypatch):
+    def test_divergent_block_body_still_triggers_upgrade(self, tmp_path, monkeypatch):
         """
-        A CLAUDE.md block with the old 'python3 bin/' marker still causes
-        needs_upgrade() to return True, regardless of manifest version.
+        A managed block whose BODY has genuinely diverged from canonical
+        content (BEGIN and END markers both still present and matched, but
+        the text between them no longer matches lib/managed_blocks.py's
+        render) still causes needs_upgrade() to return True, regardless of
+        manifest version -- the `current_body != block["body"].strip()`
+        branch of managed_blocks.any_block_outdated() (lib/managed_blocks.py),
+        a distinct code path from a block whose BEGIN marker is missing
+        entirely (see test_missing_secondary_block_still_triggers_upgrade
+        below, which exercises the `begin not in content` branch instead).
+
+        Renamed from test_stale_block_still_triggers_upgrade (issue #63
+        Cerberus nitpick): the old name/docstring described this as
+        detecting the retired "python3 bin/" magic-string marker
+        specifically. Check 1 (lib/upgrade_check.py) no longer keys off
+        any literal string at all -- it now calls the generic
+        any_block_outdated(), which flags ANY divergence between a
+        block's actual body and its canonical render. The tamper below
+        (replacing "unmassk-toolkit Active" with an old-style
+        "python3 bin/..." string inside the block body) still makes the
+        test pass, but for a DIFFERENT and more general reason than the
+        old name implied: it is just one instance of "body text differs
+        from canonical", not a dedicated detector for that specific
+        historical string.
+
+        Kept, not retired: not truly redundant with
+        test_missing_secondary_block_still_triggers_upgrade. That test
+        proves the "begin marker altogether absent" branch of
+        any_block_outdated(); this one proves the separate "begin/end
+        present, body content diverged" branch -- two different `if`
+        branches inside the same function, each worth its own regression
+        test.
         """
         from version import VERSION
 
@@ -437,7 +466,7 @@ class TestNeedsUpgradePreexistingReasons:
         present — still causes needs_upgrade() to return True: the "begin
         marker not in content" branch of managed_blocks.any_block_outdated(),
         a distinct code path from a merely tampered/divergent block body
-        (see test_stale_block_still_triggers_upgrade above).
+        (see test_divergent_block_body_still_triggers_upgrade above).
 
         Deliberately NOT the unmassk-toolkit block itself: needs_upgrade()
         has its own EARLIER fail-safe — `if "BEGIN unmassk-toolkit" not in

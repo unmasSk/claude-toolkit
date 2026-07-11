@@ -55,7 +55,7 @@ LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-from managed_blocks import BLOCKS  # noqa: E402
+from managed_blocks import BLOCKS, any_block_outdated, _render_block  # noqa: E402
 
 CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
 INSTALL = os.path.join(os.path.join(SOURCE_ROOT, "bin"), "git-memory-install.py")
@@ -577,4 +577,132 @@ class TestRegeneratedBlockRoundTripNoRewriteOnNextBoot:
         assert "up to date" in combined2 or "up-to-date" in combined2, (
             "boot 2 must genuinely report the blocks as up to date now that "
             f"regeneration already happened in boot 1. stdout2={stdout2!r}"
+        )
+
+
+class TestOrphanedBeginAtLiteralEOFNoTrailingNewline:
+    """Cerberus suggestion (post-Ultron hardening): the `line_end == -1`
+    sub-branch in lib/managed_blocks.py:233-236 has no dedicated test. Every
+    "last block" test above (TestLastBlockOrphanedEndPreservesUserContent)
+    always plants a user note directly below the corrupted block, so
+    `content.find("\\n", start)` always finds that note's leading newline
+    and takes the `line_end != -1` path. The ONLY way to force the other
+    branch is a BEGIN marker that is the literal, physical last byte
+    sequence of the file: no trailing newline, no END, nothing after it at
+    all -- e.g. a write that was truncated mid-append, or a user who typed
+    the BEGIN comment by hand and saved before typing anything else.
+
+    NEW CONTRACT: this must regenerate the full block (BEGIN+body+END,
+    exactly once each) in place, identically to every other orphaned-BEGIN
+    case above -- not crash, not leave the dangling BEGIN untouched, and
+    not corrupt any content that came before it in the file.
+
+    Mutation-check note (verified live, not assumed): unlike the other
+    classes in this file, this one does NOT distinguish current
+    lib/managed_blocks.py from the OLD pre-7842668 mechanism (33de083) --
+    both produce byte-identical output for this exact scenario, for every
+    block position (checked all 5). That is expected, not a gap: the OLD
+    mechanism's data-loss bug only manifests when real content sits
+    BETWEEN the orphaned BEGIN and a later boundary; here nothing at all
+    follows the BEGIN, so the OLD "no next_positions -> strip begin line,
+    queue for end-of-file append" fallback happens to reconstruct the same
+    bytes. This test exists for a DIFFERENT reason (Cerberus's ask): the
+    `line_end == -1` branch itself (lib/managed_blocks.py:234-235) had zero
+    dedicated coverage, and it IS capable of failing on its own -- verified
+    live by reintroducing the specific naive regression this branch's
+    ternary guards against (dropping the `if line_end == -1 else` guard and
+    always doing `content.find("\\n", start) + 1`, which wraps to 0 and
+    re-splices the ENTIRE document back onto itself): that mutant fails
+    `content_after.count(target["begin"]) == 1` (produces 2). This test is
+    a coverage-gap fill and a guard against that class of future
+    regression, not a repeat of the OLD-mechanism data-loss regression
+    guard the other classes in this file provide.
+    """
+
+    def test_begin_as_last_byte_of_file_regenerates_full_block(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        _install(repo)
+
+        # Last block in BLOCKS -- realistic choice: in a freshly installed
+        # CLAUDE.md this block's BEGIN/body/END really is the physically
+        # last content in the file, so truncating right after its BEGIN
+        # marker (with no newline) does not require discarding any other
+        # block to construct the scenario.
+        target = BLOCKS[-1]
+        assert target is BLOCKS[-1], "sanity: must be the physically last block"
+
+        claude_md = _claude_md_path(repo)
+        content_before = _read(claude_md)
+        assert content_before.count(target["begin"]) == 1
+        assert content_before.count(target["end"]) == 1
+
+        begin_pos = content_before.find(target["begin"])
+        assert begin_pos != -1, "installed CLAUDE.md must contain this block's BEGIN marker"
+        prefix = content_before[:begin_pos]
+
+        # Truncate the file to end EXACTLY at the last character of the
+        # BEGIN marker itself: no newline after it, no END marker, no body,
+        # nothing else -- the dangling BEGIN IS the last byte of the file.
+        corrupted = content_before[: begin_pos + len(target["begin"])]
+        assert corrupted.endswith(target["begin"]), (
+            "sanity: the corrupted file must end with the bare BEGIN marker"
+        )
+        assert not corrupted.endswith("\n"), (
+            "sanity: the corrupted file must have NO trailing newline after "
+            "the dangling BEGIN -- otherwise content.find('\\n', start) would "
+            "find one and this test would exercise the OTHER branch "
+            "(line_end != -1), not the EOF one under test here"
+        )
+        assert corrupted.count(target["end"]) == 0, "END must be genuinely absent"
+        assert corrupted.count(target["begin"]) == 1, "BEGIN must survive the corruption untouched"
+        _write(claude_md, corrupted)
+
+        # ── Run the REAL hook (code under test) via real subprocess ─────
+        rc, stdout, stderr = _run_crew(repo)
+        assert rc == 0, f"crew hook must exit 0 (fail-open). stderr={stderr!r}"
+
+        with open(claude_md, "rb") as f:
+            raw_after = f.read()
+        content_after = raw_after.decode("utf-8")
+
+        assert content_after.count(target["begin"]) == 1, (
+            "the block's BEGIN marker must be regenerated exactly once, not "
+            f"duplicated. content_after={content_after!r}"
+        )
+        assert content_after.count(target["end"]) == 1, (
+            "the block's END marker must come back exactly once -- the "
+            f"pre-fix bug (line_end == -1 mishandled) must not leave it "
+            f"permanently absent or duplicated. content_after={content_after!r}"
+        )
+
+        # Expected block bytes derived from the real render contract
+        # (managed_blocks._render_block), never hand-typed -- unmassk-standards
+        # §34: the expected value must come from the real producer seam.
+        expected_rendered = _render_block(target)
+        assert expected_rendered in content_after, (
+            "the regenerated block must match the real canonical render "
+            f"exactly (BEGIN+body+END). content_after={content_after!r}"
+        )
+
+        # Nothing before the dangling BEGIN (earlier blocks, file header)
+        # may be touched -- the fix's own "safe by construction" claim for
+        # this exact edge (no bytes after the BEGIN line to accidentally
+        # eat, but also none before it that should ever move).
+        assert content_after.startswith(prefix), (
+            "regenerating a BEGIN orphaned at EOF must not alter any byte "
+            f"that came before it. prefix={prefix!r} content_after={content_after!r}"
+        )
+
+        assert not any_block_outdated(content_after), (
+            "after regeneration every block (not just the corrupted one) "
+            f"must match canonical content exactly. content_after={content_after!r}"
+        )
+
+        # ── Idempotency: a second real run must be a genuine no-op ──────
+        rc2, stdout2, stderr2 = _run_crew(repo)
+        assert rc2 == 0, f"second crew run must exit 0. stderr={stderr2!r}"
+        content_after_2 = _read(claude_md)
+        assert content_after_2 == content_after, (
+            "a second run against already-regenerated, canonical content "
+            "must be a genuine no-op (idempotent)"
         )

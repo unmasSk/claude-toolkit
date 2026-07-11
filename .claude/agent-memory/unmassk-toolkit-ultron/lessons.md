@@ -1260,3 +1260,25 @@ proven unsafe, check whether the function it was gating (here
 `upsert_managed_blocks`) already performs an idempotent diff before writing
 back a redundant explicit outdated-check — the minimal-diff fix may just be
 deleting the gate, not adding a new comparison function call.
+
+## hooks.json timeout budget must exceed the sum of a hook's own bounded subprocess calls
+
+Issue #63 point 2 (Cerberus suggestion): moving `trigger_auto_upgrade_if_needed`
+(lib/upgrade_check.py, timeout=15) into `hooks/session-start-boot.py`'s
+`main()` put it in the SAME hook as the fetch in `run_preboot_migrations()`
+→ `fetch_memory_ref()` → `lib/boot_git_checks.py`'s `FETCH_TIMEOUT_SECONDS = 10`.
+Both run sequentially inside one Python process, so worst case is additive
+(10 + 15 = 25s) before even counting the rest of the hook's own git calls —
+against `hooks/hooks.json`'s declared `"timeout": 30` for that hook, the
+margin was too tight on a degraded network (hook self-kill = fail-open, no
+corruption, but upgrade silently doesn't run and boot is incomplete).
+Fixed by raising `hooks.json`'s `session-start-boot.py` timeout 30→45s —
+no change to the fetch or upgrade logic/timeouts themselves.
+
+Rule: when a hook gains a new bounded subprocess call (or an existing one
+moves into it), re-sum ALL of that hook's own bounded timeouts and confirm
+the hook's declared `hooks.json` timeout still has real margin over the
+sequential worst case — don't just trust the original budget was sized for
+the new combination. JSON hook entries in this repo have no comment
+syntax, so document the rationale in the commit message / git-memory, not
+inline in `hooks.json`.
