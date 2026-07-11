@@ -1,8 +1,27 @@
 """
 Regresion permanente para 2 fixes T1 (Argus, issue #63) aplicados en
-wip 5c9d012 sobre 3 puntos de lectura de manifest.json:
+wip 5c9d012 sobre lecturas de manifest.json.
 
-  - hooks/session-start-crew.py :: _manifest_version_matches(git_root)
+RETIRADO EN ESTE FICHERO (fase #63 P1 v2, decision 2d56444, ver tambien
+test_crew_manifest_version_gate.py): las 2 clases que probaban el sitio
+`hooks/session-start-crew.py :: _manifest_version_matches(git_root)`
+(TestSecT1_001CrewManifestVersionMatchesFailSafe y
+TestSecT1_002CrewManifestVersionMatchesFailSafe) se retiran -- no por un
+cambio de contrato semantico, sino porque la funcion misma DEJA DE EXISTIR
+en el gate v2: `git diff -- hooks/session-start-crew.py` (WIP de Ultron en
+curso al momento de este retiro) borra integramente
+`_manifest_version_matches` junto con sus imports (`json`, `git_helpers.
+verify_path_within_project`, `version.VERSION`) -- el hook v2 nunca vuelve
+a leer manifest.json para decidir si reescribe CLAUDE.md (ver docstring de
+test_crew_content_gate_v2.py y test_crew_manifest_version_gate.py). Sin
+lectura de manifest en ese sitio no hay superficie de ataque SEC-T1-001/002
+que endurecer alli: dejarlas habria producido AttributeError contra el
+modulo (funcion inexistente), no un fallo de aserto -- confirmado leyendo
+el diff en curso, no una suposicion.
+
+Quedan 2 de los 3 puntos de lectura originales, sin cambios de Ultron en
+este WIP y por tanto con contrato intacto:
+
   - lib/boot_health.py          :: check_version_mismatch()
   - lib/upgrade_check.py        :: needs_upgrade(root)
 
@@ -10,8 +29,8 @@ SEC-T1-001 (RecursionError -> crash): un manifest.json con anidamiento
 JSON extremo hace que json.load lance RecursionError, que no es ni
 OSError ni json.JSONDecodeError -- escapaba del except estrecho y
 crasheaba el hook/funcion que lo llamaba. Fix: el except se amplio a
-`except Exception:` en los 3 sitios (upgrade_check.py ya lo tenia
-amplio de antes -- ver nota en la clase de ese sitio).
+`except Exception:` en estos sitios (upgrade_check.py ya lo tenia amplio
+de antes -- ver nota en la clase de ese sitio).
 
 SEC-T1-002 (symlink de directorio bypassa el guard): open_no_follow_symlink()
 solo protege el COMPONENTE FINAL de la ruta (manifest.json). Si `.claude`
@@ -19,28 +38,24 @@ solo protege el COMPONENTE FINAL de la ruta (manifest.json). Si `.claude`
 a un sitio con un manifest.json REAL (no symlink), open_no_follow_symlink()
 no tiene nada que objetar -- el ultimo componente genuinamente no es un
 symlink. Fix: verify_path_within_project(manifest_path, root) antes del
-open, en los 3 sitios -- resuelve cada componente intermedio via realpath()
+open, en estos sitios -- resuelve cada componente intermedio via realpath()
 y rechaza cualquier ruta que escape del git root.
 
-Canal: llamada directa a las 3 funciones (nunca al hook completo via
+Canal: llamada directa a las 2 funciones (nunca al hook completo via
 --json ni parseo de stdout), cada una en un subprocess aislado (evita
 contaminar sys.modules del proceso de test con modulos reales y
 establemente cacheados como upgrade_check/boot_health -- ver
-unmassk-toolkit-python-test-conventions.md). Los 2 sitios en lib/ toman
-`root`/cwd explicitos o dependen del cwd del proceso (documentado por
-funcion), asi que cada helper de invocacion fija el canal correcto.
+unmassk-toolkit-python-test-conventions.md). Ambas toman `root`/cwd
+explicitos o dependen del cwd del proceso (documentado por funcion), asi
+que cada helper de invocacion fija el canal correcto.
 
 Eleccion de la version forjada por sitio (deliberada, no copiada
 literalmente de "version alta" -- ver docstring de
 _plant_symlinked_claude_dir_with_forged_manifest): cada sitio compara la
 version leida de forma distinta, asi que una version forjada "alta"
-generica seria vacua (el test pasaria igual con o sin el guard) en 2 de
-los 3 sitios. Se elige la version forjada que hace observable la
+generica seria vacua (el test pasaria igual con o sin el guard) en uno de
+los 2 sitios restantes. Se elige la version forjada que hace observable la
 diferencia AUSENTE-guard vs PRESENTE-guard en cada sitio:
-  - crew (_manifest_version_matches): compara IGUALDAD con VERSION -> se
-    forja exactamente VERSION (si el guard falla, el resultado se
-    convierte en True: el hook confiaria en la version forjada y
-    saltaria la regeneracion de CLAUDE.md).
   - boot_health (check_version_mismatch): compara DESIGUALDAD con
     PLUGIN_VERSION -> se forja una version alta/distinta (si el guard
     falla, aparece un warning con contenido forjado en el STATUS del
@@ -50,8 +65,10 @@ diferencia AUSENTE-guard vs PRESENTE-guard en cada sitio:
     falla, needs_upgrade() devuelve True y dispara un auto-upgrade
     espurio).
 
-Build mode: linear (fix ya aplicado por Ultron en wip 5c9d012). Solo
-tests -- ningun cambio de produccion en este fichero.
+Build mode: linear (fix ya aplicado por Ultron en wip 5c9d012; el retiro
+del sitio crew es limpieza de suite en la misma fase que
+test_crew_manifest_version_gate.py). Solo tests -- ningun cambio de
+produccion en este fichero.
 """
 
 import json
@@ -62,15 +79,11 @@ import sys
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, git_cmd, run_script
+from conftest import SOURCE_ROOT, INSTALL, git_cmd, run_script
 
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
-
-from version import VERSION  # noqa: E402
-
-CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
 
 # SEC-T1-001 payload: anidamiento JSON valido (array vacio anidado N veces)
 # que agota la pila de recursion de json.load bien por debajo del limite de
@@ -159,21 +172,6 @@ def _plant_symlinked_claude_dir_with_forged_manifest(repo, tmp_path, forged_vers
 # unmassk-toolkit-python-test-conventions.md)
 
 
-def _call_manifest_version_matches(repo):
-    code = f"""
-import importlib.util, json
-from pathlib import Path
-spec = importlib.util.spec_from_file_location("crew_t1_probe", {CREW_HOOK!r})
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-result = mod._manifest_version_matches(Path({repo!r}))
-print(json.dumps({{"result": result}}))
-"""
-    return subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=30
-    )
-
-
 def _call_check_version_mismatch(repo):
     # check_version_mismatch() has no params -- it derives the git root via
     # `run_git(["rev-parse", "--show-toplevel"])` with cwd=None (ambient
@@ -235,28 +233,10 @@ class TestMaliciousPayloadSanity:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestSecT1_001CrewManifestVersionMatchesFailSafe:
-    """hooks/session-start-crew.py::_manifest_version_matches() -- fail-safe
-    is False (falls through to regenerate CLAUDE.md, same as missing/corrupt
-    manifest)."""
-
-    def test_deep_nested_manifest_returns_false_without_crashing(self, tmp_path):
-        repo = _make_installed_repo(tmp_path)
-        _write_malicious_deep_manifest(repo)
-
-        proc = _call_manifest_version_matches(repo)
-        result = _result_or_fail(proc, "_manifest_version_matches")
-
-        assert result is False, (
-            "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
-            f"False, not crash or return True. stdout={proc.stdout!r}"
-        )
-
-
 class TestSecT1_001BootHealthCheckVersionMismatchFailSafe:
     """lib/boot_health.py::check_version_mismatch() -- fail-safe is None
     (no upgrade-suggestion warning rendered in the boot STATUS section).
-    Highest blast radius of the 3 sites: called unguarded from
+    Highest blast radius of the 2 remaining sites: called unguarded from
     render_status_section() in the main boot hook."""
 
     def test_deep_nested_manifest_returns_none_without_crashing(self, tmp_path):
@@ -280,7 +260,7 @@ class TestSecT1_001UpgradeCheckNeedsUpgradeFailSafe:
     #63's SEC-T1-001 fix (the commit only added verify_path_within_project()
     here, for SEC-T1-002) -- this test is a regression guard against a
     FUTURE narrowing of that except, not a fix this commit introduced for
-    this specific site. Still one of the 3 read points the contract covers.
+    this specific site. Still one of the 2 read points this file covers.
     """
 
     def test_deep_nested_manifest_returns_false_without_crashing(self, tmp_path):
@@ -301,31 +281,6 @@ class TestSecT1_001UpgradeCheckNeedsUpgradeFailSafe:
 # bypass the manifest-read guard just because the final path component
 # (manifest.json) is a genuine, non-symlink file at the resolved location.
 # ══════════════════════════════════════════════════════════════════════════
-
-
-@pytest.mark.usefixtures("real_symlink_capable")
-class TestSecT1_002CrewManifestVersionMatchesFailSafe:
-    """crew's fail-safe is False. Forged version == VERSION deliberately
-    (see module docstring): a "high"/arbitrary forged version would make
-    this test pass vacuously with or without the guard, since
-    _manifest_version_matches() only ever returns True on an EXACT VERSION
-    match -- the only forged value that can flip the result if the guard is
-    bypassed is VERSION itself."""
-
-    def test_symlinked_claude_dir_with_forged_matching_version_returns_false(self, tmp_path):
-        repo = _make_installed_repo(tmp_path)
-        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
-            repo, tmp_path, forged_version=VERSION, tag="crew"
-        )
-
-        proc = _call_manifest_version_matches(repo)
-        result = _result_or_fail(proc, "_manifest_version_matches")
-
-        assert result is False, (
-            "SEC-T1-002: a .claude directory symlink hiding a forged "
-            f"manifest.json (version == VERSION) at {forged_manifest} must "
-            f"not be trusted. stdout={proc.stdout!r}"
-        )
 
 
 @pytest.mark.usefixtures("real_symlink_capable")

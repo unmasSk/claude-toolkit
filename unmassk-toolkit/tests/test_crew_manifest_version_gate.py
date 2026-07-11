@@ -1,48 +1,43 @@
 """
-Acceptance contract (test-first, RED) for issue #63 point 1 — boot
-simplification plan (docs/plan/refactor-boot-simplification.md), Bilbo's
-map (.claude/agent-memory/unmassk-toolkit-bilbo/boot-simplification-63-map.md
-section 1).
+SUPERSEDED CONTRACT NOTICE (decision 2d56444, git show 2d56444):
 
-Code under test: hooks/session-start-crew.py — today calls
-upsert_managed_blocks(content) UNCONDITIONALLY on every SessionStart
-(line ~61), diffing the whole CLAUDE.md against the 5 canonical blocks
-every single boot regardless of whether anything actually changed since
-the last successful install/upgrade.
+This file originally carried the v1 acceptance contract for issue #63
+point 1 (manifest.json's "version" field matching VERSION -> skip
+rewriting CLAUDE.md entirely, even if a managed block was stale/altered).
+Moriarty broke that contract with 3 live T1 PoCs (documented in
+.claude/agent-memory/unmassk-toolkit-moriarty/MEMORY.md, "issue #63 Last
+attack"): a version match is only proof "an install ran once", never
+proof "CLAUDE.md's content is correct right now". Decision 2d56444
+replaced it with the v2 content-based gate: the hook ALWAYS reads and
+diffs CLAUDE.md's managed blocks against the canonical ones and skips
+ONLY the write when content already matches -- manifest.json's version
+field plays no role in that decision anymore.
 
-NEW CONTRACT (decision 0f5af98 + Bilbo's map, section 1):
-  - manifest.json's "version" field == the running plugin's VERSION
-    (lib/version.py) -> session-start-crew.py must NOT rewrite CLAUDE.md
-    at all. Content AND mtime stay exactly as they were before the hook
-    ran (fail-open still means "trust the version marker", not "diff
-    anyway just in case").
-  - manifest.json's version differs from VERSION, OR the manifest is
-    absent/corrupt/unreadable -> the hook MUST still regenerate (fail-open:
-    an untrustworthy version signal must never silently freeze a stale
-    CLAUDE.md forever).
+`TestManifestVersionMatchSkipsRewrite` (asserted: version match + stale
+block -> skip, content stays stale) has been RETIRED -- it asserted the
+exact behavior 2d56444 reverses. `TestManifestVersionMismatchStillRegenerates`
+has also been RETIRED as redundant: content-staleness now triggers
+regeneration unconditionally, and the harder/adversarial case (matching
+version + poisoned block still regenerates) is already covered by
+test_crew_content_gate_v2.py::TestPoisonedBlockWithMatchingManifestStillRegenerates,
+which strictly subsumes this file's former mismatched-version scenario.
+See test_crew_content_gate_v2.py for the current v2 acceptance contract
+(4 tests covering all 3 of Moriarty's PoCs plus the "don't lose the
+optimization" control).
 
-Only the "skip" case is genuinely new behavior — today's hook has no
-manifest-awareness at all (confirmed by Bilbo: `grep -n "manifest"
-hooks/session-start-crew.py` returns nothing), so it is the only test in
-this file expected to fail (RED) against the unmodified hook. The two
-"regenerate" tests encode existing, already-correct behavior (today's
-hook always rewrites unconditionally) — they exist here as part of the
-same acceptance contract and as a regression guard: the new gate must not
-accidentally suppress regeneration for the cases where it's still
-required.
-
-Build mode: test-first (contract pass, before Ultron). Acceptance
-granularity only — no exhaustive branch coverage here (see EXHAUSTION
-PROTOCOL note in Dante's operating rules; the hardening pass runs after
-Ultron implements).
+What remains in this file (`TestManifestAbsentOrCorruptStillRegenerates`)
+is NOT part of the retired version-gate contract: it asserts that a
+missing or corrupt manifest.json never blocks CLAUDE.md regeneration --
+a robustness/regression guard that stays true (and is not otherwise
+covered by test_crew_content_gate_v2.py, which never exercises a
+missing/corrupt manifest fixture) regardless of whether the gate is
+version-based or content-based.
 
 NO production code is touched by this file. Only tests.
 """
 
-import json
 import os
 import sys
-import time
 
 import pytest
 
@@ -53,7 +48,6 @@ if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
 from managed_blocks import BLOCKS, all_blocks_present  # noqa: E402
-from version import VERSION  # noqa: E402
 
 CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
 
@@ -84,20 +78,6 @@ def _manifest_path(repo):
 
 def _claude_md_path(repo):
     return os.path.join(repo, "CLAUDE.md")
-
-
-def _set_manifest_version(repo, version):
-    """Read-modify-write manifest.json's "version" key, preserving every
-    other field install --auto already wrote (matches the shape a real
-    manifest has — never a hand-typed minimal stand-in, unmassk-standards
-    §34's spirit applied to fixture realism even outside a producer/
-    consumer round-trip)."""
-    path = _manifest_path(repo)
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    data["version"] = version
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f)
 
 
 def _corrupt_manifest(repo):
@@ -134,71 +114,14 @@ def _run_crew(repo):
     return run_cmd([sys.executable, CREW_HOOK], cwd=repo)
 
 
-# ── New behavior: manifest.version == VERSION -> skip entirely (RED) ──────
-
-
-class TestManifestVersionMatchSkipsRewrite:
-    def test_matching_manifest_version_skips_rewrite_even_with_stale_block(self, tmp_path):
-        """Genuinely new contract: when the manifest already claims the
-        current plugin version, the crew hook must trust that signal and
-        skip regeneration ENTIRELY -- not just "skip when content happens
-        to already be correct". Staling the block first proves the skip is
-        driven by the version check, not by there being nothing to change.
-        """
-        repo = _make_repo(tmp_path)
-        _install(repo)
-
-        with open(_manifest_path(repo), encoding="utf-8") as f:
-            installed_version = json.load(f)["version"]
-        assert installed_version == VERSION, (
-            "precondition: a fresh install --auto must write manifest.version == VERSION"
-        )
-
-        stale_content = _stale_first_block(repo)
-        claude_md = _claude_md_path(repo)
-        mtime_before = os.path.getmtime(claude_md)
-        # Filesystem mtime resolution can be as coarse as 1s on some hosts;
-        # give a rewrite (if one incorrectly happens) room to be observable.
-        time.sleep(1.1)
-
-        rc, stdout, stderr = _run_crew(repo)
-        assert rc == 0, f"crew hook must exit 0. stderr={stderr!r}"
-
-        with open(claude_md, encoding="utf-8") as f:
-            content_after = f.read()
-        mtime_after = os.path.getmtime(claude_md)
-
-        assert content_after == stale_content, (
-            "manifest.version == VERSION must skip regeneration entirely -- "
-            f"CLAUDE.md content changed anyway. stdout={stdout!r}"
-        )
-        assert mtime_after == mtime_before, (
-            "CLAUDE.md must not be rewritten (mtime must stay intact) when "
-            "manifest.version already matches the running plugin version"
-        )
-
-
-# ── Existing (already-correct) behavior: version mismatch -> regenerate ───
-
-
-class TestManifestVersionMismatchStillRegenerates:
-    def test_older_manifest_version_regenerates_stale_block(self, tmp_path):
-        repo = _make_repo(tmp_path)
-        _install(repo)
-        _stale_first_block(repo)
-        _set_manifest_version(repo, "0.0.1")
-
-        rc, stdout, stderr = _run_crew(repo)
-        assert rc == 0, f"crew hook must exit 0. stderr={stderr!r}"
-
-        with open(_claude_md_path(repo), encoding="utf-8") as f:
-            content_after = f.read()
-
-        assert STALE_MARKER not in content_after, (
-            "manifest.version != VERSION must still regenerate the stale "
-            "block (fail-open on an untrustworthy version signal)"
-        )
-        assert all_blocks_present(content_after)
+# ── Retired (v1 contract, decision 2d56444 reverses it) ────────────────────
+#
+# TestManifestVersionMatchSkipsRewrite and TestManifestVersionMismatchStillRegenerates
+# lived here. See the module docstring above for why both were removed
+# instead of adapted: the first asserted the exact behavior 2d56444
+# reverses; the second became a strictly weaker duplicate of
+# test_crew_content_gate_v2.py::TestPoisonedBlockWithMatchingManifestStillRegenerates
+# once the gate stopped caring about manifest.json's version at all.
 
 
 # ── Existing (already-correct) behavior: missing/corrupt manifest -> regenerate (fail-open) ──
