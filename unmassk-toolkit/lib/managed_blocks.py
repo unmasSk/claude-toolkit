@@ -187,18 +187,59 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
         end = block["end"]
         rendered = _render_block(block)
 
-        if begin in content:
-            # Block present — update in place (regex replace begin…end)
-            pattern = re.compile(
-                re.escape(begin) + r".*?" + re.escape(end),
-                re.DOTALL,
-            )
+        pattern = re.compile(
+            re.escape(begin) + r".*?" + re.escape(end),
+            re.DOTALL,
+        )
+        match = pattern.search(content)
+
+        if match:
+            # Block present with both markers — update in place if stale.
             new_content = pattern.sub(rendered, content)
             if new_content != content:
                 log.append(f"updated {begin}")
             else:
-                log.append(f"up-to-date {begin}")
+                # Deliberately NOT "up-to-date {begin}": that phrase is
+                # reserved for hooks/session-start-crew.py's single
+                # aggregate message, printed only when truly nothing
+                # changed anywhere. A per-block log line mixed into a run
+                # that also regenerates a corrupted block must never let
+                # "up to date" wording leak into that run's output (T1-A,
+                # issue #63) — an unchanged block among changed ones is
+                # still accurately reported, just without that phrase.
+                log.append(f"unchanged {begin}")
             content = new_content
+        elif begin in content:
+            # Orphaned BEGIN: this block's own END marker is missing
+            # somewhere in the whole document (deleted line, merge-conflict
+            # resolution, editor auto-fix). begin…end can't match, so this
+            # block is corrupted, never "up to date" — it must be
+            # regenerated, not silently accepted.
+            start = content.find(begin)
+            search_from = start + len(begin)
+            next_positions = [
+                content.find(other["begin"], search_from)
+                for other in BLOCKS
+                if other is not block
+            ]
+            next_positions = [p for p in next_positions if p != -1]
+
+            if next_positions:
+                # A later managed block's BEGIN is a known, trustworthy
+                # boundary — reclaim everything between our dangling BEGIN
+                # and it (the stray orphaned body) and splice the full
+                # canonical block in its place, in position.
+                boundary = min(next_positions)
+                content = content[:start] + rendered + "\n\n" + content[boundary:]
+            else:
+                # No later managed block to anchor on (last block, or all
+                # later ones are also absent) — anything after our dangling
+                # BEGIN could be genuine user content, so only the BEGIN
+                # line itself is removed; the canonical block is queued to
+                # be appended at the end, same as a fully missing block.
+                content = re.sub(re.escape(begin) + r"\n?", "", content, count=1)
+                missing_blocks.append(block)
+            log.append(f"regenerated {begin} (orphaned END marker)")
         else:
             missing_blocks.append(block)
 
