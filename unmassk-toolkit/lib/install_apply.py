@@ -51,7 +51,20 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
             elif action == "update_claude_md":
                 _update_claude_md(target)
             elif action == "create_manifest":
-                _create_manifest(target, plan["mode"])
+                # Decision 2d56444 / Moriarty #63: create_manifest is always
+                # the last action in plan["actions"] (see create_plan() in
+                # bin/git-memory-install.py), so by the time we get here
+                # `errors` already holds every failure from this same run.
+                # The manifest is the producer side of the seam the boot
+                # consumer gate trusts (upgrade_check.needs_upgrade, the
+                # STATUS line) — stamping VERSION when an earlier action
+                # failed would lie about install/upgrade success. Only write
+                # it when nothing has failed so far; on failure, leave the
+                # manifest exactly as it was (absent or stale) so the next
+                # boot's consumer gate still sees the install/upgrade as
+                # pending and retries it.
+                if not errors:
+                    _create_manifest(target, plan["mode"])
         except Exception as e:
             errors.append(f"{action}: {e}")
 

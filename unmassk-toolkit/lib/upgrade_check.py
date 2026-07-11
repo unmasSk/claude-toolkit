@@ -145,10 +145,24 @@ def trigger_auto_upgrade_if_needed(root: str) -> None:
     try:
         if needs_upgrade(root):
             install_script = os.path.join(_PLUGIN_ROOT, "bin", "git-memory-install.py")
-            subprocess.run(
+            result = subprocess.run(
                 [sys.executable, install_script, "--auto"],
                 capture_output=True, text=True, encoding="utf-8", cwd=root, timeout=15,
             )
+            # Decision 2d56444 / Moriarty #63: the returncode used to be
+            # discarded, so a failed --auto install (manifest never
+            # re-stamped) looked identical to a successful one from here —
+            # nothing on this path retried. Leave a breadcrumb (same pattern
+            # as boot_health.py's BOOT-WARNING lines) and do NOT treat a
+            # non-zero exit as success, so the caller's own state (manifest
+            # still stale, since install_apply.py now gates the stamp on
+            # zero errors) is what the next boot's consumer gate sees.
+            if result.returncode != 0:
+                print(
+                    f"[git-memory] upgrade fail-open: install --auto exited "
+                    f"{result.returncode}: {result.stderr.strip()[:500]}",
+                    file=sys.stderr,
+                )
     except Exception as e:
         print(f"[git-memory] upgrade fail-open: {e!r}", file=sys.stderr)
         # fail-open: upgrade failure must never break session start
