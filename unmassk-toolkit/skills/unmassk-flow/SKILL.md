@@ -233,6 +233,19 @@ Verify the feature works and meets quality standards.
 - **Moriarty** (agent:moriarty.md`) — adversarial attack
 - **Yoda** (agent:yoda.md`) — senior review with verdict
 
+**Verify runs in ORDER, not all-at-once. Moriarty attacks LAST, on already-corrected code — never in parallel with the reviewers.** The sequence:
+1. **Cerberus + Argus** review the fresh implementation (these two CAN run in parallel — different lenses, no dependency).
+2. **Ultron** fixes everything they surface (phase-sized, one point per invocation; test changes go to Dante).
+3. **Moriarty** then attacks the *fixed* result — his single adversarial pass is spent on the code that's meant to ship, not on a version about to change under him. Attacking pre-fix code wastes the pass and its findings may already be moot.
+4. **Yoda** renders the verdict last of all.
+
+Reason: Moriarty's value is one hard break-attempt against the real candidate. Run him before the review→fix cycle settles and you either re-break what Ultron is already fixing, or burn the attempt on soon-dead code. Cerberus/Argus are cartographers (map every flaw up front, in parallel); Moriarty is the executioner (one clean strike, last).
+
+### Prompting the crew in Verify (calibrated per agent — NOT one size)
+
+- **Cerberus / Argus**: detailed, spelled-out prompts help — name the files, the foci, the specific concerns. They are cartographers; more surface area given = more mapped.
+- **Moriarty**: SHORT prompt (≈1 line) — name the target and the win condition, hand him NO vector list. A long prompt that pre-chews the attack vectors collapses his break rate (measured: long-prompt runs break far less than 1-line runs) and robs him of the only thing he's for — finding the break you didn't think of. Never lead the executioner.
+
 ### If producer↔consumer seam exists (network call, DB read/write, file written and reread)
 
 Triggered by the Step 0 seam declaration, regardless of size — this applies to a Quick or Standard feature exactly as it applies to a Big one. Apply `unmassk-standards` §34 (Producer↔Consumer Data Integrity). Not a new pipeline step — it runs inside this one:
