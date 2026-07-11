@@ -63,6 +63,23 @@ def _load_migrate_fn(fake_home: str):
     # block can fully restore sys.modules — preventing stub leakage into later tests.
     _ABSENT = object()
     saved_modules = {}
+    # Dante (issue #63 audit, 2026-07-11): also snapshot the FULL set of module
+    # names present before stubbing. hooks/session-start-boot.py now does
+    # `from upgrade_check import trigger_auto_upgrade_if_needed` at module
+    # level (issue #63, point 2) -- lib/upgrade_check.py's own module-level
+    # `from version import VERSION as PLUGIN_VERSION` runs DURING this stub
+    # window if upgrade_check hasn't been imported anywhere yet in the process,
+    # permanently freezing upgrade_check.PLUGIN_VERSION to the stub's "test"
+    # string in the REAL, stably-cached sys.modules["upgrade_check"] entry --
+    # same contamination class as the git_helpers.run_git freeze this file's
+    # own TestSysModulesContaminationRegression documents below, just reached
+    # through a transitive-import surface that didn't exist when the explicit
+    # 3-name stub list was written. Confirmed live: this broke
+    # test_needs_upgrade_semver.py's real-PLUGIN_VERSION assertions whenever it
+    # ran in the same pytest session after this function. Evicting every
+    # module newly present in sys.modules after this call (below) closes the
+    # whole class generically, not just this one instance.
+    pre_existing_module_names = set(sys.modules.keys())
     for stub_name in ("git_helpers", "parsing", "version"):
         saved_modules[stub_name] = sys.modules.get(stub_name, _ABSENT)
         stub = types.ModuleType(stub_name)
@@ -93,6 +110,14 @@ def _load_migrate_fn(fake_home: str):
                 sys.modules.pop(stub_name, None)
             else:
                 sys.modules[stub_name] = prev
+        # Evict every module that is newly present in sys.modules after this
+        # call and was not one of the 3 explicit stub names above (see the
+        # comment on pre_existing_module_names) -- forces a clean, real
+        # re-import for anything (like upgrade_check) that got transitively
+        # first-imported while a dependency of ITS OWN was stubbed.
+        for _name in list(sys.modules.keys()):
+            if _name not in pre_existing_module_names and _name not in saved_modules:
+                sys.modules.pop(_name, None)
 
     # Patch expanduser on the module's copy of os.path
     real_expanduser = mod.os.path.expanduser
