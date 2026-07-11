@@ -47,6 +47,7 @@ pattern this file reuses for the installer channel).
 
 import os
 import sys
+import time
 
 from conftest import SOURCE_ROOT, HOOKS_DIR, git_cmd, run_cmd, run_script
 
@@ -117,6 +118,24 @@ def _insert_user_note_after_end(repo, block, note):
     new_content = content[:insertion_point] + "\n\n" + note + "\n" + content[insertion_point:]
     _write(claude_md, new_content)
     assert note in new_content, "sanity: the user note must have actually landed below the block"
+    return new_content
+
+
+def _insert_user_note_before_begin(repo, block, note):
+    """Simulate a real user typing a free-text note directly ABOVE a real,
+    freshly-installed managed block in CLAUDE.md (in the gap between the
+    PREVIOUS block's END and this block's BEGIN) -- the mirror case of
+    `_insert_user_note_after_end`: managed blocks are not the whole file,
+    and a user is just as free to write notes above a block as below one.
+    Returns the new content string, and asserts the note actually landed
+    there (sanity, not the regression under test)."""
+    claude_md = _claude_md_path(repo)
+    content = _read(claude_md)
+    begin_pos = content.find(block["begin"])
+    assert begin_pos != -1, "installed CLAUDE.md must contain this block's BEGIN marker"
+    new_content = content[:begin_pos] + note + "\n\n" + content[begin_pos:]
+    _write(claude_md, new_content)
+    assert note in new_content, "sanity: the user note must have actually landed above the block"
     return new_content
 
 
@@ -307,4 +326,255 @@ class TestInstallerPathOrphanedEndPreservesUserContent:
             "crew hook) must also preserve user content sitting below an "
             "orphaned-END block, not just the crew hook. "
             f"content_after={content_after!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hardening pass (post-Ultron, wip 7842668's conservative single-line-removal
+# fix already GREEN for the 2 tests above). EXHAUSTION PROTOCOL scope for
+# THIS file: close the specific gaps the task named, not re-litigate what
+# the 2 tests above already prove.
+#
+# lib/managed_blocks.py's conservative fix (~L212-237) removes EXACTLY the
+# orphaned BEGIN's own single line and reinserts the full canonical block at
+# that same position -- unlike the OLD buggy mechanism it replaced (a
+# `boundary = min(next_positions)` splice that behaved differently for the
+# last block in BLOCKS vs. any other block, and only ever considered the
+# gap BELOW a block, never above), the new mechanism never branches on
+# block position and never touches anything before the BEGIN line at all.
+# That makes it "safe by construction" for both gaps below AND above, and
+# for the last block same as any other -- but that is exactly the kind of
+# claim that must be pinned by a real test, not left as an inference from
+# reading the diff, so a future change reintroducing position-dependent
+# splicing would be caught. One channel (crew hook) is sufficient for each
+# of these -- both existing tests above already proved BOTH channels (crew
+# hook and the installer's _update_claude_md()) hit the identical shared
+# upsert_managed_blocks() call, so re-doing that 2-channel proof again per
+# edge case would be pure duplication, not new coverage.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestLastBlockOrphanedEndPreservesUserContent:
+    def test_last_block_orphaned_end_preserves_note_below_and_recovers_end_once(self, tmp_path):
+        """Item (a): the OLD buggy mechanism this fix replaced took a
+        DIFFERENT branch for the last block in BLOCKS (no `next_positions`,
+        so nothing to delete) than for any other block -- meaning the old
+        bug's own regression tests (both above, using BLOCKS[0]) proved
+        nothing about the last-block case. The NEW conservative mechanism
+        doesn't branch on position at all, but that must be proven for the
+        last block specifically, not assumed from the non-last-block tests
+        passing. Also re-confirms item (c) (END recovered exactly once, not
+        duplicated) for this position, since the same assertion must hold
+        regardless of which block is corrupted.
+
+        Mutation-checked against the OLD buggy mechanism (verified live by
+        temporarily restoring `git show 7842668^:...managed_blocks.py`):
+        the note-presence + begin/end-count-==1 assertions alone did NOT
+        kill this mutant for the last-block case -- the old code's
+        no-next-positions branch does `re.sub(begin + r"\n?", "", ...,
+        count=1)` (strips ONLY the begin line, leaves the orphaned body in
+        place) and separately queues the same block to be APPENDED at the
+        very end. Net effect: begin count and end count both land on 1
+        (from the fresh appended copy only) and the note survives (it was
+        never in the deleted line), so those assertions alone false-passed
+        against the known-buggy mechanism. What actually distinguishes the
+        two mechanisms in scope here is POSITION: the old mechanism moves
+        the regenerated block to the very end of the file (after the note),
+        while the new one regenerates it in place (the block's END marker
+        must appear BEFORE the note, not after it) -- confirmed live: False
+        against the restored old code (end_pos=6781 > note_pos=5800), True
+        against the current fix (end_pos=5849 < note_pos=6775). NOTE: both
+        old and new code ALSO leave the orphaned block's original body text
+        behind as unmarked dead text alongside the regenerated copy -- this
+        is the SAME leftover-dead-text class Ultron already reported and
+        the task explicitly deferred to issue #64, so it is deliberately
+        NOT asserted against here (see this file's own docstring exclusion
+        note added below, and the final task report).
+        """
+        repo = _make_repo(tmp_path)
+        _install(repo)
+
+        last_block = BLOCKS[-1]
+        assert last_block is BLOCKS[-1] and last_block is not BLOCKS[0], (
+            "sanity: this test must target the LAST block, the one position "
+            "the old buggy mechanism handled via a different code path"
+        )
+
+        note = "USER-NOTE-LAST-BLOCK: never touch payments"
+        _insert_user_note_after_end(repo, last_block, note)
+        corrupted = _delete_only_end_line(repo, last_block["end"])
+        assert note in corrupted, "the note must survive the END-line deletion itself"
+        assert corrupted.count(last_block["end"]) == 0, "END must be genuinely absent after corruption"
+        assert corrupted.count(last_block["begin"]) == 1, "BEGIN must survive the corruption untouched"
+
+        rc, stdout, stderr = _run_crew(repo)
+        assert rc == 0, f"crew hook must exit 0 (fail-open). stderr={stderr!r}"
+
+        with open(_claude_md_path(repo), "rb") as f:
+            raw_after = f.read()
+        content_after = raw_after.decode("utf-8")
+
+        assert content_after.count(last_block["end"]) == 1, (
+            "the last block's END marker must be regenerated exactly once, same "
+            f"as for any other block position. content_after={content_after!r}"
+        )
+        assert content_after.count(last_block["begin"]) == 1, (
+            "regenerating the last block must not leave a duplicate BEGIN behind. "
+            f"content_after={content_after!r}"
+        )
+        assert note.encode("utf-8") in raw_after, (
+            "regenerating the LAST block's orphaned END must not silently delete "
+            "user content sitting below it, the same guarantee already proven for "
+            f"a non-last block. note={note!r} content_after={content_after!r}"
+        )
+        end_pos_after = content_after.index(last_block["end"])
+        note_pos_after = content_after.index(note)
+        assert end_pos_after < note_pos_after, (
+            "the regenerated block must stay IN PLACE (near where the orphaned "
+            "BEGIN originally sat), not be relocated to the very end of the "
+            "file after the user's note -- position, not just presence, is "
+            f"the in-scope claim here. end_pos={end_pos_after} note_pos="
+            f"{note_pos_after} content_after={content_after!r}"
+        )
+
+
+class TestNoteBeforeOrphanedBlockPreserved:
+    def test_orphaned_end_preserves_user_note_written_above_the_block(self, tmp_path):
+        """Item (b): the 2 contract tests above only ever plant the user
+        note BELOW the corrupted block (in the gap between its END and the
+        next block's BEGIN). A user is just as free to write a note ABOVE a
+        block -- in the gap between the PREVIOUS block's END and this
+        block's BEGIN -- and that gap must survive the same regeneration
+        just as reliably. Targets BLOCKS[1] (not BLOCKS[0], which has no
+        real "previous block" gap of its own -- only the installer's fixed
+        file header sits above it) so the gap being tested is a genuine
+        inter-block gap, not the document header.
+
+        Mutation-check note (verified live): unlike the below-the-block
+        case, the OLD buggy mechanism's boundary deletion only ever
+        searched FORWARD from the orphaned BEGIN for a boundary to delete
+        up to -- it never touched anything before that BEGIN. So this
+        specific test does not kill that OLD mutant (content before a
+        block was never at risk under either mechanism) -- it is still
+        kept as a permanent regression guard per the task's explicit ask,
+        against a DIFFERENT future regression: any change that starts
+        anchoring deletion on a "previous block's END" boundary (the
+        mirror-image of the old bug) would be caught here.
+        """
+        repo = _make_repo(tmp_path)
+        _install(repo)
+
+        target = BLOCKS[1]
+        assert target is not BLOCKS[0], (
+            "sanity: must target a block with a real PREVIOUS block above it, "
+            "so the note lands in a genuine inter-block gap"
+        )
+
+        note = "USER-NOTE-ABOVE: never touch payments"
+        _insert_user_note_before_begin(repo, target, note)
+        corrupted = _delete_only_end_line(repo, target["end"])
+        assert note in corrupted, "the note must survive the END-line deletion itself"
+        assert corrupted.count(target["end"]) == 0, "END must be genuinely absent after corruption"
+        assert corrupted.count(target["begin"]) == 1, "BEGIN must survive the corruption untouched"
+
+        rc, stdout, stderr = _run_crew(repo)
+        assert rc == 0, f"crew hook must exit 0 (fail-open). stderr={stderr!r}"
+
+        with open(_claude_md_path(repo), "rb") as f:
+            raw_after = f.read()
+        content_after = raw_after.decode("utf-8")
+
+        assert content_after.count(target["end"]) == 1, (
+            f"the block's END marker must be regenerated exactly once. "
+            f"content_after={content_after!r}"
+        )
+        assert content_after.count(target["begin"]) == 1, (
+            f"regenerating the block must not leave a duplicate BEGIN behind. "
+            f"content_after={content_after!r}"
+        )
+        assert note.encode("utf-8") in raw_after, (
+            "regenerating a block whose END marker is orphaned must not silently "
+            "delete unrelated user content sitting ABOVE it (not just below it, "
+            f"the case the existing 2 tests already cover). note={note!r} "
+            f"content_after={content_after!r}"
+        )
+
+
+class TestRegeneratedBlockRoundTripNoRewriteOnNextBoot:
+    def test_next_boot_does_not_rewrite_after_regeneration(self, tmp_path):
+        """unmassk-standards §34 round-trip closure for the full seam: a
+        boot that regenerates CLAUDE.md (producer) must be followed by the
+        NEXT boot reading that same file and genuinely NOT touching it again
+        (consumer, real idempotence) -- not just "produces the same bytes if
+        it did rewrite," which content-equality alone cannot distinguish
+        from a real no-op write. Two existing tests each cover half of this
+        claim without ever combining them end-to-end on the SAME
+        regenerated file: test_crew_content_gate_v2.py's
+        TestCanonicalContentWithMatchingManifestSkipsRewrite proves
+        mtime-preserving no-rewrite, but only starting from a content that
+        was ALREADY canonical straight out of a fresh install -- it never
+        starts from a corrupted-then-regenerated file. test_issue63_t1_end_marker_and_magic_string.py's
+        orphaned-END test proves a second run after regeneration produces
+        byte-identical content -- but never checks mtime, so it cannot tell
+        a genuine no-op from a rewrite that happens to reproduce the exact
+        same bytes. This test closes that gap: real corruption -> real
+        regeneration (boot 1) -> real second boot (boot 2) -> mtime AND
+        content both provably untouched by boot 2, via the real crew-hook
+        channel end to end (no fabricated fixture at any step).
+        """
+        repo = _make_repo(tmp_path)
+        _install(repo)
+
+        b0 = BLOCKS[0]
+        note = "USER-NOTE-ROUNDTRIP: never touch payments"
+        _insert_user_note_after_end(repo, b0, note)
+        corrupted = _delete_only_end_line(repo, b0["end"])
+        assert note in corrupted, "the note must survive the END-line deletion itself"
+        assert corrupted.count(b0["end"]) == 0, "END must be genuinely absent after corruption"
+
+        # ── Boot 1 (producer): regenerates the corrupted block ───────────
+        rc1, stdout1, stderr1 = _run_crew(repo)
+        assert rc1 == 0, f"boot 1 (regeneration) must exit 0. stderr={stderr1!r}"
+
+        claude_md = _claude_md_path(repo)
+        content_after_boot1 = _read(claude_md)
+        assert content_after_boot1.count(b0["end"]) == 1, (
+            "sanity: boot 1 must have actually regenerated the block "
+            f"(END present exactly once). content={content_after_boot1!r}"
+        )
+        assert note in content_after_boot1, (
+            "sanity: boot 1's regeneration must not have deleted the user note "
+            f"(already proven by the tests above; re-checked here as a precondition). "
+            f"content={content_after_boot1!r}"
+        )
+        mtime_after_boot1 = os.path.getmtime(claude_md)
+
+        # Filesystem mtime resolution can be as coarse as 1s on some hosts;
+        # give a rewrite (if one incorrectly happens) room to be observable.
+        # Same margin test_crew_content_gate_v2.py's mtime-based test uses.
+        time.sleep(1.1)
+
+        # ── Boot 2 (consumer): must be a genuine no-op ────────────────────
+        rc2, stdout2, stderr2 = _run_crew(repo)
+        assert rc2 == 0, f"boot 2 (next boot) must exit 0. stderr={stderr2!r}"
+
+        content_after_boot2 = _read(claude_md)
+        mtime_after_boot2 = os.path.getmtime(claude_md)
+
+        assert content_after_boot2 == content_after_boot1, (
+            "boot 2 must read back exactly what boot 1 wrote -- no further change. "
+            f"boot1={content_after_boot1!r} boot2={content_after_boot2!r}"
+        )
+        assert mtime_after_boot2 == mtime_after_boot1, (
+            "boot 2 must NOT rewrite CLAUDE.md at all (mtime must stay byte-for-byte "
+            "identical to what boot 1 left) -- content equality alone cannot prove "
+            "this, since a rewrite that happens to reproduce the same bytes would "
+            "still pass a content-only check. mtime_boot1="
+            f"{mtime_after_boot1!r} mtime_boot2={mtime_after_boot2!r} "
+            f"stdout2={stdout2!r}"
+        )
+        combined2 = f"{stdout2}\n{stderr2}".lower()
+        assert "up to date" in combined2 or "up-to-date" in combined2, (
+            "boot 2 must genuinely report the blocks as up to date now that "
+            f"regeneration already happened in boot 1. stdout2={stdout2!r}"
         )
