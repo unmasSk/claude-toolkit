@@ -41,6 +41,7 @@ try:
 except ImportError:
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
 from version import VERSION as PLUGIN_VERSION
+from managed_blocks import any_block_outdated
 
 # lib/upgrade_check.py -> one level up is the plugin root.
 _PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,12 +67,14 @@ def _parse_semver(version_str) -> tuple[int, int, int] | None:
 
 
 def needs_upgrade(root: str) -> bool:
-    """Check if the CLAUDE.md managed block has outdated content OR the
+    """Check if any CLAUDE.md managed block has outdated content OR the
     installed manifest version is older than PLUGIN_VERSION.
 
     Upgrade triggers (union — any one is enough):
-      1. Old-style CLAUDE.md block markers (stale hardcoded bin/ paths or
-         missing 'Context Checkpoint Commits').
+      1. Managed-block content has genuinely drifted from canonical (stale,
+         injected/poisoned, missing, or orphaned — see any_block_outdated()
+         in lib/managed_blocks.py, the same oracle the P1 v2 crew content
+         gate trusts).
       2. manifest.version < PLUGIN_VERSION (numeric semver comparison).
 
     Fail-safe: if the manifest is absent, corrupt, missing the 'version'
@@ -93,13 +96,21 @@ def needs_upgrade(root: str) -> bool:
     if "BEGIN unmassk-toolkit" not in content:
         return False  # needs_install handles this
 
-    # ── Check 1: Old-style markers in the managed block ──────────────────
-    begin = content.find("BEGIN unmassk-toolkit")
-    end = content.find("END unmassk-toolkit")
-    if begin == -1 or end == -1:
-        return False
-    block = content[begin:end]
-    if "python3 bin/" in block or "Context Checkpoint Commits" not in block:
+    # ── Check 1: managed-block content genuinely matches canonical ───────
+    # Decision 1d623da / Moriarty T1-B (issue #63): the previous check
+    # required the literal string "Context Checkpoint Commits" inside the
+    # block to consider it current. That string never existed in real
+    # production content (lib/managed_blocks.py's canonical body) — only
+    # test fixtures faked it — so a genuinely canonical, from-scratch
+    # install still tripped this check forever, shelling out to the full
+    # installer on every single SessionStart. "Current" must be derived
+    # from the real canonical render, never a hand-typed magic string
+    # (unmassk-standards §34) — any_block_outdated() already does exactly
+    # that comparison for the P1 v2 crew content gate, so Check 1 reuses
+    # it: any genuine divergence (stale body, injected/poisoned block,
+    # missing block, orphaned BEGIN/END) triggers an upgrade; byte-for-byte
+    # canonical content does not.
+    if any_block_outdated(content):
         return True
 
     # ── Check 2: Semver comparison — manifest.version < PLUGIN_VERSION ───
