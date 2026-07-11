@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.5] - 2026-07-11
+
 ### Changed
 
 - **Auto-upgrade check moved from every message to once per session start** (issue #63): the check that keeps a project's installed plugin content current used to run on every single message (two file reads, and occasionally a subprocess, per reply); it now runs once when a session starts. Trade-off: running `/plugin update` mid-session is picked up on the *next* session start rather than the very next message.
