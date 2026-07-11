@@ -215,30 +215,25 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
             # resolution, editor auto-fix). begin…end can't match, so this
             # block is corrupted, never "up to date" — it must be
             # regenerated, not silently accepted.
+            #
+            # Design constraint (issue #63, Moriarty T1-1 regression on
+            # T1-A's own fix): a BEGIN with no END gives us NO reliable
+            # signal of where the block actually ends. Any deletion of the
+            # surrounding text — up to the "next" managed block, up to a
+            # blank line, whatever heuristic — risks eating real user
+            # content that happens to sit in that gap (a completely normal
+            # place for a user to write free-text notes). The ONLY byte we
+            # can prove is corruption is the dangling BEGIN marker line
+            # itself. So: remove exactly that line, nothing else, and
+            # reinsert the full canonical block (BEGIN+body+END) in its
+            # place — an in-place replacement never touches any byte
+            # outside that single line, so it is always safe regardless of
+            # what sits before or after it (trivially safe by
+            # construction, not just "in this case").
             start = content.find(begin)
-            search_from = start + len(begin)
-            next_positions = [
-                content.find(other["begin"], search_from)
-                for other in BLOCKS
-                if other is not block
-            ]
-            next_positions = [p for p in next_positions if p != -1]
-
-            if next_positions:
-                # A later managed block's BEGIN is a known, trustworthy
-                # boundary — reclaim everything between our dangling BEGIN
-                # and it (the stray orphaned body) and splice the full
-                # canonical block in its place, in position.
-                boundary = min(next_positions)
-                content = content[:start] + rendered + "\n\n" + content[boundary:]
-            else:
-                # No later managed block to anchor on (last block, or all
-                # later ones are also absent) — anything after our dangling
-                # BEGIN could be genuine user content, so only the BEGIN
-                # line itself is removed; the canonical block is queued to
-                # be appended at the end, same as a fully missing block.
-                content = re.sub(re.escape(begin) + r"\n?", "", content, count=1)
-                missing_blocks.append(block)
+            line_end = content.find("\n", start)
+            line_end = len(content) if line_end == -1 else line_end + 1
+            content = content[:start] + rendered + "\n" + content[line_end:]
             log.append(f"regenerated {begin} (orphaned END marker)")
         else:
             missing_blocks.append(block)
