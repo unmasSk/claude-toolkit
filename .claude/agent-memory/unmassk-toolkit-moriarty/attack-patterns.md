@@ -743,3 +743,29 @@
   Module-split regression (symlink stamp file, symlink .claude/.unmassk parent, 8-way concurrent
   real boots, corrupt JSON, future-mtime clock skew, 5MB pathological remote_url) -- all 6 held
   exactly as round 2 already established, confirming the Cerberus S2 file-split didn't regress them.
+
+## Producer/consumer trust gate skipped BEFORE existence/integrity check (issue #63)
+- Pattern: a new "skip expensive work if manifest.version==VERSION" gate placed
+  BEFORE the code path that would otherwise verify/create the actual artifact.
+- session-start-crew.py:86 `_manifest_version_matches()` returns True/skip
+  BEFORE line 91's `claude_md.exists()` check -- so a matching manifest.json
+  bypasses CLAUDE.md creation/repair even when CLAUDE.md is fully absent.
+- Also exploitable via a REAL degraded producer: install_apply.py's
+  `apply_plan()` (lib/install_apply.py:43-58) does NOT stop on a per-action
+  exception (`except Exception: errors.append(...)`, loop continues) --
+  `_update_claude_md()` can fail (read-only file, locked file, disk full)
+  while `_create_manifest()` still runs unconditionally right after and
+  writes manifest.version==VERSION anyway. The caller
+  (lib/upgrade_check.py::trigger_auto_upgrade_if_needed) discards the
+  subprocess's returncode/stdout/stderr entirely (bare `subprocess.run(...)`,
+  no result captured) -- the failure is invisible end-to-end.
+- Also exploitable with ZERO failure conditions: any repo (malicious or just
+  stale) can pre-commit `.claude/.unmassk/manifest.json` with the CURRENT
+  public VERSION string baked in alongside a stale/poisoned CLAUDE.md
+  managed block -- first-ever SessionStart trusts it forever, no diff ever
+  runs. VERSION is public (plugin.json), zero secret needed.
+- General lesson: any "trust the manifest, skip the real check" gate must be
+  attacked by (a) checking the guarded-thing's existence, not just the
+  signal, (b) sabotaging the REAL producer (permission/lock/disk error) not
+  just corrupting the test fixture, (c) trying to forge the signal directly
+  via a pre-committed/attacker-controlled file.
