@@ -1699,12 +1699,15 @@ class TestBugMNeedsUpgradeManifestSymlinkRead:
     def test_needs_upgrade_does_not_follow_symlinked_manifest(self, tmp_path):
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, extra_args=["--auto"])
-        # Neutralize Check 1 (stale CLAUDE.md block markers) so
-        # needs_upgrade() can only be triggered via Check 2 (manifest read),
-        # which is the symlink-guarded code path this test targets. Without
-        # this, a fresh install's CLAUDE.md block never contains "Context
-        # Checkpoint Commits" and Check 1 fires True unconditionally, so the
-        # assertion below passes without ever exercising the manifest read.
+        # Neutralize Check 1 (managed_blocks.any_block_outdated() — see
+        # conftest.neutralize_needs_upgrade_check1's docstring, decision
+        # 1d623da / Moriarty T1-B) so needs_upgrade() can only be triggered
+        # via Check 2 (manifest read), which is the symlink-guarded code
+        # path this test targets. A fresh --auto install is already
+        # byte-for-byte canonical (Check 1 is False out of the box), so
+        # this call is a defensive no-op here today — kept so this test
+        # keeps isolating Check 2 even if a future change makes a fresh
+        # install's CLAUDE.md temporarily diverge from canonical.
         neutralize_needs_upgrade_check1(repo)
 
         victim = tmp_path / "victim-manifest-needsupgrade.json"
