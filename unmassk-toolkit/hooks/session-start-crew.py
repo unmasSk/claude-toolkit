@@ -18,7 +18,7 @@ from encoding_guard import force_utf8_streams  # noqa: E402
 force_utf8_streams()
 
 from managed_blocks import upsert_managed_blocks  # noqa: E402
-from git_helpers import open_no_follow_symlink  # noqa: E402
+from git_helpers import open_no_follow_symlink, verify_path_within_project  # noqa: E402
 from version import VERSION  # noqa: E402
 
 
@@ -36,9 +36,22 @@ def _manifest_version_matches(git_root: Path) -> bool:
     """
     manifest_path = git_root / ".claude" / ".unmassk" / "manifest.json"
     try:
+        # SEC-T1-002 (Argus, issue #63): open_no_follow_symlink() below only
+        # guards manifest.json's FINAL path component -- a .claude (or
+        # .unmassk) parent that is ITSELF a symlink pointing at a directory
+        # with a real, non-symlink manifest.json slips past it untouched.
+        # verify_path_within_project() resolves every intermediate component
+        # via realpath() and rejects anything that escapes git_root; caught
+        # below exactly like any other untrustworthy manifest.
+        verify_path_within_project(str(manifest_path), str(git_root))
         with open_no_follow_symlink(manifest_path, "r", encoding="utf-8") as f:
             manifest = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except Exception:
+        # SEC-T1-001 (Argus, issue #63): a maliciously deep-nested manifest
+        # raises RecursionError from json.load, which is not an OSError or
+        # JSONDecodeError -- broadened to Exception so a poisoned manifest
+        # falls through to fail-open (same as missing/corrupt) instead of
+        # crashing the SessionStart hook.
         return False
     return manifest.get("version") == VERSION
 

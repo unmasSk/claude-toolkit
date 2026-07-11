@@ -105,6 +105,17 @@ def needs_upgrade(root: str) -> bool:
     # ── Check 2: Semver comparison — manifest.version < PLUGIN_VERSION ───
     try:
         manifest_path = os.path.join(root, ".claude", ".unmassk", "manifest.json")
+        # SEC-T1-002 (Argus, issue #63): open_no_follow_symlink() below only
+        # guards manifest.json's FINAL path component -- a .claude/.unmassk
+        # parent that is ITSELF a symlink to a directory holding a real,
+        # non-symlink manifest.json slips past it undetected. Deferred
+        # import: this module is transitively loaded during
+        # session-start-boot.py's git_helpers test-stub window (same reason
+        # open_no_follow_symlink is imported defensively above). Caught by
+        # the broad except below exactly like any other untrustworthy
+        # manifest.
+        from git_helpers import verify_path_within_project
+        verify_path_within_project(manifest_path, root)
         # SEC-HIGH-NEW-11: never follow a symlink planted at manifest.json —
         # the surrounding except below already fails safe to False.
         with open_no_follow_symlink(manifest_path, "r") as f:

@@ -228,7 +228,7 @@ def check_version_mismatch() -> str | None:
 
     Returns warning string if mismatch, None if OK or can't check.
     """
-    from git_helpers import run_git
+    from git_helpers import run_git, verify_path_within_project
 
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
@@ -237,6 +237,18 @@ def check_version_mismatch() -> str | None:
     if not os.path.isfile(manifest_path):
         return None
     try:
+        # SEC-T1-002 (Argus, issue #63): open_no_follow_symlink() below only
+        # guards manifest.json's FINAL path component -- a .claude/.unmassk
+        # parent that is ITSELF a symlink to a directory holding a real,
+        # non-symlink manifest.json slips past it undetected. This gate has
+        # the biggest blast radius of the 3 read sites: it's called
+        # unguarded from render_status_section() in the main boot hook, so a
+        # poisoned manifest here would have silently suppressed the
+        # upgrade-suggestion warning forever. verify_path_within_project()
+        # resolves every intermediate component via realpath() and rejects
+        # anything escaping root; caught by the broad except below like any
+        # other untrustworthy manifest.
+        verify_path_within_project(manifest_path, root)
         # SEC-LOW-NEW-05: never follow a symlink planted at the manifest
         # path — treat it exactly like "no manifest present" (see
         # open_no_follow_symlink's docstring for the O_NOFOLLOW guarantee).
@@ -251,7 +263,14 @@ def check_version_mismatch() -> str | None:
             safe_installed = _sanitize_trailer_value(str(installed))
             return f"Plugin v{PLUGIN_VERSION} available (installed: v{safe_installed}). Suggest /plugin update"
         return None
-    except (json.JSONDecodeError, OSError):
+    except Exception:
+        # SEC-T1-001 (Argus, issue #63): a maliciously deep-nested manifest
+        # raises RecursionError from json.load, which escaped the previous
+        # narrow (json.JSONDecodeError, OSError) tuple and crashed the whole
+        # boot hook (called unguarded from render_status_section). Broadened
+        # to Exception so a poisoned manifest fails safe like any other
+        # unreadable manifest, matching the pattern already used in
+        # lib/upgrade_check.py's needs_upgrade().
         return None
 
 
