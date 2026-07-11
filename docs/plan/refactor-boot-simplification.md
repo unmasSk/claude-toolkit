@@ -41,6 +41,7 @@ Reducir la superficie del arranque: menos trabajo por boot/mensaje, avisos solo 
 ### Task 3: Verify (proporcionado)
 **Depends on:** Task 2
 - [ ] Cerberus: review del diff completo (focos: fail-open del gate P1 —manifest corrupto/ausente nunca rompe—, P2 no pierde el upgrade en sesiones largas ya abiertas, P3 no silencia el dev-repo, P4 no rompe upgrade-path)
+- [ ] Argus acotado (añadido a petición de Bex): P1 parseo del manifest como input no confiable (JSON malicioso/gigante/symlink), P3 lógica de detección de rutas (traversal, symlinks, patrón verify_path_within_project donde aplique), P2 el subprocess movido conserva su hardening
 - [ ] Moriarty acotado: solo P1-P3 (manifest basura, cache con N versiones, layouts raros) — sabotaje corto
 - [ ] Yoda: veredicto final sobre la rama
 
