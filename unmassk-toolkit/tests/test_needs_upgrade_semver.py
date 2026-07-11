@@ -213,16 +213,24 @@ class TestNeedsUpgradeSemver:
 
         Implementation contract: needs_upgrade() must read its "code version"
         from a module-level constant PLUGIN_VERSION so the test can patch it.
-        Ultron must define:  PLUGIN_VERSION = VERSION  at module level in the hook.
+
+        Issue #63 (boot simplification, point 2): needs_upgrade() and its
+        PLUGIN_VERSION global now live in lib/upgrade_check.py --
+        hooks/user-prompt-memory-check.py only re-imports the same function
+        object by name for backward compatibility (`hook.needs_upgrade is
+        upgrade_check.needs_upgrade`), it does not redefine it. Patching
+        `hook.PLUGIN_VERSION` no longer reaches the global the function
+        actually reads (that name lives in upgrade_check's own module
+        dict, `hook.needs_upgrade.__globals__`) — patch it there directly
+        instead, mechanical rebase of the same contract, not a behavior
+        change.
         """
         repo = make_semver_test_repo(tmp_path)
         write_manifest(repo, "1.9.0")
 
         # Load the hook, then patch PLUGIN_VERSION before calling needs_upgrade().
-        # This pattern requires Ultron to expose PLUGIN_VERSION as a module-level
-        # constant so monkeypatch.setattr can reach it.
         hook = _import_hook(monkeypatch)
-        monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
+        monkeypatch.setitem(hook.needs_upgrade.__globals__, "PLUGIN_VERSION", "1.10.0")
 
         # Numeric: 1.9 < 1.10 → True
         assert hook.needs_upgrade(repo) is True
@@ -233,12 +241,17 @@ class TestNeedsUpgradeSemver:
 
         Numerically manifest > code → False (no downgrade).
         String comparison would give the wrong True.
+
+        See test_semver_not_lexicographic_minor_bump's docstring for why
+        this patches hook.needs_upgrade.__globals__ instead of a hook-level
+        attribute (issue #63 relocation of needs_upgrade to
+        lib/upgrade_check.py).
         """
         repo = make_semver_test_repo(tmp_path)
         write_manifest(repo, "1.10.0")
 
         hook = _import_hook(monkeypatch)
-        monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.9.0", raising=False)
+        monkeypatch.setitem(hook.needs_upgrade.__globals__, "PLUGIN_VERSION", "1.9.0")
 
         # Numeric: 1.10 > 1.9 → manifest is newer than code → False
         assert hook.needs_upgrade(repo) is False

@@ -3,6 +3,7 @@
 SessionStart hook for unmassk-toolkit crew.
 Ensures all 5 managed blocks exist in CLAUDE.md.
 """
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,28 @@ force_utf8_streams()
 
 from managed_blocks import upsert_managed_blocks  # noqa: E402
 from git_helpers import open_no_follow_symlink  # noqa: E402
+from version import VERSION  # noqa: E402
+
+
+def _manifest_version_matches(git_root: Path) -> bool:
+    """True only if .claude/.unmassk/manifest.json's "version" field equals
+    the running plugin's VERSION exactly.
+
+    Fail-open by design (issue #63, boot simplification, point 1): any
+    reason the signal can't be trusted -- missing file, corrupt JSON, a
+    symlink planted at the manifest path, a missing/mismatched "version"
+    key -- returns False, so the caller falls through to the existing
+    unconditional diff+rewrite. A trustworthy match is the ONLY way to
+    skip regeneration; every other outcome regenerates exactly like before
+    this gate existed.
+    """
+    manifest_path = git_root / ".claude" / ".unmassk" / "manifest.json"
+    try:
+        with open_no_follow_symlink(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    return manifest.get("version") == VERSION
 
 
 def find_git_root():
@@ -37,6 +60,18 @@ def main():
     git_root = find_git_root()
     if not git_root:
         print("[crew] Not a git repo, skipping CLAUDE.md check")
+        return
+
+    # Issue #63 (boot simplification, point 1): trust an up-to-date manifest
+    # instead of diffing+rewriting CLAUDE.md on every single SessionStart.
+    # Skip is the ONLY new behavior -- every other outcome (mismatch,
+    # missing, corrupt) falls through to the exact regenerate path that
+    # already existed. hooks/session-start-boot.py runs before this hook
+    # (hooks.json SessionStart order) and syncs manifest.version there when
+    # an upgrade is pending, so by the time this gate reads it the version
+    # marker is trustworthy.
+    if _manifest_version_matches(git_root):
+        print("[crew] manifest.version matches VERSION, skipping CLAUDE.md check")
         return
 
     claude_md = git_root / "CLAUDE.md"

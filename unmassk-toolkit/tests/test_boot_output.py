@@ -524,47 +524,24 @@ class TestVersionCheck:
 
 
 class TestMigrateUntrackedGeneratedJsons:
-    """Boot should untrack generated JSONs left by older installs."""
+    """Boot should ensure .gitignore has the generated-JSON entries.
 
-    def test_untrack_previously_committed_jsons(self, tmp_path):
-        """If generated JSONs are tracked, boot should git rm --cached them."""
-        repo = str(tmp_path / "repo")
-        os.makedirs(repo)
-        git_cmd(["init"], repo)
-        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
-        run_script(INSTALL, repo, ["--auto"])
-
-        # Simulate old install: force-add the generated JSONs to the index
-        # .unmassk is a directory, so files go inside it
-        unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
-        os.makedirs(unmassk_dir, exist_ok=True)
-        generated_files = [
-            os.path.join(".unmassk", "glossary-cache.json"),
-            os.path.join(".unmassk", "manifest.json"),
-        ]
-        claude_dir = os.path.join(repo, ".claude")
-        for rel_name in generated_files:
-            fpath = os.path.join(claude_dir, rel_name)
-            with open(fpath, "w", encoding="utf-8") as f:
-                f.write("{}")
-            git_cmd(["add", "-f", fpath], repo)
-        git_cmd(["commit", "-m", "old install committed jsons"], repo)
-
-        # Verify they are tracked
-        rc, out, _ = run_cmd(["git", "ls-files", ".claude/.unmassk/glossary-cache.json"], repo)
-        assert "glossary-cache.json" in out
-
-        # Run boot — should untrack them
-        run_boot(repo)
-
-        # Verify they are no longer tracked
-        for rel_name in generated_files:
-            rc, out, _ = run_cmd(["git", "ls-files", f".claude/{rel_name}"], repo)
-            basename = os.path.basename(rel_name)
-            assert basename not in out, f"{basename} should be untracked after boot"
+    Issue #63 (boot simplification, point 4):
+    _migrate_untrack_generated_jsons() -- the "git rm --cached previously
+    tracked generated JSONs" one-shot migration this class used to also
+    cover -- is retired from the boot path outright (pre-v1.0.0, present
+    since 037e0cb 2026-03-17, ~4 months of boots since; no other caller, no
+    upgrade-path duplicate to fall back to, unlike _migrate_runtime_to_unmassk).
+    Its own regression test (test_untrack_previously_committed_jsons) is
+    removed for the same reason: the behavior it asserted no longer exists
+    by design, not by accident. The gitignore-ensuring behavior below is
+    unaffected -- it comes from lib/boot_glossary_cache.py and
+    lib/boot_fetch_stamp.py's own independent ensure_gitignore() calls in
+    the normal boot flow, never from the retired migration.
+    """
 
     def test_gitignore_entries_added(self, tmp_path):
-        """Boot migration should also ensure .gitignore has the entries."""
+        """Boot's normal glossary/fetch flow ensures .gitignore has the entries."""
         repo = str(tmp_path / "repo")
         os.makedirs(repo)
         git_cmd(["init"], repo)
