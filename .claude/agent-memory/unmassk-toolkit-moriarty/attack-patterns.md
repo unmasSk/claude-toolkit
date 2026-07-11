@@ -819,3 +819,31 @@
   `boot_health.check_version_mismatch()`, correctly compares versions and printed "STATUS: ok" in the
   live PoC) -- only the internal upgrade-trigger gate is dead/always-on.
 - Root: lib/upgrade_check.py:102 (moved byte-for-byte from the pre-#63 hooks/user-prompt-memory-check.py).
+
+## "Trustworthy boundary" splice destroys genuine content between it and the corruption
+- Pattern: a repair routine treats "everything between a corrupted marker and the next
+  known-good marker" as 100% corrupted/discardable ("stray orphaned body")
+- Reality: a user routinely puts their OWN content in that same gap (notes right after a
+  managed section) — the repair can't tell "leftover corruption" from "real content that
+  happens to sit next to corruption" and silently deletes both
+- Scales: N adjacent dangling markers (no intervening close) collapse into 1 canonical
+  block, destroying everything in between — a small realistic corruption (one deleted
+  HTML-comment END line) can wipe an unbounded amount of real user content, unannounced
+- unmassk-toolkit: lib/managed_blocks.py:227-233 `upsert_managed_blocks()`'s orphaned-BEGIN
+  anchor-splice branch. Log line says "regenerated ... (orphaned END marker)" — never
+  mentions content was deleted. Live via both hooks/session-start-crew.py AND the
+  upgrade_check.py -> git-memory-install.py --auto seam (shared function).
+
+## Two "is this current" oracles that use different comparison semantics silently disagree
+- Pattern: one oracle does semver-numeric comparison (`<` on parsed tuples), a sibling
+  oracle guarding the SAME fact does raw string inequality (`!=`) on the same field
+- When the field can legitimately be "greater than" the reference (downgrade/rollback,
+  pinned older release, manifest from before a marketplace revert) the string-inequality
+  oracle produces a BACKWARDS, false message ("vX available... Suggest update" when X is
+  what's already running and the stored value is actually newer) while the real
+  upgrade-trigger oracle correctly stays silent — user sees a lie the system's own
+  authoritative check already disproves
+- unmassk-toolkit: lib/boot_health.py:258 `check_version_mismatch()` (`installed !=
+  PLUGIN_VERSION`) vs lib/upgrade_check.py:143 `needs_upgrade()` (`manifest_tuple <
+  code_tuple`) — same manifest.json field, two different verdicts, only the wrong one
+  reaches the user (STATUS line in the real boot banner).
