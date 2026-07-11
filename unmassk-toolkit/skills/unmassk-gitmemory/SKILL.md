@@ -105,7 +105,7 @@ These fire automatically. They are NOT things you invoke — they change what ha
 - **Memory-path guard** (`PreToolUse/Write|Edit`): writes to `.claude/agent-memory/` outside the repo root are blocked.
 - **Boot + block regen** (`SessionStart`): memory is extracted into the boot output, and the 5 managed CLAUDE.md blocks are regenerated from `lib/managed_blocks.py`. → Editing those managed blocks by hand does NOT persist; change them in the generator.
 - **Stop / PreCompact**: stop hooks auto-wip uncommitted changes and prompt for `context()`; the precompact hook re-injects recent memory before context is compressed and asks for an immediate `context()`.
-- **Version marker auto-sync** (`UserPromptSubmit`): on every message, `needs_upgrade()` silently compares the project's `.claude/.unmassk/manifest.json` version against the plugin code version (numeric SEMVER — 1.10.0 > 1.9.0). If the manifest is older, `bin/git-memory-install.py --auto` runs transparently with no output to Claude. You will never see a message for this — it just happens. Fail-safe: missing/corrupt/unparseable manifest → no upgrade, no loop. Downgrade (manifest > code) is ignored.
+- **Version marker auto-sync** (`SessionStart`, moved off `UserPromptSubmit` in issue #63): once per session start, `needs_upgrade()` compares the project's CLAUDE.md managed-block content against the real canonical render, and its `.claude/.unmassk/manifest.json` version against the plugin code version (numeric SEMVER — 1.10.0 > 1.9.0). If either is outdated, `bin/git-memory-install.py --auto` runs transparently with no output to Claude. You will never see a message for this — it just happens. Fail-safe: missing/corrupt/unparseable manifest → no upgrade, no loop. Downgrade (manifest > code) is ignored. Trade-off of the per-session move: a `/plugin update` mid-session is picked up on the *next* session start, not the very next message.
 - **Memory consolidation trigger** (`SessionStart`): if the number of commits since the last `context(consolidation)` reaches the threshold (default 50, overridable via `GIT_MEMORY_CONSOLIDATION_THRESHOLD` env), the boot output emits a `CONSOLIDATE:` block. When you see it, launch Gitto in consolidator mode (Mode C — see `agents/gitto.md`) — the operation is **additive**: Gitto reads the memory, writes crown entries (see Crown below), and closes with a `context(consolidation)` commit that resets the counter. Do not dismiss the block; it means the memory has drifted far enough that a consolidation pass is worth it. Wired end-to-end as of v1.12.0, including the `Retract-Crown:` correction path.
 
 ## Crown entries (👑)
@@ -490,20 +490,11 @@ gh api repos/{owner}/{repo}/milestones --jq '.[].title'
 
 ## Recovery
 
-### Self-Healing (rebase/reset detection)
+### Passive Healing (memory is read live, not reconstructed)
 
-On boot, compare known commit hashes with current tree. If amnesia detected (memory commits missing):
+There is no stored history of "known commit hashes" and no automatic rebase/reset/amnesia detector — `extract_memory()` (`lib/boot_memory.py`) re-reads `git log` from the current `HEAD` fresh on every boot. If a rebase, reset, or force-push changed history since the last session, the next boot simply reflects whatever git reports now: memory commits that are gone are gone from the boot output too, silently — there is no "seems like a rebase happened" message and no reconciliation step. This is "healing" only in the sense that boot never crashes or serves stale output — it always shows current reality, nothing more.
 
-> "Seems like a rebase happened. I've rebuilt memory from current state, but prior design context may be missing."
-
-Don't dramatize. Don't fake normalcy. Rebuild conservatively, be honest about gaps.
-
-### Force Push Handling
-
-- Detect history rewrite (known SHAs missing from tree)
-- Don't assume "most recent = best"
-- Conservative resolution — never invent missing context
-- Log what was lost if detectable
+If RESUME/DECISIONS look thinner than expected, or the user mentions rewriting history, say so plainly and ask — don't assume "most recent = best" and don't invent missing context to fill the gap.
 
 ### Branch-Aware Decisions
 

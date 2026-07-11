@@ -4,6 +4,11 @@ description: Documentation zones known to be outdated or needing review — revi
 type: project
 ---
 
+## Cleared zones (fixed 2026-07-11, issue #63)
+
+- `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` "Self-Healing (rebase/reset detection)" + "Force Push Handling" sections (~lines 491-507): described automatic amnesia/history-rewrite detection ("compare known commit hashes", "detect history rewrite... SHAs missing from tree") that never existed as code — pure prose, confirmed by repo-wide grep (zero hits for `amnesia`/`reflog`/`history rewrite` in `lib/`, `hooks/`, `bin/`). This was flagged CRITICAL by the requester because the fiction had persisted undetected through prior Alexandria passes. Rewrote to `### Passive Healing`, describing the real mechanism (live `git log` re-extraction every boot via `extract_memory()`, no stored hash comparison, no reconciliation). **Lesson: a "how we recover from X" section reads as plausible and doesn't get challenged like a feature claim does — actively grep for the implementing code behind recovery/safety-net prose, don't just check it's internally consistent.**
+- Same file, "Version marker auto-sync" bullet (~line 108): said `UserPromptSubmit`/per-message; the check moved to `SessionStart`/once-per-session in issue #63. Corrected.
+
 ## Cleared zones (fixed 2026-03-24)
 
 - chatroom/CHANGELOG.md [Unreleased] Removed section: falsely said moriarty-system-prompt-v2.md still exists after it was deleted — corrected
