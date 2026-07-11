@@ -1,0 +1,385 @@
+"""
+Regresion permanente para 2 fixes T1 (Argus, issue #63) aplicados en
+wip 5c9d012 sobre 3 puntos de lectura de manifest.json:
+
+  - hooks/session-start-crew.py :: _manifest_version_matches(git_root)
+  - lib/boot_health.py          :: check_version_mismatch()
+  - lib/upgrade_check.py        :: needs_upgrade(root)
+
+SEC-T1-001 (RecursionError -> crash): un manifest.json con anidamiento
+JSON extremo hace que json.load lance RecursionError, que no es ni
+OSError ni json.JSONDecodeError -- escapaba del except estrecho y
+crasheaba el hook/funcion que lo llamaba. Fix: el except se amplio a
+`except Exception:` en los 3 sitios (upgrade_check.py ya lo tenia
+amplio de antes -- ver nota en la clase de ese sitio).
+
+SEC-T1-002 (symlink de directorio bypassa el guard): open_no_follow_symlink()
+solo protege el COMPONENTE FINAL de la ruta (manifest.json). Si `.claude`
+(o `.claude/.unmassk`) es en si mismo un symlink de DIRECTORIO apuntando
+a un sitio con un manifest.json REAL (no symlink), open_no_follow_symlink()
+no tiene nada que objetar -- el ultimo componente genuinamente no es un
+symlink. Fix: verify_path_within_project(manifest_path, root) antes del
+open, en los 3 sitios -- resuelve cada componente intermedio via realpath()
+y rechaza cualquier ruta que escape del git root.
+
+Canal: llamada directa a las 3 funciones (nunca al hook completo via
+--json ni parseo de stdout), cada una en un subprocess aislado (evita
+contaminar sys.modules del proceso de test con modulos reales y
+establemente cacheados como upgrade_check/boot_health -- ver
+unmassk-toolkit-python-test-conventions.md). Los 2 sitios en lib/ toman
+`root`/cwd explicitos o dependen del cwd del proceso (documentado por
+funcion), asi que cada helper de invocacion fija el canal correcto.
+
+Eleccion de la version forjada por sitio (deliberada, no copiada
+literalmente de "version alta" -- ver docstring de
+_plant_symlinked_claude_dir_with_forged_manifest): cada sitio compara la
+version leida de forma distinta, asi que una version forjada "alta"
+generica seria vacua (el test pasaria igual con o sin el guard) en 2 de
+los 3 sitios. Se elige la version forjada que hace observable la
+diferencia AUSENTE-guard vs PRESENTE-guard en cada sitio:
+  - crew (_manifest_version_matches): compara IGUALDAD con VERSION -> se
+    forja exactamente VERSION (si el guard falla, el resultado se
+    convierte en True: el hook confiaria en la version forjada y
+    saltaria la regeneracion de CLAUDE.md).
+  - boot_health (check_version_mismatch): compara DESIGUALDAD con
+    PLUGIN_VERSION -> se forja una version alta/distinta (si el guard
+    falla, aparece un warning con contenido forjado en el STATUS del
+    boot).
+  - upgrade_check (needs_upgrade): compara manifest_tuple < code_tuple
+    (regla "no downgrade") -> se forja una version BAJA (si el guard
+    falla, needs_upgrade() devuelve True y dispara un auto-upgrade
+    espurio).
+
+Build mode: linear (fix ya aplicado por Ultron en wip 5c9d012). Solo
+tests -- ningun cambio de produccion en este fichero.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+import pytest
+
+from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, git_cmd, run_script
+
+LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from version import VERSION  # noqa: E402
+
+CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
+
+# SEC-T1-001 payload: anidamiento JSON valido (array vacio anidado N veces)
+# que agota la pila de recursion de json.load bien por debajo del limite de
+# recursion por defecto de Python (1000) -- confirmado localmente: con
+# N=150000, json.loads() lanza RecursionError, nunca JSONDecodeError ni
+# OSError. Construido con multiplicacion de string (O(N), sin recursion en
+# el propio test).
+_MALICIOUS_NESTING_DEPTH = 150000
+
+
+def _malicious_deep_json_payload(n=_MALICIOUS_NESTING_DEPTH):
+    return "[" * n + "]" * n
+
+
+# ── Repo helpers ──────────────────────────────────────────────────────────
+
+
+def _make_installed_repo(tmp_path, name="repo"):
+    repo = str(tmp_path / name)
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["config", "user.email", "test@test.com"], repo)
+    git_cmd(["config", "user.name", "Test"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+    rc, out, err = run_script(INSTALL, repo, ["--auto"])
+    assert rc == 0, f"install --auto failed: {out}\n{err}"
+    return repo
+
+
+def _make_installed_repo_for_needs_upgrade(tmp_path, name="repo"):
+    """needs_upgrade()'s Check 1 (stale CLAUDE.md markers) must be
+    neutralized first, or Check 2 (the manifest read under test) is never
+    reached -- same precondition test_needs_upgrade_semver.py's
+    make_semver_test_repo() establishes, reused here via conftest's shared
+    helper instead of re-deriving the patch."""
+    from conftest import neutralize_needs_upgrade_check1
+
+    repo = _make_installed_repo(tmp_path, name)
+    neutralize_needs_upgrade_check1(repo)
+    return repo
+
+
+def _manifest_path(repo):
+    return os.path.join(repo, ".claude", ".unmassk", "manifest.json")
+
+
+def _write_malicious_deep_manifest(repo):
+    with open(_manifest_path(repo), "w", encoding="utf-8") as f:
+        f.write(_malicious_deep_json_payload())
+
+
+def _plant_symlinked_claude_dir_with_forged_manifest(repo, tmp_path, forged_version, tag):
+    """Reproduces Ultron's SEC-T1-002 attack layout exactly: real_repo/.claude
+    is replaced by a symlink to an external directory (evil_dir), and
+    evil_dir/.unmassk/manifest.json is a REAL file (never a symlink itself)
+    forged with `forged_version`. open_no_follow_symlink() has nothing to
+    object to at the final component -- only the parent (.claude) is a
+    symlink, and it is a symlink of a DIRECTORY, not of manifest.json.
+
+    Returns the forged manifest's real path (for assertions that want to
+    prove it was never accepted).
+    """
+    evil_dir = tmp_path / f"evil_dir_{tag}"
+    evil_unmassk = evil_dir / ".unmassk"
+    evil_unmassk.mkdir(parents=True)
+    forged_manifest = evil_unmassk / "manifest.json"
+    forged_manifest.write_text(
+        json.dumps({"version": forged_version, "installed_at": "2020-01-01T00:00:00"}),
+        encoding="utf-8",
+    )
+
+    claude_path = os.path.join(repo, ".claude")
+    if os.path.islink(claude_path):
+        os.remove(claude_path)
+    elif os.path.isdir(claude_path):
+        shutil.rmtree(claude_path)
+    os.symlink(str(evil_dir), claude_path)
+
+    return str(forged_manifest)
+
+
+# ── Direct-call probes, one isolated subprocess per invocation ────────────
+# (never in-process: upgrade_check/boot_health are real, stably-named
+# modules -- an in-process import would leak into sys.modules and could
+# contaminate other test files running in the same pytest session, see
+# unmassk-toolkit-python-test-conventions.md)
+
+
+def _call_manifest_version_matches(repo):
+    code = f"""
+import importlib.util, json
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("crew_t1_probe", {CREW_HOOK!r})
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+result = mod._manifest_version_matches(Path({repo!r}))
+print(json.dumps({{"result": result}}))
+"""
+    return subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=30
+    )
+
+
+def _call_check_version_mismatch(repo):
+    # check_version_mismatch() has no params -- it derives the git root via
+    # `run_git(["rev-parse", "--show-toplevel"])` with cwd=None (ambient
+    # process cwd), so the subprocess itself must be launched with cwd=repo.
+    code = f"""
+import sys, json
+sys.path.insert(0, {LIB_DIR!r})
+import boot_health
+result = boot_health.check_version_mismatch()
+print(json.dumps({{"result": result}}))
+"""
+    return subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
+        cwd=repo, timeout=30,
+    )
+
+
+def _call_needs_upgrade(repo):
+    code = f"""
+import sys, json
+sys.path.insert(0, {LIB_DIR!r})
+import upgrade_check
+result = upgrade_check.needs_upgrade({repo!r})
+print(json.dumps({{"result": result}}))
+"""
+    return subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=30
+    )
+
+
+def _result_or_fail(proc, label):
+    assert proc.returncode == 0, (
+        f"{label} probe must not crash (fail-safe contract). "
+        f"rc={proc.returncode} stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    last_line = proc.stdout.strip().splitlines()[-1]
+    return json.loads(last_line)["result"]
+
+
+# ── Sanity: the payload itself is genuinely malicious ──────────────────────
+
+
+class TestMaliciousPayloadSanity:
+    def test_deep_nested_payload_raises_recursion_error_directly(self):
+        """Precondition proof (not a production-code test): the fixture used
+        by every SEC-T1-001 test below must actually trigger RecursionError
+        when parsed by the stdlib json module directly -- not
+        JSONDecodeError, not some other error. If this ever stops being
+        true (e.g. a future CPython changes the nesting guard), every
+        SEC-T1-001 test below would silently stop proving anything."""
+        with pytest.raises(RecursionError):
+            json.loads(_malicious_deep_json_payload())
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SEC-T1-001 -- RecursionError from a maliciously deep-nested manifest.json
+# must never crash the caller; each site must return its documented
+# fail-safe value.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestSecT1_001CrewManifestVersionMatchesFailSafe:
+    """hooks/session-start-crew.py::_manifest_version_matches() -- fail-safe
+    is False (falls through to regenerate CLAUDE.md, same as missing/corrupt
+    manifest)."""
+
+    def test_deep_nested_manifest_returns_false_without_crashing(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        _write_malicious_deep_manifest(repo)
+
+        proc = _call_manifest_version_matches(repo)
+        result = _result_or_fail(proc, "_manifest_version_matches")
+
+        assert result is False, (
+            "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
+            f"False, not crash or return True. stdout={proc.stdout!r}"
+        )
+
+
+class TestSecT1_001BootHealthCheckVersionMismatchFailSafe:
+    """lib/boot_health.py::check_version_mismatch() -- fail-safe is None
+    (no upgrade-suggestion warning rendered in the boot STATUS section).
+    Highest blast radius of the 3 sites: called unguarded from
+    render_status_section() in the main boot hook."""
+
+    def test_deep_nested_manifest_returns_none_without_crashing(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        _write_malicious_deep_manifest(repo)
+
+        proc = _call_check_version_mismatch(repo)
+        result = _result_or_fail(proc, "check_version_mismatch")
+
+        assert result is None, (
+            "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
+            f"None, not crash or return a warning. stdout={proc.stdout!r}"
+        )
+
+
+class TestSecT1_001UpgradeCheckNeedsUpgradeFailSafe:
+    """lib/upgrade_check.py::needs_upgrade() -- fail-safe is False (no
+    spurious auto-upgrade subprocess triggered by an unparseable manifest).
+
+    Note: this site's `except Exception:` was already broad BEFORE issue
+    #63's SEC-T1-001 fix (the commit only added verify_path_within_project()
+    here, for SEC-T1-002) -- this test is a regression guard against a
+    FUTURE narrowing of that except, not a fix this commit introduced for
+    this specific site. Still one of the 3 read points the contract covers.
+    """
+
+    def test_deep_nested_manifest_returns_false_without_crashing(self, tmp_path):
+        repo = _make_installed_repo_for_needs_upgrade(tmp_path)
+        _write_malicious_deep_manifest(repo)
+
+        proc = _call_needs_upgrade(repo)
+        result = _result_or_fail(proc, "needs_upgrade")
+
+        assert result is False, (
+            "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
+            f"False, not crash or trigger an upgrade. stdout={proc.stdout!r}"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SEC-T1-002 -- .claude as a DIRECTORY symlink (real, committable) must not
+# bypass the manifest-read guard just because the final path component
+# (manifest.json) is a genuine, non-symlink file at the resolved location.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.usefixtures("real_symlink_capable")
+class TestSecT1_002CrewManifestVersionMatchesFailSafe:
+    """crew's fail-safe is False. Forged version == VERSION deliberately
+    (see module docstring): a "high"/arbitrary forged version would make
+    this test pass vacuously with or without the guard, since
+    _manifest_version_matches() only ever returns True on an EXACT VERSION
+    match -- the only forged value that can flip the result if the guard is
+    bypassed is VERSION itself."""
+
+    def test_symlinked_claude_dir_with_forged_matching_version_returns_false(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
+            repo, tmp_path, forged_version=VERSION, tag="crew"
+        )
+
+        proc = _call_manifest_version_matches(repo)
+        result = _result_or_fail(proc, "_manifest_version_matches")
+
+        assert result is False, (
+            "SEC-T1-002: a .claude directory symlink hiding a forged "
+            f"manifest.json (version == VERSION) at {forged_manifest} must "
+            f"not be trusted. stdout={proc.stdout!r}"
+        )
+
+
+@pytest.mark.usefixtures("real_symlink_capable")
+class TestSecT1_002BootHealthCheckVersionMismatchFailSafe:
+    """boot_health's fail-safe is None. Forged version is deliberately far
+    from PLUGIN_VERSION: check_version_mismatch() only produces a warning
+    on INEQUALITY, so an unequal forged version is the value that makes a
+    guard bypass observable (a warning string, embedding forged content,
+    appears where None is expected)."""
+
+    def test_symlinked_claude_dir_with_forged_high_version_returns_none(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        forged_version = "999.9.9-SEC-T1-002-FORGED"
+        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
+            repo, tmp_path, forged_version=forged_version, tag="boot_health"
+        )
+
+        proc = _call_check_version_mismatch(repo)
+        result = _result_or_fail(proc, "check_version_mismatch")
+
+        assert result is None, (
+            "SEC-T1-002: a .claude directory symlink hiding a forged "
+            f"manifest.json at {forged_manifest} must not be trusted. "
+            f"Got result={result!r} stdout={proc.stdout!r}"
+        )
+        if result is not None:
+            assert forged_version not in result  # defense in depth, never reached if the assert above holds
+
+
+@pytest.mark.usefixtures("real_symlink_capable")
+class TestSecT1_002UpgradeCheckNeedsUpgradeFailSafe:
+    """needs_upgrade's fail-safe is False. Forged version is deliberately
+    LOWER than PLUGIN_VERSION: needs_upgrade() triggers True only when
+    manifest_tuple < code_tuple ("no downgrade" rule) -- a forged HIGH
+    version would leave the result False regardless of the guard (vacuous),
+    so only a forged LOW version makes a guard bypass observable as a
+    spurious True (an auto-upgrade subprocess would be triggered by
+    trigger_auto_upgrade_if_needed())."""
+
+    def test_symlinked_claude_dir_with_forged_low_version_returns_false(self, tmp_path):
+        repo = _make_installed_repo_for_needs_upgrade(tmp_path)
+        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
+            repo, tmp_path, forged_version="0.0.1", tag="upgrade_check"
+        )
+
+        proc = _call_needs_upgrade(repo)
+        result = _result_or_fail(proc, "needs_upgrade")
+
+        assert result is False, (
+            "SEC-T1-002: a .claude directory symlink hiding a forged "
+            f"manifest.json (version 0.0.1) at {forged_manifest} must not "
+            f"trigger a spurious upgrade. stdout={proc.stdout!r}"
+        )
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))
