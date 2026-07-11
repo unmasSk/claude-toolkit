@@ -52,6 +52,43 @@ CACHE_BASE_DIR = os.path.join(os.path.expanduser("~"), ".claude", "plugins", "ca
 REPO_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def _is_real_repo_source(repo_base_dir: str, cache_base_dir: str) -> bool:
+    """True only if REPO_BASE_DIR looks like a genuine dev-repo checkout of
+    the toolkit source -- never a plugin cache directory mistaken for one.
+
+    Issue #63 point 3 (confirmed bug, not designed behavior -- Bilbo's map,
+    boot-simplification-63-map.md section 3): REPO_BASE_DIR is computed as
+    dirname^3(__file__), arithmetic that is only correct when this module
+    runs from a real <GIT_ROOT>/<plugin-dir>/lib/boot_health.py checkout.
+    In production (module running from
+    ~/.claude/plugins/cache/.../unmassk-toolkit/<version>/lib/), the same
+    arithmetic lands on the plugin's OWN cache directory -- whose children
+    are VERSION dirs, not plugin dirs -- a path that always exists, so the
+    old `if not os.path.isdir(REPO_BASE_DIR)` guard never caught it.
+
+    Two independent signals, both required:
+      1. REPO_BASE_DIR is not CACHE_BASE_DIR itself, nor nested inside it
+         (in either direction) -- a real dev-repo checkout is never
+         physically located inside the plugin cache tree.
+      2. REPO_BASE_DIR has a top-level ".git" entry (a directory for a
+         normal clone, a file for a worktree) -- the one marker every real
+         repo checkout has and a cache install never ships (copytree-style
+         cache installs exclude .git; confirmed by
+         test_skill_drift_repo_source_detection.py's own fixture, which
+         explicitly excludes ".git" to simulate this).
+    """
+    repo_base_dir = os.path.abspath(repo_base_dir)
+    cache_base_dir = os.path.abspath(cache_base_dir)
+    try:
+        common = os.path.commonpath([repo_base_dir, cache_base_dir])
+    except ValueError:
+        # Different drives on Windows -- definitely not nested either way.
+        common = None
+    if common in (repo_base_dir, cache_base_dir):
+        return False
+    return os.path.exists(os.path.join(repo_base_dir, ".git"))
+
+
 def _md5_file(path: str) -> str:
     """Return MD5 hex digest of a file's content."""
     h = hashlib.md5()
@@ -81,13 +118,21 @@ def _latest_version_dir(plugin_cache_dir: str) -> str | None:
     return os.path.join(plugin_cache_dir, latest)
 
 
-def _build_repo_skill_index() -> dict[str, str]:
-    """Build a mapping of skill_name -> SKILL.md path from the repo source.
+def _build_repo_skill_index() -> dict[str, dict[str, str]]:
+    """Build a mapping of plugin_dir_name -> {skill_name -> SKILL.md path}
+    from the repo source.
 
     Scans all <repo>/<plugin-dir>/skills/<skill-name>/SKILL.md paths.
-    Returns dict: skill_name -> absolute path.
+    Returns a dict scoped by plugin directory name (issue #63 point 3,
+    Dante's contract note): a flat skill_name -> path index is not a safe
+    lookup key across a monorepo with several plugin directories -- two
+    different plugins could ship a same-named skill with different content,
+    and comparing cached content against the WRONG plugin's source would
+    produce a meaningless drift verdict even when REPO_BASE_DIR correctly
+    resolves to real source. check_skill_drift() looks up by the same
+    plugin_name it already has from the cache-side listing.
     """
-    index: dict[str, str] = {}
+    index: dict[str, dict[str, str]] = {}
     try:
         repo_entries = os.listdir(REPO_BASE_DIR)
     except OSError:
@@ -100,10 +145,13 @@ def _build_repo_skill_index() -> dict[str, str]:
             skill_names = os.listdir(skills_dir)
         except OSError:
             continue
+        plugin_index: dict[str, str] = {}
         for skill_name in skill_names:
             skill_md = os.path.join(skills_dir, skill_name, "SKILL.md")
             if os.path.isfile(skill_md):
-                index[skill_name] = skill_md
+                plugin_index[skill_name] = skill_md
+        if plugin_index:
+            index[entry] = plugin_index
     return index
 
 
@@ -119,6 +167,13 @@ def check_skill_drift() -> list[str] | None:
     Designed to complete well under 200ms on typical installations.
     """
     if not os.path.isdir(CACHE_BASE_DIR) or not os.path.isdir(REPO_BASE_DIR):
+        return None
+
+    # Issue #63 point 3: no real toolkit source repo present -> skip the
+    # entire check silently (not just "no warnings found" -- never even
+    # build an index or compare anything). See _is_real_repo_source()'s
+    # docstring for why the old isdir() guard above never caught this.
+    if not _is_real_repo_source(REPO_BASE_DIR, CACHE_BASE_DIR):
         return None
 
     repo_index = _build_repo_skill_index()
@@ -146,13 +201,19 @@ def check_skill_drift() -> list[str] | None:
             skill_names = os.listdir(skills_dir)
         except OSError:
             continue
+        # Scoped by plugin_name (issue #63 point 3, Dante's contract note):
+        # never fall back to an unscoped, cross-plugin skill_name lookup --
+        # a skill not shipped by THIS plugin in the repo source must be
+        # treated exactly like "skill not in repo" (skip), never matched
+        # against a same-named skill belonging to a different plugin.
+        plugin_repo_index = repo_index.get(plugin_name, {})
         for skill_name in skill_names:
             cached_skill = os.path.join(skills_dir, skill_name, "SKILL.md")
             if not os.path.isfile(cached_skill):
                 continue
-            repo_skill = repo_index.get(skill_name)
+            repo_skill = plugin_repo_index.get(skill_name)
             if not repo_skill:
-                continue  # Skill not in repo — skip (may be published-only)
+                continue  # Skill not in repo (or wrong plugin) — skip
             try:
                 if _md5_file(cached_skill) != _md5_file(repo_skill):
                     drifted.append(f"⚠️ drift: {plugin_name}/{skill_name} cache differs from repo source")
@@ -167,7 +228,7 @@ def check_version_mismatch() -> str | None:
 
     Returns warning string if mismatch, None if OK or can't check.
     """
-    from git_helpers import run_git
+    from git_helpers import run_git, verify_path_within_project
 
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
@@ -176,6 +237,18 @@ def check_version_mismatch() -> str | None:
     if not os.path.isfile(manifest_path):
         return None
     try:
+        # SEC-T1-002 (Argus, issue #63): open_no_follow_symlink() below only
+        # guards manifest.json's FINAL path component -- a .claude/.unmassk
+        # parent that is ITSELF a symlink to a directory holding a real,
+        # non-symlink manifest.json slips past it undetected. This gate has
+        # the biggest blast radius of the 3 read sites: it's called
+        # unguarded from render_status_section() in the main boot hook, so a
+        # poisoned manifest here would have silently suppressed the
+        # upgrade-suggestion warning forever. verify_path_within_project()
+        # resolves every intermediate component via realpath() and rejects
+        # anything escaping root; caught by the broad except below like any
+        # other untrustworthy manifest.
+        verify_path_within_project(manifest_path, root)
         # SEC-LOW-NEW-05: never follow a symlink planted at the manifest
         # path — treat it exactly like "no manifest present" (see
         # open_no_follow_symlink's docstring for the O_NOFOLLOW guarantee).
@@ -190,7 +263,14 @@ def check_version_mismatch() -> str | None:
             safe_installed = _sanitize_trailer_value(str(installed))
             return f"Plugin v{PLUGIN_VERSION} available (installed: v{safe_installed}). Suggest /plugin update"
         return None
-    except (json.JSONDecodeError, OSError):
+    except Exception:
+        # SEC-T1-001 (Argus, issue #63): a maliciously deep-nested manifest
+        # raises RecursionError from json.load, which escaped the previous
+        # narrow (json.JSONDecodeError, OSError) tuple and crashed the whole
+        # boot hook (called unguarded from render_status_section). Broadened
+        # to Exception so a poisoned manifest fails safe like any other
+        # unreadable manifest, matching the pattern already used in
+        # lib/upgrade_check.py's needs_upgrade().
         return None
 
 

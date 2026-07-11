@@ -743,3 +743,107 @@
   Module-split regression (symlink stamp file, symlink .claude/.unmassk parent, 8-way concurrent
   real boots, corrupt JSON, future-mtime clock skew, 5MB pathological remote_url) -- all 6 held
   exactly as round 2 already established, confirming the Cerberus S2 file-split didn't regress them.
+
+## Producer/consumer trust gate skipped BEFORE existence/integrity check (issue #63)
+- Pattern: a new "skip expensive work if manifest.version==VERSION" gate placed
+  BEFORE the code path that would otherwise verify/create the actual artifact.
+- session-start-crew.py:86 `_manifest_version_matches()` returns True/skip
+  BEFORE line 91's `claude_md.exists()` check -- so a matching manifest.json
+  bypasses CLAUDE.md creation/repair even when CLAUDE.md is fully absent.
+- Also exploitable via a REAL degraded producer: install_apply.py's
+  `apply_plan()` (lib/install_apply.py:43-58) does NOT stop on a per-action
+  exception (`except Exception: errors.append(...)`, loop continues) --
+  `_update_claude_md()` can fail (read-only file, locked file, disk full)
+  while `_create_manifest()` still runs unconditionally right after and
+  writes manifest.version==VERSION anyway. The caller
+  (lib/upgrade_check.py::trigger_auto_upgrade_if_needed) discards the
+  subprocess's returncode/stdout/stderr entirely (bare `subprocess.run(...)`,
+  no result captured) -- the failure is invisible end-to-end.
+- Also exploitable with ZERO failure conditions: any repo (malicious or just
+  stale) can pre-commit `.claude/.unmassk/manifest.json` with the CURRENT
+  public VERSION string baked in alongside a stale/poisoned CLAUDE.md
+  managed block -- first-ever SessionStart trusts it forever, no diff ever
+  runs. VERSION is public (plugin.json), zero secret needed.
+- General lesson: any "trust the manifest, skip the real check" gate must be
+  attacked by (a) checking the guarded-thing's existence, not just the
+  signal, (b) sabotaging the REAL producer (permission/lock/disk error) not
+  just corrupting the test fixture, (c) trying to forge the signal directly
+  via a pre-committed/attacker-controlled file.
+
+## Content-gate regex assumes "begin present" implies "end present too" (issue #63, managed_blocks.py)
+- Pattern: `upsert_managed_blocks()`'s per-block branch checks only `if begin in content:` then runs
+  `re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL).sub(rendered, content)` -- if a
+  real, ordinary edit (merge-conflict resolution, editor auto-fix, accidental line deletion) removes
+  ONLY the END marker of one block while the BEGIN marker survives, the begin...end regex has nothing
+  to match, `pattern.sub` returns content byte-identical, and the code logs `"up-to-date {begin}"` --
+  a false claim. The dangling/malformed block is silently swallowed into the FOLLOWING block's body
+  (no boundary between them) and is NEVER repaired on any future boot, since `new_content == content`
+  forever after that point (the write only happens on a diff).
+- Live-confirmed (real repo, real installer, real hook, 2 consecutive real `session-start-crew.py`
+  runs): delete one `<!-- END unmassk-caveman -->` line from an otherwise-canonical, freshly-installed
+  CLAUDE.md -> crew.py prints `[crew] All managed blocks up to date` (a lie, independently verified via
+  `grep -c "END unmassk-caveman"` == 0) both on the first run AND a second run afterward -- permanent,
+  not one-off.
+- Reverse case (BEGIN deleted, END orphaned) is less severe: `begin in content` is False so the block
+  IS correctly treated as missing and a fresh copy is appended -- but the orphaned END marker + its
+  now-unbounded preceding text are never cleaned up, leaving debris (a stray `<!-- END unmassk-caveman
+  -->` with no BEGIN, and a duplicate END string later in the file).
+- Root: lib/managed_blocks.py:190 (`if begin in content:` should require `end in content` too, and
+  treat a begin-without-end or end-without-begin block as "missing/malformed", not "present").
+- This directly defeats decision 2d56444's own stated design goal ("divergencia/ausencia/veneno ->
+  regenera") for exactly the "veneno"/malformed case, on the very content-gate that decision exists to
+  make robust.
+
+## needs_upgrade() Check 1 ("Context Checkpoint Commits" in block) is permanently, unconditionally True for any real content -- dead conditional gate, PRE-EXISTING bug (not introduced by #63) but #63's new docstrings claim a conditional behavior that is provably false
+- The literal string "Context Checkpoint Commits" has never existed in the real managed block content
+  (managed_blocks.py BLOCKS[0]) on this branch's history (`git log --all -S"Context Checkpoint Commits"
+  -- lib/managed_blocks.py bin/git-memory-install.py` = zero hits) -- it only exists inside TEST
+  fixtures (conftest.py's own helper artificially appends it, and a git-log commit message literally
+  says "Dante arregla su propio test (neutraliza Check 1 de needs_upgrade...)" admitting the test was
+  adjusted to bypass the real bug rather than exercising real content).
+- Live-confirmed on a from-scratch, real, freshly-installed repo (manifest.version == PLUGIN_VERSION,
+  CLAUDE.md 100% canonical, zero divergence): `upgrade_check.needs_upgrade('.')` returns `True`.
+  End-to-end via the real hook: running `session-start-boot.py` twice in a row on an already-current
+  install re-stamps `manifest.json`'s `installed_at` both times (independent-channel proof the nested
+  `git-memory-install.py --auto` subprocess actually runs every single boot, forever, for every real
+  installed project) -- defeats issue #63's own stated point ("the cost belongs at session boundaries
+  now... a subprocess of up to 15s once the installed manifest fell behind" -- it is NOT conditional,
+  it ALWAYS fires). Pre-#63 this same bug already fired on every UserPromptSubmit message (confirmed:
+  `git show main:hooks/user-prompt-memory-check.py` has the byte-identical Check 1, called ungated on
+  every message) -- #63 improves frequency (message->session) but does not fix the root always-True
+  bug, and the new prose asserts a conditional guarantee that isn't real.
+- Consequence: Check 2 (the semver comparison, including the SEC-T1-002 symlinked-.claude-parent guard
+  Argus/Ultron added) is unreachable dead code in production -- Check 1 always short-circuits True
+  first. Verified the guard itself is correct when Check 1 is artificially bypassed (isolated test).
+- render_status_section()'s user-facing STATUS line is NOT affected (separate function,
+  `boot_health.check_version_mismatch()`, correctly compares versions and printed "STATUS: ok" in the
+  live PoC) -- only the internal upgrade-trigger gate is dead/always-on.
+- Root: lib/upgrade_check.py:102 (moved byte-for-byte from the pre-#63 hooks/user-prompt-memory-check.py).
+
+## "Trustworthy boundary" splice destroys genuine content between it and the corruption
+- Pattern: a repair routine treats "everything between a corrupted marker and the next
+  known-good marker" as 100% corrupted/discardable ("stray orphaned body")
+- Reality: a user routinely puts their OWN content in that same gap (notes right after a
+  managed section) — the repair can't tell "leftover corruption" from "real content that
+  happens to sit next to corruption" and silently deletes both
+- Scales: N adjacent dangling markers (no intervening close) collapse into 1 canonical
+  block, destroying everything in between — a small realistic corruption (one deleted
+  HTML-comment END line) can wipe an unbounded amount of real user content, unannounced
+- unmassk-toolkit: lib/managed_blocks.py:227-233 `upsert_managed_blocks()`'s orphaned-BEGIN
+  anchor-splice branch. Log line says "regenerated ... (orphaned END marker)" — never
+  mentions content was deleted. Live via both hooks/session-start-crew.py AND the
+  upgrade_check.py -> git-memory-install.py --auto seam (shared function).
+
+## Two "is this current" oracles that use different comparison semantics silently disagree
+- Pattern: one oracle does semver-numeric comparison (`<` on parsed tuples), a sibling
+  oracle guarding the SAME fact does raw string inequality (`!=`) on the same field
+- When the field can legitimately be "greater than" the reference (downgrade/rollback,
+  pinned older release, manifest from before a marketplace revert) the string-inequality
+  oracle produces a BACKWARDS, false message ("vX available... Suggest update" when X is
+  what's already running and the stored value is actually newer) while the real
+  upgrade-trigger oracle correctly stays silent — user sees a lie the system's own
+  authoritative check already disproves
+- unmassk-toolkit: lib/boot_health.py:258 `check_version_mismatch()` (`installed !=
+  PLUGIN_VERSION`) vs lib/upgrade_check.py:143 `needs_upgrade()` (`manifest_tuple <
+  code_tuple`) — same manifest.json field, two different verdicts, only the wrong one
+  reaches the user (STATUS line in the real boot banner).

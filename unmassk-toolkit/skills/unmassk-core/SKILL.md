@@ -90,6 +90,16 @@ Agents auto-discover domain skills via BM25 search on boot. For this to work, yo
 
 The difference: good prompts name the technology (PostgreSQL, Docker, MongoDB, Redis) and the specific concern (query optimization, security hardening, aggregation pipeline, TTL). The agent uses these terms to search domain skills via BM25 and loads the matching SKILL.md with checklists, patterns, and references.
 
+### Phase-sized delegation (HARD RULE)
+
+**One phase per invocation.** A delegated task is ONE point with ONE verifiable outcome — roughly one concern, one file or tightly-coupled file group, one verification command. Never batch multiple independent points (e.g. "implement these 5 changes") into a single agent prompt: a batched task runs 25+ minutes with no checkpoint, can't be interrupted without losing work, and hides progress from the user.
+
+- Send phase 1 → agent reports → wip checkpoint → send phase 2 **to the same agent** as a continuation message (it keeps its context; a fresh agent re-reads everything).
+- If a task turns out bigger than it looked, the agent finishes the current coherent point, reports, and waits for the next phase — this instruction goes in every implementation prompt.
+- Tell every agent explicitly: never end your turn "waiting" for a background process — read the result actively and deliver the report.
+
+**Lane discipline is absolute in every phase: Ultron NEVER touches tests — no edits, no "mechanical re-bases", no exceptions.** If GREEN requires a test change, Ultron stops and reports; the orchestrator sends that test change to Dante. Granting Ultron a test exception "with justification" is the forbidden loophole, not a judgment call.
+
 ### What you handle directly (everything else delegates)
 
 The orchestrator acts directly ONLY for:

@@ -31,12 +31,19 @@ PLUGIN_VERSION source:
 
 import json
 import os
+import re
 import subprocess
 import sys
 
 import pytest
 
 from conftest import INSTALL, git_cmd, run_script, SOURCE_ROOT
+
+LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+import managed_blocks  # noqa: E402 -- must follow the sys.path insert above
 
 # ── Import the hook under test ────────────────────────────────────────────────
 # needs_upgrade() lives in hooks/user-prompt-memory-check.py.
@@ -86,18 +93,25 @@ def make_installed_repo(tmp_path, name="repo"):
 
 def make_semver_test_repo(tmp_path, name="repo"):
     """
-    Create an installed repo whose CLAUDE.md satisfies ALL pre-existing
-    upgrade conditions (no stale markers), so needs_upgrade() can only
-    return True via the new semver rule.
+    Create an installed repo whose CLAUDE.md satisfies Check 1 (managed-block
+    content matches the real canonical render — managed_blocks.
+    any_block_outdated() returns False), so needs_upgrade() can only return
+    True via the semver rule (Check 2) under test in this file.
 
-    Context: a freshly installed repo may not contain 'Context Checkpoint
-    Commits' in the managed block (the text lives in the full skill payload,
-    not in the minimal CLAUDE.md snippet).  This means the pre-existing
-    condition '"Context Checkpoint Commits" not in block' fires as True,
-    making some semver tests pass for the wrong reason.
-
-    We patch the managed block to contain both required strings so the
-    old conditions are definitively False, leaving only semver as the trigger.
+    Decision 1d623da / Moriarty T1-B (issue #63): Check 1 used to require
+    the literal string "Context Checkpoint Commits" inside the block — a
+    string that never existed in real production content (only test
+    fixtures faked it) — so a freshly installed repo tripped Check 1
+    forever and this helper used to hand-inject that literal to neutralize
+    it. Check 1 now compares against the SAME canonical render production
+    code trusts (managed_blocks.any_block_outdated(), the oracle the P1 v2
+    crew content gate also uses); hand-injecting an unrelated literal would
+    now make the block's body diverge FROM canonical and trip Check 1 the
+    opposite way. Per unmassk-standards §34, the neutralized state must be
+    derived from the real render, not a second hand-typed string: run the
+    real managed_blocks.upsert_managed_blocks() over the installed
+    CLAUDE.md. Idempotent — normally a no-op, since a fresh --auto install
+    is already canonical.
     """
     repo = make_installed_repo(tmp_path, name)
 
@@ -105,24 +119,10 @@ def make_semver_test_repo(tmp_path, name="repo"):
     with open(claude_md_path, encoding="utf-8") as f:
         content = f.read()
 
-    # Locate the managed block.
-    begin = content.find("BEGIN unmassk-toolkit")
-    end = content.find("END unmassk-toolkit")
+    new_content, _log = managed_blocks.upsert_managed_blocks(content)
 
-    if begin != -1 and end != -1:
-        block = content[begin:end]
-        patched_block = block
-
-        # Ensure old-style marker is NOT present (it would trigger upgrade).
-        patched_block = patched_block.replace("python3 bin/", "")
-
-        # Ensure the required string IS present (its absence triggers upgrade).
-        if "Context Checkpoint Commits" not in patched_block:
-            patched_block = patched_block + "\nContext Checkpoint Commits\n"
-
-        content = content[:begin] + patched_block + content[end:]
-        with open(claude_md_path, "w", encoding="utf-8") as f:
-            f.write(content)
+    with open(claude_md_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
 
     return repo
 
@@ -213,16 +213,24 @@ class TestNeedsUpgradeSemver:
 
         Implementation contract: needs_upgrade() must read its "code version"
         from a module-level constant PLUGIN_VERSION so the test can patch it.
-        Ultron must define:  PLUGIN_VERSION = VERSION  at module level in the hook.
+
+        Issue #63 (boot simplification, point 2): needs_upgrade() and its
+        PLUGIN_VERSION global now live in lib/upgrade_check.py --
+        hooks/user-prompt-memory-check.py only re-imports the same function
+        object by name for backward compatibility (`hook.needs_upgrade is
+        upgrade_check.needs_upgrade`), it does not redefine it. Patching
+        `hook.PLUGIN_VERSION` no longer reaches the global the function
+        actually reads (that name lives in upgrade_check's own module
+        dict, `hook.needs_upgrade.__globals__`) — patch it there directly
+        instead, mechanical rebase of the same contract, not a behavior
+        change.
         """
         repo = make_semver_test_repo(tmp_path)
         write_manifest(repo, "1.9.0")
 
         # Load the hook, then patch PLUGIN_VERSION before calling needs_upgrade().
-        # This pattern requires Ultron to expose PLUGIN_VERSION as a module-level
-        # constant so monkeypatch.setattr can reach it.
         hook = _import_hook(monkeypatch)
-        monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
+        monkeypatch.setitem(hook.needs_upgrade.__globals__, "PLUGIN_VERSION", "1.10.0")
 
         # Numeric: 1.9 < 1.10 → True
         assert hook.needs_upgrade(repo) is True
@@ -233,12 +241,17 @@ class TestNeedsUpgradeSemver:
 
         Numerically manifest > code → False (no downgrade).
         String comparison would give the wrong True.
+
+        See test_semver_not_lexicographic_minor_bump's docstring for why
+        this patches hook.needs_upgrade.__globals__ instead of a hook-level
+        attribute (issue #63 relocation of needs_upgrade to
+        lib/upgrade_check.py).
         """
         repo = make_semver_test_repo(tmp_path)
         write_manifest(repo, "1.10.0")
 
         hook = _import_hook(monkeypatch)
-        monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.9.0", raising=False)
+        monkeypatch.setitem(hook.needs_upgrade.__globals__, "PLUGIN_VERSION", "1.9.0")
 
         # Numeric: 1.10 > 1.9 → manifest is newer than code → False
         assert hook.needs_upgrade(repo) is False
@@ -393,10 +406,39 @@ class TestNeedsUpgradePreexistingReasons:
     (stale CLAUDE.md markers) must continue to fire independently.
     """
 
-    def test_stale_block_still_triggers_upgrade(self, tmp_path, monkeypatch):
+    def test_divergent_block_body_still_triggers_upgrade(self, tmp_path, monkeypatch):
         """
-        A CLAUDE.md block with the old 'python3 bin/' marker still causes
-        needs_upgrade() to return True, regardless of manifest version.
+        A managed block whose BODY has genuinely diverged from canonical
+        content (BEGIN and END markers both still present and matched, but
+        the text between them no longer matches lib/managed_blocks.py's
+        render) still causes needs_upgrade() to return True, regardless of
+        manifest version -- the `current_body != block["body"].strip()`
+        branch of managed_blocks.any_block_outdated() (lib/managed_blocks.py),
+        a distinct code path from a block whose BEGIN marker is missing
+        entirely (see test_missing_secondary_block_still_triggers_upgrade
+        below, which exercises the `begin not in content` branch instead).
+
+        Renamed from test_stale_block_still_triggers_upgrade (issue #63
+        Cerberus nitpick): the old name/docstring described this as
+        detecting the retired "python3 bin/" magic-string marker
+        specifically. Check 1 (lib/upgrade_check.py) no longer keys off
+        any literal string at all -- it now calls the generic
+        any_block_outdated(), which flags ANY divergence between a
+        block's actual body and its canonical render. The tamper below
+        (replacing "unmassk-toolkit Active" with an old-style
+        "python3 bin/..." string inside the block body) still makes the
+        test pass, but for a DIFFERENT and more general reason than the
+        old name implied: it is just one instance of "body text differs
+        from canonical", not a dedicated detector for that specific
+        historical string.
+
+        Kept, not retired: not truly redundant with
+        test_missing_secondary_block_still_triggers_upgrade. That test
+        proves the "begin marker altogether absent" branch of
+        any_block_outdated(); this one proves the separate "begin/end
+        present, body content diverged" branch -- two different `if`
+        branches inside the same function, each worth its own regression
+        test.
         """
         from version import VERSION
 
@@ -417,10 +459,37 @@ class TestNeedsUpgradePreexistingReasons:
         # The stale-block detector must still fire.
         assert hook.needs_upgrade(repo) is True
 
-    def test_missing_context_checkpoint_still_triggers_upgrade(self, tmp_path, monkeypatch):
+    def test_missing_secondary_block_still_triggers_upgrade(self, tmp_path, monkeypatch):
         """
-        A CLAUDE.md block missing 'Context Checkpoint Commits' still causes
-        needs_upgrade() to return True.
+        A CLAUDE.md with one of the OTHER managed blocks (unmassk-protocols)
+        removed entirely — while the primary unmassk-toolkit block stays
+        present — still causes needs_upgrade() to return True: the "begin
+        marker not in content" branch of managed_blocks.any_block_outdated(),
+        a distinct code path from a merely tampered/divergent block body
+        (see test_divergent_block_body_still_triggers_upgrade above).
+
+        Deliberately NOT the unmassk-toolkit block itself: needs_upgrade()
+        has its own EARLIER fail-safe — `if "BEGIN unmassk-toolkit" not in
+        content: return False  # needs_install handles this` (lib/
+        upgrade_check.py) — so removing that specific block never reaches
+        Check 1 at all and would make this test vacuous (confirmed by
+        running it that way first: needs_upgrade() returned False, for the
+        wrong reason). Removing a secondary block leaves the primary-block
+        precondition satisfied and genuinely exercises any_block_outdated()
+        seeing a missing begin marker for one of the other 4 blocks.
+
+        Reframed from test_missing_context_checkpoint_still_triggers_upgrade
+        (decision 1d623da / Moriarty T1-B, issue #63). The retired test
+        asserted that removing the literal "Context Checkpoint Commits"
+        string triggers upgrade — that string never existed in real
+        production content, so its `.replace()` call was already a silent
+        no-op against a freshly installed repo (nothing to remove) even
+        before this fix; the test passed for the wrong reason (Check 1
+        fired True unconditionally on every fresh install, regardless of
+        the tamper). Check 1 no longer keys off that literal at all, so
+        that contract is gone. The real replacement contract — "a
+        genuinely missing or divergent block triggers upgrade" — is
+        exercised here for the missing-secondary-block case.
         """
         from version import VERSION
 
@@ -430,10 +499,23 @@ class TestNeedsUpgradePreexistingReasons:
         claude_md_path = os.path.join(repo, "CLAUDE.md")
         with open(claude_md_path, encoding="utf-8") as f:
             content = f.read()
-        # Remove the 'Context Checkpoint Commits' text from inside the managed block.
-        content = content.replace("Context Checkpoint Commits", "Checkpoint Notes")
+        assert "BEGIN unmassk-toolkit" in content, (
+            "precondition: primary block must stay present so needs_upgrade()'s "
+            "earlier 'not installed' fail-safe doesn't short-circuit before Check 1"
+        )
+        # Remove the unmassk-protocols managed block entirely (both markers
+        # + body) — a secondary block, distinct from unmassk-toolkit.
+        new_content = re.sub(
+            r"<!-- BEGIN unmassk-protocols.*?<!-- END unmassk-protocols -->\n?",
+            "",
+            content,
+            flags=re.DOTALL,
+        )
+        assert "BEGIN unmassk-protocols" not in new_content, (
+            "precondition: block removal must actually remove the block"
+        )
         with open(claude_md_path, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(new_content)
 
         hook = _import_hook(monkeypatch)
         assert hook.needs_upgrade(repo) is True

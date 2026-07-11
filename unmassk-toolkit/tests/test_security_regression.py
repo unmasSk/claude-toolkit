@@ -1699,12 +1699,15 @@ class TestBugMNeedsUpgradeManifestSymlinkRead:
     def test_needs_upgrade_does_not_follow_symlinked_manifest(self, tmp_path):
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, extra_args=["--auto"])
-        # Neutralize Check 1 (stale CLAUDE.md block markers) so
-        # needs_upgrade() can only be triggered via Check 2 (manifest read),
-        # which is the symlink-guarded code path this test targets. Without
-        # this, a fresh install's CLAUDE.md block never contains "Context
-        # Checkpoint Commits" and Check 1 fires True unconditionally, so the
-        # assertion below passes without ever exercising the manifest read.
+        # Neutralize Check 1 (managed_blocks.any_block_outdated() — see
+        # conftest.neutralize_needs_upgrade_check1's docstring, decision
+        # 1d623da / Moriarty T1-B) so needs_upgrade() can only be triggered
+        # via Check 2 (manifest read), which is the symlink-guarded code
+        # path this test targets. A fresh --auto install is already
+        # byte-for-byte canonical (Check 1 is False out of the box), so
+        # this call is a defensive no-op here today — kept so this test
+        # keeps isolating Check 2 even if a future change makes a fresh
+        # install's CLAUDE.md temporarily diverge from canonical.
         neutralize_needs_upgrade_check1(repo)
 
         victim = tmp_path / "victim-manifest-needsupgrade.json"
@@ -3000,33 +3003,6 @@ class TestBugABBootedFlagRuntimeDirClaudeDirSymlink:
 # (SEC-HIGH-005) — RED now
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _call_migrate_runtime_to_unmassk_boot_migrations(project_root):
-    """Call lib/boot_migrations.py's _migrate_runtime_to_unmassk(project_root)
-    directly, in an isolated subprocess.
-
-    This module has no git_helpers import at all (module-level or deferred),
-    so there is no sys.modules stub-contamination risk (see
-    unmassk-toolkit-python-test-conventions.md) — a plain
-    spec_from_file_location + exec_module in a throwaway subprocess is
-    sufficient isolation.
-    """
-    code = f"""
-import importlib.util
-spec = importlib.util.spec_from_file_location(
-    "boot_migrations_probe", {repr(os.path.join(LIB_DIR, "boot_migrations.py"))})
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-mod._migrate_runtime_to_unmassk({repr(project_root)})
-print("OK")
-"""
-    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding='utf-8', timeout=15)
-    if proc.returncode != 0 or "OK" not in proc.stdout:
-        raise RuntimeError(
-            f"_migrate_runtime_to_unmassk (boot_migrations) failed "
-            f"(rc={proc.returncode}): {proc.stderr}"
-        )
-
-
 def _call_migrate_runtime_to_unmassk_upgrade(target):
     """Call bin/git-memory-upgrade.py's _migrate_runtime_to_unmassk(target)
     directly, in an isolated subprocess (same pattern already used for
@@ -3049,49 +3025,21 @@ print("OK")
 
 @pytest.mark.usefixtures("real_symlink_capable")
 class TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink:
-    """SEC-HIGH-005: _migrate_runtime_to_unmassk() — duplicated
-    near-identically in lib/boot_migrations.py (runs on every boot via
+    """SEC-HIGH-005: _migrate_runtime_to_unmassk() moves/creates files
+    inside an externally-resolved .claude when .claude itself is a symlink,
+    because it doesn't use verify_path_within_project()/ensure_runtime_dir().
+    Triggered whenever a legacy file (git-memory-manifest.json,
+    .glossary-cache.json, .session-booted, or git-memory-scopes.json) is
+    present at the location .claude resolves to.
+
+    Issue #63 (boot simplification, point 4): this used to be duplicated
+    near-identically in lib/boot_migrations.py (ran on every boot via
     run_preboot_migrations()) and bin/git-memory-upgrade.py (runs during
-    apply_upgrade()) — moves/creates files inside an externally-resolved
-    .claude when .claude itself is a symlink, because neither copy uses
-    verify_path_within_project()/ensure_runtime_dir(). Triggered whenever a
-    legacy file (git-memory-manifest.json, .glossary-cache.json,
-    .session-booted, or git-memory-scopes.json) is present at the location
-    .claude resolves to."""
-
-    def test_boot_migrations_module_does_not_touch_external_dir(self, tmp_path):
-        """
-        RED: calling lib/boot_migrations.py's _migrate_runtime_to_unmassk()
-        with a project_root whose .claude is a symlink must not create
-        .unmassk/ nor move the legacy manifest file inside the external
-        directory it resolves to.
-        """
-        repo = _make_repo(tmp_path)
-        external_dir = tmp_path / "external-claude-target-migrate-bootmod"
-        external_dir.mkdir()
-
-        claude_path = os.path.join(repo, ".claude")
-        os.symlink(str(external_dir), claude_path)
-
-        # Legacy file the migration is designed to move — planted directly
-        # at the external location .claude resolves to.
-        legacy_manifest = external_dir / "git-memory-manifest.json"
-        legacy_manifest.write_text(json.dumps({"version": "1.0.0"}), encoding='utf-8')
-
-        _call_migrate_runtime_to_unmassk_boot_migrations(repo)
-
-        leaked_unmassk_dir = external_dir / ".unmassk"
-        assert not leaked_unmassk_dir.exists(), (
-            "SEC-HIGH-005: lib/boot_migrations.py's "
-            "_migrate_runtime_to_unmassk() followed the symlinked .claude "
-            f"directory and created .unmassk/ inside the external directory "
-            f"at {leaked_unmassk_dir}."
-        )
-        assert legacy_manifest.exists(), (
-            "SEC-HIGH-005: the legacy manifest file at the external "
-            f"location {legacy_manifest} was moved/removed by the migration "
-            "instead of being left untouched."
-        )
+    apply_upgrade()) — both copies carried this guard, tested separately
+    below. The lib/boot_migrations.py copy (and its own
+    test_boot_migrations_module_does_not_touch_external_dir case) is
+    retired along with the boot-side call; bin/git-memory-upgrade.py's copy
+    is now the single home for this migration and this guard, unchanged."""
 
     def test_upgrade_module_does_not_touch_external_dir(self, tmp_path):
         """
@@ -3696,53 +3644,20 @@ class TestBugALOldSkillDirsSymlinkedParent:
 
 @pytest.mark.usefixtures("real_symlink_capable")
 class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
-    """_migrate_runtime_to_unmassk() (duplicated in lib/boot_migrations.py,
-    runs on every boot, and bin/git-memory-upgrade.py, runs during
-    apply_upgrade()) re-verifies unmassk_dir (.claude/.unmassk) as a SECOND,
-    independent verify_path_within_project() call — separate from BUG AC's
-    claude_dir check, because .claude itself can be a completely real
-    directory while .claude/.unmassk underneath it is independently a
+    """_migrate_runtime_to_unmassk() (bin/git-memory-upgrade.py, runs
+    during apply_upgrade()) re-verifies unmassk_dir (.claude/.unmassk) as a
+    SECOND, independent verify_path_within_project() call — separate from
+    BUG AC's claude_dir check, because .claude itself can be a completely
+    real directory while .claude/.unmassk underneath it is independently a
     symlink to an external, pre-existing directory. Ultron already added
-    this guard in both copies; these are POST-FIX regression tests
-    confirming it blocks this exact shape (.claude real, .unmassk
-    symlinked) — a DIFFERENT shape from BUG AC (which symlinked .claude
-    itself)."""
+    this guard; this is a POST-FIX regression test confirming it blocks
+    this exact shape (.claude real, .unmassk symlinked) — a DIFFERENT shape
+    from BUG AC (which symlinked .claude itself).
 
-    def test_boot_migrations_module_does_not_touch_external_dir_when_unmassk_dir_is_symlinked(self, tmp_path):
-        """
-        GREEN: lib/boot_migrations.py's _migrate_runtime_to_unmassk(), with a
-        REAL .claude but a symlinked .claude/.unmassk pointing at an
-        external, pre-existing directory, must not create anything inside
-        that external directory nor move the legacy .glossary-cache.json
-        file that triggers the migration.
-        """
-        repo = _make_repo(tmp_path)
-        os.makedirs(os.path.join(repo, ".claude"), exist_ok=True)
-
-        external_dir = tmp_path / "external-unmassk-target-bootmod"
-        external_dir.mkdir()
-
-        unmassk_path = os.path.join(repo, ".claude", ".unmassk")
-        os.symlink(str(external_dir), unmassk_path)
-
-        legacy_cache = os.path.join(repo, ".claude", ".glossary-cache.json")
-        with open(legacy_cache, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"decisions": []}))
-
-        _call_migrate_runtime_to_unmassk_boot_migrations(repo)
-
-        leaked_cache = external_dir / "glossary-cache.json"
-        assert not leaked_cache.exists(), (
-            "BUG AM: lib/boot_migrations.py's _migrate_runtime_to_unmassk() "
-            "followed a symlinked .claude/.unmassk (with a REAL .claude "
-            f"parent) and wrote glossary-cache.json outside the repo, at "
-            f"{leaked_cache}."
-        )
-        assert os.path.isfile(legacy_cache), (
-            "BUG AM: the legacy .glossary-cache.json file at "
-            f"{legacy_cache} was moved/removed instead of being left "
-            "untouched when the migration correctly refused to proceed."
-        )
+    Issue #63 (boot simplification, point 4): this class used to also cover
+    the lib/boot_migrations.py copy of the same guard (ran on every boot).
+    That copy is retired along with the boot-side migration call — see
+    TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink's docstring."""
 
     def test_upgrade_module_does_not_touch_external_dir_when_unmassk_dir_is_symlinked(self, tmp_path):
         """
@@ -3788,50 +3703,20 @@ class TestBugAMMigrateRuntimeUnmasskDirSymlinkedParent:
 
 @pytest.mark.usefixtures("real_symlink_capable")
 class TestBugANMigrateScopesAgentMemorySymlinkedParent:
-    """The same two _migrate_runtime_to_unmassk() copies also re-verify the
-    agent_dir/target_dir used for the git-memory-scopes.json ->
-    agent-memory/<agent>/scopes.json migration, as a THIRD independent
-    verify_path_within_project() call — separate from both claude_dir (BUG
-    AC) and unmassk_dir (BUG AM), since .claude/agent-memory can itself be a
-    symlink to an external directory even when .claude and .claude/.unmassk
-    are both real. Ultron already added this guard in both copies; these are
-    POST-FIX regression tests confirming it blocks this exact shape."""
+    """_migrate_runtime_to_unmassk() (bin/git-memory-upgrade.py) also
+    re-verifies the agent_dir/target_dir used for the
+    git-memory-scopes.json -> agent-memory/<agent>/scopes.json migration,
+    as a THIRD independent verify_path_within_project() call — separate
+    from both claude_dir (BUG AC) and unmassk_dir (BUG AM), since
+    .claude/agent-memory can itself be a symlink to an external directory
+    even when .claude and .claude/.unmassk are both real. Ultron already
+    added this guard; this is a POST-FIX regression test confirming it
+    blocks this exact shape.
 
-    def test_boot_migrations_module_does_not_touch_external_dir_when_agent_memory_is_symlinked(self, tmp_path):
-        """
-        GREEN: lib/boot_migrations.py's _migrate_runtime_to_unmassk(), with a
-        REAL .claude and REAL .claude/.unmassk but a symlinked
-        .claude/agent-memory pointing at an external, pre-existing
-        directory, must not create anything inside that external directory
-        nor move the legacy git-memory-scopes.json file.
-        """
-        repo = _make_repo(tmp_path)
-        os.makedirs(os.path.join(repo, ".claude"), exist_ok=True)
-
-        external_dir = tmp_path / "external-agent-memory-bootmod"
-        external_dir.mkdir()
-
-        agent_memory_path = os.path.join(repo, ".claude", "agent-memory")
-        os.symlink(str(external_dir), agent_memory_path)
-
-        legacy_scopes = os.path.join(repo, ".claude", "git-memory-scopes.json")
-        with open(legacy_scopes, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"scopes": {}}))
-
-        _call_migrate_runtime_to_unmassk_boot_migrations(repo)
-
-        leaked_agent_dir = external_dir / "unmassk-crew-bilbo"
-        assert not leaked_agent_dir.exists(), (
-            "BUG AN: lib/boot_migrations.py's _migrate_runtime_to_unmassk() "
-            "followed a symlinked .claude/agent-memory (with REAL .claude "
-            f"and .claude/.unmassk parents) and created a directory outside "
-            f"the repo, at {leaked_agent_dir}."
-        )
-        assert os.path.isfile(legacy_scopes), (
-            "BUG AN: the legacy git-memory-scopes.json file at "
-            f"{legacy_scopes} was moved/removed instead of being left "
-            "untouched when the migration correctly refused to proceed."
-        )
+    Issue #63 (boot simplification, point 4): this class used to also cover
+    the lib/boot_migrations.py copy of the same guard (ran on every boot).
+    That copy is retired along with the boot-side migration call — see
+    TestBugACMigrateRuntimeToUnmasskClaudeDirSymlink's docstring."""
 
     def test_upgrade_module_does_not_touch_external_dir_when_agent_memory_is_symlinked(self, tmp_path):
         """

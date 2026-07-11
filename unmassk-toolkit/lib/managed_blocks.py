@@ -187,18 +187,54 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
         end = block["end"]
         rendered = _render_block(block)
 
-        if begin in content:
-            # Block present — update in place (regex replace begin…end)
-            pattern = re.compile(
-                re.escape(begin) + r".*?" + re.escape(end),
-                re.DOTALL,
-            )
+        pattern = re.compile(
+            re.escape(begin) + r".*?" + re.escape(end),
+            re.DOTALL,
+        )
+        match = pattern.search(content)
+
+        if match:
+            # Block present with both markers — update in place if stale.
             new_content = pattern.sub(rendered, content)
             if new_content != content:
                 log.append(f"updated {begin}")
             else:
-                log.append(f"up-to-date {begin}")
+                # Deliberately NOT "up-to-date {begin}": that phrase is
+                # reserved for hooks/session-start-crew.py's single
+                # aggregate message, printed only when truly nothing
+                # changed anywhere. A per-block log line mixed into a run
+                # that also regenerates a corrupted block must never let
+                # "up to date" wording leak into that run's output (T1-A,
+                # issue #63) — an unchanged block among changed ones is
+                # still accurately reported, just without that phrase.
+                log.append(f"unchanged {begin}")
             content = new_content
+        elif begin in content:
+            # Orphaned BEGIN: this block's own END marker is missing
+            # somewhere in the whole document (deleted line, merge-conflict
+            # resolution, editor auto-fix). begin…end can't match, so this
+            # block is corrupted, never "up to date" — it must be
+            # regenerated, not silently accepted.
+            #
+            # Design constraint (issue #63, Moriarty T1-1 regression on
+            # T1-A's own fix): a BEGIN with no END gives us NO reliable
+            # signal of where the block actually ends. Any deletion of the
+            # surrounding text — up to the "next" managed block, up to a
+            # blank line, whatever heuristic — risks eating real user
+            # content that happens to sit in that gap (a completely normal
+            # place for a user to write free-text notes). The ONLY byte we
+            # can prove is corruption is the dangling BEGIN marker line
+            # itself. So: remove exactly that line, nothing else, and
+            # reinsert the full canonical block (BEGIN+body+END) in its
+            # place — an in-place replacement never touches any byte
+            # outside that single line, so it is always safe regardless of
+            # what sits before or after it (trivially safe by
+            # construction, not just "in this case").
+            start = content.find(begin)
+            line_end = content.find("\n", start)
+            line_end = len(content) if line_end == -1 else line_end + 1
+            content = content[:start] + rendered + "\n" + content[line_end:]
+            log.append(f"regenerated {begin} (orphaned END marker)")
         else:
             missing_blocks.append(block)
 

@@ -1231,3 +1231,54 @@ avoid `git stash` / `git stash pop` as a "get a clean baseline" trick unless
 you're prepared to reconcile file-by-file — `git checkout stash@{0} --
 <path>` (selective restore) is safer than a full pop when you don't control
 every file that might have changed underneath you.
+
+## Removing a proxy-based skip gate: check if the wrapped function already IS the content diff before adding a new one
+
+Issue #63 P1 v2 (decision 2d56444): `hooks/session-start-crew.py`'s v1 gate
+(`_manifest_version_matches()`) trusted `manifest.json`'s `"version"` field
+as a proxy for "CLAUDE.md's managed blocks are correct now" — Moriarty broke
+it with 3 T1 PoCs (producer stamps version despite a failed CLAUDE.md write;
+a poisoned block survives next to a version-matching manifest; a deleted
+CLAUDE.md is never recreated because the version check ran before the
+existence check). The GREEN fix was NOT to add a new explicit
+`any_block_outdated()` pre-check — it was to delete the version gate
+entirely and restore the pre-gate flow: always read CLAUDE.md (existence
+check first), always call `upsert_managed_blocks(content)`, and only write
+when `new_content != content`. That equality check IS the content diff —
+`upsert_managed_blocks()` is idempotent for already-canonical content (each
+`BLOCKS[i]["begin"] in content` branch replaces in place with byte-identical
+rendered output when nothing changed), so no separate outdated-check was
+needed to satisfy either the 3 regenerate-on-divergence tests or the
+skip-write-when-canonical control test. Also deleted the now-orphaned
+imports (`json`, `version.VERSION`, `git_helpers.verify_path_within_project`)
+since they were only used inside the removed function — `grep` for every
+use of an import before deleting the function that used it, don't assume
+one caller.
+
+Rule: when a "trust an external proxy, skip the real check" gate gets
+proven unsafe, check whether the function it was gating (here
+`upsert_managed_blocks`) already performs an idempotent diff before writing
+back a redundant explicit outdated-check — the minimal-diff fix may just be
+deleting the gate, not adding a new comparison function call.
+
+## hooks.json timeout budget must exceed the sum of a hook's own bounded subprocess calls
+
+Issue #63 point 2 (Cerberus suggestion): moving `trigger_auto_upgrade_if_needed`
+(lib/upgrade_check.py, timeout=15) into `hooks/session-start-boot.py`'s
+`main()` put it in the SAME hook as the fetch in `run_preboot_migrations()`
+→ `fetch_memory_ref()` → `lib/boot_git_checks.py`'s `FETCH_TIMEOUT_SECONDS = 10`.
+Both run sequentially inside one Python process, so worst case is additive
+(10 + 15 = 25s) before even counting the rest of the hook's own git calls —
+against `hooks/hooks.json`'s declared `"timeout": 30` for that hook, the
+margin was too tight on a degraded network (hook self-kill = fail-open, no
+corruption, but upgrade silently doesn't run and boot is incomplete).
+Fixed by raising `hooks.json`'s `session-start-boot.py` timeout 30→45s —
+no change to the fetch or upgrade logic/timeouts themselves.
+
+Rule: when a hook gains a new bounded subprocess call (or an existing one
+moves into it), re-sum ALL of that hook's own bounded timeouts and confirm
+the hook's declared `hooks.json` timeout still has real margin over the
+sequential worst case — don't just trust the original budget was sized for
+the new combination. JSON hook entries in this repo have no comment
+syntax, so document the rationale in the commit message / git-memory, not
+inline in `hooks.json`.

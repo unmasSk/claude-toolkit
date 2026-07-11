@@ -39,6 +39,19 @@ def main():
         print("[crew] Not a git repo, skipping CLAUDE.md check")
         return
 
+    # Issue #63 (boot simplification, P1 v2 -- decision 2d56444): the gate
+    # verifies CONTENT, never manifest.json's "version" field. That field is
+    # only a proxy for "an install ran", not "CLAUDE.md's managed blocks are
+    # correct right now" -- Moriarty broke the version-only gate with 3 live
+    # T1 PoCs (producer stamps version even when the CLAUDE.md write failed;
+    # a poisoned block sits untouched next to a version-matching manifest;
+    # CLAUDE.md deleted while a matching manifest survives is never
+    # recreated). CLAUDE.md is therefore ALWAYS read (existence check comes
+    # first, below) and always diffed against the canonical blocks via
+    # upsert_managed_blocks(); reading+diffing is cheap and always happens.
+    # The only thing ever skipped is the WRITE, and only when the diff is
+    # empty (new_content == content) -- Bex's "write the minimum" goal,
+    # preserved without trusting any external proxy for content state.
     claude_md = git_root / "CLAUDE.md"
     claude_md_exists = claude_md.exists()
 

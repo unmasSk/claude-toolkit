@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Auto-upgrade check moved from every message to once per session start** (issue #63): the check that keeps a project's installed plugin content current used to run on every single message (two file reads, and occasionally a subprocess, per reply); it now runs once when a session starts. Trade-off: running `/plugin update` mid-session is picked up on the *next* session start rather than the very next message.
+- **Two boot-time migrations retired** (issue #63): the one-time repairs that moved old `.claude/` runtime files into `.claude/.unmassk/` and untracked legacy generated JSON files only mattered for installs older than ~4 months and no longer run on every boot. The one still needed for very old installs now lives only in the explicit `git memory upgrade` path.
+- SessionStart hook timeout raised 30s→45s to give boot enough headroom for the above.
+- The `[memory-check]` reminder shown after every message was shortened to about a third of its previous length (same guidance, less text).
+
+### Fixed
+
+- **Auto-upgrade no longer mistakes a fully current install for an outdated one** (issue #63): the check used to look for a literal string inside CLAUDE.md's managed block that never actually appears in real installs — only in test fixtures — so an up-to-date CLAUDE.md still looked outdated and triggered a reinstall. It now compares against the real canonical content instead of a hand-typed marker.
+- **Skill-drift warning no longer fires in ordinary user projects** (issue #63): the check compared a project's cached plugin skills against the toolkit's own *source* repo, but in projects that only have the plugin installed from the cache (no source checkout), the path arithmetic accidentally pointed back at the same cache — producing false "drift" warnings with nothing to fix. It now only runs when a real toolkit source checkout is present.
+- **CLAUDE.md's self-repair for a corrupted managed block no longer risks deleting nearby user notes** (issue #63): if a managed block's END marker went missing (e.g. from a bad merge), repair now removes only the dangling marker line and reinserts the full block in its place, instead of any heuristic that could reach into surrounding text.
+- **A failed install/upgrade no longer marks itself as successful** (issue #63): if any install step fails, the manifest is left as it was (absent or stale) instead of being stamped with the new version — so the next boot still sees the install as incomplete and retries it.
+
 ## [1.19.4] - 2026-07-11
 
 ### Fixed

@@ -365,4 +365,55 @@ passed; (2) same hermetic env vars on the FULL suite: 984 passed, 2 skipped
 (non-hermetic) full suite unchanged: 984 passed, 2 skipped, 0 failed — no
 regression from the new tracking logic.
 
+**Issue #65 (2026-07-11) — Windows-only CI, two more test-hygiene bugs, both
+diagnosed by House and fixed test-only (production confirmed correct):**
+
+1. **`open(path, "rb")` raw bytes compared against an in-memory string built
+   with bare `"\n"` fails on Windows for a purely cosmetic EOL reason.**
+   `hooks/session-start-crew.py`'s text-mode writes translate every `"\n"` it
+   emits to `os.linesep` UNIFORMLY on Windows (a genuine, correct CRLF file,
+   not a mixed-EOL corruption). A test that reads the result via
+   `open(path, "rb")` (to keep a byte-exact channel for marker-count and
+   `note.encode("utf-8") in raw_bytes` assertions, which correctly do NOT
+   depend on EOL since markers never embed a newline) but then also compares
+   that SAME raw string against something LF-built (`_render_block()`'s
+   output, or a `prefix` sliced from a `_read()`-based string, which is
+   always LF because text-mode reads are universal-newline) fails on Windows
+   only. Fix: keep the raw/byte assertions on the raw-decoded string, but
+   build a SEPARATE `content_after_text = content_after.replace("\r\n",
+   "\n").replace("\r", "\n")` for every STRING/semantic comparison
+   (`expected_rendered in ...`, `any_block_outdated(...)`,
+   `content_after.startswith(prefix)`, and any later `_read()`-based
+   idempotency comparison — same class, easy to miss since it's a second,
+   later assertion in the same test). `tests/test_issue63_orphaned_end_preserves_user_content.py`
+   was the only file in the suite with this exact shape (grepped every
+   `open(..., "rb")` site — the other 4 in the same file and 4 more in
+   `test_upgrade_moved_to_sessionstart.py` only do byte-vs-byte equality or
+   marker-count/containment checks with no embedded newline, so they were
+   correctly left untouched).
+2. **`env={"HOME": ...}` alone does not redirect `os.path.expanduser("~")`
+   on Windows.** CPython's `ntpath.expanduser()` prefers `USERPROFILE` over
+   `HOME` entirely (falls back to `HOMEDRIVE`+`HOMEPATH` only if
+   `USERPROFILE` is absent) — a test fixture that only sets `HOME` in the
+   subprocess `env=` to redirect a plugin cache lookup (`CACHE_BASE_DIR`
+   derived from `expanduser("~")`) silently resolves to the REAL runner
+   home on Windows, so the fixture's planted cache tree is never scanned.
+   Fix: always set `USERPROFILE` (and `HOMEDRIVE`/`HOMEPATH` for extra
+   robustness) alongside `HOME` in any `env=` dict meant to redirect
+   `expanduser("~")`. Repo-wide grep for `"HOME"` in `env=` dicts
+   (`grep -rn '"HOME"' tests/*.py`) found exactly 2 call sites, both in
+   `tests/test_skill_drift_repo_source_detection.py` — both fixed the same
+   way. One of the two tests in that file (`TestPureCacheLayoutWithout...`)
+   was already passing on non-Windows for the WRONG reason (its
+   `CACHE_BASE_DIR` also didn't point at the fixture pre-fix, so it happened
+   to see zero drift regardless) — re-verified green post-fix for the
+   RIGHT reason by confirming the fixture's planted cache tree is what's
+   actually being scanned, not by trusting the pre-fix green as proof.
+
+General grep recipe for this class of Windows-only CI failure, before
+assuming a report is exhaustive: `grep -rn 'open(.*"rb")' tests/*.py` (EOL
+mismatch) and `grep -rn '"HOME"' tests/*.py` (expanduser redirect gap) —
+both are cheap, whole-directory sweeps that catch every instance of the
+pattern, not just the one(s) named in the bug report.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

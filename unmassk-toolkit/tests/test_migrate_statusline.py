@@ -9,9 +9,18 @@ Covers:
   5. Backup file deleted after restore (idempotent second run)
   6. Cerberus-confirmed sys.modules contamination regression (see
      TestSysModulesContaminationRegression below): the exact stub-and-restore
-     sequence _load_migrate_fn() runs here freezes lib/boot_memory.py,
-     lib/boot_render.py, and lib/boot_migrations.py's module-level `run_git`
-     name to the stub forever, for the rest of the process.
+     sequence _load_migrate_fn() runs here freezes lib/boot_memory.py and
+     lib/boot_render.py's module-level `run_git` name to the stub forever,
+     for the rest of the process.
+
+     Issue #63 (boot simplification, point 4): lib/boot_migrations.py's own
+     probe of this same regression was removed. It targeted
+     _migrate_untrack_generated_jsons(), which is now retired from the boot
+     path (pre-v1.0.0, no other caller, no upgrade-path duplicate) — the
+     only function left in lib/boot_migrations.py
+     (_migrate_stale_context_writer_statusline) never imports git_helpers
+     at all, so there is no module-level `run_git` binding left in that
+     module for a stub-and-restore sequence to freeze.
 """
 
 import importlib.util
@@ -54,6 +63,23 @@ def _load_migrate_fn(fake_home: str):
     # block can fully restore sys.modules — preventing stub leakage into later tests.
     _ABSENT = object()
     saved_modules = {}
+    # Dante (issue #63 audit, 2026-07-11): also snapshot the FULL set of module
+    # names present before stubbing. hooks/session-start-boot.py now does
+    # `from upgrade_check import trigger_auto_upgrade_if_needed` at module
+    # level (issue #63, point 2) -- lib/upgrade_check.py's own module-level
+    # `from version import VERSION as PLUGIN_VERSION` runs DURING this stub
+    # window if upgrade_check hasn't been imported anywhere yet in the process,
+    # permanently freezing upgrade_check.PLUGIN_VERSION to the stub's "test"
+    # string in the REAL, stably-cached sys.modules["upgrade_check"] entry --
+    # same contamination class as the git_helpers.run_git freeze this file's
+    # own TestSysModulesContaminationRegression documents below, just reached
+    # through a transitive-import surface that didn't exist when the explicit
+    # 3-name stub list was written. Confirmed live: this broke
+    # test_needs_upgrade_semver.py's real-PLUGIN_VERSION assertions whenever it
+    # ran in the same pytest session after this function. Evicting every
+    # module newly present in sys.modules after this call (below) closes the
+    # whole class generically, not just this one instance.
+    pre_existing_module_names = set(sys.modules.keys())
     for stub_name in ("git_helpers", "parsing", "version"):
         saved_modules[stub_name] = sys.modules.get(stub_name, _ABSENT)
         stub = types.ModuleType(stub_name)
@@ -84,6 +110,14 @@ def _load_migrate_fn(fake_home: str):
                 sys.modules.pop(stub_name, None)
             else:
                 sys.modules[stub_name] = prev
+        # Evict every module that is newly present in sys.modules after this
+        # call and was not one of the 3 explicit stub names above (see the
+        # comment on pre_existing_module_names) -- forces a clean, real
+        # re-import for anything (like upgrade_check) that got transitively
+        # first-imported while a dependency of ITS OWN was stubbed.
+        for _name in list(sys.modules.keys()):
+            if _name not in pre_existing_module_names and _name not in saved_modules:
+                sys.modules.pop(_name, None)
 
     # Patch expanduser on the module's copy of os.path
     real_expanduser = mod.os.path.expanduser
@@ -279,10 +313,15 @@ def _last_json_line(stdout: str) -> dict:
 
 
 class TestSysModulesContaminationRegression:
-    """RED today: run_git is frozen to the stub in all three modules, so
+    """RED today: run_git is frozen to the stub in both modules below, so
     every real function below silently reports "nothing here" regardless of
     the actual repository state. GREEN after the fix (deferred imports):
     each function reflects the real repository state again.
+
+    Issue #63 (boot simplification, point 4): this class used to also probe
+    lib/boot_migrations.py's _migrate_untrack_generated_jsons() as a third
+    module. That function (and its migration) is retired from the boot
+    path entirely — see this file's module docstring, point 6.
     """
 
     def test_boot_memory_extract_memory_not_frozen_after_stub_contamination(self, tmp_path):
@@ -351,52 +390,6 @@ print(json.dumps({{"found": found, "timeline": timeline}}))
             "process — run_git is frozen to the stub's (1, \"\"), proving "
             f"module-level contamination. timeline={payload['timeline']!r}"
         )
-
-    def test_boot_migrations_untrack_generated_jsons_not_frozen_after_stub_contamination(self, tmp_path):
-        repo = str(tmp_path / "repo")
-        os.makedirs(repo)
-        git_cmd(["init"], repo)
-        git_cmd(["config", "user.email", "test@test.com"], repo)
-        git_cmd(["config", "user.name", "Test"], repo)
-        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
-
-        generated_dir = os.path.join(repo, ".claude", ".unmassk")
-        os.makedirs(generated_dir)
-        with open(os.path.join(generated_dir, "foo.json"), "w", encoding="utf-8") as f:
-            f.write("{}")
-        git_cmd(["add", ".claude/.unmassk/foo.json"], repo)
-        git_cmd(["commit", "-m", "add generated json (legacy tracked install)"], repo)
-
-        # Sanity check: the file really is tracked before the probe runs.
-        rc, _, _ = git_cmd(["ls-files", "--error-unmatch", ".claude/.unmassk/foo.json"], repo)
-        assert rc == 0, "sanity check failed: fixture file must be tracked before the migration runs"
-
-        home = str(tmp_path / "home")
-        os.makedirs(os.path.join(home, ".claude"))
-
-        action = f"""
-import boot_migrations
-boot_migrations._migrate_untrack_generated_jsons({repr(repo)})
-print(json.dumps({{"done": True}}))
-"""
-        result = _run_after_stub_contamination(home, repo, action)
-        assert result.returncode == 0, (
-            f"probe subprocess crashed: rc={result.returncode}\n"
-            f"stdout: {result.stdout}\nstderr: {result.stderr}"
-        )
-
-        # Assertion happens back in THIS (uncontaminated) process/repo state,
-        # via a plain git call — independent of whatever run_git was bound
-        # to inside the probe subprocess.
-        rc, _, _ = git_cmd(["ls-files", "--error-unmatch", ".claude/.unmassk/foo.json"], repo)
-        assert rc != 0, (
-            "the tracked generated-JSON file was NOT untracked by "
-            "_migrate_untrack_generated_jsons() — proving "
-            "boot_migrations.run_git was frozen to the sys.modules stub's "
-            "(1, \"\") and the real `git ls-files`/`git rm --cached` calls "
-            "never actually ran against the repository"
-        )
-
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

@@ -5,67 +5,65 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
-Target: issue #60 v4 round 4 (FINAL, acotado) -- re-attacked the `url == remote_name` guard
-(lib/boot_git_checks.py:725, wips 32379b7+154a80d) that closed round 3's alias-fallback break.
-Verdict: AGUANTA, 0 breaks. v3 PoC replayed -> dies at step 1 (no_remote, no stamp written).
-Evasion attempts (whitespace url, invalid remote-name shapes, `insteadOf` global URL rewrite
-incl. empty-prefix collision attempt) -- 0 successes, all either already caught by the
-pre-existing `_looks_like_git_option()` check or structurally incapable of producing a same-
-string collision for two genuinely different repos. Legit-rare coincidence (`git remote add
-peer peer`, name==url genuinely, real fetchable) -- confirmed DEGRADADO ACEPTABLE: permanently
-`no_remote`/LOCAL, never once renders a false "synced". 4/4 regression sample held (cross-repo
-stamp w/ real distinct URLs, legacy schema_version=1, stamp-path symlinked to /etc/passwd,
-happy-path fetched->synced) + 8-way concurrency clean. Full detail: resilience.md's newest
-entry ("boot_git_checks.py / boot_fetch_stamp.py -- issue #60 v4 round-4 FINAL check").
+Target: issue #63 (boot simplification) round 3, branch feat/issue-63-simplificacion-boot vs
+main. Round 2's 2 T1s (orphaned-END lying "up to date", needs_upgrade magic-string always-True)
+are fixed and confirmed still fixed (any_block_outdated is now the shared oracle for both the
+crew content gate and needs_upgrade Check 1; idempotent double-run verified byte-identical).
+Re-attacked fresh, focused per instruction on the CLAUDE.md/manifest seam + content-based
+upgrade detector. Verdict: FALLA. 2 new live T1s, both via real hooks, both independently
+verified (plain os-level read/grep, never through the path that wrote the file):
+(1) BREAK -- lib/managed_blocks.py:227-233 `upsert_managed_blocks()`'s orphaned-BEGIN
+anchor-splice (the T1-A fix from round 2 itself) treats EVERYTHING between a dangling BEGIN
+and the next canonical block's BEGIN as disposable "stray orphaned body" and discards it when
+regenerating. Realistic corruption (one deleted END-marker HTML-comment line -- the exact
+trigger the fix's own docstring names: merge-conflict resolution, editor auto-fix, accidental
+line deletion) with the user's OWN content sitting in that gap (personal notes, runbook,
+on-call rotation -- normal practice, nothing forbids writing free text between managed
+sections) silently destroys that user content, permanently, with zero warning: the log line
+says "regenerated <!-- BEGIN unmassk-toolkit... --> (orphaned END marker)", never "deleted N
+bytes of unrecognized content". Confirmed via TWO independent real entry points: (a)
+hooks/session-start-crew.py directly, (b) lib/upgrade_check.py's needs_upgrade()==True ->
+trigger_auto_upgrade_if_needed() -> the real subprocess to bin/git-memory-install.py --auto ->
+install_apply._update_claude_md() -- same shared upsert_managed_blocks(), same destructive
+result, completely different call path. Scales: a 500-dangling-marker pathological file (0.068s,
+no perf issue) collapsed 61KB to 5.8KB in one run -- an unbounded amount of real content can be
+wiped by one small realistic corruption. 6-way concurrent crew.py processes on the same
+corrupted file held structurally (valid UTF-8, no crash, no byte corruption) but reproduce the
+same data loss, as expected (not a new bug, confirms concurrency doesn't add OR fix anything).
+(2) DECEPTION T1 -- lib/boot_health.py:258 `check_version_mismatch()` (the STATUS-line source,
+rendered into the real boot banner every session) uses raw string inequality (`installed !=
+PLUGIN_VERSION`) while the actual upgrade-trigger oracle, lib/upgrade_check.py:143
+`needs_upgrade()` Check 2, correctly uses semver-numeric `<` comparison on the SAME
+manifest.json field. Live PoC: manifest.version="9.9.9" (newer than running PLUGIN_VERSION,
+e.g. 1.19.4 -- realistic: project last installed while the plugin was on a newer release, then
+the marketplace/user pinned an older one without re-running install) makes needs_upgrade()
+correctly return False (no upgrade needed) while check_version_mismatch() returns "Plugin
+v1.19.4 available (installed: v9.9.9). Suggest /plugin update" -- backwards and false, printed
+verbatim in the real session-start-boot.py boot-log/banner output, end-to-end confirmed. Held
+(6 live PoCs total): manual block reordering (user moves a whole managed section elsewhere in
+the file -- valid, undetectable-as-wrong usage) causes zero content loss and no forced
+re-ordering; a legacy-block-name collision (pasted old backup text using a RETIRED legacy
+marker name that happens to textually contain another block's real begin-marker string) is
+correctly isolated by the legacy regex's own literal END match, doesn't trip the orphan-splice
+path, user content survives; idempotent double-run is byte-identical (md5 match across 3 runs);
+ANSI-escape/newline injection via manifest.version into the STATUS line re-verified sanitized on
+this round's code (stripped ESC, newline->space) exactly as before. The any_block_outdated()
+(strip()-tolerant) vs upsert_managed_blocks() (byte-exact) whitespace-only divergence noted as
+T3 (self-heals in one write, not a permanent lie) -- not blocking, logged for completeness only.
 
-## Previous attack (round 3, compact)
-Target: issue #60 (boot MEMORY stamp) v3 re-attack, round 3 (decision 787b698, wip df1bb4f) --
-identity model gained remote URL (`git remote get-url`) + schema_version alongside alias/branch,
-split into lib/boot_fetch_stamp.py. Real disposable repos, real hook subprocess
-(hooks/session-start-boot.py), 2 independent channels (stdout + boot-log-latest.txt). Verdict:
-FALLA (T1). Live EXPLOIT: `git remote get-url` falls back to the literal remote NAME
-(e.g. "origin") when `remote.<name>.url` is unset/empty -- reachable via one ORDINARY command
-(`git remote set-url origin ""`), no adversary needed. `_looks_like_git_option()` only rejects
-empty/leading-dash, so this degenerate alias-as-URL passes as "resolved". Confirmed end-to-end:
-repoX (real fetch success, url-unset + local `origin/` dir trick) writes a genuine stamp with
-`remote_url: "origin"`; repoZ (totally unrelated content/history, ALSO url-unset via the SAME
-ordinary command, no local trick needed on this side) + a copied stamp -> false
-`MEMORY: remote (synced 0s ago)` on both channels, zero real fetch against repoZ's actual remote.
-Reopens exactly the template/backup/dotfiles-sync threat model 787b698 named as v3's reason to
-exist. Root: lib/boot_git_checks.py:704-709 `_check_remote_is_live()`. Led to round 4's guard
-(see "Last attack" above, now confirmed holding). Contrast (HELD in round 3): the v2 PoC replayed
-(real distinct URLs) rejected correctly; URL-variant false positives (trailing slash/.git dup/
-case/embedded creds) -- none, literal compare only ever causes harmless extra fetches;
-`_read_stamp_age_by_alias_only()` traced live to its one call site, confirmed it can never feed
-rate_limited/synced; schema_version v1-legacy/string/null/list -- 0 crashes, always "absent
-stamp"; newline+NUL+ANSI crammed into remote_url round-trips safely via JSON escaping, never
-reaches any subprocess argv or output surface; 6/6 quick regression re-checks after the module
-split (symlink file/dir, 8-way concurrency, corrupt JSON, future mtime, 5MB stress) held.
-See attack-patterns.md / resilience.md for full detail.
+## Previous attack (issue #63 round 1, compact)
+- FALLA, T1 Round-Trip Sabotage on the OLD manifest-version gate (`_manifest_version_matches()`, since deleted -- replaced by round 2's content gate, decision 2d56444). Producer sabotage (chmod 444 CLAUDE.md) let `_create_manifest()` stamp VERSION anyway despite the write failing; zero-failure trust-forgery via pre-committed manifest.json; CLAUDE.md deleted while manifest survives never got recreated. Full detail in attack-patterns.md and round 2's summary above (round 2 re-verified all 3 PoCs now hold).
 
-## Previous attack (v2 round, compact)
-Issue #60 v2 re-attack (decision 90d096d, wip eb3e554) -- own-fetch-success-stamp
-(.claude/.unmassk/boot-fetch-stamp.json) replacing FETCH_HEAD-mtime. FALLA (T1): stamp bound
-identity by LOCAL ALIAS STRINGS only ("origin"/"main"), no URL/repo-identity signal -- a `cp`'d
-stamp from an unrelated repo (same common alias) forged `MEMORY: remote (synced 0s ago)`. Led to
-v3 (see "Last attack" above). Contrast (HELD): vectors A/B/D, garbage/corrupt/20MB content,
-symlink/hard link, future-mtime, 8-way concurrency, dead/removed remote, deleted-stamp-mid-window.
+## Previous attack (issue #60, compact — all rounds)
+- v4 round 4 (FINAL) -- AGUANTA, re-attacked the `url == remote_name` guard (lib/boot_git_checks.py:725) that closed round 3's break; 0 breaks, 4/4 regression + 8-way concurrency held.
+- v3 round 3 (decision 787b698) -- FALLA, T1: `git remote get-url` falls back to the literal remote NAME when the URL is unset (`git remote set-url origin ""`, one ordinary command) -- forged `MEMORY: remote (synced)` across unrelated repos sharing a common alias. Root: lib/boot_git_checks.py:704-709. Led to round 4's guard (now holding).
+- v2 round (decision 90d096d) -- FALLA, T1: own-fetch-success-stamp bound identity by LOCAL ALIAS STRINGS only, no URL signal -- a `cp`'d stamp forged sync status. Led to v3.
+- v1 (decision ceef426) -- FALLA, T1 Round-Trip Sabotage: bare FETCH_HEAD-mtime rendered false "synced" from either the boot's own failed fetch or an unrelated remote's real fetch touching the same file.
 
 ## Previous attack (older rounds, compact)
-- Issue #60 v1 relabel (decision ceef426, commit d630e14) -- FALLA, T1 Round-Trip Sabotage: bare FETCH_HEAD-mtime rate-limit rendered false `remote (synced)` both when the boot's OWN failed fetch refreshed FETCH_HEAD and when an unrelated remote's real successful fetch touched it; 96-test suite stayed green throughout. Led directly to v2 (own-stamp mechanism, see "Previous attack (v2 round, compact)" above for its own re-attack result).
-- Issue #59 (A2 token-fence infalsifiability, decision feed852) -- FALLA, 2 live T1 EXPLOITs (Unicode Cf invisible-format-char fence bypass in both user-prompt-memory-check.py and precompact-snapshot.py) + 1 T1 structural DECEPTION (nonce placed outside the actual trust boundary). See attack-patterns.md for detail.
-- Issue #57 round 2d FIRST pass (structural %h/%at/%n fix) -- DEBIL, 7/7 field-displacement
-  sites held, 2 NEW exploits found then (NEL fence-splice, precompact plain-text delimiter
-  spoof) -- both re-verified since, see resilience.md for outcome.
-- Issue #57 log-parsing fix round (post ff538f1) -- FALLA, subject-\x1f field displacement
-  broke all 5 downstream sites (recall/gc/doctor x2/bootstrap/precompact); also found
-  \x1c/\x1d/\x1e fence-splice gap (predecessor to the NEL gap above) + gc.py evidence-field
-  ANSI leak.
+- Issue #59 (A2 token-fence infalsifiability, decision feed852) -- FALLA, 2 live T1 EXPLOITs (Unicode Cf invisible-format-char fence bypass) + 1 T1 structural DECEPTION (nonce outside the trust boundary).
+- Issue #57 (log-parsing/field-displacement, several rounds) -- FALLA then DEBIL then AGUANTA across rounds; \x1f/\x1c/\x1d/\x1e/NEL fence-splice gaps found and closed progressively.
 - F6 hard-link bypass rejection (issue #53) -- AGUANTA, 8 real PoCs, 0 breaks.
-- Issue #55 date-parsing migration -- DEBIL, 3 real breaks (year-10000+ overflow, negative
-  "days ago", silent --json date-format change).
-- Boot memory freshness multi-machine (issue #49, 3 rounds) -- round1 DEBIL (2 breaks) →
-  round2 AGUANTA (0 T1) → round3 AGUANTA (1 new T2 via Round-Trip Sabotage: no shared-history
-  check on the tracked ref).
-- git_helpers.py encoding seam Round-Trip Sabotage and any rounds older than the above: see
-  attack-patterns.md / resilience.md (not reproduced here).
+- Issue #55 date-parsing migration -- DEBIL, 3 real breaks (year-10000+ overflow, negative "days ago", silent --json date-format change).
+- Boot memory freshness multi-machine (issue #49, 3 rounds) -- round1 DEBIL (2 breaks) → round2 AGUANTA → round3 AGUANTA (1 new T2 via Round-Trip Sabotage).
+- git_helpers.py encoding seam Round-Trip Sabotage and any rounds older than the above: see attack-patterns.md / resilience.md (not reproduced here).

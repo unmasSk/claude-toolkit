@@ -21,7 +21,18 @@ from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
 from git_helpers import is_git_repo, run_git, open_no_follow_symlink, ensure_runtime_dir
-from version import VERSION as PLUGIN_VERSION
+
+# Re-exported for backward compatibility only (issue #63, boot
+# simplification, point 2): the real implementation and its call site both
+# moved to lib/upgrade_check.py, invoked once per SessionStart from
+# hooks/session-start-boot.py instead of on every UserPromptSubmit message.
+# Neither name is called anywhere below — main() has zero trace of upgrade
+# evaluation now. Kept importable here only because
+# tests/test_needs_upgrade_semver.py and tests/test_security_regression.py's
+# BUG M/T load THIS hook file directly via importlib and call
+# hook.needs_upgrade()/hook._parse_semver() — the underlying logic is
+# unchanged, byte-for-byte, only its home moved.
+from upgrade_check import needs_upgrade, _parse_semver  # noqa: F401
 
 # ── Recall — imported defensively so any import failure is visible but silent ──
 try:
@@ -63,83 +74,6 @@ def needs_install(root: str) -> bool:
             return "BEGIN unmassk-toolkit" not in f.read()
     except OSError:
         return True
-
-
-def _parse_semver(version_str) -> tuple[int, int, int] | None:
-    """Parse a semver string into a (major, minor, patch) tuple of ints.
-
-    Returns None if the input is not a string, is empty, or cannot be parsed
-    as semver. Only strings with exactly three numeric components (X.Y.Z) are
-    accepted; anything else returns None. Pre-release suffixes are not
-    supported and will cause a parse failure (returns None).
-    """
-    if not isinstance(version_str, str) or not version_str:
-        return None
-    parts = version_str.split(".")
-    if len(parts) != 3:
-        return None
-    try:
-        return (int(parts[0]), int(parts[1]), int(parts[2]))
-    except ValueError:
-        return None
-
-
-def needs_upgrade(root: str) -> bool:
-    """Check if the CLAUDE.md managed block has outdated content OR the
-    installed manifest version is older than PLUGIN_VERSION.
-
-    Upgrade triggers (union — any one is enough):
-      1. Old-style CLAUDE.md block markers (stale hardcoded bin/ paths or
-         missing 'Context Checkpoint Commits').
-      2. manifest.version < PLUGIN_VERSION (numeric semver comparison).
-
-    Fail-safe: if the manifest is absent, corrupt, missing the 'version'
-    key, or has an unparseable version string → False (not True).
-    Returning True on a broken manifest would cause an infinite upgrade loop
-    because the manifest is never written before the next hook fires.
-    """
-    claude_md = os.path.join(root, "CLAUDE.md")
-    if not os.path.isfile(claude_md):
-        return False  # needs_install handles this
-    try:
-        # 7th audit round (BUG T): never follow a symlink planted at
-        # CLAUDE.md for this read either — treat it exactly like the
-        # fail-safe-to-False path used below for the manifest read.
-        with open_no_follow_symlink(claude_md, "r") as f:
-            content = f.read()
-    except OSError:
-        return False  # fail-safe: symlink or unreadable CLAUDE.md
-    if "BEGIN unmassk-toolkit" not in content:
-        return False  # needs_install handles this
-
-    # ── Check 1: Old-style markers in the managed block ──────────────────
-    begin = content.find("BEGIN unmassk-toolkit")
-    end = content.find("END unmassk-toolkit")
-    if begin == -1 or end == -1:
-        return False
-    block = content[begin:end]
-    if "python3 bin/" in block or "Context Checkpoint Commits" not in block:
-        return True
-
-    # ── Check 2: Semver comparison — manifest.version < PLUGIN_VERSION ───
-    try:
-        manifest_path = os.path.join(root, ".claude", ".unmassk", "manifest.json")
-        # SEC-HIGH-NEW-11: never follow a symlink planted at manifest.json —
-        # the surrounding except below already fails safe to False.
-        with open_no_follow_symlink(manifest_path, "r") as f:
-            manifest = json.load(f)
-        # manifest.get("version", "") guards against a missing key, but JSON
-        # null still arrives as None here. _parse_semver tolerates non-str input.
-        manifest_version = manifest.get("version", "")
-        manifest_tuple = _parse_semver(manifest_version)
-        if manifest_tuple is None:
-            return False  # fail-safe: unparseable or empty version
-        code_tuple = _parse_semver(PLUGIN_VERSION)
-        if code_tuple is None:
-            return False  # fail-safe: PLUGIN_VERSION itself is broken
-        return manifest_tuple < code_tuple
-    except Exception:
-        return False  # fail-safe: missing file, bad JSON, any I/O error
 
 
 # Maximum stdin bytes we will read before parsing JSON.
@@ -196,21 +130,12 @@ def main() -> None:
         )
         sys.exit(0)
 
-    # Case 1.5: Installed but CLAUDE.md managed block is outdated — auto-upgrade.
-    # The entire block (detection + subprocess) is wrapped in try/except so that
-    # any exception (including subprocess.TimeoutExpired) is swallowed and the
-    # hook continues normally — fail-open, same as the rest of the hook.
-    try:
-        if needs_upgrade(root):
-            import subprocess
-            install_script = os.path.join(PLUGIN_ROOT, "bin", "git-memory-install.py")
-            subprocess.run(
-                [sys.executable, install_script, "--auto"],
-                capture_output=True, text=True, encoding="utf-8", cwd=root, timeout=15,
-            )
-    except Exception as e:
-        print(f"[git-memory] upgrade fail-open: {e!r}", file=sys.stderr)
-        # fail-open: upgrade failure must never break the session
+    # Case 1.5 (needs_upgrade auto-upgrade) removed (issue #63, boot
+    # simplification, point 2): this per-message evaluation + subprocess
+    # trigger moved to hooks/session-start-boot.py, which now calls
+    # lib/upgrade_check.py's trigger_auto_upgrade_if_needed() once per
+    # SessionStart instead. This hook no longer evaluates or triggers an
+    # upgrade at all.
 
     # Case 2: Installed — check if session already booted
     lines = []
@@ -301,16 +226,17 @@ def main() -> None:
     # Memory capture check — always present, covers all memory commit types.
     # Default is RESTRAINT, not capture: the reminder must lower the push to save,
     # not amplify it. The brake (near-dup gate) is the net; this is the belt.
+    # Issue #63 (boot simplification, point 6): shortened from ~577 chars to
+    # ~1/3 (lighten, don't drop the substance — CALIBRATION.md already
+    # carries the full version of every rule below, see its "write little,
+    # read often" section and the dedup/tombstone/systemic-rule guidance).
+    # At least one non-ASCII char ("→") is kept deliberately —
+    # test_encoding_contract.py's TestUserPromptMemoryCheckCp1252 uses this
+    # exact line as its cp1252 encoding-crash regression scenario.
     lines.append(
-        "[memory-check] Before saving: is this memory-worthy? Save ONLY if it clears ALL of: "
-        "(1) durable — still true next session, not a one-off; "
-        "(2) non-derivable — not already in the code or git-log; "
-        "(3) not already captured. "
-        "FIRST check existing memory: if a memo/remember already covers this, do NOT add another — "
-        "if it's a correction, RETIRE the old one with a Resolved-Memo/Resolved-Remember tombstone "
-        "instead of stacking a new entry. "
-        "Systemic/process rules belong in the loaded skill, NOT in memory. "
-        "If in doubt, or it's just thinking out loud → do nothing. Silence beats noise."
+        "[memory-check] Save only if durable, non-derivable, not already captured. "
+        "Check memory first — correction? tombstone it, don't stack. "
+        "Systemic rule → skill, not memory. Doubt → silence."
     )
 
     print("\n".join(lines))

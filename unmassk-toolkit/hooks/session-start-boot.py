@@ -59,11 +59,12 @@ from boot_glossary_cache import (
     _get_project_root,
     extract_glossary_cached,
 )
-from boot_migrations import (
-    _migrate_runtime_to_unmassk,
-    _migrate_stale_context_writer_statusline,
-    _migrate_untrack_generated_jsons,
-)
+from boot_migrations import _migrate_stale_context_writer_statusline
+# Issue #63 (boot simplification, point 2): the per-message auto-upgrade
+# check that used to live in hooks/user-prompt-memory-check.py now runs
+# once per SessionStart instead — see lib/upgrade_check.py's module
+# docstring for the full rationale and the accepted mid-session-update loss.
+from upgrade_check import trigger_auto_upgrade_if_needed
 
 # CRB T2-1: every render_*_section() function (plus its small helpers —
 # skill drift/version checks, branch keyword parsing, time formatting,
@@ -236,10 +237,25 @@ def render_boot_banner_lines(
 def run_preboot_migrations(project_root: str | None) -> dict:
     """Run all one-shot pre-boot migrations plus the best-effort background fetch.
 
-    Order matters: session-booted flag cleanup, then the two project-root
-    migrations, then the global statusLine migration (runs even without a
-    project root — it's a user-level config, not project-level), then the
-    non-critical remote fetch.
+    Order matters: session-booted flag cleanup, then the global statusLine
+    migration (runs even without a project root — it's a user-level config,
+    not project-level), then the non-critical remote fetch.
+
+    Issue #63 (boot simplification, point 4): the two pre-v1.0.0 project-root
+    migrations that used to run here (_migrate_runtime_to_unmassk,
+    _migrate_untrack_generated_jsons — both from 037e0cb, 2026-03-17, ~4
+    months of boots since) are retired from this path. Both scenarios are
+    long past due: no active installation can still be on the pre-.unmassk/
+    layout or have generated JSONs tracked from an old install. The
+    _migrate_runtime_to_unmassk copy in bin/git-memory-upgrade.py is now the
+    single home for that migration (upgrade-path only, for very old
+    installs running an explicit `git memory upgrade`); the copy that used
+    to live in lib/boot_migrations.py is deleted, not just unwired, per
+    "una regla, un sitio". _migrate_untrack_generated_jsons has no other
+    caller and had no upgrade-path duplicate, so it is deleted outright.
+    _migrate_stale_context_writer_statusline (introduced 2026-06-05, only
+    ~5 weeks old at the time of this change) is kept unchanged for one more
+    cycle — conservative criterion, per the plan.
 
     Returns the fetch_memory_ref() result dict ({"status": ..., "age_seconds":
     ...}) — consumed by Task 3's freshness-stamp rendering, not by this
@@ -270,11 +286,6 @@ def run_preboot_migrations(project_root: str | None) -> dict:
             except FileNotFoundError:
                 pass
 
-    # 0a. Migrate: move runtime files from .claude/ root to .claude/.unmassk/ (v3.7→v3.8)
-    if project_root:
-        _migrate_runtime_to_unmassk(project_root)
-        _migrate_untrack_generated_jsons(project_root)
-
     # 0b-global. Migrate: fix stale context-writer statusLine in global settings.json
     _migrate_stale_context_writer_statusline()
 
@@ -299,11 +310,24 @@ def main() -> None:
 
     plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
     project_root = _get_project_root()
+
     # fetch_state ({"status": ..., "age_seconds": ...}) — issue #49, plan
     # Task 2's return value, consumed here by Task 3's MEMORY: stamp.
     fetch_state = run_preboot_migrations(project_root)
 
     status_lines, status, status_detail = render_status_section()
+
+    # Issue #63 (boot simplification, point 2): sync a stale manifest AFTER
+    # render_status_section() has already read it -- so this boot's own
+    # STATUS line still truthfully reports the mismatch it found the
+    # manifest in (TestVersionCheck's contract: "Plugin vX available
+    # (installed: vY)"), instead of silently erasing the signal before it's
+    # ever shown. The write still lands on disk before this process exits,
+    # which is what matters for hooks/session-start-crew.py (the next
+    # SessionStart hook in hooks.json's declared order) -- its own gate
+    # reads manifest.version fresh, in a separate process, after this one.
+    if project_root:
+        trigger_auto_upgrade_if_needed(project_root)
 
     (branch_lines, branch, branch_keywords, branch_issue, ahead_behind,
      ahead_n, behind_n, upstream_ref, pull_directive_lines) = render_branch_section()
