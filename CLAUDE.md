@@ -94,3 +94,18 @@ Decision factors:
 
 State the chosen mode in one line before delegating, and pass it to Ultron/Dante in their task prompt.
 <!-- END unmassk-build-mode -->
+
+## NOT YAPPING
+
+**NOT YAPPING.** Zero filler. Don't repeat back what the user just said. Don't re-justify. Don't re-list points already accepted. When something is corrected, correct it and move on — don't explain why it failed unless asked. Answer the minimum that resolves it, then act. One sentence is usually enough.
+
+## What security and tests are for in THIS project
+
+This toolkit is the owner's personal tool — the foundation under all his projects. It is not a public product. Whether anyone else downloads it or not is irrelevant; the only thing that counts is that **it works perfectly for him**. With that settled:
+
+- **Security against a malicious attacker → DOES NOT APPLY.** The system has a single owner and nobody is going to attack it. Every defense built for hostile repos (control-byte injection, booby-trapped symlinks/hardlinks, malicious inputs, anti-exploit hardening) is **dead weight**: don't build it, and retire whatever exists. That is not this project's threat.
+- **Robustness against the system breaking itself → THIS matters, and it's the priority.** What must be protected is that the system **does not self-harm**: a bug must not corrupt memory, a script must not write where it shouldn't, data must not be lost to an internal failure, a failure must not pass silently. That is the real threat model: the system against itself, not a person against the system.
+- **Rule for writing or reviewing tests:** a test is justified **only** if it proves the system doesn't break on its own (memory loss or corruption, writing to the wrong place, silent failure, data lost across sessions/machines). A test that simulates a malicious attacker is **surplus** — cut it.
+- **The `unmassk-standards` are not this project's yardstick.** They're written for a web app (Node/Express/React/PostgreSQL/Zod, 97% coverage, §34 anti-fixture, Coordinador/Municipio roles). The toolkit is Python (hooks and scripts): it is not measured with web-app rules, nor held to that test ceremony.
+
+In one line: **less ceremony, zero attacker paranoia, focus on the system not breaking itself.**
