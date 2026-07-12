@@ -101,6 +101,7 @@ def open_no_follow_symlink(
     mode: str = "w",
     encoding: str = "utf-8",
     reject_hardlinks: bool = False,
+    errors: str = "strict",
 ):
     """Open `path` without following a pre-existing symlink.
 
@@ -171,6 +172,22 @@ def open_no_follow_symlink(
     the .session-booted flag, manifest.json, and the upgrade's manifest
     backup) should pass True.
 
+    errors (issue #54, T3): forwarded to os.fdopen()/TextIOWrapper as-is
+    (default "strict", the same implicit default open()/fdopen() already
+    had before this parameter existed — no behavior change for any
+    existing call site, none of which pass this parameter). A write-mode
+    caller whose text can legitimately contain a lone surrogate (half of
+    a broken Unicode pair — this codebase's git-log record/field decoding
+    can produce one via a malformed source, see run_git()'s docstring)
+    must pass a non-strict value (e.g. errors="backslashreplace" for a
+    clean, always-re-readable-as-strict-UTF-8 escape, or
+    errors="surrogatepass" to preserve the raw bytes at the cost of the
+    written file no longer round-tripping through a plain strict-UTF-8
+    read) so that a bare UnicodeEncodeError — a ValueError subclass, NOT
+    an OSError — never escapes this function's write path in violation of
+    the "only OSError escapes" contract every existing caller already
+    relies on.
+
     Raises OSError (errno ELOOP on POSIX; errno ELOOP is also used for
     both Windows guard rejections above, for a consistent errno across
     platforms; errno EMLINK for a reject_hardlinks=True rejection, kept
@@ -183,7 +200,7 @@ def open_no_follow_symlink(
     never fall back to following the link.
     """
     if sys.platform == "win32":
-        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks)
+        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks, errors)
 
     defer_truncate = False
     if mode == "r":
@@ -218,14 +235,16 @@ def open_no_follow_symlink(
             os.close(fd)
             raise
 
-    return os.fdopen(fd, mode, encoding=encoding)
+    return os.fdopen(fd, mode, encoding=encoding, errors=errors)
 
 
 def _open_no_follow_symlink_windows(
-    path: str, mode: str, encoding: str, reject_hardlinks: bool = False
+    path: str, mode: str, encoding: str, reject_hardlinks: bool = False,
+    errors: str = "strict",
 ):
     """Windows half of the option-C hybrid guard — see
-    open_no_follow_symlink()'s docstring for the full rationale.
+    open_no_follow_symlink()'s docstring for the full rationale, including
+    the `errors` parameter (issue #54, T3).
 
     Must be kept behaviorally identical to
     _symlink_safe_open._open_no_follow_symlink_windows() (same twin
@@ -286,7 +305,7 @@ def _open_no_follow_symlink_windows(
         os.close(fd)
         raise
 
-    return os.fdopen(fd, mode, encoding=encoding)
+    return os.fdopen(fd, mode, encoding=encoding, errors=errors)
 
 
 def ensure_gitignore(project_root: str, entry: str | None = None) -> None:

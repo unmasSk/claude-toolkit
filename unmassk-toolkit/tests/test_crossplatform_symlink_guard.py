@@ -392,6 +392,69 @@ class TestEncodingRoundTrip:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Item 8 — issue #54, T3: errors= parameter, surrogate escape contract
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Regression test for issue #54: both twins gained an `errors: str = "strict"`
+# parameter (default unchanged — no behavior change for any existing call
+# site, none of which pass it). Before this fix, a write-mode caller whose
+# text contains a lone surrogate (e.g. "\udc80", half of a broken Unicode
+# pair — this codebase's git-log decoding can produce one from a malformed
+# source) raised `UnicodeEncodeError` from inside `os.fdopen(...).write()`
+# — a ValueError subclass, NOT an OSError — violating the "only OSError
+# escapes this function" contract every existing caller relies on. Passing
+# `errors="backslashreplace"` must make the write succeed instead.
+#
+# Per unmassk-standards §34: the expected transformed text is never
+# hand-typed. It is derived by running Python's own (independent, not
+# owned by this codebase) `str.encode(..., errors="backslashreplace")`
+# codec on the same payload variable inside the test itself — the exact
+# codec `os.fdopen(..., errors="backslashreplace")` delegates to
+# internally, so this is a real, live, independently-computed contract,
+# not a fixture.
+
+
+class TestErrorsParameterSurrogateEscape:
+    """Item 8 — issue #54, T3."""
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_backslashreplace_writes_lone_surrogate_without_raising_and_rereads_clean(
+        self, tmp_path, target_open
+    ):
+        path = tmp_path / "surrogate-backslashreplace.txt"
+        payload = "bad-\udc80-surrogate"
+        # Derived from Python's own codec, not hand-typed — the same
+        # transformation os.fdopen(errors="backslashreplace") performs.
+        expected = payload.encode("utf-8", errors="backslashreplace").decode("utf-8")
+
+        with target_open(str(path), "w", errors="backslashreplace") as f:
+            f.write(payload)  # must NOT raise UnicodeEncodeError
+
+        with target_open(str(path), "r") as f:
+            reread = f.read()  # plain strict-UTF-8 read — must not raise either
+
+        assert reread == expected, (
+            f"backslashreplace-escaped surrogate must re-read cleanly through "
+            f"a normal strict-UTF-8 read: expected {expected!r}, got {reread!r}"
+        )
+
+    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
+    def test_default_errors_still_strict_raises_unicodeencodeerror_on_surrogate(
+        self, tmp_path, target_open
+    ):
+        """Guard: the new `errors=` parameter must default to "strict" — no
+        behavior change for the (many) existing call sites that never pass
+        it. A lone surrogate must still raise UnicodeEncodeError exactly as
+        it did before issue #54's fix landed."""
+        path = tmp_path / "surrogate-default-strict.txt"
+        payload = "bad-\udc80-surrogate"
+
+        with pytest.raises(UnicodeEncodeError):
+            with target_open(str(path), "w") as f:
+                f.write(payload)
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Item 7 — cp1252 unmasking: explicit encoding must not depend on PYTHONUTF8
 # ══════════════════════════════════════════════════════════════════════════
 

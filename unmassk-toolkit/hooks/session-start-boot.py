@@ -170,7 +170,17 @@ def write_boot_log(full_text: str, project_root: str | None) -> str | None:
         # a toolkit-generated-only file (never a legitimate user file, so a
         # hard link planted here can only be an attack, not a worktree-
         # sharing setup) — safe to close the F6 residual for this call site.
-        with open_no_follow_symlink(candidate_log_path, "w", reject_hardlinks=True) as f:
+        # errors="backslashreplace" (issue #54, T3): full_text assembles
+        # git-derived memory content (commit trailers, subjects, bodies —
+        # see run_git()'s docstring for how a malformed source could yield
+        # a lone surrogate). A clean, always-strict-UTF-8-re-readable escape
+        # keeps this write-path's "only OSError escapes" contract even in
+        # that case, matching the existing sanitize-for-display discipline
+        # this codebase already applies to trailer text (parsing.py's
+        # sanitize_trailer_value()) rather than preserving raw bytes.
+        with open_no_follow_symlink(
+            candidate_log_path, "w", reject_hardlinks=True, errors="backslashreplace"
+        ) as f:
             f.write(full_text + "\n")
         try:
             os.chmod(candidate_log_path, 0o600)

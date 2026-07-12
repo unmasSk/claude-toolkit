@@ -891,6 +891,80 @@ class TestBootLogWriteFailureFallback:
         )
 
 
+def _write_boot_log_with_surrogate(repo):
+    """Call the REAL write_boot_log() (session-start-boot.py) directly with
+    a `full_text` payload containing a lone surrogate (issue #54, T3) — the
+    exact shape write_boot_log()'s own docstring says can arise from
+    malformed git-log source data. write_boot_log() passes
+    errors="backslashreplace" to open_no_follow_symlink() at its one real
+    call site (hooks/session-start-boot.py:182); before that fix, the
+    surrogate raised UnicodeEncodeError from inside the write, which is NOT
+    caught by write_boot_log()'s `except OSError` — it would escape
+    write_boot_log() entirely and crash main()/this subprocess with a
+    non-zero exit and a UnicodeEncodeError traceback in stderr, instead of
+    returning a path string.
+
+    Isolated in its own subprocess (same convention as
+    _render_banner_with_branch()/_run_boot_with_failing_log_write() above)
+    so loading session-start-boot.py under a throwaway module name never
+    leaks into sys.modules for other tests in the same pytest session.
+
+    Returns (rc, stdout, stderr) — on success, stdout's last line is a JSON
+    object {"boot_log_path": <str or null>}.
+    """
+    code = f"""
+import sys, os, json
+sys.path.insert(0, {repr(LIB_DIR)})
+sys.path.insert(0, {repr(HOOKS_DIR)})
+os.chdir({repr(repo)})
+
+import importlib.util
+spec = importlib.util.spec_from_file_location('boot', {repr(BOOT_HOOK)})
+boot = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(boot)
+
+full_text = "bad-\\udc80-surrogate in full_text"
+boot_log_path = boot.write_boot_log(full_text, {repr(repo)})
+print(json.dumps({{"boot_log_path": boot_log_path}}))
+"""
+    return run_cmd([sys.executable, "-c", code], repo, timeout=30)
+
+
+class TestWriteBootLogSurrogateEscape:
+    """Regression test for issue #54, T3: write_boot_log()'s one real call
+    site passes errors="backslashreplace" (hooks/session-start-boot.py:182)
+    specifically so a lone surrogate anywhere in the assembled `full_text`
+    (git-derived memory content — commit trailers/subjects/bodies) cannot
+    raise UnicodeEncodeError and escape the function uncaught. Before this
+    fix, write_boot_log() returned None only for OSError (permissions, disk
+    full) — a UnicodeEncodeError from the same write call was NOT an
+    OSError, so it propagated straight out of write_boot_log() instead of
+    being handled by its `except OSError: return None` fallback, crashing
+    the whole boot hook.
+    """
+
+    def test_surrogate_in_full_text_returns_path_not_none(self, tmp_path):
+        repo = _make_repo_no_install(tmp_path, name="surrogate-boot-log-repo")
+
+        rc, stdout, stderr = _write_boot_log_with_surrogate(repo)
+
+        assert rc == 0, (
+            f"write_boot_log() must not let UnicodeEncodeError escape for a "
+            f"lone-surrogate full_text — subprocess crashed instead "
+            f"(rc={rc}):\nstdout={stdout}\nstderr={stderr}"
+        )
+        data = json.loads(stdout.strip().splitlines()[-1])
+        assert data["boot_log_path"] is not None, (
+            "write_boot_log() returned None (the OSError/failure branch) "
+            "for a surrogate in full_text — it must succeed via "
+            "errors='backslashreplace' and return the real log path"
+        )
+        assert os.path.isfile(data["boot_log_path"]), (
+            "write_boot_log() returned a path but no file exists there — "
+            "the write must have actually happened, not just been claimed"
+        )
+
+
 def _render_banner_with_branch(repo, fake_branch):
     """Drive the REAL production banner path — boot_git_checks.render_branch_section()
     (via its boot_render/session-start-boot.py re-export) and

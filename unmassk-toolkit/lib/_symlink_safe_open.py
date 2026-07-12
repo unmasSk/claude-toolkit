@@ -32,19 +32,25 @@ def open_no_follow_symlink_fallback(
     mode: str = "w",
     encoding: str = "utf-8",
     reject_hardlinks: bool = False,
+    errors: str = "strict",
 ):
     """Fallback reimplementation — see git_helpers.open_no_follow_symlink() for the
     full rationale (SEC-CRIT-001 write guard, SEC-MED-NEW-02 read guard) and
     the full Windows hybrid-guard (option C, decision 75fdb2f) writeup,
     including the F4 (0o600 is POSIX-only), F5 (O_CREAT TOCTOU residual,
-    accepted deliberately), and F6 (hard-link bypass, issue #53, decision
+    accepted deliberately), F6 (hard-link bypass, issue #53, decision
     51a3c44 — closed via the opt-in `reject_hardlinks` parameter below; a
     hard link shares device+inode with its target, so it is undetected by
-    both os.path.islink() on Windows and O_NOFOLLOW on POSIX) notes. Must
-    be kept behaviorally identical to git_helpers.open_no_follow_symlink()
-    on both branches, including the new reject_hardlinks behavior."""
+    both os.path.islink() on Windows and O_NOFOLLOW on POSIX), and the
+    `errors` parameter (issue #54, T3 — default "strict" preserves prior
+    behavior for every existing call site; a write-mode caller whose text
+    can contain a lone surrogate must pass a non-strict value so a bare
+    UnicodeEncodeError never escapes in violation of the "only OSError
+    escapes" contract) notes. Must be kept behaviorally identical to
+    git_helpers.open_no_follow_symlink() on both branches, including the
+    reject_hardlinks and errors behavior."""
     if sys.platform == "win32":
-        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks)
+        return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks, errors)
 
     defer_truncate = False
     if mode == "r":
@@ -79,16 +85,18 @@ def open_no_follow_symlink_fallback(
             os.close(fd)
             raise
 
-    return os.fdopen(fd, mode, encoding=encoding)
+    return os.fdopen(fd, mode, encoding=encoding, errors=errors)
 
 
 def _open_no_follow_symlink_windows(
-    path: str, mode: str, encoding: str, reject_hardlinks: bool = False
+    path: str, mode: str, encoding: str, reject_hardlinks: bool = False,
+    errors: str = "strict",
 ):
     """Windows half of the option-C hybrid guard — must be kept
     behaviorally identical to
     git_helpers._open_no_follow_symlink_windows(). See that function's
-    module for the full rationale."""
+    module for the full rationale, including the `errors` parameter
+    (issue #54, T3)."""
     if os.path.islink(path):
         # ELOOP is reused here (not the literal syscall errno) so that both
         # Windows rejection paths — direct symlink here, and the divergent-
@@ -144,4 +152,4 @@ def _open_no_follow_symlink_windows(
         os.close(fd)
         raise
 
-    return os.fdopen(fd, mode, encoding=encoding)
+    return os.fdopen(fd, mode, encoding=encoding, errors=errors)
