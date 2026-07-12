@@ -30,7 +30,7 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Starting a brand new project (scaffolding, tech stack, boilerplate):**
 
-- Scaffold, initialize, or create a new project / decide the tech stack → Skill `unmassk-flow-stack` (IDE-grade scaffolding wizard, 70+ project types)
+- Scaffold, initialize, or create a new project / decide the tech stack → Skill `unmassk-scaffolding` (IDE-grade scaffolding wizard, 70+ project types)
 
 **Before building something significant:**
 
