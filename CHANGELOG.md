@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.14] - 2026-07-12
+
 ### Changed
 
 - **`unmassk-flow`'s Verify sequence rewritten to a single deterministic agent pass** (#70): the old "repeat until clean" loop caused 30+ Cerberus↔Ultron rounds (≈60 total) in a real project. Now every agent runs once, no loops: **Cerberus + Argus in parallel — always** (Argus is no longer gated to "big" features) → **Ultron fixes once** (reviewers don't re-review) → **Dante** writes/hardens tests **against the real dependency** (real DB/seam/files; mock only what genuinely can't run — §34.5) → **Moriarty** (always) tries to break **code AND tests** → **Ultron repairs code + Dante repairs tests** → **Yoda scores once and never re-runs** (below the bar → Ultron fixes his points, no second verdict). The mechanical backstop for a bad fix is the full test suite at Close, not a re-run of reviewers. Added a **Trivial** triage tier: a mechanical 1-file / few-line edit with no logic, security, seam, or new behavior (a doc-text change, a typo, a rename, a constant) goes to Ultron alone with no pipeline. Bilbo's lane row corrected (he investigates the codebase **and** researches the web). Applies identically to linear (Ultron first) and test-first (Dante's acceptance contract first).
