@@ -9,6 +9,13 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 
+# Editor/tool backups (e.g. sed -i .bak, never track)
+*.bak
+*.bak[0-9]
+*.back
+*.back[0-9]
+*~
+
 # Generated
 .claude/.message-counter
 .claude/.session-booted

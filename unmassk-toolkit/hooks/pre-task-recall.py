@@ -92,13 +92,43 @@ _SKILL_SEARCH_SCRIPT: Path = _PLUGIN_ROOT / "scripts" / "skill-search.py"
 # must not re-trigger (anti-loop).
 _SKILL_MARKER: str = "[DOMAIN SKILL —"
 
-# Same threshold as skill-search.py's own LOW_SCORE_THRESHOLD: below this,
-# the match isn't confident enough to gate on.
-_SKILL_SCORE_THRESHOLD: float = 1.5
+# Precision calibration (2026-07-12, live skill-search.py --json runs — see
+# lessons.md topic file for the full evidence table). The old fallback of 1.5
+# fired on almost any keyword overlap, which is why the gate over-triggered:
+# media-pdf 5.3 as a secondary in a design task, frontend-react ~7.6 while
+# editing this very Python hook, owasp-privacy 13.9 / unmassk-seo 29.2 on
+# meta tasks about skills/prompts.
+#
+# _SKILL_TRIGGER — the TOP result must clear this to gate at all (replaces
+# the old single-result fallback). Evidence:
+#   - genuine domain tasks (top score observed): postgres 11.7, docker
+#     9.1-9.7, diseño 9.3-16.1, gdpr 8.9-11.1 -> floor ~8.9
+#   - meta/non-domain tasks (top score observed): 3.3, 3.8, 2.8 -> ceiling 3.8
+#   - known false positive to close: frontend-react 7.6 fired while editing
+#     a Python hook (meta task) under the old fallback
+# 8.0 sits strictly between the FP ceiling (7.6) and the genuine-domain floor
+# (~8.9), and keeps a wide margin over the meta ceiling (3.8) — closes the
+# frontend-react case that a naive 5-7 midpoint would not.
+_SKILL_TRIGGER: float = 8.0
 
 # Any result at or above this score is confident enough to be gated on
-# alongside others (multi-skill injection), not just the single top result.
+# alongside the top result (multi-skill injection).
 _SKILL_CONFIDENT: float = 5.0
+
+# Relative margin for SECONDARY skills (multi-skill gate): a non-top result
+# only survives if it ALSO scores >= _SKILL_REL_MARGIN * top_score. Evidence
+# from the frontend+diseño case (diseño top ~18): frontend-react ~7 should
+# survive (ratio 0.39), media-pdf ~5 should fall (ratio 0.28). 0.35 sits
+# strictly between the two, so it keeps frontend-react and drops media-pdf.
+_SKILL_REL_MARGIN: float = 0.35
+
+# KNOWN RESIDUAL (not fixed here, by design): a meta prompt that is itself
+# dense in one domain's vocabulary (e.g. a task ABOUT the skill gate, full of
+# "keyword/score/search") can clear _SKILL_TRIGGER on its own — observed:
+# unmassk-seo 29.2 on this very task's own instructions. No static threshold
+# can separate "talks about X" from "is a task in domain X" — BM25 is
+# keyword-only, not semantic. Real fix requires semantic confirmation
+# (LLM-in-the-loop or embedding similarity), which is a separate task.
 
 # Hard cap on how many skill blocks a single deny can list, even if more
 # results clear _SKILL_CONFIDENT — keeps the reinvoke prompt bounded.
@@ -200,11 +230,17 @@ def _build_prompt(original_prompt: str, memory_block: str) -> str:
 def _find_gate_skills(prompt: str) -> tuple[list[dict], str | None]:
     """Run skill-search.py against the prompt and select the skill set to gate on.
 
-    Selection:
-    - All results with score >= _SKILL_CONFIDENT are taken (a project may
-      legitimately need more than one domain skill for a single task).
-    - If none reach _SKILL_CONFIDENT, fall back to the single top result,
-      but only if its score >= _SKILL_SCORE_THRESHOLD.
+    Selection (precision calibration — see the constants block above for the
+    evidence behind each number):
+    - The TOP result must clear _SKILL_TRIGGER, or nothing gates at all.
+      This is the precision gate: it is what keeps meta/non-domain tasks
+      (top score observed <= 3.8, or the frontend-react 7.6 false positive)
+      from ever reaching the deny path.
+    - Once the top clears _SKILL_TRIGGER, it is always selected.
+    - Any OTHER result is added only if it clears BOTH _SKILL_CONFIDENT
+      (absolute floor) AND _SKILL_REL_MARGIN * top_score (relative floor —
+      a secondary that is real for THIS task should be a sizeable fraction
+      of the top, not just incidental keyword overlap).
     - The resulting set is sorted by score descending and capped to
       _SKILL_MAX entries.
 
@@ -242,12 +278,16 @@ def _find_gate_skills(prompt: str) -> tuple[list[dict], str | None]:
         if not valid:
             return [], "malformed results"
 
-        confident = [r for r in valid if r.get("score", 0) >= _SKILL_CONFIDENT]
-        if confident:
-            selected = confident
-        else:
-            top = valid[0]
-            selected = [top] if top.get("score", 0) >= _SKILL_SCORE_THRESHOLD else []
+        top = valid[0]
+        top_score = top.get("score", 0)
+        if top_score < _SKILL_TRIGGER:
+            return [], None
+
+        selected = [top] + [
+            r for r in valid[1:]
+            if r.get("score", 0) >= _SKILL_CONFIDENT
+            and r.get("score", 0) >= _SKILL_REL_MARGIN * top_score
+        ]
 
         selected.sort(key=lambda r: r.get("score", 0), reverse=True)
         return selected[:_SKILL_MAX], None

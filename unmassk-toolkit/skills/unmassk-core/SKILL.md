@@ -74,21 +74,21 @@ If the user says "do it yourself" — they mean YOU directly, not through subage
 
 ### How to prompt agents
 
-Agents auto-discover domain skills via BM25 search on boot. For this to work, your prompt must include **technology names and domain terms** — not vague instructions.
+Agents no longer search for domain skills themselves. Instead, the **skill-injection gate** (a `PreToolUse` hook — see `unmassk-gitmemory` → Active Hooks) runs the BM25 searcher on the task prompt YOU write when delegating. So your prompt must include **technology names and domain terms** — not for the agent, but so the gate can find and inject the right domain skill.
 
-**GOOD prompts** (agents will find the right skill):
+**GOOD prompts** (the gate finds the right skill):
 - "Review the PostgreSQL query optimization in `src/db/queries.ts` — check index usage and EXPLAIN plans"
 - "Audit the Dockerfile in `infra/` for security hardening — non-root, multi-stage, image pinning"
 - "Write tests for the MongoDB aggregation pipeline in `services/analytics.ts`"
 - "Explore the Redis caching layer — trace how TTL and invalidation work across services"
 
-**BAD prompts** (agents won't find any skill):
+**BAD prompts** (the gate finds nothing → the agent works with no domain skill):
 - "Review this code"
 - "Fix the bug"
 - "Check if this is secure"
 - "Write some tests"
 
-The difference: good prompts name the technology (PostgreSQL, Docker, MongoDB, Redis) and the specific concern (query optimization, security hardening, aggregation pipeline, TTL). The agent uses these terms to search domain skills via BM25 and loads the matching SKILL.md with checklists, patterns, and references.
+The difference: good prompts name the technology (PostgreSQL, Docker, MongoDB, Redis) and the specific concern (query optimization, security hardening, aggregation pipeline, TTL). When you invoke the agent, the gate runs skill-search on your prompt; if a domain skill scores high enough it **blocks the Task and hands you a `[DOMAIN SKILL — …]` block** — paste it at the top of the agent's prompt and re-invoke the same agent, and it reads that SKILL.md before starting. Vague prompts match nothing, the gate stays silent, and the agent works without domain knowledge.
 
 ### Phase-sized delegation (HARD RULE)
 

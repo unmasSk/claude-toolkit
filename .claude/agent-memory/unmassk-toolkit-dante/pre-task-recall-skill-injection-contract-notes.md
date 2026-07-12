@@ -256,3 +256,99 @@ touch the hook file in the final state (task explicitly forbade it); the
 hook's underlying multi-skill implementation was already present
 uncommitted in the working tree at session start (part of decision
 863bd54's work), not something this session wrote.
+
+## Reconciliation round 2 (2026-07-12): `_SKILL_SCORE_THRESHOLD` (1.5) →
+## `_SKILL_TRIGGER` (8.0) + relative-margin secondaries
+
+The hook's constant was renamed AND re-tuned again, same session, without
+the test file being touched — collection broke with `AttributeError:
+_SKILL_SCORE_THRESHOLD` at the module-load line that reads constants
+in-process (~line 1263 at the time). **Always re-read the hook file fresh
+before touching the test file when a rename/AttributeError is reported —
+do not assume the old contract's shape still applies.** New selection
+algorithm in `_find_gate_skills()`: the TOP result must independently clear
+`_SKILL_TRIGGER` (8.0) or NOTHING gates at all — the old "fallback to top
+if it clears a much lower 1.5 threshold" branch was deleted outright, not
+just renamed. A SECONDARY result is added only if it clears BOTH
+`_SKILL_CONFIDENT` (5.0, absolute floor, unchanged value) AND
+`_SKILL_REL_MARGIN * top_score` (0.35, new — a secondary must be a
+sizeable fraction of the top, not just any score above 5.0).
+
+**Key technique — BM25 query-side term repetition beats fixture-side
+padding for reliably clearing a HIGH trigger threshold.** With
+`_SKILL_TRIGGER` at 8.0, a single-mention fixture (the pattern every
+pre-existing gate test used) now only scores ~6.1 in this repo's live
+corpus — comfortably BELOW the new trigger. Repeating the fixture's own
+`triggers` column (`reps` param, the existing lever) plateaus around ~7.8
+even at reps=10 and NEVER crosses 8.0: it raises both term frequency AND
+the document's own length simultaneously, and BM25's length-normalisation
+term in the denominator cancels most of the gain (empirically verified:
+reps 1/2/3/4/5/6/8/10 → 6.1/6.7/7.0/7.2/7.4/7.5/7.7/7.8). Repeating the
+trigger word IN THE PROMPT instead scales almost linearly instead, because
+`BM25.score()`'s `for token in query_tokens` loop is NOT deduplicated — it
+re-walks the same doc/idf/denominator once per raw occurrence in the query,
+without touching the fixture document's own length at all (empirically:
+1 mention → 6.1, 2 mentions → 12.3, 3 → 18.4, 4 → 24.6, 5 → 30.7, near-exact
+linear scaling). New shared helper `_domain_prompt(trigger, mentions=2)`
+replaces every `f"implement the {trigger} feature end to end"` call site
+that needs a lone fixture to actually gate — mentions=2 gives ~12.3,
+comfortable margin over 8.0. For multi-fixture tests, each fixture gets a
+DIFFERENT mention count in the same combined prompt to force strictly
+distinct, well-separated real scores (verified: 6 reps of trigger-A + 5 of
+trigger-B + 4 of trigger-C + 3 of trigger-D, one fixture each, co-planted →
+37.5/31.2/25.0/18.7 respectively — used for the cap-to-3 test).
+
+**The old "fallback-band" test (`TestSkillGateFallbackTopOnlyOneBlock`,
+diluted-fixture technique landing a lone top score in [1.5, 5.0)) had no
+surviving equivalent code path — repurposed, not just renamed.** Under the
+new algorithm a top score in that old band is now simply BELOW
+`_SKILL_TRIGGER` (8.0), so it doesn't gate at all — the "fallback to top
+only" branch that test exercised was deleted from the hook, not relocated.
+Rewrote it as `TestSkillGateScoreBelowTriggerAllows`: a single lone-mention
+fixture (score ~6.1, verified >= the absolute `_SKILL_CONFIDENT` floor AND
+< `_SKILL_TRIGGER`) must now ALLOW, not deny — this directly proves the
+precision fix the redesign exists for (closing false positives like
+frontend-react 7.6 firing on a meta task under the old 1.5 fallback,
+per the hook's own docstring). The diluted-fixture filler-word technique
+(`_write_diluted_gate_skill_fixture`, `_FALLBACK_TRIGGER`,
+`_FALLBACK_FIXTURE_SKILL_NAME`) became fully dead code once this repurpose
+landed — deleted rather than left unused, since nothing else called it.
+
+**New mirrored-selection test helpers `_gate_selection_uncapped(results)` /
+`_select_gate_skills(results)`** replicate `_find_gate_skills()`'s real
+selection algorithm (top-clears-trigger, then double-floor secondaries,
+sorted, capped) over an ALREADY-fetched real results list — used only to
+turn real, already-measured scores into test prerequisites/expectations
+(e.g. "which of these 4 real fixtures does the cap exclude"). This is NOT
+the same risk class as "mock replicating production logic" (Hard Rules) —
+every DENY/ALLOW assertion still comes from invoking the real hook
+subprocess; the mirror only shapes what the test expects going in. Proven
+non-vacuous via 3 live mutation checks against the hook (all reverted,
+`diff`+`md5sum` verified byte-identical after): (1) lowering
+`_SKILL_TRIGGER` to 3.0 correctly fails the below-trigger test's own
+prerequisite (constant is read live from the module, not hand-typed); (2)
+deleting the `top_score < _SKILL_TRIGGER: return []` gate line entirely
+correctly flips the below-trigger test's real ALLOW assertion to a
+mismatched DENY; (3) dropping the `_SKILL_REL_MARGIN` filter from the
+selection list-comprehension correctly flips the new
+`TestSkillGateRelativeMarginExcludesWeakSecondary` test's block-count
+assertion from 1 to 2 — proving the REL_MARGIN double-floor is actually
+exercised by a real subprocess call, not just asserted against the test's
+own mirrored prerequisite helper (which would have stayed green using its
+own copy of the same formula regardless of a hook regression).
+
+**Added one new test class not requested verbatim by the task but implied
+by "reflect the double floor in tests": `TestSkillGateRelativeMarginExcludesWeakSecondary`.**
+Calibrated so a secondary clears the ABSOLUTE `_SKILL_CONFIDENT` floor
+(6.2 >= 5.0) but falls short of the RELATIVE `_SKILL_REL_MARGIN * top`
+floor (6.2 < 0.35*37.1=12.98) — proves a secondary needs BOTH floors, not
+either one, matching the concrete evidence in the hook's own constants-block
+docstring (diseño top ~18: frontend-react ~7 survives at ratio 0.39,
+media-pdf ~5 falls at ratio 0.28).
+
+Full before/after reconciliation: 63 tests collected (was 62 before this
+round), all green, 3x repeated full-file run with no flakiness. Renamed
+`SKILL_SCORE_THRESHOLD` → `SKILL_TRIGGER` everywhere (in-process read from
+`_skill_gate_hook_mod._SKILL_TRIGGER`); added `SKILL_REL_MARGIN` read the
+same way. Did not touch the hook file in the final state — confirmed via
+`md5sum` match against a pre-mutation-check backup.

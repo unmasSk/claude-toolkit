@@ -1215,15 +1215,29 @@ class TestLongPromptQueryTruncation:
 # NEW COVERAGE: skill gate (issue #68 — current, deny-based contract)
 # ══════════════════════════════════════════════════════════════════════════
 #
-# Verified live (see decision cd42912): for a crew agent's prompt, the hook
-# runs skill-search.py --json BEFORE memory recall. If the top result scores
-# >= _SKILL_SCORE_THRESHOLD and the prompt doesn't already carry the
-# "[DOMAIN SKILL —" marker, the spawn is DENIED with the skill block pasted
-# into the reason (anti-loop: re-invoking with the block already in the
-# prompt allows). Any failure of the skill search itself (missing script,
-# non-zero exit, timeout, malformed JSON, unexpected shape) is fail-open —
-# falls through to memory recall, never a deny. Excluded agents
-# (bilbo/gitto/unknown) never reach the gate at all.
+# Verified live (see decision cd42912) and reconciled against a later
+# precision-calibration pass (2026-07-12, see pre-task-recall.py's own
+# constants-block docstring): for a crew agent's prompt, the hook runs
+# skill-search.py --json BEFORE memory recall. Selection now has THREE
+# constants instead of the old single fallback threshold:
+#   - _SKILL_TRIGGER (8.0) — the TOP result must clear this or NOTHING
+#     gates at all. There is no lower fallback band anymore: a top score
+#     that clears the old 1.5 threshold, or even the CONFIDENT absolute
+#     floor (5.0), still does not gate unless it also clears 8.0. This is
+#     the precision fix that closes false positives like frontend-react
+#     7.6 firing on a meta/non-domain task under the old 1.5 fallback.
+#   - _SKILL_CONFIDENT (5.0) — absolute floor a SECONDARY result must clear
+#     to be added alongside an already-gating top result.
+#   - _SKILL_REL_MARGIN (0.35) — relative floor a secondary must ALSO clear:
+#     score >= _SKILL_REL_MARGIN * top_score. A secondary must pass BOTH
+#     floors, not just one.
+# If the prompt doesn't already carry the "[DOMAIN SKILL —" marker, the
+# spawn is DENIED with the selected skill block(s) pasted into the reason
+# (anti-loop: re-invoking with the block already in the prompt allows). Any
+# failure of the skill search itself (missing script, non-zero exit,
+# timeout, malformed JSON, unexpected shape) is fail-open — falls through to
+# memory recall, never a deny. Excluded agents (bilbo/gitto/unknown) never
+# reach the gate at all.
 #
 # Real-by-default (§34.5): every branch except the two failure-mode
 # simulations (timeout, malformed JSON — genuinely unreproducible on demand
@@ -1233,11 +1247,21 @@ class TestLongPromptQueryTruncation:
 # from cwd to the nearest `.git` and adds that root to its rglob search dirs
 # (see collect_search_dirs() in scripts/skill-search.py), so the fixture is
 # discoverable regardless of whatever real skills happen to be installed on
-# the host running these tests — verified empirically: the fixture's own
-# nonce trigger term ranks #1 (score 6.1) even against the real ~36-skill
-# corpus. Every score/path assertion below is read from a DIRECT real
-# invocation of skill-search.py against the same repo/prompt (the real
-# producer) — never hand-typed (§34).
+# the host running these tests. A single mention of a fixture's nonce
+# trigger term only reaches ~6.1 against the real host corpus — BELOW the
+# new 8.0 _SKILL_TRIGGER — so tests that need a fixture to gate on its own
+# now repeat the trigger term IN THE PROMPT (not the fixture document) via
+# `_domain_prompt()`; BM25 re-walks the same doc/idf/denominator once per
+# query-token occurrence (verified empirically: 1 mention ~6.1, 2 mentions
+# ~12.3 for a lone co-planted fixture — see calibration notes in agent
+# memory), which reliably clears 8.0 with margin without inflating the
+# fixture document's own length (padding the fixture's own `triggers`
+# column instead is self-defeating past a point: it raises both the term
+# frequency AND the document length, which BM25's own normalisation mostly
+# cancels out — empirically plateaus around ~7.8 even at reps=10). Every
+# score/path assertion below is read from a DIRECT real invocation of
+# skill-search.py against the same repo/prompt (the real producer) — never
+# hand-typed (§34).
 #
 # The two failure-mode simulations reuse this repo's established in-process
 # importlib.util.spec_from_file_location pattern for hyphenated filenames
@@ -1248,10 +1272,11 @@ class TestLongPromptQueryTruncation:
 # false-pass where an unrelated exception (not the simulated failure) is
 # what actually produced the fail-open result.
 #
-# _SKILL_MARKER / _SKILL_SCORE_THRESHOLD are read from the hook module
-# itself (imported in-process) rather than hand-typed, per Hard Rules (No
-# Hardcoded Values) — if Ultron ever renames either constant, these tests
-# stay correct without a text-search-and-replace.
+# _SKILL_MARKER / _SKILL_TRIGGER / _SKILL_CONFIDENT / _SKILL_REL_MARGIN /
+# _SKILL_MAX are all read from the hook module itself (imported in-process)
+# rather than hand-typed, per Hard Rules (No Hardcoded Values) — if Ultron
+# ever renames or re-tunes any of these constants, these tests stay correct
+# without a text-search-and-replace.
 
 _skill_gate_hook_spec = importlib.util.spec_from_file_location(
     "pre_task_recall_module_for_skill_gate_tests", HOOK_PATH
@@ -1260,8 +1285,9 @@ _skill_gate_hook_mod = importlib.util.module_from_spec(_skill_gate_hook_spec)
 _skill_gate_hook_spec.loader.exec_module(_skill_gate_hook_mod)
 
 SKILL_MARKER = _skill_gate_hook_mod._SKILL_MARKER
-SKILL_SCORE_THRESHOLD = _skill_gate_hook_mod._SKILL_SCORE_THRESHOLD
+SKILL_TRIGGER = _skill_gate_hook_mod._SKILL_TRIGGER
 SKILL_CONFIDENT = _skill_gate_hook_mod._SKILL_CONFIDENT
+SKILL_REL_MARGIN = _skill_gate_hook_mod._SKILL_REL_MARGIN
 SKILL_MAX = _skill_gate_hook_mod._SKILL_MAX
 
 # Nonce vocabulary for the fixture skill — deliberately not real English, so
@@ -1270,10 +1296,44 @@ SKILL_MAX = _skill_gate_hook_mod._SKILL_MAX
 _GATE_TRIGGER = "zzzqrxgatefixturetrigger882"
 _GATE_FIXTURE_SKILL_NAME = "unmassk-test-gate-skill"
 
-# Fallback-band fixture (score in [SKILL_SCORE_THRESHOLD, SKILL_CONFIDENT)) —
-# see _write_diluted_gate_skill_fixture.
-_FALLBACK_TRIGGER = "zzzqrxfallbacktrigger339"
-_FALLBACK_FIXTURE_SKILL_NAME = "unmassk-test-fallback-skill"
+
+def _domain_prompt(trigger, mentions=2):
+    """Build a prompt that repeats `trigger` `mentions` times so a single,
+    lone co-planted fixture's real score reliably clears _SKILL_TRIGGER
+    (8.0) with comfortable margin (empirically ~12.3 at mentions=2, vs. a
+    single mention's ~6.1). See the module-level comment above for why
+    query-side repetition is used instead of fixture-side (`reps`) padding.
+    """
+    return "implement the " + (trigger + " ") * mentions + "feature end to end"
+
+
+def _gate_selection_uncapped(results):
+    """Mirror _find_gate_skills' selection algorithm (top must clear
+    _SKILL_TRIGGER; secondaries need BOTH _SKILL_CONFIDENT and
+    _SKILL_REL_MARGIN * top_score) over an already-fetched REAL results
+    list, WITHOUT the final _SKILL_MAX cap. Used only to turn real,
+    already-measured scores into test prerequisites/expectations (e.g.
+    "which fixture gets excluded by the cap") — every DENY/ALLOW assertion
+    in this file still comes from invoking the real hook subprocess; this
+    helper never substitutes for that call."""
+    valid = [r for r in results if "score" in r and "name" in r]
+    if not valid:
+        return []
+    top = valid[0]
+    if top["score"] < SKILL_TRIGGER:
+        return []
+    selected = [top] + [
+        r for r in valid[1:]
+        if r["score"] >= SKILL_CONFIDENT and r["score"] >= SKILL_REL_MARGIN * top["score"]
+    ]
+    selected.sort(key=lambda r: r["score"], reverse=True)
+    return selected
+
+
+def _select_gate_skills(results):
+    """_gate_selection_uncapped(), capped to _SKILL_MAX — the exact set the
+    real hook will inject into its deny reason for the given real results."""
+    return _gate_selection_uncapped(results)[:SKILL_MAX]
 
 
 def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger=_GATE_TRIGGER, reps=1):
@@ -1313,47 +1373,6 @@ def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger
             f"description: Fixture domain skill for {trigger} testing.\n"
             "---\n\n"
             "# Fixture skill\n\nUsed only by pre-task-recall.py's test suite.\n"
-        )
-
-    return skill_dir, skillcat_path, skill_md_path
-
-
-def _write_diluted_gate_skill_fixture(repo, skill_name=None, trigger=None, filler_count=60):
-    """Write a fixture skill whose trigger term is diluted by filler
-    vocabulary in its `triggers` column, so its real BM25 score lands in the
-    fallback band [_SKILL_SCORE_THRESHOLD, _SKILL_CONFIDENT) instead of
-    clearing the confident bar outright — the same length-normalisation
-    effect BM25 always applies (a longer document scores lower for the same
-    term frequency), not a fabricated number. Used to exercise the "nothing
-    reaches _SKILL_CONFIDENT, but the top clears _SKILL_SCORE_THRESHOLD"
-    fallback branch of _find_gate_skills(). Every score assertion using this
-    fixture still re-derives the actual number from a live skill-search.py
-    subprocess call (§34) — the dilution only shapes which band the real
-    score falls in, it never substitutes for measuring it.
-    """
-    skill_name = skill_name or _FALLBACK_FIXTURE_SKILL_NAME
-    trigger = trigger or _FALLBACK_TRIGGER
-    skill_dir = os.path.join(repo, "fixture_skills", skill_name)
-    os.makedirs(skill_dir, exist_ok=True)
-
-    filler = " ".join(f"fillerword{i}" for i in range(filler_count))
-    skillcat_path = os.path.join(skill_dir, f"{skill_name}.skillcat")
-    with open(skillcat_path, "w", encoding="utf-8", newline="") as f:
-        f.write("name,plugin,triggers,domains,frameworks,tools\n")
-        f.write(
-            '{},{},"{} {}","none",none,none\n'.format(
-                skill_name, "unmassk-test-plugin", trigger, filler
-            )
-        )
-
-    skill_md_path = os.path.join(skill_dir, "SKILL.md")
-    with open(skill_md_path, "w", encoding="utf-8") as f:
-        f.write(
-            "---\n"
-            f"name: {skill_name}\n"
-            f"description: Diluted fixture domain skill for {trigger} testing.\n"
-            "---\n\n"
-            "# Diluted fixture skill\n\nUsed only by pre-task-recall.py's test suite.\n"
         )
 
     return skill_dir, skillcat_path, skill_md_path
@@ -1434,14 +1453,14 @@ class TestSkillGateDomainMatchDenies:
         pasted into the reason."""
         repo = _make_repo(tmp_path)
         _write_gate_skill_fixture(repo)
-        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        prompt = _domain_prompt(_GATE_TRIGGER)
 
         top = _real_skill_search_top(repo, prompt)
         assert top is not None and top["name"] == _GATE_FIXTURE_SKILL_NAME, (
             f"Test prerequisite: fixture skill must be the top real result; got {top}"
         )
-        assert top["score"] >= SKILL_SCORE_THRESHOLD, (
-            f"Test prerequisite: fixture must clear the gate threshold; got {top['score']}"
+        assert top["score"] >= SKILL_TRIGGER, (
+            f"Test prerequisite: fixture must clear _SKILL_TRIGGER; got {top['score']}"
         )
 
         tool_input = {"subagent_type": "ultron", "prompt": prompt}
@@ -1483,10 +1502,10 @@ class TestSkillGateMarkerAntiLoop:
         orchestrator's retry) → the gate must not re-trigger."""
         repo = _make_repo(tmp_path)
         _write_gate_skill_fixture(repo)
-        domain_prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        domain_prompt = _domain_prompt(_GATE_TRIGGER)
 
         top = _real_skill_search_top(repo, domain_prompt)
-        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+        assert top is not None and top["score"] >= SKILL_TRIGGER
 
         # Sanity: the SAME prompt without the marker denies — proves the
         # allow below is due to the marker, not an unrelated non-match.
@@ -1524,8 +1543,8 @@ class TestSkillGateLowScoreAllowsMemory:
         )
 
         top = _real_skill_search_top(repo, _MEM_NONCE)
-        assert top is None or top["score"] < SKILL_SCORE_THRESHOLD, (
-            f"Test prerequisite: nonce must not clear the gate threshold; got {top}"
+        assert top is None or top["score"] < SKILL_TRIGGER, (
+            f"Test prerequisite: nonce must not clear _SKILL_TRIGGER; got {top}"
         )
 
         tool_input = {"subagent_type": "ultron", "prompt": _MEM_NONCE}
@@ -1548,7 +1567,7 @@ class TestSkillGateSearcherFailsOpen:
         still allow when the searcher itself times out."""
         repo = _make_repo(tmp_path)
         _write_gate_skill_fixture(repo)
-        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        prompt = _domain_prompt(_GATE_TRIGGER)
 
         stdout_text, stderr_text = _run_hook_inprocess_with_faked_searcher(
             monkeypatch, repo, {"subagent_type": "ultron", "prompt": prompt}, _fake_timeout
@@ -1562,7 +1581,7 @@ class TestSkillGateSearcherFailsOpen:
     def test_malformed_json_fails_open_never_denies(self, tmp_path, monkeypatch):
         repo = _make_repo(tmp_path)
         _write_gate_skill_fixture(repo)
-        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        prompt = _domain_prompt(_GATE_TRIGGER)
 
         stdout_text, stderr_text = _run_hook_inprocess_with_faked_searcher(
             monkeypatch, repo, {"subagent_type": "ultron", "prompt": prompt}, _fake_malformed_json
@@ -1583,10 +1602,10 @@ class TestSkillGateExcludedAgentPassthrough:
         whitelist check as memory recall) — score is irrelevant."""
         repo = _make_repo(tmp_path)
         _write_gate_skill_fixture(repo)
-        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        prompt = _domain_prompt(_GATE_TRIGGER)
 
         top = _real_skill_search_top(repo, prompt)
-        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+        assert top is not None and top["score"] >= SKILL_TRIGGER
 
         tool_input = {"subagent_type": agent, "prompt": prompt}
         rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
@@ -1608,9 +1627,9 @@ class TestSkillGateInvariant:
 
         repo = _make_repo(tmp_path / "shared")
         _write_gate_skill_fixture(repo)
-        domain_prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        domain_prompt = _domain_prompt(_GATE_TRIGGER)
         top = _real_skill_search_top(repo, domain_prompt)
-        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+        assert top is not None and top["score"] >= SKILL_TRIGGER
 
         _, parsed_a, _, _ = _run_hook(
             repo, "Task", {"subagent_type": "ultron", "prompt": domain_prompt}
@@ -1652,21 +1671,32 @@ class TestSkillGateInvariant:
 # NEW COVERAGE: multi-skill selection contract
 # ══════════════════════════════════════════════════════════════════════════
 #
-# The gate no longer injects only the single top result. _find_gate_skills()
-# now selects ALL results scoring >= _SKILL_CONFIDENT; if none clear that
-# bar, it falls back to the single top result if its score >=
-# _SKILL_SCORE_THRESHOLD; the resulting set is sorted by score descending
-# and capped to _SKILL_MAX. _build_skill_gate_message() switches the deny
-# header to plural whenever more than one block is selected. Every case
-# below runs the REAL skill-search.py subprocess against real,
+# The gate does not inject only the single top result. _find_gate_skills()
+# ALWAYS selects the top result once it clears _SKILL_TRIGGER (8.0) — there
+# is no lower fallback band anymore (reconciled 2026-07-12: the old
+# "fallback to top if score >= 1.5" branch was removed from the hook; a top
+# score below 8.0 does not gate at all, full stop, regardless of how high it
+# is relative to the old 1.5 or the CONFIDENT 5.0 absolute floor — see
+# TestSkillGateScoreBelowTriggerAllows below). A SECONDARY result is added
+# alongside an already-gating top only if it clears BOTH _SKILL_CONFIDENT
+# (5.0, absolute) AND _SKILL_REL_MARGIN * top_score (0.35, relative) — it is
+# not enough to clear just one of the two floors (see
+# TestSkillGateRelativeMarginExcludesWeakSecondary below for the
+# absolute-yes/relative-no case). The resulting set is sorted by score
+# descending and capped to _SKILL_MAX. _build_skill_gate_message() switches
+# the deny header to plural whenever more than one block is selected. Every
+# case below runs the REAL skill-search.py subprocess against real,
 # filesystem-discovered fixture skills (§34.5 — no mocked searcher); no
 # score/name/path is hand-typed anywhere — every assertion re-derives its
 # expected value from a direct real invocation of the same producer
-# (_real_skill_search_top / _real_skill_search_results). Anti-loop (marker
-# present → allow) and fail-open (searcher broken → allow, never deny) are
-# NOT re-tested here: the marker check and the failure branches both run
-# BEFORE selection, so they are single, shared code paths already covered
-# by TestSkillGateMarkerAntiLoop and TestSkillGateSearcherFailsOpen above,
+# (_real_skill_search_top / _real_skill_search_results), using
+# _gate_selection_uncapped()/_select_gate_skills() (defined above) to turn
+# those real numbers into the exact set/order the hook is expected to
+# select — never a hand-typed prediction. Anti-loop (marker present →
+# allow) and fail-open (searcher broken → allow, never deny) are NOT
+# re-tested here: the marker check and the failure branches both run BEFORE
+# selection, so they are single, shared code paths already covered by
+# TestSkillGateMarkerAntiLoop and TestSkillGateSearcherFailsOpen above,
 # regardless of how many skills would otherwise have been selected —
 # re-testing them per skill-count would just re-exercise the same branch.
 
@@ -1674,27 +1704,33 @@ class TestSkillGateInvariant:
 
 class TestSkillGateMultiSkillConfidentDenies:
     def test_two_confident_matches_deny_with_two_blocks_plural_header(self, tmp_path):
-        """Two domain skills that BOTH independently clear _SKILL_CONFIDENT
-        for the same prompt → deny with one [DOMAIN SKILL — block per skill,
-        highest score first, and the PLURAL header/footer wording."""
+        """Two domain skills that BOTH independently clear the hook's
+        selection double-floor for the same prompt → deny with one
+        [DOMAIN SKILL — block per skill, highest score first, and the
+        PLURAL header/footer wording. trigger_a is repeated more than
+        trigger_b in the prompt so trigger_a is the top (clears
+        _SKILL_TRIGGER on its own) and trigger_b lands comfortably above
+        BOTH secondary floors (_SKILL_CONFIDENT absolute and
+        _SKILL_REL_MARGIN * top relative) rather than at a flaky boundary."""
         repo = _make_repo(tmp_path)
         trigger_a, trigger_b = "zzzqrxAAA111multiskill", "zzzqrxBBB222multiskill"
         name_a, name_b = "unmassk-test-multi-skill-a", "unmassk-test-multi-skill-b"
         _write_gate_skill_fixture(repo, skill_name=name_a, trigger=trigger_a, reps=1)
-        _write_gate_skill_fixture(repo, skill_name=name_b, trigger=trigger_b, reps=2)
-        prompt = f"implement the {trigger_a} {trigger_b} feature end to end"
+        _write_gate_skill_fixture(repo, skill_name=name_b, trigger=trigger_b, reps=1)
+        prompt = "implement the " + (trigger_a + " ") * 3 + (trigger_b + " ") * 2 + "feature end to end"
 
         results = _real_skill_search_results(repo, prompt)
-        confident = [r for r in results if r["score"] >= SKILL_CONFIDENT]
-        confident_names = {r["name"] for r in confident}
-        assert {name_a, name_b} <= confident_names, (
-            f"Test prerequisite: both fixtures must clear _SKILL_CONFIDENT; got {results}"
-        )
-        assert len(confident) == 2, (
-            f"Test prerequisite: exactly these two fixtures must be confident for this "
-            f"prompt (no accidental host-corpus overlap); got confident={confident}"
-        )
         by_name = {r["name"]: r for r in results}
+        assert name_a in by_name and name_b in by_name, (
+            f"Test prerequisite: both fixtures must appear in real results; got {results}"
+        )
+        selected = _select_gate_skills(results)
+        selected_names = {r["name"] for r in selected}
+        assert selected_names == {name_a, name_b}, (
+            f"Test prerequisite: exactly these two fixtures must be selected for this "
+            f"prompt (no accidental host-corpus overlap, no unintended third selection); "
+            f"got selected={selected}"
+        )
         expected_order = sorted(
             [by_name[name_a], by_name[name_b]], key=lambda r: r["score"], reverse=True
         )
@@ -1728,33 +1764,42 @@ class TestSkillGateMultiSkillConfidentDenies:
         assert "skill gate: deny 2 skills" in stderr, "Deny branch must leave a stderr breadcrumb"
 
 
-# ── (8) No skill reaches _SKILL_CONFIDENT, top clears the low bar → 1 block ─
+# ── (8) Top score clears the OLD threshold/CONFIDENT but not the NEW
+#        _SKILL_TRIGGER → gate does not fire at all (no fallback anymore) ──
 
-class TestSkillGateFallbackTopOnlyOneBlock:
-    def test_no_confident_match_but_top_clears_threshold_denies_one_block(self, tmp_path):
-        """No result clears _SKILL_CONFIDENT, but the top result clears
-        _SKILL_SCORE_THRESHOLD → the fallback-to-top-only branch fires:
-        exactly ONE block, singular header. This is the genuinely different
-        code path from TestSkillGateDomainMatchDenies (that test's fixture
-        already clears _SKILL_CONFIDENT outright — the `confident` branch,
-        not this `else: top` fallback)."""
+class TestSkillGateScoreBelowTriggerAllows:
+    def test_top_below_trigger_never_gates_even_above_old_thresholds(self, tmp_path):
+        """A single fixture matched by one mention scores ~6 in this file's
+        own calibration runs — well above the OLD 1.5 fallback threshold,
+        and even above the _SKILL_CONFIDENT absolute floor (5.0) — but still
+        below the NEW _SKILL_TRIGGER (8.0). This is exactly the precision
+        fix _SKILL_TRIGGER exists for (see pre-task-recall.py's own evidence
+        table: the frontend-react 7.6 false positive under the old 1.5
+        fallback). There is no fallback-to-top branch left in
+        _find_gate_skills(): the top result must independently clear
+        _SKILL_TRIGGER or NOTHING gates, no matter how confident it looks by
+        the old standard."""
         repo = _make_repo(tmp_path)
-        _write_diluted_gate_skill_fixture(repo)
-        prompt = _FALLBACK_TRIGGER
+        trigger = "zzzqrxbelowtrigger447"
+        skill_name = "unmassk-test-below-trigger-skill"
+        _write_gate_skill_fixture(repo, skill_name=skill_name, trigger=trigger, reps=1)
+        prompt = f"implement the {trigger} feature end to end"
 
         results = _real_skill_search_results(repo, prompt)
         assert results, f"Test prerequisite: at least one result expected; got {results}"
         top = results[0]
-        assert top["name"] == _FALLBACK_FIXTURE_SKILL_NAME, (
+        assert top["name"] == skill_name, (
             f"Test prerequisite: fixture must be the top real result; got {top}"
         )
-        assert SKILL_SCORE_THRESHOLD <= top["score"] < SKILL_CONFIDENT, (
-            f"Test prerequisite: top score must sit in the fallback band "
-            f"[{SKILL_SCORE_THRESHOLD}, {SKILL_CONFIDENT}); got {top['score']}"
+        assert top["score"] >= SKILL_CONFIDENT, (
+            f"Test prerequisite: top score must clear the absolute _SKILL_CONFIDENT "
+            f"floor (5.0) — this proves the case isn't just a weak/no match; "
+            f"got {top['score']}"
         )
-        assert all(r["score"] < SKILL_CONFIDENT for r in results), (
-            f"Test prerequisite: NO result may clear _SKILL_CONFIDENT for this prompt "
-            f"(the fallback branch only fires when the confident set is empty); got {results}"
+        assert top["score"] < SKILL_TRIGGER, (
+            f"Test prerequisite: top score must sit BELOW _SKILL_TRIGGER "
+            f"({SKILL_TRIGGER}) — exactly the band the redesign closes; "
+            f"got {top['score']}"
         )
 
         tool_input = {"subagent_type": "ultron", "prompt": prompt}
@@ -1762,53 +1807,62 @@ class TestSkillGateFallbackTopOnlyOneBlock:
 
         assert rc == 0
         hso = _hook_specific(parsed)
-        assert hso.get("permissionDecision") == "deny"
-
-        reason = hso.get("permissionDecisionReason", "")
-        assert reason.count(SKILL_MARKER) == 1, "Fallback branch must select exactly the top result"
-        assert "el siguiente bloque" in reason, "Single-block fallback deny must use the singular header"
-        assert "los siguientes bloques" not in reason
-        assert f"Skill: {top['name']} (score {top['score']:.1f})" in reason, (
-            "Injected name/score must match the REAL searcher's output verbatim (§34)"
+        assert hso.get("permissionDecision") == "allow", (
+            "A top score below _SKILL_TRIGGER must NOT deny, even though it clears "
+            "both the old 1.5 fallback threshold and the CONFIDENT absolute floor"
         )
-        assert f"Path: {top['skill_md']}" in reason
-
-        assert "skill gate: deny 1 skills" in stderr, "Deny branch must leave a stderr breadcrumb"
+        assert "updatedInput" not in hso, (
+            "No memory commit was seeded in this repo; only a skill-gate deny could "
+            "have produced output here, and it must not have fired"
+        )
+        assert "skill gate: allow (no match)" in stderr, (
+            "Below-trigger top must leave the 'allow (no match)' breadcrumb, not a deny"
+        )
 
 
 # ── (9) More than _SKILL_MAX confident matches → capped to the top _SKILL_MAX ─
 
 class TestSkillGateCapAtThree:
     def test_four_confident_matches_caps_to_highest_scoring_max(self, tmp_path):
-        """Four independently-confident domain skills for the same prompt →
-        the deny must list only _SKILL_MAX (3) blocks: the highest-scoring
-        ones. The lowest-scoring confident skill must be excluded entirely,
-        not just re-ordered."""
+        """Four domain skills that all independently clear the hook's
+        selection double-floor for the same prompt → the deny must list
+        only _SKILL_MAX (3) blocks: the highest-scoring ones. The
+        lowest-scoring one must be excluded entirely, not just re-ordered.
+        Each fixture's trigger is repeated a DIFFERENT number of times in
+        the prompt (6/5/4/3) to force four distinct, strictly-ordered real
+        scores comfortably above both the absolute and relative secondary
+        floors (see the module-level comment on query-side repetition)."""
         repo = _make_repo(tmp_path)
         specs = [
-            ("unmassk-test-cap-a", "zzzqrxCAPAAA111", 1),
-            ("unmassk-test-cap-b", "zzzqrxCAPBBB222", 2),
-            ("unmassk-test-cap-c", "zzzqrxCAPCCC333", 3),
-            ("unmassk-test-cap-d", "zzzqrxCAPDDD444", 4),
+            ("unmassk-test-cap-a", "zzzqrxCAPAAA111", 6),
+            ("unmassk-test-cap-b", "zzzqrxCAPBBB222", 5),
+            ("unmassk-test-cap-c", "zzzqrxCAPCCC333", 4),
+            ("unmassk-test-cap-d", "zzzqrxCAPDDD444", 3),
         ]
-        for name, trigger, reps in specs:
-            _write_gate_skill_fixture(repo, skill_name=name, trigger=trigger, reps=reps)
-        prompt = "implement the " + " ".join(t for _, t, _ in specs) + " feature end to end"
+        for name, trigger, _mentions in specs:
+            _write_gate_skill_fixture(repo, skill_name=name, trigger=trigger, reps=1)
+        prompt = "implement the " + " ".join(
+            " ".join([trigger] * mentions) for _, trigger, mentions in specs
+        ) + " feature end to end"
 
         results = _real_skill_search_results(repo, prompt)
-        confident = [r for r in results if r["score"] >= SKILL_CONFIDENT]
-        confident_names = {r["name"] for r in confident}
+        by_name = {r["name"]: r for r in results}
         expected_names = {name for name, _, _ in specs}
-        assert expected_names <= confident_names, (
-            f"Test prerequisite: all four fixtures must clear _SKILL_CONFIDENT; got {results}"
+        assert expected_names <= set(by_name), (
+            f"Test prerequisite: all four fixtures must appear in real results; got {results}"
         )
-        assert len(confident) >= 4, (
-            f"Test prerequisite: at least 4 confident results are needed to exercise the "
-            f"cap; got confident={confident}"
+        uncapped = _gate_selection_uncapped(results)
+        uncapped_names = {r["name"] for r in uncapped}
+        assert expected_names <= uncapped_names, (
+            f"Test prerequisite: all four fixtures must clear the gate's double-floor "
+            f"selection (before capping); got uncapped={uncapped}"
         )
-        ranked = sorted(confident, key=lambda r: r["score"], reverse=True)
-        top_max = ranked[:SKILL_MAX]
-        excluded = ranked[SKILL_MAX:]
+        assert len(uncapped) >= 4, (
+            f"Test prerequisite: at least 4 pre-cap selections are needed to exercise "
+            f"the cap; got uncapped={uncapped}"
+        )
+        top_max = uncapped[:SKILL_MAX]
+        excluded = uncapped[SKILL_MAX:]
 
         tool_input = {"subagent_type": "ultron", "prompt": prompt}
         rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
@@ -1820,7 +1874,7 @@ class TestSkillGateCapAtThree:
         reason = hso.get("permissionDecisionReason", "")
         assert reason.count(SKILL_MARKER) == SKILL_MAX, (
             f"Must cap to exactly _SKILL_MAX ({SKILL_MAX}) blocks even with "
-            f"{len(confident)} confident matches"
+            f"{len(uncapped)} pre-cap selections"
         )
         assert "los siguientes bloques" in reason, "A capped multi-block deny must use the PLURAL header"
 
@@ -1840,3 +1894,73 @@ class TestSkillGateCapAtThree:
         assert f"skill gate: deny {SKILL_MAX} skills" in stderr, (
             "Deny branch must leave a stderr breadcrumb naming the actual selected count"
         )
+
+
+# ── (10) Secondary clears the ABSOLUTE floor but fails the RELATIVE one ───
+
+class TestSkillGateRelativeMarginExcludesWeakSecondary:
+    def test_secondary_above_confident_but_below_rel_margin_is_excluded(self, tmp_path):
+        """A secondary that clears the absolute _SKILL_CONFIDENT floor (5.0)
+        on its own is STILL excluded if it falls short of the relative
+        _SKILL_REL_MARGIN * top_score floor — a secondary must clear BOTH,
+        not just one. This is the exact double-floor calibration
+        pre-task-recall.py's own evidence table documents (diseño top ~18:
+        frontend-react ~7 survives at ratio 0.39, media-pdf ~5 falls at
+        ratio 0.28) — reproduced here with disposable fixtures instead of
+        whatever the real installed corpus happens to contain, so the test
+        doesn't depend on which domain skills are installed on this host."""
+        repo = _make_repo(tmp_path)
+        trigger_top, trigger_weak = "zzzqrxRELTOPmain999", "zzzqrxRELWEAKsecond888"
+        name_top, name_weak = "unmassk-test-rel-top", "unmassk-test-rel-weak"
+        _write_gate_skill_fixture(repo, skill_name=name_top, trigger=trigger_top, reps=1)
+        _write_gate_skill_fixture(repo, skill_name=name_weak, trigger=trigger_weak, reps=1)
+        prompt = (
+            "implement the " + (trigger_top + " ") * 6 + (trigger_weak + " ") * 1
+            + "feature end to end"
+        )
+
+        results = _real_skill_search_results(repo, prompt)
+        by_name = {r["name"]: r for r in results}
+        assert name_top in by_name and name_weak in by_name, (
+            f"Test prerequisite: both fixtures must appear in real results; got {results}"
+        )
+        top, weak = by_name[name_top], by_name[name_weak]
+        assert top["score"] >= SKILL_TRIGGER, (
+            f"Test prerequisite: top must clear _SKILL_TRIGGER; got {top['score']}"
+        )
+        assert weak["score"] >= SKILL_CONFIDENT, (
+            f"Test prerequisite: weak secondary must clear the ABSOLUTE _SKILL_CONFIDENT "
+            f"floor on its own (proves this isn't just a no-match case); got {weak['score']}"
+        )
+        assert weak["score"] < SKILL_REL_MARGIN * top["score"], (
+            f"Test prerequisite: weak secondary must fall SHORT of the RELATIVE floor "
+            f"({SKILL_REL_MARGIN} * {top['score']} = {SKILL_REL_MARGIN * top['score']:.2f}); "
+            f"got {weak['score']}"
+        )
+        selected = _select_gate_skills(results)
+        assert {r["name"] for r in selected} == {name_top}, (
+            f"Test prerequisite: only the top must survive selection; got selected={selected}"
+        )
+
+        tool_input = {"subagent_type": "ultron", "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "deny"
+
+        reason = hso.get("permissionDecisionReason", "")
+        assert reason.count(SKILL_MARKER) == 1, (
+            "Only the top must be selected; the weak secondary must be excluded despite "
+            "clearing the absolute CONFIDENT floor on its own"
+        )
+        assert f"Skill: {top['name']} (score {top['score']:.1f})" in reason, (
+            "Injected name/score must match the REAL searcher's output verbatim (§34)"
+        )
+        assert f"Skill: {weak['name']}" not in reason, (
+            "Secondary failing the relative margin must not appear in the deny reason at all"
+        )
+        assert "el siguiente bloque" in reason, "A single retained block must use the singular header"
+        assert "los siguientes bloques" not in reason
+
+        assert "skill gate: deny 1 skills" in stderr, "Deny branch must leave a stderr breadcrumb"

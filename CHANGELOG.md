@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Ultron's agent definition reworked to close the gap the reviewers kept flagging.** Ultron now runs a mandatory pre-flight before writing a line — reads the imports/exports/call-sites of what it will touch, searches for an existing helper to reuse instead of duplicating, traces the real producer↔consumer seam, and declares its surface ("N files, M call-sites, K consumers, reuse"). "Minimal" is redefined as the smallest *surface* that fully meets the standard, never the smallest *effort*. Every line must be production-final on the first pass (no drafts, no `TODO: fix later`). The Exit Gate gained goal-backward wiring checks (every new export has a real call-site, every route is mounted, every import is used) — while the round-trip *test* stays Dante's, never Ultron's. The old "mode" concept, which overloaded one word for two different axes, is split into **Build order** (linear/test-first, set by the orchestrator) and **Work type** (implementation/fix/security/refactor, from the task). A new "Observations for the orchestrator" channel lets Ultron surface improvements it spots but must not build unasked.
+- **Ultron never writes tests, in any mode — always Dante.** Previously Ultron added tests itself in linear mode; that path is removed. In linear build order Ultron instead flags in its report when tests are missing so the orchestrator routes Dante, without ever writing them.
+- **The Analysis Paralysis Guard no longer counts files.** Its stop condition is now a state of knowledge — Ultron stops reading the moment it knows what the change needs (the imports it will touch and what they derive), not after an arbitrary file count. Required pre-flight reading never trips the guard; only aimless reading past that point does.
+
+### Fixed
+
+- **Skill-injection gate false positives cut down.** The gate that injects a domain skill when the orchestrator delegates to a crew agent was firing on long, keyword-dense meta prompts (reviewing an agent definition, fixing a Python test) that have no real domain. The top match must now clear a higher trigger, and any secondary skill must clear both an absolute floor and a relative margin against the top — so a scattered, flat score distribution (the signature of a false positive) no longer gates. Tests reconciled and mutation-checked.
+- **Corrected the skill-loading docs in `unmassk-core` and `unmassk-gitmemory`.** Removed the false claim that crew agents auto-discover domain skills via their own BM25 search on boot; the orchestrator injects them via the gate, and that flow (deny + paste the block, anti-loop marker, fail-open, "expected, not an error") is now documented so a fresh session doesn't misread the `⛔ SKILL GATE` block as a failure.
+
 ## [1.19.8] - 2026-07-12
 
 ### Added

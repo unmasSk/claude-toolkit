@@ -1326,3 +1326,45 @@ Fix: add `ensure_ascii=False` to both `json.dump()` calls — safe because
 `encoding_guard.force_utf8_streams()` already reconfigures stdout to UTF-8
 at hook startup, so raw non-ASCII bytes on stdout is already the intended
 posture, not a new risk.
+
+## pre-task-recall.py skill gate precision calibration (2026-07-12, issue #68 follow-up)
+
+The gate's original thresholds (`_SKILL_SCORE_THRESHOLD=1.5` single-result
+fallback, `_SKILL_CONFIDENT=5.0` multi-select) over-triggered on anything
+with light keyword overlap — verified false positives: media-pdf 5.3 as a
+secondary in a design task, frontend-react ~7.6 while editing this very
+Python hook, owasp-privacy 13.9 / unmassk-seo 29.2 on meta tasks about
+skills/prompts.
+
+Fixed by splitting the decision into two independent gates, both empirically
+calibrated by running `scripts/skill-search.py "<prompt>" --json` live
+(never trust reported/remembered scores — the BM25 corpus and skillcat
+files can drift):
+- `_SKILL_TRIGGER = 8.0` — the TOP result alone must clear this or nothing
+  gates. Real-domain top scores observed: 8.9-16.1 (postgres/docker/
+  diseño/gdpr). Meta/non-domain tops observed: 2.8-3.8, PLUS the known
+  frontend-react 7.6 false positive. 8.0 sits strictly between the FP
+  ceiling (7.6) and the domain floor (~8.9) — this is why the trigger is
+  8.0 and not the naively-suggested 5-7 range: that range does not close
+  the frontend-react case.
+- `_SKILL_REL_MARGIN = 0.35` — a SECONDARY result (multi-skill case) must
+  also clear `_SKILL_REL_MARGIN * top_score`, not just the flat
+  `_SKILL_CONFIDENT` floor. Prevents a design task's secondary "media-pdf"
+  (ratio ~0.28 of top) from riding along while a genuinely related
+  secondary like "frontend-react" (ratio ~0.39 of top) still survives.
+
+Known residual (not fixable by threshold tuning): a META task whose own
+wording is dense in one domain's vocabulary (e.g. a task ABOUT the skill
+gate itself, full of "keyword/score/search") can clear `_SKILL_TRIGGER` on
+its own — BM25 is keyword-only, not semantic, so it cannot distinguish
+"this task talks about domain X" from "this task IS domain X". Confirmed
+live: this very calibration task's own instructions scored unmassk-seo
+29.2. Fixing this needs semantic confirmation (LLM-in-the-loop or embedding
+similarity) — a separate, larger change, not a threshold adjustment.
+
+Verification method: don't just read skill-search.py's raw output — pipe a
+full synthetic PreToolUse stdin payload (`{"tool_name":"Agent","tool_input":
+{"subagent_type":"ultron","prompt": "..."}}`) through the actual hook file
+and check `permissionDecision` in its stdout, not just the underlying
+search score. Confirms the wiring (marker check, whitelist, JSON I/O), not
+just the isolated scoring function.
