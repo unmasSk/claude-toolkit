@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Per-message discipline banner for the orchestrator**: the message hook now prints a small boxed reminder at the top of every user turn — `NOT YAPPING!` (no filler, answer the minimum) and `DON'T ASSUME` (if it's in the conversation, say it; if not 100% sure, verify it in memory/code/web; never make it up). It's context the orchestrator sees each turn, not something shown to the user.
+
 ## [1.19.7] - 2026-07-12
 
 ### Added
