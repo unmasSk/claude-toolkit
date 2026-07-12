@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Domain skills now reach crew agents automatically, enforced by a gate** (issue #68): when the orchestrator delegates to a crew agent, the `pre-task-recall` hook runs the skill searcher over the task and, if a domain skill matches, **blocks the spawn** and hands the orchestrator a `[DOMAIN SKILL]` block (skill name, path, "read this now") to paste into the agent's prompt before retrying. It's an obligation, not a reminder — the agent cannot be launched without it. An anti-loop marker lets the retry through; low/no match or any searcher failure passes through untouched (fail-open — a broken searcher can never block a spawn). Bilbo and Gitto are excluded, same as memory recall.
+
+### Fixed
+
+- **Subagent memory injection was silently doing nothing** (issue #68): the `pre-task-recall` hook gated on `tool_name == "Task"`, but the real tool name in the hook payload is `"Agent"` — so the hook bailed out on every invocation and never injected the project-memory footer it was supposed to. The check now accepts `Agent`/`Task`, reviving memory injection into crew-agent prompts as a side effect of the skill-gate work.
+
 ## [1.19.6] - 2026-07-12
 
 ### Added
