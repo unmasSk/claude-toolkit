@@ -48,7 +48,7 @@ Goal: don't let implementation begin until the base decision tree is seeded.
 2. Cascade the requirements from the project type. A SaaS implies: cloud server, cloud DB, possibly Redis, auth, OAuth provider, and so on. Walk the chain so the known-in-advance requirements surface as nodes.
 3. For each major choice (stack, framework, DB, auth), capture a `decision()` with its `Why:`.
 4. Hand off to the scaffolding wizard (`unmassk-scaffolding`) for the actual structure.
-5. **Before the first feature commit**, confirm the scaffold has a baseline quality floor: a working test command (even trivial), lint/format config, and — if the stack implies secrets — a `.env.example`. A missing one is not a silent gap: capture it as `decision()` ("deferred: no test runner yet") so it's visible, not lost.
+5. **Before the first feature commit**, confirm the scaffold has a baseline quality floor: a working test command (even trivial), lint/format config, and — if the stack implies secrets — a `.env.example`. **Write the resolved test command into `.claude/git-memory-config.json` under `test_command`** (the same file that holds `repo_type`) so the `stop-dod-gate` hook runs it automatically from here on — this is what makes Flow's Step 7 pre-merge gate a real mechanism instead of prose. A missing floor is not a silent gap: capture it as `decision()` ("deferred: no test runner yet") so it's visible, not lost.
 6. **Critical:** ensure the choices made in scaffolding are written to git-memory as decisions. The richest moment in decisions is the start — do not let it evaporate.
 
 Do not write feature code until the base tree exists.

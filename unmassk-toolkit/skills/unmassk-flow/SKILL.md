@@ -5,7 +5,9 @@ description: Use when the user asks to "build a feature", "implement", "add func
 
 # Flow — Creative Pipeline
 
-8-step workflow for building features, fixes, and refactors from idea to shipped code. Combines gray-area brainstorming, TDD bite-sized planning, and evidence-first agent execution. All decisions persist in git-memory. The plan file is the single source of truth.
+8-step workflow for building features, fixes, and refactors from idea to shipped code. Combines gray-area brainstorming, bite-sized planning, and evidence-first agent execution. All decisions persist in git-memory. The plan file is the single source of truth.
+
+**This skill runs in ANY project, any stack.** Nothing here hardcodes a language, framework, test runner, or directory layout. Every stack-specific value (test command, lint command, build command, plan directory, coverage bar) comes from the **project profile** — never from this skill. If a value you need isn't in the profile, detect it from the project (see "Project profile" below) and record it; do not assume a default like `npm`/`vitest`/`pytest`.
 
 ## Dependencies
 
@@ -22,13 +24,48 @@ description: Use when the user asks to "build a feature", "implement", "add func
 
 Do NOT use for: trivial 1-file fixes, documentation-only changes, config tweaks, or enterprise audits (use `unmassk-audit` skill instead).
 
+## Lane discipline — who does what, and what each NEVER does (ABSOLUTE)
+
+This is the rule the whole pipeline exists to protect. When Flow is carried to another project, this is the first thing that erodes — the orchestrator starts cross-assigning and agents drift off-lane. It does not bend.
+
+| Agent | DOES | NEVER does |
+| ----- | ---- | ---------- |
+| **Orchestrator (you)** | decides what/who/when, writes the plan, runs Flow | writes production code or tests — not even one line |
+| **Bilbo** | explores/maps the codebase, traces dependencies | implements, reviews, or judges |
+| **Ultron** | implements production code | writes/edits tests, explores as a phase, reviews, attacks |
+| **Dante** | writes and hardens tests | implements production code, investigates the codebase (that's Bilbo) |
+| **Cerberus** | reviews code | fixes what it finds (reports → Ultron fixes) |
+| **Argus** | security audit | fixes, or does general code review |
+| **Moriarty** | tries to break the shipping candidate | fixes, or reviews |
+| **Yoda** | final production-readiness verdict | fixes, re-reviews, or attacks |
+| **Alexandria** | syncs docs to reality | implements or tests |
+| **Gitto** | git ops under instruction | decides scope |
+
+**The two failures this table forbids, by name:** sending **Dante to investigate** the codebase (that is Bilbo's lane) and sending **Ultron to write tests** (that is Dante's lane). Both are the exact cross-assignments that break the pipeline. There is no "small enough" exception. If GREEN needs a test change, Ultron STOPS and reports; the orchestrator routes it to Dante.
+
+## One feature in flight — close before you open (GATE)
+
+**Do not start a new Flow feature while a previous one is still open.** A feature is "open" from the moment Step 0 creates its branch/issue until Step 7 closes it. Opening a second branch over an unfinished first is how the pipeline ends up with a trail of half-done branches.
+
+Before Step 0 of any new feature, **run the check — don't just recall it:** `git branch --list 'feat/*' 'fix/*' 'refactor/*'` for an un-merged feature branch, and `grep -L 'Status: COMPLETED' docs/plan/*.md 2>/dev/null` for an open plan. A non-empty result means a feature is still in flight → finish it through Step 7 (or explicitly park it: WIP commit + `context()` with a `Next:` trailer) BEFORE starting the new one. One at a time.
+
+## Project profile — where stack-specific values live
+
+Flow is stack-agnostic; the project supplies its own commands. The **project profile** (`unmassk-standards` §10) is declared in the project's `CLAUDE.md` / git-memory — never a loose file. Resolve the test/lint/build commands like this:
+
+1. **Read the profile** — the project's declared commands in its `CLAUDE.md` or git-memory (`decision()`/`memo()`).
+2. **If not declared, detect from the repo** — the command the project actually uses: `package.json` scripts (npm/pnpm/yarn/bun), `pyproject.toml`/`pytest`, `go test ./...`, `cargo test`, a `Makefile` target, etc. Never impose a runner the repo doesn't use.
+3. **Record the test command where the MACHINE reads it.** Write the resolved test command into `.claude/git-memory-config.json` under `test_command` (the same file that holds `repo_type`). This is not just documentation: the `stop-dod-gate` hook **runs `test_command` from that file automatically at session close** — recording it there turns "run the tests" from a line the orchestrator has to remember into a gate that fires by itself (mechanism, not prose). Also note it in the profile (`memo()`) so a human can read it.
+
+The right place to establish `test_command` once is project start (`unmassk-project-lifecycle`), so Flow rarely has to detect it. If you still cannot resolve a test command, STOP at the Step 7 gate and ask the user — do not skip the gate and do not guess a runner.
+
 ## Step 0 — Triage (ORCHESTRATOR)
 
-Classify the work BEFORE anything else. Decide together with the user.
+Classify the work BEFORE anything else. Decide together with the user. (First run the "One feature in flight" gate above.)
 
 | Size | Criteria | Pipeline |
 | ---- | -------- | -------- |
-| Quick | 1-2 files, obvious fix, no design decisions | Skip to PLAN (1-liner), lightweight VERIFY (Cerberus only) |
+| Quick | 1-2 files, obvious fix, no design decisions | Skip to PLAN (1-liner), lightweight VERIFY — Cerberus always; **Dante only if the change alters behavior or lacks test coverage**; a seam still pulls the full seam subsection |
 | Standard | Normal feature, clear scope | Full pipeline (steps 1-7) |
 | Big | 3+ new files, 5+ modified, or touches auth/data/permissions | Full pipeline + mandatory Argus + Moriarty + Yoda in VERIFY |
 
@@ -38,7 +75,7 @@ Triage settles **size** (knowable early: files touched, whether it hits auth/dat
 
 **If Standard or Big:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip for Quick — a 1-2 file obvious fix doesn't carry that risk.
 
-Create issue + branch after triage. Context commit: `context(<scope>): start <type> — issue #N`
+Create issue + branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch — see `unmassk-gitmemory` Safety → Repo type). Context commit: `context(<scope>): start <type> — issue #N`
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
 
@@ -81,7 +118,7 @@ Now that the gray areas are resolved you finally know the feature's shape — cl
 
 ## Step 2 — Research (Bilbo)
 
-Investigate how to implement, guided by decisions from Step 1.
+Investigate how to implement, guided by decisions from Step 1. **Research is Bilbo's lane — never Dante's, never Ultron's.**
 
 ### Depth Levels
 
@@ -106,7 +143,7 @@ Write the plan. This is the SINGLE source of truth for the feature.
 
 ### Location
 
-`docs/plan/<type>-<name>.md` where type is `feat`, `fix`, `refactor`, etc.
+`docs/plan/<type>-<name>.md` (or the plan directory the project profile declares) where type is `feat`, `fix`, `refactor`, etc. If the project has no `docs/plan/`, create it or use the profile's location — do not assume it exists.
 
 ### Format
 
@@ -170,7 +207,7 @@ This step is a **router** — it does NOT spell the method out; it points to the
 - **Linear** → read **`references/linear.md`** (Ultron implements → Dante tests after).
 - **Test-first** → read **`references/test-first.md`** (Dante writes the acceptance contract → Ultron implements until GREEN; Dante's exhaustive hardening is the Verify pass).
 
-Everything below (waves, deviation rules, circuit breaker, tracking) applies to both methods.
+Everything below (waves, deviation rules, circuit breaker, tracking) applies to both methods. **Lane discipline (top of this skill) applies at every wave: Ultron never writes tests, Dante never investigates.**
 
 ### Pre-execution Gate
 
@@ -184,13 +221,20 @@ MANDATORY: Read the plan file before any implementation. Verify the plan exists 
 4. Launch Wave 2 tasks
 5. Repeat until all waves done
 
-### Deviation Rules (in Ultron agent prompt)
+### Deviation Rules (in the Ultron agent prompt) — bounded, not a blank cheque
 
-- Rule 1: Auto-fix bugs found during implementation
-- Rule 2: Auto-add missing critical functionality (error handling, validation)
-- Rule 3: Auto-add missing infrastructure (utils, helpers)
+Ultron may, without stopping to ask, do ONLY what the assigned task requires to be correct:
 
-All deviations tracked in report. No permission needed.
+- Fix a bug it hits **inside the code it is already changing**.
+- Add the error handling / input validation the change itself needs to be safe.
+
+Everything else is scope creep and is FORBIDDEN mid-task:
+
+- New helpers, utils, or "infrastructure" beyond the minimal surface the task needs → do NOT add speculatively. A genuinely required helper is part of the task's minimal surface; a "nice to have" is a separate feature.
+- Anything touching a file outside the task's declared surface → STOP and report.
+- A spotted improvement out of scope → record it as an **Observation** in the report (Ultron's ficha channel) — never build it unasked.
+
+All deviations, however small, are listed in the report. "No permission needed" covers the two bounded cases above and nothing wider.
 
 ### Plan Amendment Protocol
 
@@ -207,7 +251,7 @@ The plan file is always the truth. Ultron does not improvise future tasks.
 If Ultron fails the same task 3 times:
 
 1. STOP execution
-2. Launch House agent (agent:house.md`) to diagnose root cause
+2. Launch House agent to diagnose root cause
 3. House delivers diagnostic report with root cause and fix strategy
 4. Orchestrator amends plan if needed
 5. Ultron resumes with diagnosis context
@@ -222,21 +266,21 @@ If Ultron fails the same task 3 times:
 
 Verify the feature works and meets quality standards.
 
-### Always (all features)
+### Always (Cerberus on every feature; Dante on every feature that changed behavior)
 
-- **Cerberus** (agent:cerberus.md`) — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks?
-- **Dante** (agent:dante.md`) — tests for code that changed without coverage. In **test-first** mode this is Dante's **hardening pass**: full EXHAUSTION PROTOCOL + coverage gate (≥90% functions / ≥80% error paths) against the now-real code.
+- **Cerberus** — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks? Runs on every feature, Quick included.
+- **Dante** — tests for code that changed without coverage. In **test-first** mode this is Dante's **hardening pass**: the full EXHAUSTION PROTOCOL (an exhaustive read of the changed files, their imports/exports/call-sites and existing tests before reporting) + coverage gate (the project profile's bar; default ≥90% functions / ≥80% error paths) against the now-real code. **Exception, consistent with the Quick Triage row:** a Quick fix that changes no behavior and already has coverage may skip Dante — but any producer↔consumer seam pulls the seam subsection below in regardless of size.
 
 ### If Big feature (or touches auth/data/permissions)
 
-- **Argus** (agent:argus.md`) — deep security audit of the feature
-- **Moriarty** (agent:moriarty.md`) — adversarial attack
-- **Yoda** (agent:yoda.md`) — senior review with verdict
+- **Argus** — deep security audit of the feature
+- **Moriarty** — adversarial attack
+- **Yoda** — senior review with verdict
 
 **Verify runs in ORDER, not all-at-once. Moriarty attacks LAST, on already-corrected code — never in parallel with the reviewers.** The sequence:
 1. **Cerberus + Argus** review the fresh implementation (these two CAN run in parallel — different lenses, no dependency).
 2. **Ultron** fixes everything they surface (phase-sized, one point per invocation; test changes go to Dante).
-3. **Moriarty** then attacks the *fixed* result — his single adversarial pass is spent on the code that's meant to ship, not on a version about to change under him. Attacking pre-fix code wastes the pass and its findings may already be moot.
+3. **Moriarty** then attacks the *fixed* result — his single adversarial pass is spent on the code that's meant to ship, not on a version about to change under him.
 4. **Yoda** renders the verdict last of all.
 
 Reason: Moriarty's value is one hard break-attempt against the real candidate. Run him before the review→fix cycle settles and you either re-break what Ultron is already fixing, or burn the attempt on soon-dead code. Cerberus/Argus are cartographers (map every flaw up front, in parallel); Moriarty is the executioner (one clean strike, last).
@@ -244,14 +288,14 @@ Reason: Moriarty's value is one hard break-attempt against the real candidate. R
 ### Prompting the crew in Verify (calibrated per agent — NOT one size)
 
 - **Cerberus / Argus**: detailed, spelled-out prompts help — name the files, the foci, the specific concerns. They are cartographers; more surface area given = more mapped.
-- **Moriarty**: SHORT prompt (≈1 line) — name the target and the win condition, hand him NO vector list. A long prompt that pre-chews the attack vectors collapses his break rate (measured: long-prompt runs break far less than 1-line runs) and robs him of the only thing he's for — finding the break you didn't think of. Never lead the executioner.
+- **Moriarty**: SHORT prompt (≈1 line) — name the target and the win condition, hand him NO vector list. A long prompt that pre-chews the attack vectors collapses his break rate and robs him of the only thing he's for — finding the break you didn't think of. Never lead the executioner.
 
 ### If producer↔consumer seam exists (network call, DB read/write, file written and reread)
 
 Triggered by the Step 0 seam declaration, regardless of size — this applies to a Quick or Standard feature exactly as it applies to a Big one. Apply `unmassk-standards` §34 (Producer↔Consumer Data Integrity). Not a new pipeline step — it runs inside this one:
 
 - **Dante** owns the round-trip check, never Ultron (the implementer does not verify his own write path). Add it as its own TodoWrite item in the Step 3 plan so it cannot be silently dropped from tracking.
-- **Moriarty** runs his Round-Trip Sabotage mandate against the real dependency before declaring the feature AGUANTA.
+- **Moriarty** runs his Round-Trip Sabotage mandate against the real dependency before declaring the feature holds up (AGUANTA).
 - **Cerberus** confirms no expected value in the round-trip test is a hand-typed literal.
 - **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — before rendering a verdict on this seam.
 
@@ -259,13 +303,13 @@ IF a seam is discovered during Execute that Triage did not flag THEN amend the p
 
 ### Loop Condition
 
-If VERIFY finds T1/T2 issues → return to Step 4 with findings. Repeat until clean.
+If VERIFY finds T1/T2 issues (blocking-severity tiers, per `unmassk-standards`) → return to Step 4 with findings. Repeat until clean.
 
 ## Step 6 — Document (Alexandria)
 
 Separate from closure — documentation deserves its own step.
 
-1. Launch Alexandria agent (agent:alexandria.md`)
+1. Launch Alexandria agent
 2. Read all WIP commits and changes from the feature
 3. **Document the new capability for ALL THREE audiences** (deliberate duplication — see `unmassk-core` "Documentation discipline"): humans (`README.md` / `docs/`), us (roadmap + git-memory), and Claude at load (the relevant `SKILL.md` / `CLAUDE.md`). A feature documented in only one surface is half-shipped.
 4. Update module CLAUDE.md if patterns changed
@@ -276,7 +320,7 @@ Separate from closure — documentation deserves its own step.
 
 Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 
-**MANDATORY pre-merge gate:** Run FULL test suite (`cd backend && npx vitest run`) — not just the feature tests. If any test that passed before the feature started now fails, the feature introduced a regression. Fix before merging.
+**MANDATORY pre-merge gate — run the project's OWN full test suite.** Resolve the test command from the project profile (see "Project profile" above); if none is declared, detect it from the repo (`package.json` test script, `pytest`, `go test ./...`, `cargo test`, a `Makefile` target, …) and record it. Run the WHOLE suite, not just the feature's tests. If any test that passed before the feature started now fails, the feature introduced a regression — fix before merging. **Never hardcode a runner and never skip this gate; if you truly cannot find a test command, stop and ask the user.**
 
 Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branches on it:
 
@@ -299,14 +343,15 @@ Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branche
 
 | Step | Agent | Parallel? | Gate |
 | ---- | ----- | --------- | ---- |
-| 0 | ORCHESTRATOR | - | Triage classification |
+| — | ORCHESTRATOR | - | One feature in flight: previous closed before this starts |
+| 0 | ORCHESTRATOR | - | Triage classification + seam declaration |
 | 1 | ORCHESTRATOR + User | No | Gray areas resolved + build mode decided |
 | 2 | Bilbo | No | Research complete |
 | 3 | ORCHESTRATOR | No | Plan written + checked |
 | 4 | Ultron (+ Dante), forked by build mode | Waves | All tasks complete |
 | 5 | Cerberus (+ Argus, Moriarty, Yoda) | Depends | VERIFY passes |
 | 6 | Alexandria | No | Docs updated |
-| 7 | ORCHESTRATOR | - | Merged + closed |
+| 7 | ORCHESTRATOR | - | Project's own suite green + merged + closed |
 
 ## Recovery Paths
 
@@ -317,8 +362,10 @@ Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branche
 | PLAN: checker finds gaps | Amend plan before executing |
 | EXECUTE: Ultron stuck (3 fails) | House diagnoses, amend plan |
 | EXECUTE: deviation invalidates future task | Ultron STOPS, orchestrator amends plan |
+| EXECUTE: Ultron needs a test change for GREEN | Ultron STOPS, orchestrator routes the change to Dante (never lets Ultron touch the test) |
 | EXECUTE: user abandons mid-feature | WIP commit current state, context commit with Next trailer for future session |
 | VERIFY: T1/T2 findings | Return to EXECUTE with findings |
 | VERIFY: Yoda NOT READY | Return to EXECUTE with concerns |
+| CLOSE: no test command found | STOP, ask the user — do not skip the pre-merge gate |
 | CLOSE: merge conflict | Resolve or escalate, re-run VERIFY after resolution |
 | CLOSE: merge fails completely | Do NOT force push, escalate to user |

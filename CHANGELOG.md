@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`unmassk-flow` reworked so the pipeline survives being run in a non-toolkit project** (#70): the Step 7 pre-merge gate no longer hardcodes `cd backend && npx vitest run` (which broke in any non-Node repo). Flow now resolves the project's own test command — read from the profile, else detected from the repo (`pytest`, `go test`, `cargo test`, a `Makefile` target…), else it stops and asks. Crucially, the resolved command is **written to `.claude/git-memory-config.json` (`test_command`), which the existing `stop-dod-gate` hook runs automatically** — turning "run the tests" from prose into a real gate; `unmassk-project-lifecycle` now records it at project start. Also added: a "who NEVER does what" lane table inside Flow (Ultron never tests, Dante never investigates), a one-feature-in-flight gate expressed as a real `git`/`grep` check rather than a reminder, tightened deviation rules (no speculative "auto-add infrastructure"), a fix to the Quick-triage vs Dante contradiction, and inline glosses for jargon a fresh reader wouldn't know. Reviewed by a 5-advisor council; the design was verified against the actual DoD-gate mechanism before landing.
+
 ## [1.19.12] - 2026-07-12
 
 ### Changed
