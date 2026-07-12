@@ -55,7 +55,14 @@ def _semver_key(version: str) -> tuple:
     else:
         ids = pre.split(".")
         pre_key = (0,) + tuple(
-            (0, int(ident)) if ident.isdigit() else (1, ident)
+            # Issue #58: str.isdigit() accepts non-ASCII Unicode digits
+            # (e.g. full-width '１２３') that int() also happily parses,
+            # so a non-ASCII "numeric-looking" identifier would take the
+            # numeric branch instead of the alphanumeric one, producing an
+            # incorrect semver pre-release comparison order. Defense in
+            # depth (no behavior change for valid ASCII input): only take
+            # the numeric branch for genuine ASCII digits.
+            (0, int(ident)) if ident.isascii() and ident.isdigit() else (1, ident)
             for ident in ids
         )
 

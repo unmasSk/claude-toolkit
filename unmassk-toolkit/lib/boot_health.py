@@ -229,6 +229,11 @@ def check_version_mismatch() -> str | None:
     Returns warning string if mismatch, None if OK or can't check.
     """
     from git_helpers import run_git, verify_path_within_project
+    # Issue #64: deferred for the same reason git_helpers is above (see this
+    # module's docstring) -- upgrade_check.py is a real, stably-named module
+    # whose own module-level `from version import VERSION as PLUGIN_VERSION`
+    # must not risk running during a test's temporary stub window.
+    from upgrade_check import _parse_semver
 
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
@@ -255,13 +260,26 @@ def check_version_mismatch() -> str | None:
         with open_no_follow_symlink(manifest_path, "r") as f:
             manifest = json.load(f)
         installed = manifest.get("version", "")
-        if installed and installed != PLUGIN_VERSION:
-            # SEC-CRIT-NEW-04: the manifest's "version" field is not
-            # trusted content — sanitize it the same way Decision/Memo/
-            # Remember values already are before embedding it in the
-            # STATUS section's upgrade-suggestion line.
-            safe_installed = _sanitize_trailer_value(str(installed))
-            return f"Plugin v{PLUGIN_VERSION} available (installed: v{safe_installed}). Suggest /plugin update"
+        # Issue #64: raw string inequality (`installed != PLUGIN_VERSION`)
+        # suggested an update even when the installed version was actually
+        # NEWER than the code (confirmed PoC: manifest "9.9.9" vs code
+        # "1.19.4" still produced an upgrade suggestion, backwards). Reuse
+        # the same numeric semver comparator upgrade_check.needs_upgrade()
+        # already trusts for its own Check 2 (`manifest_tuple < code_tuple`)
+        # instead of writing a second hand-rolled parser -- one source of
+        # truth for "is the code genuinely newer than what's installed".
+        # Fail-safe: an unparseable version on either side suppresses the
+        # warning, same discipline as the rest of this function.
+        if installed:
+            installed_tuple = _parse_semver(installed)
+            code_tuple = _parse_semver(PLUGIN_VERSION)
+            if installed_tuple is not None and code_tuple is not None and installed_tuple < code_tuple:
+                # SEC-CRIT-NEW-04: the manifest's "version" field is not
+                # trusted content — sanitize it the same way Decision/Memo/
+                # Remember values already are before embedding it in the
+                # STATUS section's upgrade-suggestion line.
+                safe_installed = _sanitize_trailer_value(str(installed))
+                return f"Plugin v{PLUGIN_VERSION} available (installed: v{safe_installed}). Suggest /plugin update"
         return None
     except Exception:
         # SEC-T1-001 (Argus, issue #63): a maliciously deep-nested manifest
