@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.12] - 2026-07-12
+
 ### Changed
 
 - **`unmassk-flow-stack` renamed to `unmassk-scaffolding`.** The skill had nothing to do with the Flow pipeline — it's the new-project scaffolding wizard (pick a stack, generate the project) — but sharing "flow" in the name conflated the two. Renamed the skill directory, its frontmatter `name`, the routing references in `unmassk-core` and `unmassk-project-lifecycle`, the CLAUDE.md protocol-menu generator, and the `skill_router.py` trigger key (which surfaces the name to the orchestrator every message). Git history keeps the old name; recover it from there if needed.
