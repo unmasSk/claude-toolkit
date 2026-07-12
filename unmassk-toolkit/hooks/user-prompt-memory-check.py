@@ -103,8 +103,19 @@ def _read_prompt_text() -> str | None:
         return None
 
 
+_BANNER = (
+    "╔═══════════════════════════════╗\n"
+    "║  DON'T FORGET — NOT YAPPING   ║\n"
+    "╚═══════════════════════════════╝"
+)
+
+
 def main() -> None:
     """Print hook output for Claude to process."""
+    # Banner — unconditional, first line of stdout on every exit path
+    # (needs_install, not-a-git-repo, normal flow). Static text, cannot fail.
+    print(_BANNER)
+
     # ── Read prompt from stdin (fail-open: any error → None) ─────────────
     prompt_text = _read_prompt_text()
 
