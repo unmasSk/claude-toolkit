@@ -193,3 +193,66 @@ than consolidated away. General lesson: when a hook grows a second
 independent injection signal, audit EVERY pre-existing "no injection"
 assertion in the file for the same host-corpus leak, not just the tests
 written for the new signal.
+
+## Multi-skill selection reconciliation (2026-07-12)
+
+The gate expanded again: `_find_gate_skills()` now selects ALL results
+`score >= _SKILL_CONFIDENT` (5.0), falls back to the single top result only
+if none clear that bar (`score >= _SKILL_SCORE_THRESHOLD`, 1.5), sorts
+desc, caps to `_SKILL_MAX` (3); `_build_skill_gate_message()` switches to a
+plural Spanish header/footer ("los siguientes bloques" / "estos bloques
+delante") whenever more than one block is selected. All 59 pre-existing
+tests stayed GREEN unmodified against the new hook — every one of them only
+ever planted a single confident fixture, which is still exactly "1 block,
+singular header" under the new selection logic, so nothing broke. Added 3
+new acceptance tests (62 total) plus strengthened the one pre-existing
+single-fixture deny test with explicit block-count/header assertions it
+previously lacked.
+
+**Controlling BM25 score deterministically via document length, not just
+term frequency — used to hit the [1.5, 5.0) fallback band.** Raising a
+fixture's score is easy (repeat the trigger word in the `triggers` column —
+`reps` param added to `_write_gate_skill_fixture`, verified empirically:
+reps 1/2/3/4 on 4 co-planted fixtures queried together gave real, strictly
+distinct scores 6.3/6.8/7.0/7.2). LOWERING a fixture below `_SKILL_CONFIDENT`
+while staying above `_SKILL_SCORE_THRESHOLD` needed the opposite BM25 lever:
+padding the SAME document with ~60 unrelated filler tokens
+(`fillerword0..59`) in the `triggers` column. BM25's own length
+normalisation (`doc_len/avgdl` term in the denominator) then pulls the
+score down for the same single trigger occurrence — verified empirically:
+one mention scored 5.2 (already confident) undiluted, 2.6 (comfortably in
+the fallback band) once diluted. New helper:
+`_write_diluted_gate_skill_fixture()`. This is a real BM25 property, not a
+fabricated number — the score is still read from a live subprocess call
+per Key technique 2, never hand-typed.
+
+**Distinct real scores made ordering assertions provable without ties.**
+For the 2-skill and cap-to-3 tests, deliberately giving each fixture a
+different `reps` (hence a different real score) avoids relying on BM25's
+tie-breaking behavior (stable sort on equal float scores, which follows
+filesystem rglob discovery order — untested and not worth depending on).
+Every "must appear before" assertion in the new tests compares `reason.find()`
+indices between two GENUINELY different real scores, not equal ones.
+
+**Cap-to-3 test derives "excluded" from the real result set, not from
+which fixtures were planted.** `excluded = ranked[SKILL_MAX:]` where
+`ranked` is sorted from the REAL subprocess response (host corpus skills
+included) — if the host's own corpus ever contributed a 5th confident
+result ranking above one of the 4 planted fixtures, the test would still
+correctly assert against whichever 3 the real hook actually kept, rather
+than hard-asserting "the 4 planted fixtures, 3 of them." Test prerequisite
+assertions (`len(confident) >= 4`, `expected_names <= confident_names`)
+fail loud with the full real result list if the host corpus doesn't behave
+as expected — same fail-loud-not-silent pattern as the rest of this file.
+
+**Mutation-checked all 3 new tests against the hook directly (not just read
+the code).** Three temporary `sed` edits to `pre-task-recall.py`
+(`_SKILL_CONFIDENT=999`, `_SKILL_MAX=1`, `plural=False`), each re-run only
+against the affected test classes, each correctly failed the new tests for
+the right reason (prerequisite assertion or plural-header assertion), then
+reverted via a pre-edit `cp` backup and verified with `diff` before
+finishing — confirms none of the 3 new tests are vacuously green. Did NOT
+touch the hook file in the final state (task explicitly forbade it); the
+hook's underlying multi-skill implementation was already present
+uncommitted in the working tree at session start (part of decision
+863bd54's work), not something this session wrote.

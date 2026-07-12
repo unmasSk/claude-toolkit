@@ -8,10 +8,10 @@ Intercepts calls that spawn a subagent (the live payload uses tool_name
 workers, two things happen in order:
 
 1. Skill gate (issue #68): if the prompt doesn't already carry the domain
-   skill marker and a domain skill scores >= _SKILL_SCORE_THRESHOLD against
-   the prompt, the spawn is DENIED with instructions to re-invoke with the
-   skill block pasted at the top of the prompt. This is the only case where
-   this hook denies.
+   skill marker and one or more domain skills clear the gate threshold (see
+   _find_gate_skills), the spawn is DENIED with instructions to re-invoke
+   with the skill block(s) pasted at the top of the prompt. This is the
+   only case where this hook denies.
 2. Memory injection: when the spawn is allowed (no gate-worthy skill match,
    or the marker is already present), a relevant recall block is appended to
    the prompt as a clearly delimited footer, when one exists.
@@ -95,6 +95,14 @@ _SKILL_MARKER: str = "[DOMAIN SKILL —"
 # Same threshold as skill-search.py's own LOW_SCORE_THRESHOLD: below this,
 # the match isn't confident enough to gate on.
 _SKILL_SCORE_THRESHOLD: float = 1.5
+
+# Any result at or above this score is confident enough to be gated on
+# alongside others (multi-skill injection), not just the single top result.
+_SKILL_CONFIDENT: float = 5.0
+
+# Hard cap on how many skill blocks a single deny can list, even if more
+# results clear _SKILL_CONFIDENT — keeps the reinvoke prompt bounded.
+_SKILL_MAX: int = 3
 
 # Subprocess timeout for the skill search — must not be able to hang a spawn.
 _SKILL_SEARCH_TIMEOUT: float = 6.0
@@ -189,22 +197,30 @@ def _build_prompt(original_prompt: str, memory_block: str) -> str:
 
 # ── Skill gate helpers ───────────────────────────────────────────────────
 
-def _find_top_skill(prompt: str) -> tuple[dict | None, str | None]:
-    """Run skill-search.py against the prompt and return its top result.
+def _find_gate_skills(prompt: str) -> tuple[list[dict], str | None]:
+    """Run skill-search.py against the prompt and select the skill set to gate on.
 
-    Returns (top_result, None) on a clean match, (None, None) when the
-    search ran fine but found nothing (or scored zero), or (None, error_str)
-    when the search itself failed for any reason. The error_str form is what
-    the caller uses to distinguish "no match" from "search broke" in the
-    stderr breadcrumb — both are fail-open (never deny), but the message
-    differs.
+    Selection:
+    - All results with score >= _SKILL_CONFIDENT are taken (a project may
+      legitimately need more than one domain skill for a single task).
+    - If none reach _SKILL_CONFIDENT, fall back to the single top result,
+      but only if its score >= _SKILL_SCORE_THRESHOLD.
+    - The resulting set is sorted by score descending and capped to
+      _SKILL_MAX entries.
+
+    Returns (skills, None) on a clean run — skills is [] when nothing
+    cleared the threshold (this is "allow", not a failure) — or ([],
+    error_str) when the search itself failed for any reason. The error_str
+    form is what the caller uses to distinguish "no match" from "search
+    broke" in the stderr breadcrumb — both are fail-open (never deny), but
+    the message differs.
 
     Never raises: every failure mode (missing script, non-zero exit,
     timeout, malformed JSON, unexpected shape) is caught here.
     """
     try:
         if not _SKILL_SEARCH_SCRIPT.exists():
-            return None, f"script not found: {_SKILL_SEARCH_SCRIPT}"
+            return [], f"script not found: {_SKILL_SEARCH_SCRIPT}"
 
         result = subprocess.run(
             ["python3", str(_SKILL_SEARCH_SCRIPT), prompt, "--json"],
@@ -215,39 +231,60 @@ def _find_top_skill(prompt: str) -> tuple[dict | None, str | None]:
             timeout=_SKILL_SEARCH_TIMEOUT,
         )
         if result.returncode != 0:
-            return None, f"exit {result.returncode}: {(result.stderr or '').strip()[:200]}"
+            return [], f"exit {result.returncode}: {(result.stderr or '').strip()[:200]}"
 
         data = json.loads(result.stdout)
         results = data.get("results") or []
         if not results:
-            return None, None
+            return [], None
 
-        top = results[0]
-        if not isinstance(top, dict) or "score" not in top or "name" not in top:
-            return None, "malformed top result"
+        valid = [r for r in results if isinstance(r, dict) and "score" in r and "name" in r]
+        if not valid:
+            return [], "malformed results"
 
-        return top, None
+        confident = [r for r in valid if r.get("score", 0) >= _SKILL_CONFIDENT]
+        if confident:
+            selected = confident
+        else:
+            top = valid[0]
+            selected = [top] if top.get("score", 0) >= _SKILL_SCORE_THRESHOLD else []
+
+        selected.sort(key=lambda r: r.get("score", 0), reverse=True)
+        return selected[:_SKILL_MAX], None
 
     except subprocess.TimeoutExpired:
-        return None, f"timeout after {_SKILL_SEARCH_TIMEOUT}s"
+        return [], f"timeout after {_SKILL_SEARCH_TIMEOUT}s"
     except json.JSONDecodeError as exc:
-        return None, f"malformed JSON: {exc}"
+        return [], f"malformed JSON: {exc}"
     except Exception as exc:  # noqa: BLE001 — fail-open, any error must not deny
-        return None, f"{type(exc).__name__}: {exc}"
+        return [], f"{type(exc).__name__}: {exc}"
 
 
-def _build_skill_gate_message(name: str, score: float, skill_md: str) -> str:
-    """Build the deny reason instructing the orchestrator to retry with the skill block."""
-    return (
-        "⛔ SKILL GATE: antes de lanzar este agente, pega el siguiente bloque AL "
-        "PRINCIPIO de su prompt y reinvoca el agente (mismo subagent_type, mismo "
-        "prompt + este bloque delante):\n\n"
-        "[DOMAIN SKILL — auto-selected for this task]\n"
-        f"Skill: {name} (score {score:.1f})\n"
-        f"Path: {skill_md}\n"
-        "ACTION: Read this SKILL.md now before starting; it may point to "
-        "scripts/references you must use."
+def _build_skill_gate_message(skills: list[dict]) -> str:
+    """Build the deny reason instructing the orchestrator to retry with the skill block(s).
+
+    One [DOMAIN SKILL — ...] block per selected skill, highest score first
+    (skills is expected pre-sorted by the caller). The instruction header
+    switches to plural when there's more than one block.
+    """
+    plural = len(skills) > 1
+    intro = (
+        "⛔ SKILL GATE: antes de lanzar este agente, pega "
+        + ("los siguientes bloques" if plural else "el siguiente bloque")
+        + " AL PRINCIPIO de su prompt y reinvoca el agente (mismo subagent_type, mismo "
+        "prompt + " + ("estos bloques delante):\n\n" if plural else "este bloque delante):\n\n")
     )
+    blocks = [
+        (
+            "[DOMAIN SKILL — auto-selected for this task]\n"
+            f"Skill: {skill.get('name', '')} (score {skill.get('score', 0):.1f})\n"
+            f"Path: {skill.get('skill_md', '')}\n"
+            "ACTION: Read this SKILL.md now before starting; it may point to "
+            "scripts/references you must use."
+        )
+        for skill in skills
+    ]
+    return intro + "\n\n".join(blocks)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -288,15 +325,13 @@ def main() -> None:
             if _SKILL_MARKER in prompt:
                 sys.stderr.write("skill gate: allow (marcador presente)\n")
             else:
-                top, err = _find_top_skill(prompt)
+                skills, err = _find_gate_skills(prompt)
                 if err is not None:
                     sys.stderr.write(f"skill gate: fail-open {err}\n")
-                elif top is not None and top.get("score", 0) >= _SKILL_SCORE_THRESHOLD:
-                    name = top.get("name", "")
-                    score = top.get("score", 0)
-                    skill_md = top.get("skill_md", "")
-                    sys.stderr.write(f"skill gate: deny {name} {score}\n")
-                    _deny(_build_skill_gate_message(name, score, skill_md))
+                elif skills:
+                    names = ", ".join(s.get("name", "") for s in skills)
+                    sys.stderr.write(f"skill gate: deny {len(skills)} skills: {names}\n")
+                    _deny(_build_skill_gate_message(skills))
                     return
                 else:
                     sys.stderr.write("skill gate: allow (no match)\n")

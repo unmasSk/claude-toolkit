@@ -1261,6 +1261,8 @@ _skill_gate_hook_spec.loader.exec_module(_skill_gate_hook_mod)
 
 SKILL_MARKER = _skill_gate_hook_mod._SKILL_MARKER
 SKILL_SCORE_THRESHOLD = _skill_gate_hook_mod._SKILL_SCORE_THRESHOLD
+SKILL_CONFIDENT = _skill_gate_hook_mod._SKILL_CONFIDENT
+SKILL_MAX = _skill_gate_hook_mod._SKILL_MAX
 
 # Nonce vocabulary for the fixture skill — deliberately not real English, so
 # it can only ever match via the fixture itself, never by accidental overlap
@@ -1268,8 +1270,13 @@ SKILL_SCORE_THRESHOLD = _skill_gate_hook_mod._SKILL_SCORE_THRESHOLD
 _GATE_TRIGGER = "zzzqrxgatefixturetrigger882"
 _GATE_FIXTURE_SKILL_NAME = "unmassk-test-gate-skill"
 
+# Fallback-band fixture (score in [SKILL_SCORE_THRESHOLD, SKILL_CONFIDENT)) —
+# see _write_diluted_gate_skill_fixture.
+_FALLBACK_TRIGGER = "zzzqrxfallbacktrigger339"
+_FALLBACK_FIXTURE_SKILL_NAME = "unmassk-test-fallback-skill"
 
-def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger=_GATE_TRIGGER):
+
+def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger=_GATE_TRIGGER, reps=1):
     """Write a real .skillcat + colocated SKILL.md INSIDE the temp repo.
 
     Discovered by the real skill-search.py via its own find_git_root() ->
@@ -1277,16 +1284,24 @@ def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger
     whatever real skills happen to be installed on the host running these
     tests. Not git-tracked; skill discovery is filesystem-based, not git
     state.
+
+    `reps` repeats the trigger term in the `triggers` column (BM25 term
+    frequency knob) — used by the multi-skill tests to force distinct,
+    strictly-ordered scores across several confident fixtures planted in the
+    same repo. `reps=1` (the default) reproduces the exact byte output every
+    pre-existing single-fixture test already relies on.
     """
     skill_dir = os.path.join(repo, "fixture_skills", skill_name)
     os.makedirs(skill_dir, exist_ok=True)
+
+    trig_field = " ".join([trigger] * reps) + " domain trigger fixture"
 
     skillcat_path = os.path.join(skill_dir, f"{skill_name}.skillcat")
     with open(skillcat_path, "w", encoding="utf-8", newline="") as f:
         f.write("name,plugin,triggers,domains,frameworks,tools\n")
         f.write(
-            '{},{},"{} domain trigger fixture","{} domain",none,none\n'.format(
-                skill_name, "unmassk-test-plugin", trigger, trigger
+            '{},{},"{}","{} domain",none,none\n'.format(
+                skill_name, "unmassk-test-plugin", trig_field, trigger
             )
         )
 
@@ -1303,18 +1318,67 @@ def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger
     return skill_dir, skillcat_path, skill_md_path
 
 
+def _write_diluted_gate_skill_fixture(repo, skill_name=None, trigger=None, filler_count=60):
+    """Write a fixture skill whose trigger term is diluted by filler
+    vocabulary in its `triggers` column, so its real BM25 score lands in the
+    fallback band [_SKILL_SCORE_THRESHOLD, _SKILL_CONFIDENT) instead of
+    clearing the confident bar outright — the same length-normalisation
+    effect BM25 always applies (a longer document scores lower for the same
+    term frequency), not a fabricated number. Used to exercise the "nothing
+    reaches _SKILL_CONFIDENT, but the top clears _SKILL_SCORE_THRESHOLD"
+    fallback branch of _find_gate_skills(). Every score assertion using this
+    fixture still re-derives the actual number from a live skill-search.py
+    subprocess call (§34) — the dilution only shapes which band the real
+    score falls in, it never substitutes for measuring it.
+    """
+    skill_name = skill_name or _FALLBACK_FIXTURE_SKILL_NAME
+    trigger = trigger or _FALLBACK_TRIGGER
+    skill_dir = os.path.join(repo, "fixture_skills", skill_name)
+    os.makedirs(skill_dir, exist_ok=True)
+
+    filler = " ".join(f"fillerword{i}" for i in range(filler_count))
+    skillcat_path = os.path.join(skill_dir, f"{skill_name}.skillcat")
+    with open(skillcat_path, "w", encoding="utf-8", newline="") as f:
+        f.write("name,plugin,triggers,domains,frameworks,tools\n")
+        f.write(
+            '{},{},"{} {}","none",none,none\n'.format(
+                skill_name, "unmassk-test-plugin", trigger, filler
+            )
+        )
+
+    skill_md_path = os.path.join(skill_dir, "SKILL.md")
+    with open(skill_md_path, "w", encoding="utf-8") as f:
+        f.write(
+            "---\n"
+            f"name: {skill_name}\n"
+            f"description: Diluted fixture domain skill for {trigger} testing.\n"
+            "---\n\n"
+            "# Diluted fixture skill\n\nUsed only by pre-task-recall.py's test suite.\n"
+        )
+
+    return skill_dir, skillcat_path, skill_md_path
+
+
 def _real_skill_search_top(repo, prompt):
     """Run the REAL skill-search.py as a subprocess against `repo` (so its
     own find_git_root() resolves to `repo`) and return the top parsed JSON
     result, or None if there are no results at all. Ground-truth producer
     for every score/path assertion below — never hand-typed (§34)."""
+    results = _real_skill_search_results(repo, prompt)
+    return results[0] if results else None
+
+
+def _real_skill_search_results(repo, prompt):
+    """Run the REAL skill-search.py as a subprocess against `repo` and return
+    the FULL parsed results list (not just the top). Ground-truth producer
+    for the multi-skill selection/ordering/cap assertions below — never
+    hand-typed (§34)."""
     rc, stdout, stderr = run_script(
         SKILL_SEARCH_SCRIPT, repo, extra_args=[prompt, "--json"]
     )
     assert rc == 0, f"skill-search.py must exit 0; stderr={stderr!r}"
     data = json.loads(stdout)
-    results = data.get("results") or []
-    return results[0] if results else None
+    return data.get("results") or []
 
 
 # ── In-process fail-open simulation (timeout / malformed JSON only) ───────
@@ -1397,6 +1461,18 @@ class TestSkillGateDomainMatchDenies:
             "Injected path must be the REAL skill_md path the searcher produced"
         )
         assert "skill gate: deny" in stderr, "Deny branch must leave a stderr breadcrumb"
+
+        # Multi-skill contract (issue #68 expansion): a single confident
+        # match must still produce exactly ONE block and the SINGULAR
+        # header — this is the "still correct" case the expanded selection
+        # logic must not regress.
+        assert reason.count(SKILL_MARKER) == 1, (
+            "A single confident match must produce exactly one skill block"
+        )
+        assert "el siguiente bloque" in reason, "Single-block deny must use the singular header"
+        assert "los siguientes bloques" not in reason, (
+            "Single-block deny must NOT use the plural header"
+        )
 
 
 # ── (2) Marker already present → anti-loop, no re-deny ────────────────────
@@ -1570,3 +1646,197 @@ class TestSkillGateInvariant:
         for name, decision in results.items():
             if name != "strong_match_no_marker":
                 assert decision == "allow", f"Branch {name!r} must be allow; got {decision!r}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# NEW COVERAGE: multi-skill selection contract
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The gate no longer injects only the single top result. _find_gate_skills()
+# now selects ALL results scoring >= _SKILL_CONFIDENT; if none clear that
+# bar, it falls back to the single top result if its score >=
+# _SKILL_SCORE_THRESHOLD; the resulting set is sorted by score descending
+# and capped to _SKILL_MAX. _build_skill_gate_message() switches the deny
+# header to plural whenever more than one block is selected. Every case
+# below runs the REAL skill-search.py subprocess against real,
+# filesystem-discovered fixture skills (§34.5 — no mocked searcher); no
+# score/name/path is hand-typed anywhere — every assertion re-derives its
+# expected value from a direct real invocation of the same producer
+# (_real_skill_search_top / _real_skill_search_results). Anti-loop (marker
+# present → allow) and fail-open (searcher broken → allow, never deny) are
+# NOT re-tested here: the marker check and the failure branches both run
+# BEFORE selection, so they are single, shared code paths already covered
+# by TestSkillGateMarkerAntiLoop and TestSkillGateSearcherFailsOpen above,
+# regardless of how many skills would otherwise have been selected —
+# re-testing them per skill-count would just re-exercise the same branch.
+
+# ── (7) Two independently-confident matches → 2 blocks, plural header ─────
+
+class TestSkillGateMultiSkillConfidentDenies:
+    def test_two_confident_matches_deny_with_two_blocks_plural_header(self, tmp_path):
+        """Two domain skills that BOTH independently clear _SKILL_CONFIDENT
+        for the same prompt → deny with one [DOMAIN SKILL — block per skill,
+        highest score first, and the PLURAL header/footer wording."""
+        repo = _make_repo(tmp_path)
+        trigger_a, trigger_b = "zzzqrxAAA111multiskill", "zzzqrxBBB222multiskill"
+        name_a, name_b = "unmassk-test-multi-skill-a", "unmassk-test-multi-skill-b"
+        _write_gate_skill_fixture(repo, skill_name=name_a, trigger=trigger_a, reps=1)
+        _write_gate_skill_fixture(repo, skill_name=name_b, trigger=trigger_b, reps=2)
+        prompt = f"implement the {trigger_a} {trigger_b} feature end to end"
+
+        results = _real_skill_search_results(repo, prompt)
+        confident = [r for r in results if r["score"] >= SKILL_CONFIDENT]
+        confident_names = {r["name"] for r in confident}
+        assert {name_a, name_b} <= confident_names, (
+            f"Test prerequisite: both fixtures must clear _SKILL_CONFIDENT; got {results}"
+        )
+        assert len(confident) == 2, (
+            f"Test prerequisite: exactly these two fixtures must be confident for this "
+            f"prompt (no accidental host-corpus overlap); got confident={confident}"
+        )
+        by_name = {r["name"]: r for r in results}
+        expected_order = sorted(
+            [by_name[name_a], by_name[name_b]], key=lambda r: r["score"], reverse=True
+        )
+
+        tool_input = {"subagent_type": "ultron", "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "deny"
+        assert "updatedInput" not in hso, "A deny must never carry updatedInput"
+
+        reason = hso.get("permissionDecisionReason", "")
+        assert reason.count(SKILL_MARKER) == 2, "Two confident skills must produce exactly two blocks"
+        assert "los siguientes bloques" in reason, "Two blocks must use the PLURAL header"
+        assert "estos bloques delante" in reason, "Two blocks must use the PLURAL footer wording"
+        assert "el siguiente bloque" not in reason, "Plural deny must NOT contain the singular header"
+
+        for r in expected_order:
+            assert f"Skill: {r['name']} (score {r['score']:.1f})" in reason, (
+                "Injected name/score must match the REAL searcher's output verbatim (§34)"
+            )
+            assert f"Path: {r['skill_md']}" in reason
+
+        first_idx = reason.find(f"Skill: {expected_order[0]['name']}")
+        second_idx = reason.find(f"Skill: {expected_order[1]['name']}")
+        assert first_idx != -1 and second_idx != -1 and first_idx < second_idx, (
+            "Blocks must be ordered highest score first"
+        )
+
+        assert "skill gate: deny 2 skills" in stderr, "Deny branch must leave a stderr breadcrumb"
+
+
+# ── (8) No skill reaches _SKILL_CONFIDENT, top clears the low bar → 1 block ─
+
+class TestSkillGateFallbackTopOnlyOneBlock:
+    def test_no_confident_match_but_top_clears_threshold_denies_one_block(self, tmp_path):
+        """No result clears _SKILL_CONFIDENT, but the top result clears
+        _SKILL_SCORE_THRESHOLD → the fallback-to-top-only branch fires:
+        exactly ONE block, singular header. This is the genuinely different
+        code path from TestSkillGateDomainMatchDenies (that test's fixture
+        already clears _SKILL_CONFIDENT outright — the `confident` branch,
+        not this `else: top` fallback)."""
+        repo = _make_repo(tmp_path)
+        _write_diluted_gate_skill_fixture(repo)
+        prompt = _FALLBACK_TRIGGER
+
+        results = _real_skill_search_results(repo, prompt)
+        assert results, f"Test prerequisite: at least one result expected; got {results}"
+        top = results[0]
+        assert top["name"] == _FALLBACK_FIXTURE_SKILL_NAME, (
+            f"Test prerequisite: fixture must be the top real result; got {top}"
+        )
+        assert SKILL_SCORE_THRESHOLD <= top["score"] < SKILL_CONFIDENT, (
+            f"Test prerequisite: top score must sit in the fallback band "
+            f"[{SKILL_SCORE_THRESHOLD}, {SKILL_CONFIDENT}); got {top['score']}"
+        )
+        assert all(r["score"] < SKILL_CONFIDENT for r in results), (
+            f"Test prerequisite: NO result may clear _SKILL_CONFIDENT for this prompt "
+            f"(the fallback branch only fires when the confident set is empty); got {results}"
+        )
+
+        tool_input = {"subagent_type": "ultron", "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "deny"
+
+        reason = hso.get("permissionDecisionReason", "")
+        assert reason.count(SKILL_MARKER) == 1, "Fallback branch must select exactly the top result"
+        assert "el siguiente bloque" in reason, "Single-block fallback deny must use the singular header"
+        assert "los siguientes bloques" not in reason
+        assert f"Skill: {top['name']} (score {top['score']:.1f})" in reason, (
+            "Injected name/score must match the REAL searcher's output verbatim (§34)"
+        )
+        assert f"Path: {top['skill_md']}" in reason
+
+        assert "skill gate: deny 1 skills" in stderr, "Deny branch must leave a stderr breadcrumb"
+
+
+# ── (9) More than _SKILL_MAX confident matches → capped to the top _SKILL_MAX ─
+
+class TestSkillGateCapAtThree:
+    def test_four_confident_matches_caps_to_highest_scoring_max(self, tmp_path):
+        """Four independently-confident domain skills for the same prompt →
+        the deny must list only _SKILL_MAX (3) blocks: the highest-scoring
+        ones. The lowest-scoring confident skill must be excluded entirely,
+        not just re-ordered."""
+        repo = _make_repo(tmp_path)
+        specs = [
+            ("unmassk-test-cap-a", "zzzqrxCAPAAA111", 1),
+            ("unmassk-test-cap-b", "zzzqrxCAPBBB222", 2),
+            ("unmassk-test-cap-c", "zzzqrxCAPCCC333", 3),
+            ("unmassk-test-cap-d", "zzzqrxCAPDDD444", 4),
+        ]
+        for name, trigger, reps in specs:
+            _write_gate_skill_fixture(repo, skill_name=name, trigger=trigger, reps=reps)
+        prompt = "implement the " + " ".join(t for _, t, _ in specs) + " feature end to end"
+
+        results = _real_skill_search_results(repo, prompt)
+        confident = [r for r in results if r["score"] >= SKILL_CONFIDENT]
+        confident_names = {r["name"] for r in confident}
+        expected_names = {name for name, _, _ in specs}
+        assert expected_names <= confident_names, (
+            f"Test prerequisite: all four fixtures must clear _SKILL_CONFIDENT; got {results}"
+        )
+        assert len(confident) >= 4, (
+            f"Test prerequisite: at least 4 confident results are needed to exercise the "
+            f"cap; got confident={confident}"
+        )
+        ranked = sorted(confident, key=lambda r: r["score"], reverse=True)
+        top_max = ranked[:SKILL_MAX]
+        excluded = ranked[SKILL_MAX:]
+
+        tool_input = {"subagent_type": "ultron", "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "deny"
+
+        reason = hso.get("permissionDecisionReason", "")
+        assert reason.count(SKILL_MARKER) == SKILL_MAX, (
+            f"Must cap to exactly _SKILL_MAX ({SKILL_MAX}) blocks even with "
+            f"{len(confident)} confident matches"
+        )
+        assert "los siguientes bloques" in reason, "A capped multi-block deny must use the PLURAL header"
+
+        for r in top_max:
+            assert f"Skill: {r['name']} (score {r['score']:.1f})" in reason, (
+                "Every retained top-scoring skill must appear verbatim (§34)"
+            )
+        for r in excluded:
+            assert f"Skill: {r['name']} (score {r['score']:.1f})" not in reason, (
+                f"Excluded lower-scoring skill {r['name']!r} must NOT appear in a capped deny"
+            )
+
+        indices = [reason.find(f"Skill: {r['name']}") for r in top_max]
+        assert all(i != -1 for i in indices), "Every retained skill must be found in the reason"
+        assert indices == sorted(indices), "Capped blocks must be ordered highest score first"
+
+        assert f"skill gate: deny {SKILL_MAX} skills" in stderr, (
+            "Deny branch must leave a stderr breadcrumb naming the actual selected count"
+        )
