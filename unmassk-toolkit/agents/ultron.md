@@ -213,7 +213,7 @@ Flat checklist. Run every item. If any fails: fix it or report it. Never hide a 
 
 **Toolchain:**
 - [ ] All existing tests pass (zero regressions)
-- [ ] No new type/build errors (tsc, etc.)
+- [ ] No new type/build errors — run the project's declared typecheck/build command (from the project profile / agent memory, not hardcoded)
 - [ ] No broken imports/exports (grep for removed symbols)
 
 **Security checks (these are the ones I keep skipping — run them explicitly):**
@@ -230,8 +230,8 @@ Flat checklist. Run every item. If any fails: fix it or report it. Never hide a 
 - [ ] Forced type casts have an explicit interface documenting the contract
 - [ ] No function > 50 LOC (if it is, extract a helper)
 - [ ] No file > 300 LOC (project default; override if `file-loc-limit` in agent memory)
-- [ ] All responses use the project's standard envelope format
-- [ ] Soft-delete tables: read queries include `AND active = true` (or equivalent)
+- [ ] Outputs follow the project's declared data/response contract (from the profile); if none is declared, this check is N/A — say so
+- [ ] Soft-deleted rows filtered on read per the project's declared filter (only if the project uses soft-delete)
 - [ ] Date inputs validated against real calendar (no Feb 30 etc.)
 - [ ] No new non-null assertions (!) without a prior guard demonstrable in scope
 

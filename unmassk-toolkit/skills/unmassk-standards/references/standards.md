@@ -1,1629 +1,397 @@
-# Enterprise Quality Standards
+# Quality Standards — Generic
 
 > Executable reference for AI agents. Binary rules (IF/THEN).
 > Quality test: if two AIs read the same rule, they reach the same action.
+> Stack-agnostic: applies to any language, any project. Project-specific values live in the project profile (see "Project profile"), never hardcoded here.
+
+## Threat model — the system against itself
+
+This document defends against **internal failure, not an external attacker.** The thing that breaks a project is the project breaking *itself*: memory lost or corrupted, a write that lands in the wrong place, a failure that passes silently, code that works on one OS and not another, a re-run that duplicates state.
+
+There is **no adversary** in this model. Rules about injection, exploitation, hostile input, or attacker access do **not** belong here — a project that needs them declares them in its own profile. Everything below is calibrated to: *did the system corrupt, lose, or silently mis-handle its own data/state?*
 
 ---
 
-## 1. Tier System
+## Pilar 1 — Producer↔Consumer round-trip integrity  (also cited as §34)
 
-Every rule and finding has a tier. The tier determines whether it blocks merge.
+> **Anchor:** this section is the canonical `§34` referenced by agent prompts. `§34.1` = seam classification, `§34.2` = data provenance, `§34.3` = round-trip completeness, `§34.4` = the closed checklist below. Renaming to "Pilar 1" does not remove the `§34` handle.
 
-| Tier | Scope | Blocks merge | Action |
-|------|-------|--------------|--------|
-| T1 | Security, data integrity, crashes | Yes, always | Immediate fix |
-| T2 | Error handling, testing core, structure | Yes, unless written justification | Fix before merge |
-| T3 | JSDoc, naming, cosmetics, extra coverage | No | Fix when convenient |
+The single most important rule, and the reason this is Pilar 1: **no truth is asserted against itself.**
 
-### Finding Classification by Tier
+**§34.1 — Seam classification.** A producer↔consumer seam exists wherever data is written and later read back: a file written then reread, a network call, a DB read/write, IPC, a queue, a subprocess boundary. IF the changed code (or its callees) crosses such a seam THEN this pillar applies — assumed by default, fail-closed. "No seam" may be claimed ONLY with the mechanical grep/dependency check shown, never by unaided assertion.
 
-| Finding | Tier |
-|---------|------|
-| Concatenated SQL (injection) | T1 |
-| `SELECT *` in read queries (use explicit columns) | T2 |
-| `RETURNING *` in INSERT/UPDATE (use explicit columns) | T2 |
-| Possible auth bypass | T1 |
-| Hardcoded secret | T1 |
-| Unhandled error that crashes process | T1 |
-| Critical data without validation | T1 |
-| Environment guard with blacklist (`!== 'production'`) | T1 |
-| Generic `throw new Error()` in service (use typed error classes) | T2 |
-| `as Type` cast without justification comment | T2 |
-| Dead export (no consumers in production code) | T3 |
-| Level A service function without requestId | T2 |
-| API module without happy path test | T2 |
-| File >300 LOC without split | T2 |
-| Manual validation instead of Zod | T2 |
-| `console.log` in committed code | T2 |
-| Line coverage below 97% | T3 |
-| Branch coverage below 85% | T3 |
-| Excessive JSDoc on helper | T3 |
-| Missing `performance.now()` on internal helper | T3 |
-| Unused import | T3 |
-| Naming inconsistent with project conventions | T3 |
-
-IF uncertain about tier THEN assign T2 (neither blocks everything nor gets ignored).
-
-### Execution Priority (Business Order)
-
-When multiple findings or tasks exist, execute in this order:
-
-1. **Security** -- auth bypass, SQL injection, exposed secrets, broken guards
-2. **Data integrity** -- validation, permissions, unprotected destructive operations
-3. **Critical happy paths** -- main routes functioning without crash
-4. **Structure and testing** -- typed error handling, API tests, file size limits
-5. **Cleanup** -- JSDoc, naming, imports, cosmetics
-
-IF a module has T1 security findings AND T3 JSDoc findings THEN fix security first. NEVER touch JSDoc while T1 findings remain open.
-
----
-
-## 2. Core Principles
-
-### SOLID
-
-- **Single Responsibility**: one class/method = one job
-- **Open/Closed**: open for extension, closed for modification
-- **Liskov Substitution**: subtypes must be substitutable for base types
-- **Interface Segregation**: many specific interfaces > one general
-- **Dependency Inversion**: depend on abstractions, not concretions
-
-### DRY (Don't Repeat Yourself)
-
-Extract after 2nd duplication. IF pattern repeats 3+ times THEN abstraction is mandatory.
-
-### KISS (Keep It Simple, Stupid)
-
-The simplest solution that works. IF abstraction requires 4+ config params THEN too generic -- simplify.
-
-### YAGNI (You Aren't Gonna Need It)
-
-Only implement what is needed NOW. No speculative features, no "just in case" code.
-
-### OWASP Top 10
-
-| OWASP Risk | Project Rule | Tier |
-|------------|-------------|------|
-| A03: Injection (SQL) | All queries use $1/$2 parameterized. ORDER BY with column whitelist. Zero concatenation. | T1 |
-| A01: Broken Access Control | Auth headers validated. Role hierarchy enforced. Mock headers blocked in production. | T1 |
-| A02: Cryptographic Failures | Secrets never hardcoded, always via envConfig. Redis URLs sanitized in logs. | T1 |
-| A04: Insecure Design | Environment guards use allowlist (`=== 'development'`), never blacklist (`!== 'production'`). | T1 |
-| A05: Security Misconfiguration | CORS whitelist explicit, no wildcard in production. Helmet configured. | T1 |
-| A07: Cross-Site Scripting (XSS) | No `innerHTML` with user data. | T1 |
-| A08: Software Integrity | Rate limiting applied on all endpoints. | T2 |
-| A09: Logging Failures | Generic error messages for 5xx in production. No stack traces in responses. | T2 |
-
----
-
-## 3. File Size Limits
-
-| Type | Hard limit | Sweet spot |
-|------|-----------|------------|
-| TypeScript file | 300 LOC | 200-300 |
-| Exported function/method | 50 LOC | 15-30 |
-| Internal helper function | 30 LOC | 10-20 |
-| Nesting level | 3 max | 2 |
-| Function parameters | 4 max (requestId no cuenta) | 3 (use object if more) |
-| Test file | 500 LOC | 200-400 |
-| Controller method | 50 LOC | 20-30 |
-| React component | 300 LOC | 150-200 |
-| CSS file | 800 LOC | 300-500 |
-| Cyclomatic complexity | 10 max | 5-8 |
-| Imports per service/controller | 12 max | 8-10 |
-| Imports per helper/schema | 8-10 max | 5-7 |
-| Exports per service file | 8 max (barrels exempt) | 5-6 |
-| Object options fields | 8 max | 5-6 |
-| SQL inline per query | 20 lines max | 10-15 |
-
-LOC = total lines of code (not executable-only).
-
-```
-IF file > 300 LOC THEN mandatory split (T2)
-IF file 200-300 LOC AND has 2+ responsibilities THEN recommended split
-IF file 200-300 LOC AND has 1 responsibility THEN do NOT split
-IF file < 200 LOC THEN do NOT split
-```
-
-**What is "responsibility"** (binary definition):
-IF all functions in the file need the same mocks in tests THEN 1 responsibility.
-IF different groups need different mocks THEN 2+ responsibilities.
-
----
-
-## 4. Project Context
-
-| Key | Value |
-|-----|-------|
-| Backend stack | Node.js 22+ / Express 5 / TypeScript (ESM strict) |
-| Frontend stack | React 18 / TypeScript / Vite |
-| Database | PostgreSQL 17 + PostGIS 3.3 (Supabase cloud) |
-| Cache | Upstash Redis (cloud) |
-| Validation | Zod |
-| Logging | Winston + Morgan |
-| Testing | Vitest |
-| Monitoring | Sentry |
-| Auth (dev) | Mock headers (X-Mock-User-ID, X-Mock-User-Role) |
-| Auth (prod) | JWT (pending full implementation) |
-
----
-
-## 5. Mandatory Patterns
-
-### 4.1 Service Layer: Exported Functions (NOT classes)
-
-Service functions have two levels based on caller:
-
-**Level A -- Entry point** (called directly by route handler):
-
-| Requirement | Tier if missing |
-|-------------|-----------------|
-| `requestId` as parameter | T2 |
-| `createLoggerWithContext` with requestId, service, action | T2 |
-| `performance.now()` for duration | T3 |
-| Duration log on completion | T3 |
-| Typed errors from system classes (never generic `new Error()`) | T2 (T1 if leaks sensitive info or breaks security error handler) |
-| Re-throw AppError without wrapping | T2 |
-
-**Level B -- Internal helper** (called by another service function):
-
-| Requirement | Tier if missing |
-|-------------|-----------------|
-| Typed errors if it throws | T1 |
-| requestId only if it runs queries or has its own logging | T2 |
-| Does NOT need its own logger | - |
-| Does NOT need performance.now() | - |
-
-**How to distinguish:**
-IF function appears in a route handler THEN Level A.
-IF function is called by another service function THEN Level B.
-IF uncertain THEN Level B (less ceremony > more ceremony).
-
-### 4.2 Route Handler
-
-| Requirement | Tier if missing |
-|-------------|-----------------|
-| Rate limiter applied | T2 |
-| Validation via Zod middleware (validateParams/Query/Body) | T2 |
-| `try/catch` with `next(error)` | T1 |
-| Extract requestId from typed req | T2 |
-| NEVER `res.status(4xx).json()` direct (delegate to error handler) | T2 |
-
-### 4.3 Error Handling
-
-Use ALWAYS the system error classes (`utils/errors.ts`):
-
-| Class | HTTP | Usage |
-|-------|------|-------|
-| `ValidationError` | 400 | Invalid input data |
-| `AuthenticationError` | 401 | Missing or invalid token |
-| `PermissionError` | 403 | No permissions for action |
-| `NotFoundError` | 404 | Resource not found |
-| `ConflictError` | 409 | Data conflict (unique constraint) |
-| `DatabaseError` | 500 | Database error |
-| `AppError` | variable | Generic application error |
-
-IF service throws generic `new Error()` THEN finding T2.
-IF route handler responds with `res.status().json()` directly THEN finding T2.
-
-**Exception: boot-time initialization errors**
-IF throw occurs during process initialization (before Express starts) THEN generic `new Error()` is acceptable -- `AppError` classes with HTTP status codes have no meaning outside the request lifecycle.
-
-### 4.4 Zod Validation
-
-Schemas in separate file `module.schemas.ts`. Always `.strict()`.
-
-| Rule | Tier if missing |
-|------|-----------------|
-| `.strict()` on all object schemas | T2 |
-| String-to-number transforms in params/query | T2 |
-| Export inferred types | T3 |
-| Schemas in separate file (not inline in routes) | T3 |
-
-### 4.5 SQL Queries
-
-| Rule | Tier |
-|------|------|
-| ALWAYS parameterized with $1, $2 | T1 |
-| ORDER BY with column whitelist | T1 |
-| NEVER `SELECT *` — use explicit columns. If only checking existence, use `SELECT 1` | T2 |
-| NEVER `RETURNING *` — use explicit columns in RETURNING clause | T2 |
-| PostGIS: store EPSG:4326, transform to 3857 only for MVT | T2 |
-| `&&` operator (bbox) before ST_Intersects | T2 |
-
----
-
-## 6. JSDoc Policy
-
-### What to Document
-
-| Element | JSDoc | Content |
-|---------|-------|---------|
-| Exported function with non-obvious params | Yes | 1-2 line description, @throws if applicable |
-| Exported interface/type | Yes | Brief description |
-| Non-obvious exported constant | Yes | Brief description |
-| Internal helper | No | Only if logic is non-evident |
-| Trivial getter/setter | No | Never |
-| Function whose name already says it | No | `validateParams` needs no JSDoc |
-
-### Prohibited Tags
-
-NEVER use: `@audit`, `@security`, `@module`, `@file`, `@requires`.
-NEVER use `@see` unless linking to a real external spec.
-NEVER repeat TypeScript signature in JSDoc (`@param id: number - the id` is redundant).
-
-### Tags to Remove
-
-- `@description` (first line IS the description)
-- `@param {Type}` (remove {Type}, keep `@param name - desc`)
-- `@returns {Type}` (remove {Type}, keep `@returns desc`)
-- `@returns {void}` (remove completely)
-- `@function`, `@const`, `@interface`, `@property {Type}`, `@typedef`
-- `@module`, `@file`, `@requires`, `@since`, `@see`
-- `@audit` tags (temporary, remove when fix applied)
-- File-level header blocks (remove entirely)
-- JSDoc longer than the function it documents
-
-### Tags to Keep
-
-- `@throws` with description
-- `@example` with code
-- `@summary` (no type, 1 line)
-- `@param name - description` (no type)
-- `@returns description` (no type)
-
-RULE: Maximum 4 lines of description. IF more is needed, the code is too complex -- refactor.
-IF JSDoc has more lines than the function THEN finding T3.
-
----
-
-## 7. Testing Policy
-
-### What to Test by Module Type
-
-**Security module** (auth, permissions, access middleware):
-
-| Test | Tier |
-|------|------|
-| Happy path (valid access) | T2 |
-| Missing token/header | T1 |
-| Manipulated token/header | T1 |
-| Privilege escalation (lower role, higher action) | T1 |
-| Environment guards: mock headers blocked in prod | T1 |
-
-**API module** (service + routes):
-
-| Test | Tier |
-|------|------|
-| Happy path (successful flow) | T2 |
-| Invalid input (Zod validation error) | T2 |
-| Resource not found (404) | T2 |
-| DB error (mock failed query) | T2 |
-| Insufficient permissions | T1 if sensitive data, T2 if not |
-
-**Utility module** (helpers, formatters, config):
-
-| Test | Tier |
-|------|------|
-| Happy path | T3 |
-| Input edge cases | T3 |
-
-### What NOT to Test
-
-- Getters without logic
-- Re-exports from facades
-- External library behavior (Zod, Express, Helmet)
-- Every possible parameter combination (cover boundaries, not exhaustive)
-
-### Test Quality Rules
-
-| Rule | Tier |
-|------|------|
-| AAA pattern (Arrange-Act-Assert) | T3 |
-| `vi.clearAllMocks()` in `beforeEach` | T2 |
-| Auth mock in integration: `.set('X-Mock-User-ID', '1').set('X-Mock-User-Role', 'Coordinador')` | T2 |
-| Mock logger to avoid output in tests | T3 |
-| Tautological assertions (`expect(true).toBe(true)`) | T2 -- forbidden |
-| Tests depending on execution order | T2 -- forbidden |
-| Mocks replicating production logic | T2 -- forbidden |
-
-### Singleton Reset for Tests
-
-Modules with singletons (DB pool, Redis client, cache) must export `__resetForTests()` functions.
-Prefix `__` indicates internal API for tests. NEVER call in production code.
-Only export `__reset*` if the module has mutable state (singleton, cache, global Map).
-
----
-
-## 8. Security
-
-### Critical Data Traceability (T1)
-
-For EACH critical datum that crosses the module:
-
-1. **Where is it SENT?** (origin: client, service, config)
-2. **Where is it CONSUMED?** (destination: middleware, service, route)
-3. **Who BLOCKS it?** (validation, auth, sanitization)
-
-IF no blocker exists THEN finding T1 CRITICAL.
-IF data reaches production without validation THEN finding T1 CRITICAL.
-
-Critical data = credentials, tokens, user IDs, roles, geolocation, SQL parameters.
-
-### Security Checklist
-
-| Rule | Verification | Tier |
-|------|-------------|------|
-| SQL injection | Parameterized queries ($1, $2) | T1 |
-| XSS | No innerHTML with user data | T1 |
-| Auth bypass | Mock headers blocked in prod | T1 |
-| Secrets | Zero hardcoded, all via envConfig | T1 |
-| CORS | Explicit whitelist, no wildcard in prod | T1 |
-| Environment guards | Allowlist, not blacklist | T1 |
-| Rate limiting | Applied on endpoints | T2 |
-| Errors in prod | Generic messages for 5xx | T2 |
-| Permissions | Validated in service layer | T1 |
-
-### Roles
-
-```
-Coordinador > Supervisor > Tecnico > Municipio
-```
-
-Permissions inherit downward. Municipio requires `municipio_id` validated in Zod schema.
-
-### Environment Guards
-
-```typescript
-// CORRECT: explicit allowlist
-if (envConfig.NODE_ENV === 'development' || envConfig.NODE_ENV === 'test') {
-  // development feature
-}
-
-// INCORRECT: fragile blacklist (staging, uat, prod1 slip through)
-if (envConfig.NODE_ENV !== 'production') {
-  // development feature
-}
-```
-
-RULE: Guards ALWAYS with allowlist, never blacklist (T1).
-
----
-
-## 9. Logging and Observability
-
-### Format (Level A Functions)
-
-```typescript
-import { createLoggerWithContext } from '../../config/logger.js';
-
-const contextLogger = createLoggerWithContext({
-  requestId,
-  service: 'inventario.service',
-  action: 'findById',
-});
-
-contextLogger.info('Completado', { duration: durationMs, resultCount: results.length });
-contextLogger.error('Error consultando DB', { error: error.message, duration: durationMs });
-```
-
-### Log Levels
-
-| Level | Usage | Example |
-|-------|-------|---------|
-| `error` | Non-recoverable failure | DB down, crash |
-| `warn` | Abnormal but recoverable | Rate limit, cache miss |
-| `info` | Significant operations | Request completed, tile generated |
-| `debug` | Troubleshooting detail | Params received, queries |
-
-RULE: NEVER `console.log()` or `console.error()` (T2).
-
-**Exception: boot-time logging**
-IF logging occurs before Winston is available THEN a designated `bootLogger` using `console` is acceptable. The file must document explicitly why it does not use Winston.
-
-### requestId Propagation
-
-requestId is generated in `middleware/request-id.ts` and propagated to:
-- Level A service functions (mandatory parameter)
-- Logs (via createLoggerWithContext)
-- Sentry (scope.setTag)
-- Response header (X-Request-ID)
-
-IF Level A function does not receive requestId THEN finding T2.
-IF Level B function runs queries without requestId THEN finding T2.
-
----
-
-## 10. Performance
-
-### Thresholds
-
-| Metric | Normal | Slow | Critical |
-|--------|--------|------|----------|
-| API response | <100ms | <500ms | >1000ms |
-| SQL query | <100ms | <500ms | >1000ms |
-| Tile generation | <200ms | <1000ms | >2000ms |
-
-IF endpoint consistently exceeds "slow" THEN propose optimization (T2).
-
-### PostGIS
-
-| Rule | Tier |
-|------|------|
-| GIST indexes on geometry columns used in spatial queries | T2 |
-| `&&` operator (bbox) BEFORE ST_Intersects | T2 |
-| ST_Transform at the end, not in intermediates | T2 |
-| ST_AsMVT with ST_AsMVTGeom for tiles | T2 |
-| Simplification by zoom (ST_Simplify / ST_SnapToGrid) | T3 |
-
----
-
-## 11. Decision Trees
-
-### When to Split a File
-
-```
-IF file > 300 LOC
-  THEN mandatory split (T2)
-
-IF file 200-300 LOC AND has 2+ responsibilities
-  THEN recommended split
-
-IF file 200-300 LOC AND has 1 responsibility
-  THEN do NOT split
-
-IF file < 200 LOC
-  THEN do NOT split
-```
-
-When splitting:
-- Each resulting module < 300 LOC
-- NEVER modules under 30 LOC (overhead > benefit)
-- Facade re-export ONLY if existing external consumers exist
-- NEVER extract function to own file if called only once (over-splitting)
-- IF function used from only one place THEN keep it in the consuming file
-
-### When to Extract to shared/utils
-
-```
-IF function used in 2 modules
-  THEN note, do not extract yet
-
-IF function used in 3+ modules
-  THEN mandatory extraction to utils/ or shared/
-
-IF type/interface used in 2+ modules
-  THEN move to types/
-
-IF helper specific to one module
-  THEN keep it there (do not pollute utils/)
-```
-
-### When to Create Abstraction
-
-```
-IF pattern repeats 2 times
-  THEN note the duplication, do not abstract
-
-IF pattern repeats 3+ times
-  THEN mandatory abstraction
-
-IF abstraction requires 4+ config params
-  THEN too generic, simplify
-
-IF abstraction saves <5 LOC per use
-  THEN repeated code is clearer
-```
-
-### When to Refactor vs Leave Alone
-
-```
-IF works + has tests + under limits
-  THEN do NOT touch (do not refactor for aesthetics)
-
-IF works but violates T1 rule
-  THEN mandatory fix
-
-IF works but violates T2 rule
-  THEN report, propose fix
-
-IF works but violates T3 rule
-  THEN report, optional fix
-
-IF duplication 3+
-  THEN propose abstraction with before/after
-
-IF change affects auth/permissions/data
-  THEN STOP, request confirmation
-```
-
----
-
-## 12. Dead Code Policy
-
-### Dead Exports (T3)
-
-IF an exported function, type, constant, or interface has zero consumers in production code THEN it is dead code.
-
-Rules:
-- Exports consumed ONLY in tests are NOT dead code (test infrastructure is valid)
-- Exports consumed ONLY internally in the same file SHOULD be made private (remove `export`)
-- Exports with zero consumers anywhere (not even tests) MUST be deleted
-- Before deleting, grep the entire `src/` directory (excluding `__tests__/`) to confirm zero consumers
-- Schema files (*.schemas.ts) and type files (*.types.ts) acting as barrels are exempt from the 8-export limit but dead schemas within them should still be cleaned
-
-### `as Type` Casts (T2)
-
-Every `as Type` cast MUST have a justification comment on the line above explaining WHY the cast is safe.
-
-```typescript
-// CORRECT: justified cast
-// Body validated by Zod middleware — type is guaranteed
-const data = req.body as CreateInventarioInput;
-
-// CORRECT: justified cast
-// pg returns unknown, we verify structure in formatRow
-const row = result.rows[0] as InventarioRow;
-
-// INCORRECT: unjustified cast
-const data = req.body as CreateInventarioInput;
-
-// INCORRECT: optimistic cast without guarantee
-return sanitized as T;
-```
-
-Exceptions (no comment needed):
-- `as const` (compile-time, zero runtime risk)
-- `as unknown as Type` in test mocks (test infrastructure)
-
-### `throw new Error()` Generic (T2)
-
-Production code MUST use typed error classes from the error system (`AppError`, `ValidationError`, `DatabaseError`, etc.).
-
-```
-IF throw new Error() in service/controller/middleware THEN T2 finding
-IF throw new Error() in boot-time config (before Express starts) THEN acceptable (HTTP status codes have no meaning pre-startup)
-IF throw new Error() in CLI scripts (not API code) THEN T3 (lower priority)
-```
-
-### Coverage Targets
-
-| Metric | Target | Tier if below |
-|--------|--------|---------------|
-| Line coverage | >97% | T3 |
-| Branch coverage | >85% | T3 |
-
----
-
-## 13. Anti-Patterns
-
-Real errors from existing code. Reference of what NOT to do.
-
-### 13.1 Duplicated instanceof Chain
-
-```typescript
-// ANTI-PATTERN: 10 identical blocks with instanceof
-if (err instanceof ValidationError) {
-  logger.warn(`Error: ${err.message}`, { requestId });
-  res.status(err.statusCode).json(createErrorResponse({ ... }));
-  return true;
-}
-if (err instanceof AuthenticationError) {
-  // ... identical block
-}
-
-// FIX: Map of error class to config, single handler
-const ERROR_HANDLERS = new Map<Function, { level: 'warn' | 'error' }>([
-  [ValidationError, { level: 'warn' }],
-  [AuthenticationError, { level: 'warn' }],
-]);
-
-for (const [ErrorClass, config] of ERROR_HANDLERS) {
-  if (err instanceof ErrorClass) {
-    contextLogger[config.level](`Error: ${err.message}`, { requestId });
-    res.status(err.statusCode).json(createErrorResponse({ ... }));
-    return true;
-  }
-}
-```
-
-### 13.2 JSDoc as Decoration
-
-```typescript
-// ANTI-PATTERN: more comment than code
-/**
- * @description Handles request without Origin header
- * @param {CorsOriginCallback} callback - CORS callback
- * @audit FIX-SRP-006: Extracted from createOriginValidator
- */
-export function handleNoOrigin(callback: CorsOriginCallback): void {
-
-// FIX: TypeScript already types the parameters
-/** Accepts requests without Origin (same-origin, curl, etc). */
-export function handleNoOrigin(callback: CorsOriginCallback): void {
-```
-
-### 13.3 Over-Splitting (Excessive Granularity)
-
-Split when the module has its own entity (>30 LOC, responsibility that can grow). Not by dogmatic SRP.
-
-### 13.4 Unnecessary Deep Freeze
-
-```typescript
-// ANTI-PATTERN: deepFreeze runtime for object nobody mutates
-function deepFreeze<T>(obj: T): Readonly<T> { ... } // 15 LOC
-const CONFIG = deepFreeze({ ... });
-
-// FIX: as const (compile-time, zero runtime overhead)
-const CONFIG = { ... } as const;
-```
-
-### 13.5 Duplicated validate* Functions
-
-```typescript
-// ANTI-PATTERN: 3 identical functions changing only req.body/query/params
-
-// FIX: one parameterized function
-const createValidator = (section: 'body' | 'query' | 'params') =>
-  <T extends ZodSchema>(schema: T) =>
-    (req: Request, res: Response, next: NextFunction) => {
-      try {
-        req[section] = schema.parse(req[section]);
-        next();
-      } catch (error) {
-        handleValidationError(context, error, req, res, next);
-      }
-    };
-
-export const validateBody = createValidator('body');
-export const validateQuery = createValidator('query');
-export const validateParams = createValidator('params');
-```
-
-### 13.6 Permanent @audit Tags
-
-```typescript
-// ANTI-PATTERN: audit tags as permanent documentation
-/** @audit FIX-SRP-007: Extracted from createOriginValidator */
-/** @security CRIT-CORS-001: Normalization prevents bypass */
-```
-
-Audit tags are temporary. Once the fix is applied, remove them. Git preserves history.
-
----
-
-## 13. Error Response Contract
-
-Every API error response follows the contract defined in `middleware/error.handler.types.ts`.
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `status` | `'error'` | Yes | Always the string literal `'error'` |
-| `message` | `string` | Yes | Human-readable message for consumer |
-| `requestId` | `string` | Yes | Request UUID (traceability) |
-| `error` | `string` | No | Brief technical error description |
-| `errors` | `Array<{ field, message, code? }>` | No | Zod validation error list |
-| `errorCode` | `string` | No | Internal error class code (e.g., `NOT_FOUND`) |
-| `errorId` | `string` | No | Sentry ID if error was reported |
-| `details` | `Record<string, unknown>` | No | Additional details (sanitized by environment) |
-
-**Sanitization rule**: Production shows only whitelisted fields (`validationErrors`). Dev/Test shows everything except `originalError`.
-
-IF creating a new endpoint THEN error response MUST follow this contract. NEVER build error JSON manually -- delegate to `next(error)` and the global error handler.
-
-IF error is 5xx and `NODE_ENV === 'production'` THEN message is replaced with generic text. NEVER filter `details` manually -- `safeDetailsForClient` does it automatically.
-
----
-
-## 14. Dependency Policy
-
-IF functionality can be solved in <30 LOC THEN implement it in the project. NEVER add a dependency for something trivial.
-
-| Rule | Tier |
-|------|------|
-| Dependency for trivial functionality (left-pad, isEven) | T2 |
-| Dependency without TypeScript types (nor `@types/*`) | T2 |
-| `npm install` without `--save` or `--save-dev` explicit | T3 |
-| Private fork of OSS library without justification | T2 |
-| `npm audit` with HIGH/CRITICAL vulnerabilities before merge | T2 |
-| Dependency with HIGH/CRITICAL CVE and no patch available | T1 |
-
----
-
-## 15. Environment Variables
-
-EVERY environment variable MUST be validated by `envConfig` (defined in `config/env.validator.ts`).
-
-```typescript
-// CORRECT: access via validated envConfig
-import { envConfig } from '../config/env.validator.js';
-const port = envConfig.PORT;
-
-// INCORRECT: direct access -- NEVER in application code
-const port = process.env.PORT;
-```
-
-| Rule | Tier |
-|------|------|
-| Direct `process.env` in application code (services, middleware, routes) | T2 |
-| New variable without Zod schema in `env/schema.ts` | T2 |
-| New variable without entry in `.env.example` | T3 |
-| Secret without entropy validation | T2 |
-
-**Permitted exceptions**: `config/env/*.ts` (the validator itself), `config/logger/*.ts` (terminal detection), `scripts/*.ts` (standalone CLI), `**/__tests__/*.ts` (test scenarios).
-
----
-
-## 16. Rate Limiting
-
-### Decision Tree
-
-```
-IF auth endpoint (login, register)
-  THEN windowMs = 5 min, max = 5 req/window
-
-IF password reset endpoint
-  THEN windowMs = 1 hour, max = 3 req/window
-
-IF tiles / high-frequency endpoint (zoom, pan)
-  THEN windowMs = 5 min, max = 500 req/window
-
-IF general API endpoint (CRUD, queries)
-  THEN use defaults: windowMs = 15 min, max = 100 (prod) / 1000 (dev)
-
-IF critical/destructive operations (bulk DELETE, bulk UPDATE)
-  THEN windowMs = 5 min, max = 50 req/window (STRICT)
-```
-
-| Rule | Tier |
-|------|------|
-| New endpoint without rate limiter | T2 |
-| Auth endpoint without strict rate limiter | T1 |
-| Custom limit with magic numbers (use `RATE_LIMIT_CONFIG` constants) | T2 |
-
-### Behavior by Environment
-
-| Environment | Effect |
-|-------------|--------|
-| `test` | Rate limiting disabled |
-| `development` | Private/local IPs exempt; high limit (1000 req) |
-| `production` | Strict limits; all IPs controlled |
-
----
-
-## 17. Cache Strategy (Redis)
-
-IF cache is needed in a new module THEN use `saveToCache()` / `getFromCache()` from `services/cache.service.ts`. NEVER call `getRedisClient().set()` directly.
-
-### Key Naming Convention
-
-Pattern: `{domain}:{entity-or-operation}:{specific-identifiers}`
-
-IF new key does not follow `domain:entity:id` pattern THEN finding T3.
-IF key contains sensitive data (tokens, passwords) THEN finding T1.
-
-### TTL Guidelines
-
-```
-CACHE:
-  IF reference data that changes rarely (municipios, layers, catastro) THEN long cache (1h-7d)
-  IF expensive geospatial operations (tiles, buffer, intersect) THEN medium cache (15min-24h)
-  IF search results / nearby THEN short cache (5-15min)
-  IF user permissions THEN medium cache (30min-1h)
-
-DO NOT CACHE:
-  IF write operation (POST, PUT, DELETE) THEN NEVER cache response
-  IF sensitive data (tokens, credentials) THEN NEVER in Redis
-  IF data that changes every request (timestamps, counters) THEN pointless
-```
-
-### Fail-Open Pattern
-
-Cache service implements fail-open: if Redis is unavailable, a warning is logged and execution continues without cache. A Redis failure must NOT bring down the API.
-
-| Rule | Tier |
-|------|------|
-| Fail-open: if Redis fails, main operation must NOT fail | T2 |
-| NEVER `flushdb()` in production | T1 |
-| Custom TTL with inline magic number | T3 (use constant if repeated 2+ times) |
-| Cache of sensitive data in Redis | T1 |
-| Read endpoint without cache when operation is costly (>200ms) | T3 |
-
----
-
-## 18. Naming Conventions
-
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Variables/functions | camelCase | `getUserById` |
-| Classes/interfaces/types | PascalCase | `AuthUser`, `TileParams` |
-| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES` |
-| Module files | kebab-case | `error-handler.middleware.ts` |
-| Test files | `*.test.ts` | `tiles.service.test.ts` |
-| Directories | kebab-case | `query-executor/` |
-| Zod schemas | PascalCase + Schema | `TileParamsSchema` |
-| Zod types | PascalCase + Input/Output | `CreateInventarioInput` |
-
-### Language in Code
-
-| Element | Language |
-|---------|----------|
-| Comments and JSDoc | Match the project's existing convention |
-| Variable/function names | English (camelCase) |
-| User-facing error messages | Match the project's existing convention |
-| Log messages | Match the project's existing convention |
-| TODO/FIXME/STUB | Match the project's existing convention |
-
-RULE: comments, user-facing error messages, log messages, and TODO/FIXME/STUB follow whatever language the project's existing codebase already uses — check existing comments/messages before writing new ones. If greenfield with no existing convention, default to English (the common baseline for shared/multi-contributor code) unless the user explicitly states a different project language. Identifiers (variable/function/class names) are always in English (camelCase) regardless of comment language — this is a near-universal industry convention independent of natural language. Do not mix languages arbitrarily within the same file; follow the detected convention consistently. Violation = T3.
-
----
-
-## 19. Code Format
-
-| Rule | Value |
-|------|-------|
-| Semicolons | Required |
-| Quotes | Single |
-| Indentation | 2 spaces |
-| Max line length | 100 characters |
-| Trailing commas | Required in multiline |
-| Imports | Grouped: 1) external, 2) internal |
-| Relative imports | ALWAYS with `.js` extension (ESM requirement) |
-| Type-only imports | Use `import type` when import is used only as type |
-
----
-
-## 20. Existing Infrastructure (DO NOT Duplicate)
-
-| Feature | Location | API |
-|---------|----------|-----|
-| Zod validation | `middleware/validation.middleware.ts` | `validateParams()`, `validateQuery()`, `validateBody()` |
-| Rate limiting | `middleware/rate-limit.middleware.ts` | `getRateLimitMiddleware()`, `RATE_LIMIT_CONFIG` |
-| Error handling | `middleware/error.handler.middleware.ts` | Global centralized middleware |
-| Request ID | `middleware/request-id.ts` | UUID per request, `X-Request-ID` header |
-| Logging | `config/logger.ts` | `createLoggerWithContext()` |
-| Database | `config/database.ts` | `query()` parameterized |
-| Redis | `config/redis.ts` | `getRedisClient()` |
-| Error classes | `utils/errors.ts` | `DatabaseError`, `ValidationError`, `PermissionError`, etc. |
-
-IF a function already exists in this table THEN use it. NEVER create a custom version.
-
----
-
-## 21. Reference Model Files
-
-These files represent the target quality level. Copy structure for new modules.
-
-| File | Why it is a model |
-|------|-------------------|
-| `backend/src/api/tiles/tiles.service.ts` | Service with metrics, logging, error handling |
-| `backend/src/api/tiles/tiles.schemas.ts` | Zod with string-to-number transform, exported types |
-| `backend/src/api/tiles/tiles.routes.ts` | Routes with rate limiting, validation, OpenAPI |
-| `backend/src/config/morgan/skip.ts` | Perfect SRP: ~26 executable LOC, one responsibility |
-
----
-
-## 22. Audit Scoring
-
-### Closed Checklist by Dimension
-
-#### Security (x3)
-
-- [ ] SQL: all queries use $1/$2 parameterized (0 concatenation)
-- [ ] Environment guards: allowlist (`=== 'production'`), NOT blacklist
-- [ ] Secrets: never logged in clear (Redis URLs sanitized, tokens not in logs)
-- [ ] Auth bypass: no routes skip permission validation
-- [ ] Input validation: user data validated with Zod before use
-- [ ] Cast `as any` / `as Type`: only with documented justification
-
-#### Error Handling (x3)
-
-- [ ] Typed errors: uses system classes (AuthenticationError, DatabaseError, etc.), NOT `throw new Error()`
-- [ ] Routes/middleware: errors delegated with `next(error)`, NOT `res.status(500).json()` direct
-- [ ] try/catch: all async service functions have catch with logging
-- [ ] Contextual logging: errors logged with context (userId, requestId, operation)
-- [ ] Correct re-throw: errors not silently swallowed (except intentional cache invalidation)
-
-#### Structure (x2)
-
-- [ ] LOC < 500 per file (HARD LIMIT)
-- [ ] Functions < 50 LOC
-- [ ] Factory pattern: exported functions, NOT classes in service layer
-- [ ] Level A service: receives requestId (optional ok) and creates contextLogger
-- [ ] Separation: types in .types.ts files, queries separated, helpers extracted
-- [ ] No significant duplication (same logic in 2+ places without abstraction)
-- [ ] Imports: no circular, with .js extension
-
-#### Testing (x2)
-
-- [ ] Tests exist for ALL files with business logic
-- [ ] Tests pass 100% (run 2 times)
-- [ ] Real assertions (not tautological)
-- [ ] Happy path + error paths covered
-- [ ] NOTE: stub/pending files do NOT penalize for missing dedicated tests
-
-#### Maintainability (x1)
-
-- [ ] JSDoc: conforms to section 5 (no @description, no @param {Type}, no @returns {Type}, no @requires)
-- [ ] Comments follow project's existing language convention
-- [ ] Named constants (no magic numbers/strings)
-- [ ] No dead code, console.log, debugger, unused imports
-- [ ] No emojis in log messages (descriptive text)
-
-### Scoring Rules
-
-- Each dimension is scored 0-10 based ONLY on checklist items
-- 10/10 = all items pass
-- 9/10 = 1 item fails or has minor finding
-- 8/10 = 2+ items fail
-- <8/10 = serious problems
-- Do NOT invent criteria outside the checklist
-- IF something works correctly and violates no checklist item THEN it is NOT a finding
-
-### Weighted Score Calculation
-
-| Dimension | Score | Weight | Total |
-|-----------|-------|--------|-------|
-| Security | X/10 | x3 | XX |
-| Error Handling | X/10 | x3 | XX |
-| Structure | X/10 | x2 | XX |
-| Testing | X/10 | x2 | XX |
-| Maintainability | X/10 | x1 | XX |
-| **TOTAL** | | | **XX/110** |
-
----
-
-## 23. Severities
-
-| Severity | Definition | Typical tier |
-|----------|-----------|--------------|
-| CRITICAL | Security risk or data loss in production | T1 |
-| HIGH | Violates hard standard rule, potential bug | T1-T2 |
-| MEDIUM | Reduces maintainability or violates recommendation | T2 |
-| LOW | Minor improvement | T3 |
-| INFO | Observation without required action | - |
-
-IF finding is HIGH and unclear whether T1 or T2:
-- Affects security/auth/data THEN T1.
-- Affects structure/testing/patterns THEN T2.
-
----
-
-## 24. Universal Prohibitions
-
-| Never | Tier |
-|-------|------|
-| `console.log` / `debugger` in commits | T2 |
-| Inline styles / `onclick=""` | T2 |
-| SQL concatenation | T1 |
-| `innerHTML` with user data | T1 |
-| `any` without justification in comment | T2 |
-| Bulk DELETE or DELETE without parameterized WHERE | T1 |
-| Magic numbers/strings in config/security/timeouts | T2 |
-| Magic numbers/strings in general logic | T3 |
-| `as Type` without type guard | T2 |
-| `!` (non-null assertion) without justification | T2 |
-| `// @ts-ignore` without reason | T2 |
-| Test depending on execution order | T2 |
-| Mock replicating production logic | T2 |
-| Direct commit to main/staging (only via Pull Request) | Blocked |
-
----
-
-## 25. React Component Patterns
-
-### Component Types
-
-| Type | Max LOC | What it does |
-|------|---------|-------------|
-| Page component | 200 | Layout + composition of smaller components. No business logic. |
-| Feature component | 300 | Business logic + state. Contains hooks, handlers. |
-| UI component | 100 | Pure presentational. Props in, JSX out. Zero side effects. |
-| Layout component | 100 | Grid, spacing, wrappers. Children only. |
-
-```
-IF component > 300 LOC THEN mandatory split (T2)
-IF component has business logic AND presentation mixed THEN split into container + presentational (T2)
-IF component has 5+ useState THEN extract to custom hook (T2)
-IF component has 3+ useEffect THEN refactor -- too many side effects (T2)
-```
-
-### Rules
-
-| Rule | Tier |
-|------|------|
-| Functional components only. NEVER class components. | T2 |
-| Props destructured in signature | T3 |
-| Default exports for page components, named exports for everything else | T3 |
-| NEVER inline function definitions in JSX `onClick={() => { ...10 lines }}` -- extract to handler | T2 |
-| NEVER nested component definitions (component inside component) | T2 |
-| Props interface in same file if used once, in `.types.ts` if shared | T3 |
-| `children` typed as `React.ReactNode` | T3 |
-| NEVER `any` in props interface without justification comment | T2 |
-
-### Custom Hooks
-
-```
-IF logic is reused in 2+ components THEN extract to custom hook
-IF component has complex state machine THEN extract to custom hook
-IF hook > 50 LOC THEN split into smaller hooks (T2)
-IF hook name does not start with `use` THEN finding T2
-```
-
-| Rule | Tier |
-|------|------|
-| Custom hooks in `hooks/` directory | T3 |
-| Hook returns typed object, not positional array (unless 2 values like useState) | T3 |
-| Hook with side effects must handle cleanup in return of useEffect | T2 |
-
-### Error Boundaries
-
-| Rule | Tier |
-|------|------|
-| Error boundary at route/page level | T2 |
-| Error boundary around async data-fetching sections | T2 |
-| Fallback UI must be user-friendly (not stack trace) | T2 |
-| Error boundary must log to monitoring (Sentry or equivalent) | T2 |
-| NEVER wrap entire app in single error boundary only -- granular boundaries per route | T2 |
-
-```
-IF page fetches data THEN must have error boundary (T2)
-IF error boundary has no fallback UI THEN finding T2
-IF only one error boundary for entire app THEN finding T2
-```
-
-### Forms
-
-| Rule | Tier |
-|------|------|
-| Validation schema shared with backend (Zod) when possible | T3 |
-| Client-side validation before submit | T2 |
-| Error messages displayed next to the field, not only in alert/toast | T2 |
-| Submit button disabled while submitting (prevent double submit) | T2 |
-| Form state reset on successful submit (unless edit mode) | T3 |
-| NEVER uncontrolled inputs for forms that submit data | T2 |
-
-### Accessibility (in code)
-
-| Rule | Tier |
-|------|------|
-| Semantic HTML: `<button>` for actions, `<a>` for navigation, `<nav>`, `<main>`, `<section>` | T2 |
-| All `<img>` must have `alt` attribute (empty string `alt=""` for decorative) | T2 |
-| Interactive custom elements must have `role`, `aria-label`, and keyboard handler (`onKeyDown`) | T2 |
-| Form inputs must have associated `<label>` (via `htmlFor` or wrapping) | T2 |
-| Color must NOT be the only indicator (add icon or text) | T3 |
-| Focus must be visible on all interactive elements | T2 |
-| Tab order must be logical (no positive `tabIndex` values) | T2 |
-| NEVER `div` or `span` with `onClick` without `role="button"` and `tabIndex={0}` and `onKeyDown` | T2 |
-| Modals must trap focus | T2 |
-| Page must have exactly one `<h1>` | T3 |
-| Heading hierarchy must not skip levels (h1 → h3 without h2) | T3 |
-
----
-
-## 26. Frontend State & Data Fetching
-
-### State Management Decision Tree
-
-```
-IF state used in 1 component only THEN useState (local)
-IF state shared between parent-child (1-2 levels) THEN props drilling
-IF state shared 3+ levels deep THEN Context or state library
-IF state is server data (API responses) THEN data fetching library cache (NOT manual state)
-IF state is complex with many transitions THEN useReducer or state library
-IF global UI state (theme, sidebar open, toasts) THEN Context
-IF global server state (user session, permissions) THEN data fetching library cache
-```
-
-| Rule | Tier |
-|------|------|
-| NEVER store server response in useState manually if using a data fetching library | T2 |
-| NEVER put everything in global state -- local first | T2 |
-| Context providers must be as close to consumers as possible (not all at root) | T3 |
-| NEVER mutate state directly (spread or immer) | T1 |
-
-### Data Fetching
-
-| Rule | Tier |
-|------|------|
-| All API calls through a centralized fetcher/client (never raw `fetch` scattered in components) | T2 |
-| Loading state must be shown to user (spinner, skeleton, or similar) | T2 |
-| Error state must be shown to user (not silent failure) | T2 |
-| Retry logic on transient network errors (at least 1 retry) | T3 |
-| NEVER fetch in useEffect without cleanup / abort controller | T2 |
-| Request cancellation on component unmount | T2 |
-| Optimistic updates must have rollback on error | T2 |
-
-### Client Cache
-
-```
-IF data is read-heavy and changes rarely THEN cache with stale-while-revalidate
-IF data is user-specific and changes frequently THEN short TTL or no cache
-IF mutation succeeds THEN invalidate related cache keys (not manual refetch everywhere)
-```
-
----
-
-## 27. Frontend Testing
-
-### What to Test by Component Type
-
-**Page component:**
-
-| Test | Tier |
-|------|------|
-| Renders without crash | T2 |
-| Shows loading state | T2 |
-| Shows error state | T2 |
-| Shows data when loaded | T2 |
-| Navigation/routing works | T3 |
-
-**Feature component (with business logic):**
-
-| Test | Tier |
-|------|------|
-| Happy path user interaction | T2 |
-| Form validation errors shown | T2 |
-| Submit calls correct API with correct data | T2 |
-| Error handling (API failure) | T2 |
-| Edge cases (empty state, boundary values) | T3 |
-
-**UI component (presentational):**
-
-| Test | Tier |
-|------|------|
-| Renders with required props | T3 |
-| Conditional rendering based on props | T3 |
-| Snapshot test ONLY if visually critical | T3 |
-
-**Custom hook:**
-
-| Test | Tier |
-|------|------|
-| Happy path return values | T2 |
-| Error states | T2 |
-| Cleanup on unmount | T2 |
-
-### What NOT to Test (Frontend)
-
-- Styling / CSS classes applied (brittle, low value)
-- Third-party library internals (React Router navigation, UI library rendering)
-- Implementation details (internal state values, private methods)
-- Static text content (unless contractual/legal)
-- Every prop combination exhaustively
-
-### Test Quality Rules (Frontend)
-
-| Rule | Tier |
-|------|------|
-| Test user behavior, not implementation (`getByRole` > `getByTestId` > `querySelector`) | T2 |
-| `getByTestId` only as last resort, prefer accessible queries | T3 |
-| NEVER test internal state directly (test what the user sees) | T2 |
-| Async operations: use `waitFor` / `findBy`, NEVER arbitrary `setTimeout` | T2 |
-| Mock API layer, never mock React hooks directly (except `useNavigate` or similar) | T2 |
-| Each test independent (no shared mutable state between tests) | T2 |
-| `cleanup` between tests (automatic in most frameworks, verify if custom render) | T2 |
-
----
-
-## 28. CSS / Styling
-
-### Decision (project-level, choose ONE)
-
-| Option | When to pick |
-|--------|-------------|
-| Tailwind CSS | Rapid development, utility-first, team prefers no CSS files |
-| CSS Modules | Scoped styles, team prefers traditional CSS, no utility framework |
-| Styled Components / CSS-in-JS | Dynamic styles based on props, theme-heavy apps |
-
-IF project has no decision yet THEN choose before writing first component. NEVER mix approaches.
-
-| Rule | Tier |
-|------|------|
-| ONE styling approach per project. No mixing. | T2 |
-| NEVER inline `style={{}}` except truly dynamic computed values (e.g., `width` from data) | T2 |
-| NEVER `!important` without documented justification | T2 |
-| Magic numbers in spacing/sizing: use design tokens or scale (4px, 8px, 12px, 16px, 24px, 32px, 48px, 64px) | T3 |
-| Color values ALWAYS from design tokens / theme / variables. NEVER hardcoded hex inline. | T2 |
-| Z-index values from defined scale (constants), never arbitrary numbers | T2 |
-
-### Responsive
-
-| Rule | Tier |
-|------|------|
-| Mobile-first approach (base styles = mobile, then breakpoints up) | T3 |
-| Breakpoints from project constants, never magic numbers | T3 |
-| NEVER hide critical content/functionality on mobile (only reflow) | T2 |
-| Touch targets minimum 44x44px on interactive elements | T3 |
-
-### File Organization
-
-```
-IF using CSS Modules THEN one `.module.css` per component, co-located
-IF using Tailwind THEN no separate CSS files (classes in JSX)
-IF using Styled Components THEN styles in same file if <50 LOC, separate `.styles.ts` if more
-IF global styles needed THEN single `global.css` at root, nothing else global
-```
-
----
-
-## 29. Frontend File Structure
-
-### Directory Convention
-
-```
-src/
-├── pages/           # Route-level components (one per route)
-├── components/      # Shared/reusable components
-│   ├── ui/          # Pure presentational (Button, Input, Modal, Card)
-│   └── features/    # Business-logic components (UserForm, DataTable)
-├── hooks/           # Custom hooks
-├── services/        # API client, fetchers, external integrations
-├── utils/           # Pure functions, formatters, helpers
-├── types/           # Shared TypeScript types/interfaces
-├── constants/       # Enums, config values, magic strings
-├── contexts/        # React Context definitions
-├── assets/          # Images, fonts, icons (static)
-└── styles/          # Global styles, theme, design tokens
-```
-
-### Rules
-
-| Rule | Tier |
-|------|------|
-| Co-locate component + test + types + styles in same directory when component-specific | T3 |
-| Shared types in `types/`, component-specific types in component directory | T3 |
-| NEVER import from `pages/` in `components/` (pages import components, not the reverse) | T2 |
-| NEVER circular imports between directories | T2 |
-| `index.ts` barrel exports ONLY at directory level for public API, not for every subdirectory | T3 |
-| Assets referenced by import (bundler-handled), NEVER relative path strings | T3 |
-
-```
-IF component used in 1 page only THEN keep in that page's directory
-IF component used in 2+ pages THEN move to components/
-IF hook used in 1 component only THEN keep in component file
-IF hook used in 2+ components THEN move to hooks/
-IF utility used in 1 file only THEN keep in that file
-IF utility used in 3+ files THEN move to utils/
-```
-
----
-
-## 30. TypeScript Strict Config & Type Safety
-
-### Mandatory tsconfig Rules
-
-| Option | Value | Tier if wrong |
-|--------|-------|---------------|
-| `strict` | `true` | T2 |
-| `noImplicitAny` | `true` (implied by strict) | T2 |
-| `strictNullChecks` | `true` (implied by strict) | T1 (causes runtime crashes) |
-| `noUncheckedIndexedAccess` | `true` | T2 |
-| `noImplicitReturns` | `true` | T2 |
-| `noFallthroughCasesInSwitch` | `true` | T2 |
-| `forceConsistentCasingInFileNames` | `true` | T3 |
-| `exactOptionalPropertyTypes` | `true` | T3 |
-
-IF `strict: false` in tsconfig THEN finding T2. No exceptions.
-
-### Type Safety Rules
-
-| Rule | Tier |
-|------|------|
-| `any` forbidden without justification comment explaining why | T2 |
-| `unknown` preferred over `any` for values of uncertain type | T2 |
-| Type assertions (`as Type`) must have type guard or validation before | T2 |
-| Non-null assertion (`!`) must have justification comment | T2 |
-| `// @ts-ignore` must have reason comment. Prefer `// @ts-expect-error` with description. | T2 |
-| NEVER `as any` to silence errors -- fix the type | T2 |
-| API response types must match backend contract (shared types or code generation) | T2 |
-
-### Pattern Rules
-
-```
-IF value can be null/undefined THEN use narrowing (if check), not assertion (!)
-IF function returns different shapes THEN use discriminated union with literal type field
-IF object has optional properties THEN use Partial<T> or explicit optionals, not `| undefined` on every field
-IF casting is needed THEN use type guard function (returns `x is Type`), not bare `as`
-IF generic has no constraint THEN add `extends` to constrain it
-```
-
-### Discriminated Unions (mandatory pattern for variant types)
-
-```typescript
-// CORRECT: discriminated union
-type Result =
-  | { status: 'ok'; data: User }
-  | { status: 'error'; message: string };
-
-// INCORRECT: optional fields guessing game
-type Result = {
-  status: string;
-  data?: User;
-  message?: string;
-};
-```
-
-IF type represents 2+ variants THEN use discriminated union (T2).
-
----
-
-## 31. Async Patterns
-
-### Concurrency
-
-```
-IF operations are independent THEN Promise.all (parallel)
-IF operations depend on each other THEN sequential await
-IF operations are independent but should not overwhelm target THEN Promise.allSettled or batched
-IF one failure should NOT cancel others THEN Promise.allSettled
-IF one failure SHOULD cancel all THEN Promise.all
-```
-
-| Rule | Tier |
-|------|------|
-| NEVER `await` in a loop when iterations are independent (use `Promise.all`) | T2 |
-| NEVER fire-and-forget promises (no `await`, no `.catch`) | T1 |
-| NEVER `async` function that never `await`s (remove `async`) | T3 |
-| Unhandled rejection must crash process in Node.js (default in Node 22+) | T2 |
-
-### Error Handling in Async
-
-| Rule | Tier |
-|------|------|
-| Every `Promise.all` inside try/catch or `.catch` | T2 |
-| Errors in `.catch` must be re-thrown or logged (never silently swallowed) | T2 |
-| `finally` for cleanup (close connections, release locks) | T2 |
-
-### Retry Pattern
-
-```typescript
-// Standard retry for transient failures
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  delayMs: number = 1000,
-): Promise<T> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      await new Promise(r => setTimeout(r, delayMs * attempt)); // linear backoff
-    }
-  }
-  throw new Error('Unreachable');
-}
-```
-
-```
-IF external API call THEN consider retry with backoff (T3)
-IF database write THEN NEVER auto-retry (idempotency risk) (T1)
-IF retry logic exists THEN must have max retries cap (T2)
-IF retry delay THEN use backoff (linear or exponential), not fixed (T3)
-```
-
-### AbortController (Frontend)
-
-| Rule | Tier |
-|------|------|
-| API calls in useEffect must use AbortController | T2 |
-| Abort on component unmount (cleanup return in useEffect) | T2 |
-| AbortError must be caught and silently ignored (not shown to user) | T2 |
-
----
-
-## 32. API Response Contract & Pagination
-
-### Success Response Contract
-
-Every successful API response follows this shape:
-
-```typescript
-interface ApiSuccessResponse<T> {
-  status: 'ok';
-  data: T;
-  meta?: {
-    pagination?: PaginationMeta;
-    timing?: { durationMs: number };
-    [key: string]: unknown;
-  };
-  requestId: string;
-}
-```
-
-| Rule | Tier |
-|------|------|
-| All endpoints return `{ status: 'ok', data, requestId }` | T2 |
-| NEVER return raw array at root level (always wrapped in `data`) | T2 |
-| NEVER return raw object without `status` field | T2 |
-| `data` is the resource (object for single, array for list) | T2 |
-| `meta` for non-resource info (pagination, timing) | T3 |
-| Empty results: `{ status: 'ok', data: [], meta: { pagination: { total: 0 } } }` NOT 404 | T2 |
-
-### Pagination
-
-```
-IF endpoint returns list THEN must support pagination (T2)
-IF dataset can exceed 100 items THEN pagination is mandatory (T2)
-IF dataset is append-only or time-ordered THEN cursor-based pagination
-IF dataset needs random page access THEN offset-based pagination
-IF uncertain THEN offset-based (simpler, good enough for <100k rows)
-```
-
-**Offset-based:**
-
-```typescript
-interface PaginationMeta {
-  page: number;       // current page (1-based)
-  pageSize: number;   // items per page
-  total: number;      // total items
-  totalPages: number; // ceil(total / pageSize)
-}
-```
-
-**Cursor-based:**
-
-```typescript
-interface CursorPaginationMeta {
-  cursor: string | null;  // opaque cursor for next page, null if last page
-  hasMore: boolean;
-  pageSize: number;
-}
-```
-
-| Rule | Tier |
-|------|------|
-| Default page size defined in constant (not magic number) | T2 |
-| Max page size enforced server-side (user cannot request 10000 items) | T2 |
-| Page size validated with Zod (min 1, max MAX_PAGE_SIZE) | T2 |
-| `page` parameter 1-based (not 0-based) for offset pagination | T3 |
-| Cursor must be opaque (encoded), never expose raw DB IDs | T2 |
-
----
-
-## 33. Concurrency & Idempotency
-
-### Idempotency
-
-```
-IF endpoint is POST creating a resource THEN support idempotency key header (T2)
-IF endpoint is PUT/PATCH THEN naturally idempotent (same input = same result) (T2)
-IF endpoint is DELETE THEN return 200/204 even if already deleted (not 404) (T2)
-IF payment/transfer/critical mutation THEN idempotency key is mandatory (T1)
-```
-
-| Rule | Tier |
-|------|------|
-| Idempotency key header: `Idempotency-Key` | T2 |
-| Store key + response in cache (Redis) for replay window (24h default) | T2 |
-| Duplicate request within window returns cached response (no re-execution) | T2 |
-| NEVER rely on client to prevent double submit -- server must be safe | T2 |
-
-### Optimistic Locking
-
-```
-IF resource can be edited by multiple users THEN optimistic locking (T2)
-IF concurrent writes can corrupt data THEN optimistic locking is mandatory (T1)
-```
-
-Pattern: `updatedAt` or `version` column.
-
-```typescript
-// In UPDATE query:
-// WHERE id = $1 AND updated_at = $2
-// If 0 rows affected → ConflictError (409)
-```
-
-| Rule | Tier |
-|------|------|
-| Concurrent-editable resources must have `updated_at` or `version` column | T2 |
-| UPDATE must include version check in WHERE clause | T2 |
-| 0 rows affected = ConflictError (409), not silent success | T2 |
-| NEVER use SELECT-then-UPDATE without locking (race condition) | T1 |
-
-### Transaction Isolation
-
-| Level | When to use |
-|-------|------------|
-| `READ COMMITTED` (PostgreSQL default) | Most operations. Default. |
-| `REPEATABLE READ` | Reports, aggregations that need consistent snapshot |
-| `SERIALIZABLE` | Financial operations, inventory decrements |
-
-```
-IF standard CRUD THEN READ COMMITTED (default, no action needed)
-IF read-then-write pattern (check balance then deduct) THEN SERIALIZABLE or SELECT FOR UPDATE
-IF report/export that must not see partial writes THEN REPEATABLE READ
-```
-
-| Rule | Tier |
-|------|------|
-| NEVER assume default isolation is safe for financial/inventory operations | T1 |
-| Explicit `SET TRANSACTION ISOLATION LEVEL` when non-default needed | T2 |
-| Transactions must be as short as possible (no external API calls inside transaction) | T2 |
-| Deadlock handling: catch and retry (max 3 attempts) | T2 |
-
----
-
-## 34. Producer↔Consumer Data Integrity (Anti-Fixture-Fabrication)
-
-Origin: a production incident where 6 independent review passes gave unanimous approval on code that shipped ~2 weeks of undetected bugs. Root cause: every check validated against the same hand-typed fixture instead of the real system — the fixture and the bug agreed with each other, so agreement proved nothing. This section closes that failure at four independent checkpoints (Dante, Cerberus, Moriarty, Yoda) so a fabricated fixture can no longer satisfy all four by accident. It is enforced by checklists and gates, not yet by a CI script — treat it as structurally hard to skip, not mechanically impossible to skip.
-
-Applies ONLY where a producer↔consumer seam exists (network call, DB read/write, file written and later reread, IPC, queue publish, HTTP response). IF the code has no such seam (pure function, stateless utility, library with no I/O) THEN this section does not apply — the unit test IS the round-trip.
-
-### 34.1 Seam Classification
-
-```
-IF the changed code or its callees import/call a DB client, network client, or write a file that is read back later
-  THEN a seam exists — this section applies, no exceptions
-IF no such import/call exists anywhere in the changed files or their callees
-  THEN "no seam" MAY be claimed
-```
-
-IF "no seam" is claimed THEN it must be backed by the grep/dependency check above, stated with the exact check run and its empty result — never by an agent's unaided assertion. Two agents asserting "no seam" is not stronger than one; neither replaces the mechanical check.
-
-| Rule | Tier |
-|------|------|
-| Seam presence assumed by default (fail-closed) | T1 |
-| "No seam" claimed without the mechanical check shown | T1 |
-| Round-trip check present for a real seam | T1 |
-
-### 34.2 Data Provenance
-
+**§34.2 — Data provenance.**
 ```
 IF a value is used as "expected" in an assertion against real system behavior
   THEN it MUST be either:
-    (a) a value this same test run just wrote, re-read through the real seam, or
+    (a) a value THIS run just wrote, re-read through the real seam, or
     (b) derived from a contract/schema that neither the implementer nor the test author can edit to fit today's behavior
-IF neither (a) nor (b) THEN the value is fabricated ground truth — T1 finding, regardless of where it was copied from
+  ELSE the value is fabricated ground truth — T1.
 ```
 
-Capturing a "real" response once and hand-writing it into a fixture file is fabrication the moment that response goes stale relative to the run using it — treat any persisted literal expected-value as fabricated by default. Round-trip assertions are regenerated live, every run, against the real dependency (or a disposable real instance of it in CI). Only the check's logic persists as an artifact — never the captured values.
+**§34.3 — Round-trip completeness.** IF a test writes a payload with N fields THEN the re-read assertion checks all N fields, enumerated programmatically from the write payload's keys — a hand-picked subset does not satisfy this.
+
+**§34.5 — Real dependency by default (wire it to reality).** Default to testing against **real code and a real, disposable instance of the infra** — real DB, real file, real subprocess — not a mock. Mock ONLY what genuinely cannot run in the test environment (a paid, external, or non-deterministic third party), and even then the mock must not replicate production logic. A seam that is **only ever mocked, never once run against the real dependency, is unverified** — a green suite of mocks proves nothing about whether the pieces are wired together. At least one test must exercise the real wiring end-to-end. Not everything needs the real dependency, but the core seam of the feature always does.
 
 | Rule | Tier |
 |------|------|
-| Hand-typed literal used as expected value in a producer↔consumer test | T1 |
+| Seam presence assumed by default (fail-closed); "no seam" claimed only with the mechanical grep/dependency check shown | T1 |
+| Hand-typed literal used as an expected value across a real seam | T1 |
 | Persisted/committed captured response reused across runs as a fixture | T1 |
-| Expected value not traceable to this run's write or to an independent contract | T1 |
+| Core seam of the feature exercised only by mocks, never once against the real dependency | T2 (T1 if nothing wires it to reality) |
+| Round-trip assertion covers only a subset of the written fields (not enumerated programmatically from the write payload's keys) | T2 (T1 if the omitted field is what the feature is about) |
 
-### 34.3 Round-Trip Completeness
-
-```
-IF a test writes a payload with N fields
-  THEN the re-read assertion checks all N fields, enumerated programmatically from the write payload's keys (iterate the object, never a manual list) — a subset hand-picked or hand-typed by the test author does not satisfy this
-IF the test asserts only some of the fields that were written
-  THEN any field NOT asserted is an unverified seam — T2 finding, T1 if it is the field the feature is about
-```
-
-A round-trip that writes 8 fields and asserts on 1 caught nothing about the other 7.
-
-### 34.4 Closed Checklist — Producer↔Consumer Gate
-
-- [ ] Seam classification stated, with the mechanical check shown if "no seam" is claimed
-- [ ] Every expected value traces to this run's write or to an independent contract — none hand-typed against "what the backend returns"
-- [ ] Round-trip assertion covers every field in the write payload, not a hand-picked subset
-- [ ] No persisted/committed fixture value reused across runs — captured data is regenerated live
-- [ ] A sabotage attempt exists against the real dependency (Moriarty's Round-Trip Sabotage mandate) and the check went red
-- [ ] The sabotage effect was confirmed through a channel independent of the path under test
-
-IF any item is unchecked THEN the feature does not satisfy this section. Report which item and why — do not mark "done".
+Origin: a real incident where independent review passes unanimously approved code carrying weeks of latent bugs, because every check validated against the same hand-typed fixture — the fixture and the bug agreed with each other, so agreement proved nothing. The round-trip is regenerated live every run; only the check's logic persists, never the captured values.
 
 ---
 
-## Amendment to Section 2: OWASP Top 10
+## 1. Tier system
 
-Add to existing OWASP table:
+| Tier | Scope | Blocks merge | Action |
+|------|-------|--------------|--------|
+| T1 | Data/memory integrity, crashes, silent failure of a load-bearing path | Yes, always | Immediate fix |
+| T2 | Error handling, core testing, structure | Yes, unless written justification | Fix before merge |
+| T3 | Naming, cosmetics, extra coverage | No | Fix when convenient |
 
-| OWASP Risk | Project Rule | Tier |
-|------------|-------------|------|
-| A10: Server-Side Request Forgery (SSRF) | NEVER fetch/request URLs provided by user input without validation. Allowlist of permitted domains. Block private IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16). NEVER follow redirects to private IPs. | T1 |
+IF uncertain about tier THEN assign T2.
 
-### SSRF Rules (new subsection under Security)
+**Definition — "load-bearing path"** (decides T1 vs T2): a path is load-bearing IF its failure loses or corrupts persisted state, OR blocks the primary function of the module. Otherwise it is not load-bearing.
+
+**Definition — "re-read verification across the seam"**: a §34 round-trip **test** that writes a payload and reads it back through the real seam — NOT a mandatory read-after-write in production runtime. The rule demands the test exists, not that every production write re-reads itself.
+
+**Security exception to the uncertainty fallback:** the "IF uncertain THEN T2" rule does NOT apply to attack-surface findings (injection, auth bypass, exposed secret). Those are out of this document's threat model — classify them via the project profile or route to the security agent (Argus); NEVER let the T2 fallback silently downgrade one.
+
+**T2 waiver mechanics.** A T2 blocks merge "unless written justification". "Written" = a `Waiver:` line in the commit/finding record stating the rule waived and the reason. The reviewer (Cerberus/Yoda) verifies the waiver **exists**, not that it is eloquent — an absent waiver blocks; a present one passes the gate. A T1 is **never** waivable.
+
+**Conflict tie-breaker (two rules fire on the same code).** The higher tier wins. At equal tier, the more specific rule wins. Example: a 320-LOC file triggers "split (T2)", but a naive split yields a 25-LOC module which triggers "over-splitting" — same tier, so the more specific rule (don't create sub-30-LOC modules) wins: split by real responsibility, not to hit the number.
+
+### Finding classification (generic rows only)
+
+| Finding | Tier |
+|---------|------|
+| Unhandled error that crashes the process | T1 |
+| Data/memory written without re-read verification across a real seam | T1 |
+| Silent failure of a load-bearing path (swallowed error, masked exit code, fail-open without log) | T1 |
+| Concurrent write can corrupt shared state | T1 |
+| Non-portable code that fails on a supported OS | T2 |
+| Generic untyped error where the project defines typed errors | T2 |
+| Type/force-cast without a justification comment | T2 |
+| File over the size limit without a split | T2 |
+| Dead export (zero consumers in production code) | T3 |
+| Debug print/log left in committed code | T2 |
+| Coverage below the project's declared threshold | T3 |
+| Naming inconsistent with the project's convention | T3 |
+
+### Execution priority (integrity-first)
+
+1. **Data/memory integrity** — nothing corrupts or loses persisted state
+2. **Silent failure** — every failure is observable
+3. **Critical happy paths** — main flows run without crashing
+4. **Structure and testing** — typed errors, tests, size limits
+5. **Cleanup** — naming, cosmetics, dead code
+
+IF a module has a T1 integrity finding AND a T3 cosmetic finding THEN fix integrity first. NEVER touch cosmetics while a T1 is open.
+
+---
+
+## 2. Design principles (agnostic)
+
+- **SOLID** — single responsibility; open/closed; Liskov; interface segregation; dependency inversion.
+- **DRY** — extract after the 2nd duplication; abstraction mandatory at 3+.
+- **KISS** — simplest thing that works. IF an abstraction needs 4+ config params THEN it is too generic — simplify.
+- **YAGNI** — implement only what is needed now. No speculative "just in case" code.
+
+### Size limits (concept-keyed defaults — override via project profile)
+
+| Concept | Default hard limit | Sweet spot |
+|---------|-------------------|------------|
+| Source file | 300 LOC | 200-300 |
+| Exported function/method | 50 LOC | 15-30 |
+| Nesting level | 3 | 2 |
+| Function parameters | 4 | 3 (use an object beyond that) |
+| Test file | 500 LOC | 200-400 |
+| Cyclomatic complexity | 10 | 5-8 |
+
+```
+IF file > limit                                                    THEN mandatory split (T2)
+IF file <= limit AND file >= 2/3 of limit AND 2+ responsibilities  THEN recommended split
+IF file <= limit AND (file < 2/3 of limit OR 1 responsibility)     THEN do NOT split
+```
+(When a `> limit` file has a single responsibility, it still splits — by extracting cohesive helpers — but the split MUST NOT create sub-30-LOC modules; see the over-splitting anti-pattern and the tie-breaker.)
+
+"Responsibility" (binary): IF all functions in the file need the same test setup THEN 1 responsibility; different groups needing different setup THEN 2+.
+
+The numbers above are **defaults**. IF the project profile declares a limit THEN use it (see Project-pointer rule).
+
+### Decision trees (agnostic)
+
+- **Split a file** — see size rule above.
+- **Extract to shared/utils** — used in 1 place → keep it there; 2 → note, don't extract; 3+ → mandatory extraction.
+- **Create an abstraction** — repeats 2× → note; 3+ → mandatory; needs 4+ config params → too generic; saves <5 LOC per use → the repeated code is clearer.
+- **Refactor vs leave alone** — works + tested + under limits → do NOT touch for aesthetics; works but violates T1 → mandatory fix; touches data/persistence → STOP, confirm first.
+
+### Dead code & casts
+
+- Exported symbol with zero production consumers → dead (T3). Consumed only in tests is NOT dead. Grep the whole source tree before deleting.
+- Every force/unchecked cast MUST have a one-line justification comment. Exceptions: compile-time-only casts, test-mock casts.
+
+---
+
+## 3. Memory / persistence integrity (T1 core)
+
+Every write to persisted state (files, memory index, git-memory, caches, config) must survive a crash mid-write and must be readable back exactly as written.
+
+```
+IF writing a file that is read back later
+  THEN write to a temp file, fsync, then atomic rename — never truncate-in-place a live file
+IF updating an index that points at other files (e.g. a MEMORY.md index → topic files)
+  THEN the index and its targets must stay consistent — no dangling pointer, no orphaned target
+IF overwriting existing content
+  THEN read the current version first; never blow away content you did not author or verify
+```
 
 | Rule | Tier |
 |------|------|
-| URL from user input: validate against domain allowlist before fetch | T1 |
-| Block requests to private/internal IP ranges | T1 |
-| Block requests to metadata endpoints (169.254.169.254) | T1 |
-| NEVER follow HTTP redirects blindly (validate redirect target) | T1 |
-| DNS rebinding: resolve hostname and validate IP BEFORE connecting | T1 |
-| If fetching user-provided URLs is not needed, disable outbound requests entirely | T3 |
+| Write path with no re-read verification across the seam | T1 |
+| In-place truncate of a file that could be read concurrently or mid-crash | T1 |
+| An edit that deletes user/content it did not author (regression by over-eager cleanup) | T1 |
+| Index ↔ target inconsistency (pointer to a missing file, or unlinked-but-present file) | T2 |
+| A persisted record (decision/log) silently lost on a failed write | T1 |
+| Ever-growing persisted state with no compaction/rotation policy | T2 |
+| New format reads old persisted data and corrupts or silently drops it (no version/migration) | T1 |
+
+Lived example distilled into this section: a cleanup that "fixed" an orphaned marker **deleted the user's notes underneath it** — a mechanical fix that destroyed real data. Conservative rule: an edit removes only what it can prove is safe to remove; when unsure, preserve.
+
+---
+
+## 4. Silent failure / fail-loud (T1)
+
+Every failure must be **observable**. A failure that produces no error, no log, and no signal is worse than a crash, because nobody knows the system stopped working.
+
+```
+IF an operation can fail
+  THEN its failure must surface — a raised error, a logged warning, or a non-zero exit — never nothing
+IF you chain a command whose exit code matters (a build, a test, a validation)
+  THEN NEVER pipe it through something that replaces the exit code (| tail, | head, || true)
+IF a fallback runs on failure (fail-open)
+  THEN it MUST log why it fell back — a silent fallback hides the real fault
+IF a status/label is derived from state
+  THEN it must not be able to lie — verify against the real state, not a cheap proxy
+IF a guard enables/disables behavior by environment
+  THEN use an allowlist (env == 'dev' or 'test'), never a denylist (env != 'production')
+  — a denylist silently enables dev behavior in every env it forgot (staging, uat)
+```
+
+| Rule | Tier |
+|------|------|
+| Empty catch / swallowed error on a load-bearing path | T1 |
+| Exit code of a pass/fail command masked by a pipe or `|| true` | T1 |
+| Fail-open without a log line explaining the fallback | T2 (T1 if it hides data loss) |
+| A shown status derived from an unsafe proxy that can diverge from reality in silence | T1 |
+| Environment guard uses a denylist (`env != 'production'`) instead of an allowlist | T1 |
+
+Lived examples: `pytest | tail` handed the shell the exit code of `tail`, masking real test failures; a boot showed stale state without any warning that the fetch had failed; a version gate compared a semver as a *string*, so the label lied while the content silently diverged.
+
+---
+
+## 5. Platform robustness — Windows / Linux / macOS (T2)
+
+The toolkit runs on all three. Code must not assume one.
+
+```
+IF you build a filesystem path        THEN use the language's path join, never hardcode "/" or "\"
+IF you read/write text                 THEN handle CRLF vs LF; normalize before comparing strings
+IF you read/write bytes as text        THEN declare UTF-8 explicitly; tolerate/strip a BOM; handle a lone surrogate without crashing
+IF you rely on an env var              THEN account for per-OS names (HOME vs USERPROFILE)
+IF you shell out                       THEN the binary/flags must exist on all supported OSes, or branch on the detected OS
+IF you set a startup/subprocess timeout THEN give real margin — a cold FS or slow disk is not a failure
+IF you open a file another process may hold THEN handle the lock/permission difference across OSes
+```
+
+| Rule | Tier |
+|------|------|
+| Hardcoded path separator or absolute path assumption | T2 |
+| String comparison that breaks on CRLF vs LF | T2 |
+| Encoding not declared / crash on non-ASCII or lone surrogate | T2 |
+| Env var read that ignores the per-OS name | T2 |
+| Non-portable shell/binary with no platform branch | T2 |
+| Startup timeout too tight to survive a cold/slow disk | T2 |
+
+Lived examples: tests broke on Windows over CRLF and over `HOME` vs `USERPROFILE`; a boot fetch timeout was too short and failed intermittently until raised.
+
+---
+
+## 6. Internal idempotency
+
+Hooks, scripts, and boot steps re-run. Re-running must not duplicate or corrupt state.
+
+```
+IF a hook/script can fire more than once on the same input
+  THEN a second run must be a no-op on already-applied state, not a duplicate write
+IF two agents/processes share a working tree or state
+  THEN NEVER perform a global mutation (stash/reset/checkout across the whole tree) — operate only on your own paths (pathspec)
+```
+
+| Rule | Tier |
+|------|------|
+| Re-run duplicates or corrupts state (no idempotency guard) | T2 |
+| Global tree mutation while another actor is working — destroys their uncommitted work | T1 |
+
+Lived example: parallel agents on one working tree — a global `stash`/`reset` by one destroyed the other's uncommitted work.
+
+### Concurrency — race on shared state
+
+```
+IF a resource can be modified by concurrent actors
+  THEN never SELECT-then-UPDATE (or read-then-write) without a guard — that is a race
+IF you update shared state
+  THEN include a version/timestamp guard in the condition (WHERE version = $seen / compare-and-set)
+IF 0 rows/records were affected by the guarded update
+  THEN it is a conflict — raise it, NEVER treat it as silent success
+```
+
+| Rule | Tier |
+|------|------|
+| Read-then-write / SELECT-then-UPDATE without a guard (race) | T1 |
+| Guarded update affects 0 records but reported as success (silent) | T1 |
+| Persisted write auto-retried without an idempotency key (may duplicate) | T1 |
+| Retry without a max-attempt cap, or with a fixed (non-backoff) delay | T2 |
+
+Concept only — no SQL isolation levels or DB-specific locking here; those live in the project profile.
+
+---
+
+## 7. Async & error handling (agnostic)
+
+| Rule | Tier |
+|------|------|
+| Fire-and-forget async work (no await, no error handler) | T1 |
+| Error in a `.catch`/handler swallowed instead of re-thrown or logged | T1 |
+| Independent async ops run sequentially instead of concurrently | T2 |
+| Cleanup (close connections, release locks) not in a `finally`/equivalent | T2 |
+
+Error-handling principle (concept, not a specific class): the project defines its error taxonomy; use the project's typed errors, re-throw without wrapping away context, and NEVER silently swallow a catch. IF the project declares no taxonomy THEN a raised, logged, contextual error is the minimum.
+
+---
+
+## 8. Anti-pattern catalog (generic method)
+
+Detect these regardless of language; examples are pseudocode.
+
+- **Duplicated `instanceof`/type-switch chain** → replace N identical blocks with a map of type→config + one handler.
+- **Comment as decoration** → a doc comment longer than the function it documents, or restating the signature, is noise. Remove.
+- **Over-splitting** → do not extract a one-caller function to its own file; split by real entity (>~30 LOC, a responsibility that can grow), not by dogma.
+- **Unnecessary runtime freeze/guard** → do at compile time what you don't need at runtime.
+- **Duplicated near-identical validators/handlers** → parameterize into one.
+- **Magic numbers/strings** in config/timeouts/limits → named constant.
+
+---
+
+## 9. Scoring — /110 (reweighted to the threat model)
+
+Five weighted dimensions, calibrated to "the system against itself". **11 weight-units → /110.** Score each dimension 0-10 on its checklist only.
+
+| Dimension | Weight | What it measures |
+|-----------|--------|------------------|
+| Integrity (data + memory) | ×3 | Pilars 1 & 3 — no corruption, no loss, round-trip verified |
+| Silent-failure / Error handling | ×3 | §4 & §7 — every failure observable, nothing swallowed |
+| Structure | ×2 | §2 — size limits, SOLID, no significant duplication |
+| Real verification / round-trip | ×2 | tests exist and exercise the real seam, not a fabricated fixture |
+| Maintainability | ×1 | naming, no dead code, no debug prints, constants |
+
+Platform robustness (§5) is scored as **checklist items inside Integrity and Structure** — it is NOT its own weighted dimension (that would make the total /130, not /110).
+
+Scoring rules: 10 = all items pass; 9 = one minor miss; 8 = two misses; <8 = serious. Do NOT invent criteria outside the checklist. IF something works and violates no checklist item THEN it is NOT a finding.
+
+**The score and the merge gate are separate machines — the number never overrides a tier.** The merge/stop gate = **full score AND zero open T1 AND zero un-waivered T2**. 110/110 is *necessary, never sufficient*: a single open T1 blocks merge even at a perfect score. The closed checklists are not exhaustive of all T1s (e.g. a denylist env-guard §4, a format-migration corruption §3 may be found outside the listed items); any T1 found anywhere in this document blocks, whether or not it maps to a checklist row. An autonomous loop must not stop at 110/110 while a T1 is open.
+
+### Closed checklist per dimension (score 0-10 on these only)
+
+**Integrity (×3):** round-trip verified on every real seam (§34); writes atomic (§3); index↔target consistent (§3); no concurrent-write race (§6); no persisted record lost.
+**Silent-failure / Error handling (×3):** no empty/swallowed catch; no masked exit code (§4); fail-open logs its fallback; status not derived from an unsafe proxy; async errors re-thrown or logged (§7); cleanup in `finally`.
+**Structure (×2):** files/functions within limits (§2); SOLID respected; no significant duplication; platform-portable (§5 — path/encoding/env/timeout).
+**Real verification (×2):** tests exist for load-bearing logic; they exercise the real seam, not a fabricated fixture; **no tautological assertion** (`expect(true)`), **no test depends on execution order**, **no mock that replicates production logic**, mocks cleared between tests; happy path + error paths covered. Do NOT test: getters without logic, re-exports, external library behavior, every parameter combination.
+**Maintainability (×1):** named constants (no magic numbers in config/limits/timeouts); no dead code / debug prints; comments and naming per §11.
+
+### Anti-void rule (normative)
+
+**For every concrete rule removed in favor of an abstract principle, one mechanical IF/THEN internal-failure rule must remain in that dimension.** A dimension carrying a weight but no mechanical checks is a phantom, and the /110 becomes decorative. A reviewer must be able to point at a concrete IF/THEN for every weighted dimension.
+
+**Per-item evidence (normative).** A dimension's 0-10 is not a gut grade — it is derived from its checklist items, each pass/fail with evidence (a `file:line`, a test result, a grep). Report the failing items, not just the number. A dimension scored without naming which items passed/failed is an unverified assertion — exactly the §34 sin at the scoring layer.
+
+---
+
+## 10. Project profile & pointer rule
+
+The generic standard defines the **what/why**. The concrete **which/how-much** lives in the project, in one of two homes:
+
+1. **Agent memory** (`.claude/agent-memory/<agent>/MEMORY.md`) — operational overrides: this project's size limits, coverage threshold, build/test command, "mistakes I've made here before".
+2. **Project profile** (declared in `CLAUDE.md` / git-memory, never a loose file) — contracts: response/data shape, soft-delete convention, schema, roles, stack conventions.
+
+### Pointer rule (normative)
+
+```
+IF the project profile declares value X   THEN use X
+ELSE                                       use the generic default
+NEVER invent a value to fit today's behavior
+IF a check depends on a profile that is MISSING
+  THEN FAIL LOUD — surface a warning that the profile is absent
+  NEVER silently resolve the check to a no-op (that is itself a silent failure — §4)
+```
+
+**Tailoring boundary (normative).** A project profile MAY tighten a value (stricter limit), add project-specific rules, or map a generic concept to a concrete command. A profile MUST NOT **downgrade or waive a generic T1** — no profile can declare "we don't do atomic writes here" or "silent failure is fine here". The pointer rule tunes the *which/how-much*, never the *whether* of a T1. A profile attempting to weaken a T1 is itself a T1 finding.
+
+Examples of what standards must NOT hardcode (they point to the profile instead): the typecheck/build command (not `tsc`), the response/data contract (not an HTTP envelope), the soft-delete filter (not `AND active = true`), the DB columns, the roles, the coverage number.
+
+---
+
+## 11. Comments, naming & dependencies (maintainability)
+
+```
+Document an exported symbol only when its purpose is non-obvious; note what it throws.
+NEVER restate the type signature in the doc comment (that is noise).
+A doc comment longer than the code it documents is an anti-pattern — shorten or delete.
+Identifiers are in the project's code language (default English); comments and user-facing
+  messages follow the project's existing convention — check before writing.
+Name constants for any magic number/string in config, security, limits or timeouts.
+IF functionality is solvable in under ~30 LOC THEN implement it; never add a dependency for something trivial.
+```
+
+| Rule | Tier |
+|------|------|
+| Doc comment restates the signature, or is longer than the function | T3 |
+| Magic number/string in config, limits or timeouts | T2 |
+| Magic number/string in general logic | T3 |
+| Dependency added for trivial (<30 LOC) functionality | T2 |
+| Naming inconsistent with the project's declared convention | T3 |
+
+---
+
+## Severities
+
+| Severity | Definition | Typical tier |
+|----------|-----------|--------------|
+| CRITICAL | Data loss/corruption, or a load-bearing path fails silently | T1 |
+| HIGH | Violates a hard rule, likely bug | T1-T2 |
+| MEDIUM | Reduces maintainability / violates a recommendation | T2 |
+| LOW | Minor improvement | T3 |
+| INFO | Observation, no required action | — |
+
+IF HIGH and unclear T1 vs T2: affects data/memory integrity or silent failure → T1; affects structure/testing/patterns → T2.
+
+---
+
+## Acceptance gate for THIS document (round-trip on itself)
+
+Before this standard replaces the current one, replay **real past internal failures** through it and confirm each still classifies correctly — proof the rewrite kept its teeth, not just its principles. One replay per new pillar, not a single fixture:
+
+| Lived incident | Must classify | Under |
+|----------------|---------------|-------|
+| `pytest \| tail` masked the real exit code | T1 | §4 Silent failure |
+| A cleanup deleted the user's notes under an orphaned marker | T1 | §3 Memory integrity |
+| Tests broke on Windows over CRLF / `HOME` vs `USERPROFILE` | T2 | §5 Platform |
+| A global `stash`/`reset` destroyed a parallel agent's uncommitted work | T1 | §6 Idempotency/concurrency |
+
+IF any replay does not classify as shown THEN this document lost its bite for that pillar — fix before shipping.
+
+**Determinism probe (the line-4 test, made executable).** The header claims "two AIs reading the same rule reach the same action." Prove it: hand the *same* finding to two independent agent instances and compare the tier they assign. IF they diverge THEN the rule that produced the split is ambiguous — pin it down before shipping. This is cheap with the existing multi-agent (Council) infrastructure and is the only mechanism that actually tests the document's own quality criterion.

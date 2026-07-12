@@ -118,8 +118,8 @@ Output:
 INTEGRATION MAP:
 | Module | Provides | Consumed by | Status |
 |--------|----------|-------------|--------|
-| tiles.service | generateTile | tiles.routes | CONNECTED |
-| tiles.service | validateExists | (nobody) | ORPHANED |
+| moduleA | doThing | moduleB | CONNECTED |
+| moduleA | validateExists | (nobody) | ORPHANED |
 ```
 
 ## Output Format

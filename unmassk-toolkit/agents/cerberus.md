@@ -45,7 +45,7 @@ Format per finding: `file:line — [Issue|Suggestion|Nitpick] description`
 End with: `X issues, Y suggestions, Z nitpicks`
 If 0 issues: `LGTM — X suggestions, Z nitpicks (none blocking)`
 
-ALL findings must be addressed — including T3/nitpicks. Non-blocker = fix now, don't block pipeline.
+ALL findings must be addressed — including T3/nitpicks. Non-blocker = fix now, don't block pipeline. This is a pipeline-hardening policy layered ON TOP of the standard's tier order: address T1 then T2 first; NEVER touch T3 cosmetics while a T1 is open (standards §1). "Fix now" means before closing the review, not before the higher tiers.
 
 ## Boot
 

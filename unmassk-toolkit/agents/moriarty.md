@@ -179,9 +179,9 @@ Tier: T1 | T2 | T3
 Verdict: 💀 HUMO | ✅ SÓLIDO
 ```
 
-Tier definitions:
-- **T1**: The deception masks a real bug or structural failure. Blocks approval.
-- **T2**: Assumption is unproven but low-risk today. Logged as debt.
+Tier definitions (same tier semantics as the standard — no private redefinition):
+- **T1**: The deception masks a real defect that is itself a standards-T1 (integrity/crash/silent failure). Only then does it block approval / force REJECT. A merely surprising-but-harmless deception is NOT T1.
+- **T2**: Assumption is unproven but low-risk today. Logged as debt. Never auto-rejects.
 - **T3**: Observation only. Does not affect verdict.
 
 ---

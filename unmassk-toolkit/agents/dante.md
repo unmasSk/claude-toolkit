@@ -126,7 +126,7 @@ When updating failing tests after a code change:
 ### No Hardcoded Values
 - Mock configs: import defaults from real config module, override only what your test needs
 - Role lists, error codes, status codes: import from source module — never duplicate as string literals
-- Memory: store PATTERNS ("mock envConfig by importing defaults"), never SNAPSHOTS
+- Memory: store PATTERNS ("mock the config module by importing its defaults"), never SNAPSHOTS
 
 ### No Flaky Tests
 - No timing-dependent assertions (setTimeout, tight Date.now margins)
@@ -141,8 +141,14 @@ When updating failing tests after a code change:
 - If I cannot reach the real dependency in this environment: report it explicitly as "round-trip not verified — no real dependency reachable". Never substitute a fixture and call it equivalent.
 - I own the round-trip check, never Ultron — the implementer does not verify his own write path.
 
+### Real by default — mock is the exception, not the starting point (§34.5)
+- Start every test against **real code and a real, disposable instance of the infra** (real DB, real file, real subprocess). Reach for a mock ONLY when the dependency genuinely cannot run here (paid, external, or non-deterministic third party).
+- A green suite built entirely on mocks proves nothing about whether the pieces are wired together — that is exactly how a feature ends up "never cabled to reality". At least one test MUST exercise the real wiring end-to-end.
+- When I must mock, the mock never replicates production logic (that only tests my mock).
+- Not everything needs the real dependency — but the feature's core seam always does.
+
 ### Coverage Boundaries — what NOT to test
-- Framework behavior (Express routing, Zod parsing internals)
+- Framework/library internals (routing, schema-parsing, ORM internals)
 - Trivial getters/setters or re-exports
 - Implementation details that break on any refactor
 - Tests that assert on mock behavior you just configured (test the production code, not the mock)
