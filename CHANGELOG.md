@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`unmassk-project-lifecycle`'s START branch rewritten into a full new-project protocol** — the method for taking a project from an idea to a fully prepared state *before a line of business code*. The lightweight `SKILL.md` now routes to three references: **`start.md`** (the director — six phases: define/grill + PRD → behavior/three-layer walkthroughs → visuals/mockups → foundations decide → build base → close, with a **Phase-0 triage** so trivial/small projects skip the heavy phases), **`foundations.md`** (a **tool-agnostic** enterprise foundations catalog — ~60 foundations *by name* across 12 blocks, Mandatory vs Conditional, opt-out, plus a map of which toolkit skill already delivers each block), and **`walkthroughs.md`** (the three-layer walkthrough method: sees / does / DB × four viewpoints, every error branch, approve-before-next). Fixes a Detection routing bug — *memory-but-no-code* is now "project mid-preparation, resume at last phase", not "rare/ask". Audited by a 5-advisor council; kept intentionally as a **prose checklist (no enforcement gate)**, with calibration, catalog-in-bulk presentation (auto-accept Mandatory, prune Conditionals by shape), and walkthroughs↔mockups reconciliation added from the verdict.
+
 ## [1.19.14] - 2026-07-12
 
 ### Changed

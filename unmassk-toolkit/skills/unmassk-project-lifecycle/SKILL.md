@@ -9,11 +9,12 @@ description: >
   unclear what state the project is in. If the scope or requirements for the new
   build are still undecided (e.g. "I want an X but I'm not sure what it needs
   to do"), use `unmassk-grill` first to resolve them — this skill situates a
-  project once what to build is already clear. If the user already names a
-  concrete stack/framework while starting (e.g. "let's build a React app"),
-  go straight to `unmassk-scaffolding` — it routes back here only if it turns
-  out more foundational decisions are still needed. Always reach for this
-  before writing code on a project that hasn't been situated yet.
+  project once what to build is already clear. Naming a stack up front (e.g.
+  "let's build a React app") does NOT skip the definition phases — the stack is
+  one decision among many, and scaffolding runs as phase E of START, after
+  requirements, behavior and foundations are seeded, never instead of them.
+  Always reach for this before writing code on a project that hasn't been
+  situated yet.
 ---
 
 # Project Lifecycle
@@ -34,7 +35,7 @@ Route:
 | yes | yes | Continuing our own project | → CONTINUE |
 | no  | yes | External repo, never used the toolkit | → SCAN |
 | no  | no  | Brand new project | → START |
-| yes | no  | Rare/inconsistent state | flag it, ask the user |
+| yes | no  | Project mid-preparation — START ran partway (decisions seeded, no code yet) | → resume START at its last completed phase (read the phase bookmark in git-memory) |
 
 State the detected situation to the user in one line before proceeding.
 
@@ -42,16 +43,20 @@ State the detected situation to the user in one line before proceeding.
 
 ## START — new project
 
-Goal: don't let implementation begin until the base decision tree is seeded.
+Goal: an idea turned into a project prepared *perfectly* before a single line of business code — requirements, behavior, visuals and engineering foundations all seeded first.
 
-1. Use the Skill tool with `skill="unmassk-grill"` first (pipeline-invoked mode — 5-question cap) on the project description itself, before cascading requirements. Catches vague wording and bundled scope ("build me a marketplace app" hiding 3 separate products) while it's cheap to fix — before any stack/framework decision is seeded on top of a misunderstood request.
-2. Cascade the requirements from the project type. A SaaS implies: cloud server, cloud DB, possibly Redis, auth, OAuth provider, and so on. Walk the chain so the known-in-advance requirements surface as nodes.
-3. For each major choice (stack, framework, DB, auth), capture a `decision()` with its `Why:`.
-4. Hand off to the scaffolding wizard (`unmassk-scaffolding`) for the actual structure.
-5. **Before the first feature commit**, confirm the scaffold has a baseline quality floor: a working test command (even trivial), lint/format config, and — if the stack implies secrets — a `.env.example`. **Write the resolved test command into `.claude/git-memory-config.json` under `test_command`** (the same file that holds `repo_type`) so the `stop-dod-gate` hook runs it automatically from here on — this is what makes Flow's Step 7 pre-merge gate a real mechanism instead of prose. A missing floor is not a silent gap: capture it as `decision()` ("deferred: no test runner yet") so it's visible, not lost.
-6. **Critical:** ensure the choices made in scaffolding are written to git-memory as decisions. The richest moment in decisions is the start — do not let it evaporate.
+**First, calibrate.** START is not one rail for everything. A throwaway script or a one-screen tool does NOT walk all six phases — see the triage at the top of `references/start.md`. The full protocol below is for a real product; trivial work skips the heavy phases the same way Flow's triage skips its pipeline.
 
-Do not write feature code until the base tree exists.
+**Run the full protocol in [`references/start.md`](references/start.md)** (the "director" — the master file that orchestrates the phases). Read it top to bottom. In summary, six phases:
+
+- **A · Define** — interrogate by thematic blocks (via `unmassk-grill`), one answer = one immediate `decision()`; PRD as a living document derived from git-memory.
+- **B · Design the behavior** — high-level flow diagrams, then three-layer walkthroughs (see [`references/walkthroughs.md`](references/walkthroughs.md)); cross-check the data model against every walkthrough.
+- **C · Design the visuals** — mockups via `unmassk-design`, following research → brief → build → render-before-show.
+- **D · Foundations, decide** — `ARCHITECTURE` + `STANDARDS` as separate binding docs; offer the full enterprise foundations catalog (see [`references/foundations.md`](references/foundations.md)), Mandatory vs Conditional, opt-out.
+- **E · Build the base** — scaffold (`unmassk-scaffolding`) → wire the accepted foundations in code → Phase-1 plan as a verifiable checklist → test-first, no infra mocks, blocking CI/CD from the first commit. Record `test_command` in `.claude/git-memory-config.json`.
+- **F · Close** — `context()` bookmark with the exact next step.
+
+Do not write business code until phases A–D are seeded and the base (phase E) stands.
 
 ---
 
