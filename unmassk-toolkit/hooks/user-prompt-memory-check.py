@@ -104,9 +104,12 @@ def _read_prompt_text() -> str | None:
 
 
 _BANNER = (
-    "╔═══════════════════════════════╗\n"
-    "║         NOT YAPPING!          ║\n"
-    "╚═══════════════════════════════╝"
+    "╔═════════════════════════════════════════════════╗\n"
+    "║         NOT YAPPING!  ·  DON'T ASSUME           ║\n"
+    "║         In this conversation? say it.           ║\n"
+    "║   Not 100% sure? verify it (memory/code/web).   ║\n"
+    "║               Never make it up.                 ║\n"
+    "╚═════════════════════════════════════════════════╝"
 )
 
 
