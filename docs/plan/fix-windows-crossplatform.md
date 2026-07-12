@@ -54,7 +54,7 @@ Hacer el toolkit ejecutable y seguro en Windows/macOS/Linux por igual, sin degra
 **Steps:**
 - [ ] Añadir `encoding="utf-8"` a cada `open()`/`json.load`/`json.dump` y `encoding="utf-8"` a cada `subprocess(text=True)`.
 - [ ] Patrón de referencia ya correcto: `lib/boot_migrations.py:143,158,171` y el cache de glosario — imitarlos.
-- [ ] F6 (bajo demanda, bajo): `scripts/skill-search.py:49` `split(":")` → `os.pathsep`.
+- [ ] F6 (bajo demanda, bajo): MOOT — `scripts/skill-search.py` fue retirado y archivado en el tag `bm25-skill-gate-1.19.9`; ya no existe en el árbol, nada que corregir.
 - [ ] Verify: los round-trip de encoding de Task 1 pasan a VERDE, incluido el que corre con `PYTHONUTF8=0`.
 
 ## Wave Map

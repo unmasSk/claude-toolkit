@@ -94,50 +94,85 @@ module it needs) is in that stub set. `encoding_guard.py` is not, so a
 direct unconditional `from encoding_guard import force_utf8_streams` is
 correct with no defensive fallback.
 
-## hooks/pre-task-recall.py issue #68: injecting into a Task/Agent prompt via
-## updatedInput does NOT propagate (Claude Code bug #15897) -- redo as a deny gate
+## hooks/pre-task-recall.py issue #68 history: updatedInput propagation bug,
+## the deny-gate redo, and its later removal (2026-07-12)
 
 First attempt at #68 (silent skill injection, mirroring how the existing
 git-memory `_allow_with_injection()` rewrites `tool_input.prompt`) was
 implemented, tested green, then fully reverted (`git show 7497f61`) because
 Claude Code does not actually propagate `hookSpecificOutput.updatedInput`
 into a spawned subagent's prompt (upstream bug #15897) -- confirmed
-independently of this repo, not a bug in the hook itself. `_allow_with_injection`
-still exists and is still used for the git-memory recall footer -- **do not
-assume it's dead code just because the skill-injection use case was reverted**;
-it may itself be silently non-functional for the same underlying reason and
-worth flagging if that's ever confirmed.
+independently of this repo, not a bug in the hook itself.
 
-The redo (this session) uses a DENY gate instead: when a domain skill scores
->= `_SKILL_SCORE_THRESHOLD` (1.5, same as `scripts/skill-search.py`'s own
-`LOW_SCORE_THRESHOLD`) against the prompt and the prompt doesn't already
-contain the `_SKILL_MARKER` sentinel (`"[DOMAIN SKILL —"`), the hook returns
-`permissionDecision: "deny"` with `permissionDecisionReason` containing the
-exact block to paste + reinvoke instructions. Denying (unlike updatedInput)
-DOES reach the orchestrator today -- verified live before implementing, per
-the task's own "CONTEXTO VERIFICADO EN VIVO" brief. Also corrected in the
-same pass: the hook's own `tool_name` check was `!= "Task"` and silently
-never fired, because the real PreToolUse payload for a subagent spawn uses
-`tool_name == "Agent"` (verified live) -- the check is now `not in
-("Agent", "Task")`. This second bug is likely why some earlier assumptions
-about this hook's behavior never actually exercised its logic at all.
+The redo used a DENY gate instead: when a domain skill scored high enough
+against the prompt and the prompt didn't already contain the `_SKILL_MARKER`
+sentinel (`"[DOMAIN SKILL —"`), the hook returned `permissionDecision:
+"deny"` with instructions to paste the skill block and reinvoke. Also
+corrected in that pass: the hook's `tool_name` check was `!= "Task"` and
+silently never fired, because the real PreToolUse payload for a subagent
+spawn uses `tool_name == "Agent"` -- the check became `not in ("Agent",
+"Task")`. That fix is still current (it applies to the whole hook, not just
+the now-removed gate).
 
-Fail-open contract for the gate itself: `_find_top_skill()` returns
-`(None, error_str)` on ANY failure (missing `scripts/skill-search.py`,
-non-zero exit, timeout, malformed JSON, missing `score`/`name` keys) and the
-caller only denies on `(top, None)` with `top["score"] >= threshold` --
-every other combination falls through to the pre-existing memory-recall
-allow flow. Verified manually (not just by reading the code): moved
-`scripts/skill-search.py` aside and re-ran the hook -- fell through to allow
-with a `skill gate: fail-open script not found: ...` stderr breadcrumb, and
-memory injection still ran normally afterward.
+**2026-07-12 -- the entire BM25 skill-gate was retired (not tuned, removed).**
+Deleted from `hooks/pre-task-recall.py`: all `_SKILL_*` constants, `_deny()`,
+`_find_gate_skills()`, `_build_skill_gate_message()`, and the gate block in
+`main()` between the whitelist check and the memory-recall query -- memory
+injection (section B, `_allow_with_injection` / `recall()`) now runs
+unconditionally right after the whitelist check, with nothing gating it.
+`scripts/skill-search.py` (the gate's only consumer) and all 36 `.skillcat`
+files across the plugin repos were deleted outright (recoverable via the
+`bm25-skill-gate-1.19.9` tag if ever needed again). `tests/test_pre_task_recall.py`'s
+~10 `TestSkillGate*` classes are now dead and are Dante's follow-up, not
+touched during the removal. Do not resurrect any `_SKILL_*` reference, or
+the precision-calibration numbers this file used to carry (trigger 8.0,
+confident floor 5.0, relative margin 0.35), as if the gate still exists --
+it does not. If it's ever rebuilt, re-derive thresholds from fresh evidence.
 
-Applying this gate to real prompts breaks ~27 of the ~51 tests in
-`tests/test_pre_task_recall.py` (they assert `permissionDecision == "allow"`
-for prompts that legitimately score high against the REAL `~/.claude/plugins/cache`
-skill corpus, e.g. `"implement BM25 ranking for recall"` scores high against a
-"ranking algorithm"/search-domain skill). This is expected, not a regression --
-the prior (reverted) attempt at #68 hit the identical situation ("8 contrato
-verdes; 2 tests viejos obsoletos" in `bfe9d9f`) -- test reconciliation for the
-gate semantics is Dante's follow-up, not something to patch unilaterally while
-implementing the hook itself.
+## Reuse an existing semver comparator, don't add a second parser (issues #58/#64)
+
+Two semver comparators already live in this codebase, each solving a
+different problem -- don't conflate them or invent a third:
+
+- `bin/release_validators.py::_semver_key()` -- full semver 2.0.0 ordering
+  key (major.minor.patch + pre-release identifier comparison), used by
+  `bin/release_helpers.py` for release ordering. Its pre-release identifier
+  loop must guard with `ident.isascii() and ident.isdigit()`, not bare
+  `isdigit()` -- `str.isdigit()` accepts non-ASCII Unicode digit chars that
+  `int()` also parses, silently misclassifying them into the numeric
+  comparison branch instead of the alphanumeric one (issue #58).
+- `unmassk-toolkit/lib/upgrade_check.py::_parse_semver()` -- simple
+  `(major, minor, patch)` int-tuple parser (no pre-release support, returns
+  `None` on anything else), the oracle `needs_upgrade()`'s Check 2 already
+  trusts for `manifest_tuple < code_tuple`. `unmassk-toolkit/lib/boot_health.py::check_version_mismatch()`
+  used to compare with raw string inequality (`installed != PLUGIN_VERSION`),
+  which suggested "update" even when the installed version was numerically
+  NEWER than the code (issue #64, PoC: manifest "9.9.9" vs code "1.19.4").
+  Fixed by importing `_parse_semver` into `check_version_mismatch()` and
+  gating the warning on `installed_tuple < code_tuple` -- same function,
+  imported, not re-derived.
+
+Import discipline for reusing `_parse_semver` from `boot_health.py`: kept
+**deferred inside the function body**, next to the existing deferred
+`from git_helpers import ...` line, for the same reason stated in
+`boot_health.py`'s own module docstring -- `boot_health` is a real,
+stably-named module, and a module-level `from upgrade_check import
+_parse_semver` risks running during a test's stub window (`upgrade_check.py`
+has its own module-level `from version import VERSION as PLUGIN_VERSION`
+that would freeze to a stub's fake `"test"` version forever in that
+scenario). This is a broader instance of the "check what tests stub before
+adding a module-level import" rule already documented above for
+`_symlink_safe_open.py` fallbacks -- applies even when there's no
+`ImportError` fallback involved, just an import-order/caching hazard.
+
+**`_allow_with_injection` is CONFIRMED working, not a suspected no-op.**
+A prior version of this note flagged it as "may itself be silently
+non-functional" by analogy to the reverted skill-injection case (bug
+#15897). House (2026-07-12, see its `diagnostic-patterns.md`) confirmed
+live that the memory footer DOES reach the whitelisted subagent -- the
+parent transcript only ever records the PRE-hook prompt, so injection is
+invisible from there, but first-party subagent receipt shows the real
+`_FOOTER_HEADER` + recall block. Smoke-tested again in this same session
+(`echo '{"tool_name":"Agent",...}' | python3 hooks/pre-task-recall.py`)
+and the emitted `updatedInput.prompt` carries the footer correctly. Do not
+re-flag this as a suspected no-op without new evidence.

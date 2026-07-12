@@ -140,6 +140,21 @@ The stub `git_helpers` survives. Later `test_recall.py` → `from recall import 
 - The polluting test must restore `sys.modules` for every name it stubbed. Snapshot the prior entry (or absence) and restore in `finally`, OR use `monkeypatch.setitem(sys.modules, name, stub)` (auto-reverts), OR an autouse fixture that snapshots/restores `sys.modules` + `sys.path` around each test.
 - Do NOT "fix" this by making recall.py tolerate a missing GIT_TIMEOUT — that masks the leak and weakens the real import contract.
 
+## Pattern: Verifying PreToolUse `updatedInput` prompt injection reaches a subagent — the transcript records PRE-hook input, so injection is INVISIBLE there
+
+**Project:** unmassk-toolkit (pre-task-recall.py memory footer) · **Seen:** 2026-07-12 · confirmed live, first-party
+
+Question class: "does hook X's `hookSpecificOutput.updatedInput.prompt` actually reach the spawned subagent, or is it a silent no-op?" (People suspect no-op because of upstream bug #15897 re: skill injection.)
+
+Key structural facts about Claude Code transcripts (`~/.claude/projects/<proj>/<session>.jsonl`):
+1. **Subagent conversations are NOT in the .jsonl** — `isSidechain=true` count is 0 in current versions. Subagent I/O goes to separate `/private/tmp/claude-501/.../<session>/tasks/<task-id>.output` files. So you cannot read the subagent's received prompt from the parent .jsonl.
+2. **The recorded `tool_use.input(Agent/Task).prompt` is the MODEL's ORIGINAL prompt (PRE-hook).** The hook's `updatedInput` is applied AFTER and is NOT written back into the transcript. Proof: across 58 Agent spawns in one session, the real footer signature appeared in the recorded sent-prompt **0 times**, even for whitelisted agents that demonstrably received it. This is exactly why the injection looks like a no-op from the orchestrator side and why nobody could confirm it.
+3. **Beware loose grep matches.** Matching `"PROJECT MEMORY"` caught false positives where the orchestrator QUOTED the block format as literal task-description text (building the feature). Use the exact distinctive footer phrase (e.g. `auto-recalled, relevant to your task`) as the signature. Also: `json.dumps` escapes em-dash `—` to `—` — use `ensure_ascii=False` or match on the raw line.
+
+**The airtight verification (what actually resolves it):** compare the orchestrator's RECORDED spawn prompt (pre-hook, footer absent) against what the subagent ACTUALLY received. First-party is cleanest: when House itself is the whitelisted subagent, its own live prompt ends with the exact `_FOOTER_HEADER` + real recall block, while the parent transcript's `tool_use.input` for that same `subagent_type:house` spawn shows `footer=False`. The delta (footer, added between tool_use emission and receipt) can only be the PreToolUse hook's `updatedInput` → **injection DOES propagate; not a no-op.** Secondary corroboration: subagents echo the footer back in their `toolUseResult` returns (but filter out sessions where the footer is the investigation topic — self-contamination).
+
+**Lesson:** `updatedInput` propagation cannot be confirmed OR denied from the parent transcript alone (it records pre-hook). Confirm via first-party subagent receipt or the `tasks/*.output` files. A green test that asserts the hook's emitted JSON contains `updatedInput.prompt` proves only WHAT THE HOOK EMITS, never that Claude Code delivers it — that is an end-to-end gap no subprocess-level unit test closes.
+
 ## Pattern: Schema-Code Divergence (Phantom Tables)
 
 **Project:** omawamapas

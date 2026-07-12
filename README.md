@@ -49,7 +49,7 @@ Restart Claude Code. Done.
 |--------|-------|
 | Every session starts from zero | Claude remembers decisions, preferences, and your personality across sessions |
 | Claude writes all the code | Claude orchestrates 10 agents — each with a defined role |
-| "Review this code" → generic feedback | Agents auto-discover 40+ domain skills and apply specific checklists |
+| "Review this code" → generic feedback | The orchestrator routes the right domain skill into each agent's prompt and it applies specific checklists |
 | You ask for an audit, Claude improvises | 14-step enterprise audit with scoring /110 |
 | You ask to build a feature, Claude jumps in | 8-step creative pipeline from brainstorm to merge |
 | No quality standards | T1/T2/T3 tiers, OWASP, React patterns, TypeScript strict, async, API contracts |

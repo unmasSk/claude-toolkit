@@ -416,4 +416,73 @@ mismatch) and `grep -rn '"HOME"' tests/*.py` (expanduser redirect gap) —
 both are cheap, whole-directory sweeps that catch every instance of the
 pattern, not just the one(s) named in the bug report.
 
+**Issues #64/#58 (2026-07-12) — patching a module-level global read at call
+time (not a deferred local import) needs only `module.NAME = x` after
+import, before calling; and the "derive-the-expected, don't hand-type-it"
+rule for a pure ordering function is best satisfied by flipping the
+comparison, not by hardcoding the internal tuple shape.**
+1. `lib/boot_health.py::check_version_mismatch()` reads `PLUGIN_VERSION`
+   as a bare name resolved from its OWN module's globals at call time
+   (`from version import VERSION as PLUGIN_VERSION` at the top of
+   `boot_health.py`, not a deferred `from version import VERSION` inside
+   the function body like `git_helpers`/`upgrade_check` get in this same
+   function -- see the module docstring's caching-hazard rationale for why
+   those two ARE deferred). To exercise a code-side-unparseable-version
+   edge case without touching production code: `import boot_health` for
+   real in the isolated subprocess, then `boot_health.PLUGIN_VERSION =
+   "not-a-version"` BEFORE calling `boot_health.check_version_mismatch()`
+   -- the function's global lookup at call time picks up the patched
+   value. (Contrast with the `_write_glossary_cache()` gotcha earlier in
+   this file, where the name-to-patch distinction the OTHER way around --
+   deferred local imports -- mattered; check which shape applies before
+   picking a patch target.)
+2. For `bin/release_validators.py::_semver_key()`'s issue #58 fix
+   (`ident.isascii() and ident.isdigit()` gating the numeric pre-release
+   branch), the useful regression assertion is not "assert the returned
+   tuple equals `(1, 0, 0, 0, (1, '１２３'))`" (hand-typing the internal
+   branch-tag shape just re-describes the implementation) but "assert
+   `_semver_key('1.0.0-１２３') > _semver_key('1.0.0-200')`" -- a full-width
+   identifier with a NUMERICALLY SMALLER digit value (123) must still
+   outrank an ASCII-numeric identifier with a LARGER value (200), because
+   alphanumeric always outranks numeric per semver SS11.4.3 regardless of
+   value. This is the exact comparison that flips between the buggy and
+   fixed implementation (verified live by simulating the old
+   `ident.isdigit()`-only branch inline before writing the test: pre-fix
+   `fullwidth > ascii_200` is False, post-fix True) -- a same-value or
+   same-direction comparison would pass on both buggy and fixed code and
+   prove nothing. General rule for regression-testing a branch-selection
+   bug in a pure ordering/comparator function: find (or construct, via a
+   throwaway inline simulation of the old logic) the SPECIFIC pair of
+   inputs whose relative order is different under old vs. new logic, and
+   assert only that relation -- never the internal representation.
+
+**Issue #68 follow-up (2026-07-12) — reconciling a test file after Ultron
+retires a whole feature (the skill-search gate) from a hook: the dead test
+infra was one CONTIGUOUS block, not scattered.** `test_pre_task_recall.py`
+failed to collect (`AttributeError: module 'pre-task-recall' has no
+attribute '_SKILL_MARKER'`) because 10 `TestSkillGate*` classes plus their
+shared fixtures (in-process hook import via
+`importlib.util.spec_from_file_location`, constants read off the hook
+module, `_domain_prompt`/`_real_skill_search_top`/etc.) all lived after the
+last surviving (memory-injection) class, under one banner comment ("NEW
+COVERAGE: skill gate"), straight through EOF — confirmed by grepping every
+identifier Bilbo listed and finding zero hits outside that range. When a
+feature is fully retired (not just changed), check whether its test
+coverage is one contiguous later-added block before doing per-class
+surgery — here it meant a single truncation (`head -n <last-good-line>`)
+instead of 10 separate deletions. Also: don't reflexively delete
+now-unused-looking module-level constants/imports shared with kept tests --
+`_MEM_NONCE`/`_NO_MATCH_NONCE` were originally justified by the retired
+gate (avoiding BM25 skill-corpus collisions) but are used as ordinary
+shared vocabulary by ~15 call sites across the KEPT memory-injection
+classes; rewriting all of them to prove a nonce-free version still matches
+was out of scope for a reconciliation task — left in place, only the stale
+justifying comment was corrected to say the original reason is gone and
+they're now just inert shared vocabulary (Yoda/Bex's own "leave inert if
+it complicates, flag it" allowance for exactly this situation). Genuinely
+dead-after-truncation names (`SKILL_SEARCH_SCRIPT` constant, `import
+importlib.util`) were still worth removing since they had zero remaining
+references anywhere in the file post-truncation -- confirmed by grep, not
+assumed.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

@@ -2,7 +2,7 @@
 
 > Executable reference for AI agents. Binary rules (IF/THEN).
 > Quality test: if two AIs read the same rule, they reach the same action.
-> Language skill — applies to ANY TypeScript code, backend or frontend. Domain skill, NOT loaded on boot; discovered via skill-search with TypeScript vocabulary.
+> Language skill — applies to ANY TypeScript code, backend or frontend. Domain skill, NOT loaded on boot; the orchestrator injects it into the agent's prompt when the task is TypeScript work.
 
 ## Relationship to the core (unmassk-standards)
 

@@ -216,7 +216,7 @@ Each agent receives ONLY context and data, NOT instructions on how to work (agen
 
 - Module path and file list
 - Relevant findings or reports from previous steps
-- Reference to `unmassk-standards` skill for quality criteria (agents load it via skill-search)
+- Reference to `unmassk-standards` skill for quality criteria (agents load it on boot via the `skills: unmassk-standards` frontmatter declaration)
 - Verification block (test commands, run twice)
 
 Never send two agents to the same file simultaneously.
@@ -270,7 +270,7 @@ Scoring dimensions, weights (Security x3, Error handling x3, Structure x2, Testi
 
 ### Standards
 
-The enterprise quality standards (tiers, scoring, checklists, OWASP, anti-patterns) are in a separate skill: **`unmassk-standards`**. Agents load it automatically via BM25 skill search when they need quality criteria. The audit workflow references standards but does not bundle them.
+The enterprise quality standards (tiers, scoring, checklists, OWASP, anti-patterns) are in a separate skill: **`unmassk-standards`**. Every crew agent loads it on boot via the `skills: unmassk-standards` declaration in its frontmatter. The audit workflow references standards but does not bundle them.
 
 ### Prompt Templates
 

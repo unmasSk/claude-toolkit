@@ -101,9 +101,9 @@ When both CLI scripts and Composio MCP are available for a platform, the skill p
 
 Run evals to verify that the skill correctly routes requests, loads appropriate references, applies product context, and produces outputs that meet quality standards.
 
-## BM25 skill discovery
+## Skill routing
 
-Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew.
+The orchestrator loads this skill's frontmatter (name + description) at boot and injects it into the agent's prompt when the task matches, by criterion. There is no per-agent search step.
 
 ## Attribution
 

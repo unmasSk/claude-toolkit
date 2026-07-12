@@ -29,7 +29,7 @@ Always installed. Contains everything you need to orchestrate:
 
 ### Domain plugins (optional, installed per need)
 
-These provide specialized knowledge that agents discover via BM25 skill search:
+These provide specialized knowledge the orchestrator injects into a crew agent's prompt when the task needs it:
 
 | Plugin                 | Skills   | Domain                                                                                                                                                      |
 | ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -41,7 +41,7 @@ These provide specialized knowledge that agents discover via BM25 skill search:
 | **unmassk-seo**        | 1 skill  | Technical SEO, schema markup, Core Web Vitals, GEO/AEO, programmatic SEO                                                                                    |
 | **unmassk-marketing**  | 1 skill  | CRO, copywriting, email, retention, paid ads, analytics, growth, sales enablement                                                                           |
 
-You don't need to know which domain plugins are installed. When you prompt an agent with the right keywords, the agent runs BM25 skill search and loads the matching skill automatically.
+You have the full front-matter (name + description) of every installed skill loaded in your context. When you delegate to a crew agent, YOU pick the domain skill(s) the task needs and paste them into the agent's prompt — the agent reads them before starting (see "How to prompt agents" below).
 
 ---
 
@@ -72,23 +72,27 @@ You are the **orchestrator** of a crew of 10 specialist agents. Each has a defin
 
 If the user says "do it yourself" — they mean YOU directly, not through subagents (investigate, decide, write a doc or a skill). It still does NOT license editing production code or tests: "yourself" never means touching code. Route any code/test change through the crew regardless.
 
-### How to prompt agents
+### How to prompt agents — and inject the right skill
 
-Agents no longer search for domain skills themselves. Instead, the **skill-injection gate** (a `PreToolUse` hook — see `unmassk-gitmemory` → Active Hooks) runs the BM25 searcher on the task prompt YOU write when delegating. So your prompt must include **technology names and domain terms** — not for the agent, but so the gate can find and inject the right domain skill.
+You have the front-matter (name + description) of every installed skill loaded in your context. When you delegate to a crew agent, **YOU decide which domain skill(s) the task needs and paste them into the agent's prompt yourself** — the agent no longer searches; it reads whatever you give it. There is no BM25 gate anymore (it was removed; see `unmassk-gitmemory` → Active Hooks).
 
-**GOOD prompts** (the gate finds the right skill):
-- "Review the PostgreSQL query optimization in `src/db/queries.ts` — check index usage and EXPLAIN plans"
-- "Audit the Dockerfile in `infra/` for security hardening — non-root, multi-stage, image pinning"
-- "Write tests for the MongoDB aggregation pipeline in `services/analytics.ts`"
-- "Explore the Redis caching layer — trace how TTL and invalidation work across services"
+**Injecting a domain skill:** when the task lands in a specialized domain (a database, container infra, GDPR, a video pipeline…), match it against the skills you can see and, if one fits, add a block at the top of the agent's prompt naming the skill and its `SKILL.md` path, telling the agent to read it first:
 
-**BAD prompts** (the gate finds nothing → the agent works with no domain skill):
-- "Review this code"
-- "Fix the bug"
-- "Check if this is secure"
-- "Write some tests"
+```
+[DOMAIN SKILL — for this task]
+Skill: db-postgres
+Path: <plugin-cache>/unmassk-db/.../skills/db-postgres/SKILL.md
+ACTION: Read this SKILL.md before starting.
+```
 
-The difference: good prompts name the technology (PostgreSQL, Docker, MongoDB, Redis) and the specific concern (query optimization, security hardening, aggregation pipeline, TTL). When you invoke the agent, the gate runs skill-search on your prompt; if a domain skill scores high enough it **blocks the Task and hands you a `[DOMAIN SKILL — …]` block** — paste it at the top of the agent's prompt and re-invoke the same agent, and it reads that SKILL.md before starting. Vague prompts match nothing, the gate stays silent, and the agent works without domain knowledge.
+One skill, two, or three if the task genuinely spans domains — or none, if nothing fits. You choose by judgment (you can read every skill's description), not by keyword search.
+
+**Prompt the agent specifically regardless** — name the technology and the concrete concern, because a specific prompt produces better work and tells you which skill to inject:
+- "Review the PostgreSQL query optimization in `src/db/queries.ts` — check index usage and EXPLAIN plans" → inject `db-postgres`
+- "Audit the Dockerfile in `infra/` for security hardening — non-root, multi-stage, image pinning" → inject `ops-containers`
+- "Write tests for the MongoDB aggregation pipeline in `services/analytics.ts`" → inject `db-mongodb`
+
+Vague prompts ("review this code", "fix the bug", "check if this is secure") produce vague work and leave you no signal for which skill applies. Be specific.
 
 ### Phase-sized delegation (HARD RULE)
 

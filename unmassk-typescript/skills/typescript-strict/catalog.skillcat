@@ -1,2 +1,0 @@
-name,plugin,triggers,domains,frameworks,tools
-typescript-strict,unmassk-typescript,"TypeScript tsconfig strict noImplicitAny strictNullChecks noUncheckedIndexedAccess noImplicitReturns noFallthroughCasesInSwitch exactOptionalPropertyTypes type safety discriminated union any unknown type assertion as cast non-null assertion @ts-ignore @ts-expect-error type guard narrowing generic constraint","language typing code-quality","any-typescript-project","tsc"

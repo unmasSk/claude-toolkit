@@ -151,9 +151,9 @@ These are the 17 user-facing actions the skill understands. The first ten are st
 | Breakpoints, mobile-first, responsive | Responsive design, mobile audit, breakpoint planning | `responsive.md` |
 | AI interfaces, agentic UX, memory UI | AI-native product design, trust signals, agentic flows | `agentic-ux.md` |
 
-## BM25 skill discovery
+## Skill routing
 
-Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew.
+The orchestrator loads this skill's frontmatter (name + description) at boot and injects it into the agent's prompt when the task matches, by criterion. There is no per-agent search step. This is separate from `search.py`'s own BM25 corpus search over the 12 CSV databases (see above), which is unaffected.
 
 ## Dependencies
 

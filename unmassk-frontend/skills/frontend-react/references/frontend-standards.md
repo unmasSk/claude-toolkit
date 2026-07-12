@@ -2,7 +2,7 @@
 
 > Executable reference for AI agents. Binary rules (IF/THEN).
 > Quality test: if two AIs read the same rule, they reach the same action.
-> Domain skill — NOT loaded on boot. Discovered via skill-search when the task smells of frontend.
+> Domain skill — NOT loaded on boot. The orchestrator injects it into the agent's prompt when the task is frontend work.
 
 ## Relationship to the core (unmassk-standards)
 

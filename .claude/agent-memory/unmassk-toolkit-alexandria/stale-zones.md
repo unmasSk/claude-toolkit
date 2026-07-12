@@ -21,6 +21,9 @@ type: project
 
 ## Active stale zones
 
+### unmassk-core/SKILL.md and unmassk-audit/SKILL.md — BM25 skill-search claims, orchestrator-owned (flagged 2026-07-12, not fixed by Alexandria)
+`unmassk-core/SKILL.md:44` says "the agent runs BM25 skill search and loads the matching skill automatically" — contradicts `:77` which correctly says agents no longer search themselves. Both are now stale against the current reality (BM25 gate retired entirely 2026-07-12, decision `5d660b4`, tag `bm25-skill-gate-1.19.9`): the orchestrator loads all skill frontmatter and picks/injects by criterion — there is no gate hook doing BM25 anymore either. `unmassk-audit/SKILL.md:273` says unmassk-standards loads "via BM25 skill search" when it actually loads via frontmatter (`skills:` in agent frontmatter). These 3 files are explicitly orchestrator-owned per task instructions (not Alexandria's — core/gitmemory/audit SKILL.md + agents/*.md are the orchestrator's own docs), so Alexandria only flags, doesn't edit. Re-check on next pass whether the orchestrator has fixed them.
+
 ### chatroom/CHANGELOG.md [Unreleased] — no version stamp
 Recent commits (Tauri 2 shell, stdin delivery, repo cwd selector, security hardening, tab title, queue messages) are NOT in the chatroom changelog at all. The [Unreleased] section covers up to the LOC refactor but not the more recent frontend/backend changes. If chatroom cuts a release, a significant backfill is needed.
 

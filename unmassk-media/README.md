@@ -42,9 +42,9 @@ cp .env.example .env
 | `yt-dlp` | transcribe | `brew install yt-dlp` |
 | Playwright | screenshots | `npx playwright install chromium` |
 
-## BM25 skill discovery
+## Skill routing
 
-All 8 skills include `catalog.skillcat` files for BM25-indexed discovery by agents in unmassk-crew.
+The orchestrator loads every skill's frontmatter (name + description) at boot and picks the matching domain skill by criterion when it delegates a task to a crew agent, injecting it directly into the agent's prompt. There is no per-agent search step.
 
 ## Sources
 

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **The BM25 skill-discovery gate is retired.** `scripts/skill-search.py`, the `catalog.skillcat` files across all domain-skill folders, and the skill-search half of the `pre-task-recall` hook are gone from the working tree (memory-recall injection in that hook is untouched — only the skill-routing half was removed). Reason: with `skillListingBudgetFraction` raised to 0.05, the orchestrator now has every domain skill's frontmatter (name + description) in context at boot and picks the correct one by criterion when it delegates to a crew agent — the BM25 keyword guess is no longer needed and was producing false positives on long, keyword-dense meta prompts. The retired system is archived, not deleted from history: tag `bm25-skill-gate-1.19.9` points to the last commit with it intact.
+
+### Fixed
+
+- **Version-mismatch banner no longer suggests a downgrade** (#64): the boot `STATUS` line compared installed vs plugin version as raw strings, so a project with a *newer* version installed than the plugin code was told to "update" to the older one. It now uses the same numeric semver comparison as the real upgrade oracle (`needs_upgrade`), suggesting an update only when the code is genuinely newer than what's installed.
+- **`_semver_key` no longer misorders non-ASCII digit identifiers** (#58): the release-version comparator routed Unicode digit characters (e.g. full-width `１２３`) through its numeric branch via a bare `isdigit()`; it now requires `isascii() and isdigit()`, so those sort as alphanumeric. Defense-in-depth — the external version input was already gated by an ASCII-only regex.
+
 ## [1.19.9] - 2026-07-12
 
 ### Changed

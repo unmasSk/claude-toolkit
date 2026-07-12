@@ -68,9 +68,9 @@ Two non-blocking, warning-only hooks run automatically.
 | **Pre-commit SEO check** | `PreToolUse` on Bash (git commit) | Warns if a commit touches SEO-critical files (meta tags, schema markup, robots.txt, sitemap) without corresponding test or validation. |
 | **Schema validation** | `PostToolUse` on Edit/Write | Validates JSON-LD schema markup in edited files. Checks for deprecated types, missing required properties, and syntax errors. |
 
-## BM25 skill discovery
+## Skill routing
 
-Includes a `catalog.skillcat` file for BM25-indexed discovery by agents in unmassk-crew. Triggers use hyphenated compounds (Core-Web-Vitals, AI-Overviews, programmatic-SEO) for precise BM25 matching.
+The orchestrator loads this skill's frontmatter (name + description) at boot and injects it into the agent's prompt when the task matches, by criterion. There is no per-agent search step.
 
 ## References
 
