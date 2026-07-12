@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.10] - 2026-07-12
+
 ### Removed
 
 - **The BM25 skill-discovery gate is retired.** `scripts/skill-search.py`, the `catalog.skillcat` files across all domain-skill folders, and the skill-search half of the `pre-task-recall` hook are gone from the working tree (memory-recall injection in that hook is untouched — only the skill-routing half was removed). Reason: with `skillListingBudgetFraction` raised to 0.05, the orchestrator now has every domain skill's frontmatter (name + description) in context at boot and picks the correct one by criterion when it delegates to a crew agent — the BM25 keyword guess is no longer needed and was producing false positives on long, keyword-dense meta prompts. The retired system is archived, not deleted from history: tag `bm25-skill-gate-1.19.9` points to the last commit with it intact.
