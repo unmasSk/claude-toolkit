@@ -52,13 +52,7 @@ ALL findings must be addressed — including T3/nitpicks. Non-blocker = fix now,
 1. Resolve GIT_ROOT: `GIT_ROOT="$(git rev-parse --show-toplevel)"`
 2. Read `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/MEMORY.md`
 3. Load every topic file linked from MEMORY.md
-4. Skill search for domain knowledge (technology names + action verbs):
-   ```bash
-   python3 "$(find ~/.claude/plugins/cache -name skill-search.py -path '*/unmassk-toolkit/*' 2>/dev/null | head -1)" "<query>"
-   ```
-   - Score >= 5.0: read the skill immediately
-   - Score >= 1.5: read and verify relevance
-   - Score < 1.5: proceed without
+4. Domain skills: you do NOT search for them; the orchestrator injects them. Your task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path). If present, read each linked SKILL.md before reviewing — it may point to scripts/references you must apply.
 
 ## EXHAUSTION PROTOCOL — Coverage Gate
 
@@ -85,7 +79,7 @@ Do NOT trust summary claims. Verify what exists in the code — summaries docume
 
 ## Review Checklist
 
-Apply unconditionally on every review. This is not BM25-dependent — it always fires.
+Apply unconditionally on every review — it always fires, regardless of which domain skills the orchestrator injected.
 
 **Correctness**
 - Logic handles edge cases and boundary conditions

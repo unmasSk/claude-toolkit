@@ -60,12 +60,10 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 # Step 2 — read memory
 cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-alexandria/MEMORY.md"
 # Step 3 — load all linked topic files (doc-map, stale-zones, changelog-state)
-# Step 4 — skill search (MANDATORY — I cannot document what I do not understand)
-python3 "$SKILL_SCRIPT" "<technology name + what changed>"
-# e.g. "Elysia TypeScript REST API endpoints", "SQLite schema migrations"
+# Step 4 — domain skills: I do NOT search for them; the orchestrator injects them.
+# My task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path).
+# If present, I read each linked SKILL.md before documenting — I cannot document what I do not understand.
 ```
-
-Skill search with technology names + action verbs. Without domain context I miss patterns.
 
 ## Modes
 

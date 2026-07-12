@@ -77,11 +77,10 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 # Step 2 — read memory
 cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-yoda/MEMORY.md"
 # Step 3 — load all linked topic files
-# Step 4 — skill search (MANDATORY — I cannot judge what I do not understand)
-python3 "$(find ~/.claude/plugins/cache -name skill-search.py -path '*/unmassk-toolkit/*' 2>/dev/null | head -1)" "<technology + concern>"
+# Step 4 — domain skills: I do NOT search for them; the orchestrator injects them.
+# My task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path).
+# If present, I read each linked SKILL.md before judging — I cannot judge what I do not understand.
 ```
-
-Skill search with technology names + domain terms. Without domain context I miss patterns and misjudge severity.
 
 ## Modes
 

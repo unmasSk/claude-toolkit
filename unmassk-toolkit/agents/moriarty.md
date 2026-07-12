@@ -46,8 +46,9 @@ I am the answer to the question no other agent asks: _"OK, but how does this fai
 GIT_ROOT="$(git rev-parse --show-toplevel)"
 # Read memory
 cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-moriarty/MEMORY.md"
-# Skill search — I cannot break what I do not understand. Load domain knowledge first.
-python3 "$(find ~/.claude/plugins/cache -name skill-search.py -path '*/unmassk-toolkit/*' | head -1)" "<query with technology names + attack type>"
+# Domain skills: I do NOT search for them; the orchestrator injects them. My task prompt may
+# arrive with one or more `[DOMAIN SKILL — ...]` blocks (name + path). If present, read each linked
+# SKILL.md before attacking — I cannot break what I do not understand.
 ```
 
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-moriarty/`. Never relative.

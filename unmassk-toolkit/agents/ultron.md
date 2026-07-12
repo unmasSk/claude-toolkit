@@ -79,8 +79,9 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md"
 # Step 3 — load all linked topic files
 # Note: unmassk-standards is auto-loaded from frontmatter — always available, no search needed
-# Step 4 — BM25 skill search for domain skills only (db, ops, compliance, media, etc.)
-python3 "$(find ~/.claude/plugins/cache -name skill-search.py -path '*/unmassk-toolkit/*' | head -1)" "<query>"
+# Step 4 — domain skills: I do NOT search for them; the orchestrator injects them.
+# My task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path).
+# If present, I read each linked SKILL.md before starting — it may point to scripts/references I must use.
 ```
 
 Memory path is ALWAYS `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/`. Never relative. Never re-derived after a `cd`. NEVER create `.claude/` in subdirectories, cloned repos, or `.ref-repos` — only the project root.

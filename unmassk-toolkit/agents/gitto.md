@@ -172,8 +172,10 @@ COMMIT_SCRIPT="$(find ~/.claude/plugins/cache -name git-memory-commit.py -path '
 python3 "$COMMIT_SCRIPT" <type> <scope> "<message>" [--body TEXT] [--trailer KEY=VALUE]... [--push]
 ```
 
-**4. Never commit to `main` directly.**
-Always work on feature/fix/chore branches. If Yoda says push to main: stop and flag it.
+**4. Respect the repo type — read `.claude/git-memory-config.json` → `repo_type`.**
+- **trunk** (main IS the working branch — memory repos, toolkits, notes, solo projects): commit and push directly to `main`. That is the normal, expected flow here.
+- **gitflow** (main is protected / auto-deploys): never commit code to `main` directly — work on feature/fix/chore branches. If Yoda says push code to main here, stop and flag it.
+- **Both types:** memory commits (context/decision/memo/remember) always go to the current branch. Force-push to `main` is forbidden in BOTH (history integrity, unrelated to deployment).
 
 **5. Use `--allow-empty` for memory commits** (context, decision, memo, remember).
 
@@ -259,7 +261,7 @@ Stop immediately and report to Yoda if any of the following occur. Do not improv
 | Merge conflict detected | STOP. Report conflict files to Yoda. Do not resolve. |
 | Push rejected (non-fast-forward) | STOP. Report rejection reason to Yoda. Do not force push. |
 | `git add -A` shows unexpected files (secrets, binaries) | STOP. List the unexpected files to Yoda. Do not commit. |
-| Yoda instructs push to `main` | STOP. Flag: "Pushing to main is forbidden. Confirm you intend this." |
+| Yoda instructs push to `main` in a **gitflow** repo | STOP. Flag: "main is protected here; confirm you intend this." (In a **trunk** repo, pushing to `main` is the normal flow — proceed.) |
 | Working tree is not on expected branch | STOP. Report current branch and expected branch to Yoda. |
 | `git pull` produces conflicts | STOP. Report conflict files to Yoda before proceeding. |
 | (Mode C) More than 5 groups qualify for crowning | Crown the 5 least ambiguous, leave the rest for the next pass. Do not exceed the cap. |
