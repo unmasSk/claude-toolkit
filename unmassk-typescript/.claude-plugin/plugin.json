@@ -1,0 +1,11 @@
+{
+  "name": "unmassk-typescript",
+  "version": "1.0.0",
+  "description": "TypeScript language toolkit — strict tsconfig, type safety (any/unknown/as/!/@ts-expect-error), type guards, discriminated unions. Applies to any TS project, backend or frontend. Extends unmassk-standards.",
+  "author": { "name": "unmasSk", "url": "https://github.com/unmasSk" },
+  "homepage": "https://github.com/unmasSk/claude-toolkit",
+  "repository": "https://github.com/unmasSk/claude-toolkit",
+  "license": "MIT",
+  "keywords": ["typescript", "tsconfig", "strict", "type-safety", "type-guard", "discriminated-union"],
+  "skills": "./skills/"
+}

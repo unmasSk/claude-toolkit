@@ -1,0 +1,11 @@
+{
+  "name": "unmassk-frontend",
+  "version": "1.0.0",
+  "description": "Frontend code-quality toolkit — React component patterns, state & data-fetching, testing, styling discipline, file structure. Extends unmassk-standards with framework-specific rows.",
+  "author": { "name": "unmasSk", "url": "https://github.com/unmasSk" },
+  "homepage": "https://github.com/unmasSk/claude-toolkit",
+  "repository": "https://github.com/unmasSk/claude-toolkit",
+  "license": "MIT",
+  "keywords": ["frontend", "react", "component", "hook", "jsx", "css", "accessibility", "state", "testing"],
+  "skills": "./skills/"
+}
