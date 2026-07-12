@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.6] - 2026-07-12
+
 ### Added
 
 - **Domain skills are now auto-injected into a crew agent's prompt when it's invoked** (issue #68): the BM25 skill searcher worked but nothing ever ran it, so domain skills (PostgreSQL, Docker, GDPR, etc.) were never actually loaded in practice. The `pre-task-recall` hook — which already fires when the orchestrator launches an agent — now also runs the searcher over the task and, if a skill scores above the confidence threshold, injects a `[DOMAIN SKILL]` block (name + path + an imperative "read this now") into the agent's prompt as its own block, separate from the memory footer. Skill search and memory recall are computed independently, so a brand-new task with no project memory still gets its skill. Fail-open on every error (searcher timeout, malformed output, low score) — the hook never blocks or delays a Task. Same agent exclusion as recall (Bilbo/Gitto never get it). Each outcome leaves a stderr breadcrumb so a future failure is never silent.
