@@ -1,16 +1,16 @@
 """
-Tests for the 5-block managed CLAUDE.md behavior.
+Tests for the 4-block managed CLAUDE.md behavior.
 
 Covers:
-- All 5 blocks present after install
+- All 4 blocks present after install
 - Each block has the correct content
 - upsert_managed_blocks() is idempotent
 - Outdated block is updated in place
 - Missing block is appended at end
 - Block order is preserved
-- Legacy blocks are removed
-- session-start-crew.py writes all 5 blocks
-- Uninstall removes all 5 blocks
+- Legacy blocks (including the retired caveman block) are removed
+- session-start-crew.py writes all 4 blocks
+- Uninstall removes all 4 blocks
 - any_block_outdated / all_blocks_present helpers
 """
 
@@ -32,6 +32,7 @@ from managed_blocks import (  # noqa: E402
     upsert_managed_blocks,
     all_blocks_present,
     any_block_outdated,
+    _LEGACY_PATTERNS,
 )
 
 CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
@@ -52,13 +53,13 @@ def _make_repo(tmp_path, name="repo"):
 # ── Unit tests: managed_blocks module ────────────────────────────────────
 
 class TestBlocksDefinition:
-    def test_exactly_five_blocks(self):
-        assert len(BLOCKS) == 5
+    def test_exactly_four_blocks(self):
+        assert len(BLOCKS) == 4
 
     def test_block_ids(self):
         """Each block has a distinct begin marker."""
         begins = [b["begin"] for b in BLOCKS]
-        assert len(set(begins)) == 5, "Duplicate begin markers"
+        assert len(set(begins)) == 4, "Duplicate begin markers"
 
     def test_first_block_is_toolkit(self):
         assert "unmassk-toolkit" in BLOCKS[0]["begin"]
@@ -67,7 +68,6 @@ class TestBlocksDefinition:
         expected_ids = [
             "unmassk-toolkit",
             "unmassk-protocols",
-            "unmassk-caveman",
             "unmassk-communication",
             "unmassk-build-mode",
         ]
@@ -172,21 +172,29 @@ class TestBlocksDefinition:
                 f"{existing_skill} was dropped from the Protocols menu"
             )
 
-    def test_caveman_block_content(self):
-        body = BLOCKS[2]["body"]
-        assert "caveman" in body
-        assert "/caveman" in body
+    def test_caveman_removed_from_active_blocks(self):
+        """Caveman is no longer an active managed block — it was moved to
+        _LEGACY_PATTERNS so upsert strips it from existing CLAUDE.md files
+        instead of maintaining it going forward."""
+        for b in BLOCKS:
+            assert "caveman" not in b["begin"].lower()
+            assert "caveman" not in b["body"].lower()
+        legacy_names = [name for _, name in _LEGACY_PATTERNS]
+        assert "unmassk-caveman" in legacy_names
 
     def test_communication_block_is_finalised(self):
-        """Communication block must contain the finalised rules, not the placeholder."""
-        body = BLOCKS[3]["body"]
+        """Communication block must contain the finalised rules, not the
+        placeholder, plus the two items added when caveman was retired."""
+        body = BLOCKS[2]["body"]
         assert "PLACEHOLDER" not in body
         assert "Concise and plain" in body
         assert "Match the user's language" in body
         assert "Verify before claiming" in body
+        assert "NOT YAPPING" in body
+        assert "Don't assume" in body
 
     def test_build_mode_block_content(self):
-        body = BLOCKS[4]["body"]
+        body = BLOCKS[3]["body"]
         assert "Test-first" in body
         assert "Linear" in body
         assert "Ultron" in body
@@ -197,7 +205,6 @@ class TestUpsertManagedBlocks:
     def test_empty_content_gets_all_blocks(self):
         content, log = upsert_managed_blocks("")
         assert all_blocks_present(content)
-        assert len(BLOCKS) == 5
         for b in BLOCKS:
             assert b["begin"] in content
             assert b["end"] in content
@@ -274,13 +281,27 @@ class TestUpsertManagedBlocks:
         assert "BEGIN unmassk-crew" not in content
         assert any("removed" in entry and "crew" in entry for entry in log)
 
+    def test_caveman_is_legacy_removed(self):
+        """A CLAUDE.md that already has a caveman block loses it entirely
+        after upsert_managed_blocks — caveman moved from BLOCKS to
+        _LEGACY_PATTERNS, so it's stripped like any other legacy block."""
+        old_content = (
+            "<!-- BEGIN unmassk-caveman (managed block) -->\n"
+            "Ultra-compressed mode.\n"
+            "<!-- END unmassk-caveman -->\n"
+        )
+        content, log = upsert_managed_blocks(old_content)
+        assert content.count("<!-- BEGIN unmassk-caveman") == 0
+        assert content.count("<!-- END unmassk-caveman -->") == 0
+        assert any("removed" in entry and "caveman" in entry for entry in log)
+
     def test_missing_all_blocks_all_appended(self):
-        """Content with no blocks gets all 5 appended."""
+        """Content with no blocks gets all 4 appended."""
         user = "# Project\n\nSome docs.\n"
         content, log = upsert_managed_blocks(user)
         assert all_blocks_present(content)
         appended = [e for e in log if "appended" in e]
-        assert len(appended) == 5
+        assert len(appended) == len(BLOCKS)
 
 
 class TestHelpers:
@@ -317,11 +338,11 @@ class TestHelpers:
         assert any_block_outdated(trimmed) is True
 
 
-# ── Integration tests: install writes 5 blocks ───────────────────────────
+# ── Integration tests: install writes 4 blocks ───────────────────────────
 
-class TestInstallFiveBlocks:
-    def test_install_creates_all_five_blocks(self, tmp_path):
-        """After install, CLAUDE.md contains all 5 managed blocks."""
+class TestInstallFourBlocks:
+    def test_install_creates_all_four_blocks(self, tmp_path):
+        """After install, CLAUDE.md contains all 4 managed blocks."""
         repo = _make_repo(tmp_path)
         rc, _, _ = run_script(INSTALL, repo, ["--auto"])
         assert rc == 0
@@ -331,7 +352,7 @@ class TestInstallFiveBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "Install must write all 5 managed blocks to CLAUDE.md"
+            "Install must write all 4 managed blocks to CLAUDE.md"
         )
 
     def test_install_block_content_is_correct(self, tmp_path):
@@ -379,7 +400,7 @@ class TestInstallFiveBlocks:
         assert all_blocks_present(content)
 
     def test_install_over_one_existing_block_appends_rest(self, tmp_path):
-        """If only the first block is present, install appends the other 4."""
+        """If only the first block is present, install appends the other 3."""
         repo = _make_repo(tmp_path)
         # Write only the first block
         claude_md = os.path.join(repo, "CLAUDE.md")
@@ -393,15 +414,15 @@ class TestInstallFiveBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "After install over partial CLAUDE.md, all 5 blocks must be present"
+            "After install over partial CLAUDE.md, all 4 blocks must be present"
         )
 
 
 # ── Integration tests: session-start-crew hook ───────────────────────────
 
-class TestCrewHookFiveBlocks:
-    def test_crew_hook_creates_all_five_blocks(self, tmp_path):
-        """session-start-crew.py writes all 5 blocks when CLAUDE.md is absent."""
+class TestCrewHookFourBlocks:
+    def test_crew_hook_creates_all_four_blocks(self, tmp_path):
+        """session-start-crew.py writes all 4 blocks when CLAUDE.md is absent."""
         repo = _make_repo(tmp_path)
         rc, stdout, stderr = run_cmd([sys.executable, CREW_HOOK], cwd=repo)
         assert rc == 0, f"crew hook failed: {stderr}"
@@ -413,7 +434,7 @@ class TestCrewHookFiveBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "crew hook must write all 5 managed blocks"
+            "crew hook must write all 4 managed blocks"
         )
 
     def test_crew_hook_updates_outdated_block(self, tmp_path):
@@ -462,10 +483,10 @@ class TestCrewHookFiveBlocks:
         assert "Not a git repo" in stdout
 
 
-# ── Integration tests: uninstall removes all 5 blocks ────────────────────
+# ── Integration tests: uninstall removes all 4 blocks ────────────────────
 
-class TestUninstallFiveBlocks:
-    def test_uninstall_removes_all_five_blocks(self, tmp_path):
+class TestUninstallFourBlocks:
+    def test_uninstall_removes_all_four_blocks(self, tmp_path):
         """After uninstall, CLAUDE.md has no managed block markers."""
         repo = _make_repo(tmp_path)
         run_script(INSTALL, repo, ["--auto"])

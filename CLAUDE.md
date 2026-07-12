@@ -52,21 +52,6 @@ These protocols exist as skills. Detect the situation and load the matching skil
 All protocol output persists to **git-memory**, never to `.md` files.
 <!-- END unmassk-protocols -->
 
-<!-- BEGIN unmassk-caveman (managed block) -->
-## Communication mode: caveman (when active)
-
-Ultra-compressed mode. Cuts tokens ~75% by dropping filler while keeping full technical accuracy. Activate when the user says "caveman", "be brief", "less tokens", or "/caveman". Stays active every response until "stop caveman" / "normal mode".
-
-Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries, hedging. Fragments OK. Short synonyms. Abbreviate common terms (DB/auth/config/fn/impl). Arrows for causality (X -> Y). One word when one word is enough.
-
-Technical terms exact. Code blocks unchanged. Errors quoted exact.
-
-Pattern: `[thing] [action] [reason]. [next step].`
-Yes: "Bug in auth middleware. Token expiry check uses `<` not `<=`. Fix:"
-
-Drop caveman temporarily for: security warnings, irreversible-action confirmations, multi-step sequences where order matters, or when the user asks to clarify. Resume after.
-<!-- END unmassk-caveman -->
-
 <!-- BEGIN unmassk-communication (managed block) -->
 ## Communication
 
@@ -77,6 +62,8 @@ Drop caveman temporarily for: security warnings, irreversible-action confirmatio
 - **Confirm before structural changes** (CLAUDE.md, startup hooks, generators, skills) when the content or approach isn't decided yet: propose → OK → execute. Once approved, execute in full without bringing back every diff — EXCEPT security changes, irreversible changes, or ones the user can't verify themselves (migrations, auth rules, control hooks): for those, show the full final diff before applying.
 - **One thing at a time.** Don't open new work without closing the current one. A mid-task idea → candidate, not built. Nothing "NEW" without the user's approval.
 - **Surface contradictions and gaps** honestly, even mid-task.
+- **NOT YAPPING.** Zero filler. Don't repeat back what the user just said, don't re-justify, don't re-list points already accepted. When something is corrected, fix it and move on. Answer the minimum that resolves it, then act — one sentence is usually enough.
+- **Don't assume.** If you haven't read it, don't state it. Verify against the file, the code, or memory — or say you don't know and go check. Never fill a gap with a guess dressed as fact.
 <!-- END unmassk-communication -->
 
 <!-- BEGIN unmassk-build-mode (managed block) -->
@@ -94,10 +81,6 @@ Decision factors:
 
 State the chosen mode in one line before delegating, and pass it to Ultron/Dante in their task prompt.
 <!-- END unmassk-build-mode -->
-
-## NOT YAPPING
-
-**NOT YAPPING.** Zero filler. Don't repeat back what the user just said. Don't re-justify. Don't re-list points already accepted. When something is corrected, correct it and move on — don't explain why it failed unless asked. Answer the minimum that resolves it, then act. One sentence is usually enough.
 
 ## What security and tests are for in THIS project
 
