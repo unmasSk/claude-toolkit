@@ -16,8 +16,11 @@ The hook is invoked as a subprocess with JSON passed via stdin, mirroring
 the pattern used by run_script() in conftest.
 """
 
+import importlib.util
+import io
 import json
 import os
+import subprocess
 import sys
 
 import pytest
@@ -30,6 +33,35 @@ if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
 HOOK_PATH = os.path.join(HOOKS_DIR, "pre-task-recall.py")
+SKILL_SEARCH_SCRIPT = os.path.join(SOURCE_ROOT, "scripts", "skill-search.py")
+
+# ── Skill-gate-safe nonce vocabulary ──────────────────────────────────────
+# Issue #68: the hook now runs skill-search.py over every crew-agent prompt
+# BEFORE falling through to memory recall (see TestSkillGate* below). Plain
+# English test phrases like "BM25 recall ranking" score >= _SKILL_SCORE_
+# THRESHOLD (1.5) against the REAL, host-installed skill corpus — "BM25" and
+# "recall" each independently overlap unmassk-db's db-vector-rag skill
+# vocabulary (verified via a direct real subprocess call to
+# skill-search.py: score 7.1 for "BM25 recall", 3.5 for either word alone).
+# That now makes the gate DENY instead of falling through to the memory path
+# these tests exist to exercise.
+#
+# _MEM_NONCE is pure invented vocabulary (no real English/Spanish words) —
+# verified via a real subprocess call to skill-search.py to score exactly 0
+# against this machine's real corpus, so it can never accidentally collide
+# with an installed domain skill regardless of which skills happen to be
+# present. Tests whose intent is the MEMORY path use it as shared
+# vocabulary between the seeded commit trailer and the prompt: recall()'s
+# own BM25 index is a separate corpus (git commit messages, not skill
+# descriptions), so token overlap there still produces a deterministic
+# memory match. See agent memory:
+# pre-task-recall-skill-injection-contract-notes.md.
+_MEM_NONCE = "zqxvbnkplfth wjrqztkvnmg"
+
+# For tests whose intent is "no memory match at all" — a nonce disjoint from
+# _MEM_NONCE so it never accidentally overlaps a commit seeded elsewhere in
+# the same test. Also verified score 0 against the real skill corpus.
+_NO_MATCH_NONCE = "qzxdfklmnpwrtjhbg zvkxbmqlnwrtfhcds"
 
 
 # ── Repo helpers (mirrors test_recall.py) ────────────────────────────────
@@ -107,10 +139,10 @@ class TestWhitelistedAgentWithMatch:
         _commit(
             repo,
             "decision(plugin/recall): ranking algorithm",
-            "Decision: usar BM25 para ranking de memoria en recall",
+            f"Decision: usar {_MEM_NONCE} como estrategia interna de memoria",
         )
 
-        prompt = "implement BM25 ranking for recall"
+        prompt = _MEM_NONCE
         tool_input = {
             "subagent_type": "ultron",
             "description": "some task",
@@ -128,7 +160,7 @@ class TestWhitelistedAgentWithMatch:
         updated_prompt = hso["updatedInput"]["prompt"]
         assert prompt in updated_prompt, "Original prompt must be preserved verbatim"
         assert "PROJECT MEMORY" in updated_prompt, "Footer header must be present"
-        assert "BM25" in updated_prompt, "Memory block content must appear in prompt"
+        assert _MEM_NONCE in updated_prompt, "Memory block content must appear in prompt"
         # The memory block delimiters must be present
         assert "---" in updated_prompt
 
@@ -137,14 +169,14 @@ class TestWhitelistedAgentWithMatch:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 design",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce design",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "ultron",
             "description": "implement something",
-            "prompt": "implement BM25 recall ranking",
+            "prompt": _MEM_NONCE,
             "extra_field": "preserved_value",
             "another": 42,
         }
@@ -166,13 +198,13 @@ class TestWhitelistedAgentWithMatch:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para memoria recall",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "BM25 recall ranking implementation",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -292,7 +324,7 @@ class TestNoMemoryMatch:
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "github actions workflow setup",
+            "prompt": _NO_MATCH_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -308,7 +340,7 @@ class TestNoMemoryMatch:
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "BM25 recall ranking implementation",
+            "prompt": _NO_MATCH_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -411,13 +443,13 @@ class TestSubagentTypeNormalisation:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "unmassk-toolkit:ultron",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -434,13 +466,13 @@ class TestSubagentTypeNormalisation:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -476,13 +508,13 @@ class TestSubagentTypeNormalisation:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "ULTRON",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -563,13 +595,13 @@ class TestAllWhitelistedAgents:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": agent,
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -644,13 +676,13 @@ class TestUpdatedInputPreservesFields:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "BM25 recall ranking implementation",
+            "prompt": _MEM_NONCE,
             "description": "implement ranking",
             "model": "claude-opus-4-5",
         }
@@ -677,13 +709,13 @@ class TestUpdatedInputPreservesFields:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "dante",
-            "prompt": "BM25 recall ranking tests",
+            "prompt": _MEM_NONCE,
             "description": "write tests",
             "model": "claude-sonnet-4-6",
             "max_turns": 10,
@@ -710,11 +742,11 @@ class TestUpdatedInputPreservesFields:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
-        original_prompt = "BM25 recall ranking implementation"
+        original_prompt = _MEM_NONCE
         tool_input = {
             "subagent_type": "ultron",
             "prompt": original_prompt,
@@ -746,11 +778,11 @@ class TestMemoryBlockStructure:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
-        prompt = "BM25 recall ranking"
+        prompt = _MEM_NONCE
         tool_input = {"subagent_type": "ultron", "prompt": prompt}
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -770,8 +802,8 @@ class TestMemoryBlockStructure:
         # Two commits so the memory block likely contains multiple lines.
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: usar BM25 para ranking de memoria recall xyzstructure",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: usar {_MEM_NONCE} para estrategia interna xyzstructure",
         )
         _commit(
             repo,
@@ -779,7 +811,7 @@ class TestMemoryBlockStructure:
             "Memo: preference - xyzstructure es la preferencia de ranking",
         )
 
-        prompt = "BM25 recall ranking xyzstructure"
+        prompt = f"{_MEM_NONCE} xyzstructure"
         tool_input = {"subagent_type": "ultron", "prompt": prompt}
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -812,11 +844,11 @@ class TestMemoryBlockStructure:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para memoria recall",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
-        tool_input = {"subagent_type": "cerberus", "prompt": "BM25 recall ranking"}
+        tool_input = {"subagent_type": "cerberus", "prompt": _MEM_NONCE}
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
 
@@ -839,13 +871,13 @@ class TestSubagentTypeCasingAndNamespace:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "unmassk-toolkit:Ultron",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -865,13 +897,13 @@ class TestSubagentTypeCasingAndNamespace:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "  ultron  ",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -888,13 +920,13 @@ class TestSubagentTypeCasingAndNamespace:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "Dante",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -962,12 +994,12 @@ class TestFailOpenInvariant:
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
         payload = json.dumps({
             "tool_name": "Task",
-            "tool_input": {"subagent_type": "ultron", "prompt": "BM25 recall ranking"},
+            "tool_input": {"subagent_type": "ultron", "prompt": _MEM_NONCE},
         })
         rc, stdout, _ = run_cmd([sys.executable, HOOK_PATH], cwd=repo, input_text=payload)
         assert rc == 0
@@ -1109,6 +1141,13 @@ class TestLongPromptQueryTruncation:
 
         The seeded token 'xqzlongprompttoken' appears within the first 2000 chars so
         that truncation does not suppress it, guaranteeing a recall hit and injection.
+
+        Padding is built from nonce vocabulary only (no real English words like
+        "implement"/"feature"/"coverage") — repeating ordinary English 200x makes
+        the skill gate's BM25 score climb into the hundreds (verified empirically:
+        494.7 against 'frontend-react' with the original English padding), which
+        would DENY this prompt instead of exercising the memory-allow path this
+        test targets. Repeated nonce vocabulary is verified to still score 0.
         """
         repo = _make_repo(tmp_path)
         _commit(
@@ -1121,7 +1160,7 @@ class TestLongPromptQueryTruncation:
         # The distinguishing token appears at the start (well within the 2000-char
         # search window), followed by padding that pushes the total past 10 000 chars.
         seed_token = "xqzlongprompttoken"
-        padding_unit = "implement the xqzlongprompttoken feature with full coverage "
+        padding_unit = f"xqzlongprompttoken {_MEM_NONCE} qzxdfklmnpwrtjhbg "
         prompt = seed_token + " " + (padding_unit * 200)  # ≈ 12 000 chars
         assert len(prompt) > 10_000, "Test prerequisite: prompt must exceed 10 000 chars"
         assert len(prompt) > 2000, "Test prerequisite: prompt must exceed MAX_QUERY_LEN"
@@ -1170,3 +1209,364 @@ class TestLongPromptQueryTruncation:
         assert updated_prompt.endswith("\n---"), (
             "Injected prompt must end with '\\n---'"
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# NEW COVERAGE: skill gate (issue #68 — current, deny-based contract)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Verified live (see decision cd42912): for a crew agent's prompt, the hook
+# runs skill-search.py --json BEFORE memory recall. If the top result scores
+# >= _SKILL_SCORE_THRESHOLD and the prompt doesn't already carry the
+# "[DOMAIN SKILL —" marker, the spawn is DENIED with the skill block pasted
+# into the reason (anti-loop: re-invoking with the block already in the
+# prompt allows). Any failure of the skill search itself (missing script,
+# non-zero exit, timeout, malformed JSON, unexpected shape) is fail-open —
+# falls through to memory recall, never a deny. Excluded agents
+# (bilbo/gitto/unknown) never reach the gate at all.
+#
+# Real-by-default (§34.5): every branch except the two failure-mode
+# simulations (timeout, malformed JSON — genuinely unreproducible on demand
+# from the real searcher) runs the REAL skill-search.py subprocess against a
+# REAL, disposable fixture skill written INSIDE the temp repo (a `.skillcat`
+# + colocated `SKILL.md`). skill-search.py's own find_git_root() walks up
+# from cwd to the nearest `.git` and adds that root to its rglob search dirs
+# (see collect_search_dirs() in scripts/skill-search.py), so the fixture is
+# discoverable regardless of whatever real skills happen to be installed on
+# the host running these tests — verified empirically: the fixture's own
+# nonce trigger term ranks #1 (score 6.1) even against the real ~36-skill
+# corpus. Every score/path assertion below is read from a DIRECT real
+# invocation of skill-search.py against the same repo/prompt (the real
+# producer) — never hand-typed (§34).
+#
+# The two failure-mode simulations reuse this repo's established in-process
+# importlib.util.spec_from_file_location pattern for hyphenated filenames
+# (see unmassk-toolkit-python-test-conventions), with subprocess.run
+# monkeypatched SELECTIVELY: only a call whose command line mentions
+# "skill-search" is faked; every other subprocess.run call (git, inside
+# recall()) passes through to the real implementation — this prevents a
+# false-pass where an unrelated exception (not the simulated failure) is
+# what actually produced the fail-open result.
+#
+# _SKILL_MARKER / _SKILL_SCORE_THRESHOLD are read from the hook module
+# itself (imported in-process) rather than hand-typed, per Hard Rules (No
+# Hardcoded Values) — if Ultron ever renames either constant, these tests
+# stay correct without a text-search-and-replace.
+
+_skill_gate_hook_spec = importlib.util.spec_from_file_location(
+    "pre_task_recall_module_for_skill_gate_tests", HOOK_PATH
+)
+_skill_gate_hook_mod = importlib.util.module_from_spec(_skill_gate_hook_spec)
+_skill_gate_hook_spec.loader.exec_module(_skill_gate_hook_mod)
+
+SKILL_MARKER = _skill_gate_hook_mod._SKILL_MARKER
+SKILL_SCORE_THRESHOLD = _skill_gate_hook_mod._SKILL_SCORE_THRESHOLD
+
+# Nonce vocabulary for the fixture skill — deliberately not real English, so
+# it can only ever match via the fixture itself, never by accidental overlap
+# with real skill descriptions.
+_GATE_TRIGGER = "zzzqrxgatefixturetrigger882"
+_GATE_FIXTURE_SKILL_NAME = "unmassk-test-gate-skill"
+
+
+def _write_gate_skill_fixture(repo, skill_name=_GATE_FIXTURE_SKILL_NAME, trigger=_GATE_TRIGGER):
+    """Write a real .skillcat + colocated SKILL.md INSIDE the temp repo.
+
+    Discovered by the real skill-search.py via its own find_git_root() ->
+    rglob("*.skillcat") over the repo root — deterministic regardless of
+    whatever real skills happen to be installed on the host running these
+    tests. Not git-tracked; skill discovery is filesystem-based, not git
+    state.
+    """
+    skill_dir = os.path.join(repo, "fixture_skills", skill_name)
+    os.makedirs(skill_dir, exist_ok=True)
+
+    skillcat_path = os.path.join(skill_dir, f"{skill_name}.skillcat")
+    with open(skillcat_path, "w", encoding="utf-8", newline="") as f:
+        f.write("name,plugin,triggers,domains,frameworks,tools\n")
+        f.write(
+            '{},{},"{} domain trigger fixture","{} domain",none,none\n'.format(
+                skill_name, "unmassk-test-plugin", trigger, trigger
+            )
+        )
+
+    skill_md_path = os.path.join(skill_dir, "SKILL.md")
+    with open(skill_md_path, "w", encoding="utf-8") as f:
+        f.write(
+            "---\n"
+            f"name: {skill_name}\n"
+            f"description: Fixture domain skill for {trigger} testing.\n"
+            "---\n\n"
+            "# Fixture skill\n\nUsed only by pre-task-recall.py's test suite.\n"
+        )
+
+    return skill_dir, skillcat_path, skill_md_path
+
+
+def _real_skill_search_top(repo, prompt):
+    """Run the REAL skill-search.py as a subprocess against `repo` (so its
+    own find_git_root() resolves to `repo`) and return the top parsed JSON
+    result, or None if there are no results at all. Ground-truth producer
+    for every score/path assertion below — never hand-typed (§34)."""
+    rc, stdout, stderr = run_script(
+        SKILL_SEARCH_SCRIPT, repo, extra_args=[prompt, "--json"]
+    )
+    assert rc == 0, f"skill-search.py must exit 0; stderr={stderr!r}"
+    data = json.loads(stdout)
+    results = data.get("results") or []
+    return results[0] if results else None
+
+
+# ── In-process fail-open simulation (timeout / malformed JSON only) ───────
+
+def _fake_timeout(cmd, kwargs):
+    raise subprocess.TimeoutExpired(cmd=cmd, timeout=6)
+
+
+def _fake_malformed_json(cmd, kwargs):
+    return subprocess.CompletedProcess(
+        args=cmd, returncode=0, stdout="NOT VALID JSON {{{", stderr=""
+    )
+
+
+def _run_hook_inprocess_with_faked_searcher(monkeypatch, repo, tool_input, fake_run):
+    """Load pre-task-recall.py fresh, in-process, with subprocess.run
+    monkeypatched so ONLY a call whose command line mentions "skill-search"
+    is faked. Returns (stdout_text, stderr_text)."""
+    real_run = subprocess.run
+
+    def _selective_fake_run(*args, **kwargs):
+        cmd = args[0] if args else kwargs.get("args")
+        cmd_text = " ".join(str(c) for c in cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
+        if "skill-search" in cmd_text:
+            return fake_run(cmd, kwargs)
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _selective_fake_run)
+    monkeypatch.chdir(repo)
+
+    spec = importlib.util.spec_from_file_location("pre_task_recall_failsim", HOOK_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    stdin = io.StringIO(json.dumps({"tool_name": "Task", "tool_input": tool_input}))
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+
+    mod.main()
+
+    return stdout.getvalue(), stderr.getvalue()
+
+
+# ── (1) Strong domain match + crew agent + no marker → deny ───────────────
+
+class TestSkillGateDomainMatchDenies:
+    def test_strong_match_denies_with_real_skill_block(self, tmp_path):
+        """Strong domain match, real subprocess end-to-end (§34.5 — no
+        mocked skill-search): deny, with the real skill name/score/path
+        pasted into the reason."""
+        repo = _make_repo(tmp_path)
+        _write_gate_skill_fixture(repo)
+        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+
+        top = _real_skill_search_top(repo, prompt)
+        assert top is not None and top["name"] == _GATE_FIXTURE_SKILL_NAME, (
+            f"Test prerequisite: fixture skill must be the top real result; got {top}"
+        )
+        assert top["score"] >= SKILL_SCORE_THRESHOLD, (
+            f"Test prerequisite: fixture must clear the gate threshold; got {top['score']}"
+        )
+
+        tool_input = {"subagent_type": "ultron", "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "deny"
+        assert "updatedInput" not in hso, "A deny must never carry updatedInput"
+
+        reason = hso.get("permissionDecisionReason", "")
+        assert SKILL_MARKER in reason, "Deny reason must carry the domain-skill marker"
+        assert f"Skill: {top['name']} (score {top['score']:.1f})" in reason, (
+            "Injected name/score must match the REAL searcher's output verbatim (§34)"
+        )
+        assert f"Path: {top['skill_md']}" in reason, (
+            "Injected path must be the REAL skill_md path the searcher produced"
+        )
+        assert "skill gate: deny" in stderr, "Deny branch must leave a stderr breadcrumb"
+
+
+# ── (2) Marker already present → anti-loop, no re-deny ────────────────────
+
+class TestSkillGateMarkerAntiLoop:
+    def test_marker_present_prevents_redeny(self, tmp_path):
+        """Same strong-match prompt, but the marker is ALREADY present (the
+        orchestrator's retry) → the gate must not re-trigger."""
+        repo = _make_repo(tmp_path)
+        _write_gate_skill_fixture(repo)
+        domain_prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+
+        top = _real_skill_search_top(repo, domain_prompt)
+        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+
+        # Sanity: the SAME prompt without the marker denies — proves the
+        # allow below is due to the marker, not an unrelated non-match.
+        _, parsed0, _, _ = _run_hook(
+            repo, "Task", {"subagent_type": "ultron", "prompt": domain_prompt}
+        )
+        assert _hook_specific(parsed0).get("permissionDecision") == "deny", (
+            "Test prerequisite: the bare domain prompt must deny"
+        )
+
+        retried_prompt = (
+            f"{SKILL_MARKER} auto-selected for this task]\n"
+            f"Skill: {top['name']} (score {top['score']:.1f})\n"
+            f"Path: {top['skill_md']}\n\n"
+            + domain_prompt
+        )
+        tool_input = {"subagent_type": "ultron", "prompt": retried_prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "allow", "Marker presence must prevent re-deny"
+        assert "skill gate: allow (marcador presente)" in stderr
+
+
+# ── (3) Score below threshold → gate doesn't fire, memory untouched ───────
+
+class TestSkillGateLowScoreAllowsMemory:
+    def test_low_score_nonce_allows_and_memory_still_injects(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        _commit(
+            repo,
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
+        )
+
+        top = _real_skill_search_top(repo, _MEM_NONCE)
+        assert top is None or top["score"] < SKILL_SCORE_THRESHOLD, (
+            f"Test prerequisite: nonce must not clear the gate threshold; got {top}"
+        )
+
+        tool_input = {"subagent_type": "ultron", "prompt": _MEM_NONCE}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "allow"
+        assert "updatedInput" in hso, "Memory match must still inject when the gate doesn't fire"
+        assert _MEM_NONCE in hso["updatedInput"]["prompt"]
+        assert "skill gate: allow (no match)" in stderr
+
+
+# ── (4) Searcher fails (timeout / malformed JSON) → fail-open, never deny ─
+
+class TestSkillGateSearcherFailsOpen:
+    def test_timeout_fails_open_never_denies(self, tmp_path, monkeypatch):
+        """A prompt that WOULD deny if the real searcher ran (fixture
+        planted, verified separately in TestSkillGateDomainMatchDenies) must
+        still allow when the searcher itself times out."""
+        repo = _make_repo(tmp_path)
+        _write_gate_skill_fixture(repo)
+        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+
+        stdout_text, stderr_text = _run_hook_inprocess_with_faked_searcher(
+            monkeypatch, repo, {"subagent_type": "ultron", "prompt": prompt}, _fake_timeout
+        )
+        parsed = json.loads(stdout_text)
+        hso = parsed.get("hookSpecificOutput", {})
+        assert hso.get("permissionDecision") == "allow"
+        assert "skill gate: fail-open" in stderr_text
+        assert "timeout" in stderr_text
+
+    def test_malformed_json_fails_open_never_denies(self, tmp_path, monkeypatch):
+        repo = _make_repo(tmp_path)
+        _write_gate_skill_fixture(repo)
+        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+
+        stdout_text, stderr_text = _run_hook_inprocess_with_faked_searcher(
+            monkeypatch, repo, {"subagent_type": "ultron", "prompt": prompt}, _fake_malformed_json
+        )
+        parsed = json.loads(stdout_text)
+        hso = parsed.get("hookSpecificOutput", {})
+        assert hso.get("permissionDecision") == "allow"
+        assert "skill gate: fail-open" in stderr_text
+        assert "malformed JSON" in stderr_text
+
+
+# ── (5) Excluded agent + strong domain match → passthrough, never deny ────
+
+class TestSkillGateExcludedAgentPassthrough:
+    @pytest.mark.parametrize("agent", ["bilbo", "gitto"])
+    def test_excluded_agent_strong_match_passthrough(self, agent, tmp_path):
+        """Exclusion happens before the gate is ever reached (same
+        whitelist check as memory recall) — score is irrelevant."""
+        repo = _make_repo(tmp_path)
+        _write_gate_skill_fixture(repo)
+        prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+
+        top = _real_skill_search_top(repo, prompt)
+        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+
+        tool_input = {"subagent_type": agent, "prompt": prompt}
+        rc, parsed, _, stderr = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "allow"
+        assert "updatedInput" not in hso
+        assert "skill gate: deny" not in stderr
+
+
+# ── (6) Invariant: exactly ONE branch ever denies ──────────────────────────
+
+class TestSkillGateInvariant:
+    def test_exactly_one_branch_denies(self, tmp_path):
+        """Across the strong-match/marker/low-score/excluded-agent branches,
+        the clean strong-match-no-marker case is the ONLY one that denies."""
+        results = {}
+
+        repo = _make_repo(tmp_path / "shared")
+        _write_gate_skill_fixture(repo)
+        domain_prompt = f"implement the {_GATE_TRIGGER} feature end to end"
+        top = _real_skill_search_top(repo, domain_prompt)
+        assert top is not None and top["score"] >= SKILL_SCORE_THRESHOLD
+
+        _, parsed_a, _, _ = _run_hook(
+            repo, "Task", {"subagent_type": "ultron", "prompt": domain_prompt}
+        )
+        results["strong_match_no_marker"] = _hook_specific(parsed_a).get("permissionDecision")
+
+        retried_prompt = (
+            f"{SKILL_MARKER} auto-selected]\n"
+            f"Skill: {top['name']} (score {top['score']:.1f})\n"
+            f"Path: {top['skill_md']}\n\n" + domain_prompt
+        )
+        _, parsed_b, _, _ = _run_hook(
+            repo, "Task", {"subagent_type": "ultron", "prompt": retried_prompt}
+        )
+        results["marker_present"] = _hook_specific(parsed_b).get("permissionDecision")
+
+        repo_low = _make_repo(tmp_path / "low")
+        _, parsed_c, _, _ = _run_hook(
+            repo_low, "Task", {"subagent_type": "ultron", "prompt": _MEM_NONCE}
+        )
+        results["low_score"] = _hook_specific(parsed_c).get("permissionDecision")
+
+        _, parsed_d, _, _ = _run_hook(
+            repo, "Task", {"subagent_type": "bilbo", "prompt": domain_prompt}
+        )
+        results["excluded_agent"] = _hook_specific(parsed_d).get("permissionDecision")
+
+        deny_branches = [name for name, decision in results.items() if decision == "deny"]
+        assert deny_branches == ["strong_match_no_marker"], (
+            f"Exactly one branch must deny; got deny from: {deny_branches}; "
+            f"full results={results}"
+        )
+        for name, decision in results.items():
+            if name != "strong_match_no_marker":
+                assert decision == "allow", f"Branch {name!r} must be allow; got {decision!r}"

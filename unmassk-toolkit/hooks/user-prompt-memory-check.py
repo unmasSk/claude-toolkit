@@ -105,7 +105,7 @@ def _read_prompt_text() -> str | None:
 
 _BANNER = (
     "╔═══════════════════════════════╗\n"
-    "║  DON'T FORGET — NOT YAPPING   ║\n"
+    "║         NOT YAPPING!          ║\n"
     "╚═══════════════════════════════╝"
 )
 

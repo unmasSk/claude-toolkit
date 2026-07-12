@@ -93,3 +93,51 @@ names get stubbed -- only add a fallback if your new module's name (or a
 module it needs) is in that stub set. `encoding_guard.py` is not, so a
 direct unconditional `from encoding_guard import force_utf8_streams` is
 correct with no defensive fallback.
+
+## hooks/pre-task-recall.py issue #68: injecting into a Task/Agent prompt via
+## updatedInput does NOT propagate (Claude Code bug #15897) -- redo as a deny gate
+
+First attempt at #68 (silent skill injection, mirroring how the existing
+git-memory `_allow_with_injection()` rewrites `tool_input.prompt`) was
+implemented, tested green, then fully reverted (`git show 7497f61`) because
+Claude Code does not actually propagate `hookSpecificOutput.updatedInput`
+into a spawned subagent's prompt (upstream bug #15897) -- confirmed
+independently of this repo, not a bug in the hook itself. `_allow_with_injection`
+still exists and is still used for the git-memory recall footer -- **do not
+assume it's dead code just because the skill-injection use case was reverted**;
+it may itself be silently non-functional for the same underlying reason and
+worth flagging if that's ever confirmed.
+
+The redo (this session) uses a DENY gate instead: when a domain skill scores
+>= `_SKILL_SCORE_THRESHOLD` (1.5, same as `scripts/skill-search.py`'s own
+`LOW_SCORE_THRESHOLD`) against the prompt and the prompt doesn't already
+contain the `_SKILL_MARKER` sentinel (`"[DOMAIN SKILL —"`), the hook returns
+`permissionDecision: "deny"` with `permissionDecisionReason` containing the
+exact block to paste + reinvoke instructions. Denying (unlike updatedInput)
+DOES reach the orchestrator today -- verified live before implementing, per
+the task's own "CONTEXTO VERIFICADO EN VIVO" brief. Also corrected in the
+same pass: the hook's own `tool_name` check was `!= "Task"` and silently
+never fired, because the real PreToolUse payload for a subagent spawn uses
+`tool_name == "Agent"` (verified live) -- the check is now `not in
+("Agent", "Task")`. This second bug is likely why some earlier assumptions
+about this hook's behavior never actually exercised its logic at all.
+
+Fail-open contract for the gate itself: `_find_top_skill()` returns
+`(None, error_str)` on ANY failure (missing `scripts/skill-search.py`,
+non-zero exit, timeout, malformed JSON, missing `score`/`name` keys) and the
+caller only denies on `(top, None)` with `top["score"] >= threshold` --
+every other combination falls through to the pre-existing memory-recall
+allow flow. Verified manually (not just by reading the code): moved
+`scripts/skill-search.py` aside and re-ran the hook -- fell through to allow
+with a `skill gate: fail-open script not found: ...` stderr breadcrumb, and
+memory injection still ran normally afterward.
+
+Applying this gate to real prompts breaks ~27 of the ~51 tests in
+`tests/test_pre_task_recall.py` (they assert `permissionDecision == "allow"`
+for prompts that legitimately score high against the REAL `~/.claude/plugins/cache`
+skill corpus, e.g. `"implement BM25 ranking for recall"` scores high against a
+"ranking algorithm"/search-domain skill). This is expected, not a regression --
+the prior (reverted) attempt at #68 hit the identical situation ("8 contrato
+verdes; 2 tests viejos obsoletos" in `bfe9d9f`) -- test reconciliation for the
+gate semantics is Dante's follow-up, not something to patch unilaterally while
+implementing the hook itself.

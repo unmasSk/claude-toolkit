@@ -88,6 +88,88 @@ the other 4 genuinely already pass today and remain valid regression nets
 once Ultron implements — don't force-fail invariant/regression-net tests
 that are legitimately already true just to hit a RED quota.
 
+## Contract REVERTED then reshipped as a DENY-based gate (2026-07-12)
+
+The append-block design documented above (inject a separate `[DOMAIN
+SKILL — auto-selected for this task.]` block, never deny) was reverted
+wholesale (`chore` commit 7497f61: "no funciona"). Root cause diagnosed in
+decision `cd42912`: the hook checked `tool_name == "Task"` but the real
+payload for a subagent spawn is `tool_name == "Agent"` — the whole feature
+was a silent no-op from day one, injection AND gate alike. Root-cause fix
+(`tool_name in ("Agent", "Task")`) also revived memory injection, which had
+been broken the same way the entire time. The feature was then reshipped
+under a DIFFERENT, incompatible contract: instead of appending a block, the
+hook now **DENIES** the spawn (`permissionDecision: "deny"`) when a strong
+match is found and the marker isn't already in the prompt, with the deny
+reason instructing the orchestrator to paste the block at the top of the
+prompt and retry (anti-loop: marker presence skips the search entirely).
+Verified live: a PreToolUse `deny` genuinely blocks the Task tool call and
+the reason reaches the orchestrator.
+
+**Lesson: before reconciling a test file, check whether the git history
+between "last known contract" and "now" contains a revert + a different
+reimplementation, not just incremental changes.** `git log --oneline -- <test
+file>` surfaced this immediately — the file's own history had the revert
+commit that the 5-commit general `git log` shown in a fresh session's status
+summary did not include (HEAD had moved since). The old append-block
+assertions (`SKILL_BLOCK_HEADER`, non-nested-block checks, etc.) are NOT
+reusable for the new contract; only the *techniques* (fixture `.skillcat`,
+real-producer ground truth, selective subprocess.run monkeypatch) carried
+over. New tests for the deny-based contract:
+`TestSkillGateDomainMatchDenies`, `TestSkillGateMarkerAntiLoop`,
+`TestSkillGateLowScoreAllowsMemory`, `TestSkillGateSearcherFailsOpen`,
+`TestSkillGateExcludedAgentPassthrough`, `TestSkillGateInvariant`.
+
+**Host-corpus vocabulary collision broke 27 pre-existing tests the moment
+the gate shipped.** The file's own long-standing shared test vocabulary,
+`"BM25 recall ranking"` (used in ~20+ tests as the go-to "memory match"
+prompt since before any skill gate existed), scores 7.1 against the real
+installed `db-vector-rag` skill — both "BM25" and "recall" independently
+score 3.5 against it (their own vocabulary overlaps "retrieval augmented
+generation" domain terms). Once the gate went live, every one of those
+tests started getting DENIED instead of reaching the memory-allow path they
+were written to exercise. Fix: introduced `_MEM_NONCE = "zqxvbnkplfth
+wjrqztkvnmg"` (pure invented vocabulary, verified score 0 against the real
+corpus via direct subprocess) as shared vocabulary between seeded commit
+trailers and prompts — recall()'s BM25 index is a SEPARATE corpus (git
+commit messages) from skill-search's, so nonce token overlap there still
+produces a deterministic memory match. A second nonce, `_NO_MATCH_NONCE`,
+covers "genuinely no match at all" tests. **General lesson for this
+project: any time a hook gains an additional BM25/keyword-matching gate
+over the same prompt field an existing test suite already uses as free-text
+vocabulary, audit EVERY existing prompt string in that suite against the
+new corpus — plain English test phrases reused for years can silently start
+tripping a brand-new gate.**
+
+**Repeated-English padding is NOT a safe way to pad a prompt past a length
+threshold once a scoring gate exists.** `TestLongPromptQueryTruncation`'s
+existing 12 000-char prompt padded with real English
+(`"implement the ... feature with full coverage "` × 200) scored 494.7
+against `frontend-react` (BM25 term-frequency amplification from blunt
+repetition) — always denies once the gate exists. Fixed by padding with
+repeated nonce vocabulary instead (`f"xqzlongprompttoken {_MEM_NONCE}
+qzxdfklmnpwrtjhbg "` × 200, still > 10 000 chars) — verified score 0 even at
+that repetition count.
+
+**Fixture `.skillcat` technique is REUSED verbatim for the new deny tests**
+(same discovery mechanism, unchanged in `scripts/skill-search.py`), but
+generalized past a single accepted case: it also grounds the marker
+anti-loop test (embed the real producer's own score/path into a retried
+prompt) and the excluded-agent test (prove score is irrelevant once
+exclusion applies). `_SKILL_MARKER` / `_SKILL_SCORE_THRESHOLD` are read from
+the hook module in-process (`importlib.util.spec_from_file_location`) rather
+than hand-typed, so a future rename doesn't silently desync the tests.
+
+**Breadcrumb invariant has a real exception, not a test gap.** The task
+asked for "every branch leaves a stderr breadcrumb", but the excluded-agent
+passthrough (bilbo/gitto) exits via the pre-existing whitelist check
+*before* the skill-gate's own try/except block — verified empirically: zero
+stderr output for that branch, consistent with how this file already tested
+non-whitelisted-agent passthrough before the gate ever existed. Not a
+regression from #68; asserted as "no deny" only for that branch, not
+"breadcrumb present" — forcing that assertion would make a correct
+implementation fail for the wrong reason.
+
 **Post-GREEN reconciliation (hardening pass): pre-existing tests can go
 stale the moment the new signal ships, not just newly-written ones.**
 `TestNoMemoryMatch::test_no_match_no_injection` and `::test_empty_repo_no_injection`
