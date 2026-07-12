@@ -56318,7 +56318,6 @@ var ImageStorage = class {
   outputDir;
   constructor(outputDir) {
     this.outputDir = path2.resolve(outputDir);
-    this.ensureDirectory(this.outputDir);
   }
   ensureDirectory(dirPath) {
     if (!fs3.existsSync(dirPath)) {

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The media plugin no longer litters every project with an empty `generated-images/` folder** (#75): the image-generation MCP server (and its CLI twin) created its output directory eagerly in the `ImageStorage` constructor, so simply starting the server in any project with the toolkit installed left a `generated-images/` folder in that project's root — even when no image was ever generated. The eager `mkdirSync` is removed; the directory is now created lazily, only when an image is actually saved (that write path already ensured its parent directory). Real image generation is unchanged.
+
 ## [1.19.10] - 2026-07-12
 
 ### Removed
