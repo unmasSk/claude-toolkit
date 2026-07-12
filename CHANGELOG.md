@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.19.9] - 2026-07-12
+
 ### Changed
 
 - **Ultron's agent definition reworked to close the gap the reviewers kept flagging.** Ultron now runs a mandatory pre-flight before writing a line — reads the imports/exports/call-sites of what it will touch, searches for an existing helper to reuse instead of duplicating, traces the real producer↔consumer seam, and declares its surface ("N files, M call-sites, K consumers, reuse"). "Minimal" is redefined as the smallest *surface* that fully meets the standard, never the smallest *effort*. Every line must be production-final on the first pass (no drafts, no `TODO: fix later`). The Exit Gate gained goal-backward wiring checks (every new export has a real call-site, every route is mounted, every import is used) — while the round-trip *test* stays Dante's, never Ultron's. The old "mode" concept, which overloaded one word for two different axes, is split into **Build order** (linear/test-first, set by the orchestrator) and **Work type** (implementation/fix/security/refactor, from the task). A new "Observations for the orchestrator" channel lets Ultron surface improvements it spots but must not build unasked.
