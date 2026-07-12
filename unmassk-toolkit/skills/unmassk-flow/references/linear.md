@@ -7,7 +7,9 @@ Linear changes the ORDER of code vs tests; it does not lower the bar. The code s
 ## Order — code first, tests after
 
 1. **Ultron implements** the plan tasks (wave execution), in normal Implementation/Fix mode.
-2. **Dante tests after**, in Verify (Step 5): covers what changed — happy path, error paths, edge cases — and runs the full EXHAUSTION PROTOCOL with the coverage gate (≥90% functions / ≥80% error paths) against the real code.
+2. **Dante tests after**, in Verify (Step 5, which owns the full agent sequence): covers what changed — happy path, error paths, edge cases — full EXHAUSTION PROTOCOL + coverage gate (≥90% functions / ≥80% error paths) against the real code. **Tests hit the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5).
+
+The full post-implementation sequence (Cerberus + Argus → Ultron fixes → Dante → Moriarty → Ultron+Dante repair → Yoda once) lives in Flow's Step 5 and is the same for linear and test-first.
 
 ## When to pick linear over test-first
 

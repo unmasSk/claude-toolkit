@@ -31,7 +31,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 | Agent | DOES | NEVER does |
 | ----- | ---- | ---------- |
 | **Orchestrator (you)** | decides what/who/when, writes the plan, runs Flow | writes production code or tests — not even one line |
-| **Bilbo** | explores/maps the codebase, traces dependencies | implements, reviews, or judges |
+| **Bilbo** | investigates — maps the codebase and traces dependencies, AND researches the web when the answer isn't in the repo | implements, reviews, or judges |
 | **Ultron** | implements production code | writes/edits tests, explores as a phase, reviews, attacks |
 | **Dante** | writes and hardens tests | implements production code, investigates the codebase (that's Bilbo) |
 | **Cerberus** | reviews code | fixes what it finds (reports → Ultron fixes) |
@@ -65,9 +65,11 @@ Classify the work BEFORE anything else. Decide together with the user. (First ru
 
 | Size | Criteria | Pipeline |
 | ---- | -------- | -------- |
-| Quick | 1-2 files, obvious fix, no design decisions | Skip to PLAN (1-liner), lightweight VERIFY — Cerberus always; **Dante only if the change alters behavior or lacks test coverage**; a seam still pulls the full seam subsection |
-| Standard | Normal feature, clear scope | Full pipeline (steps 1-7) |
-| Big | 3+ new files, 5+ modified, or touches auth/data/permissions | Full pipeline + mandatory Argus + Moriarty + Yoda in VERIFY |
+| Trivial | Mechanical, 1 file / a few lines, and NONE of: logic change, security surface, a producer↔consumer seam, new behavior, or a shape other modules depend on. The classic case: editing text/copy in a doc, a typo, a rename, a constant value, a comment, a config/format tweak, a one-liner whose cause and correctness are self-evident. | **Not a Flow run — send Ultron directly and you're done.** No reviewers, no Dante, no branch/plan ceremony. If the repo has a test suite, run it once afterward to catch a fat-finger; nothing else. |
+| Standard | Anything that changes behavior, or touches logic / data / security / a producer↔consumer seam | Full pipeline — Execute (linear or test-first) then the full Step 5 sequence, every agent once |
+| Big | 3+ new files, 5+ modified, or touches auth/data/permissions | Same full pipeline; Execute in several Ultron rounds + deeper Research |
+
+**The boundary — when in doubt, it is NOT trivial.** A change that *looks* small but touches logic, a seam, security, or anything another module relies on runs the full pipeline. Trivial is only for changes whose correctness you can see at a glance and that can't silently break something elsewhere.
 
 Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
 
@@ -262,28 +264,18 @@ If Ultron fails the same task 3 times:
 - TodoWrite updated as tasks complete — user sees progress in real time
 - Each task marked `completed` only after its verification step passes
 
-## Step 5 — Verify (Cerberus + conditionals)
+## Step 5 — Verify (the fixed agent sequence — every agent once, no loops)
 
-Verify the feature works and meets quality standards.
+Verify runs as ONE ordered sequence. **Every agent passes once. No agent re-runs; there is no "repeat until clean" loop** — that loop is exactly what produced 30+ Cerberus↔Ultron rounds in real projects. Each reviewer maps flaws in one pass; the implementer closes them in one pass; you move forward. A regression introduced by a fix is caught mechanically by the full test suite at Close (Step 7), not by re-running reviewers.
 
-### Always (Cerberus on every feature; Dante on every feature that changed behavior)
+**The sequence is identical for linear and test-first — only the Execute arrival differs (linear: Ultron implements first; test-first: Dante's acceptance contract first). From here on, the same for both:**
 
-- **Cerberus** — goal-backward verification: does the code deliver the goal from the plan, not just complete the tasks? Runs on every feature, Quick included.
-- **Dante** — tests for code that changed without coverage. In **test-first** mode this is Dante's **hardening pass**: the full EXHAUSTION PROTOCOL (an exhaustive read of the changed files, their imports/exports/call-sites and existing tests before reporting) + coverage gate (the project profile's bar; default ≥90% functions / ≥80% error paths) against the now-real code. **Exception, consistent with the Quick Triage row:** a Quick fix that changes no behavior and already has coverage may skip Dante — but any producer↔consumer seam pulls the seam subsection below in regardless of size.
-
-### If Big feature (or touches auth/data/permissions)
-
-- **Argus** — deep security audit of the feature
-- **Moriarty** — adversarial attack
-- **Yoda** — senior review with verdict
-
-**Verify runs in ORDER, not all-at-once. Moriarty attacks LAST, on already-corrected code — never in parallel with the reviewers.** The sequence:
-1. **Cerberus + Argus** review the fresh implementation (these two CAN run in parallel — different lenses, no dependency).
-2. **Ultron** fixes everything they surface (phase-sized, one point per invocation; test changes go to Dante).
-3. **Moriarty** then attacks the *fixed* result — his single adversarial pass is spent on the code that's meant to ship, not on a version about to change under him.
-4. **Yoda** renders the verdict last of all.
-
-Reason: Moriarty's value is one hard break-attempt against the real candidate. Run him before the review→fix cycle settles and you either re-break what Ultron is already fixing, or burn the attempt on soon-dead code. Cerberus/Argus are cartographers (map every flaw up front, in parallel); Moriarty is the executioner (one clean strike, last).
+1. **Cerberus + Argus — in parallel, ALWAYS, over all the code Ultron wrote.** Cerberus: quality/Enterprise review (goal-backward — does the code deliver the plan's goal, not just complete tasks). Argus: security audit. **Both run on every feature; Argus is never skipped.**
+2. **Ultron fixes everything Cerberus and Argus surfaced — in one pass.** They do NOT re-review.
+3. **Dante — writes/hardens the tests** when there is testable behavior (business logic, a contract, a seam). In linear this is his single pass; in test-first it is his second entry (exhaustive hardening on top of the acceptance contract he wrote before Execute). Coverage gate: the project profile's bar (default ≥90% functions / ≥80% error paths) on the real code. **Tests hit the REAL dependency by default** — real DB, real seam, real files; mock ONLY what genuinely cannot run in the test environment, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5). If a test exposes bad code → **Ultron** fixes it (Ultron never edits tests; Dante never edits code).
+4. **Moriarty — alone, and only now** (code reviewed + audited + tested). He tries to break **both the code and the tests**.
+5. **Ultron repairs code + Dante repairs tests** — in parallel when the fixes don't collide — for whatever Moriarty broke.
+6. **Yoda — once, and only once.** He is told everything done from the start (implementation, both fix passes, tests, Moriarty's result) and renders a score. Below the user's bar (default **≥109/110**) → **Ultron** repairs exactly the points Yoda named. **Yoda does NOT run again** — no second verdict, no return to earlier reviewers. The fixes to Yoda's points are the last thing before Document.
 
 ### Prompting the crew in Verify (calibrated per agent — NOT one size)
 
@@ -297,13 +289,13 @@ Triggered by the Step 0 seam declaration, regardless of size — this applies to
 - **Dante** owns the round-trip check, never Ultron (the implementer does not verify his own write path). Add it as its own TodoWrite item in the Step 3 plan so it cannot be silently dropped from tracking.
 - **Moriarty** runs his Round-Trip Sabotage mandate against the real dependency before declaring the feature holds up (AGUANTA).
 - **Cerberus** confirms no expected value in the round-trip test is a hand-typed literal.
-- **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — before rendering a verdict on this seam.
+- **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — as part of his one verdict.
 
 IF a seam is discovered during Execute that Triage did not flag THEN amend the plan (Plan Amendment Protocol) to add the round-trip task before Verify proceeds.
 
-### Loop Condition
+### No verify loop (by design)
 
-If VERIFY finds T1/T2 issues (blocking-severity tiers, per `unmassk-standards`) → return to Step 4 with findings. Repeat until clean.
+There is no "repeat until clean" loop — that is the failure mode this sequence exists to kill. Each reviewer runs once; the implementer's fix after each is the correction, not the trigger for another full round. The only mechanical backstop is the full test suite at Close (Step 7): a regression there sends the specific failing test back to Ultron (code) or Dante (test), never a fresh pass of the whole review chain.
 
 ## Step 6 — Document (Alexandria)
 
@@ -364,8 +356,8 @@ Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branche
 | EXECUTE: deviation invalidates future task | Ultron STOPS, orchestrator amends plan |
 | EXECUTE: Ultron needs a test change for GREEN | Ultron STOPS, orchestrator routes the change to Dante (never lets Ultron touch the test) |
 | EXECUTE: user abandons mid-feature | WIP commit current state, context commit with Next trailer for future session |
-| VERIFY: T1/T2 findings | Return to EXECUTE with findings |
-| VERIFY: Yoda NOT READY | Return to EXECUTE with concerns |
+| VERIFY: Cerberus/Argus/Moriarty findings | Handled in-sequence — Ultron fixes code, Dante fixes tests, once each. No return to Execute, no re-review. |
+| VERIFY: Yoda scores below the bar | Ultron repairs exactly the points Yoda named. Yoda does NOT re-run — no second verdict. |
 | CLOSE: no test command found | STOP, ask the user — do not skip the pre-merge gate |
-| CLOSE: merge conflict | Resolve or escalate, re-run VERIFY after resolution |
+| CLOSE: merge conflict | Resolve or escalate; after resolution re-run only the test suite (not the whole Verify sequence) |
 | CLOSE: merge fails completely | Do NOT force push, escalate to user |

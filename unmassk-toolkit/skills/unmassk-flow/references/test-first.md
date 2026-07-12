@@ -43,7 +43,7 @@ Follow standards.md §7 (backend) and §27 (frontend) for what to test per modul
 
 ## Quality rules for the tests themselves
 
-From standards.md §7: AAA pattern, `clearAllMocks` in `beforeEach`, no tautological assertions (`expect(true).toBe(true)` is forbidden, T2), no tests depending on execution order (T2), no mocks replicating production logic (T2). Test behavior through public interfaces, not implementation — a test that breaks on a rename was testing the wrong thing.
+From standards.md §7: AAA pattern, reset any shared mock/fixture state between tests, no tautological assertions (an always-true assert is forbidden, T2), no tests depending on execution order (T2), no mocks replicating production logic (T2). Test behavior through public interfaces, not implementation — a test that breaks on a rename was testing the wrong thing. **Run against the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run in the test environment, and wire at least one test to the core seam end-to-end (`unmassk-standards` §34.5).
 
 ## Persistence
 
