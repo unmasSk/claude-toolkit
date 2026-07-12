@@ -15,10 +15,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # ── Shared lib — encoding guard (issue #52, T1) ─────────────────────────
-# This file lives at skills/unmassk-flow-stack/scripts/scaffold.py — one
+# This file lives at skills/unmassk-scaffolding/scripts/scaffold.py — one
 # level deeper than bin/hooks/scripts, so it needs one more dirname() hop
 # to reach unmassk-toolkit/lib. Always invoked via
-# ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-flow-stack/scripts/scaffold.py (see
+# ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py (see
 # SKILL.md), i.e. always from within the plugin tree — lib/ is always
 # alongside it, same as every bin/hooks entry point.
 sys.path.insert(0, os.path.join(

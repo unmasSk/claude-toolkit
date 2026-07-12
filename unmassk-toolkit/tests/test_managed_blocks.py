@@ -139,20 +139,20 @@ class TestBlocksDefinition:
             f"situation from SKILL.md's description (expected one of {trigger_phrases})"
         )
 
-    def test_protocols_block_includes_flow_stack_skill(self):
-        """unmassk-flow-stack (project scaffolding wizard) must appear in the menu.
+    def test_protocols_block_includes_scaffolding_skill(self):
+        """unmassk-scaffolding (project scaffolding wizard) must appear in the menu.
 
-        Source of truth for trigger wording: skills/unmassk-flow-stack/SKILL.md
-        description — 'scaffold project', 'create new project', 'tech stack'.
+        Source of truth for trigger wording: skills/unmassk-scaffolding/SKILL.md
+        description — 'scaffold project', 'which stack', 'tech stack'.
         """
         body = BLOCKS[1]["body"]
-        assert "`unmassk-flow-stack`" in body, (
-            "unmassk-flow-stack is shipped and tested but missing from the "
+        assert "`unmassk-scaffolding`" in body, (
+            "unmassk-scaffolding is shipped and tested but missing from the "
             "Protocols menu — Claude can't route to a skill it can't see here"
         )
         trigger_phrases = ("scaffold", "new project", "tech stack", "boilerplate")
         assert any(phrase in body.lower() for phrase in trigger_phrases), (
-            "Protocols row for unmassk-flow-stack must reflect its real trigger "
+            "Protocols row for unmassk-scaffolding must reflect its real trigger "
             f"situation from SKILL.md's description (expected one of {trigger_phrases})"
         )
 

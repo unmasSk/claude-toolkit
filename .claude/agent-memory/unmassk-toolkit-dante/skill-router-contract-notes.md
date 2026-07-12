@@ -137,4 +137,23 @@ Don't conflate "we need N tests for N acceptance prompts" with "each of
 those N tests needs the expensive fixture" — the fixture only needs to be
 exercised enough times to prove the wiring holds, not once per prompt.
 
+## Skill rename `unmassk-flow-stack` → `unmassk-scaffolding` (2026-07-12)
+
+Ultron renamed the skill (code + `lib/skill_router.py` dict key + `lib/managed_blocks.py`
+generator) in an earlier commit; this session's task was only the two test
+files following that rename (no code changes, no git-memory ops). Updated:
+`test_managed_blocks.py` (`test_protocols_block_includes_flow_stack_skill` →
+`..._scaffolding_skill`, assert string) and `test_user_prompt_skill_router.py`
+(dict key in `SKILL_TRIGGER_PROMPTS`, module docstring's 7-skill list, the
+drift-guard docstring's "EXPECTED STATE TODAY" narrative, and the
+`_read_skill_description` docstring's folded-scalar skill list) — all
+occurrences of the literal string `unmassk-flow-stack` are gone from both
+files (`git grep` confirmed empty). This also resolves the "Known adjacent
+staleness NOT fixed here" note above for `test_managed_blocks.py` — that file
+was touched as part of this rename, so its stale flow-stack comment no longer
+exists (it's the renamed `test_protocols_block_includes_scaffolding_skill`
+now). If any other reference to `unmassk-flow-stack` surfaces later (e.g. in
+`references/`, other skill docs, or agent-memory files outside Dante's own),
+treat it as a leftover from this rename, not a new skill.
+
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md).

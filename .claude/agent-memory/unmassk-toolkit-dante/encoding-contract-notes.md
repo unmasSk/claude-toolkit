@@ -177,4 +177,47 @@ without also checking `PYTHONUTF8`/`sys.flags.utf8_mode` — an ambient env
 var in the CURRENT shell can silently make the "real Windows repro" not
 actually exercise the failure mode you're trying to verify against.**
 
+**Issue #54 (2026-07-12), linear mode, regression pass — `errors=` param on
+`open_no_follow_symlink()`/`_open_no_follow_symlink_fallback()`.** Follow-on
+bug in the same family as #52: a lone surrogate (`"\udc80"`, half a broken
+Unicode pair — this codebase's git-log decoding can produce one) in
+write-mode text raised `UnicodeEncodeError` (a `ValueError` subclass) from
+inside `os.fdopen(...).write()`, escaping the "only OSError escapes this
+function" contract every caller relies on. Ultron's fix: both twins (and the
+Windows sub-function) gained `errors: str = "strict"` (default unchanged, no
+behavior change for existing callers); `write_boot_log()` is the one real
+call site opting in with `errors="backslashreplace"`. Tests added to
+`test_crossplatform_symlink_guard.py` (`TestErrorsParameterSurrogateEscape`,
+right before the existing "Item 7" cp1252 section) and
+`test_boot_output.py` (`TestWriteBootLogSurrogateEscape`, right after
+`TestBootLogWriteFailureFallback`, same subprocess-load-the-hook-via-
+`spec_from_file_location` pattern as `_render_banner_with_branch`/
+`_run_boot_with_failing_log_write`).
+
+Two things worth remembering for next time this shape recurs:
+1. **§34 "derive, don't hand-type" for a codec-transform round trip**:
+   when the write transforms the payload (backslashreplace escapes the
+   surrogate into literal ASCII, so reread != original payload), the
+   correct anti-fixture technique is computing
+   `expected = payload.encode("utf-8", errors="backslashreplace").decode("utf-8")`
+   inside the test itself — Python's own stdlib codec is an independent,
+   uneditable contract (neither Dante nor Ultron can tune it to fit the
+   day's behavior), so this isn't a hand-typed fixture even though it's
+   computed outside the production call. It's also literally the same
+   transform `os.fdopen(errors="backslashreplace")` delegates to
+   internally, so it inherently matches.
+2. **Confirming a pre-fix RED baseline without reverting production code**:
+   ran the identical write via the CURRENT (fixed) function but simply
+   omitting the `errors=` kwarg (default "strict") — this reproduces
+   exactly what every pre-fix call site did unconditionally (no such
+   parameter existed) and confirms `UnicodeEncodeError` fires, proving
+   case 1 would have failed red before the fix. Cheaper than checking out
+   the pre-fix commit, and just as honest since the default path is
+   byte-identical to the old unconditional behavior.
+3. **The guard test (case 4, default stays "strict") matters as much as the
+   fix test** — it's what stops a future refactor from silently flipping
+   the default to `"backslashreplace"` everywhere, which would hide real
+   encoding corruption at every one of the dozens of call sites that never
+   opted in.
+
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md) (git identity / symlink-guard sessions earlier the same day).

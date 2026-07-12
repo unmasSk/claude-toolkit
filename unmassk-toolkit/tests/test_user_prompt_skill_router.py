@@ -11,7 +11,7 @@ Background (council decision this contract encodes)
 ─────────────────────────────────────────────────────
 An 11-agent council found that 7 of the toolkit's 9 protocol skills
 (unmassk-flow, unmassk-grill, unmassk-council, unmassk-project-lifecycle,
-unmassk-audit, unmassk-close-session, unmassk-flow-stack) get selected
+unmassk-audit, unmassk-close-session, unmassk-scaffolding) get selected
 unreliably because they have zero mechanical backing — only Claude's own
 judgement matching a natural-language description to the user's message.
 unmassk-core and unmassk-gitmemory already get FORCED on the first message of
@@ -264,11 +264,11 @@ SKILL_TRIGGER_PROMPTS = {
         "we're done for today, hand off to the next session",  # quoted: "we're done for today", "hand off"
     ],
     # quoted: "scaffold project", "which stack", "tech stack", "what framework".
-    # "create new project" was REMOVED from unmassk-flow-stack's live description
+    # "create new project" was REMOVED from unmassk-scaffolding's live description
     # in a 2026-07 frontmatter edit (council found it collided with
     # unmassk-project-lifecycle's "new project") -- replaced below with
     # "which stack", which IS still quoted in the current description.
-    "unmassk-flow-stack": [
+    "unmassk-scaffolding": [
         "scaffold project for a new react app",  # quoted: "scaffold project"
         "what framework and tech stack should I use",  # quoted: "what framework", "tech stack"
         "which stack should I pick for this backend, fastapi or something else",  # quoted: "which stack" (replaces removed "create new project")
@@ -498,7 +498,7 @@ class TestFirstMessageForcingTextUnaffected:
 # collisions found by an 11-agent council review) silently made 4 entries in
 # SKILL_TRIGGER_PHRASES stale -- "stress-test this plan" (grill), "let's
 # brainstorm" (council), "create something new" (flow), "create new project"
-# (flow-stack). Nothing caught that drift because the dict was hand-built
+# (scaffolding). Nothing caught that drift because the dict was hand-built
 # from the description text at one point in time and never re-checked
 # against it. This test reads both sides FRESH at test time (the hook's own
 # dict via import, each skill's description via its live SKILL.md) so it
@@ -537,7 +537,7 @@ def _read_skill_description(skill_name):
     descriptions (unmassk-flow, unmassk-audit, unmassk-core,
     unmassk-gitmemory) and folded `>` block-scalar descriptions
     (unmassk-grill, unmassk-council, unmassk-project-lifecycle,
-    unmassk-close-session, unmassk-flow-stack) are read identically --
+    unmassk-close-session, unmassk-scaffolding) are read identically --
     a naive string-search would treat the folded newlines differently
     than yaml.safe_load's real folding rules.
     """
@@ -571,7 +571,7 @@ class TestSkillTriggerPhrasesMatchLiveDescriptions:
     ("unmassk-grill", "stress-test this plan"),
     ("unmassk-council", "let's brainstorm"),
     ("unmassk-flow", "create something new"),
-    ("unmassk-flow-stack", "create new project") --
+    ("unmassk-scaffolding", "create new project") --
     proving SKILL_TRIGGER_PHRASES is stale relative to the frontmatter edits.
     All other pairs (unmassk-core, unmassk-gitmemory, unmassk-project-lifecycle,
     unmassk-audit, unmassk-close-session, and the non-removed phrases of the

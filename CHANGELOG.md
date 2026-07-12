@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`unmassk-flow-stack` renamed to `unmassk-scaffolding`.** The skill had nothing to do with the Flow pipeline — it's the new-project scaffolding wizard (pick a stack, generate the project) — but sharing "flow" in the name conflated the two. Renamed the skill directory, its frontmatter `name`, the routing references in `unmassk-core` and `unmassk-project-lifecycle`, the CLAUDE.md protocol-menu generator, and the `skill_router.py` trigger key (which surfaces the name to the orchestrator every message). Git history keeps the old name; recover it from there if needed.
+
+### Fixed
+
+- **File write-paths no longer leak `UnicodeEncodeError` on a lone surrogate** (#54): `open_no_follow_symlink()` and its cross-platform twin hardcoded `errors="strict"`, so a string carrying a lone surrogate (possible from malformed git output) raised `UnicodeEncodeError` instead of honoring the "only `OSError` escapes" contract. The guard helpers gained an `errors=` passthrough (default unchanged), and the one write-path that assembles free-form git-derived text (`write_boot_log`) opts into `errors="backslashreplace"` — always ASCII-safe and re-readable. Defensive/T3; unreachable from real callers today.
+
 ## [1.19.11] - 2026-07-12
 
 ### Fixed

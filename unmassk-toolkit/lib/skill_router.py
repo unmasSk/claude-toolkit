@@ -47,7 +47,7 @@ SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
     "unmassk-close-session": [
         "let's wrap up", "close the session", "we're done for today", "hand off",
     ],
-    "unmassk-flow-stack": [
+    "unmassk-scaffolding": [
         "scaffold project", "which stack", "tech stack", "what framework",
     ],
 }

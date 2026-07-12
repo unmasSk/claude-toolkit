@@ -1,5 +1,5 @@
 ---
-name: unmassk-flow-stack
+name: unmassk-scaffolding
 description: >
   Use when the user asks to pick a tech stack, scaffold a specific framework/boilerplate
   (React, Next.js, Vue, Astro, FastAPI, Django, etc.), or says "scaffold project",
@@ -77,7 +77,7 @@ Load `references/wizard-options.md` for detailed configuration options based on 
 
 ### Step 5: Generate Project
 
-Use `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-flow-stack/scripts/scaffold.py` or native CLI tools to create the project structure.
+Use `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py` or native CLI tools to create the project structure.
 
 ## CLI Integration
 
@@ -254,7 +254,7 @@ Load reference files based on what you need:
 | `references/wizard-options.md` | During Step 3 (gathering user preferences) | Configuration choices and defaults for each framework |
 | `references/frameworks.md` | When generating code | Project structures, code examples, configuration files |
 | `references/best-practices.md` | For architecture decisions | Directory organization, naming conventions, patterns |
-| `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-flow-stack/scripts/scaffold.py` | For custom scaffolding | Python engine when CLI tools aren't suitable |
+| `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py` | For custom scaffolding | Python engine when CLI tools aren't suitable |
 
 **Workflow:**
 1. Present options from `wizard-options.md` to gather user preferences

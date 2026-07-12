@@ -11,7 +11,7 @@ description: >
   to do"), use `unmassk-grill` first to resolve them — this skill situates a
   project once what to build is already clear. If the user already names a
   concrete stack/framework while starting (e.g. "let's build a React app"),
-  go straight to `unmassk-flow-stack` — it routes back here only if it turns
+  go straight to `unmassk-scaffolding` — it routes back here only if it turns
   out more foundational decisions are still needed. Always reach for this
   before writing code on a project that hasn't been situated yet.
 ---
@@ -47,7 +47,7 @@ Goal: don't let implementation begin until the base decision tree is seeded.
 1. Use the Skill tool with `skill="unmassk-grill"` first (pipeline-invoked mode — 5-question cap) on the project description itself, before cascading requirements. Catches vague wording and bundled scope ("build me a marketplace app" hiding 3 separate products) while it's cheap to fix — before any stack/framework decision is seeded on top of a misunderstood request.
 2. Cascade the requirements from the project type. A SaaS implies: cloud server, cloud DB, possibly Redis, auth, OAuth provider, and so on. Walk the chain so the known-in-advance requirements surface as nodes.
 3. For each major choice (stack, framework, DB, auth), capture a `decision()` with its `Why:`.
-4. Hand off to the scaffolding wizard (`unmassk-flow-stack`) for the actual structure.
+4. Hand off to the scaffolding wizard (`unmassk-scaffolding`) for the actual structure.
 5. **Before the first feature commit**, confirm the scaffold has a baseline quality floor: a working test command (even trivial), lint/format config, and — if the stack implies secrets — a `.env.example`. A missing one is not a silent gap: capture it as `decision()` ("deferred: no test runner yet") so it's visible, not lost.
 6. **Critical:** ensure the choices made in scaffolding are written to git-memory as decisions. The richest moment in decisions is the start — do not let it evaporate.
 
