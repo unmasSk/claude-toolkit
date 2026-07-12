@@ -1282,3 +1282,47 @@ sequential worst case — don't just trust the original budget was sized for
 the new combination. JSON hook entries in this repo have no comment
 syntax, so document the rationale in the commit message / git-memory, not
 inline in `hooks.json`.
+
+## pre-task-recall.py + skill-search.py wiring: real installed skill corpus makes some old test prompts false-positive (unfixable without touching the test or skill-search.py)
+
+Wiring `scripts/skill-search.py --json` into `hooks/pre-task-recall.py`
+(domain-skill auto-injection, independent signal alongside git-memory
+recall — issue: test-first contract in `tests/test_pre_task_recall.py`'s
+"EXPANSION" section): `skill-search.py`'s `SEARCH_DIRS` always includes
+`~/.claude/plugins/cache` and `~/.claude/skills` (real, host-installed
+marketplace skills) REGARDLESS of the temp repo under test — only the
+project-local `.claude/skills` and repo root are cwd-relative. On this dev
+machine (36 real skills indexed), two PRE-EXISTING passing tests in that
+file collide with real skills at high confidence: `TestNoMemoryMatch::
+test_no_match_no_injection` (prompt `"github actions workflow setup"`
+scores 11.5 against the real `ops-cicd` skill) and `::test_empty_repo_no_injection`
+(prompt `"BM25 recall ranking implementation"` scores 7.1 against
+`db-vector-rag`) — both asserted `"updatedInput" not in hso` under a
+memory-only-signal model that predates the skill-search feature. Once
+skill search runs independently (CRITICAL requirement: it must NOT be
+gated by `if not memory_block`), both now correctly inject a skill block
+per spec, breaking those 2 assertions.
+
+Confirmed unfixable within `pre-task-recall.py`'s own scope: no env var
+disables `skill-search.py`'s default `SEARCH_DIRS` (only
+`SKILL_SEARCH_EXTRA_DIRS` to ADD more), and inventing extra gating logic
+beyond the spec's single `score >= LOW_SCORE_THRESHOLD` rule would be scope
+creep, not a real fix (any non-fixture prompt with real English domain
+words can collide the same way — this is inherent to using the real corpus
+unconditionally, which is the actual point of the feature). Reported to
+the task owner rather than edited (lane discipline: never touch test
+files); full suite run (`pytest unmassk-toolkit/tests`) confirmed these are
+the ONLY 2 regressions out of 1308 tests, and both are this exact
+environment-dependent collision, not a logic bug.
+
+Separate real bug found and fixed in the same file while implementing:
+`_allow_passthrough()`/`_allow_with_injection()` called `json.dump(...)`
+with default `ensure_ascii=True`, so the skill block's em dash (U+2014 in
+`"[DOMAIN SKILL — auto-selected...]"`) got escaped to `—` in raw
+stdout JSON — invisible to tests that `json.loads()` the output first
+(unescapes it) but breaks any test asserting on the RAW stdout string
+(`TestNeverDeniesInvariantWithSkillSearch::test_invariant_strong_skill_match`).
+Fix: add `ensure_ascii=False` to both `json.dump()` calls — safe because
+`encoding_guard.force_utf8_streams()` already reconfigures stdout to UTF-8
+at hook startup, so raw non-ASCII bytes on stdout is already the intended
+posture, not a new risk.

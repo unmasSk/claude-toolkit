@@ -284,8 +284,35 @@ class TestNonTaskTool:
 # ── Tests: no memory match → passthrough ─────────────────────────────────
 
 class TestNoMemoryMatch:
+    """Reconciled for the domain-skill-injection expansion (see
+    TestSkillMemoryIndependenceRegression below): injection is now driven by
+    TWO independent signals (memory recall AND skill-search), so "no
+    injection" only holds when NEITHER signal matches. The old prompts here
+    ("github actions workflow setup", "BM25 recall ranking implementation")
+    were ordinary English phrases that happen to score above
+    LOW_SCORE_THRESHOLD against whatever domain skills are actually
+    installed on the host (ops-cicd, db-vector-rag, ...) -- non-deterministic
+    by construction. Swapped to the same `_NO_MATCH_PROMPT` nonce constant
+    the newer skill-independence tests already use and verified empirically
+    (see module docstring near `_NO_MATCH_PROMPT`) to score exactly 0
+    against the real host corpus, so pass/fail no longer depends on which
+    skills happen to be installed.
+
+    Not a duplicate of `TestSkillMemoryIndependenceRegression.
+    test_neither_match_clean_passthrough`: that test plants a real skill
+    fixture (`_write_skill_fixture`) in an always-empty repo to prove a
+    *present-but-unmatched* skill signal still yields passthrough. The two
+    tests below plant no fixture at all and instead vary the *memory* side
+    of the repo (unrelated-but-real commit vs. no commits whatsoever) to
+    prove recall()'s own no-match and empty-repo paths still yield clean
+    passthrough now that skill-search runs independently alongside it.
+    """
+
     def test_no_match_no_injection(self, tmp_path):
-        """When recall() returns empty string → no updatedInput emitted."""
+        """Repo has a real memory commit, but it shares no vocabulary with
+        the (nonce) prompt → recall() returns empty. No skill fixture is
+        planted and the nonce prompt is verified to score 0 against the
+        real host skill corpus too, so neither signal fires."""
         repo = _make_repo(tmp_path)
         # Commit memory that is completely unrelated to the prompt
         _commit(
@@ -296,7 +323,7 @@ class TestNoMemoryMatch:
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "github actions workflow setup",
+            "prompt": _NO_MATCH_PROMPT,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -304,15 +331,17 @@ class TestNoMemoryMatch:
         assert rc == 0
         hso = _hook_specific(parsed)
         assert hso.get("permissionDecision") == "allow"
-        assert "updatedInput" not in hso, "No match → must not inject"
+        assert "updatedInput" not in hso, "Neither signal matched → must not inject"
 
     def test_empty_repo_no_injection(self, tmp_path):
-        """Empty repo (no memory commits) → no updatedInput."""
+        """Empty repo (no memory commits, no skill fixture) → recall()
+        naturally returns empty and skill-search has nothing installed by
+        this test to match → updatedInput absent."""
         repo = _make_repo(tmp_path)
 
         tool_input = {
             "subagent_type": "ultron",
-            "prompt": "BM25 recall ranking implementation",
+            "prompt": _NO_MATCH_PROMPT,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
