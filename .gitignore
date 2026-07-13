@@ -23,7 +23,8 @@ __pycache__/
 .claude/.glossary-cache.json
 .claude/.context-status.json
 .claude/.context-warn-state.json
-.ref-repos/
+.ref-repos/*
+!.ref-repos/SOURCES.md
 
 # unmassk-toolkit generated (do not track)
 .claude/.unmassk/
