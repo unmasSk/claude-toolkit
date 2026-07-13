@@ -1,6 +1,16 @@
 ---
 name: unmassk-standards
-description: Use EVERY TIME code is written, reviewed, tested, audited, or fixed. Generic, stack-agnostic quality criteria under the "system against itself" threat model — the failures a project inflicts on itself: data/memory loss or corruption, silent failures, platform (Windows/Linux/macOS) breakage, producer→consumer round-trip integrity, and concurrency races. Provides tier classification (T1/T2/T3), weighted scoring (/110), size/structure decision trees, and error-handling/async rules. Loaded by ALL agents on boot. NOT about external attackers — no OWASP/injection defense here. Project-specific values (stack, response contract, DB schema, build command, coverage number) live in the project profile, never hardcoded in this skill. If you are touching code, you need these standards.
+description: >
+  Use EVERY TIME code is written, reviewed, tested, audited, or fixed. Generic,
+  stack-agnostic quality criteria under the "system against itself" threat model —
+  the failures a project inflicts on itself: data/memory loss or corruption, silent
+  failures, platform (Windows/Linux/macOS) breakage, producer→consumer round-trip
+  integrity, and concurrency races. Provides tier classification (T1/T2/T3), weighted
+  scoring (/110), size/structure decision trees, and error-handling/async rules.
+  Loaded by ALL agents on boot. NOT about external attackers — no OWASP/injection
+  defense here. Project-specific values (stack, response contract, DB schema, build
+  command, coverage number) live in the project profile, never hardcoded in this
+  skill. If you are touching code, you need these standards.
 ---
 
 # Enterprise Quality Standards — Generic

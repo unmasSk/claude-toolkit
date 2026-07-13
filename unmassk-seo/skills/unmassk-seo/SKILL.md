@@ -27,7 +27,7 @@ description: >
   capture, and visual analysis. Integrates with 5 MCP servers: DataForSEO, Ahrefs,
   Semrush, Google Search Console, and PageSpeed Insights.
   Based on claude-seo by AgriciDaniel (MIT License).
-version: 1.0.0
+version: 1.1.0
 ---
 
 # SEO -- Technical SEO Toolkit

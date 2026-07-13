@@ -756,31 +756,28 @@ Add "Contact Sales" when deal sizes exceed $10k+ ARR, customers need custom cont
 
 All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment variables for auth and run directly.
 
-### stripe.js
+### Stripe
 
-Manage subscriptions, dunning configuration, and payment retries.
+**No `stripe.js` CLI script ships in this plugin, and Stripe is not in the Composio toolkit table above.** Manage subscriptions, dunning configuration, and payment retries via Stripe's own native MCP server (see the note above -- "prefer native MCP servers (Stripe, Mailchimp) when available") or the REST API directly:
 
 ```bash
 # Environment
 export STRIPE_API_KEY=sk_live_xxx
 
 # List subscriptions
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions list
+curl https://api.stripe.com/v1/subscriptions -u "$STRIPE_API_KEY:"
 
 # Get subscription details
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions get --id sub_xxx
+curl https://api.stripe.com/v1/subscriptions/sub_xxx -u "$STRIPE_API_KEY:"
 
 # Cancel subscription
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions cancel --id sub_xxx
+curl -X DELETE https://api.stripe.com/v1/subscriptions/sub_xxx -u "$STRIPE_API_KEY:"
 
 # Create subscription
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions create --customer cus_xxx --price price_xxx
+curl -X POST https://api.stripe.com/v1/subscriptions -u "$STRIPE_API_KEY:" -d customer=cus_xxx -d "items[0][price]"=price_xxx
 
 # List invoices
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js invoices list
-
-# Preview without sending
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/stripe.js subscriptions list --dry-run
+curl https://api.stripe.com/v1/invoices -u "$STRIPE_API_KEY:"
 ```
 
 ### paddle.js

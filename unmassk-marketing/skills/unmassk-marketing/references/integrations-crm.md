@@ -8,9 +8,9 @@ Consolidated reference for CRM platforms, lead enrichment tools, and customer da
 
 **Auth method:** Private App Token or OAuth 2.0. Pass `Authorization: Bearer {access_token}`. Generate tokens at Settings > Integrations > Private Apps.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/hubspot.js`
+**No CLI script shipped for this integration.** Use the Composio MCP toolkit below (HubSpot has no native MCP server), or call the REST API directly.
 
-**Composio MCP toolkit:** `HUBSPOT` (OAuth 2.0, Deep coverage -- 20+ actions). Use Composio for MCP access since HubSpot has no native MCP server.
+**Composio MCP toolkit:** `HUBSPOT` (OAuth 2.0, Deep coverage -- 20+ actions).
 
 **Key API operations:**
 
@@ -57,9 +57,9 @@ Consolidated reference for CRM platforms, lead enrichment tools, and customer da
 
 **Auth method:** OAuth 2.0 (Web Server Flow or JWT Bearer). Pass `Authorization: Bearer {access_token}`. Use the `instance_url` from the auth response as the base URL.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/salesforce.js`
+**No CLI script shipped for this integration.** Use the Composio MCP toolkit below, or call the REST/SOAP/Bulk API directly.
 
-**Composio MCP toolkit:** `SALESFORCE` (OAuth 2.0, Deep coverage). Use Composio for MCP access.
+**Composio MCP toolkit:** `SALESFORCE` (OAuth 2.0, Deep coverage).
 
 **Key API operations:**
 
