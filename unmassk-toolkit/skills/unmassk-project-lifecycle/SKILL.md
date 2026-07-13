@@ -1,20 +1,17 @@
 ---
 name: unmassk-project-lifecycle
 description: >
-  Detects the project situation and runs the right lifecycle protocol: starting a
-  new project, continuing an existing one, or scanning an unfamiliar/external repo
-  to seed memory. Use this skill at the start of any work on a project — when the
-  user says "new project", "let's start", "continue", "where were we", "pick up
-  the project", "scan this repo", "I inherited this codebase", or whenever it's
-  unclear what state the project is in. If the scope or requirements for the new
-  build are still undecided (e.g. "I want an X but I'm not sure what it needs
-  to do"), use `unmassk-grill` first to resolve them — this skill situates a
-  project once what to build is already clear. Naming a stack up front (e.g.
-  "let's build a React app") does NOT skip the definition phases — the stack is
-  one decision among many, and scaffolding runs as phase E of START, after
-  requirements, behavior and foundations are seeded, never instead of them.
-  Always reach for this before writing code on a project that hasn't been
-  situated yet.
+  Use when the user asks to "start a new project", "let's start", "scaffold",
+  "continue", "pick up where we left off", "where were we", "scan this repo",
+  "I inherited this codebase", "set up this project". Also invoke AUTOMATICALLY,
+  as the FIRST step, whenever the user opens work — build, create, implement, or
+  continue anything — on a project you have not situated yet this session; do not
+  wait to be asked, and situate first even when the state seems obvious. Runs the
+  matching protocol: START (new project), CONTINUE (existing project with our
+  git-memory), or SCAN (unfamiliar/external repo, seed memory). Naming a stack
+  ("a React app") does not skip the earlier definition phases — the stack is one
+  decision among many, seeded after requirements and foundations. Do not write
+  code on a project you have not situated.
 ---
 
 # Project Lifecycle

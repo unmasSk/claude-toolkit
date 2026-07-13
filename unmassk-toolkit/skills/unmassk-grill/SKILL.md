@@ -1,14 +1,17 @@
 ---
 name: unmassk-grill
 description: >
-  Before anything significant, interrogate the user relentlessly to resolve every
-  branch of the decision tree before writing a line of code. Use when the REQUIREMENTS
-  themselves are still undefined — the request is ambiguous, there are two valid
-  interpretations of WHAT TO BUILD (not which of two known approaches to take), or
-  the user says "grill me", "let's think this through", or describes something big
-  without having decided the details. NOT for choosing between already-known,
-  already-scoped options — that's `unmassk-council`. Reach for this instead of
-  guessing what the user meant — guessing builds the wrong thing.
+  Use when the user asks to "grill me", "let's think this through", "help me
+  define this", or describes something to build without pinning down what it must
+  do. Also invoke AUTOMATICALLY, before starting any build, whenever WHAT to build
+  is under-defined; do not wait to be asked. Concrete trigger test: before
+  building, try to state in one sentence exactly what you are about to build — if
+  you cannot without guessing, or if two materially different things would both
+  satisfy the request, STOP and run this skill. Interrogates the user to resolve
+  every branch of the decision tree before a line of code is written. NOT for
+  picking between options that are already scoped and understood — only when what
+  to build itself is undefined. Guessing what the user meant builds the wrong
+  thing.
 ---
 
 # Grill
