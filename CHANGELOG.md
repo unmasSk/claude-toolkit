@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **New plugin `unmassk-pentesting` v1.0.0** — offensive + defensive security engagement toolkit, 30 skills. `pentesting-engagement` is the method spine: an orchestration loop over the crew (source/recon first, three hypotheses per batch, delegated execution, blind validation, coverage-by-confirmed) driven by a per-engagement `SCOPE` contract (an explicit allowlist the operator confirms — discovered assets outside it are never auto-attacked) and a blind-validation step where fresh `general-purpose` agents (a refuter quorum + a reproducer, seeded with role files, never shown the attack theory) must independently confirm a finding before it reaches the report. The other 29 skills are per-domain techniques spanning web, recon, network/system, cloud, specialized surfaces (mobile, blockchain, cryptography, AI/LLM, reverse engineering, social engineering), blue-team/DFIR, CTF/bug-bounty (HackerOne, HackTheBox, CVE PoC/risk-score), and offensive tooling. Technique content is lifted byte-faithful (MIT, per-file attributed) from `communitytools` by Transilience AI, pinned at upstream commit `e659245`; the upstream Python orchestration engine was deliberately not ported — the method is re-expressed as prose over the existing crew. Auto-trigger and blind validation have been verified live against 2 of the 30 skills (recon, injection) on a real target; the full 30-skill trigger sweep is not yet exercised.
+
 ## [1.20.2] - 2026-07-13
 
 ### Changed

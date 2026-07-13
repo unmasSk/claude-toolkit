@@ -37,6 +37,7 @@ Then install the domain plugins you need:
 /plugin install unmassk-design@unmassk-claude-toolkit
 /plugin install unmassk-seo@unmassk-claude-toolkit
 /plugin install unmassk-marketing@unmassk-claude-toolkit
+/plugin install unmassk-pentesting@unmassk-claude-toolkit
 ```
 
 Restart Claude Code. Done.
@@ -86,6 +87,7 @@ Install what you need. Agents discover them automatically.
 | **unmassk-design** | 1 | Design systems, color, typography, motion, accessibility, agentic UX |
 | **unmassk-seo** | 1 | Technical SEO, schema markup, Core Web Vitals, GEO/AEO |
 | **unmassk-marketing** | 1 | CRO, copywriting, email, retention, paid ads, analytics, growth |
+| **unmassk-pentesting** | 30 | Web/API/mobile/cloud/blockchain pentesting, recon, AD/system attacks, DFIR, CTF/bug bounty, adversarial engagement method with blind validation |
 
 ---
 
