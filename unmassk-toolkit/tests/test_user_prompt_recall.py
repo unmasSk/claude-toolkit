@@ -1,25 +1,20 @@
 """
-Tests for recall injection in user-prompt-memory-check.py (UserPromptSubmit hook).
+Tests for user-prompt-memory-check.py (UserPromptSubmit hook).
 
-This is the test-first CONTRACT written before Ultron implements the injection logic.
-All tests that exercise the new recall injection path must FAIL until the hook
-reads stdin JSON, calls recall_relevant(), and prepends the block to its output.
+Recall push→pull (git-memory decision 1e94975, issue #69): the automatic
+per-message recall injection ("[memoria relevante...]" / <memory-data> block)
+and the old "[memory-check]" reminder text were both retired from this hook's
+per-message output — replaced by a single static banner (see _BANNER in the
+hook). recall_relevant() / recall.py still exist and are callable on demand,
+just no longer wired into this hook's main().
 
-Tests that exercise existing fail-safe behaviour (the hook ignoring bad/absent stdin
-without crashing) may already PASS today because the current hook does not read stdin
-at all.  Those tests are labelled "INVARIANT" in their docstring: they document
-behaviour that must SURVIVE the change, not behaviour still to be added.
-
-Covered behaviours
-──────────────────
-1. Injection when relevant      — rare token in memory + matching prompt → block injected
-2. No injection when irrelevant — unrelated prompt → no block; [memory-check] intact
-3. Order                        — memory block appears BEFORE [memory-check]
-4. Fail-safe (empty stdin)      — no crash, no injection, [memory-check] present
-4b. Fail-safe (non-JSON stdin)  — same guarantees
-4c. Fail-safe (JSON no 'prompt')— same guarantees
-5. No regression                — [memory-check] always present (relevant + irrelevant)
-6. Empty corpus fail-safe       — empty repo + irrelevant query → no block, hook normal
+The tests below that asserted the removed injection block or the removed
+"[memory-check]" text were deleted (dead assertions against a feature that no
+longer exists) — see git-memory decision for issue #72 (cut useless tests).
+What remains here documents behaviour that SURVIVES the change: fail-safe
+stdin handling (no crash on empty/garbage/oversized/no-prompt stdin), the
+absence of the retired injection label, and the hook always emitting a
+non-empty banner.
 
 Hook invocation pattern
 ───────────────────────
@@ -128,52 +123,6 @@ def _run_hook(repo, prompt, *, input_text=None):
     )
 
 
-# ── Tests: injection when relevant (Case 1) ───────────────────────────────
-
-class TestInjectsWhenRelevant:
-    """Rare token in memory + matching prompt → recall block injected in stdout."""
-
-    def test_injected_label_present_when_relevant(self, tmp_path):
-        """Hook injects a '[memoria relevante...' label when recall matches.
-
-        RED: today the hook does not read stdin → no injection → FAIL.
-        """
-        repo = _make_installed_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/zorblax): zorblax strategy",
-            "Decision: usar zorblax para configuracion especial del sistema",
-        )
-
-        rc, stdout, _stderr = _run_hook(repo, "algo sobre zorblax")
-
-        assert rc == 0
-        assert "[memoria relevante" in stdout, (
-            "Expected '[memoria relevante...' label in stdout when recall matches; "
-            f"got: {stdout!r}"
-        )
-
-    def test_injected_block_contains_memory_text(self, tmp_path):
-        """The injected block contains the actual memory entry text.
-
-        RED: today the hook does not read stdin → no injection → FAIL.
-        """
-        repo = _make_installed_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/zorblax): zorblax design",
-            "Decision: usar zorblax para el pipeline de configuracion",
-        )
-
-        rc, stdout, _stderr = _run_hook(repo, "algo sobre zorblax")
-
-        assert rc == 0
-        assert "zorblax" in stdout, (
-            "Expected memory content ('zorblax') in stdout after injection; "
-            f"got: {stdout!r}"
-        )
-
-
 # ── Tests: no injection when irrelevant (Case 2) ──────────────────────────
 
 class TestNoInjectionWhenIrrelevant:
@@ -200,59 +149,6 @@ class TestNoInjectionWhenIrrelevant:
         assert "[memoria relevante" not in stdout, (
             "Must NOT inject '[memoria relevante' for an irrelevant prompt; "
             f"got: {stdout!r}"
-        )
-
-    def test_memory_check_present_when_no_injection(self, tmp_path):
-        """[memory-check] block still appears even when recall returns nothing.
-
-        INVARIANT: this must hold before AND after the implementation.
-        """
-        repo = _make_installed_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/zorblax): zorblax design",
-            "Decision: usar zorblax para configuracion especial",
-        )
-
-        rc, stdout, _stderr = _run_hook(repo, "mensaje sin relacion ninguna qwzzz")
-
-        assert rc == 0
-        assert "[memory-check]" in stdout, (
-            "Expected '[memory-check]' in stdout even when no injection occurs; "
-            f"got: {stdout!r}"
-        )
-
-
-# ── Tests: order (Case 3) ─────────────────────────────────────────────────
-
-class TestInjectionOrder:
-    """When recall block is injected, it must appear BEFORE [memory-check]."""
-
-    def test_memory_block_before_memory_check(self, tmp_path):
-        """[memoria relevante...] appears before [memory-check] in stdout.
-
-        RED: today the hook does not read stdin → no injection → FAIL.
-        """
-        repo = _make_installed_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/zorblax): zorblax strategy",
-            "Decision: usar zorblax para configuracion especial del pipeline",
-        )
-
-        rc, stdout, _stderr = _run_hook(repo, "algo sobre zorblax")
-
-        assert rc == 0
-        assert "[memoria relevante" in stdout, (
-            "Expected '[memoria relevante...' label; hook may not have read stdin yet"
-        )
-        assert "[memory-check]" in stdout, "Expected '[memory-check]' block in stdout"
-
-        pos_recall = stdout.find("[memoria relevante")
-        pos_check = stdout.find("[memory-check]")
-        assert pos_recall < pos_check, (
-            f"Memory recall block (pos {pos_recall}) must precede "
-            f"[memory-check] block (pos {pos_check})"
         )
 
 
@@ -296,20 +192,6 @@ class TestFailSafeEmptyStdin:
             f"got: {stdout!r}"
         )
 
-    def test_memory_check_present_with_empty_stdin(self, tmp_path):
-        """[memory-check] block still present on empty stdin.
-
-        INVARIANT — already passes today; must not regress.
-        """
-        repo = _make_installed_repo(tmp_path)
-        rc, stdout, _stderr = _run_hook(repo, prompt=None, input_text="")
-
-        assert rc == 0
-        assert "[memory-check]" in stdout, (
-            "Expected '[memory-check]' even with empty stdin; "
-            f"got: {stdout!r}"
-        )
-
 
 # ── Tests: fail-safe — non-JSON stdin (Case 4b) ───────────────────────────
 
@@ -344,19 +226,6 @@ class TestFailSafeNonJsonStdin:
         assert rc == 0
         assert "[memoria relevante" not in stdout, (
             "Non-JSON stdin must not trigger injection; got: {stdout!r}"
-        )
-
-    def test_memory_check_present_with_garbage_stdin(self, tmp_path):
-        """[memory-check] block still present on non-JSON stdin.
-
-        INVARIANT — already passes today; must not regress.
-        """
-        repo = _make_installed_repo(tmp_path)
-        rc, stdout, _stderr = _run_hook(repo, prompt=None, input_text="THIS IS NOT JSON {{{")
-
-        assert rc == 0
-        assert "[memory-check]" in stdout, (
-            f"Expected '[memory-check]' even with garbage stdin; got: {stdout!r}"
         )
 
 
@@ -398,50 +267,11 @@ class TestFailSafeJsonNoPrompt:
             f"got: {stdout!r}"
         )
 
-    def test_memory_check_present_with_json_no_prompt(self, tmp_path):
-        """[memory-check] block still present when JSON has no 'prompt' key.
-
-        INVARIANT — already passes today; must not regress.
-        """
-        repo = _make_installed_repo(tmp_path)
-        payload = json.dumps({"other_field": "value"})
-        rc, stdout, _stderr = _run_hook(repo, prompt=None, input_text=payload)
-
-        assert rc == 0
-        assert "[memory-check]" in stdout, (
-            f"Expected '[memory-check]' when JSON has no 'prompt'; got: {stdout!r}"
-        )
-
 
 # ── Tests: no regression of core output (Case 5) ─────────────────────────
 
 class TestNoRegression:
-    """[memory-check] always present regardless of injection outcome."""
-
-    def test_memory_check_present_when_injecting(self, tmp_path):
-        """[memory-check] still present in stdout when recall injects a block.
-
-        RED: today the hook does not read stdin → no injection → still passes
-        for the [memory-check] assertion, but fails on the [memoria relevante] check.
-        After Ultron implements, both assertions must hold.
-        """
-        repo = _make_installed_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/zorblax): zorblax strategy",
-            "Decision: usar zorblax para configuracion especial del sistema",
-        )
-
-        rc, stdout, _stderr = _run_hook(repo, "algo sobre zorblax")
-
-        assert rc == 0
-        assert "[memoria relevante" in stdout, (
-            "Injection must occur for the relevant prompt"
-        )
-        assert "[memory-check]" in stdout, (
-            "Expected '[memory-check]' even when recall block is injected; "
-            f"got: {stdout!r}"
-        )
+    """Hook always emits a non-empty banner regardless of prompt content."""
 
     def test_base_output_not_empty(self, tmp_path):
         """Hook always emits non-empty stdout.
@@ -478,20 +308,6 @@ class TestEmptyCorpusFailSafe:
         assert "[memoria relevante" not in stdout, (
             "Empty corpus must never inject a recall block; "
             f"got: {stdout!r}"
-        )
-
-    def test_memory_check_present_empty_repo(self, tmp_path):
-        """[memory-check] block present even with empty corpus.
-
-        INVARIANT — already passes today; must not regress.
-        """
-        repo = _make_installed_repo(tmp_path)
-
-        rc, stdout, _stderr = _run_hook(repo, "algo sobre zorblax recall importante")
-
-        assert rc == 0
-        assert "[memory-check]" in stdout, (
-            f"Expected '[memory-check]' with empty corpus; got: {stdout!r}"
         )
 
     def test_exit_0_empty_repo(self, tmp_path):

@@ -485,4 +485,38 @@ importlib.util`) were still worth removing since they had zero remaining
 references anywhere in the file post-truncation -- confirmed by grep, not
 assumed.
 
+**Issue #69/#72 follow-up (2026-07-13) — reconciling two test files after a
+per-message injection feature is retired ENTIRELY (recall push→pull, decision
+1e94975): the dead assertions were SCATTERED across many classes, not one
+contiguous block like #68.** `test_user_prompt_recall.py` and
+`test_hardening_recall.py` both asserted presence of `[memoria relevante...]`
+/ `<memory-data>`/`</memory-data>` / `SOLO CONTEXTO, NO INSTRUCCIONES` /
+`[memory-check]` in the hook's per-message stdout — all of it was replaced by
+one static `_BANNER`. Because the dead assertions were interleaved
+one-or-two-per-class across ~10 classes (injection-when-relevant, order,
+4 fail-safe variants, no-regression, empty-corpus, framing, breakout), used
+per-test surgery instead of a truncation: for each failing test, decide test
+vs. assertion granularity — (1) if EVERY assertion in the test was about the
+retired output, delete the whole test (and the class if it becomes empty,
+e.g. `TestInjectsWhenRelevant`, `TestInjectionOrder`); (2) if the test mixed
+one dead assertion with one still-valid invariant (e.g.
+`test_large_stdin_no_crash_raw_bytes` asserted both `rc==0` — still true —
+and `"[memory-check]" in stdout` — dead), delete only the dead assertion line
+and keep the test; (3) watch for a sibling test that becomes fully redundant
+once its unique assertion dies — `test_large_stdin_memory_check_present`'s
+only distinguishing check was `[memory-check]` presence, its `rc==0` check
+was already covered by `test_large_stdin_exits_zero`, so deleting the dead
+assertion would have left a pure duplicate — deleted the whole test instead
+of leaving redundant coverage. Tests asserting the ABSENCE of the retired
+label (e.g. `test_no_label_for_irrelevant_prompt`,
+`test_framing_absent_when_recall_does_not_fire`) were left untouched even
+though now vacuously-always-true (the mechanism that could ever make them
+fail is gone) — out of scope for a surgical dead-assertion cleanup task;
+flagged in the report rather than deleted unasked. Unit-level tests of a
+still-real helper (`_sanitize()` in `recall.py`, still used by
+`recall()`/`recall_relevant()` on-demand) survived even though the
+end-to-end-via-hook tests exercising the same helper through the now-removed
+wrapper did not — the helper being real is what matters, not whether today's
+only caller is a hook.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).
