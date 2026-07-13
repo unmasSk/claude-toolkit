@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "unmassk-toolkit",
-      "version": "1.20.2",
+      "version": "1.20.3",
       "description": "Core toolkit \u2014 persistent memory, 10 specialized agents, creative pipeline, enterprise audit, quality standards, and memory calibration",
       "source": {
         "source": "git-subdir",
@@ -26,7 +26,7 @@
     },
     {
       "name": "unmassk-marketing",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Strategic marketing \u2014 CRO, copywriting, email, ads, pricing, growth",
       "source": {
         "source": "git-subdir",
@@ -107,7 +107,7 @@
     {
       "name": "unmassk-pentesting",
       "version": "1.0.0",
-      "description": "Pentesting — offensive + defensive security engagement toolkit. Method-spine skill (recon-first loop, three-hypotheses, blind validation, scope contract) plus 29 technique skills across web, network/system, cloud, specialized (LLM/blockchain/crypto/RE/mobile/social), blue-team (DFIR/SAST/cloud-defense/firewall), and CTF/bug-bounty. Techniques lifted from communitytools by Transilience AI (MIT).",
+      "description": "Pentesting \u2014 offensive + defensive security engagement toolkit. Method-spine skill (recon-first loop, three-hypotheses, blind validation, scope contract) plus 29 technique skills across web, network/system, cloud, specialized (LLM/blockchain/crypto/RE/mobile/social), blue-team (DFIR/SAST/cloud-defense/firewall), and CTF/bug-bounty. Techniques lifted from communitytools by Transilience AI (MIT).",
       "source": {
         "source": "git-subdir",
         "url": "unmassk/claude-toolkit",
