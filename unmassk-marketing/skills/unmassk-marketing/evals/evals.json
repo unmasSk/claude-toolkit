@@ -2607,7 +2607,7 @@
           "prompt": "Set up HubSpot CRM tracking for a B2B SaaS",
           "expected_output": "",
           "assertions": [
-            "Uses hubspot.js with ${CLAUDE_PLUGIN_ROOT} path",
+            "References Composio MCP HUBSPOT toolkit (OAuth 2.0)",
             "Checks for HUBSPOT_ACCESS_TOKEN env var",
             "Includes contact and deal operations"
           ],
