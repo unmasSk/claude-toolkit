@@ -23,10 +23,23 @@ type: project
 
 | Path | Type | Status |
 |------|------|--------|
-| `CHANGELOG.md` (root) | Changelog | Audited 2026-07-09 — [Unreleased] entries added for issue #55 (date parsing robustness: new `lib/date_parsing.py` module + 3 Fixed bullets covering the `%aI`→`%at` degradation, shared input-hardening, and doctor.py's `gc_date_unparseable`/negative-clamp with the accepted overflow-date residual folded in). Latest released: [1.17.0] (already includes #49). |
+| `CHANGELOG.md` (root) | Changelog | Updated 2026-07-13 — [Unreleased] Added entry for new plugin `unmassk-pentesting` v1.0.0 (30 skills). See changelog-state.md. |
 | `chatroom/CHANGELOG.md` | Changelog | Audited 2026-03-24 — [Unreleased] Removed section corrected (V2 files all deleted) |
-| `README.md` (root) | Project readme | Updated 2026-07-07 — Memory row in "What's inside" table gained one clause on multi-machine freshness (boot proposes pull when behind) |
+| `README.md` (root) | Project readme | Updated 2026-07-13 — added `unmassk-pentesting` install command + "What's inside" table row (30 skills) |
 | `chatroom/README.md` | Project readme | Updated 2026-03-24 — test count corrected 535+ → 1200+ |
+| `unmassk-pentesting/README.md` | Plugin readme | Created 2026-07-13 — method (engagement loop + SCOPE contract + blind validation), 30-skill catalogue grouped by area (method/web/recon/network-system/cloud/specialized/blue-team/ctf-bounty/tooling), MIT+PROVENANCE pointer, honest caveats (2/30 skills live-verified against a real Laravel target — checks.monyma.es per decision `470f4da`; upstream Python engine deliberately not lifted) |
+
+## unmassk-pentesting hygiene pass (2026-07-13)
+
+| Path | Type | Status |
+|------|------|--------|
+| `unmassk-pentesting/skills/pentesting-api-security/SKILL.md` | Skill frontmatter | Fixed 2026-07-13 — added mutual out-of-scope clause vs client-side: owns API-layer/server-side WAF bypass (WAF/gateway in front of REST/GraphQL); browser-payload XSS-filter bypass pushed out of scope. YAML verified parses. |
+| `unmassk-pentesting/skills/pentesting-client-side/SKILL.md` | Skill frontmatter | Fixed 2026-07-13 — reciprocal clause: owns browser-payload/XSS-and-client-filter WAF bypass (XSS filter/sanitizer/CSP in browser); API-layer/server-side WAF bypass pushed out of scope. Trigger phrase "bypass this WAF / filter" narrowed to "bypass this XSS filter / sanitizer / CSP". YAML verified parses. |
+| `unmassk-pentesting/skills/pentesting-engagement/references/INDEX.md` | Reference index | Created 2026-07-13 — catalogs method-loop.md, scope-authorization.md, crew-roles.md, blind-validation.md, roles/{executor,reproducer,refuter}-role.md, matching pentesting-recon's INDEX.md style. All 7 files verified on disk before listing. |
+| `unmassk-pentesting/skills/pentesting-injection/SKILL.md` | Skill definition | Fixed 2026-07-13 — routing table said scenario trees have "some not yet lifted — logged there" (false, verified 27/27 scenario files exist + INDEX.md says "every file below is present and ready"). Corrected to "complete — every scenario listed there is present". |
+| `unmassk-pentesting/skills/pentesting-firewall-review/references/INDEX.md` | Reference index | Fixed 2026-07-13 — `personas/` vs `agents/` dirs diffed (NOT redundant: agents/ is the operational spawn prompt SKILL.md/commands route to; personas/ is a shorter upstream-derived brief for traceability, unused operationally). Strengthened the existing thin note into an explicit distinction. Both dirs kept. |
+| `unmassk-pentesting/skills/pentesting-ai-threat-testing/references/INDEX.md` | Reference index | Verified 2026-07-13 — the dual-OWASP-LLM-revision note (flat `llmNN-*.md` vs `scenarios/llm/llmNN-*.md` use different revisions, read title not digit) was ALREADY present at the top (confirmed via `git diff HEAD` empty). No change needed. |
+| `unmassk-pentesting/skills/pentesting-system/references/scenarios/linux-privesc/docker-escape.md` | Reference | Fixed 2026-07-13 — added one-line pointer at top noting full container/Docker/K8s escape also lives in `pentesting-cloud-containers` (`references/scenarios/docker/`, `references/scenarios/kubernetes/`, both paths verified on disk); both playbooks kept intact. |
 
 ## unmassk-design docs
 
