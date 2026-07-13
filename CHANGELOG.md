@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-07-13
+
 ### Changed
 
 - **`unmassk-project-lifecycle` and `unmassk-grill` frontmatter descriptions rewritten so the orchestrator actually reaches for them (#76).** Both skills never fired in practice: their descriptions opened with prose describing *what the skill does* and buried the trigger, so the orchestrator scanned the opening, saw no match to the current situation, and moved on. Rewritten to the shape every auto-triggering skill already uses (`unmassk-flow`, the domain skills) — lead with `Use when the user asks to "…"` concrete trigger phrases, then an explicit **`Also invoke AUTOMATICALLY when <situation> — do not wait to be asked`** clause (the missing piece that makes a skill fire proactively), then what it does last. lifecycle now triggers on *opening work on a project not yet situated this session* (dropping the self-defeating "whenever it's unclear what state the project is in", which is never true when boot hands over full memory); grill on *WHAT to build being under-defined*, with a concrete one-sentence trigger test. Neither description references another skill by name — a frontmatter states only its own trigger.
