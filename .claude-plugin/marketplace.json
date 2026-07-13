@@ -103,6 +103,16 @@
         "url": "unmassk/claude-toolkit",
         "path": "unmassk-typescript"
       }
+    },
+    {
+      "name": "unmassk-pentesting",
+      "version": "1.0.0",
+      "description": "Pentesting — offensive + defensive security engagement toolkit. Method-spine skill (recon-first loop, three-hypotheses, blind validation, scope contract) plus 29 technique skills across web, network/system, cloud, specialized (LLM/blockchain/crypto/RE/mobile/social), blue-team (DFIR/SAST/cloud-defense/firewall), and CTF/bug-bounty. Techniques lifted from communitytools by Transilience AI (MIT).",
+      "source": {
+        "source": "git-subdir",
+        "url": "unmassk/claude-toolkit",
+        "path": "unmassk-pentesting"
+      }
     }
   ]
 }
