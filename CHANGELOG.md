@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.20.2] - 2026-07-13
+
 ### Changed
 
 - **Recall switched from push to pull — the per-message memory channel is now a static banner, not an injected memory block (#69).** The `[memoria relevante…]` / `<memory-data>` block that was pushed into *every* user message (imprecise relevance gate — it routinely surfaced decisions/memos unrelated to the message), plus the repeated `[memory-check]` reminder and the per-message `[git-memory] root:` line, are removed from `user-prompt-memory-check.py`. The per-message channel is now a single compact banner that points at on-demand recall (`git-memory-recall.py "<terms>"`) and folds in the save reminder; canonical memory (crowns + active decisions) still loads at boot. Also removed the now-dead injection code (`<memory-data>` framing, per-invocation fence-nonce, the `secrets` import) after confirming `recall.py` stays live for its other four consumers, and deleted 16 stale tests that asserted the removed output.
