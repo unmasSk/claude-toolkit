@@ -1,13 +1,13 @@
 ---
-name: unmassk-cad
+name: unmassk-3d
 description: >
   Use when the user asks to "design a 3D-printable part", "make a case for X",
   "make a bracket / mount / stand / holder / enclosure", "model a part in CAD",
   "CAD by code", "parametric part", "generate an STL", "turn a 3D scan into a
   printable model", "fit a part to a real object", "check printability", "make
   this watertight / manifold", "design in CadQuery / OpenSCAD", or "3D print
-  this". Also use when a real object must be measured or scanned so a printed
-  part fits it. Or mentions any of: CAD, CadQuery, build123d, OpenSCAD, BOSL2,
+  this", or when a real object must be measured or scanned so a printed part
+  fits it — or mentions any of: CAD, CadQuery, build123d, OpenSCAD, BOSL2,
   STL, 3MF, parametric part, 3D printing, printable, enclosure, bracket, mount,
   holder, snap-fit, tolerance, clearance, wall thickness, 3D scan, LiDAR scan,
   photogrammetry, mesh, watertight, manifold, non-manifold, printability,
@@ -27,7 +27,7 @@ description: >
 version: 1.0.0
 ---
 
-# unmassk-cad — Reality-First CAD for 3D Printing
+# unmassk-3d — Reality-First CAD for 3D Printing
 
 Turn a real object, or a stated need, into a **validated printable STL** that
 actually fits. This is not "3D art" and it is not web 3D — it is functional and

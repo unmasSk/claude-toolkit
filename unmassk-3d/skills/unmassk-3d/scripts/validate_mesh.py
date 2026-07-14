@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Watertight-validation gate for STL meshes (unmassk-cad).
+"""Watertight-validation gate for STL meshes (unmassk-3d).
 
 A broken STL that silently passes to a slicer is exactly the silent-failure
 class this toolkit exists to prevent. This gate loads a mesh with trimesh

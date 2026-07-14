@@ -308,6 +308,12 @@ The COMMIT_PATTERN fires on both forms, so the hook correctly identifies memo/re
 
 Found in: `unmassk-toolkit/hooks/pre-memory-dedup-gate.py:158` (2026-06-12).
 
+## "Run script, then check output file exists" iterate loops trust stale artifacts
+
+Confirmed 2026-07-14, unmassk-3d `run_cadquery.py:60-107` (commit-review of the new CAD scripts, no issue number). The runner's success gate is `proc.returncode == 0` AND `os.path.isfile(resolved_out)` — it never checks whether `resolved_out` was actually written *by this run* vs. left over from a previous successful run at the same default path (`<script_stem>.stl` next to cwd, a name that is deliberately stable/reused across iterations by design). Reproduced live: run a script that legitimately exports a box (success, `ok:true`, real STL on disk) — then replace the script with a version that exits 0 but forgets to call `export()` (a realistic regression during the "iterate" self-correction loop this tool exists for) — the second run STILL reports `ok:true` with the full validation payload, because it's silently re-validating the first run's leftover file. This is the exact silent-failure class the tool's own docstring claims to prevent ("write script -> run -> structured result -> Claude reads it and self-corrects" — but Claude would be reading a stale truth).
+
+General pattern: any "run producer script -> check well-known output path exists -> validate/consume it" loop that reuses the SAME output path across iterations MUST prove freshness — either delete/rename the expected output path before invoking the producer (so a no-op producer can never inherit a stale success), or compare the output file's mtime against a timestamp captured before the subprocess started. Do not rely on `os.path.isfile()` alone as an "this run produced it" proof when the path is deterministic/reused.
+
 ## post-validate-commit-trailers.py missing 'remember' commit type
 
 `pre-validate-commit-trailers.py` validates `remember` commits (checks `Remember:` trailer present + valid category). `post-validate-commit-trailers.py` does NOT have a corresponding `elif commit_type == 'remember':` branch — the type falls through to only Memo/Risk/Issue format checks. Belt-and-suspenders are asymmetric for remember commits.

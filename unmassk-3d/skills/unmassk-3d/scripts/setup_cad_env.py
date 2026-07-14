@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""START-step installer for unmassk-cad (see references/setup.md).
+"""START-step installer for unmassk-3d (see references/setup.md).
 
 Installs/verifies the canonical open-source 3D-printing toolset:
 

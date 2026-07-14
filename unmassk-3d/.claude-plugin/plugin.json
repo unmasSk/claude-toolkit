@@ -1,5 +1,5 @@
 {
-  "name": "unmassk-cad",
+  "name": "unmassk-3d",
   "version": "1.0.0",
   "description": "Reality-first CAD for 3D printing. One method skill: design 3D-printable parts (cases, brackets, mounts, holders, enclosures) that FIT real objects, driven by real measurements — never invented ones. Pipeline with hard gates: capture (3D scan / official spec / caliper) -> scale calibration -> parametric design as code (CadQuery/OpenSCAD) -> watertight validation (trimesh/manifold3d) -> printable STL. Blender integrated via MCP for measuring, cleaning scans, and organic modeling. Printing (slicer) deferred until a printer exists.",
   "author": {

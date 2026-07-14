@@ -125,13 +125,13 @@
       }
     },
     {
-      "name": "unmassk-cad",
+      "name": "unmassk-3d",
       "version": "1.0.0",
       "description": "Reality-first CAD for 3D printing — design printable parts that fit real objects from real measurements, never invented ones. Pipeline with hard gates: capture (3D scan / spec / caliper) -> scale calibration -> parametric design as code (CadQuery/OpenSCAD) -> watertight validation (trimesh/manifold3d) -> printable STL. Blender integrated via MCP for measuring/cleaning scans and organic modelling. Printing deferred until a printer exists.",
       "source": {
         "source": "git-subdir",
         "url": "unmassk/claude-toolkit",
-        "path": "unmassk-cad"
+        "path": "unmassk-3d"
       }
     }
   ]

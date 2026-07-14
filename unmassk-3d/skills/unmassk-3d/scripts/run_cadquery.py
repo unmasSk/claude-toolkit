@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The execute -> structured-result -> iterate runner (unmassk-cad).
+"""The execute -> structured-result -> iterate runner (unmassk-3d).
 
 Runs a CadQuery (or build123d) script in a subprocess -- so a broken script
 can never crash the runner -- captures its exit status/stdout/stderr, and

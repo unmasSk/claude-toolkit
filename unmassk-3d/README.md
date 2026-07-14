@@ -1,4 +1,4 @@
-# unmassk-cad
+# unmassk-3d
 
 **Reality-first CAD for 3D printing.** Design 3D-printable parts — cases,
 brackets, mounts, holders, enclosures — that actually *fit real objects*,
@@ -41,7 +41,7 @@ CadQuery + build123d (CAD as code), trimesh + manifold3d (the watertight gate),
 Blender + Blender MCP (measure/clean scans, organic modelling), optional
 OpenSCAD + BOSL2 (DSL path, parts library) and admesh (STL repair). Off-computer:
 the Scaniverse scan app on the phone and a physical caliper. See
-`skills/unmassk-cad/references/setup.md`.
+`skills/unmassk-3d/references/setup.md`.
 
 ## Honest limits
 

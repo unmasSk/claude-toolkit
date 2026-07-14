@@ -1,6 +1,6 @@
 # Credits
 
-`unmassk-cad`'s method and references are original, but the plugin stands on
+`unmassk-3d`'s method and references are original, but the plugin stands on
 open-source tools and was informed by prior open work. It would not exist
 without:
 
@@ -40,5 +40,5 @@ lifted — see PROVENANCE.md):
 
 ## This plugin
 
-`unmassk-cad`'s own text (the method, the pipeline, the references, the scripts)
+`unmassk-3d`'s own text (the method, the pipeline, the references, the scripts)
 is licensed MIT — see `LICENSE`.

@@ -1,8 +1,8 @@
-"""Regression + acceptance contract for run_cadquery.py (unmassk-cad).
+"""Regression + acceptance contract for run_cadquery.py (unmassk-3d).
 
 TEST-FIRST regression pass: a code review found a BLOCKING silent-failure
 bug in the current `run_cadquery.py` (see
-unmassk-cad/skills/unmassk-cad/scripts/run_cadquery.py:93). This file pins
+unmassk-3d/skills/unmassk-3d/scripts/run_cadquery.py:93). This file pins
 the CORRECT behavior; Ultron fixes the script to make it green. Only tests
 are written here -- the script itself is untouched.
 

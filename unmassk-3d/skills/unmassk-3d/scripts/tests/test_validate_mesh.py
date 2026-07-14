@@ -1,5 +1,5 @@
 """Acceptance contract for validate_mesh.py -- the watertight-validation
-gate for STL meshes (unmassk-cad).
+gate for STL meshes (unmassk-3d).
 
 TEST-FIRST, contract pass: validate_mesh.py does not exist yet. This suite
 defines "done" at acceptance granularity -- CLI behavior (stdout JSON shape,
@@ -7,7 +7,7 @@ exit code) and the importable `validate_mesh(path) -> dict` function.
 Ultron implements against this contract; these tests must go from RED to
 GREEN with no changes to the tests themselves.
 
-Why this gate matters (see unmassk-cad/skills/unmassk-cad/references/
+Why this gate matters (see unmassk-3d/skills/unmassk-3d/references/
 printability.md): a broken STL that silently passes to a slicer is exactly
 the silent-failure class this toolkit exists to prevent. Every failure mode
 below must be a loud, non-zero-exit, structured-JSON failure -- never a
