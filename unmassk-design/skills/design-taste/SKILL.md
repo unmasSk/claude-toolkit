@@ -10,18 +10,17 @@ description: >
   of: brutalism, tactical telemetry, CRT terminal UI, Swiss industrial print,
   minimalist editorial UI, warm monochrome bento grid, high-end agency design,
   double-bezel cards, magnetic button hover, redesign audit, DESIGN.md, Google
-  Stitch, GSAP scroll choreography, pinned sections, brand kit, brand
-  guidelines board, logo concept, monogram.
+  Stitch, brand kit, brand guidelines board, logo concept, monogram.
   Covers three named aesthetic directions (brutalist, minimalist, soft/
   high-end) with concrete tokens -- fonts, hex colors, spacing, shadows,
   radii -- a redesign audit-to-premium workflow for existing projects, an
   image-to-code faithful-translation workflow, a semantic DESIGN.md authoring
-  format, GSAP editorial motion choreography, and brand-kit/logo generation.
-  Use when NOT: the request is a generic "make this not look like AI slop"
-  with no named direction and no existing project to redesign -- use
-  `unmassk-design`'s AI Slop Test and design commands (bolder/quieter/polish/
-  distill/etc.) for that. This skill is for committing to one named style, or
-  one of the specific workflows below (redesign, image-to-code, brand kit).
+  format, editorial motion choreography, and brand-kit/logo generation.
+  Use when NOT: a generic "make this not look like AI slop" with no named
+  style direction and no existing project to redesign -- that baseline
+  critique/polish is out of scope here. This skill is for committing to one
+  named style, or one of the specific workflows below (redesign,
+  image-to-code, brand kit).
   Based on the `taste-skill` collection by leonxlnx (MIT).
 version: 1.0.0
 ---

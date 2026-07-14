@@ -13,9 +13,8 @@ description: >
   R3F, Babylon.js, PlayCanvas), immersive VR/AR (A-Frame/WebXR), lightweight
   decorative 3D (Zdog, Vanta.js, Vanilla-Tilt, Spline, PixiJS 2D), and the
   asset pipeline (Blender to glTF, Substance Painter PBR texturing).
-  Use when NOT: the request is 2D UI motion with no 3D/WebGL (use
-  design-scroll or unmassk-design's motion reference instead), or the request
-  is about color/typography/layout with no 3D element (use unmassk-design).
+  Use when NOT: 2D UI motion with no 3D/WebGL element, or color/typography/
+  layout work with no 3D element -- out of scope here.
   Based on claudedesignskills by freshtechbro (Apache 2.0): threejs-webgl,
   react-three-fiber, babylonjs-engine, playcanvas-engine, aframe-webxr,
   lightweight-3d-effects, spline-interactive, pixijs-2d, blender-web-pipeline,

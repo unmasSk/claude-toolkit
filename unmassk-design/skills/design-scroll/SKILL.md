@@ -16,10 +16,8 @@ description: >
   fade/slide/zoom reveals with zero JavaScript orchestration. Routes to
   condensed per-library references with decision guidance, key patterns,
   and integration snippets.
-  Use when NOT: the user wants a general animation (hover states, button
-  micro-interactions, load-time animation with no scroll trigger) that
-  belongs to `motion.md` in unmassk-design, not this skill; or wants 3D/WebGL
-  scene work (Three.js, React Three Fiber), which is a separate concern.
+  Use when NOT: the trigger is a hover/tap/load-time micro-interaction with
+  no scroll driver, or a 3D/WebGL scene — out of scope here.
   Based on the community skill pack claudedesignskills by freshtechbro
   (Apache 2.0): gsap-scrolltrigger, locomotive-scroll, barba-js, and
   scroll-reveal-libraries (AOS).

@@ -23,13 +23,11 @@ description: >
   @starting-style, WAAPI, trigonometric choreography), a reverse-lookup
   animation vocabulary, and a ten-point non-negotiable review/audit bar for
   judging whether motion is production-craft or merely functional.
-  Use when NOT: for baseline motion decisions already answered by the core
-  — standard duration/easing tables, `prefers-reduced-motion` boilerplate,
-  basic Framer Motion entrance snippets, the AI Slop Test, or any other
-  design domain (color, typography, layout, accessibility, UX writing) —
-  route to `skills/unmassk-design` instead. Not for Three.js/WebGL/canvas
-  animation, GSAP timeline choreography, or Lottie/After-Effects export —
-  those belong to their own families.
+  Use when NOT: baseline motion decisions — standard duration/easing tables,
+  `prefers-reduced-motion` boilerplate, basic entrance snippets, the AI Slop
+  Test, or any other design domain (color, typography, layout, accessibility,
+  UX writing); scroll-driven page choreography; 3D/WebGL or canvas animation;
+  or exported animation formats — all out of scope here.
 version: 1.0.0
 ---
 

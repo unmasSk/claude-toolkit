@@ -14,7 +14,7 @@ description: >
   forms, button labels, error messages, empty states, loading states,
   screen readers, contrast ratio, color blindness, font pairing, visual
   hierarchy, white space, brand identity, component variants, dark theme,
-  light theme, Tailwind CSS, shadcn/ui, Radix UI, Framer Motion.
+  light theme, Tailwind CSS, shadcn/ui, Radix UI.
   Covers complete frontend design from first principles through production:
   design system generation, aesthetic direction, color and typography,
   purposeful motion, accessible interaction, responsive layout, UX writing,

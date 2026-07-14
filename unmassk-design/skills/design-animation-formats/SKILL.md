@@ -3,10 +3,10 @@ name: design-animation-formats
 description: >
   Use when the user asks to "add a Lottie animation", "import an After
   Effects animation", "build an interactive Rive animation", "add a state
-  machine animation", "animate with Anime.js", "build a timeline animation",
+  machine animation", "animate with Anime.js", "build an Anime.js timeline",
   "morph an SVG", "stagger these elements", "add Magic UI components", "use
   React Bits", "add a pre-built animated component", "shimmer button",
-  "border beam", "animated marquee", "particles background", or mentions any
+  "border beam", "animated marquee", or mentions any
   of: Lottie, dotLottie, Bodymovin, lottie-web, lottie-react, After Effects
   JSON export, Rive, .riv, state machine, ViewModel data binding, Anime.js,
   anime.timeline, SVG path morphing, stagger, keyframe animation, Magic UI,
@@ -19,11 +19,10 @@ description: >
   UI + React Bits pre-built animated React components instead of hand-rolling
   an effect). Includes web/React integration snippets, common pitfalls, and
   performance guidance for each.
-  Use when NOT: the animation is scroll-driven page choreography (GSAP,
-  Locomotive Scroll, Barba) -- use `design-scroll`; the animation is 3D/WebGL
-  (Three.js, R3F, Babylon.js, Spline) -- use `design-3d`; the request is
-  general motion principles (easing, duration, reduced-motion) with no
-  specific format in mind -- use `unmassk-design`'s motion reference.
+  Use when NOT: the animation is scroll-driven page choreography (pinning,
+  scrubbing, smooth-scroll); the animation is a 3D/WebGL scene; or the
+  request is general motion principles (easing, duration, reduced-motion)
+  with no specific format in mind -- all out of scope here.
   Based on claudedesignskills by freshtechbro (Apache 2.0): lottie-animations,
   rive-interactive, animejs, animated-component-libraries.
 version: 1.0.0
