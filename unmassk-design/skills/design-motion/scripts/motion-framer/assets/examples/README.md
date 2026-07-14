@@ -262,7 +262,7 @@ function SwipeCard() {
         rotateY,
         width: 300,
         height: 400,
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
         borderRadius: 20,
         cursor: 'grab'
       }}
@@ -313,7 +313,7 @@ function LongPressButton({ onLongPress, children }) {
       transition={{ duration: 0.2 }}
       style={{
         padding: '12px 24px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
         color: 'white',
         border: 'none',
         borderRadius: 8,
@@ -475,7 +475,7 @@ function ScrollProgressBar() {
         left: 0,
         right: 0,
         height: 4,
-        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(90deg, #334155 0%, #1e293b 100%)',
         transformOrigin: 'left',
         zIndex: 9999
       }}
@@ -567,8 +567,8 @@ function StickyScrollSection() {
   })
 
   const sections = [
-    { title: 'Introduction', color: '#667eea' },
-    { title: 'Features', color: '#764ba2' },
+    { title: 'Introduction', color: '#334155' },
+    { title: 'Features', color: '#1e293b' },
     { title: 'Benefits', color: '#f093fb' },
     { title: 'Conclusion', color: '#f5576c' }
   ]
@@ -654,7 +654,7 @@ function MasonryGrid() {
             }}
             style={{
               height: item.height,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
               borderRadius: 12,
               cursor: 'pointer'
             }}
@@ -809,7 +809,7 @@ function ViewToggle() {
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             style={{
               height: isGrid ? 150 : 80,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
               borderRadius: 12,
               display: 'flex',
               alignItems: 'center',
@@ -950,7 +950,7 @@ function TabsWithIndicator() {
               style={{
                 position: 'absolute',
                 inset: 0,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
                 borderRadius: 8,
                 zIndex: -1
               }}
@@ -1401,7 +1401,7 @@ function FloatingLabelInput({ label, type = 'text', ...props }) {
         animate={{
           y: isFloating ? -24 : 0,
           scale: isFloating ? 0.85 : 1,
-          color: isFocused ? '#667eea' : '#6b7280'
+          color: isFocused ? '#334155' : '#6b7280'
         }}
         transition={{ duration: 0.2 }}
         style={{
@@ -1424,7 +1424,7 @@ function FloatingLabelInput({ label, type = 'text', ...props }) {
           setHasValue(e.target.value !== '')
         }}
         animate={{
-          borderColor: isFocused ? '#667eea' : '#d1d5db'
+          borderColor: isFocused ? '#334155' : '#d1d5db'
         }}
         transition={{ duration: 0.2 }}
         style={{
@@ -1486,7 +1486,7 @@ function MultiStepForm() {
             transition={{ duration: 0.3 }}
             style={{
               height: '100%',
-              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+              background: 'linear-gradient(90deg, #334155 0%, #1e293b 100%)'
             }}
           />
         </div>
@@ -1549,7 +1549,7 @@ function MultiStepForm() {
               flex: 1,
               padding: '12px 24px',
               border: 'none',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
               color: 'white',
               borderRadius: 8,
               cursor: 'pointer'
@@ -1732,7 +1732,7 @@ function SkeletonCard() {
 ```jsx
 import { motion } from 'framer-motion'
 
-function Spinner({ size = 40, color = '#667eea' }) {
+function Spinner({ size = 40, color = '#334155' }) {
   return (
     <motion.div
       animate={{ rotate: 360 }}
@@ -1771,7 +1771,7 @@ function DotsSpinner() {
             width: 12,
             height: 12,
             borderRadius: '50%',
-            background: '#667eea'
+            background: '#334155'
           }}
         />
       ))}
@@ -1800,7 +1800,7 @@ function ProgressBar({ progress }) {
         transition={{ type: 'spring', stiffness: 100, damping: 20 }}
         style={{
           height: '100%',
-          background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(90deg, #334155 0%, #1e293b 100%)',
           position: 'relative'
         }}
       >
@@ -1904,7 +1904,7 @@ function AnimatedList() {
         style={{
           marginBottom: 20,
           padding: '12px 24px',
-          background: '#667eea',
+          background: '#334155',
           color: 'white',
           border: 'none',
           borderRadius: 8,
@@ -2057,7 +2057,7 @@ function StaggeredGrid() {
           whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
           style={{
             height: 150,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
             borderRadius: 12,
             display: 'flex',
             alignItems: 'center',
@@ -2386,7 +2386,7 @@ function DropdownMenu({ trigger, items }) {
         whileTap={{ scale: 0.95 }}
         style={{
           padding: '12px 24px',
-          background: '#667eea',
+          background: '#334155',
           color: 'white',
           border: 'none',
           borderRadius: 8,
@@ -2542,7 +2542,7 @@ function MegaMenu() {
                         {section.items.map((item, itemIndex) => (
                           <motion.li
                             key={itemIndex}
-                            whileHover={{ x: 4, color: '#667eea' }}
+                            whileHover={{ x: 4, color: '#334155' }}
                             style={{
                               padding: '8px 0',
                               cursor: 'pointer',
@@ -2665,7 +2665,7 @@ function HamburgerMenu() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  whileHover={{ x: 8, color: '#667eea' }}
+                  whileHover={{ x: 8, color: '#334155' }}
                   style={{
                     display: 'block',
                     padding: '16px 0',
@@ -2725,7 +2725,7 @@ function OptimizedComponent() {
       <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        style={{ width: 200, height: 200, background: '#667eea' }}
+        style={{ width: 200, height: 200, background: '#334155' }}
       />
     </LazyMotion>
   )
@@ -2742,7 +2742,7 @@ function OptimizedAnimatedBox() {
       style={{
         width: 200,
         height: 200,
-        background: '#667eea',
+        background: '#334155',
         // Hint to browser that this property will change
         willChange: 'transform'
       }}

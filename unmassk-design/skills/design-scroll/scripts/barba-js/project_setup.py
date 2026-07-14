@@ -218,7 +218,7 @@ body {
 
 /* Header */
 .site-header {
-  background: #667eea;
+  background: #334155;
   color: white;
   padding: 1rem 2rem;
   position: sticky;
@@ -266,7 +266,7 @@ body {
 .hero {
   padding: 4rem 2rem;
   text-align: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   color: white;
 }
 
@@ -299,7 +299,7 @@ body {
 
 .feature h2 {
   margin-bottom: 1rem;
-  color: #667eea;
+  color: #334155;
 }
 
 /* Content Page */
@@ -311,7 +311,7 @@ body {
 
 .content-page h1 {
   margin-bottom: 2rem;
-  color: #667eea;
+  color: #334155;
 }
 
 .content-page p {
@@ -339,14 +339,14 @@ body {
 .contact-form input:focus,
 .contact-form textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #334155;
 }
 
 /* Button */
 .btn {
   display: inline-block;
   padding: 0.75rem 2rem;
-  background: #667eea;
+  background: #334155;
   color: white;
   text-decoration: none;
   border-radius: 4px;
@@ -375,7 +375,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 1.5rem;
-  color: #667eea;
+  color: #334155;
   opacity: 0;
   z-index: 9998;
   pointer-events: none;
@@ -388,7 +388,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   z-index: 9999;
   pointer-events: none;
   transform: translateY(-100%);

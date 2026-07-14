@@ -36,7 +36,7 @@ TEMPLATES = {
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -68,7 +68,7 @@ TEMPLATES = {
       padding: 1rem 2.5rem;
       font-size: 1.1rem;
       font-weight: 600;
-      color: #667eea;
+      color: #334155;
       background: white;
       border: none;
       border-radius: 50px;
@@ -164,7 +164,7 @@ TEMPLATES = {
     .feature-icon {
       width: 60px;
       height: 60px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       border-radius: 12px;
       display: flex;
       align-items: center;
@@ -272,7 +272,7 @@ TEMPLATES = {
 
     /* Hero */
     .hero {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       color: white;
       text-align: center;
       min-height: 100vh;
@@ -297,7 +297,7 @@ TEMPLATES = {
       padding: 1rem 2.5rem;
       font-size: 1.1rem;
       font-weight: 600;
-      color: #667eea;
+      color: #334155;
       background: white;
       border-radius: 50px;
       text-decoration: none;
@@ -361,12 +361,12 @@ TEMPLATES = {
 
     .testimonial cite {
       font-weight: 600;
-      color: #667eea;
+      color: #334155;
     }
 
     /* CTA */
     .cta-section {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       color: white;
       text-align: center;
     }
@@ -512,7 +512,7 @@ TEMPLATES = {
       overflow: hidden;
       border-radius: 12px;
       aspect-ratio: 4/3;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       cursor: pointer;
       transition: transform 0.3s;
     }
@@ -665,7 +665,7 @@ TEMPLATES = {
       top: 0;
       bottom: 0;
       width: 2px;
-      background: #667eea;
+      background: #334155;
     }
 
     .timeline-item {
@@ -680,7 +680,7 @@ TEMPLATES = {
       top: 0;
       width: 1rem;
       height: 1rem;
-      background: #667eea;
+      background: #334155;
       border-radius: 50%;
       border: 3px solid #f7fafc;
     }
@@ -693,7 +693,7 @@ TEMPLATES = {
     }
 
     .timeline-date {
-      color: #667eea;
+      color: #334155;
       font-weight: 600;
       margin-bottom: 0.5rem;
     }

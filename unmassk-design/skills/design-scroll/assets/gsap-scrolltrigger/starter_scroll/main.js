@@ -470,9 +470,9 @@ if (DEBUG) {
 
 console.log(
   "%c🚀 GSAP ScrollTrigger Starter",
-  "font-size: 20px; font-weight: bold; color: #667eea;"
+  "font-size: 20px; font-weight: bold; color: #334155;"
 );
 console.log(
   "%cBuilt with GSAP 3 & ScrollTrigger",
-  "font-size: 14px; color: #764ba2;"
+  "font-size: 14px; color: #1e293b;"
 );

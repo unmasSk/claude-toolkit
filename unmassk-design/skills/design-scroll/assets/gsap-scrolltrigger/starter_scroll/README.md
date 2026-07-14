@@ -72,8 +72,8 @@ Edit CSS variables in `style.css`:
 
 ```css
 :root {
-  --primary: #667eea;      /* Primary gradient color */
-  --secondary: #764ba2;    /* Secondary gradient color */
+  --primary: #334155;      /* Primary gradient color */
+  --secondary: #1e293b;    /* Secondary gradient color */
   --text-dark: #333;       /* Main text color */
   --text-light: #666;      /* Secondary text color */
   --bg-light: #f9f9f9;     /* Light background */

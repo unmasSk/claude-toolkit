@@ -288,7 +288,7 @@ TRANSITION_TEMPLATES = {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   z-index: 9999;
   pointer-events: none;
   transform: translateY(-100%);

@@ -176,7 +176,7 @@ The orchestrator loads each of the 7 skills' frontmatter (name + description) at
 
 ## Dependencies
 
-Python 3.x is required for the core's `search.py`. The 6 family branches are documentation-only (no scripts).
+Python 3.x is required for the core's `search.py` and the branch tool-scripts (43 generators/validators/audits across the 6 family branches; see each branch's `## Scripts` section). Some scripts run inside their host app (Blender `bpy`, Substance 3D Painter) or need an extra dep (`jsonschema` for the motion validator) — documented per script.
 
 ## Attribution
 

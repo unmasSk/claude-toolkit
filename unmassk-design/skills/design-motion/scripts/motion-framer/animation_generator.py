@@ -240,7 +240,7 @@ export function {self.name}({{ children }}{': ' + self.name + 'Props' if self.ty
         width: isExpanded ? '400px' : '200px',
         height: isExpanded ? '300px' : '150px',
         borderRadius: '12px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
         cursor: 'pointer',
         padding: '20px'
       }}}}
@@ -389,7 +389,7 @@ export function {self.name}({{ children }}{': ' + self.name + 'Props' if self.ty
       style={{{{
         width: '150px',
         height: '150px',
-        background: isDragging ? '#667eea' : '#764ba2',
+        background: isDragging ? '#334155' : '#1e293b',
         borderRadius: '12px',
         display: 'flex',
         alignItems: 'center',
@@ -422,7 +422,7 @@ const variants{variants_type} = {{
   }},
   active: {{
     scale: 1.1,
-    backgroundColor: '#667eea',
+    backgroundColor: '#334155',
     transition: {{{{ type: 'spring', stiffness: 300, damping: 20 }}}}
   }},
   complete: {{

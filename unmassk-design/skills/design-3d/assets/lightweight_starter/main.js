@@ -44,8 +44,8 @@ const heroCube = new Zdog.Box({
   stroke: 2,
   color: '#fff',
   fill: true,
-  frontFace: '#667eea',
-  rearFace: '#764ba2',
+  frontFace: '#334155',
+  rearFace: '#1e293b',
   leftFace: '#5568d3',
   rightFace: '#8568df',
   topFace: '#98d5e8',
@@ -78,7 +78,7 @@ new Zdog.Ellipse({
   addTo: globe1,
   diameter: 40,
   stroke: 2,
-  color: '#667eea',
+  color: '#334155',
 });
 
 new Zdog.Ellipse({
@@ -86,7 +86,7 @@ new Zdog.Ellipse({
   diameter: 40,
   rotate: { y: Math.PI/2 },
   stroke: 2,
-  color: '#764ba2',
+  color: '#1e293b',
 });
 
 // Particles around globe
@@ -134,7 +134,7 @@ new Zdog.Shape({
     { x: 15, y: 15 }
   ],
   stroke: 8,
-  color: '#667eea'
+  color: '#334155'
 });
 
 // Add depth layers
@@ -206,7 +206,7 @@ const demoIllo = new Zdog.Illustration({
 });
 
 let isSpinning = true;
-let currentColor = '#667eea';
+let currentColor = '#334155';
 
 // Create complex 3D model
 const demoModel = new Zdog.Anchor({

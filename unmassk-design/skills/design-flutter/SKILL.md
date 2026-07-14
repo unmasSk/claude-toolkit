@@ -16,7 +16,7 @@ description: >
   integration, or app packaging/build/release -- those are outside this
   skill's design/UI scope. Adapted from claude-flutter-ui-skills by
   Naimehossein77 (community source, condensed into unmassk-design's voice).
-version: 0.1.0
+version: 1.0.0
 ---
 
 # Flutter UI Design -- mobile screens, widgets, and motion

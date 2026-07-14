@@ -188,7 +188,7 @@ document.getElementById('timeline-btn').addEventListener('click', () => {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   color: white;
   min-height: 100vh;
   padding: 2rem;
@@ -251,13 +251,13 @@ h2 {
   height: 60px;
 }
 
-.timeline-box.box1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.timeline-box.box1 { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); }
 .timeline-box.box2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
 .timeline-box.box3 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
 
 button {
   background: white;
-  color: #764ba2;
+  color: #1e293b;
   border: none;
   padding: 0.75rem 2rem;
   border-radius: 8px;

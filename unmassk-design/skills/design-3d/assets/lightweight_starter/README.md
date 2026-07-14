@@ -45,8 +45,8 @@ let vantaEffect = VANTA.WAVES({
 
 // Zdog colors
 const heroCube = new Zdog.Box({
-  frontFace: '#667eea',  // Change face colors
-  rearFace: '#764ba2'
+  frontFace: '#334155',  // Change face colors
+  rearFace: '#1e293b'
 });
 ```
 
@@ -147,7 +147,7 @@ new Zdog.Ellipse({
   addTo: newIllo,
   diameter: 40,
   stroke: 5,
-  color: '#667eea'
+  color: '#334155'
 });
 
 function animate() {
@@ -244,7 +244,7 @@ new Zdog.Polygon({
   sides: 6,
   radius: 20,
   stroke: 3,
-  color: '#667eea',
+  color: '#334155',
   fill: true
 });
 

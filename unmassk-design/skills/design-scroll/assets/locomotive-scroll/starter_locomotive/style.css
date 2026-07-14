@@ -78,7 +78,7 @@ h1, h2, h3 {
   justify-content: center;
   align-items: center;
   text-align: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   color: white;
   overflow: hidden;
 }
@@ -135,12 +135,12 @@ h1, h2, h3 {
 
 .layer-bg {
   background: rgba(102, 126, 234, 0.2);
-  color: #667eea;
+  color: #334155;
 }
 
 .layer-mid {
   background: rgba(118, 75, 162, 0.2);
-  color: #764ba2;
+  color: #1e293b;
 }
 
 .layer-fg {
@@ -174,7 +174,7 @@ h1, h2, h3 {
 }
 
 .sticky-element {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   color: white;
   padding: 3rem 2rem;
   border-radius: 12px;
@@ -239,7 +239,7 @@ h1, h2, h3 {
 }
 
 .card h3 {
-  color: #667eea;
+  color: #334155;
   margin-bottom: 0.5rem;
 }
 
@@ -311,7 +311,7 @@ html.has-scroll-dragging {
   position: absolute;
   top: 0;
   right: 0;
-  background-color: #667eea;
+  background-color: #334155;
   opacity: 0.5;
   width: 7px;
   border-radius: 10px;

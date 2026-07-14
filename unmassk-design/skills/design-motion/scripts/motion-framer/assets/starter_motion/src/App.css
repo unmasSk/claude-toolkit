@@ -86,7 +86,7 @@
 .modal h3 {
   font-size: 1.8rem;
   margin-bottom: 15px;
-  color: #667eea;
+  color: #334155;
 }
 
 .modal p {
@@ -100,7 +100,7 @@
   font-size: 1rem;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;

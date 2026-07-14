@@ -500,7 +500,7 @@ export default {
       align-items: center;
       justify-content: center;
       text-align: center;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       color: white;
       padding: 2rem;
     }
@@ -511,7 +511,7 @@ export default {
       padding: 1rem 2.5rem;
       font-size: 1.1rem;
       background: white;
-      color: #667eea;
+      color: #334155;
       border: none;
       border-radius: 50px;
       cursor: pointer;

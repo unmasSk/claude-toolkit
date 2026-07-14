@@ -33,7 +33,7 @@ def create_html_template(title, zdog_code, css_styles=""):
 
     body {{
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
