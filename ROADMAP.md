@@ -9,6 +9,10 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 ## 👉 Lo siguiente (ya acordado)
 
+**Frente: skill "humanizar texto"** (acordado 2026-07-14) — skill nueva para que el texto escrito (no diseño visual) no suene a IA. `unmassk-design` hoy solo cubre "AI slop" visual, no texto escrito. Alcance por definir: investigar las skills de GitHub similares antes de construir. _En arranque._
+
+**Frente: plugin de pentesting** (issue #19): ✅ **cerrado** (2026-07-13). unmassk-pentesting v1.0.0 construido, validado y en remoto. Follow-ups menores en memoria.
+
 **Frente: deuda técnica del toolkit** (acordado 2026-07-07): ✅ **cerrado completo** (2026-07-09).
 
 _Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52), unificación de fechas a %at (#55) y cierre del bypass por hard-link (#53, Yoda 110/110, v1.19.0). Viven en CHANGELOG + git-memory._
@@ -36,7 +40,6 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
-- **Humanizar texto** — skill nueva para que el texto escrito (no diseño visual) no suene a IA. _En investigación_ — ya hay varias skills de GitHub similares (mismo enfoque, misma fuente de Wikipedia); confirmado que `unmassk-design` hoy solo cubre "AI slop" visual, no texto escrito.
 - **Ampliar la skill de vídeo con OpenMontage** — `unmassk-media` ya tiene vídeo (Remotion+ffmpeg), añadir OpenMontage y más herramientas que Bex vaya diciendo. _En investigación._
 - **Ampliar `unmassk-design` con skills de animación** — Three.js, "animation designer", Flutter animations, CSS animations, UI-animations. _En investigación._
 - **AgentBrowser en vez de Playwright** — ver si aporta algo sobre lo que ya usamos. _En investigación._
@@ -44,7 +47,6 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
 - **MoneyPrinterTurbo** — sumar a la ampliación de la skill de vídeo (junto a OpenMontage). _En investigación._
 - **Sumar a `unmassk-design`: Emil Kowalski, "impeccable", "taste-skill"** — _En investigación._
-- **Plugin de pentesting** (retoma el issue #19, sin alcance definido todavía) — _pendiente de que Bex diga skills/herramientas concretas._
 
 ## 📐 Cómo trabajamos
 
