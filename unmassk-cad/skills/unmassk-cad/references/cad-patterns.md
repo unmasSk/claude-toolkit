@@ -19,6 +19,7 @@ Pattern: named parameters at the top (every fit-critical value sourced from a
 caliper, never invented), build the solid, **assert on geometry**, export.
 
 ```python
+import os
 import cadquery as cq
 
 # --- parameters (fit-critical values come from calipers, not guesses) ---
@@ -42,7 +43,9 @@ assert vol > 0, "empty solid — geometry failed"
 bb = case.val().BoundingBox()
 assert abs(bb.xlen - (inner_w + 2 * WALL)) < 1e-6, "outer width drifted"
 
-cq.exporters.export(case, "case.stl")   # keep output path inside the project dir
+# Export to CADQUERY_OUT when run via run_cadquery.py (it sets that env var);
+# falls back to a local name for standalone runs. Keep the path inside the project dir.
+cq.exporters.export(case, os.environ.get("CADQUERY_OUT", "case.stl"))
 ```
 
 Export formats: STL (print), STEP (interchange/CAD), 3MF. STEP is B-rep — prefer
