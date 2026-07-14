@@ -115,6 +115,22 @@ script, run it with Bash, inspect the STL, iterate. That is the whole "live"
 loop for design — no MCP needed. Keep exactly **one** live MCP surface (Blender),
 where interactive viewport inspection actually earns it.
 
+## Scripts — the machine side of the loop
+
+Three scripts under `scripts/` do the deterministic, repeatable work; Claude
+drives them, reads their JSON, and iterates:
+
+- `scripts/setup_cad_env.py` — the START setup step: installs the pip core,
+  checks the brew apps, prints a JSON summary of what is present / installed /
+  still-missing-manual. Run it first.
+- `scripts/validate_mesh.py` — the **watertight gate** (step 5). `python
+  validate_mesh.py <stl>` → JSON `{ok, checks, reasons, volume}`, exit non-zero
+  if anything fails. A broken STL does not pass.
+- `scripts/run_cadquery.py` — the execute → JSON → iterate runner. Runs a
+  CadQuery script, then **automatically runs the watertight gate** on the output
+  and folds the result in (`{ran, error, stl, validation, ok}`). This is the
+  design loop's machine side.
+
 ## When to read which reference
 
 - `references/scan-pipeline.md` — capture apps, iPhone→Mac transfer, import,
