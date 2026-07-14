@@ -6,3 +6,4 @@
 - [chatroom-backend-hardening.md](chatroom-backend-hardening.md) — Graceful shutdown, onError hook, env validation patterns in config.ts/index.ts
 - [lessons.md](lessons.md) — Mistakes and fixes: Bun mock.module() leaks, scheduler state cleanup, DB-state assertions, Elysia WS patterns
 - [unmassk-toolkit-python-entrypoints.md](unmassk-toolkit-python-entrypoints.md) — bin/hooks sys.path variants (3 shapes), encoding_guard.py fail-open UTF-8 pattern (issue #52)
+- [design-family-skills.md](design-family-skills.md) — pattern for unmassk-design family skills: decision table + condensed references/ + attribution, verification gate, parallel-agent file scope
