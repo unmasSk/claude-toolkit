@@ -127,8 +127,9 @@ class TestUserPromptMemoryCheckCp1252:
             f"hook must exit 0 under cp1252 stdout (never blocks user input).\n"
             f"--- stdout ---\n{out}\n--- stderr ---\n{err}"
         )
-        assert "[memory-check]" in out, (
-            f"hook output must still contain the memory-check reminder.\n"
+        assert "git-memory-recall.py" in out, (
+            f"hook output must still contain the recall-pointer reminder "
+            f"(now folded into the unconditional _BANNER, issue #69).\n"
             f"--- stdout ---\n{out}"
         )
 

@@ -4,6 +4,20 @@ description: Recurring root cause patterns found during investigations in omawam
 type: reference
 ---
 
+## Pattern: Suite-red after a refactor is often stale-test + config-drift, NOT a product regression — separate "mechanism removed" from "assertion drifted" from "coupled config not updated"
+
+**Project:** unmassk-toolkit (user-prompt hook, #69 push→pull + #76 description rewrite) · **Seen:** 2026-07-14 · confirmed from source + test run + git log
+
+Three co-occurring red clusters from `user-prompt-memory-check.py`, three DIFFERENT verdicts — do not lump them:
+
+1. **Fully-obsolete tests (mechanism deleted).** #69 (`3f65c72`) turned the per-message recall channel from PUSH (`[memoria relevante...]` + `<memory-data>` fence-nonce injected into hook stdout) into PULL (a static `_BANNER`; recall.py still exists but is on-demand only). 6 end-to-end tests in `test_control_byte_injection.py` (Fence/Nonce classes ~L2496/3210/3802) all die at their SETUP/GUARD line (`assert "[memoria relevante" in stdout` / `assert "zorblax decision text" in out`) — they never reach their real security invariant because the push surface is gone. Doubly dead: CLAUDE.md explicitly RETIRES the control-byte/injection threat model ("dead weight… retire whatever exists"). Verdict OBSOLETE → Dante deletes. These are survivors of the "16 tests obsoletos" #69 cleanup that was incomplete.
+
+2. **Valid test, one drifted assertion.** `test_encoding_contract.py::TestUserPromptMemoryCheckCp1252` has TWO asserts: (a) `rc==0` under cp1252 = the REAL regression (hook must not `UnicodeEncodeError` on its `→` char) — still PASSES, and the hook DELIBERATELY keeps a non-ASCII char in `_BANNER` to keep guarding it (hook comment says so). (b) `"[memory-check]" in out` = a stale MARKER — #69 folded that literal reminder into `_BANNER` and dropped the token. Only (b) fails. Verdict NOT obsolete → Dante updates the one marker assertion (assert on a surviving marker, e.g. the recall pointer), keeps the rc==0 guard. NOT a product bug.
+
+3. **Coupled config not updated by the refactor (real coherence defect).** `test_user_prompt_skill_router.py::TestSkillTriggerPhrasesMatchLiveDescriptions` is a live DRIFT-GUARD: it reads `SKILL_TRIGGER_PHRASES` (lib/skill_router.py) dynamically and asserts each phrase is a substring of its skill's CURRENT folded frontmatter description. #76 (`84b9a26`) rewrote grill + project-lifecycle descriptions but did NOT update the coupled trigger dict → 2 phrases orphaned (`'the request is ambiguous'`→ desc now says `'help me define this'`; `'pick up the project'`→ desc now says `'pick up where we left off'`). Verdict test is CORRECT and caught an INCOMPLETE #76 → fix is to reconcile the dict (product/config, orchestrator lane completing #76), NOT touch the test. (The test's own docstring "EXPECTED STATE TODAY" paragraph is itself stale — names 4 old pairs already reconciled — but that's cosmetic; the parametrization is dynamic.)
+
+**Lesson:** when a refactor (push→pull, rename, description rewrite) leaves the suite red, triage each red into: mechanism-removed (delete test), assertion-marker-drifted (update one assert, keep the real contract), or coupled-config-not-updated (fix product/config, the test is doing its job). A drift-guard test failing is usually the guard WORKING. Read git log on the PRODUCT file vs the TEST/CONFIG file: if the product refactor commit post-dates the test/config, the test/config is the lagging side.
+
 ## Pattern: Boot MEMORY stamp shows "rate-limit/skip" because multiple SessionStart boots overwrite the single per-repo boot-log (last-writer-wins), not because fetch is broken
 
 **Project:** unmassk-toolkit (git-memory boot) · **Seen:** 2026-07-10 · confirmed from session transcripts

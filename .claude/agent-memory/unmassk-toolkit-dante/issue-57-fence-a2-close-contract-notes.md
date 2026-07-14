@@ -217,3 +217,28 @@ Confirmed via scoped `pytest -k` (13/167 collected, 8 failed/5 passed
 exactly as predicted from the scratch repros) and a full-file run (167
 items: 8 failed, 159 passed, 0 regressions in the 154 pre-existing
 tests).
+
+## Retirement (issue #69, 2026-07-14) — the 3 end-to-end hook classes for this round were deleted, not fixed
+
+Recall push→pull (decision 1e94975, #69) removed the per-message
+`<memory-data>` injection from `hooks/user-prompt-memory-check.py`
+entirely — the hook now only prints a static, unconditional `_BANNER`;
+recall is pulled on demand instead. This retired the whole END-TO-END
+surface these 3 classes exercised (all asserted on the injected
+`<memory-data>...</memory-data>` block that no longer exists):
+`TestUserPromptHookNelFenceEvasionEndToEnd`,
+`TestUserPromptHookFenceShapeInvariantEndToEnd`, and
+`TestUserPromptHookFenceNonceInfalsifiability` (the whole "A2 nonce
+infalsifiability" contract in (d) above — moot once the fence itself is
+gone). House diagnosed these as obsolete-not-regressed (the underlying
+`recall_relevant()` unit coverage — `test_clean_decision_text_recall_still_works`
+and siblings — still passes directly), and per this project's CLAUDE.md
+override the control-byte/injection threat model itself is retired
+("dead weight... single owner, nobody attacks it"). All 3 classes
+deleted outright (not updated) along with their now-orphaned
+`_FENCE_CLOSE_ONLY_RE` regex and the "(d) A2 token-fence" section
+comment that introduced only the deleted class. The UNIT-level
+`_FENCE_BREAK_RE_NEL`/`_FENCE_SHAPE_RE`/`_FENCE_PREFIX_RE` tests against
+`recall_relevant()` directly (not through the hook) were left untouched —
+they test a real function that still exists, just isn't pushed into
+every message anymore.

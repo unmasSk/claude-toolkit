@@ -31,7 +31,7 @@ SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
         "add functionality", "non-trivial bug", "refactor",
     ],
     "unmassk-grill": [
-        "grill me", "the request is ambiguous", "let's think this through",
+        "grill me", "help me define this", "let's think this through",
     ],
     "unmassk-council": [
         "should i", "which option", "council this", "pressure-test this",
@@ -39,7 +39,7 @@ SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
     ],
     "unmassk-project-lifecycle": [
         "new project", "let's start", "continue", "where were we",
-        "pick up the project", "scan this repo", "i inherited this codebase",
+        "pick up where we left off", "scan this repo", "i inherited this codebase",
     ],
     "unmassk-audit": [
         "audit a module", "enterprise review", "launch audit",

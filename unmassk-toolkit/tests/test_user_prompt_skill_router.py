@@ -222,15 +222,10 @@ SKILL_TRIGGER_PROMPTS = {
         "I need to implement this and add functionality for search",  # quoted: "implement", "add functionality"
         "can we refactor this non-trivial bug fix",  # quoted: "refactor", "non-trivial bug"
     ],
-    # quoted: "grill me", "let's think this through". "stress-test this plan"
-    # was REMOVED from unmassk-grill's live description in a 2026-07 frontmatter
-    # edit (council found it collided with unmassk-council's "pressure-test
-    # this decision") -- replaced below with a literal substring of the
-    # current description ("the request is ambiguous") instead of the removed
-    # quoted phrase.
+    # quoted: "grill me", "help me define this", "let's think this through"
     "unmassk-grill": [
         "grill me on this before we start building",  # quoted: "grill me"
-        "I know the request is ambiguous, help me nail down what I actually mean",  # substring: "the request is ambiguous" (replaces removed "stress-test this plan")
+        "this is fuzzy, help me define this before I commit to an approach",  # quoted: "help me define this"
         "let's think this through before deciding",  # quoted: "let's think this through"
     ],
     # quoted: "should I X or Y", "which option", "I'm torn", "help me decide",
