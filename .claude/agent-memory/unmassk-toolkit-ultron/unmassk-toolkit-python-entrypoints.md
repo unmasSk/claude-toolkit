@@ -152,6 +152,30 @@ different problem -- don't conflate them or invent a third:
   gating the warning on `installed_tuple < code_tuple` -- same function,
   imported, not re-derived.
 
+**Addendum (issue #58 T3, 2026-07-14):** `bin/release_validators.py:_semver_key()`'s
+`isascii() and isdigit()` guard was already committed in `0fab68eb` (2026-07-12,
+same commit as the #64 fix above) — re-checking it later found nothing left to
+change; `git blame` + a clean `git status` on the file confirmed it. Don't
+re-apply a fix without first blaming the exact line — the task description
+handed to an agent may lag the actual repo state.
+
+Also checked (same pass): `lib/boot_health.py`'s OWN local `_semver_key()`
+(nested inside `_latest_version_dir()`, sorting `os.listdir()` entries of a
+locally-installed plugin cache dir — never adversarial/external input) does
+**not** call `isdigit()` at all — it does `tuple(int(x) for x in
+v.split("."))` wrapped in a blanket `try/except ValueError: return (0, 0,
+0)`. Since Python's `int()` already accepts Unicode decimal digits (the same
+class `isdigit()` accepts), a non-ASCII-digit directory name parses to the
+same tuple either the `isdigit()`-gated or ungated way — there's no
+mixed-type-tuple misclassification risk here (unlike the pre-release
+identifier case in `release_validators.py`, which produces `(0, int)` vs
+`(1, str)` tuples that must NOT cross-contaminate). Worst case for a
+malformed dir name is the coarse `(0, 0, 0)` fallback, not a crash or a
+silently-wrong ordering relative to real semver dirs. Verdict: leave as-is,
+no `isascii()` guard needed — confirmed via
+`unmassk-toolkit/tests/test_issue64_boot_health_semver_comparison.py` (all
+cases pass unchanged).
+
 Import discipline for reusing `_parse_semver` from `boot_health.py`: kept
 **deferred inside the function body**, next to the existing deferred
 `from git_helpers import ...` line, for the same reason stated in
