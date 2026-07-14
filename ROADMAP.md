@@ -21,8 +21,9 @@ _Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError 
 ## 🔧 Lo que queda por hacer
 
 - Candidatos con visto bueno.
-- Flecos T3 en backlog: UnicodeEncodeError con surrogate suelto (#54), semver `isdigit()` sin `isascii()` (#58), split de campos `\x1f/\x1e` (#57), timeline mermaid en grill (#56).
 - **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
+
+_Los flecos T3 (#54, #56, #57, #58) que aquí figuraban se cerraron como COMPLETED el 9–13 jul (antes de esta lista): #54/#57/#58 eran defensa contra input malformado/hostil = peso muerto fuera del threat model; #56 (timeline mermaid en grill) hecho. El listado era stale — corregido 2026-07-14._
 
 ## 🧊 Ideas futuras (congeladas a propósito)
 
