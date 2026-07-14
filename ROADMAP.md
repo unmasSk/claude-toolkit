@@ -9,26 +9,24 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 ## 👉 Lo siguiente (ya acordado)
 
-**Frente: plugin `unmassk-humanizer`** (acordado 2026-07-14): ✅ **v1.0.0 construido** (2026-07-14). Skill para que el texto escrito no suene a IA, EN+ES, con 3 modos (rewrite/detect/ingest), método de 3 pasadas, voces, protect-list y corpus vivo. Fusión de blader/humanizer + lguz/humanize-writing + kjmagnan1s/anti-slop (MIT) + capa español propia. Validado por council (5/5). protect-list y corpus se dejan vacíos a propósito: se llenan con el uso. Pendiente de cierre formal: bump/release.
-  - _Candidato diferido:_ que el corpus vivo escriba a git-memory (auto-ingest fechado, sincroniza entre máquinas, aprende de la voz del dueño). Idea del council; se construye cuando sea menester.
+**Frente: diseño (`unmassk-design` multi-rama)** (2026-07-14): ✅ **cerrado** — v1.2.1 en remoto. Core + 6 ramas (motion, 3d, scroll, animation-formats, taste, flutter); incluye animación (Three.js/CSS/Flutter/UI) y taste/Emil Kowalski/impeccable. Council 5/5.
 
-**Frente: plugin de pentesting** (issue #19): ✅ **cerrado** (2026-07-13). unmassk-pentesting v1.0.0 construido, validado y en remoto. Follow-ups menores en memoria.
+**Frente: maker / mundo físico** (acordado 2026-07-14): ✅ **cerrado** (2026-07-14). Dos plugins hermanos en remoto:
+  - `unmassk-3d` v1.0.0 — CAD reality-first para impresión (CadQuery/OpenSCAD + Blender MCP, gates escala+watertight, iPhone LiDAR + calibre). Cerberus+Yoda+validator+council.
+  - `unmassk-electronics` v1.0.0 — multi-rama (micro ESP32/platformio + Raspberry Pi + robótica), gate "el dispositivo confirma o no está hecho". Cerberus+validator+council.
+  - _Follow-ups en memoria (candidatos abajo)._
 
-**Frente: deuda técnica del toolkit** (acordado 2026-07-07): ✅ **cerrado completo** (2026-07-09).
+**Frente: plugin `unmassk-humanizer`** (2026-07-14): ✅ **cerrado** — v1.0.0 en remoto. EN+ES, 3 modos, protect-list y corpus vacíos a propósito. Council 5/5.
+  - _Candidato diferido:_ que el corpus vivo escriba a git-memory (auto-ingest fechado, sincroniza entre máquinas).
+
+**Frente: plugin de pentesting** (issue #19): ✅ **cerrado** (2026-07-13). unmassk-pentesting v1.0.0 en remoto.
+
+**Frente: deuda técnica del toolkit** (2026-07-07): ✅ **cerrado completo** (2026-07-09).
 
 _Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52), unificación de fechas a %at (#55) y cierre del bypass por hard-link (#53, Yoda 110/110, v1.19.0). Viven en CHANGELOG + git-memory._
 
 ## 🔧 Lo que queda por hacer
 
-- **Frente después del de diseño (ya acordado, 2026-07-14):** plugins para el mundo físico/maker — modelado, impresión 3D y electrónica/robótica. Objetivo: diseñar piezas, sacarlas por impresora 3D, y montar electrónica tipo Raspberry/ESP32 para trastear ("hacer cositas"). Se arranca al cerrar el frente de diseño.
-
-  _Investigación (2026-07-14, contrastada — corrige a una IA previa que iba desactualizada):_
-  - **Piezas funcionales → CAD por código, NO Blender.** Blender es modelado de mallas (arte); para cajas/piezas funcionales imprimibles quieres **CAD paramétrico**: **OpenSCAD / CadQuery / build123d** son código puro → deterministas, diffables, testeables → encajan con nuestra filosofía de loop+gates. Mejor candidato a skill propia (`unmassk-3d`) que BlenderMCP. La otra IA ni lo mencionó.
-  - **Electrónica → `platformio-mcp` es la incorporación más sólida.** Capa de ejecución hardware agent-first: descubrimiento de placas, build, flash, monitor serie, diagnóstico estructurado, auditorías de GPIO, y **verificación flash+monitor con aserciones runtime** (ej: `agent-flash-monitor-verify --expect-all BOOT_OK --reject-patterns "Guru Meditation,Brownout,WDT reset"`). Es LITERALMENTE nuestro patrón de gates (Cerberus/Argus) pero contra hardware físico: el agente no dice "done" hasta que el firmware bootea y el serial lo confirma. ~1000 placas, 30+ plataformas (ESP32-S3, RP2040, STM32, nRF52840). npm, instalación trivial. Complementos: bridge MCP a Cortex-Debug (breakpoints, leer/escribir registros ARM en vivo) y skills de debug ESP32 (Guru Meditation, stack overflows FreeRTOS, I2C/SPI/UART) — pero el ecosistema de skills embedded es escaso (~docena).
-  - **Blender MCP** (ahora hay uno OFICIAL del equipo Blender + "Claude for Creative Work" de Anthropic, 9 conectores) → válido solo si se quiere **3D visual**, no para piezas funcionales. Cuidado: `execute_blender_code` ejecuta Python arbitrario + telemetría anónima por defecto; el de ahujasid sin guardas contra borrado/exfiltración → usar en VM.
-  - **Sigue siendo cierto:** nadie conecta los cables por ti y "dispositivo autónomo completo" no existe. Pero el loop **código → flash → verificación serie → corrección SÍ es cerrable hoy**.
-  - _Prioridad de incorporación:_ (1) platformio-mcp; (2) CAD por código (`unmassk-3d`); (3) Blender MCP oficial (opcional, 3D visual, con guardas).
-- Candidatos con visto bueno.
 - **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
 
 _Los flecos T3 (#54, #56, #57, #58) que aquí figuraban se cerraron como COMPLETED el 9–13 jul (antes de esta lista): #54/#57/#58 eran defensa contra input malformado/hostil = peso muerto fuera del threat model; #56 (timeline mermaid en grill) hecho. El listado era stale — corregido 2026-07-14._
@@ -51,14 +49,16 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 ## 🟡 Candidatos (necesitan tu visto bueno)
 
 - **Ampliar la skill de vídeo con OpenMontage** — `unmassk-media` ya tiene vídeo (Remotion+ffmpeg), añadir OpenMontage y más herramientas que Bex vaya diciendo. _En investigación._
-- **Ampliar `unmassk-design` con skills de animación** — Three.js, "animation designer", Flutter animations, CSS animations, UI-animations. _En investigación._
 - **AgentBrowser en vez de Playwright** — ver si aporta algo sobre lo que ya usamos. _En investigación._
 - **"Fine skills"** — ver qué es exactamente y si vale para algo. _En investigación._
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
 - **MoneyPrinterTurbo** — sumar a la ampliación de la skill de vídeo (junto a OpenMontage). _En investigación._
-- **Sumar a `unmassk-design`: Emil Kowalski, "impeccable", "taste-skill"** — _En investigación._
 - **Castigos por asunción** (#77) — sistema de castigos en memoria fresca: cada asunción cazada por Bex se registra como un check concreto imposible de saltar, encoge al mejorar y gradúa a gate mecánico si reincide. Ataca el banner-blindness del `NO ASUMAS` estático. _En diseño, a afinar antes de construir._
 - **`design-gate` / linter de colisiones de frontmatter** — salió del council al cerrar design v1.2.1. Parsear el frontmatter de cada skill, construir el mapa token→dueño, y flaggear en CI cualquier keyword reclamada por dos skills o cualquier `Use when NOT` que nombre a un hermano. Reutilizable en los plugins multi-skill (pentesting 30, compliance 9, media, db). Convierte la desambiguación manual en verificación automática. _Candidato, sin visto bueno aún._
+- **Gate "confirmación = read-back por vía independiente" en `unmassk-standards`** — salió del council de electronics. Elevar a criterio de silent-failure de primera clase el patrón que ya convergen 3d ("nunca inventar una medida") y electronics ("el dispositivo confirma o no está hecho"): la confirmación es una lectura por una vía distinta al comando enviado. Con el `serial_verify` de electronics como referencia. _Candidato._
+- **Patrón "perfil-por-objetivo" reutilizable** — generalizar el "per-device profile" de electronics (fichero persistido, re-leído cada sesión con las restricciones inmovibles del sistema externo) a deploy targets, APIs inestables, quirks de prod de un cliente. _Candidato._
+- **Enganchar tests de `unmassk-3d` y `unmassk-electronics` al CI** — hoy sus suites (validate_mesh, serial_verify) corren a mano; son pip-only (cadquery/trimesh/pyserial), corren en Linux CI. Yoda/council lo marcaron. _Candidato, barato._
+- **Sensor-gate helper para la rama `electronics-robotics`** — hoy la rama es solo prosa (capa de comportamiento); un helper con test que asista el read-back de sensor la igualaría a micro. _Candidato, no bloqueante._
 
 ## 📐 Cómo trabajamos
 
