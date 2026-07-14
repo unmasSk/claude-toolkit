@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-14
+
+### Fixed
+
+- **`unmassk-design` frontmatter disambiguation — trigger collisions resolved and cross-skill name-routing removed (design follow-up from the v1.2.0 ship).** The 7 skill descriptions poached each other's trigger keywords, so several branches auto-activated for the same request. Each contested token now has a single owner: **GSAP + parallax → `design-scroll`**, **stagger → `design-animation-formats`**, **Framer Motion → `design-motion`**, **particles → `design-3d`**. Every `Use when NOT:` clause that routed to a sibling skill by name (`use design-scroll`, `route to skills/unmassk-design`, …) was rewritten in in-scope-only terms, enforcing the project rule that a skill's frontmatter describes only its own trigger. Validated by a 5-advisor council plus a 20-prompt routing probe (20/20 landed on the intended skill). Also resynced `marketplace.json`'s `unmassk-design` description (was stale single-skill-era text) to the multi-branch reality. Deferred candidate: a `design-gate` collision-linter reusable across the multi-skill plugins.
+
 ## [1.2.0] - 2026-07-14
 
 ### Changed

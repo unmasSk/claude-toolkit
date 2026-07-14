@@ -36,7 +36,7 @@
     },
     {
       "name": "unmassk-design",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Frontend design \u2014 multi-branch toolkit: core (design systems, color, typography, layout, accessibility, UX writing, AI Slop Test, BM25 engine) plus 6 family branches: motion craft, 3D/WebGL, scroll animation, animation formats (Lottie/Rive/Anime.js), taste (named style variants), and Flutter UI",
       "source": {
         "source": "git-subdir",
