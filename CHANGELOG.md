@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.20.4] - 2026-07-14
+
+### Fixed
+
+- **Skill-router trigger dict reconciled with the current skill descriptions (CI was red).** `SKILL_TRIGGER_PHRASES` in `lib/skill_router.py` still carried two phrases removed by the #76 frontmatter rewrite (`unmassk-grill` "the request is ambiguous" → "help me define this"; `unmassk-project-lifecycle` "pick up the project" → "pick up where we left off"), so those phrases no longer matched the live descriptions and the router could mis-nudge on them; the description-drift guard test correctly caught it. Also retired 6 obsolete tests in `test_control_byte_injection.py` that exercised the per-message recall push-injection surface removed in #69 (the control-byte threat model CLAUDE.md explicitly retires), and refreshed a drifted `[memory-check]` marker assertion in `test_encoding_contract.py` (the real cp1252 no-crash contract it guards is unchanged). Toolkit CI green again on Windows + Ubuntu.
+
 ### Changed
 
 - **Release protocol now requires a `plugin-dev:plugin-validator` PASS before shipping a plugin — mandatory for a brand-new plugin.** Added to both the machine-facing protocol (`unmassk-gitmemory` SKILL → "Releasing a toolkit plugin") and the human walkthrough (`docs/RELEASING.md`, new precondition + checklist items). The validator catches the new-plugin footgun class: a `SKILL.md` citing a `references/*.md` file that was never written, a plugin missing from the root `marketplace.json`/`README.md`, manifest/marketplace version drift, or a malformed frontmatter. Runs as an agent (spawn `plugin-dev:plugin-validator`, or load its definition from the `claude-plugins-official` cache and run a `general-purpose` agent with those instructions).
