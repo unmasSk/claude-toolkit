@@ -58,6 +58,7 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 - **MoneyPrinterTurbo** — sumar a la ampliación de la skill de vídeo (junto a OpenMontage). _En investigación._
 - **Sumar a `unmassk-design`: Emil Kowalski, "impeccable", "taste-skill"** — _En investigación._
 - **Castigos por asunción** (#77) — sistema de castigos en memoria fresca: cada asunción cazada por Bex se registra como un check concreto imposible de saltar, encoge al mejorar y gradúa a gate mecánico si reincide. Ataca el banner-blindness del `NO ASUMAS` estático. _En diseño, a afinar antes de construir._
+- **`design-gate` / linter de colisiones de frontmatter** — salió del council al cerrar design v1.2.1. Parsear el frontmatter de cada skill, construir el mapa token→dueño, y flaggear en CI cualquier keyword reclamada por dos skills o cualquier `Use when NOT` que nombre a un hermano. Reutilizable en los plugins multi-skill (pentesting 30, compliance 9, media, db). Convierte la desambiguación manual en verificación automática. _Candidato, sin visto bueno aún._
 
 ## 📐 Cómo trabajamos
 
