@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "platformio": {
+      "command": "npx",
+      "args": ["-y", "platformio-mcp"]
+    }
+  }
+}
