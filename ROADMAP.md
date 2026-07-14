@@ -20,6 +20,7 @@ _Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError 
 
 ## 🔧 Lo que queda por hacer
 
+- **Frente después del de diseño (ya acordado, 2026-07-14):** 3 plugins nuevos para el mundo físico/maker — **Blender** (modelado 3D), **impresión 3D** (imprimir nuestros diseños), y **electrónica/robótica** (montar sistemas tipo Raspberry Pi y demás). Objetivo: poder diseñar en Blender, sacarlo por impresora 3D, y hacer robótica/electrónica para trastear ("hacer cositas"). Se arranca al cerrar el frente de diseño.
 - Candidatos con visto bueno.
 - **Contención real de procesos en Windows (Job Objects)** — el camino al 110 de Security del boot-freshness; es rediseño de ingeniería, no un fleco. _Candidato, sin visto bueno aún._
 
