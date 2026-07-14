@@ -9,6 +9,19 @@ The release script **aborts** if `## [Unreleased]` in the root `CHANGELOG.md` is
 (only headers like `### Added` without entries count as empty). Fill it with the changes
 that will ship in this release before running anything.
 
+## Precondition: validate the plugin (mandatory for a new plugin)
+
+Before releasing — and **always for a brand-new plugin** — run the
+`plugin-dev:plugin-validator` agent on the plugin directory and get a **PASS**. Ask
+Claude to "validate the plugin `<name>`" (it spawns the validator agent). It checks the
+manifest JSON and required fields, kebab-case name, semver, auto-discovery wiring, each
+`SKILL.md` frontmatter, that **every `references/*.md` cited in a skill actually exists**
+(the classic new-plugin footgun is a dangling reference or a file that never got written),
+README/LICENSE presence, no hardcoded secrets, and that `plugin.json`'s version matches the
+root `marketplace.json` entry. Fix every critical issue before `bin/release.py`. For a new
+plugin, also confirm the plugin is **registered** in the root `.claude-plugin/marketplace.json`
+and listed in the root `README.md` install block + plugin table.
+
 ## Step 1 — dry run
 
 Always run `--dry-run` first. It prints the full plan without touching any file:
@@ -117,6 +130,8 @@ The verify step will then confirm the commit reached the remote.
 ## First-use checklist
 
 - [ ] `## [Unreleased]` has real entries (not just headers)
+- [ ] `plugin-dev:plugin-validator` returns **PASS** on the plugin (mandatory for a new plugin)
+- [ ] New plugin only: registered in root `marketplace.json` + listed in root `README.md`
 - [ ] Working tree is clean (`git status` shows nothing, or `--allow-dirty` is intentional)
 - [ ] Branch has upstream (`git push -u origin <branch>` if needed)
 - [ ] Branch is up to date with remote (`git pull` if needed)
