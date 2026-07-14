@@ -58,21 +58,35 @@ def validate_mesh(path: str) -> dict:
 
     if mesh is not None:
         checks["loads"] = True
+
+        # Each derived check gets its OWN try/except. A check that raises
+        # must only ever blame itself -- it must never blank or falsely
+        # fail a sibling check that was never evaluated (that would
+        # corrupt the self-correct signal this gate exists to provide).
         try:
             checks["watertight"] = bool(mesh.is_watertight)
-            checks["normals_consistent"] = bool(mesh.is_winding_consistent)
-            volume = float(mesh.volume)
-            checks["positive_volume"] = bool(mesh.volume > 0)
-            if len(mesh.faces) == 0:
-                checks["no_degenerate_faces"] = False
-            else:
-                checks["no_degenerate_faces"] = bool(
-                    trimesh.triangles.nondegenerate(mesh.triangles).all()
-                )
         except Exception:
-            # A derived check misbehaving must not crash the gate -- it
-            # simply stays False (already its default) and gets reported
-            # as a failed reason, same as any other failure.
+            pass  # stays False (already its default) -- this check alone
+
+        try:
+            checks["normals_consistent"] = bool(mesh.is_winding_consistent)
+        except Exception:
+            pass
+
+        try:
+            volume = float(mesh.volume)
+            checks["positive_volume"] = bool(volume > 0)
+        except Exception:
+            pass
+
+        try:
+            # `_load_mesh` already guarantees len(mesh.faces) > 0 for any
+            # non-None mesh -- no need to special-case the empty-faces
+            # branch here again.
+            checks["no_degenerate_faces"] = bool(
+                trimesh.triangles.nondegenerate(mesh.triangles).all()
+            )
+        except Exception:
             pass
 
     reasons = sorted(key for key in CHECK_KEYS if not checks[key])
@@ -89,10 +103,19 @@ def _failure_result() -> dict:
     }
 
 
+def _usage_result() -> dict:
+    """Same shape as _failure_result(), plus an 'error' marker so a no-args
+    CLI invocation is distinguishable from a real broken-STL validation
+    result (mirrors run_cadquery.py's _usage_result())."""
+    result = _failure_result()
+    result["error"] = "usage: validate_mesh.py <path-to-STL>"
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if not args:
-        print(json.dumps(_failure_result()))
+        print(json.dumps(_usage_result()))
         return 1
     result = validate_mesh(args[0])
     print(json.dumps(result))

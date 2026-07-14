@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import platform
 import shutil
 import subprocess
 import sys
@@ -138,19 +139,37 @@ def check_and_install_pip_core() -> dict:
     return result
 
 
+def _is_macos() -> bool:
+    return platform.system() == "Darwin"
+
+
+def _missing_tool_entry(tool: dict, is_macos: bool) -> dict:
+    """Build the reported entry for one missing brew-managed tool. The
+    `brew install ...` commands in BREW_TOOLS are macOS-only -- on any
+    other platform, reporting that exact command verbatim is a dead end
+    for the user, so `install_cmd` is None there and a `note` points at
+    the OS package manager instead."""
+    entry = {"name": tool["name"], "required": tool["required"], "install_cmd": None}
+    if is_macos:
+        entry["install_cmd"] = tool["install_cmd"]
+    else:
+        entry["note"] = (
+            f"'{tool['install_cmd']}' is a macOS Homebrew command and will not "
+            f"work on {platform.system()} -- install {tool['name']} via your "
+            "OS package manager (apt/dnf/pacman/etc.) instead."
+        )
+    return entry
+
+
 def check_brew_tools() -> list[dict]:
     """Report (never install) missing brew-managed CLIs/apps. shutil.which
-    works identically on macOS and Linux, so this needs no platform branch."""
+    works identically on macOS and Linux, so detecting absence needs no
+    platform branch -- only the reported install hint does."""
+    is_macos = _is_macos()
     missing = []
     for tool in BREW_TOOLS:
         if shutil.which(tool["which"]) is None:
-            missing.append(
-                {
-                    "name": tool["name"],
-                    "install_cmd": tool["install_cmd"],
-                    "required": tool["required"],
-                }
-            )
+            missing.append(_missing_tool_entry(tool, is_macos))
     return missing
 
 

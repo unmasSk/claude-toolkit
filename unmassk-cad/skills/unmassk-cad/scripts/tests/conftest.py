@@ -242,3 +242,36 @@ def import_validate_mesh_module():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+# --- Generic (script-agnostic) versions of the helpers above, shared by any
+# scripts/*.py CLI+import tests, e.g. test_run_cadquery.py. Kept separate
+# from run_cli()/parse_stdout_json()/import_validate_mesh_module() above
+# (which stay validate_mesh.py-specific for test_validate_mesh.py) rather
+# than rewriting those to take a path -- no behavior change to the
+# already-passing validate_mesh contract tests.
+
+RUN_CADQUERY_SCRIPT_PATH = SCRIPTS_DIR / "run_cadquery.py"
+
+
+def run_cli_for(script_path: Path, *args) -> subprocess.CompletedProcess:
+    """Invoke any scripts/*.py CLI tool as a subprocess: `python
+    <script_path> *args`. Same subprocess shape as run_cli(), generalized
+    to the target script."""
+    return subprocess.run(
+        [sys.executable, str(script_path), *[str(a) for a in args]],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def import_module_from(script_path: Path, module_name: str):
+    """Generic version of import_validate_mesh_module(): load any
+    scripts/*.py file as a module via importlib.util.spec_from_file_location,
+    so its functions can be called directly instead of only asserting on
+    subprocess output."""
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
