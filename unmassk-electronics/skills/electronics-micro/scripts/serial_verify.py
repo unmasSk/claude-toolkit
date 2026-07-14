@@ -129,6 +129,19 @@ def run_cli(argv=None) -> dict:
     args = parser.parse_args(argv)
     reject_patterns = _parse_reject_csv(args.reject)
 
+    if not args.expect.strip():
+        # An empty/whitespace-only expect marker makes `expect in line`
+        # trivially true on the very first line -- the gate would report
+        # ok:true regardless of a crashed board. That is exactly the
+        # silent-failure class this gate exists to prevent, so treat it as
+        # a usage error instead of a pass.
+        return {
+            "ok": False,
+            "matched_expect": False,
+            "matched_reject": None,
+            "reason": "--expect must be a non-empty marker, got an empty/whitespace-only value",
+        }
+
     try:
         lines = _iter_serial_lines(args.port, args.baud, args.timeout)
         return evaluate_lines(lines, args.expect, reject_patterns)

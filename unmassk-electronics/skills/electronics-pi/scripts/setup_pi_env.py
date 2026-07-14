@@ -27,6 +27,12 @@ import sys
 
 SSH_TIMEOUT_SECONDS = 30
 INSTALL_TIMEOUT_SECONDS = 600
+SSH_CONNECT_TIMEOUT_SECONDS = 15
+# Never let ssh fall back to an interactive host-key or password prompt --
+# a fresh/unreachable Pi must fail fast with a clear reason instead of
+# blocking on inherited stdin until the outer subprocess timeout (up to
+# 600s for the install step).
+SSH_OPTS = ("-o", "BatchMode=yes", "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT_SECONDS}")
 
 # The exact on-Pi command block -- kept as one source of truth so both the
 # printed instructions (no --host) and the real ssh invocation (--host) run
@@ -34,7 +40,15 @@ INSTALL_TIMEOUT_SECONDS = 600
 APT_INSTALL_CMD = (
     "sudo apt update && sudo apt install -y python3-gpiozero python3-picamera2 pinctrl"
 )
-PIP_INSTALL_CMD = "python3 -m pip install --user smbus2 spidev pyserial"
+# Bookworm (current Raspberry Pi OS) is PEP 668 externally-managed --
+# `--user` alone does NOT bypass that, the install fails outright. Try
+# `--break-system-packages` first (mirrors setup_micro_env.py's own pip
+# invocation style); fall back to the plain `--user` form for older Pi OS
+# whose pip predates that flag and would otherwise reject it as unknown.
+PIP_INSTALL_CMD = (
+    "python3 -m pip install --user --break-system-packages smbus2 spidev pyserial "
+    "|| python3 -m pip install --user smbus2 spidev pyserial"
+)
 ON_PI_COMMANDS = (APT_INSTALL_CMD, PIP_INSTALL_CMD)
 
 VERIFY_GPIOZERO_CMD = "python3 -c \"import gpiozero; print('gpiozero', gpiozero.__version__)\""
@@ -57,11 +71,12 @@ def _run_ssh(host: str, remote_cmd: str, timeout: int) -> tuple[bool, str]:
     failures are captured and returned as a message instead."""
     try:
         result = subprocess.run(
-            ["ssh", host, remote_cmd],
+            ["ssh", *SSH_OPTS, host, remote_cmd],
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
     except Exception as exc:
         return False, f"failed to run ssh {host!r} {remote_cmd!r}: {exc}"
@@ -102,6 +117,24 @@ def run_setup(host: str | None = None) -> dict:
     install_ok, install_output = _run_ssh(
         host, f"{APT_INSTALL_CMD} && {PIP_INSTALL_CMD}", INSTALL_TIMEOUT_SECONDS
     )
+
+    if not install_ok:
+        # The install itself already failed (bad host, auth, apt/pip error)
+        # -- two more ssh round-trips against the same unreachable/broken
+        # target would only burn time and report noise on top of the one
+        # real cause. Skip straight to reporting it.
+        return {
+            "mode": "remote",
+            "ssh_present": True,
+            "host": host,
+            "commands": list(ON_PI_COMMANDS),
+            "install_ok": False,
+            "gpiozero_ok": False,
+            "pinctrl_ok": False,
+            "ok": False,
+            "install_error": install_output,
+        }
+
     gpiozero_ok, gpiozero_output = _run_ssh(host, VERIFY_GPIOZERO_CMD, SSH_TIMEOUT_SECONDS)
     pinctrl_ok, pinctrl_output = _run_ssh(host, VERIFY_PINCTRL_CMD, SSH_TIMEOUT_SECONDS)
 
@@ -113,10 +146,8 @@ def run_setup(host: str | None = None) -> dict:
         "install_ok": install_ok,
         "gpiozero_ok": gpiozero_ok,
         "pinctrl_ok": pinctrl_ok,
-        "ok": install_ok and gpiozero_ok and pinctrl_ok,
+        "ok": gpiozero_ok and pinctrl_ok,
     }
-    if not install_ok:
-        summary["install_error"] = install_output
     if not gpiozero_ok:
         summary["gpiozero_error"] = gpiozero_output
     if not pinctrl_ok:
