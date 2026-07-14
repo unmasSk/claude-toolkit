@@ -1,0 +1,27 @@
+{
+  "name": "unmassk-electronics",
+  "version": "1.0.0",
+  "description": "Agent-driven electronics for makers — build, program, and verify real hardware against a physical device, never against hope. Multi-branch: microcontrollers/firmware (ESP32/RP2040/STM32 via PlatformIO, flash + serial-assert gate), Raspberry Pi / Linux SBC (SSH + gpiozero + systemd health checks), and robotics (motors/servos/sensors, sensor-gated behaviour). One rule across all three: never report done until the device confirms it. Toolset installs only when a project is actually an electronics project. Wiring/soldering stays human.",
+  "author": {
+    "name": "unmasSk",
+    "url": "https://github.com/unmasSk"
+  },
+  "homepage": "https://github.com/unmasSk/claude-toolkit",
+  "repository": "https://github.com/unmasSk/claude-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "electronics",
+    "microcontroller",
+    "esp32",
+    "platformio",
+    "raspberry-pi",
+    "gpio",
+    "robotics",
+    "firmware",
+    "iot",
+    "maker",
+    "hardware",
+    "embedded"
+  ],
+  "skills": "./skills/"
+}
