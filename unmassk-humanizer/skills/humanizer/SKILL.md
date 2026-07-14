@@ -195,10 +195,17 @@ Score the rewrite 1–10 on each; below 35/50, revise:
 | Authenticity | Does it sound like a person wrote it? |
 | Density | Anything cuttable without losing meaning? |
 
-Then confirm: zero Tier-1 words; binary contrasts gone; em dashes gone (the glyph
-and the `--` substitute, headings included); sentence length visibly varied; the
-author's opinion visible where the genre allows; no secondary convergence; and, on
-a byline, the protect list walked.
+Then confirm: zero Tier-1 words; binary contrasts gone; sentence length visibly
+varied; the author's opinion visible where the genre allows; no secondary
+convergence; and, on a byline, the protect list walked.
+
+**Em dashes — language-dependent, do not apply one rule to both:**
+
+- **English**: target zero. The em dash (—, –) and its `--` / spaced-hyphen substitute are a top AI tell; remove them from the body and headings, rewriting with commas, periods, colons, or parentheses.
+- **Spanish**: the raya is legitimate Spanish punctuation for incisos and dialogue. Do **not** strip a clean, correct use. The tell is the *rhythmic abuse* — the same interruptive beat repeating across sentences — not the mark itself. Flag the pattern, keep the correct use.
+
+A correct Spanish raya must never fail this gate. When in doubt on Spanish, follow
+`references/patterns-es.md`, not the English rule.
 
 ## Output
 
@@ -207,8 +214,46 @@ a byline, the protect list walked.
 - **ingest mode**: the proposed corpus entry, filed per `references/ingestion.md`.
 
 Keep the meaning and the facts intact. You are editing voice and style, not
-substance. "Human" does not mean "dumbed down" — simple writing can be the smartest
+substance. "Human" does not mean "dumbed down": simple writing can be the smartest
 writing.
+
+## Worked examples
+
+The method is the three passes plus a self-audit. These show it running end to end.
+The audit step ("what still gives it away?") is not optional decoration — it is what
+turns a clean draft into a real one.
+
+### English
+
+**Before (AI-sounding):**
+> In today's fast-paced digital landscape, leveraging data isn't just important — it's absolutely pivotal. Our robust, cutting-edge platform empowers teams to seamlessly navigate complex challenges, unlock actionable insights, and drive meaningful outcomes. Let's dive into how it works.
+
+**Draft (passes 1–2, structure and vocabulary):**
+> Data helps teams make better calls. Our platform pulls it together so a team can find the useful parts and act on them faster. Here's how it works.
+
+**Audit — what still gives it away?**
+> Still too smooth and too generic. "Better calls", "the useful parts" could describe any tool. No specifics, no rhythm variation, no opinion. It reads like clean marketing, not a person.
+
+**After (pass 3, texture):**
+> Most teams already have the data. What they don't have is the twenty minutes it takes to dig it out of six dashboards before a decision goes stale. That's the gap this closes: it pulls the numbers into one place so you can actually look at them while the decision is still live. Not magic. Just less digging.
+
+**Changed:** cut every Tier-1 word (leverage, robust, cutting-edge, seamless, pivotal, actionable), removed the "not X, it's Y" contrast and the "let's dive in", removed the em dash, varied sentence length, added a concrete detail (six dashboards, twenty minutes) and a plain-spoken opinion.
+
+### Español
+
+**Antes (suena a IA):**
+> En el vertiginoso mundo digital de hoy, aprovechar los datos no solo es importante, sino absolutamente crucial. Nuestra robusta plataforma de vanguardia empodera a los equipos para navegar sin fisuras desafíos complejos, desbloquear información accionable e impulsar resultados significativos. Vamos a sumergirnos en cómo funciona.
+
+**Borrador (pasadas 1–2, estructura y vocabulario):**
+> Los datos ayudan a los equipos a decidir mejor. Nuestra plataforma los reúne para que el equipo encuentre lo útil y actúe antes. Así funciona.
+
+**Auditoría — ¿qué sigue delatándolo?**
+> Demasiado liso y genérico. "Decidir mejor", "lo útil" vale para cualquier herramienta. Cero concreción, cero variación de ritmo, cero opinión. Suena a folleto, no a persona.
+
+**Después (pasada 3, textura):**
+> La mayoría de los equipos ya tienen los datos. Lo que no tienen son los veinte minutos que cuesta sacarlos de seis paneles distintos antes de que la decisión se enfríe. Ese es el hueco que cierra: junta las cifras en un sitio para que puedas mirarlas mientras la decisión aún está viva. Nada de magia. Menos rebuscar.
+
+**Cambios:** fuera las palabras Tier 1 (aprovechar, robusta, de vanguardia, sin fisuras, accionable, impulsar), fuera el calco "de hoy" y el arranque "vamos a sumergirnos", fuera el contraste "no solo... sino", ritmo variado, un dato concreto (seis paneles, veinte minutos) y una opinión llana. Nota: aquí no hay raya que quitar; si el original la tuviera en un inciso correcto, se respeta.
 
 ## References
 

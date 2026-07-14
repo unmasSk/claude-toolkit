@@ -9,7 +9,8 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 ## 👉 Lo siguiente (ya acordado)
 
-**Frente: skill "humanizar texto"** (acordado 2026-07-14) — skill nueva para que el texto escrito (no diseño visual) no suene a IA. `unmassk-design` hoy solo cubre "AI slop" visual, no texto escrito. Alcance por definir: investigar las skills de GitHub similares antes de construir. _En arranque._
+**Frente: plugin `unmassk-humanizer`** (acordado 2026-07-14): ✅ **v1.0.0 construido** (2026-07-14). Skill para que el texto escrito no suene a IA, EN+ES, con 3 modos (rewrite/detect/ingest), método de 3 pasadas, voces, protect-list y corpus vivo. Fusión de blader/humanizer + lguz/humanize-writing + kjmagnan1s/anti-slop (MIT) + capa español propia. Validado por council (5/5). protect-list y corpus se dejan vacíos a propósito: se llenan con el uso. Pendiente de cierre formal: bump/release.
+  - _Candidato diferido:_ que el corpus vivo escriba a git-memory (auto-ingest fechado, sincroniza entre máquinas, aprende de la voz del dueño). Idea del council; se construye cuando sea menester.
 
 **Frente: plugin de pentesting** (issue #19): ✅ **cerrado** (2026-07-13). unmassk-pentesting v1.0.0 construido, validado y en remoto. Follow-ups menores en memoria.
 

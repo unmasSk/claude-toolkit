@@ -23,16 +23,18 @@ as AI for a different reason.
 
 ## What makes it different
 
-- **It protects your voice.** A protect-list seam lets you declare your real
-  signatures (your tics, your deliberate fragments, your closers) so the de-slop pass
-  never strips them. The classic failure of humanizer tools — "humanizing" until
-  everything sounds the same — doesn't happen here.
-- **It doesn't over-flag.** A false-positives brake keeps it from gutting good human
+- **It's bilingual from v1.** The Spanish catalog is original work: muletillas,
+  calcos del inglés, and machine-translation tells that do not map one-to-one from
+  English. No source skill covers Spanish. This is the core reason the plugin exists.
+- **It doesn't over-flag.** A false-positives guard keeps it from gutting good human
   prose over one formal word or a single em dash. It looks for *clusters* of tells,
   not isolated signals.
-- **It's bilingual from v1.** The Spanish catalog is original work — muletillas,
-  calcos del inglés, and machine-translation tells that do not map one-to-one from
-  English. No source skill covers Spanish.
+- **It can protect your own voice.** You can list your real writing quirks (your
+  tics, your deliberate fragments, your closers) in a "protect list" so the de-slop
+  pass never strips them, and log new AI tells over time in a "living corpus" so the
+  skill doesn't go stale. Both ship **empty on purpose** — they are yours to fill as
+  you use it, not pre-seeded with invented content. Until you fill them, the skill
+  applies its general rules at full strength.
 
 ## How to use it
 
