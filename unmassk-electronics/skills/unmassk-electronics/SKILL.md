@@ -1,14 +1,14 @@
 ---
 name: unmassk-electronics
 description: >
-  Use when the user wants to build or program a real electronics / hardware
+  Use when the user asks to build or program a real electronics / hardware
   project — "build a hardware gadget", "start an electronics project", "wire up
   a sensor / motor / LED", "make a device that does X", "verify this against the
-  real board", "trastear con electrónica" — or is working with any physical
-  device (microcontroller, single-board computer, robot) that must be confirmed
-  against hardware rather than assumed. Or mentions any of: electronics, hardware
-  project, physical device, breadboard, GPIO pin, sensor, actuator, hardware gate,
-  device verification, per-device profile, maker, tinker hardware.
+  real board" — or is working with any physical device (microcontroller,
+  single-board computer, robot) that must be confirmed against hardware rather
+  than assumed — or mentions any of: electronics, hardware project, physical
+  device, breadboard, GPIO pin, sensor, actuator, hardware gate, device
+  verification, per-device profile, maker, tinker hardware.
   Covers the shared method for agent-driven electronics across three branches —
   microcontroller firmware, Raspberry Pi / Linux single-board computers, and
   hobby robotics. The one rule that unifies them: never report a hardware task
@@ -19,7 +19,7 @@ description: >
   (nothing installs until a project is actually an electronics project).
   Use when NOT: designing or 3D-printing a physical part / enclosure with no
   circuit or firmware — that is a different domain (CAD / 3D printing), out of
-  scope here. Real-time / web / game 3D graphics are also unrelated.
+  scope here.
 version: 1.0.0
 ---
 

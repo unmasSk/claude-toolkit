@@ -5,7 +5,7 @@ description: >
   "make a robot car / arm move", "drive an actuator", "use a PCA9685 servo
   driver", "read a sensor to confirm the robot moved", "pan-tilt a camera", or is
   building hobby robotics behaviour on top of a microcontroller or a Raspberry
-  Pi. Or mentions any of: robot, robotics, motor, DC motor, servo, stepper,
+  Pi — or mentions any of: robot, robotics, motor, DC motor, servo, stepper,
   actuator, PCA9685, L298N, TB6612, DRV8825, motor driver, encoder, sensor
   feedback, PiCar, robot car, pan-tilt, differential drive.
   Covers the robotics behaviour branch — the layer that sequences motors/servos

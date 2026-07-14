@@ -6,7 +6,7 @@ description: >
   serial monitor", "why does my board crash / Guru Meditation / brownout / WDT
   reset", "blink an LED / read a sensor on a microcontroller", "set up an Arduino
   project", or is developing embedded firmware that gets compiled and flashed to
-  a chip with no operating system. Or mentions any of: microcontroller, ESP32,
+  a chip with no operating system — or mentions any of: microcontroller, ESP32,
   ESP32-S3, RP2040, STM32, nRF52, Arduino, firmware, PlatformIO, pio, flash,
   serial monitor, UART, ESP-IDF, MicroPython, Guru Meditation, watchdog reset,
   brownout, bootloader, embedded C/C++.

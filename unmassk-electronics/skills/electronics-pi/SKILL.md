@@ -5,7 +5,7 @@ description: >
   "read a sensor / drive a pin from Python on a Raspberry Pi", "use gpiozero",
   "run headless Raspberry Pi", "deploy a service on a Pi", "capture from the Pi
   camera", "SSH into my Pi and…", or is driving a Raspberry Pi or similar
-  single-board computer that runs a full Linux OS (not flashed firmware). Or
+  single-board computer that runs a full Linux OS (not flashed firmware) — or
   mentions any of: Raspberry Pi, Pi 5, Pi Zero, single-board computer, SBC,
   gpiozero, pinctrl, lgpio, picamera2, Raspberry Pi OS, headless Pi, systemd
   service on Pi, GPIO from Python, Blinka.
