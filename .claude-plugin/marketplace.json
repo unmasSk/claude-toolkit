@@ -133,6 +133,16 @@
         "url": "unmassk/claude-toolkit",
         "path": "unmassk-3d"
       }
+    },
+    {
+      "name": "unmassk-electronics",
+      "version": "1.0.0",
+      "description": "Agent-driven electronics for makers — build, program, and verify real hardware against the device, never against hope. Multi-branch: microcontroller firmware (ESP32/RP2040/STM32 via PlatformIO, flash + serial-assert gate), Raspberry Pi / Linux SBC (SSH + gpiozero + systemd health checks), and robotics (motors/servos/sensors, sensor-gated behaviour). One rule: never report done until the device confirms it. Toolset installs only when a project is actually electronics. Wiring/soldering stays human.",
+      "source": {
+        "source": "git-subdir",
+        "url": "unmassk/claude-toolkit",
+        "path": "unmassk-electronics"
+      }
     }
   ]
 }
