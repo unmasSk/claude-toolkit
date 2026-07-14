@@ -113,6 +113,16 @@
         "url": "unmassk/claude-toolkit",
         "path": "unmassk-pentesting"
       }
+    },
+    {
+      "name": "unmassk-humanizer",
+      "version": "1.0.0",
+      "description": "Humanize written text so it stops reading as AI, in English + Spanish, without flattening the author's voice. One skill: 3-pass rewrite (structure/vocabulary/texture), three modes (rewrite/detect/ingest), named voices, protect-list seam, bilingual pattern catalogs, living corpus of dated tells. Fused from humanizer, humanize-writing, and anti-slop (MIT); lineage traces to Wikipedia's Signs of AI writing (CC BY-SA 4.0).",
+      "source": {
+        "source": "git-subdir",
+        "url": "unmassk/claude-toolkit",
+        "path": "unmassk-humanizer"
+      }
     }
   ]
 }

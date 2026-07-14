@@ -1,0 +1,27 @@
+{
+  "name": "unmassk-humanizer",
+  "version": "1.0.0",
+  "description": "Humanize written text so it stops reading as AI. One method skill fuses the Wikipedia 'Signs of AI writing' catalog, a 3-pass rewrite process (structure, vocabulary, texture), named voices, a protect-list seam that never flattens the author's real voice, three modes (rewrite/detect/ingest), and a living corpus of dated tells. Bilingual: English + Spanish catalogs from v1. Fused from humanizer, humanize-writing, and anti-slop (all MIT); pattern lineage traces to Wikipedia's Signs of AI writing (CC BY-SA 4.0).",
+  "author": {
+    "name": "unmasSk",
+    "url": "https://github.com/unmasSk"
+  },
+  "homepage": "https://github.com/unmasSk/claude-toolkit",
+  "repository": "https://github.com/unmasSk/claude-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "humanize",
+    "anti-slop",
+    "ai-writing",
+    "writing",
+    "editing",
+    "copywriting",
+    "voice",
+    "detect-ai",
+    "de-slop",
+    "content",
+    "espanol",
+    "bilingual"
+  ],
+  "skills": "./skills/"
+}
