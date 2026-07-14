@@ -39,6 +39,7 @@ Then install the domain plugins you need:
 /plugin install unmassk-marketing@unmassk-claude-toolkit
 /plugin install unmassk-pentesting@unmassk-claude-toolkit
 /plugin install unmassk-humanizer@unmassk-claude-toolkit
+/plugin install unmassk-cad@unmassk-claude-toolkit
 ```
 
 Restart Claude Code. Done.
@@ -90,6 +91,7 @@ Install what you need. Agents discover them automatically.
 | **unmassk-marketing** | 1 | CRO, copywriting, email, retention, paid ads, analytics, growth |
 | **unmassk-pentesting** | 30 | Web/API/mobile/cloud/blockchain pentesting, recon, AD/system attacks, DFIR, CTF/bug bounty, adversarial engagement method with blind validation |
 | **unmassk-humanizer** | 1 | Make text stop reading as AI, English + Spanish; 3-pass rewrite, detect/rewrite/ingest modes, named voices, voice-protection seam, bilingual pattern catalogs |
+| **unmassk-cad** | 1 | Reality-first CAD for 3D printing — printable parts that fit real objects from real measurements (scan + caliper), pipeline with scale + watertight gates, CadQuery/OpenSCAD + Blender via MCP |
 
 ---
 
