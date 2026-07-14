@@ -1,6 +1,6 @@
 {
   "name": "unmassk-design",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Multi-branch design toolkit. Core skill (design systems, color, typography, layout, accessibility, UX writing, agentic UX, AI Slop Test, BM25 engine over 67 UI styles / 161 palettes / 57 font pairings) plus 6 family branches: design-motion (Emil Kowalski craft + Motion.dev/Framer + React Spring + CSS), design-3d (Three.js/R3F/Babylon/PlayCanvas/WebXR/PixiJS + lightweight 3D + Blender/Substance pipeline), design-scroll (GSAP/Locomotive/Barba/AOS), design-animation-formats (Lottie/Rive/Anime.js + Magic UI/React Bits), design-taste (named style variants: brutalist/minimalist/soft, redesign, image-to-code), design-flutter (mobile UI + animations). Sourced from Impeccable (pbakaus), UI/UX Pro Max (nextlevelbuilder), bencium-marketplace, Emil Kowalski, claudedesignskills (freshtechbro), taste-skill (leonxlnx), Motion.dev, css-animation, and Flutter UI skills.",
   "author": {
     "name": "unmasSk",

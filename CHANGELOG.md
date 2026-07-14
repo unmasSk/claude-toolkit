@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-14
+
 ### Changed
 
 - **`unmassk-design` revamped from a single skill into a 7-skill multi-branch plugin.** The core (`unmassk-design` — design systems, color, typography, layout, accessibility, UX writing, agentic UX) is unchanged; 6 new specialist branches were added: `design-motion` (Emil Kowalski craft principles + Apple fluid-interfaces physics + Motion.dev/Framer Motion/React Spring + advanced CSS, from `emilkowalski/skills`, `motion-dev-animations-skill`, `claudedesignskills`, `css-animation-skill` — all MIT/Apache 2.0), `design-3d` (Three.js/R3F/Babylon.js/PlayCanvas/WebXR/PixiJS + Blender/Substance pipeline, from `claudedesignskills`, Apache 2.0), `design-scroll` (GSAP ScrollTrigger/Locomotive Scroll/Barba.js/AOS, from `claudedesignskills`), `design-animation-formats` (Lottie/Rive/Anime.js + Magic UI/React Bits, from `claudedesignskills`), `design-taste` (named aesthetic directions — brutalist/minimalist/high-end, redesign-to-premium, image-to-code, brand-kit generation, from `taste-skill` by leonxlnx, MIT), and `design-flutter` (Flutter UI layout/theming/animation, from `claude-flutter-ui-skills` by Naimehossein77, MIT). Every branch is a condensed, rewritten fusion in this plugin's own voice — none of it is a byte-faithful lift from any single source. Full source mapping in `unmassk-design/PROVENANCE.md` and `unmassk-design/CREDITS.md`.
