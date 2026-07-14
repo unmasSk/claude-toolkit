@@ -58,6 +58,19 @@ small change.
    the codebase's imports -- this skill does not own that decision, it
    only needs the answer to pick the right UI pattern.
 
+## Scripts
+
+Scripts are tools, not optional helpers. Run them via Bash. Do not
+replicate their logic manually.
+
+| Script | Qué hace | Uso |
+|---|---|---|
+| `flutter_ui_audit.py` | Scans a Flutter project's `lib/` tree for UI/state/navigation/animation anti-patterns (missing `dispose()`, deprecated `WillPopScope`, layout-property animation, `ListView` without `.builder`, hardcoded colors/fontSize, missing `const` constructors, Riverpod/Provider misuse) and reports findings as RED/YELLOW/GREEN with a fix suggestion each. Self-contained, stdlib only. | `python ${CLAUDE_PLUGIN_ROOT}/skills/design-flutter/scripts/flutter_ui_audit.py <project_path> [--all] [--only red\|yellow\|green]` |
+
+Exit code is `1` if any RED (critical) finding exists, `0` otherwise --
+usable as a CI gate. Note that `${CLAUDE_PLUGIN_ROOT}` is auto-resolved by
+Claude Code; use it as written.
+
 ## Out of scope (route elsewhere)
 
 - Riverpod/Provider/BLoC provider wiring, `ChangeNotifier` architecture,

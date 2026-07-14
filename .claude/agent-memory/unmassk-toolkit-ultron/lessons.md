@@ -1368,3 +1368,45 @@ full synthetic PreToolUse stdin payload (`{"tool_name":"Agent","tool_input":
 and check `permissionDecision` in its stdout, not just the underlying
 search score. Confirms the wiring (marker check, whitelist, JSON I/O), not
 just the isolated scoring function.
+
+## claudedesignskills source scripts: `{X}` inside a `.format()` template is a genuine latent bug, not a display artifact
+
+Wiring `unmassk-design/skills/design-animation-formats/scripts/lottie/generate_lottie_component.py`
+(copied from `.ref-repos/claudedesignskills/.../lottie-animations/scripts/`),
+the source `TEMPLATES` dict uses `{{`/`{`/`}`/`}}`
+literal unicode-escape sequences instead of typing `{{`/`{`/`}`/`}}` directly.
+Python's string-literal parser resolves `{`→`{` and `}`→`}` at
+PARSE time, before `.format()` ever runs — so a *single* `{ ... }`
+pair (meant to look "escaped" to the human eye) actually becomes a real,
+unescaped single brace pair by the time `.format()` sees it, and crashes
+with `KeyError` on the first plain `import { X } from '...'` line (every
+template in that file has one). Confirmed by importing the source script
+directly and calling `generate_component()` — reproduced the crash before
+writing our copy. This is not a rendering quirk of any tool; `python3 -c
+"print(repr(open(path).read()))"` shows the literal `{` text in the
+raw file bytes.
+
+Fix applied in our copy: rewrote every template so any brace that must
+appear LITERALLY in the generated JSX/Vue/Svelte output is doubled as
+`{{`/`}}` (or quadrupled `{{{{`/`}}}}` for JSX's double-brace `style={{ ... }}`
+idiom), leaving only the real `{ComponentName}`/`{animationSrc}`/`{height}`/
+`{width}` fields single. Verified by running all 4 framework/type
+combinations (react basic, react interactive, vue, svelte) and diffing
+output against the intended JSX/template syntax.
+
+Rule: when copying a `.format()`-based template string from an external
+skill/repo, don't trust that literal braces "look escaped" — actually
+import and call the function (or at minimum `repr()` the raw file content)
+before assuming the copy is correct. A skill repo with no CI/tests for its
+own generator scripts (confirmed: claudedesignskills' CLAUDE.md documents
+validation for SKILL.md frontmatter and script *executability*/shebang,
+never functional script output) can ship this class of bug silently for a
+long time.
+
+## claudedesignskills (freshtechbro) vendored generator scripts: unescaped JSX-comment braces in f-strings break ast.parse
+
+When copying Python code-generator scripts from `.ref-repos/claudedesignskills/.claude/skills/*/scripts/` into a new location (done for `unmassk-design/skills/design-3d/scripts/`), `react-three-fiber/scripts/component_generator.py` (upstream, confirmed the bug pre-exists in the source repo too, not introduced by copying) fails `ast.parse` at two spots:
+- `f'{event}={(e) => console.log("{handler_name}", e)}'` — arrow-function JS emitted inside an f-string with un-escaped braces (`{(e) => ...}` parses as a Python expression).
+- `{/* Lighting */}` (and 4 sibling JSX-comment lines) inside a triple-quoted `f"""..."""` block — same class, JSX comment syntax needs `{{/* ... */}}` to survive being inside an f-string.
+
+Rule: when vendoring/copying a Python generator that emits JSX/JS via f-strings, always run `ast.parse()` on the copied file before trusting it — sibling scripts in the same repo (`scene_setup.py` etc.) use plain triple-quoted strings (no `f` prefix) for their JSX blocks specifically to avoid this trap, which is why they parsed clean on the first pass. Fix is always to double the literal brace (`{` → `{{`, `}` → `}}`) around the literal JS/JSX text, never to touch the actual interpolated `{var}` spots. Verified the fix with a real invocation (`--type scene`, `--events onClick,onHover`) producing correct JS/JSX output, not just a clean parse.

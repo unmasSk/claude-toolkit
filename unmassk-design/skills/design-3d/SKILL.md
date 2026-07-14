@@ -99,6 +99,62 @@ of four times:
   disable shadows/antialiasing, and test hardware scaling before shipping
   any of these to production.
 
+## Scripts
+
+Scripts are code generators, not optional helpers. Run them via Bash to produce
+boilerplate instead of hand-writing it. All scripts are Python 3 standard
+library only (`argparse`, `json`, `pathlib`, `os`, `sys`, `typing`) -- no
+`pip install` needed -- except the three scripts explicitly flagged
+"Requires" below, which run inside a host application's embedded Python
+(Blender, Substance 3D Painter), not as standalone CLI tools.
+
+Every script supports `--help` for its full flag list; the usage column below
+shows the shape, not every flag.
+
+| Script | What It Does | Usage |
+|---|---|---|
+| `scripts/threejs/setup_scene.py` | Generate Three.js scene boilerplate (renderer, camera, lighting, shadows) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/threejs/setup_scene.py [--renderer basic\|webgpu] [--lighting basic\|shadows\|physical] [--shadows] [-o out.js]` |
+| `scripts/r3f/scene_setup.py` | Generate React Three Fiber scene setup (Canvas, lighting, performance, physics) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/r3f/scene_setup.py [--environment] [--performance] [--physics]` |
+| `scripts/r3f/component_generator.py` | Generate R3F component boilerplate (box, sphere, model, scene, interactive) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/r3f/component_generator.py --name <Name> --type <box\|sphere\|scene\|interactive\|...> [--events onClick,onHover]` |
+| `scripts/babylon/scene_generator.py` | Generate Babylon.js scene boilerplate (8 scene types) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/babylon/scene_generator.py --type <scene-type>` |
+| `scripts/babylon/mesh_builder.py` | Generate Babylon.js mesh creation code (13 shapes) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/babylon/mesh_builder.py --shape <shape>` |
+| `scripts/playcanvas/project_generator.py` | Generate PlayCanvas project boilerplate | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/playcanvas/project_generator.py --name <project>` |
+| `scripts/playcanvas/component_builder.py` | Generate PlayCanvas script components | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/playcanvas/component_builder.py --name <Component>` |
+| `scripts/aframe/scene_generator.py` | Generate A-Frame scene boilerplate (7 scene types) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/aframe/scene_generator.py --type <scene-type>` |
+| `scripts/aframe/component_builder.py` | Generate A-Frame custom component boilerplate (7 component types) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/aframe/component_builder.py --type <component-type>` |
+| `scripts/lightweight/generate_zdog.py` | Generate Zdog pseudo-3D illustrations (6 illustration types) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/lightweight/generate_zdog.py --type <illustration-type>` |
+| `scripts/lightweight/setup_vanta.py` | Generate Vanta.js animated background setup (11 effects) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/lightweight/setup_vanta.py --effect <effect-name>` |
+| `scripts/pixijs/sprite_generator.py` | Generate PixiJS sprite/texture-atlas boilerplate | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/pixijs/sprite_generator.py [-o out.js]` |
+| `scripts/pixijs/particle_builder.py` | Generate PixiJS particle system boilerplate | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/pixijs/particle_builder.py [-o out.js]` |
+| `scripts/spline/project_generator.py` | Generate Spline + React starter project (Vite or Next.js) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/spline/project_generator.py --name <project> [--nextjs]` |
+| `scripts/spline/component_builder.py` | Generate Spline React component wrappers (6 types: basic, interactive, animated, controlled, responsive, lazy) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/spline/component_builder.py --name <Name> --type <component-type>` |
+| `scripts/substance/generate_export_preset.py` | Generate a Substance 3D Painter export preset JSON (gltf, mobile-webgl, etc.) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/substance/generate_export_preset.py --preset gltf --output preset.json` |
+| `scripts/substance/web_optimizer.py` | Optimize/plan Substance 3D Painter texture output for web delivery | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/substance/web_optimizer.py --input <dir> --output <dir>` |
+| `scripts/substance/batch_export.py` | Batch export all texture sets from the currently open Substance Painter project | Requires Substance 3D Painter running with a project open. Run via File -> Python -> Execute Script inside Substance Painter (not a standalone CLI). |
+| `scripts/blender/batch_export.py` | Batch export a directory of `.blend` files to compressed `.glb` (Draco) | Requires Blender. `blender --background --python ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/blender/batch_export.py -- <input_dir> <output_dir>` |
+| `scripts/blender/optimize_model.py` | Decimate/optimize mesh polycount in an open Blender file | Requires Blender. `blender --background <model.blend> --python ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/blender/optimize_model.py` |
+| `scripts/blender/generate_lods.py` | Generate LOD (Level of Detail) copies for every mesh in an open Blender file | Requires Blender. `blender --background <model.blend> --python ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/scripts/blender/generate_lods.py` |
+
+### Starter templates (`assets/`)
+
+Copy-and-run boilerplate, one per engine. Referenced from `web-3d-engines.md`,
+`lightweight-3d.md`, and `immersive-xr.md` when the user wants a working
+project instead of a bare code snippet.
+
+| Directory | Contents |
+|---|---|
+| `assets/threejs_starter/` | Vanilla Three.js scene (`index.html`, `main.js`) |
+| `assets/r3f_starter/` | Vite + React Three Fiber project (`package.json`, `src/`) |
+| `assets/babylon_starter/` | Vite + Babylon.js project (`package.json`, `src/`) |
+| `assets/playcanvas_starter/` | Vanilla PlayCanvas project with camera/input/orbit scripts |
+| `assets/aframe_starter/` | Vanilla A-Frame WebXR scene |
+| `assets/lightweight_starter/` | Vanilla Zdog/Vanta.js/Vanilla-Tilt starter |
+| `assets/pixijs_starter/` | Vanilla PixiJS 2D starter |
+| `assets/substance_export_templates/` | 5 export-preset JSONs (glTF, Babylon.js PBR, Three.js optimized, mobile WebGL, packed ORM) importable directly into Substance 3D Painter |
+
+Note that `${CLAUDE_PLUGIN_ROOT}` is auto-resolved by Claude Code. Use it as
+written in all script and asset path references.
+
 ## Related unmassk-design Skills
 
 - `design-scroll` -- scroll-driven 2D motion (GSAP ScrollTrigger, Locomotive

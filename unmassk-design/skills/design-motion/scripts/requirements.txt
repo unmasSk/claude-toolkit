@@ -1,0 +1,5 @@
+# motion-framer/ and react-spring-physics/ scripts: no external dependencies
+# (Python 3.x standard library only).
+#
+# motion-dev/validate_motion_config.py requires jsonschema:
+jsonschema

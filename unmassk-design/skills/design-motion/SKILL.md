@@ -72,6 +72,32 @@ one, occasionally two (a review always cross-checks against
 `craft-principles.md`; a library implementation question sometimes needs
 the physics cross-reference table there too).
 
+## Scripts
+
+Scripts are tools, not optional helpers. Run them via Bash. Do not replicate
+their logic manually.
+
+| Script | Purpose | Usage |
+|---|---|---|
+| `scripts/motion-framer/animation_generator.py` | Generate Motion/Framer Motion component boilerplate for 11 animation types (hover, tap, drag, exit, layout, scroll, spring, stagger, gesture, variant, custom) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-framer/animation_generator.py --type <type> --name <Component> [--output file.jsx] [--typescript] [--constraints] [--shared-id <id>] [--spring]` |
+| `scripts/motion-framer/variant_builder.py` | Build Motion/Framer Motion variant configurations from 7 presets (fade, slide, scale, rotate, stagger, modal, page) or interactively | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-framer/variant_builder.py [--preset <name>] [--output variants.js] [--typescript] [--interactive]` |
+| `scripts/react-spring-physics/physics_calculator.py` | Calculate damping ratio, critical friction, and settle time for React Spring `{ mass, tension, friction }` configs; classify under/critical/over-damped | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/react-spring-physics/physics_calculator.py [--feel <preset>\|--tension N --friction N\|--critical --tension N]` |
+| `scripts/react-spring-physics/spring_generator.py` | Generate React Spring boilerplate for 7 patterns (click, scroll, trail, transition, inview, chain, gesture) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/react-spring-physics/spring_generator.py --type <type> [--output file.jsx]` |
+| `scripts/motion-dev/validate_motion_config.py` | Validate a Motion.dev animation config JSON against `schema/motion-config.schema.json`; warns on missing accessibility/performance fields | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-dev/validate_motion_config.py <config.json>` or `--all <directory>`. **Requires** `pip install jsonschema` (see `scripts/requirements.txt`) |
+
+### Assets (`scripts/<tool>/assets/`)
+
+Not loaded into context — reference material and starter templates copied
+into a project on request, never read wholesale:
+
+- `scripts/motion-framer/assets/examples/README.md` — large collection of
+  production-ready Framer Motion patterns (page transitions, gestures,
+  modals, forms, lists). Grep for a section, don't load whole.
+- `scripts/motion-framer/assets/starter_motion/` — complete Vite + React
+  starter project wired with Framer Motion example components.
+- `scripts/react-spring-physics/assets/README.md` — React Spring starter
+  template, official example links, and common patterns.
+
 ## When to Route to the Core Instead
 
 If the request is a plain "add a fade-in" / "what duration should a modal
