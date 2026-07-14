@@ -1,21 +1,40 @@
 # unmassk-design
 
-**Frontend design toolkit**
+**Frontend + mobile design toolkit**
 
-Complete frontend design system generation, aesthetic direction, color and typography, purposeful motion, accessible interaction, responsive layout, UX writing, design tokens, component library setup, and AI-native interface patterns.
+Complete design system generation, aesthetic direction, color and typography, accessible interaction, responsive layout, UX writing, design tokens, component library setup, and AI-native interface patterns — plus six specialist branches for motion craft, 3D/WebGL, scroll-driven animation, animation formats, named aesthetic directions, and Flutter UI.
 
 ## What's included
 
-- 1 skill (`unmassk-design`)
-- 11 references
-- BM25 search engine + 12 CSV databases
-- Design system generator
+- 7 skills: the core (`unmassk-design`) + 6 family branches
+- Core: 11 references, BM25 search engine + 12 CSV databases, design system generator
+- Branches: condensed, attributed references per family (see each branch's own reference count below)
 
 ## Quick start
 
 Run `/plugin` in Claude Code and install `unmassk-design` from the marketplace.
 
-## Design system generation
+## The 7 skills
+
+| Skill | Covers | Source |
+|---|---|---|
+| `unmassk-design` (core) | Design systems, color, typography, layout, accessibility, UX writing, agentic UX, AI Slop Test | Impeccable, UI/UX Pro Max, bencium-marketplace |
+| `design-motion` | Motion craft above ordinary implementation: should-it-animate judgment, physical correctness, interruptibility, gesture/spring physics, Motion.dev/Framer Motion/React Spring, advanced CSS techniques, animation vocabulary, a 10-point review bar | emilkowalski/skills, motion-dev-animations-skill, claudedesignskills, css-animation-skill |
+| `design-3d` | Choosing a 3D/WebGL engine (Three.js, R3F, Babylon.js, PlayCanvas), immersive VR/AR (A-Frame/WebXR), lightweight decorative 3D (Zdog, Vanta.js, Vanilla-Tilt, Spline, PixiJS), the Blender-to-glTF and Substance Painter PBR pipeline | claudedesignskills |
+| `design-scroll` | Scroll-driven libraries and when to use which: GSAP ScrollTrigger (pinning/scrubbing), Locomotive Scroll (smooth-scroll feel), Barba.js (SPA-like page transitions), AOS (zero-JS scroll reveal) | claudedesignskills |
+| `design-animation-formats` | Lottie/dotLottie (After Effects export), Rive (state-machine interactive vector), Anime.js (hand-authored timelines/morphing), animated component libraries (Magic UI, React Bits) | claudedesignskills |
+| `design-taste` | Named aesthetic directions with concrete tokens (brutalist, minimalist, high-end/soft), redesign-to-premium audits, image-to-code translation, `DESIGN.md` authoring, brand-kit/logo generation | taste-skill |
+| `design-flutter` | Flutter UI composition (layout, Material 3/Cupertino theming), animation (implicit, explicit, Hero, physics, page transitions), and CustomPaint/performance-safe rendering | claude-flutter-ui-skills |
+
+Full source attribution (URLs, licenses, per-branch upstream skill names) lives in `PROVENANCE.md` and `CREDITS.md`. All branch content is condensed and rewritten in this plugin's own voice — none of it is a byte-faithful lift.
+
+Each branch's `SKILL.md` documents its own "use when NOT" boundary against the other branches and against the core — load the branch that matches the request, not all of them.
+
+## Core skill (`unmassk-design`)
+
+The sections below (design system generation, references, scripts, commands) describe the core skill only. The 6 family branches each carry their own routing table and references — see `PROVENANCE.md` for what each one covers and where it comes from.
+
+### Design system generation
 
 Before any design work, the skill generates a complete design system from a plain-language product description. This is the first step for every new project.
 
@@ -153,15 +172,21 @@ These are the 17 user-facing actions the skill understands. The first ten are st
 
 ## Skill routing
 
-The orchestrator loads this skill's frontmatter (name + description) at boot and injects it into the agent's prompt when the task matches, by criterion. There is no per-agent search step. This is separate from `search.py`'s own BM25 corpus search over the 12 CSV databases (see above), which is unaffected.
+The orchestrator loads each of the 7 skills' frontmatter (name + description) at boot and injects the matching one(s) into the agent's prompt by criterion — there is no per-agent search step. This is separate from the core's own `search.py` BM25 corpus search over the 12 CSV databases (see above), which is unaffected and scoped to the core skill only.
 
 ## Dependencies
 
-Python 3.x is required for `search.py`.
+Python 3.x is required for the core's `search.py`. The 6 family branches are documentation-only (no scripts).
 
 ## Attribution
 
-Based on [Impeccable](https://github.com/pbakaus/impeccable) by Paul Bakaus (Apache 2.0), [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) by nextlevelbuilder (MIT), and plugins by [bencium.io](https://github.com/bencium/bencium-marketplace) (MIT).
+- Core: [Impeccable](https://github.com/pbakaus/impeccable) by Paul Bakaus (Apache 2.0), [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) by nextlevelbuilder (MIT), and plugins by [bencium.io](https://github.com/bencium/bencium-marketplace) (MIT).
+- `design-motion`: [emilkowalski/skills](https://github.com/emilkowalski/skills) (MIT), [motion-dev-animations-skill](https://github.com/199-biotechnologies/motion-dev-animations-skill) (MIT), [claudedesignskills](https://github.com/freshtechbro/claudedesignskills) (Apache 2.0), [css-animation-skill](https://github.com/neonwatty/css-animation-skill) (MIT).
+- `design-3d`, `design-scroll`, `design-animation-formats`: [claudedesignskills](https://github.com/freshtechbro/claudedesignskills) by freshtechbro (Apache 2.0).
+- `design-taste`: [taste-skill](https://github.com/leonxlnx/taste-skill) by leonxlnx (MIT).
+- `design-flutter`: [claude-flutter-ui-skills](https://github.com/Naimehossein77/claude-flutter-ui-skills) by Naimehossein77 (MIT).
+
+Full mapping (which upstream skill fed which branch) in `PROVENANCE.md`; per-source credit in `CREDITS.md`. Every branch is condensed and rewritten in this plugin's own voice — no byte-faithful lift.
 
 ## License
 

@@ -21,6 +21,9 @@ type: project
 
 ## Active stale zones
 
+### unmassk-core/SKILL.md:40 — unmassk-design skill count stale (flagged 2026-07-14, not fixed by Alexandria)
+Says `unmassk-design | 1 skill | Design systems, color, typography, motion, accessibility, agentic UX` — now stale, the plugin revamped to 7 skills (core + design-motion/design-3d/design-scroll/design-animation-formats/design-taste/design-flutter) on 2026-07-14. Root `README.md`'s matching row was fixed this same pass. `unmassk-core/SKILL.md` is explicitly orchestrator-owned per the 2026-07-12 precedent below (core/gitmemory/audit SKILL.md are the orchestrator's own docs) — flagged only, not edited. Re-check on next pass whether the orchestrator updated it.
+
 ### unmassk-core/SKILL.md and unmassk-audit/SKILL.md — BM25 skill-search claims, orchestrator-owned (flagged 2026-07-12, not fixed by Alexandria)
 `unmassk-core/SKILL.md:44` says "the agent runs BM25 skill search and loads the matching skill automatically" — contradicts `:77` which correctly says agents no longer search themselves. Both are now stale against the current reality (BM25 gate retired entirely 2026-07-12, decision `5d660b4`, tag `bm25-skill-gate-1.19.9`): the orchestrator loads all skill frontmatter and picks/injects by criterion — there is no gate hook doing BM25 anymore either. `unmassk-audit/SKILL.md:273` says unmassk-standards loads "via BM25 skill search" when it actually loads via frontmatter (`skills:` in agent frontmatter). These 3 files are explicitly orchestrator-owned per task instructions (not Alexandria's — core/gitmemory/audit SKILL.md + agents/*.md are the orchestrator's own docs), so Alexandria only flags, doesn't edit. Re-check on next pass whether the orchestrator has fixed them.
 

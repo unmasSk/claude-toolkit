@@ -85,7 +85,7 @@ Install what you need. Agents discover them automatically.
 | **unmassk-ops** | 7 | Terraform, Docker/K8s/Helm, CI/CD, observability, scripting, deploy, error tracking |
 | **unmassk-compliance** | 9 | GDPR, LOPDGDD, NIS2, ENS, SOC2/ISO, OWASP, cookies, i18n, legal docs |
 | **unmassk-media** | 8 | Video (Remotion/ffmpeg), image gen/edit, mermaid, PDF, screenshots, transcription |
-| **unmassk-design** | 1 | Design systems, color, typography, motion, accessibility, agentic UX |
+| **unmassk-design** | 7 | Design systems, color, typography, accessibility, agentic UX + 6 specialist branches: motion craft, 3D/WebGL, scroll-driven animation, animation formats (Lottie/Rive/Anime.js), named aesthetic directions (taste), Flutter UI |
 | **unmassk-seo** | 1 | Technical SEO, schema markup, Core Web Vitals, GEO/AEO |
 | **unmassk-marketing** | 1 | CRO, copywriting, email, retention, paid ads, analytics, growth |
 | **unmassk-pentesting** | 30 | Web/API/mobile/cloud/blockchain pentesting, recon, AD/system attacks, DFIR, CTF/bug bounty, adversarial engagement method with blind validation |

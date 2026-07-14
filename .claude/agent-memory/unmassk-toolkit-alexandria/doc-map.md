@@ -45,7 +45,9 @@ type: project
 
 | Path | Type | Status |
 |------|------|--------|
-| `unmassk-design/README.md` | Plugin readme | Created 2026-03-14 — verified against SKILL.md, 11 references, 14 CSV databases, 17-row commands table, search.py flags, user interaction workflow, attribution |
+| `unmassk-design/README.md` | Plugin readme | Created 2026-03-14 (core-only, 1 skill). Rewritten 2026-07-14 for the multi-branch revamp (core + 6 new branches: design-motion, design-3d, design-scroll, design-animation-formats, design-taste, design-flutter) — added "The 7 skills" overview table, scoped the pre-existing core sections under a "Core skill" heading, updated Skill routing/Dependencies/Attribution to cover all 7, pointed to new PROVENANCE.md/CREDITS.md for full source mapping. Verified each branch's attribution against its own SKILL.md (not the task prompt's paraphrase) before writing. |
+| `unmassk-design/PROVENANCE.md` | Provenance | Created 2026-07-14 — branch→source(s) mapping table (URL, license, what it contributed) for core + 6 branches; explicit "fusion not a lift" framing matching unmassk-humanizer/unmassk-pentesting style. |
+| `unmassk-design/CREDITS.md` | Credits | Created 2026-07-14 — per-source attribution + license, styled after unmassk-humanizer/CREDITS.md. |
 
 ## unmassk-design reference files
 

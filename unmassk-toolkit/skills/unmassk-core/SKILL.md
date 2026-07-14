@@ -37,7 +37,7 @@ These provide specialized knowledge the orchestrator injects into a crew agent's
 | **unmassk-ops**        | 7 skills | Terraform, Docker/K8s/Helm, CI/CD (GitHub Actions, GitLab, Azure, Jenkins), observability, scripting, deploy (Vercel/Railway), error tracking (Sentry/OTel) |
 | **unmassk-compliance** | 9 skills | GDPR, LOPDGDD, NIS2, ENS, SOC2/ISO27001, OWASP, cookies, i18n, legal docs                                                                                   |
 | **unmassk-media**      | 8 skills | Remotion (video), image gen, image edit, mermaid diagrams, ffmpeg, screenshots, transcription, PDF generation                                               |
-| **unmassk-design**     | 1 skill  | Design systems, color, typography, motion, accessibility, agentic UX                                                                                        |
+| **unmassk-design**     | 7 skills | Core (design systems, color, typography, layout, a11y, UX writing, agentic UX, AI Slop Test, BM25) + 6 branches: motion craft, 3D/WebGL, scroll, animation formats (Lottie/Rive/Anime.js), taste (named style variants), Flutter UI |
 | **unmassk-seo**        | 1 skill  | Technical SEO, schema markup, Core Web Vitals, GEO/AEO, programmatic SEO                                                                                    |
 | **unmassk-marketing**  | 1 skill  | CRO, copywriting, email, retention, paid ads, analytics, growth, sales enablement                                                                           |
 
