@@ -1,0 +1,39 @@
+name: Plugin Tests
+
+# Script test suites that ship inside the maker plugins (unmassk-3d, unmassk-electronics).
+# They need pip-only third-party libs (cadquery/trimesh/pyserial) and run on Linux only —
+# kept out of the core Toolkit CI so its fast pure-Python suite is not slowed by heavy deps.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "unmassk-3d/**"
+      - "unmassk-electronics/**"
+      - ".github/workflows/plugin-tests.yml"
+  pull_request:
+    paths:
+      - "unmassk-3d/**"
+      - "unmassk-electronics/**"
+      - ".github/workflows/plugin-tests.yml"
+
+jobs:
+  test:
+    name: Plugin script tests (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install deps
+        run: pip install pytest pyyaml numpy trimesh manifold3d pyserial cadquery
+
+      - name: unmassk-3d script tests
+        run: python -m pytest unmassk-3d/skills/unmassk-3d/scripts/tests -q
+
+      - name: unmassk-electronics script tests
+        run: python -m pytest unmassk-electronics/skills/electronics-micro/scripts/tests -q
