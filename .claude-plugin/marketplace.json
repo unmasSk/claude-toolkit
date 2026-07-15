@@ -86,7 +86,7 @@
     },
     {
       "name": "unmassk-frontend",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Frontend code-quality \u2014 React component patterns, UI state & data-fetching, frontend testing, styling discipline, file structure. Extends unmassk-standards.",
       "source": {
         "source": "git-subdir",
@@ -127,7 +127,7 @@
     {
       "name": "unmassk-3d",
       "version": "1.0.0",
-      "description": "Reality-first CAD for 3D printing — design printable parts that fit real objects from real measurements, never invented ones. Pipeline with hard gates: capture (3D scan / spec / caliper) -> scale calibration -> parametric design as code (CadQuery/OpenSCAD) -> watertight validation (trimesh/manifold3d) -> printable STL. Blender integrated via MCP for measuring/cleaning scans and organic modelling. Printing deferred until a printer exists.",
+      "description": "Reality-first CAD for 3D printing \u2014 design printable parts that fit real objects from real measurements, never invented ones. Pipeline with hard gates: capture (3D scan / spec / caliper) -> scale calibration -> parametric design as code (CadQuery/OpenSCAD) -> watertight validation (trimesh/manifold3d) -> printable STL. Blender integrated via MCP for measuring/cleaning scans and organic modelling. Printing deferred until a printer exists.",
       "source": {
         "source": "git-subdir",
         "url": "unmassk/claude-toolkit",
@@ -137,7 +137,7 @@
     {
       "name": "unmassk-electronics",
       "version": "1.0.0",
-      "description": "Agent-driven electronics for makers — build, program, and verify real hardware against the device, never against hope. Multi-branch: microcontroller firmware (ESP32/RP2040/STM32 via PlatformIO, flash + serial-assert gate), Raspberry Pi / Linux SBC (SSH + gpiozero + systemd health checks), and robotics (motors/servos/sensors, sensor-gated behaviour). One rule: never report done until the device confirms it. Toolset installs only when a project is actually electronics. Wiring/soldering stays human.",
+      "description": "Agent-driven electronics for makers \u2014 build, program, and verify real hardware against the device, never against hope. Multi-branch: microcontroller firmware (ESP32/RP2040/STM32 via PlatformIO, flash + serial-assert gate), Raspberry Pi / Linux SBC (SSH + gpiozero + systemd health checks), and robotics (motors/servos/sensors, sensor-gated behaviour). One rule: never report done until the device confirms it. Toolset installs only when a project is actually electronics. Wiring/soldering stays human.",
       "source": {
         "source": "git-subdir",
         "url": "unmassk/claude-toolkit",

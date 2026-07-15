@@ -41,6 +41,8 @@ Then install the domain plugins you need:
 /plugin install unmassk-humanizer@unmassk-claude-toolkit
 /plugin install unmassk-3d@unmassk-claude-toolkit
 /plugin install unmassk-electronics@unmassk-claude-toolkit
+/plugin install unmassk-frontend@unmassk-claude-toolkit
+/plugin install unmassk-typescript@unmassk-claude-toolkit
 ```
 
 Restart Claude Code. Done.
@@ -94,6 +96,8 @@ Install what you need. Agents discover them automatically.
 | **unmassk-humanizer** | 1 | Make text stop reading as AI, English + Spanish; 3-pass rewrite, detect/rewrite/ingest modes, named voices, voice-protection seam, bilingual pattern catalogs |
 | **unmassk-3d** | 1 | Reality-first CAD for 3D printing — printable parts that fit real objects from real measurements (scan + caliper), pipeline with scale + watertight gates, CadQuery/OpenSCAD + Blender via MCP |
 | **unmassk-electronics** | 4 | Agent-driven electronics — microcontroller firmware (ESP32/PlatformIO, serial-assert gate), Raspberry Pi (SSH/gpiozero, read-back gate), robotics (motors/sensors, sensor gate). One rule: the device confirms, or it isn't done |
+| **unmassk-frontend** | 1 | Frontend code-quality — React components, hooks, UI state & data-fetching, accessibility, styling discipline, file structure. Ships AgentBrowser (MCP) to observe/drive the rendered UI; tests stay on Playwright |
+| **unmassk-typescript** | 1 | TypeScript language — strict tsconfig, type safety (any/unknown/as/!), type guards, discriminated unions; any TS project, backend or frontend |
 
 ---
 
