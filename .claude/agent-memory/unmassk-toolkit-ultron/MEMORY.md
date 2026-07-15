@@ -8,3 +8,4 @@
 - [unmassk-toolkit-python-entrypoints.md](unmassk-toolkit-python-entrypoints.md) — bin/hooks sys.path variants (3 shapes), encoding_guard.py fail-open UTF-8 pattern (issue #52)
 - [design-family-skills.md](design-family-skills.md) — pattern for unmassk-design family skills: decision table + condensed references/ + attribution, verification gate, parallel-agent file scope
 - [electronics-scripts.md](electronics-scripts.md) — unmassk-electronics scripts/*.py: pure-decision-function split, setup_cad_env.py reuse, ssh self-verify scope, sensor_gate.py tolerance-band gate
+- [boot-timeline-scope.md](boot-timeline-scope.md) — boot TIMELINE's real git-log call lives in boot_git_checks.py (not boot_render.py); --all needs the same exclude_remote guard as extract_glossary()

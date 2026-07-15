@@ -80,7 +80,7 @@ BOOT_MAX_REMEMBERS = 30
 BOOT_MAX_BRANCH_NEXT = 10
 BOOT_MAX_OTHER_NEXT = 5
 BOOT_MAX_NEXT = 10
-BOOT_MAX_TIMELINE = 10
+BOOT_MAX_TIMELINE = 20
 
 # CRB-06: named GC-warning thresholds (previously inline magic numbers).
 MEMO_GC_THRESHOLD = 10
@@ -423,8 +423,18 @@ def render_gc_section(
     return lines
 
 
-def render_timeline_section(all_decisions: list[tuple[str, str, bool]]) -> list[str]:
-    """Render the TIMELINE section (suppressing commits whose scope has a crowned decision)."""
+def render_timeline_section(
+    all_decisions: list[tuple[str, str, bool]],
+    exclude_remote: str | None = None,
+) -> list[str]:
+    """Render the TIMELINE section (suppressing commits whose scope has a crowned decision).
+
+    exclude_remote: forwarded to get_timeline() unchanged — see its own
+    docstring (lib/boot_git_checks.py). The caller passes the same
+    `unrelated_remote_name` already computed once for
+    extract_glossary_cached(), so a confirmed-unrelated upstream's refs
+    never leak into the (now `--all`-scanning) TIMELINE either.
+    """
     lines: list[str] = []
 
     # Suppress commits whose scope has a crowned decision — the crowned entry
@@ -432,7 +442,9 @@ def render_timeline_section(all_decisions: list[tuple[str, str, bool]]) -> list[
     crowned_scopes: set[str] = {
         label[1:-1] for label, _, is_c in all_decisions if is_c and label != "(global)"
     }
-    timeline = get_timeline(BOOT_MAX_TIMELINE, suppress_scopes=crowned_scopes or None)
+    timeline = get_timeline(
+        BOOT_MAX_TIMELINE, suppress_scopes=crowned_scopes or None, exclude_remote=exclude_remote,
+    )
     if timeline:
         lines.append(f"TIMELINE (last {len(timeline)}):")
         lines.extend(timeline)

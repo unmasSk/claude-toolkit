@@ -445,7 +445,7 @@ def main() -> None:
 
     lines.extend(render_gc_section(all_memos, all_remembers))
     lines.extend(render_consolidation_section())
-    lines.extend(render_timeline_section(all_decisions))
+    lines.extend(render_timeline_section(all_decisions, exclude_remote=unrelated_remote_name))
 
     boot_complete_lines, commit_script, log_script = render_boot_complete_section(plugin_root)
     lines.extend(boot_complete_lines)

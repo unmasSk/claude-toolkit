@@ -24,7 +24,7 @@ import sys
 from datetime import datetime, timezone
 from typing import NamedTuple
 
-from boot_memory import _sanitize_trailer_value
+from boot_memory import _sanitize_trailer_value, _is_safe_remote_name
 
 try:
     # SEC-LOW-NEW-05: symlink-safe reader, symmetric with boot_memory.py's
@@ -139,35 +139,65 @@ def time_ago(iso_or_unix: str) -> str:
         return "unknown"
 
 
-def get_timeline(n: int = 10, suppress_scopes: set[str] | None = None) -> list[str]:
-    """Get last N commits as timeline entries with time_ago.
+def get_timeline(
+    n: int = 10,
+    suppress_scopes: set[str] | None = None,
+    exclude_remote: str | None = None,
+) -> list[str]:
+    """Get last N commits as timeline entries with time_ago, across ALL
+    branches (not just the current one) — the boot TIMELINE section wants
+    the repo's N most-recent commits regardless of which branch they're on.
 
     suppress_scopes: if provided, commits whose parsed scope is in this set are
     omitted. Used to hide non-crowned decision commits when a crowned entry
     exists for that scope.
+
+    exclude_remote: mirrors extract_glossary()'s own param of the same name
+    (lib/boot_memory.py, Moriarty T2 / issue #49 repair round) — the caller
+    passes the same `unrelated_remote_name` it already computed once for
+    extract_glossary_cached() when an `@{u}` was confirmed to share NO
+    history with this project. Without this, switching this function's scan
+    from HEAD to `--all` would reopen exactly that repo-identity-confusion
+    hole for the TIMELINE section specifically: `--all` walks every ref,
+    including refs/remotes/<name>/* for a confirmed-unrelated remote, and a
+    TIMELINE entry carries no provenance label at all (same "strictly
+    worse than the labeled RESUME path" reasoning extract_glossary()'s own
+    docstring gives). None (default) preserves an unrestricted `--all` scan.
     """
     from parsing import parse_scope
     from git_helpers import run_git
 
     # %at (author date, unix epoch) — NOT %aI (ISO-8601). Same date token
-    # (%at), HEAD ref, and trailing "--" terminator as extract_memory()'s
-    # git log call (boot_memory.py) — not an identical invocation (that
-    # call also uses `-z` for NUL-separated records) — so both code paths
-    # that render a commit's age agree by construction, instead of relying
-    # on two different git date formatters staying in sync
-    # (House root-cause, CI issue: an older git runner's %aI/locale
-    # interaction produced a date string time_ago()'s ISO branch could not
-    # parse, silently dropping the " | <time_ago>" suffix). %at is plain
-    # digits regardless of git version or locale, and time_ago() already has
-    # a dedicated `.isdigit()` branch for it. Explicit "HEAD" + trailing "--"
-    # mirror extract_memory()'s own SEC-CRIT-001 defense-in-depth shape used
+    # (%at) and trailing "--" terminator as extract_memory()'s git log call
+    # (boot_memory.py) — not an identical invocation (that call also uses
+    # `-z` for NUL-separated records) — so both code paths that render a
+    # commit's age agree by construction, instead of relying on two
+    # different git date formatters staying in sync (House root-cause, CI
+    # issue: an older git runner's %aI/locale interaction produced a date
+    # string time_ago()'s ISO branch could not parse, silently dropping the
+    # " | <time_ago>" suffix). %at is plain digits regardless of git version
+    # or locale, and time_ago() already has a dedicated `.isdigit()` branch
+    # for it.
+    #
+    # "--all" (plugin/boot decision, this scope only): walk every ref, not
+    # just HEAD's ancestry, so the TIMELINE reflects the whole repo's recent
+    # activity across branches. git log's default ordering is already
+    # reverse-chronological by commit date (no --topo-order requested), so
+    # `--all -n{n}` yields exactly the N most-recent commits repo-wide,
+    # newest first — this is a TIMELINE-only change: extract_memory()
+    # (RESUME/DECISIONS/MEMOS/etc.) still scans from its own `ref` param
+    # (HEAD by default), untouched. Trailing "--" terminator mirrors
+    # extract_memory()'s own SEC-CRIT-001 defense-in-depth shape used
     # throughout this module — no external `ref` reaches this call today,
     # but the same positional-argument hygiene applies uniformly on principle.
-    code, output = run_git([
-        "log", "HEAD", f"-n{n}",
-        "--pretty=format:%h\x1f%s\x1f%at",
-        "--",
-    ], log_stderr_on_failure=True)
+    log_args = ["log"]
+    if exclude_remote is not None and _is_safe_remote_name(exclude_remote):
+        # `--exclude` must precede the ref-selecting option (`--all`) it
+        # applies to — same documented git behavior extract_glossary() relies
+        # on (lib/boot_memory.py).
+        log_args.append(f"--exclude=refs/remotes/{exclude_remote}/*")
+    log_args += ["--all", f"-n{n}", "--pretty=format:%h\x1f%s\x1f%at", "--"]
+    code, output = run_git(log_args, log_stderr_on_failure=True)
     if code != 0 or not output:
         return []
     entries = []
