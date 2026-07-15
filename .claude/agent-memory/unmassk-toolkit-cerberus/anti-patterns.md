@@ -12,6 +12,12 @@ Recurred 2026-07-11, issue #63 boot-simplification branch (`feat/issue-63-simpli
 
 Check pattern for future commit reviews: whenever a diff touches any `agent-memory/*/MEMORY.md`, extract every new `[Title](file.md)` line added, then run `git show <sha>:<path-to-file.md>` for each — if it fails, the commit is incomplete.
 
+## standards.md cites a section number that was never defined (§60)
+
+Confirmed 2026-07-15, unmassk-electronics sensor_gate.py commit-review: the new `§34.6` paragraph in `unmassk-toolkit/skills/unmassk-standards/references/standards.md:36` ends with "(Distinct from §34.3/§60: this is not a blanket read-after-write...)". `§60` does not exist anywhere in this file, in its git history (`git log --all -p` on the file), or anywhere else in the repo (repo-wide grep). It reads as an intended cross-reference to a "blanket read-after-write on every write" rule that was either never written or lives under a different number the author misremembered. Not a functional/T1 defect (the paragraph is otherwise self-consistent and correct), but a real documentation integrity gap in the canonical standards doc every agent loads — flag as a Suggestion, not a nitpick, because standards.md is load-bearing for every agent's tier classification.
+
+Check pattern: whenever a diff adds a new `§NN` cross-reference inside `standards.md` (or any doc agents load as ground truth), grep the whole repo (not just the file) for that exact `§NN` string before accepting the reference as real.
+
 ## "Mirror" functions drift out of sync on defense-in-depth guards (parse_date / time_ago)
 
 Confirmed 2026-07-08, issue #55 final round (`lib/date_parsing.py::parse_date()` vs `lib/boot_git_checks.py::time_ago()`). Both functions share the same docstring cross-reference ("mirrors the other's ... shape") and got the same `isinstance(str)` + `isascii()` guards added in lockstep across two review rounds. But `parse_date()` also has an explicit `if len(date_str) > 20: return None` length guard (defense-in-depth ahead of `int()`, added for SEC-LOW-002) that was never mirrored onto `time_ago()`. Not a live bug — CPython's own `sys.get_int_max_str_digits()` limit and `datetime.fromtimestamp()`'s `OverflowError` both land inside `time_ago()`'s existing except tuple, so it fails safe by accident, same as `parse_date()` did before its own explicit guard existed (see `TestParseDateLengthGuardContract`'s honesty note in `test_date_parsing_epoch_contract.py`).

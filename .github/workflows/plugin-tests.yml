@@ -36,4 +36,4 @@ jobs:
         run: python -m pytest unmassk-3d/skills/unmassk-3d/scripts/tests -q
 
       - name: unmassk-electronics script tests
-        run: python -m pytest unmassk-electronics/skills/electronics-micro/scripts/tests -q
+        run: python -m pytest unmassk-electronics/skills/electronics-micro/scripts/tests unmassk-electronics/skills/electronics-robotics/scripts/tests -q

@@ -7,4 +7,4 @@
 - [lessons.md](lessons.md) — Mistakes and fixes: Bun mock.module() leaks, scheduler state cleanup, DB-state assertions, Elysia WS patterns
 - [unmassk-toolkit-python-entrypoints.md](unmassk-toolkit-python-entrypoints.md) — bin/hooks sys.path variants (3 shapes), encoding_guard.py fail-open UTF-8 pattern (issue #52)
 - [design-family-skills.md](design-family-skills.md) — pattern for unmassk-design family skills: decision table + condensed references/ + attribution, verification gate, parallel-agent file scope
-- [electronics-scripts.md](electronics-scripts.md) — unmassk-electronics scripts/*.py: pure-decision-function split, house setup_cad_env.py pattern reuse, ssh self-verify scope
+- [electronics-scripts.md](electronics-scripts.md) — unmassk-electronics scripts/*.py: pure-decision-function split, setup_cad_env.py reuse, ssh self-verify scope, sensor_gate.py tolerance-band gate

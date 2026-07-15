@@ -70,6 +70,44 @@ ConnectTimeout + stdin=DEVNULL are not optional extras, they're the
 difference between "fails in 15s with a clear reason" and "hangs for the
 full outer timeout inheriting a TTY prompt nobody can answer."
 
+## sensor_gate.py: robotics branch's serial_verify.py equivalent -- numeric tolerance, not marker matching
+
+`unmassk-electronics/skills/electronics-robotics/scripts/sensor_gate.py`
+mirrors serial_verify.py's split (pure decision fn / deferred read layer /
+never-crash CLI) but the decision is numeric, not string-marker matching, and
+there is no single hardware API to defer an import of -- VL53L0X/HC-SR04/
+MPU6050 each need a different driver. Design choices worth reusing if another
+branch needs a similar gate:
+- `evaluate_gate(before, after, expected_delta, tolerance, direction)` is
+  pure and takes plain numbers only, `direction` in
+  `{"increase","decrease","either"}`: increase/decrease is an **open-ended
+  threshold** (`observed_delta >= expected_delta - tolerance`, overshoot
+  still passes -- fits "distance closed by >=N"); `either` is a **symmetric
+  band** (`abs(observed_delta - expected_delta) <= tolerance`, overshoot
+  fails same as undershoot -- fits "turned ~90 +-10"). Same 3 params cover
+  both gate shapes from the spec instead of one function per sensor.
+- `before is None or after is None` -> `status: "commanded_unverified"`
+  inside the PURE function itself (not bolted on at the CLI/orchestration
+  layer) -- keeps the "no sensor -> never upgrade to confirmed" rule fully
+  testable with plain numbers/None, no mocks needed, and matches
+  sensor-gate.md's rule directly.
+- the sensor-read layer (`_sample_sensor`) takes an injected callable, no
+  driver import at module level at all -- CLI takes already-taken numeric
+  --before/--after readings (nargs='+', median-filtered by the same
+  `_median_of_readings` helper `run_gate()` uses), since there's no one CLI
+  hardware flag that would work across 3 different sensor driver APIs.
+- Repeated `_result(False, "invalid_input"/"commanded_unverified", reason,
+  before=..., after=..., ...)` call sites were collapsed into a local
+  closure `_early(status, reason)` inside `evaluate_gate` bound over the raw
+  args -- cut the function from 126 to 102 LOC with no behavior change
+  (verified via manual re-run of all cases pre/post).
+- File lands at 364 LOC / evaluate_gate at 102 LOC, both over the
+  unmassk-standards web-app default (300/50) -- left as-is and disclosed
+  rather than fragmented, per this project's CLAUDE.md: "unmassk-standards
+  ... written for a web app ... not this project's yardstick" for
+  toolkit Python scripts. Don't silently "fix" this on a future pass without
+  re-checking that exemption still stands.
+
 ## serial_verify.py: empty --expect must be a usage error, not an always-pass
 
 `expect in line` is trivially `True` for `expect == ""` on the very first

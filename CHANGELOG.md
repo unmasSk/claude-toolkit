@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`unmassk-standards` §34.6 — "confirmation is an independent read-back, not the command's own echo".** New first-class silent-failure criterion under Pillar 1 (§34, "no truth is asserted against itself"): when code claims an action on an external system took effect, the confirmation must come from reading the resulting state back through a channel *independent of the command*, never from the command's own success/ACK; if it genuinely can't be read back, the outcome is reported *commanded/unverified*, never upgraded to *confirmed* (T1 if faked). Generalizes to runtime what 3d ("never invent a measurement — read the caliper") and electronics ("the device confirms, or it isn't done") already do; scoped so it does not become a blanket read-after-write on every production write (distinct from §34.3).
+- **`unmassk-electronics` robotics branch gains a testable sensor gate (`sensor_gate.py`).** The branch was prose-only; it now ships the robotics equivalent of micro's `serial_verify.py` — a pure `evaluate_gate` (before/after vs expected delta within a tolerance band, `increase`/`decrease`/`either`), a median anti-noise helper, a **deferred/pluggable sensor-read layer** (no `smbus`/`RPi.GPIO`/`board`/`adafruit_*` import), a never-crashing CLI, and the honest `commanded/unverified` status when no sensor reading is available. **The gate logic is tested in simulation (69 tests, green); integration with real VL53L0X/HC-SR04/MPU6050 hardware is explicitly marked UNVERIFIED in the module docstring** — a deliberate note, not a hidden gap. Wired into the Plugin Tests CI.
+
 ### CI
 
 - **Maker-plugin script suites now run in CI (`plugin-tests.yml`).** The `unmassk-3d` (`validate_mesh`, `run_cadquery`) and `unmassk-electronics` (`serial_verify`) test suites, previously run by hand, now run on every push/PR touching those plugins — a separate ubuntu-only workflow that installs the pip-only deps (numpy/trimesh/manifold3d/pyserial/cadquery), kept out of the core Toolkit CI so its fast pure-Python suite stays fast. Verified green end-to-end (both suites pass on the runner).
