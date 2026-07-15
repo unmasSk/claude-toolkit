@@ -11,9 +11,10 @@ Split further into two topic modules, both re-exported here by name:
   check_skill_drift, check_version_mismatch, run_doctor, run_repair,
   check_issue_status, _issue_matches_next).
 - lib/boot_git_checks.py — "read git/repo state for this boot": branch,
-  scopes.json, consolidation threshold, commit timeline
+  scopes.json, consolidation threshold, commit timeline, remote branches
   (parse_branch_keywords, time_ago, get_timeline, get_last_context_time,
-  render_branch_section, render_scopes_section, render_consolidation_section).
+  render_branch_section, render_branches_section, render_scopes_section,
+  render_consolidation_section).
 
 Kept as a shim (rather than deleted) because three things resolve names
 through THIS exact module:
@@ -50,6 +51,7 @@ from boot_git_checks import (
     get_timeline,
     get_last_context_time,
     render_branch_section,
+    render_branches_section,
     render_scopes_section,
     render_consolidation_section,
 )
@@ -69,6 +71,7 @@ __all__ = [
     "get_timeline",
     "get_last_context_time",
     "render_branch_section",
+    "render_branches_section",
     "render_scopes_section",
     "render_consolidation_section",
 ]

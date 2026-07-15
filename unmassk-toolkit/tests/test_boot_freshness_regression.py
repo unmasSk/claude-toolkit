@@ -1226,3 +1226,130 @@ class TestFetchTimeoutSecondsRaisedTo10:
             "ever passes a different, hand-typed literal, the constant and the "
             "real call have silently drifted apart."
         )
+
+
+# ── Finding 10 (2026-07-15, review bug): fetch has no --prune, so a branch ─
+# ── deleted on the remote stays listed forever after a SUCCESSFUL fetch ────
+
+
+class TestFetchDoesNotPruneDeletedRemoteBranches:
+    """Bug found in review (2026-07-15): `_run_hardened_fetch()`'s refspec
+    (`+refs/heads/*:refs/remotes/<remote>/*`, lib/boot_git_checks.py) fetches
+    every branch of the remote but never passes `--prune`. A branch deleted
+    on the remote is therefore never removed from this machine's
+    `refs/remotes/<remote>/*` -- it survives forever, and
+    `get_remote_branches()`/`render_branches_section()`
+    (tests/test_boot_branches_section.py) keep listing it as if it still
+    existed, even though the fetch itself reports success. This is a
+    self-lie about state, exactly the class of bug this project's threat
+    model cares about (CLAUDE.md: "the system against itself" -- a fetch
+    that succeeds must never leave stale state that looks current).
+
+    Driven through the REAL production fetch path end-to-end --
+    `boot_git_checks.fetch_memory_ref()` -> `_run_hardened_fetch()` -- never
+    a hand-run `git fetch`, so this proves the BOOT's own fetch call is
+    what's missing --prune, not a test-only refspec drifting from
+    production's (unmassk-standards §34: the seam under test must be the
+    real one, not a stand-in). The rate-limit window is real: the second
+    fetch is forced past it by aging the own-success stamp's mtime via
+    os.utime(), the SAME technique every other "force a second real fetch"
+    test in this file already uses (see
+    TestFetchTimeoutSecondsRaisedTo10.test_hardened_fetch_passes_the_constant_itself_as_run_git_timeout
+    above, and test_boot_freshness_hardening.py's
+    TestFetchMemoryRefStates.test_stale_fetch_head_past_window_allows_refetch)
+    -- never a raw `git fetch` that would bypass fetch_memory_ref()'s own
+    gating/rate-limit logic entirely.
+    """
+
+    @staticmethod
+    def _own_stamp_path(repo):
+        return os.path.join(repo, ".claude", ".unmassk", "boot-fetch-stamp.json")
+
+    @staticmethod
+    def _force_second_real_fetch(repo):
+        """Age the own-success stamp past FETCH_RATE_LIMIT_SECONDS so the
+        NEXT fetch_memory_ref() call performs a genuine second fetch,
+        instead of short-circuiting on the rate-limit gate.
+        """
+        stamp_path = TestFetchDoesNotPruneDeletedRemoteBranches._own_stamp_path(repo)
+        assert os.path.isfile(stamp_path), "setup sanity: a prior fetch must have written the own stamp"
+        stale_time = time.time() - (boot_git_checks.FETCH_RATE_LIMIT_SECONDS + 60)
+        os.utime(stamp_path, (stale_time, stale_time))
+
+    def test_deleted_remote_branch_disappears_after_a_second_real_fetch(self, tmp_path, monkeypatch):
+        repo = _make_gated_repo(tmp_path)
+        bare = _add_bare_remote(repo, tmp_path)
+
+        # A second real branch, pushed to the shared bare remote from an
+        # independent clone -- the same "machine B" shape used elsewhere in
+        # this file (e.g. _clone_machine_b()/_push_commits_from_b()).
+        clone_dir = str(tmp_path / "clone_for_setup")
+        _git(["clone", bare, clone_dir], str(tmp_path))
+        _git(["config", "user.email", "b@test.com"], clone_dir)
+        _git(["config", "user.name", "B"], clone_dir)
+        _git(["checkout", "-b", "feature/x"], clone_dir)
+        _git(["commit", "--allow-empty", "-m", "feature work"], clone_dir)
+        _git(["push", "origin", "feature/x"], clone_dir)
+
+        # First real fetch via the exact boot code path.
+        first = boot_git_checks.fetch_memory_ref(repo)
+        assert first["status"] == "fetched", f"setup sanity: first fetch must succeed, got {first!r}"
+
+        monkeypatch.chdir(repo)
+        branches_before = [b[0] for b in boot_git_checks.get_remote_branches("origin")]
+        assert "feature/x" in branches_before, (
+            f"setup sanity: the first fetch must have brought feature/x in, got {branches_before!r}"
+        )
+
+        # Delete the branch on the remote for real.
+        _git(["push", "origin", "--delete", "feature/x"], clone_dir)
+
+        # Force a genuine second fetch past the rate-limit window (never a
+        # raw `git fetch` -- must go through the same gated/hardened path
+        # the real boot uses).
+        self._force_second_real_fetch(repo)
+        second = boot_git_checks.fetch_memory_ref(repo)
+        assert second["status"] == "fetched", (
+            f"setup sanity: second call must actually run a real refetch (not rate-limited/failed), "
+            f"got {second!r}"
+        )
+
+        branches_after = [b[0] for b in boot_git_checks.get_remote_branches("origin")]
+        assert "feature/x" not in branches_after, (
+            "regression: feature/x was deleted on the remote but a SUCCESSFUL second fetch "
+            f"still lists it -- refs/remotes/origin/* was never pruned. get_remote_branches() "
+            f"returned: {branches_after!r}. Root cause: _run_hardened_fetch()'s refspec "
+            "(+refs/heads/*:refs/remotes/<remote>/*) has no --prune, so a deleted remote ref "
+            "survives forever even though the fetch itself reports success -- a silent state lie."
+        )
+
+    def test_surviving_remote_branches_are_not_pruned_away(self, tmp_path, monkeypatch):
+        """Companion GUARD (must stay green both BEFORE and AFTER the fix):
+        a branch that still exists on the remote must survive a real fetch
+        -- proves the eventual --prune fix removes only what's actually
+        gone on the remote, never branches that are still there.
+        """
+        repo = _make_gated_repo(tmp_path)
+        bare = _add_bare_remote(repo, tmp_path)
+
+        clone_dir = str(tmp_path / "clone_for_setup2")
+        _git(["clone", bare, clone_dir], str(tmp_path))
+        _git(["config", "user.email", "b@test.com"], clone_dir)
+        _git(["config", "user.name", "B"], clone_dir)
+        _git(["checkout", "-b", "feature/keep"], clone_dir)
+        _git(["commit", "--allow-empty", "-m", "keep work"], clone_dir)
+        _git(["push", "origin", "feature/keep"], clone_dir)
+
+        first = boot_git_checks.fetch_memory_ref(repo)
+        assert first["status"] == "fetched"
+
+        self._force_second_real_fetch(repo)
+        second = boot_git_checks.fetch_memory_ref(repo)
+        assert second["status"] == "fetched"
+
+        monkeypatch.chdir(repo)
+        branches_after = [b[0] for b in boot_git_checks.get_remote_branches("origin")]
+        assert "feature/keep" in branches_after, (
+            f"a branch that still exists on the remote must survive a real fetch "
+            f"(with or without --prune) -- got {branches_after!r}"
+        )

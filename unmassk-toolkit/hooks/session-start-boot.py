@@ -80,6 +80,7 @@ from upgrade_check import trigger_auto_upgrade_if_needed
 from boot_render import (
     render_boot_complete_section,
     render_branch_section,
+    render_branches_section,
     render_consolidation_section,
     render_decisions_section,
     render_gc_section,
@@ -416,6 +417,20 @@ def main() -> None:
 
     lines.extend(status_lines)
     lines.extend(branch_lines)
+
+    # BRANCHES section (plugin/boot decision, 2026-07-15 phase 2 — Bex: "so
+    # it's known what's there", no elaborate per-branch state): remote_name
+    # is derived from `upstream_ref` HERE, AFTER the `history_related is
+    # False` nulling above — the exact same mechanism resolve_boot_memory()'s
+    # own `upstream_ref` argument already relies on. A confirmed-unrelated
+    # upstream already nulled upstream_ref to None by this point, so
+    # remote_name is None too and render_branches_section() renders nothing
+    # — see that function's own docstring for why no second, independent
+    # exclude_remote parameter is needed here the way render_timeline_section()/
+    # extract_glossary_cached() need one (those scan `--all`; this only ever
+    # reads the one resolved remote's own refs).
+    remote_name = upstream_ref.partition("/")[0] if upstream_ref else None
+    lines.extend(render_branches_section(remote_name, branch))
 
     lines.extend(render_scopes_section(project_root))
 

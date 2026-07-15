@@ -65,6 +65,15 @@ from boot_fetch_stamp import (
 # Commits since last context(consolidation) before warning.
 BOOT_CONSOLIDATION_THRESHOLD = 50
 
+# BRANCHES section (plugin/boot decision, 2026-07-15 phase 2): cap on how
+# many of the resolved remote's branches get listed — reasonable ceiling so
+# an unusually active remote with hundreds of branches can't blow up the
+# boot log; get_remote_branches() reports the true total separately so a
+# cut-off is always stated, never silent (same "(N more ...)" contract as
+# REMEMBER/DECISIONS/MEMOS in lib/boot_render.py's
+# _render_crowned_capped_section()).
+BOOT_MAX_REMOTE_BRANCHES = 20
+
 
 def parse_branch_keywords(branch: str) -> tuple[list[str], str | None]:
     """Extract keywords and issue number from branch name.
@@ -381,6 +390,118 @@ def render_branch_section() -> BranchSectionResult:
     )
 
 
+def get_remote_branches(remote_name: str | None) -> list[tuple[str, str, str, str]]:
+    """Every branch of `remote_name` known via `refs/remotes/<remote_name>/*`
+    — the exact refs this boot's own `fetch_memory_ref()` just updated (see
+    `_run_hardened_fetch()`'s `+refs/heads/*:refs/remotes/<remote_name>/*`
+    refspec). Sorted by author date descending (newest first).
+
+    Returns a list of (branch_name, short_sha, unix_date_str, subject)
+    tuples — raw and unformatted, so the caller decides capping/marking/
+    sanitizing (mirrors REMEMBER/DECISIONS/MEMOS's own data/render split in
+    lib/boot_render.py, not get_timeline()'s simpler single-shot format,
+    because this section must report a true total for its "(N more)"
+    line — see render_branches_section()). Never capped here: the number of
+    branches on one remote is bounded by reality (not repo history depth),
+    so reading all of them via one `for-each-ref` call is cheap.
+
+    `git for-each-ref` scoped to `refs/remotes/<remote_name>/` ONLY — never
+    `git branch -a` (mixes in local branches and every other configured
+    remote) and never `--all` (same repo-identity-confusion class
+    get_timeline()/extract_glossary() guard against, see their own
+    docstrings) — this function only ever reads the ONE already-resolved
+    remote's own refs. Excludes that remote's symbolic HEAD pointer
+    (`refs/remotes/<remote_name>/HEAD`, e.g. "origin/HEAD -> origin/main")
+    — it is an alias for a branch already listed under its own name, not a
+    distinct branch.
+
+    `remote_name=None` (no upstream configured, or a confirmed-unrelated
+    upstream — see render_branches_section()'s docstring for how a caller
+    keeps an unrelated remote out) means "nothing to list": returns [],
+    never raises. `_is_safe_remote_name()` (same allowlist
+    get_timeline()/extract_glossary() use for their own `--exclude=` glob)
+    guards `remote_name` before it's embedded in the `refs/remotes/.../`
+    ref-pattern argument below — real git remote names are always
+    `[A-Za-z0-9._-]+` in practice.
+
+    Never raises (fail-open) — any git/parsing failure collapses to [],
+    same contract as get_timeline()/get_last_context_time().
+    """
+    from git_helpers import run_git
+
+    if not remote_name or not _is_safe_remote_name(remote_name):
+        return []
+
+    code, output = run_git([
+        "for-each-ref",
+        "--sort=-authordate",
+        "--format=%(refname:short)\x1f%(objectname:short)\x1f%(authordate:unix)\x1f%(subject)",
+        "--",
+        f"refs/remotes/{remote_name}/",
+    ], log_stderr_on_failure=True)
+    if code != 0 or not output:
+        return []
+
+    entries: list[tuple[str, str, str, str]] = []
+    prefix = f"{remote_name}/"
+    for line in output.split("\n"):
+        parts = line.strip().split("\x1f", 3)
+        if len(parts) < 4:
+            continue
+        ref_short, sha, date_str, subject = parts
+        if not ref_short.startswith(prefix):
+            # Also excludes the remote's symbolic HEAD alias: git's
+            # `%(refname:short)` renders refs/remotes/<remote_name>/HEAD as
+            # the BARE remote name (e.g. "origin", verified empirically —
+            # never "origin/HEAD"), which already fails this startswith(prefix)
+            # check on its own -- no separate `== f"{remote_name}/HEAD"`
+            # comparison is reachable here.
+            continue  # not this remote's own ref
+        entries.append((ref_short[len(prefix):], sha, date_str, subject))
+    return entries
+
+
+def render_branches_section(remote_name: str | None, current_branch: str | None) -> list[str]:
+    """Render the BRANCHES section: every branch this boot's `fetch_memory_ref()`
+    just brought from `remote_name`, newest commit first, current branch
+    marked — Bex (2026-07-15 phase 2): "just so they're known to be there",
+    deliberately no elaborate per-branch state beyond name + last commit.
+
+    `remote_name=None` renders nothing (fail-open, same as every other
+    render_*_section() in this module returning [] when there's nothing to
+    show). The caller (hooks/session-start-boot.py's main()) derives
+    `remote_name` from `upstream_ref` AFTER the `history_related is False`
+    nulling already applied there — the SAME guard render_timeline_section()/
+    extract_glossary_cached() thread via their own `exclude_remote` param,
+    just applied one step earlier: a confirmed-unrelated upstream nulls
+    `upstream_ref` before `remote_name` is ever derived from it, so this
+    function never even receives that remote's name to look up. Unlike
+    those two, this function was never at risk of a WIDER `--all`-style
+    scan picking the unrelated remote's refs back up regardless (it only
+    ever reads `refs/remotes/<remote_name>/*` for the one name it's given),
+    so there is no second, independent exclude parameter to thread here.
+    """
+    lines: list[str] = []
+    if not remote_name:
+        return lines
+
+    branches = get_remote_branches(remote_name)
+    if not branches:
+        return lines
+
+    shown = branches[:BOOT_MAX_REMOTE_BRANCHES]
+    lines.append(f"BRANCHES ({remote_name}):")
+    for branch_name, sha, date_str, subject in shown:
+        safe_name = _sanitize_trailer_value(branch_name)
+        marker = " (current)" if current_branch and branch_name == current_branch else ""
+        lines.append(f"  {safe_name}{marker}: {sha} {_sanitize_trailer_value(subject)} | {time_ago(date_str)}")
+    remaining = len(branches) - len(shown)
+    if remaining > 0:
+        lines.append(f"  ({remaining} more branch(es) not shown, {len(branches)} total)")
+    lines.append("")
+    return lines
+
+
 def _resolve_scopes_file(project_root: str | None) -> str | None:
     """Locate git-memory-scopes.json: canonical `.claude/` path first, then
     fall back to searching each `agent-memory/*/scopes.json`.
@@ -496,6 +617,12 @@ FETCH_TIMEOUT_SECONDS = 10  # bounded timeout, raised from 3s (decision b2a32b9)
 # when the fetch actually completes). 10s gives the fetch enough margin to complete on
 # ordinary network — still a bounded timeout, boot never hangs indefinitely; fail-open
 # on every branch is unchanged.
+# Note (2026-07-15): the fetch this budgets now covers EVERY branch of the
+# remote (_run_hardened_fetch()'s `+refs/heads/*:...` refspec), not one
+# branch — this 10s value was NOT re-tuned for that wider scope, it is the
+# same fail-open budget carried over as-is; considered and kept because a
+# timeout here still only means a failed/skipped fetch (fail-open), never a
+# hang.
 
 # Historical residual (Argus SEC-LOW-001, issue #49) + restored invariant
 # (issue #60 AMENDMENT v2, decision 90d096d): .git/FETCH_HEAD's mtime is
@@ -797,14 +924,41 @@ def _resolve_fetch_target(project_root: str) -> tuple[dict | None, str | None, s
 def _run_hardened_fetch(
     project_root: str, remote_name: str, remote_branch: str, remote_url: str | None, age: float | None
 ) -> dict:
-    """Run the hardened fetch itself and build the final result dict."""
+    """Run the hardened fetch itself and build the final result dict.
+
+    Bex (2026-07-15): fetches EVERY branch of `remote_name` now, not just
+    `remote_branch` — an explicit `refs/heads/*:refs/remotes/<remote_name>/*`
+    refspec instead of the single positional branch name this replaces.
+    Still scoped to this ONE already-resolved remote (never `--all`, which
+    would touch every configured remote, not just this project's memory
+    upstream), still never touches HEAD/the working tree/local branches —
+    it only updates `refs/remotes/<remote_name>/*` on this machine, exactly
+    like the single-branch fetch it replaces, just for every branch instead
+    of only the one this project happens to track. `remote_branch` is still
+    threaded through unchanged to `_write_own_stamp()` below: the own-
+    success stamp stays keyed to the ONE branch/remote/URL identity
+    `get_ahead_behind()`/RESUME/TIMELINE actually read (see
+    lib/boot_fetch_stamp.py) — fetching more branches doesn't change what
+    that stamp needs to promise, since the tracked branch's ref is always
+    included in this wider fetch too.
+    """
     from git_helpers import run_git
 
     code_fetch, _ = run_git(
         # SEC-CRIT-001 (Argus): `--` separates options from the positional
-        # ref argument — even with the leading-dash guard upstream, this
-        # must not depend on that invariant holding forever.
-        ["fetch", remote_name, "--no-tags", "--", remote_branch],
+        # refspec argument — even with the leading-dash guard upstream
+        # (remote_name already validated non-option-shaped in
+        # _resolve_fetch_target()) and the refspec itself starting with "+"
+        # (never option-shaped), this must not depend on either invariant
+        # holding forever.
+        # --prune (scoped to this ONE resolved remote_name, never global):
+        # a successful fetch that brings every branch must also remove
+        # refs/remotes/<remote_name>/* entries for branches deleted
+        # upstream -- otherwise get_remote_branches()/render_branches_section()
+        # keep listing a branch that no longer exists on the remote even
+        # though the fetch itself reported success (self-lie about state,
+        # bug found in review 2026-07-15).
+        ["fetch", remote_name, "--no-tags", "--prune", "--", f"+refs/heads/*:refs/remotes/{remote_name}/*"],
         timeout=FETCH_TIMEOUT_SECONDS,
         cwd=project_root,
         env=_FETCH_HARDENED_ENV,

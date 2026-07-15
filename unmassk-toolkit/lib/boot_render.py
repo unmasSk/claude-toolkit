@@ -61,6 +61,7 @@ from boot_checks import (
     get_last_context_time,
     get_timeline,
     render_branch_section,
+    render_branches_section,
     render_consolidation_section,
     render_scopes_section,
     run_doctor,
