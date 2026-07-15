@@ -196,6 +196,8 @@ The commit script handles issue creation — Claude doesn't need to call gh manu
 Resolved-Next: trailers auto-close the referenced issue.
 For advanced issue management (milestones, templates, checklists) use `gh issue` commands directly.
 
+**Boot RESUME cutoff:** a `Next:` trailer **without** a `#issue` is dropped from the boot RESUME once its commit is older than the most recent `context()` in the scan window — an earlier session's leftover Next must not sit next to the current one with no way to tell which is live. A `Next:` **with** a `#issue` skips this cutoff entirely; its lifecycle is issue state (closed = skip), resolved downstream against GitHub. No `context()` in the window yet → fails open, nothing is filtered.
+
 ## Wip Strategy
 
 wip commits are silent checkpoints. They fire in two situations: (a) the stop hook creates one automatically when it detects uncommitted changes at session end, and (b) — the main case in an active task — the orchestrator creates one after every crew sub-step. Rules:

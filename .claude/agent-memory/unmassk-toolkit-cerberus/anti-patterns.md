@@ -306,6 +306,14 @@ Pattern: `if not within_window: return None` (guard) → `within_window.sort(...
 
 Found in: `unmassk-toolkit/lib/recall.py:440` in `recall_relevant()` (2026-06-12).
 
+## Two independently-named size/depth constants coincidentally equal — cap-before-filter ordering is a live landmine, not a live bug
+
+Confirmed 2026-07-15, issue (Next-cutoff-by-last-context) round, `unmassk-toolkit/lib/boot_memory.py::extract_memory()`. The function reads `git log -n{SCAN_DEPTH}` (30 commits) and, during the same loop, gates pending-Next collection with `len(pending) < MAX_PENDING` (also 30) — i.e. the cap is applied DURING the scan, BEFORE the (new) post-loop filter that drops dead Next items (superseded by a later `context()` commit). At first glance this looks like the classic "collect up to cap first, filter dead ones after, silently losing valid entries that were pushed out by the cap" bug: if the 30-commit window contains many dead Next items ahead of live ones, you could end up with fewer than 30 live Next items even though more existed further back in history.
+
+It is NOT a live bug today: since each commit contributes at most one pending entry and the window itself is hard-capped at `SCAN_DEPTH=30` commits total, `pending` can never exceed 30 entries regardless of the `MAX_PENDING` guard — the guard is mathematically unreachable while `SCAN_DEPTH == MAX_PENDING`. But nothing in the code enforces that invariant; the two constants are declared independently (`SCAN_DEPTH = 30` / `MAX_PENDING = 30`, `lib/boot_memory.py:44-45`) for different stated purposes. If a future change bumps one without the other (e.g. `SCAN_DEPTH` raised to see deeper history, `MAX_PENDING` left at 30), the cap becomes reachable again and the cap-before-filter bug becomes real and silent.
+
+Check pattern for future reviews: whenever a "collect candidates then filter" loop has BOTH a during-loop cap AND a post-loop correctness filter, check whether the cap can ever actually trigger given the current scan bound. If it can't today only because two named constants happen to be numerically equal, flag it as a Suggestion (not a live Issue) recommending either (a) an explicit assertion/comment pinning the invariant, or (b) reordering so the filter runs before the cap (or the cap is removed in favor of relying solely on the scan-depth bound).
+
 ## pre-memory-dedup-gate: _TRAILER_PATTERN only matches double-quoted --trailer values
 
 `pre-memory-dedup-gate.py` intercepts `python3 git-memory-commit.py memo ...` commands and looks for `--trailer "Memo=..."` (double-quoted). If Claude writes `--trailer 'Memo=value'` (single quotes) or `--trailer Memo=value` (unquoted), `_TRAILER_PATTERN` returns `None` → `_allow_passthrough()` fires → dedup check is silently skipped.

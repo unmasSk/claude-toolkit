@@ -1410,3 +1410,27 @@ When copying Python code-generator scripts from `.ref-repos/claudedesignskills/.
 - `{/* Lighting */}` (and 4 sibling JSX-comment lines) inside a triple-quoted `f"""..."""` block — same class, JSX comment syntax needs `{{/* ... */}}` to survive being inside an f-string.
 
 Rule: when vendoring/copying a Python generator that emits JSX/JS via f-strings, always run `ast.parse()` on the copied file before trusting it — sibling scripts in the same repo (`scene_setup.py` etc.) use plain triple-quoted strings (no `f` prefix) for their JSX blocks specifically to avoid this trap, which is why they parsed clean on the first pass. Fix is always to double the literal brace (`{` → `{{`, `}` → `}}`) around the literal JS/JSX text, never to touch the actual interpolated `{var}` spots. Verified the fix with a real invocation (`--type scene`, `--events onClick,onHover`) producing correct JS/JSX output, not just a clean parse.
+
+## boot_memory.py extract_memory(): filter-before-cap, not cap-before-filter
+
+`extract_memory()`'s pending-Next collection loop used to gate append with
+`len(pending) < MAX_PENDING` INSIDE the per-commit loop, while the
+context()-cutoff filter ran AFTER the loop, over the already-capped list.
+Harmless today only because `SCAN_DEPTH == MAX_PENDING == 30` and each
+commit contributes at most 1 Next — but the two constants are declared
+independently (top of file), so raising `SCAN_DEPTH` alone (without
+`MAX_PENDING`) would let the in-loop cap silently discard live Next items
+sitting behind dead ones. Fixed by decoupling: the loop now appends every
+Next unconditionally (still bounded by SCAN_DEPTH commits, so it can't grow
+unbounded), the cutoff filter runs exactly as before, and `pending =
+pending[:MAX_PENDING]` is applied ONCE at the very end, unconditionally —
+covering both the cutoff branch and the fail-open (no context() found)
+branch, since the old in-loop cap covered both implicitly. Rule: when a
+downstream filter narrows a collected list, any cap on that list's size
+must be applied AFTER the filter, not baked into the collection step —
+otherwise the cap can evict correct survivors before the filter even runs.
+
+Also: this repo's full `pytest tests/` suite (1287 passed, 2 skipped) takes
+~286s (4:45) — exceeds the default 120s Bash timeout. Pass an explicit
+`timeout: 300000` (or higher) to Bash, or it gets silently moved to
+background and you have to re-run/wait anyway.

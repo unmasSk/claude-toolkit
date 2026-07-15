@@ -187,6 +187,15 @@ def extract_memory(ref: str = "HEAD") -> dict:
     memos: list[tuple[str, str, bool]] = []      # (scope, text, is_crown)
     remembers: list[tuple[str, str, bool]] = []  # (scope, text, is_crown)
     last_context: str = ""
+    # Cutoff timestamp for pending-Next filtering (git-memory decision,
+    # plugin/boot scope): a Next WITHOUT #issue older than the most recent
+    # context() commit is dead/superseded. Tracked as the MAX timestamp
+    # across every context() commit in the scanned window (not "first
+    # found in iteration order") so the cutoff is correct regardless of
+    # git log's tie-breaking between same-second commits — only
+    # `last_context` (the display string) keeps the pre-existing
+    # first-found-wins rule, unrelated to this numeric comparison.
+    last_context_ts: int | None = None
     decision_scopes: set[str] = set()
     memo_scopes: set[str] = set()
     remember_seen: set[str] = set()  # dedup by normalized text
@@ -234,9 +243,11 @@ def extract_memory(ref: str = "HEAD") -> dict:
 
         # Last context bookmark — canonical criterion: type starts with "context("
         # after stripping leading emoji/whitespace (same predicate as get_last_context_time)
-        if not last_context:
-            _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-            if _cleaned.lower().startswith("context("):
+        _cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
+        if _cleaned.lower().startswith("context("):
+            if last_context_ts is None or ts > last_context_ts:
+                last_context_ts = ts
+            if not last_context:
                 # SEC-CRIT-NEW-04: the raw commit subject is untrusted
                 # (attacker-controlled commit message) and is printed
                 # verbatim on the RESUME section's `Last:` line — sanitize
@@ -255,8 +266,11 @@ def extract_memory(ref: str = "HEAD") -> dict:
             if key in trailers:
                 tombstones.add(normalize(trailers[key]))
 
-        # Pending items (include subject for branch-relevance scoring)
-        if "Next" in trailers and len(pending) < MAX_PENDING:
+        # Pending items (include subject for branch-relevance scoring).
+        # No MAX_PENDING cap here (filter-before-cap, see the cap applied
+        # after the cutoff filter below) — this loop is still bounded by
+        # SCAN_DEPTH commits, so it cannot grow unbounded.
+        if "Next" in trailers:
             text = _sanitize_trailer_value(trailers["Next"])
             if normalize(text) not in tombstones:
                 scope_prefix = f"({scope}) " if scope else ""
@@ -318,6 +332,33 @@ def extract_memory(ref: str = "HEAD") -> dict:
                 remember_seen.add(norm)
                 is_crown = (trailers.get("Crown") == "Remember") and (sha not in retracted_crowns)
                 remembers.append((label, text, is_crown))
+
+    # Apply the pending-Next cutoff (git-memory decision, plugin/boot
+    # scope): a Next WITHOUT #issue whose commit is older than the most
+    # recent context() commit in this scan window is dead/superseded and
+    # must not resurface next to the current one. A Next WITH #issue is
+    # never touched here — its lifecycle is issue-state (closed=skip),
+    # handled downstream in lib/boot_render.py's check_issue_status()/
+    # _issue_matches_next(), which this function has no awareness of.
+    # No context() commit anywhere in the window -> last_context_ts stays
+    # None -> fail-open, unfiltered (today's behavior, unchanged).
+    if last_context_ts is not None:
+        pending = [
+            item for item in pending
+            if item["issue"] is not None or item["timestamp"] >= last_context_ts
+        ]
+
+    # Cap AFTER filtering, never before (filter-before-cap): the collection
+    # loop above gathers every Next in the SCAN_DEPTH window uncapped, the
+    # cutoff above drops the dead ones, and only THEN is MAX_PENDING applied
+    # to the survivors. Capping during collection (the old shape) let
+    # SCAN_DEPTH and MAX_PENDING drift apart — if SCAN_DEPTH ever grows
+    # without MAX_PENDING growing too, a cap-before-filter would silently
+    # discard live Next items sitting behind already-dead ones still inside
+    # the pre-filter cap. Applied unconditionally, in both the cutoff and
+    # fail-open (no context() found) branches — the cap must never depend on
+    # whether a cutoff happened.
+    pending = pending[:MAX_PENDING]
 
     return {
         "last_context": last_context,

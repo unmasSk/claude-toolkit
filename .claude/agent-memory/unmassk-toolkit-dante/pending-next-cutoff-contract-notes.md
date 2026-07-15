@@ -1,0 +1,18 @@
+---
+name: pending-next-cutoff-contract-notes
+description: boot_memory.py extract_memory() pending-Next cutoff contract (context() as cutoff for issue-less Next items) — RED baseline, fixture technique, in-process extract_memory() call pattern
+metadata:
+  type: project
+---
+
+Contract pass (test-first, before Ultron) for the reported incident where extract_memory()'s pending-Next collector (lib/boot_memory.py:~259) returns a Next already superseded by a later context() commit, alongside the current one. Decision already on record: "boot checks gh issue state for Next with #number (closed=skip), Next without issue use latest context() as cutoff".
+
+File: `unmassk-toolkit/tests/test_boot_pending_next_cutoff.py`. 6 test classes, RED baseline confirmed: 2 failed (the exact bug — dead-Next-before-context and old-context-vs-new-context resurfacing), 4 passed as [GUARD] anchors (fail-open with no context() at all, #issue-tagged Next always bypasses the cutoff, tombstone still wins regardless of cutoff position, timestamp-tie edge case where a Next shares the exact same author ts as the context commit but is its DAG ancestor — passes today vacuously since no cutoff exists yet, kept as an explicit boundary so a future ">" instead of ">=" doesn't regress it).
+
+**Pattern used — in-process extract_memory() call, no subprocess needed**: `monkeypatch.chdir(repo); import boot_memory; result = boot_memory.extract_memory()`. Works because `git_helpers.run_git(cwd=None)` inherits the process cwd at call time. This is a MUCH lighter/faster pattern than the older `test_crown.py::_extract_memory()` (spawns a subprocess with an inline Python snippet that monkeypatches `run_git`) — confirmed working via `tests/test_control_byte_injection.py::TestBootMemorySubjectVector`. Prefer this pattern for any future direct extract_memory()/extract_glossary() unit test — reserve the full e2e boot-subprocess pattern (test_boot_output.py / test_boot_freshness.py style) for tests that need to assert on the RENDERED boot-log output, not the raw dict.
+
+**Timestamp control technique**: `git commit --allow-empty` with `env={"GIT_AUTHOR_DATE": f"{ts} +0000", "GIT_COMMITTER_DATE": f"{ts} +0000"}` — git accepts its own raw internal format ("<epoch-seconds> <tz-offset>") directly for both env vars, giving exact control over the %at value boot_memory.py's `git log --pretty=format:...%at...` reads back, with zero ISO-parsing ambiguity. Pin the repo's own `init` commit to a timestamp OLDER than every scenario commit (e.g. `_BASE_TS - 100`) — otherwise a real-wall-clock init commit can outrank explicitly-pinned-to-the-past scenario commits in git log's date-order traversal, scrambling the intended newest-first order the whole contract depends on.
+
+**Scope note for the eventual fix**: the cutoff applies ONLY inside extract_memory()'s pending list (lib/boot_memory.py). The #issue-tagged Next closed/open filtering already lives downstream in `lib/boot_render.py`'s `check_issue_status()`/`_issue_matches_next()` and is untouched by this contract — extract_memory() itself has no gh/issue-state awareness and must keep returning issue-tagged Next items unconditionally regardless of cutoff position.
+
+Not tested (explicitly deferred, flagged for the hardening pass after Ultron implements): MAX_PENDING boundary interaction with the cutoff (a large history with >30 commits where the cutoff and the cap both apply), multiple #issue-tagged Next items at once, a Next whose subject itself is malformed/missing scope. These aren't part of the acceptance contract — see Dante's Build Mode note (EXHAUSTION PROTOCOL applies only to the hardening pass, not the ATDD contract pass).
