@@ -171,6 +171,12 @@ The Composio MCP is **not connected by default**. The first time this skill
 needs it, Claude registers it, then tells the user to restart. Claude runs
 these steps and guides the user — the user only restarts when told.
 
+**Before using this tool, check its `mcp__composio__*` tools are actually
+available.** If they are not, the server is not installed/loaded — run the
+registration below and tell the user to restart; never proceed without the
+tool as if it were there (fall back to CLI scripts for API-key-based
+platforms instead).
+
 1. **Register the server** (once, user scope — available in every project):
    ```
    claude mcp add composio --scope user -e COMPOSIO_API_KEY=${COMPOSIO_API_KEY} -- npx -y composio-core mcp

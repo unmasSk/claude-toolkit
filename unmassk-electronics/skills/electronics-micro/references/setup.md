@@ -26,6 +26,12 @@ The platformio MCP is **not connected by default**. The first time this skill
 needs it, Claude registers it, then tells the user to restart. Claude runs
 these steps and guides the user — the user only restarts when told.
 
+**Before using this tool, check its `mcp__platformio__*` tools are actually
+available.** If they are not, the server is not installed/loaded — run the
+registration below and tell the user to restart; never proceed as if
+platformio-mcp were available without the tool actually present (fall back to
+`pio`/`serial_verify.py` instead).
+
 1. **Register the server** (once, user scope — available in every project):
    ```
    claude mcp add platformio --scope user -- npx -y platformio-mcp

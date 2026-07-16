@@ -183,6 +183,11 @@ needs IDE-native image generation instead of the CLI, Claude registers it,
 then tells the user to restart. Claude runs these steps and guides the user —
 the user only restarts when told.
 
+**Before using this tool, check its `mcp__media-pipeline__*` tools are
+actually available.** If they are not, the server is not installed/loaded —
+run the registration below and tell the user to restart; never proceed
+without the tool as if it were there (fall back to the CLI instead).
+
 1. **Register the server** (once, user scope — available in every project):
    ```
    claude mcp add media-pipeline --scope user -e GEMINI_API_KEY=${GEMINI_API_KEY} -e GEMINI_DEFAULT_MODEL=${GEMINI_DEFAULT_MODEL} -e IMAGE_OUTPUT_DIR=${IMAGE_OUTPUT_DIR} -- node <absolute-path-to-this-plugin-install>/skills/media-image-gen/mcp-server/build/bundle.js

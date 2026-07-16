@@ -242,6 +242,14 @@ this skill needs one, Claude registers it, then tells the user to restart.
 Claude runs these steps and guides the user — the user only restarts when
 told.
 
+**Before using any of these tools, check the matching `mcp__<server>__*` tools
+are actually available** (`mcp__dataforseo__*`, `mcp__ahrefs__*`,
+`mcp__semrush__*`, `mcp__google-search-console__*`, `mcp__pagespeed__*`). If a
+given server's tools are not present, that server is not installed/loaded —
+run its registration command below and tell the user to restart; never
+proceed without the tool as if it were there (fall back to script-based
+analysis only).
+
 1. **Register the server(s) needed** (once, user scope — available in every
    project):
    ```

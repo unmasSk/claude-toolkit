@@ -17,6 +17,11 @@ The better-i18n MCP is **not connected by default**. The first time this skill
 needs it, Claude registers it, then tells the user to restart. Claude runs
 these steps and guides the user — the user only restarts when told.
 
+**Before using this tool, check its `mcp__better-i18n__*` tools are actually
+available.** If they are not, the server is not installed/loaded — run the
+registration below and tell the user to restart; never proceed without the
+tool as if it were there.
+
 1. **Register the server** (once, user scope — available in every project):
    ```
    claude mcp add better-i18n --scope user -e BETTER_I18N_API_KEY=${BETTER_I18N_API_KEY} -e BETTER_I18N_API_URL=${BETTER_I18N_API_URL} -- npx -y @better-i18n/mcp@latest

@@ -23,6 +23,12 @@ Lo ya hecho vive en `CHANGELOG.md` y en la memoria del proyecto (git-memory) —
 
 **Frente: deuda técnica del toolkit** (2026-07-07): ✅ **cerrado completo** (2026-07-09).
 
+**Frente: MCPs on-demand** (issue #79): ✅ **cerrado** (2026-07-16). 7 plugins con MCP registrado on-demand en vez de conectado en cada arranque: `unmassk-3d` (piloto) + réplica a `unmassk-electronics`, `unmassk-frontend`, `unmassk-compliance`, `unmassk-marketing`, `unmassk-media`, `unmassk-seo`. Cada `.mcp.json` va vacío; Claude registra el servidor (`claude mcp add`) la primera vez que la skill lo necesita y avisa de reiniciar. Tras un council de evaluación se añadió también un chequeo de disponibilidad (falla-ruidoso, nunca en silencio) al principio de cada bloque "Activate the MCP".
+
+**Frente: `design-gate`** (candidato desde el cierre de design v1.2.1): ✅ **cerrado** (2026-07-16). Linter de colisiones de frontmatter (`unmassk-toolkit/bin/design_gate.py`, 68 tests, wired en `toolkit-ci.yml`) + allowlist de las 12 colisiones baseline reales del repo, cada una con su razón documentada tras revisión humana.
+
+**Frente: patrón "perfil-por-objetivo"** (candidato): ✅ **cerrado** (2026-07-16). Generalizado desde el "per-device profile" de electronics: sección "Objective profiles" en `unmassk-gitmemory` (memo con scope del objetivo, sin fichero nuevo); electronics reconectado al patrón; primer memo real sembrado (`memo(device/rpi)`, commit `c6a8d9c`).
+
 _Cerrados: higiene de tests Windows (#50), CI Windows (#51), UnicodeEncodeError cp1252 (#52), unificación de fechas a %at (#55) y cierre del bypass por hard-link (#53, Yoda 110/110, v1.19.0). Viven en CHANGELOG + git-memory._
 
 ## 🔧 Lo que queda por hacer
@@ -51,8 +57,6 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 - **Ampliar la skill de vídeo** — `unmassk-media` ya tiene vídeo (Remotion+ffmpeg); añadir **OpenMontage** y **MoneyPrinterTurbo** (y más herramientas que Bex vaya diciendo). _En investigación._
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
 - **Castigos por asunción** (#77) — sistema de castigos en memoria fresca: cada asunción cazada por Bex se registra como un check concreto imposible de saltar, encoge al mejorar y gradúa a gate mecánico si reincide. Ataca el banner-blindness del `NO ASUMAS` estático. _En diseño, a afinar antes de construir._
-- **`design-gate` / linter de colisiones de frontmatter** — salió del council al cerrar design v1.2.1. Parsear el frontmatter de cada skill, construir el mapa token→dueño, y flaggear en CI cualquier keyword reclamada por dos skills o cualquier `Use when NOT` que nombre a un hermano. Reutilizable en los plugins multi-skill (pentesting 30, compliance 9, media, db). Convierte la desambiguación manual en verificación automática. _Candidato, sin visto bueno aún._
-- **Patrón "perfil-por-objetivo" reutilizable** — generalizar el "per-device profile" de electronics (fichero persistido, re-leído cada sesión con las restricciones inmovibles del sistema externo) a deploy targets, APIs inestables, quirks de prod de un cliente. _Candidato._
 - **Unreal Engine** — apuntado por Bex (2026-07-15). Sin definir aún: alcance por decidir (¿plugin propio? ¿skill? ¿integración MCP/scripting Python de UE?). _Candidato, a aclarar con Bex antes de investigar._
 
 ## 📐 Cómo trabajamos

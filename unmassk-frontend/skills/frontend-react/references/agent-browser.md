@@ -14,6 +14,11 @@ The agent-browser MCP is **not connected by default**. The first time this
 skill needs it, Claude registers it, then tells the user to restart. Claude
 runs these steps and guides the user — the user only restarts when told.
 
+**Before using this tool, check its `mcp__agent-browser__*` tools are actually
+available.** If they are not, the server is not installed/loaded — run the
+registration below and tell the user to restart; never proceed without the
+tool as if it were there (fall back to the `agent-browser` CLI instead).
+
 1. **Register the server** (once, user scope — available in every project):
    ```
    claude mcp add agent-browser --scope user -- agent-browser mcp
