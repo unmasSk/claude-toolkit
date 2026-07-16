@@ -326,6 +326,12 @@ Pattern piloted on `unmassk-3d` (`.mcp.json` empty + "Activate the MCP" block in
 | `unmassk-media` | media-pipeline (Gemini) | Emptied | `skills/media-image-gen/SKILL.md` "Alternative: MCP Tool" section; `README.md` Setup note fixed |
 | `unmassk-seo` | dataforseo, ahrefs, semrush, google-search-console, pagespeed (5) | Emptied | `skills/unmassk-seo/SKILL.md` "MCP Integration (Optional)" — single block listing all 5 registration commands per task instruction; `README.md` "MCP setup" + bullet fixed |
 
-CHANGELOG `[Unreleased]` → Changed got one bullet covering all 6. See changelog-state.md for the full pass narrative and stale-zones.md for two pre-existing CHANGELOG entries (3d, frontend) that read stale against this pattern but were left untouched (out of scope).
+CHANGELOG `[Unreleased]` → Changed got one bullet covering all 6. See changelog-state.md for the full pass narrative.
+
+### Follow-up fixes (2026-07-16, same day, coordinator-requested)
+
+1. **`${CLAUDE_PLUGIN_ROOT}` doesn't resolve in a standalone `claude mcp add`** — only inside a plugin's own `.mcp.json`. Fixed in the two commands that used it: `unmassk-media/skills/media-image-gen/SKILL.md` (media-pipeline) and `unmassk-seo/skills/unmassk-seo/SKILL.md` (dataforseo's `FIELD_CONFIG_PATH`) — both now say `<absolute-path-to-this-plugin-install>` with an explicit note that Claude resolves the real path, the user never types the variable literally. (Other `${CLAUDE_PLUGIN_ROOT}` uses in those same files, e.g. SEO's Python script invocations, are fine — those run inside the Bash tool where the env var is actually set.)
+2. **Root CHANGELOG.md [Unreleased] Added — `unmassk-3d` and `unmassk-frontend` entries fixed to name on-demand registration explicitly** (previously said "wired in `.mcp.json`" without mentioning that the file is empty and the server registers via `claude mcp add`) — see stale-zones.md "Cleared zones (fixed 2026-07-16)".
+3. **`unmassk-electronics`'s "per-device profile" connected to the new `unmassk-gitmemory` "Objective profiles" pattern** (memo scoped to the objective, no new file/mechanism). Rewrote `unmassk-electronics/skills/unmassk-electronics/SKILL.md`'s "## The per-device profile" section + frontmatter description line, and the 4 "record ... in the per-device profile" mentions (`electronics-pi/SKILL.md`, `electronics-pi/references/setup.md`, `electronics-pi/references/gpio-gate.md`, `electronics-micro/references/platformio-patterns.md`) to say "record it as a `memo(device/<id>)` (objective profile)".
 
 **How to apply:** On each launch, check git commits since last verified date for each CLAUDE.md. If stale, update.

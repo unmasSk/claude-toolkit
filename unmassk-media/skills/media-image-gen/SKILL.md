@@ -185,8 +185,12 @@ the user only restarts when told.
 
 1. **Register the server** (once, user scope — available in every project):
    ```
-   claude mcp add media-pipeline --scope user -e GEMINI_API_KEY=${GEMINI_API_KEY} -e GEMINI_DEFAULT_MODEL=${GEMINI_DEFAULT_MODEL} -e IMAGE_OUTPUT_DIR=${IMAGE_OUTPUT_DIR} -- node ${CLAUDE_PLUGIN_ROOT}/skills/media-image-gen/mcp-server/build/bundle.js
+   claude mcp add media-pipeline --scope user -e GEMINI_API_KEY=${GEMINI_API_KEY} -e GEMINI_DEFAULT_MODEL=${GEMINI_DEFAULT_MODEL} -e IMAGE_OUTPUT_DIR=${IMAGE_OUTPUT_DIR} -- node <absolute-path-to-this-plugin-install>/skills/media-image-gen/mcp-server/build/bundle.js
    ```
+   **`${CLAUDE_PLUGIN_ROOT}` only resolves inside a plugin's own `.mcp.json` — it
+   does not exist in a standalone `claude mcp add`.** Claude resolves the real
+   absolute path of the installed `unmassk-media` plugin before running this
+   command; the user never types `${CLAUDE_PLUGIN_ROOT}` literally.
 2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
    activation. After the restart, `mcp__media-pipeline__create_asset` is
    available.

@@ -13,10 +13,11 @@ description: >
   microcontroller firmware, Raspberry Pi / Linux single-board computers, and
   hobby robotics. The one rule that unifies them: never report a hardware task
   "done" until the device itself confirms it (a serial assertion, a sensor
-  read-back, a service health check). Also sets up the per-device profile (a
-  persisted file the agent re-reads every session so it never rediscovers a
-  board's constraints by trial and error) and the START-gated toolset install
-  (nothing installs until a project is actually an electronics project).
+  read-back, a service health check). Also sets up the per-device profile (an
+  objective profile persisted as `memo(device/<id>)` in git-memory, re-read
+  every session so it never rediscovers a board's constraints by trial and
+  error) and the START-gated toolset install (nothing installs until a
+  project is actually an electronics project).
   Use when NOT: designing or 3D-printing a physical part / enclosure with no
   circuit or firmware — that is a different domain (CAD / 3D printing), out of
   scope here.
@@ -72,10 +73,16 @@ references; this core skill carries the shared method they all obey.
 
 Hardware has constraints the agent must not rediscover every session (this board
 has no keyboard, that pin is reserved, this kernel has a known GPIO bug, this
-accelerator is present). Record them in a **persisted per-device profile file**
-the agent reads at the start of every session — the same pattern as this
-toolkit's own memory: a fact worth keeping is written down, not re-derived by
-trial and error against physical hardware.
+accelerator is present). This is a concrete instance of an **objective
+profile** (see `unmassk-gitmemory`'s SKILL.md, "Objective profiles" section):
+persist each fixed constraint as a `memo(device/<id>)` in git-memory, scoped to
+that specific device — no new file, no template, no read/write script. The
+boot already re-reads memory every session and the recall hook surfaces the
+scoped memos when the device comes up, so the profile is read back for free.
+Before acting against a device, check its profile first
+(`git-memory-recall.py "<device terms>" --scope device/<id>`) — a constraint
+already learned must never be re-derived by trial and error against the real
+hardware.
 
 ## The toolset is START-gated
 

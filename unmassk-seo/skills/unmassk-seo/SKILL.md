@@ -245,7 +245,7 @@ told.
 1. **Register the server(s) needed** (once, user scope — available in every
    project):
    ```
-   claude mcp add dataforseo --scope user -e DATAFORSEO_USERNAME=${DATAFORSEO_USERNAME} -e DATAFORSEO_PASSWORD=${DATAFORSEO_PASSWORD} -e ENABLED_MODULES=serp,keywords_data,dataforseo_labs,backlinks,onpage,domain_analytics,business_data,content_analysis,ai_optimization -e FIELD_CONFIG_PATH=${CLAUDE_PLUGIN_ROOT}/extensions/dataforseo/field-config.json -- npx -y dataforseo-mcp-server
+   claude mcp add dataforseo --scope user -e DATAFORSEO_USERNAME=${DATAFORSEO_USERNAME} -e DATAFORSEO_PASSWORD=${DATAFORSEO_PASSWORD} -e ENABLED_MODULES=serp,keywords_data,dataforseo_labs,backlinks,onpage,domain_analytics,business_data,content_analysis,ai_optimization -e FIELD_CONFIG_PATH=<absolute-path-to-this-plugin-install>/extensions/dataforseo/field-config.json -- npx -y dataforseo-mcp-server
 
    claude mcp add ahrefs --scope user -e AHREFS_API_KEY=${AHREFS_API_KEY} -- npx -y @ahrefs/mcp
 
@@ -255,6 +255,11 @@ told.
 
    claude mcp add pagespeed --scope user -e PAGESPEED_API_KEY=${PAGESPEED_API_KEY} -- npx -y mcp-server-pagespeed
    ```
+   **`${CLAUDE_PLUGIN_ROOT}` in the `dataforseo` command only resolves inside a
+   plugin's own `.mcp.json` — it does not exist in a standalone `claude mcp
+   add`.** Claude resolves the real absolute path of the installed
+   `unmassk-seo` plugin before running that command; the user never types
+   `${CLAUDE_PLUGIN_ROOT}` literally.
 2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
    activation.
 3. **API key:** get each provider's key from its own dashboard — DataForSEO

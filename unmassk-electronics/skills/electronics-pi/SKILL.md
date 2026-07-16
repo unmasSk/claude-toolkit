@@ -70,9 +70,9 @@ Wi-Fi, and user at flash time — a monitor is never required. See
 
 A Pi build report's recurring failure was the agent forgetting device
 constraints (no keyboard, touch-only, specific accelerator present, kernel
-version with the GPIO bug). Write these into the **per-device profile** (see the
-core skill) so they're re-read every session, not rediscovered by trial and
-error over SSH.
+version with the GPIO bug). Record it as a `memo(device/<id>)` (objective
+profile — see the core skill) so it's re-read every session, not rediscovered
+by trial and error over SSH.
 
 ## When to read which reference
 

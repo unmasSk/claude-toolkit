@@ -27,8 +27,8 @@ test_framework = unity
 
 Every board-specific value (`board`, `upload_port`, `monitor_speed`) comes from
 `pio boards` / `pio device list` — read from the connected hardware, never
-assumed. Record the confirmed board in the per-device profile (see the core
-skill).
+assumed. Record the confirmed board as a `memo(device/<id>)` (objective
+profile — see the core skill).
 
 ## The two gates, strongest first
 

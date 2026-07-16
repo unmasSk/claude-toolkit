@@ -40,9 +40,9 @@ against `pinctrl get` when a reading looks wrong before trusting it.
 
 There is an open issue where the `lgpio` pin factory misreads pins on Pi 5 with
 **kernel 6.6.45**. This is precisely why the gate reads back through `pinctrl`
-rather than trusting gpiozero alone. Record the kernel version (`uname -r`) in
-the per-device profile; on an affected kernel, treat every gpiozero read as
-suspect until `pinctrl` confirms it.
+rather than trusting gpiozero alone. Record the kernel version (`uname -r`) as
+a `memo(device/<id>)` (objective profile); on an affected kernel, treat every
+gpiozero read as suspect until `pinctrl` confirms it.
 
 ## Honest limit
 

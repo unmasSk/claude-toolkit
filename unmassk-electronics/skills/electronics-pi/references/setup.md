@@ -39,11 +39,11 @@ python3 -c "import gpiozero; print('gpiozero', gpiozero.__version__)"
 pinctrl -h >/dev/null && echo "pinctrl OK"
 ```
 
-## 5. Known gotcha to record in the per-device profile
+## 5. Known gotcha — record it as a `memo(device/<id>)` (objective profile)
 
 `lgpio` (gpiozero's Pi-5 backend) has a reported pin-factory bug on **kernel
 6.6.45** that can silently misread pins. Record the Pi's kernel version
-(`uname -r`) in the per-device profile; if it matches, cross-check every GPIO
+(`uname -r`) as a `memo(device/<id>)`; if it matches, cross-check every GPIO
 read against `pinctrl get` and flag the risk. A library that lies about pin
 state is exactly the self-harm case the gate exists to catch.
 
