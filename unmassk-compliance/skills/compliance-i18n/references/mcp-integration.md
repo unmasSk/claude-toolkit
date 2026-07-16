@@ -11,11 +11,30 @@ The Better i18n MCP server enables AI assistants like Claude to:
 - Publish changes to CDN or GitHub
 - Monitor sync job status
 
-## Installation
+## Activate the MCP (on-demand — Claude drives this)
 
-### Claude Desktop
+The better-i18n MCP is **not connected by default**. The first time this skill
+needs it, Claude registers it, then tells the user to restart. Claude runs
+these steps and guides the user — the user only restarts when told.
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+1. **Register the server** (once, user scope — available in every project):
+   ```
+   claude mcp add better-i18n --scope user -e BETTER_I18N_API_KEY=${BETTER_I18N_API_KEY} -e BETTER_I18N_API_URL=${BETTER_I18N_API_URL} -- npx -y @better-i18n/mcp@latest
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation.
+3. **API key:** get your key from Better i18n's dashboard (Settings → API
+   Keys) and export it: `export BETTER_I18N_API_KEY=...` (also
+   `BETTER_I18N_API_URL` if not using the default).
+
+This is the standard on-demand shape for every MCP in the toolkit: register →
+restart → (key if needed).
+
+## Installation (Claude Desktop, non-toolkit clients)
+
+The above is the Claude Code path this plugin uses. If you're wiring Better
+i18n into a different MCP client (e.g. Claude Desktop), add this to its config
+(`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {

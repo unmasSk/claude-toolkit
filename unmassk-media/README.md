@@ -19,7 +19,7 @@ Media toolkit for Claude Code — 8 skills covering the full media production li
 
 ### API Keys (optional — only for image skills)
 
-> **media-image-gen:** the CLI is the primary path. The MCP bundle is optional — use it only if you want IDE-native image generation without switching to the terminal. Both require `GEMINI_API_KEY`.
+> **media-image-gen:** the CLI is the primary path. The MCP bundle is optional and **not connected by default** — Claude registers it on demand (see `skills/media-image-gen/SKILL.md` → "Activate the MCP") only if you want IDE-native image generation without switching to the terminal. Both require `GEMINI_API_KEY`.
 
 Copy `.env.example` and fill in the keys you need:
 

@@ -12,7 +12,7 @@ Extends `unmassk-standards` (core). A frontend finding is a normal finding: core
 
 ## ⚠️ Browser work: use AgentBrowser to SEE and drive the real UI
 
-**The moment a task needs you to observe or drive the rendered result — validate how it looks on screen, scrape a page, navigate, fill a form, check a flow, log into a site — use AgentBrowser** (the `mcp__agent-browser__*` MCP tools from this plugin's `.mcp.json`, backed by the `agent-browser` CLI). Never assume how the UI renders or behaves: open it and check. (Writing components/hooks/JSX/CSS by itself does **not** invoke this — it applies the moment you must look at or drive the running UI.)
+**The moment a task needs you to observe or drive the rendered result — validate how it looks on screen, scrape a page, navigate, fill a form, check a flow, log into a site — use AgentBrowser** (the `mcp__agent-browser__*` MCP tools, registered on demand — see `references/agent-browser.md` — backed by the `agent-browser` CLI). Never assume how the UI renders or behaves: open it and check. (Writing components/hooks/JSX/CSS by itself does **not** invoke this — it applies the moment you must look at or drive the running UI.)
 
 **Preflight — before first use, once per machine:** run `agent-browser --version`. If it fails or is `< 0.31.2` (the version with the MCP server), install: `npm i -g agent-browser@latest && agent-browser install` (downloads Chrome for Testing once, ~186 MB). **If install fails (e.g. no network), STOP and report — never fake a visual check.** Load the live how-to before operating: `agent-browser skills get core` (version-matched to the binary, never stale).
 

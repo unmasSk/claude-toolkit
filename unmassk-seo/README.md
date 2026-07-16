@@ -12,7 +12,7 @@ Based on [claude-seo](https://github.com/AgriciDaniel/claude-seo) by AgriciDanie
 - 12 reference files
 - 4 Python scripts
 - 2 hooks
-- 5 MCP servers
+- 5 MCP servers (on-demand)
 
 ## Quick start
 
@@ -24,9 +24,9 @@ Requires the **unmassk-toolkit** plugin (core). Install it from the marketplace 
 
 ## MCP setup
 
-The plugin configures 5 MCP servers for live SEO data enrichment. All are optional -- the toolkit works without them using script-based analysis only.
+None of the 5 MCP servers are connected by default -- each is registered **on demand** by Claude the first time a task needs its live data, then you're told to restart. All are optional -- the toolkit works without them using script-based analysis only. See "Activate the MCP" in `skills/unmassk-seo/SKILL.md` for the exact registration command per server.
 
-Set the required environment variables in your shell before launching Claude Code.
+Set the required environment variables in your shell before Claude registers the server.
 
 | MCP Server | Env Variables | Where to get credentials | What it provides |
 |---|---|---|---|

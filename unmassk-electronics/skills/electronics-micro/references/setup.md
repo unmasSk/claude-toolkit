@@ -20,12 +20,22 @@ top.
 
 ## 2. platformio-mcp (the MCP driver)
 
-The plugin's `.mcp.json` already declares it (`npx -y platformio-mcp`). To wire
-it into a Claude client explicitly:
+### Activate the MCP (on-demand — Claude drives this)
 
-```bash
-npx platformio-mcp install --claude
-```
+The platformio MCP is **not connected by default**. The first time this skill
+needs it, Claude registers it, then tells the user to restart. Claude runs
+these steps and guides the user — the user only restarts when told.
+
+1. **Register the server** (once, user scope — available in every project):
+   ```
+   claude mcp add platformio --scope user -- npx -y platformio-mcp
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation.
+3. **API key:** none — platformio-mcp needs no key.
+
+This is the standard on-demand shape for every MCP in the toolkit: register →
+restart → (key if needed).
 
 **Package-name gotcha (verified):** the correct package is **`platformio-mcp`**
 (jl-codes, MIT, actively maintained). Do **not** install `platformio-mcp-server`

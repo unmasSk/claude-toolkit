@@ -8,15 +8,24 @@ Use AgentBrowser the moment a task needs you to **observe or drive the rendered 
 
 **Single exception: TESTS.** Suites and specs (E2E, component, regression) are written with **Playwright** (runner, assertions, fixtures, CI reporting). AgentBrowser is not a testing framework and does not replace them.
 
-## Wiring (MCP)
+## Activate the MCP (on-demand — Claude drives this)
 
-This plugin ships `unmassk-frontend/.mcp.json`, which registers the server:
+The agent-browser MCP is **not connected by default**. The first time this
+skill needs it, Claude registers it, then tells the user to restart. Claude
+runs these steps and guides the user — the user only restarts when told.
 
-```json
-{ "mcpServers": { "agent-browser": { "command": "agent-browser", "args": ["mcp"] } } }
-```
+1. **Register the server** (once, user scope — available in every project):
+   ```
+   claude mcp add agent-browser --scope user -- agent-browser mcp
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation. After the restart, Claude Code exposes the typed
+   `mcp__agent-browser__*` tools (default profile `core`).
+3. **API key:** none — agent-browser needs no key.
 
-When the binary is present, Claude Code exposes the typed `mcp__agent-browser__*` tools (default profile `core`). The `agent-browser` CLI remains available for install, docs, and as a fallback.
+This is the standard on-demand shape for every MCP in the toolkit: register →
+restart → (key if needed). The `agent-browser` CLI remains available for
+install, docs, and as a fallback while the MCP is not yet registered.
 
 ## Preflight & install (once per machine)
 

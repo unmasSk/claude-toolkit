@@ -117,8 +117,10 @@ Push approved translations to CDN or sync back to GitHub.
 
 ## MCP Integration
 
-Load `references/mcp-integration.md` for Claude Desktop MCP server
-configuration. Available MCP tools: `listProjects`, `getProject`,
+The MCP is **not connected by default** — Claude registers it on demand the
+first time this skill needs it. Load `references/mcp-integration.md` for the
+activation steps (register → restart → API key) and full server config.
+Available MCP tools: `listProjects`, `getProject`,
 `getAllTranslations`, `listKeys`, `createKeys`, `updateKeys`,
 `deleteKeys`, `addLanguage`, `getPendingChanges`, `publishTranslations`,
 `getSyncs`, `getSync`.

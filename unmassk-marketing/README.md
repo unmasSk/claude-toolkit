@@ -13,7 +13,7 @@ Based on [marketingskills](https://github.com/coreyhaines31/marketingskills) by 
 - 4 integration references
 - 61 CLI scripts
 - 176 evals
-- Composio MCP server
+- Composio MCP (on-demand)
 - Product-context template
 
 ## Quick start
@@ -85,13 +85,13 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<platform>.js <comma
 
 ## MCP setup
 
-The plugin configures one MCP server for OAuth-based platform access.
+The Composio MCP is **not connected by default** — Claude registers it on demand the first time the skill needs OAuth-based platform access, then tells you to restart.
 
 | MCP Server | Env Variable | What it provides |
 |---|---|---|
 | **Composio** | `COMPOSIO_API_KEY` | OAuth-based access to HubSpot, Salesforce, Meta Ads, LinkedIn Ads, Google Sheets, Slack |
 
-Set the environment variable in your shell before launching Claude Code. Get your API key from [composio.dev](https://composio.dev/).
+Get your API key from Composio's dashboard and export it (`export COMPOSIO_API_KEY=...`) before Claude registers the server. See `skills/unmassk-marketing/SKILL.md` ("Activate the MCP") for the exact registration command.
 
 When both CLI scripts and Composio MCP are available for a platform, the skill prefers MCP for OAuth-required platforms and CLI for API-key-based platforms.
 

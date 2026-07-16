@@ -313,4 +313,19 @@ All 15 target source files documented with enterprise JSDoc on 2026-03-19:
 Style: no `@module`/`@file`/`@description`; no `{Type}` in `@param`; security constants explain WHY not just WHAT.
 Verified: tsc --noEmit clean, 789 bun tests pass.
 
+## MCP on-demand pattern replicated to 6 plugins (2026-07-16)
+
+Pattern piloted on `unmassk-3d` (`.mcp.json` empty + "Activate the MCP" block in `references/blender-mcp.md`), replicated as-is (no new design) to:
+
+| Plugin | MCP server(s) | `.mcp.json` | Activate-block location |
+|---|---|---|---|
+| `unmassk-electronics` | platformio | Emptied | `skills/electronics-micro/references/setup.md` §2 (replaced stale "already declares it" claim) |
+| `unmassk-frontend` | agent-browser | Emptied | `skills/frontend-react/references/agent-browser.md` "Wiring" section replaced; `SKILL.md` line 15 wording fixed |
+| `unmassk-compliance` | better-i18n | Emptied | `skills/compliance-i18n/references/mcp-integration.md` (new section before the pre-existing Claude Desktop config, which is now labeled "non-toolkit clients"); `SKILL.md` line 120 wording fixed |
+| `unmassk-marketing` | composio | Emptied | `skills/unmassk-marketing/SKILL.md` "MCP Integration" section; `README.md` "MCP setup" + "What's included" bullet fixed |
+| `unmassk-media` | media-pipeline (Gemini) | Emptied | `skills/media-image-gen/SKILL.md` "Alternative: MCP Tool" section; `README.md` Setup note fixed |
+| `unmassk-seo` | dataforseo, ahrefs, semrush, google-search-console, pagespeed (5) | Emptied | `skills/unmassk-seo/SKILL.md` "MCP Integration (Optional)" — single block listing all 5 registration commands per task instruction; `README.md` "MCP setup" + bullet fixed |
+
+CHANGELOG `[Unreleased]` → Changed got one bullet covering all 6. See changelog-state.md for the full pass narrative and stale-zones.md for two pre-existing CHANGELOG entries (3d, frontend) that read stale against this pattern but were left untouched (out of scope).
+
 **How to apply:** On each launch, check git commits since last verified date for each CLAUDE.md. If stale, update.

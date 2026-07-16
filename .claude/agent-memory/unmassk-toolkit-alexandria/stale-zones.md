@@ -21,6 +21,9 @@ type: project
 
 ## Active stale zones
 
+### Root CHANGELOG.md [Unreleased] Added — two pre-existing entries now stale re: MCP wiring (flagged 2026-07-16, not fixed — out of scope for the task that found them)
+Line 12 (`unmassk-3d` new-plugin entry) says Blender is "driven live over an MCP bridge (`ahujasid/blender-mcp`, wired in `.mcp.json`)" — the pilot for the on-demand MCP pattern actually ships an EMPTY `unmassk-3d/.mcp.json` (`{"mcpServers": {}}`) and registers Blender on demand via `claude mcp add` (confirmed live in `blender-mcp.md`'s "Activate the MCP" section). The changelog prose predates that pattern and reads as if the server is bundled. Line 9 (`unmassk-frontend` AgentBrowser entry) similarly says "wired via a plugin `unmassk-frontend/.mcp.json`" without mentioning on-demand registration — `unmassk-frontend/.mcp.json` is now also empty (emptied 2026-07-16, same pass that flagged this). Both entries are still in `[Unreleased]` (not yet released) so a rewrite is still possible before the next `release.py` promotion — do it on the next full pass, or if asked to touch either plugin's CHANGELOG entry again.
+
 ### unmassk-core/SKILL.md:40 — unmassk-design skill count stale (flagged 2026-07-14, not fixed by Alexandria)
 Says `unmassk-design | 1 skill | Design systems, color, typography, motion, accessibility, agentic UX` — now stale, the plugin revamped to 7 skills (core + design-motion/design-3d/design-scroll/design-animation-formats/design-taste/design-flutter) on 2026-07-14. Root `README.md`'s matching row was fixed this same pass. `unmassk-core/SKILL.md` is explicitly orchestrator-owned per the 2026-07-12 precedent below (core/gitmemory/audit SKILL.md are the orchestrator's own docs) — flagged only, not edited. Re-check on next pass whether the orchestrator updated it.
 

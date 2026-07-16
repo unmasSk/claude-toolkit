@@ -235,6 +235,38 @@ pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/requirements.txt
 When DataForSEO MCP tools are available, use them to enrich analysis with live
 data. If MCP tools are not configured, proceed with script-based analysis only.
 
+### Activate the MCP (on-demand — Claude drives this)
+
+None of the 5 SEO MCP servers are **connected by default**. The first time
+this skill needs one, Claude registers it, then tells the user to restart.
+Claude runs these steps and guides the user — the user only restarts when
+told.
+
+1. **Register the server(s) needed** (once, user scope — available in every
+   project):
+   ```
+   claude mcp add dataforseo --scope user -e DATAFORSEO_USERNAME=${DATAFORSEO_USERNAME} -e DATAFORSEO_PASSWORD=${DATAFORSEO_PASSWORD} -e ENABLED_MODULES=serp,keywords_data,dataforseo_labs,backlinks,onpage,domain_analytics,business_data,content_analysis,ai_optimization -e FIELD_CONFIG_PATH=${CLAUDE_PLUGIN_ROOT}/extensions/dataforseo/field-config.json -- npx -y dataforseo-mcp-server
+
+   claude mcp add ahrefs --scope user -e AHREFS_API_KEY=${AHREFS_API_KEY} -- npx -y @ahrefs/mcp
+
+   claude mcp add semrush --scope user --transport sse -e SEMRUSH_API_KEY=${SEMRUSH_API_KEY} https://mcp.semrush.com/v1/mcp
+
+   claude mcp add google-search-console --scope user -e GSC_CREDENTIALS_PATH=${GSC_CREDENTIALS_PATH} -- npx -y mcp-server-gsc
+
+   claude mcp add pagespeed --scope user -e PAGESPEED_API_KEY=${PAGESPEED_API_KEY} -- npx -y mcp-server-pagespeed
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation.
+3. **API key:** get each provider's key from its own dashboard — DataForSEO
+   (dataforseo.com), Ahrefs (ahrefs.com Account Settings), Semrush
+   (semrush.com subscription), Google Search Console (Google Cloud Console
+   service account JSON), PageSpeed (Google Cloud Console, PageSpeed Insights
+   API) — and export the matching env var(s) before registering.
+
+This is the standard on-demand shape for every MCP in the toolkit: register →
+restart → (key if needed). Register only the server(s) the current task
+needs — not all 5 by default.
+
 ### MCP Quick Reference
 
 | Domain | MCP Tools | Use For |

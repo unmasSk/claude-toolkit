@@ -165,6 +165,24 @@ If Composio MCP is available, prefer MCP tools over CLI scripts for platforms
 that require OAuth (HubSpot, Salesforce, Meta Ads, LinkedIn Ads). MCP tools
 handle token refresh automatically and avoid manual API key setup.
 
+### Activate the MCP (on-demand — Claude drives this)
+
+The Composio MCP is **not connected by default**. The first time this skill
+needs it, Claude registers it, then tells the user to restart. Claude runs
+these steps and guides the user — the user only restarts when told.
+
+1. **Register the server** (once, user scope — available in every project):
+   ```
+   claude mcp add composio --scope user -e COMPOSIO_API_KEY=${COMPOSIO_API_KEY} -- npx -y composio-core mcp
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation.
+3. **API key:** get your key from Composio's dashboard and export it:
+   `export COMPOSIO_API_KEY=...`
+
+This is the standard on-demand shape for every MCP in the toolkit: register →
+restart → (key if needed).
+
 ### MCP Quick Reference
 
 | Platform | Prefer MCP When | Fall Back To |
