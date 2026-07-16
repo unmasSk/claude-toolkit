@@ -5,8 +5,10 @@ Blender is driven **live** over an MCP bridge for two jobs: (a) import / measure
 
 ## Which MCP server
 
-**`ahujasid/blender-mcp`** (MIT, most mature — 24k★). The plugin's `.mcp.json`
-already declares it as `uvx blender-mcp`. Alternatives, for reference:
+**`ahujasid/blender-mcp`** (MIT, most mature — 24k★), run as `uvx blender-mcp`.
+It is **not** bundled in the plugin's `.mcp.json` — it is installed **on demand**
+the first time this skill needs it (see "Activate the MCP" below), so it never
+hangs connected when you are not doing CAD. Alternatives, for reference:
 
 - **Official Blender Lab MCP** (`blender.org/lab`) — genuinely official but
   experimental ("Lab") and self-describes as unguarded; its exact state was not
@@ -15,7 +17,27 @@ already declares it as `uvx blender-mcp`. Alternatives, for reference:
   instead of raw arbitrary-code execution. Prefer it if raw `execute_blender_code`
   is ever unwanted, at the cost of flexibility.
 
+## Activate the MCP (on-demand — Claude drives this)
+
+The Blender MCP is **not connected by default**. The first time this skill needs
+it, Claude registers it, then tells the user to restart. Claude runs these steps
+and guides the user — the user only restarts when told.
+
+1. **Register the server** (once, user scope — available in every project):
+   ```
+   claude mcp add blender --scope user -- uvx blender-mcp
+   ```
+2. **Restart Claude Code.** MCP servers only start at boot; there is no hot
+   activation. After the restart the `blender` tools are available.
+3. **API key:** none — Blender MCP needs no key.
+
+This is the standard on-demand shape for every MCP in the toolkit: *register →
+restart → (key if needed)*. It replaces bundling the server in `.mcp.json`, which
+would connect it at every boot whether or not you do CAD.
+
 ## One-time setup
+
+(These are the Blender-side steps, separate from registering the MCP above.)
 
 1. `brew install uv`
 2. Download `addon.py` from `ahujasid/blender-mcp`.

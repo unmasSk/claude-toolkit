@@ -100,7 +100,10 @@ the scan directly; it works live from the mesh the user delivers.
 
 Blender is used *inside* this skill (not a separate skill) for two jobs: (a)
 importing/measuring/cleaning scans, (b) organic printable modelling. It is
-driven live over an MCP bridge (see `references/blender-mcp.md`).
+driven live over an MCP bridge (see `references/blender-mcp.md`). That MCP is
+**not connected by default** — Claude installs it on demand the first time this
+skill needs it (`claude mcp add blender --scope user -- uvx blender-mcp`, then a
+restart); see "Activate the MCP" in `references/blender-mcp.md`.
 
 The Blender MCP runs **arbitrary Python** inside Blender. This project's threat
 model is "the system must not harm itself," not an external attacker — so the
