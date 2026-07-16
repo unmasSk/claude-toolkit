@@ -36,3 +36,6 @@ jobs:
 
       - name: Run toolkit test suite
         run: python -m pytest unmassk-toolkit/tests -q
+
+      - name: Run design-gate (skill frontmatter collision check)
+        run: python unmassk-toolkit/bin/design_gate.py
