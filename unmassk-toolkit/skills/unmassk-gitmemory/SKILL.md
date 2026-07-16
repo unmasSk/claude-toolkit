@@ -123,6 +123,28 @@ A memory commit (`decision`/`memo`/`remember`) carrying `Crown: Decision|Memo|Re
 
 Crown is **additive and presentational only**: it does not retire or tombstone other entries. The golden rule "a Decision is never tombstoned" is unchanged. Crown entries are the output of a consolidation pass — treat a 👑 entry as the current source of truth for its scope.
 
+## Objective profiles (fixed constraints of an external system)
+
+Some work runs against an **external system with fixed constraints you must not
+rediscover every session** — a specific device (this board has no keyboard, that
+pin is reserved, this kernel has a known GPIO bug), a deploy target (this host
+needs a manual step, that region is read-only), an unstable third-party API (this
+endpoint rate-limits at N, that field is nullable despite the docs), or a
+client's production quirks (this tenant runs an old schema). Rediscovering those
+by trial and error each session is exactly the waste memory exists to prevent.
+
+**The pattern — an "objective profile" is not a new file or mechanism; it is
+`memo` used with discipline:**
+
+- Persist each fixed constraint as a `memo` scoped to the objective — `memo(device/esp32-s3)`, `memo(deploy/prod-eu)`, `memo(api/stripe)`, `memo(client/acme)`. The scope IS the profile; all memos sharing it are that objective's profile.
+- Use the right category: `stack` for a non-derivable fact ("kernel 6.6.45 misreports GPIO read-back"), `antipattern` for a constraint learned from an incident, `requirement` for an imposed limit.
+- The boot already re-reads memory every session and the recall hook surfaces the scoped memos when the objective comes up — so the profile is read back for free. No template, no path, no read/write script: the persistence and re-read are git-memory's, already built.
+- Before acting against that objective, **check its profile first** (`git-memory-recall.py "<objective terms>" --scope <objective>`); a constraint you already learned must never be re-derived against the real system.
+
+This generalises electronics' "per-device profile" (which was prose only, never a
+built mechanism) to every external-system objective, on the persistence the
+toolkit already has.
+
 ## Hierarchical Scopes
 
 Use **hierarchical scopes** separated by `/` in commit subjects. Max 2 levels deep.
