@@ -115,9 +115,87 @@ warning (`unmassk-typescript/skills/typescript-strict/SKILL.md` -- plain
 unquoted `description:` scalar contains a literal `Language skill: ...`
 mid-value, which YAML's plain-scalar rules forbid; genuine pre-existing
 bug in THAT file, confirmed by inspection, not a parser bug in
-design_gate.py -- not fixed here, out of scope for this task). 10 real
-Type-1 collisions (8 keyword, 2 phrase) that read as plausible/worth-review
-overlaps (e.g. `gdpr` claimed by 3 compliance skills, `pgvector` by
-db-postgres+db-vector-rag). 0 Type-2 findings on the real corpus after the
-above fixes (both mechanisms proven to fire correctly via the synthetic
-fixture instead).
+design_gate.py -- not fixed here, out of scope for this task).
+
+## Round 2 (Cerberus review, same day): 3 blockers + 2 improvements
+
+1. **Digit-after-hyphen blind spot** (`find_dangling_skill_references`):
+   `token_re` required `[a-z]` right after the hyphen, so the entire
+   `-3d` family (`design-3d`, `unmassk-3d`, a hypothetical `foo-3dghost`)
+   was structurally unreachable by the dangling-reference check. Fixed to
+   `[a-z0-9]`. Verified with an isolated 2-skill fixture (`foo-3dwidget`
+   real, `foo-3dghost` not) -- the real skill is correctly excluded, the
+   fake one correctly flagged.
+
+2. **Short-acronym filter ate live collisions** (`_is_distinctive`): the
+   "single word, no hyphen/dot, len<4" filter dropped `dpa` (3 chars) and
+   `mrr` (3 chars) even though both are REAL live collisions in the repo
+   (`compliance-gdpr`/`compliance-legal-docs` both claim `DPA`;
+   `db-vector-rag`/`unmassk-marketing` both claim `MRR`). Fixed by passing
+   the PRE-normalization original term alongside the lowercased one:
+   `original.strip().isupper()` overrides the length floor (an ALL-CAPS
+   token in the source IS the technical-acronym marker), but the absolute
+   `len(term) < 3` floor stays regardless, so 2-letter noise ("AI", "3D")
+   still can't sneak through.
+
+3. **0-skills-scanned silently read as CLEAN**: fixed with a `report["error"]`
+   field set whenever `len(skills) == 0`, forcing `ok=False` independent
+   of the allowlist (nothing to allowlist your way out of an empty scan).
+   `main()` also echoes it to stderr as `FATAL: ...` regardless of
+   `--json`/text mode. The final "Result:" line now reads `FATAL` (not
+   the misleading `COLLISIONS FOUND`) when this path fires.
+
+4. **Allowlist mechanism added** (`unmassk-toolkit/design-gate-allowlist.json`,
+   sibling to `bin/`, overridable with `--allowlist`): a JSON object with
+   one array per finding category (`keyword_collisions`, `phrase_collisions`,
+   `dangling_references`, `mutual_contradictions`). Each finding gets a
+   canonical string key (`_finding_key()`) -- the bare term/phrase for
+   Type-1, `skill::token` for dangling refs, `skill_a::skill_b::shared,terms`
+   for mutual contradictions (sorted, comma-joined). An allowlisted
+   finding is tagged `[allowlisted]` in every report (never hidden) but
+   doesn't fail the gate; anything else is tagged `[NEW]` and does. Seeded
+   with the real baseline (10 keyword + 1 phrase + 1 mutual-contradiction
+   finding) so a fresh CI run starts CLEAN and only a genuinely NEW
+   collision breaks it.
+
+5. **`extract_quoted_phrases()` scope narrowed** to the actual `asks to
+   "..."` clause (via `_ASKS_TO_RE`, cut off at `or mentions any of:` /
+   `Use when NOT` / end of description) instead of scanning the whole
+   description for any double-quoted substring. This correctly drops a
+   real false-inclusion (design-taste's `"make this not look like AI
+   slop"` lives in ITS `Use when NOT:` clause, not an "asks to" example)
+   and matches what the docstring always claimed. Known, accepted
+   precision/recall trade-off: `media-remotion`'s description uses an
+   alternate lead-in ("Trigger phrases:" instead of "the user asks to"),
+   so its quoted examples (e.g. `"trim video"`, also claimed by
+   `media-ffmpeg`) are no longer captured at all -- not fixed further,
+   since broadening to catch alternate conventions wasn't asked for and
+   would grow scope; documented as an observation instead.
+
+**Side effect discovered by re-running against the real repo after fix
+#5** (the reason "run it for real, don't just reason about it" matters):
+narrowing the quote scan ALSO removed a previously-accidental capture --
+`design-3d`'s "Covers ..." prose contains a quoted phrase `"3D/WebGL for
+web"` that used to leak into its wordbag and (coincidentally) suppress 4
+real mutual-contradiction findings between `design-3d`/`design-motion`/
+`design-scroll`/`design-animation-formats` (all share the boundary term
+`3D/WebGL`). Removing the leak correctly exposed that `_expand_variants`
+only split compound tokens on `-`, never on `/` -- so `"3d/webgl"` (one
+token, since `_WORD_RE` keeps `/` mid-token) never matched the plain
+`"webgl"` keyword `design-3d` actually claims in its OWN "mentions any
+of:" list. Fixed by extending `_expand_variants` to split on `/` the same
+way as `-`. Rule for future edits to this script: any change to
+`extract_quoted_phrases`/wordbag construction can silently remove a
+FORTUITOUS suppression elsewhere -- always re-run the full real-repo scan
+after touching that path, not just the fixture that motivated the change.
+
+10 real Type-1 keyword collisions (`actuator`, `ccpa`, `connection
+pooling`, `data breach`, `dpa`, `gdpr`, `hipaa`, `hreflang`, `mrr`,
+`pgvector` -- `dpa`/`mrr` newly surfaced by fix #2) plus 1 phrase
+collision (`onboarding flow`), and 1 real Type-2 mutual contradiction
+(`design-motion` / `design-taste`, shared ground `slop`) make up the
+current allowlist
+baseline. Gate is CLEAN (exit 0) against the real repo with the allowlist
+in place; exit 1 with the allowlist removed/pointed elsewhere (every
+baseline finding reads `[NEW]` again) -- confirms the allowlist actually
+gates, not just decorates.

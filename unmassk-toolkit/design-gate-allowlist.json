@@ -1,0 +1,23 @@
+{
+  "_comment": "design-gate allowlist -- accepted, already-reviewed skill routing collisions found by unmassk-toolkit/bin/design_gate.py. An entry here excludes that ONE specific finding from failing the gate (exit code), but design_gate.py still PRINTS it in every report, tagged '[allowlisted]' instead of '[NEW]' -- nothing is ever hidden. A finding not listed here is tagged '[NEW]' and fails the gate.",
+  "_how_to_add_an_exception": "1) Run `python3 unmassk-toolkit/bin/design_gate.py --json`. 2) Find the new finding and build its key: keyword_collisions -> the 'term' string; phrase_collisions -> the 'phrase' string; dangling_references -> '{skill}::{token}'; mutual_contradictions -> '{skill_a}::{skill_b}::{comma-joined sorted shared_terms}'. 3) After a human reviews the finding (confirms the overlap is expected/acceptable, not a routing bug), append the key to the matching array below. Never blanket-allow a whole category -- allowlist exact findings only.",
+  "keyword_collisions": [
+    "actuator",
+    "ccpa",
+    "connection pooling",
+    "data breach",
+    "dpa",
+    "gdpr",
+    "hipaa",
+    "hreflang",
+    "mrr",
+    "pgvector"
+  ],
+  "phrase_collisions": [
+    "onboarding flow"
+  ],
+  "dangling_references": [],
+  "mutual_contradictions": [
+    "design-motion::design-taste::slop"
+  ]
+}

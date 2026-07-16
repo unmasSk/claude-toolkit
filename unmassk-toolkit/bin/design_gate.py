@@ -38,14 +38,28 @@ EXCLUDING `.ref-repos/` (vendored third-party source material that is
 condensed into our own skills elsewhere -- never itself an active,
 routable skill) and the usual dependency/VCS noise directories.
 
+Allowlist: the real repo has genuine, already-reviewed keyword/phrase
+overlap between sibling skills (e.g. "gdpr" claimed by 3 compliance
+skills) that shouldn't fail every CI run forever. `design-gate-allowlist.json`
+(sibling to this script's `unmassk-toolkit/` package; override with
+--allowlist) lists accepted finding keys per category. An allowlisted
+finding is still printed in the report (tagged `[allowlisted]`, never
+hidden) but does not fail the gate; anything NOT in the allowlist is
+tagged `[NEW]` and DOES fail it. To accept a new finding: run
+`--json`, take the finding's identifying field(s) (`term` / `phrase` /
+`skill::token` / `skill_a::skill_b::shared,terms`), and add it to the
+matching array in the allowlist file after human review -- never
+blanket-allow a whole category.
+
 Usage:
-  design_gate.py                  # human-readable report, scans from git root (or cwd)
-  design_gate.py --root PATH       # scan a specific directory instead
-  design_gate.py --json            # machine-readable JSON report only
+  design_gate.py                       # human-readable report, scans from git root (or cwd)
+  design_gate.py --root PATH            # scan a specific directory instead
+  design_gate.py --json                 # machine-readable JSON report only
+  design_gate.py --allowlist PATH       # use a different allowlist file
 
 Exit codes:
-  0: no collisions found (parse warnings alone do not fail the gate)
-  1: one or more collisions found (keyword, phrase, dangling ref, or mutual contradiction)
+  0: no NEW collisions found (parse warnings and allowlisted findings alone do not fail the gate)
+  1: one or more NEW collisions found, OR 0 skills were scanned (fail-loud, never reads as clean)
 """
 
 from __future__ import annotations
@@ -178,6 +192,9 @@ def find_skill_md_files(root: str) -> list[str]:
 _MENTIONS_RE = re.compile(r"mentions any of:\s*(.+?)\.(?:\s|$)", re.IGNORECASE | re.DOTALL)
 _QUOTED_RE = re.compile(r'"([^"]{3,100})"')
 _USE_WHEN_NOT_RE = re.compile(r"use when not:?\s*(.+)", re.IGNORECASE | re.DOTALL)
+_ASKS_TO_RE = re.compile(
+    r"asks to\s*(.+?)(?:or mentions any of:|use when not|$)", re.IGNORECASE | re.DOTALL
+)
 
 
 def _split_top_level_commas(text: str) -> list[str]:
@@ -226,9 +243,24 @@ def extract_mention_terms(description: str) -> list[str]:
 
 
 def extract_quoted_phrases(description: str) -> list[str]:
-    """Extract every double-quoted example trigger phrase in the
-    description (the `Use when the user asks to "..."` examples)."""
-    return [m.strip() for m in _QUOTED_RE.findall(description) if m.strip()]
+    """Extract every double-quoted example trigger phrase from the
+    `Use when the user asks to "..."` clause specifically.
+
+    Cerberus finding #5: an earlier version scanned double quotes across
+    the WHOLE description, which also picked up quotes that live in the
+    `Use when NOT:` clause (e.g. design-taste's `"make this not look like
+    AI slop"`, which is an excluded example, not a trigger) and any
+    attribution-adjacent quoting. Scoped to the span between "asks to" and
+    whichever comes first of "or mentions any of:" / "Use when NOT" / end
+    of description -- matching what the docstring always claimed this
+    function did. Returns [] for a description with no "asks to" clause
+    (not every skill uses this convention; not itself a warning).
+    """
+    match = _ASKS_TO_RE.search(description)
+    if not match:
+        return []
+    span = match.group(1)
+    return [m.strip() for m in _QUOTED_RE.findall(span) if m.strip()]
 
 
 def extract_use_when_not(description: str) -> str | None:
@@ -257,13 +289,26 @@ def _normalize_term(term: str) -> str:
     return re.sub(r"\s+", " ", term.strip().lower())
 
 
-def _is_distinctive(term: str) -> bool:
+def _is_distinctive(term: str, original: str) -> bool:
     """Filter for Type-1 keyword indexing: drop stopwords, too-short
     fragments, and single common English words with no technical marker
     (hyphen/digit/dot) that are likely prose leakage rather than a real
-    trigger term."""
+    trigger term.
+
+    `original` is the term BEFORE normalization (lowercasing) -- used to
+    detect a short acronym written in ALL CAPS in the source ("DPA",
+    "MRR", "SEO", "SQL", "RAG"). Cerberus finding #2: the plain
+    length/hyphen/dot check alone filtered out real, live collisions
+    (`dpa`, `mrr`) because a 3-letter acronym has none of those markers.
+    An ALL-CAPS token in the source IS the technical marker for a short
+    acronym -- it survives the length floor even below 4 chars, down to
+    the absolute `len(term) < 3` floor above (2-letter tokens like "AI"/
+    "3D" stay filtered either way; too short and too noisy).
+    """
     if len(term) < 3 or term in GENERIC_TERMS:
         return False
+    if original.strip().isupper():
+        return True
     if " " not in term and "-" not in term and "." not in term and len(term) < 4:
         return False
     return True
@@ -335,7 +380,7 @@ def find_keyword_collisions(skills: list[dict[str, Any]]) -> list[dict[str, Any]
     for skill in skills:
         for term in skill["mention_terms"]:
             norm = _normalize_term(term)
-            if not _is_distinctive(norm):
+            if not _is_distinctive(norm, term):
                 continue
             index.setdefault(norm, set()).add(skill["name"])
     return [
@@ -382,7 +427,11 @@ def find_dangling_skill_references(skills: list[dict[str, Any]]) -> list[dict[st
         return []
 
     prefix_pattern = "|".join(re.escape(p) for p in sorted(prefixes, key=len, reverse=True))
-    token_re = re.compile(rf"\b(?:{prefix_pattern})-[a-z][a-z0-9-]*\b")
+    # [a-z0-9] (not [a-z]) right after the hyphen -- a digit-led segment
+    # (design-3d, electronics-3d, ...) is a real, present skill-naming shape
+    # in this repo (Cerberus finding #1); requiring a letter there made the
+    # whole "-3d" family structurally unreachable by this check.
+    token_re = re.compile(rf"\b(?:{prefix_pattern})-[a-z0-9][a-z0-9-]*\b")
 
     findings = []
     for skill in skills:
@@ -421,7 +470,8 @@ def _stem(word: str) -> str:
 
 
 def _expand_variants(word: str) -> set[str]:
-    """A word plus its stem and (if hyphenated) its >=4-char sub-parts.
+    """A word plus its stem and (if hyphenated/slashed) its >=4-char
+    sub-parts.
 
     Exists only for the "is this ground claimed by anyone?" ownership
     check in find_mutual_contradictions -- verified against the real repo:
@@ -433,13 +483,26 @@ def _expand_variants(word: str) -> set[str]:
     filter). Without this expansion both read as "nobody claims this",
     which is a false positive -- someone genuinely does, just spelled
     differently.
+
+    "/" is split the same way as "-": design-3d's exclusion clause says
+    "3D/WebGL" (one token, since _WORD_RE keeps "/" mid-token to preserve
+    compounds), while design-3d's OWN "mentions any of:" list claims
+    "WebGL" alone (a separate list item, no slash). Confirmed by running
+    against the real repo after narrowing extract_quoted_phrases()
+    (Cerberus finding #5): design-3d used to accidentally claim "3d/webgl"
+    as a wordbag entry only because a stray quoted phrase from unrelated
+    "Covers ..." prose ("3D/WebGL for web") leaked into its wordbag before
+    that fix -- removing the leak correctly, but exposing that the real
+    keyword ("WebGL") was never being matched against the slash-joined
+    compound in the first place.
     """
     variants = {word, _stem(word)}
-    if "-" in word:
-        for part in word.split("-"):
-            if len(part) >= 4:
-                variants.add(part)
-                variants.add(_stem(part))
+    for sep in ("-", "/"):
+        if sep in word:
+            for part in word.split(sep):
+                if len(part) >= 4:
+                    variants.add(part)
+                    variants.add(_stem(part))
     return variants
 
 
@@ -511,23 +574,117 @@ def find_mutual_contradictions(skills: list[dict[str, Any]]) -> list[dict[str, A
     return findings
 
 
+# ── Allowlist ──────────────────────────────────────────────────────────────
+#
+# Cerberus finding #4: a bare run against the real repo surfaces real,
+# pre-existing collisions (compliance/db/design overlap that's expected
+# between sibling skills). Without a way to accept those, wiring this into
+# CI would fail every commit until a human resolves them, or the check
+# gets disabled out of frustration. The allowlist accepts specific,
+# already-reviewed findings by their identifying key -- an allowlisted
+# finding is still SHOWN in the report (never hidden), just excluded from
+# the ok/exit-code decision. A brand-new (never-seen) finding still fails
+# the gate even with an allowlist present.
+
+_ALLOWLIST_CATEGORIES = (
+    "keyword_collisions", "phrase_collisions", "dangling_references", "mutual_contradictions",
+)
+
+
+def _finding_key(category: str, finding: dict[str, Any]) -> str:
+    """Canonical string key identifying one finding, used to look it up in
+    the allowlist. Must be stable across runs (no ordering/hash-derived
+    parts) so the same real-world collision always maps to the same key."""
+    if category == "keyword_collisions":
+        return finding["term"]
+    if category == "phrase_collisions":
+        return finding["phrase"]
+    if category == "dangling_references":
+        return f"{finding['skill']}::{finding['token']}"
+    if category == "mutual_contradictions":
+        return f"{finding['skill_a']}::{finding['skill_b']}::{','.join(finding['shared_terms'])}"
+    raise ValueError(f"unknown allowlist category: {category}")
+
+
+def default_allowlist_path() -> str:
+    """`unmassk-toolkit/design-gate-allowlist.json`, sibling to bin/ -- next
+    to this script's own package, not scattered into the scanned root."""
+    bin_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(os.path.dirname(bin_dir), "design-gate-allowlist.json")
+
+
+def load_allowlist(path: str) -> dict[str, set[str]]:
+    """Load the allowlist JSON. A missing file means an empty allowlist
+    (nothing pre-approved -- the safe default: every finding is treated as
+    new). A malformed file is reported to stderr and also treated as
+    empty -- a broken allowlist must not silently pass everything, and it
+    must not crash the whole gate either."""
+    empty = {cat: set() for cat in _ALLOWLIST_CATEGORIES}
+    if not os.path.isfile(path):
+        return empty
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        print(f"Warning: could not read allowlist {path}: {exc} -- treating as empty", file=sys.stderr)
+        return empty
+    if not isinstance(data, dict):
+        print(f"Warning: allowlist {path} did not parse to a JSON object -- treating as empty", file=sys.stderr)
+        return empty
+    return {cat: set(data.get(cat, []) or []) for cat in _ALLOWLIST_CATEGORIES}
+
+
+def _annotate_allowlisted(
+    findings: list[dict[str, Any]], category: str, allowlist: dict[str, set[str]]
+) -> list[dict[str, Any]]:
+    allowed_keys = allowlist.get(category, set())
+    for finding in findings:
+        finding["allowlisted"] = _finding_key(category, finding) in allowed_keys
+    return findings
+
+
 # ── Report assembly + I/O ─────────────────────────────────────────────────
 
-def run_gate(root: str) -> dict[str, Any]:
+def run_gate(root: str, allowlist_path: str | None = None) -> dict[str, Any]:
     """Scan root and produce the full report dict. Never raises."""
     skill_mds = find_skill_md_files(root)
     skills, warnings = build_skill_records(skill_mds)
 
-    keyword_collisions = find_keyword_collisions(skills)
-    phrase_collisions = find_phrase_collisions(skills)
-    dangling_references = find_dangling_skill_references(skills)
-    mutual_contradictions = find_mutual_contradictions(skills)
+    if allowlist_path is None:
+        allowlist_path = default_allowlist_path()
+    allowlist = load_allowlist(allowlist_path)
 
-    ok = not (keyword_collisions or phrase_collisions or dangling_references or mutual_contradictions)
+    keyword_collisions = _annotate_allowlisted(find_keyword_collisions(skills), "keyword_collisions", allowlist)
+    phrase_collisions = _annotate_allowlisted(find_phrase_collisions(skills), "phrase_collisions", allowlist)
+    dangling_references = _annotate_allowlisted(
+        find_dangling_skill_references(skills), "dangling_references", allowlist
+    )
+    mutual_contradictions = _annotate_allowlisted(
+        find_mutual_contradictions(skills), "mutual_contradictions", allowlist
+    )
+
+    # Cerberus finding #3: 0 skills scanned (wrong --root, or a regression
+    # in find_skill_md_files/frontmatter parsing) must NEVER read as
+    # "CLEAN" -- an empty scan finding nothing to complain about is the
+    # single worst failure mode for a gate. Independent of the allowlist:
+    # there is nothing to allowlist your way out of an empty scan.
+    error = None
+    if len(skills) == 0:
+        error = (
+            f"0 skills scanned under root '{root}' ({len(skill_mds)} SKILL.md file(s) found, "
+            f"{len(warnings)} warning(s)). Refusing to report CLEAN -- check --root, or "
+            f"investigate a find_skill_md_files/frontmatter-parsing regression."
+        )
+
+    all_findings = keyword_collisions + phrase_collisions + dangling_references + mutual_contradictions
+    has_new_collision = any(not f["allowlisted"] for f in all_findings)
+    ok = error is None and not has_new_collision
 
     return {
         "ok": ok,
+        "error": error,
         "root": root,
+        "allowlist_path": allowlist_path,
         "skills_scanned": len(skills),
         "warnings": warnings,
         "keyword_collisions": keyword_collisions,
@@ -537,10 +694,19 @@ def run_gate(root: str) -> dict[str, Any]:
     }
 
 
+def _tag(finding: dict[str, Any]) -> str:
+    return "allowlisted" if finding.get("allowlisted") else "NEW"
+
+
 def format_human_report(report: dict[str, Any]) -> str:
     lines = []
     lines.append("=== design-gate: skill frontmatter collision check ===")
+
+    if report.get("error"):
+        lines.append(f"\nFATAL: {report['error']}")
+
     lines.append(f"Root: {report['root']}")
+    lines.append(f"Allowlist: {report.get('allowlist_path', '(none)')}")
     lines.append(f"Skills scanned: {report['skills_scanned']}")
 
     if report["warnings"]:
@@ -551,21 +717,21 @@ def format_human_report(report: dict[str, Any]) -> str:
     if report["keyword_collisions"]:
         lines.append(f"\nKeyword collisions ({len(report['keyword_collisions'])}):")
         for c in report["keyword_collisions"]:
-            lines.append(f"  - '{c['term']}' claimed by: {', '.join(c['skills'])}")
+            lines.append(f"  - [{_tag(c)}] '{c['term']}' claimed by: {', '.join(c['skills'])}")
     else:
         lines.append("\nKeyword collisions: none")
 
     if report["phrase_collisions"]:
         lines.append(f"\nQuoted phrase collisions ({len(report['phrase_collisions'])}):")
         for c in report["phrase_collisions"]:
-            lines.append(f"  - \"{c['phrase']}\" claimed by: {', '.join(c['skills'])}")
+            lines.append(f"  - [{_tag(c)}] \"{c['phrase']}\" claimed by: {', '.join(c['skills'])}")
     else:
         lines.append("Quoted phrase collisions: none")
 
     if report["dangling_references"]:
         lines.append(f"\nDangling skill references ({len(report['dangling_references'])}):")
         for d in report["dangling_references"]:
-            lines.append(f"  - {d['skill']} mentions '{d['token']}', which is not a real skill name")
+            lines.append(f"  - [{_tag(d)}] {d['skill']} mentions '{d['token']}', which is not a real skill name")
     else:
         lines.append("Dangling skill references: none")
 
@@ -573,14 +739,20 @@ def format_human_report(report: dict[str, Any]) -> str:
         lines.append(f"\nMutual contradictions ({len(report['mutual_contradictions'])}):")
         for m in report["mutual_contradictions"]:
             lines.append(
-                f"  - {m['skill_a']} excludes \"{m['clause_a']}\" (-> {m['skill_b']}) "
+                f"  - [{_tag(m)}] {m['skill_a']} excludes \"{m['clause_a']}\" (-> {m['skill_b']}) "
                 f"while {m['skill_b']} excludes \"{m['clause_b']}\" (-> {m['skill_a']}); "
                 f"shared ground: {', '.join(m['shared_terms'])}"
             )
     else:
         lines.append("Mutual contradictions: none")
 
-    lines.append(f"\nResult: {'CLEAN' if report['ok'] else 'COLLISIONS FOUND'}")
+    if report["ok"]:
+        result = "CLEAN"
+    elif report.get("error"):
+        result = "FATAL"
+    else:
+        result = "COLLISIONS FOUND"
+    lines.append(f"\nResult: {result}")
     return "\n".join(lines)
 
 
@@ -599,9 +771,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--root", default=None, help="Directory to scan (default: git toplevel, or cwd)")
     parser.add_argument("--json", action="store_true", help="Print the JSON report only")
+    parser.add_argument(
+        "--allowlist", default=None,
+        help="Allowlist JSON path (default: unmassk-toolkit/design-gate-allowlist.json)",
+    )
     args = parser.parse_args(argv)
 
     root = os.path.abspath(args.root) if args.root else find_project_root()
+    allowlist_path = os.path.abspath(args.allowlist) if args.allowlist else default_allowlist_path()
 
     if yaml is None:
         print("Error: pyyaml is required (pip install pyyaml)", file=sys.stderr)
@@ -611,7 +788,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: root path does not exist or is not a directory: {root}", file=sys.stderr)
         return 1
 
-    report = run_gate(root)
+    report = run_gate(root, allowlist_path)
+
+    if report.get("error"):
+        print(f"FATAL: {report['error']}", file=sys.stderr)
 
     if args.json:
         print(json.dumps(report, indent=2))
