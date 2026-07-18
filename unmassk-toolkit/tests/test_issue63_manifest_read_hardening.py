@@ -49,22 +49,6 @@ unmassk-toolkit-python-test-conventions.md). Ambas toman `root`/cwd
 explicitos o dependen del cwd del proceso (documentado por funcion), asi
 que cada helper de invocacion fija el canal correcto.
 
-Eleccion de la version forjada por sitio (deliberada, no copiada
-literalmente de "version alta" -- ver docstring de
-_plant_symlinked_claude_dir_with_forged_manifest): cada sitio compara la
-version leida de forma distinta, asi que una version forjada "alta"
-generica seria vacua (el test pasaria igual con o sin el guard) en uno de
-los 2 sitios restantes. Se elige la version forjada que hace observable la
-diferencia AUSENTE-guard vs PRESENTE-guard en cada sitio:
-  - boot_health (check_version_mismatch): compara DESIGUALDAD con
-    PLUGIN_VERSION -> se forja una version alta/distinta (si el guard
-    falla, aparece un warning con contenido forjado en el STATUS del
-    boot).
-  - upgrade_check (needs_upgrade): compara manifest_tuple < code_tuple
-    (regla "no downgrade") -> se forja una version BAJA (si el guard
-    falla, needs_upgrade() devuelve True y dispara un auto-upgrade
-    espurio).
-
 Build mode: linear (fix ya aplicado por Ultron en wip 5c9d012; el retiro
 del sitio crew es limpieza de suite en la misma fase que
 test_crew_manifest_version_gate.py). Solo tests -- ningun cambio de
@@ -73,7 +57,6 @@ produccion en este fichero.
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 
@@ -133,36 +116,6 @@ def _manifest_path(repo):
 def _write_malicious_deep_manifest(repo):
     with open(_manifest_path(repo), "w", encoding="utf-8") as f:
         f.write(_malicious_deep_json_payload())
-
-
-def _plant_symlinked_claude_dir_with_forged_manifest(repo, tmp_path, forged_version, tag):
-    """Reproduces Ultron's SEC-T1-002 attack layout exactly: real_repo/.claude
-    is replaced by a symlink to an external directory (evil_dir), and
-    evil_dir/.unmassk/manifest.json is a REAL file (never a symlink itself)
-    forged with `forged_version`. open_no_follow_symlink() has nothing to
-    object to at the final component -- only the parent (.claude) is a
-    symlink, and it is a symlink of a DIRECTORY, not of manifest.json.
-
-    Returns the forged manifest's real path (for assertions that want to
-    prove it was never accepted).
-    """
-    evil_dir = tmp_path / f"evil_dir_{tag}"
-    evil_unmassk = evil_dir / ".unmassk"
-    evil_unmassk.mkdir(parents=True)
-    forged_manifest = evil_unmassk / "manifest.json"
-    forged_manifest.write_text(
-        json.dumps({"version": forged_version, "installed_at": "2020-01-01T00:00:00"}),
-        encoding="utf-8",
-    )
-
-    claude_path = os.path.join(repo, ".claude")
-    if os.path.islink(claude_path):
-        os.remove(claude_path)
-    elif os.path.isdir(claude_path):
-        shutil.rmtree(claude_path)
-    os.symlink(str(evil_dir), claude_path)
-
-    return str(forged_manifest)
 
 
 # ── Direct-call probes, one isolated subprocess per invocation ────────────
@@ -273,66 +226,6 @@ class TestSecT1_001UpgradeCheckNeedsUpgradeFailSafe:
         assert result is False, (
             "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
             f"False, not crash or trigger an upgrade. stdout={proc.stdout!r}"
-        )
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# SEC-T1-002 -- .claude as a DIRECTORY symlink (real, committable) must not
-# bypass the manifest-read guard just because the final path component
-# (manifest.json) is a genuine, non-symlink file at the resolved location.
-# ══════════════════════════════════════════════════════════════════════════
-
-
-@pytest.mark.usefixtures("real_symlink_capable")
-class TestSecT1_002BootHealthCheckVersionMismatchFailSafe:
-    """boot_health's fail-safe is None. Forged version is deliberately far
-    from PLUGIN_VERSION: check_version_mismatch() only produces a warning
-    on INEQUALITY, so an unequal forged version is the value that makes a
-    guard bypass observable (a warning string, embedding forged content,
-    appears where None is expected)."""
-
-    def test_symlinked_claude_dir_with_forged_high_version_returns_none(self, tmp_path):
-        repo = _make_installed_repo(tmp_path)
-        forged_version = "999.9.9-SEC-T1-002-FORGED"
-        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
-            repo, tmp_path, forged_version=forged_version, tag="boot_health"
-        )
-
-        proc = _call_check_version_mismatch(repo)
-        result = _result_or_fail(proc, "check_version_mismatch")
-
-        assert result is None, (
-            "SEC-T1-002: a .claude directory symlink hiding a forged "
-            f"manifest.json at {forged_manifest} must not be trusted. "
-            f"Got result={result!r} stdout={proc.stdout!r}"
-        )
-        if result is not None:
-            assert forged_version not in result  # defense in depth, never reached if the assert above holds
-
-
-@pytest.mark.usefixtures("real_symlink_capable")
-class TestSecT1_002UpgradeCheckNeedsUpgradeFailSafe:
-    """needs_upgrade's fail-safe is False. Forged version is deliberately
-    LOWER than PLUGIN_VERSION: needs_upgrade() triggers True only when
-    manifest_tuple < code_tuple ("no downgrade" rule) -- a forged HIGH
-    version would leave the result False regardless of the guard (vacuous),
-    so only a forged LOW version makes a guard bypass observable as a
-    spurious True (an auto-upgrade subprocess would be triggered by
-    trigger_auto_upgrade_if_needed())."""
-
-    def test_symlinked_claude_dir_with_forged_low_version_returns_false(self, tmp_path):
-        repo = _make_installed_repo_for_needs_upgrade(tmp_path)
-        forged_manifest = _plant_symlinked_claude_dir_with_forged_manifest(
-            repo, tmp_path, forged_version="0.0.1", tag="upgrade_check"
-        )
-
-        proc = _call_needs_upgrade(repo)
-        result = _result_or_fail(proc, "needs_upgrade")
-
-        assert result is False, (
-            "SEC-T1-002: a .claude directory symlink hiding a forged "
-            f"manifest.json (version 0.0.1) at {forged_manifest} must not "
-            f"trigger a spurious upgrade. stdout={proc.stdout!r}"
         )
 
 

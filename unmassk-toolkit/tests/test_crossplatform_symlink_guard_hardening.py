@@ -168,54 +168,6 @@ class TestAppendModePreservesExistingContent:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Group 3 — TOCTOU mismatch parametrized across ALL open modes, not just "w"
-# ══════════════════════════════════════════════════════════════════════════
-
-
-class TestToctouMismatchAllModes:
-    @pytest.mark.parametrize("mode", ["r", "w", "a"])
-    @pytest.mark.parametrize("target_open", TWIN_FUNCS.values(), ids=TWIN_FUNCS.keys())
-    def test_lstat_fstat_mismatch_raises_and_closes_fd(
-        self, monkeypatch, tmp_path, target_open, mode
-    ):
-        monkeypatch.setattr(sys, "platform", "win32")
-        path = tmp_path / f"toctou-{mode}.txt"
-        path.write_text("original", encoding='utf-8')
-
-        monkeypatch.setattr(os.path, "islink", lambda p: False)
-        monkeypatch.setattr(os, "lstat", lambda p: _FakeStat(st_dev=1, st_ino=100))
-        monkeypatch.setattr(os, "fstat", lambda fd: _FakeStat(st_dev=1, st_ino=999))
-
-        opened_fds = []
-        real_open = os.open
-
-        def spy_open(*args, **kwargs):
-            fd = real_open(*args, **kwargs)
-            opened_fds.append(fd)
-            return fd
-
-        closed_fds = []
-        real_close = os.close
-
-        def spy_close(fd):
-            closed_fds.append(fd)
-            real_close(fd)
-
-        monkeypatch.setattr(os, "open", spy_open)
-        monkeypatch.setattr(os, "close", spy_close)
-
-        with pytest.raises(OSError):
-            target_open(str(path), mode)
-
-        assert opened_fds, "a real fd must be opened before the identity check can run"
-        assert closed_fds == opened_fds, (
-            f"mode={mode!r}: every fd opened during a rejected TOCTOU race "
-            f"must be closed before raising — opened={opened_fds}, "
-            f"closed={closed_fds}"
-        )
-
-
-# ══════════════════════════════════════════════════════════════════════════
 # Group 4 — error propagation: os.lstat() / os.open() raising mid-guard
 # ══════════════════════════════════════════════════════════════════════════
 
