@@ -17,6 +17,13 @@ Coverage:
   Tested 3/3 functions in scope (normalize, parse_trailers_full, parse_commit_type).
   Branches: VALID_KEYS filter, multi-value, whitespace collapse, wip dead-code path.
   Edge cases: tab whitespace, repeated key 3x, unknown key mid-body, empty body.
+
+Added (#72 fix pass, Cerberus finding): TestSanitizeTrailerValueControlByteContract
+pins sanitize_trailer_value()'s documented control-byte contract (lib/parsing.py
+L194-236). It was left without its own unit test after the 4 attacker-framed
+test files (test_control_byte_injection.py, test_security_regression.py,
+test_hardlink_reject_guard.py, test_manifest_hardlink_reject.py) that exercised
+it indirectly were retired -- integrity coverage, not attacker simulation.
 """
 
 import os
@@ -34,7 +41,7 @@ BIN_DIR = os.path.join(SOURCE_ROOT, "bin")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-from parsing import normalize, parse_trailers_full, parse_commit_type
+from parsing import normalize, parse_trailers_full, parse_commit_type, sanitize_trailer_value
 from constants import VALID_KEYS
 
 
@@ -495,6 +502,93 @@ class TestParseCommitTypeWip:
         """
         # No importa qué rama interna ejecute: el contrato es "wip"
         assert parse_commit_type("wip: x") == "wip"
+
+
+class TestSanitizeTrailerValueControlByteContract:
+    """
+    Pin del contrato documentado en sanitize_trailer_value() (lib/parsing.py
+    L194-236): qué bytes de control neutraliza y el regex de la marca
+    memory-data.
+
+    Justificación (integridad de render, NO defensa anti-atacante): un byte
+    de control -- p.ej. un ANSI escape (\\x1b) pegado sin querer al copiar
+    texto desde una terminal o un log -- dentro de un mensaje de commit
+    legítimo puede corromper la propia terminal o el render del boot log si
+    llega intacto hasta la salida. Este test fija que la función sigue
+    neutralizando esos bytes; no simula ningún adversario ni collaborator
+    comprometido.
+
+    Restaurado en #72 (fix pass, hallazgo de Cerberus): los 4 ficheros de
+    test puramente atacante retirados en el mismo issue cubrían este
+    contrato solo indirectamente, dejándolo sin test propio tras su borrado.
+    """
+
+    @pytest.mark.parametrize("byte, name", [
+        ("\r", "carriage-return"),
+        ("\n", "newline"),
+        ("\u2028", "line-separator U+2028"),
+        ("\u2029", "paragraph-separator U+2029"),
+        ("\x0b", "vertical-tab"),
+        ("\x0c", "form-feed"),
+        ("\x1b", "ANSI-escape"),
+        ("\x1c", "file-separator"),
+        ("\x1d", "group-separator"),
+        ("\x1e", "record-separator"),
+        ("\x1f", "unit-separator"),
+        ("\x7f", "DEL"),
+        ("\x85", "NEL"),
+    ])
+    def test_control_byte_is_neutralized(self, byte, name):
+        """Cada byte de control documentado se reemplaza por espacio, nunca
+        sobrevive intacto en el resultado."""
+        text = f"before{byte}after"
+        result = sanitize_trailer_value(text)
+        assert byte not in result, (
+            f"{name} ({byte!r}) debe ser neutralizado por "
+            f"sanitize_trailer_value(); result={result!r}"
+        )
+        assert "before" in result and "after" in result, (
+            f"el saneo debe preservar el texto legítimo alrededor, no solo "
+            f"quitar el byte de control; result={result!r}"
+        )
+
+    def test_html_comment_markers_are_stripped(self):
+        """'<!--' y '-->' se eliminan del valor."""
+        result = sanitize_trailer_value("before<!--comment-->after")
+        assert "<!--" not in result and "-->" not in result
+        assert "before" in result and "after" in result
+
+    def test_memory_data_fence_marker_open_and_close_are_stripped_case_insensitively(self):
+        """La marca de zona memory-data (apertura o cierre) se elimina sin
+        distinguir mayúsculas/minúsculas."""
+        for marker in (
+            "<memory-data>", "</memory-data>",
+            "<MEMORY-DATA>", "</MEMORY-DATA>",
+            "<Memory-Data>",
+        ):
+            result = sanitize_trailer_value(f"before{marker}after")
+            assert "memory-data" not in result.lower(), (
+                f"la marca {marker!r} sobrevivió a sanitize_trailer_value(); "
+                f"result={result!r}"
+            )
+
+    def test_memory_data_fence_marker_with_interleaved_whitespace_is_stripped(self):
+        """El regex de la marca (r"<\\s*/?\\s*memory-data\\s*>") tolera
+        espacio en blanco alrededor del token y de la barra de cierre."""
+        result = sanitize_trailer_value("before< / memory-data >after")
+        assert "memory-data" not in result.lower(), (
+            f"una marca con espacio en blanco intercalado sobrevivió; "
+            f"result={result!r}"
+        )
+
+    def test_normal_text_with_unicode_is_preserved_unchanged(self):
+        """Texto normal sin bytes de control ni marcas no se altera."""
+        normal = "decision normal sin bytes de control, con unicode café 😀"
+        assert sanitize_trailer_value(normal) == normal
+
+    def test_leading_and_trailing_whitespace_is_stripped(self):
+        """El resultado final pasa por .strip()."""
+        assert sanitize_trailer_value("  padded value  ") == "padded value"
 
 
 if __name__ == "__main__":

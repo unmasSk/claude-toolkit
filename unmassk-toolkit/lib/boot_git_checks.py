@@ -9,8 +9,7 @@ the same rationale as the original round-5 split: lib/boot_checks.py (and
 now this module) must never import FROM lib/boot_render.py (confirmed
 unidirectional DAG: boot_memory <- boot_health/boot_git_checks <- boot_checks
 <- boot_render). lib/boot_checks.py re-imports these functions by name so
-lib/boot_render.py and any direct `boot_checks.<name>()` caller (including
-tests/test_security_regression.py's importlib load of boot_checks.py) keep
+lib/boot_render.py and any direct `boot_checks.<name>()` caller keep
 resolving unchanged.
 
 Pure refactor: behavior is byte-for-byte identical to before the split.

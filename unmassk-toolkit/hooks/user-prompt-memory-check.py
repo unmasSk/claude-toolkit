@@ -27,10 +27,9 @@ from git_helpers import is_git_repo, run_git, open_no_follow_symlink, ensure_run
 # hooks/session-start-boot.py instead of on every UserPromptSubmit message.
 # Neither name is called anywhere below — main() has zero trace of upgrade
 # evaluation now. Kept importable here only because
-# tests/test_needs_upgrade_semver.py and tests/test_security_regression.py's
-# BUG M/T load THIS hook file directly via importlib and call
-# hook.needs_upgrade()/hook._parse_semver() — the underlying logic is
-# unchanged, byte-for-byte, only its home moved.
+# tests/test_needs_upgrade_semver.py loads THIS hook file directly via
+# importlib and calls hook.needs_upgrade()/hook._parse_semver() — the
+# underlying logic is unchanged, byte-for-byte, only its home moved.
 from upgrade_check import needs_upgrade, _parse_semver  # noqa: F401,E402  (import after sys.path mutation)
 
 # ── Skill router — imported defensively; any import failure is visible but silent ──

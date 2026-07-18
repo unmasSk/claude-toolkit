@@ -5,8 +5,7 @@ Cerberus round-6 LOC audit).
 Owns the "is the plugin/repo installed correctly?" checks: skill-drift +
 installed-version comparison, doctor/repair runners, and GitHub issue-status
 lookups. lib/boot_checks.py re-imports these functions by name so
-lib/boot_render.py and any direct `boot_checks.<name>()` caller (including
-tests/test_security_regression.py's importlib load of boot_checks.py) keep
+lib/boot_render.py and any direct `boot_checks.<name>()` caller keep
 resolving unchanged.
 
 Pure refactor: behavior is byte-for-byte identical to before the split.

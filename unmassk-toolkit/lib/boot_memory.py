@@ -621,10 +621,9 @@ def resolve_boot_memory(ahead_n: int, behind_n: int, upstream_ref: str | None) -
 
 # Backward-compat re-export, test-compatibility shim ONLY (not a real logic
 # dependency — see lib/boot_glossary_cache.py's module docstring for the
-# forward direction of this split). tests/test_security_regression.py's
-# TestBugAOEnsureRuntimeDirFallbackBranchSymlinkedParent probe loads THIS
-# file directly via importlib.util.spec_from_file_location under a
-# throwaway module name (not the real "boot_memory"), then calls
+# forward direction of this split). Kept in case something loads THIS file
+# directly via importlib.util.spec_from_file_location under a throwaway
+# module name (not the real "boot_memory") and calls
 # `mod._write_glossary_cache(...)` — that attribute must keep resolving on
 # this file even though the real implementation now lives in
 # lib/boot_glossary_cache.py. Placed at the very bottom, after every name

@@ -16,16 +16,8 @@ Split further into two topic modules, both re-exported here by name:
   render_branch_section, render_branches_section, render_scopes_section,
   render_consolidation_section).
 
-Kept as a shim (rather than deleted) because three things resolve names
-through THIS exact module:
-
-1. lib/boot_render.py's `from boot_checks import (...)`.
-2. tests/test_security_regression.py loads this exact file path via
-   `importlib.util.spec_from_file_location(..., BOOT_CHECKS_PATH)` and calls
-   `mod.render_scopes_section(...)` directly on the loaded module.
-3. Docstrings/comments elsewhere (tests/test_boot_output.py,
-   tests/test_security_regression.py) reference "lib/boot_checks.py:<fn>()"
-   by name.
+Kept as a shim (rather than deleted) because lib/boot_render.py's
+`from boot_checks import (...)` resolves names through THIS exact module.
 
 Confirmed unidirectional DAG: boot_memory <- boot_health/boot_git_checks <-
 boot_checks <- boot_render — this module must never be imported FROM either

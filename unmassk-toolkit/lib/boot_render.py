@@ -17,8 +17,8 @@ render_timeline_section() call it unchanged, so hooks/session-start-boot.py's
 `from boot_render import (render_branch_section, render_consolidation_section,
 render_scopes_section, ...)` keeps resolving without any change there, and so
 a direct `import boot_render; boot_render.check_version_mismatch()` /
-`boot_render.get_timeline()` (used by tests/test_security_regression.py and
-tests/test_migrate_statusline.py respectively) keeps resolving.
+`boot_render.get_timeline()` call (the latter used by
+tests/test_migrate_statusline.py) keeps resolving.
 
 Moved out of hooks/session-start-boot.py verbatim (Cerberus T2-1): the hook
 file had grown to 1110 lines, well past the project's 500-line limit, and

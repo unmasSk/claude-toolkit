@@ -242,8 +242,7 @@ def format_snapshot(memory: dict[str, Any]) -> str:
     # can ever reproduce today's real frame. The delimiter literals
     # themselves ("=== GIT MEMORY SNAPSHOT (pre-compact) ===" /
     # "=== END SNAPSHOT ===") are left byte-exact and unchanged: they are
-    # asserted verbatim elsewhere (test_drift.py, this file's own PART M
-    # delimiter-spoofing tests in test_control_byte_injection.py) as the
+    # asserted verbatim elsewhere (test_drift.py) as the
     # anchor a consumer greps/counts on, and _neutralize_snapshot_delimiters()
     # above still needs the exact literal to recognize and strip a spoofed
     # copy from commit-derived content.

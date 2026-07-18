@@ -51,3 +51,8 @@ Retirar los tests de defensa anti-atacante (~9.8k líneas) sin tocar código viv
 - Argus/Moriarty: N/A (borrado de tests, sin código/comportamiento nuevo ni superficie de ataque añadida). Se documenta el porqué.
 - Yoda: veredicto ligero de cierre.
 - Gate mecánico duro: suite completa verde (el suelo de 1373 menos los tests retirados a propósito).
+
+### Hallazgos de Cerberus y fix pass (2026-07-18)
+- **Issue 2 — re-evaluación de TestScopesInjectionSanitization (test_boot_output.py):** en la Fase 2 se borró entera, pero era DUDOSA (su docstring citaba tanto "compromised collaborator" atacante como "corrupted Bilbo run" interno). Contra el criterio del plan ("si es dudosa, PARAR y reportar"). Se restaura una versión recortada SOLO con las aserciones de integridad de formato (render en 1 línea; sin líneas espurias por datos internamente corruptos), sin narrativa de atacante. Cubre el wiring de render_scopes_section() aplicando el saneo.
+- **Issue 1 — sanitize_trailer_value (parsing.py):** el corte la dejó sin cobertura de su contrato de bytes de control (\x1b protege contra corromper la propia terminal = integridad). Se añade unit test mínimo de integridad, sin framing de atacante.
+- **Nitpick — comentarios muertos:** ~10 comentarios en lib/hooks citaban los ficheros de test borrados; se reescriben para reflejar la razón real del código.

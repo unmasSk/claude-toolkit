@@ -47,9 +47,9 @@ except ImportError:
 
 # NOTE: `extract_glossary` is imported from boot_memory INSIDE
 # extract_glossary_cached()'s function body (below), not here at module
-# level. tests/test_security_regression.py's BUG AO probe loads
-# lib/boot_memory.py directly via spec_from_file_location under a throwaway
-# module name (not the real "boot_memory"), then relies on boot_memory.py's
+# level. Code that loads lib/boot_memory.py directly via
+# spec_from_file_location under a throwaway module name (not the real
+# "boot_memory"), then relies on boot_memory.py's
 # own backward-compat re-export of this module's 5 glossary-cache names (see
 # the bottom of boot_memory.py) for `mod._write_glossary_cache` to resolve.
 # If this module imported `boot_memory` at its own top level, that re-export

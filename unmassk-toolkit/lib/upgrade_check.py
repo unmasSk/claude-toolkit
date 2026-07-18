@@ -19,9 +19,9 @@ message.
 
 hooks/user-prompt-memory-check.py re-imports needs_upgrade/_parse_semver by
 name (backward-compat only -- several existing tests load that hook file
-directly via importlib and call hook.needs_upgrade()/hook._parse_semver():
-tests/test_needs_upgrade_semver.py, tests/test_security_regression.py's
-BUG M/T). The logic itself is unchanged, byte-for-byte, only its home
+directly via importlib and call hook.needs_upgrade()/hook._parse_semver()
+(e.g. tests/test_needs_upgrade_semver.py). The logic itself is unchanged,
+byte-for-byte, only its home
 moved -- and hooks/user-prompt-memory-check.py's main() never calls either
 name anymore, so zero evaluation happens per user message.
 """
