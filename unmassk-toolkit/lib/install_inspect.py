@@ -23,7 +23,7 @@ from git_helpers import run_git, open_no_follow_symlink
 # Old-style install files that should be cleaned up from the project root.
 # These were copied by the v1 installer but should only live in the plugin cache.
 OLD_BIN_FILES = [
-    "bin/git-memory", "bin/git-memory-gc.py", "bin/git-memory-dashboard.py",
+    "bin/git-memory", "bin/git-memory-gc.py",
     "bin/git-memory-doctor.py", "bin/git-memory-install.py",
     "bin/git-memory-repair.py", "bin/git-memory-uninstall.py",
     "bin/git-memory-bootstrap.py", "bin/git-memory-upgrade.py",

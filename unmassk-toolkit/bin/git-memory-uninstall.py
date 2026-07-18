@@ -45,7 +45,7 @@ GENERATED_FILES = [
 
 # Old-style install remnants that might still exist
 OLD_BIN_FILES = [
-    "bin/git-memory", "bin/git-memory-gc.py", "bin/git-memory-dashboard.py",
+    "bin/git-memory", "bin/git-memory-gc.py",
     "bin/git-memory-doctor.py", "bin/git-memory-install.py",
     "bin/git-memory-repair.py", "bin/git-memory-uninstall.py",
     "bin/git-memory-bootstrap.py", "bin/git-memory-upgrade.py",
