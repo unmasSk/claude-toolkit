@@ -64,7 +64,7 @@ class _FakeStat:
 
 
 # `real_symlink_capable` fixture lives in conftest.py (shared with
-# test_security_regression.py) — auto-discovered by pytest, no import
+# test_boot_freshness_hardening.py) — auto-discovered by pytest, no import
 # needed. See conftest.py for the docstring/rationale.
 
 

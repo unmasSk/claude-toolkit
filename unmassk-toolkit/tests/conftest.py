@@ -264,7 +264,7 @@ def real_symlink_capable(tmp_path):
     the result.
 
     Shared by test_crossplatform_symlink_guard.py and
-    test_security_regression.py — single source of truth, auto-discovered
+    test_boot_freshness_hardening.py — single source of truth, auto-discovered
     via conftest.py (no import needed).
     """
     probe_target = tmp_path / "_symlink_probe_target.txt"

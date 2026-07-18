@@ -43,9 +43,7 @@ mock-patterns.md:
     `_project_root_cache` (_read_glossary_cache→_get_project_root) — the
     global is explicitly reset to None before each call that needs a
     different repo, exactly like the module's own real callers would see on
-    a fresh process (see test_security_regression.py's
-    _call_write_glossary_cache_fallback() docstring for the full rationale
-    on why this module cannot be safely re-imported under a throwaway name).
+    a fresh process.
   - bin/git-memory-commit.py's _check_behind_warn_only() — hyphenated
     filename, loaded via importlib.util.spec_from_file_location under a
     FRESH throwaway name per call (no stably-named-module risk — each load

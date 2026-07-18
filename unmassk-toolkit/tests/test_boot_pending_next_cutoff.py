@@ -53,12 +53,12 @@ reread through the REAL extract_memory() function — no hand-typed dict
 ever stands in for its output. Timestamps are pinned via
 GIT_AUTHOR_DATE/GIT_COMMITTER_DATE (git's own raw "<epoch> <tz>" format)
 so ordering is deterministic and independent of wall-clock test runtime,
-mirroring tests/test_control_byte_injection.py::_old_date's use of
-explicit dates and tests/test_control_byte_injection.py's
+using the same in-process
 `monkeypatch.chdir(repo); import boot_memory; boot_memory.extract_memory()`
-in-process call pattern (no subprocess spawn needed — git_helpers.run_git's
-cwd=None already inherits the process cwd, which monkeypatch.chdir sets
-for the duration of the test).
+call pattern used throughout this suite for stably-named modules (no
+subprocess spawn needed — git_helpers.run_git's cwd=None already inherits
+the process cwd, which monkeypatch.chdir sets for the duration of the
+test).
 """
 
 import os
@@ -121,8 +121,8 @@ def _commit_at(repo, kind, scope, message, ts, trailers=None):
 
 def _extract(repo, monkeypatch):
     """Call the REAL extract_memory() in-process, cwd pointed at the test
-    repo. Mirrors tests/test_control_byte_injection.py's
-    TestBootMemorySubjectVector pattern exactly."""
+    repo. Uses the same in-process monkeypatch.chdir() call pattern used
+    throughout this suite for stably-named modules."""
     monkeypatch.chdir(repo)
     import boot_memory
     return boot_memory.extract_memory()
