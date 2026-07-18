@@ -19,6 +19,11 @@ type: project
 - chatroom/apps/backend/CLAUDE.md: WS message types undocumented — added
 - Root CLAUDE.md Protocols menu / build-mode wording gap (fixed 2026-07-04, commit 278b41b): root CLAUDE.md now has `unmassk-flow-stack`, `unmassk-flow`, `unmassk-audit` rows and the "Execute step of `unmassk-flow` (the build pipeline skill)" wording — confirmed via `git diff CLAUDE.md` (empty against HEAD). No action needed.
 
+## Cleared zones (fixed 2026-07-18, issue #72)
+
+- CHANGELOG.md [Unreleased] had zero mention of the anti-attacker test cut (~9.6k lines, 4 files deleted + 6 excised) — genuine coverage gap, not stale wording. Added Removed + Fixed entries. See changelog-state.md.
+- Swept README.md, root CLAUDE.md, `unmassk-gitmemory/SKILL.md`, `unmassk-core/SKILL.md`, all plugin READMEs and SKILL.md files for hardcoded test counts ("N tests", "N passed") or anti-attacker-defense-as-coverage claims (control-byte injection, hardlink/symlink-hostile-actor framing) that would now be stale against the cut. **Found none** — no surface outside CHANGELOG.md carried a number or claim tied to this suite. Root CLAUDE.md's threat-model policy section was already accurate (this work implements it, doesn't change what it says); left untouched by design, not oversight.
+
 ## Active stale zones
 
 ## Cleared zones (fixed 2026-07-16)

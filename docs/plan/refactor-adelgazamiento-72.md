@@ -1,5 +1,7 @@
 # Adelgazamiento — recorte de tests anti-atacante (#72)
 
+**Status: COMPLETED** (2026-07-18) — suite 1373 → 1078 passed / 2 skipped, exit 0. Yoda APPROVED.
+
 **Issue:** #72
 **Branch:** — (trunk repo, main es la rama de trabajo)
 **Triage:** BIG

@@ -23,7 +23,8 @@ type: project
 
 | Path | Type | Status |
 |------|------|--------|
-| `CHANGELOG.md` (root) | Changelog | Updated 2026-07-13 — [Unreleased] Added entry for new plugin `unmassk-pentesting` v1.0.0 (30 skills). See changelog-state.md. |
+| `CHANGELOG.md` (root) | Changelog | Updated 2026-07-18 — [Unreleased] Removed + Fixed entries for issue #72 (anti-attacker test cut). See changelog-state.md. |
+| `CHANGELOG.md` (root, 2026-07-13 entry) | Changelog | Updated 2026-07-13 — [Unreleased] Added entry for new plugin `unmassk-pentesting` v1.0.0 (30 skills). See changelog-state.md. |
 | `chatroom/CHANGELOG.md` | Changelog | Audited 2026-03-24 — [Unreleased] Removed section corrected (V2 files all deleted) |
 | `README.md` (root) | Project readme | Updated 2026-07-13 — added `unmassk-pentesting` install command + "What's inside" table row (30 skills) |
 | `chatroom/README.md` | Project readme | Updated 2026-03-24 — test count corrected 535+ → 1200+ |
