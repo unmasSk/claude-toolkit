@@ -22,7 +22,7 @@ from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
 from constants import TOMBSTONE_KEYS
-from git_helpers import run_git, is_git_repo, is_shallow_clone
+from git_helpers import run_git, run_git_read_retrying, is_git_repo, is_shallow_clone
 from parsing import normalize, scan_trailers_memory, sanitize_trailer_value as _sanitize
 
 # Issue #57 round 2d (Moriarty bullet B, decision 0cef65c): the snapshot's
@@ -102,10 +102,13 @@ def extract_memory_from_log() -> dict[str, Any]:
     # real trailer entirely from stdout. Now any extra \x1f in the
     # subject is absorbed into `subject` itself (header.split("\x1f", 1)
     # below), never bleeding into `body`.
-    # breadcrumb #61: transient git failure here used to collapse to {}
-    # with zero trace; log_stderr_on_failure leaves a trace, {} return
-    # value unchanged (see run_git()'s docstring in lib/git_helpers.py).
-    code, output = run_git([
+    # issue #61: transient git failure here used to collapse to {} with
+    # zero trace on the FIRST failure; run_git_read_retrying() (Verify
+    # round, T1 completeness — fires on every PreCompact) gives it a
+    # bounded second/third chance before falling back, and
+    # log_stderr_on_failure still leaves a trace on the final failure
+    # (see run_git()'s docstring in lib/git_helpers.py).
+    code, output = run_git_read_retrying(run_git, [
         "log", "-n", "30", "-z",
         "--pretty=format:%h\x1f%s%n%b",
         "--",

@@ -40,7 +40,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from git_helpers import run_git, GIT_TIMEOUT
+from git_helpers import run_git, run_git_read_retrying, GIT_TIMEOUT
 from parsing import scan_trailers_memory, parse_scope, normalize, sanitize_trailer_value as _sanitize_canonical
 from constants import TOMBSTONE_KEYS, RECALL_KEYS
 
@@ -185,10 +185,16 @@ def _scan_commits(repo_dir: str | None = None) -> list[dict]:
         "--",
     ]
 
-    # breadcrumb #61: transient git failure here used to collapse to an
-    # empty [] with zero trace; log_stderr_on_failure leaves a trace, []
-    # return value unchanged (see run_git()'s docstring in git_helpers.py).
-    code, log_output = run_git(git_args, cwd=repo_dir, log_stderr_on_failure=True)
+    # issue #61: transient git failure here used to collapse to an empty
+    # [] with zero trace on the FIRST failure; run_git_read_retrying()
+    # gives it a bounded second/third chance before falling back, and
+    # log_stderr_on_failure still leaves a trace on the final failure (see
+    # run_git()'s docstring in git_helpers.py). `run_git` is passed by
+    # name (module global) so test monkeypatching of `recall.run_git`
+    # still reaches every attempt, not just the first.
+    code, log_output = run_git_read_retrying(
+        run_git, git_args, cwd=repo_dir, log_stderr_on_failure=True,
+    )
 
     if code != 0 or not log_output:
         return []

@@ -10,6 +10,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 
 # Runtime directory for all generated files — single gitignore entry.
@@ -567,6 +568,153 @@ def run_git(
         return 1, ""
 
 
+# issue #61 (decision e9400db, Opción A): bounded retry for READ-PATH git
+# calls only. A transient `git rc!=0` (observed on Ubuntu CI under runner
+# load, exit 128) used to collapse straight to the caller's fail-safe empty
+# result on the FIRST failure — indistinguishable from "no memory here",
+# a silent-loss bug. READ_RETRY_ATTEMPTS is the total number of tries
+# (1 initial + up to 2 retries); READ_RETRY_BACKOFF_SECONDS is a short,
+# fixed pause between them — no exponential growth, this only needs to
+# survive a brief runner hiccup, not a real outage.
+READ_RETRY_ATTEMPTS: int = 3
+READ_RETRY_BACKOFF_SECONDS: float = 0.1
+
+# SEC-HIGH-001 (Argus, Verify round; broken by Moriarty, fixed here): the
+# naive "retry N times" above is unbounded in WALL-CLOCK terms — if git
+# HANGS (not a fast rc=128, but a stuck credential prompt/network stall),
+# each attempt can burn a full GIT_TIMEOUT (10s) before
+# subprocess.communicate(timeout=...) kills it, so 3 attempts could cost
+# 3x GIT_TIMEOUT (30s) at one call site alone — enough to blow a 45s hook
+# budget and get the whole boot killed before it ever writes its own log,
+# the exact silent-loss failure class issue #61 exists to close.
+#
+# A FIRST fix attempt only checked the remaining budget BEFORE starting a
+# new attempt, without capping the DURATION of the attempt actually
+# started — Moriarty reproduced a "slow-then-hang" sequence (attempt 1
+# genuinely slow at 9.3s, leaving 0.7s of budget — enough to clear the
+# "don't start" gate — then attempt 2 hangs for its own full,
+# uncapped GIT_TIMEOUT) totaling ~19.4s, ~2x GIT_TIMEOUT: the gate alone
+# does not bound total latency, only the attempt COUNT under specific
+# timing.
+#
+# Real fix: READ_RETRY_DEADLINE_SECONDS is a budget for the WHOLE
+# sequence (all attempts + backoff combined), and EVERY attempt — not
+# just the decision to start one — is capped by explicitly passing
+# `timeout=min(remaining_budget, GIT_TIMEOUT)` into that attempt's own
+# `run_git_fn(...)` call. An attempt can never run longer than whatever
+# budget is left when it starts, so the sequence's total wall-clock time
+# is mechanically bounded by READ_RETRY_DEADLINE_SECONDS (~1x
+# GIT_TIMEOUT) regardless of how the failures are distributed across
+# attempts (all-fast, all-hang, or any slow/hang mix) — not just the
+# "first attempt hangs" case the earlier version happened to cover. A
+# fast transient (the actual issue #61 CI symptom, sub-second) barely
+# touches the budget, so it still gets its full READ_RETRY_ATTEMPTS
+# tries with each one's timeout left effectively at GIT_TIMEOUT.
+# READ_RETRY_MIN_ATTEMPT_SECONDS is the floor below which a new attempt
+# is not worth starting at all (too little budget left for a meaningful
+# try) — separate from the per-attempt timeout capping above, both are
+# needed together.
+#
+# KNOWN CONSEQUENCE (accepted, not a bug): `timeout=` is now injected
+# unconditionally on every call this helper makes, even for callers that
+# never passed it. Several existing test doubles for `run_git` across
+# this suite have a FIXED signature with neither `timeout` nor `**kwargs`
+# (`def _patched_run_git(args, cwd=None): ...`) — those now raise
+# TypeError when exercised through one of the 7 read-retry call sites.
+# This is Dante's lane to fix (update those doubles to accept **kwargs),
+# not addressed in this file — see the exact list handed off in the
+# Verify-round report for issue #61.
+READ_RETRY_DEADLINE_SECONDS: float = float(GIT_TIMEOUT)
+READ_RETRY_MIN_ATTEMPT_SECONDS: float = 0.5
+
+
+def run_git_read_retrying(run_git_fn, args: list[str], **kwargs) -> tuple[int, str]:
+    """Bounded retry wrapper for a READ-PATH git call — issue #61.
+
+    Calls `run_git_fn(args, **kwargs)` up to READ_RETRY_ATTEMPTS times,
+    pausing READ_RETRY_BACKOFF_SECONDS between attempts, and returns as
+    soon as one attempt succeeds (exit code 0) — including a genuine
+    rc=0-with-empty-output result, which is returned immediately on the
+    FIRST attempt and never retried (a real empty history must never be
+    confused with a transient git failure). If every attempt fails, the
+    last (code, output) pair is returned unchanged — the caller's
+    existing fail-safe return value/type is never altered here.
+
+    `run_git_fn` is taken as an explicit parameter (never resolved from
+    this module's own `run_git` name) so each call site can pass
+    whatever `run_git` reference is bound in ITS OWN namespace at call
+    time — a module-level bound name (e.g. recall.py's
+    `from git_helpers import run_git`) or a deferred, function-body
+    import (e.g. boot_memory.py's/boot_git_checks.py's `from git_helpers
+    import run_git` inside the function) both keep working exactly as a
+    single unwrapped call would, including test monkeypatching of
+    either form.
+
+    Wall-clock deadline (SEC-HIGH-001, see the constants' comment above —
+    fixed twice: a first version only gated whether a NEW attempt could
+    START, which Moriarty broke with a slow-then-hang sequence). The REAL
+    bound enforced here: every attempt's own `timeout` is capped to
+    `min(remaining_budget, GIT_TIMEOUT)` where `remaining_budget` is
+    whatever is left of READ_RETRY_DEADLINE_SECONDS when THAT attempt
+    starts — so no single attempt, whenever it starts, can outlast the
+    sequence's own deadline. Combined with the "don't start a new attempt
+    below READ_RETRY_MIN_ATTEMPT_SECONDS" gate, total wall-clock time for
+    the whole sequence is mechanically bounded to ~READ_RETRY_DEADLINE_SECONDS
+    (~1x GIT_TIMEOUT), for ANY distribution of fast/slow/hanging failures
+    across attempts — not just "the first one hangs".
+
+    WARN only after giving up (Cerberus, Verify round): if the caller
+    passed `log_stderr_on_failure` (either value), it is honored ONLY on
+    the LAST attempt actually made — every earlier attempt is called with
+    `log_stderr_on_failure=False` regardless of what the caller asked
+    for, so a transient failure that RECOVERS on a later attempt never
+    prints attempt 1's failure trace as a false alarm. A genuinely
+    HANGING git still always leaves its own unconditional
+    "timed out after Ns" trace inside run_git() on every attempt that
+    hits it, independent of this flag — so a hang is never silent even
+    though this suppression applies to it too.
+
+    `timeout` (SEC-HIGH-001 fix): always injected into every attempt's
+    kwargs, overriding whatever the caller passed (or the GIT_TIMEOUT
+    default) with the per-attempt budget-capped value described above.
+    Unlike `log_stderr_on_failure`, this is NOT conditional on the caller
+    having supplied it — capping duration is the whole point of the fix,
+    so it applies uniformly. KNOWN CONSEQUENCE: `run_git_fn` doubles with
+    a fixed signature that doesn't accept `timeout=` (no `**kwargs`
+    either) will now raise TypeError — see the constants' comment above
+    for the accepted list, fixed separately by Dante.
+
+    READ-PATH ONLY: never wrap a git WRITE (commit, config, push, etc.)
+    with this — blindly retrying a write could double-apply a mutation.
+    This is a deliberate scope boundary, not an oversight: `run_git()`
+    itself stays retry-free for every caller that doesn't opt in here.
+    """
+    has_warn_kwarg = "log_stderr_on_failure" in kwargs
+    want_warn = kwargs.pop("log_stderr_on_failure", False) if has_warn_kwarg else False
+    base_timeout = kwargs.pop("timeout", GIT_TIMEOUT)
+
+    deadline = time.monotonic() + READ_RETRY_DEADLINE_SECONDS
+    code, output = 1, ""
+    for attempt in range(1, READ_RETRY_ATTEMPTS + 1):
+        remaining = deadline - time.monotonic()
+        if attempt > 1 and remaining <= READ_RETRY_MIN_ATTEMPT_SECONDS:
+            break  # not enough wall-clock budget left for another attempt
+        is_final_attempt = attempt == READ_RETRY_ATTEMPTS
+        call_kwargs = dict(kwargs)
+        call_kwargs["timeout"] = max(0.1, min(remaining, base_timeout))
+        if has_warn_kwarg:
+            call_kwargs["log_stderr_on_failure"] = want_warn and is_final_attempt
+        code, output = run_git_fn(args, **call_kwargs)
+        if code == 0:
+            return code, output
+        if is_final_attempt:
+            break
+        if (deadline - time.monotonic()) <= READ_RETRY_MIN_ATTEMPT_SECONDS:
+            break  # this attempt alone ate the remaining budget — stop here
+        time.sleep(READ_RETRY_BACKOFF_SECONDS)
+    return code, output
+
+
 _CONSOLIDATION_SENTINEL = 9999  # returned when no context(consolidation) exists
 
 
@@ -587,10 +735,13 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
         # Find the most recent commit with subject containing "context(consolidation)"
         # Using --grep with --fixed-strings, no -n limit → full history scan.
         # The pattern matches "context(consolidation)" anywhere in the subject line.
-        # breadcrumb #61: transient git failure here used to collapse to 0
-        # with zero trace; log_stderr_on_failure leaves a trace, return
-        # value unchanged (see run_git()'s docstring above).
-        rc, output = run_git(
+        # issue #61: transient git failure here used to collapse to 0 with
+        # zero trace on the FIRST failure; run_git_read_retrying() gives it
+        # a bounded second/third chance before falling back, and
+        # log_stderr_on_failure still leaves a trace on the final failure
+        # (see run_git()'s docstring above).
+        rc, output = run_git_read_retrying(
+            run_git,
             ["log", "--all", "--format=%H %s", "--grep=context(consolidation)", "--fixed-strings"],
             cwd=cwd,
             log_stderr_on_failure=True,
@@ -629,8 +780,10 @@ def commits_since_last_consolidation(cwd: str | None = None) -> int:
             return _CONSOLIDATION_SENTINEL
 
         # Count commits from consolidation_sha (exclusive) to HEAD.
-        # breadcrumb #61: same rationale as the run_git() call above.
-        rc2, count_str = run_git(
+        # issue #61: same retry rationale as the run_git_read_retrying()
+        # call above.
+        rc2, count_str = run_git_read_retrying(
+            run_git,
             ["rev-list", "--count", f"{consolidation_sha}..HEAD"],
             cwd=cwd,
             log_stderr_on_failure=True,

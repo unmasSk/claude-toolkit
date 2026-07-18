@@ -12,7 +12,7 @@ import re
 from collections import defaultdict
 from typing import Any
 
-from git_helpers import run_git
+from git_helpers import run_git, run_git_read_retrying
 from parsing import sanitize_trailer_value
 
 SCAN_COMMITS = 20
@@ -123,7 +123,14 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     # breadcrumb #61: transient git failure here used to collapse to None
     # with zero trace; log_stderr_on_failure leaves a trace, None return
     # value unchanged (see run_git()'s docstring in git_helpers.py).
-    code, output = run_git([
+    # #61 completeness (Yoda Minor): a transient rc!=0 previously collapsed
+    # straight to None on the FIRST attempt with no chance to self-heal --
+    # run_git_read_retrying() gives it the same bounded retry every other
+    # production read-path site already has (recall.py, boot_memory.py,
+    # boot_git_checks.py, git_helpers.py's own commits_since_last_
+    # consolidation()); a genuine rc=0-empty result still returns
+    # immediately on the first attempt, never retried.
+    code, output = run_git_read_retrying(run_git, [
         "log", "-n", str(depth), "-z",
         # %aI (not %at): this date is never parsed, only carried through to
         # bin/git-memory-bootstrap.py's --json output for presentation to
@@ -147,7 +154,10 @@ def scan_recent_commits(depth: int = SCAN_COMMITS) -> dict[str, Any] | None:
     authors_by_sha: dict[str, str] = {}
     # breadcrumb #61: same rationale as Call 1's run_git() above — a
     # failure here degrades to an empty author dict silently; trace only.
-    code2, output2 = run_git([
+    # #61 completeness (Yoda Minor): same bounded-retry treatment as Call 1
+    # above, for the same reason -- a transient rc!=0 here used to degrade
+    # straight to empty authors on the first attempt with no retry.
+    code2, output2 = run_git_read_retrying(run_git, [
         "log", "-n", str(depth), "-z",
         "--pretty=format:%h\x1f%an",
         "--",

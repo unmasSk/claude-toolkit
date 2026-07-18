@@ -481,3 +481,39 @@ find/add the real call path that exercises `_crown_replace`'s multi-match branch
 **Score breakdown (98/110): Integrity 9 (zero producer/consumer seam touched, real §34 no-seam mechanical check performed by me; docked lightly for the dashboard-list "phantom" mischaracterization), Error Handling 9 (nothing touched in this dimension by the diff itself; the one relevant fail-loud test — `TestBootLogWriteFailureLogsWarning` — verified still present and untouched), Structure 9 (clean class-by-class execution against the plan's own list, verified exactly), Real verification 9 (new tests are real/non-tautological against real production functions, suite run by me directly — 1078 passed, 2 skipped, exit 0, 253.89s, arithmetic cross-checked against all 4 phase commits' self-reported counts; docked for the 5 residual stale tests/ comments outside anyone's stated sweep scope and for Dante leaving no dedicated memory-note artifact this round, narration-only), Maintainability 8 (very clean comment rewrites in all 9 lib/hooks files; docked for the same two residuals above).**
 
 **Verdict:** APPROVED (ready to commit), 98/110. NOT a recommendation to close GitHub issue #72 as fully resolved — its own DoD item 3 (dead-code removal) was explicitly descoped by decision, but the issue text itself doesn't reflect that; flagged as a closing-mechanics question for Bex/Gitto, not a code-quality blocker. Zero T1/T2 findings from Cerberus survive unaddressed (both verified closed by me directly); Argus/Moriarty omission defensible and verified structurally (zero commits, zero new production code path in the diff).
+
+## 2026-07-18 — Issue #61 silent-memory-loss read-path retry, final judgment (92/110)
+
+**Pattern: grep the codebase's OWN prior "breadcrumb"/pointer comments as a completeness cross-check, don't just trust the current pipeline's stated site list.**
+House's diagnosis this session (memo `4500f81`) and the plan (`docs/plan/fix-silent-memory-loss-61.md`)
+both named exactly 4 production read sites; Cerberus's Verify-round sweep added 3 more (7 total,
+matching decision `e9400db` + the Verify-round expansion). But an EARLIER, separate House root-cause
+pass (commit `07e194a`, `git log` shows it predates this session) had already added
+`# breadcrumb #61: transient git failure here used to collapse to None with zero trace` comments to
+`lib/bootstrap_commits.py:123` and `:148` (`scan_recent_commits()`, used by `git memory bootstrap`),
+and Cerberus's OWN earlier follow-up (dated 2026-07-11, recorded in
+`.claude/agent-memory/unmassk-toolkit-dante/issue-61-ci-flake-hardening-notes.md`) explicitly listed
+these 2 sites among "9 real production call sites" needing the WARN breadcrumb (which they got,
+`log_stderr_on_failure=True`, confirmed in `07e194a`'s diff). None of this session's House/Cerberus/
+Ultron passes touched `bootstrap_commits.py` — a simple `grep -rn "run_git(" lib/ hooks/ bin/ | grep -v
+run_git_read_retrying` cross-referenced against `grep -rn "breadcrumb #61\|issue #61"` surfaced the gap
+immediately (2 call sites, lines 126/150 in current HEAD, still plain `run_git()`, no retry). Verdict:
+APPROVED WITH CONDITIONS (92/110) — the boot-critical path (every-session recall/glossary/timeline,
+the actual Ubuntu-CI flakiness root cause) is genuinely fixed and mutation-tested; `bootstrap_commits.py`
+is a real but lower-blast-radius residual (manual `git memory bootstrap` command, output is
+human-reviewed before any commit is made per its own docstring — never auto-consumed on every session)
+classified as Minor/tracked follow-up, not a blocker for closing #61's diagnosed scope.
+
+**Pattern: reproduce a reported mutation-kill myself, don't just read the agent's narration of it.**
+Dante's memory notes described mutation-killing the SEC-HIGH-001 per-attempt timeout cap
+(`call_kwargs["timeout"] = max(0.1, min(remaining, base_timeout))` in `lib/git_helpers.py`'s
+`run_git_read_retrying()`) by reverting it to `base_timeout` and watching
+`test_slow_then_would_be_hanging_second_attempt_gets_capped_timeout` fail. I repeated this myself
+(edited the live file, ran the test class, saw the exact same failure — `received_timeouts[1] == 10`
+not `< 9` — restored from a backup, confirmed `git diff --stat` empty). This is what the Round-Trip
+Evidence Rule demands for a latency-bound claim: read the artifact myself, not the agent's transcription
+of it.
+
+**Score breakdown:** Integrity 8/3=24, Silent-failure 8/3=24, Structure 9/2=18, Real verification
+9/2=18, Maintainability 8/1=8 → 92/110. Docked consistently across Integrity/Silent-failure/Real-
+verification for the same root cause (the `bootstrap_commits.py` gap), not 3 independent issues.

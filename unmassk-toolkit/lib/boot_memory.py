@@ -130,7 +130,7 @@ def extract_memory(ref: str = "HEAD") -> dict:
     log's starting point changes.
     """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
-    from git_helpers import run_git
+    from git_helpers import run_git, run_git_read_retrying
 
     # SEC-CRIT-001 (Argus, defense-in-depth): `ref` is either the "HEAD"
     # constant (always safe) or an upstream tracking ref resolved elsewhere
@@ -162,7 +162,14 @@ def extract_memory(ref: str = "HEAD") -> dict:
     # 'Decision:' trailer entirely (confirmed live). Now any extra \x1f
     # in the subject is absorbed into `subject` itself (header.split
     # ("\x1f", 2) below), never bleeding into `body`.
-    code, log_output = run_git([
+    # issue #61 (Verify round, T1 completeness — House had omitted this
+    # site, the HIGHEST blast-radius reader of the 4: RESUME/DECISIONS/
+    # MEMOS/REMEMBERS/NEXT/BLOCKERS on every boot): bounded retry before
+    # falling back to the fail-safe empty result. `run_git_read_retrying`
+    # never adds a kwarg beyond what's passed here (none), so the
+    # `(args, cwd=None)`-only test doubles mentioned below stay compatible
+    # unchanged.
+    code, log_output = run_git_read_retrying(run_git, [
         "log", ref, "-z", f"-n{SCAN_DEPTH}",
         "--pretty=format:%h\x1f%at\x1f%s%n%b",
         # SEC-CRIT-001 (Argus, defense-in-depth): trailing `--` — on top of
@@ -173,7 +180,9 @@ def extract_memory(ref: str = "HEAD") -> dict:
     # breadcrumb #61: printed manually, not via run_git's kwarg — some
     # run_git test doubles here have a fixed `(args, cwd=None)` signature
     # with no **kwargs, so passing log_stderr_on_failure would raise
-    # TypeError in those tests.
+    # TypeError in those tests. This print now only fires after
+    # run_git_read_retrying() has exhausted its retries (or its deadline),
+    # so a transient that recovers on attempt 2/3 never reaches here.
     if code != 0:
         print(f"[boot_memory] extract_memory(): git log exited {code}", file=sys.stderr)
     if code != 0 or not log_output:
@@ -416,7 +425,7 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
     scan exactly.
     """
     from parsing import scan_trailers_memory as scan_trailers, normalize, parse_scope
-    from git_helpers import run_git
+    from git_helpers import run_git, run_git_read_retrying
 
     log_args = ["log", "-z"]
     if exclude_remote is not None and _is_safe_remote_name(exclude_remote):
@@ -433,7 +442,13 @@ def extract_glossary(exclude_remote: str | None = None) -> dict:
     # SEC-CRIT-NEW-01: same NUL-separated record boundary fix as
     # extract_memory() above — see the comment there for why -z closes the
     # control-byte record-forgery hole for good.
-    code, log_output = run_git(log_args)
+    # issue #61: bounded retry before falling back to the fail-safe empty
+    # glossary — a transient failure on the FIRST attempt used to be
+    # indistinguishable from "no glossary here" (see
+    # run_git_read_retrying()'s docstring in git_helpers.py). `run_git`
+    # is passed by name (the deferred import above) so test
+    # monkeypatching of `git_helpers.run_git` still reaches every retry.
+    code, log_output = run_git_read_retrying(run_git, log_args)
     # breadcrumb #61: same rationale as extract_memory() above.
     if code != 0:
         print(f"[boot_memory] extract_glossary(): git log exited {code}", file=sys.stderr)

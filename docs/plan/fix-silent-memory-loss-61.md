@@ -1,5 +1,7 @@
 # Fix — pérdida silenciosa de memoria en fallo transitorio de git (#61)
 
+**Status: COMPLETED** (2026-07-18) — 9 lectores envueltos con retry+deadline; suite 1078→1110 passed / 2 skipped, exit 0; Moriarty roto y reparado; Yoda APPROVED con condición (bootstrap) ya resuelta.
+
 **Issue:** #61
 **Branch:** — (trunk repo, main es la rama de trabajo)
 **Triage:** BIG (T1)

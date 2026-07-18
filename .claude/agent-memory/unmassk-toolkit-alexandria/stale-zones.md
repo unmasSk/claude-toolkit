@@ -26,6 +26,9 @@ type: project
 
 ## Active stale zones
 
+### Root CHANGELOG.md [Unreleased] — two separate `### Fixed` headers (noticed 2026-07-18, not fixed)
+Current `[Unreleased]` has `### Fixed` twice (once right after `### Removed`, once after `### CI`), from separate passes that each appended their own header instead of merging into the existing one. Cosmetic against Keep a Changelog ("group by type", implying one header per type per version) — not a factual error, so left as-is rather than restructuring unprompted. Worth collapsing into a single `### Fixed` block next time `[Unreleased]` is touched for an unrelated reason, or whenever `bin/release.py` next promotes this section to a version tag.
+
 ## Cleared zones (fixed 2026-07-16)
 
 - Root CHANGELOG.md [Unreleased] Added — the `unmassk-3d` and `unmassk-frontend` entries said Blender/AgentBrowser were "wired in `.mcp.json`" / "wired via a plugin `.mcp.json`" without mentioning on-demand registration (both `.mcp.json` files ship empty; servers register via `claude mcp add` the first time the skill needs them). Rewrote both to name the on-demand mechanism explicitly, consistent with the new `[Unreleased] → Changed` entry covering the other 6 plugins.

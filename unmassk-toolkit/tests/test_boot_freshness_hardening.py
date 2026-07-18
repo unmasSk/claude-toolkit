@@ -538,7 +538,7 @@ class TestGetAheadBehind:
 
         real_run_git = git_helpers.run_git
 
-        def _fake_run_git(args, timeout=10, cwd=None, env=None):
+        def _fake_run_git(args, timeout=10, cwd=None, env=None, **kwargs):
             if args and args[0] == "rev-list" and "--left-right" in args:
                 return 0, "abc def"
             return real_run_git(args, timeout=timeout, cwd=cwd, env=env)

@@ -220,7 +220,7 @@ os.chdir({repr(repo)})
 import subprocess as _sp
 import git_helpers as _gh
 
-def _patched_run_git(args, cwd=None):
+def _patched_run_git(args, cwd=None, **kwargs):
     env = dict(os.environ)
     env['GIT_DIR'] = os.path.join({repr(repo)}, '.git')
     env['GIT_WORK_TREE'] = {repr(repo)}

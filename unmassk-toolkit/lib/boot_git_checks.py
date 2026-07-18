@@ -173,7 +173,7 @@ def get_timeline(
     docstring gives). None (default) preserves an unrestricted `--all` scan.
     """
     from parsing import parse_scope
-    from git_helpers import run_git
+    from git_helpers import run_git, run_git_read_retrying
 
     # %at (author date, unix epoch) — NOT %aI (ISO-8601). Same date token
     # (%at) and trailing "--" terminator as extract_memory()'s git log call
@@ -205,7 +205,13 @@ def get_timeline(
         # on (lib/boot_memory.py).
         log_args.append(f"--exclude=refs/remotes/{exclude_remote}/*")
     log_args += ["--all", f"-n{n}", "--pretty=format:%h\x1f%s\x1f%at", "--"]
-    code, output = run_git(log_args, log_stderr_on_failure=True)
+    # issue #61: bounded retry before falling back to the fail-safe empty
+    # timeline — a transient failure on the FIRST attempt used to be
+    # indistinguishable from "no commits here" (see
+    # run_git_read_retrying()'s docstring in git_helpers.py). `run_git`
+    # is passed by name (the deferred import above) so test
+    # monkeypatching of `git_helpers.run_git` still reaches every retry.
+    code, output = run_git_read_retrying(run_git, log_args, log_stderr_on_failure=True)
     if code != 0 or not output:
         return []
     entries = []
@@ -232,9 +238,12 @@ def get_last_context_time() -> str | None:
     by every "how long ago" reader, so this and get_timeline() can never
     disagree just because a different git version renders %aI differently.
     """
-    from git_helpers import run_git
+    from git_helpers import run_git, run_git_read_retrying
 
-    code, output = run_git([
+    # issue #61 (Verify round, T1 completeness): same bounded-retry pattern
+    # as get_timeline() above — a transient rc!=0 here used to collapse
+    # straight to None, indistinguishable from "no context() commit exists".
+    code, output = run_git_read_retrying(run_git, [
         "log", "HEAD", "-n30",
         "--pretty=format:%h\x1f%s\x1f%at",
         "--",

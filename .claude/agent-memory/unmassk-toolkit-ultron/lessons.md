@@ -1434,3 +1434,21 @@ Also: this repo's full `pytest tests/` suite (1287 passed, 2 skipped) takes
 ~286s (4:45) — exceeds the default 120s Bash timeout. Pass an explicit
 `timeout: 300000` (or higher) to Bash, or it gets silently moved to
 background and you have to re-run/wait anyway.
+
+## issue #61 completeness round: bootstrap_commits.py's two run_git() calls just needed run_git_read_retrying() wrapping, no import-shape decision
+
+Closing a Yoda Minor finding (2 leftover `run_git(...)` calls in
+`lib/bootstrap_commits.py::scan_recent_commits()` had `log_stderr_on_failure=True`
+breadcrumbs but no retry). Since `bootstrap_commits.py` already did a plain
+module-level `from git_helpers import run_git` (not deferred/function-body,
+unlike `boot_memory.py`/`boot_git_checks.py`) and is confirmed NOT in
+`test_migrate_statusline.py`'s `sys.modules["git_helpers"]` stub graph (that
+stub only wraps `hooks/session-start-boot.py`'s load), the fix was purely
+mechanical: add `run_git_read_retrying` to the same existing import line and
+wrap both calls as `run_git_read_retrying(run_git, [...], log_stderr_on_failure=True)`
+— identical shape to `recall.py`'s precedent (module-level bound name,
+patched in tests as `bootstrap_commits.run_git`, never `git_helpers.run_git`).
+No new import-location decision was needed; `test_issue61_breadcrumbs.py`'s
+`TestScanRecentCommitsBreadcrumb` (3 tests, including a selective-fail double
+on the 2nd call site) and the whole `test_issue61_read_retry_contract.py`
+suite stayed green with zero changes.

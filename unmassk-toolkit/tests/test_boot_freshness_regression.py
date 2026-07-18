@@ -774,7 +774,7 @@ os.chdir({repr(repo)})
 
 import git_helpers as _gh
 
-def _patched_run_git(args, cwd=None, timeout=None, env=None):
+def _patched_run_git(args, cwd=None, timeout=None, env=None, **kwargs):
     merged_env = dict(os.environ)
     merged_env['GIT_DIR'] = os.path.join({repr(repo)}, '.git')
     merged_env['GIT_WORK_TREE'] = {repr(repo)}
@@ -1206,7 +1206,7 @@ class TestFetchTimeoutSecondsRaisedTo10:
         real_run_git = git_helpers.run_git
         captured_fetch_timeouts = []
 
-        def _spy_run_git(args, timeout=None, cwd=None, env=None):
+        def _spy_run_git(args, timeout=None, cwd=None, env=None, **kwargs):
             if args and args[0] == "fetch":
                 captured_fetch_timeouts.append(timeout)
             return real_run_git(args, timeout=timeout, cwd=cwd, env=env)
