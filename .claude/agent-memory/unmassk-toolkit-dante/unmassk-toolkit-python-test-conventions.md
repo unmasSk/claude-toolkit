@@ -565,4 +565,53 @@ pattern is in use yet" test-first, before the helper exists.**
    Task 2 changes HOW the write happens. Report both kinds explicitly
    rather than treating "some tests pass already" as a setup mistake.
 
+**fix-atomic-claude-md-write, hardening pass (2026-07-19) — a fixture built
+from ONLY managed blocks (no surrounding user text) silently takes the
+WRONG branch in `remove_claude_md_block()`, producing a false failure that
+looked like a production gap.** Testing ROB-MED-001 (uninstall must return
+`False`, not propagate, when the atomic write fails) with
+`upsert_managed_blocks("")[0]` as the CLAUDE.md fixture — blocks only, zero
+surrounding text — made the test fail with `result=True` instead of the
+expected `False`. Root cause was the TEST, not production:
+`remove_claude_md_block()` strips every block, then does
+`content = re.sub(r"\n{3,}", "\n\n", content).strip()` — with no user text
+outside the blocks, that collapses to `""`, and the function takes its
+EARLY, SEPARATE `if not content: os.unlink(claude_md); return True` branch
+— a completely different code path that unlinks the whole file and never
+reaches the atomic write / `tempfile.mkstemp()` call the test meant to
+sabotage. Fix: seed the fixture with real leading user text
+(`upsert_managed_blocks("# User notes\n\nKeep this line.\n")`) so content
+survives block-removal and the function actually reaches its write step.
+**Lesson: before trusting a "found a gap" result, check whether the
+fixture's post-transform state still routes through the code path the test
+claims to exercise** — a `upsert_managed_blocks(...)`-derived fixture with
+zero non-block content is a trap specifically for any test targeting
+`remove_claude_md_block()`'s write path, since that function has its own
+"empty after removal → delete instead of write" short-circuit before ever
+reaching mkstemp.
+
+**Same pass — sabotage-after-open technique (see the `fix-atomic-claude-md-write
+(2026-07-19)` entry above) only reproduces the OLD non-atomic bug; testing
+the NEW `_AtomicWriteNoFollowSymlink` class itself needs a DIRECT unit test,
+no subprocess/proxy at all.** Once Ultron's real atomic writer exists, the
+most convincing "crash mid-write leaves no orphan" test is the simplest
+one: import `git_helpers` directly (no hyphens, no subprocess needed),
+open `git_helpers.open_no_follow_symlink(path, "w", atomic=True)` in a real
+`with` block, and `raise RuntimeError(...)` from inside it — the class's
+own `__exit__()` exception branch is what must close+unlink the temp file,
+so this is a true unit test of the real cleanup code, not a simulation of
+the old bug. Mutation-checked live: commented out the
+`os.chmod(self._tmp_path, existing_mode)` permission-preservation block in
+`__exit__()` (replaced with a bare `os.replace(...)`, no chmod), reran only
+`TestPermissionPreservation` — both assertions genuinely failed
+(`0o600` instead of `0o644`), confirmed via `git diff` that the production
+file was restored byte-identical afterward, then reran the full file green
+(14/14). `os.fdopen`/`tempfile.mkstemp` can both be patched via pytest's
+own `monkeypatch` fixture directly in-process for this class (no subprocess
+needed) — unlike the module-level-function-pollution risk with
+`install_apply.open_no_follow_symlink` (a different, non-reverting kind of
+patch used in the original contract pass), `monkeypatch.setattr(os,
+"fdopen", ...)` auto-reverts after each test, so there's no cross-test
+contamination risk even though `os`/`tempfile` are shared stdlib modules.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).
