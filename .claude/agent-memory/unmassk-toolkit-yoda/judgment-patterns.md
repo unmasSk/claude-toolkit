@@ -517,3 +517,28 @@ of it.
 **Score breakdown:** Integrity 8/3=24, Silent-failure 8/3=24, Structure 9/2=18, Real verification
 9/2=18, Maintainability 8/1=8 → 92/110. Docked consistently across Integrity/Silent-failure/Real-
 verification for the same root cause (the `bootstrap_commits.py` gap), not 3 independent issues.
+
+## 2026-07-19 — Fix atómico CLAUDE.md (git_helpers._AtomicWriteNoFollowSymlink)
+
+**Pattern: mutation-kill reproducido en vivo en vez de confiar en el reporte de Moriarty.**
+Los dos mutation-checks documentados en tests/test_atomic_claude_md_write.py (chmod-preservation
+y orphan-sweep) los reproduje yo mismo: comenté/parcheé la línea real en lib/git_helpers.py,
+corrí SOLO esa clase de test, confirmé rojo con el mensaje exacto esperado (0o600 en vez de 0o644;
+orphan sigue existiendo), restauré con `git checkout --` y confirmé `git status` limpio. Coste bajo
+(2 ediciones puntuales), evidencia de primera mano en vez de narrada.
+
+**Pattern: verificar el "no regresión" contando callers, no leyendo el diff de cada uno.**
+`grep -rn "open_no_follow_symlink(" | wc -l` (71 sitios) vs `grep -rn "atomic=True"` (exactamente
+4 call sites en 3 ficheros: session-start-crew.py x2, install_apply.py x1, git-memory-uninstall.py x1)
+confirma mecánicamente que el resto de callers no cambiaron de comportamiento sin tener que
+re-leer los 71 uno por uno.
+
+**Pattern: memo de git-memory como evidencia de scope correcto para un hallazgo colateral.**
+La carrera lost-update que Moriarty encontró (pre-existente, no introducida por el fix) estaba
+documentada como memo `eae0880` con reproducción real (2 in-process + 8 procesos) y explícitamente
+diferida a decisión de Bex — eso es lo que separa "hallazgo correctamente escopeado fuera" de
+"hallazgo tapado". Confirmé el memo existe y dice eso antes de aceptar la afirmación del orquestador.
+
+**Pattern: suite completa 1129/2 corrida por mí mismo vía nohup + polling con `until kill -0`,
+nunca narrada.** El log crudo de pytest (dots + resumen final) es el canal directamente leído que
+exige el Round-Trip Evidence Rule — no un resumen de otro agente.

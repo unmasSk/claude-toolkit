@@ -1,5 +1,7 @@
 # Fix — escritura atómica de CLAUDE.md (bloques managed)
 
+**Status: COMPLETED** (2026-07-19) — 4 escritores atomizados (temp+os.replace); suite 1110→1129 passed / 2 skipped; Cerberus/Argus/Moriarty encontraron y repararon narrowing de permisos, huérfanos y docstring que mentía; Yoda APPROVED 107/110. Carrera lost-update pre-existente diferida como candidato (memo eae0880).
+
 **Issue:** — (del veredicto del council; el "#1" original resultó obsoleto, esto es el fallo real)
 **Branch:** — (trunk, main es la rama de trabajo)
 **Triage:** BIG (T1, 4 escritores, helper compartido)

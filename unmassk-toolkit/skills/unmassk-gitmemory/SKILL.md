@@ -97,6 +97,8 @@ Any new code under `.claude/` that does a filesystem read or write must resolve 
 
 `open_no_follow_symlink()` is cross-platform (v1.16.1): POSIX keeps the atomic `O_NOFOLLOW` open; Windows (no `O_NOFOLLOW` equivalent) uses `os.path.islink()` pre-check + `lstat`/`fstat` identity comparison instead, raising `OSError` either way — never `AttributeError`. Its twin `_symlink_safe_open.open_no_follow_symlink_fallback()` must stay behaviorally identical on both branches. Don't assume POSIX-only guarantees (`O_NOFOLLOW`, `0o600` denying group/other access) hold on Windows — check `sys.platform` before relying on either.
 
+For a full-content rewrite of an existing file (not a read, not an append), pass `atomic=True` to `open_no_follow_symlink()` instead of plain `"w"` mode: a bare `open(path, "w")` truncates the file the instant it's called, so a crash/kill/full-disk error before the new content finishes writing leaves it empty or partial. `atomic=True` writes to a `tempfile.mkstemp()` file in the same directory and only replaces the original via `os.replace()` once the write is fully flushed and fsynced — the original is untouched on any failure before that point, and existing permission bits are preserved across the rewrite. This is what CLAUDE.md's own managed-block writers use (`hooks/session-start-crew.py`, `lib/install_apply.py`, `bin/git-memory-uninstall.py`). Known limitation, not yet fixed: no file lock — two truly concurrent writers still last-write-wins (pre-existing, not introduced by this flag).
+
 ## Active Hooks (automatic behaviors you must account for)
 
 These fire automatically. They are NOT things you invoke — they change what happens around you. Know them so you don't fight them or misread their output:
