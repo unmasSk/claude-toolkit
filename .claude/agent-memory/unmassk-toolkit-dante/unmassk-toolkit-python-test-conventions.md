@@ -614,4 +614,43 @@ patch used in the original contract pass), `monkeypatch.setattr(os,
 "fdopen", ...)` auto-reverts after each test, so there's no cross-test
 contamination risk even though `os`/`tempfile` are shared stdlib modules.
 
+**fix-atomic-claude-md-write, 3rd pass (2026-07-19) — testing an age-gated
+sweep needs `os.utime()` to fake age, not real sleeps; and "recent" vs
+"old" only needs to be on either side of the gate, not realistic.**
+`_sweep_orphaned_atomic_temp_files()`'s age check is `os.stat().st_mtime`
+vs `_ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS` (3600s). Planting a sibling
+`.CLAUDE.md.<x>.tmp` file and back-dating it with
+`os.utime(path, (old_ts, old_ts))` where `old_ts = time.time() - (3600 +
+300)` deterministically lands it past the gate with zero real waiting; a
+"recent" control file only needs `age_seconds=10` (or any value well under
+3600) to prove the opposite branch — no need to get close to the boundary
+itself unless testing the boundary specifically (not asked for here).
+Reused the exact same `_plant_temp_sibling()` helper (write + optional
+`os.utime` back-date) for all 3 sweep tests (old-orphan-deleted,
+recent-survives, unrelated-name-survives) — one small fixture helper
+covering 3 different assertions by varying only its `age_seconds` and
+`name` args.
+
+**Capturing a `print(..., file=sys.stderr)` warning: use pytest's own
+`capsys` fixture, don't monkeypatch `sys.stderr`.** For the
+chmod-preservation-failure warning test, `capsys.readouterr().err` after
+the `with` block cleanly captures the printed warning without touching
+`sys.stderr` directly — simpler and more idiomatic than swapping `sys.stderr`
+for a StringIO and restoring it manually, and composes correctly with
+`monkeypatch.setattr(os, "chmod", raising_fn)` in the same test (both
+auto-revert via their own pytest fixture teardown, no manual cleanup code
+needed).
+
+**2 more live mutation-checks done this pass (both same edit/run/revert/verify-empty-diff discipline as the permission-preservation one earlier):**
+removing the `_sweep_orphaned_atomic_temp_files(dest_dir, basename)` call
+from `_AtomicWriteNoFollowSymlink.__init__` made both sweep-related tests
+in `TestOrphanSweepDeletesOldTempFiles` fail for the right reason (orphan
+survived); `git diff lib/git_helpers.py` confirmed empty after restoring.
+Same recipe as the earlier ROB-MED-002 chmod check — this is now the
+established pattern for this file: comment out exactly the guard line(s)
+under test, rerun ONLY the affected test class, confirm the specific
+failure mode expected, restore via Edit with the exact original text, then
+`git diff` the touched production file to prove byte-identical restoration
+before reporting.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

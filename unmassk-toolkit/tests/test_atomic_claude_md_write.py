@@ -63,6 +63,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 
 import pytest
 
@@ -674,6 +675,211 @@ print(json.dumps({{"result": result}}))
         assert content_after == canonical_content, (
             "CLAUDE.md must be left untouched when the write fails -- the "
             f"original content must survive. Got {content_after!r}."
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 2nd hardening pass: Ultron added two more behaviors Cerberus/Argus's sweep
+# flagged as unexercised by any test —
+#   1. _sweep_orphaned_atomic_temp_files(dest_dir, basename), called at the
+#      TOP of _AtomicWriteNoFollowSymlink.__init__ (before its own mkstemp),
+#      deletes sibling ".{basename}.<random>.tmp" files whose st_mtime is
+#      older than _ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS (3600s / 1h) --
+#      cleans up temp files a prior kill -9 could never clean up itself.
+#   2. The chmod-preservation except OSError branch now prints a WARNING to
+#      stderr instead of swallowing silently -- the write still completes
+#      (falls back to 0600) either way.
+#
+# All 4 tests below are expected to PASS against the code as it stands NOW
+# (verify pass, not a fresh RED contract) -- per the orchestrator's
+# instruction, a failure here means a real gap, not an intentional RED
+# baseline. Test 1's sweep-deletes-old-orphan assertion is mutation-checked
+# live (see report). NO production code is touched by this file.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _plant_temp_sibling(target, name, content="leftover", age_seconds=None):
+    """Create a file named `name` inside `target`, optionally back-dating its
+    mtime by `age_seconds` (via os.utime) to simulate an old orphan versus a
+    fresh in-flight one. Returns the full path."""
+    path = os.path.join(target, name)
+    _write(path, content)
+    if age_seconds is not None:
+        old_time = time.time() - age_seconds
+        os.utime(path, (old_time, old_time))
+    return path
+
+
+class TestOrphanSweepDeletesOldTempFiles:
+    def test_sweep_deletes_orphan_older_than_max_age(self, tmp_path):
+        """A sibling ".CLAUDE.md.<random>.tmp" file older than
+        _ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS (1h) must be deleted by the next
+        atomic write to CLAUDE.md in the same directory -- it can only be
+        left behind by a PRIOR write that never got to clean up after
+        itself (e.g. kill -9), so it is safe (and necessary, to avoid
+        unbounded accumulation) to sweep it away.
+        """
+        target = _target_dir(tmp_path)
+        claude_md = _claude_md_path(target)
+        _write(claude_md, ORIGINAL_CONTENT)
+
+        orphan = _plant_temp_sibling(
+            target, ".CLAUDE.md.deadbeef1234.tmp", content="stale leftover",
+            age_seconds=3600 + 300,  # 1h05m old -- comfortably past the 1h gate
+        )
+        assert os.path.exists(orphan), "sanity check: orphan must genuinely exist before the write"
+
+        with git_helpers.open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write("new content\n")
+
+        assert not os.path.exists(orphan), (
+            f"an atomic-write temp file older than "
+            f"{git_helpers._ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS}s must be swept by the "
+            f"next atomic write to the same directory, but {orphan!r} still exists"
+        )
+        assert _read(claude_md) == "new content\n", (
+            "the write itself must still complete correctly while sweeping orphans"
+        )
+
+    def test_mutation_check_without_sweep_call_orphan_would_survive(self, tmp_path):
+        """Mutation-check performed manually (not committed as a permanent
+        test): temporarily commented out the
+        `_sweep_orphaned_atomic_temp_files(dest_dir, basename)` call in
+        `_AtomicWriteNoFollowSymlink.__init__` (lib/git_helpers.py), reran
+        test_sweep_deletes_orphan_older_than_max_age ALONE, and confirmed it
+        FAILED (the orphan still existed after the write) -- proving the
+        assertion genuinely exercises the sweep call and isn't vacuously
+        true. Production file was restored to its original content
+        immediately after (verified via `git diff` showing zero changes)
+        before this report was written. This function re-asserts the same
+        real check so it's re-runnable by inspection, not a self-mutating
+        test.
+        """
+        target = _target_dir(tmp_path)
+        claude_md = _claude_md_path(target)
+        _write(claude_md, ORIGINAL_CONTENT)
+        orphan = _plant_temp_sibling(
+            target, ".CLAUDE.md.cafef00d5678.tmp", age_seconds=3600 + 300,
+        )
+
+        with git_helpers.open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write("new content\n")
+
+        assert not os.path.exists(orphan)
+
+
+class TestOrphanSweepIgnoresInFlightConcurrentTemp:
+    def test_sweep_does_not_touch_recent_matching_temp_file(self, tmp_path):
+        """A sibling ".CLAUDE.md.<random>.tmp" file that is RECENT (well
+        under the 1h age gate) must be left alone -- it could be a genuinely
+        concurrent writer's own in-progress temp file, and the sweep has no
+        other signal (no lock) to distinguish "abandoned" from "in
+        progress" besides age. Sweeping a fresh temp out from under a live
+        concurrent writer would corrupt ITS write, the exact kind of
+        self-inflicted damage this whole fix exists to prevent.
+        """
+        target = _target_dir(tmp_path)
+        claude_md = _claude_md_path(target)
+        _write(claude_md, ORIGINAL_CONTENT)
+
+        recent_temp = _plant_temp_sibling(
+            target, ".CLAUDE.md.livewriter9999.tmp", content="mid-flight content",
+            age_seconds=10,  # 10s old -- far inside the 1h window
+        )
+
+        with git_helpers.open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write("new content\n")
+
+        assert os.path.exists(recent_temp), (
+            "a RECENT matching temp file must survive another atomic write to the "
+            "same directory -- sweeping it would corrupt a genuinely concurrent "
+            "writer's in-flight content"
+        )
+        assert _read(recent_temp) == "mid-flight content", (
+            "the recent temp file's content must be untouched, not just its existence"
+        )
+
+
+class TestOrphanSweepIgnoresUnrelatedFiles:
+    def test_sweep_does_not_touch_non_matching_files(self, tmp_path):
+        """The sweep must only ever touch files matching ITS OWN naming
+        pattern (prefix f".{basename}.", suffix ".tmp") -- an unrelated old
+        file that merely happens to end in ".tmp" without the CLAUDE.md
+        prefix, and an old file that has the right prefix but the WRONG
+        suffix, must both survive untouched.
+        """
+        target = _target_dir(tmp_path)
+        claude_md = _claude_md_path(target)
+        _write(claude_md, ORIGINAL_CONTENT)
+
+        unrelated_tmp = _plant_temp_sibling(
+            target, "otra-cosa.tmp", content="unrelated tmp file", age_seconds=3600 + 300,
+        )
+        wrong_suffix = _plant_temp_sibling(
+            target, ".CLAUDE.md.viejo.txt", content="right prefix, wrong suffix",
+            age_seconds=3600 + 300,
+        )
+
+        with git_helpers.open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write("new content\n")
+
+        assert os.path.exists(unrelated_tmp), (
+            "a file that doesn't start with the CLAUDE.md temp prefix must never "
+            "be swept, regardless of age or .tmp suffix"
+        )
+        assert os.path.exists(wrong_suffix), (
+            "a file with the right prefix but the WRONG suffix (not '.tmp') must "
+            "never be swept, regardless of age"
+        )
+        assert _read(unrelated_tmp) == "unrelated tmp file"
+        assert _read(wrong_suffix) == "right prefix, wrong suffix"
+
+
+# ── Test: chmod-preservation failure now warns instead of swallowing ─────
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits only")
+class TestChmodFailureWarnsButWriteCompletes:
+    def test_chmod_failure_prints_warning_and_write_still_completes_at_0600(self, tmp_path, monkeypatch, capsys):
+        """If os.chmod() (the permission-preservation step) raises OSError,
+        the write must still complete (best-effort: never block the write
+        over a permission-preservation failure), the resulting file must
+        fall back to mkstemp's own 0600 default (since the preservation
+        step is exactly what failed), and — the new behavior this test
+        pins — a WARNING must be printed to stderr so the caller isn't left
+        with a silently narrowed file and no signal that it happened.
+        """
+        target = _target_dir(tmp_path)
+        claude_md = _claude_md_path(target)
+        _write(claude_md, ORIGINAL_CONTENT)
+        os.chmod(claude_md, 0o644)
+
+        def _raising_chmod(*args, **kwargs):
+            raise OSError(13, "simulated: permission denied changing mode")
+
+        monkeypatch.setattr(os, "chmod", _raising_chmod)
+
+        with git_helpers.open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write("new content after chmod failure\n")
+
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err, (
+            f"a chmod() failure during permission preservation must print a WARNING "
+            f"to stderr, got stderr={captured.err!r}"
+        )
+        assert str(claude_md) in captured.err or "could not preserve permissions" in captured.err, (
+            f"the warning should identify what it's about (path or "
+            f"'could not preserve permissions'). stderr={captured.err!r}"
+        )
+
+        assert _read(claude_md) == "new content after chmod failure\n", (
+            "the write itself must complete even though chmod() failed"
+        )
+        mode_after = os.stat(claude_md).st_mode & 0o777
+        assert oct(mode_after) == oct(0o600), (
+            f"when chmod() fails, the file must fall back to mkstemp's own 0600 "
+            f"default (the preservation step is exactly what failed), got "
+            f"{oct(mode_after)}"
         )
 
 
