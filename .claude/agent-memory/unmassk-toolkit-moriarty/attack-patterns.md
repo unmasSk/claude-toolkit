@@ -847,3 +847,57 @@
   PLUGIN_VERSION`) vs lib/upgrade_check.py:143 `needs_upgrade()` (`manifest_tuple <
   code_tuple`) — same manifest.json field, two different verdicts, only the wrong one
   reaches the user (STATUS line in the real boot banner).
+
+## Atomic write (mkstemp+os.replace) — silent chmod-preservation failure (2026-07-19)
+- Pattern: any "atomic write" that preserves the ORIGINAL file's mode by chmod'ing the temp
+  file before `os.replace()`, wrapped in `try: os.chmod(...) except OSError: pass` (best-effort).
+- Mock ONLY `os.chmod` to raise for the tmp path (simulates a real FAT32/exFAT/some-NFS mount
+  that silently rejects chmod) — the write still succeeds, no exception reaches the caller,
+  ZERO output on stdout/stderr, and the file's mode permanently narrows to mkstemp's 0600
+  default. Verified independently via a plain `stat` after the fact.
+- Root: `lib/git_helpers.py:211-216` (`_AtomicWriteNoFollowSymlink.__exit__`).
+- Generalizes: any "best-effort, never block the write" chmod/permission-preservation step is a
+  silent-downgrade vector unless it logs on failure.
+
+## Atomic write — lost-update race via concurrent legitimate writer (2026-07-19)
+- Pattern: read-diff-write flow (read old content → compute new content → atomic replace) has
+  NO lock. Atomicity of the WRITE ITSELF (no partial bytes) does not protect against a
+  concurrent writer's content landing AFTER the read but BEFORE the replace — `os.replace()`
+  silently discards it, no error, no merge, no warning.
+- Repro technique: monkeypatch the wrapper around `open_no_follow_symlink(..., atomic=True)`
+  to inject a second, independent `open(path,"w").write()` right after the real open() succeeds
+  (simulating a user's editor autosave / another one of the codebase's own writers) but before
+  the atomic writer commits. Confirmed through the REAL production caller
+  (`install_apply._update_claude_md()`), not just the raw primitive.
+- Also reproducible trivially in-process: opening TWO `_AtomicWriteNoFollowSymlink` instances on
+  the same path before either commits — last `__exit__()` wins, first writer's content vanishes.
+- Generalizes: "atomic write" only guarantees no torn bytes for ITS OWN write — never
+  linearizability across independent writers of the same file. Any multi-writer file (managed
+  config blocks written by several scripts/hooks) needs this named as an accepted risk or closed
+  with a lock, not silently assumed away by the word "atomic".
+
+## Atomic write via os.replace() silently severs hardlinks (2026-07-19)
+- Pattern: `os.replace(tmp, path)` swaps `path`'s directory entry to the temp file's OWN inode.
+  If `path` was hardlinked to another file (both directory entries sharing one inode, e.g. two
+  git worktrees sharing one CLAUDE.md via `ln`), the replace makes `path` point to a NEW,
+  independent inode — the sibling hardlink is NOT updated, silently diverges forever, `st_nlink`
+  drops from 2 to 1 on both sides.
+- Repro: `ln fileA fileB` (real hardlink, not symlink) → run the atomic writer on fileA → `stat`
+  both files independently → different inode, nlink=1 each, fileB frozen at old content forever.
+- Notable because the target codebase's OWN docstring explicitly names "a hard link between git
+  worktrees pointing at the same user file (CLAUDE.md...)" as a legitimate use case it does not
+  intend to break — the docstring's framing ("a hard-linked sibling is unaffected by
+  construction") is true only for content-preservation, not for the sharing relationship itself,
+  which silently breaks. Any "atomic rewrite via os.replace()" retrofit onto a file previously
+  written with truncate-in-place (which DID preserve hardlink sharing) is a silent behavior
+  change worth flagging even when the fix's stated goal (no partial/empty file) is fully met.
+
+## Orphaned .tmp accumulation on real SIGKILL, no cleanup GC anywhere (2026-07-19)
+- A crash mid-write via a real `kill -9` (not a Python exception — those get caught by
+  `__exit__`) leaves the CLAUDE.md-safe guarantee intact but always leaves the
+  `tempfile.mkstemp()` temp file behind — expected/disclosed by the implementer's own docstring.
+  What is NOT disclosed/covered: `grep -rln "mkstemp\|orphan"` across the whole codebase shows
+  no stale-tmp sweep/GC exists anywhere — 3 repeated real SIGKILLs against the same directory
+  left 3 distinct, permanently-accumulating orphan files, landing in the PROJECT ROOT (same dir
+  as CLAUDE.md, not gitignored, user-visible) — confirmed 20x normal sequential (non-killed)
+  writes leave zero leak, so this is strictly a crash-only, unbounded-accumulation artifact.

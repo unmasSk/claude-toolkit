@@ -572,3 +572,18 @@ FINAL check, 0 new breaks:
   calls -> no corruption, valid final JSON, consistent atomic-write behavior.
 
 Verdict: AGUANTA. See MEMORY.md "Last attack" for the compact pointer.
+
+## Atomic write (git_helpers._AtomicWriteNoFollowSymlink, 2026-07-19)
+- fsync() failure and os.replace() failure (mocked at that single call each) both correctly
+  propagate OSError, clean up the temp file (zero orphan), and leave the original CLAUDE.md
+  content byte-identical — verified via independent post-hoc read/listdir.
+- Symlink planted at the destination path is correctly rejected pre-write (islink() check
+  before any temp file is even created); the external symlink target is never touched.
+- 8-way concurrent OS processes writing the same path simultaneously: never a torn/mixed/partial
+  result — os.replace()'s atomicity holds under real concurrency; always exactly one full,
+  well-formed writer's content wins (a lost-update for the losers, not corruption).
+- A reader polling the file continuously throughout an in-flight write never observes a
+  partial/torn read — always a complete old-or-new snapshot.
+- `close()` called directly after a normal `with`-block commit is a true no-op (matches its own
+  docstring claim) — does not raise.
+- Zero-byte write (caller writes nothing) legitimately empties the file — correct, not a bug.

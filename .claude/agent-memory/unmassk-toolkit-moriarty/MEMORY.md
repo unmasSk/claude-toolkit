@@ -5,6 +5,39 @@
 - [resilience.md](./resilience.md) — Attacks that held
 
 ## Last attack
+Target: atomic CLAUDE.md write (docs/plan/fix-atomic-claude-md-write.md, T1 fix), diff f7945f3..HEAD,
+lib/git_helpers.py::_AtomicWriteNoFollowSymlink / open_no_follow_symlink(atomic=True), the 3 real
+writers (install_apply._update_claude_md, session-start-crew.py, git-memory-uninstall.py). Round-Trip Sabotage protocol applied per own mandate (this is a producer/consumer seam per the
+plan's own §34 tag). Verdict: FALLA. The core no-partial/no-empty-file guarantee holds solidly
+(fsync-fail, replace-fail, SIGKILL-during-write, symlink-at-destination, 8-way concurrent
+processes, torn-read-during-write -- all verified live, all held). But 4 real, independently-
+verified breaks match the task's own named victory conditions, none caught by the existing
+14-test acceptance suite (tests/test_atomic_claude_md_write.py, itself run and confirmed 14/14
+green -- its permission test only covers the chmod-succeeds happy path, never chmod-fails):
+(1) silent permission downgrade -- best-effort `except OSError: pass` around the tmp-file chmod
+(git_helpers.py:211-216) means ANY real chmod failure (FAT32/exFAT/restrictive-NFS mounts are the
+realistic trigger) silently narrows CLAUDE.md from e.g. 0644 to mkstemp's 0600 default, zero
+warning anywhere -- live PoC: mocked only os.chmod, write "succeeded", stdout/stderr both empty,
+independent `stat` showed 0600. (2) lost-update race -- the read-diff-write flow has no lock;
+a concurrent legitimate writer (user's editor autosave, or literally another one of the
+codebase's own 3 writers) landing between the read and the commit is silently destroyed by
+os.replace() with no error/merge/warning -- proven through the REAL production function
+install_apply._update_claude_md() (not just the raw primitive), and trivially again via two
+in-process atomic-writer instances on the same path. (3) os.replace() silently severs hardlinks
+-- `ln fileA fileB` (real hardlink) then an atomic write on fileA leaves fileB frozen at stale
+content forever, nlink 2->1 on both sides; the codebase's OWN docstring names "hardlink between
+git worktrees sharing CLAUDE.md" as an explicitly intended-safe legitimate use case, and its
+framing ("sibling unaffected by construction") is true only for content, not for the sharing
+relationship itself. DECEPTION T1. (4) orphaned .tmp accumulation on real SIGKILL -- disclosed/
+accepted by the implementer's own docstring as unavoidable, but grep confirms NO stale-tmp
+cleanup exists anywhere in the codebase; 3 repeated real kill -9s left 3 permanently-accumulating
+orphan files in the PROJECT ROOT itself (same dir as CLAUDE.md, not gitignored); 20x normal
+sequential writes confirmed zero leak, so this is strictly a crash-only, unbounded artifact.
+19 real attempts across 6/7 phases (EXPLOIT N/A -- no auth/injection boundary in this seam, only
+integrity concerns, matching project's own system-vs-itself threat model). Full detail in
+attack-patterns.md and resilience.md.
+
+## Previous attack (issue #63 round 3, compact)
 Target: issue #63 (boot simplification) round 3, branch feat/issue-63-simplificacion-boot vs
 main. Round 2's 2 T1s (orphaned-END lying "up to date", needs_upgrade magic-string always-True)
 are fixed and confirmed still fixed (any_block_outdated is now the shared oracle for both the

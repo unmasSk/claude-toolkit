@@ -98,6 +98,57 @@ def ensure_runtime_dir(project_root: str) -> str:
     return runtime_dir
 
 
+# Moriarty: a kill -9 mid atomic-write leaves its tempfile.mkstemp() file
+# behind forever -- nothing running inside THIS (now-dead) process can ever
+# get a chance to clean up that one orphan (Python's own cleanup paths,
+# __exit__()'s finally and close()'s finally, both require live code
+# running). Left unswept over many crashes, these accumulate as untracked,
+# non-gitignored ".tmp" files at the repo root. One hour is far longer than
+# any real write in this codebase takes, while still keeping orphans from
+# lingering indefinitely once they're this old.
+_ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS = 3600  # 1 hour
+
+
+def _sweep_orphaned_atomic_temp_files(dest_dir: str, basename: str) -> None:
+    """Opportunistic best-effort cleanup of abandoned atomic-write temp
+    files (Moriarty finding #2): every atomic write is a natural chance to
+    sweep whatever ITS OWN naming pattern (prefix=f".{basename}.",
+    suffix=".tmp" -- exactly what _AtomicWriteNoFollowSymlink.__init__'s
+    own tempfile.mkstemp() call below uses) has left behind from a PRIOR,
+    already-dead write to the SAME destination path.
+
+    Age-gated on os.stat().st_mtime > _ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS:
+    a concurrent writer's temp file is legitimately mid-flight and must
+    NEVER be swept out from under it -- age is the only signal available
+    to distinguish "abandoned" from "in progress" without a lock.
+
+    Called BEFORE this write's own mkstemp() (see __init__), so the file
+    this call itself is about to create can never match its own sweep.
+
+    Best-effort only, deliberately: any failure (permission, the file
+    vanishing under us because a genuinely concurrent writer just finished
+    normally, dest_dir itself being unreadable) is swallowed -- a cleanup
+    sweep must never be the reason a real write fails.
+    """
+    prefix = f".{basename}."
+    suffix = ".tmp"
+    try:
+        candidates = os.listdir(dest_dir)
+    except OSError:
+        return
+    now = time.time()
+    for name in candidates:
+        if not (name.startswith(prefix) and name.endswith(suffix)):
+            continue
+        candidate = os.path.join(dest_dir, name)
+        try:
+            age = now - os.stat(candidate).st_mtime
+            if age > _ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS:
+                os.unlink(candidate)
+        except OSError:
+            pass  # gone already, permission denied, or a live race — leave it
+
+
 class _AtomicWriteNoFollowSymlink:
     """Write-mode file object returned by open_no_follow_symlink(path, "w",
     atomic=True) -- the fix for the truncate-in-place bug documented in
@@ -143,11 +194,18 @@ class _AtomicWriteNoFollowSymlink:
 
     reject_hardlinks is not supported here (unlike the non-atomic branch):
     a fresh tempfile.mkstemp() file always has st_nlink == 1, so checking
-    it would be meaningless, and it is unnecessary -- os.replace() never
-    truncates or mutates `path`'s original inode at all (a hard-linked
-    sibling is unaffected by construction), which is precisely the class of
-    corruption reject_hardlinks exists to prevent for the non-atomic
-    O_TRUNC path.
+    it would be meaningless. This does NOT mean a hard-linked sibling is
+    unaffected, though (Moriarty, corrected claim) -- it is the OPPOSITE:
+    os.replace() SEVERS the hard link. `path`'s directory entry is
+    repointed at the temp file's new inode, so any sibling that shared
+    `path`'s old inode keeps that OLD inode (and its st_nlink drops by
+    one) -- the sibling is frozen at the pre-write content and stops
+    tracking `path` from that write onward. This is inherent to any
+    rename-based atomic replace (the exact reason a non-atomic in-place
+    O_TRUNC write is the one thing that WOULD corrupt a hard-linked
+    sibling, which is what reject_hardlinks exists to prevent on that
+    other path) -- not a bug here, but callers must not assume hard-link
+    identity survives an atomic write.
     """
 
     def __init__(self, path: str, encoding: str, errors: str):
@@ -155,6 +213,7 @@ class _AtomicWriteNoFollowSymlink:
             raise OSError(errno.ELOOP, "Refusing to open a symlink", path)
         dest_dir = os.path.dirname(os.path.abspath(path)) or "."
         basename = os.path.basename(path)
+        _sweep_orphaned_atomic_temp_files(dest_dir, basename)
         fd, tmp_path = tempfile.mkstemp(dir=dest_dir, prefix=f".{basename}.", suffix=".tmp")
         try:
             self._file = os.fdopen(fd, "w", encoding=encoding, errors=errors)
@@ -212,8 +271,18 @@ class _AtomicWriteNoFollowSymlink:
                     try:
                         existing_mode = os.stat(self._path).st_mode & 0o777
                         os.chmod(self._tmp_path, existing_mode)
-                    except OSError:
-                        pass  # best-effort only — never block the write over this
+                    except OSError as e:
+                        # Moriarty: a silent swallow here left a caller with
+                        # no signal that their file just narrowed to 0600
+                        # (restrictive FAT32/NFS mount, etc.) -- best-effort
+                        # still means "never block the write", but it must
+                        # not also mean "never tell anyone".
+                        print(
+                            f"[git_helpers] WARNING: could not preserve permissions "
+                            f"for {self._path!r} — new content written, mode stays "
+                            f"0600: {e}",
+                            file=sys.stderr,
+                        )
                 os.replace(self._tmp_path, self._path)
                 self._committed = True
             else:
