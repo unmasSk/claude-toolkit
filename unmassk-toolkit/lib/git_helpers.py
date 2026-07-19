@@ -156,9 +156,27 @@ class _AtomicWriteNoFollowSymlink:
         dest_dir = os.path.dirname(os.path.abspath(path)) or "."
         basename = os.path.basename(path)
         fd, tmp_path = tempfile.mkstemp(dir=dest_dir, prefix=f".{basename}.", suffix=".tmp")
+        try:
+            self._file = os.fdopen(fd, "w", encoding=encoding, errors=errors)
+        except BaseException:
+            # ROB-LOW-004 (Argus): mkstemp() above already created tmp_path
+            # (and its fd) before this point. If fdopen() itself raises
+            # (bad encoding name, etc.), self._file is never assigned, so
+            # neither __exit__() nor close() will ever run to clean up —
+            # close the raw fd directly (os.fdopen() never took ownership
+            # of it since it raised before returning) and remove the temp
+            # file before letting the original exception propagate.
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
         self._path = path
         self._tmp_path = tmp_path
-        self._file = os.fdopen(fd, "w", encoding=encoding, errors=errors)
         self._committed = False
 
     def write(self, data: str) -> int:
@@ -170,9 +188,32 @@ class _AtomicWriteNoFollowSymlink:
     def __exit__(self, exc_type, exc, tb) -> bool:
         try:
             if exc_type is None:
-                self._file.flush()
-                os.fsync(self._file.fileno())
-                self._file.close()
+                try:
+                    self._file.flush()
+                    os.fsync(self._file.fileno())
+                finally:
+                    # ROB-LOW-005 (Argus): close() must run even if
+                    # flush()/fsync() raises (e.g. disk full surfacing at
+                    # fsync time) -- skipping it on that path would leak
+                    # the fd, on top of the write itself already failing.
+                    self._file.close()
+                # ROB-MED-002 (Cerberus/Argus): os.replace() moves the temp
+                # file's OWN inode into place, and tempfile.mkstemp() always
+                # creates at 0o600 -- a pre-existing `path` at a looser mode
+                # (0o644, etc.) would silently narrow to 0o600 on every
+                # atomic write. Preserve the EXISTING file's mode when
+                # there is one; a brand-new `path` keeps mkstemp's 0o600
+                # default, consistent with every other write-mode call in
+                # this module. POSIX-only (os.chmod on Windows doesn't
+                # carry the same permission-bit model — best-effort, same
+                # posture as this module's other os.chmod() calls, e.g.
+                # boot_fetch_stamp.py's _write_own_stamp()).
+                if sys.platform != "win32" and os.path.exists(self._path):
+                    try:
+                        existing_mode = os.stat(self._path).st_mode & 0o777
+                        os.chmod(self._tmp_path, existing_mode)
+                    except OSError:
+                        pass  # best-effort only — never block the write over this
                 os.replace(self._tmp_path, self._path)
                 self._committed = True
             else:
@@ -186,16 +227,43 @@ class _AtomicWriteNoFollowSymlink:
         return False  # never swallow the caller's exception
 
     def close(self) -> None:
-        """Close the underlying temp file WITHOUT committing (no
-        os.replace()) -- `path`'s original content is left untouched. This
-        exists only for callers/tests that bypass the context-manager
-        protocol and call .close() directly on the object instead of
-        exiting the `with` block normally (mirrors a plain file object's
-        .close(), which likewise does nothing beyond releasing the handle).
-        The atomic commit happens ONLY via a normal `with` block exit (or a
-        direct, successful __exit__(None, None, None) call) — never here.
+        """Fail-loud on direct use (ROB-MED-003, Argus): calling .close()
+        directly instead of exiting a `with` block is a caller bug -- it
+        would otherwise abandon the buffered content with no error and no
+        cleanup, letting a caller believe an unfinished write had
+        succeeded. This closes the temp file, removes it (never leaves an
+        orphan), and THEN raises -- unless the write was already committed
+        by a normal `with`-block exit (self._committed True), in which case
+        this is a harmless no-op close on an already-closed file, matching
+        a plain file object's idempotent .close().
+
+        Deliberately raises OSError, not RuntimeError: every write-mode
+        open_no_follow_symlink() caller in this codebase already wraps the
+        call in `except OSError` (this module's own docstring documents
+        "only OSError escapes" as the contract every caller relies on) --
+        raising OSError here keeps a direct-close bug inside that same,
+        already-handled failure class instead of introducing a new
+        exception type callers would need to special-case. The only
+        supported way to COMMIT an atomic write is exiting a `with` block
+        normally (or calling __exit__(None, None, None) directly).
         """
-        self._file.close()
+        try:
+            self._file.close()
+        finally:
+            if not self._committed:
+                try:
+                    os.unlink(self._tmp_path)
+                except OSError:
+                    pass
+        if not self._committed:
+            raise OSError(
+                errno.EBADF,
+                "close() called directly on an atomic writer without going "
+                "through 'with' -- the write was abandoned, never "
+                "committed; use 'with open_no_follow_symlink(path, \"w\", "
+                "atomic=True) as f: ...' instead",
+                self._path,
+            )
 
 
 def open_no_follow_symlink(

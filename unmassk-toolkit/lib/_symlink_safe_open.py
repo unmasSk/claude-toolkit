@@ -20,6 +20,16 @@ This module is never itself stubbed by any test (only "git_helpers",
 resolves to this real implementation even during a stub window.
 
 Must be kept behaviorally identical to git_helpers.open_no_follow_symlink().
+
+NOTE (docs/plan/fix-atomic-claude-md-write.md): git_helpers.open_no_follow_symlink()
+also has an `atomic` param (opt-in, mode="w" only) that this fallback does
+NOT implement, and that is intentional, not drift -- `atomic` exists solely
+for the 3 real CLAUDE.md managed-block writers (lib/install_apply.py,
+hooks/session-start-crew.py, bin/git-memory-uninstall.py), none of which
+this fallback's own callers (lib/boot_memory.py, hooks/session-start-boot.py)
+are. Do not duplicate the temp-file+os.replace() logic here; if a future
+caller of THIS fallback ever needs atomic writes, that is a new decision to
+make deliberately, not a drift to silently close.
 """
 
 import errno

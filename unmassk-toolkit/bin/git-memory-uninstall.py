@@ -151,8 +151,21 @@ def remove_claude_md_block(target: str) -> bool:
     # temp file in the same directory + os.replace(), so a crash/kill mid-
     # write can never leave CLAUDE.md empty or partial — see
     # git_helpers._AtomicWriteNoFollowSymlink's docstring.
-    with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
-        f.write(content + "\n")
+    try:
+        with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write(content + "\n")
+    except OSError as e:
+        # ROB-MED-001 (Argus): a failure here (e.g. mkstemp() needs WRITE
+        # permission on the CONTAINING directory, which the old truncate-
+        # in-place write never required) must not abort the whole uninstall
+        # mid-way -- main() still needs remove_manifest(),
+        # remove_old_install_files(), and (in --full-local mode)
+        # remove_generated_files() to run regardless. Mirrors the
+        # try/except OSError every other atomic=True call site in this
+        # codebase already has (install_apply.py's caller, apply_plan();
+        # session-start-crew.py's own except OSError around its writes).
+        print(f"  ! Could not update CLAUDE.md (left as-is): {e}", file=sys.stderr)
+        return False
     return True
 
 
