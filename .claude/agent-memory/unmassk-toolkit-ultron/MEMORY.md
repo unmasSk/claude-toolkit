@@ -1,7 +1,7 @@
 # Memory Index — unmassk-toolkit-ultron
 
 - [chatroom-frontend.md](chatroom-frontend.md) — Agent Chatroom frontend patterns, scroll behavior, icon mapping, build commands
-- [implementation-patterns.md](implementation-patterns.md) — Elysia WS upgrade hook context shape (headers access, rejection pattern)
+- [implementation-patterns.md](implementation-patterns.md) — Elysia WS upgrade hook context shape (headers access, rejection pattern); opt-in `atomic` param pattern on open_no_follow_symlink()
 - [chatroom-bridge.md](chatroom-bridge.md) — claude-bridge.ts patterns: singleton guard, WS reconnect, ring buffer, inline types, HTTP auth
 - [chatroom-backend-hardening.md](chatroom-backend-hardening.md) — Graceful shutdown, onError hook, env validation patterns in config.ts/index.ts
 - [lessons.md](lessons.md) — Mistakes and fixes: Bun mock.module() leaks, scheduler state cleanup, DB-state assertions, Elysia WS patterns

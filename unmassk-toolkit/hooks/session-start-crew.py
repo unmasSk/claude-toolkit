@@ -74,14 +74,18 @@ def main():
     new_content, log = upsert_managed_blocks(content)
 
     try:
+        # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes
+        # to a temp file in the same directory + os.replace(), so a crash/
+        # kill mid-write can never leave CLAUDE.md empty or partial — see
+        # git_helpers._AtomicWriteNoFollowSymlink's docstring.
         if not claude_md_exists:
-            with open_no_follow_symlink(claude_md, "w", encoding="utf-8") as f:
+            with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
                 f.write(new_content)
             print("[crew] Created CLAUDE.md with all managed blocks")
             return
 
         if new_content != content:
-            with open_no_follow_symlink(claude_md, "w", encoding="utf-8") as f:
+            with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
                 f.write(new_content)
             for line in log:
                 print(f"[crew] {line}")

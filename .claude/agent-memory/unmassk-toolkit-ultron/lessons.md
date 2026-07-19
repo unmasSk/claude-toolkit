@@ -1452,3 +1452,7 @@ No new import-location decision was needed; `test_issue61_breadcrumbs.py`'s
 `TestScanRecentCommitsBreadcrumb` (3 tests, including a selective-fail double
 on the 2nd call site) and the whole `test_issue61_read_retry_contract.py`
 suite stayed green with zero changes.
+
+## git_helpers.py already over the 500 LOC convention (2026-07-19)
+
+`unmassk-toolkit/lib/git_helpers.py` was already 814 LOC before the atomic-write fix (now 930) — well past this project's own 500 LOC convention (stated explicitly in `lib/install_apply.py`'s module docstring: "keep the CLI entrypoint under the project's 500 LOC limit"). Pre-existing condition, not introduced by this fix — added the atomic-write class to the existing file (matching precedent: `boot_fetch_stamp.py` already keeps the equivalent temp+replace pattern inline rather than in a dedicated module) rather than splitting the file, since a fix-mode task must not restructure the module it's touching. Flagged as an observation for the orchestrator, not fixed — a future refactor pass (not a bug fix) should split `git_helpers.py` (e.g. path-safety guards vs. `run_git`/retry logic vs. atomic-write helpers are 3 fairly separable concerns already living in one file).

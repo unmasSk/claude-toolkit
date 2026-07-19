@@ -10,6 +10,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -97,14 +98,125 @@ def ensure_runtime_dir(project_root: str) -> str:
     return runtime_dir
 
 
+class _AtomicWriteNoFollowSymlink:
+    """Write-mode file object returned by open_no_follow_symlink(path, "w",
+    atomic=True) -- the fix for the truncate-in-place bug documented in
+    docs/plan/fix-atomic-claude-md-write.md (House diagnosis, T1): a plain
+    open_no_follow_symlink(path, "w") truncates `path` via O_TRUNC the
+    instant os.open() returns, before a single byte of new content is
+    written -- a crash/kill/full-disk error anywhere between that open()
+    and the write's completion leaves `path` empty or partial.
+
+    This class never touches `path` itself until the write is fully
+    complete: `.write()` calls accumulate into a `tempfile.mkstemp()` file
+    created in `path`'s OWN directory (so the final os.replace() stays on
+    one filesystem/device and is atomic on POSIX and Windows alike --
+    os.replace() has been atomic on Windows since Python 3.3). The commit
+    (flush + fsync + close + os.replace(tmp, path)) happens ONLY in
+    __exit__() when the `with` block exits without an exception. Any
+    exception inside the `with` block (or a bypass of __exit__ entirely,
+    e.g. a real kill -9) leaves `path`'s ORIGINAL content untouched --
+    __exit__()'s exception branch closes and unlinks the temp file so a
+    controlled failure (disk full, a caller-raised OSError) never leaves an
+    orphaned .tmp file behind; an actual kill -9 can't run any cleanup code
+    regardless of implementation, same as it always could not.
+
+    Mirrors the pattern already used by lib/boot_fetch_stamp.py's
+    _write_own_stamp() (tempfile.mkstemp(dir=..., ...) + os.replace()),
+    centralized here so open_no_follow_symlink(path, "w", atomic=True) is a
+    drop-in replacement at any "w"-mode call site with a `with ... as f:
+    f.write(...)` shape -- no caller-side restructuring needed.
+
+    Symlink-safe by construction on the destination side even though
+    os.replace() itself never follows a symlink at the destination (it
+    swaps the directory entry) -- silently turning "a symlink to some
+    external file" into "a real file with the new content" without ever
+    raising would be the OPPOSITE of this function's existing fail-closed
+    behavior for a non-atomic "w" open. To preserve that exact semantics,
+    __init__() checks os.path.islink(path) BEFORE creating the temp file or
+    writing anything, and raises OSError (errno.ELOOP, the same errno this
+    module's symlink rejections already use) if `path` is currently a
+    symlink -- the temp file is never created and `path` is never touched.
+    (No TOCTOU concern between this check and the eventual os.replace()
+    worth closing here: this project's threat model is the system against
+    itself, not an attacker racing this check -- see CLAUDE.md.)
+
+    reject_hardlinks is not supported here (unlike the non-atomic branch):
+    a fresh tempfile.mkstemp() file always has st_nlink == 1, so checking
+    it would be meaningless, and it is unnecessary -- os.replace() never
+    truncates or mutates `path`'s original inode at all (a hard-linked
+    sibling is unaffected by construction), which is precisely the class of
+    corruption reject_hardlinks exists to prevent for the non-atomic
+    O_TRUNC path.
+    """
+
+    def __init__(self, path: str, encoding: str, errors: str):
+        if os.path.islink(path):
+            raise OSError(errno.ELOOP, "Refusing to open a symlink", path)
+        dest_dir = os.path.dirname(os.path.abspath(path)) or "."
+        basename = os.path.basename(path)
+        fd, tmp_path = tempfile.mkstemp(dir=dest_dir, prefix=f".{basename}.", suffix=".tmp")
+        self._path = path
+        self._tmp_path = tmp_path
+        self._file = os.fdopen(fd, "w", encoding=encoding, errors=errors)
+        self._committed = False
+
+    def write(self, data: str) -> int:
+        return self._file.write(data)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        try:
+            if exc_type is None:
+                self._file.flush()
+                os.fsync(self._file.fileno())
+                self._file.close()
+                os.replace(self._tmp_path, self._path)
+                self._committed = True
+            else:
+                self._file.close()
+        finally:
+            if not self._committed:
+                try:
+                    os.unlink(self._tmp_path)
+                except OSError:
+                    pass  # already gone, or never fully created — nothing to clean up
+        return False  # never swallow the caller's exception
+
+    def close(self) -> None:
+        """Close the underlying temp file WITHOUT committing (no
+        os.replace()) -- `path`'s original content is left untouched. This
+        exists only for callers/tests that bypass the context-manager
+        protocol and call .close() directly on the object instead of
+        exiting the `with` block normally (mirrors a plain file object's
+        .close(), which likewise does nothing beyond releasing the handle).
+        The atomic commit happens ONLY via a normal `with` block exit (or a
+        direct, successful __exit__(None, None, None) call) — never here.
+        """
+        self._file.close()
+
+
 def open_no_follow_symlink(
     path: str,
     mode: str = "w",
     encoding: str = "utf-8",
     reject_hardlinks: bool = False,
     errors: str = "strict",
+    atomic: bool = False,
 ):
     """Open `path` without following a pre-existing symlink.
+
+    atomic (issue: docs/plan/fix-atomic-claude-md-write.md, T1): opt-in,
+    default False -- every existing call site (none of which pass this
+    parameter) keeps its EXACT current behavior, zero regression risk. Only
+    valid combined with mode="w". When True, returns a
+    _AtomicWriteNoFollowSymlink instead of a plain file object -- see that
+    class's docstring for the full atomic-write contract (temp file in the
+    same directory + os.replace(), never truncates `path` in place). Raises
+    ValueError if combined with any mode other than "w" (atomic replace is
+    only meaningful for a full-content write, not a read or an append).
 
     SEC-CRIT-001: several hooks write generated files at fixed, predictable
     paths (.gitignore, boot-log-latest.txt, glossary-cache.json) that fire
@@ -200,6 +312,11 @@ def open_no_follow_symlink(
     larger operation" fallback (or "treat as absent/invalid" for reads),
     never fall back to following the link.
     """
+    if atomic:
+        if mode != "w":
+            raise ValueError(f"open_no_follow_symlink(atomic=True) only supports mode='w', got {mode!r}")
+        return _AtomicWriteNoFollowSymlink(path, encoding, errors)
+
     if sys.platform == "win32":
         return _open_no_follow_symlink_windows(path, mode, encoding, reject_hardlinks, errors)
 

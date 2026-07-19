@@ -239,7 +239,11 @@ def _update_claude_md(target: str) -> None:
     # to write through to whatever external file it points at. The caller
     # (apply_plan) already wraps this action in try/except, so raising here
     # is reported as an error rather than crashing the whole install.
-    with open_no_follow_symlink(claude_md, "w") as f:
+    # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes to a
+    # temp file in the same directory + os.replace(), so a crash/kill mid-
+    # write can never leave CLAUDE.md empty or partial — see
+    # git_helpers._AtomicWriteNoFollowSymlink's docstring.
+    with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
         f.write(new_content)
 
 
