@@ -56,7 +56,6 @@ La visión grande. NO se toca hasta que la memoria automática lleve un tiempo r
 
 - **Ampliar la skill de vídeo** — `unmassk-media` ya tiene vídeo (Remotion+ffmpeg); añadir **OpenMontage** y **MoneyPrinterTurbo** (y más herramientas que Bex vaya diciendo). _En investigación._
 - **olmOCR 2** — herramienta de OCR, ver si encaja en algún plugin existente. _En investigación._
-- **Castigos por asunción** (#77) — sistema de castigos en memoria fresca: cada asunción cazada por Bex se registra como un check concreto imposible de saltar, encoge al mejorar y gradúa a gate mecánico si reincide. Ataca el banner-blindness del `NO ASUMAS` estático. _En diseño, a afinar antes de construir._
 - **Unreal Engine** — apuntado por Bex (2026-07-15). Sin definir aún: alcance por decidir (¿plugin propio? ¿skill? ¿integración MCP/scripting Python de UE?). _Candidato, a aclarar con Bex antes de investigar._
 
 ## 📐 Cómo trabajamos
