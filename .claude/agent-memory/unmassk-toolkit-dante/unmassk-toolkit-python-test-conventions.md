@@ -519,4 +519,50 @@ end-to-end-via-hook tests exercising the same helper through the now-removed
 wrapper did not — the helper being real is what matters, not whether today's
 only caller is a hook.
 
+**fix-atomic-claude-md-write (2026-07-19) — proving an `open(path, "w")`
+truncate-in-place bug needs sabotage AFTER the real open(), not instead of
+it; and a call-count spy is the right way to assert "no atomic-temp-file
+pattern is in use yet" test-first, before the helper exists.**
+1. **Sabotage-after-open, not sabotage-instead-of-open.** `"w"` mode with
+   this codebase's `open_no_follow_symlink()` carries `O_TRUNC` at the
+   `os.open()` syscall itself — the file is already 0 bytes the instant
+   `open()` returns, before any `.write()` call. `test_crew_content_gate_v2.py`'s
+   existing sabotage pattern (monkeypatch `install_apply.open_no_follow_symlink`
+   to raise BEFORE calling the real one) proves a write never happened at
+   all — it does NOT reproduce a mid-write crash, because the real
+   truncating open() is skipped entirely, leaving the original content
+   untouched (the opposite of what a truncate-in-place bug does). To prove
+   the T1 bug (`docs/plan/fix-atomic-claude-md-write.md`), the sabotage must
+   let the REAL open happen first (so genuine truncation occurs under
+   today's code), then make ONLY the subsequent `.write()` fail. Since
+   `os.fdopen()`'s returned `TextIOWrapper` doesn't support patching
+   `.write` as an instance attribute cleanly inside a `with` block, wrap it
+   instead: return a small class from the patched
+   `open_no_follow_symlink` whose `__enter__`/`__exit__` implement the
+   context-manager protocol (closing the real fd on exit) and whose
+   `.write()` raises `OSError` unconditionally. This reproduces "crash
+   after truncate, before content lands" faithfully and is what turned
+   `test_atomic_claude_md_write.py`'s `TestAtomicityOnInterruptedWrite` RED
+   for the right reason (content == `""` afterward, not the original).
+2. **Spy on `tempfile.mkstemp` (record + delegate to the real function) to
+   assert "this call happened, with `dir=` matching" without hardcoding
+   which module makes the call.** Patch the shared `tempfile` module's
+   `mkstemp` attribute (`tempfile.mkstemp = _spy`) in the sabotage
+   subprocess BEFORE importing the module under test — works regardless of
+   which `lib/*.py` module ends up calling it (any caller doing `import
+   tempfile; tempfile.mkstemp(...)` resolves the same patched module
+   object), so the test survives Ultron centralizing the atomic-write
+   helper into a not-yet-existing location. Before the helper exists, the
+   spy correctly records zero calls (RED, "no atomic pattern yet" — not a
+   crash, a clean empty-list assertion failure).
+3. **Not every acceptance-contract test in a test-first pass needs to be
+   RED.** Of `test_atomic_claude_md_write.py`'s 4 tests (plan's exact 4
+   bullets), 2 were genuinely RED (interrupted-write preserves original;
+   temp-file-in-same-dir) and 2 were expected-and-confirmed GREEN
+   (round-trip success on a normal write; symlink-at-CLAUDE.md is still
+   rejected, never silently swapped by a future `os.replace()`) — those two
+   are regression/lock-in guards for behavior that must NOT change while
+   Task 2 changes HOW the write happens. Report both kinds explicitly
+   rather than treating "some tests pass already" as a setup mistake.
+
 See also: [crown-retraction-design-notes](crown-retraction-design-notes.md).

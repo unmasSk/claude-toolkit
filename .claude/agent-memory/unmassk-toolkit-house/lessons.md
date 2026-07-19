@@ -73,3 +73,14 @@ What remains (high-confidence): transient git-subprocess failure under ubuntu-ru
 ## Lesson: "Not X" user reports require tracing the actual displayed text, not the code string
 
 When a user reports seeing "NOT RESPONSE", do not grep for that exact string. Trace what text actually renders in each UI component at each step of the flow. The system message "Agent X returned no response." renders through SystemMessage.tsx with formatting applied — the user may paraphrase or truncate what they see. Start from the symptom (what renders visible text) and work backward through the data flow.
+
+## Handed-down bug signals go stale fast in this repo — diff the signal against CURRENT source before diagnosing
+
+**Project:** unmassk-toolkit (CLAUDE.md write race + duplicate migration) · **Seen:** 2026-07-19
+
+Yoda handed two "integrity bug" signals sourced from an earlier Bilbo mapping + Cerberus anti-pattern memory. BOTH described the PRE-fix state and were already largely resolved in the committed tree:
+
+- BUG "version-gate missing in session-start-crew.py": FALSE now. crew already content-gates (read+diff, write only if `new_content != content`) per decision 2d56444 / issue #63 P1 v2. The claimed second writer (`user-prompt-memory-check.py`) does NOT write managed blocks at all — `needs_upgrade` is re-export-only backward-compat (lines 24-33), never called in main().
+- BUG "`_migrate_runtime_to_unmassk` duplicated in boot_migrations.py + upgrade.py": STALE. The boot copy was DELETED (issue #63 P4), not just unwired. Single home now = `bin/git-memory-upgrade.py:206`.
+
+Lesson: a signal from a prior agent's map is a claim about a point in time. This repo churns via issue-numbered refactors (#63 etc.); a 1-2 week-old map is often obsolete. ALWAYS read the current source + `git log`/decisions before instrumenting. The real finding often shifts to a DIFFERENT mechanism than the stated one — here the genuine residual gap was write ATOMICITY (truncate-in-place, no temp+rename), not the version-gate the signal named. The codebase already had the atomic idiom (`boot_fetch_stamp.py` mkstemp+os.replace) but hadn't applied it to CLAUDE.md.
