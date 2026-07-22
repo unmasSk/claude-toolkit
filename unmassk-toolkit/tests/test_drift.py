@@ -20,7 +20,7 @@ import pytest
 
 from conftest import (
     PRECOMPACT_SCRIPT, PRE_HOOK, POST_HOOK,
-    run_cmd, git_cmd, check_hook_msg,
+    run_cmd, git_cmd, check_hook_msg, assert_repo_integrity,
 )
 
 # ── Config ──────────────────────────────────────────────────────────────
@@ -188,6 +188,13 @@ def drift_repo():
              "🔧 chore: init repo\n\nWhy: initial setup\nTouched: none"], path)
     git_cmd(["checkout", "-b", "feat/CU-042-big-feature"], path)
     build_history(path)
+    # Issue #61 (reabierto): probe fail-loud ANTES de que cualquier test use
+    # este fixture compartido (module-scoped) — si el object-store quedó
+    # corrupto (gc race) mientras se generaban los 200 commits, esto falla
+    # con un mensaje explícito de "fixture corrupto" en vez de un opaco
+    # fallo de conteo/búsqueda en cualquiera de los tests que lo consumen
+    # (test_deep_search y el resto de este archivo).
+    assert_repo_integrity(path, "drift_repo fixture tras build_history (200 commits)")
     yield path
     shutil.rmtree(path, ignore_errors=True)
 

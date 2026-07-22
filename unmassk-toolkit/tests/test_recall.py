@@ -17,7 +17,7 @@ import pytest
 
 from conftest import (
     SOURCE_ROOT, BIN_DIR,
-    git_cmd, run_script, write_file,
+    git_cmd, run_script, write_file, assert_repo_integrity,
 )
 
 # Make lib/ importable so we can call recall() directly as a unit test.
@@ -1007,6 +1007,12 @@ class TestFullHistoryHorizon:
         # (contract guarantee — Moriarty: never reduce this to make the test faster)
         for i in range(510):
             _commit(repo, f"feat(pad): padding commit {i}")
+
+        # Issue #61 (reabierto): probe fail-loud ANTES del assert principal —
+        # si el object-store quedó corrupto (gc race), esto falla con un
+        # mensaje explícito de "fixture corrupto" en vez de un opaco
+        # "Entry ... must be found" indistinguible de un bug real de recall.
+        assert_repo_integrity(repo, "test_entry_beyond_500_commits_is_found tras 511 commits")
 
         needle = "xyzdeephorizon"
         result, breadcrumbs = _recall_with_retry(repo, needle, needle, attempts=3)

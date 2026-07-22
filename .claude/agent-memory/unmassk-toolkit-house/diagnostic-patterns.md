@@ -1,8 +1,21 @@
 ---
 name: diagnostic-patterns
-description: Recurring root cause patterns found during investigations in omawamapas and related projects
+description: Recurring root cause patterns found during investigations in unmassk-toolkit and related projects
 type: reference
 ---
+
+## Pattern: "Failed to traverse parents of commit" on CI = MISSING reachable object in the fixture object-store, NOT a stale/corrupt commit-graph
+
+**Project:** unmassk-toolkit (#61 reopened, Ubuntu-CI-only) · **Seen:** 2026-07-22 · confirmed by exact reproduction + real CI log (run 29702760223)
+
+Symptom: `git log --all` readers (`lib/recall.py::_scan_commits`, `lib/git_helpers.py::commits_since_last_consolidation`) exit rc=128 with the exact pair:
+`error: Could not read <parentSHA>` + `fatal: Failed to traverse parents of commit <childSHA>`. Deterministic — fails identically all 3 retries, so the #61 retry wrapper can NEVER recover it (retry re-runs the same doomed read against the same damaged on-disk repo). Readers fail-safe to []/0 → "CONSOLIDATE:" absent / entry-510 not found.
+
+**Discriminator that REJECTS the commit-graph hypothesis:** a stale commit-graph degrades silently; a corrupt one prints `commit-graph ...` lines (e.g. "commit-graph fanout values out of order") and STILL returns rc=0. CI stderr had ZERO commit-graph lines. The `Could not read` + `Failed to traverse parents` pair is the revision-walker / object-DB signature = a **reachable parent commit object is genuinely absent**. Reproduced exactly by deleting one middle commit's loose object then running either reader (scratchpad repoD). `git fsck --connectivity-only` on that state prints `broken link ... missing commit <sha>`, non-zero exit — ideal fixture-integrity probe.
+
+**Why only Ubuntu-CI:** append-only fixture loses a reachable object only via auto-gc/repack/prune. `git commit` (and boot's `git fetch`) auto-invoke `git gc --auto`; Linux detaches via fork (`gc.autoDetach`) and can race the object-DB under ext4 + heavy parallel CI I/O. Windows can't fork → gc foreground/serialized. macOS-local Apple-git did NOT repack mid-loop even at `gc.auto=50` (512 loose / 0 packs) → local never corrupts. Could NOT spontaneously reproduce the object loss on APFS; missing-object→failure link is confirmed, gc-as-cause is high-confidence inference.
+
+**Fix lever (test-only):** neutralize implicit maintenance in EVERY fixture repo via conftest `run_cmd` merged env (same precedent as `_DEFAULT_GIT_IDENTITY_ENV`) using `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` → `gc.auto=0`, `gc.autoDetach=false`, `maintenance.auto=false`. `gc.auto=0` alone kills the trigger for both `git commit` and `git fetch`. Add fail-loud post-build probe (`git fsck --connectivity-only` assert rc==0).
 
 ## Pattern: Suite-red after a refactor is often stale-test + config-drift, NOT a product regression — separate "mechanism removed" from "assertion drifted" from "coupled config not updated"
 

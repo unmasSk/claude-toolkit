@@ -27,7 +27,7 @@ import pytest
 
 from conftest import (
     SOURCE_ROOT, HOOKS_DIR, INSTALL,
-    run_cmd, git_cmd, write_file, run_script,
+    run_cmd, git_cmd, write_file, run_script, assert_repo_integrity,
 )
 
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
@@ -394,6 +394,11 @@ class TestConsolidateLongHistory:
         _add_consolidation_commit(repo)
         # 300 commits normales después (garantía de contrato — no reducir)
         _add_regular_commits(repo, 300)
+        # Issue #61 (reabierto): probe fail-loud ANTES del assert principal —
+        # si el object-store quedó corrupto (gc race), esto falla con un
+        # mensaje explícito de "fixture corrupto" en vez de un opaco
+        # "CONSOLIDATE: ausente" indistinguible de un bug real de conteo.
+        assert_repo_integrity(repo, "test_07_long_history_counts_correctly tras 301 commits")
         content, breadcrumbs = _run_boot_with_retry(
             repo, lambda c: "CONSOLIDATE:" in c, attempts=3,
         )

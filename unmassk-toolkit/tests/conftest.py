@@ -81,6 +81,40 @@ _DEFAULT_GIT_IDENTITY_ENV = {
 
 _REPOS_WITH_EXPLICIT_GIT_IDENTITY = set()
 
+# Issue #61 (reabierto) — House root cause, reproducido byte-a-byte:
+# los fixtures que montan cientos de commits (test_consolidation_trigger.py,
+# test_recall.py horizonte-510, test_drift.py 200 commits) disparan
+# `git gc --auto` desde dentro de `git commit`/`git fetch` en masa. En
+# Ubuntu CI, gc.autoDetach desacopla ese gc por fork() y corre en carrera
+# con el object-DB bajo ext4 + I/O paralelo del runner — perdiendo
+# ocasionalmente un objeto commit PADRE todavía alcanzable. El daño queda
+# en disco: un `git log --all --grep=...` posterior (recall/consolidación)
+# tropieza con el padre ausente y muere rc=128 ("Could not read <sha>" /
+# "Failed to traverse parents of commit <sha>"), lo que los reintentos del
+# wrapper no pueden recuperar porque leen el mismo repo ya roto. No
+# reproduce en Windows (no puede fork gc) ni en macOS local (no repackea a
+# mitad del loop) — solo Ubuntu-CI. commit-graph fue descartado como causa.
+#
+# Fix: desactivar TODO mantenimiento implícito del object-store en cada
+# subprocess git de la suite, inyectado UNA sola vez aquí (mismo patrón de
+# capa-de-menor-precedencia que _DEFAULT_GIT_IDENTITY_ENV arriba) via
+# GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n — esto vale como
+# "config de máxima prioridad" para git (por encima de cualquier
+# git config local/global/system) sin tener que parchear cada `git init`
+# individual de cada fixture. gc.auto=0 mata el trigger tanto de `git
+# commit` como de `git fetch`; gc.autoDetach=false y maintenance.auto=false
+# son defensa en profundidad (si algo SÍ dispara un gc, que corra en
+# foreground y no via cron/maintenance, nunca en background por fork).
+_GC_DISABLE_ENV = {
+    "GIT_CONFIG_COUNT": "3",
+    "GIT_CONFIG_KEY_0": "gc.auto",
+    "GIT_CONFIG_VALUE_0": "0",
+    "GIT_CONFIG_KEY_1": "gc.autoDetach",
+    "GIT_CONFIG_VALUE_1": "false",
+    "GIT_CONFIG_KEY_2": "maintenance.auto",
+    "GIT_CONFIG_VALUE_2": "false",
+}
+
 
 def _sets_git_identity(args):
     """True if args is a `git config user.name|user.email <value>` call --
@@ -105,7 +139,7 @@ def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
         identity_defaults = {}
     else:
         identity_defaults = _DEFAULT_GIT_IDENTITY_ENV
-    merged = {**identity_defaults, **os.environ, **(env or {})}
+    merged = {**identity_defaults, **_GC_DISABLE_ENV, **os.environ, **(env or {})}
     # W2 (issue #52, House round 2): text=True without an explicit encoding=
     # makes subprocess.run decode the child's stdout/stderr bytes using
     # locale.getpreferredencoding(False) -- on Windows that's the console's
@@ -137,6 +171,38 @@ def git_cmd(args, cwd, env=None):
     if isinstance(args, str):
         args = args.split()
     return run_cmd(["git"] + args, cwd, env=env)
+
+
+def assert_repo_integrity(repo, context=""):
+    """Fail loud, with a clear message, if `repo`'s object database is
+    corrupt (a missing/unreachable-but-referenced object).
+
+    Issue #61 (reabierto) — probe requested by House alongside the
+    gc.auto=0 fix above. `_GC_DISABLE_ENV` should prevent the root-caused
+    `git gc --auto` fork race from ever corrupting a fixture repo again,
+    but IF it reappears (a different gc trigger, a git version without
+    full GIT_CONFIG_COUNT honoring, etc.), the previous failure mode was a
+    silent, opaque one: `git log --grep=...` swallows the `Could not read
+    <sha>` / `Failed to traverse parents` error via each caller's own
+    fail-safe design (`_scan_commits()` -> `[]`,
+    `commits_since_last_consolidation()` -> 0/sentinel), so the eventual
+    test failure looked like "CONSOLIDATE: ausente" / "entry not found" —
+    a scan-logic bug, not a fixture-integrity bug. Call this right after
+    building a massive-commit-loop fixture (and BEFORE the test's main
+    assertion) so a reappearing corruption fails as an explicit, readable
+    fixture error instead of that opaque downstream symptom.
+
+    `context` is prepended to the failure message (e.g. the test's own
+    name / which fixture stage) to make it obvious which build step this
+    check followed.
+    """
+    rc, out, err = git_cmd(["fsck", "--connectivity-only"], repo)
+    assert rc == 0, (
+        f"fixture corrupto (objeto ausente) — git fsck --connectivity-only "
+        f"exited {rc} (expected 0){': ' + context if context else ''}.\n"
+        f"--- stdout ---\n{out}\n"
+        f"--- stderr ---\n{err}"
+    )
 
 
 def write_file(repo, path, content):
