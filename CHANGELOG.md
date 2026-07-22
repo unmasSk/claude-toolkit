@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-07-23
+
 ### Removed
 
 - **External-attacker-framed tests retired (~9.6k lines), aligning the suite with the project's signed threat model — "the system against itself," not an external attacker (`CLAUDE.md`, "What security and tests are for in THIS project").** Four attacker-only files deleted outright: `test_control_byte_injection.py`, `test_security_regression.py`, `test_hardlink_reject_guard.py`, `test_manifest_hardlink_reject.py` (~8.5k lines). Six mixed files had only their attacker-framed classes excised, integrity-framed coverage kept (~1k lines): `test_boot_output.py` (symlink-write-protection / control-byte-injection classes gone; boot-section, log-file, surrogate-escape coverage kept), `test_crossplatform_symlink_guard.py` + `test_crossplatform_symlink_guard_hardening.py` (TOCTOU-as-attack classes gone; cross-platform parity/data-loss/fd-leak coverage kept), `test_issue63_manifest_read_hardening.py` (`.claude`-symlink-bypass class gone; `RecursionError` fail-safe kept), `test_hardening_recall.py` (anti-injection framing gone; fail-open/format-robustness kept), `test_stop_dod_gate.py` (metacharacter-as-attack class gone; command/infra-error/JSON-validity coverage kept). No production code was touched by this cut — the guarded functions themselves (`verify_path_within_project()`, `open_no_follow_symlink()`, hard-link rejection, `sanitize_trailer_value()`) remain live; only the attacker narrative around their tests changed. The only code edit was dropping one stale pre-1.0 filename (`git-memory-dashboard.py`) from the `OLD_BIN_FILES` migration lists in `lib/install_inspect.py` and `bin/git-memory-uninstall.py`. Suite: 1373 → 1078 passed, 2 skipped, still green.
