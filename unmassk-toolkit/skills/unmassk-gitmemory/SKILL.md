@@ -149,6 +149,43 @@ This generalises electronics' "per-device profile" (which was prose only, never 
 built mechanism) to every external-system objective, on the persistence the
 toolkit already has.
 
+## Dead-end memory (never re-investigate a subsystem from scratch)
+
+The most expensive waste in a multi-session codebase is re-investigating a
+subsystem from zero — re-walking the same paths a past session already ruled out
+("we looked in `validateActa()`, the signature check is NOT there"). The map of
+*how the code works* is always re-derivable from source, so it is NOT persisted.
+The **dead-end residue** is not: "we already looked here and it wasn't it" is
+history, not structure — lose it and the next bug hunt pays for it again. This is
+the `deadend` category, and like objective profiles it is `memo` used with
+discipline plus one deterministic wiring:
+
+- **Category & scope.** `memo(deadend/<subsystem>)`, category `deadend`. The scope
+  IS the subsystem's dead-end log; all such memos are append-only — a new
+  investigation adds another entry, it never rewrites the prior one (append-only
+  is what keeps two machines from clobbering each other's residue).
+- **Shape** (emitted by Bilbo, persisted by the orchestrator verbatim): the
+  question investigated, each ruled-out path anchored by **symbol** (never bare
+  line numbers — lines rot on every edit, symbols survive), the one-line reason it
+  was discarded, and `verdad-en: <short-sha>` in the body marking the commit where
+  it was true.
+- **The loop is deterministic, not disciplined.** Bilbo is in the recall
+  injection whitelist (`hooks/pre-task-recall.py`), so the hook feeds it the
+  `deadend/<subsystem>` memos automatically before it explores — no "remember to
+  read the log" prose rule. Bilbo starts from what is already ruled out, and
+  because it regenerates the map from live code anyway, it treats any dead-end
+  whose area changed since `verdad-en` as SUSPECT and re-verifies it (freshness is
+  free; a rotten claim is never trusted blind). On the way out Bilbo emits an
+  updated `DEAD-ENDS` block; the **orchestrator** commits it (Bilbo emits, the
+  orchestrator writes memory — memory-writing stays centralized).
+- **Gitto stays out** of the injection whitelist: it IS the memory oracle, so
+  feeding recall into it would be circular. Only Bilbo consumes dead-ends.
+
+Before building anything bigger here: the residue is justified on its own (dead
+ends never regenerate from code), but persisting the *rich map* was rejected by
+council — it is derivable, rots, and a stale map trusted blind is worse than
+none. Persist the residue, regenerate the map.
+
 ## Hierarchical Scopes
 
 Use **hierarchical scopes** separated by `/` in commit subjects. Max 2 levels deep.
@@ -194,7 +231,7 @@ Every non-wip commit. Trailers at end of body, contiguous block, no blank lines 
 | `Next:`                     | 1 line               | context() + if work remains                 |
 | `Blocker:`                  | 1 line               | if blocked                                  |
 | `Risk:`                     | low/medium/high      | if applicable                               |
-| `Memo:`                     | category - desc      | memo() (category: preference / requirement / antipattern / stack) |
+| `Memo:`                     | category - desc      | memo() (category: preference / requirement / antipattern / stack / deadend) |
 | `Remember:`                 | category - desc      | remember() (user/claude personality note)   |
 | `Conflict:` + `Resolution:` | 1 line each          | merge conflict resolution                   |
 | `Crown:`                    | `Decision` \| `Memo` \| `Remember` | memory commits only — marks this entry as the canonical "king" of its category (see Memory Consolidator below) |
