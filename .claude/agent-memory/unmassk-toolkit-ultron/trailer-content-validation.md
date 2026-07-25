@@ -55,3 +55,47 @@ space, no description) is caught by treating "missing separator" and
 "empty description after strip" as the SAME error branch
 (`len(parts) < 2 or not parts[1].strip()`) — simpler than two branches and
 sufficient since no test asserts a distinct message for that case.
+
+## Dead-hook removal (2026-07-25): pre-hook trimmed, post-hook deleted entirely
+
+Once the wrapper (`bin/git-memory-commit.py`) owned content validation
+end-to-end (see above), the hook-layer trailer/type validation became dead
+weight per Bilbo's map: `hooks/pre-validate-commit-trailers.py`'s
+`validate_trailers()`/`parse_commit_type()` branch was only reachable via
+`extract_commit_message()`, which requires the literal string `'git commit'`
+in the Bash command — the wrapper never produces that (it calls
+`subprocess.run(["git", "commit", ...])`, invisible to the Bash-matcher
+hook), so the branch was unreachable for Claude and warn-only for humans.
+`hooks/post-validate-commit-trailers.py`'s `"git commit" in command` gate
+was 100% dead for the same reason (git subprocess is invisible to the
+Bash-matcher PostToolUse hook). Fix: trimmed `pre-validate-commit-trailers.py`
+down to stdin read + the direct-`git commit`/`git log` block (the ONLY live
+enforcement — forces wrapper usage), removed now-unused imports
+(`constants`, `git_helpers.run_git`, most of `parsing`, `colors.YELLOW`) —
+kept only `colors.RED/RESET`. `git rm`'d `post-validate-commit-trailers.py`
+entirely and removed its `PostToolUse` block from `hooks/hooks.json`.
+
+**Hidden 4th-file break found only by running the full suite**:
+`bin/git-memory-doctor.py`'s `EXPECTED_HOOKS` list (health-check registry,
+distinct from `OLD_HOOK_FILES` in `bin/git-memory-uninstall.py` /
+`lib/install_inspect.py` — those are v1-installer-leftover cleanup lists,
+unaffected by this) still named the deleted file, so `git memory doctor`
+would permanently report a false "missing hook" — caught concretely by
+`tests/test_integration.py::test_upgrade_creates_backup` failing with
+`'error' != 'error'` / `"5/6 in cache — missing: post-validate-commit-trailers"`.
+Fixed by removing that one line from `EXPECTED_HOOKS`. Rule: when deleting a
+hook file, grep for every "list of files this project expects to exist"
+registry (health checks, install/uninstall manifests) — `git rm` alone does
+not surface these; only a full-suite test run does.
+
+Full-suite result after the change: 24 failed, 1144 passed, 2 skipped (no
+unrelated pre-existing flake — e.g. the usual `test_release.py` 9-failure
+noise — surfaced in this run; all 24 trace directly to this diff). Orphaned
+tests, all Dante's lane, not fixed here: `tests/test_post_validate_commit_trailers.py`
+(all 4, file gone), `tests/test_crown_retraction.py` (4, exercised post-hook's
+now-removed `validate_trailers()`), `tests/test_memo_category_deadend_contract.py`
+(14, parametrized over both hooks' now-removed/deleted `validate_trailers()`),
+`tests/test_integration.py::test_session_with_trailers` (invokes the deleted
+post-hook directly), `tests/test_drift.py::test_post_hook_exit_code` (same —
+invokes the deleted post-hook path directly, gets a launcher "no such file"
+rc=2 instead of the expected fail-open rc=0).

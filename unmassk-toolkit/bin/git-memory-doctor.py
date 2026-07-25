@@ -42,7 +42,6 @@ from date_parsing import parse_date
 
 EXPECTED_HOOKS = [
     "pre-validate-commit-trailers.py",
-    "post-validate-commit-trailers.py",
     "precompact-snapshot.py",
     "stop-dod-check.py",
     "session-start-boot.py",
