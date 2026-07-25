@@ -184,8 +184,20 @@ python3 "$COMMIT_SCRIPT" <type> <scope> "<message>" [--body TEXT] [--trailer KEY
 - `Touched:` — paths from real diff
 - `Next:` — if work remains
 - `Blocker:` — if blocked
-- `Crown: <kind>` + `Sources: <hashes>` — Mode C only, on the crown commit itself
+- `Crown: <kind>` + `Sources: <hashes>` — Mode C only, on the crown commit itself (see the exact crown-commit format below)
 - `Retract-Crown: <hash>` + `Why:` — Mode C only, when retracting a prior crown
+
+**Exact crown-commit format (Mode C — get this exactly right; it has been written wrong before, producing inert crowns).** A crown is a REAL memory commit of its own type, not a bare marker: it MUST carry its own `Memo:`/`Remember:`/`Decision:` trailer with the canonical text, AND a `Crown:` trailer whose value is exactly `Memo`/`Remember`/`Decision` — **no trailing colon, nothing else appended**. Pass EVERY field through `--trailer KEY=VALUE`; never hand-write trailer lines into `--body` (a field written as body prose, or a value carrying a stray trailing `:`, becomes inert — the entry then registers as neither a crown nor even a memo). A memo crown, in full:
+
+```
+python3 "$COMMIT_SCRIPT" memo <scope> "<category> - <canonical text>" \
+  --trailer "Memo=<category> - <canonical text>" \
+  --trailer "Crown=Memo" \
+  --trailer "Sources=<hash1>, <hash2>" \
+  --push
+```
+
+The `Memo=`/`Remember=` value and the subject message are the same canonical text — the subject ALONE does not create the trailer (the wrapper only emits the trailers you pass). Swap `Memo`→`Remember` (and the type) for a remember crown. **Verify after writing:** the `Crown` value must equal `Memo`/`Remember`/`Decision` exactly (a `Crown: Memo:` with a trailing colon does not match `== "Memo"` and the crown silently does nothing), and the commit must actually contain its `Memo:`/`Remember:` trailer.
 
 ### Commit type reference
 
