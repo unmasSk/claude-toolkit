@@ -85,7 +85,7 @@ BOOT_MAX_TIMELINE = 20
 
 # CRB-06: named GC-warning thresholds (previously inline magic numbers).
 MEMO_GC_THRESHOLD = 10
-REMEMBER_GC_THRESHOLD = 8
+REMEMBER_GC_THRESHOLD = 16
 
 # SEC-MED-005: crowned Decision/Memo/Remember entries intentionally bypass the
 # normal MAX_DECISIONS/MAX_MEMOS/BOOT_MAX_REMEMBERS count-eviction budget (a
