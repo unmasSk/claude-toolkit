@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
-from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR
+from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR, MEMO_CATEGORIES, REMEMBER_CATEGORIES
 from git_helpers import run_git, open_no_follow_symlink
 from parsing import suggest_scope_from_paths, sanitize_trailer_value
 
@@ -232,6 +232,63 @@ def _check_subject_length(type_: str, scope: str, message: str) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+
+# Trailer keys whose VALUE content is validated before the commit is made,
+# and the enum each one is checked against. Both require the
+# "category - description" shape: category in the enum, description
+# non-empty after strip().
+_TRAILER_CONTENT_ENUMS: dict[str, set[str]] = {
+    "Memo": MEMO_CATEGORIES,
+    "Remember": REMEMBER_CATEGORIES,
+}
+
+
+def _validate_trailer_content(key: str, value: str) -> str | None:
+    """Validate the CONTENT of a Memo:/Remember: trailer value.
+
+    Returns None if valid (or if `key` isn't one we content-validate), or a
+    human-readable error string if invalid. Does NOT validate message SHAPE
+    (blank lines, Co-Authored-By) -- build_commit_message() already builds
+    that correctly; this only checks the "category - description" content
+    of Memo/Remember values, which nothing validated before this commit is
+    built (the PreToolUse hook only intercepts raw `git commit` Bash
+    commands, never this wrapper's own in-process trailers -- see the
+    contract test docstring for the full explanation).
+    """
+    categories = _TRAILER_CONTENT_ENUMS.get(key)
+    if categories is None:
+        return None
+
+    valid_list = "|".join(sorted(categories))
+    parts = value.split(" - ", 1)
+    if len(parts) < 2 or not parts[1].strip():
+        return (
+            f"invalid {key} format: {sanitize_trailer_value(value)!r}. "
+            f"Must be: {valid_list} - description"
+        )
+    category = parts[0].strip()
+    if category not in categories:
+        return (
+            f"invalid {key} category {sanitize_trailer_value(category)!r}. "
+            f"Valid categories: {valid_list}"
+        )
+    return None
+
+
+def _check_trailer_content(trailers: list[str]) -> None:
+    """Fail closed before the commit is built if any Memo:/Remember:
+    trailer's content is malformed.
+
+    Runs BEFORE build_commit_message()/_do_commit() so an invalid trailer
+    never reaches git: exit 2, clear stderr message, no commit created.
+    """
+    for t in trailers:
+        key, _, value = t.partition("=")
+        error = _validate_trailer_content(key, value)
+        if error:
+            print(f"{RED}{BOLD}Error{RESET}: {error}", file=sys.stderr)
+            sys.exit(2)
 
 
 def build_commit_message(type_: str, scope: str, message: str,
@@ -453,6 +510,11 @@ def main() -> None:
             # silently treated as "no repo root available".
             repo_real = None
         _validate_path_args(args.paths, repo_real)
+
+    # Fail closed on malformed Memo:/Remember: trailer content BEFORE any
+    # commit-building or side effects (e.g. gh issue creation in
+    # _process_trailers below).
+    _check_trailer_content(args.trailers)
 
     # Scope suggestion from staged files (non-blocking hint)
     if type_ not in MEMORY_TYPES:

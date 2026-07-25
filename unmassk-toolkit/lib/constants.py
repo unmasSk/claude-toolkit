@@ -40,6 +40,9 @@ RISK_VALUES: set[str] = {"low", "medium", "high"}
 # Memo categories for Memo: trailer (format: "category - description")
 MEMO_CATEGORIES: set[str] = {"preference", "requirement", "antipattern", "stack", "deadend"}
 
+# Remember categories for Remember: trailer (format: "category - description")
+REMEMBER_CATEGORIES: set[str] = {"user", "claude"}
+
 # Commit types that require code trailers (Why + Touched)
 CODE_TYPES: set[str] = {"feat", "fix", "refactor", "perf", "chore", "ci", "test", "docs"}
 

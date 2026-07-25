@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
-from constants import CODE_TYPES, MEMO_CATEGORIES, MEMORY_TYPES, RISK_VALUES, VALID_KEYS
+from constants import CODE_TYPES, MEMO_CATEGORIES, MEMORY_TYPES, REMEMBER_CATEGORIES, RISK_VALUES, VALID_KEYS
 from git_helpers import run_git
 from parsing import extract_commit_message, parse_commit_type, parse_trailers, sanitize_trailer_value
 from colors import RED, YELLOW, RESET
@@ -125,7 +125,7 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
     # Validate Remember category if present
     if "Remember" in trailers:
         parts = trailers["Remember"].split(" - ", 1)
-        if len(parts) < 2 or parts[0].strip() not in ("user", "claude"):
+        if len(parts) < 2 or parts[0].strip() not in REMEMBER_CATEGORIES:
             errors.append(f"Invalid Remember format: '{sanitize_trailer_value(trailers['Remember'])}'. Must be: user|claude - description")
 
     # Validate Risk values if present

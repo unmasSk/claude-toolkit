@@ -10,3 +10,4 @@
 - [electronics-scripts.md](electronics-scripts.md) — unmassk-electronics scripts/*.py: pure-decision-function split, setup_cad_env.py reuse, ssh self-verify scope, sensor_gate.py tolerance-band gate
 - [boot-timeline-scope.md](boot-timeline-scope.md) — boot TIMELINE's real git-log call lives in boot_git_checks.py (not boot_render.py); --all needs the same exclude_remote guard as extract_glossary()
 - [design-gate-linter.md](design-gate-linter.md) — design_gate.py SKILL.md corpus shape, pyyaml precedent, 3 false-positive traps (trailing punctuation, inverted contradiction logic, homonym/stemming) found by real-repo verification
+- [trailer-content-validation.md](trailer-content-validation.md) — Memo:/Remember: content validation moved to bin/git-memory-commit.py wrapper; REMEMBER_CATEGORIES promoted to lib/constants.py
