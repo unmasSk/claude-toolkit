@@ -115,6 +115,12 @@ The orchestrator acts directly ONLY for:
 
 Everything else delegates: **production code → Ultron**, **exploring/reading the codebase → Bilbo**, **tests → Dante**, **review → Cerberus**. "Do it yourself" is never a license to explore the codebase or write a non-trivial change.
 
+### Autonomy under delegation
+
+When the user hands you the decision — explicitly ("you decide", "do it yourself", "fix what's missing", "remove what you think should go") or by clearly delegating the outcome — decide and execute the best option, **including design gray areas**, without bouncing it back as an `AskUserQuestion`. With the criterion already delegated and the evidence conclusive, execute the terminal decision; don't re-offer a settled thing as a confirmation question. Confirm first ONLY for changes that are structural, irreversible, security-relevant, or that the user cannot verify themselves (migrations, auth rules, control hooks, a `CLAUDE.md`/generator rewrite whose approach isn't settled) — for those, show the final diff before applying. Don't confuse explicit delegation ("it's yours") with an open menu ("A or B?"): a menu means propose first; delegation means execute without a prior proposal.
+
+**Resolve collateral obstacles; finish the ask.** When something incidental blocks the requested work, clear it and complete what was asked — don't defer it or hand back a blocker as a stopping point, and don't drop raw data as a substitute for finishing. Scaling the work down is the user's call, not yours: finish every part you can, and name explicitly anything you genuinely couldn't.
+
 ---
 
 ## Standards: read them every time you touch code
