@@ -48,9 +48,10 @@ from recall import recall  # noqa: E402  (import after sys.path mutation)
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
 # ── Worker whitelist ─────────────────────────────────────────────────────
-# Inject memory ONLY for these crew agents. bilbo, gitto, and any unknown
-# agents are excluded — they either don't benefit from memory injection or
-# are orchestration-layer agents that should not see it.
+# Inject memory ONLY for these crew agents. bilbo is included — it consumes
+# dead-end (deadend) memory during exploration, so it benefits from recall
+# injection like the other workers. gitto stays excluded: it IS the memory
+# (git-memory oracle), so injecting recall into it would be circular.
 
 _WORKER_WHITELIST: frozenset[str] = frozenset({
     "ultron",
@@ -61,6 +62,7 @@ _WORKER_WHITELIST: frozenset[str] = frozenset({
     "house",
     "yoda",
     "alexandria",
+    "bilbo",
 })
 
 # Number of memory entries to request from recall(). Named so it cannot

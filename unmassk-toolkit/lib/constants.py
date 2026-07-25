@@ -38,7 +38,7 @@ RECALL_KEYS: tuple[str, ...] = ("Decision", "Memo", "Remember")
 RISK_VALUES: set[str] = {"low", "medium", "high"}
 
 # Memo categories for Memo: trailer (format: "category - description")
-MEMO_CATEGORIES: set[str] = {"preference", "requirement", "antipattern", "stack"}
+MEMO_CATEGORIES: set[str] = {"preference", "requirement", "antipattern", "stack", "deadend"}
 
 # Commit types that require code trailers (Why + Touched)
 CODE_TYPES: set[str] = {"feat", "fix", "refactor", "perf", "chore", "ci", "test", "docs"}
