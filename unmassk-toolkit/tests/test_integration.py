@@ -19,7 +19,7 @@ import pytest
 
 from conftest import (
     SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, UPGRADE, BOOTSTRAP, DOCTOR,
-    PRE_HOOK, POST_HOOK,
+    PRE_HOOK,
     run_cmd, git_cmd, write_file, run_script, run_doctor_json,
 )
 from version import VERSION
@@ -126,7 +126,17 @@ def test_bootstrap_with_commits(tmp_path):
 
 
 def test_session_with_trailers(tmp_path):
-    """Pre-hook accepts commits with valid trailers (hook runs from plugin cache)."""
+    """Pre-hook does not block a normal session commit (hook runs from plugin cache).
+
+    NOTE (2026-07-25): this test used to also invoke
+    post-validate-commit-trailers.py after the commit — that hook was
+    deleted outright (its validate_trailers() was dead code in the
+    wrapper's path; see test_memo_category_deadend_contract.py's retirement
+    note for the full history). Trailer CONTENT validation now lives in
+    bin/git-memory-commit.py itself (test_wrapper_trailer_content_validation_contract.py)
+    rather than in a PostToolUse hook, so there is no live post-hook
+    behavior left to redirect this test's second half toward.
+    """
     repo = make_installed_repo(tmp_path)
 
     write_file(repo, "src/main.py", "print('hello')")
@@ -140,9 +150,6 @@ def test_session_with_trailers(tmp_path):
     assert rc == 0
 
     git_cmd(["commit", "-m", msg], repo)
-
-    rc, _, _ = run_hook_from_cache("post-validate-commit-trailers.py", msg_file, repo)
-    assert rc == 0
 
 
 def test_compaction_snapshot(tmp_path):

@@ -32,7 +32,6 @@ HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
 # Hook / script paths (all in plugin source, not project root)
 PRECOMPACT_SCRIPT = os.path.join(HOOKS_DIR, "precompact-snapshot.py")
 PRE_HOOK = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
-POST_HOOK = os.path.join(HOOKS_DIR, "post-validate-commit-trailers.py")
 
 DOCTOR = os.path.join(BIN_DIR, "git-memory-doctor.py")
 GC = os.path.join(BIN_DIR, "git-memory-gc.py")

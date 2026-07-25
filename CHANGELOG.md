@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`Memo:`/`Remember:` trailer content is now validated at the producer, before the commit exists.** `bin/git-memory-commit.py`'s wrapper checks every trailer's category against the enum (`MEMO_CATEGORIES` / `REMEMBER_CATEGORIES` — the latter promoted from a hook-local literal into `lib/constants.py`, one source of truth for both), enforces the `categoria - descripcion` shape, and rejects an empty description. Validates the same *sanitized* string that actually lands in the commit, not the raw one — a description made only of control bytes collapses to empty after sanitization and is caught, instead of slipping through a raw non-empty check. Fails closed: invalid input exits non-zero and no commit is created. Closes the "invented category → memory recall never retrieves it" silent-loss vector.
+
+### Removed
+
+- **Dead trailer-validation hook layer retired.** `hooks/post-validate-commit-trailers.py` deleted outright — it was 100% dead on the real commit path. `hooks/pre-validate-commit-trailers.py` cut from 233 to 55 lines: the trailer-content/type validation it attempted never actually fired (its commit-message extraction looked for a literal `git commit` invocation, which the wrapper never produces), so it is gone along with the dead hook. `hooks/hooks.json`'s registration for the deleted hook and `bin/git-memory-doctor.py`'s `EXPECTED_HOOKS` list were updated to match. **The one thing that layer did enforce for real — blocking direct `git commit`/`git log` Bash calls to force use of the wrapper scripts — is unchanged and still lives in `pre-validate-commit-trailers.py`.**
+
 ## [1.23.0] - 2026-07-25
 
 ### Added

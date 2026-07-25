@@ -2,11 +2,10 @@
 Drift tests simulating 6 months of commit history.
 
 Generates 200 commits across 6 scopes, then validates search, dedup,
-snapshot budget, truncation, hook robustness, exit-code safety,
-delimiter collision, nested prefixes, and GC tombstones.
+snapshot budget, truncation, hook robustness, delimiter collision, nested
+prefixes, and GC tombstones.
 """
 
-import json
 import os
 import random
 import re
@@ -19,7 +18,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from conftest import (
-    PRECOMPACT_SCRIPT, PRE_HOOK, POST_HOOK,
+    PRECOMPACT_SCRIPT, PRE_HOOK,
     run_cmd, git_cmd, check_hook_msg, assert_repo_integrity,
 )
 
@@ -346,48 +345,14 @@ def test_hook_robustness(drift_repo):
     assert check_hook_msg("✨ feat(auth): no trailers here", cwd, as_claude=False) == 0
 
 
-def test_post_hook_exit_code(drift_repo):
-    """Verify post-hook doesn't destroy commits when git commit fails."""
-    cwd = drift_repo
-
-    git_cmd(["commit", "--allow-empty", "-m", "old commit without trailers"], cwd)
-
-    # Simulate failed commit (exit_code=1)
-    payload_failed = {
-        "tool_input": {"command": 'git commit -m "✨ feat(auth): new feature" -m "Why: test\nTouched: auth.py"'},
-        "tool_output": {
-            "stdout": "ERROR: eslint found 3 errors",
-            "stderr": "pre-commit hook failed",
-            "exit_code": 1,
-        },
-    }
-    rc, _, _ = run_cmd(
-        [sys.executable, POST_HOOK],
-        cwd, input_text=json.dumps(payload_failed),
-    )
-    assert rc == 0, "Post-hook acted on failed commit"
-
-    _, out, _ = git_cmd(["log", "-1", "--pretty=format:%s"], cwd)
-    assert "old commit without trailers" in out, "Post-hook destroyed previous commit"
-
-    # Spanish locale failure
-    payload_spanish = {
-        "tool_input": {"command": 'git commit -m "✨ feat(auth): otra feature"'},
-        "tool_output": {
-            "stdout": "nada para hacer commit, el árbol de trabajo está limpio",
-            "stderr": "",
-            "exit_code": 1,
-        },
-    }
-    rc, _, _ = run_cmd(
-        [sys.executable, POST_HOOK],
-        cwd, input_text=json.dumps(payload_spanish),
-    )
-    assert rc == 0, "Post-hook acted on Spanish locale failed commit"
-
-    # Restore proper commit
-    git_cmd(["commit", "--allow-empty", "-m",
-             "🔧 chore: restore state\n\nWhy: test cleanup\nTouched: none"], cwd)
+# NOTE (2026-07-25): test_post_hook_exit_code was removed here — it invoked
+# post-validate-commit-trailers.py, which was deleted outright (dead code in
+# the wrapper's path; see test_memo_category_deadend_contract.py's
+# retirement note for the full history). pre-validate-commit-trailers.py
+# (the surviving hook, still exercised elsewhere in this file via
+# check_hook_msg/PRE_HOOK) never inspected tool_output/exit_code at all — it
+# only blocks the tool invocation BEFORE execution based on the command
+# string — so there is no live pre-hook behavior to adapt this test toward.
 
 
 def test_delimiter_collision(drift_repo):

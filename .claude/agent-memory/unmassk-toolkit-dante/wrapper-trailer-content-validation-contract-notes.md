@@ -94,3 +94,49 @@ the file's local `REMEMBER_CATEGORIES = ("user", "claude")` stand-in
 import `from constants import MEMO_CATEGORIES, REMEMBER_CATEGORIES` —
 `lib/constants.py` had grown the constant in the meantime. Only the test
 file changed; zero production edits by me.
+
+**Follow-up (2026-07-25, same day): cleanup pass after the hook retirement
+was finalized.** Once this wrapper contract was confirmed as the real
+owner of Memo/Remember content validation, Ultron retired the now-dead
+hook-side `validate_trailers()` for good: `post-validate-commit-trailers.py`
+deleted outright, `pre-validate-commit-trailers.py` trimmed to keep ONLY
+the "use the wrapper script" block gate (no `validate_trailers()` at all
+anymore). That orphaned 24 tests across 4 files that had exercised the
+retired hook logic — cleanup technique worth reusing next time a
+validation layer gets consolidated like this:
+1. **Before deleting any orphaned test, map it to its replacement.** Every
+   one of the 14 tests in `test_memo_category_deadend_contract.py`
+   (deadend acceptance, existing-category acceptance, garbage-category
+   rejection, all parametrized `[pre]`/`[post]`) had an exact behavioral
+   equivalent already GREEN in this file's
+   `TestMemoCategoryHappyPathUnaffected`/`TestMemoCategoryValidationFailClosed`
+   classes (the happy-path test already parametrizes over the real
+   `MEMO_CATEGORIES` set, so it automatically covers "deadend" once that
+   category exists — nothing needed porting). Do this mapping explicitly
+   before deleting, not after — it's the only way to tell "safe to delete"
+   from "would silently drop coverage."
+2. **Removing a class can orphan its private helpers.** In
+   `test_crown_retraction.py`, deleting `TestRetractCrownRequiresWhy` (the
+   4 tests exercising the retired Why-on-Retract-Crown validation) also
+   orphaned `_pre_hook_errors`/`_post_hook_errors`/`_run_pre_hook_full`/
+   `_load_module` and the `PRE_HOOK_PATH`/`POST_HOOK_PATH` constants — none
+   of them were used anywhere else in the file. Grep every helper the
+   doomed class calls before deleting; a helper used ONLY by dead tests is
+   itself dead and should go with them, or it silently rots as unreachable
+   code.
+3. **A hook-invoking test doesn't always mean the test was exercising real
+   validation.** `test_integration.py::test_session_with_trailers` passed
+   `msg_file` (a file path) as a positional CLI arg to a hook that only
+   ever reads JSON from stdin — with no `input_text=`, stdin is empty,
+   `json.load()` raises `JSONDecodeError`, caught, `sys.exit(0)`. So the
+   surviving pre-hook half of that test was already only proving fail-open
+   on malformed input, not "accepts commits with valid trailers" as its
+   docstring claimed — a pre-existing test-quality gap, left alone (out of
+   scope: only the dead post-hook invocation was removed, per the "don't
+   fix bugs found while testing, report them" rule).
+4. **Production-code residue found, NOT fixed (report-only, per scope):**
+   `bin/git-memory-uninstall.py:56` and `lib/install_inspect.py:34` still
+   list `"hooks/post-validate-commit-trailers.py"` in their hook
+   inventories even though the file was deleted — neither was mentioned in
+   the "already applied" production changes for this retirement. Flagged
+   for Ultron/Cerberus, not touched (test-only pass).

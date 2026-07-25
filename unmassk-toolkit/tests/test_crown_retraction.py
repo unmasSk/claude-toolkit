@@ -40,11 +40,24 @@ implementation this mirrors):
     scan, and treat a crowned commit's `is_crown` as False when its own
     hash is in the retracted set — WITHOUT letting an older, previously
     superseded crown for the same scope resurface.
-  - hooks/pre-validate-commit-trailers.py / post-validate-commit-trailers.py:
-    a commit carrying Retract-Crown must also carry Why: (mirrors the
-    existing block-for-Claude / warn-for-human pattern already used for
-    every other required trailer in this codebase — see
-    validate_trailers() in both hook files).
+
+RETIRED (2026-07-25): this file used to also require that a commit
+carrying Retract-Crown must also carry Why:, enforced via
+validate_trailers() in hooks/pre-validate-commit-trailers.py /
+post-validate-commit-trailers.py. That validation layer was dead code in
+the wrapper's path (the hooks only ever fire on a raw Bash `command`
+string via the Claude Code harness, never on a plain wrapper invocation —
+see unmassk-toolkit-python-test-conventions.md's "as_claude gotcha") and
+has since been retired: post-validate-commit-trailers.py was deleted
+outright, and pre-validate-commit-trailers.py was trimmed to keep ONLY
+the "use the wrapper script" block (validate_trailers() no longer exists
+in either file). The corresponding tests
+(TestRetractCrownRequiresWhy, formerly tests 13/13b/14/15) were removed
+as orphaned — there is no live content-validation surface for
+Retract-Crown+Why today; trailer CONTENT validation now lives in
+bin/git-memory-commit.py (see test_wrapper_trailer_content_validation_contract.py),
+which does not yet validate Retract-Crown+Why specifically. Flagged as a
+coverage gap, not fixed here (test-only pass).
 
 STATUS ORDER (expected the first time this file is run, before Ultron
 implements anything):
@@ -52,7 +65,6 @@ implements anything):
   true today, must stay true throughout implementation).
 """
 
-import importlib.util
 import json
 import os
 import sys
@@ -69,8 +81,6 @@ if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
 BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
-PRE_HOOK_PATH = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
-POST_HOOK_PATH = os.path.join(HOOKS_DIR, "post-validate-commit-trailers.py")
 
 
 # ── Repo helpers (mirroring test_crown.py's helpers) ───────────────────────
@@ -164,46 +174,6 @@ def _decisions_block(output, span=800):
 def _memos_block(output, span=800):
     start = output.find("MEMOS:")
     return output[start:start + span] if start != -1 else ""
-
-
-# ── validate_trailers() helpers (direct import, no subprocess) ─────────────
-#
-# We import the hooks' own validate_trailers() function directly rather than
-# going through the full hook via subprocess, because for Claude authors the
-# hook has an UNRELATED, unconditional "use the wrapper script" gate that
-# blocks any direct `git commit` regardless of trailer content — that gate
-# would mask whether Why: is actually being required by validate_trailers().
-
-def _load_module(path, name):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _pre_hook_errors(commit_type, trailers, branch=""):
-    mod = _load_module(PRE_HOOK_PATH, "_pre_hook_under_test")
-    return mod.validate_trailers(commit_type, trailers, branch)
-
-
-def _post_hook_errors(commit_type, trailers, branch=""):
-    mod = _load_module(POST_HOOK_PATH, "_post_hook_under_test")
-    return mod.validate_trailers(commit_type, trailers, branch)
-
-
-def _run_pre_hook_full(repo, subject, trailers, as_claude=False):
-    """Run the real pre-hook end-to-end with a literal `git commit` command,
-    as a human (as_claude=False) so the unrelated "use the wrapper script"
-    gate never fires and the real trailer-validation path executes.
-
-    Returns (rc, stdout, stderr).
-    """
-    command = f'git commit -m "{subject}"'
-    if trailers:
-        command += f' -m "{trailers}"'
-    payload = {"tool_input": {"command": command}}
-    env = {"CLAUDE_CODE": "1"} if as_claude else {}
-    return run_script(PRE_HOOK_PATH, repo, env=env, input_text=json.dumps(payload))
 
 
 # ── extract_memory() helper (subprocess isolation, mirrors test_crown.py) ──
@@ -587,85 +557,4 @@ class TestRetractionCommitIsNormalEntry:
         assert "revisit per-plan caps" in block, (
             f"The retraction commit's own Memo: text must appear as a normal "
             f"entry in the MEMOS section — it must not be hidden. Block:\n{block}"
-        )
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# SECTION 8 — missing Why: on a Retract-Crown commit (item 6)
-# ══════════════════════════════════════════════════════════════════════════
-
-class TestRetractCrownRequiresWhy:
-    """Missing-required-trailer handling for Retract-Crown must follow the
-    SAME pattern already used everywhere else in validate_trailers() (see
-    pre-validate-commit-trailers.py / post-validate-commit-trailers.py):
-    a missing required trailer is appended to the errors list, which then
-    drives block-for-Claude / warn-for-human upstream in main(). No new
-    enforcement style is invented here.
-
-    We exercise this on a `memo` commit specifically, because memo commits
-    do not otherwise require Why: (validate_trailers only requires Memo:
-    for that type) — so this isolates the NEW behavior Retract-Crown adds,
-    rather than the pre-existing Why: requirement `decision` already has.
-    """
-
-    def test_13_pre_hook_flags_missing_why_on_memo_with_retract_crown(self):
-        """validate_trailers("memo", ...) must flag a missing Why: when
-        Retract-Crown is present, using the same "Why" wording already used
-        for every other required-trailer error in this function.
-
-        STATUS: RED — Retract-Crown carries no Why: requirement today; a
-        memo with only Memo: passes validate_trailers() unconditionally.
-        """
-        trailers = {"Memo": "requirement - JWT crown was wrong", "Retract-Crown": "abc1234"}
-        errors = _pre_hook_errors("memo", trailers)
-        assert any("Why" in e for e in errors), (
-            f"A Retract-Crown-carrying memo commit without Why: must be flagged, "
-            f"same as any other missing-required-trailer case. Got errors: {errors}"
-        )
-
-    def test_13b_post_hook_flags_missing_why_on_memo_with_retract_crown(self):
-        """Same contract, mirrored in the post-hook's own validate_trailers()
-        copy — both hooks must agree (belt and suspenders).
-
-        STATUS: RED — same root cause as test_13.
-        """
-        trailers = {"Memo": "requirement - JWT crown was wrong", "Retract-Crown": "abc1234"}
-        errors = _post_hook_errors("memo", trailers)
-        assert any("Why" in e for e in errors), f"Got errors: {errors}"
-
-    def test_14_retract_crown_with_why_produces_no_errors(self):
-        """CONTROL: once Why: is present, validate_trailers() must return no
-        errors for an otherwise well-formed memo.
-
-        STATUS: GREEN [GUARD] once implemented — must not regress.
-        """
-        trailers = {
-            "Memo": "requirement - JWT crown was wrong",
-            "Retract-Crown": "abc1234",
-            "Why": "crown text was factually wrong after the auth rewrite",
-        }
-        errors = _pre_hook_errors("memo", trailers)
-        assert errors == [], f"Well-formed Retract-Crown commit must pass. Got: {errors}"
-
-    def test_15_human_commit_missing_why_on_retract_crown_warns_with_why_mentioned(self, tmp_path):
-        """Integration: a human (non-Claude) commit is never blocked (matches
-        every other trailer check in this codebase — see
-        test_drift.py::test_hook_robustness's as_claude=False expectation),
-        but the warning printed to stderr must mention Why: once Retract-Crown
-        requires it — proving the check actually ran, not just that human
-        commits are unconditionally exit 0 regardless of content.
-
-        STATUS: RED — today this produces no warning at all (memo type
-        currently only requires Memo:, which is already present).
-        """
-        repo = _make_repo(tmp_path)
-        subject = "📌 memo(auth): retract stale crown"
-        trailers = "Memo: requirement - JWT crown was wrong\nRetract-Crown: abc1234"
-
-        rc, _, stderr = _run_pre_hook_full(repo, subject, trailers, as_claude=False)
-
-        assert rc == 0, "Human commits are never blocked, only warned."
-        assert "Why" in stderr, (
-            f"Missing Why: on a Retract-Crown commit must be surfaced in the "
-            f"warning, proving the new requirement is actually enforced. stderr={stderr!r}"
         )
