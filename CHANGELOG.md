@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gitto Mode C tombstones must cite entry TEXT, not commit hash** (`agents/gitto.md`). Boot matches `Resolved-Memo:`/`Resolved-Remember:` tombstones by *normalized entry text* (`lib/boot_memory.py`), but the doc told Gitto to write them "citing all cleared hashes" — so a `Resolved-Remember: <hash>` matched nothing and the entry stayed live as a permanent "ghost" (this was the source of a lingering, already-supposedly-retired `remember(claude)` found this session). The doc now mandates the exact entry text as the trailer value (hash goes in `Why:`), and clarifies it's one tombstone commit per entry (a trailer key appears at most once). Completes the crown-format fix from 1.22.0.
+
+### Changed
+
+- **`unmassk-gitmemory` documents `file_lock()`** for concurrent writers of a shared file, replacing the now-stale "no file lock — last-write-wins, not yet fixed" note (fixed in 1.22.0). The Filesystem Safety Pattern section now points future `.claude/` code at the lock, the `.claude/.unmassk/` lock-path convention, non-reentrancy, and the check-outside-then-lock pattern.
+
 ## [1.22.0] - 2026-07-25
 
 ### Added
