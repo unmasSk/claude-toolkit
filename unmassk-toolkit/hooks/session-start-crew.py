@@ -17,7 +17,7 @@ from encoding_guard import force_utf8_streams  # noqa: E402
 force_utf8_streams()
 
 from managed_blocks import upsert_managed_blocks  # noqa: E402
-from git_helpers import open_no_follow_symlink  # noqa: E402
+from git_helpers import claude_md_lock_path, file_lock, open_no_follow_symlink  # noqa: E402
 
 
 def find_git_root():
@@ -31,6 +31,28 @@ def find_git_root():
     except Exception:
         pass
     return None
+
+
+def _read_claude_md(claude_md):
+    """Read CLAUDE.md if it exists.
+
+    Returns (content, exists). (None, None) signals "refuse to follow a
+    symlink / undecodable content" -- caller must treat that as a skip, not
+    a normal empty-file read.
+    """
+    if not claude_md.exists():
+        return "", False
+    try:
+        # barrido finding: never follow a symlink planted at CLAUDE.md —
+        # same bug class as BUG K (install.py/uninstall.py), a separate
+        # call site found via the barrido sweep. open_no_follow_symlink()
+        # takes a path-like object fine (os.open() accepts Path via
+        # os.fspath()), so we read/write via the file handle instead of
+        # pathlib.Path's read_text()/write_text().
+        with open_no_follow_symlink(claude_md, "r", encoding="utf-8") as f:
+            return f.read(), True
+    except (OSError, UnicodeDecodeError):
+        return None, None
 
 
 def main():
@@ -53,44 +75,64 @@ def main():
     # empty (new_content == content) -- Bex's "write the minimum" goal,
     # preserved without trusting any external proxy for content state.
     claude_md = git_root / "CLAUDE.md"
-    claude_md_exists = claude_md.exists()
 
-    if claude_md_exists:
-        try:
-            # barrido finding: never follow a symlink planted at CLAUDE.md —
-            # same bug class as BUG K (install.py/uninstall.py), a separate
-            # call site found via the barrido sweep. open_no_follow_symlink()
-            # takes a path-like object fine (os.open() accepts Path via
-            # os.fspath()), so we read/write via the file handle instead of
-            # pathlib.Path's read_text()/write_text().
-            with open_no_follow_symlink(claude_md, "r", encoding="utf-8") as f:
-                content = f.read()
-        except (OSError, UnicodeDecodeError):
-            print("[crew] CLAUDE.md is a symlink, refusing to follow it — skipping")
-            return
-    else:
-        content = ""
+    # T1-1 (Cerberus/Moriarty regression): a cheap, LOCK-FREE check first.
+    # file_lock() below creates/opens a file under .claude/.unmassk/, which
+    # can fail on a read-only mount -- a repo whose managed blocks are
+    # already canonical must stay a pure no-op READ and never attempt that
+    # acquisition just to discover there was nothing to write. Only
+    # escalate to the locked read-modify-write cycle when this cheap check
+    # finds an actual write is needed.
+    content, claude_md_exists = _read_claude_md(claude_md)
+    if content is None:
+        print("[crew] CLAUDE.md is a symlink, refusing to follow it — skipping")
+        return
 
     new_content, log = upsert_managed_blocks(content)
+    if claude_md_exists and new_content == content:
+        print("[crew] All managed blocks up to date")
+        return
 
+    # A write looks needed -- acquire the lock (issue: lost-update race,
+    # memo eae0880) and RE-CHECK under it: another writer may have already
+    # applied this exact update between the cheap check above and getting
+    # the lock here. The lock must span the ENTIRE read -> upsert -> write
+    # cycle, not just the write, so a concurrent writer always sees this
+    # cycle's committed result before starting its own. claude_md_lock_path()
+    # (Cerberus anti-pollution finding): all 3 CLAUDE.md writers in this
+    # codebase must pass the exact same lock path so they genuinely
+    # serialize against each other, and it lives under .claude/.unmassk/
+    # (already gitignored) instead of next to CLAUDE.md itself. A failure
+    # here (lock acquisition OR the write itself -- e.g. a read-only
+    # directory) degrades the same way an unwriteable CLAUDE.md always has:
+    # warn and return, never crash the boot.
     try:
-        # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes
-        # to a temp file in the same directory + os.replace(), so a crash/
-        # kill mid-write can never leave CLAUDE.md empty or partial — see
-        # git_helpers._AtomicWriteNoFollowSymlink's docstring.
-        if not claude_md_exists:
-            with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
-                f.write(new_content)
-            print("[crew] Created CLAUDE.md with all managed blocks")
-            return
+        lock_path = claude_md_lock_path(str(git_root))
+        with file_lock(str(claude_md), lock_path=lock_path):
+            content, claude_md_exists = _read_claude_md(claude_md)
+            if content is None:
+                print("[crew] CLAUDE.md is a symlink, refusing to follow it — skipping")
+                return
 
-        if new_content != content:
-            with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
-                f.write(new_content)
-            for line in log:
-                print(f"[crew] {line}")
-        else:
-            print("[crew] All managed blocks up to date")
+            new_content, log = upsert_managed_blocks(content)
+
+            # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes
+            # to a temp file in the same directory + os.replace(), so a crash/
+            # kill mid-write can never leave CLAUDE.md empty or partial — see
+            # git_helpers._AtomicWriteNoFollowSymlink's docstring.
+            if not claude_md_exists:
+                with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
+                    f.write(new_content)
+                print("[crew] Created CLAUDE.md with all managed blocks")
+                return
+
+            if new_content != content:
+                with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
+                    f.write(new_content)
+                for line in log:
+                    print(f"[crew] {line}")
+            else:
+                print("[crew] All managed blocks up to date")
     except OSError:
         print("[crew] CLAUDE.md is a symlink, refusing to follow it — skipping write")
 

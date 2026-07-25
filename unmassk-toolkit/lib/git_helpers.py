@@ -5,6 +5,7 @@ Thin wrappers around subprocess calls to git. Used by hooks,
 CLI scripts to run git commands safely.
 """
 
+import contextlib
 import errno
 import os
 import signal
@@ -561,6 +562,160 @@ def _open_no_follow_symlink_windows(
         raise
 
     return os.fdopen(fd, mode, encoding=encoding, errors=errors)
+
+
+# Windows-only (see file_lock()'s docstring): the errno msvcrt.locking()
+# raises on its LK_LOCK mode once its own internal ~10-attempt/~10s retry
+# ceiling is exhausted WHILE THE REGION IS STILL HELD BY SOMEONE ELSE --
+# per Microsoft's _locking() documentation this is EDEADLOCK, distinct from
+# EACCES (which _locking() uses for its non-blocking LK_NBLCK mode, not the
+# LK_LOCK mode used here). This is the ONLY errno file_lock()'s own retry
+# loop treats as "still contended, keep trying" -- every other errno (EIO,
+# EBADF, a permanently denied EACCES, etc.) is a real failure that will
+# never resolve no matter how many times it's retried, and must propagate
+# instead of spinning forever (T1-3, Moriarty). getattr() with a sentinel
+# default: errno.EDEADLOCK is expected to exist wherever this branch
+# actually runs (real Windows), but reading it defensively here means a
+# platform where the constant were ever absent degrades to "retry nothing,
+# raise on the first failure" rather than crashing on AttributeError.
+_MSVCRT_LOCK_CONTENDED_ERRNO = getattr(errno, "EDEADLOCK", None)
+
+
+@contextlib.contextmanager
+def file_lock(target_path: str, lock_path: str | None = None):
+    """Cross-process EXCLUSIVE advisory lock serializing a read-modify-write
+    against `target_path` -- fix for the lost-update race documented in
+    docs/plan/fix-atomic-claude-md-write.md's closing note (memo eae0880):
+    open_no_follow_symlink(path, "w", atomic=True) already prevents a CRASH
+    mid-write from leaving `target_path` empty or partial, but it does NOT
+    prevent two concurrent writers each reading the same content, each
+    modifying only their own slice, and whichever os.replace() lands last
+    silently discarding the other's change -- no error, no warning.
+
+    `lock_path` (Cerberus anti-pollution finding): the lock file defaults to
+    ADJACENT to `target_path` (f"{target_path}.lock") when omitted, but a
+    caller may pass an explicit `lock_path` to put it somewhere else
+    entirely (e.g. an already-gitignored runtime directory) -- see
+    claude_md_lock_path() below for the concrete case this exists for.
+    file_lock() itself stays fully generic and has NO CLAUDE.md-specific
+    knowledge; `target_path` is only ever used to derive the DEFAULT
+    `lock_path` when the caller doesn't supply one, and is otherwise never
+    opened, read, or written by this function -- only the caller's own
+    `with` body touches it. This is deliberate: two writers racing on the
+    same resource must serialize through a THIRD file (created if it does
+    not already exist, closed on exit, never unlinked -- meant to be reused
+    by every future writer), never through locking the resource itself, so
+    a reader that never calls file_lock() is completely unaffected.
+
+    NOT REENTRANT: calling file_lock() a second time on the same
+    target/lock path from within a `with file_lock(...):` block that
+    already holds it -- even via a nested function call several frames
+    down -- deadlocks the process against itself. fcntl.flock()/
+    msvcrt.locking() have no re-entrant/RLock-style tracking, and this
+    module adds none.
+
+    Blocks until the lock is acquired -- no timeout param, no polling
+    contract exposed to the caller. Always released on `with` exit, whether
+    the block exits normally or via an exception propagating out of it --
+    the exception itself is never swallowed here (yield sits inside
+    try/finally on both platform branches, so `contextlib.contextmanager`'s
+    own machinery re-raises it through this function unchanged).
+
+    POSIX: fcntl.flock(fd, fcntl.LOCK_EX) -- a native, indefinitely-blocking
+    exclusive lock; the kernel does the waiting, no retry loop needed here.
+
+    Windows (honest semantics, NOT a drop-in equivalent of flock's single
+    indefinite-blocking syscall -- an earlier version of this docstring
+    overclaimed that equivalence): msvcrt.locking(fd, msvcrt.LK_LOCK, 1) has
+    no indefinite-block primitive of its own -- each call blocks internally
+    for only about 10 seconds, retrying roughly once a second, before
+    giving up and raising OSError(errno.EDEADLOCK, ...) if the region is
+    still held by someone else. The while loop below is this function's OWN
+    outer retry around that -- it re-issues the call, and ONLY re-issues
+    it, while the errno is EDEADLOCK (genuine, ongoing contention); any
+    OTHER errno (a permanent I/O error, bad descriptor, etc.) is re-raised
+    immediately instead of retried, since no amount of retrying changes a
+    non-contention failure (T1-3). os.lseek() resets the file position back
+    to 0 before both lock and unlock so the exact same 1-byte region is
+    always the one being (un)locked, regardless of any position drift.
+    UNVERIFIED on this machine (not Windows): the exact errno
+    msvcrt.locking() raises for genuine lock contention is taken from
+    Microsoft's own _locking() documentation, not exercised against real
+    Windows locking behavior here -- CI's windows-latest run is the only
+    place that distinction is exercised for real; see
+    tests/test_file_lock_regressions.py's own docstring for the same caveat.
+
+    fcntl/msvcrt are imported LAZILY inside their own sys.platform branch --
+    same pattern as _open_no_follow_symlink_windows() and every other
+    platform split in this module -- so importing git_helpers itself never
+    raises ImportError/AttributeError on the platform the branch doesn't
+    apply to, and `sys.platform` is read at CALL time (not import time), so
+    a test spoofing it after import still takes the intended branch.
+    """
+    if lock_path is None:
+        lock_path = f"{target_path}.lock"
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            while True:
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+                    break
+                except OSError as e:
+                    if (
+                        _MSVCRT_LOCK_CONTENDED_ERRNO is not None
+                        and e.errno == _MSVCRT_LOCK_CONTENDED_ERRNO
+                    ):
+                        # Still genuinely contended -- msvcrt.locking()'s own
+                        # ~10s attempt just expired, not a permanent failure.
+                        # Retry (see docstring above).
+                        continue
+                    raise  # permanent failure -- never resolves by retrying
+            try:
+                yield
+            finally:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+def claude_md_lock_path(project_root: str) -> str:
+    """Shared `file_lock()` path for every writer that read-modify-writes
+    CLAUDE.md's managed blocks (hooks/session-start-crew.py,
+    lib/install_apply.py::_update_claude_md(), bin/git-memory-uninstall.py)
+    -- mutual exclusion between them only works if all three pass the
+    EXACT same `lock_path` to file_lock(), so this is the single source of
+    that path (Exit Gate: one constant, one place).
+
+    Lives under `.claude/.unmassk/` (via ensure_runtime_dir(), which
+    creates the directory if missing and applies the same
+    verify_path_within_project() symlink guard every other caller of it
+    gets) instead of adjacent to CLAUDE.md itself, so the lock file never
+    surfaces as a permanent untracked entry in `git status --porcelain` at
+    the project root (Cerberus anti-pollution finding) -- `.claude/.unmassk/`
+    is already in every managed project's .gitignore (ensure_gitignore()'s
+    own _GENERATED_JSONS list).
+
+    Deliberately kept separate from file_lock() itself, which stays a
+    fully generic primitive with zero CLAUDE.md-specific knowledge. May
+    raise OSError (propagated from ensure_runtime_dir(), e.g. a symlinked
+    .claude or a directory creation failure) -- callers are expected to
+    handle that exactly like any other file_lock()-adjacent failure (see
+    each call site's own try/except).
+    """
+    return os.path.join(ensure_runtime_dir(project_root), "claude_md.lock")
 
 
 def ensure_gitignore(project_root: str, entry: str | None = None) -> None:

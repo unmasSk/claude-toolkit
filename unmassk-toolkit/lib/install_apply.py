@@ -20,7 +20,7 @@ import shutil
 from datetime import datetime
 from typing import Any
 
-from git_helpers import ensure_gitignore, open_no_follow_symlink, verify_path_within_project
+from git_helpers import claude_md_lock_path, ensure_gitignore, file_lock, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
@@ -221,30 +221,45 @@ def _update_claude_md(target: str) -> None:
     """Add or update all 5 managed blocks in CLAUDE.md."""
     claude_md = os.path.join(target, "CLAUDE.md")
 
-    if os.path.isfile(claude_md):
-        try:
-            # 7th audit round (BUG U): never follow a symlink planted at
-            # CLAUDE.md for this read either — the write below is already
-            # guarded, but the read must fail closed to "file absent" too.
-            with open_no_follow_symlink(claude_md, "r") as f:
-                content = f.read()
-        except OSError:
+    # file_lock (issue: lost-update race, memo eae0880): shared by install,
+    # upgrade, and repair (all three call this same function) -- the lock
+    # must span the ENTIRE read -> upsert -> write cycle, not just the
+    # write, so a concurrent writer (another one of these three entry
+    # points, or session-start-crew.py's boot-time hook) never silently
+    # discards this call's change with a stale-read overwrite.
+    # claude_md_lock_path() (Cerberus anti-pollution finding): all 3
+    # CLAUDE.md writers in this codebase must pass the exact same lock path
+    # so they genuinely serialize against each other, and it lives under
+    # .claude/.unmassk/ (already gitignored) instead of next to CLAUDE.md
+    # itself. Any OSError here (lock acquisition or the write itself) is
+    # already caught by this function's own caller, apply_plan(), which
+    # records it in `errors` and keeps running the rest of the plan.
+    lock_path = claude_md_lock_path(target)
+    with file_lock(claude_md, lock_path=lock_path):
+        if os.path.isfile(claude_md):
+            try:
+                # 7th audit round (BUG U): never follow a symlink planted at
+                # CLAUDE.md for this read either — the write below is already
+                # guarded, but the read must fail closed to "file absent" too.
+                with open_no_follow_symlink(claude_md, "r") as f:
+                    content = f.read()
+            except OSError:
+                content = "# CLAUDE.md\n\n"
+        else:
             content = "# CLAUDE.md\n\n"
-    else:
-        content = "# CLAUDE.md\n\n"
 
-    new_content, _ = upsert_managed_blocks(content)
+        new_content, _ = upsert_managed_blocks(content)
 
-    # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md — refuse
-    # to write through to whatever external file it points at. The caller
-    # (apply_plan) already wraps this action in try/except, so raising here
-    # is reported as an error rather than crashing the whole install.
-    # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes to a
-    # temp file in the same directory + os.replace(), so a crash/kill mid-
-    # write can never leave CLAUDE.md empty or partial — see
-    # git_helpers._AtomicWriteNoFollowSymlink's docstring.
-    with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
-        f.write(new_content)
+        # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md — refuse
+        # to write through to whatever external file it points at. The caller
+        # (apply_plan) already wraps this action in try/except, so raising here
+        # is reported as an error rather than crashing the whole install.
+        # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes to a
+        # temp file in the same directory + os.replace(), so a crash/kill mid-
+        # write can never leave CLAUDE.md empty or partial — see
+        # git_helpers._AtomicWriteNoFollowSymlink's docstring.
+        with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+            f.write(new_content)
 
 
 def _create_manifest(target: str, mode: str) -> None:

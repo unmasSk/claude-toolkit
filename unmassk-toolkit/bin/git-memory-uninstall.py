@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
-from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
+from git_helpers import run_git, claude_md_lock_path, file_lock, open_no_follow_symlink, verify_path_within_project
 from managed_blocks import BLOCKS
 
 
@@ -117,56 +117,78 @@ def remove_claude_md_block(target: str) -> bool:
         return False
 
     try:
-        # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md —
-        # treat it exactly like "nothing to remove" rather than reading or
-        # writing through to whatever external file it points at.
-        with open_no_follow_symlink(claude_md, "r") as f:
-            content = f.read()
-    except OSError:
-        return False
+        # file_lock (issue: lost-update race, memo eae0880): the lock must
+        # span the ENTIRE read -> strip-blocks -> write (or unlink) cycle,
+        # not just the write, so a concurrent writer (boot's
+        # session-start-crew.py, or an install/upgrade/repair in flight)
+        # never reads a state that this uninstall is mid-way through
+        # changing, and this uninstall never overwrites a concurrent
+        # writer's just-committed change with a stale read.
+        # claude_md_lock_path() (Cerberus anti-pollution finding): all 3
+        # CLAUDE.md writers in this codebase must pass the exact same lock
+        # path so they genuinely serialize against each other, and it lives
+        # under .claude/.unmassk/ (already gitignored) instead of next to
+        # CLAUDE.md itself.
+        # T1-2 (Cerberus/Moriarty regression): lock acquisition (this
+        # try/except now covers it, not just the write a few lines below)
+        # can fail exactly like the write already could (e.g. a read-only
+        # directory) -- degrade the SAME way, not abort the whole uninstall.
+        lock_path = claude_md_lock_path(target)
+        with file_lock(claude_md, lock_path=lock_path):
+            try:
+                # SEC-CRIT-NEW-09: never follow a symlink planted at CLAUDE.md —
+                # treat it exactly like "nothing to remove" rather than reading or
+                # writing through to whatever external file it points at.
+                with open_no_follow_symlink(claude_md, "r") as f:
+                    content = f.read()
+            except OSError:
+                return False
 
-    original = content
-    removed_any = False
+            original = content
+            removed_any = False
 
-    for block in BLOCKS:
-        begin = block["begin"]
-        end = block["end"]
-        pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
-        if pattern.search(content):
-            content = pattern.sub("", content)
-            removed_any = True
+            for block in BLOCKS:
+                begin = block["begin"]
+                end = block["end"]
+                pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
+                if pattern.search(content):
+                    content = pattern.sub("", content)
+                    removed_any = True
 
-    if not removed_any:
-        return False
+            if not removed_any:
+                return False
 
-    # Collapse multiple blank lines and trim
-    content = re.sub(r"\n{3,}", "\n\n", content).strip()
+            # Collapse multiple blank lines and trim
+            content = re.sub(r"\n{3,}", "\n\n", content).strip()
 
-    if not content:
-        # CLAUDE.md would be empty — remove the file
-        os.unlink(claude_md)
+            if not content:
+                # CLAUDE.md would be empty — remove the file
+                os.unlink(claude_md)
+                return True
+
+            # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes to a
+            # temp file in the same directory + os.replace(), so a crash/kill mid-
+            # write can never leave CLAUDE.md empty or partial — see
+            # git_helpers._AtomicWriteNoFollowSymlink's docstring.
+            with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
+                f.write(content + "\n")
         return True
-
-    # atomic=True (docs/plan/fix-atomic-claude-md-write.md, T1): writes to a
-    # temp file in the same directory + os.replace(), so a crash/kill mid-
-    # write can never leave CLAUDE.md empty or partial — see
-    # git_helpers._AtomicWriteNoFollowSymlink's docstring.
-    try:
-        with open_no_follow_symlink(claude_md, "w", atomic=True) as f:
-            f.write(content + "\n")
     except OSError as e:
-        # ROB-MED-001 (Argus): a failure here (e.g. mkstemp() needs WRITE
-        # permission on the CONTAINING directory, which the old truncate-
-        # in-place write never required) must not abort the whole uninstall
-        # mid-way -- main() still needs remove_manifest(),
-        # remove_old_install_files(), and (in --full-local mode)
-        # remove_generated_files() to run regardless. Mirrors the
-        # try/except OSError every other atomic=True call site in this
-        # codebase already has (install_apply.py's caller, apply_plan();
-        # session-start-crew.py's own except OSError around its writes).
+        # ROB-MED-001 (Argus; extended for T1-2, Cerberus/Moriarty): a
+        # failure anywhere in the locked cycle above -- LOCK ACQUISITION
+        # (claude_md_lock_path()'s ensure_runtime_dir(), or file_lock()'s
+        # own os.open()), the empty-file os.unlink(), or the atomic write
+        # itself (e.g. mkstemp() needs WRITE permission on the CONTAINING
+        # directory, which the old truncate-in-place write never required)
+        # -- must not abort the whole uninstall mid-way -- main() still
+        # needs remove_manifest(), remove_old_install_files(), and (in
+        # --full-local mode) remove_generated_files() to run regardless.
+        # Mirrors the try/except OSError every other atomic=True call site
+        # in this codebase already has (install_apply.py's caller,
+        # apply_plan(); session-start-crew.py's own except OSError around
+        # its writes).
         print(f"  ! Could not update CLAUDE.md (left as-is): {e}", file=sys.stderr)
         return False
-    return True
 
 
 def remove_manifest(target: str) -> bool:
