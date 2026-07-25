@@ -119,7 +119,8 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
             # (and the LLM's context, since stderr is captured by the
             # hook harness) unsanitized -- sanitize the same way every
             # trailer VALUE elsewhere in the codebase already is.
-            errors.append(f"Invalid Memo format: '{sanitize_trailer_value(trailers['Memo'])}'. Must be: preference|requirement|antipattern|deadend - description")
+            valid_categories = "|".join(sorted(MEMO_CATEGORIES))
+            errors.append(f"Invalid Memo format: '{sanitize_trailer_value(trailers['Memo'])}'. Must be: {valid_categories} - description")
 
     # Validate Remember category if present
     if "Remember" in trailers:
