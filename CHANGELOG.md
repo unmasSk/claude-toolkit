@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-07-25
+
 ### Added
 
 - **Cross-platform `file_lock()` closes the CLAUDE.md lost-update race (T1).** The atomic writer (`mkstemp`+`os.replace`) already prevented a crash from leaving CLAUDE.md empty/partial, but not the *lost update* between two concurrent read-modify-write cycles (two overlapping boots, boot + upgrade, …): each reads the same content, each edits only its own managed block, and whichever `os.replace()` lands last silently discards the other's change. New `file_lock(target_path, lock_path=None)` in `lib/git_helpers.py` (POSIX `fcntl.flock` `LOCK_EX`; Windows `msvcrt.locking` retrying **only** on the contention errno and re-raising any permanent error instead of looping forever; lazy platform imports; always released; documented non-reentrant) plus `claude_md_lock_path()` — a single shared lock path under the already-ignored `.claude/.unmassk/` so it never pollutes `git status`. All 3 managed-block writers (`hooks/session-start-crew.py`, `lib/install_apply.py::_update_claude_md()`, `bin/git-memory-uninstall.py`) now do a cheap read/compare *outside* the lock and only escalate to lock → re-check → write when a write is actually needed — so a no-op boot in a read-only project dir stays a graceful no-op instead of crashing. Reviewed (Cerberus), broken and re-hardened (Moriarty found 2 read-only regressions + 1 Windows infinite-loop deception, all closed); 9 tests with real cross-process subprocesses.
