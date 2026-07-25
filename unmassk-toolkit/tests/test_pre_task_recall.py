@@ -4,7 +4,7 @@ Tests for pre-task-recall.py — the git-memory recall injection hook.
 Covers:
 - Task with whitelisted agent (ultron) + memory match → prompt is injected,
   all other tool_input fields are preserved.
-- Task with non-whitelisted agent (bilbo) → passthrough, no updatedInput.
+- Task with non-whitelisted agent (gitto, unknown) → passthrough, no updatedInput.
 - tool_name other than Task → passthrough.
 - recall returns no matches → passthrough.
 - Malformed JSON on stdin → fail-open (allow, exit 0).
@@ -14,6 +14,27 @@ Covers:
 
 The hook is invoked as a subprocess with JSON passed via stdin, mirroring
 the pattern used by run_script() in conftest.
+
+--- TEST-FIRST contract (dead-end memory loop, RED before Ultron) ---
+Bilbo joins the memory-injection whitelist (was previously excluded, same
+category as gitto). gitto stays excluded — this is a scoped addition, not a
+whitelist-model change. Every test below that previously asserted "bilbo is
+excluded" was rewritten to assert "bilbo is whitelisted" (see
+TestBilboWhitelistedForInjection, TestSubagentTypeCasingAndNamespace) so the
+whole file stays internally consistent with the new contract — the old
+assertions would otherwise start failing the moment _WORKER_WHITELIST
+changes, for a reason unrelated to whatever a future test author is working
+on. gitto-exclusion coverage was preserved (moved into the mixed-case/
+namespace test that used to use bilbo for that purpose) rather than deleted.
+
+RED contract (must fail today — bilbo still excluded in _WORKER_WHITELIST):
+    - TestBilboWhitelistedForInjection::test_bilbo_receives_injection
+    - TestSubagentTypeCasingAndNamespace::test_namespaced_bilbo_now_whitelisted
+    - TestAllWhitelistedAgents::test_whitelisted_agent_receives_injection[bilbo]
+
+GREEN control (must pass before AND after — gitto stays excluded):
+    - TestNonWhitelistedAgent::test_gitto_not_injected
+    - TestSubagentTypeCasingAndNamespace::test_namespaced_mixed_case_gitto_stays_excluded
 """
 
 import io
@@ -207,27 +228,6 @@ class TestWhitelistedAgentWithMatch:
 # ── Tests: non-whitelisted agent → passthrough ────────────────────────────
 
 class TestNonWhitelistedAgent:
-    def test_bilbo_not_injected(self, tmp_path):
-        """bilbo is excluded from the whitelist → no updatedInput."""
-        repo = _make_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/recall): BM25 design",
-            "Decision: BM25 ranking para recall de memoria",
-        )
-
-        tool_input = {
-            "subagent_type": "bilbo",
-            "prompt": "BM25 recall ranking",
-        }
-
-        rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
-
-        assert rc == 0
-        hso = _hook_specific(parsed)
-        assert hso.get("permissionDecision") == "allow"
-        assert "updatedInput" not in hso, "bilbo must not receive memory injection"
-
     def test_gitto_not_injected(self, tmp_path):
         """gitto is excluded from the whitelist → no updatedInput."""
         repo = _make_repo(tmp_path)
@@ -269,6 +269,44 @@ class TestNonWhitelistedAgent:
         hso = _hook_specific(parsed)
         assert hso.get("permissionDecision") == "allow"
         assert "updatedInput" not in hso
+
+
+# ── Tests: bilbo is now whitelisted for injection ─────────────────────────
+
+class TestBilboWhitelistedForInjection:
+    """bilbo joins the memory-injection whitelist (dead-end memory loop feature).
+
+    RED today: bilbo is still in the excluded set (_WORKER_WHITELIST does not
+    contain 'bilbo' yet), so this currently produces passthrough (no
+    updatedInput) instead of injection.
+    """
+
+    def test_bilbo_receives_injection(self, tmp_path):
+        """Task(bilbo) + memory match → hookSpecificOutput.updatedInput.prompt
+        contains the original prompt AND the memory block footer, exactly like
+        any other whitelisted worker."""
+        repo = _make_repo(tmp_path)
+        _commit(
+            repo,
+            "decision(plugin/recall): ranking algorithm",
+            f"Decision: usar {_MEM_NONCE} como estrategia interna de memoria",
+        )
+
+        tool_input = {
+            "subagent_type": "bilbo",
+            "prompt": _MEM_NONCE,
+        }
+
+        rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
+
+        assert rc == 0
+        hso = _hook_specific(parsed)
+        assert hso.get("permissionDecision") == "allow"
+        assert "updatedInput" in hso, "bilbo must now receive memory injection"
+
+        updated_prompt = hso["updatedInput"]["prompt"]
+        assert _MEM_NONCE in updated_prompt, "Memory block content must appear in prompt"
+        assert "PROJECT MEMORY" in updated_prompt, "Footer header must be present"
 
 
 # ── Tests: non-Task tool_name → passthrough ──────────────────────────────
@@ -472,18 +510,23 @@ class TestSubagentTypeNormalisation:
         assert hso.get("permissionDecision") == "allow"
         assert "updatedInput" in hso, "'ultron' (bare) must be whitelisted"
 
-    def test_namespaced_bilbo_still_excluded(self, tmp_path):
-        """'unmassk-toolkit:bilbo' → bilbo is still excluded after normalisation."""
+    def test_namespaced_bilbo_now_whitelisted(self, tmp_path):
+        """'unmassk-toolkit:bilbo' → bilbo is whitelisted after normalisation.
+
+        RED today: bilbo is not yet in _WORKER_WHITELIST (dead-end memory
+        loop feature, TEST-FIRST contract) — this currently produces
+        passthrough instead of injection.
+        """
         repo = _make_repo(tmp_path)
         _commit(
             repo,
-            "decision(plugin/recall): BM25 ranking",
-            "Decision: BM25 ranking para recall de memoria",
+            "decision(plugin/recall): nonce ranking",
+            f"Decision: {_MEM_NONCE} para estrategia interna de memoria",
         )
 
         tool_input = {
             "subagent_type": "unmassk-toolkit:bilbo",
-            "prompt": "BM25 recall ranking",
+            "prompt": _MEM_NONCE,
         }
 
         rc, parsed, _, _ = _run_hook(repo, "Task", tool_input)
@@ -491,7 +534,9 @@ class TestSubagentTypeNormalisation:
         assert rc == 0
         hso = _hook_specific(parsed)
         assert hso.get("permissionDecision") == "allow"
-        assert "updatedInput" not in hso, "bilbo must be excluded even with namespace prefix"
+        assert "updatedInput" in hso, (
+            "'unmassk-toolkit:bilbo' must normalise to 'bilbo' and be whitelisted"
+        )
 
     def test_uppercase_normalised_to_lower(self, tmp_path):
         """'ULTRON' (uppercase) is normalised to 'ultron' and whitelisted."""
@@ -578,7 +623,7 @@ class TestAllWhitelistedAgents:
 
     @pytest.mark.parametrize("agent", [
         "ultron", "dante", "cerberus", "argus",
-        "moriarty", "house", "yoda", "alexandria",
+        "moriarty", "house", "yoda", "alexandria", "bilbo",
     ])
     def test_whitelisted_agent_receives_injection(self, agent, tmp_path):
         """Agent '{agent}' is in the whitelist and receives memory injection."""
@@ -926,8 +971,15 @@ class TestSubagentTypeCasingAndNamespace:
         assert hso.get("permissionDecision") == "allow"
         assert "updatedInput" in hso, "'Dante' must normalise to 'dante' and be whitelisted"
 
-    def test_namespaced_mixed_case_excluded_agent_stays_excluded(self, tmp_path):
-        """'TOOLKIT:Bilbo' normalises to 'bilbo' which is still not in the whitelist."""
+    def test_namespaced_mixed_case_gitto_stays_excluded(self, tmp_path):
+        """'TOOLKIT:Gitto' normalises to 'gitto' which is still not in the whitelist.
+
+        Previously this test used 'TOOLKIT:Bilbo' to exercise "mixed-case +
+        namespace + excluded agent" — bilbo is no longer excluded (dead-end
+        memory loop feature), so this switched to gitto (still excluded,
+        untouched by this change) to keep covering the same normalisation +
+        exclusion combo without losing coverage.
+        """
         repo = _make_repo(tmp_path)
         _commit(
             repo,
@@ -936,7 +988,7 @@ class TestSubagentTypeCasingAndNamespace:
         )
 
         tool_input = {
-            "subagent_type": "TOOLKIT:Bilbo",
+            "subagent_type": "TOOLKIT:Gitto",
             "prompt": "BM25 recall ranking",
         }
 
@@ -946,7 +998,7 @@ class TestSubagentTypeCasingAndNamespace:
         hso = _hook_specific(parsed)
         assert hso.get("permissionDecision") == "allow"
         assert "updatedInput" not in hso, (
-            "'TOOLKIT:Bilbo' → 'bilbo' must still be excluded"
+            "'TOOLKIT:Gitto' → 'gitto' must still be excluded"
         )
 
 
@@ -996,16 +1048,20 @@ class TestFailOpenInvariant:
         self._assert_no_deny_or_block(stdout, "whitelisted agent with match")
 
     def test_invariant_non_whitelisted_agent(self, tmp_path):
-        """Passthrough for excluded agent must not emit deny or block."""
+        """Passthrough for excluded agent must not emit deny or block.
+
+        Uses gitto (still excluded, untouched by the bilbo-whitelisting
+        change) rather than bilbo, which is now whitelisted.
+        """
         from conftest import run_cmd
         repo = _make_repo(tmp_path)
         payload = json.dumps({
             "tool_name": "Task",
-            "tool_input": {"subagent_type": "bilbo", "prompt": "BM25 recall ranking"},
+            "tool_input": {"subagent_type": "gitto", "prompt": "BM25 recall ranking"},
         })
         rc, stdout, _ = run_cmd([sys.executable, HOOK_PATH], cwd=repo, input_text=payload)
         assert rc == 0
-        self._assert_no_deny_or_block(stdout, "non-whitelisted agent bilbo")
+        self._assert_no_deny_or_block(stdout, "non-whitelisted agent gitto")
 
     def test_invariant_malformed_json(self, tmp_path):
         """Fail-open for malformed JSON must not emit deny or block."""
