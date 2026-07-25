@@ -31,7 +31,7 @@ force_utf8_streams()
 
 from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR
 from git_helpers import run_git, open_no_follow_symlink
-from parsing import suggest_scope_from_paths
+from parsing import suggest_scope_from_paths, sanitize_trailer_value
 
 # ── Config ───────────────────────────────────────────────────────────────
 
@@ -256,7 +256,21 @@ def build_commit_message(type_: str, scope: str, message: str,
             parts.append("")  # blank line between body and trailers
         for t in trailers:
             key, _, value = t.partition("=")
-            parts.append(f"{key}: {value}")
+            # BUG T1 fix: a raw CR/LF inside `value` (e.g. free text an
+            # agent wrote with a real newline) would split this trailer
+            # across multiple PHYSICAL lines. scan_trailers_memory() (the
+            # recall/boot read path, lib/parsing.py) splits the commit
+            # body on real "\n" boundaries, so only the first physical
+            # line would ever be recognized as this trailer's value --
+            # everything after the embedded newline is silently lost on
+            # every future read. sanitize_trailer_value() (canonical,
+            # already used at read time) collapses any embedded CR/LF/
+            # control byte to a single space instead of truncating, so
+            # the full value always survives on ONE physical line.
+            # Collapse any resulting run of spaces (e.g. from a CRLF
+            # pair producing two substitutions) so the value stays tidy.
+            clean_value = re.sub(r" {2,}", " ", sanitize_trailer_value(value))
+            parts.append(f"{key}: {clean_value}")
 
     # Co-author
     parts.append("")

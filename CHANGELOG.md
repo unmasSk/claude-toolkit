@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Dead-end memory loop — Bilbo no longer re-investigates a subsystem from scratch.** New `deadend` category on the `Memo:` trailer (`lib/constants.py`) persists the discardable residue of an exploration — paths already ruled out for a subsystem — append-only, as `memo(deadend/<subsystem>)`, one physical line. `bilbo` joins the `pre-task-recall` injection whitelist (`hooks/pre-task-recall.py`), so it now receives those dead-ends automatically before exploring (deterministic input, not a "remember to check" rule); on the way out it emits a `DEAD-ENDS` block for the orchestrator to collapse into that single line and commit. `gitto` stays excluded on purpose — it IS the memory oracle, so injecting recall into it would be circular. Format and orchestrator responsibility documented in `unmassk-gitmemory` ("Dead-end memory") and `unmassk-core`. The `Memo:` validation error (`hooks/pre-validate-commit-trailers.py`) now lists valid categories generated from `MEMO_CATEGORIES` instead of a hardcoded string, so it can't drift out of sync again the next time a category is added.
+
+### Fixed
+
+- **A newline embedded in a trailer value no longer silently truncates it on the next read (T1).** `bin/git-memory-commit.py`'s wrapper now runs every trailer value through `sanitize_trailer_value()` before writing, collapsing embedded CR/LF/control bytes to a space. Previously, a raw newline inside a value (e.g. free text an agent wrote) split the trailer across multiple physical lines — the read path only ever recognized the first line, silently losing everything after it on every future recall.
+
 ## [1.22.1] - 2026-07-25
 
 ### Fixed

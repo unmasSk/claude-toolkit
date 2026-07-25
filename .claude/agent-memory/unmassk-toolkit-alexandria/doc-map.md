@@ -26,7 +26,7 @@ type: project
 | `CHANGELOG.md` (root) | Changelog | Updated 2026-07-18 — [Unreleased] Fixed entry for issue #61 (transient-git-failure memory-read fix, 9 sites). Also holds the earlier same-day Removed + Fixed entries for issue #72 (anti-attacker test cut). See changelog-state.md. |
 | `CHANGELOG.md` (root, 2026-07-13 entry) | Changelog | Updated 2026-07-13 — [Unreleased] Added entry for new plugin `unmassk-pentesting` v1.0.0 (30 skills). See changelog-state.md. |
 | `chatroom/CHANGELOG.md` | Changelog | Audited 2026-03-24 — [Unreleased] Removed section corrected (V2 files all deleted) |
-| `README.md` (root) | Project readme | Updated 2026-07-13 — added `unmassk-pentesting` install command + "What's inside" table row (30 skills) |
+| `README.md` (root) | Project readme | Updated 2026-07-13 — added `unmassk-pentesting` install command + "What's inside" table row (30 skills). Updated 2026-07-25 — Memory row gained one clause on the dead-end loop (Bilbo's ruled-out paths persist via `memo(deadend/<subsystem>)`). |
 | `chatroom/README.md` | Project readme | Updated 2026-03-24 — test count corrected 535+ → 1200+ |
 | `unmassk-pentesting/README.md` | Plugin readme | Created 2026-07-13 — method (engagement loop + SCOPE contract + blind validation), 30-skill catalogue grouped by area (method/web/recon/network-system/cloud/specialized/blue-team/ctf-bounty/tooling), MIT+PROVENANCE pointer, honest caveats (2/30 skills live-verified against a real Laravel target — checks.monyma.es per decision `470f4da`; upstream Python engine deliberately not lifted) |
 
