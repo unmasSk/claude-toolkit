@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Four behavior rules that were mis-scoped as global `remember(claude)` moved into their proper always-loaded skills.** They described toolkit behavior, so they belonged in a skill (a hard, always-loaded instruction), not in global memory that travels to every unrelated project and inflates the `remember(claude)` accumulation warning. `unmassk-core` gains an **"Autonomy under delegation"** section (when the user delegates the decision, execute the best option — including design gray areas — without bouncing it back as a question; confirm only for structural/irreversible/security/unverifiable changes) plus a **"resolve collateral obstacles; finish the ask"** rule. `unmassk-close-session` strengthens step 5 (**the release is part of finishing, not an optional follow-up — don't defer it or ask permission to publish**) and step 2 (**a discard is not done while its front still has live memos/`Next:`** — tombstone them in the same close, and cross-check DECISIONS before re-offering a candidate). The five originating memory entries were retired via `Resolved-Remember` tombstones (`remember(claude)` count 20 → 15, verified against the real boot merge path). Also folds in Gitto consolidation Pass 7 (3 crown entries: delegation, non-atomic CLAUDE.md write T1, #61 reopened).
+
 ## [1.21.0] - 2026-07-23
 
 ### Removed
