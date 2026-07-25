@@ -164,11 +164,24 @@ discipline plus one deterministic wiring:
   IS the subsystem's dead-end log; all such memos are append-only — a new
   investigation adds another entry, it never rewrites the prior one (append-only
   is what keeps two machines from clobbering each other's residue).
-- **Shape** (emitted by Bilbo, persisted by the orchestrator verbatim): the
-  question investigated, each ruled-out path anchored by **symbol** (never bare
-  line numbers — lines rot on every edit, symbols survive), the one-line reason it
-  was discarded, and `verdad-en: <short-sha>` in the body marking the commit where
-  it was true.
+- **Shape — ONE physical line, no exceptions.** A `Memo:` trailer is a single
+  line, and recall re-injects only that line (never the commit body). So the
+  residue MUST fit the `Memo: deadend - …` value itself; anything you push into
+  the body is lost on the way back to Bilbo. Bilbo's report gives you a readable
+  multi-line `DEAD-ENDS` block — you (the orchestrator) **collapse it into one
+  line** when you commit. Anchor each ruled-out path by **symbol** (never bare
+  line numbers — lines rot on every edit, symbols survive), keep the question, and
+  put the commit anchor inline as `@<short-sha>`. Concrete example:
+
+  ```
+  memo(deadend/correctivo-acta-pem): firma del acta no esta donde se busco
+  Memo: deadend - asked: donde se valida la firma del acta | ruled out: NOT `validarActa()` (solo comprueba estado); NOT `authMiddleware` (no toca el acta) | @fdfab09
+  ```
+
+  Multiple ruled-out paths go on that one line separated by `; ` — one memo per
+  investigation, not one per path. If a single investigation's residue would
+  overflow a sane line, split it into two `memo(deadend/<subsystem>)` commits
+  (append-only makes that free), never spill into the body.
 - **The loop is deterministic, not disciplined.** Bilbo is in the recall
   injection whitelist (`hooks/pre-task-recall.py`), so the hook feeds it the
   `deadend/<subsystem>` memos automatically before it explores — no "remember to

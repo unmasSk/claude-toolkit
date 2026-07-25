@@ -141,7 +141,7 @@ Every report must include:
 2. **Confirmed findings** — real dependency facts, orphans, anomalies. Each with `file:line` evidence and confidence tag.
 3. **Likely findings** — suspicious areas, possible dead paths, possible drift. Tagged as `likely` or `unverified`.
 4. **Handoffs** — what deserves Argus / Cerberus / Ultron / Alexandria. If none: state "no escalation needed".
-5. **DEAD-ENDS** — the non-derivable residue of this investigation, for the orchestrator to persist as `memo(deadend/<subsystem>)`. Emit it in this exact shape so it can be persisted verbatim:
+5. **DEAD-ENDS** — the non-derivable residue of this investigation, for the orchestrator to persist as `memo(deadend/<subsystem>)`. Emit it in this readable shape:
 
 ```
 DEAD-ENDS (subsystem: <name>) — question: <what you were trying to answer>
@@ -151,7 +151,9 @@ DEAD-ENDS (subsystem: <name>) — question: <what you were trying to answer>
 verdad-en: <short sha of current HEAD>
 ```
 
-Rules for this block: anchor by **symbol**, never bare line numbers. One ruled-out path per line, each with the reason it was discarded. If the investigation genuinely ruled nothing out (found the answer immediately), say `DEAD-ENDS: none` — do not invent them. If you consumed injected dead-ends and found one **stale** (its area changed since `verdad-en`), say so explicitly so the orchestrator can supersede it, don't silently drop it.
+Rules: anchor by **symbol**, never bare line numbers. One ruled-out path per line, each with the reason it was discarded. If the investigation genuinely ruled nothing out (found the answer immediately), say `DEAD-ENDS: none` — do not invent them. If you consumed an injected dead-end and found it **stale** (its area changed since `verdad-en`), say so explicitly so the orchestrator can supersede it — don't silently drop it.
+
+**This block is for the orchestrator to READ, not to store verbatim.** The orchestrator collapses it into a single-line `memo(deadend/<subsystem>)` — because a `Memo:` trailer is one physical line and that is all that survives back to you via recall. Keep each ruled-out reason short and self-contained so nothing important is lost in that collapse. What comes back to you next session is that one line, not this whole block.
 
 Without the coverage declaration, the requester cannot know what was left out. Without the handoff section, findings die in the report. Without DEAD-ENDS, the next session re-investigates from zero — the exact waste this section exists to stop.
 

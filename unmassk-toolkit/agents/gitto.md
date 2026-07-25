@@ -94,7 +94,7 @@ git log --all --grep="Blocker:" --format="%H %ai %s%n%b" | head -50
 # Step 3 — Decisions (what was chosen and why)
 git log --all --grep="Decision:" --format="%H %ai %s%n%b" | head -50
 
-# Step 4 — Memos (preferences, requirements, antipatterns)
+# Step 4 — Memos (preferences, requirements, antipatterns, stack, deadend)
 git log --all --grep="Memo:" --format="%H %ai %s%n%b" | head -50
 
 # Step 5 — Remember (personality and working-style notes)
