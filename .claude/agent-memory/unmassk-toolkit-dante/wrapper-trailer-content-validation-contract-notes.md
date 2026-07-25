@@ -67,3 +67,30 @@ and [trailer-newline-collapse-regression-notes](trailer-newline-collapse-regress
 for sibling Memo/trailer contract tests in the same file family, and
 [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md)
 for the `_make_repo`/`run_script`/`as_claude` conventions reused here.
+
+**Follow-up (2026-07-25, same day): raw-vs-sanitized validation gap
+(Cerberus finding) + duplication cleanup.** `_validate_trailer_content()`
+was checking the RAW `--trailer` value, but `build_commit_message()`
+commits the SANITIZED one (`sanitize_trailer_value()` turns every control
+byte into a space then strips). A description made only of control bytes
+(e.g. `\x1b\x1b\x1b`) is non-empty under raw `str.strip()` (ESC isn't
+whitespace to Python) but collapses to `""` once sanitized — so
+`"Memo=preference - \x1b\x1b\x1b"` passed the raw check and silently
+committed a bare `"Memo: preference -"` trailer with no description.
+Verified live before writing the regression test: `git log -1 --format=%B`
+showed exactly that empty trailer, rc=0. Added
+`TestMemoDescriptionControlByteOnlySaneoRegression` (+ an anti-vacuity
+probe asserting the raw value truly sanitizes to `"preference -"`, so the
+rejection test can't pass for a trivial reason) and
+`TestRememberDescriptionControlByteOnlySaneoRegression` (no probe repeat —
+same mechanism, not Memo/Remember-specific) to the same file. **Ultron
+landed the fix (validate `sanitize_trailer_value(value)`, not raw
+`value`) WHILE this test-writing was in progress** — both regression
+tests came up GREEN on first run, no RED phase observed by me (confirmed
+via `git diff` on the wrapper: `sanitized = sanitize_trailer_value(value)`
+now feeds the `" - "` split). Also fixed the duplication Cerberus flagged:
+the file's local `REMEMBER_CATEGORIES = ("user", "claude")` stand-in
+(dated from when there was no importable source of truth) is now a real
+import `from constants import MEMO_CATEGORIES, REMEMBER_CATEGORIES` —
+`lib/constants.py` had grown the constant in the meantime. Only the test
+file changed; zero production edits by me.

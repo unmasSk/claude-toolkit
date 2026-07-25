@@ -255,22 +255,32 @@ def _validate_trailer_content(key: str, value: str) -> str | None:
     built (the PreToolUse hook only intercepts raw `git commit` Bash
     commands, never this wrapper's own in-process trailers -- see the
     contract test docstring for the full explanation).
+
+    Validates the SANITIZED value, not the raw one. build_commit_message()
+    always runs sanitize_trailer_value() on every trailer value before it is
+    written to the commit -- that is what actually lands in the repo. A
+    description made only of control bytes (e.g. "\\x1b\\x1b\\x1b") passes a
+    raw non-empty check but collapses to "" once sanitized, which would let
+    "Memo: preference -" (no description) through with a passing check here
+    and land as inert memory. Validating the same string that gets committed
+    closes that gap -- Cerberus repro (2026-07-25).
     """
     categories = _TRAILER_CONTENT_ENUMS.get(key)
     if categories is None:
         return None
 
     valid_list = "|".join(sorted(categories))
-    parts = value.split(" - ", 1)
+    sanitized = sanitize_trailer_value(value)
+    parts = sanitized.split(" - ", 1)
     if len(parts) < 2 or not parts[1].strip():
         return (
-            f"invalid {key} format: {sanitize_trailer_value(value)!r}. "
+            f"invalid {key} format: {sanitized!r}. "
             f"Must be: {valid_list} - description"
         )
     category = parts[0].strip()
     if category not in categories:
         return (
-            f"invalid {key} category {sanitize_trailer_value(category)!r}. "
+            f"invalid {key} category {category!r}. "
             f"Valid categories: {valid_list}"
         )
     return None

@@ -37,11 +37,9 @@ content and fails NOISY (exit != 0, clear stderr message, NO commit
 created) on invalid content. Valid categories:
   - Memo: `lib/constants.py::MEMO_CATEGORIES` (single source of truth,
     imported below — never hardcoded here).
-  - Remember: `("user", "claude")` — this enum only exists today as an
-    inline literal inside `hooks/pre-validate-commit-trailers.py`'s
-    `validate_trailers()` (no `lib/constants.py` constant for it), so it is
-    reproduced here as a small local tuple with a comment pointing at that
-    fact — there is no importable source of truth to reuse yet.
+  - Remember: `lib/constants.py::REMEMBER_CATEGORIES` (real named constant,
+    added by Ultron after this contract was first written — imported below
+    alongside `MEMO_CATEGORIES`, same pattern for both).
 
 Threat model note (per this project's CLAUDE.md): this is the system
 against itself (a legitimate-looking-but-malformed trailer silently
@@ -68,6 +66,24 @@ RED today (must fail for the stated reason):
 GREEN controls today, must stay GREEN after the fix (no regression):
     - TestMemoCategoryHappyPathUnaffected::test_valid_category_accepted[*]
     - TestRememberCategoryHappyPathUnaffected::test_valid_category_accepted[*]
+
+REGRESSION (Cerberus finding, 2026-07-25): `_validate_trailer_content()`
+above checks the RAW `--trailer` value, but `build_commit_message()`
+commits the SANITIZED value (`sanitize_trailer_value()` turns every
+control byte into a space, then strips). A description made ENTIRELY of
+control bytes (e.g. `\x1b\x1b\x1b`) is non-empty as a raw string --
+`str.strip()` does not touch ESC -- so the raw-value check passes it as a
+valid "category - description", while the sanitized value that actually
+lands in the commit is bare `"preference -"` with NO description: silent,
+permanent loss of the memory content. Ultron is moving the validation to
+run on the sanitized value (fail closed instead). Until that fix lands
+these are RED (rc=0, commit created, empty description silently
+committed); GREEN once the wrapper validates post-sanitize content:
+    - TestMemoDescriptionControlByteOnlySaneoRegression::test_control_byte_only_description_rejected_no_commit
+    - TestRememberDescriptionControlByteOnlySaneoRegression::test_control_byte_only_description_rejected_no_commit
+  (test_control_byte_only_description_sanitizes_to_empty is an anti-vacuity
+  probe, not part of the RED/GREEN contract -- it must pass unconditionally,
+  today and after the fix, since it only exercises sanitize_trailer_value().)
 """
 
 import os
@@ -78,14 +94,10 @@ import sys
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-from constants import MEMO_CATEGORIES  # noqa: E402  (sys.path mutated above)
+from constants import MEMO_CATEGORIES, REMEMBER_CATEGORIES  # noqa: E402  (sys.path mutated above)
+from parsing import sanitize_trailer_value  # noqa: E402  (sys.path mutated above)
 
 COMMIT_SCRIPT = os.path.join(BIN_DIR, "git-memory-commit.py")
-
-# No lib/constants.py source of truth exists for this enum yet (see module
-# docstring) — reproduced here as the only currently-real spec, read
-# straight out of hooks/pre-validate-commit-trailers.py::validate_trailers().
-REMEMBER_CATEGORIES = ("user", "claude")
 
 
 def _make_repo(tmp_path, name="repo"):
@@ -177,6 +189,60 @@ class TestMemoCategoryHappyPathUnaffected:
             assert _commit_count(repo) == before + 1, f"a commit should have been created for valid category {category!r}"
 
 
+class TestMemoDescriptionControlByteOnlySaneoRegression:
+    """[REGRESSION — Cerberus] The category/separator check above validates
+    the RAW `--trailer` value, before sanitize_trailer_value() runs. A
+    description made ENTIRELY of control bytes (e.g. \\x1b\\x1b\\x1b) is
+    non-empty as a raw string -- str.strip() does not touch ESC -- so
+    `_validate_trailer_content()` sees a valid "category - description"
+    shape and lets it through. But build_commit_message() commits the
+    SANITIZED value (sanitize_trailer_value() converts every control byte
+    to a space, then strips the result), and an all-control-byte
+    description sanitizes down to nothing: the trailer actually written to
+    git is bare "Memo: preference -" with NO description at all -- silent,
+    permanent loss of the memory content, never surfaced as an error.
+
+    Without Ultron's fix (validate the SANITIZED value, not the raw one)
+    `test_control_byte_only_description_rejected_no_commit` is RED: rc=0
+    and a commit IS created carrying the empty "Memo: preference -"
+    trailer (confirmed live against the current script before writing
+    this). GREEN once the wrapper validates post-sanitize content and
+    fails closed instead.
+    """
+
+    def test_control_byte_only_description_sanitizes_to_empty(self):
+        """Anti-vacuity: prove the raw description used below is not
+        accidentally a valid non-empty description once sanitized -- if
+        this failed, the rejection test below would pass for the wrong
+        (trivial) reason."""
+        raw_description = "\x1b\x1b\x1b"
+        assert raw_description.strip(), (
+            "raw control bytes must look non-empty pre-sanitize via str.strip() "
+            "-- that gap is exactly what the raw-value validator misses"
+        )
+        sanitized = sanitize_trailer_value(f"preference - {raw_description}")
+        assert sanitized == "preference -", (
+            f"expected the control-byte description to sanitize away to nothing, got {sanitized!r}"
+        )
+
+    def test_control_byte_only_description_rejected_no_commit(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        before = _commit_count(repo)
+        rc, out, err = run_script(
+            COMMIT_SCRIPT, repo,
+            ["memo", "test", "control byte only description", "--trailer",
+             "Memo=preference - \x1b\x1b\x1b"],
+        )
+        assert rc != 0, (
+            "a Memo description made only of control bytes sanitizes to empty "
+            f"and must fail closed: rc={rc} out={out!r} err={err!r}"
+        )
+        assert _commit_count(repo) == before, (
+            "no commit should have been created -- without the fix this silently "
+            "commits a bare 'Memo: preference -' trailer with no description"
+        )
+
+
 # ── Remember: content validation ────────────────────────────────────────
 
 class TestRememberCategoryValidationFailClosed:
@@ -230,3 +296,31 @@ class TestRememberCategoryHappyPathUnaffected:
             )
             assert rc == 0, f"valid Remember category {category!r} must still be accepted: err={err!r}"
             assert _commit_count(repo) == before + 1, f"a commit should have been created for valid category {category!r}"
+
+
+class TestRememberDescriptionControlByteOnlySaneoRegression:
+    """[REGRESSION — Cerberus] Same failure mode as
+    TestMemoDescriptionControlByteOnlySaneoRegression above, for Remember:
+    trailers -- the raw-value validator lets an all-control-byte
+    description through, but the sanitized value committed to git is bare
+    "Remember: user -" with no description. See that class's docstring for
+    the full mechanism; not repeating the anti-vacuity probe here since it
+    only exercises sanitize_trailer_value(), which is not Memo/Remember
+    specific."""
+
+    def test_control_byte_only_description_rejected_no_commit(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        before = _commit_count(repo)
+        rc, out, err = run_script(
+            COMMIT_SCRIPT, repo,
+            ["remember", "test", "control byte only description", "--trailer",
+             "Remember=user - \x1b\x1b\x1b"],
+        )
+        assert rc != 0, (
+            "a Remember description made only of control bytes sanitizes to empty "
+            f"and must fail closed: rc={rc} out={out!r} err={err!r}"
+        )
+        assert _commit_count(repo) == before, (
+            "no commit should have been created -- without the fix this silently "
+            "commits a bare 'Remember: user -' trailer with no description"
+        )

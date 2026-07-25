@@ -126,7 +126,8 @@ def validate_trailers(commit_type: str, trailers: dict[str, str], branch: str) -
     if "Remember" in trailers:
         parts = trailers["Remember"].split(" - ", 1)
         if len(parts) < 2 or parts[0].strip() not in REMEMBER_CATEGORIES:
-            errors.append(f"Invalid Remember format: '{sanitize_trailer_value(trailers['Remember'])}'. Must be: user|claude - description")
+            valid_remember_categories = "|".join(sorted(REMEMBER_CATEGORIES))
+            errors.append(f"Invalid Remember format: '{sanitize_trailer_value(trailers['Remember'])}'. Must be: {valid_remember_categories} - description")
 
     # Validate Risk values if present
     if "Risk" in trailers and trailers["Risk"] not in RISK_VALUES:
