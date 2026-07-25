@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Cross-platform `file_lock()` closes the CLAUDE.md lost-update race (T1).** The atomic writer (`mkstemp`+`os.replace`) already prevented a crash from leaving CLAUDE.md empty/partial, but not the *lost update* between two concurrent read-modify-write cycles (two overlapping boots, boot + upgrade, …): each reads the same content, each edits only its own managed block, and whichever `os.replace()` lands last silently discards the other's change. New `file_lock(target_path, lock_path=None)` in `lib/git_helpers.py` (POSIX `fcntl.flock` `LOCK_EX`; Windows `msvcrt.locking` retrying **only** on the contention errno and re-raising any permanent error instead of looping forever; lazy platform imports; always released; documented non-reentrant) plus `claude_md_lock_path()` — a single shared lock path under the already-ignored `.claude/.unmassk/` so it never pollutes `git status`. All 3 managed-block writers (`hooks/session-start-crew.py`, `lib/install_apply.py::_update_claude_md()`, `bin/git-memory-uninstall.py`) now do a cheap read/compare *outside* the lock and only escalate to lock → re-check → write when a write is actually needed — so a no-op boot in a read-only project dir stays a graceful no-op instead of crashing. Reviewed (Cerberus), broken and re-hardened (Moriarty found 2 read-only regressions + 1 Windows infinite-loop deception, all closed); 9 tests with real cross-process subprocesses.
+
+### Changed
+
+- **`REMEMBER_GC_THRESHOLD` 8 → 16** (`lib/boot_render.py`). After moving mis-scoped rules into skills, the surviving `remember(claude)` entries are legitimate, distinct behavior rules — the old threshold fired as a false positive for a mature toolkit, not on real noise. `MEMO_GC_THRESHOLD` unchanged (10).
+- **More mis-scoped `remember(claude)` rules moved into their skills** and retired from global memory: "default to the named crew" and the crew/frontmatter delegation scope → `unmassk-core` (with a clarification that the "orchestration files are yours" rule is about the toolkit's *own* layer, not a product's frontmatter). Also fixed a class of ghost entries that a prior consolidation "retired" by citing commit *hashes* instead of the entry text (so the tombstone never matched and the entry stayed live).
+- **Gitto Mode C crown-commit format documented exactly** (`agents/gitto.md`). Consolidation was emitting inert crowns (`Crown: Memo:` with a trailing colon, and no `Memo:`/`Remember:` trailer on the crown itself), so crowns never registered. The doc now gives the exact `--trailer` command and the two failure modes to avoid.
+
 ## [1.21.1] - 2026-07-25
 
 ### Changed
