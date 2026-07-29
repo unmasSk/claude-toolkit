@@ -36,6 +36,23 @@ Bifurcación ya prevista:
 - Si `additionalContext` llega en `Stop` → los 3 hooks mudos se arreglan cambiando de canal, sin tocar su lógica.
 - Si no llega nada en `Stop` → el freno no puede vivir ahí y se mueve a `PreToolUse`.
 
+### Riesgos verificados contra la doc oficial y los issues reales (2026-07-29)
+
+Lo que respalda el plan y lo que puede tumbarlo. **Ninguno de estos es deducible leyendo el código del toolkit.**
+
+| Hecho | Fuente | Impacto en el roadmap |
+|---|---|---|
+| `Stop` y `SubagentStop` **sí** aceptan `additionalContext`, "the conversation continues so Claude can act on the feedback" | doc oficial, tabla de Decision control | ✅ El plan tiene respaldo documental |
+| stdout con exit 0 en `Stop` va **solo al debug log** — las únicas excepciones son `UserPromptSubmit`, `UserPromptExpansion` y `SessionStart` | doc oficial, Exit code output | ✅ Confirma el censo al 100% |
+| `last_assistant_message` está disponible en `Stop`/`SubagentStop` | doc oficial | ✅ El verificador puede leer lo generado |
+| **`additionalContext` NO se inyecta en la extensión de VSCode** (sí en CLI). Hook ejecuta, no falla, el contexto no aparece. Cerrado como *not planned* | issue anthropics/claude-code#49063 | ⚠️ **El comportamiento depende del cliente** |
+| **`stop_hook_active` no propaga** cuando se intercalan system reminders → el hook se dispara repetidamente y quema tokens | issue #54360, ABIERTO | ⚠️ Riesgo de bucle real, no teórico |
+| El entorno real de Bex es el **caso ambiguo**: `ENTRYPOINT=cli` pero `TERM_PROGRAM=vscode` con bridge activo | medido en la máquina | ⚠️ Ni el caso que funciona ni el que falla → **hay que medirlo, no suponerlo** |
+| `additionalContext` capado a **10.000 caracteres** | doc/comunidad | El freno no puede llevar la memoria entera |
+| Tope de **8 bloqueos consecutivos** en `Stop`; un Stop que siempre bloquea nunca deja terminar | doc oficial | El freno se condiciona a algo real y **debe leer `stop_hook_active` para soltar** |
+
+**Lo que sigue sin ninguna prueba, y va marcado como hipótesis:** que reducir 134 reglas a 3-5 mejore el cumplimiento. Es criterio del council y sentido común, no un dato. Por eso la Fase 3 lleva umbral de apagado (3.7).
+
 ---
 
 ## FASE 1 — Capa de entrega, de cero
