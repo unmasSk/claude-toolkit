@@ -68,16 +68,36 @@ Bifurcación ya prevista:
 
 ---
 
-## FASE 3 — Memoria en el mensaje
+## FASE 3 — El contrato de conducta (esto es lo que el council puso PRIMERO)
 
-**Solo después de la Fase 0.** Se reinstaura la inyección por mensaje, por el canal medido, sin repetir el error de #69 (acertaba mal y metía ruido).
+Esta fase faltaba entera en la primera versión de este roadmap. Es el punto (a) del veredicto y su criterio de corte.
 
 | # | Acción | Nota |
 |---|---|---|
-| 3.1 | Inyectar por `UserPromptSubmit` → `additionalContext` | Canal probado: 1445/1445 |
-| 3.2 | Contenido: decisiones/memos del tema que toca el mensaje | Reusar `lib/recall.py` — es motor, funciona |
-| 3.3 | Calibrar el umbral con datos, no a ojo | El fallo de #69 fue precisión, no mecanismo |
-| 3.4 | Puerta de entrada: `remember(claude)` sin verificador → se rechaza | Del veredicto del council: sin cerrar el grifo, en 6 meses hay 134 otra vez |
+| 3.1 | Clasificar los 134 `remember(claude)` en **verificable por máquina** vs **prosa** | El criterio NO es "importante": es **"¿existe ya un detector escrito?"**. Sin detector es un deseo, y un deseo va a la basura, no a memoria |
+| 3.2 | Quedarse con **3-5**, no 15 | El council fue explícito en el número. Nadie defendió 15 |
+| 3.3 | Verificar **HECHOS del turno**, nunca la prosa | "¿hubo un Read del fichero que cita? ¿corrió el test que dice haber corrido?" — sí. "¿sonó a afirmación sin evidencia?" — NO: eso es Goodhart, se aprende a escribir vago |
+| 3.4 | El freno va **ANTES de la acción**, no en el fin de turno | El fin de turno llega tarde: los ficheros ya están escritos, solo censura el relato |
+| 3.5 | Eje del diseño: el orquestador **solo HABLA y LANZA AGENTES** | Corrección de Bex que invalidó media propuesta original. Esas son las dos únicas acciones interceptables — todo el freno se diseña sobre ellas, no sobre "tocar código" |
+| 3.6 | **Puerta de entrada**: un `remember(claude)` sin detector se rechaza | Sin cerrar el grifo, en 6 meses hay 134 otra vez. Se poda el árbol y se deja el grifo abierto |
+| 3.7 | **Umbral de apagado explícito**, escrito antes de encender | Si los incumplimientos no caen a un tercio, el gate se APAGA, no se amplía. Sin esto un gate sobrevive aunque no funcione |
+| 3.8 | La compactación tira las reglas justo en sesiones largas | Que es exactamente donde la conducta se degrada. Existe un evento para eso y no se usa |
+
+---
+
+## FASE 3-bis — Memoria en el mensaje · ⚠️ CONTRADICE UNA DECISIÓN VIGENTE
+
+**No se ejecuta sin decisión expresa de Bex, y sin el dato de la Fase 0 sobre la mesa.**
+
+Reinstaurar la inyección por mensaje **revierte la decisión `1e94975` (#69)**, que la retiró a propósito, y **contradice el veredicto del council**, que la cortó 4 de 5: *"cambiar el envase no cambia el mecanismo"*.
+
+Lo único que ha cambiado desde ese veredicto: ahora sabemos que `UserPromptSubmit` entrega 1445/1445, y que el fallo de #69 fue de **precisión** (acertaba mal, metía ruido), no de canal. Eso es un argumento nuevo — no es una autorización.
+
+| # | Acción | Nota |
+|---|---|---|
+| 3b.1 | Presentar a Bex: dato del canal + objeción del council, y que decida | Si se hace, la reversión se escribe como tal en git-memory, nombrando la decisión que revierte |
+| 3b.2 | Si se aprueba: inyectar por `UserPromptSubmit` → `additionalContext` | Reusar `lib/recall.py` (motor, funciona) |
+| 3b.3 | Calibrar el umbral con datos medidos, no a ojo | Es donde falló #69 |
 
 ---
 
@@ -150,9 +170,24 @@ Esto es lo que impide que el censo haya que repetirlo en seis meses.
 1. **Fase 0** — bloquea todo lo demás. Sin la tabla del canal, la Fase 1 es fe.
 2. **Fase 1** — es lo que Bex nota en la misma semana.
 3. **Fase 2** — gates que muerden; barato y de efecto inmediato.
-4. **Fase 5.1-5.2** — antes de la limpieza, para que la limpieza no vuelva a desincronizar la doc.
-5. **Fase 3** — la pieza grande, ya con canal medido.
-6. **Fase 4** — al final: es higiene, no conducta, y es la única irreversible.
+4. **Fase 3** — el contrato de conducta. **Es lo que el council puso primero** y lo que ataca la causa raíz (134 reglas compitiendo por 11 huecos). Faltaba entera en la v1 de este roadmap.
+5. **Fase 5.1-5.2** — antes de la limpieza, para que la limpieza no vuelva a desincronizar la doc.
+6. **Fase 3-bis** — solo si Bex la autoriza expresamente: revierte una decisión vigente.
+7. **Fase 4** — al final: es higiene, no conducta, y es la única irreversible.
+
+## Discrepancias detectadas al contrastar contra lo vigente (2026-07-29)
+
+Este roadmap se escribió antes de compararlo con la memoria viva. Al compararlo aparecieron **una contradicción y tres huecos**, ya corregidos arriba:
+
+| Qué | Estado |
+|---|---|
+| La antigua Fase 3 resucitaba la inyección por mensaje **sin decir que revierte `1e94975` (#69)** y contra el 4/5 del council | Corregido: aislada como Fase 3-bis, marcada como reversión, requiere decisión expresa |
+| Faltaba **entera** la consolidación de 134 remembers → 3-5 reglas con detector (punto (a) del council, su criterio central) | Añadida como Fase 3 |
+| Faltaba el **umbral de apagado** (punto (i)) | Añadido, 3.7 |
+| Faltaba la **compactación** (punto (f)) | Añadida, 3.8 |
+| El eje "el orquestador solo habla y lanza agentes" estaba implícito | Explicitado, 3.5 |
+
+**Lección de proceso, no del sistema:** el roadmap se escribió sin pasar por el recall, y por eso contradecía una decisión vigente. Es exactamente el fallo que este roadmap existe para arreglar, cometido mientras se escribía.
 
 **Nada de la Fase 4 se ejecuta hasta que 1, 2 y 3 estén verdes.** Borrar primero y arreglar después deja el sistema sin red durante el arreglo.
 
