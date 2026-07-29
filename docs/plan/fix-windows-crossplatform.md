@@ -73,3 +73,5 @@ Hacer el toolkit ejecutable y seguro en Windows/macOS/Linux por igual, sin degra
 - Cerrar el residual `O_CREAT` con `pywin32`/`ctypes`.
 - F7 (junctions NTFS en install/uninstall), F9 (templates scaffold Unix) — bajo demanda, fuera del runtime crítico.
 - Lint/CI con `PYTHONUTF8=0` en Windows para desenmascarar la clase permanentemente (recomendación de House — candidata a issue futuro).
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

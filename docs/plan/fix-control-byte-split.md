@@ -88,3 +88,5 @@ Order: Dante extends `test_control_byte_injection.py` with RED cases for field-d
 
 ## Wave Map
 Sequential: 1 → 2 → 3 → 4 → 5. Within Task 3: Cerberus/Argus/Moriarty in parallel, Dante after fixes stabilize, Yoda last.
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

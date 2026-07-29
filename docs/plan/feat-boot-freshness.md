@@ -104,3 +104,5 @@ Keep the fetch SYNCHRONOUS in the boot script (Bex d958659: the boot script itse
 - Decision 3d2f377 items → Tasks: hardened gated rate-limited fetch (T2), provenance stamp (T3), origin read + divergence labeling (T4), write-path guard (T5). Decision d958659 → pull directive at boot (T3). Fix criterion (12-behind reproduction) → T1 test 1. ✔
 - Every task has verify steps tied to the red tests. ✔
 - Dependencies explicit; file-overlap noted in wave map. ✔
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

@@ -25,7 +25,7 @@ Always installed. Contains everything you need to orchestrate:
 | **10 Agents**          | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document), Gitto (query memory)      |
 | **Flow**               | 8-step creative pipeline: triage → brainstorm → research → plan → execute → verify → document → close                                                                                      |
 | **Audit**              | 14-step enterprise audit with scoring /110: scan → golden tests → audit → fix → adversarial → senior review → document                                                                     |
-| **Standards**          | Enterprise quality criteria. Tiers (T1/T2/T3), scoring weights, OWASP, React patterns, TypeScript strict, async, API contracts, concurrency. **Read standards every time you touch code.** |
+| **Standards**          | Quality criteria under the "system against itself" model. Tiers (T1/T2/T3) and weighted scoring: Integrity ×3, Silent-failure ×3, Structure ×2, Real verification ×2, Maintainability ×1. **No OWASP, no React, no TypeScript rules — those were removed; the skill says so itself.** **Read standards every time you touch code.** |
 
 ### Domain plugins (optional, installed per need)
 
@@ -40,6 +40,14 @@ These provide specialized knowledge the orchestrator injects into a crew agent's
 | **unmassk-design**     | 7 skills | Core (design systems, color, typography, layout, a11y, UX writing, agentic UX, AI Slop Test, BM25) + 6 branches: motion craft, 3D/WebGL, scroll, animation formats (Lottie/Rive/Anime.js), taste (named style variants), Flutter UI |
 | **unmassk-seo**        | 1 skill  | Technical SEO, schema markup, Core Web Vitals, GEO/AEO, programmatic SEO                                                                                    |
 | **unmassk-marketing**  | 1 skill  | CRO, copywriting, email, retention, paid ads, analytics, growth, sales enablement                                                                           |
+| **unmassk-pentesting** | 30 skills | Offensive security: recon, injection, auth, cloud/containers, mobile, reverse engineering, DFIR, OSINT, engagement orchestration                           |
+| **unmassk-electronics**| 4 skills | Hardware, boards, sensors, robotics                                                                                                                        |
+| **unmassk-frontend**   | 1 skill  | React/frontend quality rules (a11y, CSS discipline, component structure)                                                                                    |
+| **unmassk-typescript** | 1 skill  | TypeScript strict mode, type safety, casts and guards                                                                                                       |
+| **unmassk-humanizer**  | 1 skill  | Strip AI tells from text (ES/EN)                                                                                                                            |
+| **unmassk-3d**         | 1 skill  | 3D/CAD pipeline                                                                                                                                             |
+
+**This table must match `.claude-plugin/marketplace.json` — 13 domain plugins.** It listed only 7 until 2026-07-29, so half the catalogue was invisible when picking which skill to inject.
 
 You have the full front-matter (name + description) of every installed skill loaded in your context. When you delegate to a crew agent, YOU pick the domain skill(s) the task needs and paste them into the agent's prompt — the agent reads them before starting (see "How to prompt agents" below).
 
@@ -129,13 +137,14 @@ When the user hands you the decision — explicitly ("you decide", "do it yourse
 
 ## Standards: read them every time you touch code
 
-The `unmassk-standards` skill contains enterprise quality criteria that apply to ANY project. Every agent loads it on boot. It defines:
+The `unmassk-standards` skill contains stack-agnostic quality criteria that apply to ANY project. Every crew agent except Gitto loads it on boot. Its declared axis is **"the system against itself"** — data/memory loss, silent failure, platform breakage, producer→consumer round-trip integrity, concurrency races. It defines:
 
-- **Tiers**: T1 (security/data, blocks merge), T2 (structure/testing, blocks unless justified), T3 (cosmetics, fix when convenient)
-- **Scoring**: Security ×3, Error handling ×3, Structure ×2, Testing ×2, Maintainability ×1 = /110
-- **OWASP Top 10** including A10 (SSRF)
-- **React patterns**, TypeScript strict, async patterns, API contracts, concurrency, idempotency
+- **Tiers**: T1 (integrity/data, blocks merge), T2 (structure/verification, blocks unless justified), T3 (cosmetics, fix when convenient)
+- **Scoring**: Integrity (data+memory) ×3, Silent-failure / Error handling ×3, Structure ×2, Real verification / round-trip ×2, Maintainability ×1 = /110
+- **Producer↔consumer integrity (§34)** — the round-trip rules, including §34.5 (hit the real dependency, don't mock the seam)
 - **Anti-patterns catalog** — what to never do
+
+**NOT in there, on purpose:** OWASP, injection defence, React patterns, TypeScript-strict rules. The skill states it itself — *"NOT about external attackers"*. External-threat material lives in Argus's own prompt; framework rules live in the `unmassk-frontend` / `unmassk-typescript` plugins. Do not promise a checklist that no agent can apply.
 
 If you're writing code, reviewing code, testing code, or fixing code — the standards apply. No exceptions. The crew agents load `unmassk-standards` on boot; **you (the orchestrator) do not** — so on the rare code task you do yourself, load it with the Skill tool first. Normally you delegate code, and Ultron already has it.
 

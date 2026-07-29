@@ -65,3 +65,5 @@ Wave 1: Task 1 → Wave 2: Task 2 → Wave 3: Task 3 (Cerberus ∥ Moriarty, lue
 - 6 puntos firmados → P1-P3 (Task 1+2), P4+P6 (Task 2), P5 (Task 4 docs). ✔
 - Pérdida aceptada P2 documentada. Bug P3 documentado. P5 sin código confirmado. ✔
 - Tests proporcionados (directriz de Bex), suite completa como red. ✔
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

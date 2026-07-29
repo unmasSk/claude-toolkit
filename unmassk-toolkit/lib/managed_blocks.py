@@ -44,7 +44,9 @@ This project uses the **unmassk toolkit**.
 4. Read CALIBRATION.md: `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md`
 5. Show the boot summary, then respond to the user
 
-**On every user message**, the `[memory-check]` hook fires. Follow the CALIBRATION rules.
+**On every user message** a banner fires reminding you to verify before claiming and to save durable signals. There is NO automatic memory injection and NO `[memory-check]` marker -- both were removed. Nothing reaches you unless you pull it: run `git-memory-recall.py "<terms>"` whenever the message touches something that might already be decided. Apply the CALIBRATION rules on every message, unprompted -- do not wait for a signal.
+
+The boot briefing is a BUDGETED SAMPLE, not the whole memory (single digits out of hundreds). An entry missing from it is NOT evidence it does not exist.
 
 Never ask the user to run commands -- run them yourself.""",
     },

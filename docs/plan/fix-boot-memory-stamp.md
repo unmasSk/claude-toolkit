@@ -132,3 +132,5 @@ Con `remote.<alias>.url` VACÍA, `git remote get-url` devuelve el alias literal 
 - Cada task tiene verificación con comando y criterio. ✔
 - Dependencias explícitas. ✔
 - Costura §34: Dante posee el round-trip (Task 1/3), Moriarty sabotea (Task 3), Yoda evidencia mecánica (Task 3). ✔
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

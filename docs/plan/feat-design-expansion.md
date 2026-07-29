@@ -70,3 +70,5 @@ Each branch = a skill directory under `unmassk-design/skills/<branch>/` with its
 - Deep-read the specific source SKILL.md + references at placement time per branch (method-level content), not upfront — investigation was contrast-level.
 - `3d` is the heaviest (10 sources) — may split internally into sub-references, decided at placement.
 - Existing `motion.md` reconciliation is the one real merge conflict to resolve carefully.
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.

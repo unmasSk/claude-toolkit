@@ -58,7 +58,7 @@ Restart Claude Code. Done.
 | "Review this code" → generic feedback | The orchestrator routes the right domain skill into each agent's prompt and it applies specific checklists |
 | You ask for an audit, Claude improvises | 14-step enterprise audit with scoring /110 |
 | You ask to build a feature, Claude jumps in | 8-step creative pipeline from brainstorm to merge |
-| No quality standards | T1/T2/T3 tiers, OWASP, React patterns, TypeScript strict, async, API contracts |
+| No quality standards | T1/T2/T3 tiers, weighted /110 scoring, producer↔consumer round-trip integrity, silent-failure rules |
 | You manage everything | The machinery is invisible — you give instructions, Claude delivers |
 
 ---
@@ -75,13 +75,13 @@ Always installed. Contains everything Claude needs to orchestrate.
 | **10 Agents** | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document), Gitto (query memory) |
 | **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
-| **Standards** | 34 sections of quality criteria — tiers, OWASP, React, TypeScript, async, API contracts, concurrency, producer↔consumer data integrity |
+| **Standards** | Stack-agnostic quality criteria under the "system against itself" model — tiers, weighted scoring, producer↔consumer data integrity (§34), silent-failure and concurrency rules. No OWASP/React/TypeScript: framework rules live in their own plugins |
 | **Calibration** | Memory calibration trained on 30 independent analyses of real conversations — teaches Claude when to save, what type to use, and when to shut up |
-| **Protocols** | 4 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (flush decisions to memory, write the resume point) |
+| **Protocols** | 5 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (flush decisions to memory, write the resume point), `unmassk-scaffolding` (stack choice and project scaffolding) |
 
 ### Domain plugins
 
-Install what you need. Agents discover them automatically.
+Install what you need. The orchestrator picks the right skill and pastes it into the agent's prompt — there is no automatic discovery gate (the old BM25 one was removed).
 
 | Plugin | Skills | What it covers |
 |--------|--------|---------------|
@@ -125,13 +125,13 @@ python3 bin/release.py <plugin> <new-version> --dry-run
 
 Full release procedure is documented in [`docs/RELEASING.md`](docs/RELEASING.md).
 
-### Key scripts in `unmassk-toolkit/bin/`
+### Key scripts
 
 | Script | What it does |
 |--------|-------------|
-| `git-memory-commit.py` | Creates a commit with structured trailers (Why, Touched, Decision…) and the correct emoji prefix |
-| `git-memory-recall.py` | Queries the memory stored in git history — used by agents at boot |
-| `release.py` | Bumps plugin version, promotes CHANGELOG, commits, and pushes in one step |
+| `git-memory-commit.py` | Creates a commit with structured trailers (Why, Touched, Decision…) and the correct emoji prefix (`unmassk-toolkit/bin/`) |
+| `git-memory-recall.py` | Queries the memory stored in git history. **Pull it on demand** — nothing injects it for the orchestrator (`unmassk-toolkit/bin/`) |
+| `release.py` | Bumps plugin version, promotes CHANGELOG, commits, and pushes in one step (lives in `bin/` at the repo root, not in `unmassk-toolkit/bin/`) |
 
 ---
 

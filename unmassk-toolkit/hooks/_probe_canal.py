@@ -8,7 +8,11 @@ It measures two things and judges nothing:
 
   A) what each hook event actually DELIVERS to a hook on stdin (passive
      record: which top-level keys arrive, and presence/type of the fields
-     that matter -- never their content);
+     that matter -- never their content), plus the three things without
+     which the result table cannot be read: `stop_hook_active` (upstream
+     issue #54360, the Stop-loop bug), the client identity of this machine
+     (upstream issue #49063, additionalContext works in the CLI but not in
+     the VSCode extension), and a per-event invocation tally;
   B) which hook OUTPUT channel actually REACHES the model's context, by
      emitting the same per-invocation nonce through every candidate channel
      under a distinct label. Whichever labels show up in the model's context
@@ -70,6 +74,12 @@ except BaseException:  # fail-open, see module docstring
 
 
 PROBE_LOG_NAME = "probe-canal.jsonl"
+# Per-event invocation tally, kept in its own tiny file so it stays truthful
+# even after the .jsonl hits its size cap and stops accepting lines. "Stop
+# fired 40 times and no marker was ever seen" and "Stop never fired at all"
+# are opposite conclusions; without this counter they look identical.
+PROBE_COUNTS_NAME = "probe-canal-counts.json"
+NO_EVENT_KEY = "<no-event>"
 # Once the log reaches this size the probe stops appending. A sentinel file
 # (PROBE_LOG_NAME + CAPPED_SUFFIX) marks that the final "log is full" line
 # was already written, so the notice is written exactly once instead of on
@@ -89,7 +99,22 @@ INSPECTED_FIELDS = (
     "session_id",
     "cwd",
     "tool_name",
+    # Upstream issue #54360 (open): stop_hook_active does not propagate
+    # correctly when system messages are interleaved, and the Stop hook ends
+    # up firing in a loop. Its VALUE is recorded (it is a bool, not content)
+    # so "the channel never arrives" can be told apart from "the hook looped".
+    "stop_hook_active",
 )
+
+# Environment identity. Upstream issue #49063: additionalContext is NOT
+# injected in the VSCode extension but does work in the CLI -- so a result
+# table is uninterpretable, and not comparable against another setup, unless
+# each line says which client produced it. This machine is precisely the
+# ambiguous case (CLAUDE_CODE_ENTRYPOINT=cli with TERM_PROGRAM=vscode).
+# Values are recorded for the two identity variables; the bridge variables
+# are recorded as presence only.
+ENV_VALUE_VARS = ("CLAUDE_CODE_ENTRYPOINT", "TERM_PROGRAM")
+ENV_PRESENCE_VARS = ("CLAUDE_CODE_SSE_PORT", "CLAUDE_CODE_BRIDGE_SESSION_ID")
 
 # Bounds on the recorded key list. The payload comes from the harness, not
 # from an adversary -- this exists so one anomalous payload can never blow
@@ -129,8 +154,19 @@ def _describe_field(payload: dict, key: str) -> dict:
         return {"present": False}
     value = payload[key]
     info: dict = {"present": True, "type": type(value).__name__}
-    if isinstance(value, str):
+    if isinstance(value, bool):
+        # A bool carries no user content -- record it outright. This is what
+        # makes stop_hook_active (issue #54360) readable.
+        info["value"] = value
+    elif isinstance(value, str):
         info["len"] = len(value)
+    return info
+
+
+def _env_info() -> dict:
+    """Which client produced this line (issue #49063) -- see ENV_VALUE_VARS."""
+    info: dict = {v: os.environ.get(v) for v in ENV_VALUE_VARS}
+    info.update({v: v in os.environ for v in ENV_PRESENCE_VARS})
     return info
 
 
@@ -182,7 +218,8 @@ def _plan_channels(event_name: str | None) -> list[str]:
 
 
 def _build_record(payload: object, status: str, event_name: str | None,
-                  nonce: str, channels: list[str]) -> dict:
+                  nonce: str, channels: list[str],
+                  event_seq: int | None, counts: dict) -> dict:
     """Assemble the one JSON line describing this invocation."""
     record: dict = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -193,6 +230,12 @@ def _build_record(payload: object, status: str, event_name: str | None,
         # "attempted": the record is written before the markers are emitted,
         # so a channel listed here is what the probe set out to emit.
         "channels_attempted": channels,
+        # This invocation's ordinal for its own event, plus a snapshot of
+        # every event's tally -- so the LAST line alone answers "how many
+        # times did each event fire?" without reading the whole file.
+        "event_seq": event_seq,
+        "counts": counts,
+        "env": _env_info(),
     }
     if isinstance(payload, dict):
         record.update(_top_level_keys(payload))
@@ -207,24 +250,70 @@ def _build_record(payload: object, status: str, event_name: str | None,
     return record
 
 
-def _append_record(record: dict) -> None:
-    """Append one JSON line to .claude/.unmassk/probe-canal.jsonl.
+def _runtime_paths() -> tuple[str, str] | None:
+    """(project_root, .claude/.unmassk/) -- resolved ONCE per invocation.
 
     Deferred lib import (module-level would put a second import outside the
-    guarded block at the top of this file). Raises freely -- main() owns the
-    fail-open wrapping.
+    guarded block at the top of this file). Both the counter and the log need
+    these, and `run_git` spawns a subprocess -- on PostToolUse this hook runs
+    on every single tool call, so resolving it twice would double that cost
+    for nothing. Raises freely -- main() owns the fail-open wrapping.
     """
-    from git_helpers import (
-        ensure_runtime_dir,
-        open_no_follow_symlink,
-        run_git,
-        verify_path_within_project,
-    )
+    from git_helpers import ensure_runtime_dir, run_git
 
     code, root = run_git(["rev-parse", "--show-toplevel"])
     if code != 0 or not root:
-        return
-    runtime_dir = ensure_runtime_dir(root)
+        return None
+    return root, ensure_runtime_dir(root)
+
+
+def _bump_event_count(paths: tuple[str, str], event_name: str | None) -> tuple[int, dict]:
+    """Increment this event's tally and return (this invocation's ordinal, all tallies).
+
+    Serialized with the repo's existing `file_lock()` rather than a
+    hand-rolled guard: this is a read-modify-write, and SubagentStop can
+    genuinely fire concurrently for several subagents at once, which is
+    exactly the lost-update race that helper exists for. The lock is held
+    only for a sub-millisecond read + atomic replace of a file well under
+    1 KB, and POSIX flock is released by the kernel if the process dies
+    holding it, so a crashed probe cannot wedge later hooks.
+    """
+    from git_helpers import file_lock, open_no_follow_symlink, verify_path_within_project
+
+    root, runtime_dir = paths
+    counts_path = os.path.join(runtime_dir, PROBE_COUNTS_NAME)
+    verify_path_within_project(counts_path, root)
+    key = event_name or NO_EVENT_KEY
+
+    with file_lock(counts_path):
+        counts: dict = {}
+        try:
+            with open_no_follow_symlink(counts_path, "r") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                # Drop anything that is not a plain int: a corrupted or
+                # hand-edited file must not propagate a bad type into the
+                # arithmetic below (and bool is an int subclass, so exclude it).
+                counts = {
+                    k: v for k, v in loaded.items()
+                    if isinstance(v, int) and not isinstance(v, bool)
+                }
+        except (OSError, ValueError):
+            counts = {}  # absent or unreadable: start the tally fresh
+        counts[key] = counts.get(key, 0) + 1
+        with open_no_follow_symlink(counts_path, "w", atomic=True) as f:
+            f.write(json.dumps(counts, sort_keys=True) + "\n")
+        return counts[key], counts
+
+
+def _append_record(paths: tuple[str, str], record: dict) -> None:
+    """Append one JSON line to .claude/.unmassk/probe-canal.jsonl.
+
+    Raises freely -- main() owns the fail-open wrapping.
+    """
+    from git_helpers import open_no_follow_symlink, verify_path_within_project
+
+    root, runtime_dir = paths
     log_path = os.path.join(runtime_dir, PROBE_LOG_NAME)
     verify_path_within_project(log_path, root)
     capped_path = log_path + CAPPED_SUFFIX
@@ -274,19 +363,37 @@ def _emit_markers(nonce: str, event_name: str | None) -> None:
 def main() -> None:
     """Record what arrived, then emit the nonce through every channel.
 
-    The two halves are wrapped independently: a log that cannot be written
-    must not cost us the markers, and markers that cannot be emitted must
-    not cost us the record.
+    Every stage is wrapped independently: a counter that cannot be bumped
+    must not cost us the log line, a log that cannot be written must not
+    cost us the markers, and markers that cannot be emitted must not cost
+    us the record. The markers are the half that answers the question, so
+    they are emitted last and are never gated on anything above them.
     """
     payload, status = _read_stdin()
     event_name = _event_name(payload)
     nonce = secrets.token_hex(NONCE_BYTES)
     channels = _plan_channels(event_name)
 
+    paths = None
     try:
-        _append_record(_build_record(payload, status, event_name, nonce, channels))
+        paths = _runtime_paths()
     except BaseException:  # fail-open
-        pass
+        paths = None
+
+    event_seq: int | None = None
+    counts: dict = {}
+    if paths is not None:
+        try:
+            event_seq, counts = _bump_event_count(paths, event_name)
+        except BaseException:  # fail-open
+            event_seq, counts = None, {}
+
+    if paths is not None:
+        try:
+            _append_record(paths, _build_record(
+                payload, status, event_name, nonce, channels, event_seq, counts))
+        except BaseException:  # fail-open
+            pass
     try:
         _emit_markers(nonce, event_name)
     except BaseException:  # fail-open

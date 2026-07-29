@@ -62,3 +62,5 @@ NO cubierto (lo que abre este paquete):
 
 ## Close (Step 7)
 Suite completa verde → Gitto squash de wips → push main (trunk) → cerrar #59 → context `#59 CLOSED` → candidato boot-log-fence apuntado.
+
+**Status: COMPLETED** — issue cerrado; marcado en la limpieza del 2026-07-29 (censo de deuda). El plan quedó sin marcar al cerrar el trabajo: el paso 7 de Flow depende de que el orquestador lo recuerde, y no lo hizo.
