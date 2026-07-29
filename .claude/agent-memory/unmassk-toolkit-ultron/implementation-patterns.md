@@ -949,3 +949,36 @@ Dante added `test_run_cadquery.py` (RED for a blocking bug) to the same `tests/`
 ## Age-gated opportunistic orphan sweep for crash-only temp files (2026-07-19)
 
 `unmassk-toolkit/lib/git_helpers.py::_sweep_orphaned_atomic_temp_files(dest_dir, basename)` — a `kill -9` mid-write leaves a `tempfile.mkstemp()` file behind forever (no live code ever runs again in that process to clean it up); with no sweep, these accumulate as untracked `.tmp` files at the repo root over many crashes. Fix pattern: every atomic write is itself the natural opportunity to sweep — call the sweep at the START of `_AtomicWriteNoFollowSymlink.__init__` (before creating this write's OWN temp file, so it can never match itself), scanning `dest_dir` for siblings matching the exact same `prefix=f".{basename}."` / `suffix=".tmp"` naming shape `tempfile.mkstemp()` uses, and unlinking only those older than `_ATOMIC_TEMP_ORPHAN_MAX_AGE_SECONDS` (1 hour) via `os.stat().st_mtime`. The age gate is load-bearing, not decorative — it's the only signal (no lock exists) that distinguishes "abandoned by a dead process" from "a concurrent writer's temp file mid-flight". Entirely best-effort (every `OSError` swallowed) — a cleanup sweep must never be the reason a real write fails.
+
+## Claude Code hook OUTPUT-channel contract (external, doc-sourced 2026-07-29)
+
+Not derivable from this repo — it is harness behavior, and it constrains every
+hook that tries to say something to the model. Confirmed against
+code.claude.com/docs (hooks reference + agent-sdk/hooks) while building
+`hooks/_probe_canal.py` for Fase 0:
+
+- **Valid JSON on stdout DISCARDS the raw stdout text.** The harness parses
+  stdout; if parsing succeeds, only the recognized structured fields are
+  honored. Consequence: "plain text on stdout" and "a JSON object on stdout"
+  are MUTUALLY EXCLUSIVE per invocation — a hook cannot exercise both. Any
+  plan that asks for both in one invocation is asking for the impossible.
+- **Unknown top-level keys are silently ignored** ("Claude Code only
+  processes recognized fields"). Safe to smuggle a diagnostic marker as an
+  unknown key: invisible when the JSON is consumed structurally, visible if
+  the raw stdout text is ever surfaced instead. That asymmetry is itself a
+  usable discriminator.
+- **`hookSpecificOutput.hookEventName` is REQUIRED** inside
+  `hookSpecificOutput`. With no known event name there is nothing truthful to
+  put there → omit the whole `hookSpecificOutput` block rather than invent one.
+- **`systemMessage` shows a message to the USER, not the model.** Do not use
+  it to deliver anything the model must act on.
+- **Plain stdout is added as model-visible context only for `SessionStart`
+  and `UserPromptSubmit`.** For every other event, plain-text stdout goes to
+  the debug log. This is the documented root of the "hooks run but never
+  arrive" problem (see the plugin/hooks census memo).
+- `additionalContext` is documented for `PostToolUse` and `UserPromptSubmit`;
+  support on `Stop`/`SubagentStop`/`PreToolUse`/`SessionStart`/`PreCompact` is
+  NOT documented either way — that gap is exactly what Fase 0 measures.
+
+Treat the last bullet as unverified until Fase 0's `probe-canal.jsonl`
+cross-reference lands; the rest is documented contract. [[lessons]]

@@ -200,3 +200,25 @@ invisible from there, but first-party subagent receipt shows the real
 (`echo '{"tool_name":"Agent",...}' | python3 hooks/pre-task-recall.py`)
 and the emitted `updatedInput.prompt` carries the footer correctly. Do not
 re-flag this as a suspected no-op without new evidence.
+
+## Editing hooks/hooks.json does NOT change what runs in the live session
+
+Verified 2026-07-29: `~/.claude/plugins/cache/unmassk-claude-toolkit/unmassk-toolkit/<version>/`
+is an independent **copy**, not a symlink into the repo working tree
+(`ls -l` on `hooks/hooks.json` there shows a regular file with its own
+mtime and its own byte size). Claude Code executes the CACHE copy.
+
+Consequences, both of which have real cost if forgotten:
+
+- Adding/editing a hook in `unmassk-toolkit/hooks/` and declaring it in
+  `unmassk-toolkit/hooks/hooks.json` changes NOTHING at runtime until the
+  plugin is reinstalled/synced into the cache. A plan that says "declare
+  the hook, then read its results next turn" has a missing step between
+  those two.
+- `bin/git-memory-doctor.py`'s "Hooks: N/N in plugin cache" line reports on
+  the CACHE, not the repo — it stays green while the repo has hooks the
+  cache has never seen. It is not a check that your edit took effect.
+
+Check both sides explicitly before claiming a hook is live:
+`grep -c <hookname> <cache>/hooks/hooks.json` and
+`ls <cache>/hooks/<hookname>.py`. [[lessons]]
