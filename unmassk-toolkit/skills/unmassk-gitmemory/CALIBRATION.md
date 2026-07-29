@@ -192,7 +192,7 @@ Rules for YOUR behavior. Corrections the user gave you. Lessons you learned from
 - An operational error taught you something that applies to any project: push to wrong branch, wrong test path, subagent didn't follow instructions
 
 **When it does NOT fire:**
-- It's a **systemic process rule** the loaded skill already states (or should state): "follow the pipeline", "delegate code to Ultron", "use Flow before improvising", "read standards before coding". These are NOT memory — they belong in the loaded skill (`unmassk-core` / `unmassk-gitmemory`) as a hard instruction, or behind a gate (a hook that blocks). Saving one as remember(claude) mis-scopes a *toolkit* rule as *global* behavior, piles up as noise (the boot warns at 8+ remember(claude)), and a rule you have saved 3-4 times is proof the skill isn't sticky enough — **fix the skill, don't add another memory.**
+- It's a **systemic process rule** the loaded skill already states (or should state): "follow the pipeline", "delegate code to Ultron", "use Flow before improvising", "read standards before coding". These are NOT memory — they belong in the loaded skill (`unmassk-core` / `unmassk-gitmemory`) as a hard instruction, or behind a gate (a hook that blocks). Saving one as remember(claude) mis-scopes a *toolkit* rule as *global* behavior, piles up as noise (the boot warns past 16 remember(claude) — and note it counts only what it *rendered*, not what exists, so the real pile is far larger than the warning implies: this toolkit reached 134 before anyone noticed), and a rule you have saved 3-4 times is proof the skill isn't sticky enough — **fix the skill, don't add another memory.**
 - It's a rule or fact **specific to this project/toolkit** (its pipeline, its build modes, its conventions, its file layout). That is a **memo or decision** (project-scoped, stays in this repo), NOT a remember(claude). remember(claude) is GLOBAL — it travels to every project — so a project rule saved there resurfaces in unrelated work where it's wrong. Scope test before ANY remember(claude): *would this still be true and useful in a completely different project?* If no → memo/decision, not remember.
 - It's derivable, a one-off, or already saved (see "What is NOT memory").
 
@@ -282,7 +282,7 @@ Memory is not just saving. It's a cycle:
 
 ### On boot (read)
 
-The boot injects all existing memory: REMEMBER, DECISIONS, MEMOS, TIMELINE, NEXT, BLOCKERS. **Read it. Use it.** Don't ignore it.
+The boot shows you a **budgeted sample** of the memory — REMEMBER, DECISIONS, MEMOS, TIMELINE, NEXT, BLOCKERS — **never all of it**. Measured on this toolkit: 10 of 287 decisions and 10 of 171 memos actually rendered, i.e. 96% and 94% invisible. **Read what you get. Use it. And never treat its absence as proof that something wasn't decided** — if the question touches anything that might already be settled, pull it with `git-memory-recall.py "<terms>"` before answering.
 
 - REMEMBERs tell you how to behave and who the user is → apply them from the first message
 - DECISIONS tell you what was chosen in the project → don't propose alternatives to something already decided
