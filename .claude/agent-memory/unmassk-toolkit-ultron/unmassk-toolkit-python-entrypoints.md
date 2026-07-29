@@ -222,3 +222,44 @@ Consequences, both of which have real cost if forgotten:
 Check both sides explicitly before claiming a hook is live:
 `grep -c <hookname> <cache>/hooks/hooks.json` and
 `ls <cache>/hooks/<hookname>.py`. [[lessons]]
+
+**Since 2026-07-29 `bin/git-memory-doctor.py` checks this itself** — a
+`Repo vs cache` line (warn, never error) built on `lib/cache_sync_check.py`,
+which MD5-compares `hooks/`, `lib/` and `bin/` between the working tree and
+`_latest_version_dir(CACHE_BASE_DIR/unmassk-toolkit)`. It is silent unless the
+current project actually contains a `unmassk-toolkit/` directory, and
+fail-open everywhere else. Skills are deliberately NOT compared there —
+`lib/boot_health.py::check_skill_drift()` already does it at boot.
+
+## The env var is `CLAUDECODE`, never `CLAUDE_CODE`
+
+Claude Code exports `CLAUDECODE=1` (no underscore), alongside
+`CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_SESSION_ID`, etc. — the underscore
+variants all have a suffix; the bare "am I running under Claude" flag does
+not. `hooks/pre-validate-commit-trailers.py` read `CLAUDE_CODE` and was
+therefore inert from v1.0.0 to 2026-07-29 (~4 months), while its tests passed
+the whole time because `tests/conftest.py`'s `check_hook_msg(as_claude=True)`
+fabricated `CLAUDE_CODE=1`. Before writing ANY env-based "is this Claude?"
+guard, check `env | grep -i claude` on a real session instead of copying the
+name from an existing hook.
+
+Second-order trap once the name is fixed: `conftest.run_cmd()` merges
+`**os.environ` into every subprocess env, so running the suite from inside a
+Claude Code session leaks the real `CLAUDECODE=1` into every hook under test.
+Tests that mean "run as a human" (`as_claude=False`, or an env dict filtering
+only `CLAUDE_CODE`) then fail in a CC terminal and pass in a plain one. Always
+run the suite BOTH ways — plain, and `env -u CLAUDECODE python3 -m pytest ...`
+— before attributing a failure to your own change.
+
+## git-memory-doctor.py: expected hooks/skills are derived, not listed
+
+`EXPECTED_HOOKS`/`EXPECTED_SKILLS` used to be hand-written literals and had
+drifted to 5 hooks (vs 12 declared in `hooks/hooks.json`) and 3 skills (vs 10
+on disk) — reporting "5/5 ✅" over 7 unchecked hooks. Now derived at runtime:
+`expected_hooks()` parses `hooks/hooks.json` and regexes `hooks/(\S+\.py)` out
+of each `command`; `expected_skills()` lists `skills/*/`. Both return
+`None` on "cannot read", which the caller reports as an explicit
+`cannot verify — <reason>` **error** — never collapse an underivable list into
+an empty one, or the check silently passes as "0/0". `TRANSIENT_HOOKS` is the
+one escape hatch (currently `_probe_canal.py`): short-lived instrumentation
+declared in hooks.json must not become a permanent requirement.

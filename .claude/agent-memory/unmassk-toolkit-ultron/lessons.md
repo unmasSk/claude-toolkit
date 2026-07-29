@@ -1453,6 +1453,22 @@ No new import-location decision was needed; `test_issue61_breadcrumbs.py`'s
 on the 2nd call site) and the whole `test_issue61_read_retry_contract.py`
 suite stayed green with zero changes.
 
+## NEVER edit source while a background pytest run is in flight (2026-07-29)
+
+Started `python3 -m pytest unmassk-toolkit/tests -q` with `run_in_background:
+true` to capture a "before" baseline, then began editing hooks/ and bin/ while
+it ran. The suite spawns the scripts under test as **fresh subprocesses**, so
+each test reads whatever is on disk at the moment it runs — the run silently
+became a half-before/half-after mixture with no marker saying where the switch
+happened. Its numbers are unusable as either a baseline or a result, and the
+5 minutes are wasted twice (once for the bad run, once for the redo).
+
+Rule: a background test run pins the working tree read-only for its whole
+duration. Either take the baseline BEFORE touching anything and wait for it,
+or skip the baseline and rely on `git stash` afterwards — never overlap. Same
+hazard applies to any background command that shells out to repo files
+(doctor, install, hooks), not just pytest.
+
 ## git_helpers.py already over the 500 LOC convention (2026-07-19)
 
 `unmassk-toolkit/lib/git_helpers.py` was already 814 LOC before the atomic-write fix (now 930) — well past this project's own 500 LOC convention (stated explicitly in `lib/install_apply.py`'s module docstring: "keep the CLI entrypoint under the project's 500 LOC limit"). Pre-existing condition, not introduced by this fix — added the atomic-write class to the existing file (matching precedent: `boot_fetch_stamp.py` already keeps the equivalent temp+replace pattern inline rather than in a dedicated module) rather than splitting the file, since a fix-mode task must not restructure the module it's touching. Flagged as an observation for the orchestrator, not fixed — a future refactor pass (not a bug fix) should split `git_helpers.py` (e.g. path-safety guards vs. `run_git`/retry logic vs. atomic-write helpers are 3 fairly separable concerns already living in one file).

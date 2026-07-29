@@ -36,23 +36,25 @@ from git_helpers import run_git, open_no_follow_symlink, verify_path_within_proj
 from parsing import normalize, parse_trailers_full, sanitize_trailer_value
 from version import VERSION
 from date_parsing import parse_date
+from cache_sync_check import check_repo_cache_sync
 
 
 # ── Config ────────────────────────────────────────────────────────────────
 
-EXPECTED_HOOKS = [
-    "pre-validate-commit-trailers.py",
-    "precompact-snapshot.py",
-    "stop-dod-check.py",
-    "session-start-boot.py",
-    "user-prompt-memory-check.py",
-]
+# Hooks and skills are DERIVED, never listed by hand. A hand-written list
+# drifts the moment a hook is added and nobody remembers to update it here:
+# it sat at 5 entries while hooks.json declared 12, so the doctor reported
+# "5/5 in plugin cache" in green over 7 hooks it never looked at. A derived
+# list cannot desynchronise from its own source.
 
-EXPECTED_SKILLS = [
-    "unmassk-gitmemory",
-    "unmassk-core",
-    "unmassk-standards",
-]
+# Short-lived instrumentation: declared in hooks.json only while a
+# measurement runs, then retired. A probe must never become a permanent
+# requirement of the health check.
+TRANSIENT_HOOKS = {"_probe_canal.py"}
+
+# Matches the hook filename inside a hooks.json command line, e.g.
+# "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-boot.py".
+HOOK_COMMAND_RE = re.compile(r"hooks/([^/\s]+\.py)")
 
 STALE_BLOCKER_DAYS = 30
 SCAN_DEPTH = 50
@@ -89,7 +91,78 @@ def check_git_repo() -> bool:
     return code == 0
 
 
-def check_hooks(plugin_root: str) -> tuple[list[str], list[str]]:
+def expected_hooks(plugin_root: str) -> list[str] | None:
+    """Derive the hook filenames the install is expected to ship.
+
+    Source of truth is hooks/hooks.json -- the same file Claude Code reads to
+    decide what to run -- so this list is exactly as long as the set of hooks
+    actually declared. Transient probes (TRANSIENT_HOOKS) are excluded.
+
+    Returns:
+        Sorted list of hook filenames, or None if hooks.json is missing,
+        unreadable or not valid JSON. None means "cannot verify" and must be
+        reported as such, never collapsed into an empty expectation that
+        would trivially pass.
+    """
+    hooks_json = os.path.join(plugin_root, "hooks", "hooks.json")
+    try:
+        # Plain read on purpose: this is a read-only lookup of a file the
+        # toolkit itself ships, and this project's threat model is the system
+        # against itself, not a hostile repo — a symlink guard here would be
+        # dead weight (see CLAUDE.md).
+        with open(hooks_json, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    names: set[str] = set()
+    events = data.get("hooks")
+    if not isinstance(events, dict):
+        return None
+    for groups in events.values():
+        if not isinstance(groups, list):
+            continue
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("hooks")
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                match = HOOK_COMMAND_RE.search(str(entry.get("command", "")))
+                if match:
+                    names.add(match.group(1))
+    return sorted(names - TRANSIENT_HOOKS)
+
+
+def expected_skills(plugin_root: str) -> list[str] | None:
+    """Derive the skill names the install is expected to ship.
+
+    Source of truth is the skills/ directory itself: every directory shipped
+    there is a skill and must carry a SKILL.md. Hand-listing three of them
+    left the other seven unchecked.
+
+    Returns:
+        Sorted list of skill directory names, or None if skills/ cannot be
+        listed at all (reported as "cannot verify", not as "none expected").
+    """
+    skills_dir = os.path.join(plugin_root, "skills")
+    try:
+        entries = os.listdir(skills_dir)
+    except OSError:
+        return None
+    return sorted(
+        name for name in entries
+        if not name.startswith((".", "_"))
+        and os.path.isdir(os.path.join(skills_dir, name))
+    )
+
+
+def check_hooks(plugin_root: str, expected: list[str]) -> tuple[list[str], list[str]]:
     """Check that all expected hook files exist in the plugin cache.
 
     Returns:
@@ -98,7 +171,7 @@ def check_hooks(plugin_root: str) -> tuple[list[str], list[str]]:
     hooks_dir = os.path.join(plugin_root, "hooks")
     found = []
     missing = []
-    for hook in EXPECTED_HOOKS:
+    for hook in expected:
         path = os.path.join(hooks_dir, hook)
         if os.path.isfile(path):
             found.append(hook)
@@ -107,7 +180,7 @@ def check_hooks(plugin_root: str) -> tuple[list[str], list[str]]:
     return found, missing
 
 
-def check_skills(plugin_root: str) -> tuple[list[str], list[str]]:
+def check_skills(plugin_root: str, expected: list[str]) -> tuple[list[str], list[str]]:
     """Check that all expected skill directories contain a SKILL.md file.
 
     Returns:
@@ -116,7 +189,7 @@ def check_skills(plugin_root: str) -> tuple[list[str], list[str]]:
     skills_dir = os.path.join(plugin_root, "skills")
     found = []
     missing = []
-    for skill in EXPECTED_SKILLS:
+    for skill in expected:
         skill_file = os.path.join(skills_dir, skill, "SKILL.md")
         if os.path.isfile(skill_file):
             found.append(skill)
@@ -402,23 +475,38 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             print("Not inside a git repository.")
         return 1
 
-    # 2. Hooks (in plugin cache)
-    found_hooks, missing_hooks = check_hooks(plugin_root)
-    total_hooks = len(EXPECTED_HOOKS)
-    if missing_hooks:
+    # 2. Hooks (in plugin cache), expected list derived from hooks.json
+    hook_names = expected_hooks(plugin_root)
+    if not hook_names:
+        # None = hooks.json unreadable; [] = readable but declares nothing.
+        # Either way nothing is being verified, and saying so out loud is the
+        # whole point — a silent "0/0 ✅" is the failure this replaced.
         has_errors = True
-        results.append(("error", "Hooks", f"{len(found_hooks)}/{total_hooks} in cache — missing: {', '.join(missing_hooks)}"))
+        reason = "hooks.json unreadable" if hook_names is None else "hooks.json declares no hooks"
+        results.append(("error", "Hooks", f"cannot verify — {reason}"))
     else:
-        results.append(("ok", "Hooks", f"{total_hooks}/{total_hooks} in plugin cache"))
+        found_hooks, missing_hooks = check_hooks(plugin_root, hook_names)
+        total_hooks = len(hook_names)
+        if missing_hooks:
+            has_errors = True
+            results.append(("error", "Hooks", f"{len(found_hooks)}/{total_hooks} in cache — missing: {', '.join(missing_hooks)}"))
+        else:
+            results.append(("ok", "Hooks", f"{total_hooks}/{total_hooks} in plugin cache"))
 
-    # 3. Skills (in plugin cache)
-    found_skills, missing_skills = check_skills(plugin_root)
-    total_skills = len(EXPECTED_SKILLS)
-    if missing_skills:
+    # 3. Skills (in plugin cache), expected list derived from skills/ on disk
+    skill_names = expected_skills(plugin_root)
+    if not skill_names:
         has_errors = True
-        results.append(("error", "Skills", f"{len(found_skills)}/{total_skills} in cache — missing: {', '.join(missing_skills)}"))
+        reason = "skills/ unreadable" if skill_names is None else "skills/ is empty"
+        results.append(("error", "Skills", f"cannot verify — {reason}"))
     else:
-        results.append(("ok", "Skills", f"{total_skills}/{total_skills} in plugin cache"))
+        found_skills, missing_skills = check_skills(plugin_root, skill_names)
+        total_skills = len(skill_names)
+        if missing_skills:
+            has_errors = True
+            results.append(("error", "Skills", f"{len(found_skills)}/{total_skills} in cache — missing SKILL.md: {', '.join(missing_skills)}"))
+        else:
+            results.append(("ok", "Skills", f"{total_skills}/{total_skills} in plugin cache"))
 
     # 4. CLI (in plugin cache)
     cli_ok, cli_msg = check_cli(plugin_root)
@@ -434,6 +522,21 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     else:
         has_warnings = True
         results.append(("warn", "hooks.json", "not found in plugin cache"))
+
+    # 5b. Working tree vs plugin cache (toolkit developers only)
+    # Every check above looks at the cache, which is what Claude Code
+    # actually runs — so they all stay green while an edit in the repo goes
+    # unexecuted. Warn, never error: a stale cache costs a reinstall, it does
+    # not corrupt anything. None = check does not apply, stay silent.
+    sync_drift = check_repo_cache_sync(project_root)
+    if sync_drift is not None:
+        if sync_drift:
+            has_warnings = True
+            results.append(("warn", "Repo vs cache",
+                            "cache is stale, reinstall to run your edits — "
+                            + "; ".join(sync_drift)))
+        else:
+            results.append(("ok", "Repo vs cache", "hooks/, lib/ and bin/ identical"))
 
     # 6. CLAUDE.md (in project root)
     block_ok, block_msg = check_claude_md(project_root)
