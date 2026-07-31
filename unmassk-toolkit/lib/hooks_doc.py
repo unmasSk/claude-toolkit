@@ -121,6 +121,38 @@ def _escape_cell(text: str) -> str:
     return text.replace("|", "\\|")
 
 
+def _records_from_group(event: str, group: object) -> list[dict[str, str]]:
+    """Expand one hooks.json matcher-group into its declared hook records.
+
+    One malformed entry must never void the rest: a half-readable hooks.json
+    is still worth documenting, and the alternative is a traceback or a silent
+    None over hooks that ARE declared.
+    """
+    if not isinstance(group, dict):
+        return []
+    entries = group.get("hooks")
+    if not isinstance(entries, list):
+        return []
+    matcher = group.get("matcher")
+    records: list[dict[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        match = HOOK_COMMAND_RE.search(str(entry.get("command", "")))
+        if not match:
+            continue
+        name = match.group(1)
+        if name in TRANSIENT_HOOKS:
+            continue
+        records.append({
+            "event": event,
+            "matcher": matcher if isinstance(matcher, str) and matcher else "—",
+            "hook": name,
+            "timeout": _format_timeout(entry.get("timeout")),
+        })
+    return records
+
+
 def parse_hook_declarations(plugin_root: str) -> list[dict[str, str]] | None:
     """Read hooks/hooks.json and return one record per declared hook.
 
@@ -159,27 +191,7 @@ def parse_hook_declarations(plugin_root: str) -> list[dict[str, str]] | None:
         if not isinstance(groups, list):
             continue
         for group in groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("hooks")
-            if not isinstance(entries, list):
-                continue
-            matcher = group.get("matcher")
-            for entry in entries:
-                if not isinstance(entry, dict):
-                    continue
-                match = HOOK_COMMAND_RE.search(str(entry.get("command", "")))
-                if not match:
-                    continue
-                name = match.group(1)
-                if name in TRANSIENT_HOOKS:
-                    continue
-                records.append({
-                    "event": str(event),
-                    "matcher": matcher if isinstance(matcher, str) and matcher else "—",
-                    "hook": name,
-                    "timeout": _format_timeout(entry.get("timeout")),
-                })
+            records.extend(_records_from_group(str(event), group))
     return records
 
 
@@ -293,8 +305,8 @@ def _documented_hooks(block_body: str) -> set[str]:
 
 # ── The two public verbs ──────────────────────────────────────────────────
 
-def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
-    """Compare the generated block in SKILL.md against hooks.json right now.
+def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, str]:
+    """Grade a block that does not match what hooks.json declares.
 
     Severity is not uniform, because the two directions of drift are not the
     same failure:
@@ -312,6 +324,38 @@ def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
     - **Same hooks, different event/matcher/timeout/presence -> warning.**
       Wrong metadata about a hook that does exist is a smaller lie with a
       smaller blast radius than a hook that does not exist at all.
+
+    Args:
+        current: The block body as it currently stands in SKILL.md.
+        records: What hooks.json declares right now.
+
+    Returns:
+        (level, message) with level in {"warn", "error"}.
+    """
+    declared = {rec["hook"] for rec in records}
+    documented = _documented_hooks(current)
+    phantom = sorted(documented - declared)
+    if phantom:
+        return ("error",
+                f"SKILL.md documents {len(phantom)} hook(s) hooks.json no longer "
+                f"declares: {', '.join(phantom)} — Claude states this as fact "
+                f"every session ({REGEN_HINT})")
+    absent = sorted(declared - documented)
+    if absent:
+        return ("warn",
+                f"SKILL.md does not document {len(absent)} declared hook(s): "
+                f"{', '.join(absent)} ({REGEN_HINT})")
+    return ("warn",
+            "SKILL.md hook table is stale — same hooks, but event, matcher, "
+            f"timeout or file presence differs from hooks.json ({REGEN_HINT})")
+
+
+def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
+    """Compare the generated block in SKILL.md against hooks.json right now.
+
+    Fail-open by construction: every branch that cannot establish a fact says
+    so, and none of them invents a verdict about content it never read. See
+    `_classify_drift` for how a real mismatch is graded.
 
     Returns:
         (level, message) with level in {"ok", "warn", "error"}, or None when
@@ -338,26 +382,9 @@ def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
         return ("warn",
                 f"cannot verify — generated block markers missing from SKILL.md ({REGEN_HINT})")
 
-    expected = render_hooks_block(plugin_root, records)
-    if current == expected.strip():
+    if current == render_hooks_block(plugin_root, records).strip():
         return ("ok", f"SKILL.md documents the {len(records)} declared hook invocations")
-
-    declared = {rec["hook"] for rec in records}
-    documented = _documented_hooks(current)
-    phantom = sorted(documented - declared)
-    if phantom:
-        return ("error",
-                f"SKILL.md documents {len(phantom)} hook(s) hooks.json no longer "
-                f"declares: {', '.join(phantom)} — Claude states this as fact "
-                f"every session ({REGEN_HINT})")
-    absent = sorted(declared - documented)
-    if absent:
-        return ("warn",
-                f"SKILL.md does not document {len(absent)} declared hook(s): "
-                f"{', '.join(absent)} ({REGEN_HINT})")
-    return ("warn",
-            "SKILL.md hook table is stale — same hooks, but event, matcher, "
-            f"timeout or file presence differs from hooks.json ({REGEN_HINT})")
+    return _classify_drift(current, records)
 
 
 def write_hooks_block(plugin_root: str) -> tuple[str, str]:
