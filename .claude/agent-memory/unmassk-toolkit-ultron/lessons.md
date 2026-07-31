@@ -1472,3 +1472,49 @@ hazard applies to any background command that shells out to repo files
 ## git_helpers.py already over the 500 LOC convention (2026-07-19)
 
 `unmassk-toolkit/lib/git_helpers.py` was already 814 LOC before the atomic-write fix (now 930) — well past this project's own 500 LOC convention (stated explicitly in `lib/install_apply.py`'s module docstring: "keep the CLI entrypoint under the project's 500 LOC limit"). Pre-existing condition, not introduced by this fix — added the atomic-write class to the existing file (matching precedent: `boot_fetch_stamp.py` already keeps the equivalent temp+replace pattern inline rather than in a dedicated module) rather than splitting the file, since a fix-mode task must not restructure the module it's touching. Flagged as an observation for the orchestrator, not fixed — a future refactor pass (not a bug fix) should split `git_helpers.py` (e.g. path-safety guards vs. `run_git`/retry logic vs. atomic-write helpers are 3 fairly separable concerns already living in one file).
+
+## A fail-open wrapper INSIDE a helper does not protect its callers (incidents channel, 2026-07-31)
+
+`lib/incidents.py::report_incident()` wraps everything in
+`try/except BaseException`, so "it can never break a hook" looked settled.
+It wasn't. The plugin CACHE and the repo working tree carry different
+versions of the toolkit (see the entry on hooks.json above), so the module a
+hook imports at runtime may be an OLD or half-written copy whose function
+**imports cleanly and still raises when called** — or has a different
+signature entirely. In that case the internal wrapper never runs at all, and
+the exception lands in the caller.
+
+Measured before the fix, on `hooks/pre-task-recall.py`: with a stub whose
+`report_incident()` raised `SystemError`, the hook went from
+`{"permissionDecision": "allow"}` + exit 0 to **empty stdout + exit 1** — the
+error reporter killed the very hook it was reporting for. Both the inner
+except (which calls `_report()` again) and the outer one re-raised.
+
+Rule: when a hook calls into an optional/replaceable module, the
+`try/except BaseException` must sit at the CALL SITE, not only inside the
+callee. `except ImportError` around the import covers "module missing"; it
+does not cover "module present but broken", which is the case version skew
+actually produces. Verify with four stubs, not one: unwritable target dir,
+module that fails to import, module that raises when called, module with an
+incompatible signature — and diff stdout+exit against the healthy baseline
+byte-for-byte.
+
+## Any hook-side channel the owner reads must be inert under pytest
+
+The same suite that proves a hook fails safely also DRIVES those failure
+paths on purpose (malformed stdin, simulated write errors). Since
+`tests/conftest.py::run_cmd` merges `**os.environ` into every hook
+subprocess, anything the hook writes to a machine-global location during a
+test lands in the owner's real files. Measured: one run of
+`test_pre_task_recall.py` alone produced 2 fabricated
+`FALLO ... JSONDecodeError` lines in `~/.claude/.unmassk/incidents.jsonl`,
+and 5 had already accumulated before the guard existed — non-actionable
+noise the owner would have chased.
+
+Guard: check `"PYTEST_CURRENT_TEST" in os.environ` (it propagates into the
+spawned hook precisely because of that environ merge) and no-op, with an
+explicit `UNMASSK_INCIDENTS_FORCE` escape hatch so a test can still exercise
+the real path. Per-session dedup HIDES this problem when the suite runs in
+the same session that already saw those fingerprints — the pollution only
+shows up on a fresh session id, so test it with an explicit
+`CLAUDE_CODE_SESSION_ID` and a throwaway `HOME`.

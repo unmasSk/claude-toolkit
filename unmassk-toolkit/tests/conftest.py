@@ -129,7 +129,24 @@ def _sets_git_identity(args):
 
 
 def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
-    """Run a command and return (returncode, stdout, stderr)."""
+    """Run a command and return (returncode, stdout, stderr).
+
+    `env` is merged ON TOP of the parent process environment (which is
+    itself inherited wholesale, see `merged` below). A value of ``None``
+    means the opposite: **remove** that variable from the child's
+    environment entirely.
+
+    Why the removal channel exists (2026-07-29, roadmap FASE 2.2): a plain
+    dict merge can only ADD or OVERRIDE, never delete — so any variable
+    present in the developer's shell silently leaked into every subprocess
+    the suite spawns. Measured consequence: the same suite produced a
+    different number of failures run from inside Claude Code (where
+    `CLAUDECODE=1` really exists) than under a clean CI shell, and neither
+    result was "the" result. A test whose outcome depends on an environment
+    variable must SET it or REMOVE it explicitly; inheriting it from
+    whatever shell happens to launch pytest is how a hook that never fired
+    for four months kept a green suite.
+    """
     repo_key = os.path.realpath(cwd)
     if _sets_git_identity(args):
         _REPOS_WITH_EXPLICIT_GIT_IDENTITY.add(repo_key)
@@ -139,6 +156,12 @@ def run_cmd(args, cwd, timeout=30, env=None, input_text=None):
     else:
         identity_defaults = _DEFAULT_GIT_IDENTITY_ENV
     merged = {**identity_defaults, **_GC_DISABLE_ENV, **os.environ, **(env or {})}
+    # None means "unset in the child", not "set to the string None" -- see
+    # the docstring. Applied after the merge so it also removes variables
+    # that came in from os.environ.
+    for _key, _value in (env or {}).items():
+        if _value is None:
+            merged.pop(_key, None)
     # W2 (issue #52, House round 2): text=True without an explicit encoding=
     # makes subprocess.run decode the child's stdout/stderr bytes using
     # locale.getpreferredencoding(False) -- on Windows that's the console's
@@ -284,16 +307,41 @@ def neutralize_needs_upgrade_check1(repo):
         f.write(new_content)
 
 
+CLAUDE_ENV_VAR = "CLAUDECODE"
+"""The environment variable Claude Code really exports to mark its own
+shell (no underscore). Imported by tests instead of being retyped, so a
+future rename has exactly one place to change.
+
+History: this helper used to fabricate `CLAUDE_CODE=1` (with underscore),
+a variable production never emits. `pre-validate-commit-trailers.py` read
+the same wrong name, so hook and fixture agreed with each other and
+disagreed with reality — the hook was inert from v1.0.0 to 2026-07-29 with
+seven test files green over it. Fabricating the producer's input is how a
+dead gate stays invisible.
+"""
+
+
+def claude_env(as_claude):
+    """Env overlay for run_cmd that pins the Claude-Code marker explicitly.
+
+    Always returns a decision, never a "leave it as it is": True sets the
+    variable, False REMOVES it (None sentinel, see run_cmd). Without the
+    removal half, a "runs as a human" test passes on a CI runner and fails
+    on the owner's machine, because run_cmd inherits the whole ambient
+    environment.
+    """
+    return {CLAUDE_ENV_VAR: "1" if as_claude else None}
+
+
 def check_hook_msg(subject, cwd, trailers=None, as_claude=False):
     """Send a commit message to the pre-hook and return the exit code."""
     command = 'git commit -m "' + subject + '"'
     if trailers:
         command = command + ' -m "' + trailers + '"'
     payload = {"tool_input": {"command": command}}
-    env = {}
-    if as_claude:
-        env["CLAUDE_CODE"] = "1"
-    rc, _, _ = run_script(PRE_HOOK, cwd, env=env, input_text=json.dumps(payload))
+    rc, _, _ = run_script(
+        PRE_HOOK, cwd, env=claude_env(as_claude), input_text=json.dumps(payload)
+    )
     return rc
 
 

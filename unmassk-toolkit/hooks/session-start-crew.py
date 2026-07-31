@@ -19,6 +19,16 @@ force_utf8_streams()
 from managed_blocks import upsert_managed_blocks  # noqa: E402
 from git_helpers import claude_md_lock_path, file_lock, open_no_follow_symlink  # noqa: E402
 
+# The except below reports EVERY OSError as "CLAUDE.md is a symlink" — a
+# read-only mount or a failed lock acquisition gets the same wrong,
+# unactionable line, and the managed blocks silently never get written.
+# The real exception now goes to the incident channel; the printed line is
+# left exactly as it was so no existing behavior changes.
+try:
+    from incidents import report_incident  # noqa: E402
+except Exception:  # fail-open: no incident channel is not a reason to fail the boot
+    report_incident = None  # type: ignore[assignment]
+
 
 def find_git_root():
     try:
@@ -133,7 +143,17 @@ def main():
                     print(f"[crew] {line}")
             else:
                 print("[crew] All managed blocks up to date")
-    except OSError:
+    except OSError as exc:
+        # Wrapped as well as inside report_incident(): a version-skewed
+        # incidents.py can import cleanly and still raise when called, and
+        # the boot is not allowed to die for it.
+        try:
+            if report_incident is not None:
+                report_incident("claude-md-write",
+                                "los bloques gestionados de CLAUDE.md NO se escribieron",
+                                exc=exc)
+        except BaseException:
+            pass
         print("[crew] CLAUDE.md is a symlink, refusing to follow it — skipping write")
 
 

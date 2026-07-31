@@ -45,6 +45,31 @@ force_utf8_streams()
 
 from recall import recall  # noqa: E402  (import after sys.path mutation)
 
+# PreToolUse stderr reaches nobody (measured 0/2506 on the equivalent Stop
+# channel), so a failure here used to be invisible: subagents kept spawning
+# with no project memory and nothing said so. report_incident() is fail-open
+# by contract and is added AROUND the existing swallow, never instead of it.
+try:
+    from incidents import report_incident  # noqa: E402
+except Exception:  # fail-open: no incident channel is not a reason to fail a spawn
+    report_incident = None  # type: ignore[assignment]
+
+
+def _report(source: str, message: str, exc: BaseException) -> None:
+    """Best-effort incident report; never affects this hook's behavior.
+
+    Wrapped here as well as inside report_incident(): a version-skewed or
+    half-written incidents.py in the plugin cache can import cleanly and
+    still raise when CALLED, and this hook is not allowed to die for it
+    (verified: an unwrapped call turned a fail-open passthrough into a
+    crash with no stdout at all).
+    """
+    try:
+        if report_incident is not None:
+            report_incident(source, message, exc=exc)
+    except BaseException:
+        pass
+
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
 # ── Worker whitelist ─────────────────────────────────────────────────────
@@ -171,7 +196,9 @@ def main() -> None:
         # Query memory. recall() returns '' when nothing matches.
         try:
             memory_block = recall(prompt, limit=_RECALL_LIMIT)
-        except Exception:
+        except Exception as exc:
+            _report("recall-subagentes",
+                    f"el subagente {agent_name} se lanza SIN memoria de proyecto", exc)
             try:
                 sys.stderr.write(traceback.format_exc())
             except Exception:
@@ -187,10 +214,12 @@ def main() -> None:
         updated_prompt = _build_prompt(prompt, memory_block)
         _allow_with_injection(tool_input, updated_prompt)
 
-    except Exception:
+    except Exception as exc:
         # Fail-open: any unhandled error must not block the spawn.
         # Write diagnostic to stderr (best-effort; a write failure must not
         # propagate — stderr is never the decision channel).
+        _report("pre-task-recall",
+                "el hook de inyección de memoria a subagentes falló entero", exc)
         try:
             sys.stderr.write(traceback.format_exc())
         except Exception:

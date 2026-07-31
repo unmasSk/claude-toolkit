@@ -40,6 +40,15 @@ except ImportError:
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
 from version import VERSION as PLUGIN_VERSION
 
+# Toolkit incident channel. Imported defensively like the two helpers above:
+# a boot must never fail because the error reporter is missing. lib/incidents.py
+# defers all of its own git_helpers/parsing/version imports into function
+# bodies, so importing it here is safe even inside a test's stub window.
+try:
+    from incidents import report_incident
+except Exception:
+    report_incident = None  # type: ignore[assignment]
+
 # CRB-04: memory extraction (extract_memory/extract_glossary/crown logic)
 # and one-shot migrations live in dedicated lib/ modules — see
 # lib/boot_memory.py and lib/boot_migrations.py. Re-exported here by name so
@@ -192,6 +201,18 @@ def write_boot_log(full_text: str, project_root: str | None) -> str | None:
         # CRB T2-2: this is the single most important failure path in the
         # file (it's what triggers the inline-fallback branch in main()) —
         # leave a one-line breadcrumb instead of failing completely silently.
+        # The breadcrumb names the exception TYPE only and goes to stderr, so
+        # the incident channel is what actually carries file:line to the owner.
+        # Wrapped as well as inside report_incident(): a version-skewed
+        # incidents.py can import cleanly and still raise when called, and
+        # the boot is not allowed to die for it.
+        try:
+            if report_incident is not None:
+                report_incident("boot-log",
+                                "el briefing completo del arranque no se pudo escribir",
+                                exc=e)
+        except BaseException:
+            pass
         print(f"[session-start-boot] BOOT-WARNING: {type(e).__name__} writing boot log", file=sys.stderr)
         return None  # Boot must never fail because the log file couldn't be written
 

@@ -86,6 +86,29 @@ force_utf8_streams()
 
 from recall import _scan_commits  # noqa: E402  (import after sys.path mutation)
 
+# PreToolUse stderr reaches nobody, so a failure here used to be invisible:
+# the near-duplicate gate silently stops guarding, and memory accumulates
+# duplicates with nothing said. Added AROUND the existing swallow, never
+# instead of it — this hook still allows unconditionally on any failure.
+try:
+    from incidents import report_incident  # noqa: E402
+except Exception:  # fail-open: no incident channel is not a reason to fail a command
+    report_incident = None  # type: ignore[assignment]
+
+
+def _report(source: str, message: str, exc: BaseException) -> None:
+    """Best-effort incident report; never affects this hook's behavior.
+
+    Wrapped here as well as inside report_incident(): a version-skewed or
+    half-written incidents.py in the plugin cache can import cleanly and
+    still raise when CALLED, and this hook is not allowed to die for it.
+    """
+    try:
+        if report_incident is not None:
+            report_incident(source, message, exc=exc)
+    except BaseException:
+        pass
+
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
 # ── Threshold ────────────────────────────────────────────────────────────
@@ -267,7 +290,9 @@ def main() -> None:
         # when running in a real project.  Tests override via chdir.
         try:
             all_entries = _scan_commits(repo_dir=None)
-        except Exception:
+        except Exception as exc:
+            _report("dedup-memoria",
+                    "el commit de memoria pasa SIN comprobar duplicados", exc)
             try:
                 sys.stderr.write(traceback.format_exc())
             except Exception:
@@ -309,8 +334,10 @@ def main() -> None:
 
         _allow_passthrough()
 
-    except Exception:
+    except Exception as exc:
         # Fail-open: any unhandled error must not block execution.
+        _report("pre-memory-dedup-gate",
+                "el gate anti-duplicados de memoria falló entero", exc)
         try:
             sys.stderr.write(traceback.format_exc())
         except Exception:

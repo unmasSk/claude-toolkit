@@ -19,7 +19,7 @@ import pytest
 
 from conftest import (
     SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, UPGRADE, BOOTSTRAP, DOCTOR,
-    PRE_HOOK,
+    PRE_HOOK, CLAUDE_ENV_VAR,
     run_cmd, git_cmd, write_file, run_script, run_doctor_json,
 )
 from version import VERSION
@@ -42,7 +42,7 @@ def run_hook_from_cache(hook_name, commit_msg, cwd, env_extra=None):
     hook_path = os.path.join(HOOKS_DIR, hook_name)
     if not os.path.isfile(hook_path):
         return 1, "", f"hook not found: {hook_path}"
-    env = {"CLAUDE_CODE": "1"}
+    env = {CLAUDE_ENV_VAR: "1"}
     if env_extra:
         env.update(env_extra)
     return run_cmd([sys.executable, hook_path, commit_msg], cwd, env=env)
@@ -206,22 +206,26 @@ def test_human_commits_not_blocked(tmp_path):
     })
     hook_path = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
 
-    # Without CLAUDE_CODE → allowed
-    env_no_claude = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE"}
+    # Without CLAUDECODE → allowed. The variable is removed explicitly, not
+    # merely left unset: run_cmd/subprocess inherit the ambient environment,
+    # and inside Claude Code CLAUDECODE really is exported (2026-07-29).
+    env_no_claude = {k: v for k, v in os.environ.items() if k != CLAUDE_ENV_VAR}
     result = subprocess.run(
         [sys.executable, hook_path],
         input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
         cwd=repo, timeout=15, env=env_no_claude,
     )
-    assert result.returncode == 0
+    assert result.returncode == 0, (
+        f"human commit must pass. stderr={result.stderr!r}")
 
-    # With CLAUDE_CODE → blocked
+    # With CLAUDECODE → blocked
     result = subprocess.run(
         [sys.executable, hook_path],
         input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
-        cwd=repo, timeout=15, env={**env_no_claude, "CLAUDE_CODE": "1"},
+        cwd=repo, timeout=15, env={**env_no_claude, CLAUDE_ENV_VAR: "1"},
     )
-    assert result.returncode == 2
+    assert result.returncode == 2, (
+        f"Claude's direct git commit must be blocked. stderr={result.stderr!r}")
 
 
 def test_branch_context(tmp_path):

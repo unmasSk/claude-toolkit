@@ -37,6 +37,11 @@ from parsing import normalize, parse_trailers_full, sanitize_trailer_value
 from version import VERSION
 from date_parsing import parse_date
 from cache_sync_check import check_repo_cache_sync
+# TRANSIENT_HOOKS and HOOK_COMMAND_RE are re-exported through this import on
+# purpose: hooks.json is parsed in exactly one place (lib/hooks_doc.py), which
+# both this health check and the SKILL.md generator read, so the doctor and the
+# documentation can never disagree about what is declared.
+from hooks_doc import TRANSIENT_HOOKS, HOOK_COMMAND_RE, hook_filenames, compare_hooks_doc  # noqa: F401
 
 
 # ── Config ────────────────────────────────────────────────────────────────
@@ -46,15 +51,6 @@ from cache_sync_check import check_repo_cache_sync
 # it sat at 5 entries while hooks.json declared 12, so the doctor reported
 # "5/5 in plugin cache" in green over 7 hooks it never looked at. A derived
 # list cannot desynchronise from its own source.
-
-# Short-lived instrumentation: declared in hooks.json only while a
-# measurement runs, then retired. A probe must never become a permanent
-# requirement of the health check.
-TRANSIENT_HOOKS = {"_probe_canal.py"}
-
-# Matches the hook filename inside a hooks.json command line, e.g.
-# "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-boot.py".
-HOOK_COMMAND_RE = re.compile(r"hooks/([^/\s]+\.py)")
 
 STALE_BLOCKER_DAYS = 30
 SCAN_DEPTH = 50
@@ -98,45 +94,17 @@ def expected_hooks(plugin_root: str) -> list[str] | None:
     decide what to run -- so this list is exactly as long as the set of hooks
     actually declared. Transient probes (TRANSIENT_HOOKS) are excluded.
 
+    The parse itself lives in lib/hooks_doc.py, shared with the generator of
+    SKILL.md's hook table; two parsers of the same file would be two chances
+    to disagree about it.
+
     Returns:
         Sorted list of hook filenames, or None if hooks.json is missing,
         unreadable or not valid JSON. None means "cannot verify" and must be
         reported as such, never collapsed into an empty expectation that
         would trivially pass.
     """
-    hooks_json = os.path.join(plugin_root, "hooks", "hooks.json")
-    try:
-        # Plain read on purpose: this is a read-only lookup of a file the
-        # toolkit itself ships, and this project's threat model is the system
-        # against itself, not a hostile repo — a symlink guard here would be
-        # dead weight (see CLAUDE.md).
-        with open(hooks_json, encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-
-    names: set[str] = set()
-    events = data.get("hooks")
-    if not isinstance(events, dict):
-        return None
-    for groups in events.values():
-        if not isinstance(groups, list):
-            continue
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("hooks")
-            if not isinstance(entries, list):
-                continue
-            for entry in entries:
-                if not isinstance(entry, dict):
-                    continue
-                match = HOOK_COMMAND_RE.search(str(entry.get("command", "")))
-                if match:
-                    names.add(match.group(1))
-    return sorted(names - TRANSIENT_HOOKS)
+    return hook_filenames(plugin_root)
 
 
 def expected_skills(plugin_root: str) -> list[str] | None:
@@ -537,6 +505,21 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
                             + "; ".join(sync_drift)))
         else:
             results.append(("ok", "Repo vs cache", "hooks/, lib/ and bin/ identical"))
+
+    # 5c. SKILL.md's generated hook table vs hooks.json
+    # unmassk-gitmemory is loaded every session, so a hook it describes that
+    # no longer exists is not a stale doc — it is Claude asserting a falsehood
+    # to the user. That direction is an error; a hook declared but not yet
+    # documented only under-informs, so it is a warning. None = does not apply
+    # (already covered by the Hooks or Skills check above).
+    doc_verdict = compare_hooks_doc(plugin_root)
+    if doc_verdict is not None:
+        doc_level, doc_msg = doc_verdict
+        if doc_level == "error":
+            has_errors = True
+        elif doc_level == "warn":
+            has_warnings = True
+        results.append((doc_level, "Hooks doc", doc_msg))
 
     # 6. CLAUDE.md (in project root)
     block_ok, block_msg = check_claude_md(project_root)

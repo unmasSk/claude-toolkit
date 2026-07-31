@@ -32,6 +32,17 @@ from git_helpers import is_git_repo, run_git, open_no_follow_symlink, ensure_run
 # underlying logic is unchanged, byte-for-byte, only its home moved.
 from upgrade_check import needs_upgrade, _parse_semver  # noqa: F401,E402  (import after sys.path mutation)
 
+# ── Toolkit incident channel — imported defensively ──────────────────────
+# UserPromptSubmit is the only hook channel proven to reach the model
+# mid-session (measured 1445/1445, vs 0/2506 on Stop), so this is where the
+# toolkit's own failures get announced. See lib/incidents.py. A missing or
+# broken incidents module must cost nothing: drain becomes a no-op.
+try:
+    from incidents import drain_incidents as _drain_incidents
+except Exception as e:
+    print(f"[git-memory] incidents import fail-open: {e!r}", file=sys.stderr)
+    _drain_incidents = None  # type: ignore[assignment]
+
 # ── Skill router — imported defensively; any import failure is visible but silent ──
 # SKILL_TRIGGER_PHRASES is re-exported (not just match_skills) so tooling that
 # introspects this hook module directly can read the live trigger table.
@@ -120,6 +131,23 @@ def main() -> None:
     # Banner — unconditional, first line of stdout on every exit path
     # (needs_install, not-a-git-repo, normal flow). Static text, cannot fail.
     print(_BANNER)
+
+    # ── Toolkit incidents — printed with the banner, before any early exit
+    # (not-a-git-repo, needs_install) so a toolkit failure is announced in
+    # EVERY project, whatever state that project is in. At most 3 detailed
+    # per message; the rest are stated in one line and detailed next time.
+    # drain_incidents() is fail-open by contract and returns [] on any
+    # error, so nothing below this point can be affected by it.
+    # The try wraps the CALL as well: a version-skewed or half-written
+    # incidents.py in the plugin cache can import cleanly and still raise
+    # when called, and this hook must not die for it (verified: an
+    # unwrapped call turned exit 0 into exit 1 and swallowed the banner).
+    try:
+        if _drain_incidents is not None:
+            for line in _drain_incidents(os.getcwd()):
+                print(line)
+    except BaseException:
+        pass
 
     # ── Read prompt from stdin (fail-open: any error → None) ─────────────
     prompt_text = _read_prompt_text()
