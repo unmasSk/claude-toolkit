@@ -545,3 +545,126 @@ class TestRepoCacheSyncDetectsDrift:
             "1.10.0 is newer than 1.9.0 by semver; comparing against 1.9.0 "
             "would report drift that is already fixed"
         )
+
+
+# ── count_repo_cache_drift(): the real file count, not the grouped-line
+# count ─────────────────────────────────────────────────────────────────
+#
+# check_repo_cache_sync() already has full coverage above for the fail-open
+# contract and the description text; that contract did not change and is
+# not repeated here. count_repo_cache_drift() shares the exact same
+# _compute_drift() core, so this class only tests the ONE thing that is new
+# and different: the raw integer count, and specifically that it survives
+# _describe()'s "+N more" summarisation instead of being derived from the
+# bounded description strings.
+
+def _build_drift_fixture(tmp_path, monkeypatch, repo_files, cache_files, version="1.0.0"):
+    """Same fixture shape as TestRepoCacheSyncDetectsDrift._build() above —
+    duplicated rather than shared across classes so this class stays
+    readable on its own and neither ever depends on the other's setup."""
+    project = tmp_path / "toolkit-repo"
+    cache = tmp_path / "cache"
+    repo_plugin = project / cache_sync_check.PLUGIN_DIR_NAME
+    cache_plugin = cache / cache_sync_check.PLUGIN_DIR_NAME / version
+    for base, files in ((repo_plugin, repo_files), (cache_plugin, cache_files)):
+        for rel, text in files.items():
+            path = base / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(cache_sync_check, "CACHE_BASE_DIR", str(cache))
+    return str(project)
+
+
+class TestCountRepoCacheDrift:
+
+    def test_not_applicable_returns_none_same_as_check_repo_cache_sync(self, tmp_path):
+        """One representative fail-open case, proving count_repo_cache_drift()
+        preserves the "None means cannot verify" contract of its sibling —
+        not the full fail-open matrix, which is already covered above."""
+        project = tmp_path / "some-other-project"
+        (project / "src").mkdir(parents=True)
+
+        assert cache_sync_check.count_repo_cache_drift(str(project)) is None
+
+    def test_identical_trees_return_zero_count_and_empty_descriptions(
+        self, tmp_path, monkeypatch
+    ):
+        files = {
+            "hooks/a.py": "print(1)\n",
+            "lib/b.py": "x = 1\n",
+            "bin/c.py": "y = 2\n",
+        }
+        project = _build_drift_fixture(tmp_path, monkeypatch, files, dict(files))
+
+        count, descriptions = cache_sync_check.count_repo_cache_drift(project)
+
+        assert count == 0, "identical trees must report the explicit zero, not a truthy count"
+        assert descriptions == []
+
+    def test_count_is_the_real_file_count_not_the_grouped_description_count(
+        self, tmp_path, monkeypatch
+    ):
+        """This is the exact reason the function exists: with more than
+        _MAX_NAMED_FILES differing files in one subdir, check_repo_cache_sync()
+        bundles them behind "+N more" into ONE description line — but the
+        PLUGIN: banner needs the real number of differing files, 7, not 1."""
+        repo_files = {f"lib/mod{i}.py": f"v = {i}\n" for i in range(7)}
+        cache_files = {f"lib/mod{i}.py": f"v = {i}00\n" for i in range(7)}
+        project = _build_drift_fixture(tmp_path, monkeypatch, repo_files, cache_files)
+
+        count, descriptions = cache_sync_check.count_repo_cache_drift(project)
+
+        assert count == 7, (
+            f"7 files actually differ; a caller reading the description "
+            f"count instead would see {len(descriptions)}"
+        )
+        assert len(descriptions) == 1, (
+            "sanity check on the fixture: this must be the exact grouped-"
+            "into-one-line shape count_repo_cache_drift() has to see through"
+        )
+
+    def test_count_sums_across_multiple_subdirs(self, tmp_path, monkeypatch):
+        repo_files = {
+            "lib/a.py": "new_a\n", "lib/b.py": "new_b\n",
+            "bin/c.py": "new_c\n", "bin/d.py": "new_d\n", "bin/e.py": "new_e\n",
+        }
+        cache_files = {
+            "lib/a.py": "old_a\n", "lib/b.py": "old_b\n",
+            "bin/c.py": "old_c\n", "bin/d.py": "old_d\n", "bin/e.py": "old_e\n",
+        }
+        project = _build_drift_fixture(tmp_path, monkeypatch, repo_files, cache_files)
+
+        count, descriptions = cache_sync_check.count_repo_cache_drift(project)
+
+        assert count == 5, f"2 lib/ + 3 bin/ files differ = 5 total, got {count}"
+        assert len(descriptions) == 2, (
+            f"one description line per drifted subdir (lib/, bin/), got {descriptions}"
+        )
+
+    def test_subdir_absent_from_cache_counts_every_repo_file_in_it(
+        self, tmp_path, monkeypatch
+    ):
+        """_compute_drift()'s fail-open branch for a whole missing subdir
+        counts every repo-side file as unaccounted for -- count_repo_cache_drift()
+        must report that same real number, not just note the subdir is absent."""
+        repo_files = {"bin/tool.py": "x = 1\n", "bin/other.py": "y = 1\n"}
+        cache_files = {"lib/only.py": "z = 1\n"}
+        project = _build_drift_fixture(tmp_path, monkeypatch, repo_files, cache_files)
+
+        count, descriptions = cache_sync_check.count_repo_cache_drift(project)
+
+        assert count == 2, f"both bin/ files are unaccounted for in the cache, got {count}"
+        assert any("bin/: absent from the cache" in line for line in descriptions), descriptions
+
+    def test_descriptions_match_check_repo_cache_sync_exactly(self, tmp_path, monkeypatch):
+        """Both public functions share _compute_drift() -- their description
+        halves must never disagree, only count_repo_cache_drift() adds the
+        extra integer."""
+        repo_files = {"lib/a.py": "new\n", "hooks/h.py": "same\n"}
+        cache_files = {"lib/a.py": "old\n", "hooks/h.py": "same\n"}
+        project = _build_drift_fixture(tmp_path, monkeypatch, repo_files, cache_files)
+
+        _count, descriptions = cache_sync_check.count_repo_cache_drift(project)
+        sync_descriptions = cache_sync_check.check_repo_cache_sync(project)
+
+        assert descriptions == sync_descriptions
