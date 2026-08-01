@@ -347,7 +347,7 @@ def main() -> None:
     # Task 2's return value, consumed here by Task 3's MEMORY: stamp.
     fetch_state = run_preboot_migrations(project_root)
 
-    status_lines, status, status_detail = render_status_section()
+    status_lines, status, status_detail = render_status_section(project_root)
 
     # Issue #63 (boot simplification, point 2): sync a stale manifest AFTER
     # render_status_section() has already read it -- so this boot's own

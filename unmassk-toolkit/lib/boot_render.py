@@ -53,6 +53,7 @@ import time
 
 from version import VERSION as PLUGIN_VERSION
 
+import cache_sync_check
 from boot_memory import MAX_DECISIONS, _crown_replace
 from boot_checks import (
     check_issue_status,
@@ -143,8 +144,47 @@ def render_header_section(plugin_root: str) -> list[str]:
     return [f"[git-memory-boot] v{PLUGIN_VERSION} | {plugin_root}", ""]
 
 
-def render_status_section() -> tuple[list[str], str, str]:
+def _render_plugin_sync_line(project_root: str | None) -> str:
+    """Render the always-present PLUGIN: line — repo-vs-installed-cache file
+    count.
+
+    Deliberately louder than lib/cache_sync_check.py's own "stay silent
+    when it doesn't apply" convention (see that module's docstring): the
+    doctor only speaks when it has a warning to add, and a warn-level
+    doctor finding does not even flip STATUS above "ok" in
+    render_status_section() -- which is exactly how a stale plugin cache
+    went unnoticed for 3 days (see this project's git-memory). This line
+    always renders, with one of three outcomes: a real count of drifted
+    files, an explicit zero, or an explicit "not verifiable" — never
+    silence, and never "ok" when the answer is actually "unknown". Any
+    exception from the comparator is swallowed (fail-open — boot must
+    never break over this) but still named, never hidden.
+    """
+    if not project_root:
+        return "PLUGIN: no verificable (project root no disponible)"
+    try:
+        summary = cache_sync_check.count_repo_cache_drift(project_root)
+    except Exception as e:
+        return f"PLUGIN: no verificable ({type(e).__name__})"
+    if summary is None:
+        return "PLUGIN: no verificable (sin repo fuente junto a la cache)"
+    count, _descriptions = summary
+    if count == 0:
+        return "PLUGIN: sincronizado (0 ficheros)"
+    return (
+        f"PLUGIN: {count} ficheros desincronizados (repo vs cache) "
+        "-> publica version y ejecuta 'claude plugin update'"
+    )
+
+
+def render_status_section(project_root: str | None = None) -> tuple[list[str], str, str]:
     """Run doctor/repair, check version + skill drift, render the STATUS section.
+
+    Args:
+        project_root: Git root of the current project, used only for the
+            PLUGIN: line's repo-vs-cache file comparison. None renders that
+            line as "not verifiable" rather than skipping it — see
+            _render_plugin_sync_line().
 
     Returns (lines, status, status_detail) — status/status_detail are also
     needed later, when the short banner is built at the end of boot.
@@ -171,6 +211,7 @@ def render_status_section() -> tuple[list[str], str, str]:
     if skill_drift:
         for drift_warning in skill_drift:
             lines.append(f"  {drift_warning}")
+    lines.append(_render_plugin_sync_line(project_root))
     lines.append("")
     return lines, status, status_detail
 

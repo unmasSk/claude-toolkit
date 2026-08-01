@@ -96,17 +96,14 @@ def _describe(subdir: str, differing: list[str]) -> str:
     return f"{subdir}/: {', '.join(shown)}{suffix}"
 
 
-def check_repo_cache_sync(project_root: str) -> list[str] | None:
-    """Compare the toolkit working tree against the installed plugin cache.
-
-    Args:
-        project_root: Git root of the current project.
+def _compute_drift(project_root: str) -> tuple[int, list[str]] | None:
+    """Shared core for check_repo_cache_sync() / count_repo_cache_drift().
 
     Returns:
         None if the check does not apply (this project is not the toolkit
-        repo, or the cache could not be located) -- the caller must stay
-        silent in that case. An empty list if both sides are identical. A
-        list of human-readable drift descriptions otherwise.
+        repo, or the cache could not be located). Otherwise (total differing
+        file count, human-readable drift descriptions) -- count is 0 and
+        descriptions is [] when both sides are identical.
     """
     repo_plugin = os.path.join(project_root, PLUGIN_DIR_NAME)
     if not os.path.isdir(repo_plugin):
@@ -119,6 +116,7 @@ def check_repo_cache_sync(project_root: str) -> list[str] | None:
         # Running against the source tree itself -- nothing to compare.
         return None
 
+    total = 0
     drifted: list[str] = []
     for subdir in COMPARED_SUBDIRS:
         repo_fp = _dir_fingerprint(os.path.join(repo_plugin, subdir))
@@ -126,6 +124,9 @@ def check_repo_cache_sync(project_root: str) -> list[str] | None:
             continue  # No source side to compare against — fail open.
         cache_fp = _dir_fingerprint(os.path.join(cache_plugin, subdir))
         if cache_fp is None:
+            # Whole subdir missing from the cache -- every repo file in it
+            # is unaccounted for, not just the ones that happen to differ.
+            total += len(repo_fp)
             drifted.append(f"{subdir}/: absent from the cache")
             continue
         differing = [
@@ -133,6 +134,40 @@ def check_repo_cache_sync(project_root: str) -> list[str] | None:
             if repo_fp.get(name) != cache_fp.get(name)
         ]
         if differing:
+            total += len(differing)
             drifted.append(_describe(subdir, differing))
 
-    return drifted
+    return total, drifted
+
+
+def check_repo_cache_sync(project_root: str) -> list[str] | None:
+    """Compare the toolkit working tree against the installed plugin cache.
+
+    Args:
+        project_root: Git root of the current project.
+
+    Returns:
+        None if the check does not apply (this project is not the toolkit
+        repo, or the cache could not be located) -- the caller must stay
+        silent in that case. An empty list if both sides are identical. A
+        list of human-readable drift descriptions otherwise.
+    """
+    result = _compute_drift(project_root)
+    return None if result is None else result[1]
+
+
+def count_repo_cache_drift(project_root: str) -> tuple[int, list[str]] | None:
+    """Same comparison as check_repo_cache_sync(), plus the raw file count.
+
+    A subdirectory bundles its named files behind "+N more" past
+    _MAX_NAMED_FILES, so the description list alone cannot answer "how many
+    files, exactly" -- this is for callers (the boot banner's PLUGIN: line)
+    that need that number instead of, or in addition to, the descriptions.
+
+    Returns:
+        None if the check does not apply (same fail-open cases as
+        check_repo_cache_sync() -- the caller must render this as "not
+        verifiable", never as "in sync"). Otherwise (total differing file
+        count, drift descriptions); count 0 means genuinely in sync.
+    """
+    return _compute_drift(project_root)
