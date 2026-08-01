@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-08-01
+
+### Added
+
+- **Incident channel — the toolkit reports its own failures instead of swallowing them** (`lib/incidents.py`, wired at 6 call sites across 4 hooks). When a toolkit script raises, the failure is recorded with the concrete error, the **repo-relative** path (not the plugin-cache path, which is useless for going and fixing it) and the plugin version, to a **global** log at `~/.claude/.unmassk/incidents.jsonl` — global on purpose, because the failures that matter happen in the owner's *other* projects, not in this repo. Deliberately **no counter and no accumulation**: an identical incident is reported once per session and never re-counted, because a batched "you have 7 pending incidents" is exactly the report nobody acts on. Fail-open **at each call site**, not only inside the function, so a failure in the reporter can never take down the hook that called it. Noise counts as an incident too: a warning that repeats and is not actionable is a defect, not information.
+- **The Active Hooks documentation is now generated from `hooks.json`, and the doctor fails if it lies** (`lib/hooks_doc.py`, `bin/hooks_doc_sync.py`). The table inside the marker delimiters is rendered from the real hook declarations; `git-memory-doctor.py` **errors** when the documentation names a hook that no longer exists and warns on missing or drifted entries. Replaces a hand-written table that had been describing hooks that were deleted months earlier.
+- **Repo vs plugin-cache divergence check** (`lib/cache_sync_check.py`, wired into `bin/git-memory-doctor.py`). Warns when `hooks/`, `lib/` or `bin/` in the working tree differ from what the plugin cache actually executes. Known limitation, documented here rather than hidden: this check can only run once the cache is already in sync — it ships **in** the cache it is meant to police, so it cannot report its own obsolescence. It catches drift introduced *after* an update, not a stale install.
+
+### Fixed
+
+- **The commit gate had been dead for four months over one missing letter** (`hooks/pre-validate-commit-trailers.py:47`). It gated on `CLAUDE_CODE`; the environment variable the harness actually exports is `CLAUDECODE`, with no underscore. Every direct `git commit` / `git log` from Claude had been passing unblocked since `037e0cb`. The 7 test files covering it all passed because `tests/conftest.py` fabricated the variable that production never sets. Blocking of direct `git commit` is restored; blocking of `git log` is deliberately left off behind `BLOCK_DIRECT_GIT_LOG = False`, because the wrapper it would force people onto caps at 100 commits.
+- **The doctor no longer checks against a hardcoded list that silently rots** (`bin/git-memory-doctor.py`). `EXPECTED_HOOKS` / `EXPECTED_SKILLS` were literals that drifted from disk; they are now derived at runtime (`expected_hooks()` / `expected_skills()`). When the expectation cannot be resolved, the doctor reports an explicit **"cannot verify" error** instead of the previous silent `0/0 ✅` — a green tick for having checked nothing.
+- **The test suite gives the same result in both environments** (`tests/conftest.py`). `run_cmd()` now accepts `None` to *delete* an environment variable rather than only to set one, plus a `claude_env()` helper. The previous behaviour merged `os.environ`, so the same suite passed locally (where `CLAUDECODE=1`) and failed in CI — the mechanism that hid the four-month-dead gate above.
+
+### Changed
+
+- **The boot documentation now says what the boot actually does.** `unmassk-gitmemory/SKILL.md` and `CALIBRATION.md` claimed the boot "injects ALL existing memory"; it is a **budgeted sample** (single digits out of hundreds), and reading it as complete is why sessions concluded "there is no decision about X" without ever searching. Also corrected: per-message memory injection is documented as **removed**, not active; `Stop`/`PreCompact` output is documented as never reaching the model (measured over 8,700 hook executions); Bilbo is documented as **included** in the recall whitelist; and the dead-end freshness loop now names the label and anchor that actually exist (`agents/bilbo.md`).
+- **`lib/managed_blocks.py` no longer generates a false claim into every project's `CLAUDE.md`.** The generated block stated that a memory-check hook fires on every user message. It does not — nothing is injected unless it is pulled. **This changes the boot contract text in every project that installs the plugin.**
+- **`unmassk-core/SKILL.md`** now lists the real scoring dimensions of `unmassk-standards` (Integrity ×3, Silent-failure ×3, Structure ×2, Real verification ×2, Maintainability ×1) and the real 13 domain plugins instead of 7; **`README.md`** drops 9 claims that did not match the code.
+
+### Removed
+
+- **The channel-measurement probe is retired without having measured anything** (`hooks/_probe_canal.py`, 408 lines, and its 5 declarations across `SessionStart`, `PostToolUse`, `UserPromptSubmit`, `Stop` and `SubagentStop`). It was installed to determine which hook output channel actually reaches the model, and in three days it never recorded a single real invocation — its log file never came into existence. The cause is the same one this release documents: editing the plugin cache's `hooks.json` by hand does not register a hook with the harness. The `TRANSIENT_HOOKS` mechanism it introduced (`lib/hooks_doc.py`) is kept for a future probe; only this probe is removed. The question it was meant to answer — whether `hookSpecificOutput.additionalContext` reaches the model on `Stop` — remains open.
+
 ## [1.24.0] - 2026-07-26
 
 ### Added
