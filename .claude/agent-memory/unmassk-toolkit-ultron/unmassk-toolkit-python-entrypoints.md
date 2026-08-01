@@ -261,5 +261,7 @@ of each `command`; `expected_skills()` lists `skills/*/`. Both return
 `None` on "cannot read", which the caller reports as an explicit
 `cannot verify — <reason>` **error** — never collapse an underivable list into
 an empty one, or the check silently passes as "0/0". `TRANSIENT_HOOKS` is the
-one escape hatch (currently `_probe_canal.py`): short-lived instrumentation
-declared in hooks.json must not become a permanent requirement.
+escape hatch for short-lived instrumentation declared in hooks.json that must
+not become a permanent requirement — empty by default (the `_probe_canal.py`
+case it was built for was retired 2026-08-01 after never recording a real
+invocation in 3 days; see [[lessons]]).

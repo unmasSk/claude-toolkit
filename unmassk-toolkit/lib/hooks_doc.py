@@ -62,7 +62,10 @@ if _LIB_DIR not in sys.path:
 # runs, then retired. A probe must never become a permanent requirement of the
 # health check, nor appear in documentation that outlives it.
 # Single source of truth -- bin/git-memory-doctor.py imports this name.
-TRANSIENT_HOOKS = {"_probe_canal.py"}
+# Empty by default; populate with a filename only while a transient probe is
+# actually declared in hooks.json (see git history for the _probe_canal.py
+# precedent, retired 2026-08-01 after never recording a real invocation).
+TRANSIENT_HOOKS: set[str] = set()
 
 # Matches the hook filename inside a hooks.json command line, e.g.
 # "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-boot.py".

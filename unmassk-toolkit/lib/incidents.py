@@ -57,8 +57,8 @@ INCIDENTS_LOG_NAME = "incidents.jsonl"
 INCIDENTS_STATE_NAME = "incidents-state.json"
 ROTATED_SUFFIX = ".1"
 
-# Bounded like _probe_canal.py's log. On overflow the file is rotated to
-# `.1` (never silently stopped): two files, ~1 MB total, worst case.
+# Bounded. On overflow the file is rotated to `.1` (never silently stopped):
+# two files, ~1 MB total, worst case.
 MAX_LOG_BYTES = 512 * 1024
 # Per-session fingerprint memory. Far above any plausible number of distinct
 # faults in one session; exists so a pathological session cannot grow the

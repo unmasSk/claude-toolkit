@@ -980,5 +980,12 @@ code.claude.com/docs (hooks reference + agent-sdk/hooks) while building
   support on `Stop`/`SubagentStop`/`PreToolUse`/`SessionStart`/`PreCompact` is
   NOT documented either way — that gap is exactly what Fase 0 measures.
 
-Treat the last bullet as unverified until Fase 0's `probe-canal.jsonl`
-cross-reference lands; the rest is documented contract. [[lessons]]
+The last bullet (additionalContext support on Stop/SubagentStop/PreToolUse/
+SessionStart/PreCompact) stays unverified from this codebase's own evidence:
+`_probe_canal.py` was retired 2026-08-01 after 3 days declared in hooks.json
+without ever recording a single real invocation (its log file never came to
+exist) — editing the cache's hooks.json by hand does not register hooks with
+the harness, so the measurement never actually ran. Any future attempt at
+this class of measurement must ship through a real plugin release, not a
+hand-copied cache edit. The rest of this entry is documented contract,
+confirmed against official docs independent of the probe. [[lessons]]

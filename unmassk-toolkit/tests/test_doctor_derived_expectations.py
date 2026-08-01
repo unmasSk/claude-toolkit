@@ -139,34 +139,6 @@ class TestExpectedHooksDerivation:
             f"  shipped but not declared: {sorted(on_disk - set(derived))}"
         )
 
-    def test_transient_probe_is_excluded_even_though_declared(self):
-        """A measurement probe must not become a permanent requirement.
-
-        `_probe_canal.py` is declared in hooks.json today (FASE 0
-        instrumentation) and will be retired. If the doctor demanded it,
-        removing the probe would turn the health report red for a file that
-        was never meant to stay.
-        """
-        doctor = _load_doctor("doctor_transient_probe")
-        raw = open(
-            os.path.join(REAL_PLUGIN_ROOT, "hooks", "hooks.json"), encoding="utf-8"
-        ).read()
-
-        derived = doctor.expected_hooks(REAL_PLUGIN_ROOT)
-
-        for probe in doctor.TRANSIENT_HOOKS:
-            assert probe in raw, (
-                f"{probe} is no longer declared in hooks.json, so this test "
-                "proves nothing about the exclusion — either drop it from "
-                "TRANSIENT_HOOKS or point this test at a probe that IS "
-                "declared. (Anti-vacuity guard: without it, the assertion "
-                "below would pass trivially once the probe is retired.)"
-            )
-            assert probe not in derived, (
-                f"{probe} is a transient probe and must be excluded from the "
-                f"doctor's expectations. Got {derived}"
-            )
-
     def test_unreadable_and_malformed_inputs_all_return_none(self, tmp_path):
         """Every way hooks.json can fail must land on None, never [].
 
