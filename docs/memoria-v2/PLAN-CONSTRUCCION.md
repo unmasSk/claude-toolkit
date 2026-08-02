@@ -140,6 +140,8 @@ Solo hay **una** pieza que obligatoriamente es hook: la aduana (necesita interce
 
 **Depende de:** fase 4, y de que existan unas cuantas R reales (escritas a mano con el generador; no hace falta esperar a la destilación).
 
+**Qué mide esta prueba y qué no, dicho explícitamente:** las R que existan en la fase 5 están escritas a mano y **sin que la aduana las haya validado** (la aduana llega en la fase 6). Para lo que se quiere medir basta —son cuatro vallas escritas con cuidado— pero la prueba responde a "¿se leen las vallas?", no a "¿funciona el sistema completo?". Que nadie confunda una cosa con la otra al leer el resultado.
+
 **Verificación:** es la propia prueba. Si en una semana ninguna valla cambió nada observable, **no se abandona nada**: lo que dice es que antes de extender el reparto a los otros ocho hay que atacar por qué se ignora lo inyectado. Es mucho mejor saberlo en la fase 5 que con todo construido.
 
 **Sobre el listón, dicho por el propietario y con razón:** el v1 no es un punto de partida neutro — está medido que no funciona (1 lectura por cada 20 escrituras; 11 de 23 sesiones sin leer nada). Casi cualquier cosa que se lea más ya gana, así que el diseño no tiene que demostrar excelencia para justificarse. El único escenario en que el v2 sería peor que el v1 es estrecho y hay que tenerlo a la vista: que tampoco se lea **y además** cobre la fricción de la aduana en cada guardado, que es un coste que el v1 no tiene. Mismo resultado, más peaje. Esa es la única forma de perder, y es lo que esta prueba vigila.
@@ -159,6 +161,8 @@ Solo hay **una** pieza que obligatoriamente es hook: la aduana (necesita interce
 - `wip` exento, a propósito.
 
 **Verificación:** con la aduana apagada, el v1 sigue commiteando sin problema — se prueba en vivo. Con la aduana encendida en un proyecto de pruebas, un commit sin zonas rebota con el mensaje correcto y el relanzamiento con los flags pasa a la primera.
+
+**Aquí se monta el banco de pruebas adversarial (P12), y aquí tiene su dueño.** Cada fase anterior lleva sus propios tests en su verificación, pero el banco que intenta romper el sistema de forma continua cuelga de esta fase, porque la aduana es la pieza que más merece ataque: guardar un duplicado, guardar sin enlace, una decisión que contradice a otra, un titular demasiado largo, una zona inventada, una key marcadora mal escrita. Cada uno tiene que rebotar, el banco corre solo y **enseña su resultado** — un banco que nadie ejecuta es otro vigilante muerto, que es exactamente cómo se llegó hasta aquí.
 
 ---
 
@@ -226,4 +230,4 @@ Declarado para que no aparezca luego como sorpresa:
 2. El dedup semántico de remembers — excede a un script, requiere agente.
 3. El carril de "ensayo operativo" en la tripulación: ninguna definición de agente cubre "ejecuta una prueba y reporta". Esta noche esa tarea rebotó entre dos agentes y la acabó haciendo el orquestador. Va a volver a pasar en las fases 2, 5 y 6.
 4. El papel de Alexandria en el flujo de documentación.
-5. El banco de pruebas adversarial (P12): está en la especificación como principio y no tiene fase asignada aquí. Debería colgar de cada fase, no ser una fase.
+5. ~~El banco de pruebas adversarial (P12) no tiene fase asignada.~~ **Resuelto:** cada fase lleva sus tests en su verificación, y el banco adversarial se monta en la fase 6 junto a la aduana, que es la pieza que más merece ataque.
