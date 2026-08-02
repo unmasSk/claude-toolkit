@@ -27,21 +27,27 @@ Cinco reglas, y son parte del plan:
 
 ---
 
-## 1. Antes de empezar: siete decisiones que son tuyas
+## 1. Las siete decisiones, resueltas por el propietario
 
-Estas siete no las puede decidir el plan. Salieron de la auditoría y **bloquean el paso donde aparecen**, no el plan entero.
+Ya no bloquean nada. Quedan aquí porque cambian pasos concretos y hay que poder volver a leerlas.
 
-| # | Decisión | Opciones | Bloquea |
+| # | Decisión | Resolución | Afecta a |
 |---|---|---|---|
-| **1** | **¿Sobrevive `Touched:`?** En el v1 se escribió 605 veces y no lo leyó nadie. La especificación lo mantiene, pero su único lector posible (la vista por fichero) ya se resuelve con `git log -- <ruta>` sin él. | (a) se queda, con la vista por fichero como lector · (b) **se retira** — recomendación de la auditoría | Paso 2.7 |
-| **2** | **El nombre del comando.** La especificación escribe `close M-041 "motivo"` y nada más. | (a) un comando `memory` con subcomandos · (b) un script por acción (`nota.py`, `cerrar.py`…) | Paso 1.1 |
-| **3** | **Los emojis de Q y X.** La especificación fija cinco (🧭 📌 ⚠ ⛔ ⏩) y deja dos sin fijar. | Propuesta: ❓ para pregunta, 🗑️ para descarte, 🔥 para incidencia | Paso 1.3 |
-| **4** | **¿Un tercer hook para el arranque?** El plan dice "solo dos hooks", pero el arranque es por definición un hook de inicio de sesión. | (a) un tercer hook que es solo un lanzador de 20 líneas sin lógica · (b) el arranque se invoca a mano | Paso 3.6 |
-| **5** | **Las X automáticas de una decisión.** Cada X es una nota con su propio ID y su línea de índice, así que "un acto, un commit" se rompe. | (a) N+1 commits en un acto · (b) las X dentro del commit de la D, sin ID propio | Paso 2.5 |
-| **6** | **El campo `espera:` del bloqueante.** La especificación dice que "no existen más campos" y luego le da uno propio a B. | (a) es un campo más, capitalizado como el resto · (b) va dentro de la descripción | Paso 1.3 |
-| **7** | **Los ~504 tests del v1** cuando se retire. | (a) se borran · (b) se quedan corriendo contra código muerto · (c) se marcan como archivo | Paso 9.3 |
+| **1** | El campo de ficheros tocados | **SE RETIRA del v2 entero.** Era un duplicado de lo que git ya guarda, y en el v1 se escribió 605 veces sin que nadie lo leyera. La función se conserva sin él: la vista por fichero usa `git log -- <ruta>` y la capa se deduce del diff nativo | 2.7 · `ARQUITECTURA.md` §5 |
+| **2** | El nombre del comando | **`gitmem`**, fachada única con subcomandos en inglés sobre los scripts: `note`, `close`, `context`, `work`, `search`, `boot`, `reindex`, `zones`, `rule`, `bench` | todo |
+| **3** | Los emojis que faltaban | ❓ pregunta · 🚫 descarte · 🔥 incidencia. **No es una papelera**: la papelera sugiere que se puede borrar, y el descarte es permanente | 0.2 |
+| **4** | El tercer hook para el arranque | **Sí.** Lanzador de ~20 líneas sin lógica: se escribe una vez y no se itera jamás, así que no paga el peaje de la caché | 3.6 |
+| **5** | Los descartes automáticos | **Cada uno con su commit, su identificador y su línea de índice.** "Un acto, un commit" aplica a nota+índice, no al acto completo | 2.5 |
+| **6** | El campo del bloqueante | **`Awaits:`** — campo propio, capitalizado y **en inglés**, como todos los que ve una máquina. Su lector es la sección de bloqueantes del arranque. En la presentación al usuario se lee «espera:», que es texto | 1.2 |
+| **7** | Los ~504 tests del v1 | **Se borran al retirar cada pieza.** Git guarda la historia; tests contra código muerto son ruido | 9.3 |
 
-**Sin estas siete respuestas se puede empezar la fase 1**, pero la 2 se para en el paso 2.5.
+### La regla transversal que manda sobre toda la arquitectura
+
+**Todo nombre que ve una máquina va en inglés.** El principio P8 —"lo que se busca, en inglés"— se extiende a todo lo mecánico: nombres de scripts, módulos, funciones, campos, flags y subcomandos.
+
+**Lo que se lee sigue en español:** los mensajes de rechazo, los informes, los textos del arranque. Solo cambia lo mecánico.
+
+Ejemplos del renombrado, ya aplicado en `ARQUITECTURA.md`: `note.py`→`note.py` · `search.py`→`search.py` · `boot.py`→`boot.py` · `validador`→`validator` · `rechazo`→`rejection` · `racimos`→`clusters` · `informe`→`report` · `salud`→`health` · `reparto`→`dispatch` · `--verify`→`--verify`.
 
 ---
 
@@ -74,9 +80,9 @@ La auditoría encontró tres sitios donde este plan contradecía a la especifica
 ```
 unmassk-memory/                     ← carpeta nueva, en main, sin rama larga
   .claude-plugin/plugin.json
-  bin/       10 scripts invocables por ruta
-  lib/       28 módulos, ninguno de más de 500 líneas
-  hooks/     2 hooks (3 si se aprueba la decisión 4)
+  bin/       gitmem (fachada) + 10 scripts invocables por ruta
+  lib/       27 módulos, ninguno de más de 500 líneas
+  hooks/     3 hooks: aduana, inyección y el lanzador del arranque
   skills/    la skill de memoria y la de incidencias
   commands/  el comando de reglas
   tests/     incluido el banco adversarial
@@ -150,7 +156,7 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
 | **0.1** | Crear `unmassk-memory/` con su estructura vacía y `plugin.json` en versión `0.1.0` | Ultron | El árbol existe y `python3 -c "import json;json.load(open('unmassk-memory/.claude-plugin/plugin.json'))"` no falla |
-| **0.2** | Escribir `lib/utf8.py` y `lib/colores.py` (con los emojis de los siete tipos) | Ultron | Un emoji se imprime bajo `PYTHONIOENCODING=cp1252` sin reventar |
+| **0.2** | Escribir `lib/utf8.py` y `lib/colors.py` (con los emojis de los siete tipos) | Ultron | Un emoji se imprime bajo `PYTHONIOENCODING=cp1252` sin reventar |
 | **0.3** | Escribir `tests/conftest.py`: repo git temporal, helpers de alta, aserciones de índice | Dante | Un test tonto que crea el repo temporal pasa |
 | **0.4** | Dejar constancia de que **solo la aduana y la inyección son hooks**; todo lo demás se invoca por ruta | Orquestador | Está escrito en `ARQUITECTURA.md` |
 
@@ -162,14 +168,14 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
-| **1.1** | `lib/modelo.py` — las nueve dataclasses puras, sin lógica | Ultron | Importan y son inmutables |
-| **1.2** | `lib/vocabulario.py` — los 7 tipos, sus campos, las 4 keys marcadoras, la lista negra, la palabra ilegal, la pregunta del dolor **en una sola copia**, y el tope de 60 caracteres | Ultron | Cada tipo declara sus campos obligatorios y permitidos |
+| **1.1** | `lib/model.py` — las nueve dataclasses puras, sin lógica | Ultron | Importan y son inmutables |
+| **1.2** | `lib/vocabulary.py` — los 7 tipos, sus campos, las 4 keys marcadoras, la lista negra, la palabra ilegal, la pregunta del dolor **en una sola copia**, y el tope de 60 caracteres | Ultron | Cada tipo declara sus campos obligatorios y permitidos |
 | **1.3** | Declarar en `vocabulario.CAMPOS` el **lector** de cada campo (ruta de la función que lo lee) | Ultron | Un campo sin lector declarado hace fallar el módulo al importarse |
-| **1.4** | `lib/zonas.py` + sembrar `zones.json` del glossary del v1 más la estructura de carpetas | Ultron | Alias resuelve · zona inexistente rebota · lista negra da el mensaje de reglas · `audit` da la disyuntiva |
-| **1.5** | `lib/formato.py` — construir y parsear titular, cuerpo, línea de índice y línea de archivo | Ultron | **Round-trip: construir → parsear → objeto idéntico**, para los 7 tipos y para el ⏩ |
-| **1.6** | `lib/parecidas.py` — detector léxico dentro de la zona | Ultron | Dos notas casi iguales se detectan; dos distintas, no |
-| **1.7** | `lib/rechazo.py` — un texto, dos renderizados (terminal y bloqueo de hook) | Ultron | El texto lleva **qué pasa, las opciones y el comando exacto de relanzamiento** |
-| **1.8** | `lib/validador.py` — la pieza única: titular, zonas, tipo, campos, keys, pregunta del dolor, punteros, sustitución, consolidación, y la exención del `wip` | Ultron | Titular >60 rebota · M sin respuesta rebota con la pregunta literal · "sí" en una M dice "entonces es una R" · nota parecida sin `--replaces` rebota con las candidatas dentro |
+| **1.4** | `lib/zones.py` + sembrar `zones.json` del glossary del v1 más la estructura de carpetas | Ultron | Alias resuelve · zona inexistente rebota · lista negra da el mensaje de reglas · `audit` da la disyuntiva |
+| **1.5** | `lib/format.py` — construir y parsear titular, cuerpo, línea de índice y línea de archivo | Ultron | **Round-trip: construir → parsear → objeto idéntico**, para los 7 tipos y para el ⏩ |
+| **1.6** | `lib/similar.py` — detector léxico dentro de la zona | Ultron | Dos notas casi iguales se detectan; dos distintas, no |
+| **1.7** | `lib/rejection.py` — un texto, dos renderizados (terminal y bloqueo de hook) | Ultron | El texto lleva **qué pasa, las opciones y el comando exacto de relanzamiento** |
+| **1.8** | `lib/validator.py` — la pieza única: titular, zonas, tipo, campos, keys, pregunta del dolor, punteros, sustitución, consolidación, y la exención del `wip` | Ultron | Titular >60 rebota · M sin respuesta rebota con la pregunta literal · "sí" en una M dice "entonces es una R" · nota parecida sin `--replaces` rebota con las candidatas dentro |
 | **1.9** | Tests del validador, uno por regla | Dante | Verde sin que exista un solo commit |
 | **1.10** | `tests/test_p2_sin_zombis.py` — recorre los campos declarados, importa su lector y falla si no existe | Dante | **Rojo si alguien añade un campo sin lector.** Esta es la vacuna contra los 605 `Touched:` |
 
@@ -182,12 +188,12 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
 | **2.1** | `lib/gitcmd.py` — git con el **stderr real**, candado de fichero propio, escritura atómica | Ultron | Un git que falla devuelve su mensaje entero, nunca vacío · dos procesos se serializan |
-| **2.2** | `lib/indices.py` — los ocho ficheros: sembrar, insertar, retirar, archivar, recuentos | Ultron | `sembrar` es idempotente · las tres formas de destino de archivo se parsean |
+| **2.2** | `lib/indexes.py` — los ocho ficheros: sembrar, insertar, retirar, archivar, recuentos | Ultron | `sembrar` es idempotente · las tres formas de destino de archivo se parsean |
 | **2.3** | `lib/ids.py` — contador por tipo y detector de duplicados | Ultron | `D-001` en índice vacío · `D-031` tras treinta |
-| **2.4** | `lib/notas.py` — **la transacción**: validar → índice → commit de nota+índice **juntos** → si git falla, restaurar el índice y propagar el error | Ultron | `git show --stat` del commit contiene la nota **y** la línea de índice · si el commit falla, el índice queda como estaba |
-| **2.5** | Las X automáticas de una decisión, enlazadas con su origen en el mismo acto | Ultron | **Bloqueado por la decisión 5** |
+| **2.4** | `lib/notes.py` — **la transacción**: validar → índice → commit de nota+índice **juntos** → si git falla, restaurar el índice y propagar el error | Ultron | `git show --stat` del commit contiene la nota **y** la línea de índice · si el commit falla, el índice queda como estaba |
+| **2.5** | Los descartes de una decisión, enlazados con su origen — **cada uno con su commit, su identificador y su línea de índice** | Ultron | Una decisión con dos alternativas produce tres commits; los tres índices cuadran |
 | **2.6** | `bin/` — el alta de nota, el cierre y la sustitución, con todos los flags admitidos en el primer intento | Ultron | Las siete clases de nota se crean en una rama descartable · el cierre y la sustitución mueven la línea al archivo |
-| **2.7** | El commit de trabajo: los ficheros tocados desde el diff y la referencia a la issue | Ultron | **Bloqueado por la decisión 1** · si sale adelante: lo escrito casa exactamente con `git diff --cached --name-only` |
+| **2.7** | El commit de trabajo, con la referencia a la issue. **Sin campo de ficheros tocados: retirado del v2** | Ultron | El commit lleva su referencia · la vista por fichero funciona con `git log -- <ruta>`, sin campo |
 | **2.8** | **MINA 1:** añadir las rutas del v2 a la lista de wrappers reconocidos en `unmassk-toolkit/hooks/pre-validate-commit-trailers.py:51` | Ultron | Un commit del v2 pasa el gate del v1. **Sin este paso, nada del v2 puede commitear** |
 | **2.9** | Tests de la transacción | Dante | Los dos casos del paso 2.4, contra un repo real |
 
@@ -199,12 +205,12 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
-| **3.1** | `lib/consulta.py` — las cuatro lecturas desde git hacia objetos | Ultron | Sembrar tres notas y recuperarlas por ID, zona, palabra y fichero |
-| **3.2** | `lib/contexto.py` + su script — el ⏩ con su cuerpo, **sin zonas, sin índice, sin lápida** | Ultron | Se escribe y se lee de vuelta · **y la aduana lo eximirá** (paso 6.3) |
-| **3.3** | `lib/reglas.py` + su script + el comando — el fichero de reglas, fuera del sistema | Ultron | Se añade una regla y se lee el fichero **entero** · no aparece en ninguna búsqueda |
-| **3.4** | `lib/salud.py` — coherencia índices↔git, IDs duplicados, planes con commits sin reflejar | Ultron | Borrar una línea de un índice a mano se reporta como "falta en índice" |
-| **3.5** | `lib/arranque.py` + su script — el menú del día completo, **escrito de cero** (mina 3) | Ultron | Memoria vacía → **ceros explícitos y ruidosos** · tres notas → tres · índice corrupto → aviso |
-| **3.6** | El hook de arranque, si se aprueba | Ultron | **Bloqueado por la decisión 4** |
+| **3.1** | `lib/query.py` — las cuatro lecturas desde git hacia objetos | Ultron | Sembrar tres notas y recuperarlas por ID, zona, palabra y fichero |
+| **3.2** | `lib/context.py` + su script — el ⏩ con su cuerpo, **sin zonas, sin índice, sin lápida** | Ultron | Se escribe y se lee de vuelta · **y la aduana lo eximirá** (paso 6.3) |
+| **3.3** | `lib/rules.py` + su script + el comando — el fichero de reglas, fuera del sistema | Ultron | Se añade una regla y se lee el fichero **entero** · no aparece en ninguna búsqueda |
+| **3.4** | `lib/health.py` — coherencia índices↔git, IDs duplicados, planes con commits sin reflejar | Ultron | Borrar una línea de un índice a mano se reporta como "falta en índice" |
+| **3.5** | `lib/boot.py` + su script — el menú del día completo, **escrito de cero** (mina 3) | Ultron | Memoria vacía → **ceros explícitos y ruidosos** · tres notas → tres · índice corrupto → aviso |
+| **3.6** | El hook lanzador del arranque: ~20 líneas sin lógica que llaman al script | Ultron | Dispara en una sesión real · no se vuelve a tocar nunca |
 | **3.7** | El script de regeneración de índices desde git, con modo solo-diagnóstico | Ultron | Corromper un índice: el diagnóstico lo dice, la regeneración lo arregla, el resultado es byte a byte el mismo |
 | **3.8** | Los ocho ficheros nacen vacíos con su cabecera | Ultron | Existen y su cabecera dice quién los escribe |
 | **3.9** | Tests de arranque y salud | Dante | Los ceros salen; la divergencia se detecta en los dos sentidos |
@@ -217,10 +223,10 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
-| **4.1** | `lib/racimos.py` — agrupación por punteros, determinista | Ultron | Cadena de tres notas se pliega en un racimo · nota huérfana = racimo de una, **y eso es la señal, no un fallo** |
+| **4.1** | `lib/clusters.py` — agrupación por punteros, determinista | Ultron | Cadena de tres notas se pliega en un racimo · nota huérfana = racimo de una, **y eso es la señal, no un fallo** |
 | **4.2** | El título del racimo es la nota viva más reciente | Ultron | Con dos notas encadenadas, el título es el de la nueva |
-| **4.3** | `lib/informe.py` — restricciones arriba, racimos en medio, preguntas al final; vigente por defecto | Ultron | El orden se cumple · la historia solo aparece con la opción explícita |
-| **4.4** | `lib/informe_render.py` — el texto, con la presentación heredada | Ultron | Calca los bloques de `TEXTOS.md` |
+| **4.3** | `lib/report.py` — restricciones arriba, racimos en medio, preguntas al final; vigente por defecto | Ultron | El orden se cumple · la historia solo aparece con la opción explícita |
+| **4.4** | `lib/report_render.py` — el texto, con la presentación heredada | Ultron | Calca los bloques de `TEXTOS.md` |
 | **4.5** | "Cero notas" en alto para una zona vacía | Ultron | El texto es imposible de confundir con un error |
 | **4.6** | La búsqueda por palabra **señala las líneas que casaron** | Ultron | Se ve qué línea concreta hizo match, no solo qué nota |
 | **4.7** | La vista por fichero | Ultron | Devuelve los commits de ese fichero, desplegables |
@@ -233,8 +239,8 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 
 | # | Paso | Quién | Verificación |
 |---|---|---|---|
-| **5.1** | Decidir cómo sabe la inyección de qué zona va el encargo | Orquestador | **No está en la especificación.** Propuesta: una línea `Zona: z1/z2` en el encargo, con casado por palabras como respaldo, y silencio si no decide |
-| **5.2** | `lib/reparto.py` — la tabla de qué ve cada oficio | Ultron | Cada agente recibe exactamente lo suyo · sin zona, cadena vacía |
+| **5.1** | La zona del encargo: una línea `Zone: z1/z2` en el despacho, con casado por palabras contra el fichero de zonas como respaldo. **Y si no se puede determinar, NO se calla: inyecta un bloque que dice que ese agente sale sin memoria de proyecto y por qué** | Orquestador | Un despacho sin zona produce una línea visible en el encargo, nunca un silencio |
+| **5.2** | `lib/dispatch.py` — la tabla de qué ve cada oficio | Ultron | Cada agente recibe exactamente lo suyo · sin zona, cadena vacía |
 | **5.3** | El hook de inyección, **escrito de cero**, con fallo abierto absoluto | Ultron | Contrato con payload real · una excepción en cualquier punto deja pasar el despacho sin tocarlo |
 | **5.4** | Primera publicación de versión y actualización del plugin | Orquestador | El hook dispara de verdad en un despacho real |
 | **5.5** | **5a: solo Ultron**, y su prompt gana una línea: si una valla le cambió lo que iba a hacer, lo dice en su informe | Orquestador | Sin esa línea la prueba no concluye nada |
@@ -269,6 +275,7 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 |---|---|---|---|
 | **7.1** | La skill de memoria: enseña a traer **todos los flags puestos** para que el coste normal sea un comando y cero rechazos | Orquestador | Un alta completa se escribe sin rebotar |
 | **7.2** | En esa skill: la regla de los dos segundos, la calibración del bloqueante y de la valla, y el árbol de tipos | Orquestador | Están escritas, con ejemplos |
+| **7.2b** | En esa skill: la **mini-sección de la vista por fichero** — qué es, sus dos comandos, y cuándo la usa cada oficio. Los prompts de los agentes solo la referencian; el contenido vive una sola vez | Orquestador | Ningún prompt duplica el contenido |
 | **7.3** | En esa skill: el disparador de búsqueda es **el usuario en lenguaje natural**, y las tres prohibiciones (sin disparadores léxicos, sin juicio espontáneo, sin inyección por mensaje) | Orquestador | Escrito |
 | **7.4** | En esa skill: comunicar el menú del día en el primer mensaje y dejar que el usuario decida el rumbo | Orquestador | Escrito |
 | **7.5** | El ciclo de vida de la pregunta abierta: se resuelve antes de construir sobre su módulo; puede parir una issue; al cerrarse asciende o cae | Orquestador + Ultron | El destino "ascendida a" aparece en el archivo |
@@ -303,7 +310,7 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 |---|---|---|---|
 | **9.1** | Sacar de `hooks.json` los hooks de §5.1. **No se borran ficheros** | Ultron | Los hooks retirados no se ejecutan; el código queda de archivo muerto |
 | **9.2** | Decidir fichero a fichero qué hacer con los quince partidos | Orquestador | Lo más limpio es dejarlos y que el v2 no los use |
-| **9.3** | Los ~504 tests del v1 | — | **Bloqueado por la decisión 7** |
+| **9.3** | Borrar los tests de cada pieza retirada, a la vez que la pieza | Dante | La suite queda verde y sin tests contra código muerto |
 | **9.4** | Leer los resultados de la sonda pendiente del v1 y cerrarla | Orquestador | Afecta solo al sistema congelado |
 
 ---
@@ -314,4 +321,4 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 2. **El papel de Alexandria** en el flujo de documentación.
 3. **La lista de zonas definitiva** de cada proyecto — es tarea tuya, con la materia prima preparada.
 4. **El dedup semántico de reglas** — excede a un script.
-5. **Las siete decisiones de §1**, hasta que las contestes.
+5. *(resuelto — la zona del encargo se declara en el despacho y la ausencia se hace visible; ver paso 5.1)*

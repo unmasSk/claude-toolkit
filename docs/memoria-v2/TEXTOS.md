@@ -2,14 +2,14 @@
 
 Lo que el sistema escupe, palabra por palabra. No descripciones: los textos. Si esto queda a improvisación, cada implementación lo escribe distinto y el rechazo que se lee a las tres de la mañana acaba siendo un volcado ilegible.
 
-**Nombre de comando usado en todos los ejemplos:** `memory` con subcomandos. Si se elige otro (decisión 2 del plan), es un buscar-y-reemplazar.
+**El comando es `gitmem`** — fachada única con subcomandos en inglés sobre los scripts: `note`, `close`, `context`, `work`, `search`, `boot`, `reindex`, `zones`, `rule`, `bench`.
 
-**Emojis** — cinco los fija la especificación, dos son propuesta (decisión 3):
+**Emojis** — resueltos. El descarte es 🚫 y no una papelera: la papelera sugiere que se puede borrar, y el descarte es permanente.
 
 ```
-🧭 D decision     ❓ Q question  (propuesto)
-📌 M memo         🗑️ X discarded (propuesto)
-⚠  R restriction  🔥 I incident  (propuesto)
+🧭 D decision     ❓ Q question
+📌 M memo         🚫 X discarded
+⚠  R restriction  🔥 I incident
 ⛔ B blocker      ⏩ contexto/avance
 🚧 wip            🧠 regla
 ```
@@ -30,7 +30,7 @@ con otro nombre. Las más parecidas:
   invoices     4 notas   "documentos de factura emitidos al cliente"
 
 Si es una de ellas, relanza con esa:
-  memory note D --zones product billing "..." --why "..." --description "..."
+  gitmem note D --zones product billing "..." --why "..." --description "..."
 
 Si de verdad falta, añádela a .claude/project-memory/zones.json
 (nombre en inglés, una línea de descripción, sus alias) y relanza igual.
@@ -46,10 +46,10 @@ claude, user, session, project y workflow describen CÓMO trabajamos,
 no el producto. Eso va al fichero de reglas, que se lee entero aparte
 y no ensucia ninguna búsqueda:
 
-  memory rule "..."
+  gitmem rule "..."
 
 Si en realidad hablabas de una parte del producto, dale su zona real:
-  memory note M --zones <zona1> <zona2> "..." --description "..."
+  gitmem note M --zones <zona1> <zona2> "..." --description "..."
 ```
 
 ### 1.3 La palabra ilegal
@@ -63,8 +63,8 @@ Elige cuál:
   codeaudit   (zona1)  las auditorías que los agentes pasan al código
 
 Relanza con la que sea:
-  memory note M --zones product registro "..." --description "..."
-  memory note M --zones codeaudit <zona2> "..." --description "..."
+  gitmem note M --zones product registro "..." --description "..."
+  gitmem note M --zones codeaudit <zona2> "..." --description "..."
 ```
 
 ### 1.4 No encaja en ningún tipo
@@ -84,7 +84,7 @@ del proyecto con algo que espera de fuera. Una nota, una cosa.
   B  blocker      pendiente de fuera; bloquea
 
 Pártela en dos, o elige uno, y relanza:
-  memory note <TIPO> --zones deploy logging "..." --description "..."
+  gitmem note <TIPO> --zones deploy logging "..." --description "..."
 
 Que no encaje es información: si de verdad no es ninguno de los siete,
 dilo en el chat antes de forzarlo.
@@ -103,8 +103,8 @@ Toda M y toda R contestan lo mismo antes de entrar:
   no  →  es un hecho. Entra como M y se lee cuando se busca su zona.
 
 Relanza con la respuesta puesta:
-  memory note M --zones database backups "..." --description "..." --stops no
-  memory note R --zones database backups "..." --description "..." --stops yes
+  gitmem note M --zones database backups "..." --description "..." --stops no
+  gitmem note R --zones database backups "..." --description "..." --stops yes
 ```
 
 ### 1.6 Pisa a algo ya escrito
@@ -129,10 +129,10 @@ Tres salidas, y solo tres:
   la sustituye   --replaces D-030    la vieja sale del índice a ARCHIVED
   conviven       --replaces none     las dos siguen vigentes
   es duplicado   no la guardes; si hay que matizar, cierra la vieja:
-                 memory close D-030 "..."
+                 gitmem close D-030 "..."
 
 Relanza:
-  memory note D --zones product auth "..." --why "..." \
+  gitmem note D --zones product auth "..." --why "..." \
     --description "..." --replaces D-030
 ```
 
@@ -145,7 +145,7 @@ Compactar es decir DE QUÉ. Sin Origin no hay forma de volver a lo que
 resumiste ni de comprobar si lo resumiste bien.
 
 Pon los hashes v1 de los que sale, separados por comas:
-  memory note M --zones testing amianto "..." --description "..." \
+  gitmem note M --zones testing amianto "..." --description "..." \
     --origin 4f2a1bc,9de77a0,c31b8e5
 
 Vale para toda nota de destilación, la escriba quien la escriba.
@@ -181,7 +181,7 @@ decisión → plan queda roto para siempre y nadie lo va a notar.
   gh issue create --title "..."     crearla ahora
 
 Relanza con el número bueno:
-  memory plan --zones product auth "login rollout plan" \
+  gitmem note PLAN --zones product auth "login rollout plan" \
     --origin D-030 --issue 52
 ```
 
@@ -201,9 +201,9 @@ Relanza con el número bueno:
 
 Relanza con la respuesta:
 
-  memory close I-014 "..." --restriction no
+  gitmem close I-014 "..." --restriction no
 
-  memory close I-014 "..." --restriction new \
+  gitmem close I-014 "..." --restriction new \
     --restriction-text "seeds never read the DB url from the environment" \
     --why "..."
 ```
@@ -281,7 +281,7 @@ Relanza con la respuesta:
          Nació de D-041. Sin respuesta desde el 2 de junio.
 
 ────────────────────────────────────────────────────────────────────────
-  Historia completa, con lo archivado:   memory report auth --todo
+  Historia completa, con lo archivado:   gitmem search auth --todo
 ```
 
 ### 2.2 Zona sin ninguna nota
@@ -302,8 +302,8 @@ Relanza con la respuesta:
 
   Zonas parecidas que sí tienen contenido:
 
-     billing    18 notas       memory report billing
-     invoices    4 notas       memory report invoices
+     billing    18 notas       gitmem search billing
+     invoices    4 notas       gitmem search invoices
 
   Si lo que buscabas está en una de ellas, esta zona sobra en zones.json.
 ════════════════════════════════════════════════════════════════════════
@@ -366,8 +366,8 @@ Relanza con la respuesta:
          Nació de D-044. Sin respuesta desde el 19 de mayo.
 
 ────────────────────────────────────────────────────────────────────────
-  Estado completo de una zona:   memory report billing
-  Con lo archivado:              memory report stripe --todo
+  Estado completo de una zona:   gitmem search billing
+  Con lo archivado:              gitmem search stripe --todo
 ```
 
 ---
@@ -457,7 +457,7 @@ AVISOS
 Cero no es silencio: es que todavía no se ha escrito nada. La primera
 nota se guarda así:
 
-  memory note <TIPO> --zones <zona1> <zona2> "titular en inglés" \
+  gitmem note <TIPO> --zones <zona1> <zona2> "titular en inglés" \
     --description "..." --stops <yes|no>
 ```
 
@@ -546,7 +546,7 @@ Description: Brainstorm sobre el login con el usuario. Se valoraron
 ```
 
 ```
-🗑️ [X-012][product][auth] server-side sessions
+🚫 [X-012][product][auth] server-side sessions
 
 Why: no escalan multi-tenant sin un almacén compartido que aún no
  tenemos, y obligaría a Redis solo para esto.
@@ -604,7 +604,7 @@ Description: Un cliente tiene dos dominios de Workspace (la matriz y la
 ### Descarte
 
 ```
-🗑️ [X-022][api][billing] Chargebee
+🚫 [X-022][api][billing] Chargebee
 
 Why: el IVA por país lo resuelve igual que Stripe, pero añade un
  proveedor más y su propio webhook que mantener.
@@ -637,7 +637,7 @@ Description: El script de seeds lee la URL de la base de datos de la
 ```
 ⛔ [B-003][product][auth] google workspace admin consent still pending
 
-Espera: el cliente — Marta, IT de Omawa
+Awaits: el cliente — Marta, IT de Omawa
 Keys: consent, admin, workspace, oauth, scope
 Description: El alta masiva de usuarios necesita que un administrador de
  Workspace apruebe el scope admin.directory.user.readonly. Sin eso, el
@@ -673,14 +673,12 @@ Context:
 
 ---
 
-## 6. Lo que ha habido que decidir para escribir estos textos
+## 6. Decisiones que la especificación no cerraba — todas resueltas por el propietario
 
-Siete decisiones que la especificación no cerraba. Todas revisables:
-
-1. **Los emojis de la pregunta abierta y el descarte.** La especificación fija cinco y deja dos. Propuesta: ❓ y 🗑️, más 🔥 para la incidencia.
-2. **El nombre del comando.** La especificación solo escribe `close M-041 "motivo"`. Se ha usado `memory` con subcomandos, coherente en los treinta textos.
+1. **Los emojis.** ❓ pregunta · 🚫 descarte (no una papelera: el descarte es permanente) · 🔥 incidencia.
+2. **El comando es `gitmem`**, fachada única con subcomandos en inglés sobre los scripts.
 3. **La key mal escrita no es un rechazo.** Normalizar es escribir, y un hook no escribe. Se ha redactado como el aviso que sale al guardar bien. Si se quiere rechazo de verdad, la mecánica cambia.
-4. **El campo del bloqueante** va capitalizado en el commit (para que el parser trate todos los campos igual) y en minúscula en la presentación, como aparece en la especificación.
+4. **El campo del bloqueante es `Awaits:`** — en inglés y capitalizado como el resto, porque todo nombre que ve una máquina va en inglés. En la presentación al usuario se lee «espera:», que es texto y va en español.
 5. **Las vallas del arranque salen con una línea de porqué**, no solo el titular. Un titular en inglés a secas no cambia la conducta de nadie a las tres de la mañana.
 6. **La línea de índice es el titular literal, sin emoji ni fecha.** El identificador ya viaja dentro. El emoji solo aparece en el archivo, que es el único fichero que mezcla tipos.
-7. **Las notas no llevan los ficheros tocados ni el co-autor.** Las notas de memoria no tocan ficheros de aplicación; la línea de índice viaja en el mismo commit pero no se declara, para no convertir ese campo en ruido en las siete plantillas.
+7. **El campo de ficheros tocados NO EXISTE en el v2.** Se retiró entero: git ya guarda el diff y no se puede mentir sin él. La vista por fichero usa `git log -- <ruta>` directamente. Las notas tampoco llevan co-autor. Las notas de memoria no tocan ficheros de aplicación; la línea de índice viaja en el mismo commit pero no se declara, para no convertir ese campo en ruido en las siete plantillas.

@@ -25,7 +25,7 @@
 | 11 | Chequeo instalado↔escrito desde fuera de la caché | P7 | 7.14 |
 | 12 | Idioma por función: titular y keys en inglés; porqué, descripción y contexto en español | P8 | 1.8 |
 | 13 | Se retira todo lo que no tenga caso de uso demostrado | P9 | §5 del plan |
-| 14 | Emojis por tipo conservados | P10 | 0.2 + decisión 3 |
+| 14 | Emojis por tipo conservados: ❓ pregunta · 🚫 descarte · 🔥 incidencia | P10 | 0.2 |
 | 15 | Estructura visual jerárquica conservada | P10 | 4.4 |
 | 16 | Todo timestamp en UTC | P11 | 1.5 |
 | 17 | Toda hora mostrada lleva la etiqueta UTC explícita | P11 | 3.5 + 4.4 |
@@ -59,9 +59,9 @@
 | 40 | Descripción obligatoria | 1.2 + 1.8 |
 | 41 | Puntero de origen | 1.5 + 4.1 |
 | 42 | Puntero de sustitución | 1.5 + 2.6 |
-| 43 | Ficheros tocados: los escribe exclusivamente el script desde el diff | **2.7** (decisión 1) |
-| 44 | Ficheros tocados: prohibido a mano | **2.7** (decisión 1) |
-| 45 | Ficheros tocados: solo en commits de trabajo | **2.7** (decisión 1) |
+| 43 | ~~Ficheros tocados: los escribe el script desde el diff~~ | **RETIRADO** — el campo no existe en el v2 (decisión 1). Su función la da git: `git log -- <ruta>` |
+| 44 | ~~Ficheros tocados: prohibido a mano~~ | **RETIRADO** — sin campo no hay nada que falsear |
+| 45 | La vista por fichero, documentada como mini-sección de la skill con sus dos comandos y qué oficio la usa cuándo | **7.2b** |
 | 46 | Rechazo de cualquier campo fuera de los declarados | **1.8** |
 | 47 | Las cuatro keys marcadoras con vocabulario controlado | 1.2 |
 | 48 | Normalización de las marcadoras | 1.8 |
@@ -72,7 +72,7 @@
 | # | Requisito | Paso |
 |---|---|---|
 | 50 | Los siete tipos con sus campos obligatorios | 1.2 |
-| 51 | Las alternativas perdedoras nacen como descartes enlazados en el mismo acto | **2.5** (decisión 5) |
+| 51 | Las alternativas perdedoras nacen como descartes enlazados, cada uno con su commit y su identificador | **2.5** |
 | 52 | Mueren las cinco categorías del memo del v1 | 9.1 |
 | 53 | Los cinco destinos de las cinco poblaciones, aplicados en la destilación | **8.4** |
 | 54 | La pregunta del dolor, literal y en una sola copia | 1.2 + 1.8 |
@@ -86,7 +86,7 @@
 | 62 | Puede parir una issue de investigación | **7.5** |
 | 63 | Al cerrarse la issue, asciende o cae | **7.5** |
 | 64 | El bloqueante: criterio de calibración en la skill | **7.2** |
-| 65 | El bloqueante lleva el campo de quién se espera | 1.2 (decisión 6) |
+| 65 | El bloqueante lleva el campo `Awaits:`, en inglés | 1.2 |
 | 66 | Alta de bloqueante en caliente | 2.6 |
 | 67 | Alta de bloqueante en el cierre de sesión | 7.10 |
 
@@ -104,7 +104,7 @@
 
 | # | Requisito | Paso |
 |---|---|---|
-| 73 | El generador escribe formato, emojis, ficheros tocados y propaga errores | 2.4 + 2.7 |
+| 73 | El generador escribe formato y emojis, y propaga los errores reales de git | 2.4 |
 | 74 | La aduana es un hook sobre el comando de commit | 6.1 |
 | 75 | Intercepta también a los subagentes | 6.1 |
 | 76 | Validación 1: zonas, alias, alta en dos pasos, lista negra, palabra ilegal | 1.4 + 6.6 |
@@ -116,7 +116,7 @@
 | 82 | Validación 6: keys marcadoras normalizadas | 1.8 |
 | 83 | Validación 7: el `wip` exento de toda pregunta | 6.3 |
 | 84 | Validación 8: verificación única de la issue contra GitHub | 7.6 |
-| 85 | Validación 8: los commits de trabajo pasan sin consulta | **2.7** |
+| 85 | Validación 8: los commits de trabajo pasan sin consulta | 2.7 |
 | 86 | Validación 9: propagación del error real de git | 2.1 |
 
 ## Los índices (§7)
@@ -185,10 +185,10 @@
 | 131 | La issue enlaza al documento y aloja el checklist | **7.6** |
 | 132 | El acta enlaza decisión e issue | **7.6** |
 | 133 | Cambio de decisión: nueva decisión con su puntero, y la issue se edita | **7.6** |
-| 134 | Los commits de trabajo llevan la referencia a la issue | **2.7** |
+| 134 | Los commits de trabajo llevan la referencia a la issue | 2.7 |
 | 135 | Detección exacta por el patrón del trailer | **3.4** |
 | 136 | El cierre de sesión marca los checkboxes y deja comentario | 7.10 |
-| 137 | Al fusionar: se comprime, y lo tocado es la unión del diff | **2.7** |
+| 137 | Al fusionar: se comprime. **Lo tocado ya no es un campo**: es el diff nativo contra la base | 2.7 |
 
 ## Incidencias (§11)
 
@@ -246,7 +246,7 @@
 | La skill de memoria | 7.1 – 7.4 |
 | El contexto de cierre como pieza escribible | 3.2 |
 | Su exención en la aduana | 6.3 |
-| El commit de trabajo | 2.7 |
+| El commit de trabajo (con su referencia a issue; sin campo de ficheros tocados) | 2.7 |
 | Los descartes automáticos | 2.5 |
 | La oferta de valla al cerrar una incidencia | 6.4 |
 | Las incidencias candidatas al nacer una valla | 6.5 |
@@ -272,6 +272,17 @@
 | El momento 2 de lectura y sus prohibiciones | 7.3 |
 | Comunicar el menú del día | 7.4 |
 | Detección por el patrón del trailer de issue | 3.4 |
-| La compresión al fusionar | 2.7 |
+| La compresión al fusionar | 2.7 (sin campo: diff nativo) |
 
 **Ninguno queda fuera.** Los que dependen de una de las siete decisiones de `PLAN-CONSTRUCCION.md` §1 están marcados en su paso.
+
+
+---
+
+## Nota sobre el campo de ficheros tocados
+
+Los requisitos 43 y 44 quedan **retirados por decisión del propietario**: el campo no existe en el v2. Era un duplicado de lo que git ya guarda, y en el v1 se escribió 605 veces sin que nadie lo leyera nunca.
+
+**La función se conserva entera sin él.** La vista por fichero usa `git log -- <ruta>` y la capa se deduce del diff nativo. Se documenta como mini-sección propia dentro de la skill de memoria (paso 7.2b), con sus dos comandos y con qué oficio la usa cuándo — y **los prompts de los agentes solo la referencian**, para que el contenido viva una sola vez y no acabe habiendo cinco versiones distintas en tres meses.
+
+Es el único requisito de la especificación que se retira, y se retira con el dato delante.
