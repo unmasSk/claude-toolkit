@@ -11,7 +11,9 @@ Este documento es el plan. La especificación es el qué; esto es el en qué ord
 
 Todo el orden de abajo sale de estas tres, no de gustos.
 
-**A — El v1 sigue vivo y escribiendo durante toda la construcción.** No se congela el día uno: se congela el día del corte, proyecto a proyecto. Cualquier pieza que rompa al v1 antes de ese día está mal colocada en el plan.
+**A — El v2 se construye DESDE CERO, sin reutilizar nada del v1.** Carpeta propia, piezas propias: su script de commits, su inyección a subagentes, su arranque, su validador. No se copia código del viejo ni se hereda ninguna de sus piezas.
+
+Lo que sí es cierto, y no es lo mismo: **el v1 sigue siendo lo que está instalado y funcionando hasta el día del cambio.** No porque se quiera que trabajen juntos —no se quiere—, sino porque es lo que hay puesto hasta que se quita. Consecuencia práctica única: ninguna pieza del v2 debe romper al v1 antes de ese día, y por eso la aduana nace apagada.
 
 **B — Los hooks se ejecutan desde la caché del plugin, no desde el repo.** Medido esta noche: la caché es una foto fijada por SHA y solo se mueve publicando versión + `claude plugin update` + reinicio. Consecuencia dura: **una pieza que sea hook no se puede desarrollar iterando**, porque cada cambio exige un ciclo de publicación. Todo lo que pueda ser script invocado por ruta se construye antes que lo que tenga que ser hook.
 
@@ -34,16 +36,17 @@ unmassk-memory/                    ← el v2, plugin nuevo
 unmassk-toolkit/                   ← el v1, CONGELADO, no se toca
 ```
 
-**Por qué plugin aparte y no una carpeta dentro del toolkit:** los dos sistemas tienen que poder correr a la vez y la caché sirve el plugin entero. Mezclados, no hay forma de saber cuál se ejecuta — que es exactamente el incidente del 2026-08-01 (seis hooks divergentes durante días). Separados, el v2 se instala, se prueba y se desinstala sin tocar al v1.
+**Por qué carpeta aparte y no dentro del toolkit:** para que el v2 sea código nuevo de verdad y no un parche encima del viejo. Mezclados, no hay forma de saber qué es de quién ni cuál se ejecuta — que es exactamente el incidente del 2026-08-01 (seis hooks divergentes durante días). Separados, el v2 se construye limpio, se prueba y se puede tirar entero si no vale.
+
+**Cero reutilización, dicho explícitamente:** no se copia código del v1 ni se hereda ninguna de sus piezas — ni el script de commits, ni el candado de ficheros, ni el hook de inyección a subagentes, ni el arranque. El v2 escribe las suyas. Lo que se hereda del v1 son las **lecciones medidas** (§14 de la especificación), no las líneas.
 
 **Y los índices del proyecto** (`.claude/project-memory/`, los ocho ficheros) son del proyecto, no del plugin. Nacen vacíos en la fase 3.
 
-### 1.1 Carpeta Y rama — resuelven cosas distintas
+### 1.1 Carpeta nueva, decisión del propietario
 
-- **Rama `feat/memoria-v2`:** es el botón de deshacer. Si el v2 sale mal, se borra la rama y en `main` no queda rastro.
-- **Carpeta `unmassk-memory/` dentro de esa rama:** es lo que permite que los dos sistemas convivan **corriendo a la vez** cuando llegue el momento de probar de verdad.
+**Carpeta `unmassk-memory/`, todo desde cero.** Sin rama larga: el trabajo va en `main` por fases, como el resto del proyecto, y lo que da reversibilidad es que la carpeta es independiente — si el v2 no vale, se borra la carpeta y ya está.
 
-**Cuándo entra en `main`:** las fases 1 a 5 son scripts que se lanzan por ruta, así que funcionan desde la rama sin instalar nada — la rama aguanta sola casi hasta el final. La primera pieza que obliga a estar en `main` es **la aduana (fase 6)**, porque es hook y los hooks solo se ejecutan desde el plugin publicado. Para entonces la aduana ya nace apagada, así que entrar en `main` no rompe al v1.
+Las fases 1 a 5 son scripts que se lanzan por ruta, así que se prueban sin instalar nada y sin tocar lo que está corriendo. La primera pieza que exige publicarse es **la aduana (fase 6)**, porque es hook y los hooks solo se ejecutan desde el plugin publicado — y nace apagada.
 
 ---
 
@@ -137,7 +140,9 @@ Solo hay **una** pieza que obligatoriamente es hook: la aduana (necesita interce
 
 ## 7. Fase 5 — El reparto por oficio y LA PRUEBA
 
-**Qué:** cambiar lo que viaja por el tubo de inyección a subagentes. El tubo ya existe y ya llega a los nueve (verificado en `hooks/pre-task-recall.py`); solo cambia el contenido.
+**Qué:** el hook de inyección del v2 — propio, escrito de cero — que mete el contenido de memoria dentro del encargo de cada subagente.
+
+**Lo que se hereda del v1 aquí es la medición, no el código:** está verificado que el evento existe, que dispara en **todos** los despachos, que la herramienta se llama `Agent` (no `Task`) y que el identificador llega en `tool_input.subagent_type` con prefijo de plugin, normalizable tras el último `:`. Eso ahorra el trabajo de descubrirlo, no el de escribirlo.
 
 **Pero se hace en dos tiempos, y el primero es la prueba:**
 
