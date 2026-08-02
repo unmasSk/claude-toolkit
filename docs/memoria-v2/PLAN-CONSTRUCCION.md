@@ -38,6 +38,13 @@ unmassk-toolkit/                   ← el v1, CONGELADO, no se toca
 
 **Y los índices del proyecto** (`.claude/project-memory/`, los ocho ficheros) son del proyecto, no del plugin. Nacen vacíos en la fase 3.
 
+### 1.1 Carpeta Y rama — resuelven cosas distintas
+
+- **Rama `feat/memoria-v2`:** es el botón de deshacer. Si el v2 sale mal, se borra la rama y en `main` no queda rastro.
+- **Carpeta `unmassk-memory/` dentro de esa rama:** es lo que permite que los dos sistemas convivan **corriendo a la vez** cuando llegue el momento de probar de verdad.
+
+**Cuándo entra en `main`:** las fases 1 a 5 son scripts que se lanzan por ruta, así que funcionan desde la rama sin instalar nada — la rama aguanta sola casi hasta el final. La primera pieza que obliga a estar en `main` es **la aduana (fase 6)**, porque es hook y los hooks solo se ejecutan desde el plugin publicado. Para entonces la aduana ya nace apagada, así que entrar en `main` no rompe al v1.
+
 ---
 
 ## 2. Fase 0 — El bucle de desarrollo (bloqueante para todo lo demás)
