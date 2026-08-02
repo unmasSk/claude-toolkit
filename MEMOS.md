@@ -17,3 +17,4 @@
 [M-015][product][notes-test] MARK_ROW9 headline for a note that gets closed, not replaced
 [M-016][product][notes-test] MARK_ROW10_REPLACE_OLD headline that must survive a failed replace
 [M-017][product][notes-test] MARK_ROW7_OLD headline that replace() must retire in one commit
+[M-018][product][notes-test] MARK_ROW8_OLD headline whose retirement must round-trip
