@@ -1,0 +1,10 @@
+{
+  "name": "unmassk-memory",
+  "version": "0.1.0",
+  "description": "Sistema de memoria de proyecto v2: notas tipadas en git, indices, arranque y aduana de commits.",
+  "author": {
+    "name": "unmasSk"
+  },
+  "repository": "https://github.com/unmasSk/claude-toolkit",
+  "license": "MIT"
+}
