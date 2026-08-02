@@ -1,245 +1,262 @@
 # Plan de construcción — Sistema de Memoria v2
 
-**Fecha:** 2026-08-01 · **Estado:** propuesta de plan, sin aprobar
+**Fecha:** 2026-08-02 · **Estado:** propuesta de plan, sin aprobar
 **Especificación de referencia:** `docs/spec-sistema-memoria-v2.md` (cerrada, revisada por council)
-
-Este documento es el plan. La especificación es el qué; esto es el en qué orden y con qué se verifica cada paso.
-
----
-
-## 0. Las tres restricciones que mandan sobre el orden
-
-Todo el orden de abajo sale de estas tres, no de gustos.
-
-**A — El v2 se construye DESDE CERO, sin reutilizar nada del v1.** Carpeta propia, piezas propias: su script de commits, su inyección a subagentes, su arranque, su validador. No se copia código del viejo ni se hereda ninguna de sus piezas.
-
-Lo que sí es cierto, y no es lo mismo: **el v1 sigue siendo lo que está instalado y funcionando hasta el día del cambio.** No porque se quiera que trabajen juntos —no se quiere—, sino porque es lo que hay puesto hasta que se quita. Consecuencia práctica única: ninguna pieza del v2 debe romper al v1 antes de ese día, y por eso la aduana nace apagada.
-
-**B — Los hooks se ejecutan desde la caché del plugin, no desde el repo.** Medido esta noche: la caché es una foto fijada por SHA y solo se mueve publicando versión + `claude plugin update` + reinicio. Consecuencia dura: **una pieza que sea hook no se puede desarrollar iterando**, porque cada cambio exige un ciclo de publicación. Todo lo que pueda ser script invocado por ruta se construye antes que lo que tenga que ser hook.
-
-**C — Los prompts de los agentes van al final.** Un agente al que se le dice que consuma vallas cuando aún no hay vallas queda peor que como está. Los prompts se tocan en el corte de cada proyecto.
+**Inventario de referencia:** §3 de este documento, levantado función a función sobre el código real (HEAD `09a0f2f`)
 
 ---
 
-## 1. Dónde vive el código
+## 1. Las tres restricciones que mandan sobre el orden
 
-**Plugin propio en el mismo repo**, hermano de los que ya existen (`unmassk-db`, `unmassk-ops`, `unmassk-design`…):
+**A — El v2 se construye DESDE CERO, sin reutilizar nada del v1.** Carpeta propia, piezas propias: su script de commits, su inyección a subagentes, su arranque, su validador. Del v1 se heredan las **lecciones medidas** (§14 de la especificación), nunca las líneas.
+
+Lo que sí es cierto y no es lo mismo: **el v1 sigue siendo lo que está instalado y funcionando hasta el día del cambio.** No porque se quiera que trabajen juntos —no se quiere—, sino porque es lo que hay puesto hasta que se quita. Consecuencia práctica única: ninguna pieza del v2 debe romper al v1 antes de ese día, y por eso la aduana nace apagada.
+
+**B — Los hooks se ejecutan desde la caché del plugin, no desde el repo.** Medido: la caché es una foto fijada por SHA y solo se mueve publicando versión + `claude plugin update` + reinicio. **Una pieza que sea hook no se puede desarrollar iterando.** Todo lo que pueda ser script invocado por ruta se construye antes que lo que tenga que ser hook.
+
+**C — Los prompts de los agentes van al final.** Un agente al que se le dice que consuma vallas cuando aún no hay vallas queda peor que como está.
+
+---
+
+## 2. Dónde vive el código
 
 ```
-unmassk-memory/                    ← el v2, plugin nuevo
+unmassk-memory/                    ← el v2, carpeta nueva, todo desde cero
   .claude-plugin/plugin.json
   bin/            generador, búsqueda, regeneración de índices
-  lib/            validador (una sola pieza, ver §3), formato, índices, informe
-  hooks/          la aduana (última fase)
+  lib/            validador, formato, índices, informe
+  hooks/          la aduana + la inyección (últimas fases)
   skills/         la skill de memoria v2
   tests/
-unmassk-toolkit/                   ← el v1, CONGELADO, no se toca
+unmassk-toolkit/                   ← el v1, CONGELADO
 ```
 
-**Por qué carpeta aparte y no dentro del toolkit:** para que el v2 sea código nuevo de verdad y no un parche encima del viejo. Mezclados, no hay forma de saber qué es de quién ni cuál se ejecuta — que es exactamente el incidente del 2026-08-01 (seis hooks divergentes durante días). Separados, el v2 se construye limpio, se prueba y se puede tirar entero si no vale.
+**Carpeta nueva en `main`, sin rama larga.** La reversibilidad la da que la carpeta es independiente: si el v2 no vale, se borra entera. Las fases 1 a 5 son scripts que se lanzan por ruta y se prueban sin instalar nada; la primera pieza que exige publicarse es la aduana (fase 6), y nace apagada.
 
-**Cero reutilización, dicho explícitamente:** no se copia código del v1 ni se hereda ninguna de sus piezas — ni el script de commits, ni el candado de ficheros, ni el hook de inyección a subagentes, ni el arranque. El v2 escribe las suyas. Lo que se hereda del v1 son las **lecciones medidas** (§14 de la especificación), no las líneas.
-
-**Y los índices del proyecto** (`.claude/project-memory/`, los ocho ficheros) son del proyecto, no del plugin. Nacen vacíos en la fase 3.
-
-### 1.1 Carpeta nueva, decisión del propietario
-
-**Carpeta `unmassk-memory/`, todo desde cero.** Sin rama larga: el trabajo va en `main` por fases, como el resto del proyecto, y lo que da reversibilidad es que la carpeta es independiente — si el v2 no vale, se borra la carpeta y ya está.
-
-Las fases 1 a 5 son scripts que se lanzan por ruta, así que se prueban sin instalar nada y sin tocar lo que está corriendo. La primera pieza que exige publicarse es **la aduana (fase 6)**, porque es hook y los hooks solo se ejecutan desde el plugin publicado — y nace apagada.
+**Los índices del proyecto** (`.claude/project-memory/`, los ocho ficheros) son del proyecto, no del plugin. Nacen vacíos en la fase 3.
 
 ---
 
-## 2. Fase 0 — El bucle de desarrollo (bloqueante para todo lo demás)
+## 3. INVENTARIO: qué del v1 muere, qué sobrevive, qué hay que partir
 
-**Problema:** ver restricción B. Si la primera pieza que construimos es un hook, cada iteración cuesta una publicación de versión y un reinicio.
+Levantado función a función sobre el código real, no por nombre de fichero. **Esa distinción importa: hay ficheros cuyo nombre miente.**
 
-**Solución, y es la que decide toda la arquitectura del plan:** el 90% del sistema **no necesita ser hook**. El generador, el validador, la búsqueda, el informe y los índices son scripts invocados por ruta. Se desarrollan y se prueban ejecutándolos directamente desde el repo, sin caché de por medio.
+### 3.1 Correcciones que el inventario obliga a hacer
 
-Solo hay **una** pieza que obligatoriamente es hook: la aduana (necesita interceptar y rechazar). Por eso va la última.
+Tres piezas que parecían de memoria y **no lo son**:
 
-**Entregable de esta fase:** ninguno de código. Es una decisión de arquitectura del plan, y queda registrada aquí para que nadie la reabra a mitad.
+- **`hooks/pre-validate-commit-trailers.py`** — se llama "validate-commit-trailers" y **no valida ningún trailer**. Lo único que hace es bloquear `git commit`/`git log` directos para forzar el uso del wrapper. La validación de contenido vive en `bin/git-memory-commit.py`.
+- **`hooks/stop-dod-gate.py`** — corre el `test_command` al cerrar. Cero relación con memoria pese a compartir prefijo con los demás.
+- **`hooks/stop-close-session.py`** — detecta actividad por tipo de commit e **imprime un recordatorio de texto**. No abre ni parsea un solo trailer.
 
-**Verificación:** que el primer script de la fase 2 se pueda ejecutar con `python3 unmassk-memory/bin/<script>.py` desde el repo y funcione. Si eso no se cumple, el plan está mal montado.
+Y una que parece de memoria del proyecto y es de otra cosa: **`hooks/validate-memory-path.py`** protege `.claude/agent-memory/` — la memoria **de los agentes**, que es un sistema distinto y sobrevive intacto.
 
----
+### 3.2 Se retiran enteros (100% memoria)
 
-## 3. Fase 1 — El validador, pieza única
+| Pieza | Qué hacía |
+|---|---|
+| `hooks/pre-task-recall.py` | inyección de memoria a subagentes |
+| `hooks/pre-memory-dedup-gate.py` | aviso de memos casi duplicados |
+| `hooks/precompact-snapshot.py` | re-inyección antes de compactar (medido: 0 eventos reales) |
+| `bin/git-memory-recall.py` | CLI de búsqueda |
+| `bin/git-memory-gc.py` | recolector de `Next:`/`Blocker:` — **ya muerto**, sustituido por Gitto modo C |
+| `lib/boot_memory.py` (657 L) | extracción de memoria de los commits |
+| `lib/boot_glossary_cache.py` (249 L) | caché del glosario |
+| `lib/recall.py` (519 L) | motor de búsqueda BM25 |
+| `skills/unmassk-gitmemory/` completo | SKILL.md, CALIBRATION.md, GC-PROMPT.md, TEMPLATE.md |
+| Bloque `unmassk-toolkit` de `lib/managed_blocks.py` (líneas 35-51) | el texto de arranque inyectado en el `CLAUDE.md` de **todos** los proyectos |
+| ~26 ficheros de test (~504 tests) | la mitad de la suite |
 
-**Qué:** una sola librería que sabe qué es válido: zonas, tipos, campos, keys marcadoras, formato del titular.
+### 3.3 Se quedan enteros (0% memoria)
 
-**Por qué primero y por qué UNA:** P3 dice que la lista de lo válido vive en la misma pieza que valida. Si la aduana valida por su cuenta y el generador valida por la suya, el día uno hay dos verdades — y ese es el fallo `Sources:` reproducido antes de empezar. **El generador y la aduana llaman a la misma función.**
+`hooks/`: `pre-merge-gate.py`, `pre-validate-commit-trailers.py`, `session-start-crew.py`, `stop-close-session.py`, `stop-dod-gate.py`, `validate-memory-path.py`
 
-**Contenido:**
-- `zones.json` por proyecto, **sembrado**, no inventado: se destila del glossary cache del v1 más la estructura real de carpetas (materia prima ya preparada para monyma y omawa). Se acepta sucio y se limpia con el uso.
-- Lista negra (`claude`, `user`, `session`, `project`, `workflow`) y palabra ilegal (`audit`).
-- Alias.
-- Los siete tipos y sus campos obligatorios.
-- Las cuatro keys marcadoras con su normalización.
+`bin/`: `git-memory-install.py`, `git-memory-log.py`, `git-memory-repair.py`, `git-memory-uninstall.py`, `git-memory-bootstrap.py`, `design_gate.py`, `hooks_doc_sync.py`
 
-**Verificación:** tests que prueben que un titular bien formado pasa, que una zona inexistente no pasa, que un alias resuelve, que una zona de la lista negra devuelve el mensaje de rules, y que `audit` devuelve la disyuntiva. Sin tests de atacante: el modelo de amenaza es el sistema contra sí mismo.
+`lib/` (17 módulos): `colors`, `version`, `encoding_guard`, `date_parsing`, `boot_checks`, `skill_router`, `boot_migrations`, `_symlink_safe_open`, `install_inspect`, `cache_sync_check`, `upgrade_check`, `bootstrap_tree`, `bootstrap_report`, `bootstrap_deps`, `install_apply`, `hooks_doc`, `incidents`, y ~99% de `git_helpers`
 
----
+`skills/`: `unmassk-scaffolding` (cero acoplamiento). `agents/`: Argus, Cerberus, Dante, House, Moriarty, Ultron, Yoda (cero menciones a memoria). Bloques `unmassk-communication` y `unmassk-build-mode` de `CLAUDE.md`. ~42 ficheros de test (~533 tests).
 
-## 4. Fase 2 — El generador
+### 3.4 HAY QUE PARTIRLOS — quince piezas
 
-**Qué:** el script que escribe una nota: titular con ID asignado leyendo el índice, cuerpo con sus campos, `Touched:` desde el diff en commits de trabajo, y **la línea del índice en el mismo commit**.
+Ni se borran ni se conservan enteras. **Esta es la lista que decide el trabajo real.**
 
-**Contenido:**
-- Asignación de ID por tipo, leyendo el índice.
-- Escritura del commit (emojis heredados, P10).
-- Actualización de la línea de índice **en el mismo acto** (un acto, un commit).
-- `close <ID> "motivo"` → commit de cierre + línea a ARCHIVED.md.
-- `--replaces` → puntero + retirada de la línea vieja a ARCHIVED.md.
-- **Propagación del error real de git**, nunca un mensaje vacío (defecto reproducido del v1).
-- Todos los flags por adelantado (P5): `--stops`, `--origin`, `--replaces`.
+| Pieza | Se va (memoria) | Se queda |
+|---|---|---|
+| `hooks/session-start-boot.py` (519 L) | el `memoria_stamp`, el fetch de memoria, y toda la sección de memoria de `main()` (resume, glossary, remember, decisions, memos, gc, consolidación, timeline) | `write_boot_log`, status, drift de hooks/skills, rama, upstream, disparador de upgrade |
+| `hooks/stop-dod-check.py` (241 L) | `has_recent_memory_commits`, `get_last_commit_next`, checks 4-5 | detección de cambios sin commitear y wips acumulados, checks 1-3 |
+| `hooks/user-prompt-memory-check.py` (249 L) | solo el texto del banner | drenaje de incidencias, empuje de instalación, enrutado de skills, flag de sesión |
+| `bin/git-memory-commit.py` (551 L) | alta/cierre de issue desde `Next:`, longitud de `context()`, validación de categorías de `Memo:`/`Remember:`, aviso de estar detrás | **toda la mecánica genérica de commit**: sujeto, mensaje, `--path`, commit, push, parser de argumentos |
+| `bin/git-memory-doctor.py` (698 L) | `check_hook_execution`, `check_gc_status` | los otros 9 chequeos de salud del toolkit |
+| `bin/git-memory-upgrade.py` (563 L) | media función de migración (glossary, scopes) | el resto — **ya muerto como punto de entrada** |
+| `lib/boot_git_checks.py` (1118 L) | ~500 líneas del bloque de frescura de memoria + `render_consolidation_section` | rama, upstream, ramas remotas, scopes, timeline |
+| `lib/boot_render.py` (513 L) | resume, decisions, memos, remember, gc, timeline, lógica de coronas | cabecera, status, línea de sincronización del plugin, pie |
+| `lib/boot_health.py` (400 L) | `check_issue_status`, `_issue_matches_next` | drift de skills, versión, lanzadores de doctor/repair |
+| `lib/parsing.py` (285 L) | `scan_trailers_memory`, `normalize` | tipo de commit, scope, extracción de mensaje, sugerencia de scope |
+| `lib/constants.py` (54 L) | las claves de trailer y las categorías | tipos de commit, firma de co-autor |
+| `lib/git_helpers.py` (1222 L) | `commits_since_last_consolidation` (líneas 1130-1210) | todo lo demás |
+| `skills/unmassk-close-session/SKILL.md` | pasos 1-4 (flush, curador, resume point, lápidas) | pasos 5-9 (versionado, changelog, limpieza, ramas, doc) |
+| `skills/unmassk-core/SKILL.md` | 6 puntos concretos (líneas 3, 8-11, 24, 83, 126, 180) | los otros ~185 (agentes, delegación, workflows) |
+| `agents/gitto.md` (314 L) | **~85-90% del agente** — modos A y C enteros, y los trailers del modo B | la mecánica git genérica del modo B |
 
-**Depende de:** fase 1 (llama al validador).
+### 3.5 Ya estaban muertos antes de empezar
 
-**Verificación:** crear las siete clases de nota de verdad en una rama descartable, comprobar que el índice cuadra con git, y que `close` y `--replaces` mueven la línea a ARCHIVED.md. Al terminar, borrar la rama.
+`bin/git-memory` (bash), `bin/git-memory-bootstrap.py`, `bin/git-memory-gc.py`, `bin/git-memory-uninstall.py`, `bin/git-memory-upgrade.py`. Ninguno se invoca desde ningún hook ni módulo: solo eran alcanzables por un alias de shell que **nunca se instala**. No hay que planificar su retirada — ya no hacen nada.
 
-**Hito real:** aquí ya se pueden escribir notas v2 a mano. El sistema existe aunque no lo lea nadie todavía.
+### 3.6 Las tres minas: lo que rompe el día uno si no se mira
 
----
+**1. El gate que bloqueará al v2.** `hooks/pre-validate-commit-trailers.py` sobrevive (no es de memoria) y reconoce que el commit es legítimo **comparando la ruta contra la cadena `bin/git-memory-commit.py`**. Si el generador del v2 se llama de otra forma —y se va a llamar de otra forma—, este hook **bloqueará todos los commits del sistema nuevo**. Hay que tocarlo en la fase 2, no en la 9.
 
-## 5. Fase 3 — Índices y arranque (primer entregable visible)
+**2. Un saneador de texto compartido.** `sanitize_trailer_value` nació en `lib/parsing.py` para proteger la memoria, y hoy lo usan **cinco módulos que no son de memoria** (incidencias, bootstrap de commits, informe de bootstrap, salud del arranque, y el log). Si al partir `parsing.py` esa función se mueve o se renombra, rompe cosas que no tienen nada que ver con la memoria.
 
-**Qué:** los ocho ficheros de `.claude/project-memory/`, el menú del día en el arranque, y el comando de regeneración total desde git.
-
-**Contenido:**
-- Los ocho índices, escritos solo por el script.
-- Render del arranque: Next+Context, todos los B, todas las R, recuentos, avisos.
-- Chequeo de coherencia índices↔git (✓/⚠) y comando de regeneración.
-- Chequeo de IDs duplicados.
-- **Todos los ceros visibles** (P6): "0 vallas", "0 bloqueantes". Un contador que no aparece es un fallo.
-
-**Depende de:** fase 2.
-
-**Verificación:** con la memoria vacía, el arranque enseña ceros explícitos. Con tres notas escritas a mano, enseña tres. Se corrompe un índice a propósito y el arranque lo dice.
-
-**Hito real:** primer día en que se ve algo por pantalla. Y es el momento de enseñárselo al propietario antes de seguir.
-
----
-
-## 6. Fase 4 — La lectura: el informe
-
-**Qué:** el producto único de búsqueda — estado completo de una zona.
-
-**Contenido:**
-- Cuatro entradas: por ID, por zona, por palabra, por fichero.
-- Agrupación en racimos por punteros (`Origin`/`Replaces`), determinista.
-- Vigente por defecto, `--todo` para la historia.
-- Restricciones arriba y literales; Q vivas al final.
-- Zona sin notas → "cero notas" en alto.
-
-**Depende de:** fases 2 y 3.
-
-**Verificación:** montar a mano un racimo de tres notas encadenadas y comprobar que el informe las pliega en una. Una nota sin punteros sale como grupo de una — y eso es correcto, es la señal de que nadie está enlazando.
+**3. El arranque no tiene costura.** En `session-start-boot.py`, la salud del toolkit y la memoria se van escribiendo **intercaladas en una única lista de líneas**. No hay frontera de función entre las dos: retirar la mitad de memoria exige reescribir `main()`, no borrar un bloque.
 
 ---
 
-## 7. Fase 5 — El reparto por oficio y LA PRUEBA
+## 4. Fase 0 — La decisión que evita el bucle lento
 
-**Qué:** el hook de inyección del v2 — propio, escrito de cero — que mete el contenido de memoria dentro del encargo de cada subagente.
+Ver restricción B. **El 90% del sistema no necesita ser hook**: generador, validador, búsqueda, informe e índices son scripts invocados por ruta, y se desarrollan ejecutándolos desde el repo sin caché de por medio. Solo dos piezas son obligatoriamente hooks —la aduana y la inyección— y por eso van al final.
 
-**Lo que se hereda del v1 aquí es la medición, no el código:** está verificado que el evento existe, que dispara en **todos** los despachos, que la herramienta se llama `Agent` (no `Task`) y que el identificador llega en `tool_input.subagent_type` con prefijo de plugin, normalizable tras el último `:`. Eso ahorra el trabajo de descubrirlo, no el de escribirlo.
-
-**Pero se hace en dos tiempos, y el primero es la prueba:**
-
-**5a — Solo Ultron, una semana.** Se le inyectan las R de la zona. Y su prompt gana **una línea**: si una R le cambió lo que iba a hacer, lo dice en su informe ("R-007 me hizo apuntar los tests a staging"). Sin esa línea la prueba no concluye nada: una valla que funciona sería indistinguible de una ignorada.
-
-**5b — El resto de roles**, solo si 5a da señal: Dante (R + I), House (I), Argus/Cerberus (I abiertas + keys), Moriarty (R + I), Yoda (D vigente + R), Bilbo (informe completo).
-
-**Depende de:** fase 4, y de que existan unas cuantas R reales (escritas a mano con el generador; no hace falta esperar a la destilación).
-
-**Qué mide esta prueba y qué no, dicho explícitamente:** las R que existan en la fase 5 están escritas a mano y **sin que la aduana las haya validado** (la aduana llega en la fase 6). Para lo que se quiere medir basta —son cuatro vallas escritas con cuidado— pero la prueba responde a "¿se leen las vallas?", no a "¿funciona el sistema completo?". Que nadie confunda una cosa con la otra al leer el resultado.
-
-**Verificación:** es la propia prueba. Si en una semana ninguna valla cambió nada observable, **no se abandona nada**: lo que dice es que antes de extender el reparto a los otros ocho hay que atacar por qué se ignora lo inyectado. Es mucho mejor saberlo en la fase 5 que con todo construido.
-
-**Sobre el listón, dicho por el propietario y con razón:** el v1 no es un punto de partida neutro — está medido que no funciona (1 lectura por cada 20 escrituras; 11 de 23 sesiones sin leer nada). Casi cualquier cosa que se lea más ya gana, así que el diseño no tiene que demostrar excelencia para justificarse. El único escenario en que el v2 sería peor que el v1 es estrecho y hay que tenerlo a la vista: que tampoco se lea **y además** cobre la fricción de la aduana en cada guardado, que es un coste que el v1 no tiene. Mismo resultado, más peaje. Esa es la única forma de perder, y es lo que esta prueba vigila.
+**Verificación:** que el primer script de la fase 2 se pueda ejecutar con `python3 unmassk-memory/bin/<script>.py` desde el repo. Si eso no se cumple, el plan está mal montado.
 
 ---
 
-## 8. Fase 6 — La aduana (la única pieza que es hook)
+## 5. Fase 1 — El validador, pieza única
 
-**Qué:** el hook PreToolUse que valida antes de dejar pasar, con el rechazo informativo.
+**Ficheros que nacen:** `unmassk-memory/lib/validador.py`, `unmassk-memory/lib/formato.py`, `zones.json` por proyecto.
 
-**Va aquí y no antes por dos razones:** es la única pieza que obliga a ciclo de publicación (restricción B), y es la que rompería al v1 el día que se encienda (restricción A).
+**Por qué UNA sola pieza:** P3 — la lista de lo válido vive donde se valida. Si la aduana valida por su cuenta y el generador por la suya, hay dos verdades el primer día. **Generador y aduana llaman a la misma función.**
 
-**Contenido:**
-- Llama al validador de la fase 1. No duplica lógica.
-- Las nueve validaciones de la especificación.
-- **Interruptor: nace apagada.** Flag o variable de entorno; se enciende proyecto a proyecto en el corte.
-- `wip` exento, a propósito.
+**Contenido:** zonas (con alias, lista negra, palabra ilegal `audit`), los siete tipos y sus campos obligatorios, las cuatro keys marcadoras con su normalización, y el formato del titular.
 
-**Verificación:** con la aduana apagada, el v1 sigue commiteando sin problema — se prueba en vivo. Con la aduana encendida en un proyecto de pruebas, un commit sin zonas rebota con el mensaje correcto y el relanzamiento con los flags pasa a la primera.
+**`zones.json` se siembra, no se inventa:** se destila del glossary del v1 más la estructura real de carpetas. Se acepta sucio y se limpia con el uso.
 
-**Aquí se monta el banco de pruebas adversarial (P12), y aquí tiene su dueño.** Cada fase anterior lleva sus propios tests en su verificación, pero el banco que intenta romper el sistema de forma continua cuelga de esta fase, porque la aduana es la pieza que más merece ataque: guardar un duplicado, guardar sin enlace, una decisión que contradice a otra, un titular demasiado largo, una zona inventada, una key marcadora mal escrita. Cada uno tiene que rebotar, el banco corre solo y **enseña su resultado** — un banco que nadie ejecuta es otro vigilante muerto, que es exactamente cómo se llegó hasta aquí.
+**Verificación:** titular bien formado pasa; zona inexistente no pasa; alias resuelve; zona de la lista negra devuelve el mensaje de rules; `audit` devuelve la disyuntiva.
 
 ---
 
-## 9. Fase 7 — Los agentes y las skills
+## 6. Fase 2 — El generador
 
-**Qué:** lo que hay que reescribir, y solo ahora que hay algo que consumir.
+**Ficheros que nacen:** `unmassk-memory/bin/nota.py` (o el nombre que se elija), `unmassk-memory/lib/indices.py`.
 
-- **Gitto:** pierde el modo consolidador periódico, gana el modo adaptador único.
-- **House:** el pie estructurado de su informe (causa raíz + titular y zonas propuestos para la I).
-- **Bilbo:** el zoom-out como paso obligatorio (mapa de módulos, llamantes, radio de daño).
-- **Ultron:** la línea de la prueba (ya introducida en 5a).
-- **close-session:** los cuatro renglones nuevos — escribir el Context/Next, actualizar la issue-plan, podar vallas, dar de alta bloqueantes.
-- **La skill de memoria v2:** cómo se escribe una nota, con los flags por delante para que el coste normal sea un comando y cero rechazos.
-- **`unmassk-bug-protocol`:** skill nueva. Va **después** del generador y la aduana porque commitea en formato nuevo. Sus cinco puntos internos se resuelven al redactarla.
+**Contenido:** asignación de ID por tipo leyendo el índice; escritura del commit con los emojis heredados; **la línea de índice en el mismo commit**; `close <ID> "motivo"`; `--replaces`; todos los flags por delante (P5); y **propagación del error real de git**, nunca un mensaje vacío.
 
-**Verificación:** un ciclo real de cada protocolo, no una lectura del texto.
+**Y aquí se desactiva la mina 1:** el gate superviviente reconoce el wrapper por su ruta. En esta fase se le añade la ruta del generador nuevo, o bloqueará todo commit del v2.
+
+**Depende de:** fase 1.
+
+**Verificación:** crear las siete clases de nota en una rama descartable, comprobar que el índice cuadra con git, y que `close` y `--replaces` mueven la línea a `ARCHIVED.md`. Borrar la rama al terminar.
 
 ---
 
-## 10. Fase 8 — La destilación, proyecto a proyecto
+## 7. Fase 3 — Índices y arranque (primer entregable visible)
 
-**Qué:** Gitto destila la memoria v1 a formato nuevo, una vez, de forma aditiva.
+**Ficheros que nacen:** los ocho de `.claude/project-memory/`, `unmassk-memory/lib/arranque.py`, `unmassk-memory/bin/regenerar-indices.py`.
 
-**Por proyecto, y con dos cosas decididas antes de empezar cada uno:**
-- **La fecha de corte.** Lo que el v1 escribió hasta ese día entra en la destilación; desde ese día, solo formato nuevo. Sin fecha explícita, las notas de las semanas de construcción no las destila nadie.
+**Contenido:** el menú del día (Next+Context, todos los B, todas las R, recuentos, avisos), el chequeo de coherencia índices↔git, el de IDs duplicados, y **todos los ceros visibles** (P6).
+
+**Nota sobre la mina 3:** este arranque es **nuevo**, no una amputación del viejo. El del v1 sigue corriendo hasta el corte; el del v2 se prueba por ruta.
+
+**Verificación:** con memoria vacía, ceros explícitos. Con tres notas, tres. Se corrompe un índice a propósito y el arranque lo dice.
+
+---
+
+## 8. Fase 4 — La lectura: el informe
+
+**Ficheros que nacen:** `unmassk-memory/lib/informe.py`, `unmassk-memory/bin/buscar.py`.
+
+**Contenido:** las cuatro entradas (ID, zona, palabra, fichero), racimos por punteros, vigente por defecto con `--todo` para la historia, restricciones arriba y literales, Q vivas al final, y "cero notas" en alto.
+
+**Verificación:** montar un racimo de tres notas encadenadas y comprobar que el informe las pliega. Una nota sin punteros sale como grupo de una — y eso es correcto: es la señal de que nadie está enlazando.
+
+---
+
+## 9. Fase 5 — La inyección por oficio y LA PRUEBA
+
+**Ficheros que nacen:** `unmassk-memory/hooks/inyeccion.py` — **escrito de cero**, no heredado.
+
+**Lo que se hereda aquí es la medición, no el código:** está verificado que el evento dispara en **todos** los despachos, que la herramienta se llama `Agent` (no `Task`), y que el identificador llega en `tool_input.subagent_type` con prefijo de plugin, normalizable tras el último `:`. Eso ahorra descubrirlo, no escribirlo.
+
+**5a — Solo Ultron, una semana.** Se le inyectan las R de la zona, y su prompt gana **una línea**: si una R le cambió lo que iba a hacer, lo dice en su informe. Sin esa línea la prueba no concluye nada.
+
+**5b — El resto**, solo si 5a da señal: Dante (R + I), House (I), Argus/Cerberus (I abiertas + keys), Moriarty (R + I), Yoda (D vigente + R), Bilbo (informe completo).
+
+**Qué mide y qué no:** las R de esta fase están escritas a mano y **sin que la aduana las haya validado** (llega en la fase 6). La prueba responde a "¿se leen las vallas?", no a "¿funciona el sistema completo?".
+
+**Sobre el listón:** el v1 está medido como roto (1 lectura por cada 20 escrituras; 11 de 23 sesiones sin leer nada), así que casi cualquier cosa que se lea más ya gana y el diseño no tiene que demostrar excelencia. **La única forma de perder es que tampoco se lea Y ADEMÁS se pague la fricción de la aduana en cada guardado.** Si la prueba no da señal no se abandona nada: dice que antes de extender a los otros ocho hay que atacar por qué se ignora lo inyectado.
+
+---
+
+## 10. Fase 6 — La aduana (la otra pieza que es hook)
+
+**Ficheros que nacen:** `unmassk-memory/hooks/aduana.py`, `unmassk-memory/tests/banco-adversarial/`.
+
+**Va aquí** porque es la que obliga a ciclo de publicación (restricción B) y la que rompería al v1 el día que se encienda (restricción A).
+
+**Contenido:** llama al validador de la fase 1 — no duplica lógica; las nueve validaciones de la especificación; `wip` exento a propósito; e **interruptor: nace apagada**, se enciende proyecto a proyecto en el corte.
+
+**Aquí se monta el banco adversarial (P12), y aquí tiene su dueño.** Cada fase anterior lleva sus tests en su verificación, pero el banco que intenta romper el sistema cuelga de esta fase, porque la aduana es la pieza que más merece ataque: guardar un duplicado, guardar sin enlace, una decisión que contradice a otra, un titular demasiado largo, una zona inventada, una key mal escrita. Cada uno rebota, el banco corre solo y **enseña su resultado** — un banco que nadie ejecuta es otro vigilante muerto.
+
+**Verificación:** con la aduana apagada, el v1 sigue commiteando — se prueba en vivo. Encendida en un proyecto de pruebas, un commit sin zonas rebota con el mensaje correcto y el relanzamiento con flags pasa a la primera.
+
+---
+
+## 11. Fase 7 — Agentes y skills
+
+Ahora que hay algo que consumir:
+
+- **Gitto** — es el 85-90% memoria: se reescribe casi entero. Pierde el modo consolidador, gana el modo adaptador único.
+- **House** — el pie estructurado de su informe (causa raíz + titular y zonas propuestos).
+- **Bilbo** — el zoom-out obligatorio (mapa de módulos, llamantes, radio de daño).
+- **Ultron** — la línea de la prueba (ya introducida en 5a).
+- **`unmassk-close-session`** — se parte: los pasos 1-4 se reescriben para el v2, los 5-9 se quedan como están. Y gana los renglones nuevos: escribir el Context/Next, actualizar la issue-plan, podar vallas, dar de alta bloqueantes.
+- **`unmassk-core`** — seis puntos concretos, no el skill entero.
+- **El bloque `unmassk-toolkit` de `managed_blocks.py`** — se reescribe entero. Ojo: **cambia el `CLAUDE.md` de todos los proyectos instalados**.
+- **`unmassk-bug-protocol`** — skill nueva; va después del generador y la aduana porque commitea en formato nuevo.
+
+---
+
+## 12. Fase 8 — La destilación, proyecto a proyecto
+
+Gitto destila la memoria v1 a formato nuevo, una vez, de forma aditiva. **Con dos cosas decididas antes de empezar cada proyecto:**
+
+- **La fecha de corte.** Lo escrito hasta ese día entra en la destilación; desde ese día, solo formato nuevo. Sin fecha explícita, las notas de las semanas de construcción no las destila nadie.
 - **El encendido de la aduana** en ese proyecto, el mismo día.
 
-**Orden de proyectos:** primero `claude-toolkit` (es donde se construye y donde duele menos equivocarse), después uno real.
-
-**Verificación:** por pasadas con tope, "en la duda, proponer al propietario", y `Origin:` obligatorio citando los hashes v1 de los que destila.
+**Orden:** primero `claude-toolkit` (es donde se construye y donde menos duele equivocarse), después uno real.
 
 ---
 
-## 11. Fase 9 — Apagar el v1
+## 13. Fase 9 — Retirar el v1
 
-Solo cuando un proyecto esté destilado y la aduana encendida. El v1 queda como archivo muerto consultable: **cero migración, cero reescritura**.
+**No se borran ficheros: se sacan de `hooks.json`.** Un hook no declarado no se ejecuta, y el código queda como archivo muerto sin molestar — coherente con P1 (nada se borra).
+
+Se retira lo de §3.2 y la mitad de memoria de lo de §3.4. Se queda todo §3.3. Y se decide fichero a fichero qué hacer con los partidos: lo más limpio es dejarlos como están y que el v2 no los use, en vez de amputarlos.
 
 ---
 
-## 12. Resumen del orden y sus dependencias
+## 14. Resumen del orden
 
-| Fase | Pieza | Depende de | Se puede enseñar |
+| Fase | Pieza | Depende de | ¿Se puede enseñar? |
 |---|---|---|---|
-| 0 | Decisión de arquitectura: todo script salvo la aduana | — | no |
-| 1 | Validador único + zones.json sembrado | 0 | no |
-| 2 | Generador | 1 | notas reales en una rama |
+| 0 | Decisión: todo script salvo aduana e inyección | — | no |
+| 1 | Validador único + `zones.json` sembrado | 0 | no |
+| 2 | Generador + desactivar la mina del gate | 1 | notas reales |
 | 3 | Índices + arranque | 2 | **sí — primer entregable visible** |
 | 4 | El informe | 2, 3 | sí |
-| 5a | Reparto a Ultron + **LA PRUEBA** | 4 | **sí — y es el gate del plan** |
-| 5b | Reparto al resto | 5a con señal | sí |
-| 6 | La aduana, apagada | 1, 5 | sí |
+| 5a | Inyección a Ultron + **LA PRUEBA** | 4 | **sí — y es donde se aprende algo** |
+| 5b | Inyección al resto | 5a con señal | sí |
+| 6 | Aduana apagada + banco adversarial | 1, 5 | sí |
 | 7 | Agentes y skills | 6 | sí |
 | 8 | Destilación por proyecto | 7 | sí |
-| 9 | Apagar el v1 | 8 | — |
-
-**El único gate de verdad es 5a.** Todo lo anterior es construir; a partir de ahí, si la prueba no da señal, el diseño se replantea en vez de terminarse.
+| 9 | Retirar el v1 | 8 | — |
 
 ---
 
-## 13. Lo que este plan NO resuelve
+## 15. Lo que este plan NO resuelve
 
-Declarado para que no aparezca luego como sorpresa:
-
-1. Las listas de zonas definitivas de cada proyecto — tarea del propietario, con la materia prima ya preparada.
-2. El dedup semántico de remembers — excede a un script, requiere agente.
-3. El carril de "ensayo operativo" en la tripulación: ninguna definición de agente cubre "ejecuta una prueba y reporta". Esta noche esa tarea rebotó entre dos agentes y la acabó haciendo el orquestador. Va a volver a pasar en las fases 2, 5 y 6.
+1. Las listas de zonas definitivas de cada proyecto — tarea del propietario, con la materia prima preparada.
+2. El dedup semántico de remembers — excede a un script.
+3. **El carril de "ensayo operativo" en la tripulación:** ninguna definición de agente cubre "ejecuta una prueba y reporta". Esta noche esa tarea rebotó entre dos agentes y la acabó haciendo el orquestador. Va a volver a pasar en las fases 2, 5 y 6.
 4. El papel de Alexandria en el flujo de documentación.
-5. ~~El banco de pruebas adversarial (P12) no tiene fase asignada.~~ **Resuelto:** cada fase lleva sus tests en su verificación, y el banco adversarial se monta en la fase 6 junto a la aduana, que es la pieza que más merece ataque.
+5. Qué hacer con los ~504 tests del v1 cuando se retire: ¿se borran, se marcan, se quedan corriendo contra código muerto?
