@@ -90,6 +90,12 @@ unmassk-memory/                     ← carpeta nueva, en main, sin rama larga
 
 El detalle está en `ARQUITECTURA.md`. La reversibilidad la da que la carpeta es independiente: si el v2 no vale, se borra entera.
 
+**Y la carpeta aparte es SOLO para construir. Al final entra dentro de `unmassk-toolkit/` (paso 7.14).**
+
+Por qué, y es importante: **la memoria no es un plugin opcional** como el de bases de datos o el de diseño. Es infraestructura del núcleo. Si se queda como plugin suelto, puede no estar instalado — y entonces desaparecen el arranque, la aduana y la skill que enseña a usarla, mientras el resto de la tripulación (que la referencia desde `unmassk-core`, `unmassk-flow` y el cierre de sesión) apunta a algo que no está.
+
+La separación durante la construcción es para no mezclarse con el v1 y poder tirarlo entero si no vale. En cuanto vale, se absorbe.
+
 ---
 
 ## 5. Inventario del v1: qué muere, qué sobrevive, qué hay que partir
@@ -287,7 +293,8 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 | **7.11** | `unmassk-core`: los seis puntos concretos | Orquestador | — |
 | **7.12** | El bloque de `CLAUDE.md`: se reescribe entero. **Cambia el arranque de todos los proyectos instalados** | Orquestador | — |
 | **7.13** | La skill de incidencias, con sus tres vertientes y sus cinco puntos internos resueltos al redactarla | Orquestador | Un ciclo completo de incidencia |
-| **7.14** | Registrar `unmassk-memory` en el marketplace y publicar | Orquestador | Se instala en un proyecto limpio |
+| **7.14** | **ABSORCIÓN: el sistema de memoria entra DENTRO de `unmassk-toolkit/`** — no se queda como plugin aparte | Orquestador + Ultron | El código vive en el toolkit y la skill de memoria carga sin instalar nada más |
+| **7.15** | Publicar el toolkit con el sistema nuevo dentro | Orquestador | Se instala en un proyecto limpio y el arranque funciona |
 
 ---
 
