@@ -140,7 +140,9 @@ Solo hay **una** pieza que obligatoriamente es hook: la aduana (necesita interce
 
 **Depende de:** fase 4, y de que existan unas cuantas R reales (escritas a mano con el generador; no hace falta esperar a la destilación).
 
-**Verificación:** es la propia prueba. Si en una semana ninguna valla cambió nada observable, **se para el plan aquí** y se replantea: el problema no sería el contenido sino que lo inyectado se ignora, y eso invalida el eje entero del diseño. Es mucho mejor descubrirlo en la fase 5 que con todo construido.
+**Verificación:** es la propia prueba. Si en una semana ninguna valla cambió nada observable, **no se abandona nada**: lo que dice es que antes de extender el reparto a los otros ocho hay que atacar por qué se ignora lo inyectado. Es mucho mejor saberlo en la fase 5 que con todo construido.
+
+**Sobre el listón, dicho por el propietario y con razón:** el v1 no es un punto de partida neutro — está medido que no funciona (1 lectura por cada 20 escrituras; 11 de 23 sesiones sin leer nada). Casi cualquier cosa que se lea más ya gana, así que el diseño no tiene que demostrar excelencia para justificarse. El único escenario en que el v2 sería peor que el v1 es estrecho y hay que tenerlo a la vista: que tampoco se lea **y además** cobre la fricción de la aduana en cada guardado, que es un coste que el v1 no tiene. Mismo resultado, más peaje. Esa es la única forma de perder, y es lo que esta prueba vigila.
 
 ---
 
