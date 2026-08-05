@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nada obligaba a cargar la skill de memoria al abrir sesión, y se comprobó fallando en una sesión real.** La orden vive en el bloque del `CLAUDE.md` desde ayer, pero lo único que la reforzaba era el vigilante de cada mensaje — y ese **nombraba solo `unmassk-core`**, porque se escribió cuando la skill de memoria todavía no existía y nadie volvió a por él. Encima solo hablaba en el primer mensaje de la sesión: en un reinicio, con su fichero-marca ya puesto, no salió ni una vez. Resultado: la sesión arrancó con media tripulación cargada y sin que nada lo dijera.
+- **El arranque ahora da la orden ANTES del enlace al informe.** `bin/memory/boot.py` imprime los tres pasos —cargar `unmassk-core`, cargar `unmassk-memory`, leer el informe entero y contar el menú del día— y solo después dice dónde está el fichero. Es el único canal que se escribe entero en cada apertura de sesión, reinicio incluido.
+- **Y el vigilante de cada mensaje ya nombra las dos skills**, en el mismo orden y con las mismas palabras que el bloque del `CLAUDE.md`.
+
 ## [1.28.0] - 2026-08-05
 
 ### Removed
