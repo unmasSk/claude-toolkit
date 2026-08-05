@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-08-05
+
 ### Fixed
 
 - **Nada obligaba a cargar la skill de memoria al abrir sesión, y se comprobó fallando en una sesión real.** La orden vive en el bloque del `CLAUDE.md` desde ayer, pero lo único que la reforzaba era el vigilante de cada mensaje — y ese **nombraba solo `unmassk-core`**, porque se escribió cuando la skill de memoria todavía no existía y nadie volvió a por él. Encima solo hablaba en el primer mensaje de la sesión: en un reinicio, con su fichero-marca ya puesto, no salió ni una vez. Resultado: la sesión arrancó con media tripulación cargada y sin que nada lo dijera.
