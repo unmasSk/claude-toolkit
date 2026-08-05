@@ -717,3 +717,119 @@ class TestRebasePassthroughOnlyForInFlightOperations:
             f"`git rebase --abort` tiene que pasar siempre, incluso con la "
             f"aduana encendida; llego {parsed!r}"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Reapuntado (memoria v2, 2026-08-05) -- esta cobertura vivia en
+# tests/test_pre_validate_commit_trailers_git_log.py::TestGitLogRegexHasNoFalsePositives,
+# contra el hook v1 `pre-validate-commit-trailers.py` (borrado junto con
+# el resto del sistema de memoria v1). El BUG C que protegia (un regex
+# `\bgit\b.*\blog\b` que bloqueaba CUALQUIER comando que mencionara "git"
+# y "log" como palabras sueltas en cualquier parte -- `cat git.log`,
+# `echo 'git log info'`, `git log-remote origin`) ya se pago cuatro veces
+# en una manana de esta obra -- la regla que sobrevive no es "sobre
+# git log" en concreto, es "la deteccion de que un comando crea un commit
+# tiene que mirar la POSICION del token, nunca el texto suelto". El
+# sustituto real es `hooks/customs.py::_find_commit_creating_statement()`
+# -- tokeniza con `shlex.split()`, localiza el token "git" real (regex
+# anclado `(?:^|/)git(?:\.exe)?$`, nunca una subcadena) y solo mira el
+# token INMEDIATO siguiente (tras saltar flags) contra el vocabulario
+# cerrado `{"commit","merge","rebase","cherry-pick"}` -- estructuralmente
+# distinto del regex suelto que causaba BUG C, pero la garantia que un
+# usuario necesita ("un comando que solo MENCIONA una palabra no se
+# bloquea") es la misma, así que el equivalente de cada caso del bug
+# original se fija aqui, contra la pieza real que reemplaza esa
+# deteccion.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCommitDetectionHasNoFalsePositivesOnMereMentions:
+    """Comandos que mencionan "git" y una subpalabra del vocabulario
+    cerrado (commit/merge/rebase/cherry-pick) sin ser realmente esa
+    invocacion -- ninguno puede bloquear, con la aduana encendida a
+    proposito en todos (si pasaran con la aduana apagada no probarian
+    nada -- eso ya lo cubre TestCustomsDisabledNeverBlocks)."""
+
+    def test_cat_git_commit_log_filename_not_blocked(self, tmp_repo):
+        """`cat git-commit.log`: "git" y "commit" aparecen dentro de un
+        NOMBRE DE FICHERO, nunca como el programa real seguido de su
+        subcomando -- equivalente directo del `cat git.log` del bug
+        original."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, "cat git-commit.log")
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"'cat git-commit.log' no invoca git en absoluto -- no puede "
+            f"bloquear; llego {parsed!r}"
+        )
+
+    def test_echo_git_commit_message_not_blocked(self, tmp_repo):
+        """`echo 'git commit -m test'`: imprime texto, no ejecuta git --
+        equivalente directo del `echo 'git log info'` del bug original.
+        El texto citado llega como UN solo token de shlex (no se separa
+        en "git"/"commit"/...), asi que ademas confirma que el regex
+        anclado no casa dentro de un token compuesto."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(
+            tmp_repo, "echo 'git commit -m test'")
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"'echo git commit -m test' no invoca git -- no puede "
+            f"bloquear; llego {parsed!r}"
+        )
+
+    def test_git_log_with_commit_as_grep_value_not_blocked(self, tmp_repo):
+        """`git log --grep=commit`: "commit" aparece como VALOR de un
+        flag de `git log`, un subcomando fuera del vocabulario cerrado --
+        nunca como el subcomando real que sigue a "git"."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(
+            tmp_repo, "git log --grep=commit")
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"'git log --grep=commit' no crea ningun commit -- 'log' no "
+            f"esta en el vocabulario cerrado; llego {parsed!r}"
+        )
+
+    def test_git_remote_subcommand_not_blocked(self, tmp_repo):
+        """`git remote show origin`: subcomando real de git, pero fuera
+        del vocabulario cerrado -- equivalente directo del
+        `git log-remote origin` del bug original."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(
+            tmp_repo, "git remote show origin")
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"'git remote show origin' no crea ningun commit -- 'remote' "
+            f"no esta en el vocabulario cerrado; llego {parsed!r}"
+        )
+
+    def test_anti_vacuity_real_commit_still_evaluated_in_same_conditions(
+        self, tmp_repo,
+    ):
+        """Control anti-vacuidad de toda esta clase: en el MISMO estado
+        (aduana encendida, sin notas sembradas), un `git commit` real con
+        mensaje no reconocible SI tiene que bloquear -- si esto tambien
+        aprobara, los cuatro "approve" de arriba no probarian que la
+        deteccion distingue el token real, probarian que nada bloquea
+        nunca en este fixture."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(
+            tmp_repo, 'git commit -m "not a recognizable note"')
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"un 'git commit' real con mensaje no reconocible SI tiene que "
+            f"bloquear en el mismo fixture que los casos de arriba -- si "
+            f"esto tambien aprobara, ninguno de ellos probaria nada; "
+            f"llego {parsed!r}"
+        )

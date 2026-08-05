@@ -1857,169 +1857,18 @@ class TestBystanderRemainsStaged:
         )
 
 
-class TestGitMemoryCommitPathFlag:
-    """
-    Contrato del flag --path en git-memory-commit.py.
-
-    El wrapper debe aceptar uno o más --path <fichero> y, cuando se pasan,
-    hacer `git commit -- <paths>` en lugar de `git commit` a secas
-    (que commitea el índice completo).
-
-    Esto permite que release.py elimine el `git reset` y en su lugar
-    pase los 3 ficheros explícitamente al wrapper.
-
-    Tests RED: el wrapper actual no tiene --path; git commit usa el índice
-    completo sin pathspec → los ficheros extra entran en el commit.
-    """
-
-    GIT_MEMORY_COMMIT = os.path.join(_REPO_ROOT, "unmassk-toolkit", "bin", "git-memory-commit.py")
-
-    def _setup_bare_repo(self, tmp_path):
-        """
-        Repo git mínimo con upstream bare. Devuelve (repo_path, bare_path).
-        Configura user.email y user.name para que git commit funcione.
-        """
-        repo = str(tmp_path / "repo")
-        bare = str(tmp_path / "bare.git")
-        os.makedirs(repo)
-
-        subprocess.run(["git", "init", "-b", "main", repo], capture_output=True, check=True)
-        _git(["config", "user.email", "test@example.com"], repo)
-        _git(["config", "user.name", "Test User"], repo)
-
-        # Commit inicial
-        _write(os.path.join(repo, "README.md"), "# test\n")
-        _git(["add", "README.md"], repo)
-        _git(["commit", "-m", "initial"], repo)
-
-        subprocess.run(["git", "init", "--bare", "-b", "main", bare],
-                       capture_output=True, check=True)
-        _git(["remote", "add", "origin", bare], repo)
-        _git(["push", "-u", "origin", "main"], repo)
-
-        return repo, bare
-
-    def _run_wrapper(self, repo, extra_args, env=None):
-        """Invoca git-memory-commit.py con args base + extra_args desde repo."""
-        merged_env = {**os.environ, **(env or {})}
-        result = subprocess.run(
-            [sys.executable, self.GIT_MEMORY_COMMIT,
-             "chore", "test-scope", "test commit message"] + extra_args,
-            cwd=repo,
-            capture_output=True,
-            text=True, encoding='utf-8', errors='replace',
-            env=merged_env,
-            timeout=30,
-        )
-        return result
-
-    def test_path_flag_commits_only_specified_files(self, tmp_path):
-        """
-        Con --path A --path B staged: A y B en el commit, C staged pero
-        NO en el commit (C sigue staged después).
-
-        RED: el wrapper actual no tiene --path; commitea el índice completo,
-        incluyendo C.
-        """
-        repo, bare = self._setup_bare_repo(tmp_path)
-
-        # Crear y stagear A, B, C
-        file_a = os.path.join(repo, "a.txt")
-        file_b = os.path.join(repo, "b.txt")
-        file_c = os.path.join(repo, "c.txt")
-        _write(file_a, "content A\n")
-        _write(file_b, "content B\n")
-        _write(file_c, "content C — must stay staged, not go into the commit\n")
-
-        _git(["add", "a.txt", "b.txt", "c.txt"], repo)
-
-        result = self._run_wrapper(repo, ["--path", "a.txt", "--path", "b.txt"])
-
-        assert result.returncode == 0, (
-            f"git-memory-commit.py con --path debe tener exit 0. "
-            f"exit {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
-
-        # A y B en el commit
-        show = _git(["show", "--name-only", "--format=", "HEAD"], repo)
-        files_in_commit = [line.strip() for line in show.stdout.splitlines() if line.strip()]
-        assert "a.txt" in files_in_commit, (
-            f"a.txt debe estar en el commit. Files: {files_in_commit}"
-        )
-        assert "b.txt" in files_in_commit, (
-            f"b.txt debe estar en el commit. Files: {files_in_commit}"
-        )
-
-        # C NO en el commit — NUEVO CONTRATO (RED: sin --path, C entraría)
-        assert "c.txt" not in files_in_commit, (
-            f"CONTRATO NUEVO: c.txt NO debe estar en el commit cuando se usa --path. "
-            f"Files en commit: {files_in_commit!r}. "
-            "El wrapper actual no tiene --path y commitea el índice completo."
-        )
-
-        # C sigue staged después del commit — NUEVO CONTRATO
-        post_staged = _git(["diff", "--cached", "--name-only"], repo)
-        staged_after = [line.strip() for line in post_staged.stdout.splitlines() if line.strip()]
-        assert "c.txt" in staged_after, (
-            f"CONTRATO NUEVO: c.txt debe seguir staged tras el commit con pathspec. "
-            f"Staged después: {staged_after!r}"
-        )
-
-    def test_path_flag_multiple_accumulates(self, tmp_path):
-        """
-        Múltiples --path son acumulables (no se descarta el anterior).
-        Tres ficheros A, B, C staged; --path A --path B --path C → los tres
-        en el commit.
-
-        Esto valida que el wrapper parsea action="append" correctamente.
-        RED si el wrapper no tiene --path.
-        """
-        repo, bare = self._setup_bare_repo(tmp_path)
-
-        for name in ["x.txt", "y.txt", "z.txt"]:
-            _write(os.path.join(repo, name), f"content {name}\n")
-        _git(["add", "x.txt", "y.txt", "z.txt"], repo)
-
-        result = self._run_wrapper(
-            repo, ["--path", "x.txt", "--path", "y.txt", "--path", "z.txt"]
-        )
-
-        assert result.returncode == 0, (
-            f"Múltiples --path deben funcionar. "
-            f"exit {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
-
-        show = _git(["show", "--name-only", "--format=", "HEAD"], repo)
-        files_in_commit = [line.strip() for line in show.stdout.splitlines() if line.strip()]
-        for name in ["x.txt", "y.txt", "z.txt"]:
-            assert name in files_in_commit, (
-                f"{name} debe estar en el commit con --path acumulado. Files: {files_in_commit}"
-            )
-
-    def test_without_path_flag_commits_full_index(self, tmp_path):
-        """
-        Sin --path el wrapper hace commit del índice completo (retrocompat).
-        Dos ficheros A y B staged → ambos en el commit.
-
-        Este test debe quedar VERDE (comportamiento actual ya correcto).
-        """
-        repo, bare = self._setup_bare_repo(tmp_path)
-
-        _write(os.path.join(repo, "p.txt"), "content P\n")
-        _write(os.path.join(repo, "q.txt"), "content Q\n")
-        _git(["add", "p.txt", "q.txt"], repo)
-
-        result = self._run_wrapper(repo, [])  # sin --path
-
-        assert result.returncode == 0, (
-            f"Sin --path debe commitear el índice y tener exit 0. "
-            f"exit {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
-
-        show = _git(["show", "--name-only", "--format=", "HEAD"], repo)
-        files_in_commit = [line.strip() for line in show.stdout.splitlines() if line.strip()]
-        assert "p.txt" in files_in_commit, f"p.txt debe estar en el commit. Files: {files_in_commit}"
-        assert "q.txt" in files_in_commit, f"q.txt debe estar en el commit. Files: {files_in_commit}"
+# RETIRADO (memoria v2, 2026-08-05): TestGitMemoryCommitPathFlag probaba un
+# flag --path en bin/git-memory-commit.py -- ese wrapper se borro entero
+# junto con el resto del sistema de memoria v1 (confirmado: FileNotFoundError
+# al invocarlo, 3/3 tests fallaban antes de este retiro). El motivo por el
+# que existia (permitir que release.py evitara `git reset` pasando ficheros
+# explicitos al wrapper) ya no aplica: bin/release.py ya NO llama a
+# git-memory-commit.py en absoluto -- usa notes.write_work() directamente
+# (confirmado leyendo bin/release.py, linea ~192). El contrato real que
+# esta clase protegia -- "el release no fuga ficheros staged ajenos al
+# commit, y esos ficheros ajenos siguen staged despues" -- ya esta cubierto
+# en vivo, contra el mecanismo REAL actual, por TestBystanderRemainsStaged
+# (arriba en este mismo fichero, verde) -- no hay cobertura que perder.
 
 
 # ── Unit tests de _promote_changelog (función pura, sin subprocess) ──────────

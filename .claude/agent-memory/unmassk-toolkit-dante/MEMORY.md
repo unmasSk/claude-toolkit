@@ -118,6 +118,7 @@
 - [incident-close-fence-atomicity-contract-notes.md](incident-close-fence-atomicity-contract-notes.md) — remove.py --restriction new RED: fence rejection must NOT leave incident closed, validate_note pre-check
 - [promotes-flag-third-archive-destination-contract-notes.md](promotes-flag-third-archive-destination-contract-notes.md) — --promotes RED via bin/gitmem (not note.py direct): third archive destination "promoted to <ID>" has reader, no writer
 - [note-archived-similarity-bypass-contract-notes.md](note-archived-similarity-bypass-contract-notes.md) — query.by_zone() includes archived notes, closed note wrongly blocks similar new note; --replaces none sentinel for overcorrection guard
+- [v1-guard-changeover-2026-08-05-notes.md](v1-guard-changeover-2026-08-05-notes.md) — v1 final deletion pass: mixed-file surgery beyond given list, whole-module-death invalidates prior salvage files, "reapuntar not borrar" pattern
 
 ## Retired (different stack, no longer this project's shape)
 

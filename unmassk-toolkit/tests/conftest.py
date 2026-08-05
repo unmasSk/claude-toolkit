@@ -31,7 +31,13 @@ HOOKS_DIR = os.path.join(SOURCE_ROOT, "hooks")
 
 # Hook / script paths (all in plugin source, not project root)
 PRECOMPACT_SCRIPT = os.path.join(HOOKS_DIR, "precompact-snapshot.py")
-PRE_HOOK = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
+# PRE_HOOK (hooks/pre-validate-commit-trailers.py) retired 2026-08-05:
+# the hook itself no longer exists on disk (deleted with the rest of the
+# v1 memory system). Its last callers (check_hook_msg() below, and every
+# test that used it -- test_drift.py, test_integration.py,
+# test_pre_validate_hook_actually_fires.py) were retired the same day;
+# confirmed via grep that nothing under tests/ references PRE_HOOK or
+# check_hook_msg() anymore before removing both.
 
 DOCTOR = os.path.join(BIN_DIR, "git-memory-doctor.py")
 INSTALL = os.path.join(BIN_DIR, "git-memory-install.py")
@@ -338,18 +344,6 @@ def claude_env(as_claude):
     environment.
     """
     return {CLAUDE_ENV_VAR: "1" if as_claude else None}
-
-
-def check_hook_msg(subject, cwd, trailers=None, as_claude=False):
-    """Send a commit message to the pre-hook and return the exit code."""
-    command = 'git commit -m "' + subject + '"'
-    if trailers:
-        command = command + ' -m "' + trailers + '"'
-    payload = {"tool_input": {"command": command}}
-    rc, _, _ = run_script(
-        PRE_HOOK, cwd, env=claude_env(as_claude), input_text=json.dumps(payload)
-    )
-    return rc
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────

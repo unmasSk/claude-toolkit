@@ -60,7 +60,6 @@ if LIB_DIR not in sys.path:
 from version import VERSION  # noqa: E402
 
 USER_PROMPT_HOOK = os.path.join(HOOKS_DIR, "user-prompt-memory-check.py")
-BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
 CREW_HOOK = os.path.join(HOOKS_DIR, "session-start-crew.py")
 
 OLD_VERSION = "0.0.1"
@@ -159,24 +158,33 @@ class TestUserPromptSubmitNoLongerUpgrades:
 
 class TestSessionStartPerformsTheUpgradeEffect:
     def test_sessionstart_hooks_perform_the_version_sync_effect(self, tmp_path):
-        """Runs the real SessionStart hooks in the exact order hooks.json
-        declares them (session-start-boot.py, then session-start-crew.py)
-        against a repo whose manifest is deliberately stale. Asserts only
-        the observable EFFECT (manifest.version ends up synced to VERSION)
-        -- not which of the two hooks, or which function, performs it.
+        """Runs the real SessionStart hook(s) against a repo whose manifest
+        is deliberately stale. Asserts only the observable EFFECT
+        (manifest.version ends up synced to VERSION) -- not which hook, or
+        which function, performs it.
+
+        [corregido 2026-08-05: this originally ran session-start-boot.py
+        THEN session-start-crew.py in hooks.json's declared order --
+        session-start-boot.py was retired outright with the rest of the v1
+        memory system (docs/memoria-v2/PLAN-CONSTRUCCION.md), so only
+        session-start-crew.py remains registered in hooks.json. Confirmed
+        live (grep) that the version-sync effect this test asserts already
+        landed there: session-start-crew.py's _print_upgrade_check() calls
+        upgrade_check.trigger_auto_upgrade_if_needed(), the same effect the
+        docstring above describes. The contract itself (an observable
+        effect, not a named hook) is unchanged -- only which hook(s) are
+        actually invoked below.]
         """
         repo = _make_stale_installed_repo(tmp_path)
         assert _read_manifest(repo)["version"] == OLD_VERSION  # precondition
 
-        rc1, out1, err1 = run_script(BOOT_HOOK, repo)
-        assert rc1 == 0, f"session-start-boot.py must exit 0. stderr={err1!r}"
-        rc2, out2, err2 = run_script(CREW_HOOK, repo)
-        assert rc2 == 0, f"session-start-crew.py must exit 0. stderr={err2!r}"
+        rc, out, err = run_script(CREW_HOOK, repo)
+        assert rc == 0, f"session-start-crew.py must exit 0. stderr={err!r}"
 
         assert _read_manifest(repo)["version"] == VERSION, (
-            "the SessionStart hooks must perform the version-sync upgrade "
+            "the SessionStart hook must perform the version-sync upgrade "
             "that UserPromptSubmit no longer does -- manifest.version is "
-            f"still {OLD_VERSION!r}. boot stdout={out1!r} crew stdout={out2!r}"
+            f"still {OLD_VERSION!r}. crew stdout={out!r}"
         )
 
 

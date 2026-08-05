@@ -52,17 +52,22 @@ Closed (2026-07-07): Ultron implemented the UTF-8 guard (lib/encoding_guard.py
 + 23 entry points, commit 38f5728). All four scenarios confirmed green —
 xfail(strict=False) markers removed, these are now plain regression tests
 protecting the fix.
+
+[corregido 2026-08-05: scenarios (c) bin/git-memory-commit.py and
+(d) hooks/session-start-boot.py were retired along with those two files
+(deleted outright with the rest of the v1 memory system). Their test
+classes (TestGitMemoryCommitCp1252, TestSessionStartBootCp1252) are gone —
+see the retirement note where they used to live, below. Scenarios (a) and
+(b) are unaffected and still green.]
 """
 
 import os
 
-from conftest import BIN_DIR, HOOKS_DIR, INSTALL, git_cmd, run_script
+from conftest import HOOKS_DIR, INSTALL, git_cmd, run_script
 
 # ── Paths ────────────────────────────────────────────────────────────────
 
 USER_PROMPT_HOOK = os.path.join(HOOKS_DIR, "user-prompt-memory-check.py")
-BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
-COMMIT_SCRIPT = os.path.join(BIN_DIR, "git-memory-commit.py")
 
 # The exact env that reproduces the bug on ANY platform — a legacy Windows
 # codepage where most emoji/arrows have no mapping. Passed as the `env=`
@@ -182,72 +187,13 @@ class TestGitMemoryInstallAutoCp1252:
         assert os.path.isfile(manifest), ".claude/.unmassk/manifest.json must be created"
 
 
-# ── (c) bin/git-memory-commit.py ────────────────────────────────────────────
-
-
-class TestGitMemoryCommitCp1252:
-    """W1: _print_commit_result()'s pretty confirmation line embeds the
-    type's emoji (📌 for memo) and crashes with UnicodeEncodeError AFTER the
-    real `git commit` has already succeeded — the most dangerous shape of
-    this bug, since it reports failure (RC=1) for a commit that actually
-    landed, which could cause a caller to retry and double-commit, or a
-    human to believe their memo was lost.
-    """
-
-    def test_simple_memo_commit_exits_zero(self, tmp_path):
-        repo = _make_repo(tmp_path)
-
-        rc, out, err = run_script(
-            COMMIT_SCRIPT, repo,
-            extra_args=["memo", "general", "cp1252 encoding contract memo"],
-            env=CP1252_ENV,
-        )
-
-        assert rc == 0, (
-            f"git-memory-commit.py must exit 0 under cp1252 stdout.\n"
-            f"--- stdout ---\n{out}\n--- stderr ---\n{err}"
-        )
-
-
-# ── (d) hooks/session-start-boot.py ────────────────────────────────────────
-
-
-class TestSessionStartBootCp1252:
-    """RED, but not via a child crash like a/b/c — see module docstring
-    scenario (d) for the full explanation. The child's only "special"
-    stdout character on the normal path (em-dash, U+2014) IS representable
-    in cp1252 (byte 0x97), so the child itself exits 0. What fails is the
-    PARENT's decode: conftest.py's run_script()/run_cmd() decode captured
-    stdout as UTF-8 (the W2 fix, correct for a FUTURE properly-UTF8 child),
-    and byte 0x97 is not valid UTF-8 — raises UnicodeDecodeError INSIDE
-    run_script() itself, before this test body ever gets a clean
-    (rc, out, err) tuple to assert on. xfail still catches this correctly
-    (pytest's xfail wraps the whole test body, not just assert statements).
-    """
-
-    def test_boot_exits_zero_and_writes_boot_log(self, tmp_path):
-        repo = _make_repo(tmp_path, "boot_repo")
-        rc, _, err = run_script(INSTALL, repo, ["--auto"])
-        assert rc == 0, f"fixture setup: install --auto failed: {err}"
-        # A couple of real memory commits so boot has real content to
-        # render into the (file-only) heavy sections — not required for
-        # this guard's assertions, but keeps the scenario representative
-        # rather than a degenerate empty-history repo.
-        git_cmd(["commit", "--allow-empty", "-m",
-                 "🧭 decision(auth): use JWT\n\nDecision: JWT over sessions\nWhy: stateless API"], repo)
-        git_cmd(["commit", "--allow-empty", "-m",
-                 "📌 memo(api): preference - async/await\n\nMemo: preference - async/await everywhere"], repo)
-
-        rc, out, err = run_script(BOOT_HOOK, repo, env=CP1252_ENV)
-
-        assert rc == 0, (
-            f"session-start-boot.py must exit 0 under cp1252 stdout.\n"
-            f"--- stdout ---\n{out}\n--- stderr ---\n{err}"
-        )
-        boot_log_path = os.path.join(repo, ".claude", ".unmassk", "boot-log-latest.txt")
-        assert os.path.isfile(boot_log_path), (
-            f"boot-log-latest.txt must be written.\n--- stdout ---\n{out}"
-        )
-        with open(boot_log_path, encoding="utf-8") as f:
-            content = f.read()
-        assert content.strip(), "boot-log-latest.txt must not be empty"
+# RETIRADO (memoria v2, 2026-08-05): TestGitMemoryCommitCp1252 (escenario c,
+# bin/git-memory-commit.py) y TestSessionStartBootCp1252 (escenario d,
+# hooks/session-start-boot.py) probaban al 100% dos ficheros ya borrados del
+# sistema v1 (confirmado: ambos ficheros no existen en disco). Las otras dos
+# clases de este fichero (TestUserPromptMemoryCheckCp1252,
+# TestGitMemoryInstallAutoCp1252) siguen probando hooks/user-prompt-memory-
+# check.py y bin/git-memory-install.py, ambos vivos — 2/2 verde, confirmado
+# ejecutando el fichero. No hay objetivo vivo equivalente al que redirigir
+# los dos casos retirados (git-memory-commit.py y session-start-boot.py no
+# tienen sucesor 1:1 en v2 con el mismo defecto de encoding conocido).

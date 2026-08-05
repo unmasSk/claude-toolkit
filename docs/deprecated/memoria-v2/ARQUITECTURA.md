@@ -16,13 +16,13 @@ Qué se escribe exactamente, y qué llama a qué. **31 módulos, 10 scripts, 2 h
 unmassk-toolkit/                  ← el sistema nace DENTRO del toolkit, no como plugin aparte
 │
 ├── hooks/
-│   ├── hooks.json                Declarará DOS hooks de memoria — HOY NO DECLARA NINGUNO.
-│   ├── customs.py                Intercepta el commit, llama al validador, bloquea con la pregunta dentro. Nace apagada.
+│   ├── hooks.json                Declara los dos hooks de memoria, registrados desde 2026-08-05.
+│   ├── customs.py                Intercepta el commit, llama al validador, bloquea con la pregunta dentro. Se enciende sola con la primera nota del proyecto (B19 punto 2).
 │   └── boot_launcher.py          ~20 líneas sin lógica: llama a bin/boot.py. Se escribe una vez y no se itera jamás.
 
-> **`hooks.json` no registra ninguno de los dos, y eso es a propósito** `[corregido 2026-08-04]`. Esta línea decía *«Declara DOS hooks y nada más»*, en presente, y es falso por partida doble: hoy ese fichero declara **nueve** hooks y **los nueve son del sistema viejo** (`session-start-boot`, `session-start-crew`, `pre-validate-commit-trailers`, `pre-merge-gate`, `validate-memory-path`, `user-prompt-memory-check`, `stop-dod-gate`, `stop-dod-check`, `stop-close-session`). Ni `customs.py` ni `boot_launcher.py` aparecen.
+> **`hooks.json` registra los dos, desde que se publicó versión** `[corregido 2026-08-05]`. ~~`hooks.json` no registra ninguno de los dos, y eso es a propósito [corregido 2026-08-04]. Esta línea decía «Declara DOS hooks y nada más», en presente, y es falso por partida doble: hoy ese fichero declara nueve hooks y los nueve son del sistema viejo (`session-start-boot`, `session-start-crew`, `pre-validate-commit-trailers`, `pre-merge-gate`, `validate-memory-path`, `user-prompt-memory-check`, `stop-dod-gate`, `stop-dod-check`, `stop-close-session`). Ni `customs.py` ni `boot_launcher.py` aparecen. Los dos existen como fichero y tienen sus tests en verde, pero no se disparan nunca: son código muerto hasta que se registren. Es deliberado — engancharlos mientras el sistema viejo sigue vivo dispararía dos arranques a la vez. Se registran al retirar el v1 (fase 9), y está anotado como punto 26 de `DEUDA.md`.~~
 >
-> **Los dos existen como fichero y tienen sus tests en verde, pero no se disparan nunca: son código muerto hasta que se registren.** Es deliberado — engancharlos mientras el sistema viejo sigue vivo dispararía **dos arranques a la vez**. Se registran al retirar el v1 (fase 9), y está anotado como punto **26** de `DEUDA.md`.
+> **Verificado 2026-08-05 leyendo `unmassk-toolkit/hooks/hooks.json` tal como está en el repositorio:** `SessionStart` lleva `boot_launcher.py` **y** `session-start-crew.py`; `PreToolUse` lleva `customs.py` (`matcher: "Bash"`), `validate-memory-path.py` (`Write|Edit`) y `pre-merge-gate.py` (`Bash`); `UserPromptSubmit` lleva `user-prompt-memory-check.py`; `Stop` lleva `stop-dod-gate.py`. De los tres hooks viejos que este párrafo citaba como únicos ocupantes del fichero —`session-start-boot.py`, `pre-validate-commit-trailers.py`, `stop-dod-check.py`— **ninguno sigue en `hooks.json`**, aunque los tres ficheros siguen en disco sin borrar (eso sigue siendo fase 9, sin empezar). `DEUDA.md` punto 26, cerrado en el mismo repaso.
 >
 > Se corrige porque este documento describe el destino, no el presente, y escribir el destino en presente es exactamente cómo se cree que algo vigila cuando no lo hace.
 │   (`inject.py` se retiró entera [decisión del propietario, 2026-08-03, B20]: cada agente busca su propia
@@ -282,9 +282,17 @@ El segundo hereda lo que hoy vive en `.claude/git-memory-config.json` — `repo_
 
 ---
 
-## 7. La zona del encargo — resuelto
+## 7. La zona del encargo — **retirado 2026-08-03, decisión B20. Esta sección describe un mecanismo que ya no existe**
 
-La especificación no decía cómo sabe la inyección en qué zona trabaja el agente. Se resuelve así:
+> **Corregido 2026-08-05, encontrado leyendo esta sección contra `DEUDA.md` y `agents/*.md`.** Todo lo de abajo describe el despacho por `hooks/inject.py` + `lib/memory/dispatch.py` — el vigilante que interceptaba el encargo del subagente, adivinaba su zona (por línea `Zone:` o por casado de palabras) y le inyectaba el bloque `[PROJECT MEMORY]` dentro. **Los dos ficheros se retiraron enteros el 2026-08-03** (`DEUDA.md` PARTE 1, **B20**): *«¿por qué necesitamos inyectarle mierda de memoria? En su prompt le dices que lo primero que tiene que hacer es investigar en la memoria lo que tiene que ver con el campo que va a tocar»*. Ya no hay despacho, ya no hay inyección, y ya no hay adivinanza de zona por palabras del encargo — los tres mecanismos que este §7 documentaba.
+>
+> **Lo que hay en su lugar, verificado 2026-08-05 leyendo los nueve ficheros de `agents/*.md`:** cada agente busca él mismo, al arrancar su tarea, el historial del fichero o módulo que va a tocar (`gitmem search <nombre>`), saca la zona de ahí — nunca la adivina — y lee los muros de esa zona. Está escrito una sola vez en `skills/unmassk-memory/references/*` y cada prompt de agente apunta ahí (paso **7.2b** de `FASE-7.md`, hecho). No hay bloque `[PROJECT MEMORY]` que inyectar ni caso de «zona no determinada» que avisar: si la búsqueda no encuentra nada, el agente lo dice y explora con el código solo.
+>
+> **Se conserva el diagnóstico original abajo por lo que cuenta, no por lo que cuenta bien** — describía un diseño real de esta obra, solo que uno que el propietario descartó.
+
+<details><summary>El mecanismo original, retirado — conservado como diagnóstico histórico</summary>
+
+La especificación no decía cómo sabe la inyección en qué zona trabaja el agente. Se resolvía así:
 
 1. **El despacho la declara**: una línea `Zone: z1/z2` en el encargo del subagente. Lo escribe el orquestador y lo enseña la skill.
 2. **Respaldo**: si no está, casado por palabras del encargo contra el fichero de zonas.
@@ -297,6 +305,8 @@ trabaja SIN memoria de proyecto: no ve los muros de ninguna zona.
 Si el encargo tiene zona, declárala con una línea «Zone: z1/z2».
 ```
 
-**Por qué importa el punto 3:** el silencio es el fallo del v1 — algo deja de pasar y nadie se entera. Con el aviso, un despacho sin zona sale en el informe del agente y se ve. Es el principio P6 aplicado al reparto: el cero se enseña, no se calla.
+**Por qué importaba el punto 3:** el silencio es el fallo del v1 — algo deja de pasar y nadie se entera. Con el aviso, un despacho sin zona salía en el informe del agente y se veía. Era el principio P6 aplicado al reparto: el cero se enseña, no se calla.
 
-**La cabecera `[PROJECT MEMORY]` va en inglés y el resto del bloque en castellano, y no es un descuido.** [decisión del propietario, 2026-08-03]: las etiquetas estructurales —lo que enmarca, no lo que explica— van en inglés (`MEMORIA`→`MEMORY`, y así con el resto); el contenido explicativo se queda en castellano. El eje no es «lo que se busca / lo que se lee», que es como lo planteaba el principio P8 y de ahí salió el castellano de esta cabecera; el eje correcto es etiqueta contra explicación.
+**La cabecera `[PROJECT MEMORY]` iba en inglés y el resto del bloque en castellano, y no era un descuido.** [decisión del propietario, 2026-08-03]: las etiquetas estructurales —lo que enmarca, no lo que explica— van en inglés (`MEMORIA`→`MEMORY`, y así con el resto); el contenido explicativo se queda en castellano. El eje no es «lo que se busca / lo que se lee», que es como lo planteaba el principio P8 y de ahí salió el castellano de esta cabecera; el eje correcto es etiqueta contra explicación.
+
+</details>

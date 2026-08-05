@@ -17,7 +17,7 @@ from encoding_guard import force_utf8_streams  # noqa: E402
 force_utf8_streams()
 
 from managed_blocks import upsert_managed_blocks  # noqa: E402
-from git_helpers import claude_md_lock_path, file_lock, open_no_follow_symlink  # noqa: E402
+from git_helpers import claude_md_lock_path, file_lock, open_no_follow_symlink, run_git  # noqa: E402
 
 # The except below reports EVERY OSError as "CLAUDE.md is a symlink" — a
 # read-only mount or a failed lock acquisition gets the same wrong,
@@ -65,12 +65,121 @@ def _read_claude_md(claude_md):
         return None, None
 
 
+def _print_plugin_sync_check(git_root: Path) -> None:
+    """PLUGIN: repo-vs-installed-cache drift (P7, session-start-boot.py's
+    old job, lib/cache_sync_check.py::count_repo_cache_drift()).
+
+    Claude Code runs the plugin from the installed cache, never from this
+    working tree -- an edit here changes nothing at runtime until the
+    plugin is reinstalled. Always prints one line: a real drift count, an
+    explicit zero, or an explicit "not verifiable" -- never silence, so a
+    stale cache can't go unnoticed the way it did for 3 days before this
+    check existed. Any failure (import or comparison) degrades the same
+    way as the rest of this hook: a printed line, never a raised exception.
+    """
+    try:
+        from cache_sync_check import count_repo_cache_drift
+        summary = count_repo_cache_drift(str(git_root))
+    except Exception as e:
+        print(f"[crew] PLUGIN: no verificable ({type(e).__name__})")
+        return
+    if summary is None:
+        print("[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)")
+        return
+    count, _descriptions = summary
+    if count == 0:
+        print("[crew] PLUGIN: sincronizado (0 ficheros)")
+    else:
+        print(
+            f"[crew] PLUGIN: {count} ficheros desincronizados (repo vs cache) "
+            "-> publica version y ejecuta 'claude plugin update'"
+        )
+
+
+def _print_upgrade_check(git_root: Path) -> None:
+    """UPGRADE: auto-upgrade the installed manifest when it's behind (P2,
+    session-start-boot.py's old job, lib/upgrade_check.py).
+
+    needs_upgrade() is checked first (read-only) purely so this can always
+    print a line -- trigger_auto_upgrade_if_needed() itself is silent on
+    the "nothing to do" case and only ever speaks (to stderr) on failure.
+    Both calls already fail-open internally; wrapped again here so an
+    import failure alone can't skip the printed line either.
+    """
+    try:
+        from upgrade_check import needs_upgrade, trigger_auto_upgrade_if_needed
+        pending = needs_upgrade(str(git_root))
+    except Exception as e:
+        print(f"[crew] UPGRADE: no verificable ({type(e).__name__})")
+        return
+    if not pending:
+        print("[crew] UPGRADE: manifest al dia, no hace falta actualizar")
+        return
+    try:
+        trigger_auto_upgrade_if_needed(str(git_root))
+    except Exception as e:
+        print(f"[crew] UPGRADE: fallo al disparar la actualizacion ({type(e).__name__})")
+        return
+    print("[crew] UPGRADE: disparada (el manifest instalado iba por detras)")
+
+
+def _print_repo_status_check(git_root: Path) -> None:
+    """REPO: working-tree status (P3, session-start-boot.py's old job).
+
+    No equivalent survives in the new hook set (docs/memoria-v2 owns only
+    memory concerns), so this reimplements the one-line summary directly
+    on top of `git status --porcelain`, bounded to a 5s timeout so a stuck
+    git process can never hang the session start.
+    """
+    try:
+        code, output = run_git(["status", "--porcelain"], cwd=str(git_root), timeout=5)
+    except Exception as e:
+        print(f"[crew] REPO: estado no verificable ({type(e).__name__})")
+        return
+    if code != 0:
+        print("[crew] REPO: estado no verificable (git status fallo)")
+        return
+    changed = output.strip().splitlines()
+    if not changed:
+        print("[crew] REPO: working tree limpio, sin cambios sin guardar")
+    else:
+        print(f"[crew] REPO: {len(changed)} ficheros con cambios sin guardar")
+
+
 def main():
     git_root = find_git_root()
     if not git_root:
         print("[crew] Not a git repo, skipping CLAUDE.md check")
         return
 
+    # Issue: session-start-boot.py's SessionStart hook was unplugged when
+    # the memory v2 hooks replaced it, silently taking 3 non-memory checks
+    # with it. Their home is this hook (the toolkit's own SessionStart
+    # entry point), never lib/memory/ -- that tree has a declared,
+    # zero-toolkit-imports boundary (docs/memoria-v2/PIEZAS.md #13). Each
+    # is self-contained and always prints, success or failure -- see each
+    # function's own docstring.
+    #
+    # They run AFTER the managed-block cycle, and the `finally` is what
+    # keeps them unconditional across its several early returns. Running
+    # them first was tried and is WRONG, caught in the act by
+    # test_issue63_t1_end_marker_and_magic_string.py: _print_upgrade_check()
+    # calls trigger_auto_upgrade_if_needed(), which runs the real installer,
+    # which itself rewrites CLAUDE.md's managed blocks. A block whose END
+    # marker had been deleted was therefore already repaired by the time
+    # the cycle below read the file, so the hook printed "All managed
+    # blocks up to date" over damage it never saw. That is precisely the
+    # failure this project declares as its only threat -- a green light
+    # covering a repair nobody reported.
+    try:
+        _managed_blocks_cycle(git_root)
+    finally:
+        _print_plugin_sync_check(git_root)
+        _print_upgrade_check(git_root)
+        _print_repo_status_check(git_root)
+
+
+def _managed_blocks_cycle(git_root: Path) -> None:
     # Issue #63 (boot simplification, P1 v2 -- decision 2d56444): the gate
     # verifies CONTENT, never manifest.json's "version" field. That field is
     # only a proxy for "an install ran", not "CLAUDE.md's managed blocks are

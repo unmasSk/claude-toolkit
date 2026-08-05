@@ -21,14 +21,12 @@ else in this file used them.
 
 import json
 import os
-import subprocess
 import sys
 
 import pytest
 
 from conftest import (
     HOOKS_DIR, INSTALL, DOCTOR,
-    PRE_HOOK, CLAUDE_ENV_VAR,
     run_cmd, git_cmd, write_file, run_script,
 )
 from version import VERSION
@@ -44,17 +42,6 @@ def make_installed_repo(tmp_path, name="repo"):
     git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
     run_script(INSTALL, repo, ["--auto"])
     return repo
-
-
-def run_hook_from_cache(hook_name, commit_msg, cwd, env_extra=None):
-    """Run a hook script from the plugin source (cache) and return (rc, stdout, stderr)."""
-    hook_path = os.path.join(HOOKS_DIR, hook_name)
-    if not os.path.isfile(hook_path):
-        return 1, "", f"hook not found: {hook_path}"
-    env = {CLAUDE_ENV_VAR: "1"}
-    if env_extra:
-        env.update(env_extra)
-    return run_cmd([sys.executable, hook_path, commit_msg], cwd, env=env)
 
 
 # ── Tests ──────────────────────────────────────────────────────────────
@@ -104,31 +91,16 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
     assert not os.path.isdir(os.path.join(repo, ".claude-plugin"))
 
 
-def test_session_with_trailers(tmp_path):
-    """Pre-hook does not block a normal session commit (hook runs from plugin cache).
-
-    NOTE (2026-07-25): this test used to also invoke
-    post-validate-commit-trailers.py after the commit — that hook was
-    deleted outright (its validate_trailers() was dead code in the
-    wrapper's path; see test_memo_category_deadend_contract.py's retirement
-    note for the full history). Trailer CONTENT validation now lives in
-    bin/git-memory-commit.py itself (test_wrapper_trailer_content_validation_contract.py)
-    rather than in a PostToolUse hook, so there is no live post-hook
-    behavior left to redirect this test's second half toward.
-    """
-    repo = make_installed_repo(tmp_path)
-
-    write_file(repo, "src/main.py", "print('hello')")
-    git_cmd(["add", "-A"], repo)
-
-    msg = "✨ feat(core): add main\n\nWhy: initial implementation\nTouched: src/main.py"
-    write_file(repo, ".git/COMMIT_EDITMSG", msg)
-    msg_file = os.path.join(repo, ".git", "COMMIT_EDITMSG")
-
-    rc, _, _ = run_hook_from_cache("pre-validate-commit-trailers.py", msg_file, repo)
-    assert rc == 0
-
-    git_cmd(["commit", "-m", msg], repo)
+# RETIRADO (memoria v2, 2026-08-05): test_session_with_trailers invocaba
+# hooks/pre-validate-commit-trailers.py via run_hook_from_cache() -- ese
+# hook se borro entero junto con el resto del sistema de memoria v1
+# (confirmado: rc=1 "hook not found" al ejecutarlo antes de este retiro).
+# Su sucesor real es hooks/customs.py (aduana), ya cubierto de punta a
+# punta en tests/memory/test_customs_hook.py -- no hay comportamiento vivo
+# que redirigir aqui especificamente para "un commit de sesion normal no
+# bloquea", ese caso ya lo cubre TestCustomsDisabledNeverBlocks /
+# TestCustomsEnabledBlocksWithExactRejectionText::test_enabled_valid_note_never_blocks
+# en ese fichero.
 
 
 def test_compaction_snapshot(tmp_path):
@@ -154,36 +126,16 @@ def test_compaction_snapshot(tmp_path):
             assert len(lines) <= 18, f"Snapshot has {len(lines)} lines"
 
 
-def test_human_commits_not_blocked(tmp_path):
-    """Human commits without trailers should not be blocked (hook from cache)."""
-    repo = make_installed_repo(tmp_path)
-
-    hook_input = json.dumps({
-        "tool_name": "Bash",
-        "tool_input": {"command": 'git commit -m "fix: quick hotfix"'},
-    })
-    hook_path = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
-
-    # Without CLAUDECODE → allowed. The variable is removed explicitly, not
-    # merely left unset: run_cmd/subprocess inherit the ambient environment,
-    # and inside Claude Code CLAUDECODE really is exported (2026-07-29).
-    env_no_claude = {k: v for k, v in os.environ.items() if k != CLAUDE_ENV_VAR}
-    result = subprocess.run(
-        [sys.executable, hook_path],
-        input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
-        cwd=repo, timeout=15, env=env_no_claude,
-    )
-    assert result.returncode == 0, (
-        f"human commit must pass. stderr={result.stderr!r}")
-
-    # With CLAUDECODE → blocked
-    result = subprocess.run(
-        [sys.executable, hook_path],
-        input=hook_input, capture_output=True, text=True, encoding='utf-8', errors='replace',
-        cwd=repo, timeout=15, env={**env_no_claude, CLAUDE_ENV_VAR: "1"},
-    )
-    assert result.returncode == 2, (
-        f"Claude's direct git commit must be blocked. stderr={result.stderr!r}")
+# RETIRADO (memoria v2, 2026-08-05): test_human_commits_not_blocked
+# invocaba hooks/pre-validate-commit-trailers.py directamente por
+# subprocess -- ese hook ya no existe en disco (confirmado: FileNotFoundError
+# antes de este retiro). Su sucesor, hooks/customs.py, no distingue
+# humano/Claude en absoluto -- vigila por si el proyecto tiene aduana
+# encendida (config.json o primera nota real), no por quien firma el
+# commit -- asi que este contrato concreto (humano vs Claude) no tiene
+# equivalente 1:1 en el hook nuevo; no se inventa cobertura que no pidio
+# nadie. La aduana en si ya esta cubierta de punta a punta en
+# tests/memory/test_customs_hook.py.
 
 
 def test_branch_context(tmp_path):

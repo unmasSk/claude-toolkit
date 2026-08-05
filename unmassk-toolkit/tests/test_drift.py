@@ -23,8 +23,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from conftest import (
-    PRE_HOOK,
-    git_cmd, check_hook_msg, assert_repo_integrity,
+    git_cmd, assert_repo_integrity,
 )
 
 # ── Config ──────────────────────────────────────────────────────────────
@@ -232,61 +231,33 @@ def test_deep_search(drift_repo):
 # hooks/precompact-snapshot.py, eliminado.
 
 
-def test_hook_robustness(drift_repo):
-    """Verify hooks handle fixup!, merge, revert messages correctly."""
-    cwd = drift_repo
-
-    # fixup!, squash!, amend! should pass with trailers
-    assert check_hook_msg("fixup! ✨ feat(auth): fix typo",
-                          cwd, "Why: typo\nTouched: auth.py\nIssue: #1") == 0
-    assert check_hook_msg("squash! 🐛 fix(api): cleanup",
-                          cwd, "Why: cleanup\nTouched: api.py\nIssue: CU-042") == 0
-    assert check_hook_msg("amend! ♻️ refactor(ui): rename",
-                          cwd, "Why: clarity\nTouched: ui.py\nIssue: CU-042") == 0
-
-    # Merge and Revert whitelisted
-    assert check_hook_msg("Merge branch 'main' into dev", cwd) == 0
-    assert check_hook_msg("Merge remote-tracking branch 'origin/main'", cwd) == 0
-    assert check_hook_msg("Revert feat(auth): add login", cwd) == 0
-
-    # Claude without trailers → blocked
-    assert check_hook_msg("✨ feat(auth): no trailers here", cwd, as_claude=True) != 0
-
-    # Human without trailers → warn only (exit 0)
-    assert check_hook_msg("✨ feat(auth): no trailers here", cwd, as_claude=False) == 0
-
+# RETIRADO (memoria v2, 2026-08-05): test_hook_robustness y
+# test_nested_prefixes llamaban a check_hook_msg() -> PRE_HOOK
+# (hooks/pre-validate-commit-trailers.py), borrado entero junto con el
+# resto del sistema de memoria v1 (confirmado: check_hook_msg() devuelve
+# rc=2/"can't open file" para todo, no el resultado real que estos tests
+# esperaban). Su sucesor, hooks/customs.py, no tiene el concepto de
+# fixup!/squash!/amend!/Merge/Revert -- esos eran prefijos que el v1
+# TOLERABA para no bloquear un rewrite de historia local legitimo;
+# customs.py resuelve la misma familia de casos de otra forma (rebase con
+# --continue/--skip/--abort pasa siempre, ver TestRebasePassthroughOnlyForInFlightOperations
+# en tests/memory/test_customs_hook.py) -- no hay un equivalente 1:1 al
+# que redirigir estos dos tests sin inventar cobertura no pedida.
 
 # NOTE (2026-07-25): test_post_hook_exit_code was removed here — it invoked
 # post-validate-commit-trailers.py, which was deleted outright (dead code in
 # the wrapper's path; see test_memo_category_deadend_contract.py's
 # retirement note for the full history). pre-validate-commit-trailers.py
-# (the surviving hook, still exercised elsewhere in this file via
-# check_hook_msg/PRE_HOOK) never inspected tool_output/exit_code at all — it
-# only blocks the tool invocation BEFORE execution based on the command
-# string — so there is no live pre-hook behavior to adapt this test toward.
+# never inspected tool_output/exit_code at all — it only blocks the tool
+# invocation BEFORE execution based on the command string — so there was no
+# live pre-hook behavior to adapt this test toward, and now the hook itself
+# is gone too.
 
 
 # RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_delimiter_collision
 # llamaba a run_snapshot() (ver nota de retiro mas arriba) — probaba que
 # los pipes no rompian el snapshot de hooks/precompact-snapshot.py,
 # eliminado.
-
-
-def test_nested_prefixes(drift_repo):
-    """Verify hooks handle nested Git prefixes like squash! fixup! feat:"""
-    cwd = drift_repo
-
-    assert check_hook_msg(
-        "squash! fixup! ✨ feat(auth): double nested",
-        cwd, "Why: test\nTouched: auth.py\nIssue: CU-042") == 0
-
-    assert check_hook_msg(
-        "fixup! fixup! 🐛 fix(api): triple fixup",
-        cwd, "Why: test\nTouched: api.py\nIssue: CU-042") == 0
-
-    assert check_hook_msg(
-        "amend! squash! fixup! ♻️ refactor(ui): triple nested",
-        cwd, "Why: test\nTouched: ui.py\nIssue: CU-042") == 0
 
 
 if __name__ == "__main__":

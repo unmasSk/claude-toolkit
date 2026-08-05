@@ -8,15 +8,15 @@
 - **Un hueco declarado no se rellena por criterio propio.** Donde pone *«sin decidir»*, se pregunta.
 - Nada se construye sin que el propietario lo diga. Nada se commitea sin que él lo diga.
 
-**Estado, 2026-08-05: 13 de 18 hechos. Suite de memoria en 388 verdes.**
+**Estado, ~~2026-08-05: 13 de 18 hechos~~ 2026-08-05 (repaso posterior el mismo día): 18 de 18 hechos, no queda ninguno. Suite de memoria en 388 verdes.**
 
-Hechos: **7.1 · 7.2 · 7.2b · 7.3 · 7.4** (la skill de memoria, `skills/unmassk-memory/`, escrita, revisada dos veces por el revisor de skills, pasada por el consejo de cinco y **ejecutada comando a comando** contra proyectos nuevos) · **7.5** (ascender una pregunta: `--promotes`, con su fichero `lib/memory/notes_promote.py`) · **7.6** (los planes, en `skills/unmassk-flow/references/plan.md`) · **7.7** · **7.8** (el pie de House, revisado por él mismo) · **7.9** (el mapa de Bilbo con sus tres líneas de memoria) · **7.10** · **7.11** (la skill central, limpia) · **7.12** (el bloque del `CLAUDE.md`) · **7.13** (incidencias, en `skills/unmassk-flow/references/incident.md`, revisado por House dos veces).
+Hechos: **7.1 · 7.2 · 7.2b · 7.3 · 7.4** (la skill de memoria, `skills/unmassk-memory/`, escrita, revisada dos veces por el revisor de skills, pasada por el consejo de cinco y **ejecutada comando a comando** contra proyectos nuevos) · **7.5** (ascender una pregunta: `--promotes`, con su fichero `lib/memory/notes_promote.py`) · **7.6** (los planes, en `skills/unmassk-flow/references/plan.md`) · **7.7** · **7.8** (el pie de House, revisado por él mismo) · **7.9** (el mapa de Bilbo con sus tres líneas de memoria) · **7.10** · **7.11** (la skill central, limpia) · **7.12** (el bloque del `CLAUDE.md`) · **7.13** (incidencias, en `skills/unmassk-flow/references/incident.md`, revisado por House dos veces) · **7.13d** (el prompt del cierre, ver más abajo).
 
-**7.13b — la destilación: protocolo escrito y probado dos veces sobre historiales reales.** **7.13c — compactación de memoria de agente: protocolo escrito** (`skills/unmassk-memory/references/agent-memory-compaction.md`), juzgado por dos agentes opuestos —el del diario de 112 ficheros y el que ya estaba sano—, con sus hallazgos aplicados. **Nadie lo ha ejecutado todavía: eso es una pasada aparte, y va después de publicar.**
+**7.13b — la destilación: protocolo escrito y probado dos veces sobre historiales reales.** **7.13c — compactación de memoria de agente: protocolo escrito** (`skills/unmassk-memory/references/agent-memory-compaction.md`), juzgado por dos agentes opuestos —el del diario de 112 ficheros y el que ya estaba sano—, con sus hallazgos aplicados. **La ejecución completa contra los nueve agentes reales sigue sin hacerse: eso es una pasada aparte, y va después de publicar** — publicar ya ocurrió (ver 7.14), la pasada en sí sigue pendiente.
 
 **Sobre la destilación:** El protocolo está escrito (`skills/unmassk-memory/references/distill.md`) y hay **dos pruebas en seco reales**, en la raíz: `PRUEBA-MEMORIA-V2.md` (este repositorio) y `PRUEBA-MEMORIA-V2-OMAWA.md` (el producto real). Lo que sale de ellas está más abajo, en el paso 7.13b.
 
-**Queda: 7.14** *(y antes, el paso 2.8b: el script de publicar todavía usa el generador viejo).*
+~~**Queda: 7.14** (y antes, el paso 2.8b: el script de publicar todavía usa el generador viejo).~~ **Cerrado 2026-08-05: se publicó versión** (`marketplace.json` marca 1.27.1, `CHANGELOG.md` confirma 1.26.0/1.27.0/1.27.1 las tres del mismo día) **y `bin/release.py` ya usa el generador nuevo** — verificado leyendo el fichero: importa `notes` de `unmassk-toolkit/lib/memory` y commitea con `notes.write_work()`, sin rastro de `git-memory-commit.py` ni del campo `Touched=`. Con eso, **no queda ningún paso de los 18 sin cerrar.**
 
 ### 7.13d — escrito y probado `[2026-08-05]`
 
@@ -307,11 +307,11 @@ Escribir el Next con su resumen en prosa · poner al día la incidencia del plan
 
 ---
 
-## 7.14 · Publicar la versión
+## 7.14 · Publicar la versión — ✅ HECHO `[2026-08-05]`
 
-**Qué entrega.** Que todo lo anterior **corra de verdad** en tus sesiones. Hoy lo que corre es la copia instalada, congelada en la 1.25.0.
+**Qué entrega.** Que todo lo anterior **corra de verdad** en tus sesiones. ~~Hoy lo que corre es la copia instalada, congelada en la 1.25.0.~~ **Publicado: `marketplace.json` marca `unmassk-toolkit` en 1.27.1** (pasó por 1.26.0 y 1.27.0 el mismo día, 2026-08-05, `CHANGELOG.md` lo confirma).
 
-**Hecho cuando.** Se instala en un proyecto limpio y el arranque funciona.
+**Hecho cuando.** Se instala en un proyecto limpio y el arranque funciona. **La instalación limpia de punta a punta no se ha vuelto a probar tras esta publicación** — lo que sí está verificado es que la copia en caché es la 1.27.1 y que `hooks.json` de esa versión registra los dos hooks nuevos.
 
 ---
 
@@ -319,7 +319,7 @@ Escribir el Next con su resumen en prosa · poner al día la incidencia del plan
 
 **1 · Las cinco skills que llaman al sistema borrado.** `flow` · `project-lifecycle` · `council` · `grill` · `audit`. Ninguna aparece en los 18 pasos, y las cinco te dirán de guardar cosas con comandos que ya no existen. El barrido del repo las tenía apuntadas; el plan no las recogió.
 
-**2 · El script de publicar sigue usando el generador viejo.** `bin/release.py` llama al script del sistema muerto y usa un campo retirado. Es el paso **2.8b**, de la fase 2, sin empezar. **Va antes del 7.14** o la publicación se cae con un error.
+**2 · ~~El script de publicar sigue usando el generador viejo.~~ CERRADO 2026-08-05.** `bin/release.py` ya no llama al script del sistema muerto ni usa el campo retirado — verificado leyendo el fichero: importa `notes` de `unmassk-toolkit/lib/memory` y commitea con `notes.write_work()`. Era el paso **2.8b**, de la fase 2; **se cerró antes del 7.14**, como exigía este mismo punto.
 
 **3 · El comando de reglas no existe.** La pieza que lee y escribe el fichero de reglas está; el comando que te lo entrega, no — no hay carpeta de comandos en el toolkit. Es el paso **3.3**, a medias.
 
@@ -329,4 +329,4 @@ Escribir el Next con su resumen en prosa · poner al día la incidencia del plan
 
 - **Los seis puntos de la skill central** (7.11): sin enumerar en ningún documento.
 - **Las cinco cuestiones internas de la skill de incidencias** (7.13): declaradas sin resolver en la especificación.
-- **Qué enciende exactamente publicar.** Los dos hooks nuevos —el arranque y la aduana— **no están registrados a propósito**: engancharlos con el sistema viejo aún vivo dispararía dos arranques a la vez. Se registran en la fase 9. Conviene decidir, antes de publicar, qué queda encendido y qué no.
+- ~~**Qué enciende exactamente publicar.** Los dos hooks nuevos —el arranque y la aduana— no están registrados a propósito: engancharlos con el sistema viejo aún vivo dispararía dos arranques a la vez. Se registran en la fase 9. Conviene decidir, antes de publicar, qué queda encendido y qué no.~~ **Resuelto al publicar, 2026-08-05:** `hooks.json` registra hoy `boot_launcher.py` (`SessionStart`) y `customs.py` (`PreToolUse`, `Bash`); los tres hooks del sistema viejo que este hueco temía duplicar (`session-start-boot.py`, `pre-validate-commit-trailers.py`, `stop-dod-check.py`) **ya no están en `hooks.json`**, aunque sus ficheros siguen en disco sin borrar — eso es fase 9, y no es lo que este hueco preguntaba.

@@ -127,35 +127,26 @@ class TestExpectedHooksDerivation:
 
         derived = doctor.expected_hooks(REAL_PLUGIN_ROOT)
 
-        # Los tres hooks del sistema viejo que el cambio de guardia del
-        # 2026-08-05 desenchufo siguen en disco a proposito: si el arranque
-        # nuevo falla en una sesion real, volver es cambiar hooks.json y
-        # nada mas. Se declaran aqui, con su motivo, para que este
-        # vigilante siga cazando una divergencia de VERDAD en vez de estar
-        # rojo todos los dias por un hueco ya decidido -- un test rojo que
-        # nadie explica es un test que se acaba ignorando.
-        DELIBERATELY_UNWIRED = {
-            # RETIRADOS el 2026-08-05 en el cambio de guardia: siguen en
-            # disco a proposito hasta que se borren con sus tests, que
-            # tocan siete ficheros y dos de ellos compartidos. Borrarlos
-            # es una pasada propia, no una linea al final de otra cosa.
-            "pre-validate-commit-trailers.py",
-            "stop-dod-check.py",
-            "session-start-boot.py",
-        }
-
+        # [corregido 2026-08-05: los tres hooks del sistema viejo
+        # (pre-validate-commit-trailers.py, stop-dod-check.py,
+        # session-start-boot.py) ya NO estan "en disco a proposito,
+        # desenchufados" -- se borraron enteros del arbol junto con el
+        # resto del sistema de memoria v1, sus tests incluidos. No hacen
+        # falta en el exento: os.listdir() ya no los devuelve, asi que no
+        # hay nada que restar -- restarlos de un set que ya no los
+        # contiene era un no-op inofensivo, pero el comentario que decia
+        # "siguen en disco" ya era falso. Sin exento: este vigilante vuelve
+        # a comparar hooks.json contra el arbol real, sin hueco declarado.]
         on_disk = {
             name for name in os.listdir(os.path.join(REAL_PLUGIN_ROOT, "hooks"))
             if name.endswith(".py")
-        } - doctor.TRANSIENT_HOOKS - DELIBERATELY_UNWIRED
+        } - doctor.TRANSIENT_HOOKS
 
         assert derived is not None, "the shipped hooks.json must be readable"
         assert set(derived) == on_disk, (
             "hooks.json and hooks/ disagree.\n"
             f"  declared but not shipped: {sorted(set(derived) - on_disk)}\n"
-            f"  shipped but not declared: {sorted(on_disk - set(derived))}\n"
-            "  (los hooks del sistema viejo desenchufados el 2026-08-05 estan "
-            "exentos a proposito hasta que se borren con sus tests)"
+            f"  shipped but not declared: {sorted(on_disk - set(derived))}"
         )
 
     def test_unreadable_and_malformed_inputs_all_return_none(self, tmp_path):

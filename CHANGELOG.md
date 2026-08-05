@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **El sistema de memoria anterior está borrado del repositorio.** Ya no estaba registrado desde la 1.27.0, pero sus ficheros seguían en disco. Se van dieciocho: el arranque viejo (`session-start-boot.py`), su aduana (`pre-validate-commit-trailers.py`), su vigilante de cierre (`stop-dod-check.py`), su generador de commits (`bin/git-memory-commit.py`), cuatro módulos de `lib/` (`boot_checks`, `boot_git_checks`, `boot_render`, `boot_migrations`) y once ficheros de test — **109 casos** que probaban código que ya no existe.
+- **`lib/boot_health.py`, de 333 líneas a 65.** Solo sobrevive lo que consume `cache_sync_check.py`: `CACHE_BASE_DIR`, `_md5_file()` y `_latest_version_dir()`.
+- **La documentación de la construcción pasa a `docs/deprecated/`** — la especificación, el plan, la deuda, los contratos de cada pieza y las dos pruebas en seco. Cuenta por qué las cosas son como son y guarda las decisiones del propietario con su fecha, pero no describe el presente. Cómo funciona la memoria hoy se lee en un solo sitio: la skill `unmassk-memory`.
+
+### Fixed
+
+- **Tres avisos del toolkit se habían quedado sin dueño al desenchufar el arranque viejo, y llevaban callados desde el cambio de guardia.** No eran de memoria y por eso no los heredó el arranque nuevo: que la copia instalada del plugin va por detrás del repositorio, la actualización automática de versión, y si el árbol de trabajo tiene cambios sin guardar. Pasan a `session-start-crew.py`, que es el hook del toolkit — no pueden vivir en `lib/memory/`, que tiene prohibido importar nada de fuera. Los tres hablan siempre, también cuando el resultado es cero: un chequeo que solo aparece cuando falla es indistinguible de uno que no se está ejecutando.
+- **Y ese traslado trajo su propio fallo, cazado por un test que ya existía:** el chequeo de versión dispara el instalador, el instalador reescribe los bloques del `CLAUDE.md`, y al correr antes que la comprobación de esos bloques el hook acababa diciendo «todo en orden» sobre un fichero que él mismo había reparado un segundo antes. Ahora van después, y siguen siendo incondicionales.
+
 ## [1.27.1] - 2026-08-05
 
 ### Fixed

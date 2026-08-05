@@ -18,10 +18,10 @@ Aquí se anota **lo que decide él**, con su fecha y sus palabras. Nada se relle
 >
 > | Marca | Significa |
 > |---|---|
-> | **`[x]`** | **Decidido Y construido.** Está en el código y hay tests que lo vigilan. **25 de las 34.** |
-> | **`[~]`** | **Decidido, sin construir todavía.** La decisión es firme; el código no existe. **9 de las 34.** |
+> | **`[x]`** | **Decidido Y construido.** Está en el código y hay tests que lo vigilan. ~~25 de las 34.~~ **39 de las 42, verificado 2026-08-05.** |
+> | **`[~]`** | **Decidido, sin construir todavía.** La decisión es firme; el código no existe. ~~9 de las 34.~~ **3 de las 42, verificado 2026-08-05.** |
 >
-> **Las nueve que faltan por construir, contadas una a una el 2026-08-04.** Las seis primeras son de la fase 7; las tres últimas —**B32**, **B33** y **B34**— se decidieron el 2026-08-04 hablando y **añaden trabajo nuevo**: la skill de destilación y el prompt del cierre son fase 7 (pasos **7.13b**, **7.13c** y **7.13d**, nuevos), y la cascada de rondas es fase 8. **B2** (la aduana deduce sola si es nota o trabajo) · **B3** (el rechazo de `amend`/`rebase` tiene que dar la salida) · **B13** (el saludo tras el arranque, con emojis por sección) · **B15** (la doble confirmación de los comandos que borran trabajo) · **B18** (la cadena de montaje con workflows) · **B20** (los tres pasos de memoria en los prompts de los nueve agentes).
+> **Recontado el 2026-08-05, leyendo cada cabecera `### [x/~] B` del documento, una a una — no de memoria.** El total ya no es 34: entre el 2026-08-04 y el 2026-08-05 se añadieron ocho decisiones más (**B31**, y **B35** a **B42**), y son **42 en total**, no 34. De las nueve que este párrafo daba por sin construir el 2026-08-04, **seis ya están construidas**: **B3** (`customs.py::_history_rewrite_rejection()`, con el comando exacto de relanzamiento) · **B13** (`skills/unmassk-memory/SKILL.md`, la sección "Opening and closing" con sus cinco emojis) · **B20** (los nueve ficheros de `agents/*.md` llevan los tres pasos) · **B32** (`skills/unmassk-memory/references/distill.md`, con la cascada y la Pasada 0) · **B33** y **B34** (ya llevaban su propia nota `[construida/construido 2026-08-05]` en la cabecera, pero este párrafo de arriba no se había actualizado). **Quedan sin construir solo tres:** **B2** (la aduana deduce sola si es nota o trabajo) · **B15** (la doble confirmación de los comandos que borran trabajo) · **B18** (la cadena de montaje con workflows, «a probar en la fase 7» — sin probar todavía). **B35** y **B36**, decididas el 2026-08-05, también están construidas (`skills/unmassk-flow/references/plan.md`).
 >
 > **Ninguna está bloqueada por una pregunta pendiente.** La última que lo estaba —**B24**, el aviso de regla repetida— se desbloqueó el 2026-08-04 cuando el propietario delegó el texto, y está construida.
 >
@@ -43,11 +43,13 @@ Corrección al pasar: se dijo que el sistema viejo los guardaba juntos y **es fa
 
 Se mira el diff. Nadie lo declara. **Falta construirlo.**
 
-### [~] B3 · `amend` y `rebase`: el rechazo tiene que dar la salida — 2026-08-03
+### [x] B3 · `amend` y `rebase`: el rechazo tiene que dar la salida — 2026-08-03 `[construido, verificado 2026-08-05: unmassk-toolkit/hooks/customs.py::_history_rewrite_rejection()]`
 
 **Opción A para los dos.** Hoy rechaza diciendo *«esto reescribe historia»* y ahí te deja, incumpliendo la regla del propio sistema, que exige el comando exacto para relanzar `[PIEZAS §7.4]`. El rechazo debe decir qué hacer: mensaje equivocado → se sustituye con una nota nueva; fichero olvidado → otro commit encima; limpiar la rama → el squash al fusionar `[spec §10.4]`.
 
 Los dos **cambian el mensaje Y el código**: `--amend` mete ficheros en un commit ya cerrado como si hubieran estado desde el principio; `rebase` reescribe los commits enteros y al resolver conflictos cambia el código.
+
+**Verificado 2026-08-05 leyendo `customs.py`:** `_history_rewrite_rejection()` da, para cada uno, el comando exacto de relanzamiento — para `commit --amend`, `gitmem note ... --replaces <ID>` si es una nota que corregir, o `gitmem work "..." --path ...` si es código; para `rebase`, `git merge --squash <rama> && gitmem work "..."`. Los dos citan además el squash al fusionar como el camino ya existente para limpiar la rama.
 
 ### [x] B4 · Cuatro comandos cambian de nombre, uno se borra, uno nace — 2026-08-03
 
@@ -114,11 +116,13 @@ Hoy imprime dos números que no cuadran y nadie explica. Pasa a desglosarse:
 ✓  indexes match git (587 live + 25 archived / 612 notes)     ← cuando las hay
 ```
 
-### [~] B13 · Cómo me comunico yo con él tras el arranque — 2026-08-03
+### [x] B13 · Cómo me comunico yo con él tras el arranque — 2026-08-03 `[construido, verificado 2026-08-05: unmassk-toolkit/skills/unmassk-memory/SKILL.md, sección "Opening and closing"]`
 
 > *«No me puede ser tan breve. Con seis preguntas abiertas, yo no me entero de nada. Esto es un fallo gordísimo.»*
 
 El saludo de después del arranque **no es un resumen de tres líneas**: lleva el Next con lo que pasó ayer, los bloqueantes **con fecha si la tienen**, las preguntas abiertas **diciendo cuáles bloquean trabajo**, las incidencias, los planes con commits sin reflejar, y los muros que apliquen a lo de hoy. **Con emojis por sección** —los mismos del sistema— para distinguir las partes de un vistazo. El molde queda en `TEXTOS.md`.
+
+**Verificado 2026-08-05 leyendo `skills/unmassk-memory/SKILL.md`:** la sección "Opening and closing" trae las cinco líneas exigidas, cada una con su emoji — 🧭 Today (el Next y lo que pasó), ⛔ Blockers (con a quién esperan), ❓ Open questions (cuántas y **cuáles bloquean trabajo ya en marcha**, nunca un número suelto), 🔥 Incidents and plans (las abiertas, y los planes con commits sin reflejar), ⚠️ Walls (las que tocan lo de hoy) — y cierra pidiendo que el mensaje "no puede ser corto".
 
 ### [x] B14 · Las reglas: `user` por defecto — 2026-08-03
 
@@ -158,7 +162,7 @@ Y la regla que deja para el orquestador, anotada aparte porque es de conducta: *
 
 Dados por buenos. Sus nombres van en inglés (`decision`, `memo`, `restriction`, `question`, `discarded`, `incident`, `blocker`), como todo lo mecánico.
 
-### [~] B20 · La memoria no se inyecta: el agente la busca él — 2026-08-03
+### [x] B20 · La memoria no se inyecta: el agente la busca él — 2026-08-03 `[construido, verificado 2026-08-05: los nueve ficheros de unmassk-toolkit/agents/*.md llevan el patrón de los tres pasos]`
 
 > **«Se supone que Claude le tiene que dar el contexto a la gente. ¿Por qué necesitamos inyectarle mierda de memoria? En su prompt le dices que lo primero que tiene que hacer es investigar en la memoria lo que tiene que ver con el campo que va a tocar. Si va a mirar el archivo X, que busque el historial: cuándo y por qué se ha modificado. Y dado que eso le va a decir la zona, que busque los muros de esas zonas.»**
 
@@ -177,7 +181,7 @@ Dados por buenos. Sus nombres van en inglés (`decision`, `memo`, `restriction`,
 | `hooks/inject.py` | **se retira** — el vigilante que interceptaba los encargos |
 | `lib/memory/dispatch.py` | **se retira o encoge mucho** — la tabla de qué ve cada oficio |
 | Los pasos 5.1 a 5.7 del plan | **desaparecen**, incluida la semana de prueba |
-| Los prompts de los nueve agentes | **ganan esos tres pasos** — es trabajo de la fase 7 |
+| Los prompts de los nueve agentes | ~~ganan esos tres pasos — es trabajo de la fase 7~~ **hecho, verificado 2026-08-05**: los nueve ficheros de `agents/` (incluido `alexandria.md`) llevan el patrón — historial del fichero por su nombre/módulo con `gitmem search`, la zona que sale de ahí, y sus muros |
 
 **Y responde a una pregunta suya que merece quedar escrita:** *«¿por qué lo hacéis tan complicado?»*. Porque se diseñó maquinaria —un hook, una tabla por oficio, un molde de datos y una prueba de una semana— para lo que se resuelve con **tres líneas en el prompt de cada agente**.
 
@@ -317,7 +321,7 @@ Eran **los últimos tres nombres en castellano que ve una máquina** en todo el 
 
 **Por qué importa y no es cosmético:** un vigilante que solo habla cuando falla **es indistinguible de uno que no se está ejecutando** (principio P6). Ya costó un incidente: seis hooks corrieron versiones viejas durante días sin que nada lo dijera.
 
-### [~] B32 · El destilador: **Bilbo, en rondas en cascada, con cosecha de zonas antes** — 2026-08-04
+### [x] B32 · El destilador: **Bilbo, en rondas en cascada, con cosecha de zonas antes** — 2026-08-04 `[construido, verificado 2026-08-05: skills/unmassk-memory/references/distill.md ("Round 0 — harvest the zones", diseño en cascada) + agents/bilbo.md (modo destilación)]`
 
 **Cierra el «sin decidir» de los pasos 8.3, 8.4 y 8.5**, que llevaban ahí desde que se escribió el plan.
 
@@ -334,6 +338,8 @@ ronda 3 → LEE las N+M + sus 100 commits       → ...
 ```
 
 **Por qué así y no en paralelo:** si las rondas son ciegas entre sí, **se destilan contradicciones como si todas fueran verdad** — una decisión de marzo sustituida en junio, y la ronda que ve marzo no sabe que murió. Leyendo **las notas ya destiladas** (no una lista de identificadores: las notas **con su porqué dentro**), cada ronda puede **sustituir con puntero**. Es exactamente lo que el v2 tiene y el v1 no tenía.
+
+**Construido y probado dos veces sobre historiales reales, según `FASE-7.md` paso 7.13b** (900+ commits de este repositorio, 825 de Omawa). El protocolo escrito no ha ejecutado todavía la destilación completa de ningún proyecto — eso es la fase 8, y va después de publicar —, pero la skill que lo prepara (medir commits, decidir rondas, la cosecha de zonas de la Pasada 0) está escrita y ensayada.
 
 ### [x] B33 · **Compactación de memoria de agente**, proyecto a proyecto — 2026-08-04 `[construida 2026-08-05: `skills/unmassk-memory/references/agent-memory-compaction.md`]`
 
@@ -369,17 +375,21 @@ Un agente ejecuta un script que **saca el JSONL de la conversación y le quita l
 - **No puede ir en `SessionEnd`.** Ese evento dispara al cerrar de verdad, pero **ya no hay modelo**: nadie puede juzgar qué importó. Se invoca mientras Claude sigue vivo.
 - **Y el prompt vive en la skill, no se improvisa.** Un encargo tecleado de memoria cada vez es la puerta por la que un día no se pide el Next.
 
-### [~] B35 · Un plan nace **solo si él lo dice** — 2026-08-05
+### [x] B35 · Un plan nace **solo si él lo dice** — 2026-08-05 `[construido, verificado 2026-08-05: skills/unmassk-flow/references/plan.md, "The Iron Law"]`
 
 > *«Lo decido yo. Tú, si quieres, puedes ofertarlo, pero lo decido yo.»*
 
 Claude puede **ofrecerlo en una línea** cuando algo se alarga o toca varias zonas; abrirlo por criterio propio, nunca. Un plan arrastra documento, incidencia y acta: es ceremonia, y la ceremonia la pide el dueño.
 
-### [~] B36 · Si la decisión cambia a mitad de un plan, **se edita la incidencia abierta** — 2026-08-05
+**Verificado 2026-08-05:** `plan.md` lo escribe como regla de hierro — *«A PLAN IS OPENED BY THE USER, NEVER BY YOU»* — con la misma instrucción de ofrecerlo en una línea y parar.
+
+### [x] B36 · Si la decisión cambia a mitad de un plan, **se edita la incidencia abierta** — 2026-08-05 `[construido, verificado 2026-08-05: skills/unmassk-flow/references/plan.md, "When the decision changes"]`
 
 > *«Se edita lo que hay.»*
 
 No se cierra una y se abre otra: **un plan, un hilo**, con la historia del cambio dentro. Coincide con lo que la especificación §10.3 ya decía, y lo cierra como decisión suya.
+
+**Verificado 2026-08-05:** `plan.md` lo dice igual — *«Edit the issue that is open. Never close it and open another.»*
 
 ### [x] B37 · El bloque del `CLAUDE.md` lleva el arranque **y las cuatro reglas que no pueden fallar** — 2026-08-05
 
@@ -444,28 +454,28 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 - **La Fase 5 (fila de la tabla de abajo) ya no existe como tal.** Por la decisión **B20** de la Parte 1, sus siete pasos (5.1 a 5.7) se sustituyen enteros: `hooks/inject.py` y `lib/memory/dispatch.py` **se borraron de verdad**, con sus tests, y los nueve prompts de agente ya llevan el paso nuevo (verificado leyendo los nueve ficheros de `agents/`). Lo que queda pendiente de esa sustitución son dos avisos menores de Cerberus, todavía sin cerrar: el flag `search.py --file` sigue vivo y siempre falla en silencio (nadie lo usa desde los nueve prompts, pero sigue sin marcarse como roto en ningún documento), y la línea «Memory consulted» de los informes no está comprobada por ningún gate real — un agente puede escribir «ninguna» sin haber buscado nada y nada se lo impide.
 - **El punto 13 sigue abierto, pero por un solo motivo** `[al día 2026-08-04]`. La tercera pasada de Moriarty sobre las capas 2 y 3 encontró tres cosas: `rezones.py --rebuild` no guardaba su reparación (**arreglado**, comprobado con un `git checkout` real), y las otras dos eran del eje de la concurrencia — **descartadas enteras por el propietario** (*«no va a pasar nunca»*, **B22**). Lo único que falta es **la cuarta pasada de Moriarty**, que §12bis exige y nadie ha hecho. El detalle está en el propio punto 13.
 
-## El recuento — **al día 2026-08-04**
+## El recuento — ~~al día 2026-08-04~~ **al día 2026-08-05**
 
 **80 pasos vivos en total** (los 83 del plan · **menos** los 7 de la fase 5 retirada · **más** los 4 que añaden las decisiones del 2026-08-04: **7.13b** la skill de destilación, **7.13c** la auditoría de memoria de agente, **7.13d** el prompt del cierre de sesión, y **8.2b** la cosecha de zonas).
 
 | Estado | Cuántos |
 |---|---|
-| ✅ hecho | ~~43~~ **44** |
+| ✅ hecho | ~~43~~ ~~44~~ **48** |
 | ⚠️ hecho, pero sin cerrar | **0** |
-| 🔨 a medias | **5** |
-| ⬜ sin empezar | ~~32~~ **31** |
+| 🔨 a medias | ~~5~~ **3** |
+| ⬜ sin empezar | ~~32~~ ~~31~~ **29** |
 
-`[corregido 2026-08-04: el paso 7.10 pasó a hecho — punto 3 de la PARTE 2, cerrado el mismo día — así que sube un hecho y baja un sin-empezar]`
+`[corregido 2026-08-04: el paso 7.10 pasó a hecho — punto 3 de la PARTE 2, cerrado el mismo día — así que sube un hecho y baja un sin-empezar]` `[corregido 2026-08-05: publicar versión (7.14) cerró de golpe 2.8b, 3.6, 6.1 y el propio 7.14 — dos que estaban a medias y dos que estaban sin empezar, los cuatro pasan a hecho]`
 
-**Por fase:** 0 → 4/4 hecho · 1 → 10/10 hecho · 2 → 8 hecho + 2 sin empezar (de 10) · 3 → 7 hecho + 2 a medias (de 9) · 4 → 9/9 hecho · **5 → retirada entera, 0 pasos** · 6 → 4 hecho + 2 a medias + 3 sin empezar (de 9) · 7 → ~~1 hecho + 17 sin empezar~~ **2 hecho + 16 sin empezar** (de 18) `[corregido 2026-08-04: 7.10]` · 8 → 0/7 · 9 → 1 a medias + 3 sin empezar (de 4).
+**Por fase:** 0 → 4/4 hecho · 1 → 10/10 hecho · 2 → ~~8 hecho + 2 sin empezar~~ **9 hecho + 1 sin empezar** (de 10) · 3 → ~~7 hecho + 2 a medias~~ **8 hecho + 1 a medias** (de 9) · 4 → 9/9 hecho · **5 → retirada entera, 0 pasos** · 6 → ~~4 hecho + 2 a medias~~ **5 hecho + 1 a medias** + 3 sin empezar (de 9) · 7 → ~~1 hecho + 17 sin empezar~~ ~~2 hecho + 16 sin empezar~~ **3 hecho + 15 sin empezar** (de 18) `[corregido 2026-08-04: 7.10; 2026-08-05: 7.14 — pero ver la nota más abajo, esta fila va detrás de `FASE-7.md`]` · 8 → 0/7 · 9 → 1 a medias + 3 sin empezar (de 4).
 
-**Suma comprobada:** ~~43 + 0 + 5 + 32~~ **44 + 0 + 5 + 31** = **80**. `[los cuatro recuentos anteriores de este documento no cuadraban con su propia tabla; este sí — sumar es la comprobación más barata que tiene esta lista y no se estaba haciendo. Recontado 2026-08-04 tras cerrar 7.10]`
+**Suma comprobada:** ~~43 + 0 + 5 + 32~~ ~~44 + 0 + 5 + 31~~ **48 + 0 + 3 + 29** = **80**. `[los cuatro recuentos anteriores de este documento no cuadraban con su propia tabla; este sí — sumar es la comprobación más barata que tiene esta lista y no se estaba haciendo. Recontado 2026-08-04 tras cerrar 7.10, y otra vez 2026-08-05 tras publicar versión]`
 
 **El ⚠️ desaparece de esta tabla el 2026-08-04, y esto es lo más grande que ha pasado hoy.** Las quince filas de las fases 2 y 3 llevaban esa marca desde el principio de la obra: construidas, con sus tests en verde, y **sin cerrar** porque les faltaba la pasada de Moriarty que §12bis exige. Ya la tienen — una por capa, el 2026-08-04. Las dos dieron hallazgo y los dos están reparados y verificados ejecutándolos (punto **13**). **Las capas 2 y 3 eran anteriores a todo lo construido encima**, y era la razón por la que `CALENDARIO.md` avisaba de que se estaba edificando sobre una capa abierta. Ya no.
 
 **La marca ⚠️ se queda definida en la leyenda de arriba** aunque hoy no la lleve ninguna fila: vuelve a hacer falta en cuanto se construya la próxima capa, porque toda capa nace así hasta que pasa su secuencia entera.
 
-**Lo que no pude verificar ejecutando, y por qué:** los pasos que dependen de una sesión real con los hooks activos (3.6, ~~5.3, 5.4,~~ 6.1, 7.14 y toda la fase 9 `[corregido 2026-08-04: 5.3 y 5.4 eran de la fase 5, retirada entera por B20 — ya no existen]`) no se pueden probar disparando una sesión de verdad, porque **lo que corre en cada sesión es la copia instalada en la caché (versión 1.25.0), no este repositorio** — lo comprobé pidiendo un comando inocuo y viendo que el aviso de bloqueo citaba la ruta de la caché, no la del repo. Para esos pasos leí el código y sus tests en vez de ejecutar una sesión — está anotado en cada fila.
+**Lo que no pude verificar ejecutando, y por qué — al día 2026-08-04.** ~~los pasos que dependen de una sesión real con los hooks activos (3.6, 5.3, 5.4, 6.1, 7.14 y toda la fase 9 [corregido 2026-08-04: 5.3 y 5.4 eran de la fase 5, retirada entera por B20 — ya no existen]) no se pueden probar disparando una sesión de verdad, porque lo que corre en cada sesión es la copia instalada en la caché (versión 1.25.0), no este repositorio — lo comprobé pidiendo un comando inocuo y viendo que el aviso de bloqueo citaba la ruta de la caché, no la del repo. Para esos pasos leí el código y sus tests en vez de ejecutar una sesión — está anotado en cada fila.~~ **Ya no aplica a 3.6, 6.1 ni 7.14** `[corregido 2026-08-05]`: se publicó versión, la copia que corre ya no es la 1.25.0 — la propia skill de dominio que carga esta tarea se resolvió desde la caché en 1.27.1 — y `hooks.json` registra los dos hooks nuevos, verificado leyendo el fichero. La fase 9 sigue sin poderse probar con una sesión real porque sus pasos (borrar ficheros del sistema viejo) todavía no se han ejecutado.
 
 **Tres hallazgos que no esperaba, verificados los tres leyendo el código de hoy mismo, no un documento:**
 1. **El candado que faltaba en `write_work()` (el hallazgo más grave que tiene anotado el punto 27 de esta deuda) ya está arreglado en el código.** El docstring de `notes_commit.py` lo fecha el 2026-08-03 y lo atribuye a Moriarty; `pytest tests/memory/test_notes.py` da 22 verdes. `[al día 2026-08-04: el punto 27 quedó cerrado, pero no por este arreglo — el propietario descartó el caso entero (B22). Este párrafo se conserva porque el arreglo del candado sigue en el código y sigue siendo cierto.]`
@@ -498,7 +508,7 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | **1.9** | Una prueba por cada regla del validador | ✅ hecho | Nada |
 | **1.10** | Una prueba que salta sola si alguien añade un campo sin decir quién lo lee | ✅ hecho | Nada — no es un fichero aparte como preveía el paso, está dentro de `test_vocabulary.py` (`test_every_field_declares_a_reader_that_resolves_by_the_three_state_rule`), mismo efecto |
 
-## FASE 2 — El generador (8 ~~sin cerrar~~ **hecho** + 2 sin empezar, de 10) `[corregido 2026-08-04]`
+## FASE 2 — El generador (~~8~~ **9** ~~sin cerrar~~ **hecho** + ~~2~~ **1** sin empezar, de 10) `[corregido 2026-08-04, y otra vez 2026-08-05: 2.8b cerró al publicar]`
 
 **Por qué «sin cerrar» y no «hecho» — ya no aplica.** ~~Moriarty ya atacó esta capa dos veces y las dos dio **FALLA** — sus hallazgos siguen sin cerrar formalmente (punto **13** de más abajo), así que aunque el código y los tests estén completos, la revisión no ha terminado.~~ **El punto 13 se cerró el 2026-08-04**: la cuarta pasada de Moriarty completó la secuencia de `PIEZAS.md` §12bis sobre esta capa, encontró un hallazgo real (el puntero `Origin` mal escrito) y quedó reparado y verificado. El recuento de ⚠️ de más arriba ya está en 0. `[corregido 2026-08-04]`
 
@@ -512,10 +522,10 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | **2.6** | Los scripts para dar de alta una nota, cerrarla y sustituirla, con todos los flags desde el primer intento | ✅ hecho | Revisión de Moriarty |
 | **2.7** | El commit de trabajo, con su issue, y que se pueda commitear solo ciertos ficheros sin arrastrar el resto | ✅ hecho | Revisión de Moriarty |
 | **2.8** | **MINA 1** — decirle al guardián de commits del sistema viejo que reconozca los scripts nuevos, para que no los bloquee | ⬜ sin empezar | El fichero que hace esa comprobación (`pre-validate-commit-trailers.py`) sigue reconociendo solo el script viejo; no se ha tocado. En la práctica esto no ha bloqueado nada todavía porque el bloqueo solo salta cuando el texto de un comando escribe «git» y «commit» juntos, y los scripts nuevos se invocan con python — pero el paso, tal como está escrito, no se ha hecho |
-| **2.8b** | **MINA 4** — que el script de publicar versión use el generador nuevo en vez del viejo | ⬜ sin empezar | ~~`unmassk-toolkit/bin/release.py`~~ **`bin/release.py`** (está en la raíz del repositorio, no dentro de `unmassk-toolkit/` — `[corregido 2026-08-04]`) sigue apuntando a `git-memory-commit.py` (el script viejo) y sigue usando el campo `Touched=` que el v2 retiró. El día que se borre el sistema viejo, publicar una versión se rompe |
+| **2.8b** | **MINA 4** — que el script de publicar versión use el generador nuevo en vez del viejo | ~~⬜ sin empezar~~ **✅ hecho** `[cerrado 2026-08-05]` | ~~`unmassk-toolkit/bin/release.py`~~ **`bin/release.py`** (está en la raíz del repositorio, no dentro de `unmassk-toolkit/` — `[corregido 2026-08-04]`) ~~sigue apuntando a `git-memory-commit.py` (el script viejo) y sigue usando el campo `Touched=` que el v2 retiró. El día que se borre el sistema viejo, publicar una versión se rompe~~ **Verificado 2026-08-05 leyendo el fichero: ya importa `notes` de `unmassk-toolkit/lib/memory` y commitea con `notes.write_work()`, no con `git-memory-commit.py`. El campo `Touched=` no aparece en ningún sitio del script** |
 | **2.9** | Pruebas de la transacción contra un repositorio real | ✅ hecho | Revisión de Moriarty. Las pruebas están y pasan: ~~22~~ **25** verdes (`test_notes.py`) `[recontado 2026-08-04]` |
 
-## FASE 3 — Índices, arranque y salud (7 ~~sin cerrar~~ **hecho** + 2 a medias, de 9) `[corregido 2026-08-04]`
+## FASE 3 — Índices, arranque y salud (~~7~~ **8** ~~sin cerrar~~ **hecho** + ~~2~~ **1** a medias, de 9) `[corregido 2026-08-04, y otra vez 2026-08-05: 3.6 cerró al publicar — hoy sí se dispara en sesión real]`
 
 **Mismo motivo que la fase 2, y ya no aplica.** ~~Moriarty ya atacó esta capa dos veces, **FALLA** las dos, hallazgos sin cerrar (punto **13**).~~ **El punto 13 se cerró el 2026-08-04**: la cuarta pasada de Moriarty completó la secuencia sobre esta capa, encontró un hallazgo real (`write_work()` culpando a un proceso inexistente) y quedó reparado y verificado. `[corregido 2026-08-04]`
 
@@ -526,7 +536,7 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | **3.3** | El fichero de reglas del proyecto, su script, **y el comando que lo entrega** | 🔨 a medias | El fichero y el script existen y funcionan. **El comando no existe**: no hay ninguna carpeta `commands/` en el sistema todavía, así que no hay forma de pedir las reglas con una orden — solo llamando al script directamente |
 | **3.4** | La salud del sistema: coherencia entre índices y git, identificadores duplicados, planes sin reflejar | ✅ hecho | Revisión de Moriarty |
 | **3.5** | El menú del día completo, escrito desde cero | ✅ hecho | Revisión de Moriarty |
-| **3.6** | El hook mínimo que dispara el menú del día al abrir sesión | 🔨 a medias | Construido y probado por separado (`hooks/boot_launcher.py`, con sus propios tests), pero **no está enganchado en `hooks.json`** — no se dispara todavía en ninguna sesión real. Es a propósito: engancharlo ahora, con el sistema viejo aún encendido, dispararía dos arranques a la vez. Se engancha en la fase 9 (punto **26** de esta deuda) |
+| **3.6** | El hook mínimo que dispara el menú del día al abrir sesión | ~~🔨 a medias~~ **✅ hecho** `[cerrado 2026-08-05]` | Construido y probado por separado (`hooks/boot_launcher.py`, con sus propios tests). ~~**No está enganchado en `hooks.json`** — no se dispara todavía en ninguna sesión real. Es a propósito: engancharlo ahora, con el sistema viejo aún encendido, dispararía dos arranques a la vez. Se engancha en la fase 9~~ **Verificado 2026-08-05 leyendo `unmassk-toolkit/hooks/hooks.json`: `boot_launcher.py` está registrado en `SessionStart`** (punto **26** de esta deuda, cerrado en el mismo repaso) |
 | **3.7** | El script que reconstruye los índices desde git, con un modo de solo mirar sin tocar | ✅ hecho | Revisión de Moriarty |
 | **3.8** | Los ocho ficheros nacen vacíos, cada uno con su cabecera de aviso | ✅ hecho | Revisión de Moriarty |
 | **3.9** | Pruebas del arranque y de la salud | ✅ hecho | Revisión de Moriarty |
@@ -553,13 +563,13 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 
 **Lo único que sobrevive de esta fase, y no como paso sino como aviso pendiente:** dos hallazgos menores de Cerberus siguen sin cerrar — el flag `search.py --file` sigue vivo y falla siempre en silencio (nadie lo usa, pero nada lo marca como roto), y la línea «Memory consulted» de los informes de agente no la comprueba ningún control real: un agente puede escribir «ninguna» sin haber buscado nada.
 
-## FASE 6 — La aduana (4 hecho + 2 a medias + 3 sin empezar, de 9)
+## FASE 6 — La aduana (~~4~~ **5** hecho + ~~2~~ **1** a medias + 3 sin empezar, de 9) `[corregido 2026-08-05: 6.1 cerró al publicar — hoy sí se dispara en sesión real]`
 
 > **El título de esta fase decía «La aduana y el banco adversarial» y el banco ya no es un comando** `[corregido 2026-08-04]`. `gitmem bench` se borró entero (B4) y con él su único punto de entrada. Los pasos **6.7** y **6.8** siguen abajo porque el catálogo de los diez ataques no se pierde —es material de Moriarty dentro de §12bis—, pero **dónde sale su resultado no está decidido** y es un hueco declarado, no un olvido.
 
 | Paso | Qué es | Estado | Qué falta |
 |---|---|---|---|
-| **6.1** | El hook de la aduana, llamando al mismo validador de la fase 1 | 🔨 a medias | Construido, llama al validador único (no hay una segunda copia de «esto es válido» en ningún sitio, comprobado leyendo el código) y tiene 17 pruebas en verde. **No está enganchado en `hooks.json`** — mismo motivo que 3.6 ~~y 5.3~~ `[corregido 2026-08-04: 5.3 era de la fase 5, retirada por B20]`, se engancha en la fase 9 |
+| **6.1** | El hook de la aduana, llamando al mismo validador de la fase 1 | ~~🔨 a medias~~ **✅ hecho** `[cerrado 2026-08-05]` | Construido, llama al validador único (no hay una segunda copia de «esto es válido» en ningún sitio, comprobado leyendo el código) y tiene 17 pruebas en verde. ~~**No está enganchado en `hooks.json`** — mismo motivo que 3.6 y 5.3, se engancha en la fase 9~~ **Verificado 2026-08-05 leyendo `unmassk-toolkit/hooks/hooks.json`: `customs.py` está registrado en `PreToolUse` con `matcher: "Bash"`** (punto **26** de esta deuda, cerrado en el mismo repaso) |
 | **6.2** | El interruptor de la aduana | ✅ hecho | Nada — y mejor de lo que pedía el paso: ya no hace falta encenderla proyecto a proyecto a mano; se enciende ella sola en cuanto el proyecto tiene su primera nota, por una decisión posterior del propietario (B19, punto 2 de la Parte 1) que ya está implementada en el código |
 | **6.3** | Que el `wip` y el aviso de cierre de sesión no reciban ninguna pregunta | ✅ hecho | Nada |
 | **6.4** | Al cerrar una incidencia, preguntar si de ahí sale un muro | 🔨 a medias | El mecanismo existe (`gitmem remove` exige decir `--restriction no` o `--restriction new`), pero por un camino distinto al que describe el texto oficial: en vez del aviso «CIERRE RETENIDO» con las dos opciones explicadas, hoy es un flag obligatorio de la línea de comandos, con un mensaje de error genérico si se olvida. Además falta la prueba de que crear el muro con éxito funciona — solo está probado el camino en el que falla |
@@ -569,7 +579,7 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | **6.8** | Que el banco corra solo y enseñe su resultado | ⬜ sin empezar | Depende del 6.7 |
 | **6.9** | Pruebas de la aduana | ✅ hecho | Nada — 17 verdes (`test_customs_hook.py`) |
 
-> **Esta tabla va por detrás desde el 2026-08-05 y no se fía de ella nadie: el estado vivo de la fase 7 está en `FASE-7.md`, que es la orden de trabajo.** Ese día se cerraron once pasos más (7.1 a 7.6, 7.8, 7.9, 7.11 a 7.13d) y aquí solo se han marcado los dos que se tocaron. Se deja dicho en vez de repintar doce filas de memoria: **13 de 18 hechos, queda el 7.14** *(y antes, el 2.8b)*.
+> **Esta tabla va por detrás, y no se fía de ella nadie: el estado vivo de la fase 7 está en `FASE-7.md`, que es la orden de trabajo.** El 2026-08-05 se cerraron once pasos más (7.1 a 7.6, 7.8, 7.9, 7.11 a 7.13d) y en su momento aquí solo se marcaron los dos que se tocaron ese día. ~~13 de 18 hechos, queda el 7.14 (y antes, el 2.8b)~~ **Con el 7.14 y el 2.8b cerrados el mismo día 2026-08-05, `FASE-7.md` da 18 de 18 y no queda ninguno** `[verificado en `FASE-7.md` mismo, 2026-08-05]`. Esta fila de FASE 2/3/6/7 en esta tabla solo lleva los cuatro pasos que este mismo repaso tocó (2.8b, 3.6, 6.1, 7.14); el resto sigue sin repintarse aquí a propósito — para eso está `FASE-7.md`.
 
 ## FASE 7 — Skills, agentes y periferia (~~1~~ **2** hecho, de ~~15~~ **18** — la más grande y la que falta casi entera) `[corregido 2026-08-04: faltaban tres filas en esta tabla — 7.13b, 7.13c y 7.13d, decididas el mismo día (B32/B33/B34) — que el recuento de "80 pasos" de más arriba ya sumaba pero esta tabla no llevaba]`
 
@@ -592,7 +602,7 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | **7.13b** *(añadida 2026-08-04)* | La skill de destilación: mide con git cuántos commits hay y de qué clases, decide cuántas rondas hacen falta y las encadena en cascada `[decisión B32]` | ⬜ sin empezar | No existe ninguna skill de destilación todavía |
 | **7.13c** *(añadida 2026-08-04)* | La compactación de memoria de agente: cada agente contrasta sus memorias contra código/documentación, informa y las modifica `[decisión B33]` | ⬜ sin empezar | No existe ese encargo todavía, ni como skill nueva ni dentro de otra |
 | **7.13d** *(añadida 2026-08-04)* | El prompt del cierre de sesión, dentro de `unmassk-close-session`, ejecutado por un `general-purpose`: filtra la conversación, la lee entera y escribe el Next, el contexto y la lista de commits `[decisiones B34 y B42]` | ✅ hecho `[2026-08-05]` | Nada — `scripts/session_transcript.py` + `references/close-agent-prompt.md` + `SKILL.md`, probado ejecutándolo contra la sesión real y contra un repositorio de prueba |
-| **7.14** | Publicar el toolkit con el sistema nuevo dentro | ⬜ sin empezar | La versión instalada sigue siendo 1.25.0, sin el sistema nuevo activo — **es el paso que desbloquea todo lo demás**, como ya explica la sección de más abajo |
+| **7.14** | Publicar el toolkit con el sistema nuevo dentro | ~~⬜ sin empezar~~ **✅ hecho** `[cerrado 2026-08-05]` | ~~La versión instalada sigue siendo 1.25.0, sin el sistema nuevo activo~~ **Publicado: `marketplace.json` marca 1.27.1** (pasó por 1.26.0 y 1.27.0 el mismo día, `CHANGELOG.md` lo confirma). Era **el paso que desbloqueaba todo lo demás**, y con él cierran también los puntos **2**, **3.6**, **6.1** y **26** de esta misma deuda |
 
 ## FASE 8 — La destilación (0/~~6~~ **7**, sin empezar) `[corregido 2026-08-04: faltaba 8.2b, la cosecha de zonas, decidida el mismo día — B32]`
 
@@ -643,7 +653,7 @@ Como en el uso normal: a la vista y sin pedir permiso. Perder una nota por una z
 | 8 | La aduana se enciende sola con la primera nota | ✅ **hecho** |
 | 9 | El `--continue` y el `--skip` de un rebase pasan | ✅ **hecho** |
 | 10 | `awaits:` en todas partes | ✅ **hecho** |
-| 11 | **El arranque automático, sin subcomando** | ⬜ **falta** — `boot` ya no es subcomando, pero **nada lo dispara solo**. Hay que enchufarlo, y eso es fase 7 |
+| 11 | **El arranque automático, sin subcomando** | ~~⬜ falta — `boot` ya no es subcomando, pero nada lo dispara solo. Hay que enchufarlo, y eso es fase 7~~ ✅ **hecho** `[cerrado 2026-08-05]` — `boot` sigue sin ser subcomando, y ahora sí lo dispara solo: `hooks.json` registra `boot_launcher.py` en `SessionStart`, verificado leyendo el fichero |
 | 12 | **La deducción `note`/`work` desde el diff** | ⬜ **falta** — la aduana todavía no mira si hay código tocado para saber cuál de los dos es |
 | 13 | **El rechazo con salida para `amend` y `rebase`** | 🔨 **a medias** — el texto ya está escrito (`TEXTOS.md` §1.12 y §1.13); **falta que el hook lo use** |
 | 14 | **La confirmación por duplicado** de los siete comandos que borran trabajo | 🔨 **a medias** — los dos textos ya están (`TEXTOS.md` §8); **falta el mecanismo que los intercepta** |
@@ -693,7 +703,15 @@ El plan (paso **7.12**) decía **reescribirlo**, no borrarlo. Esto fue extralimi
 > **Verificación:** `python3 -c "import sys;sys.path.insert(0,'unmassk-toolkit/lib');import managed_blocks as m;print([b['begin'] for b in m.BLOCKS])"` tiene que incluir `unmassk-toolkit`, **y** `pytest unmassk-toolkit/tests/test_lifecycle.py -q` en verde.
 > **Verificado 2026-08-02:** la lista de `BLOCKS` incluye `<!-- BEGIN unmassk-toolkit (managed block — do not edit) -->`. `pytest unmassk-toolkit/tests/test_lifecycle.py unmassk-toolkit/tests/test_managed_blocks.py -q` → **46 passed** (los 4 que estaban en rojo el mismo día, `test_uninstall` / `test_uninstall_full_local` / `TestBlocksDefinition::test_toolkit_block_content` / `TestUninstallFourBlocks::test_uninstall_removes_all_four_blocks`, están todos en verde ahora). Reparado en el generador.
 
-### [ ] 2 · El arranque del proyecto manda cargar tres cosas borradas — **y NO se cierra tocando código**
+### [x] 2 · El arranque del proyecto manda cargar tres cosas borradas — **CERRADO 2026-08-05, publicando versión**
+
+> **Se publicó.** `marketplace.json` marca `unmassk-toolkit` en **1.27.1** (pasó por 1.26.0 y 1.27.0 el mismo día, `CHANGELOG.md` confirma las tres fechadas 2026-08-05). El generador del bloque que corre de verdad ya no es el congelado en 1.25.0 — la propia skill de dominio que carga esta tarea se resolvió desde `~/.claude/plugins/cache/.../unmassk-toolkit/1.27.1/`, prueba directa de que la copia instalada es la nueva.
+>
+> **`bin/release.py` deja de apuntar al generador viejo — comprobado leyendo el fichero, no de memoria.** Ya no llama a `git-memory-commit.py` ni usa el campo `Touched=` que el v2 retiró: importa `notes` desde `unmassk-toolkit/lib/memory` y commitea con `notes.write_work()`, con `known_content` leído antes de tocar git — el mismo mecanismo que usa cualquier `gitmem work`. Esto cierra también el punto **2.8b** de la FASE 2, que este mismo documento tenía como bloqueante de publicar.
+>
+> **Con eso, el bloque nuevo del `CLAUDE.md` (paso 7.12, decisión **B37**) es el que se instala de verdad**, y ya no manda cargar `unmassk-gitmemory` ni leer `CALIBRATION.md` ni ejecutar `git-memory-recall.py` — las tres cosas que este punto llevaba meses señalando como borradas. El síntoma original queda cerrado sin tocar una línea más de código: era, como decía este mismo punto, un arreglo que **solo se podía verificar publicando**.
+
+<details><summary>El diagnóstico original, conservado — describía el arranque antes de publicar</summary>
 
 **Medido el 2026-08-02, y cambia la naturaleza del punto.** El generador del bloque **ya está arreglado en el repositorio**: su cuerpo no menciona la skill borrada ni su calibración. Pero el `CLAUDE.md` de este proyecto **sí las sigue mencionando**, en las líneas 102-103, porque **el generador que corre de verdad es el de la caché instalada**, no el del repositorio:
 
@@ -710,6 +728,8 @@ El síntoma original sigue siendo el mismo: `CLAUDE.md` da tres órdenes en cada
 
 > **Reparación:** fase 7, paso **7.12**, con el bloque nuevo — **y publicar versión** (paso 7.14), que es lo que hace que el arreglo llegue a correr.
 > **Verificación:** las tres rutas que cite el bloque tienen que existir en disco, **comprobado contra la copia instalada**, no contra el repositorio.
+
+</details>
 
 ### [x] 3 · La skill de cierre de sesión no hacía lo que prometía — **CERRADO 2026-08-04 (paso 7.10)**
 
@@ -1127,17 +1147,25 @@ Y por pantalla sale `⏩ cierro la sesion de hoy`, sin un solo aviso. La sesión
 
 </details>
 
-### [ ] 26 · El hook del arranque existe, funciona, y **no lo llamaría nadie**
+### [x] 26 · El hook del arranque existe, funciona, y **no lo llamaría nadie** — **CERRADO 2026-08-05**
+
+> **Comprobado leyendo `unmassk-toolkit/hooks/hooks.json` tal como está hoy en el repositorio:** `boot_launcher.py` está registrado en `SessionStart` (junto a `session-start-crew.py`) y `customs.py` está registrado en `PreToolUse` con `matcher: "Bash"`. Los tres hooks del sistema viejo que este punto citaba —`session-start-boot.py`, `pre-validate-commit-trailers.py`, `stop-dod-check.py`— **ya no están en `hooks.json`**, aunque sus ficheros siguen en disco sin borrar. `PreToolUse` lleva además `validate-memory-path.py` (`Write|Edit`) y `pre-merge-gate.py` (`Bash`); `UserPromptSubmit` lleva `user-prompt-memory-check.py`; `Stop` lleva `stop-dod-gate.py` — ninguno de estos cinco es del sistema viejo que este punto vigilaba.
+>
+> **El test en rojo que este mismo punto documentaba ya está en verde:** `pytest unmassk-toolkit/tests/test_doctor_derived_expectations.py -q` → **33 passed**, incluido `TestExpectedHooksDerivation::test_matches_the_hook_files_actually_shipped` en solitario. Ya no hay divergencia entre lo que hay en `hooks/` y lo que declara `hooks.json`.
+>
+> **Se cierra por publicación, no por la reparación que este punto describía originalmente como "fase 9".** El motivo por el que se dejaba sin enganchar —dos arranques disparando a la vez mientras el sistema viejo seguía vivo— dejó de aplicar en el momento en que se publicó versión (**punto 2**, cerrado en el mismo repaso): la copia que corre en cada sesión ya es la que trae `hooks.json` así. La fase 9 (retirar del todo los ficheros del sistema viejo que quedan en disco sin registrar) sigue sin empezar y no bloquea nada de esto.
+
+<details><summary>El diagnóstico original, conservado — describía el `hooks.json` de antes de publicar</summary>
 
 **Corregido 2026-08-03: ya no son dos hooks, es uno solo.** `hooks/inject.py` —el segundo hook que este punto citaba— **se retiró por completo** junto con `lib/memory/dispatch.py` y sus tests, por decisión del propietario (**B20**, Parte 1 de este documento): la memoria deja de inyectarse por un vigilante y pasa a que cada agente la busque él mismo, en tres pasos escritos en su propio prompt. No es que el hook siga sin engancharse — **ya no existe**, y no va a engancharse nunca.
 
-Lo que queda de este punto es solo `hooks/boot_launcher.py`: está escrito, con sus tests en verde, y probado a mano ejecutándolo. Pero **no está registrado en `unmassk-toolkit/hooks/hooks.json`**, que sigue apuntando solo a los hooks del sistema viejo. Un hook que no está en ese fichero no se dispara nunca: hoy es código muerto.
+Lo que quedaba de este punto era solo `hooks/boot_launcher.py`: estaba escrito, con sus tests en verde, y probado a mano ejecutándolo. Pero **no estaba registrado en `unmassk-toolkit/hooks/hooks.json`**, que seguía apuntando solo a los hooks del sistema viejo. Un hook que no está en ese fichero no se dispara nunca: era código muerto.
 
 Es el mismo patrón que ya costó un hallazgo en la capa 4 —un vigilante escrito ese mismo día que no llegaba a ninguna pantalla porque el molde no tenía sitio para sus números—, y la razón por la que la especificación insiste en que un chequeo que no habla es indistinguible de uno que no se ejecuta.
 
-**Se deja abierto a propósito, no es un olvido:** registrar un hook nuevo mientras el sistema viejo sigue vivo puede dejar dos arranques disparando a la vez, y el orden en que se retira el v1 es la fase 9 del plan. Va junto con la publicación de versión, no antes.
+**Se dejaba abierto a propósito, no era un olvido:** registrar un hook nuevo mientras el sistema viejo seguía vivo podía dejar dos arranques disparando a la vez, y el orden en que se retira el v1 es la fase 9 del plan. Iba junto con la publicación de versión, no antes.
 
-**Y hay un test en rojo por esto, que nadie había anotado** `[encontrado 2026-08-04]`**:**
+**Y había un test en rojo por esto, que nadie había anotado** `[encontrado 2026-08-04]`**:**
 
 ```
 unmassk-toolkit/tests/test_doctor_derived_expectations.py
@@ -1147,12 +1175,14 @@ unmassk-toolkit/tests/test_doctor_derived_expectations.py
       shipped but not declared: ['boot_launcher.py', 'customs.py']
 ```
 
-Es un vigilante **legítimo** —comprueba que lo que hay en `hooks/` y lo que declara `hooks.json` digan lo mismo— cazando exactamente la divergencia que este punto describe. **Lleva en rojo desde que los dos hooks se escribieron (2026-08-03) y no estaba escrito en ninguna parte.**
+Era un vigilante **legítimo** —comprueba que lo que hay en `hooks/` y lo que declara `hooks.json` digan lo mismo— cazando exactamente la divergencia que este punto describía. **Llevaba en rojo desde que los dos hooks se escribieron (2026-08-03) y no estaba escrito en ninguna parte.**
 
-**Se anota, no se silencia.** Un test en rojo que nadie explica es un test que se acaba ignorando, y detrás se esconde un fallo de verdad — es la lección que acaba de dejar el punto **22**, donde dos tests llevaban días en rojo **teniendo razón**. Este la tiene también: lo que vigila es cierto, y se pondrá verde solo cuando la fase 9 registre los dos hooks. Hasta entonces, **es rojo esperado y está declarado aquí**.
+**Se anotó, no se silenció.** Un test en rojo que nadie explica es un test que se acaba ignorando, y detrás se esconde un fallo de verdad — es la lección que dejó el punto **22**, donde dos tests llevaban días en rojo **teniendo razón**. Este la tenía también: lo que vigilaba era cierto, y se puso verde en cuanto se publicó y `hooks.json` registró los dos hooks.
 
-> **Reparación:** al retirar el v1 (fase 9), `hooks.json` registra `boot_launcher.py` en `SessionStart`, y se quitan los del sistema viejo que quedan sustituidos. `customs.py` entra también — su `[pregunta]` bloqueante (`PIEZAS.md` §11.1) **la respondió el propietario el 2026-08-03**: *«siempre que se use git tiene que guardarse de una forma u otra en memoria»*.
+> **Reparación (la de entonces):** al retirar el v1 (fase 9), `hooks.json` registra `boot_launcher.py` en `SessionStart`, y se quitan los del sistema viejo que quedan sustituidos. `customs.py` entra también — su `[pregunta]` bloqueante (`PIEZAS.md` §11.1) **la respondió el propietario el 2026-08-03**: *«siempre que se use git tiene que guardarse de una forma u otra en memoria»*.
 > **Verificación:** `grep -c "boot_launcher" unmassk-toolkit/hooks/hooks.json` distinto de cero, y una sesión real arrancando con el hook nuevo. **No pasa: verificado 2026-08-03, cero coincidencias.**
+
+</details>
 
 ### [x] 27 · El commit de trabajo se guarda con tu título y el contenido de otro — **CERRADO 2026-08-04 por decisión del propietario: el caso no se da**
 
@@ -1373,4 +1403,17 @@ Un punto se marca hecho **solo** tras ejecutar su verificación. Si al repasarla
 
 </details>
 
-**Ya no queda ni un punto esperando una decisión tuya, y ya solo quedan dos abiertos, no nueve** `[recontado 2026-08-04]`: el **2** y el **26**, y los dos se cierran solos — el 2 al publicar versión, el 26 al enganchar los hooks en la fase 9. Ninguno espera una decisión del propietario ni una reparación de código.
+~~**Ya no queda ni un punto esperando una decisión tuya, y ya solo quedan dos abiertos, no nueve** [recontado 2026-08-04]: el **2** y el **26**, y los dos se cierran solos — el 2 al publicar versión, el 26 al enganchar los hooks en la fase 9. Ninguno espera una decisión del propietario ni una reparación de código.~~
+
+---
+
+## RECUENTO BUENO — 2026-08-05. Los dos que quedaban se cerraron los dos, y con ellos la PARTE 2 queda cerrada entera
+
+**Se publicó versión** — `marketplace.json` marca `unmassk-toolkit` en **1.27.1**, con `CHANGELOG.md` confirmando 1.26.0, 1.27.0 y 1.27.1 las tres fechadas 2026-08-05. Con eso caen los dos únicos puntos que quedaban:
+
+- **Punto 2** — cerrado: el bloque del `CLAUDE.md` que corre ahora es el de la versión publicada, ya no manda cargar la skill borrada, su `CALIBRATION.md` ni `git-memory-recall.py`.
+- **Punto 26** — cerrado: `unmassk-toolkit/hooks/hooks.json` registra `boot_launcher.py` en `SessionStart` y `customs.py` en `PreToolUse` (`matcher: "Bash"`), verificado leyendo el fichero. El test que llevaba en rojo desde el 2026-08-03 (`test_doctor_derived_expectations.py::TestExpectedHooksDerivation::test_matches_the_hook_files_actually_shipped`) está en verde.
+
+**28 puntos rotos en total (1 a 28, sin huecos). ~~26 cerrados, 2 abiertos.~~ 28 cerrados, 0 abiertos.**
+
+**La PARTE 2 —"Lo que está roto"— queda cerrada entera.** No queda ni un punto en esta sección esperando código, decisión ni publicación. Lo que sigue abierto en el resto del documento (fase 8, fase 9, la compactación de memoria de agente, y el juicio final de Yoda) vive en la PARTE 1 y en "LOS 80 PASOS", no aquí.
