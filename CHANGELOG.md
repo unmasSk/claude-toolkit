@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **El candado del sistema de memoria se colaba en git, y en todos los proyectos.** `zones.json.lock` vive junto al fichero que protege, no bajo `.claude/.unmassk/`, así que la única línea que el instalador escribía en el `.gitignore` no lo cubría. Es basura de funcionamiento —lo crea un proceso un instante y sobra— y aparecía en `git status` como si fuera trabajo del usuario. Se añade `.claude/project-memory/*.lock` a lo que el instalador ignora, así que se arregla solo en cada proyecto donde se instale, no solo aquí. **Deliberadamente estrecho, nunca un `*.lock` a secas:** `Cargo.lock`, `bun.lock` y `package-lock.json` son dependencias que sí tienen que viajar en git, y dejar de versionarlas rompería las instalaciones reproducibles.
+
 ## [1.28.1] - 2026-08-05
 
 ### Fixed

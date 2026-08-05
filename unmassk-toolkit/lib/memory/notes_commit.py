@@ -200,8 +200,24 @@ def stage_and_commit(message: str, paths: list[Path], root: Path) -> gitcmd.GitR
     pathspec ya absoluto (ver `write_work()`) se resuelve identico sin
     importar desde donde se invoque el script.
     """
+    # `--all` (no el `add` pelado): sin el, un BORRADO era imposible de
+    # guardar con el sistema puesto, y se descubrio ejecutandolo
+    # [2026-08-05]. `git add -- <ruta>` de un fichero que acaba de entrar
+    # en el `.gitignore` falla en cerrado ("paths are ignored by one of
+    # your .gitignore files"), y `git commit` a pelo lo bloquea la aduana:
+    # dejar de versionar un fichero se quedaba sin ninguna salida. No es
+    # un caso raro -- ocurre cada vez que algo pasa a ignorarse.
+    #
+    # `--all` es el modo que registra tambien la desaparicion de una ruta.
+    # NO ensancha lo que se comitea: sigue acotado al mismo pathspec
+    # explicito de `paths`, nunca al arbol entero, asi que el contrato de
+    # "commitea SOLO estas rutas, sin arrastrar el resto del indice" --
+    # el que exige la publicacion del toolkit [plan Sec.2.7] -- se
+    # mantiene intacto.
     add_result = gitcmd.run(
-        ["add", "--", *(str(p) for p in paths)], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+        ["add", "--all", "--", *(str(p) for p in paths)],
+        cwd=root,
+        timeout=gitcmd.GIT_TIMEOUT,
     )
     if add_result.returncode != 0:
         return add_result
