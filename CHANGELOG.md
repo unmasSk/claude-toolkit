@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-08-05
+
 ### Added
 
 - **New project-memory system, replacing the retired `git-memory` toolchain entirely.** Notes are organized into two zones each; nine commands are dispatched through one facade (`unmassk-toolkit/bin/gitmem note|work|wip|remove|next|search|zones|rezones|rule`) that never re-implements the underlying script — each subcommand runs `bin/memory/<name>.py` as a separate process by path, so a rejection from `gitmem note` is byte-for-byte identical to running `note.py` directly. `wip` is new: a checkpoint that writes without asking questions. `boot` is deliberately not a `gitmem` subcommand — `bin/memory/boot.py` fires on its own at session start instead of being invoked by hand. The old `git-memory` bash wrapper and `bin/git-memory-{bootstrap,gc,recall,uninstall,upgrade}.py` are gone, along with the hooks that only served them (`pre-task-recall.py`, `pre-memory-dedup-gate.py`, `precompact-snapshot.py`, `stop-close-session.py`) and the `gitto` agent.
