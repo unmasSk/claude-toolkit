@@ -127,14 +127,22 @@ class TestExpectedHooksDerivation:
 
         derived = doctor.expected_hooks(REAL_PLUGIN_ROOT)
 
-        # Los dos hooks del sistema de memoria nuevo estan escritos y NO
-        # registrados a proposito [DEUDA.md #26]: engancharlos mientras el
-        # sistema viejo sigue vivo dispararia dos arranques a la vez. Se
-        # registran en la fase 9. Se declaran aqui, con su motivo, para que
-        # este vigilante siga cazando una divergencia de VERDAD en vez de
-        # estar rojo todos los dias por un hueco ya decidido -- un test rojo
-        # que nadie explica es un test que se acaba ignorando.
-        DELIBERATELY_UNWIRED = {"boot_launcher.py", "customs.py"}
+        # Los tres hooks del sistema viejo que el cambio de guardia del
+        # 2026-08-05 desenchufo siguen en disco a proposito: si el arranque
+        # nuevo falla en una sesion real, volver es cambiar hooks.json y
+        # nada mas. Se declaran aqui, con su motivo, para que este
+        # vigilante siga cazando una divergencia de VERDAD en vez de estar
+        # rojo todos los dias por un hueco ya decidido -- un test rojo que
+        # nadie explica es un test que se acaba ignorando.
+        DELIBERATELY_UNWIRED = {
+            # RETIRADOS el 2026-08-05 en el cambio de guardia: siguen en
+            # disco a proposito hasta que se borren con sus tests, que
+            # tocan siete ficheros y dos de ellos compartidos. Borrarlos
+            # es una pasada propia, no una linea al final de otra cosa.
+            "pre-validate-commit-trailers.py",
+            "stop-dod-check.py",
+            "session-start-boot.py",
+        }
 
         on_disk = {
             name for name in os.listdir(os.path.join(REAL_PLUGIN_ROOT, "hooks"))
@@ -146,8 +154,8 @@ class TestExpectedHooksDerivation:
             "hooks.json and hooks/ disagree.\n"
             f"  declared but not shipped: {sorted(set(derived) - on_disk)}\n"
             f"  shipped but not declared: {sorted(on_disk - set(derived))}\n"
-            "  (boot_launcher.py y customs.py estan exentos a proposito: "
-            "DEUDA.md #26, se enganchan en la fase 9)"
+            "  (los hooks del sistema viejo desenchufados el 2026-08-05 estan "
+            "exentos a proposito hasta que se borren con sus tests)"
         )
 
     def test_unreadable_and_malformed_inputs_all_return_none(self, tmp_path):

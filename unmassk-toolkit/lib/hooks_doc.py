@@ -72,7 +72,7 @@ TRANSIENT_HOOKS: set[str] = set()
 HOOK_COMMAND_RE = re.compile(r"hooks/([^/\s]+\.py)")
 
 # The documented skill, relative to the plugin root.
-SKILL_REL_PATH = ("skills", "unmassk-gitmemory", "SKILL.md")
+SKILL_REL_PATH = ("skills", "unmassk-memory", "SKILL.md")
 
 BEGIN_MARKER = "<!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->"
 END_MARKER = "<!-- END unmassk-active-hooks -->"

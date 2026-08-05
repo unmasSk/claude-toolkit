@@ -1,5 +1,6 @@
 ---
 name: unmassk-council
+version: 1.1.0
 description: >
   Run a high-stakes decision through a council of 5 advisors with opposing thinking
   lenses who analyze independently, peer-review anonymously, and synthesize a verdict.

@@ -1,5 +1,6 @@
 ---
 name: unmassk-project-lifecycle
+version: 1.1.0
 description: >
   Use when the user asks to "start a new project", "let's start", "scaffold",
   "continue", "pick up where we left off", "where were we", "scan this repo",

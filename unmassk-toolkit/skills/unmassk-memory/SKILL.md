@@ -1,5 +1,6 @@
 ---
 name: unmassk-memory
+version: 2.0.0
 description: Use at the start and at the close of every session in a project with git memory; whenever a decision is made, a correction is given, something breaks, or work stops waiting on someone; when the user says "save this", "remember this", "note this down", "from now on", "always", "never", "what did we decide", "what is pending", "why did we do it this way", "we already discussed this"; before proposing an option or building on anything that may already be decided; and when committing code or checkpointing work in progress
 ---
 
@@ -286,3 +287,21 @@ gitmem rule
 **If `gitmem` isn't on the PATH** it ships inside the toolkit, at `${CLAUDE_PLUGIN_ROOT}/bin/gitmem`. Resolve that path once, at the start, and reuse it — and never report "no memory" when what happened is that the command wasn't found. Those are opposite claims.
 
 **And never ask the user to run any of them. You run them.**
+
+## The hooks that are live
+
+Generated from `hooks/hooks.json`, never by hand: a hook documented here but not registered is this skill telling the user something untrue.
+
+<!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->
+**7 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
+
+| Event | Matcher | Hook file | Timeout |
+|---|---|---|---|
+| `SessionStart` | — | `boot_launcher.py` | 30s |
+| `SessionStart` | — | `session-start-crew.py` | 10s |
+| `PreToolUse` | `Bash` | `customs.py` | 15s |
+| `PreToolUse` | `Write\|Edit` | `validate-memory-path.py` | 5s |
+| `PreToolUse` | `Bash` | `pre-merge-gate.py` | 10s |
+| `UserPromptSubmit` | — | `user-prompt-memory-check.py` | 10s |
+| `Stop` | — | `stop-dod-gate.py` | 90s |
+<!-- END unmassk-active-hooks -->

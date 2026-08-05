@@ -1,5 +1,6 @@
 ---
 name: unmassk-core
+version: 1.0.0
 description: Core behavior for the unmassk toolkit. Defines what Claude has (agents, workflows, standards, domain plugins), how to delegate, when to invoke workflows, and how to interact with the user. Loaded on session boot.
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: unmassk-grill
+version: 1.1.0
 description: >
   Use when the user asks to "grill me", "let's think this through", "help me
   define this", or describes something to build without pinning down what it must

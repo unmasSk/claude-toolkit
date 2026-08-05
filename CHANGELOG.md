@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Un vigilante llevaba ciego y callado desde el renombrado de la skill de memoria.** `lib/hooks_doc.py` apuntaba a la carpeta de la skill vieja; al no encontrarla devolvía «no aplica» y el médico del sistema dejaba de imprimir esa fila **sin decir que había dejado de comprobarla**. La tabla de hooks activos se genera ahora dentro de `unmassk-memory`, y verifica: 7 invocaciones declaradas, 7 documentadas.
+- **La aduana y el guardián de fusiones se lanzaban en CADA llamada a herramienta**, no solo en las de consola: al reescribir `hooks.json` se perdieron sus `matcher`. Dos procesos de Python de más por cada lectura, cada búsqueda y cada nota. Repuestos.
+- **Cada skill declara su versión.** La de memoria y la de cierre de sesión son **2.0.0** — sustituyen enteras a las anteriores, no las extienden. Las cuatro que dejaron de llamar al sistema retirado suben a 1.1.0.
+
 ## [1.27.0] - 2026-08-05
 
 ### Changed

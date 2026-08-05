@@ -1,5 +1,6 @@
 ---
 name: unmassk-flow
+version: 1.1.0
 description: >
   Use when the user asks to "build a feature", "implement", "add functionality", "fix a
   non-trivial bug", "refactor", or any task that is not trivial and requires writing
