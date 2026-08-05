@@ -160,12 +160,22 @@ def main() -> None:
     session_booted = os.path.isfile(booted_flag)
 
     if not session_booted:
-        # First message — force skill loading
+        # First message — force skill loading.
+        #
+        # Step 2 (`unmassk-memory`) was MISSING here until 2026-08-05, and
+        # that omission is the whole reason this block is being touched: the
+        # memory skill did not exist when this text was written, and nobody
+        # came back for it. So the one reinforcement that fires on the user's
+        # own channel named half of what CLAUDE.md's managed block requires,
+        # and a real session loaded `unmassk-core` alone. Both skills are
+        # named here now, in the same order and with the same wording as the
+        # managed block — if that block ever changes, this changes with it.
         lines.append(
             f"[git-memory-boot] Plugin root: {PLUGIN_ROOT}\n"
             "MANDATORY — Do these steps NOW before responding to the user:\n"
             '  Step 1: Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
-            "  Step 2: Show the user a boot summary from the SessionStart output above\n"
+            '  Step 2: Use the Skill tool with skill="unmassk-memory" (TOOL CALL, not bash)\n'
+            "  Step 3: Show the user a boot summary from the SessionStart output above\n"
             "DO NOT SKIP ANY STEP. DO NOT GREET THE USER BEFORE COMPLETING ALL STEPS."
         )
         # Create the flag so subsequent messages don't repeat this

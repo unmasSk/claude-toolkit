@@ -72,6 +72,20 @@ def main(argv):
     # que ya existe en el mismo sys.path].
     gitcmd.atomic_write(destination, report)
 
+    # La orden va DELANTE del enlace, y es deliberado [decision del
+    # propietario, 2026-08-05, tras saltarse la carga en una sesion real].
+    # Lo que manda cargar las dos skills vivia en dos sitios y los dos
+    # fallaron a la vez: el bloque del CLAUDE.md se leyo y se ignoro, y el
+    # aviso del hook de cada mensaje solo nombraba `unmassk-core` y solo
+    # salia en el primer mensaje de la sesion -- en un reinicio, con su
+    # fichero-marca ya puesto, no salio ni una vez. Este canal es el unico
+    # que se escribe entero en cada SessionStart, reinicio incluido.
+    print("[memory] ANTES DE RESPONDER AL USUARIO, y en este orden:")
+    print('  1. Skill tool con skill="unmassk-core"   (LLAMADA A HERRAMIENTA, no bash)')
+    print('  2. Skill tool con skill="unmassk-memory" (LLAMADA A HERRAMIENTA, no bash)')
+    print("  3. Lee el informe de abajo entero y cuentale el menu del dia.")
+    print("  NO saludes ni contestes nada antes de haber hecho los tres pasos.")
+    print("")
     print(f"[memory] el informe del arranque esta en {destination}")
     print("Léelo entero antes de hacer nada. No está resumido.")
     return 0

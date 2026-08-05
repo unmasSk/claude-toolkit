@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "aliases": [],
+    "description": "los hooks del toolkit: arranque, aduana, cierre"
+  },
+  "memory": {
+    "aliases": [
+      "gitmem"
+    ],
+    "description": "el sistema de memoria: comandos, indices, aduana y arranque"
+  },
+  "skills": {
+    "aliases": [
+      "agents"
+    ],
+    "description": "las skills del toolkit y las fichas de los agentes"
+  }
+}
