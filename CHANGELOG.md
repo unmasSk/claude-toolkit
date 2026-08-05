@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-08-05
+
 ### Changed
 
 - **Cambio de guardia: los hooks del sistema de memoria nuevo entran en servicio.** `boot_launcher.py` sustituye a `session-start-boot.py` en `SessionStart`, y `customs.py` sustituye a `pre-validate-commit-trailers.py` en `PreToolUse`. `stop-dod-check.py` sale del `Stop`: hacía checkpoints automáticos y sugería cerrar, y el cierre ahora se pide. Sobreviven `session-start-crew.py` (mantiene los bloques del `CLAUDE.md`, que no son memoria), `pre-merge-gate.py` (decisión B16), `validate-memory-path.py` y `stop-dod-gate.py`.
