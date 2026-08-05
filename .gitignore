@@ -32,3 +32,8 @@ __pycache__/
 
 # unmassk-toolkit generated (do not track)
 .claude/.unmassk/context-warn-state.json
+
+# Candados del sistema de memoria: los crea un proceso un instante y sobran.
+# NO usar un `*.lock` a secas: Cargo.lock y bun.lock de chatroom son dependencias
+# legitimas y tienen que seguir versionadas.
+.claude/project-memory/*.lock

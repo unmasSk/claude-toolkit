@@ -21,6 +21,19 @@ UNMASSK_RUNTIME_DIR = ".claude/.unmassk"
 
 _GENERATED_JSONS = [
     ".claude/.unmassk/",
+    # El candado del sistema de memoria. Vive junto a `zones.json` (no bajo
+    # `.claude/.unmassk/`, que ya esta ignorado por la linea de arriba)
+    # porque protege ese fichero, asi que necesita su propia entrada
+    # [2026-08-05: se colo en un commit real de este repositorio antes de
+    # que existiera esta linea]. Es basura de funcionamiento: lo crea un
+    # proceso un instante y sobra despues.
+    #
+    # DELIBERADAMENTE ESTRECHO -- nunca un `*.lock` a secas: `Cargo.lock`,
+    # `bun.lock`, `package-lock.json` y companyia son dependencias que
+    # SI tienen que viajar en git, y dejar de versionarlas rompe las
+    # instalaciones reproducibles de cualquier proyecto donde se instale
+    # el toolkit.
+    ".claude/project-memory/*.lock",
 ]
 
 
