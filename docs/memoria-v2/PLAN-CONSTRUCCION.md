@@ -114,7 +114,7 @@ Levantado función a función sobre el código real. **Clasificado por lo que ha
 
 - `pre-validate-commit-trailers.py` **no valida ningún trailer**: solo obliga a usar el wrapper.
 - `stop-dod-gate.py` no es de memoria: corre los tests al cerrar.
-- `stop-close-session.py` solo imprime un recordatorio; no abre un trailer.
+- ~~`stop-close-session.py` solo imprime un recordatorio; no abre un trailer.~~ **RETIRADO el 2026-08-05** [decisión del propietario: «ese es antiguo, elimínalo ya»]: disparaba al terminar cada turno y mandaba hacer justo lo que el cierre nuevo prohíbe — volcar decisiones y escribir un punto de retomada. Un cierre se pide, no se dispara solo.
 
 Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro sistema y sobrevive intacto.
 
@@ -124,7 +124,7 @@ Y `validate-memory-path.py` protege la memoria **de los agentes**, que es otro s
 
 ### 5.2 Se quedan enteros (38)
 
-**hooks:** `pre-merge-gate` · `pre-validate-commit-trailers` · `session-start-crew` · `stop-close-session` · `stop-dod-gate` · `validate-memory-path`
+**hooks:** `pre-merge-gate` · `pre-validate-commit-trailers` · `session-start-crew` · ~~`stop-close-session` · `stop-dod-gate` · `validate-memory-path`
 **bin:** `git-memory-install` · `git-memory-log` · `git-memory-repair` · `git-memory-uninstall` · `git-memory-bootstrap` · `design_gate` · `hooks_doc_sync`
 **lib (17):** `colors` · `version` · `encoding_guard` · `date_parsing` · `boot_checks` · `skill_router` · `boot_migrations` · `_symlink_safe_open` · `install_inspect` · `cache_sync_check` · `upgrade_check` · `bootstrap_tree` · `bootstrap_report` · `bootstrap_deps` · `install_apply` · `hooks_doc` · `incidents`
 **resto:** `unmassk-scaffolding` · siete agentes sin menciones a memoria · dos bloques de `CLAUDE.md` · ~42 ficheros de test

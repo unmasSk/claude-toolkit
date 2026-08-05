@@ -1,6 +1,6 @@
 ---
 name: unmassk-close-session
-description: Use when the user says "let's wrap up", "close the session", "we're done for today", "save where we are", or otherwise signals that a working session is ending and wants it closed properly
+description: Use when the user says "let's wrap up", "close the session", "we're done for today", "hand off", "save where we are", or otherwise signals that a working session is ending and wants it closed properly
 ---
 
 # Close Session

@@ -1,6 +1,19 @@
 ---
 name: unmassk-flow
-description: Use when the user asks to "build a feature", "implement", "add functionality", "fix a non-trivial bug", "refactor", or any task that is not trivial and requires writing code. Also use when the user mentions Flow by name. Also use for anything to do with a plan: "let's make a plan", "open a plan", "plan this", "what's the plan", "what's left", "how is the plan going", "update the plan", "the checklist", "the issue", when work is tracked across sessions, or when a plan's scope changes. Also use when something that was already working breaks: "it's broken", "this used to work", "it crashed in production", "the client reports", "it failed again". NOT for open-ended idea exploration with no build committed yet, or for picking between known options — those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`. This is the creative pipeline — from idea to shipped code; its own internal Step 1 (Brainstorm) resolves gray areas once a build is already underway, it does not trigger Flow from the outside.
+description: >
+  Use when the user asks to "build a feature", "implement", "add functionality", "fix a
+  non-trivial bug", "refactor", or any task that is not trivial and requires writing
+  code. Also use when the user mentions Flow by name. Also use for anything to do with a
+  plan — "let's make a plan", "open a plan", "plan this", "what's the plan", "what's
+  left", "how is the plan going", "update the plan", "the checklist", "the issue", when
+  work is tracked across sessions, or when a plan's scope changes. Also use when
+  something that was already working breaks: "it's broken", "this used to work", "it
+  crashed in production", "the client reports", "it failed again". NOT for open-ended
+  idea exploration with no build committed yet, or for picking between known options —
+  those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`.
+  This is the creative pipeline — from idea to shipped code; its own internal Step 1
+  (Brainstorm) resolves gray areas once a build is already underway, it does not trigger
+  Flow from the outside.
 ---
 
 # Flow — Creative Pipeline

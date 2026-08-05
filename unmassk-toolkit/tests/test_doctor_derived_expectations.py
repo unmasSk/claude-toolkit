@@ -127,16 +127,27 @@ class TestExpectedHooksDerivation:
 
         derived = doctor.expected_hooks(REAL_PLUGIN_ROOT)
 
+        # Los dos hooks del sistema de memoria nuevo estan escritos y NO
+        # registrados a proposito [DEUDA.md #26]: engancharlos mientras el
+        # sistema viejo sigue vivo dispararia dos arranques a la vez. Se
+        # registran en la fase 9. Se declaran aqui, con su motivo, para que
+        # este vigilante siga cazando una divergencia de VERDAD en vez de
+        # estar rojo todos los dias por un hueco ya decidido -- un test rojo
+        # que nadie explica es un test que se acaba ignorando.
+        DELIBERATELY_UNWIRED = {"boot_launcher.py", "customs.py"}
+
         on_disk = {
             name for name in os.listdir(os.path.join(REAL_PLUGIN_ROOT, "hooks"))
             if name.endswith(".py")
-        } - doctor.TRANSIENT_HOOKS
+        } - doctor.TRANSIENT_HOOKS - DELIBERATELY_UNWIRED
 
         assert derived is not None, "the shipped hooks.json must be readable"
         assert set(derived) == on_disk, (
             "hooks.json and hooks/ disagree.\n"
             f"  declared but not shipped: {sorted(set(derived) - on_disk)}\n"
-            f"  shipped but not declared: {sorted(on_disk - set(derived))}"
+            f"  shipped but not declared: {sorted(on_disk - set(derived))}\n"
+            "  (boot_launcher.py y customs.py estan exentos a proposito: "
+            "DEUDA.md #26, se enganchan en la fase 9)"
         )
 
     def test_unreadable_and_malformed_inputs_all_return_none(self, tmp_path):
