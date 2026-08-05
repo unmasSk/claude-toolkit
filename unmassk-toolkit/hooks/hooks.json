@@ -1,13 +1,13 @@
 {
-  "description": "unmassk-core hooks — boot, commit validation, orchestrator rules, memory path safety",
+  "description": "unmassk-core hooks \u2014 boot, commit validation, orchestrator rules, memory path safety",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-boot.py",
-            "timeout": 45
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/boot_launcher.py",
+            "timeout": 30
           }
         ]
       },
@@ -23,17 +23,11 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-validate-commit-trailers.py",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-merge-gate.py",
-            "timeout": 5
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/customs.py",
+            "timeout": 15
           }
         ]
       },
@@ -44,6 +38,15 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/validate-memory-path.py",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-merge-gate.py",
+            "timeout": 10
           }
         ]
       }
@@ -66,15 +69,6 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-gate.py",
             "timeout": 90
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-check.py",
-            "timeout": 30
           }
         ]
       }

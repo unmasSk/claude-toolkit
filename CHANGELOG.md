@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Cambio de guardia: los hooks del sistema de memoria nuevo entran en servicio.** `boot_launcher.py` sustituye a `session-start-boot.py` en `SessionStart`, y `customs.py` sustituye a `pre-validate-commit-trailers.py` en `PreToolUse`. `stop-dod-check.py` sale del `Stop`: hacía checkpoints automáticos y sugería cerrar, y el cierre ahora se pide. Sobreviven `session-start-crew.py` (mantiene los bloques del `CLAUDE.md`, que no son memoria), `pre-merge-gate.py` (decisión B16), `validate-memory-path.py` y `stop-dod-gate.py`.
+- **Ningún fichero del sistema viejo se ha borrado todavía**, a propósito: solo cambia quién está registrado. Si el arranque nuevo falla en una sesión real, volver atrás es cambiar `hooks.json` y nada más. La limpieza va después de comprobarlo.
+- **La aduana nueva nace apagada en un proyecto sin notas** y se enciende sola con la primera — así un proyecto recién instalado no se encuentra un guardián el primer día.
+
 ## [1.26.0] - 2026-08-05
 
 ### Added
