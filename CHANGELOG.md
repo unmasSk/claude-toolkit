@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-08-05
+
 ### Fixed
 
 - **Un vigilante llevaba ciego y callado desde el renombrado de la skill de memoria.** `lib/hooks_doc.py` apuntaba a la carpeta de la skill vieja; al no encontrarla devolvía «no aplica» y el médico del sistema dejaba de imprimir esa fila **sin decir que había dejado de comprobarla**. La tabla de hooks activos se genera ahora dentro de `unmassk-memory`, y verifica: 7 invocaciones declaradas, 7 documentadas.
