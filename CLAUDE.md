@@ -103,20 +103,21 @@ Estas cuatro salieron de fallos reales de esta obra, no de teoría. Cada una tie
 <!-- BEGIN unmassk-toolkit (managed block — do not edit) -->
 ## unmassk-toolkit Active
 
-This project uses the **unmassk toolkit**.
+This project uses the **unmassk toolkit**. Its memory lives in git, and it is
+what you know about this project -- not a log you may consult.
 
 **On every session start**, you MUST:
-1. Read the `[git-memory-boot]` SessionStart output already in your context
+1. Read the session-start briefing already in your context: the last Next,
+   every blocker, every restriction, the counts and the checks
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
-3. Use the Skill tool with `skill="unmassk-gitmemory"` (TOOL CALL, not bash)
-4. Read CALIBRATION.md: `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md`
-5. Show the boot summary, then respond to the user
+3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
+4. Tell the user the menu of the day, then respond
 
-**On every user message** a banner fires reminding you to verify before claiming and to save durable signals. There is NO automatic memory injection and NO `[memory-check]` marker -- both were removed. Nothing reaches you unless you pull it: run `git-memory-recall.py "<terms>"` whenever the message touches something that might already be decided. Apply the CALIBRATION rules on every message, unprompted -- do not wait for a signal.
-
-The boot briefing is a BUDGETED SAMPLE, not the whole memory (single digits out of hundreds). An entry missing from it is NOT evidence it does not exist.
-
-Never ask the user to run commands -- run them yourself.
+**Four rules that hold even when no skill is loaded:**
+- Memory is a commit. Never write it into a file.
+- The indexes and the zone list are written by the commands. Never by hand.
+- A restriction is retired by asking the user, never on your own judgement.
+- Never ask the user to run a command -- you run it.
 <!-- END unmassk-toolkit -->
 
 <!-- BEGIN unmassk-protocols (managed block) -->
@@ -124,10 +125,10 @@ Never ask the user to run commands -- run them yourself.
 
 These protocols exist as skills. Detect the situation and load the matching skill (TOOL CALL). The list is always visible here so you never need to "remember" a protocol exists — pick from this menu.
 
-**Project lifecycle** — detect by checking two facts: is there toolkit git-memory? is there existing code?
+**Project lifecycle** — detect by checking two facts: does this project have memory? is there existing code?
 
-- git-memory + code → continuing our project → Skill `unmassk-project-lifecycle`
-- code, no git-memory → external repo → Skill `unmassk-project-lifecycle`
+- memory + code → continuing our project → Skill `unmassk-project-lifecycle`
+- code, no memory → external repo → Skill `unmassk-project-lifecycle`
 - nothing → new project → Skill `unmassk-project-lifecycle`
 
 (One skill handles all three; it routes internally. State the detected situation in one line before acting.)
@@ -151,9 +152,9 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Ending a session:**
 
-- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, write the resume point)
+- Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)
 
-All protocol output persists to **git-memory**, never to `.md` files.
+All protocol output persists to **memory**, never to `.md` files.
 <!-- END unmassk-protocols -->
 
 <!-- BEGIN unmassk-communication (managed block) -->
