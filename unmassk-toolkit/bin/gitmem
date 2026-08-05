@@ -1,21 +1,52 @@
 #!/usr/bin/env python3
 """gitmem -- fachada del sistema de memoria v2.
 
-Fase 0: todavia no hay generador ni validador que despachar, asi que
-este script solo imprime la version del plugin y la lista de
-subcomandos previstos -- es la prueba de que el bucle de desarrollo
-corre por ruta (``python3 unmassk-memory/bin/gitmem``), sin pasar por
-la cache del plugin ni instalar nada. El despacho real a cada
-subcomando llega junto con bin/note.py, bin/close.py, etc. (fase 2).
+Vive DENTRO de unmassk-toolkit/, no en un plugin aparte (ARQUITECTURA.md
+SS1). Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `bin/gitmem`):
+"despacha al script del subcomando"; imprime "lo que devuelva el script;
+con --version, la version del toolkit".
+
+**El sistema queda en NUEVE subcomandos** [decision del propietario,
+2026-08-03, COLA.md Sec.4]: `close`->`remove`, `context`->`next`,
+`reindex`->`rezones` (renombrados -- "cerrar" no dice que retira una
+nota; el comando escribe el cierre de sesion y lo que importa es el
+Next); `bench` se borra entero ("no lo he autorizado en la vida");
+`boot` deja de ser subcomando -- "ese comando no quiero que se use,
+tiene que ser automatico, como se hacia antes" (la pieza que genera el
+documento del arranque sigue existiendo -- `bin/memory/boot.py`,
+`lib/memory/boot.py` -- ya no se invoca via `gitmem boot`: el disparo
+automatico, hook de SessionStart, es trabajo de otra tarea); y **`wip`
+se anade** -- el checkpoint sin preguntas, agujero real destapado
+verificando: `validator.is_wip()` sabia reconocer y eximir el marcador
+pero ningun comando lo escribia.
+
+Regla propia de esta pieza: cada subcomando llega a su script real
+(`bin/memory/<subcomando>.py`), por RUTA -- nunca importado, para que no
+pueda reimplementar nada de lo que ese script hace y los dos caminos
+diverjan (verificado por `TestAddsNoLogicOfItsOwn` en
+tests/memory/test_gitmem_facade.py: un rechazo real de `gitmem note`
+tiene que ser BYTE A BYTE identico al de `note.py` invocado directo). El
+despacho es un `subprocess.run` con los flujos heredados (nunca
+capturados ni reimpresos aqui) para que stdout/stderr/returncode del
+subcomando lleguen intactos -- "no anade logica propia, solo reparte"
+[encargo de esta tarea].
+
+Un subcomando desconocido falla (codigo de retorno distinto de cero)
+nombrando los nueve que existen de verdad -- nunca una lista inventada.
 """
 
 import json
 import os
+import subprocess
 import sys
 
 _BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR = os.path.dirname(_BIN_DIR)
-_LIB_DIR = os.path.join(_ROOT_DIR, "lib")
+_BIN_MEMORY_DIR = os.path.join(_BIN_DIR, "memory")
+# Los modulos del sistema de memoria viven en lib/memory/, no en lib/
+# directamente -- subcarpeta a proposito para no chocar con el
+# lib/colors.py del toolkit que sobrevive (ARQUITECTURA.md SS1).
+_LIB_DIR = os.path.join(_ROOT_DIR, "lib", "memory")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
@@ -23,36 +54,82 @@ from utf8 import force_utf8_streams  # noqa: E402
 
 force_utf8_streams()
 
-# Subcomandos previstos -- uno por script en bin/ (ARQUITECTURA.md SS1).
+# Subcomandos reales -- uno por script en bin/memory/ (ARQUITECTURA.md
+# SS1, PIEZAS.md Sec.10). El nombre del subcomando ES el nombre del
+# fichero sin ".py" -- una sola tabla, nunca dos listas que puedan
+# desincronizarse. Nueve [decision del propietario, 2026-08-03]:
+# "close"/"context"/"reindex" renombrados a "remove"/"next"/"rezones";
+# "bench" borrado entero; "boot" deja de ser subcomando (se dispara
+# solo); "wip" se anade (el checkpoint sin preguntas).
 SUBCOMMANDS = (
     "note",
-    "close",
-    "context",
     "work",
+    "wip",
+    "remove",
+    "next",
     "search",
-    "boot",
-    "reindex",
     "zones",
+    "rezones",
     "rule",
-    "bench",
 )
 
 
 def _read_version() -> str:
-    """Lee la version desde el manifiesto -- una sola fuente de verdad,
-    nunca un literal duplicado aqui."""
+    """Lee la version desde el manifiesto del toolkit -- una sola fuente
+    de verdad, nunca un literal duplicado aqui. No hay plugin.json propio
+    del sistema de memoria: vive dentro de unmassk-toolkit/ y hereda su
+    version (ARQUITECTURA.md SS1)."""
     manifest_path = os.path.join(_ROOT_DIR, ".claude-plugin", "plugin.json")
     with open(manifest_path, "r", encoding="utf-8") as fh:
         return json.load(fh)["version"]
 
 
-def main() -> int:
+def _print_usage():
     print(f"gitmem {_read_version()}")
-    print("Subcomandos previstos (aun sin despacho real, fase 0):")
+    print("Subcomandos:")
     for name in SUBCOMMANDS:
         print(f"  gitmem {name}")
-    return 0
+
+
+def _print_unknown_subcommand(subcommand):
+    print(f"gitmem: subcomando desconocido: {subcommand!r}", file=sys.stderr)
+    print("Subcomandos disponibles:", file=sys.stderr)
+    for name in SUBCOMMANDS:
+        print(f"  gitmem {name}", file=sys.stderr)
+
+
+def _dispatch(subcommand, rest_argv):
+    """Ejecuta `bin/memory/<subcommand>.py` como proceso separado, con
+    los mismos argumentos, mismo interprete y flujos heredados -- para
+    que su salida sea indistinguible de invocarlo directo. No captura
+    stdout/stderr (serian solo reimpresos, una capa que puede divergir
+    del original); el returncode del hijo se propaga tal cual.
+    """
+    script_path = os.path.join(_BIN_MEMORY_DIR, f"{subcommand}.py")
+    result = subprocess.run([sys.executable, script_path, *rest_argv])
+    return result.returncode
+
+
+def main(argv):
+    if not argv:
+        _print_usage()
+        return 0
+
+    if argv[0] == "--version":
+        print(f"gitmem {_read_version()}")
+        return 0
+
+    subcommand, rest_argv = argv[0], argv[1:]
+    if subcommand not in SUBCOMMANDS:
+        _print_unknown_subcommand(subcommand)
+        return 1
+
+    return _dispatch(subcommand, rest_argv)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+        print(f"gitmem: {exc}", file=sys.stderr)
+        sys.exit(1)

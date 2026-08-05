@@ -587,3 +587,122 @@ Verdict: AGUANTA. See MEMORY.md "Last attack" for the compact pointer.
 - `close()` called directly after a normal `with`-block commit is a true no-op (matches its own
   docstring claim) — does not raise.
 - Zero-byte write (caller writes nothing) legitimately empties the file — correct, not a bug.
+
+## lib/memory/ 13-module round (memoria-v2, 2026-08-02) -- what held
+- indexes.py: concurrent insert()-vs-insert() (20 real parallel OS processes, append-mode,
+  no locking) -- 0 losses, 0 corrupted lines, POSIX O_APPEND small-write atomicity holds.
+- format.py: 2M-char description with 500k embedded newlines (pathological _fold/_fold_raw
+  stress) round-trips byte-identical in <0.1s; pathological escaped-comma/backslash Keys
+  list (20k repeats) round-trips correctly via _encode_list/_decode_list in <5ms.
+- format.py: archive-line headline containing the literal arrow separator AND a fake
+  destination-vocabulary phrase inline ("rename x → closed: fake dest...") -- parse_archive_line
+  correctly recovers the real headline and real trailing destination, not fooled by the decoy.
+- format.py: parse_message on a genuinely hand-corrupted blank line mid-body -- correctly
+  returns None (fail-safe), does not silently misparse.
+- gitcmd.py: file_lock() reentrant same-thread/same-path correctly raises
+  LockNotReentrantError instead of deadlocking; atomic_write() 8-way concurrent writers on the
+  same path -- always exactly one writer's full payload, never interleaved/corrupted (matches
+  prior atomic_write findings from the pre-v2 primitive); commit() with empty paths tuple
+  correctly raises ValueError instead of silently committing the whole index.
+- config.py: customs_enabled=1 (int, not bool) correctly rejected as corrupt (fail-loud, no
+  silent bool() coercion); partial config.json (customs_enabled only) still fails closed to
+  repo_type="gitflow" by omission, exactly as documented.
+- validator.py: validate_replacement() correctly ignores a cross-zone near-duplicate note
+  passed in an unfiltered existing_in_zone tuple (similar.find_similar's own zone1+zone2 filter
+  holds even when the caller doesn't pre-filter); empty existing_in_zone correctly yields no
+  rejection (pure function trusts its input by design, not a bug).
+
+Verdict this round: FALLA (indexes.py insert/remove lost-update race, T1). See
+attack-patterns.md for both findings' full detail.
+
+## notes.py write() held: real multiprocess concurrency, reader/writer overlap, scale
+- 8 REAL separate OS processes (not threads) calling `notes.write()` concurrently
+  on the same repo: 8/8 distinct ids, 8/8 index lines present, 8/8 new records in
+  history, no hang, no lost update -- the `.git/memory-notes` global flock
+  genuinely serializes across processes, not just in-process threads (which the
+  existing test suite's row 6 only covers via threading).
+- Concurrent reader (`query.by_zone`, 40 polls) running throughout 6 concurrent
+  real-process writers: monotonic, never torn, never an exception -- git's own
+  object-write atomicity means a reader mid-write only ever sees the fully-old
+  or fully-new state.
+- 400 real sequential history entries (~120 char headline/description each):
+  by_id/by_word/by_zone all under 30ms -- no perf concern at this scale, single
+  `git log` call dominates and stays far under GIT_TIMEOUT=10s.
+- Huge single note (headline WITH embedded newlines/blank lines + ~120KB
+  description with 5000 embedded blank-line paragraph breaks) round-trips byte-
+  exact through write()->query.by_id() in <50ms -- the 2026-08-02
+  `--cleanup=verbatim` fix generalizes correctly beyond the one regression test
+  that motivated it.
+- `notes.write()` called with process cwd inside a nested subdirectory of the
+  repo (not the root) -- held; the two internal git steps use different cwd
+  values (root vs ambient cwd) but still land consistently since all paths
+  passed are absolute.
+- `discard_alternatives(decision, (), ctx)` (zero alternatives) -- held, returns
+  a 1-tuple, no crash, no phantom records.
+- Persistent (non-transient, 3/3 attempts) git-log failure in query.py -- held,
+  raises RuntimeError with the real stderr, never silently returns empty/None.
+
+## lib/memory/gitcmd.py -- file_lock() holds across case-insensitive-filesystem path aliasing (memoria-v2, 2026-08-02)
+- Attacked: two threads locking the SAME real file via two DIFFERENT-case path strings
+  (index.txt vs INDEX.txt) on a real case-insensitive-preserving filesystem (confirmed both the
+  scratch dir and the project repo itself sit on one -- default macOS APFS). Hypothesis was that
+  _held_locks (keyed by the literal os.path.abspath() string, no case-folding) and the per-path
+  lock file (f"{abs_path}.lock") would silently defeat mutual exclusion across the two casings.
+- Held: 20-thread concurrent read-increment-write, half via each casing, final counter ==
+  n_writers exactly, 0 losses. Root cause it does NOT hit: os.open(..., O_CREAT) on a
+  case-insensitive filesystem resolves an existing differently-cased lock-file name to the SAME
+  inode instead of creating a second one -- so the real OS-level exclusive lock ends up shared
+  correctly regardless of case, even though _held_locks itself would NOT have caught this as
+  reentrancy if it had mattered.
+
+## lib/memory/gitcmd.py -- commit()'s own --cleanup=verbatim claim verified true, and shown necessary by contrast
+- Docstring claims default git cleanup (strip) would delete the single-space blank-continuation
+  line format.py's folding scheme depends on, and that --cleanup=verbatim preserves it. Verified
+  empirically against a real repo, real commit, real re-read via `git show --format=%B`: the
+  single-space line survives byte-for-byte with --cleanup=verbatim, exactly as claimed --
+  DECEPTION-phase check came back SOLIDO, not HUMO.
+
+## lib/memory/gitcmd.py -- concurrent commit() calls on the SAME repo (real race, no artificial cwd interference)
+- Two real threads, same repo, each calling commit() on its own distinct staged file
+  simultaneously (no chdir race involved -- this is the base case). Held correctly: the loser
+  gets a real, non-empty, full stderr from the underlying tool's own index.lock contention
+  ("Unable to create '.../index.lock': File exists... Another process seems to be running"), the
+  winner succeeds, the log shows exactly one commit, zero duplication/corruption. Confirms row-1's
+  "stderr never empty" contract generalizes beyond the single documented pathspec-missing test
+  case for THIS particular failure shape (contrast: the ambient-cwd-race failure shape in
+  attack-patterns.md does NOT generalize -- see that finding).
+
+
+## capa 2/3 re-attack, closures confirmed live (2026-08-03)
+- `gitcmd.commit()` ambient-cwd race (prior T1): CLOSED for production. Re-ran the
+  same 2-thread ambient-`os.chdir()`-flip PoC with an explicit `cwd=` argument
+  (the only way any real production caller invokes it now -- verified
+  `notes_commit.py:195` is the sole production caller and always passes
+  `cwd=root`) -- the victim commit lands in the correct repo every time, ambient
+  cwd flip has zero effect. The vulnerable path (omitting `cwd`) still exists
+  and still races, but is now explicitly documented back-compat for
+  `test_gitcmd.py`'s own `os.chdir()`-based calls, not a live production gap.
+- `rejection.build()` value-emptiness (prior T1): CLOSED. `build(kind='x',
+  what='', options=(), command=())` now raises `ValueError` (rejection.py's
+  own new empty-value check) instead of silently building a mutilated
+  `Rejection`. Verified live.
+- SIGKILL between `indexes.insert()` (durable) and the commit step in
+  `notes.write()` (prior T1): the underlying gap is structurally
+  unavoidable (a real `SIGKILL` cannot be caught by any Python
+  `except`/`finally`, confirmed again via `os.fork()` + `os.kill(SIGKILL)`
+  fired from inside a monkeypatched `stage_and_commit`) -- BUT the silent-failure
+  half of the finding is CLOSED: `health.coherence()` (added since the
+  original finding) now independently detects the orphaned index line by
+  name ("M-001: esta en el indice pero no existe en git"), it surfaces live
+  in `boot.py`'s real AVISOS banner (not a hypothetical -- ran the actual
+  banner render against the corrupted repo), and `bin/memory/reindex.py`
+  (no `--verify`) repairs it cleanly, re-verified `coherence()` clean
+  afterward. The system no longer stays quiet about this specific corruption
+  even though it still can't prevent the SIGKILL window itself.
+- `notes.write()` under real 2-process near-simultaneous concurrency (via the
+  real `bin/memory/note.py` CLI, not mocked): 15/15 trials both land cleanly,
+  zero loud failures, zero silent loss -- confirms `gitcmd.file_lock()` still
+  serializes correctly end-to-end today. (First attempt used headlines too
+  similar to each other across trials and tripped the real
+  `validate_replacement` overlap rejection -- not a bug, a test-design
+  artifact; fixed by giving every trial genuinely distinct vocabulary/zones.)

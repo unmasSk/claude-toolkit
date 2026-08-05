@@ -6,24 +6,26 @@ round-6 LOC audit: this module had grown to 563 lines, past the project's
 Split further into two topic modules, both re-exported here by name:
 
 - lib/boot_health.py — "is the plugin/repo installed correctly?": skill-drift
-  + installed-version comparison, doctor/repair runners, GitHub issue-status
-  lookups (_md5_file, _latest_version_dir, _build_repo_skill_index,
-  check_skill_drift, check_version_mismatch, run_doctor, run_repair,
-  check_issue_status, _issue_matches_next).
+  + installed-version comparison, doctor/repair runners (_md5_file,
+  _latest_version_dir, _build_repo_skill_index, check_skill_drift,
+  check_version_mismatch, run_doctor, run_repair).
 - lib/boot_git_checks.py — "read git/repo state for this boot": branch,
-  scopes.json, consolidation threshold, commit timeline, remote branches
-  (parse_branch_keywords, time_ago, get_timeline, get_last_context_time,
-  render_branch_section, render_branches_section, render_scopes_section,
-  render_consolidation_section).
+  scopes.json, remote branches (parse_branch_keywords, time_ago,
+  render_branch_section, render_branches_section, render_scopes_section).
 
 Kept as a shim (rather than deleted) because lib/boot_render.py's
 `from boot_checks import (...)` resolves names through THIS exact module.
 
-Confirmed unidirectional DAG: boot_memory <- boot_health/boot_git_checks <-
-boot_checks <- boot_render — this module must never be imported FROM either
-of the two modules it re-exports from.
+Confirmed unidirectional DAG: boot_health/boot_git_checks <- boot_checks <-
+boot_render — this module must never be imported FROM either of the two
+modules it re-exports from.
 
-Pure refactor: behavior is byte-for-byte identical to before the split.
+Memory v2 cleanup: check_issue_status()/_issue_matches_next() (boot_health.py)
+and render_consolidation_section() (boot_git_checks.py) were removed along
+with the rest of the v1 memory system — see
+docs/memoria-v2/PLAN-CONSTRUCCION.md §5.3.
+
+Pure refactor otherwise: behavior is byte-for-byte identical to before the split.
 """
 
 from boot_health import (
@@ -34,18 +36,13 @@ from boot_health import (
     check_version_mismatch,
     run_doctor,
     run_repair,
-    check_issue_status,
-    _issue_matches_next,
 )
 from boot_git_checks import (
     parse_branch_keywords,
     time_ago,
-    get_timeline,
-    get_last_context_time,
     render_branch_section,
     render_branches_section,
     render_scopes_section,
-    render_consolidation_section,
 )
 
 __all__ = [
@@ -56,14 +53,9 @@ __all__ = [
     "check_version_mismatch",
     "run_doctor",
     "run_repair",
-    "check_issue_status",
-    "_issue_matches_next",
     "parse_branch_keywords",
     "time_ago",
-    "get_timeline",
-    "get_last_context_time",
     "render_branch_section",
     "render_branches_section",
     "render_scopes_section",
-    "render_consolidation_section",
 ]

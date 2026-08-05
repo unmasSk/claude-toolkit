@@ -13,7 +13,7 @@
 ## Task: Audit module [MODULE] against enterprise standards
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 - Scope: COMPLETE module read (not diff)
 
@@ -21,8 +21,8 @@
 
 [EXACT LIST — only those assigned to this agent]
 
-- `backend/src/[MODULE]/[file1].ts` ([LOC] LOC)
-- `backend/src/[MODULE]/[file2].ts` ([LOC] LOC)
+- `[MODULE_PATH]/[file1]` ([LOC] LOC)
+- `[MODULE_PATH]/[file2]` ([LOC] LOC)
 
 ### Problems already detected in scan
 
@@ -30,33 +30,32 @@
 
 ### Standards reference
 
-Evaluate against `docs/ENTERPRISE-STANDARDS.md`:
-- Security: §4.5 (SQL), §7 (auth), §1 (tiers)
-- Error handling: §4.3
-- Structure: §3 (LOC), §6 (splits)
-- Testing: §6
-- Maintainability: §5 (JSDoc), §11 (anti-patterns)
+Evaluate against `unmassk-standards` (`references/standards.md`):
+- Integrity (data + memory): §3 (persistence integrity), Pilar 1 / §34 (round-trip), §6 (concurrency)
+- Silent-failure / Error handling: §4 (fail-loud), §7 (async & error handling)
+- Structure: §2 (size limits, SOLID, decision trees), §5 (platform robustness — scored as a Structure checklist item, not its own dimension)
+- Real verification: §9 closed checklist (real seam, no tautological assertion, no fabricated fixture)
+- Maintainability: §11 (naming, dead code, comments)
 
 ### Weighted score
 
 | Dimension | Weight |
 |-----------|--------|
-| Security | x3 |
-| Error handling | x3 |
+| Integrity (data + memory) | x3 |
+| Silent-failure / Error handling | x3 |
 | Structure | x2 |
-| Testing | x2 |
+| Real verification | x2 |
 | Maintainability | x1 |
 | **Total** | **/110** |
 
-Do NOT invent criteria outside ENTERPRISE-STANDARDS.md.
+Do NOT invent criteria outside `standards.md`.
 Do NOT fix anything — report only.
 
-### Critical rule: verify external context before reporting auth/routing
+### Critical rule: verify upstream context before reporting a finding
 
-Before reporting auth bypass findings, missing middleware, or unprotected routes:
-1. Verify whether middleware is applied globally at the router mount point (read `config/routes/`)
-2. Check `config/routes/auth.ts` and `config/routes/protected.ts` to understand what middlewares apply before the request reaches the module
-3. If middleware is already applied upstream, do NOT report it as a module finding — it is valid external context
+Before reporting a finding, especially one that looks like a missing guard or a missing check:
+1. Verify whether the behavior is already handled upstream — a shared wrapper, a caller-level guard, a config default — elsewhere in the codebase.
+2. If the safeguard already exists upstream and the module correctly relies on it, do NOT report it as a module-level finding — it is valid external context, not a gap.
 ```
 
 ---
@@ -69,7 +68,7 @@ Before reporting auth bypass findings, missing middleware, or unprotected routes
 ## Task: Re-audit module [MODULE] post-fixes
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 - Scope: COMPLETE module read (not diff)
 
@@ -84,17 +83,16 @@ Before reporting auth bypass findings, missing middleware, or unprotected routes
 ### Previous score: [XX/110]
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
-3. `cd backend && npx prettier --check "src/[MODULE]/**/*.ts"`
-4. `cd backend && npx eslint src/[MODULE]/`
+3. `[FORMAT_CMD]` scoped to `[MODULE_PATH]`
+4. `[LINT_CMD]` scoped to `[MODULE_PATH]`
 
-### Critical rule: verify external context before reporting auth/routing
+### Critical rule: verify upstream context before reporting a finding
 
-Before reporting auth bypass findings, missing middleware, or unprotected routes:
-1. Verify whether middleware is applied globally at the router mount point (read `config/routes/`)
-2. Check `config/routes/auth.ts` and `config/routes/protected.ts` to understand what middlewares apply before the request reaches the module
-3. If middleware is already applied upstream, do NOT report it as a module finding — it is valid external context
+Before reporting a finding, especially one that looks like a missing guard or a missing check:
+1. Verify whether the behavior is already handled upstream — a shared wrapper, a caller-level guard, a config default — elsewhere in the codebase.
+2. If the safeguard already exists upstream and the module correctly relies on it, do NOT report it as a module-level finding — it is valid external context, not a gap.
 
 ### Expected output
 - Closed findings: X/Y

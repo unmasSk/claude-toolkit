@@ -8,7 +8,7 @@ llega en las fases 1 y 2, cuando exista el validador y el generador.
 
 import os
 
-from conftest import run_git
+from .conftest import run_git
 
 
 def test_tmp_repo_is_a_real_git_worktree(tmp_repo):

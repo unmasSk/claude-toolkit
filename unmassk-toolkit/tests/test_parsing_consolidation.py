@@ -1,22 +1,26 @@
 """
 Regression tests for parsing/normalization consolidation.
 
-Tests fijan el comportamiento CORRECTO posterior al fix (Ultron):
-  1. GC tombstone check con normalize() canónica (whitespace interno irregular)
-  2. parse_trailers_full() filtra VALID_KEYS y soporta multi-valor
-  3. Guarda del bloque muerto: parse_commit_type("wip: algo") → "wip"
+Retirement note (memoria-v2 cleanup pass): normalize() and bin/git-memory-gc.py
+were both retired with the v1 -> v2 memory surgery -- gc.py no longer exists
+on disk at all, and normalize() has no successor in lib/parsing.py. Every
+test that exercised either one directly (TestNormalizeCanonical,
+TestGcTombstoneNormalization, TestDoctorCheckGcStatusFiltersValidKeys, and
+the gc-importing half of TestGcScanCommitsFiltersValidKeys) has been removed
+along with the two now-unused `_import_gc`/`_import_doctor` loader helpers
+that only existed to reach that retired machinery.
 
-Estado por test al escribirse (antes del fix de Ultron):
-  - test_gc_tombstone_match_with_internal_whitespace  → RED (gc usa .lower().strip(), no colapsa)
-  - test_gc_scan_commits_filters_valid_keys            → RED (gc acepta cualquier clave)
-  - test_doctor_check_gc_status_filters_valid_keys     → ROJO si aplica (doctor mismo patrón)
-  - test_parse_trailers_full_*                         → depende de si ya existen (ver abajo)
-  - test_parse_commit_type_wip_*                       → GREEN (guarda, no toca nada)
+What survives here protects functions that are still live in
+lib/parsing.py and will keep running once the v2 memory system is done:
+  1. parse_trailers_full() filters VALID_KEYS and supports multi-value
+  2. Guard for the dead code block: parse_commit_type("wip: algo") -> "wip"
+  3. sanitize_trailer_value()'s documented control-byte contract
 
 Coverage:
-  Tested 3/3 functions in scope (normalize, parse_trailers_full, parse_commit_type).
-  Branches: VALID_KEYS filter, multi-value, whitespace collapse, wip dead-code path.
-  Edge cases: tab whitespace, repeated key 3x, unknown key mid-body, empty body.
+  Tested 2/2 live functions in scope (parse_trailers_full, parse_commit_type),
+  plus sanitize_trailer_value()'s control-byte contract.
+  Branches: VALID_KEYS filter, multi-value, wip dead-code path.
+  Edge cases: repeated key 3x, unknown key mid-body, empty body.
 
 Added (#72 fix pass, Cerberus finding): TestSanitizeTrailerValueControlByteContract
 pins sanitize_trailer_value()'s documented control-byte contract (lib/parsing.py
@@ -28,7 +32,6 @@ it indirectly were retired -- integrity coverage, not attacker simulation.
 
 import os
 import sys
-import types
 
 import pytest
 
@@ -36,240 +39,32 @@ import pytest
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
-BIN_DIR = os.path.join(SOURCE_ROOT, "bin")
 
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-from parsing import normalize, parse_trailers_full, parse_commit_type, sanitize_trailer_value
+from parsing import parse_trailers_full, parse_commit_type, sanitize_trailer_value
 from constants import VALID_KEYS
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _import_gc(monkeypatch):
-    """
-    Import bin/git-memory-gc.py as a module.
-
-    gc imports run_git from git_helpers at module level (used in scan_commits).
-    We stub it to avoid hitting a real git repo.
-    """
-    import importlib.util
-
-    monkeypatch.syspath_prepend(LIB_DIR)
-    monkeypatch.syspath_prepend(BIN_DIR)
-
-    gc_path = os.path.join(BIN_DIR, "git-memory-gc.py")
-    spec = importlib.util.spec_from_file_location("git_memory_gc", gc_path)
-    mod = importlib.util.module_from_spec(spec)
-    # Pre-populate the module with a stub run_git so the import doesn't fail
-    # even before spec.loader.exec_module runs.
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _import_doctor(monkeypatch):
-    """Import bin/git-memory-doctor.py as a module (stubs git calls)."""
-    import importlib.util
-
-    monkeypatch.syspath_prepend(LIB_DIR)
-    monkeypatch.syspath_prepend(BIN_DIR)
-
-    doctor_path = os.path.join(BIN_DIR, "git-memory-doctor.py")
-    spec = importlib.util.spec_from_file_location("git_memory_doctor", doctor_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
 # ═════════════════════════════════════════════════════════════════════════════
-# GROUP 1 — normalize() canónica (lib/parsing.py)
-# ═════════════════════════════════════════════════════════════════════════════
-
-class TestNormalizeCanonical:
-    """normalize() must collapse internal whitespace, not just strip."""
-
-    def test_collapses_double_space(self):
-        """Double internal space → single space."""
-        assert normalize("implement  auth") == "implement auth"
-
-    def test_collapses_tab(self):
-        """Tab between words → single space."""
-        assert normalize("implement\tauth") == "implement auth"
-
-    def test_strips_leading_trailing(self):
-        """Leading/trailing whitespace removed."""
-        assert normalize("  implement auth  ") == "implement auth"
-
-    def test_lowercases(self):
-        """Uppercase → lowercase."""
-        assert normalize("Implement Auth") == "implement auth"
-
-    def test_combined_irregular_whitespace(self):
-        """All irregular whitespace patterns combined."""
-        assert normalize("  Implement  \t Auth  ") == "implement auth"
-
-    def test_empty_string(self):
-        """Empty input → empty output."""
-        assert normalize("") == ""
-
-    def test_only_whitespace(self):
-        """Only whitespace → empty string."""
-        assert normalize("   ") == ""
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# GROUP 2 — GC tombstone check usa normalize() canónica
+# GROUP 3 — parse_trailers_full() filtra VALID_KEYS
 #
-# Estado: RED antes del fix.
-# Razón: find_stale_items() construye existing_tombstones con .lower().strip()
-# (línea ~156 gc), que NO colapsa whitespace interno. Un tombstone "implement
-# auth" no casa con el texto original "implement  auth" (doble espacio).
-# Tras el fix (gc usa normalize() de lib/parsing.py): GREEN.
-# ═════════════════════════════════════════════════════════════════════════════
-
-class TestGcTombstoneNormalization:
-    """
-    GC debe usar normalize() canónica al chequear tombstones existentes.
-
-    El test construye una lista de commits en memoria (sin git real) y llama
-    directamente a find_stale_items().
-    """
-
-    def _make_commit(self, sha, subject, body, trailers, days_ago=1):
-        from datetime import datetime, timedelta
-        return {
-            "sha": sha,
-            "subject": subject,
-            "body": body,
-            "date": datetime.now() - timedelta(days=days_ago),
-            "scope": None,
-            "trailers": trailers,
-            "keywords": set(),
-        }
-
-    def test_tombstone_skips_item_with_double_space_in_original(self, monkeypatch):
-        """
-        RED antes del fix.
-
-        Escenario:
-          - commit A tiene Next: "implement  auth" (doble espacio)
-          - commit B tiene Resolved-Next: "implement auth" (normalizado, un espacio)
-
-        Con normalize() canónica: ambos normalizan a "implement auth" → el item
-        se marca como ya tombstoneado y find_stale_items() lo omite.
-
-        Sin normalize() canónica (.lower().strip() solo): "implement  auth" ≠
-        "implement auth" → el item NO se considera tombstoneado y aparece como
-        candidato. El test falla.
-        """
-        gc = _import_gc(monkeypatch)
-
-        # Commit original con doble espacio
-        commit_original = self._make_commit(
-            sha="aaa111",
-            subject="feat: auth",
-            body="Next: implement  auth",
-            trailers={"Next": "implement  auth"},
-            days_ago=10,
-        )
-        # Commit de tombstone con texto normalizado (un solo espacio)
-        commit_tombstone = self._make_commit(
-            sha="bbb222",
-            subject="chore: gc",
-            body="Resolved-Next: implement auth",
-            trailers={"Resolved-Next": "implement auth"},
-            days_ago=1,
-        )
-        # Commit posterior con keywords que activarían H1 si no hubiera tombstone
-        commit_evidence = self._make_commit(
-            sha="ccc333",
-            subject="feat: implement auth module",
-            body="",
-            trailers={},
-            days_ago=2,
-        )
-        commit_evidence["keywords"] = {"implement", "auth", "module"}
-        commit_original["keywords"] = {"implement", "auth"}
-
-        # commits más recientes primero (índice 0 = más reciente)
-        commits = [commit_tombstone, commit_evidence, commit_original]
-
-        candidates = gc.find_stale_items(commits, stale_days=30)
-        # Con normalize() canónica: ningún candidato (ya tombstoneado)
-        resolved_next = [c for c in candidates if c["type"] == "Resolved-Next"]
-        assert resolved_next == [], (
-            "find_stale_items() debe omitir items ya tombstoneados incluso cuando "
-            "el texto original tiene whitespace interno irregular. "
-            "Esto falla si gc usa .lower().strip() en lugar de normalize()."
-        )
-
-    def test_tombstone_skips_item_with_tab_in_original(self, monkeypatch):
-        """
-        RED antes del fix.
-
-        Igual que el anterior pero con tab en el texto original del Next:.
-        """
-        gc = _import_gc(monkeypatch)
-
-        commit_original = self._make_commit(
-            sha="aaa444",
-            subject="feat: deploy",
-            body="Next: deploy\tpipeline",
-            trailers={"Next": "deploy\tpipeline"},
-            days_ago=10,
-        )
-        commit_tombstone = self._make_commit(
-            sha="bbb555",
-            subject="chore: gc",
-            body="Resolved-Next: deploy pipeline",
-            trailers={"Resolved-Next": "deploy pipeline"},
-            days_ago=1,
-        )
-        commit_evidence = self._make_commit(
-            sha="ccc666",
-            subject="feat: deploy pipeline step",
-            body="",
-            trailers={},
-            days_ago=2,
-        )
-        commit_evidence["keywords"] = {"deploy", "pipeline", "step"}
-        commit_original["keywords"] = {"deploy", "pipeline"}
-
-        commits = [commit_tombstone, commit_evidence, commit_original]
-        candidates = gc.find_stale_items(commits, stale_days=30)
-        resolved_next = [c for c in candidates if c["type"] == "Resolved-Next"]
-        assert resolved_next == [], (
-            "El tab en el texto original debe equipararse al espacio del tombstone "
-            "cuando gc usa normalize() canónica."
-        )
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# GROUP 3 — GC scan_commits filtra VALID_KEYS
-#
-# Estado: RED antes del fix.
-# Razón: scan_commits() (~línea 106-111) parsea trailers inline sin filtrar
-# VALID_KEYS. Una línea "Note: foo" aparece en el dict de trailers. Tras el
-# fix (gc usa parse_trailers_full()): esa clave desaparece.
+# Origen histórico: este contrato nació para verificar hacia dónde debía
+# migrar el scan_commits() de bin/git-memory-gc.py (ya retirado del repo).
+# Lo que sigue vivo y protege código real es el contrato de
+# parse_trailers_full() en sí: una clave fuera de VALID_KEYS nunca llega al
+# dict de trailers.
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestGcScanCommitsFiltersValidKeys:
     """
-    scan_commits() debe filtrar por VALID_KEYS.
-
-    No podemos llamar a scan_commits() directamente (llama a run_git).
-    Probamos la lógica de parseo de trailers usando parse_trailers_full()
-    como referencia de comportamiento correcto, y verificamos el contrato
-    via find_stale_items() con datos sintéticos.
+    parse_trailers_full() debe filtrar por VALID_KEYS.
     """
 
     def test_parse_trailers_full_rejects_note_key(self):
         """
-        RED antes del fix (si gc usara parse_trailers_full ya pasaría).
-
         "Note" no está en VALID_KEYS → parse_trailers_full() lo ignora.
-        Este test verifica el comportamiento canónico al que gc debe migrar.
         """
         assert "Note" not in VALID_KEYS, "Precondición: Note no es clave válida"
         body = "Note: this is not a trailer\nNext: do something"
@@ -277,20 +72,19 @@ class TestGcScanCommitsFiltersValidKeys:
         assert "Note" not in trailers
         assert "Next" in trailers
 
-    def test_gc_commits_with_note_key_not_in_trailers(self, monkeypatch):
+    def test_gc_commits_with_note_key_not_in_trailers(self):
         """
-        RED antes del fix.
+        Construimos commits con la forma que devolvería un scan de commits,
+        usando el parseo canónico (parse_trailers_full) y verificamos que
+        "Note" (clave inválida) nunca llega a los trailers del commit.
 
-        Construimos commits como los devolvería scan_commits() usando el
-        parseo CORRECTO (parse_trailers_full). Una vez que gc migre a
-        parse_trailers_full, este test pasará porque "Note" no estará en
-        los trailers del commit.
-
-        El test instrumenta directamente los datos que scan_commits()
-        devolvería (sin llamar a git) y verifica que find_stale_items()
-        no trata "Note" como una clave de seguimiento.
+        Nota (retirada de gc.py): esta prueba antes cargaba
+        bin/git-memory-gc.py vía _import_gc() para comparar contra su
+        find_stale_items(), pero esa comparación nunca se usaba en el
+        cuerpo del test -- solo importaba el módulo y lo descartaba. Con
+        gc.py retirado del repo, se quita esa carga muerta; lo que este
+        test protege de verdad es parse_trailers_full(), que sigue vivo.
         """
-        gc = _import_gc(monkeypatch)
         from datetime import datetime, timedelta
 
         # Simula un commit con body que incluye Note: (clave inválida) y Next: (válida)
@@ -315,57 +109,6 @@ class TestGcScanCommitsFiltersValidKeys:
         )
         assert "Next" in commit["trailers"], (
             "Next: sí está en VALID_KEYS y debe aparecer en trailers."
-        )
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# GROUP 4 — Doctor check_gc_status filtra VALID_KEYS
-#
-# Estado: ROJO parcial antes del fix.
-# Razón: check_gc_status() (~línea 241, 263) parsea trailers con regex inline
-# sin filtrar VALID_KEYS. Solo busca Blocker: y Stale-Blocker:, así que el
-# impacto es menor, pero el patrón de parseo diverge de parse_trailers_full.
-# ═════════════════════════════════════════════════════════════════════════════
-
-class TestDoctorCheckGcStatusFiltersValidKeys:
-    """
-    check_gc_status() debe filtrar tombstones por VALID_KEYS cuando normaliza.
-
-    El doctor solo busca Blocker: y Stale-Blocker:, que sí están en VALID_KEYS,
-    pero el tombstone check usa .lower() sin colapsar whitespace.
-    Verificamos que el patrón de normalización es consistente.
-    """
-
-    def test_stale_blocker_tombstone_normalizes_whitespace(self, monkeypatch):
-        """
-        RED antes del fix.
-
-        El doctor construye `tombstoned` con `.strip().lower()` (línea ~265).
-        Un Stale-Blocker: "waiting  for approval" (doble espacio) no casaría
-        con un blocker "waiting  for approval" que también tiene doble espacio
-        si el blocker activo fue normalizado de otra forma.
-
-        Verificamos el contrato vía parse_trailers_full: el comportamiento
-        correcto al que doctor debe migrar.
-        """
-        # Texto con doble espacio en Stale-Blocker (tombstone)
-        tombstone_body = "Stale-Blocker: waiting  for approval"
-        tombstone_trailers = parse_trailers_full(tombstone_body)
-
-        # Texto del blocker original (normalizado con un espacio)
-        blocker_body = "Blocker: waiting for approval"
-        blocker_trailers = parse_trailers_full(blocker_body)
-
-        assert "Stale-Blocker" in tombstone_trailers
-        assert "Blocker" in blocker_trailers
-
-        tombstone_text = tombstone_trailers["Stale-Blocker"]
-        blocker_text = blocker_trailers["Blocker"]
-
-        # Con normalize() canónica, ambos colapsan a la misma cadena
-        assert normalize(tombstone_text) == normalize(blocker_text), (
-            "El texto del tombstone normalizado debe casar con el del blocker "
-            "normalizado, incluso si tienen whitespace interno diferente."
         )
 
 
@@ -429,11 +172,17 @@ class TestParseTrailersFull:
         assert parse_trailers_full(body) == {}
 
     def test_multiple_valid_keys(self):
-        """Varias claves válidas distintas → cada una en su entrada."""
-        body = "Why: fix broken auth\nTouched: lib/auth.py\nNext: add tests"
+        """Varias claves válidas distintas → cada una en su entrada.
+
+        ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): "Touched" fue retirada
+        de VALID_KEYS (ver lib/constants.py) el 2026-08-02 junto con
+        "Resolved-Next"/"Stale-Blocker" — sustituida aquí por "Blocker",
+        que sigue siendo una clave válida.
+        """
+        body = "Why: fix broken auth\nBlocker: waiting on review\nNext: add tests"
         result = parse_trailers_full(body)
         assert result["Why"] == "fix broken auth"
-        assert result["Touched"] == "lib/auth.py"
+        assert result["Blocker"] == "waiting on review"
         assert result["Next"] == "add tests"
 
     def test_mixed_valid_and_invalid_keys(self):
@@ -448,12 +197,24 @@ class TestParseTrailersFull:
         result = parse_trailers_full(body)
         assert result["Next"] == "do work"
 
-    def test_tombstone_keys_are_valid(self):
-        """Resolved-Next y Stale-Blocker están en VALID_KEYS y se parsean."""
+    def test_tombstone_keys_no_longer_valid(self):
+        """Resolved-Next y Stale-Blocker ya NO están en VALID_KEYS.
+
+        ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): el propietario mandó
+        retirar estas dos claves de trailer el 2026-08-02 (ver
+        lib/constants.py::VALID_KEYS) junto con "Touched" — el test
+        original afirmaba lo contrario ("están en VALID_KEYS y se
+        parsean"), que era cierto para el sistema de tombstones v1 y ya no
+        lo es. Invertido a regresión: si alguna de las dos vuelve a
+        colarse en VALID_KEYS sin que sea una decisión deliberada, este
+        test lo detecta.
+        """
+        assert "Resolved-Next" not in VALID_KEYS
+        assert "Stale-Blocker" not in VALID_KEYS
         body = "Resolved-Next: implement auth\nStale-Blocker: old issue"
         result = parse_trailers_full(body)
-        assert result["Resolved-Next"] == "implement auth"
-        assert result["Stale-Blocker"] == "old issue"
+        assert "Resolved-Next" not in result
+        assert "Stale-Blocker" not in result
 
 
 # ═════════════════════════════════════════════════════════════════════════════

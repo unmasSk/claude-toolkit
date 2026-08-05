@@ -3,35 +3,38 @@ Boot health checks for session-start-boot.py (split out of lib/boot_checks.py,
 Cerberus round-6 LOC audit).
 
 Owns the "is the plugin/repo installed correctly?" checks: skill-drift +
-installed-version comparison, doctor/repair runners, and GitHub issue-status
-lookups. lib/boot_checks.py re-imports these functions by name so
-lib/boot_render.py and any direct `boot_checks.<name>()` caller keep
-resolving unchanged.
+installed-version comparison, and doctor/repair runners. lib/boot_checks.py
+re-imports these functions by name so lib/boot_render.py and any direct
+`boot_checks.<name>()` caller keep resolving unchanged.
 
-Pure refactor: behavior is byte-for-byte identical to before the split.
+Memory v2 cleanup: the GitHub issue-status lookups (check_issue_status(),
+_issue_matches_next()) were removed with the rest of the v1 memory system —
+they only ever fed the RESUME section's Next: filtering in the now-deleted
+lib/boot_memory.py/lib/boot_render.py (see
+docs/memoria-v2/PLAN-CONSTRUCCION.md §5.3).
 
-See lib/boot_memory.py's own module docstring and
-tests/test_migrate_statusline.py for why the `git_helpers` import below is
-deferred into check_version_mismatch()'s function body rather than hoisted
-to module level — this module is a real, stably-named module (first `import
-boot_health` anywhere in a process caches it for that process, transitively
-triggered by `from boot_health import ...` in lib/boot_checks.py), and a
-module-level `from git_helpers import run_git` could freeze `run_git` to a
-test's temporary stub forever if this module's first-ever import happened
-to land inside that stub's window.
+Pure refactor otherwise: the surviving functions are byte-for-byte identical
+to before the split.
+
+See tests/test_migrate_statusline.py for why the `git_helpers` import below
+is deferred into check_version_mismatch()'s function body rather than
+hoisted to module level — this module is a real, stably-named module (first
+`import boot_health` anywhere in a process caches it for that process,
+transitively triggered by `from boot_health import ...` in
+lib/boot_checks.py), and a module-level `from git_helpers import run_git`
+could freeze `run_git` to a test's temporary stub forever if this module's
+first-ever import happened to land inside that stub's window.
 """
 
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
-import time
 
 from version import VERSION as PLUGIN_VERSION
 
-from boot_memory import _sanitize_trailer_value
+from parsing import sanitize_trailer_value
 
 try:
     # SEC-LOW-NEW-05: symlink-safe reader for manifest.json, symmetric with
@@ -277,7 +280,7 @@ def check_version_mismatch() -> str | None:
                 # trusted content — sanitize it the same way Decision/Memo/
                 # Remember values already are before embedding it in the
                 # STATUS section's upgrade-suggestion line.
-                safe_installed = _sanitize_trailer_value(str(installed))
+                safe_installed = sanitize_trailer_value(str(installed))
                 return f"Plugin v{PLUGIN_VERSION} available (installed: v{safe_installed}). Suggest /plugin update"
         return None
     except Exception:
@@ -328,73 +331,3 @@ def run_repair() -> bool:
         # but leave a one-line breadcrumb instead of swallowing silently.
         print(f"[session-start-boot] BOOT-WARNING: {type(e).__name__} in run_repair", file=sys.stderr)
         return False
-
-
-def check_issue_status(pending_items: list[dict], timeout: float = 5.0) -> dict[int, dict]:
-    """Check GitHub issue status for pending items with issue refs.
-
-    Launches parallel gh calls and collects results within timeout.
-    Returns dict mapping issue number to {"state": "OPEN"|"CLOSED", "title": "..."}.
-    Missing entries mean gh failed or timed out.
-    """
-    issues = {item["issue"] for item in pending_items if item.get("issue")}
-    if not issues:
-        return {}
-
-    # Check gh availability (single probe)
-    try:
-        probe = subprocess.run(
-            ["gh", "auth", "status"],
-            capture_output=True, timeout=3,
-        )
-        if probe.returncode != 0:
-            return {}
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return {}
-
-    # Launch parallel gh calls
-    procs: dict[int, subprocess.Popen] = {}
-    for issue_num in issues:
-        try:
-            procs[issue_num] = subprocess.Popen(
-                ["gh", "issue", "view", str(issue_num), "--json", "state,title"],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-            )
-        except OSError:
-            continue
-
-    # Collect results with global timeout
-    deadline = time.time() + timeout
-    results: dict[int, dict] = {}
-    for issue_num, proc in procs.items():
-        remaining = max(0.1, deadline - time.time())
-        try:
-            stdout, _ = proc.communicate(timeout=remaining)
-            if proc.returncode == 0 and stdout.strip():
-                data = json.loads(stdout)
-                results[issue_num] = {
-                    "state": data.get("state", "OPEN"),
-                    "title": data.get("title", ""),
-                }
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
-            proc.kill()
-            proc.wait()
-
-    return results
-
-
-def _issue_matches_next(next_text: str, issue_title: str) -> bool:
-    """Check if a GitHub issue title plausibly matches a Next trailer text.
-
-    Prevents false positives from issue #N belonging to a different context.
-    Returns True if >= 2 keywords (3+ chars) overlap.
-    """
-    stop = {"the", "and", "for", "from", "with", "that", "this", "not", "are", "was"}
-
-    def keywords(text: str) -> set[str]:
-        return {
-            w.lower() for w in re.findall(r"[a-zA-Z]{3,}", text)
-            if w.lower() not in stop
-        }
-
-    return len(keywords(next_text) & keywords(issue_title)) >= 2

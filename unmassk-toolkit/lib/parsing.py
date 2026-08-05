@@ -7,7 +7,7 @@ normalization. Used by validation hooks and CLI scripts.
 
 import re
 
-from constants import VALID_KEYS, MEMORY_KEYS
+from constants import VALID_KEYS
 
 
 def parse_commit_type(subject: str) -> str | None:
@@ -100,74 +100,6 @@ def parse_trailers_full(body: str) -> dict[str, str | list[str]]:
     return trailers
 
 
-# issue #59 (LOW-17): matches an unclosed "<memory-data" / "</memory-data"
-# fence-marker remnant anchored at end-of-string only (see the usage site's
-# comment in scan_trailers_memory() below for why the end-anchor makes this
-# safe to apply unconditionally after control-byte truncation).
-_UNCLOSED_FENCE_TAIL_RE = re.compile(r"<\s*/?\s*memory-data\b[^>]*$", re.IGNORECASE)
-
-
-def scan_trailers_memory(body: str) -> dict[str, str]:
-    """Scan entire body for memory-relevant trailers (full-body, not bottom-up).
-
-    Unlike parse_trailers() which stops at the first non-trailer line
-    from the bottom, this scans all lines. Needed because Co-Authored-By
-    at the end breaks bottom-up parsing.
-
-    Returns first occurrence of each memory key found.
-
-    Splits on a literal "\n" only (NOT str.splitlines()) — issue #57
-    root-fix round (decision 0682e75, Argus SEC-CRIT-14, bullet C):
-    splitlines() also treats \x1c/\x1d/\x1e (plus \r/\v/\f/U+2028/U+2029/
-    etc) as line boundaries. A real trailer line immediately followed by
-    one of those bytes (no real newline) would masquerade as a second,
-    independent line from the SAME commit body, letting it forge an
-    extra trailer of a different key or a phantom Resolved-<Key>
-    tombstone line that erases a real, active entry. Only a genuine "\n"
-    is a real line break for git commit body text. parse_trailers()/
-    parse_trailers_full() in this same file already use split("\n") —
-    this aligns scan_trailers_memory() with them.
-
-    Within each real "\n"-delimited line, the value is additionally
-    truncated at the first \x1c/\x1d/\x1e byte (issue #57 root-fix round,
-    Dante's live repro): a real trailer immediately followed by one of
-    these bytes with no real newline is one physical line, so whatever
-    comes after the byte is NOT scanned as its own trailer (that would
-    reopen the forgery this function exists to close) -- but it also
-    must not survive glued onto the real value, or the forged text
-    (e.g. a fake "Memo: ..." key) would still reach LLM-facing output
-    verbatim as part of the real trailer's own text. Discarding it
-    outright is the only shape that satisfies both invariants at once.
-    """
-    found: dict[str, str] = {}
-    for line in body.split("\n"):
-        for ctrl in ("\x1c", "\x1d", "\x1e"):
-            idx = line.find(ctrl)
-            if idx != -1:
-                line = line[:idx]
-        # LOW-17 (issue #59, plan docs/plan/fix-fence-a2-close-57.md task c):
-        # if the control byte just discarded above sat INSIDE a
-        # "</memory-data...>" (or "<memory-data...>") fence marker, right
-        # before its closing ">", the truncation above discarded that ">"
-        # along with the byte -- leaving an unclosed "<...memory-data"
-        # prefix at the very end of the line. sanitize_trailer_value()'s
-        # fence regex requires a literal closing ">" to match, so it
-        # structurally cannot catch this shape (there is none left to find).
-        # [^>]*$ is safe precisely because it's anchored to end-of-string:
-        # by construction there is no ">" between "memory-data" and the end
-        # (the byte that would have preceded one was just discarded), so
-        # this only ever fires on a genuinely truncated, unclosed marker --
-        # never on a complete, closed one (which sanitize_trailer_value()
-        # already handles on its own).
-        line = _UNCLOSED_FENCE_TAIL_RE.sub("", line)
-        match = re.match(r"^([A-Z][a-z]+(?:-[A-Z][a-z]+)*):\s*(.+)$", line.strip())
-        if match:
-            key, value = match.group(1), match.group(2).strip()
-            if key in MEMORY_KEYS and key not in found:
-                found[key] = value
-    return found
-
-
 def extract_commit_message(command: str) -> str | None:
     """Try to extract commit message from a git commit command.
 
@@ -242,11 +174,6 @@ def sanitize_trailer_value(text: str) -> str:
     text = text.replace("<!--", "").replace("-->", "")
     text = re.sub(r"<\s*/?\s*memory-data\s*>", "", text, flags=re.IGNORECASE)
     return text.strip()
-
-
-def normalize(text: str) -> str:
-    """Normalize text for tombstone matching: lowercase, collapse whitespace, strip."""
-    return re.sub(r"\s+", " ", text.strip().lower())
 
 
 def suggest_scope_from_paths(changed_files: list[str], scope_map: dict[str, str]) -> str | None:

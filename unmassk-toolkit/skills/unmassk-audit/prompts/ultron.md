@@ -6,7 +6,7 @@
 ## Task: Fix findings in module [MODULE]
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 - Branch: `chore/audit-[MODULE]-[N]`
 
@@ -16,25 +16,25 @@
 
 | ID | Tier | File:line | Description | Recommended fix |
 |----|------|-----------|-------------|-----------------|
-| F1 | T1   | file.ts:45 | ...        | ...             |
+| F1 | T1   | <file>:45  | ...        | ...             |
 
 ### Files in scope
 
 [EXACT LIST of files this agent may touch]
 
-- `backend/src/[MODULE]/[file1].ts`
-- `backend/src/[MODULE]/[file2].ts`
+- `[MODULE_PATH]/[file1]`
+- `[MODULE_PATH]/[file2]`
 
 ### 10/10 reference
 
 Enterprise code approved by Yoda — use as model:
-- `backend/src/api/[REFERENCE_MODULE]/[reference_file].ts`
+- `[REFERENCE_MODULE_PATH]/[reference_file]`
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
-3. `cd backend && npx prettier --check "src/[MODULE]/**/*.ts"`
-4. `cd backend && npx eslint src/[MODULE]/`
+3. `[FORMAT_CMD]` scoped to `[MODULE_PATH]`
+4. `[LINT_CMD]` scoped to `[MODULE_PATH]`
 
 ### Expected output
 For each fixed finding:

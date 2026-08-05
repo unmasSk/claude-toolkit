@@ -1,6 +1,6 @@
 ---
 name: unmassk-flow
-description: Use when the user asks to "build a feature", "implement", "add functionality", "fix a non-trivial bug", "refactor", or any task that is not trivial and requires writing code. Also use when the user mentions Flow by name. NOT for open-ended idea exploration with no build committed yet, or for picking between known options — those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`. This is the creative pipeline — from idea to shipped code; its own internal Step 1 (Brainstorm) resolves gray areas once a build is already underway, it does not trigger Flow from the outside.
+description: Use when the user asks to "build a feature", "implement", "add functionality", "fix a non-trivial bug", "refactor", or any task that is not trivial and requires writing code. Also use when the user mentions Flow by name. Also use for anything to do with a plan: "let's make a plan", "open a plan", "plan this", "what's the plan", "what's left", "how is the plan going", "update the plan", "the checklist", "the issue", when work is tracked across sessions, or when a plan's scope changes. Also use when something that was already working breaks: "it's broken", "this used to work", "it crashed in production", "the client reports", "it failed again". NOT for open-ended idea exploration with no build committed yet, or for picking between known options — those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`. This is the creative pipeline — from idea to shipped code; its own internal Step 1 (Brainstorm) resolves gray areas once a build is already underway, it does not trigger Flow from the outside.
 ---
 
 # Flow — Creative Pipeline
@@ -11,7 +11,7 @@ description: Use when the user asks to "build a feature", "implement", "add func
 
 ## Dependencies
 
-- **unmassk-gitmemory plugin** — required for decision/memo/context commits
+- **`unmassk-memory`** — every decision, memo and close in this pipeline is saved through it
 - **Claude Code subagents** — bundled agents: Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria (use `subagent_type` by name)
 - **TodoWrite tool** — native Claude Code tool for task tracking visible to the user
 
@@ -39,7 +39,6 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 | **Moriarty** | tries to break the shipping candidate | fixes, or reviews |
 | **Yoda** | final production-readiness verdict | fixes, re-reviews, or attacks |
 | **Alexandria** | syncs docs to reality | implements or tests |
-| **Gitto** | git ops under instruction | decides scope |
 
 **The two failures this table forbids, by name:** sending **Dante to investigate** the codebase (that is Bilbo's lane) and sending **Ultron to write tests** (that is Dante's lane). Both are the exact cross-assignments that break the pipeline. There is no "small enough" exception. If GREEN needs a test change, Ultron STOPS and reports; the orchestrator routes it to Dante.
 
@@ -47,15 +46,15 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 
 **Do not start a new Flow feature while a previous one is still open.** A feature is "open" from the moment Step 0 creates its branch/issue until Step 7 closes it. Opening a second branch over an unfinished first is how the pipeline ends up with a trail of half-done branches.
 
-Before Step 0 of any new feature, **run the check — don't just recall it:** `git branch --list 'feat/*' 'fix/*' 'refactor/*'` for an un-merged feature branch, and `grep -L 'Status: COMPLETED' docs/plan/*.md 2>/dev/null` for an open plan. A non-empty result means a feature is still in flight → finish it through Step 7 (or explicitly park it: WIP commit + `context()` with a `Next:` trailer) BEFORE starting the new one. One at a time.
+Before Step 0 of any new feature, **run the check — don't just recall it:** `git branch --list 'feat/*' 'fix/*' 'refactor/*'` for an un-merged feature branch, and `grep -L 'Status: COMPLETED' docs/plan/*.md 2>/dev/null` for an open plan. A non-empty result means a feature is still in flight → finish it through Step 7 (or explicitly park it: a checkpoint plus a close whose Next says where it stopped) BEFORE starting the new one. One at a time.
 
 ## Project profile — where stack-specific values live
 
 Flow is stack-agnostic; the project supplies its own commands. The **project profile** (`unmassk-standards` §10) is declared in the project's `CLAUDE.md` / git-memory — never a loose file. Resolve the test/lint/build commands like this:
 
-1. **Read the profile** — the project's declared commands in its `CLAUDE.md` or git-memory (`decision()`/`memo()`).
+1. **Read the profile** — the commands the project declares, in its `CLAUDE.md` or in a saved note (`gitmem search test command`).
 2. **If not declared, detect from the repo** — the command the project actually uses: `package.json` scripts (npm/pnpm/yarn/bun), `pyproject.toml`/`pytest`, `go test ./...`, `cargo test`, a `Makefile` target, etc. Never impose a runner the repo doesn't use.
-3. **Record the test command where the MACHINE reads it.** Write the resolved test command into `.claude/git-memory-config.json` under `test_command` (the same file that holds `repo_type`). This is not just documentation: the `stop-dod-gate` hook **runs `test_command` from that file automatically at session close** — recording it there turns "run the tests" from a line the orchestrator has to remember into a gate that fires by itself (mechanism, not prose). Also note it in the profile (`memo()`) so a human can read it.
+3. **Record the test command where the MACHINE reads it.** Write the resolved test command into `.claude/project-memory/config.json` under `test_command` (the same file that holds `repo_type`). This is not just documentation: the `stop-dod-gate` hook **runs `test_command` from that file automatically at session close** — recording it there turns "run the tests" from a line the orchestrator has to remember into a gate that fires by itself (mechanism, not prose). Also save it as a memo, so a person can find it without opening a config file.
 
 The right place to establish `test_command` once is project start (`unmassk-project-lifecycle`), so Flow rarely has to detect it. If you still cannot resolve a test command, STOP at the Step 7 gate and ask the user — do not skip the gate and do not guess a runner.
 
@@ -77,7 +76,7 @@ Triage settles **size** (knowable early: files touched, whether it hits auth/dat
 
 **If Standard or Big:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip for Quick — a 1-2 file obvious fix doesn't carry that risk.
 
-Create issue + branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch — see `unmassk-gitmemory` Safety → Repo type). Context commit: `context(<scope>): start <type> — issue #N`
+Create the branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch). **The issue is a plan, and a plan is opened by the user, never by you** — offer it in one line and wait; if they open one, follow `references/plan.md` for what it holds and how it is kept up to date. Then record the start in memory.
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
 
@@ -101,7 +100,7 @@ Analyze the feature domain and generate specific gray areas (not generic categor
 2. Check git-memory for prior decisions that apply (`git log --grep="Decision:"`)
 3. Present gray areas as specific questions, one at a time
 4. For each gray area: propose 2-3 approaches with trade-offs, recommend one
-5. Capture each decision as `decision()` commit immediately
+5. Save each decision the moment it is made — with its why and every option it beat
 6. Apply scope guardrails — if user suggests scope creep: "That is a separate feature. Want me to create an issue for it?"
 
 ### Exit Conditions
@@ -136,12 +135,14 @@ Orchestrator chooses depth based on triage (Quick task = quick research, Big tas
 
 1. Launch Bilbo agent with appropriate depth and the decisions from Step 1
 2. Info stays in conversation context — no RESEARCH.md file
-3. If Bilbo finds something permanent (pattern, constraint, blocker) → `memo()` or `decision()` commit
+3. If Bilbo finds something permanent — a pattern, a constraint, something waiting on someone — save it as a memo, a decision or a blocker
 4. If research reveals infeasibility → close issue with rationale, STOP
 
 ## Step 3 — Plan (ORCHESTRATOR)
 
 Write the plan. This is the SINGLE source of truth for the feature.
+
+**This is the execution plan of one feature: the tasks and the order they run in.** When the work also carries a plan of its own — one that spans sessions, with an issue and a checklist the user follows — read **`references/plan.md`** and follow it: the document, the issue and the record that ties them to the decision. That file governs the plan; this step only plans the execution.
 
 ### Location
 
@@ -258,6 +259,8 @@ If Ultron fails the same task 3 times:
 4. Orchestrator amends plan if needed
 5. Ultron resumes with diagnosis context
 
+**This is not an incident.** A defect found while the thing is still being built is ordinary work — House diagnoses, Ultron fixes, the pipeline carries on, and nothing is recorded as a scar. **An incident is something that had already been signed off and then broke**, and it has its own protocol in `references/incident.md`: what to record, when, and how it closes.
+
 ### Progress Tracking
 
 - WIP commit after each completed task
@@ -314,9 +317,9 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 
 **MANDATORY pre-merge gate — run the project's OWN full test suite.** Resolve the test command from the project profile (see "Project profile" above); if none is declared, detect it from the repo (`package.json` test script, `pytest`, `go test ./...`, `cargo test`, a `Makefile` target, …) and record it. Run the WHOLE suite, not just the feature's tests. If any test that passed before the feature started now fails, the feature introduced a regression — fix before merging. **Never hardcode a runner and never skip this gate; if you truly cannot find a test command, stop and ask the user.**
 
-Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branches on it:
+Check the project's `repo_type` (`.claude/project-memory/config.json`; when it is not declared, the main branch counts as protected) — this step branches on it:
 
-1. Gitto squashes the accumulated pipeline wips (see `unmassk-gitmemory` Wip Strategy) into a final commit with real trailers
+1. The orchestrator squashes the checkpoints accumulated by the pipeline into one real commit
 2. **Gitflow:** merge to dev (`git checkout dev && git merge --no-ff <branch>`) → push (`git push origin dev`). **Trunk:** squash lands directly on `main` → push `main` — no branch/merge step, `main` is the working branch.
 3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
@@ -327,7 +330,7 @@ Check repo type (`unmassk-gitmemory` Safety → Repo type) — this step branche
 
 1. Do NOT force push
 2. Identify conflicting files
-3. If simple conflict → resolve, commit with `Conflict:` + `Resolution:` trailers
+3. If simple conflict → resolve and commit normally
 4. If complex conflict → escalate to user before proceeding
 5. Re-run VERIFY after conflict resolution to confirm no regressions
 

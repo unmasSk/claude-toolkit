@@ -1,5 +1,5 @@
 {
-  "description": "unmassk-core hooks — memory boot, commit validation, orchestrator rules, memory safety",
+  "description": "unmassk-core hooks — boot, commit validation, orchestrator rules, memory path safety",
   "hooks": {
     "SessionStart": [
       {
@@ -34,11 +34,6 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-merge-gate.py",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-memory-dedup-gate.py",
-            "timeout": 10
           }
         ]
       },
@@ -49,16 +44,6 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/validate-memory-path.py",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/pre-task-recall.py",
-            "timeout": 10
           }
         ]
       }
@@ -89,26 +74,6 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-check.py",
-            "timeout": 30
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-close-session.py",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/precompact-snapshot.py",
             "timeout": 30
           }
         ]

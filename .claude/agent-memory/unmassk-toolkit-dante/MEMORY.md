@@ -2,46 +2,125 @@
 
 ## Topic Files
 
-- [conventions.md](conventions.md) — Test conventions for chatroom/apps/backend (bun:test, ESM, SQLite, WebSocket)
-- [mock-patterns.md](mock-patterns.md) — Mock patterns that work (bun:test, SQLite in-memory, ESM module mocking, WS)
-- [edge-cases.md](edge-cases.md) — Recurring edge cases (LIKE injection, RBAC, parameterized queries)
-- [frontend-conventions.md](frontend-conventions.md) — Vitest + @testing-library/react conventions for chatroom/apps/frontend (jsdom, Zustand isolation, FakeWebSocket class pattern, CSS mocking)
-- [unmassk-toolkit-python-test-conventions.md](unmassk-toolkit-python-test-conventions.md) — pytest conventions for unmassk-toolkit itself (importlib for hyphenated hook files, as_claude gotchas, repo/boot helpers, sys.path cwd-independence for git-root bin/ imports, symlink-skip-guard exhaustive count method)
-- [crown-retraction-design-notes.md](crown-retraction-design-notes.md) — Crown-retraction multi-crown edge case gotcha (naive per-commit patch resurfaces superseded crowns)
-- [skill-router-contract-notes.md](skill-router-contract-notes.md) — Per-message skill-router contract ("[skill-router]" marker), what the hardening pass still owes
-- [boot-stdout-banner-contract-notes.md](boot-stdout-banner-contract-notes.md) — session-start-boot.py unconditional stdout banner + 5 rounds of audit-hardening findings across bin/git-memory-*.py (symlink read/write, control-byte injection, manifest.json, path traversal, ANSI injection)
-- [feat-boot-freshness-contract-notes.md](feat-boot-freshness-contract-notes.md) — boot memory freshness (multi-machine, issue #49) acceptance contract: fixture design, RED baseline, marker-naming pitfall
-- [encoding-contract-notes.md](encoding-contract-notes.md) — issue #52 cp1252 contract: parent-decode gotcha (child RC=0 can still be RED), `--runxfail` verification pattern, AST-based open()-encoding sweep; issue #54 follow-on: `errors=` surrogate-escape regression (derive-expected-via-real-codec technique)
-- [issue-55-date-parsing-contract-notes.md](issue-55-date-parsing-contract-notes.md) — issue #55 %aI/fromisoformat fragile-date contract; bootstrap_commits.py reconciled back to %aI (presentation-only field, never parsed)
-- [issue-53-hardlink-reject-contract-notes.md](issue-53-hardlink-reject-contract-notes.md) — issue #53 F6 hard-link bypass contract: reject_hardlinks opt-in param + SEC-HIGH-001 extension (3 unprotected manifest.json call sites), real os.link() (no privilege needed unlike symlinks), differential-control rejection proof
-- [issue-57-field-displacement-contract-notes.md](issue-57-field-displacement-contract-notes.md) — issue #57 Task 2b: str.strip() eats \x1c/\x1d/\x1e/\x1f as whitespace (gotcha), field-displacement per-site root cause, fence-break on unsanitized `scope`, .splitlines() phantom-commit (\x1e family, different from \x1f), \x7f DEL gap
-- [issue-57-root-fix-subject-vector-contract-notes.md](issue-57-root-fix-subject-vector-contract-notes.md) — issue #57 root-fix (decision 0682e75): SUBJECT-vector class attack (one PoC, 7 sites), scan_trailers_memory forge/erase (SEC-CRIT-14), fence evasion via interleaved control bytes, --json-vs-human asymmetry, gc evidence-field gap
-- [issue-57-output-saneo-round2d-contract-notes.md](issue-57-output-saneo-round2d-contract-notes.md) — issue #57 round 2d (decision 0cef65c): NEL fence-evasion (3-level test pyramid), plain-text snapshot-delimiter spoofing (uniqueness not containment), raw trailer/subject reflection across 4 sites, splitlines inflation gotcha (dead-end hypothesis discarded via live differential check)
-- [issue-57-round2e-fence-invariant-contract-notes.md](issue-57-round2e-fence-invariant-contract-notes.md) — issue #57 round 2e fence-shape invariant + bootstrap tag stripping; fixed off-by-one (count CLOSES only, not open-or-close, in e2e output with a real wrapper)
-- [issue-57-fence-a2-close-contract-notes.md](issue-57-fence-a2-close-contract-notes.md) — issue #57 close-out: \r transport forgery (real subprocess round-trip, not in-memory), O(n²) _strip_generic_tags (empirical, not textbook ReDoS), LOW-17 unclosed-fence regex, A2 nonce cross-invocation-diff test (implementation-agnostic)
-- [issue-61-ci-flake-hardening-notes.md](issue-61-ci-flake-hardening-notes.md) — issue #61 ubuntu CI flake fix: rc-verification vs anti-vacuity retry-with-breadcrumb, mock-signature-drift gotcha (local run_git double needs **kwargs), mid-session git-reset-wiped-uncommitted-work incident
-- [issue-63-boot-simplification-contract-notes.md](issue-63-boot-simplification-contract-notes.md) — issue #63 boot-simplification RED contract (P1 manifest gate, P2 upgrade->SessionStart, P3 skill-drift repo-source detection); HOME-env cache fixture + decoy-plugin determinism trick, bare-emoji-assertion pitfall
-- [issue-63-t1-manifest-read-hardening-notes.md](issue-63-t1-manifest-read-hardening-notes.md) — issue #63 T1 regression tests (RecursionError + dir-symlink bypass) across 3 manifest read sites; per-site forged-version choice to avoid vacuous asserts, one-time manual mutation-check discipline (not self-mutating test code)
-- [issue-63-p1-v2-content-gate-contract-notes.md](issue-63-p1-v2-content-gate-contract-notes.md) — issue #63 P1 v2 content-based gate contract (decision 2d56444, post-Moriarty) — monkeypatch-in-subprocess producer sabotage (not chmod), known conflict with v1's TestManifestVersionMatchSkipsRewrite flagged not fixed
-- [issue-63-p1-v1-retirement-notes.md](issue-63-p1-v1-retirement-notes.md) — issue #63 v1-gate test retirement: redundant-vs-reframe call, cross-file cascade found via diffing Ultron's WIP (deleted function breaks a 2nd, unnamed test file)
-- [issue-63-producer-hardening-contract-notes.md](issue-63-producer-hardening-contract-notes.md) — issue #63 wip f0313d8 producer-hardening regression (apply_plan manifest-stamp gate + upgrade_check returncode breadcrumb), the front test_crew_content_gate_v2.py deferred; TRIGGER_DONE marker technique, 2 manual mutation-checks
-- [issue-63-t1-end-marker-magic-string-contract-notes.md](issue-63-t1-end-marker-magic-string-contract-notes.md) — issue #63 decision 1d623da RED contract: T1-A orphaned-END lie in managed_blocks upsert, T1-B "Context Checkpoint Commits" magic string never in prod content; full list of pre-existing magic-string-dependent tests NOT touched, owed to GREEN phase
-- [issue-63-magic-string-reconciliation-notes.md](issue-63-magic-string-reconciliation-notes.md) — issue #63 wip f6d2b7d GREEN reconciliation: neutralize helpers rewritten to install real canonical content via managed_blocks.upsert_managed_blocks; 2 mutation-check gotchas (needs_upgrade's own early-exit before Check 1; 2 stacked guards both covering the same symlink attack)
-- [issue-63-t1a-orphaned-end-userdata-loss-contract-notes.md](issue-63-t1a-orphaned-end-userdata-loss-contract-notes.md) — issue #63 Moriarty r3 T1-1 RED contract: T1-A's orphaned-END regeneration deletes user text below the block; block-0-not-last fixture choice, crew+installer shared-upsert 2-test design
-- [issue-63-orphaned-end-hardening-round-trip-notes.md](issue-63-orphaned-end-hardening-round-trip-notes.md) — issue #63 final hardening: last-block/note-above edge cases (mutation-check caught a false-pass, fixed via position assertion), real §34 mtime round-trip, NEW body-duplication bug found live (same class as #64, reported not fixed)
-- [pre-task-recall-skill-injection-contract-notes.md](pre-task-recall-skill-injection-contract-notes.md) — pre-task-recall.py #68: append-block→DENY-gate history, host-corpus nonce gotchas, + multi-skill reconciliation (BM25 score control via reps/dilution, cap-to-3, mutation-checked)
-- [cad-trimesh-validate-mesh-contract-notes.md](cad-trimesh-validate-mesh-contract-notes.md) — unmassk-3d validate_mesh.py watertight-gate contract: trimesh.load() needs process=True for is_watertight on STL, garbage input returns empty Scene (no exception), per-check fixture isolation recipes (box mutations), STL round-trip destroys index-based isolation tricks
-- [run-cadquery-stale-output-contract-notes.md](run-cadquery-stale-output-contract-notes.md) — run_cadquery.py stale-STL silent-failure regression (os.path.isfile doesn't prove freshness), 2 red assertions, generic run_cli_for/import_module_from conftest helpers for future scripts/*.py tests
-- [serial-verify-contract-notes.md](serial-verify-contract-notes.md) — unmassk-electronics serial_verify.py contract pass 1 (acceptance granularity, 6 tests): evaluate_lines pure-decision separation, pip --break-system-packages gotcha, per-test fixture RED-isolation technique, hardening-pass-deferred list (case sensitivity, empty reject list, streaming early-exit, pty round trip)
-- [sensor-gate-contract-notes.md](sensor-gate-contract-notes.md) — unmassk-electronics sensor_gate.py (robotics) full hardening pass, linear mode, 69 tests: CLI median-filter-before-evaluate_gate gotcha (NaN --before degrades to commanded_unverified not invalid_input), bool-subclass exclusion test, time.sleep mocked via monkeypatch (not real sleep), main()'s bare except fault-injected to prove the last-resort guard
-- [pending-next-cutoff-contract-notes.md](pending-next-cutoff-contract-notes.md) — boot_memory.py extract_memory() pending-Next cutoff (context() as cutoff for issue-less Next) RED contract: in-process monkeypatch.chdir+import pattern (no subprocess), GIT_AUTHOR_DATE raw-format timestamp control, issue-tagged-Next-bypasses-cutoff scope boundary
-- [boot-branches-section-contract-notes.md](boot-branches-section-contract-notes.md) — BRANCHES boot section gap-fill (get_remote_branches/render_branches_section): origin/HEAD alias only appears when bare is seeded BEFORE clone, real git's HEAD short-name shape, mutation-checked cap test, attacker-model test waiver
-- [boot-fetch-prune-contract-notes.md](boot-fetch-prune-contract-notes.md) — Finding 10 RED contract: boot fetch missing --prune leaves deleted remote branches listed forever; direct fetch_memory_ref() calls + stale-own-stamp technique to force a genuine second real fetch
-- [design-gate-contract-notes.md](design-gate-contract-notes.md) — bin/design_gate.py (skill collision linter) full test contract, 68 tests: hyphen-free bin/ script direct-import trick, JSON-string-as-YAML-value fixture technique, wordbag-vs-expand_wordset gotcha, live old-vs-new regex mutation check, CI wiring
-- [issue-61-read-retry-contract-notes.md](issue-61-read-retry-contract-notes.md) — issue #61 read-path retry: RED contract (4 sites) → hardening (28 tests, 3 more sites + shared helper) → repair (Moriarty's slow-then-hang hole, 9 fixed-signature doubles fixed) → completeness close-out (scan_recent_commits, 2-call wiring, \x1f-count call-distinguishing technique)
-- [issue-61-gc-race-fixture-corruption-notes.md](issue-61-gc-race-fixture-corruption-notes.md) — issue #61 reabierto: `git gc --auto` fork race corrupts massive-commit fixtures on Ubuntu CI (House root cause). Test-only fix: `_GC_DISABLE_ENV` (gc.auto=0 etc.) injected once in conftest.py::run_cmd, + `assert_repo_integrity()` fsck probe, mutation-checked live
-- [deadend-memo-round-trip-contract-notes.md](deadend-memo-round-trip-contract-notes.md) — Memo:deadend/<subsystem> single-line round-trip fidelity test (parse_trailers()+recall()), GREEN, body-prose negative control technique
-- [trailer-newline-collapse-regression-notes.md](trailer-newline-collapse-regression-notes.md) — T1 regression: build_commit_message() CR/LF-in-trailer-value collapse fix, one test/4 assertion groups, anti-vacuity via hand-built pre-fix input (no prod code touched)
-- [file-lock-lost-update-contract-notes.md](file-lock-lost-update-contract-notes.md) — git_helpers.file_lock() T1 contract (test_file_lock.py): sys.platform="win32" pre-import trap (subprocess._winapi), sleep-based race widener flaked -- fixed with marker-file handoff (100% deterministic, no sleep needed for correctness); + Moriarty's 3 regressions (test_file_lock_regressions.py): stale-lock-masks-readonly-dir gotcha, root-safe skip probe, loose-bound Windows loop-deception test
-- [env-var-leak-and-dead-gate-detection-notes.md](env-var-leak-and-dead-gate-detection-notes.md) — FASE 2: run_cmd None-sentinel env removal (suite gave 5 vs 4 failures by shell), "does this hook ever fire" real-producer test, flag-forced-on driver, doctor 0/0-green gate
-- [wrapper-trailer-content-validation-contract-notes.md](wrapper-trailer-content-validation-contract-notes.md) — git-memory-commit.py Memo:/Remember: content validation RED contract + later cleanup pass retiring 24 orphaned tests once hook-side validate_trailers() was deleted (map-before-delete technique, orphaned-helper grep)
+- [unmassk-toolkit-python-test-conventions.md](unmassk-toolkit-python-test-conventions.md) — pytest conventions: importlib for hyphenated hooks, sys.path fix
+- [crown-retraction-design-notes.md](crown-retraction-design-notes.md) — multi-crown edge case: per-commit patch resurfaces superseded crowns
+- [skill-router-contract-notes.md](skill-router-contract-notes.md) — per-message skill-router marker contract
+- [boot-stdout-banner-contract-notes.md](boot-stdout-banner-contract-notes.md) — boot banner + 5 rounds of git-memory-*.py hardening
+- [feat-boot-freshness-contract-notes.md](feat-boot-freshness-contract-notes.md) — boot freshness (#49) acceptance contract
+- [encoding-contract-notes.md](encoding-contract-notes.md) — #52 cp1252 + #54 surrogate-escape gotchas
+- [issue-55-date-parsing-contract-notes.md](issue-55-date-parsing-contract-notes.md) — %aI/fromisoformat fragile-date contract
+- [issue-53-hardlink-reject-contract-notes.md](issue-53-hardlink-reject-contract-notes.md) — F6 hard-link bypass fix
+- [issue-57-field-displacement-contract-notes.md](issue-57-field-displacement-contract-notes.md) — str.strip() eats \x1c-\x1f, field displacement
+- [issue-57-root-fix-subject-vector-contract-notes.md](issue-57-root-fix-subject-vector-contract-notes.md) — SUBJECT-vector attack (7 sites)
+- [issue-57-output-saneo-round2d-contract-notes.md](issue-57-output-saneo-round2d-contract-notes.md) — NEL fence-evasion, delimiter spoofing
+- [issue-57-round2e-fence-invariant-contract-notes.md](issue-57-round2e-fence-invariant-contract-notes.md) — fence-shape invariant fix
+- [issue-57-fence-a2-close-contract-notes.md](issue-57-fence-a2-close-contract-notes.md) — \r transport forgery, A2 nonce test
+- [issue-61-ci-flake-hardening-notes.md](issue-61-ci-flake-hardening-notes.md) — CI flake fix: rc-verification vs anti-vacuity retry
+- [issue-63-boot-simplification-contract-notes.md](issue-63-boot-simplification-contract-notes.md) — boot-simplification RED contract
+- [issue-63-t1-manifest-read-hardening-notes.md](issue-63-t1-manifest-read-hardening-notes.md) — RecursionError + dir-symlink bypass, 3 sites
+- [issue-63-p1-v2-content-gate-contract-notes.md](issue-63-p1-v2-content-gate-contract-notes.md) — v2 content-based gate, sabotage test
+- [issue-63-p1-v1-retirement-notes.md](issue-63-p1-v1-retirement-notes.md) — v1-gate retirement, cross-file cascade
+- [issue-63-producer-hardening-contract-notes.md](issue-63-producer-hardening-contract-notes.md) — apply_plan manifest-stamp gate
+- [issue-63-t1-end-marker-magic-string-contract-notes.md](issue-63-t1-end-marker-magic-string-contract-notes.md) — orphaned-END lie, magic-string RED
+- [issue-63-magic-string-reconciliation-notes.md](issue-63-magic-string-reconciliation-notes.md) — GREEN reconciliation via managed_blocks.upsert
+- [issue-63-t1a-orphaned-end-userdata-loss-contract-notes.md](issue-63-t1a-orphaned-end-userdata-loss-contract-notes.md) — orphaned-END regen deletes user text
+- [issue-63-orphaned-end-hardening-round-trip-notes.md](issue-63-orphaned-end-hardening-round-trip-notes.md) — last-block/note-above edges, §34 mtime round-trip
+- [pre-task-recall-skill-injection-contract-notes.md](pre-task-recall-skill-injection-contract-notes.md) — #68 append-block→DENY-gate, BM25 reconciliation
+- [cad-trimesh-validate-mesh-contract-notes.md](cad-trimesh-validate-mesh-contract-notes.md) — validate_mesh.py: trimesh process=True gotcha
+- [run-cadquery-stale-output-contract-notes.md](run-cadquery-stale-output-contract-notes.md) — stale-STL silent-failure regression
+- [serial-verify-contract-notes.md](serial-verify-contract-notes.md) — serial_verify.py pure-decision separation
+- [sensor-gate-contract-notes.md](sensor-gate-contract-notes.md) — sensor_gate.py hardening (69 tests)
+- [pending-next-cutoff-contract-notes.md](pending-next-cutoff-contract-notes.md) — pending-Next cutoff RED contract
+- [boot-branches-section-contract-notes.md](boot-branches-section-contract-notes.md) — BRANCHES: origin/HEAD alias gotcha
+- [boot-fetch-prune-contract-notes.md](boot-fetch-prune-contract-notes.md) — missing --prune leaves deleted branches listed
+- [design-gate-contract-notes.md](design-gate-contract-notes.md) — design_gate.py full contract (68 tests)
+- [issue-61-read-retry-contract-notes.md](issue-61-read-retry-contract-notes.md) — read-path retry: RED→hardening→repair→close-out
+- [issue-61-gc-race-fixture-corruption-notes.md](issue-61-gc-race-fixture-corruption-notes.md) — git gc --auto fork race corrupts fixtures
+- [deadend-memo-round-trip-contract-notes.md](deadend-memo-round-trip-contract-notes.md) — Memo:deadend round-trip fidelity
+- [trailer-newline-collapse-regression-notes.md](trailer-newline-collapse-regression-notes.md) — build_commit_message() CR/LF collapse fix
+- [file-lock-lost-update-contract-notes.md](file-lock-lost-update-contract-notes.md) — file_lock() T1 contract + 3 Moriarty regressions
+- [env-var-leak-and-dead-gate-detection-notes.md](env-var-leak-and-dead-gate-detection-notes.md) — run_cmd None-sentinel env removal
+- [wrapper-trailer-content-validation-contract-notes.md](wrapper-trailer-content-validation-contract-notes.md) — Memo/Remember validation RED + retirement
+- [plugin-sync-line-contract-notes.md](plugin-sync-line-contract-notes.md) — PLUGIN sync-line count-vs-grouped gotcha
+- [memoria-v2-fase0-conftest-notes.md](memoria-v2-fase0-conftest-notes.md) — v2 tmp_repo fixture from scratch
+- [v1-retirement-batch-notes.md](v1-retirement-batch-notes.md) — v1→v2 retirement: collect-only misses in-function imports
+- [memoria-v2-conftest-package-collision-notes.md](memoria-v2-conftest-package-collision-notes.md) — tests/memory/ vs conftest sys.modules collision
+- [memoria-v2-fase0-emojis-utf8-contract-notes.md](memoria-v2-fase0-emojis-utf8-contract-notes.md) — utf8.py/emojis.py contract, path-based loader born
+- [vocabulary-contract-notes.md](vocabulary-contract-notes.md) — vocabulary.py §6.1 contract, 3-state reader rule
+- [zones-contract-notes.md](zones-contract-notes.md) — zones.py §6.2: cross-module-import infra gap
+- [similar-contract-notes.md](similar-contract-notes.md) — similar.py §6.5 contract, zone2-only cross-zone design
+- [config-contract-notes.md](config-contract-notes.md) — config.py §6.3 contract + type-guard deviation test
+- [gitto-retirement-test-mapping-notes.md](gitto-retirement-test-mapping-notes.md) — map of tests depending on retired v1 memory
+- [memoria-v2-freshness-retirement-notes.md](memoria-v2-freshness-retirement-notes.md) — #49/#60/#61 boot-freshness retirement
+- [indexes-contract-and-shared-dir-incident-notes.md](indexes-contract-and-shared-dir-incident-notes.md) — indexes.py §7.3 contract + shared-dir incident
+- [rejection-contract-notes.md](rejection-contract-notes.md) — rejection.py §7.4 contract, ten-rejections enumeration
+- [format-contract-cross-import-risk-notes.md](format-contract-cross-import-risk-notes.md) — format.py §6.4 contract, cross-import risk
+- [gitcmd-contract-notes.md](gitcmd-contract-notes.md) — gitcmd.py §7.1 contract, SIGKILL + reentrancy gotcha
+- [mutation-check-collision-incident-ids.md](mutation-check-collision-incident-ids.md) — CRITICAL: overwrote colleague's real model.py
+- [import-lib-memory-module-cache-fix-and-stash-incident-notes.md](import-lib-memory-module-cache-fix-and-stash-incident-notes.md) — content-hash cache fix + stash incident
+- [validator-contract-notes.md](validator-contract-notes.md) — validator.py §7.5 contract, mandatory isolated-tmp-dir rule
+- [five-regressions-format-zones-notes.md](five-regressions-format-zones-notes.md) — 5 round-trip regressions (format.py/zones.py)
+- [notes-contract-real-git-failure-notes.md](notes-contract-real-git-failure-notes.md) — notes.py §8.1 RED: index.lock real-failure technique
+- [query-contract-notes.md](query-contract-notes.md) — query.py §8.2 contract, transient-git-retry sim
+- [dispatch-contract-notes.md](dispatch-contract-notes.md) — dispatch.py §9.8 contract, office-identifier gap
+- [moriarty-layer1-race-and-list-folding-regression-notes.md](moriarty-layer1-race-and-list-folding-regression-notes.md) — indexes.py real race + format.py fold gaps
+- [notes-three-critical-regressions-notes.md](notes-three-critical-regressions-notes.md) — 3 fixes: blank-paragraph round trip, restore-on-exception
+- [rules-contract-notes.md](rules-contract-notes.md) — rules.py §9.7 RED, no-root-param gap
+- [health-contract-notes.md](health-contract-notes.md) — health.py Sec.9.4 coverage, gh-mocking technique
+- [clusters-contract-notes.md](clusters-contract-notes.md) — clusters.py Sec.9.1 RED, Origin-vs-Replaces mapping
+- [context-py-contract-notes.md](context-py-contract-notes.md) — context.py Sec.9.6 RED, HEADLINE_MAX cross-check
+- [notes-stdout-only-git-error-regression-notes.md](notes-stdout-only-git-error-regression-notes.md) — git_error empty on stdout-only failure
+- [rejection-gitcmd-value-presence-and-stdout-regression-notes.md](rejection-gitcmd-value-presence-and-stdout-regression-notes.md) — build() key-vs-value gap + stdout-only failure
+- [memoria-v2-boot-memory-precompact-retirement-notes.md](memoria-v2-boot-memory-precompact-retirement-notes.md) — 22-test retirement, vacuous-green technique
+- [dead-script-retirement-sweep-notes.md](dead-script-retirement-sweep-notes.md) — full-sweep technique for retiring deleted script tests
+- [deuda-6-18-upstream-guard-regression-notes.md](deuda-6-18-upstream-guard-regression-notes.md) — check_upstream_shares_history() guard regression
+- [memoria-v2-zonereport-shared-section-notes.md](memoria-v2-zonereport-shared-section-notes.md) — report.py Sec.9.2 RED, shared-table split
+- [capa4-hardening-session-notes.md](capa4-hardening-session-notes.md) — capa-4 hardening: commit_empty regression + parallel-agent drift
+- [notes-replace-close-contract-notes.md](notes-replace-close-contract-notes.md) — notes.py replace()/close() RED, NotImplementedError trap
+- [memoria-v2-48-red-retirement-notes.md](memoria-v2-48-red-retirement-notes.md) — 8-file/48-red retirement, byte-exact deletion
+- [issue-double-registration-and-notes-path-bug-notes.md](issue-double-registration-and-notes-path-bug-notes.md) — double-registration fix + notes.py index-root bug
+- [boot-contract-root-vs-pmroot-notes.md](boot-contract-root-vs-pmroot-notes.md) — test_boot.py RED: root vs _pm_root per-dependency
+- [notes-cwd-leak-fix-and-guard-fixture-notes.md](notes-cwd-leak-fix-and-guard-fixture-notes.md) — fixed 5 seed-outside-_cwd leaks + HEAD-diff guard
+- [pm-root-migration-test-alignment-notes.md](pm-root-migration-test-alignment-notes.md) — aligned 3 files to notes.pm_root(root)
+- [health-boot-rule-coherence-wiring-notes.md](health-boot-rule-coherence-wiring-notes.md) — 4 RED tests wiring coherence_rules() into boot
+- [boot-report-argus-four-regressions-notes.md](boot-report-argus-four-regressions-notes.md) — 4 Argus-fixed bugs pinned as regression tests
+- [capa4-moriarty-round2-five-bugs-plus-single-reader-notes.md](capa4-moriarty-round2-five-bugs-plus-single-reader-notes.md) — 10 tests: lying checkmark, unborn-branch crashes
+- [capa5-scripts-red-contract-notes.md](capa5-scripts-red-contract-notes.md) — bin/memory/{note,close,context,work}.py RED contract
+- [capa5-work-branch-protection-and-similarity-fix-notes.md](capa5-work-branch-protection-and-similarity-fix-notes.md) — similarity RED fix + work.py branch-protection
+- [capa5-read-scripts-and-facade-contract-notes.md](capa5-read-scripts-and-facade-contract-notes.md) — search/boot/reindex/zones/rule/bench RED contract
+- [bench-adversarial-contract-notes.md](bench-adversarial-contract-notes.md) — Sec.14 ten-attack RED contract, bench.py location decision
+- [capa5-six-regressions-notes_commit-close-health-bench-reindex-notes.md](capa5-six-regressions-notes_commit-close-health-bench-reindex-notes.md) — 6 hardening regressions across 5 files
+- [id-reuse-regression-notes.md](id-reuse-regression-notes.md) — closed-note-id-reuse fix pinned
+- [inject-hook-contract-notes.md](inject-hook-contract-notes.md) — hooks/inject.py RED, fail-open empirical correction
+- [boot-launcher-hook-contract-notes.md](boot-launcher-hook-contract-notes.md) — hooks/boot_launcher.py RED, real SessionStart payload
+- [issue-deuda25-nested-repo-cwd-anchor-notes.md](issue-deuda25-nested-repo-cwd-anchor-notes.md) — DEUDA #25 RED, nested-repo cwd anchor
+- [write-work-missing-lock-contract-notes.md](write-work-missing-lock-contract-notes.md) — write_work() missing file_lock RED contract
+- [deuda24-search-by-id-contract-notes.md](deuda24-search-by-id-contract-notes.md) — search.py --id RED (DEUDA #24), vocabulary gap found
+- [gitmem-wip-branch-protection-notes.md](gitmem-wip-branch-protection-notes.md) — wip test fixed after 2026-08-03 checkpoint decision
+- [deuda-b19-customs-autoenable-rebase-contract-notes.md](deuda-b19-customs-autoenable-rebase-contract-notes.md) — DEUDA B19: customs auto-enable + rebase passthrough hardening
+- [deuda27-write-work-two-process-race-notes.md](deuda27-write-work-two-process-race-notes.md) — write_work() DEUDA #27: two-real-process race test, invariant assertion, ablation-for-RED technique
+- [wip-script-checkpoint-hardening-notes.md](wip-script-checkpoint-hardening-notes.md) — wip.py first dedicated test file, 15 green, binary round-trip, two-controls-not-one lesson
+- [write-work-known-content-none-fallback-contract-notes.md](write-work-known-content-none-fallback-contract-notes.md) — write_work() known_content=None RED: fallback-vs-expect-absent contract + uncaught IsADirectoryError sibling
+- [zones-script-english-rename-and-duplicate-bounce-notes.md](zones-script-english-rename-and-duplicate-bounce-notes.md) — zones.py alta/listar/buscar→add/list/find + duplicate-zone bounce, chained-RED technique, B22 concurrency out-of-scope
+- [zones-alias-collision-bounce-contract-notes.md](zones-alias-collision-bounce-contract-notes.md) — zones.py alias-collision bounce RED: names-the-owner requirement, resolve()-after invariant
+- [deuda17-freshness-disclosure-contract-notes.md](deuda17-freshness-disclosure-contract-notes.md) — DEUDA #17 RED: PULL DIRECTIVE/BRANCHES must disclose unconfirmed remote data, keyword-OR wording-agnostic technique
+- [deuda15-foreign-content-silent-discard-contract-notes.md](deuda15-foreign-content-silent-discard-contract-notes.md) — managed_blocks.py upsert() silently discards foreign content inside BEGIN/END, RED contract
+- [deuda5-cache-sync-recursive-subdirs-contract-notes.md](deuda5-cache-sync-recursive-subdirs-contract-notes.md) — cache_sync_check.py RED: _dir_fingerprint() non-recursive, empty-cache-dir TypeError fixture gotcha
+- [note-script-alias-not-resolved-regression-notes.md](note-script-alias-not-resolved-regression-notes.md) — Moriarty T1: note.py writes zone alias unresolved, note vanishes from index/search
+- [note-script-replaces-not-archiving-regression-notes.md](note-script-replaces-not-archiving-regression-notes.md) — note.py --replaces never calls notes.replace(), old note stays live forever; --replaces none control
+- [piezas-sec13-boundary-tests-notes.md](piezas-sec13-boundary-tests-notes.md) — PIEZAS.md Sec.13 boundary tests: AST import-graph, real RED (19 orphan symbols), re-export resolution trap
+- [note-script-discard-alternatives-flag-contract-notes.md](note-script-discard-alternatives-flag-contract-notes.md) — note.py --discard flag RED: description-vs-why gotcha for X type, no origin flag needed
+- [dante-owner-metric-over-allowlist-feedback.md](dante-owner-metric-over-allowlist-feedback.md) — owner reverses allowlists mid-task; prefer a computed two-branch metric + threshold over a named exception table
+- [rejection-relaunch-command-ast-crosscheck-notes.md](rejection-relaunch-command-ast-crosscheck-notes.md) — gitmem relaunch commands vs real argparse: AST leaf-visitor gotcha, parse_args-spy technique, form-not-content boundary
+- [incident-close-question-contract-notes.md](incident-close-question-contract-notes.md) — remove.py incident-close question RED contract: I- asks, M/D don't, extracted-command execution, AST-radar dodge risk for Ultron
+- [test-file-self-drift-correction-notes.md](test-file-self-drift-correction-notes.md) — stale close→remove/required-flag/ablation-result inside test prose itself, annotate-not-delete on test data
+- [relaunch-command-answer-amnesia-contract-notes.md](relaunch-command-answer-amnesia-contract-notes.md) — pain-question/overlap rejection cycle never converges, drops --stops across rounds, RED contract
+- [incident-close-fence-atomicity-contract-notes.md](incident-close-fence-atomicity-contract-notes.md) — remove.py --restriction new RED: fence rejection must NOT leave incident closed, validate_note pre-check
+- [promotes-flag-third-archive-destination-contract-notes.md](promotes-flag-third-archive-destination-contract-notes.md) — --promotes RED via bin/gitmem (not note.py direct): third archive destination "promoted to <ID>" has reader, no writer
+- [note-archived-similarity-bypass-contract-notes.md](note-archived-similarity-bypass-contract-notes.md) — query.by_zone() includes archived notes, closed note wrongly blocks similar new note; --replaces none sentinel for overcorrection guard
+
+## Retired (different stack, no longer this project's shape)
+
+`conventions.md` / `mock-patterns.md` / `edge-cases.md` / `frontend-conventions.md` — bun:test/Vitest/RTL/SQLite/Zod
+material from a prior chatroom/omawamapas codebase, not unmassk-toolkit (pure Python). Files kept on disk, unlinked
+from this index — irrelevant to this project's recall.

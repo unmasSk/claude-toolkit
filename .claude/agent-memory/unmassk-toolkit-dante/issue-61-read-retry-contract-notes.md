@@ -261,6 +261,52 @@ Verified: `TestScanRecentCommitsReadRetryContract` 3/3, full contract file
 sanity check) 16/16 — all real exit code 0. Only the test file changed,
 `git status --porcelain` confirms no production code touched.
 
+## Retirement (5th Dante entry) — get_timeline()/get_last_context_time() deleted from production (DEUDA.md #7)
+
+Memory v2's five-block boot (spec §8.3) has no timeline block, so
+`boot_git_checks.py::get_timeline()`/`get_last_context_time()` (112 lines,
+zero production callers) were deleted from production the same day, along
+with their re-export in `boot_checks.py`'s `from boot_git_checks import
+(...)` / `__all__` (deleting only the functions without also cutting the
+re-export would have cascaded an `ImportError` through
+`boot_checks.py` → `boot_health.py`/`boot_render.py` →
+`session-start-boot.py` — the whole boot, not just a test). Retired the two
+now-dead classes (`TestGetTimelineReadRetryContract`,
+`TestGetLastContextTimeReadRetryContract`, 8 tests) from
+`unmassk-toolkit/tests/test_read_retry_contract.py` per §9.3 ("borrar los
+tests de cada pieza retirada, a la vez que la pieza") — tests only, zero
+production lines touched.
+
+**Coverage-loss check done BEFORE deleting, not after.** The read-retry
+contract those two classes proved has 3 parts: (a) transient failure
+recovers via retry, round-trips real data; (b) persistent failure emits a
+visible WARN, never silent; (c) genuine success = exactly 1 call, no retry,
+clean stderr. Read the whole file first and confirmed all 3 are still
+proved by LIVE code, independently: `TestScanRecentCommitsReadRetryContract`
++ `TestScanRecentCommitsBreadcrumb` (same 3 assertions, at
+`bootstrap_commits.py::scan_recent_commits()`) and
+`TestRunGitReadRetryingDeadline` (the shared `run_git_read_retrying()`
+helper directly — the SAME function every read site, including
+`scan_recent_commits()`, calls into; its deadline/budget logic was never
+site-specific). Ran the suite BEFORE touching anything: exactly 8 red (the
+2 dead classes, `AttributeError: module 'boot_git_checks' has no attribute
+...`) + 9 green (everything that survives) — matched the task's claim
+exactly, so no coverage was silently lost by this retirement. This is the
+generalizable move for any "delete tests for a retired piece" task: don't
+just delete on the requester's word that it's safe — reread the file,
+name what covers the same contract now, and verify empirically (red count
+before == expected dead-test count) before cutting.
+
+Also swept for stray references before finishing: `bootstrap_commits.py`,
+`test_boot_git_checks.py`, `test_regression_memory_correctness.py` only
+*mention* `get_last_context_time()` in prose/docstrings (dead comments now,
+out of scope — no production code, not my file to touch);
+`test_migrate_statusline.py` calls `boot_render.get_timeline(10)` inside a
+subprocess probe but that whole test was already broken independently (it
+also imports `boot_memory`, which memory v2 deleted entirely per this same
+file's own docstring) — unrelated pre-existing breakage, not caused by
+today's retirement, left untouched (out of the assigned scope).
+
 **Subprocess probe for the hyphenated hook, extended with a `MODE` selector.**
 `_PRECOMPACT_EXTRACT_MEMORY_PROBE` (new template, same shape as
 `test_issue61_breadcrumbs.py`'s `_PRECOMPACT_BRANCH_FAILURE_PROBE`) patches

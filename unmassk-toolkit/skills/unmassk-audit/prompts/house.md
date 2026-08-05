@@ -10,7 +10,7 @@
 ## Task: Diagnose [ISSUE_SUMMARY]
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N] (if applicable)
 
 ### Symptoms
@@ -25,7 +25,7 @@
 Create: `docs/debugging/DIAG-[MODULE]-[SLUG].md`
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
 ```
 
@@ -42,7 +42,7 @@ Debug session file: `docs/debugging/DIAG-[MODULE]-[SLUG].md`
 Read the file. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from `next_action`.
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
 ```
 
@@ -54,7 +54,7 @@ Read the file. It contains: current focus, symptoms, eliminated hypotheses, and 
 ## Task: Re-diagnose [ISSUE_SUMMARY] — previous fix by Ultron did not resolve the issue
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Previous diagnosis: [PASTE ROOT CAUSE from previous House report]
 - Fix applied: [PASTE what Ultron changed]
 - Result: [still failing / new error / partial fix]
@@ -69,6 +69,6 @@ Read the file. It contains: current focus, symptoms, eliminated hypotheses, and 
 Continue: `docs/debugging/DIAG-[MODULE]-[SLUG].md` (append to existing evidence)
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
 ```

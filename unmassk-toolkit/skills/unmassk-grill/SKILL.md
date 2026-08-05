@@ -16,11 +16,11 @@ description: >
 
 # Grill
 
-Adapted from Matt Pocock's grill-me (MIT). The interview discipline is preserved; the persistence is changed: decisions go to git-memory, not to `.md` files.
+Adapted from Matt Pocock's grill-me (MIT). The interview discipline is preserved; what changes is where it lands — every decision is saved to the project's memory, never to a `.md` file.
 
 ## When this fires
 
-Something significant is on the table. First, **search git-memory** for prior decisions on this topic:
+Something significant is on the table. **Search the memory first** (`gitmem search <term>`):
 
 - **Found a relevant decision** → surface it. Don't re-litigate what's settled.
 - **Nothing found** → ask the user: do we start a brainstorming pass, or do you already know what you want? Route accordingly (council/brainstorm vs. straight grill).
@@ -52,15 +52,29 @@ Rules:
 
 ### Bounded mode (pipeline-invoked only)
 
-When `unmassk-project-lifecycle` or `unmassk-flow` invokes this skill automatically (not a direct user request), cap the interview at **5 questions**. State the cap isn't reached by bundling ("is X and Y both fine?" counts as one question toward the cap, don't game it by merging). If 5 questions aren't enough to resolve the tree, capture what's resolved as `decision()`s, log the remaining open branches as an explicit list, and let the calling skill proceed — don't stall an automated pipeline step indefinitely.
+When `unmassk-project-lifecycle` or `unmassk-flow` invokes this skill automatically (not a direct user request), cap the interview at **5 questions**. State the cap isn't reached by bundling ("is X and Y both fine?" counts as one question toward the cap, don't game it by merging). If 5 questions aren't enough to resolve the tree, save what is resolved, write down the branches still open as an explicit list, and let the calling skill proceed — don't stall an automated pipeline step indefinitely.
 
 When the user invokes this directly ("grill me"), stay unbounded as before — a human actively driving the session can go as deep as the decision warrants.
 
 ## Output
 
-As each branch resolves, the decisions that emerge are real decisions — capture each as a `decision()` in git-memory with its `Why:`. This is the integration with the toolkit that Pocock's original doesn't have: the grill doesn't just align understanding, it produces durable, auditable decisions.
+Every branch that resolves is a real decision, and it is saved the moment it resolves — not batched at the end, where half of them get lost:
+
+```
+gitmem note D --zones <zone1> <zone2> "<what was decided, in English>" \
+  --why "<why this and not the closest alternative>" \
+  --description "<what was on the table>" \
+  --discard "<the option that lost>" "<why it lost>"
+```
+
+**A branch that stays open after the interview is a question, not a gap** — save it as one, so the next session knows it is still owed an answer:
+
+```
+gitmem note Q --zones <zone1> <zone2> "<what is still undecided>" \
+  --description "<what it blocks, and what has to happen to close it>"
+```
 
 ## Boundary
 
-- Persistence → git-memory only. Never CONTEXT.md or ADR files.
+- Everything is saved to the memory. Never a `CONTEXT.md`, never an ADR file.
 - This skill aligns and decides. It does not implement.

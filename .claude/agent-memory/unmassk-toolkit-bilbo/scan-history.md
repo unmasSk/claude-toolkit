@@ -420,6 +420,31 @@ fetch('/api/auth/token') has AbortController from disconnect() but NO AbortSigna
 
 No escalation needed — structural trace only.
 
+## 2026-08-04 — memoria-v2 "las ocho" boundary-detector zero/zero symbols, verdict pass
+
+Investigated 8 symbols flagged by `tests/memory/test_boundary.py::_symbol_usage_report`
+as production==0 AND tests==0 in `unmassk-toolkit/lib/memory/`. All 8 turned out to be
+used within their own defining file by the module's real public entry point (build_message
+calls build_subject; parse_message calls parse_subject; validate_note calls validate_type;
+run_git_log calls is_unborn_branch; FIELDS/TYPES dict literals construct FieldSpec/TypeSpec)
+— all 8 verdict INTERNA, none dead, none needed a missing caller.
+
+**Reusable finding — detector blind spot, not a code bug:** every test file that imports
+`lib/memory/format.py` aliases its fixture away from the module stem ("fmt", "format_mod",
+"format_lib" — never "format", because it shadows Python's builtin `format()`). The
+boundary detector's test-branch only recognizes a symbol touch when the pytest fixture
+PARAMETER NAME equals the module stem exactly (`params & stem_set`). Consequence: **the
+detector can never see ANY test coverage of format.py's symbols**, system-wide. This
+produced two false negatives at the time (`format.build_subject`/`format.parse_subject`
+report "tests=0" despite being called directly as `fmt.build_subject(note)` /
+`fmt.parse_subject(subject)` in `test_format.py::test_emoji_after_brackets_enforced`).
+`format.SubjectParts` was NOT a false negative — its own docstring says tests deliberately
+never construct/inspect it directly, so 0 tests there is real. If this detector is reused
+for other modules later, check for aliased fixtures first before trusting a "0 tests" row.
+
+No escalation done by me (Bilbo doesn't fix/decide) — reported to orchestrator, verdict is
+the propietario's per CLAUDE.md Sec.0.2.
+
 ## 2026-07-04 — spec-kit (.ref-repos/spec-kit) mechanics mapping for own-toolkit design
 
 Full read of spec-kit's real phase pipeline (not docs): `templates/commands/*.md` (10),

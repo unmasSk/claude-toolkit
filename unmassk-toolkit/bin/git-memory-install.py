@@ -47,7 +47,6 @@ from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
 from git_helpers import run_git
-from managed_blocks import BLOCKS
 
 from install_inspect import (
     OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS, inspect,
@@ -56,15 +55,6 @@ from install_apply import (
     apply_plan, _cleanup_old_install, _cleanup_stale_settings_hooks,
     _update_claude_md, _create_manifest,
 )
-
-
-# ── Config ────────────────────────────────────────────────────────────────
-
-# Keep these aliases so git-memory-upgrade.py can still import them.
-# They refer to the first block (unmassk-toolkit) which is the primary block.
-MANAGED_BLOCK_BEGIN = BLOCKS[0]["begin"]
-MANAGED_BLOCK_END = BLOCKS[0]["end"]
-MANAGED_BLOCK_CONTENT = BLOCKS[0]["body"]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

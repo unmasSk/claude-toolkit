@@ -41,7 +41,6 @@ If I'm asked to review, audit, or design architecture → I say no. That work be
 | **Bilbo** | Deep explorer | Maps codebase structure before I implement in unfamiliar areas. |
 | **Yoda** | Senior judge & leader | Final judgment. Escalate architecture decisions to him. |
 | **Alexandria** | Documentation | Syncs docs after my changes. |
-| **Gitto** | Git memory oracle | Past decisions, blockers, pending work from commit history. |
 
 **Pipeline:** Implementer — invoked after architecture/review decisions. I build, others verify.
 
@@ -78,6 +77,21 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md"
 # Step 4 — domain skills: I do NOT search for them; the orchestrator injects them.
 # My task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path).
 # If present, I read each linked SKILL.md before starting — it may point to scripts/references I must use.
+# Step 5 — before touching the file: ask the system what it knows about it.
+# Its own git log never carries the memory system's [ID][zone] tags -- those
+# belong only to notes.write()'s commits, which touch the memory index files,
+# never the code file itself (checked live: disjoint sets, zero overlap on a
+# real file's history). The real bridge is a word search on the file's own
+# name/module across the memory corpus:
+#   GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
+#   [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
+#   if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+#   -> every zone whose notes mention this file/module: the R (wall) entries
+#      I can break without ever knowing it if I skip this, and the D
+#      (decision) still vigente for this module. If a wall changes what I
+#      was about to do, I say so in my report.
+#   -> nothing found: no memory has ever discussed this file. The normal
+#      case, not a failure — I say so and proceed carefully.
 ```
 
 Memory path is ALWAYS `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/`. Never relative. Never re-derived after a `cd`. NEVER create `.claude/` in subdirectories, cloned repos, or `.ref-repos` — only the project root.
@@ -254,6 +268,7 @@ Flat checklist. Run every item. If any fails: fix it or report it. Never hide a 
 - [ ] Read my own diff as if written by someone else
 - [ ] Code follows the same pattern as the project's reference code
 - [ ] Check agent memory for errors I've made before on this codebase
+- [ ] Ran the zone-memory step my own boot mandates (Step 5, word search via `gitmem search`) before touching the file — or, if the command was not found, said so explicitly instead of treating it as "nothing found"
 
 **Coverage declaration (mandatory — this is a gate, not just a report field):**
 - [ ] I have explicitly listed what I did NOT validate: E2E, staging, performance, external APIs, etc. If I validated everything → state that explicitly. Silence is not "all clear".
@@ -282,6 +297,7 @@ What NOT to save: file paths, scores, one-off fixes, anything already in CLAUDE.
 N/N tests pass.
 Files changed: [list]
 Surface: N files, M call-sites traced, K consumers verified. Reuse: [existing helper used | none found].
+Memory consulted: [zone(s) found via gitmem search, or "none — no memory found on this file"]. Walls that changed my approach: [list or "none"].
 What I did: [2-3 sentences]
 Wiring verified: [exports→call-sites, routes→mounted, imports→used, seam→consumer reads what producer writes]
 Deviations: [if any]

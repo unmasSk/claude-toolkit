@@ -17,6 +17,30 @@ judgement matching a natural-language description to the user's message.
 unmassk-core and unmassk-gitmemory already get FORCED on the first message of
 a session (see the existing `session_booted` block in the hook), but nothing
 nudges Claude toward the right skill on messages 2, 3, 4... for ANY of the 9.
+[Historical framing at the time of this decision -- see the retirement note
+below for what changed since.]
+
+Retirement note (2026-08-02) -- unmassk-gitmemory removed from this contract
+──────────────────────────────────────────────────────────────────────────────
+`docs/memoria-v2/PLAN-CONSTRUCCION.md` §5.1 retires `skills/unmassk-gitmemory/`
+in its entirety as a deliberate, owner-approved decision (the v1 memory
+system is being rebuilt from zero; the skill folder, its production entry in
+`lib/skill_router.py`, and the first-message forcing text in
+`hooks/user-prompt-memory-check.py` that told Claude to load it and read its
+CALIBRATION.md were all removed the same day). This is NOT a regression to
+patch around -- production code (`lib/skill_router.py::SKILL_TRIGGER_PHRASES`)
+already has only 8 entries, no `unmassk-gitmemory` key, and the hook's
+first-message MANDATORY block only forces `skill="unmassk-core"` now. The
+contract below is realigned to that reality: 8 protocol skills, not 9;
+`unmassk-gitmemory`'s 3 trigger-phrase cases and the two first-message
+assertions that named it are removed from this file (not left red). Per the
+plan, the name `unmassk-gitmemory` is NOT gone for good -- step 7.12
+rewrites the CLAUDE.md managed block for the new v2 skill, which inherits
+this exact same name (`docs/memoria-v2/PLAN-CONSTRUCCION.md` line ~96: "el
+nombre `unmassk-gitmemory` queda libre y la skill nueva lo hereda"). When
+that step lands, the 3 trigger-phrase cases and the 2 first-message
+assertions removed here should be reinstated against the new skill's real
+description text -- this is a deliberate, planned gap, not an oversight.
 
 Accepted fix (deliberately NOT a heavy BM25 rebuild, and explicitly NOT a
 hard PreToolUse gate — a similar hard gate was already tried and rejected
@@ -51,11 +75,13 @@ equivalent for that one skill.
 
 Covered behaviours
 ──────────────────
-1. Match          — 9 skills x 3 realistic prompts each -> nudge names the skill
+1. Match          — 8 skills x 3 realistic prompts each -> nudge names the skill
+                     (unmassk-gitmemory retired from this contract -- see the
+                     retirement note above)
 2. Multiple match — prompt hits 2 skills' triggers -> nudge lists BOTH, not just one
 3. No match       — neutral prompt -> no nudge line at all (no per-message noise)
 4. Exit code      — ALWAYS 0, matched or not (never blocking)
-5. No regression  — first-message-only core/gitmemory forcing text is untouched
+5. No regression  — first-message-only unmassk-core forcing text is untouched
                      by this per-message check, and both can coexist on message 1
 
 Performance refactor (2026-07)
@@ -208,13 +234,14 @@ SKILL_TRIGGER_PROMPTS = {
         "how do you decide when to invoke workflows for a task",  # "when to invoke workflows"
         "what domain plugins and standards do you use",  # "domain plugins", "standards"
     ],
-    # "memory, resume, context, decision, memo, remember" + quoted
-    # "what did we decide", "what's pending"
-    "unmassk-gitmemory": [
-        "what did we decide about the api design last time",  # quoted: "what did we decide"
-        "what's pending from the last session",  # quoted: "what's pending"
-        "remember that we chose postgres over mysql",  # "remember"
-    ],
+    # unmassk-gitmemory retired from this contract (see module docstring
+    # "Retirement note" above) -- the skill folder, its production
+    # skill_router.py entry, and its first-message forcing text are all gone
+    # as of 2026-08-02. Returns at PLAN-CONSTRUCCION.md step 7.12 under the
+    # same name; reinstate this key (and the 2 first-message assertions in
+    # TestFirstMessageForcingTextUnaffected) against the new skill's real
+    # description text when that step lands.
+    #
     # quoted: "build a feature", "implement", "add functionality",
     # "fix a non-trivial bug", "refactor"
     "unmassk-flow": [
@@ -277,9 +304,11 @@ _PARAM_CASES = [
     for i, prompt in enumerate(prompts)
 ]
 
-# Sanity check on the fixture data itself: 9 skills x 3 prompts = 27 cases.
-assert len(SKILL_TRIGGER_PROMPTS) == 9
-assert len(_PARAM_CASES) == 27
+# Sanity check on the fixture data itself: 8 skills x 3 prompts = 24 cases.
+# (unmassk-gitmemory retired from this contract -- see "Retirement note" in
+# the module docstring; was 9 skills / 27 cases before 2026-08-02.)
+assert len(SKILL_TRIGGER_PROMPTS) == 8
+assert len(_PARAM_CASES) == 24
 
 
 # ── Tests: match (Case 1) ──────────────────────────────────────────────────
@@ -404,9 +433,21 @@ class TestSkillRouterHookIntegration:
 # ── Tests: no regression of first-message forcing text (Case 5) ──────────
 
 class TestFirstMessageForcingTextUnaffected:
-    """The existing first-message-only core/gitmemory MANDATORY forcing
-    block must survive this change untouched, and must coexist with the new
+    """The existing first-message-only unmassk-core MANDATORY forcing block
+    must survive this change untouched, and must coexist with the new
     per-message router when both conditions apply on message 1.
+
+    Originally also asserted a second forcing step for unmassk-gitmemory
+    (skill="unmassk-gitmemory" + a CALIBRATION.md read). That step is
+    retired as of 2026-08-02: `docs/memoria-v2/PLAN-CONSTRUCCION.md` §5.1
+    removes `skills/unmassk-gitmemory/` entirely (deliberate, owner-approved
+    -- the v1 memory system is rebuilt from zero), and
+    `hooks/user-prompt-memory-check.py`'s first-message block no longer
+    emits it (verified against the live hook source). The assertions for it
+    were removed from the test below, not left red. Per the plan, the name
+    `unmassk-gitmemory` returns at step 7.12 for the new v2 skill, which
+    inherits this same name -- reinstate those 2 assertions against the new
+    skill's real forcing text when that step lands.
     """
 
     def test_first_message_forcing_text_present_regardless_of_prompt(self, tmp_path):
@@ -426,12 +467,6 @@ class TestFirstMessageForcingTextUnaffected:
         )
         assert 'skill="unmassk-core"' in stdout, (
             f"Expected the unmassk-core forcing step; got: {stdout!r}"
-        )
-        assert 'skill="unmassk-gitmemory"' in stdout, (
-            f"Expected the unmassk-gitmemory forcing step; got: {stdout!r}"
-        )
-        assert "CALIBRATION.md" in stdout, (
-            f"Expected the CALIBRATION.md forcing step; got: {stdout!r}"
         )
 
     def test_first_message_forcing_text_and_router_nudge_coexist(self, tmp_path):
@@ -529,12 +564,15 @@ def _read_skill_description(skill_name):
 
     Parses the YAML frontmatter block (text between the first two `---`
     delimiters) with a real YAML parser so both plain single-line
-    descriptions (unmassk-flow, unmassk-audit, unmassk-core,
-    unmassk-gitmemory) and folded `>` block-scalar descriptions
-    (unmassk-grill, unmassk-council, unmassk-project-lifecycle,
-    unmassk-close-session, unmassk-scaffolding) are read identically --
-    a naive string-search would treat the folded newlines differently
-    than yaml.safe_load's real folding rules.
+    descriptions (unmassk-flow, unmassk-audit, unmassk-core) and folded `>`
+    block-scalar descriptions (unmassk-grill, unmassk-council,
+    unmassk-project-lifecycle, unmassk-close-session, unmassk-scaffolding)
+    are read identically -- a naive string-search would treat the folded
+    newlines differently than yaml.safe_load's real folding rules.
+    (unmassk-gitmemory dropped from this list 2026-08-02 -- its skill folder
+    is retired, see "Retirement note" in the module docstring; the drift
+    guard below only ever iterates the live SKILL_TRIGGER_PHRASES dict,
+    which no longer has that key, so this function is never called with it.)
     """
     skill_md_path = os.path.join(SKILLS_DIR, skill_name, "SKILL.md")
     with open(skill_md_path, encoding="utf-8") as f:
@@ -568,9 +606,12 @@ class TestSkillTriggerPhrasesMatchLiveDescriptions:
     ("unmassk-flow", "create something new"),
     ("unmassk-scaffolding", "create new project") --
     proving SKILL_TRIGGER_PHRASES is stale relative to the frontmatter edits.
-    All other pairs (unmassk-core, unmassk-gitmemory, unmassk-project-lifecycle,
-    unmassk-audit, unmassk-close-session, and the non-removed phrases of the
-    4 edited skills) already pass today and must keep passing.
+    All other pairs (unmassk-core, unmassk-project-lifecycle, unmassk-audit,
+    unmassk-close-session, and the non-removed phrases of the 4 edited
+    skills) already pass today and must keep passing. (unmassk-gitmemory
+    dropped from SKILL_TRIGGER_PHRASES entirely 2026-08-02 -- retired, see
+    "Retirement note" in the module docstring -- so it no longer appears in
+    this parametrization at all, not even as a passing pair.)
     """
 
     @pytest.mark.parametrize("skill, phrase", _DRIFT_GUARD_CASES)

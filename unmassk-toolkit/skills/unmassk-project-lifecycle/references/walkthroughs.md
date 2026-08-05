@@ -19,7 +19,7 @@ For each action on the agenda:
 
 1. **Trace it in the three layers**, from the four viewpoints, drawing the screen of each step and listing **all** its exits — happy path and every error branch.
 2. **Surface the decisions to pin** (where each one lands) and the **loose ends** (screens or cases not yet traced).
-3. **Resolve them one by one in conversation**, each with a recommendation, and persist each as a `decision()` in git-memory. Only the *already-decided* flow goes into the visual artifact — never the discussion.
+3. **Resolve them one by one in conversation**, each with a recommendation, and save each one as a decision the moment it resolves. Only the *already-decided* flow goes into the visual artifact — never the discussion.
 4. **Build the visual artifact**: an HTML wireframe of every screen, its options, and its error branches. Render it and review it before showing it (see phase C's rule — the same discipline applies to any visual artifact).
 5. **Get the user's approval on this action before opening the next one.** One action closed before the next is opened.
 
@@ -27,8 +27,8 @@ For each action on the agenda:
 
 - **Design each screen by its edge cases before drawing it.** The corner cases decide the layout; discover them first.
 - **A wireframe must show ALL options**, not a trimmed subset, and is **verified complete against the data model** before it is shown.
-- **Before calling anything a gap, search git-memory first** — the docs lag behind the decisions, so a "still open" question may already be closed in memory.
-- **The artifact carries only the decided flow.** The alternatives considered and the reasoning stay in git-memory, not in the wireframe.
+- **Before calling anything a gap, search the memory first** — the docs lag behind the decisions, so a "still open" question may already be closed in memory.
+- **The artifact carries only the decided flow.** The alternatives considered and the reasoning stay in the memory, not in the wireframe.
 
 ## Cross-check against the data model
 
@@ -37,8 +37,8 @@ Walkthroughs and the data model are verified against **each other**, in more tha
 ## Output
 
 - One approved HTML wireframe per action, kept as the binding visual contract alongside the PRD and the data model.
-- Every decision that emerged persisted as `decision()` with its Why.
-- Nothing in a `.md` "discussion log" — the reasoning lives in git-memory; the artifact shows only the decided result.
+- Every decision that emerged saved, with its why and the options it beat.
+- Nothing in a `.md` "discussion log" — the reasoning lives in the memory; the artifact shows only the decided result.
 
 ## Boundary
 

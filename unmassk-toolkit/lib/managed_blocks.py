@@ -2,7 +2,7 @@
 managed_blocks.py — Single source of truth for all unmassk CLAUDE.md managed blocks.
 
 Both session-start-crew.py (SessionStart hook) and git-memory-install.py
-(installer) import this module so the 5 blocks never diverge.
+(installer) import this module so the blocks never diverge.
 
 Public API
 ----------
@@ -35,20 +35,21 @@ BLOCKS: list[dict[str, str]] = [
         "body": """\
 ## unmassk-toolkit Active
 
-This project uses the **unmassk toolkit**.
+This project uses the **unmassk toolkit**. Its memory lives in git, and it is
+what you know about this project -- not a log you may consult.
 
 **On every session start**, you MUST:
-1. Read the `[git-memory-boot]` SessionStart output already in your context
+1. Read the session-start briefing already in your context: the last Next,
+   every blocker, every restriction, the counts and the checks
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
-3. Use the Skill tool with `skill="unmassk-gitmemory"` (TOOL CALL, not bash)
-4. Read CALIBRATION.md: `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md`
-5. Show the boot summary, then respond to the user
+3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
+4. Tell the user the menu of the day, then respond
 
-**On every user message** a banner fires reminding you to verify before claiming and to save durable signals. There is NO automatic memory injection and NO `[memory-check]` marker -- both were removed. Nothing reaches you unless you pull it: run `git-memory-recall.py "<terms>"` whenever the message touches something that might already be decided. Apply the CALIBRATION rules on every message, unprompted -- do not wait for a signal.
-
-The boot briefing is a BUDGETED SAMPLE, not the whole memory (single digits out of hundreds). An entry missing from it is NOT evidence it does not exist.
-
-Never ask the user to run commands -- run them yourself.""",
+**Four rules that hold even when no skill is loaded:**
+- Memory is a commit. Never write it into a file.
+- The indexes and the zone list are written by the commands. Never by hand.
+- A restriction is retired by asking the user, never on your own judgement.
+- Never ask the user to run a command -- you run it.""",
     },
     {
         "begin": "<!-- BEGIN unmassk-protocols (managed block) -->",
@@ -58,10 +59,10 @@ Never ask the user to run commands -- run them yourself.""",
 
 These protocols exist as skills. Detect the situation and load the matching skill (TOOL CALL). The list is always visible here so you never need to "remember" a protocol exists — pick from this menu.
 
-**Project lifecycle** — detect by checking two facts: is there toolkit git-memory? is there existing code?
+**Project lifecycle** — detect by checking two facts: does this project have memory? is there existing code?
 
-- git-memory + code → continuing our project → Skill `unmassk-project-lifecycle`
-- code, no git-memory → external repo → Skill `unmassk-project-lifecycle`
+- memory + code → continuing our project → Skill `unmassk-project-lifecycle`
+- code, no memory → external repo → Skill `unmassk-project-lifecycle`
 - nothing → new project → Skill `unmassk-project-lifecycle`
 
 (One skill handles all three; it routes internally. State the detected situation in one line before acting.)
@@ -85,9 +86,9 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Ending a session:**
 
-- Wrapping up / handoff → Skill `unmassk-close-session` (flush decisions to git-memory, write the resume point)
+- Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)
 
-All protocol output persists to **git-memory**, never to `.md` files.""",
+All protocol output persists to **memory**, never to `.md` files.""",
     },
     {
         "begin": "<!-- BEGIN unmassk-communication (managed block) -->",
@@ -147,7 +148,7 @@ def _render_block(block: dict[str, str]) -> str:
 
 
 def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
-    """Update-or-insert all 5 managed blocks into CLAUDE.md content.
+    """Update-or-insert all managed blocks into CLAUDE.md content.
 
     Args:
         content: The current text of CLAUDE.md (may be empty string for new files).
@@ -183,9 +184,30 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
 
         if match:
             # Block present with both markers — update in place if stale.
+            # DEUDA.md #15 (real incident 2026-08-02): whatever currently
+            # sits between the markers is captured BEFORE it's overwritten,
+            # regardless of whether it's an old canonical body or hand-
+            # written content the function never produced itself — from
+            # here, the two are indistinguishable, and both are about to be
+            # destroyed. The single output channel is this log line, so the
+            # full previous text is embedded verbatim (never summarized or
+            # truncated) — that's what makes it recoverable instead of just
+            # "announced as lost".
+            old_body = match.group(0)[len(begin):-len(end)].strip("\n")
             new_content = pattern.sub(rendered, content)
             if new_content != content:
-                log.append(f"updated {begin}")
+                if old_body.strip() == block["body"].strip():
+                    # Only whitespace/formatting drifted; the body itself
+                    # was already the canonical one -- nothing was lost, so
+                    # dumping it back verbatim would just be noise on what
+                    # is otherwise a routine, silent-safe regeneration.
+                    log.append(f"updated {begin}")
+                else:
+                    log.append(
+                        f"updated {begin} -- previous content between the "
+                        f"markers was overwritten, recovered verbatim here: "
+                        f"{old_body}"
+                    )
             else:
                 # Deliberately NOT "up-to-date {begin}": that phrase is
                 # reserved for hooks/session-start-crew.py's single
@@ -238,7 +260,7 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
 
 
 def all_blocks_present(content: str) -> bool:
-    """Return True if all 5 BEGIN markers are present in content."""
+    """Return True if all BEGIN markers are present in content."""
     return all(b["begin"] in content for b in BLOCKS)
 
 

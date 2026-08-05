@@ -221,3 +221,32 @@ Two things worth remembering for next time this shape recurs:
    opted in.
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md) (git identity / symlink-guard sessions earlier the same day).
+
+**Stale-assertion repair (2026-08-04) — `TestUserPromptMemoryCheckCp1252`, line 130.**
+Owner decided the per-message watchdog (`user-prompt-memory-check.py`) must
+always print something (even "nothing to report") instead of staying silent
+on a no-match turn — a silent watchdog is indistinguishable from one that
+isn't running. That fix turned this test green except for one assertion:
+`assert "git-memory-recall.py" in out` — a v1-system script name, deleted at
+the start of `feat/memoria-v2`, that can never appear in output again.
+**Lesson for any future contract test in a fast-moving branch: an assertion
+tied to a literal string naming another file/script is a landmine** — it
+silently outlives the file it names. Fix was NOT to delete the assertion
+outright (the class's whole point — "useful output", not just rc==0 — was
+still worth keeping) but to replace it with a structural, convention-based
+pair: (1) `out.strip()` truthy (the actual behavior the owner just asked
+for: hook must never emit nothing), (2) `out.strip().startswith("[")` (the
+bracket-label convention every line in this hook already follows —
+`[git-memory-boot]`, `[git-memory]`, `[skill-router]`, `[memory-check]` —
+verified against the hook's real `main()`, not invented). Neither assertion
+names a literal banner sentence, so a future rewrite of the wording doesn't
+false-positive this test. Deliberately did NOT extend
+`test_user_prompt_recall.py::TestNoRegression::test_base_output_not_empty`
+(which already asserts plain non-emptiness) to cover this — that test runs
+under normal encoding; this one's whole reason to exist is the SAME
+invariant verified specifically under the cp1252 encoding-guard path, which
+is a distinct failure mode (a swallowed exception in the encoding guard
+could silently drop output even with rc==0) that the plain-encoding test
+cannot catch. Left a dated inline comment in the test itself explaining the
+literal-string trap, so nobody restores the old assertion thinking it was
+lost by accident.

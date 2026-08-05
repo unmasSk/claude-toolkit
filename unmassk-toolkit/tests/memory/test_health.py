@@ -1,0 +1,1136 @@
+"""Contrato de lib/memory/health.py -- PIEZAS.md Sec.9.4.
+
+`health.py` YA EXISTE y esta en produccion (`coherence()` y
+`plans_unreflected()` implementadas). Este fichero cubre las SIETE filas
+que la tabla "Sus tests" de Sec.9.4 tiene hoy, ni una mas:
+
+  1-3. `coherence()`, test-first (rojo -> verde cuando `notes.py`/
+       `query.py` pasaron a produccion): borrar una linea de indice a
+       mano se reporta como <<falta en indice>>; anadir una de mas se
+       reporta tambien -- las dos direcciones; con todo correcto salen
+       los numeros, no el silencio.
+  4-7. `plans_unreflected()`, anadidas 2026-08-02 sobre codigo YA
+       ESCRITO y sin ningun test -- el patron del punto 11 de DEUDA.md.
+       La funcion nacio al reves que el resto de esta rama: no la pidio
+       una fila de esta tabla, la pidio `vocabulary.FIELDS["issue"]`
+       declarandola como su lector real, y la regla de los tres estados
+       (Sec.6.1) puso `test_vocabulary.py` en rojo en cuanto `health.py`
+       existio sin ella (ver el docstring del propio modulo,
+       `lib/memory/health.py` lineas 21-37, para el detalle completo de
+       ese porque). Las filas: un commit de trabajo posterior al ultimo
+       movimiento de su issue sale como "sin reflejar" con su recuento;
+       uno ANTERIOR no sale; sin ningun commit que cite una issue,
+       vacio SIN CONSULTAR NADA FUERA; y si la consulta externa (`gh`)
+       falla o no esta disponible, `plans_unreflected()` falla en alto
+       -- nunca "todo correcto" por no haber podido mirar.
+
+El fixture `health` se pide PRIMERO en cada firma (mismo patron que
+test_query.py/test_notes.py): pytest instancia los fixtures en el orden
+en que aparecen, asi que si algun dia `health.py` deja de existir el
+fallo se reporta ahi -- nunca por `model`/`config`/`validator`/
+`indexes`/`notes`/`vocabulary`, que ya estan en produccion y en verde.
+
+De que salida se deriva [encargo, PIEZAS.md Sec.9.4]: del bloque AVISOS
+del arranque, TEXTOS.md Sec.3.1:
+
+    AVISOS
+       O  plan #47: 3 commits sin reflejar en la issue
+       Y  IDs sin duplicados (68 notas)
+       Y  indices coherentes con git (68 lineas / 68 notas)
+
+Los dos marcados en verde (Y) importan tanto como el de aviso (O): un
+chequeo que solo habla cuando falla es indistinguible de uno que no se
+ejecuta -- y eso ya paso en el v1, seis hooks corriendo version vieja
+durante dias sin que nada lo dijera. Por eso la fila 3 no solo comprueba
+que no hay discrepancias: comprueba que los NUMEROS reales salen.
+
+**Superficie que cubre este contrato, y la que NO** [PIEZAS.md Sec.9.4,
+tabla ampliada 2026-08-02]:
+
+    def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]   # lineas, notas, discrepancias
+    def duplicates(root: Path) -> tuple[str, ...]
+    def plans_unreflected() -> tuple[tuple[int, int], ...]
+    def build() -> HealthReport
+
+La tabla "Sus tests" de Sec.9.4 tiene hoy SIETE filas: las tres
+originales de `coherence()` (indice/divergencia) mas cuatro nuevas de
+`plans_unreflected()`, anadidas por el orquestador el 2026-08-02 sobre
+la funcion ya escrita y sin test [derivadas de spec-sistema-memoria-v2.md
+Sec.10.4]. Este fichero cubre las siete, una a una, ni una mas.
+`duplicates()`/`build()` SIGUEN sin fila propia en Sec.9.4 y siguen sin
+test aqui -- `ids.find_duplicates` (Sec.7.2) ya cubre el mecanismo de
+duplicados con su propio contrato, y `build()` (que compondria
+`HealthReport`) no tiene forma fijada en ningun sitio sin inventarla.
+Regla del encargo, vigente para las dos rondas: "una fila = un test, ni
+uno mas".
+
+**Ronda 3 (2026-08-02, endurecimiento de capa 4, paso 5 de PIEZAS.md
+Sec.12bis) -- dos anadidos mas, fuera de las siete filas de arriba:**
+
+1. **`coherence_rules(root)`** -- funcion nueva sin ningun test (mismo
+   patron del punto 11 de DEUDA.md que ya cerro `plans_unreflected()`
+   arriba). Sin fila propia en "Sus tests" -- el encargo la pide
+   directamente, con la firma ya fijada en Sec.9.4 y el docstring del
+   propio modulo. Cinco tests: los cuatro escenarios que se comprobaron a
+   mano al escribirla (repo limpio; una regla dada de alta; una linea
+   borrada a mano con el commit intacto; una linea anadida a mano sin
+   commit) mas uno que no esta en esa lista -- los numeros salen siempre,
+   tambien cuando todo va bien, mismo criterio que la fila 3 de
+   `coherence()`.
+2. **Regresion de `coherence()`**: ya no grita en falso con una nota
+   archivada legitimamente -- ver "Revision 2026-08-02" en el docstring
+   del modulo para la demostracion original (`('D-001: existe en git pero
+   falta en el indice',)` tras un archivado limpio, sin nada roto). Un
+   test que archiva de verdad (`indexes.remove()` + `indexes.archive()`)
+   y comprueba que la nota archivada nunca vuelve a aparecer como
+   discrepancia.
+
+**Como se prueban las cuatro filas de `plans_unreflected()` sin `gh`
+real** [instruccion explicita del encargo -- el corredor de tests no
+tiene garantizado ni red ni el binario `gh`]:
+
+- **Filas 4-6** (commit posterior sale, commit anterior no sale, sin
+  commits no se consulta nada) necesitan CONTROLAR lo que la consulta
+  externa responde -- se finge en el mismo limite que ya establecio
+  `test_query.py::test_by_id_retries_after_transient_git_failure_before_giving_up`
+  para `git`: `monkeypatch.setattr(subprocess, "run", ...)` sobre el
+  modulo `subprocess` COMPARTIDO (health.py y gitcmd.py hacen los dos
+  `import subprocess`, nunca `from subprocess import run` -- parchear el
+  atributo del modulo real, no una copia, es lo que hace que el parche
+  alcance a `health.py` sin que este fichero de test lo importe). El
+  helper `_patch_gh` de este fichero deja pasar SIN TOCAR cualquier
+  invocacion cuyo primer argumento no sea `"gh"` (los `git add`/`git
+  commit`/`git log` reales de `notes.write_work` siguen yendo al
+  `subprocess.run` real) y solo responde -- o cuenta -- las que si lo
+  son. Nunca se fabrica el commit de trabajo a mano: `notes.write_work`
+  (Sec.8.1, ya real) es quien escribe el trailer `Issue: #N` literal,
+  con un commit real en el `tmp_repo` de cada test.
+- **Fila 7** (la que mas importa: si `gh` falla, `plans_unreflected()`
+  falla en alto, nunca "todo correcto") NO finge nada -- deja que
+  `health.py` llame al `gh` REAL contra el `tmp_repo` del test. Un repo
+  temporal recien creado no tiene remoto de GitHub, y `gh issue view`
+  contra un repo sin remoto falla YA, sin red y en milisegundos
+  (verificado en vivo antes de escribir el test: `gh issue view 999999`
+  en un repo git limpio devuelve `returncode=1`, `stderr='no git
+  remotes found\n'`, sin tocar la red). Es un fallo real de la
+  herramienta real, no una simulacion -- la fila que pide "falla de
+  verdad" es, literalmente, la mas facil de las cuatro.
+
+**Supuestos declarados, sin fuente literal en Sec.9.4 (misma disciplina
+que el resto de contratos de esta rama -- format/zones/similar/query):**
+
+1. **`coherence(root)` puede depender del cwd del proceso ademas de
+   `root`.** `query.py` (Sec.8.2, ya real) lee "contra el cwd del
+   proceso" en sus cuatro funciones publicas, sin `root`/`cwd` propio
+   -- si `health.coherence` cruza el indice contra git usando `query.py`
+   por dentro, necesitaria el proceso ya posicionado dentro del repo
+   aunque tambien reciba `root` explicito para leer los indices. Cada
+   test envuelve la llamada en `_cwd(root)` para cubrir las dos
+   posibilidades a la vez (mismo criterio que test_query.py, supuesto 1
+   de su propio docstring) -- no cuesta nada si `health.py` acaba
+   resolviendo la raiz solo con el parametro.
+2. **El segundo elemento de la tupla ("notas") cuenta commits de nota
+   REALES en git, no lineas de indice que casan.** Es la unica lectura
+   que hace tener sentido la propia fila 1 de la tabla ("una nota que
+   existe en git y no la encuentra ninguna busqueda" -- si "notas"
+   contara solo lo que el indice ya sabe, nunca podria divergir de
+   "lineas" en la direccion que esa fila describe). `query.py` ya tiene,
+   real y en verde, el mecanismo que hace exactamente esto
+   (`_all_notes()`: cada commit se intenta parsear con
+   `format.parse_message`, el commit `init` y cualquier commit ajeno se
+   descartan en silencio por no parsear como nota) -- se asume que
+   `health.coherence` usa ese mismo criterio para contar "notas", sea
+   por dentro de `query.py` o replicandolo.
+3. **El primer elemento ("lineas") es el total de lineas de nota en los
+   SIETE indices vigentes** (no incluye `ARCHIVED.md`, que es un
+   historico de notas ya retiradas, no "lo que hay ahora mismo"). Cada
+   test deriva su valor esperado llamando a `indexes.counts(root)` (ya
+   real, en verde) y sumando sus valores -- nunca lo teclea a mano
+   (unmassk-standards Sec.34: no fabricar el resultado esperado de un
+   round trip). Como ningun test de este fichero toca `ARCHIVED.md`,
+   esta suma es identica incluya o no ese fichero (aporta siempre 0), asi
+   que el supuesto no condiciona el resultado de ningun assert.
+4. **Cada string de `discrepancias` nombra, en texto, el identificador de
+   la nota afectada.** Es la unica lectura consistente con el propio
+   "para que" de la pieza ("comprobar que el sistema no se ha roto
+   solo") y con el estilo ya usado en el resto del sistema para avisos
+   accionables (p.ej. `by_word` -- Sec.8.2, fila 4 -- devuelve las lineas
+   concretas que casaron "para que el informe pueda marcar cual fue").
+   Si Ultron elige otro formato de texto, solo la comprobacion
+   `any(note_id in d for d in discrepancias)` de cada test seria la linea
+   a ajustar, no el test entero.
+5. **El fixture de base (`_seed_two_synced_notes`) asume que las dos
+   notas sembradas caen en el MISMO fichero de indice** -- las dos son
+   tipo "M" (memo), y el propio helper comprueba esto explicitamente
+   (`assert file_a == file_b`) en vez de asumirlo en silencio, para que
+   un cambio futuro en que tipo va a que indice falle con un mensaje
+   legible en vez de un assert de conteo confuso mas abajo.
+6. **La comparacion de `plans_unreflected()` es "fecha de autor del
+   commit" contra "fecha de actividad devuelta por `gh`", ninguna de
+   las dos anclada a un valor fijo del calendario.** Las filas 4 y 5
+   fingen la respuesta de `gh` con una fecha deliberadamente MUY en el
+   pasado (fila 4, para que cualquier commit real de "ahora" quede
+   despues) o calculada como "ahora + 365 dias" en el momento del test
+   (fila 5, para que quede despues sin importar cuando corra la
+   suite) -- nunca una fecha fija cercana al presente, que envejeceria
+   mal. Ninguna de las dos es una fecha "inventada" en el sentido de
+   Sec.34: son la entrada de un limite que el propio encargo pide
+   fingir (la respuesta de `gh`), no el resultado esperado de un round
+   trip -- el resultado esperado (cuenta de commits, o vacio) se sigue
+   derivando de lo que `notes.write_work` escribio de verdad en git.
+
+**Sembrado real, no fabricado.** `notes.py` (Sec.8.1) ya esta en
+produccion y en verde: cada test siembra su base con `notes.write()` (o,
+para las filas 4-7, `notes.write_work()`) de verdad, un commit real por
+nota o por commit de trabajo, con su linea de indice real (o su trailer
+`Issue: #N` real) escrita por la misma transaccion que usara produccion
+-- no se fabrica a mano ni el commit ni la linea de indice ni el
+trailer. Las divergencias que cada fila 1-2 necesita se crean DESPUES,
+con las piezas reales de la capa 2 (`indexes.remove()`/`indexes.insert()`
+directamente, sin pasar por `notes.write()`) -- exactamente lo que el
+encargo describe como "a mano": el indice cambia sin que el commit de la
+nota en git se entere, o al reves.
+
+No se toca produccion en ningun momento de este encargo: `health.py` ya
+existia, completo, antes de escribir estos tests, y sigue exactamente
+igual despues -- si algo de su comportamiento no hubiera encajado con lo
+que la tabla de Sec.9.4 describe, el hallazgo se reporta, no se arregla
+aqui. No se toca ningun fichero de un companero.
+"""
+
+import contextlib
+import json
+import os
+import subprocess
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from .conftest import import_lib_memory_module, run_git
+
+_BASE_NOTE_FIELDS = dict(
+    type="M",
+    zone1="product",
+    zone2="notes-test",
+)
+
+
+@pytest.fixture
+def health():
+    return import_lib_memory_module("health")
+
+
+@pytest.fixture
+def model():
+    return import_lib_memory_module("model")
+
+
+@pytest.fixture
+def config():
+    return import_lib_memory_module("config")
+
+
+@pytest.fixture
+def validator():
+    return import_lib_memory_module("validator")
+
+
+@pytest.fixture
+def indexes():
+    return import_lib_memory_module("indexes")
+
+
+@pytest.fixture
+def notes():
+    return import_lib_memory_module("notes")
+
+
+@pytest.fixture
+def vocabulary():
+    return import_lib_memory_module("vocabulary")
+
+
+@pytest.fixture
+def make_note(model):
+    """Fabrica de `Note`, mismos defaults neutros que test_notes.py --
+    cada test override solo lo que le importa. `id`/`description`/
+    `timestamp` se fijan aqui porque `validate_note` los exige o los
+    ignora por igual en los tres tests de este fichero.
+    """
+
+    def _make(**overrides):
+        from datetime import datetime, timezone
+
+        fields = dict(_BASE_NOTE_FIELDS)
+        fields["id"] = ""
+        fields["description"] = "MARK_HEALTH_DESCRIPTION not empty, not special"
+        fields["timestamp"] = datetime(2026, 8, 2, 12, 0, tzinfo=timezone.utc)
+        fields.update(overrides)
+        return model.Note(**fields)
+
+    return _make
+
+
+@pytest.fixture
+def make_context(model, config, validator):
+    """Un `Context` real con las zonas de la nota ya dadas de alta --
+    mismo patron que test_notes.py::make_context. `existing_in_zone=()`
+    evita cualquier rechazo de parecido entre las dos notas base de este
+    contrato.
+    """
+
+    def _make(zone_names=("product", "notes-test")):
+        zones = {
+            name: model.Zone(name=name, description=f"MARK zone {name}", aliases=())
+            for name in zone_names
+        }
+        return validator.Context(
+            zones=zones,
+            existing_in_zone=(),
+            known_ids=frozenset(),
+            config=config.Config(),
+        )
+
+    return _make
+
+
+@contextlib.contextmanager
+def _cwd(path):
+    """Cambia el cwd del proceso a `path` durante el bloque, y lo
+    restaura siempre -- ver supuesto 1 del docstring del modulo.
+    """
+    previous = os.getcwd()
+    os.chdir(str(path))
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
+def _index_line_for(indexes_mod, vocabulary_mod, root, note_id):
+    """Busca `note_id` en los siete indices VIGENTES (no ARCHIVED.md).
+    Devuelve `(nombre_fichero, IndexLine)`, o `(None, None)` -- mismo
+    helper que test_notes.py::_index_line_for, deliberadamente sin
+    asumir que letra de tipo va a que fichero.
+    """
+    for name in vocabulary_mod.INDEX_FILES:
+        if name == "ARCHIVED.md":
+            continue
+        for line in indexes_mod.read(name, root):
+            if line.id == note_id:
+                return name, line
+    return None, None
+
+
+def _seed_two_synced_notes(notes_mod, indexes_mod, vocabulary_mod, make_note, make_context, root):
+    """Siembra la base COMPARTIDA de los tres tests: dos notas reales,
+    cada una con su commit real en git y su linea de indice real,
+    escritas por `notes.write()` -- nunca fabricadas a mano. Devuelve
+    `(note_id_a, note_id_b, index_name)`.
+    """
+    indexes_mod.seed(notes_mod.pm_root(root))
+    ctx = make_context()
+    note_a = make_note(headline="MARK_HEALTH_A first synced note for the health.py contract")
+    note_b = make_note(headline="MARK_HEALTH_B second synced note for the health.py contract")
+
+    with _cwd(root):
+        result_a = notes_mod.write(note_a, ctx)
+        result_b = notes_mod.write(note_b, ctx)
+
+    assert result_a.ok, f"sembrado de la nota A fallo: {result_a.git_error}"
+    assert result_b.ok, f"sembrado de la nota B fallo: {result_b.git_error}"
+
+    file_a, _line_a = _index_line_for(indexes_mod, vocabulary_mod, notes_mod.pm_root(root), result_a.note_id)
+    file_b, _line_b = _index_line_for(indexes_mod, vocabulary_mod, notes_mod.pm_root(root), result_b.note_id)
+    assert file_a is not None, f"{result_a.note_id!r} no aparece en ningun indice tras sembrarla"
+    assert file_a == file_b, (
+        "el fixture de base de este contrato asume que las dos notas sembradas caen "
+        f"en el mismo indice -- salieron en {file_a!r} y {file_b!r} respectivamente "
+        "(ver supuesto 5 del docstring del modulo)"
+    )
+
+    return result_a.note_id, result_b.note_id, file_a
+
+
+# ---------------------------------------------------------------------------
+# Fila 1
+# ---------------------------------------------------------------------------
+
+
+def test_index_line_deleted_by_hand_is_reported_as_missing_from_index(
+    health, model, config, validator, indexes, notes, vocabulary, tmp_repo, make_note, make_context
+):
+    """Fila 1: borrar una linea de un indice a mano se reporta como
+    <<falta en indice>>.
+
+    Fallo real que previene: una nota que existe en git y no la
+    encuentra ninguna busqueda -- memoria escrita e invisible, porque el
+    indice ya no sabe que existe.
+    """
+    root = Path(tmp_repo)
+    note_id_a, note_id_b, index_name = _seed_two_synced_notes(
+        notes, indexes, vocabulary, make_note, make_context, root
+    )
+
+    # "A mano": se retira la linea de indice de la nota A sin tocar su
+    # commit real en git -- el mismo hueco que produciria un fichero de
+    # indice editado directamente, o una migracion a medias.
+    with _cwd(root):
+        indexes.remove(note_id_a, index_name, notes.pm_root(root))
+
+    with _cwd(root):
+        lineas, notas, discrepancias = health.coherence(root)
+
+    expected_lineas = sum(indexes.counts(notes.pm_root(root)).values())
+    assert lineas == expected_lineas, (
+        f"lineas devuelto por coherence() ({lineas}) no coincide con "
+        f"sum(indexes.counts(root).values()) ({expected_lineas}) -- el numero no "
+        "refleja el indice real"
+    )
+    assert lineas == 1, (
+        f"solo deberia quedar la linea de {note_id_b!r} tras borrar la de "
+        f"{note_id_a!r} a mano, salio lineas={lineas}"
+    )
+    assert notas == 2, (
+        "las dos notas siguen siendo commits reales en git -- solo se borro su "
+        f"linea de indice, no su commit; salio notas={notas}"
+    )
+    assert discrepancias, (
+        f"coherence() no reporto ninguna discrepancia tras borrar a mano la linea de "
+        f"{note_id_a!r} del indice, aunque su commit sigue real en git -- un chequeo "
+        "mudo es indistinguible de uno que no se ejecuta"
+    )
+    assert any(note_id_a in d for d in discrepancias), (
+        f"ninguna discrepancia nombra a {note_id_a!r} -- el informe no podria decir "
+        f"cual nota falta en el indice: {discrepancias!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 2
+# ---------------------------------------------------------------------------
+
+
+def test_extra_index_line_pointing_nowhere_is_also_reported(
+    health, model, config, validator, indexes, notes, vocabulary, tmp_repo, make_note, make_context
+):
+    """Fila 2: anadir una linea de mas se reporta tambien -- la
+    divergencia se detecta en los dos sentidos.
+
+    Fallo real que previene: una linea que apunta a una nota que no
+    existe -- el sentido contrario a la fila 1, y la tabla es explicita
+    en que las dos direcciones tienen que detectarse, no solo una.
+    """
+    root = Path(tmp_repo)
+    note_id_a, note_id_b, index_name = _seed_two_synced_notes(
+        notes, indexes, vocabulary, make_note, make_context, root
+    )
+
+    bogus_id = "M-999999"
+    bogus_line = model.IndexLine(
+        id=bogus_id,
+        zone1="product",
+        zone2="notes-test",
+        headline="MARK_HEALTH_BOGUS line inserted directly, never committed to git",
+    )
+    with _cwd(root):
+        indexes.insert(bogus_line, index_name, notes.pm_root(root))
+
+    with _cwd(root):
+        lineas, notas, discrepancias = health.coherence(root)
+
+    expected_lineas = sum(indexes.counts(notes.pm_root(root)).values())
+    assert lineas == expected_lineas, (
+        f"lineas devuelto por coherence() ({lineas}) no coincide con "
+        f"sum(indexes.counts(root).values()) ({expected_lineas}) -- el numero no "
+        "refleja el indice real"
+    )
+    assert lineas == 3, (
+        f"deberian quedar las lineas de {note_id_a!r}/{note_id_b!r} mas la linea de "
+        f"mas insertada a mano, salio lineas={lineas}"
+    )
+    assert notas == 2, (
+        f"git solo tiene dos notas reales ({note_id_a!r}, {note_id_b!r}) -- la linea "
+        f"de mas nunca se commiteo, salio notas={notas}"
+    )
+    assert discrepancias, (
+        f"coherence() no reporto ninguna discrepancia tras anadir a mano una linea de "
+        f"indice que apunta a {bogus_id!r}, que no existe en git -- un chequeo mudo "
+        "es indistinguible de uno que no se ejecuta"
+    )
+    assert any(bogus_id in d for d in discrepancias), (
+        f"ninguna discrepancia nombra a {bogus_id!r} -- el informe no podria decir "
+        f"cual linea sobra: {discrepancias!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 3
+# ---------------------------------------------------------------------------
+
+
+def test_fully_coherent_state_reports_the_real_numbers_not_silence(
+    health, model, config, validator, indexes, notes, vocabulary, tmp_repo, make_note, make_context
+):
+    """Fila 3: con todo correcto, salen los numeros, no el silencio.
+
+    Fallo real que previene: un chequeo mudo, indistinguible de uno que
+    no se ejecuta -- el aviso `Y indices coherentes con git (68 lineas /
+    68 notas)` solo demuestra que el chequeo corrio si ensena el numero
+    real cuando todo va bien, no un `0`/vacio por defecto.
+    """
+    root = Path(tmp_repo)
+    note_id_a, note_id_b, _index_name = _seed_two_synced_notes(
+        notes, indexes, vocabulary, make_note, make_context, root
+    )
+
+    with _cwd(root):
+        lineas, notas, discrepancias = health.coherence(root)
+
+    expected_lineas = sum(indexes.counts(notes.pm_root(root)).values())
+    assert lineas == expected_lineas, (
+        f"lineas devuelto por coherence() ({lineas}) no coincide con "
+        f"sum(indexes.counts(root).values()) ({expected_lineas}) -- el numero no "
+        "refleja el indice real"
+    )
+    assert lineas == 2, (
+        f"deberian salir las dos lineas reales de {note_id_a!r}/{note_id_b!r}, "
+        f"salio lineas={lineas}"
+    )
+    assert notas == 2, (
+        f"deberian salir las dos notas reales de git, salio notas={notas}"
+    )
+    assert discrepancias == (), (
+        "con el indice y git en verde no deberia haber ninguna discrepancia, "
+        f"salieron: {discrepancias!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers compartidos por las filas 4-7 (`plans_unreflected`)
+# ---------------------------------------------------------------------------
+
+
+def _write_work_commit(notes_mod, root, filename, content, message, issue):
+    """Siembra UN commit de trabajo real via `notes.write_work()` (Sec.8.1,
+    ya en produccion) -- nunca fabricado a mano. Escribe `content` en un
+    fichero nuevo bajo `root` (necesario: `write_work` exige
+    `allow_empty=False`, hace falta un cambio real que commitear) y lo
+    commitea con `message`, mas el trailer `Issue: #{issue}` si `issue`
+    no es `None` -- el MISMO mecanismo que produce el texto que
+    `health._issue_commit_dates()` lee despues con su regex.
+
+    Devuelve el `WriteResult` real; el llamador decide que comprobar.
+    """
+    file_path = Path(root) / filename
+    file_path.write_text(content, encoding="utf-8")
+    with _cwd(root):
+        result = notes_mod.write_work(message, [file_path], issue)
+    assert result.ok, f"commit de trabajo de seed fallo: {result.git_error}"
+    return result
+
+
+def _patch_gh(monkeypatch, response_for_call):
+    """Sustituye el `subprocess.run` COMPARTIDO (el mismo objeto de modulo
+    que `health.py` y `gitcmd.py` referencian via su propio `import
+    subprocess`) por una version que intercepta SOLO las invocaciones a
+    `gh` -- `response_for_call(cmd)` decide que `CompletedProcess`
+    devolver, o lanza si el propio test quiere que una llamada
+    inesperada falle ruidosamente. Cualquier otra invocacion (los `git
+    add`/`git commit`/`git log` reales que `notes.write_work` y
+    `health.plans_unreflected` siguen necesitando) pasa intacta al
+    `subprocess.run` real -- nunca se finge git, solo `gh`.
+
+    Devuelve la lista de invocaciones a `gh` observadas (cada una su
+    `cmd` completo), para que el test compruebe CUANTAS veces se llamo
+    y CON QUE ARGUMENTOS -- nunca solo que no revento (regla de
+    verificacion de mocks del propio Dante).
+    """
+    real_run = subprocess.run
+    calls = []
+
+    def _fake_run(*args, **kwargs):
+        cmd = args[0] if args else kwargs.get("args", [])
+        if cmd and cmd[0] == "gh":
+            calls.append(list(cmd))
+            return response_for_call(cmd)
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    return calls
+
+
+def _gh_completed(cmd, comments_created_at=(), created_at=None):
+    """`CompletedProcess` con la misma forma que `gh issue view <n>
+    --json comments,createdAt` devuelve de verdad -- `health.py` solo
+    lee `comments`/`createdAt` del JSON (ver `_last_activity_at`), asi
+    que es la unica forma que hace falta reproducir.
+    """
+    payload = {
+        "comments": [{"createdAt": c} for c in comments_created_at],
+        "createdAt": created_at,
+    }
+    return subprocess.CompletedProcess(
+        args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 4
+# ---------------------------------------------------------------------------
+
+
+def test_work_commit_after_last_issue_activity_is_reported_as_unreflected_with_its_count(
+    health, notes, tmp_repo, monkeypatch
+):
+    """Fila 4: un commit de trabajo posterior al ultimo movimiento de su
+    issue sale como "sin reflejar", con su recuento.
+
+    Fallo real que previene: el aviso del arranque que existe para que
+    un plan no se quede atras calla justo cuando debia hablar.
+    """
+    root = Path(tmp_repo)
+    issue_number = 47
+    _write_work_commit(
+        notes, root, "work_1.txt", "primer commit de trabajo",
+        "trabajo A citando la issue", issue_number,
+    )
+    _write_work_commit(
+        notes, root, "work_2.txt", "segundo commit de trabajo",
+        "trabajo B citando la issue", issue_number,
+    )
+
+    # Fecha de actividad de la issue deliberadamente muy en el pasado --
+    # ver supuesto 6 del docstring del modulo: cualquier commit real de
+    # "ahora" queda despues, sin importar cuando corra esta suite.
+    calls = _patch_gh(
+        monkeypatch,
+        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+    )
+
+    with _cwd(root):
+        result = health.plans_unreflected()
+
+    assert result == ((issue_number, 2),), (
+        f"con dos commits de trabajo citando la issue #{issue_number}, ambos "
+        "posteriores a su ultima actividad en gh, plans_unreflected() deberia "
+        f"devolver exactamente (({issue_number}, 2),) -- salio {result!r}"
+    )
+    assert len(calls) == 1, (
+        f"deberia consultarse gh UNA vez por issue (consulta simple, spec "
+        f"Sec.10.4), no una por commit -- se observaron {len(calls)} "
+        f"llamadas: {calls!r}"
+    )
+    assert str(issue_number) in calls[0], (
+        f"la llamada a gh no menciona la issue #{issue_number} en sus "
+        f"argumentos: {calls[0]!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 5
+# ---------------------------------------------------------------------------
+
+
+def test_work_commit_before_last_issue_activity_is_not_reported(
+    health, notes, tmp_repo, monkeypatch
+):
+    """Fila 5: un commit ANTERIOR al ultimo movimiento de la issue no sale.
+
+    Fallo real que previene: un aviso que salta siempre acaba
+    ignorandose siempre.
+    """
+    root = Path(tmp_repo)
+    issue_number = 48
+    _write_work_commit(
+        notes, root, "work_1.txt", "unico commit de trabajo",
+        "trabajo citando la issue, ya reflejada", issue_number,
+    )
+
+    # "Ahora + 1 anyo", calculado en el momento del test -- ver supuesto 6:
+    # queda despues del commit real sin importar cuando corra la suite,
+    # a diferencia de una fecha fija cercana al presente que envejeceria mal.
+    future = (datetime.now(timezone.utc) + timedelta(days=365)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    calls = _patch_gh(
+        monkeypatch, lambda cmd: _gh_completed(cmd, created_at=future)
+    )
+
+    with _cwd(root):
+        result = health.plans_unreflected()
+
+    assert result == (), (
+        f"el unico commit que cita la issue #{issue_number} es ANTERIOR a su "
+        f"ultima actividad en gh -- plans_unreflected() deberia devolver (), "
+        f"salio {result!r}"
+    )
+    assert len(calls) == 1, (
+        f"deberia consultarse gh exactamente una vez para la issue "
+        f"#{issue_number} -- se observaron {len(calls)} llamadas: {calls!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 6
+# ---------------------------------------------------------------------------
+
+
+def test_no_commit_citing_an_issue_returns_empty_without_calling_gh(
+    health, notes, tmp_repo, monkeypatch
+):
+    """Fila 6: sin ningun commit que cite una issue, devuelve vacio SIN
+    consultar nada fuera.
+
+    Fallo real que previene: pagar una consulta externa en cada arranque
+    para preguntar por algo que no existe.
+
+    El repo tiene un commit de trabajo real -- pero SIN trailer `Issue:
+    #N` -- para confirmar que lo que importa es el trailer, no la mera
+    presencia de commits de trabajo en el historial.
+    """
+    root = Path(tmp_repo)
+    _write_work_commit(
+        notes, root, "work_1.txt", "commit de trabajo sin issue",
+        "trabajo que no cita ninguna issue", None,
+    )
+
+    calls = _patch_gh(
+        monkeypatch,
+        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+    )
+
+    with _cwd(root):
+        result = health.plans_unreflected()
+
+    assert result == (), (
+        f"sin ningun commit citando una issue, plans_unreflected() deberia "
+        f"devolver (), salio {result!r}"
+    )
+    assert calls == [], (
+        "plans_unreflected() consulto gh aunque ningun commit del historial "
+        f"cita una issue -- llamadas observadas: {calls!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fila 7
+# ---------------------------------------------------------------------------
+
+
+def test_coherence_does_not_false_alarm_on_a_legitimately_archived_note(
+    health, model, config, validator, indexes, notes, vocabulary, tmp_repo, make_note, make_context
+):
+    """Regresion (item 3 del endurecimiento de capa 4, 2026-08-02):
+    `coherence()` gritaba en falso con cada nota archivada -- demostrado
+    ejecutando (ver 'Revision 2026-08-02' en el docstring del modulo):
+    tras un archivado legitimo, `('D-001: existe en git pero falta en el
+    indice',)` salia siempre, sin que nada estuviera roto. Un chequeo que
+    grita siempre acaba ignorandose siempre, y la discrepancia real se
+    pierde en el ruido. Arreglado descontando `indexes.read_archive(root)`
+    del lado 'falta en indice'.
+
+    Archivado real, no fabricado: la nota se retira del indice vigente
+    con `indexes.remove()` y se anade a `ARCHIVED.md` con
+    `indexes.archive()` -- las dos piezas reales que ya construyen un
+    archivado legitimo, sin inventar un tercer mecanismo.
+    """
+    from datetime import date
+
+    root = Path(tmp_repo)
+    note_id_a, note_id_b, index_name = _seed_two_synced_notes(
+        notes, indexes, vocabulary, make_note, make_context, root
+    )
+
+    with _cwd(root):
+        indexes.remove(note_id_a, index_name, notes.pm_root(root))
+        indexes.archive(
+            model.ArchiveLine(
+                date=date(2026, 8, 2),
+                type="M",
+                id=note_id_a,
+                zone1="product",
+                zone2="notes-test",
+                headline="MARK_HEALTH_ARCHIVED archived headline for the false-alarm regression",
+                destination="closed",
+                destination_detail="MARK_HEALTH_ARCHIVED_DETAIL regression test for coherence()",
+            ),
+            notes.pm_root(root),
+        )
+
+    with _cwd(root):
+        lineas, notas, discrepancias = health.coherence(root)
+
+    assert not any(note_id_a in d for d in discrepancias), (
+        f"coherence() sigue reportando a {note_id_a!r} como discrepancia tras un "
+        f"archivado legitimo -- el falso positivo que este test existe para prevenir: "
+        f"{discrepancias!r}"
+    )
+    assert discrepancias == (), (
+        f"con {note_id_a!r} legitimamente archivada y {note_id_b!r} sincronizada, "
+        f"no deberia quedar ninguna discrepancia, salieron: {discrepancias!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# coherence_rules() -- endurecimiento del 2026-08-02, punto 1 del encargo:
+# funcion nueva sin ningun test (patron del punto 11 de DEUDA.md, mismo
+# hueco ya cerrado arriba para plans_unreflected()). Cinco filas: los
+# cuatro escenarios comprobados a mano al escribirla, mas una quinta que
+# es la que de verdad importa -- los numeros salen siempre, tambien cuando
+# todo va bien (mismo criterio que
+# test_fully_coherent_state_reports_the_real_numbers_not_silence de
+# coherence() arriba). Sembrado real via rules.add() en todos los casos --
+# nunca se fabrica a mano un commit ni la linea inicial que ya deberia
+# estar sincronizada.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def rules():
+    return import_lib_memory_module("rules")
+
+
+@pytest.fixture
+def emojis():
+    return import_lib_memory_module("emojis")
+
+
+def _delete_rule_line_by_hand(rules_mod, root, marker):
+    """Retira del fichero de reglas, a mano (fuera de add()), la unica
+    linea que contiene `marker` -- deja el commit real de esa regla
+    intacto en git. Simula el mismo hueco que un fichero de reglas
+    editado directamente, o una migracion a medias.
+    """
+    path = rules_mod.rules_file_path(root)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    kept = [line for line in lines if marker not in line]
+    assert len(kept) == len(lines) - 1, (
+        f"se esperaba borrar exactamente una linea con {marker!r} de {path}, "
+        f"se borraron {len(lines) - len(kept)}"
+    )
+    path.write_text("".join(kept), encoding="utf-8")
+
+
+def _append_uncommitted_rule_line_by_hand(rules_mod, emojis_mod, root, kind, text):
+    """Anade al fichero de reglas, a mano, una linea con el MISMO formato
+    exacto que `add()` escribe -- pero sin ningun commit real detras.
+    Reutiliza `emojis.CHANNEL_EMOJI['rule']` real (nunca un emoji tecleado
+    a mano que podria divergir del que `add()` usa de verdad).
+    """
+    path = rules_mod.rules_file_path(root)
+    emoji = emojis_mod.CHANNEL_EMOJI["rule"]
+    line = f"[remember][{kind}] {emoji} {text}\n"
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(line)
+
+
+def test_coherence_rules_on_a_clean_repo_reports_zero_and_no_discrepancies(
+    health, rules, tmp_repo
+):
+    """Escenario 1 (comprobado a mano al escribir coherence_rules(), ahora
+    fila de test de verdad): un repo limpio, sin ningun remember todavia,
+    reporta ceros y ninguna discrepancia -- nunca una excepcion por "el
+    fichero no existe", mismo criterio que `rules.read_all()` devolviendo
+    cadena vacia.
+    """
+    root = Path(tmp_repo)
+
+    with _cwd(root):
+        commits, lineas, discrepancias = health.coherence_rules(root)
+
+    assert commits == 0, (
+        f"un repo sin remembers no deberia tener commits de regla, salio {commits}"
+    )
+    assert lineas == 0, (
+        f"un repo sin rules.md no deberia tener lineas de regla, salio {lineas}"
+    )
+    assert discrepancias == (), (
+        f"un repo limpio no deberia reportar ninguna discrepancia, salieron: {discrepancias!r}"
+    )
+
+
+def test_coherence_rules_with_one_rule_added_reports_one_and_one_no_discrepancies(
+    health, rules, tmp_repo
+):
+    """Escenario 2: una regla dada de alta con la pieza real (`rules.add()`)
+    reporta uno y uno, sin discrepancias.
+    """
+    root = Path(tmp_repo)
+    marker = "MARK_COHRULES_ROW2 regla real dada de alta con la pieza real"
+
+    with _cwd(root):
+        result = rules.add(marker, "user")
+        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
+        commits, lineas, discrepancias = health.coherence_rules(root)
+
+    assert commits == 1, f"deberia haber exactamente un commit de regla, salio {commits}"
+    assert lineas == 1, f"deberia haber exactamente una linea de regla, salio {lineas}"
+    assert discrepancias == (), (
+        "con el commit y el fichero sincronizados no deberia haber ninguna "
+        f"discrepancia, salieron: {discrepancias!r}"
+    )
+
+
+def test_coherence_rules_reports_a_line_deleted_by_hand_as_missing_from_the_file(
+    health, rules, tmp_repo
+):
+    """Escenario 3: se borra la linea del fichero a mano, el commit sigue
+    -- una discrepancia que nombra la regla que falta.
+
+    Fallo real que previene: un proceso matado entre las dos escrituras
+    en una version anterior de `rules.py`, o un `rules.md` tocado a mano
+    -- sin este chequeo, la regla perdida no la descubre nadie: no hay ID
+    que la nombre, asi que nadie sabe siquiera que buscar.
+    """
+    root = Path(tmp_repo)
+    marker = "MARK_COHRULES_ROW3 regla cuya linea se borra a mano del fichero"
+
+    with _cwd(root):
+        result = rules.add(marker, "user")
+        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
+
+    _delete_rule_line_by_hand(rules, root, marker)
+
+    with _cwd(root):
+        commits, lineas, discrepancias = health.coherence_rules(root)
+
+    assert commits == 1, f"el commit de la regla sigue real en git, salio commits={commits}"
+    assert lineas == 0, f"la linea se borro a mano del fichero, salio lineas={lineas}"
+    assert discrepancias, (
+        "coherence_rules() no reporto ninguna discrepancia tras borrar a mano la "
+        f"linea de {marker!r} del fichero, aunque su commit sigue real en git -- un "
+        "chequeo mudo es indistinguible de uno que no se ejecuta"
+    )
+    assert any(marker in d and "falta en el fichero de reglas" in d for d in discrepancias), (
+        f"ninguna discrepancia nombra a {marker!r} en el sentido correcto "
+        f"('falta en el fichero de reglas'): {discrepancias!r}"
+    )
+
+
+def test_coherence_rules_reports_a_line_added_by_hand_never_committed(
+    health, rules, emojis, tmp_repo
+):
+    """Escenario 4: se anade una linea al fichero que nunca se commiteo --
+    discrepancia en el OTRO sentido.
+    """
+    root = Path(tmp_repo)
+    committed_marker = "MARK_COHRULES_ROW4_COMMITTED regla real, con su commit"
+    uncommitted_marker = "MARK_COHRULES_ROW4_UNCOMMITTED linea anadida a mano, sin commit"
+
+    with _cwd(root):
+        result = rules.add(committed_marker, "user")
+        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
+
+    _append_uncommitted_rule_line_by_hand(rules, emojis, root, "user", uncommitted_marker)
+
+    with _cwd(root):
+        commits, lineas, discrepancias = health.coherence_rules(root)
+
+    assert commits == 1, f"solo hay un commit de regla real, salio commits={commits}"
+    assert lineas == 2, (
+        f"el fichero tiene la regla real mas la linea anadida a mano, salio lineas={lineas}"
+    )
+    assert discrepancias, (
+        "coherence_rules() no reporto ninguna discrepancia tras anadir a mano una "
+        f"linea que nunca se commiteo ({uncommitted_marker!r}) -- un chequeo mudo es "
+        "indistinguible de uno que no se ejecuta"
+    )
+    assert any(
+        uncommitted_marker in d and "no existe en ningun commit de regla" in d
+        for d in discrepancias
+    ), (
+        f"ninguna discrepancia nombra a {uncommitted_marker!r} en el sentido correcto "
+        f"('no existe en ningun commit de regla'): {discrepancias!r}"
+    )
+
+
+def test_coherence_rules_fully_coherent_multiple_rules_reports_the_real_numbers_not_silence(
+    health, rules, tmp_repo
+):
+    """Fila que de verdad importa, y no esta en la lista de escenarios: los
+    numeros salen siempre, tambien cuando todo va bien -- un chequeo que
+    solo habla cuando falla es indistinguible de uno que no se ejecuta
+    (mismo criterio que
+    `test_fully_coherent_state_reports_the_real_numbers_not_silence` de
+    `coherence()` arriba). Se siembran TRES reglas reales, mezclando los
+    dos `kind`, para que el numero comprobado no coincida por casualidad
+    con un valor por defecto (0, o el 1 que ya usa el escenario 2).
+    """
+    root = Path(tmp_repo)
+    markers = (
+        ("MARK_COHRULES_ROW5_A primera de tres reglas reales", "user"),
+        ("MARK_COHRULES_ROW5_B segunda de tres reglas reales", "claude"),
+        ("MARK_COHRULES_ROW5_C tercera de tres reglas reales", "user"),
+    )
+
+    with _cwd(root):
+        for text, kind in markers:
+            result = rules.add(text, kind)
+            assert result.ok, f"add({text!r}, {kind!r}) fallo: {result.git_error}"
+
+        commits, lineas, discrepancias = health.coherence_rules(root)
+
+    assert commits == 3, (
+        f"deberian salir los tres commits reales de regla, salio commits={commits} -- "
+        "un chequeo mudo devolveria 0 o un numero por defecto, nunca el real"
+    )
+    assert lineas == 3, (
+        f"deberian salir las tres lineas reales del fichero, salio lineas={lineas}"
+    )
+    assert discrepancias == (), (
+        "con las tres reglas sincronizadas no deberia haber ninguna discrepancia, "
+        f"salieron: {discrepancias!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# El vigilante mudo -- hallazgo de Cerberus (2026-08-02): coherence_rules()
+# funciona y tiene sus 5 tests en verde (arriba), pero no llega a ninguna
+# parte -- model.HealthReport declara CUATRO campos y ninguno tiene sitio
+# para sus dos numeros, health.build() la excluye a proposito por eso (ver
+# su propio docstring, "coherence_rules() NO entra"), y boot.py nunca la
+# pinta en el bloque de avisos. Es el mismo patron que ya costo caro en la
+# capa 1: un chequeo escrito para cazar un fallo, en verde, y mudo.
+#
+# Esta fila (la que corresponde a health.py -- las otras tres, sobre
+# boot.py, viven en test_boot.py) prueba el primer tramo de esa tuberia
+# rota: el informe de salud lleva los numeros de las reglas.
+#
+# DECISION DE NOMBRES DE CAMPO [no fijada en ningun documento -- Sec.5.3 de
+# PIEZAS.md todavia declara HealthReport con solo cuatro campos, el
+# propietario esta fuera, "decide con lo que tienes delante y anota"]:
+# `rule_commits`/`rule_lines`, mismo orden que ya fija la firma de
+# `coherence_rules(root) -> tuple[int, int, tuple[str, ...]]` ("commits de
+# regla, lineas, discrepancias" -- PIEZAS.md Sec.9.4) y mismo patron de
+# nombres que los ya existentes `index_lines`/`git_notes` (el lado que
+# viene del fichero primero, el lado que viene de git segundo). Si Ultron
+# elige otro nombre, solo estas dos lineas de assert cambian, no el test
+# entero.
+# ---------------------------------------------------------------------------
+
+
+def test_health_report_carries_the_real_rule_coherence_numbers(
+    health, model, indexes, notes, rules, tmp_repo
+):
+    """El informe de salud lleva los numeros de las reglas -- cuantos
+    commits de regla hay y cuantas lineas tiene el fichero -- no solo los
+    de `coherence()` (indices de notas).
+
+    RED por su causa real: `model.HealthReport` no declara estos dos
+    campos todavia (`AttributeError` al leerlos de un `HealthReport` real
+    devuelto por `health.build()`) -- los escribira Ultron. No se toca
+    produccion en esta tarea.
+
+    Round-trip real [unmassk-standards Sec.34]: el numero esperado sale de
+    llamar aqui mismo a `health.coherence_rules(root)`, la misma pieza ya
+    en produccion y en verde -- nunca tecleado.
+    """
+    root = Path(tmp_repo)
+    marker = "MARK_HEALTHREPORT_RULES regla real para probar que su numero llega al informe"
+
+    with _cwd(root):
+        indexes.seed(notes.pm_root(root))  # health.build() tambien cruza coherence()/duplicates()
+        result = rules.add(marker, "user")
+        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
+        expected_commits, expected_lineas, _ = health.coherence_rules(root)
+        summary = health.build()
+
+    assert isinstance(summary, model.HealthReport), (
+        f"health.build() no devolvio un HealthReport, devolvio {type(summary)!r}"
+    )
+    assert summary.rule_commits == expected_commits, (
+        f"summary.rule_commits no coincide con el commits real de "
+        f"coherence_rules() ({expected_commits!r}) -- el vigilante de reglas "
+        "escrito para cazar la perdida silenciosa (Cerberus, 2026-08-02) no "
+        "llega al informe de salud: HealthReport no tiene sitio para su numero"
+    )
+    assert summary.rule_lines == expected_lineas, (
+        f"summary.rule_lines no coincide con el lineas real de "
+        f"coherence_rules() ({expected_lineas!r}) -- mismo hueco que "
+        "rule_commits arriba"
+    )
+
+
+def test_gh_failure_raises_instead_of_reporting_all_clear(health, notes, tmp_repo):
+    """Fila 7 -- la que mas importa: si la consulta externa falla o no
+    esta disponible, `plans_unreflected()` falla en alto, y nunca
+    devuelve "todo correcto".
+
+    Fallo real que previene: el peor fallo posible de esta pieza --
+    decir que un plan esta al dia porque no se pudo mirar.
+
+    Sin ningun mock: `tmp_repo` es un repo git real recien creado, sin
+    remoto de GitHub -- `gh issue view` contra el falla YA, de verdad,
+    sin red (verificado en vivo antes de escribir este test:
+    `returncode=1`, `stderr='no git remotes found\\n'`). Es la unica de
+    las cuatro filas que no necesita fingir el limite externo -- basta
+    con dejar que el fallo real ocurra.
+    """
+    root = Path(tmp_repo)
+    issue_number = 49
+    _write_work_commit(
+        notes, root, "work_1.txt", "commit de trabajo con issue",
+        "trabajo citando una issue que gh no puede resolver", issue_number,
+    )
+
+    with _cwd(root):
+        with pytest.raises(RuntimeError) as exc_info:
+            health.plans_unreflected()
+
+    assert str(issue_number) in str(exc_info.value), (
+        f"RuntimeError deberia nombrar la issue #{issue_number} que no se "
+        f"pudo verificar -- salio: {exc_info.value!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ronda 2 (Moriarty) -- un arreglo mas, ya hecho, sin ninguna red que lo
+# proteja. Tercer lector independiente del mismo hallazgo 2 (rama sin
+# commits = estado valido, no fallo): `boot.build()` y `context.latest()`
+# tienen su propio test del mismo hallazgo en sus respectivos ficheros --
+# este es el que le toca a `health.py` (`_rule_commit_texts()`/
+# `_issue_commit_dates()`, ver "Revision 2026-08-02, ronda 2 (Moriarty)" en
+# el docstring del modulo). No toca produccion.
+# ---------------------------------------------------------------------------
+
+
+def _zero_commit_repo(tmp_path, name="zero_commit_repo"):
+    """Un repo git genuinamente SIN NINGUN commit -- distinto de
+    `tmp_repo` (conftest.py), que ya trae un commit 'init' de fabrica.
+    `git log` sobre este repo devuelve el mensaje real de rama sin nacer
+    ('does not have any commits yet'), no un fallo simulado.
+    """
+    repo = tmp_path / name
+    repo.mkdir()
+    rc, _out, err = run_git(["init"], str(repo))
+    assert rc == 0, f"git init fallo montando el repo sin commits: {err}"
+    return repo
+
+
+def test_coherence_rules_on_a_repo_with_zero_commits_does_not_crash(health, tmp_path):
+    """Hallazgo 2 de Moriarty, ronda 2 -- antes de la consolidacion del
+    2026-08-02, `_rule_commit_texts()` tenia su PROPIO `git log` a mano
+    (via `gitcmd.run(["log", ...])`), con el mismo agujero que
+    `context.latest()`/`query.run_git_log()` ya habian arreglado por
+    separado: una rama sin ningun commit todavia (`returncode=128`,
+    "does not have any commits yet") se trataba como el mismo fallo
+    transitorio que un `index.lock` en curso, se reintentaba, y al
+    agotar los intentos se lanzaba -- `health.coherence_rules()` (y por
+    tanto `health.build()`/`boot.build()`) reventaba en el primerisimo
+    arranque de cualquier proyecto sin un solo commit.
+
+    Un repo sin commits tampoco tiene ningun commit de regla ni ningun
+    fichero de reglas todavia -- (0, 0, ()) es su estado real, no un
+    fallo.
+    """
+    root = _zero_commit_repo(tmp_path)
+
+    with _cwd(root):
+        commits, lineas, discrepancias = health.coherence_rules(root)  # NO debe lanzar
+
+    assert (commits, lineas, discrepancias) == (0, 0, ()), (
+        "un repo sin ningun commit deberia dar (0, 0, ()) -- salio "
+        f"({commits!r}, {lineas!r}, {discrepancias!r})"
+    )

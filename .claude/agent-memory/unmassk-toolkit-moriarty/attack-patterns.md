@@ -901,3 +901,269 @@
   left 3 distinct, permanently-accumulating orphan files, landing in the PROJECT ROOT (same dir
   as CLAUDE.md, not gitignored, user-visible) — confirmed 20x normal sequential (non-killed)
   writes leave zero leak, so this is strictly a crash-only, unbounded-accumulation artifact.
+
+## lib/memory/indexes.py -- insert()/remove() lost-update race, no lock/atomic_write wired in despite the sibling module existing for exactly this (memoria-v2, 2026-08-02)
+- gitcmd.py (same package) ships `file_lock()` + `atomic_write()` specifically because its own
+  docstring names "una carrera entre dos escritores del mismo indice que pierde el cambio del
+  que llego primero sin avisar" as one of only 3 named risks that whole layer exists to prevent.
+  zones.py (also same package) correctly wires its OWN private lock+atomic pair around `add()`.
+  indexes.py -- the ONE module that actually reads/writes the 8 index files -- imports neither
+  gitcmd nor any lock/atomic mechanism at all: `insert()` appends via plain `path.open("a")`,
+  `remove()` does `path.read_text()` -> filter -> plain `path.write_text()` with zero locking.
+- Live PoC (real OS processes, ZERO mocking): pad an index with 3000 real lines (via real
+  `insert()` calls, widens the window), then launch two real `python3` subprocesses
+  simultaneously: one calls `indexes.insert(NEW_NOTE, ...)`, the other calls
+  `indexes.remove(UNRELATED_EXISTING_ID, ...)`. Both exit rc=0 (success, no exception anywhere).
+  14/40 trials (35%): the just-inserted note is PERMANENTLY GONE from the file afterward --
+  confirmed via an independent plain-pathlib read AND via `indexes.read()` itself. Root cause:
+  `remove()`'s read-filter-write is not atomic as a UNIT -- if `insert()`'s append lands between
+  `remove()`'s read and its write, `remove()`'s write (computed from the stale pre-insert
+  snapshot) clobbers the whole file, including the concurrently-appended note remove() never
+  even saw.
+- Also confirmed via a fully deterministic version (real threads + a `Path.write_text` timing
+  patch used ONLY to force the worst-case interleave, not to alter semantics): same result,
+  100% reproducible.
+- Concurrent insert()-vs-insert() (both append-mode) HELD across 20 real parallel subprocesses --
+  0 losses, 0 corruption, interleaved-but-complete lines (POSIX O_APPEND + small writes below
+  PIPE_BUF). The break is specifically insert-vs-remove (or presumably remove-vs-remove), not
+  concurrent appends.
+- Caveat on current reachability: `notes.py` (the layer-2/3 orchestrator that would actually
+  call `insert()`/`remove()` from real CLI commands) does not exist yet in this codebase (grep
+  confirmed, phase 2/3 per ids.py's own docstring) -- so there is no real *caller* wiring two
+  concurrent index writes together TODAY. The bug is 100% live in the module actually in scope
+  (`lib/memory/indexes.py`, one of the 13 target modules) and will be reachable the moment any
+  caller writes/replaces two notes to the same index around the same time (two sessions, or one
+  `--replaces` transaction touching insert+archive/remove close together) -- an entirely
+  ordinary usage pattern for this system, not a crafted edge case.
+- Root: lib/memory/indexes.py:157 (`insert`), :172 (`remove`) -- no `file_lock`/atomic
+  read-modify-write anywhere in this module; contrast lib/memory/gitcmd.py:204 (`file_lock`),
+  :256 (`atomic_write`) and lib/memory/zones.py:136 (`add`, correctly locked+atomic).
+
+## lib/memory/format.py -- Keys/Origin/Replaces body fields bypass the folding mechanism, silent unparseable note on embedded newline
+- `_body_field_line()` (format.py:242) wraps Why/Awaits/Description in `_fold()` (the
+  continuation-line mechanism that survives embedded `\n` losslessly, per the module's own
+  extensive docstring section on folding) but Keys/Origin/Replaces use plain f-strings
+  (`f"Keys: {_encode_list(note.keys)}"`, `f"Replaces: {note.replaces}"`) with NO folding.
+- Live PoC: `Note(..., keys=("normalkey", "weird\nkey"))` -> `format.build_message(note)`
+  produces text containing a raw, un-prefixed `key` line with no leading continuation space ->
+  `format.parse_message()` on that exact output returns `None` (not an exception) -- the note
+  becomes completely unparseable by the module's own paired consumer, with zero error raised
+  anywhere in the round trip.
+- Reachability narrower than the indexes.py race: requires a literal `\n` inside a Keys/Origin/
+  Replaces value, which normal CLI-typed short synonym words are unlikely to contain -- but
+  nothing in validator.py (`normalize_keys`, `validate_fields`) rejects or strips embedded
+  newlines from these fields before they reach `build_message`, so it is not blocked upstream
+  either. Not a broken promise (format.py's docstring explicitly scopes the fold guarantee to
+  Why/Description/Awaits/headline/context-points only, never claims it for Keys/Origin/Replaces)
+  -- it's an unflagged gap in an otherwise very deliberately hardened round-trip contract.
+- Root: lib/memory/format.py:250-262 (`_body_field_line`, the Keys/Replaces/Origin branches).
+
+## Index-file `name` parameter accepted unchecked, corrupts any co-located file
+- Pattern: a module that owns "the only N legitimate filenames it touches" (its own
+  docstring says so) takes that filename as a bare `str` from the caller and does
+  `if path.exists(): <read-modify-append-write>` with zero membership check against
+  its own closed vocabulary of legitimate names (`vocabulary.INDEX_FILES`).
+- Any OTHER real file that already exists in the same directory (a JSON config, a
+  sibling module's own data file) is a silent target: `insert(line, "zones.json", root)`
+  appends a memory-index text line to valid JSON, no exception, breaks `json.loads()`
+  on next read. `path.exists()` is satisfied by ANY file, not just the intended 8/N.
+- Live PoC: lib/memory/indexes.py:158-183 `insert()` — see
+  unmassk-toolkit/lib/memory/indexes.py, target zones.json (co-located, written by
+  the sibling `zones.py::add()`).
+- Caveat worth checking before reporting: does the CURRENT real caller ever pass an
+  unconstrained name? If it always passes from a closed dict (as `notes.py::write()`'s
+  `_TYPE_TO_INDEX_FILE` does today), the bug is real but not end-to-end reachable
+  yet — disclose that nuance, don't overstate severity, but still report: it's a
+  structural gap in the target module's own public contract, and the next caller
+  (or a maintenance one-off script under the single-operator threat model) may not
+  have that same discipline.
+
+## `_present_fields`-style optional-field detection: identity check vs truthiness
+- Pattern: a function builds a "which optional fields are present" set to compare
+  against a required/allowed-fields table. If ONE field uses `if x is not None`
+  (identity) while a NEIGHBORING field on the same line uses `if x:` (truthiness),
+  an empty string/empty collection sneaks past the identity-checked field as
+  "present" even though it carries zero content.
+- Concretely: lib/memory/validator.py:332-347 `_present_fields()` — `description`
+  correctly requires truthy (`{"description"} if note.description else set()`), but
+  `why` only checks `is not None` — `note.why = ""` registers as present, so a
+  type where `why` is REQUIRED (e.g. `D`) accepts an empty-string why with zero
+  rejection. Exactly the "zombie field" failure class the module's own test
+  docstring names as the reason this check exists (v1's 1002 unread `Why:` lines).
+- Reachable end-to-end today (validate_fields is called directly inside
+  validate_note/write(), no closed-dict caller gate protects it like the indexes.py
+  finding above).
+
+## SIGKILL mid-transaction: `except BaseException` cannot cover process kills
+- Pattern: a module's own docstring/decision log claims "try/except BaseException
+  around the index-write→commit gap fixes ANY mid-flight interruption (Ctrl-C
+  included)". True for KeyboardInterrupt/exceptions, structurally FALSE for
+  SIGKILL/OOM-kill/power-loss — no userspace try/except can ever run after those.
+- Concretely: lib/memory/notes.py `write()` — `indexes.insert()` (durable,
+  atomic_write+fsync) runs BEFORE the `try/except BaseException` block that guards
+  the commit step. Live PoC: real subprocess, monkeypatch `notes.gitcmd.commit` to
+  `os.kill(getpid(), SIGKILL)` right when invoked, confirm child died by signal
+  (returncode -9), then read the index file from a FRESH, independent process:
+  the inserted line survives forever, `query.by_id()` (the sole history reader)
+  returns `None` for that id — a permanent, silent index→nothing dangling
+  reference, and there is currently no boot-time consistency checker (health.py
+  doesn't exist yet) that would ever surface it.
+- General lesson: any "we now catch BaseException" claim needs the caveat "except
+  signals that kill the process outright" spelled out, or the claim is a
+  DECEPTION (T1 when the gap it's hiding is itself corruption/silent-failure).
+
+## Uncoordinated sibling writer on the same file: locked producer + unlocked committer
+- Pattern: module A (`notes.write()`) protects a file with a lock + insert-then-
+  commit-then-restore-on-failure transaction. A SIBLING function in the SAME
+  module (`notes.write_work()`) can commit that exact same file path with ZERO
+  lock, because its contract is "commit arbitrary explicit paths" and nothing
+  stops an index-file path from being one of them.
+- Concretely: paused A (real process, monkeypatched `format.build_message` as the
+  pause point — right after `indexes.insert()` already durably wrote+released its
+  own per-file lock, before A's own git add/record step) while a second, real,
+  already-shipped function (`write_work()`) commits the SAME path with an
+  unrelated message. Result, all confirmed live: (1) B's commit silently absorbs
+  A's uncommitted index line under a commit message that has nothing to do with
+  it — permanently unparseable/undiscoverable via `query.by_id` (format doesn't
+  recognize B's subject line as a note) — a data fragment leaked into unrelated
+  history forever; (2) A's own subsequent record attempt then fails because there
+  is nothing left to record for that path (`returncode=1`), and CRITICALLY git
+  puts the "nothing to record, tree clean" diagnostic on STDOUT, not stderr —
+  confirmed via a raw subprocess probe — so `WriteResult.git_error` (which only
+  ever surfaces `.stderr`) comes back as an EMPTY STRING, exactly the "fallo sin
+  causa" gitcmd.py's own docstring exists to prevent, on a REAL git failure that
+  the existing 6-row test suite never exercises (its two failure-injection tests
+  both use `.git/index.lock`, which DOES populate stderr).
+- General lesson: when auditing a "transaction is safe because of lock X", check
+  every OTHER function in the same module/file that can touch the same resource
+  without taking lock X — a sibling with a looser contract is a real, live seam.
+
+
+## lib/memory/gitcmd.py -- commit() trusts ambient process-wide os.chdir(), silently commits into (or loses a note against) the WRONG repo under in-process thread concurrency (memoria-v2, 2026-08-02)
+- `commit()`'s own docstring discloses it takes no `cwd` param and "hereda el cwd ambiental del proceso... quien la llama ya esta corriendo dentro del repo" -- an assumption that only holds if exactly one logical caller ever uses the ambient cwd at a time. `os.chdir()` in CPython is PROCESS-global, not thread-local: any two threads in the same process sharing this module (this codebase's OWN test suite proves multi-threaded usage is normal here -- test_gitcmd.py's row-2 test alone spins 20 threads) racing `os.chdir(repo) -> ...work... -> gitcmd.commit(msg, [relative_path])` can have thread A's `Path.cwd()` read (inside `commit()`) return thread B's repo instead of A's own, if B's chdir lands in the gap between A's chdir and A's `commit()` call -- a gap any real caller has (building the message via `format.build_message()`, per commit()'s own docstring naming `notes.write` as the real caller-to-be).
+- Live PoC (real threads, 2 real repos, zero mocking): repo1/repo2, each with its own `note.txt` staged. Thread A: `os.chdir(repo1)`; realistic gap (work before calling commit); `gitcmd.commit("desde A...", [Path("note.txt")], allow_empty=False)`. Thread B: brief head start, `os.chdir(repo2)`; `gitcmd.commit("desde B...", [Path("note.txt")], allow_empty=False)`. 100% reproducible across 3 independent runs: B lands correctly in repo2. A's commit executes with the ambient cwd already flipped to repo2 by B -- A's own note (repo1) is NEVER committed (repo1 ends with an empty history, `git log` on repo1 says `fatal: invalid object name 'HEAD'` -- the note is real on disk but permanently unversioned) while A's call returns `GitResult(returncode=1, stdout='On branch main\\nnothing to commit, working tree clean\\n', stderr='')`.
+- SECOND, independent break riding on the first: that `returncode=1` failure has `stderr=''` -- EMPTY -- which directly violates gitcmd.py's own row-1 contract, the exact one test_gitcmd.py's quoted row-1 test (named after "failed" + "git" + "command" + "returns" + "full_real_stderr_never_empty") exists to guarantee ("un git que falla devuelve su mensaje entero, nunca vacio"). The existing test only exercises ONE git-failure shape (missing pathspec, whose message IS on stderr); "nothing to commit" is a real, common git failure whose message lands on STDOUT, and `run()`/`commit()` only ever inspect/return `stderr` -- so this whole class of git failure silently produces an empty-diagnostic `GitResult` on `returncode != 0`, invisible to any caller that (correctly, per the module's own contract) trusts "stderr non-empty on failure".
+- Root: lib/memory/gitcmd.py:113 `commit()` (no cwd param, `cwd=Path.cwd()` implicit), :61 `run()` (only captures/returns `stderr`, never `stdout`, even though some real git failure diagnostics land on stdout).
+- Scope note: no real caller of `commit()` exists yet in this codebase (notes.py doesn't exist, same caveat as the prior indexes.py finding) -- the bug is live in gitcmd.py today and is a design footgun the instant any two concurrent memory operations (two threads, two repos or worktrees) share this module.
+
+## lib/memory/rejection.py -- build() validates kwarg PRESENCE, never VALUE, silently drops one of its 3 mandatory declared elements on empty tuple/string (memoria-v2, 2026-08-02)
+- Module's own docstring states the whole reason it exists as ONE piece instead of ten: "los diez rechazos... comparten la misma anatomia -- que ha pasado, las opciones, el comando exacto para relanzar". `build()`'s only validation is `set(parts) == _EXPECTED_PARTS` (key presence) via `TypeError` -- it never checks that `options` or `command` (tuples) are non-empty, or that `what` (str) is non-empty.
+- Live PoC (no mocking, pure module calls): `build("k", what="ALGO PASO", options=("opcion A",), command=())` -- zero exception. `render_terminal()` output: `'❮ ALGO PASO\\n\\nopcion A'` -- the "Relanza:" section, and the relaunch command itself, is completely absent (because `_render()` gates it on `if r.relaunch:`, and an empty tuple is falsy) -- no error, no warning, nothing distinguishes this from a legitimately-relaunch-less rejection (there is no such thing among the ten real rejections -- TEXTOS.md's own definition requires it always). Same silent omission confirmed independently for `options=()` (body becomes `''`, the whole "opciones" element vanishes) and `what=""` (headline becomes bare `'❮ '`, the "que ha pasado" element vanishes).
+- Why it matters under this project's own threat model: `validator.py` (capa 2, doesn't exist yet) is the only intended producer of these three parts, per this module's own "Que NO hace" section. The instant `validator.py` has ANY bug that produces an empty options/command list for one of the ten cases, `rejection.py` -- the piece whose ENTIRE contract is guaranteeing the three elements are always present -- will silently manufacture and hand back an incomplete "rechazo" with zero signal anything is wrong. Matches "el sistema contra si mismo" exactly: not a hostile input, an upstream bug this piece exists specifically to catch and doesn't.
+- Root: lib/memory/rejection.py:64-72 (`build()`'s validation only checks key membership, never value truthiness) and :90 (`_render()`'s `if r.relaunch:` silently omits the section instead of asserting/failing loud on an empty tuple).
+
+## lib/memory/ids.py next_id() + notes.close() -- closing the last live note of a type PERMANENTLY reuses its ID for the next unrelated note of that type (memoria-v2 capa 5, scripts round, 2026-08-03)
+- `ids.next_id(type_, index)` (ids.py:30-45) computes the next number purely from
+  the LIVE index it's handed -- `max(numbers in index) + 1`. `notes.close()`
+  (notes.py:335-392) REMOVES the closed note's line from its live index (moved to
+  `ARCHIVED.md`) as its whole point. `notes.write()` (notes.py:140-215) always
+  calls `ids.next_id(note.type, current_index)` with `current_index =
+  indexes.read(index_name, pm)` -- the live index AT THAT MOMENT, no awareness of
+  `ARCHIVED.md`. The gap: `notes.py`'s own docstring (line 76) already names the
+  exact mechanism ("`ids.next_id()` solo mira el indice VIVO que recibe") and uses
+  it to justify `replace()`'s protection (id nuevo calculado ANTES de remove, so
+  the old id is still counted) -- but never extends that awareness to `close()`,
+  which is a genuinely different, later, separate transaction with no snapshot to
+  protect it.
+- Live PoC, through the REAL capa-5 scripts end to end (`note.py` + `close.py`),
+  the intended everyday "open incident, close incident" workflow: create `I-001`
+  (only incident in the repo), close it (`close.py I-001 ... --restriction no`) --
+  INCIDENTS.md's live index goes back to empty. Create a brand-new, UNRELATED
+  incident -- `ids.next_id()` returns `I-001` again. TWO real, permanent git
+  commits (`6077a99` "an incident to close", `46a8c72` "second incident") now
+  share the literal identifier `I-001` forever in git history. Repeated 4 more
+  times on `I-002` in the same session (open/close/open/close...) -- FOUR
+  completely distinct, unrelated incidents ("incident round 1".."round 4") all
+  permanently claim the identical `I-002`.
+- Downstream, all confirmed live: `search.py --id I-001` (query.by_id, used by
+  search.py:65) resolves to the OLD/archived note ("an incident to close"),
+  hiding the real live note that shares its ID -- a user asking about I-001 gets
+  shown the wrong, already-closed incident with zero indication a collision
+  exists. `health.duplicates()`/`ids.find_duplicates()` (health.py:307,
+  ids.py:48-59) NEVER catches this -- at any single instant only one "I-001" line
+  ever sits in the live index (the other is already in ARCHIVED.md), so the
+  in-index duplicate scan is structurally blind to cross-generation collisions.
+  `health.coherence()`/`reindex.py --verify` (health.py:201-234) compares ID SETS,
+  not counts -- two different real notes sharing one ID string collapse into "one"
+  from a set-difference view, so a real, permanent 6-notes-in-git-vs-5-tracked-IDs
+  divergence prints `✓ índices coherentes con git (5 líneas / 6 notas)` -- the
+  green check with a visible internal number mismatch NOBODY explains, live in
+  `boot.py`'s own daily AVISOS banner. `reindex.py` (no `--verify`) says "nada que
+  reconstruir" -- also blind, can't even offer a repair.
+- T1 (identity/memory corruption -- the ONE invariant the whole system builds on,
+  Origin/Replaces pointers cite IDs as permanent) + tied T1 DECEPTION (the two ✓
+  lines TEXTOS.md/health.py's own docstring insist matter "tanto como el ⚠" are
+  demonstrably lying about the exact thing they exist to guarantee, live, on the
+  intended textbook usage of `close.py` -- not a lab case, the ordinary
+  open-incident/close-incident cycle).
+- General lesson: a "the next id computation only sees the live index" fix that's
+  correctly reasoned about for ONE writer path (`replace()`, same-transaction
+  snapshot) doesn't automatically hold for a DIFFERENT writer path (`close()` then
+  a later independent `write()`) that shares the exact same blind spot but has no
+  snapshot to protect it -- always check every OTHER real caller of a "safe
+  because X" primitive, not just the one the fix was written for.
+
+
+## write_work() silent cross-writer content misattribution (capa 2/3 re-attack, 2026-08-03)
+- Root cause, two parts that only bite TOGETHER: (1) `gitcmd.commit(message, paths,
+  cwd=...)` with an explicit pathspec does NOT commit "whatever `git add` staged" --
+  git's own well-documented behavior for `git commit -- <pathspec>` is to re-read the
+  CURRENT WORKING TREE for those exact paths at commit time, overriding whatever was
+  staged earlier for that path. `gitcmd.py`'s own docstring ("commitea EXACTAMENTE
+  `paths`") is true about WHICH paths, silent about WHOSE CONTENT for those paths.
+  (2) `notes_commit.py::write_work()` (used by `bin/memory/work.py`, its only real
+  caller) takes NO lock at all -- unlike `write()`/`replace()`/`close()`
+  (`notes.py:199,314,401`), which wrap their entire add+commit sequence in
+  `gitcmd.file_lock(lock_resource(root))`.
+- Live PoC (100% deterministic, not luck): 2 real OS processes both target the SAME
+  path. A: writes content-A, `git add` (stages A), PAUSES. B: writes content-B,
+  `git add` (re-stages B, overwriting A's staged blob in the shared `.git/index`),
+  PAUSES. A resumes: `git commit -m "msgA" -- path` -- re-reads the worktree (now
+  content-B) and commits it under A's OWN message. B resumes: its own commit finds
+  "nothing added" (index already matches the tree A just created) and fails loud.
+  Net result: a permanent git commit titled "msgA-..." whose content is B's, verified
+  independently via raw `git show`/`git log` (never through notes.py). `WriteResult`
+  for A returns `ok=True, git_error=None` -- looks like a clean success to the
+  caller. Un-synchronized (real near-simultaneous `work.py` subprocesses, no
+  monkeypatch): ~15% hit rate (3/20). Different-path concurrent `work.py` calls
+  (no misattribution risk, since pathspecs never overlap): 0/15 succeeded cleanly
+  either -- ~100% of the time ONE side gets a real, loud `.git/index.lock`
+  contention failure (no retry anywhere in `gitcmd.run()`), vs. the SAME
+  near-simultaneous shape against `notes.write()` (which HAS the lock): 15/15 both
+  land, zero failures. write_work() is the one production writer that reproduces
+  exactly the class of race the shared lock exists to prevent.
+- General lesson: "commits exactly these paths" is a claim about WHICH files change,
+  not about WHOSE version of them lands -- a pathspec-limited commit is not a
+  snapshot of what you `git add`ed, it's a snapshot of the worktree at commit time.
+  Any writer that skips the shared serialization lock "because it doesn't touch an
+  index file" is still vulnerable if two such writers ever target the same real
+  path, and the resulting corruption is a wrong message/content pairing, not a
+  crash -- silent by construction.
+
+## close-session round (session_transcript.py, compact)
+New pattern: **destination-file naming with no session identity is a double
+vulnerability, not one.** `_newest_transcript()` picks the mtime-newest
+`.jsonl` under `~/.claude/projects/<slug>/` with NO way to confirm it's the
+invoking session's own transcript, and `_RIVAL_WINDOW_SECONDS=600` only
+flags a SECOND file within 10 min of the one it picked -- it never checks
+whether the PICK ITSELF is stale relative to "now". Live PoC: session A idle
+870s (reading/thinking) while session B (another window, same project) kept
+writing -> script silently picks B's transcript, zero `warning:` line, close
+written entirely from the wrong session. Reproduces the exact win condition
+"produce a close about the wrong session, without anything saying so."
+Second, independent pattern in the SAME function family: a tag-stripping
+filter matched "BY NAME" (`_TAG_START`, exact strings like `<system-
+reminder>`) still nukes a real user message whenever the project's own
+domain is the tag mechanism itself -- users say `<system-reminder>` in real
+prose about hooks, and the whole message vanishes, no warning. The
+docstring's own claimed mitigation ("matched by name, not by shape") does
+NOT close the gap it names -- exact-name matching still collides with
+real prose in a project ABOUT that exact vocabulary. General lesson: when a
+filter's exclusion list is drawn from the SAME domain the users legitimately
+talk about, name-exact matching is not safe against real content.
+Third: `open(destination, "w")` with a DETERMINISTIC path (based on
+transcript basename only, no pid/uuid, no lock, no atomic tmp+rename) lets
+two genuinely concurrent invocations (same transcript, e.g. compounding
+with the wrong-session bug above, or a duplicate/retried tool call)
+interleave into ONE corrupted file -- 10/15 (67%) live trials mixed both
+sessions' content with zero error.

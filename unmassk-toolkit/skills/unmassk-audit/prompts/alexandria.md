@@ -6,7 +6,7 @@
 ## Task: Post-audit documentation for module [MODULE]
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 - Branch: `chore/audit-[MODULE]-[N]`
 - Audit complete — Yoda approved with [XX/110]

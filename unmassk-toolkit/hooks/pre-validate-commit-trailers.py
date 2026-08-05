@@ -16,6 +16,7 @@ Exit codes:
 import json
 import os
 import re
+import shlex
 import sys
 
 # ── Shared lib ────────────────────────────────────────────────────────────
@@ -27,9 +28,75 @@ from colors import RED, RESET
 
 # `git log` stays exempt: its mandatory alternative bin/git-memory-log.py
 # ignores `count` when `--all` is passed and silently caps at 100 commits
-# (git-memory-log.py:64), which is why agents/gitto.md:239 tells agents to use
-# `git log` directly. Flip back to True once that cap is fixed.
+# (git-memory-log.py:64), so direct `git log` is the only way to see full
+# history. Flip back to True once that cap is fixed.
 BLOCK_DIRECT_GIT_LOG = False
+
+# Token that names the `git` program itself: bare "git", or a path ending
+# in "/git" (any leading directory) — with an optional ".exe" suffix for
+# Windows. Anchored on the whole token so "digit", "logit.py" or a filename
+# that merely contains the substring never match.
+_GIT_PROGRAM_TOKEN_RE = re.compile(r'(?:^|/)git(?:\.exe)?$', re.IGNORECASE)
+
+# Global git options that consume a separate following argument token
+# (e.g. `git -C /path commit`), so that path doesn't get mistaken for the
+# subcommand. Options passed as `--flag=value` already carry their value in
+# the same token and need no extra skip.
+_GIT_VALUE_FLAGS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+
+# Shell statement separators: a `command` string can chain several
+# statements together, and each is checked independently.
+_SHELL_STATEMENT_SEPARATORS = (";", "&&", "||", "|")
+
+
+def _is_direct_git_commit(command: str) -> bool:
+    """True only if `command` invokes `commit` as an actual git subcommand
+    — `git` as the program, `commit` as the word right after it (global
+    options like `-C <path>` or `--git-dir=<path>` may sit in between).
+
+    This is a shape check, not a word search: "git" and "commit" occurring
+    anywhere in the text (a file name, a quoted string, a path) no longer
+    counts — that was BUG: it blocked reading this very file, a fixture
+    script whose text mentioned "commit", and a history count, none of
+    which are `git commit` invocations.
+
+    Falls back to the old substring-style check only if the command cannot
+    be tokenized at all (unbalanced quotes etc.) — fails closed rather than
+    silently letting a real `git commit` through in that edge case.
+    """
+    try:
+        # comments=True: an unquoted '#' starts a shell comment, same as a
+        # real Bash invocation — text after it is dead prose, not arguments,
+        # so "git commit" appearing only inside a trailing `# ...` comment
+        # must not count as an invocation.
+        tokens = shlex.split(command, comments=True)
+    except ValueError:
+        return bool(re.search(r"\bgit\b.*\bcommit\b", command))
+
+    statement = []
+    statements = []
+    for tok in tokens:
+        if tok in _SHELL_STATEMENT_SEPARATORS:
+            statements.append(statement)
+            statement = []
+        else:
+            statement.append(tok)
+    statements.append(statement)
+
+    for stmt in statements:
+        n = len(stmt)
+        for i, tok in enumerate(stmt):
+            if not _GIT_PROGRAM_TOKEN_RE.search(tok):
+                continue
+            j = i + 1
+            while j < n and stmt[j].startswith("-"):
+                flag = stmt[j]
+                j += 1
+                if flag in _GIT_VALUE_FLAGS and "=" not in flag and j < n:
+                    j += 1
+            if j < n and stmt[j].lower() == "commit":
+                return True
+    return False
 
 
 def main() -> None:
@@ -50,7 +117,7 @@ def main() -> None:
     is_claude = bool(os.environ.get("CLAUDECODE"))
     uses_wrapper = "git-memory-commit.py" in command or "git-memory-log.py" in command
     if is_claude and not uses_wrapper:
-        if re.search(r"\bgit\b.*\bcommit\b", command):
+        if _is_direct_git_commit(command):
             plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "${CLAUDE_PLUGIN_ROOT}")
             msg = f"\n{RED}>>> BLOCKED: Use the git-memory commit script instead of git commit directly.{RESET}"
             msg += f"\n{RED}>>> Run: python3 {plugin_root}/bin/git-memory-commit.py <type> <scope> <message> [--trailer KEY=VALUE]...{RESET}"

@@ -156,4 +156,53 @@ now). If any other reference to `unmassk-flow-stack` surfaces later (e.g. in
 `references/`, other skill docs, or agent-memory files outside Dante's own),
 treat it as a leftover from this rename, not a new skill.
 
+## Skill retirement `unmassk-gitmemory` (2026-08-02) — remove-with-breadcrumb, not three-state
+
+`docs/memoria-v2/PLAN-CONSTRUCCION.md` §5.1 retired `skills/unmassk-gitmemory/`
+entirely (deliberate, owner-approved — v1 memory system rebuilt from zero,
+verified before touching anything). Same-day production changes (not mine —
+already done when this task arrived): `lib/skill_router.py::SKILL_TRIGGER_PHRASES`
+dropped to 8 keys (no `unmassk-gitmemory`), and `hooks/user-prompt-memory-check.py`'s
+first-message MANDATORY block no longer forces `skill="unmassk-gitmemory"` or
+mentions `CALIBRATION.md` — only `skill="unmassk-core"` remains. This left 4
+tests red in `test_user_prompt_skill_router.py`: 3 parametrized cases
+(`unmassk-gitmemory__0/1/2` in `TestSkillRouterMatchesRealTriggerPhrases`, from
+a hand-written `SKILL_TRIGGER_PROMPTS["unmassk-gitmemory"]` entry never sourced
+from production) + `test_first_message_forcing_text_present_regardless_of_prompt`
+(asserted `skill="unmassk-gitmemory"` and `CALIBRATION.md` literally in stdout).
+
+**Chose remove + docstring breadcrumb over PIEZAS.md §6.1's three-state
+(verified/pending/roto) pattern.** The three-state pattern fits an
+in-progress *construction* sequence: a test iterating a declared structure
+(FIELDS→readers) where "module not written yet" is expected and counted
+toward a same-build acceptance gate that reaches zero as steps complete. This
+is the opposite shape — a *retirement* whose replacement is a separate,
+not-yet-authorized future plan step (7.12) with no defined date, and
+`match_skills()` is a flat dict/substring matcher with no "does this skill
+exist" reader abstraction to hook a pending-state check into (inventing one
+would be production-code scope, which this task forbade). Removal +
+breadcrumb also directly matches what the task instructions described as the
+primary path; three-state was offered as "if it fits better," and it didn't.
+Reusable takeaway: three-state fits when a test tracks incremental completion
+toward a gate the same build owns; plain removal + a docstring breadcrumb
+naming the exact return step fits when the return is an external, dateless,
+separately-authorized future decision.
+
+**Mechanics used:** removed the `"unmassk-gitmemory"` key from
+`SKILL_TRIGGER_PROMPTS` (not the whole test method — the other 8 skills'
+`TestSkillRouterMatchesRealTriggerPhrases` cases are untouched), updated the
+`len(...) == 9/27` sanity asserts to `8/24`, removed only the 2
+gitmemory-specific assertions from `test_first_message_forcing_text_present_regardless_of_prompt`
+(kept `MANDATORY` + `skill="unmassk-core"` assertions — those are still real
+today), and left a "Retirement note" block in the module docstring plus
+per-site comments citing `PLAN-CONSTRUCCION.md §5.1` (what was removed and
+why) and `§7.12` (where it returns, same name, per the plan's own text: "el
+nombre `unmassk-gitmemory` queda libre y la skill nueva lo hereda"). Verified
+via `--collect-only -q | grep -i gitmemory` that zero references survive in
+collection (not just "passing" — genuinely gone). 74 tests pass (was ~85
+before this session; delta is the 3 removed parametrized cases + prior file
+growth, not a coverage loss — every other skill's 3 cases per skill,
+multi-match, no-match, hook-integration, and the full drift-guard class are
+all untouched).
+
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md).

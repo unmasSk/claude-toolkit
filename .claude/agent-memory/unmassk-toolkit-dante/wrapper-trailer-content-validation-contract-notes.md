@@ -140,3 +140,63 @@ validation layer gets consolidated like this:
    inventories even though the file was deleted — neither was mentioned in
    the "already applied" production changes for this retirement. Flagged
    for Ultron/Cerberus, not touched (test-only pass).
+
+**Restore (2026-08-04, DEUDA.md #16): the file and the function it tested
+were both deleted together** (same commit removed `_validate_trailer_content()`
+and this test file), leaving the description-emptiness half of the bug with
+no red flag. Re-created from scratch, not from git history (`.pyc` was the
+only surviving artifact, source was gone). Two things had genuinely changed
+since 2026-07-25 and had to be re-verified from the current code, not
+assumed from this file's older notes above:
+
+1. **`MEMO_CATEGORIES`/`REMEMBER_CATEGORIES` no longer exist anywhere in
+   the repo** (`grep -rn "MEMO_CATEGORIES\|REMEMBER_CATEGORIES"` across the
+   whole tree: zero hits). `lib/constants.py::VALID_KEYS` never held them —
+   the only place either concept ever lived was the inline literal inside
+   the now-deleted `pre-validate-commit-trailers.py::validate_trailers()`.
+   So the task's "category invalid → rebota" case has nothing left to
+   validate against and was dropped entirely, per this session's explicit
+   instruction: if the category concept is gone, write only the
+   empty-description case. Confirmed via real git history that the
+   `"category - description"` *shape* itself is still very much alive
+   today (e.g. `Remember: claude - Bex las pidio...` in this repo's own
+   recent commits) — only the enum to validate the category word against
+   is gone, not the format.
+
+2. **This project's threat model changed underneath the original 2026-07-25
+   version of this file.** That version's most elaborate regression test
+   (`TestMemoDescriptionControlByteOnlySaneoRegression`) used a
+   control-byte-only description (`"preference - \x1b\x1b\x1b"`) to prove
+   the "empty after saneo" gap — CLAUDE.md now states explicitly this repo
+   has **no external attacker**, and control-byte/hostile-input tests are
+   surplus. Re-derived a *non-hostile* way to exercise the same
+   "looks non-empty raw, empty after `sanitize_trailer_value()`" nuance:
+   an ordinary embedded newline from a paste (`"deadend - \n   "` — a
+   blank second line), since `sanitize_trailer_value()` folds `\n` to a
+   space and its own trailing `.strip()` collapses the result to `""`.
+   Same mechanism the control-byte version proved, mundane input instead
+   of an attack — matches this project's own reframing of §34/Argus
+   material as "the system against itself," not against a hostile actor.
+
+**Confirmed RED for the right reason, live 2026-08-04**: all 3 new tests
+failed with `rc=0` and a real commit created (`git rev-list --count HEAD`
+incremented) — `Memo=deadend -` and `Remember=claude -` both commit
+cleanly today with zero validation, and the embedded-newline variant does
+too. Both `[GUARDA]` control tests (`Memo=deadend - una descripcion real...`,
+same for Remember) passed on the same run, proving the RED failures aren't
+an artifact of a broken script invocation.
+
+**Convention followed:** mirrored `test_git_memory_commit_subject_length.py`'s
+`_make_repo`/`_commit_count` shape exactly (no explicit `git config
+user.name/email` — conftest's `_DEFAULT_GIT_IDENTITY_ENV` fallback covers
+it), used `run_script`/`git_cmd`/`run_cmd` from `conftest.py`, subprocess-only
+(no import of the not-yet-written validation function). One operational
+gotcha hit while researching: `pre-validate-commit-trailers.py`'s own
+regex (`r"\bgit\b.*\bcommit\b"`) matches the literal substring
+`"git-memory-commit"` typed inside a `grep` pattern from an agent Bash call
+(since `-` is a non-word boundary, "git" and "commit" both read as
+separate whole words) — this is the SAME false-positive class DEUDA.md B16
+already documents for the word "merge". Workaround: only grep for the
+`.py`-suffixed literal `"git-memory-commit.py"` so the hook's own
+`uses_wrapper` check (which looks for that exact substring) short-circuits
+before the word-boundary regex ever runs.

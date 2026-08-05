@@ -870,3 +870,46 @@ imports `sitecustomize.py` from a `PYTHONPATH` entry the same way on a
 real Windows Python install (expected per CPython's own `site` module
 contract, not previously exercised on a real Windows runner for this
 project).
+
+## HARD RULE — never write a mutation-check throwaway file into a shared production dir (`unmassk-toolkit/lib/memory/` and equivalents)
+
+**Rule, effective 2026-08-02, coordinator-issued mid-session stop:**
+mutation-check throwaway modules (the "write a fake implementation, run
+the suite against it to prove assertions aren't vacuous, then delete
+it" technique used across
+[vocabulary-contract-notes](vocabulary-contract-notes.md),
+[zones-contract-notes](zones-contract-notes.md),
+[rejection-contract-notes](rejection-contract-notes.md)) must NEVER be
+written into a directory other agents write to concurrently — not even
+for one bash command, not even if deleted immediately after.
+
+**Why:** during the memoria-v2 build (`feat/memoria-v2`), multiple
+Dante/Ultron instances write into `unmassk-toolkit/lib/memory/` in
+parallel across different files. A `rejection.py` mutation-check there
+nearly clobbered a colleague's real in-progress file, and even after
+deleting the `.py` source, a stray `__pycache__/rejection.cpython-
+314.pyc` was left behind — `importlib.util.spec_from_file_location` +
+`exec_module()` writes bytecode cache as a side effect, and `rm`-ing
+the `.py` does NOT remove it. Caught only because the coordinator
+audited the directory after the fact; the fix cost a second round-trip
+that a correctly-scoped check would never have needed.
+
+**How to do it instead — always:**
+1. Inside a pytest test: use `tmp_path` (pytest fixture, auto-cleaned,
+   never touches the real dir) and point
+   `importlib.util.spec_from_file_location` at a file under it.
+2. Outside pytest (ad-hoc Bash verification before writing the final
+   test): use the session scratchpad
+   (`/private/tmp/claude-*/.../scratchpad/`) or a private `/tmp` dir —
+   never the project's `lib/memory/` (or any dir a teammate is
+   concurrently writing to).
+3. If neither is possible for what needs verifying: don't do the
+   check. Report to the coordinator what verification is missing and
+   let them decide — an unverified test is recoverable; a clobbered
+   teammate file (or its cache-artifact aftermath) may not be.
+
+**How to apply:** every time before running a mutation-check, ask "is
+this directory owned solely by me for this task, or shared with
+parallel agents right now?" If shared (memoria-v2's `lib/memory/` is
+the current live example, but the rule is general), redirect the fake
+file to an isolated path FIRST — never write-then-delete in place.

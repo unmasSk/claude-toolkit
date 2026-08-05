@@ -8,7 +8,7 @@
 
 Nothing is improvised, trimmed, or "improved" on the fly. The whole point of START is that the decision tree is fully seeded — requirements, behavior, visuals, engineering foundations — *before* implementation begins. Each phase closes with its decisions persisted to git-memory; the richest moment for decisions is the start, and none of it is allowed to evaporate.
 
-All persistence goes to **git-memory** (`decision()` / `memo()` / `context()`), never to loose `.md` files. At the close of every phase write a `context()` bookmark naming the phase just finished — that bookmark is what lets a later session resume START at the right phase instead of restarting.
+Everything is saved to the project's memory — one note per thing decided — never to a loose `.md` file. At the close of every phase save a memo naming the phase just finished — that bookmark is what lets a later session resume START at the right phase instead of restarting.
 
 ## Phase 0 — Triage (calibrate before anything)
 
@@ -29,8 +29,8 @@ State the detected size to the user in one line and confirm it before proceeding
 Interrogate until the project is actually understood.
 
 1. **Interrogate by thematic blocks.** Walk the domain block by block (payments, auth, roles, catalog, stock, orders, notifications, whatever the project has). Use the Skill tool with `skill="unmassk-grill"` (TOOL CALL) for the interrogation discipline. Ask one question at a time, each with a recommendation.
-2. **Persist each answer immediately** as its own `decision()` / `memo()` — never batch them for a summary at the end. A deferred decision is a lost decision.
-3. **Write the PRD as a living document derived from git-memory.** Git is the source of truth; the PRD reflects what memory already holds and is re-synced after each round of decisions — never the reverse.
+2. **Save each answer the moment it is given**, as its own note — never batched into a summary at the end. A deferred decision is a lost decision.
+3. **The PRD is derived from what was saved, not kept alongside it.** The memory is the source of truth; the PRD reflects what it already holds and is re-synced after each round of decisions — never the reverse.
 
 **Done when:** every thematic block has been walked and its open questions are either answered (as decisions) or explicitly logged as still-open; the PRD reflects them. Close with a `context(start): phase A done` bookmark. **Stop and confirm** the PRD's scope with the user before starting B.
 
@@ -61,7 +61,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 ## Phase D — Foundations: decide
 
 1. **Write `ARCHITECTURE` and `STANDARDS` as two separate, binding documents**, each with a table of the alternatives considered and *why* they were rejected — not just the final choice.
-2. **Offer the enterprise foundations catalog** in **`references/foundations.md`** — following its "How to run this in phase D" (don't ask 60 questions one by one: auto-accept the Mandatory set with a single "anything to drop?", prune the Conditionals that don't apply to this project's stack/shape, and ask one-by-one only the genuinely doubtful ones). Record every accepted and declined foundation as `decision()`/`memo()` so a "no" is a recorded choice, not a silent gap. List by name — the concrete tool per stack is chosen at build time, not here.
+2. **Offer the enterprise foundations catalog** in **`references/foundations.md`** — following its "How to run this in phase D" (don't ask 60 questions one by one: auto-accept the Mandatory set with a single "anything to drop?", prune the Conditionals that don't apply to this project's stack/shape, and ask one-by-one only the genuinely doubtful ones). Record every accepted and declined foundation as a decision/a memo so a "no" is a recorded choice, not a silent gap. List by name — the concrete tool per stack is chosen at build time, not here.
 
 **Done when:** ARCHITECTURE and STANDARDS are written, and every catalog foundation is marked accepted or declined in memory. Close with `context(start): phase D done`. **Stop and confirm** the accepted foundation set with the user before building.
 
@@ -74,7 +74,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 3. **Translate every standard into a verifiable Phase-1 plan** — a checklist of concrete steps per task with an explicit wave map, not prose.
 4. **Build mode is the orchestrator's call, not baked in here.** Per `unmassk-flow`'s Build mode: test-first for business logic with clear rules, linear for prototypes/exploration. Whichever mode, tests run with **no infrastructure mocks** — real dependency by default — and a **blocking CI/CD pipeline stands from the first commit**, not deferred.
 
-Record the resolved test command in `.claude/git-memory-config.json` under `test_command` so the `stop-dod-gate` hook runs it automatically. A missing quality floor is captured as a `decision()` ("deferred: no test runner yet"), never left silent.
+Record the resolved test command in `.claude/project-memory/config.json` under `test_command`, where a machine reads it instead of somebody remembering it. A missing quality floor is captured as a a decision ("deferred: no test runner yet"), never left silent.
 
 **Done when:** the project builds and runs, the accepted foundations are wired, the Phase-1 plan exists, and CI is green. Close with `context(start): phase E done — base stands`.
 
@@ -82,7 +82,7 @@ Record the resolved test command in `.claude/git-memory-config.json` under `test
 
 ## Phase F — Close
 
-Close with a `context()` bookmark that declares what was done and the exact next step — never end a session without a written resume point.
+Close with `unmassk-close-session`: its Next declares what was done and exactly where this picks up again — never end a session without one.
 
 ---
 
@@ -99,4 +99,4 @@ Close with a `context()` bookmark that declares what was done and the exact next
 
 - START **situates, decides, and prepares**. It does not enforce process with a gate — it is a checklist you follow. The phase bookmarks in git-memory are what make it resumable.
 - Do not write business code until phases A–D (as the triage requires them) are seeded and the base (phase E) stands.
-- All persistence goes to git-memory, never to loose `.md` files.
+- Everything is saved to the project's memory, never to a loose `.md` file.

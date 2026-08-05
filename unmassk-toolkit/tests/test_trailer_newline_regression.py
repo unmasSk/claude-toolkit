@@ -7,28 +7,38 @@ Bug (Ultron fix, bin/git-memory-commit.py::build_commit_message, see the
 "BUG T1 fix" comment at the trailer-emission loop): before the fix, a
 value containing a real "\n" (an agent wrote free text with an actual
 newline, not an escaped one) was written to the commit message verbatim.
-lib/parsing.py::scan_trailers_memory() -- the recall/boot read path -- only
-recognizes a trailer up to its own physical line; text after the embedded
-newline stopped matching the `Key: value` regex on its own line and was
-silently dropped from the value scan_trailers_memory() returns. No
-exception, no warning -- recall() would just hand back a truncated Memo
-and the rest of what the agent wrote vanished on every future read.
+A line-based trailer reader -- one that recognizes a trailer up to its own
+physical line -- would stop matching the `Key: value` regex at the embedded
+newline, silently dropping the rest of the value. No exception, no warning
+-- the reader would just hand back a truncated value and the rest of what
+the agent wrote vanished on every future read.
 
 The fix: build_commit_message() now runs `sanitize_trailer_value()`
 (already canonical for the read side) on every --trailer value before
 writing it, then collapses any resulting run of 2+ spaces (a CRLF pair
 produces two substitutions back to back). This guarantees the trailer is
-always emitted as ONE physical line, so scan_trailers_memory() -- which
+always emitted as ONE physical line, so any line-based reader -- which
 splits the body on literal "\n" -- can never lose anything past a
 newline that was in the ORIGINAL value: there is no longer a real
 newline in the emitted trailer to split on.
+
+Retirement note (memoria-v2 cleanup pass): the original read-side half of
+this test called lib/parsing.py::scan_trailers_memory(), which has since
+been retired with no direct successor of that exact name. The line-based
+full-body scan it used to prove (every "Key: value" line recovered
+regardless of position) is still live today in
+lib/parsing.py::parse_trailers_full() -- same per-line regex, same
+full-body scan, same "no line-based reader ever sees a raw embedded
+newline" contract this test protects. Swapped to that live function; the
+behavior under test (the generator's one-physical-line guarantee) is
+unchanged.
 
 Threat model (per this project's CLAUDE.md / unmassk-standards §34): this
 is producer -> consumer data-integrity (the system against itself), not an
 external attacker. Producer = build_commit_message() writing a --trailer
 value that happens to contain a real newline (e.g. pasted free text).
-Consumer = scan_trailers_memory() (recall/boot read path). Nothing here
-simulates malicious input.
+Consumer = parse_trailers_full() (a line-based trailer reader). Nothing
+here simulates malicious input.
 """
 
 import importlib.util
@@ -41,7 +51,7 @@ LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-from parsing import scan_trailers_memory
+from parsing import parse_trailers_full
 
 COMMIT_SCRIPT = os.path.join(BIN_DIR, "git-memory-commit.py")
 
@@ -81,12 +91,12 @@ class TestTrailerNewlineNoSilentLoss:
             f"physical line: {lines!r}"
         )
 
-        # ── (2) scan_trailers_memory() (real recall/boot read path) ──────
+        # ── (2) parse_trailers_full() (live line-based trailer reader) ───
         # recovers the COMPLETE value -- nothing after the embedded
         # newline is silently lost, and no raw "\n" remains inside it.
-        trailers = scan_trailers_memory(msg)
+        trailers = parse_trailers_full(msg)
         value = trailers.get("Memo")
-        assert value is not None, "scan_trailers_memory() must find a Memo trailer at all"
+        assert value is not None, "parse_trailers_full() must find a Memo trailer at all"
         assert "linea1 IMPORTANTE" in value, f"first half of the value must survive: {value!r}"
         assert "linea2 NO_DEBE_PERDERSE" in value, (
             "second half (past the embedded newline) must NOT be silently "
@@ -118,7 +128,7 @@ class TestTrailerNewlineNoSilentLoss:
             "memo", "deadend/x", "q", None,
             ["Memo=deadend - primera\r\nsegunda parte CRLF"],
         )
-        crlf_value = scan_trailers_memory(crlf_msg).get("Memo")
+        crlf_value = parse_trailers_full(crlf_msg).get("Memo")
         assert crlf_value is not None
         assert "primera" in crlf_value and "segunda parte CRLF" in crlf_value, (
             f"CRLF-split fragments must both survive: {crlf_value!r}"
@@ -130,7 +140,7 @@ class TestTrailerNewlineNoSilentLoss:
             "memo", "deadend/x", "q", None,
             ["Memo=uno\ndos\ntres\ncuatro"],
         )
-        multi_value = scan_trailers_memory(multi_msg).get("Memo")
+        multi_value = parse_trailers_full(multi_msg).get("Memo")
         assert multi_value is not None
         for fragment in ("uno", "dos", "tres", "cuatro"):
             assert fragment in multi_value, (

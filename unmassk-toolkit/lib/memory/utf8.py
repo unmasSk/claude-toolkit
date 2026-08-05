@@ -1,6 +1,6 @@
 """Fuerza UTF-8 en stdout/stderr.
 
-Sin esto, un print() de un emoji (los que usa colors.EMOJIS) revienta con
+Sin esto, un print() de un emoji (los que usa emojis.TYPE_EMOJI) revienta con
 UnicodeEncodeError bajo una consola con codepage heredado (p.ej. cp1252,
 el que trae por defecto un Windows en varios idiomas no ingleses).
 Reproducible en cualquier sistema operativo forzando
