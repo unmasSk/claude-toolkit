@@ -25,6 +25,13 @@ este WIP y por tanto con contrato intacto:
   - lib/boot_health.py          :: check_version_mismatch()
   - lib/upgrade_check.py        :: needs_upgrade(root)
 
+[corregido 2026-08-05: check_version_mismatch() se retiro de
+lib/boot_health.py junto con el resto del sistema de memoria v1 -- solo
+sobreviven CACHE_BASE_DIR, _md5_file() y _latest_version_dir() en ese
+fichero. Su clase de test (TestSecT1_001BootHealthCheckVersionMismatchFailSafe)
+se retiro; ver nota en su antiguo sitio. Solo
+lib/upgrade_check.py::needs_upgrade() sigue cubierto aqui.]
+
 SEC-T1-001 (RecursionError -> crash): un manifest.json con anidamiento
 JSON extremo hace que json.load lance RecursionError, que no es ni
 OSError ni json.JSONDecodeError -- escapaba del except estrecho y
@@ -125,23 +132,6 @@ def _write_malicious_deep_manifest(repo):
 # unmassk-toolkit-python-test-conventions.md)
 
 
-def _call_check_version_mismatch(repo):
-    # check_version_mismatch() has no params -- it derives the git root via
-    # `run_git(["rev-parse", "--show-toplevel"])` with cwd=None (ambient
-    # process cwd), so the subprocess itself must be launched with cwd=repo.
-    code = f"""
-import sys, json
-sys.path.insert(0, {LIB_DIR!r})
-import boot_health
-result = boot_health.check_version_mismatch()
-print(json.dumps({{"result": result}}))
-"""
-    return subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
-        cwd=repo, timeout=30,
-    )
-
-
 def _call_needs_upgrade(repo):
     code = f"""
 import sys, json
@@ -186,23 +176,15 @@ class TestMaliciousPayloadSanity:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestSecT1_001BootHealthCheckVersionMismatchFailSafe:
-    """lib/boot_health.py::check_version_mismatch() -- fail-safe is None
-    (no upgrade-suggestion warning rendered in the boot STATUS section).
-    Highest blast radius of the 2 remaining sites: called unguarded from
-    render_status_section() in the main boot hook."""
-
-    def test_deep_nested_manifest_returns_none_without_crashing(self, tmp_path):
-        repo = _make_installed_repo(tmp_path)
-        _write_malicious_deep_manifest(repo)
-
-        proc = _call_check_version_mismatch(repo)
-        result = _result_or_fail(proc, "check_version_mismatch")
-
-        assert result is None, (
-            "SEC-T1-001: a deeply-nested manifest.json must fail-safe to "
-            f"None, not crash or return a warning. stdout={proc.stdout!r}"
-        )
+# RETIRADO (memoria v2, 2026-08-05): TestSecT1_001BootHealthCheckVersionMismatchFailSafe
+# (y su helper _call_check_version_mismatch()) probaba
+# lib/boot_health.py::check_version_mismatch() -- esa funcion se retiro de
+# boot_health.py junto con el resto del sistema de memoria v1 (solo
+# sobreviven CACHE_BASE_DIR, _md5_file() y _latest_version_dir() en ese
+# fichero, confirmado leyendolo). 1/1 test fallaba con AttributeError:
+# module 'boot_health' has no attribute 'check_version_mismatch'. El otro
+# sitio que este fichero cubria (lib/upgrade_check.py::needs_upgrade(),
+# clase de abajo) es independiente y sigue vivo.
 
 
 class TestSecT1_001UpgradeCheckNeedsUpgradeFailSafe:

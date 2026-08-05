@@ -10,49 +10,31 @@ al final de este fichero.
 
 Arreglos cubiertos
 ──────────────────
-T1-A [fail-open upgrade]
-    El bloque needs_upgrade() + subprocess.run() está envuelto en try/except.
-    Un subprocess.TimeoutExpired (script lento >15 s) o cualquier Exception
-    genérica NO deben propagar: el boot debe continuar y salir con código 0.
-
-    Issue #63 (boot simplification, point 2): este bloque vive ahora en
-    lib/upgrade_check.py::trigger_auto_upgrade_if_needed(), invocado una vez
-    por SessionStart desde hooks/session-start-boot.py -- ya NO en
-    hooks/user-prompt-memory-check.py, cuyo main() no llama a
-    needs_upgrade()/subprocess.run() en absoluto tras el refactor. Ver
-    TestFailOpenUpgrade más abajo para el canal real ejercitado.
+T1-A [fail-open upgrade] -- RETIRADO 2026-08-05, ver nota abajo.
 
 T2-A [stdin acotado — DoS por tamaño]
     Un payload JSON >600 KB no debe colgar el hook ni causar exit != 0.
 
-Patrón de importación en-proceso
-─────────────────────────────────
-Para T1-A (fail-open upgrade) se usa el mismo patrón de subproceso aislado que
-_run_boot_with_failing_log_write() en test_boot_output.py: el código real
-(hooks/session-start-boot.py + lib/upgrade_check.py) se carga y ejecuta en un
-subproceso desechable, con el punto exacto de sabotaje inyectado como texto
-antes de cargar el hook — ver TestFailOpenUpgrade más abajo.
-
-Para los tests de salida que quedan se usa el patrón de subproceso de
-test_user_prompt_recall.py: _run_hook(repo, prompt).
+[corregido 2026-08-05: T1-A (TestFailOpenUpgrade) cargaba
+hooks/session-start-boot.py::main() de verdad en un subproceso -- ese
+fichero ya no existe en disco (borrado junto con el resto del sistema de
+memoria v1). La clase se retiró; ver el comentario en su antiguo sitio,
+donde vivía, para el detalle. Solo T2-A (TestFailSafeLargeStdin) sigue
+viva hoy, y usa el patrón de subproceso de test_user_prompt_recall.py:
+_run_hook(repo, prompt).]
 """
 
 import json
 import os
-import subprocess
 import sys
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, git_cmd, run_cmd, run_script
+from conftest import SOURCE_ROOT, HOOKS_DIR, git_cmd, run_cmd
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
 HOOK_FILE = os.path.join(HOOKS_DIR, "user-prompt-memory-check.py")
-BOOT_HOOK = os.path.join(HOOKS_DIR, "session-start-boot.py")
-LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
-if LIB_DIR not in sys.path:
-    sys.path.insert(0, LIB_DIR)
 
 # Plugin version — needed to write a matching manifest so needs_upgrade() → False
 _PLUGIN_JSON = os.path.join(SOURCE_ROOT, ".claude-plugin", "plugin.json")
@@ -127,187 +109,18 @@ def _run_hook(repo, prompt, *, input_text=None):
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# T1-A: fail-open upgrade — subprocess.TimeoutExpired y Exception genérico
-# ══════════════════════════════════════════════════════════════════════════════
-
-class TestFailOpenUpgrade:
-    """El bloque de upgrade vive en lib/upgrade_check.py::trigger_auto_upgrade_if_needed(),
-    invocado una vez por SessionStart desde hooks/session-start-boot.py::main() (issue #63,
-    boot simplification, point 2).
-
-    Deuda reportada por Ultron (wip 8245c99) y confirmada aquí: la versión anterior de esta
-    clase parcheaba subprocess.run global y llamaba a hook.main() de
-    hooks/user-prompt-memory-check.py -- pasaba en verde, pero por la razón equivocada.
-    Tras el refactor, ese main() ya NO llama a needs_upgrade()/subprocess.run() en absoluto
-    (ver su propio comentario "Case 1.5 ... removed"), así que el parche nunca se ejercitaba
-    y el try/except real (ahora en lib/upgrade_check.py) nunca se probaba.
-
-    Reescrita para ejercitar el canal real de punta a punta:
-    hooks/session-start-boot.py::main() -> lib/upgrade_check.py::trigger_auto_upgrade_if_needed()
-    -> subprocess.run(). Cada test corre boot.main() de verdad en un subproceso aislado (mismo
-    patrón que _run_boot_with_failing_log_write() en test_boot_output.py: boot.main() llama
-    sys.exit(0) al final igual que al ejecutar el fichero directamente, así que rc/stdout/stderr
-    tienen exactamente la misma forma que run_boot()) contra un repo real e instalado cuyo
-    manifest.json queda deliberadamente por debajo de PLUGIN_VERSION -- dispara
-    needs_upgrade()==True por la vía semver (check 2), sin depender de markers antiguos.
-
-    Anti-vacuidad (verificado manualmente antes de fijar esta versión, no repetido en CI):
-    con el try/except de trigger_auto_upgrade_if_needed() retirado (y check=True añadido al
-    subprocess.run interno para hacer que el caso 3 -- exit≠0 sin excepción por diseño hoy --
-    también dependa de la protección), las 3 pruebas de abajo pasan a ROJO: boot.main() propaga
-    la excepción sin capturar y el subproceso sale con rc=1 en vez de 0. Confirma que estas
-    pruebas dependen genuinamente del try/except, no de que nada dispare la ruta de sabotaje.
-    """
-
-    def _make_repo_needing_upgrade_via_semver(self, tmp_path):
-        """Repo real, completamente instalado (git-memory-install.py --auto), cuyo
-        manifest.json queda deliberadamente por debajo de PLUGIN_VERSION. Tras una
-        instalación real, el bloque gestionado de CLAUDE.md ya no lleva markers
-        antiguos, así que el único camino que dispara needs_upgrade()==True aquí
-        es el chequeo semver (check 2 de needs_upgrade()), no el check 1."""
-        repo = str(tmp_path / "repo")
-        os.makedirs(repo)
-        git_cmd(["init"], repo)
-        git_cmd(["config", "user.email", "test@test.com"], repo)
-        git_cmd(["config", "user.name", "Test"], repo)
-        git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
-        run_script(INSTALL, repo, ["--auto"])
-
-        manifest_path = os.path.join(repo, ".claude", ".unmassk", "manifest.json")
-        with open(manifest_path, encoding="utf-8") as f:
-            manifest = json.load(f)
-        manifest["version"] = "0.0.1"
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f)
-
-        return repo
-
-    def _run_boot_with_sabotaged_installer(self, repo, sabotage_code):
-        """Corre hooks/session-start-boot.py::main() de verdad, en un subproceso
-        aislado, con el subprocess.run que trigger_auto_upgrade_if_needed() invoca
-        saboteado según `sabotage_code` (fragmento Python inyectado justo antes de
-        cargar el hook, después de confirmar needs_upgrade()==True como sanity
-        check). upgrade_check es un módulo real y estable (import bin/session-start-boot.py
-        lo reutiliza vía sys.modules), así que todo esto corre en un subproceso
-        desechable para no contaminar sys.modules del resto de la sesión de pytest
-        -- misma disciplina documentada en unmassk-toolkit-python-test-conventions.md.
-        """
-        code = f"""
-import sys, os
-sys.path.insert(0, {repr(LIB_DIR)})
-sys.path.insert(0, {repr(HOOKS_DIR)})
-os.chdir({repr(repo)})
-
-import upgrade_check
-assert upgrade_check.needs_upgrade({repr(repo)}) is True, "sanity: needs_upgrade debe ser True antes de sabotear"
-
-{sabotage_code}
-
-import importlib.util
-spec = importlib.util.spec_from_file_location('boot', {repr(BOOT_HOOK)})
-boot = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(boot)
-boot.main()
-"""
-        return run_cmd([sys.executable, "-c", code], repo, timeout=30)
-
-    def test_timeout_expired_does_not_break_boot(self, tmp_path):
-        """subprocess.TimeoutExpired real (installer que tarda >15s) dentro de
-        trigger_auto_upgrade_if_needed() -> boot.main() debe salir 0 con el
-        banner presente, nunca propagar la excepción.
-
-        El sabotaje sólo intercepta la llamada cuyo cmd contiene
-        'git-memory-install.py'; cualquier otra llamada a subprocess.run dentro
-        del boot (p. ej. doctor/repair) sigue siendo real, para no confundir un
-        efecto colateral no relacionado con la propiedad bajo prueba.
-        """
-        repo = self._make_repo_needing_upgrade_via_semver(tmp_path)
-
-        sabotage = """
-import subprocess as _subprocess
-_real_run = _subprocess.run
-def _fake_run(cmd, *a, **kw):
-    if isinstance(cmd, list) and any('git-memory-install.py' in str(c) for c in cmd):
-        raise _subprocess.TimeoutExpired(cmd=cmd, timeout=15)
-    return _real_run(cmd, *a, **kw)
-_subprocess.run = _fake_run
-"""
-        rc, stdout, stderr = self._run_boot_with_sabotaged_installer(repo, sabotage)
-
-        assert rc == 0, (
-            f"boot.main() debe salir 0 pese a un TimeoutExpired real en el "
-            f"installer; rc={rc}\nstdout: {stdout!r}\nstderr: {stderr!r}"
-        )
-        assert "STATUS:" in stdout, (
-            f"el banner de boot debe seguir presente; stdout={stdout!r}"
-        )
-        assert "upgrade fail-open" in stderr, (
-            "se esperaba la traza fail-open de trigger_auto_upgrade_if_needed() "
-            f"en stderr, confirmando que el try/except realmente actuó; stderr={stderr!r}"
-        )
-
-    def test_generic_exception_does_not_break_boot(self, tmp_path):
-        """Excepción genérica (OSError -- instalador ausente/sin permisos) dentro
-        de trigger_auto_upgrade_if_needed() -> boot.main() debe salir 0, nunca
-        propagar."""
-        repo = self._make_repo_needing_upgrade_via_semver(tmp_path)
-
-        sabotage = """
-import subprocess as _subprocess
-_real_run = _subprocess.run
-def _fake_run(cmd, *a, **kw):
-    if isinstance(cmd, list) and any('git-memory-install.py' in str(c) for c in cmd):
-        raise OSError('script de instalacion no encontrado')
-    return _real_run(cmd, *a, **kw)
-_subprocess.run = _fake_run
-"""
-        rc, stdout, stderr = self._run_boot_with_sabotaged_installer(repo, sabotage)
-
-        assert rc == 0, (
-            f"boot.main() debe salir 0 pese a un OSError real en el installer; "
-            f"rc={rc}\nstdout: {stdout!r}\nstderr: {stderr!r}"
-        )
-        assert "STATUS:" in stdout, (
-            f"el banner de boot debe seguir presente; stdout={stdout!r}"
-        )
-        assert "upgrade fail-open" in stderr, (
-            f"se esperaba la traza fail-open en stderr; stderr={stderr!r}"
-        )
-
-    def test_installer_nonzero_exit_does_not_break_boot(self, tmp_path):
-        """El instalador sale con returncode != 0 (subproceso GENUINO, no
-        mockeado -- un script Python real que hace sys.exit(3), apuntado vía
-        upgrade_check._PLUGIN_ROOT) -> boot.main() debe salir 0 igualmente.
-
-        subprocess.run() en trigger_auto_upgrade_if_needed() no usa check=True
-        hoy, así que este caso concreto ni siquiera llega al except -- ya falla
-        abierto por diseño (subprocess.run no lanza en returncode!=0 sin
-        check=True). El mutation-check de esta clase (ver docstring de
-        TestFailOpenUpgrade) cubre precisamente esto: con check=True añadido Y
-        el try/except retirado, este test pasa a ROJO, probando que sigue
-        dependiendo genuinamente de la protección y no de que el sabotaje nunca
-        dispare nada.
-        """
-        repo = self._make_repo_needing_upgrade_via_semver(tmp_path)
-
-        fake_root = tmp_path / "fake_plugin_root"
-        (fake_root / "bin").mkdir(parents=True)
-        (fake_root / "bin" / "git-memory-install.py").write_text(
-            "import sys\nsys.exit(3)\n", encoding="utf-8"
-        )
-
-        sabotage = f"upgrade_check._PLUGIN_ROOT = {repr(str(fake_root))}"
-        rc, stdout, stderr = self._run_boot_with_sabotaged_installer(repo, sabotage)
-
-        assert rc == 0, (
-            f"boot.main() debe salir 0 aunque el instalador real salga con "
-            f"returncode=3; rc={rc}\nstdout: {stdout!r}\nstderr: {stderr!r}"
-        )
-        assert "STATUS:" in stdout, (
-            f"el banner de boot debe seguir presente; stdout={stdout!r}"
-        )
-
+# RETIRADO (memoria v2, 2026-08-05): TestFailOpenUpgrade cargaba y ejecutaba
+# hooks/session-start-boot.py::main() de verdad en un subproceso -- ese
+# fichero ya no existe en disco (borrado junto con el resto del sistema de
+# memoria v1). 3/3 tests fallaban (confirmado ejecutando el fichero antes de
+# este retiro: FileNotFoundError al cargar BOOT_HOOK). El contrato fail-open
+# que protegía (lib/upgrade_check.py::trigger_auto_upgrade_if_needed() no
+# debe propagar TimeoutExpired/OSError/exit!=0 del instalador) sigue siendo
+# código real y sin test de fail-open propio hoy -- ahora se invoca desde
+# hooks/session-start-crew.py::_print_upgrade_check() en vez de
+# session-start-boot.py (confirmado por grep), pero redirigir esta cobertura
+# ahí es una decisión de qué probar, no una retirada mecánica -- fuera del
+# alcance de este pase, reportado aparte.
 
 # ══════════════════════════════════════════════════════════════════════════════
 # T2-A: stdin acotado — DoS por tamaño
