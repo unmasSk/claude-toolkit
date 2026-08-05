@@ -2,8 +2,8 @@
 """
 git-memory-doctor -- Health check for the git-memory system.
 
-Checks plugin files (in cache), CLAUDE.md managed block, hook execution,
-GC status, stale blockers, manifest, and version.
+Checks plugin files (in cache), CLAUDE.md managed block, manifest, and
+version.
 
 The plugin runs from the plugin cache. This script checks both:
 - Plugin files: hooks, skills, bin, lib (at the plugin root / cache)
@@ -22,7 +22,6 @@ Exit codes:
 import argparse
 import json
 import os
-import re
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -33,9 +32,8 @@ from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
 from git_helpers import run_git, open_no_follow_symlink, verify_path_within_project
-from parsing import normalize, parse_trailers_full, sanitize_trailer_value
+from parsing import sanitize_trailer_value
 from version import VERSION
-from date_parsing import parse_date
 from cache_sync_check import check_repo_cache_sync
 # TRANSIENT_HOOKS and HOOK_COMMAND_RE are re-exported through this import on
 # purpose: hooks.json is parsed in exactly one place (lib/hooks_doc.py), which
@@ -51,10 +49,6 @@ from hooks_doc import TRANSIENT_HOOKS, HOOK_COMMAND_RE, hook_filenames, compare_
 # it sat at 5 entries while hooks.json declared 12, so the doctor reported
 # "5/5 in plugin cache" in green over 7 hooks it never looked at. A derived
 # list cannot desynchronise from its own source.
-
-STALE_BLOCKER_DAYS = 30
-SCAN_DEPTH = 50
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -205,186 +199,6 @@ def check_claude_md(project_root: str) -> tuple[bool, str]:
         return False, "read error"
 
 
-def check_hook_execution(depth: int = SCAN_DEPTH) -> tuple[int, int, int]:
-    """Check if hooks have been active by looking for trailers in recent commits.
-
-    Returns:
-        Tuple of (commits_with_trailers, total_commits, scan_depth).
-    """
-    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
-    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
-    # record boundaries instead of an embedded \x1e in the --pretty=format
-    # string -- a commit body can contain a literal \x1e byte, and
-    # splitting on it let a single real commit forge an entire fake
-    # record (inflating both counters below). A commit message can never
-    # contain a raw NUL byte, so splitting on \x00 has no forgeable
-    # equivalent. \x1f remains the FIELD separator within a record.
-    #
-    # Structural fix (issue #57 root-fix round, decision 0682e75):
-    # structured fields FIRST (%h, %at), then %s last-in-header, then %b
-    # after the first real "\n" (%n). Previously %s sat BEFORE %at, so a
-    # stray \x1f embedded in the SUBJECT alone (no \x1e) stole the split
-    # slot meant for the real epoch and glued the real trailer line onto
-    # a numeric fragment, undercounting `with_trailers`. Now any extra
-    # \x1f in the subject is absorbed into `subject` itself
-    # (header.split("\x1f", 2) below), never bleeding into `body`.
-    code, output = run_git([
-        "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%at\x1f%s%n%b",
-        "--",
-    ])
-    if code != 0 or not output:
-        return 0, 0, depth
-
-    trailer_re = re.compile(r"^[A-Z][a-z]+(?:-[A-Z][a-z]+)*:\s*.+$", re.MULTILINE)
-    total = 0
-    with_trailers = 0
-
-    for raw in output.split("\x00"):
-        # Field-displacement gotcha (issue #57, Task 2b, Dante; still
-        # applies after the root-fix restructure): str.strip() treats
-        # \x1c-\x1f (and "\n") as whitespace. A commit with an EMPTY body
-        # produces a raw record ending in a bare "\n" (the %n separator)
-        # -- .strip() eats it, so `body` legitimately comes back empty
-        # for a perfectly ordinary real commit; `body` is read
-        # defensively either way.
-        raw = raw.strip()
-        if not raw:
-            continue
-        header, _, body = raw.partition("\n")
-        parts = header.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        total += 1
-        if trailer_re.search(body):
-            with_trailers += 1
-
-    return with_trailers, total, depth
-
-
-def check_gc_status(depth: int = 200) -> tuple[int | None, bool, int, list[dict[str, Any]]]:
-    """Check when GC last ran and count stale blockers.
-
-    Returns:
-        Tuple of (days_since_last_gc or None, gc_date_unparseable,
-        stale_blocker_count, list of stale blocker details).
-
-        `gc_date_unparseable` distinguishes "a GC commit exists but its
-        date could not be parsed" (e.g. an overflow/future date past
-        datetime.max) from "no GC commit exists at all" -- both used to
-        collapse to `days_since_last_gc is None`, making doctor.py report
-        "never run" even when a real GC commit is sitting in history. See
-        the caller in run_doctor() for how this is surfaced.
-    """
-    # SEC-CRIT-NEW-01 pattern (Argus, mirrored from lib/boot_memory.py's
-    # extract_memory()/extract_glossary(), issue #57): `-z` (NUL, \x00)
-    # record boundaries instead of an embedded \x1e in the --pretty=format
-    # string -- see check_hook_execution() above for the full rationale.
-    # ONE git call here feeds TWO loops below (stale-blocker collection,
-    # then Stale-Blocker tombstone collection) -- both must split on the
-    # same \x00 boundary consistently.
-    #
-    # Structural fix (issue #57 root-fix round, decision 0682e75):
-    # structured fields FIRST (%h, %at), then %s last-in-header, then %b
-    # after the first real "\n" (%n). Previously %s sat BEFORE %at, so a
-    # stray \x1f embedded in the SUBJECT alone (no \x1e, no forged
-    # record) corrupted `date` and glued a real Blocker: line onto a
-    # numeric fragment, hiding a genuinely stale blocker from this scan
-    # (Moriarty's finding, now shown to reach through the subject too,
-    # not only the body). BOTH loops below (and their parts[] indices)
-    # must stay consistent with this field order.
-    code, output = run_git([
-        "log", "-n", str(depth), "-z",
-        "--pretty=format:%h\x1f%at\x1f%s%n%b",
-        "--",
-    ])
-    if code != 0 or not output:
-        return None, False, 0, []
-
-    now = datetime.now(timezone.utc)
-    last_gc: datetime | None = None
-    gc_commit_seen = False
-    gc_date_unparseable = False
-    stale_blockers: list[dict[str, Any]] = []
-
-    for raw in output.split("\x00"):
-        # Field-displacement gotcha (issue #57, Task 2b, Dante; still
-        # applies after the root-fix restructure): str.strip() treats
-        # \x1c-\x1f (and "\n") as whitespace. A commit with an EMPTY body
-        # produces a raw record ending in a bare "\n" (the %n separator)
-        # -- .strip() eats it, so `body` legitimately comes back empty
-        # for a perfectly ordinary real commit; `body` is read
-        # defensively either way.
-        raw = raw.strip()
-        if not raw:
-            continue
-        header, _, body = raw.partition("\n")
-        parts = header.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-
-        date = parse_date(parts[1].strip())
-        subject = parts[2].strip()
-        body = body.strip()
-
-        # Check for GC commits. Gate on `gc_commit_seen` (not `last_gc is
-        # None`) so the FIRST (newest) matching commit is the one we
-        # report on even when its date fails to parse -- gating on
-        # `last_gc is None` instead would silently keep scanning past an
-        # unparseable newest GC commit and could report an OLDER commit's
-        # date, a silent degradation this guard exists to avoid.
-        if "gc" in subject.lower() and "memory" in subject.lower() and not gc_commit_seen:
-            gc_commit_seen = True
-            if date is not None:
-                last_gc = date
-            else:
-                gc_date_unparseable = True
-
-        # Check for stale blockers
-        body_trailers = parse_trailers_full(body)
-        if "Blocker" in body_trailers and date:
-            age = (now - date).days
-            if age > STALE_BLOCKER_DAYS:
-                blocker_val = body_trailers["Blocker"]
-                blocker_text = blocker_val[0] if isinstance(blocker_val, list) else blocker_val
-                stale_blockers.append({
-                    "text": blocker_text,
-                    "sha": parts[0].strip(),
-                    "age_days": age,
-                })
-
-    # Filter out tombstoned blockers
-    # Same header/body split as the loop above (%h\x1f%at\x1f%s%n%b) --
-    # body comes from partition("\n"), not a \x1f-indexed field.
-    tombstoned = set()
-    for raw in output.split("\x00"):
-        raw = raw.strip()
-        if not raw:
-            continue
-        header, _, body = raw.partition("\n")
-        parts = header.split("\x1f", 2)
-        if len(parts) < 3:
-            continue
-        body = body.strip()
-        body_trailers = parse_trailers_full(body)
-        if "Stale-Blocker" in body_trailers:
-            sb_val = body_trailers["Stale-Blocker"]
-            values = sb_val if isinstance(sb_val, list) else [sb_val]
-            for v in values:
-                tombstoned.add(normalize(v))
-
-    active_stale = [b for b in stale_blockers if normalize(b["text"]) not in tombstoned]
-
-    # A real, fsck-clean commit backdated to the future (last_gc > now)
-    # produces a negative `.days` value, which would surface verbatim as
-    # e.g. "last run -365 days ago" -- never an acceptable diagnostic
-    # shape. Clamp to 0 rather than propagate a negative figure;
-    # run_doctor() formats gc_days_ago=0 as "last run 0 days ago", which is
-    # honest (GC ran "now or in the future" from this process's clock)
-    # without a nonsensical negative count.
-    gc_days_ago = max((now - last_gc).days, 0) if last_gc else None
-    return gc_days_ago, gc_date_unparseable, len(active_stale), active_stale
-
 
 def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
     """Check if .claude/.unmassk/manifest.json exists and is valid JSON.
@@ -529,42 +343,10 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
         has_errors = True
         results.append(("error", "CLAUDE.md", block_msg))
 
-    # 7. Hook execution (trailer presence in recent commits)
-    with_trailers, total_commits, scanned = check_hook_execution()
-    if total_commits == 0:
-        results.append(("warn", "Hook activity", "no commits found"))
-        has_warnings = True
-    elif with_trailers == 0:
-        results.append(("warn", "Hook activity", f"no trailers in last {total_commits} commits"))
-        has_warnings = True
-    else:
-        pct = round(with_trailers / total_commits * 100)
-        results.append(("ok", "Hook activity", f"{with_trailers}/{total_commits} commits have trailers ({pct}%)"))
-
-    # 8. GC status
-    gc_days, gc_date_unparseable, stale_count, stale_items = check_gc_status()
-    if gc_days is not None:
-        results.append(("ok", "GC", f"last run {gc_days} days ago"))
-    elif gc_date_unparseable:
-        # A GC commit exists but its date could not be parsed (e.g.
-        # year-10000+ overflow) -- must not be indistinguishable from a
-        # repo where GC genuinely never ran.
-        results.append(("warn", "GC", "GC commit found but its date could not be parsed"))
-        has_warnings = True
-    else:
-        results.append(("warn", "GC", "never run"))
-        has_warnings = True
-
-    if stale_count > 0:
-        has_warnings = True
-        results.append(("warn", "Stale blockers", f"{stale_count} items >{STALE_BLOCKER_DAYS} days"))
-    else:
-        results.append(("ok", "Stale blockers", "none"))
-
-    # 9. Version
+    # 7. Version
     results.append(("ok", "Version", f"v{VERSION}"))
 
-    # 10. Manifest (in project root)
+    # 8. Manifest (in project root)
     manifest, manifest_msg = check_manifest(project_root)
     if manifest:
         # Sanitize the manifest's untrusted "version" field before
@@ -578,7 +360,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
         has_errors = True
         results.append(("error", "Manifest", manifest_msg))
 
-    # 11. Stale hooks in project settings.json
+    # 9. Stale hooks in project settings.json
     settings_path = os.path.join(project_root, ".claude", "settings.json")
     if os.path.isfile(settings_path):
         try:

@@ -16,19 +16,19 @@ description: >
 
 # Council
 
-Adapted from Karpathy's LLM Council methodology (via the llm-council skill). Persistence changed: the verdict goes to git-memory, not to HTML/`.md` reports.
+Adapted from Karpathy's LLM Council methodology. The verdict is saved as a decision in the project's memory, never as an HTML or `.md` report.
 
 Three modes, pick by the kind of uncertainty:
 
 - **Genuine decision with stakes** → run the full council (below).
 - **Open exploration, no options yet** → brainstorm: generate ideas, then converge by forcing a single choice. Don't leave it expansive.
-- **"Does this idea actually work?"** → prototype: throwaway code that answers one question. Delete or absorb when done. Capture only the *answer* (+ the question it answered) as a `decision()`.
+- **"Does this idea actually work?"** → prototype: throwaway code that answers one question. Delete or absorb when done. Save only the *answer*, with the question it answered, as a decision.
 
 ## Full council
 
 ### 1. Frame (with context)
 
-Search git-memory for prior decisions relevant to this question so advisors decide *with* project context, not blind. Then reframe the user's question as one neutral prompt all advisors receive: core decision, key context, project context from memory, what's at stake. Don't steer it. If too vague, ask exactly one clarifying question.
+Search the project's memory for prior decisions on this question, so the advisors decide *with* the project's context instead of blind — and so nothing already discarded gets proposed again. Then reframe the user's question as one neutral prompt all advisors receive: core decision, key context, project context from memory, what's at stake. Don't steer it. If too vague, ask exactly one clarifying question.
 
 ### 2. Convene — 5 advisors in parallel
 
@@ -58,7 +58,16 @@ One agent gets the question, de-anonymized responses, and all reviews. Produces:
 
 ### 5. Present + persist
 
-Present the verdict in chat (markdown, scannable). Then capture it as a `decision()` in git-memory — the verdict's structure (agreement/clash/recommendation) already maps to a well-formed decision with its Why.
+Present the verdict in chat (markdown, scannable). Then save it:
+
+```
+gitmem note D --zones <zone1> <zone2> "<the recommendation, in English>" \
+  --why "<why it beat the closest alternative>" \
+  --description "<where the council agreed, where it clashed>" \
+  --discard "<each option that lost>" "<why it lost>"
+```
+
+The verdict already has the shape of a decision: the recommendation is the headline, the clash is the why, and every option the council rejected is a discard — one per option, not just the runner-up. Losing those is how the same idea comes back in six months.
 
 ## Cost warning
 
@@ -66,4 +75,4 @@ Present the verdict in chat (markdown, scannable). Then capture it as a `decisio
 
 ## Boundary
 
-Persistence → git-memory only. No HTML reports, no transcript `.md` unless the user explicitly asks.
+The verdict is saved as a decision and nothing else. No HTML report, no transcript `.md`, unless the user asks for one.

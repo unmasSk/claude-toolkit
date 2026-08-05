@@ -56,7 +56,32 @@ space, no description) is caught by treating "missing separator" and
 (`len(parts) < 2 or not parts[1].strip()`) — simpler than two branches and
 sufficient since no test asserts a distinct message for that case.
 
-## Dead-hook removal (2026-07-25): pre-hook trimmed, post-hook deleted entirely
+## Description-emptiness half restored without the category enum (2026-08-04, DEUDA.md #16)
+
+The whole `_validate_trailer_content()` function (category enum + empty-
+description) was retired by mistake in 578177a/e2dafbe — the plan only
+authorized dropping the category check, but both checks lived in one
+function and left together. `MEMO_CATEGORIES`/`REMEMBER_CATEGORIES` are
+gone from the codebase entirely (confirmed by repo-wide grep before
+writing anything) and `lib/constants.py::VALID_KEYS` never held them — so
+there is nothing to re-import and the category half is **not** restorable
+without inventing a hardcoded list, which the project's own rule forbids.
+Fix: re-added only the description-emptiness half, renamed the two
+functions' bodies but kept their names identical to the historical ones so
+future greps still find them. `_TRAILER_CONTENT_KEYS = {"Memo",
+"Remember"}` (a set, not an enum-value dict this time — no
+`_TRAILER_CONTENT_ENUMS` needed since there's nothing to look up per key
+beyond "does this key get content-checked at all"). Logic:
+`sanitized.partition(" - ")` — if no `" - "` separator or the description
+part is empty after `.strip()`, reject. This one `partition` call also
+correctly rejects a bare trailing dash with no trailing space (`"deadend
+-"`, no space after the `-`) because `" - "` (3 chars) never matches — no
+special-casing needed for that shape vs. the "collapses to empty after
+sanitize" shape; both fall through the same branch. `sys.exit(2)`,
+stderr names the trailer key and the sanitized value. Wired into `main()`
+right before `build_commit_message()` (no `_process_trailers()`/`gh issue
+create` step exists in this file to worry about ordering against —
+that's a different piece).
 
 Once the wrapper (`bin/git-memory-commit.py`) owned content validation
 end-to-end (see above), the hook-layer trailer/type validation became dead

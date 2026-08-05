@@ -21,7 +21,7 @@ There is **no external adversary** in this model. Rules about injection, exploit
 
 ## How agents use this
 
-Every crew agent **except Gitto** loads this skill on boot (via `skills: unmassk-standards` in frontmatter). Gitto does not load it — it only reads finding tiers from commit trailers, and does not need the full document in context. Each loader uses it differently:
+Every crew agent loads this skill on boot (via `skills: unmassk-standards` in frontmatter). Each loader uses it differently:
 
 - **Cerberus** — classify findings by tier; score the weighted dimensions in audit mode.
 - **Argus** — apply the integrity checklist (memory/persistence integrity, silent failure, platform, round-trip). Argus carries its own external-threat material in its own prompt; this skill is the internal-failure model.
@@ -32,7 +32,6 @@ Every crew agent **except Gitto** loads this skill on boot (via `skills: unmassk
 - **Bilbo** — flag anti-patterns during exploration.
 - **House** — classify failure severity (data/memory integrity and silent failure lead).
 - **Alexandria** — document the real producer↔consumer contract discovered (§34).
-- **Gitto** (does not load this skill) — queries past findings by tier from commit trailers; the tier label is plain text to it.
 
 ## Reference
 

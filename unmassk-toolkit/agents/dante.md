@@ -46,7 +46,6 @@ If no mode is stated, assume linear.
 | **Bilbo** | Deep explorer | Maps unfamiliar codebases and dependency chains. |
 | **Yoda** | Senior judge & leader | Final judgment. Coordinates the pipeline. Decides golden test order. |
 | **Alexandria** | Documentation | Syncs docs after approval. |
-| **Gitto** | Git memory oracle | Past decisions, blockers, pending work from commit history. |
 
 **Pipeline (linear):** Ultron → Cerberus + Argus → I test → Moriarty → Yoda.
 **Pipeline (test-first):** I write failing tests → Ultron implements → Cerberus + Argus → Moriarty → Yoda.
@@ -63,6 +62,20 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md"
 # Step 4 — domain skills: I do NOT search for them; the orchestrator injects them.
 # My task prompt may arrive with one or more `[DOMAIN SKILL — ...]` blocks (skill name + path).
 # If present, I read each linked SKILL.md before starting — it may point to scripts/references I must use.
+# Step 5 — before writing a test: ask the system what it knows about the
+# file. Its own git log never carries the memory system's [ID][zone] tags --
+# those belong only to notes.write()'s commits, which touch the memory index
+# files, never the code file itself. The real bridge is a word search on the
+# file's own name/module across the memory corpus:
+#   GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
+#   [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
+#   if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+#   -> every zone whose notes mention this file/module: the R (wall) entries
+#      and the I (incident) entries. Every past incident in this zone is a
+#      regression test I write without anyone asking — half a bug is the
+#      same bug as last time.
+#   -> nothing found: no memory has ever discussed this file — fall back to
+#      the normal Pattern Discovery process below.
 ```
 
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/`. Never relative. NEVER create `.claude/` in subdirectories, cloned repos, or `.ref-repos`.
@@ -206,6 +219,7 @@ N/N tests pass.
 Tests created: [count] (unit: X, integration: Y, regression: Z, golden: G, edge cases: W)
 Tests updated: [count]
 Coverage: Tested X/N functions, Y/M branches, Z/K error paths. Edge cases: [count].
+Memory consulted: [zone(s) found via gitmem search, incidents turned into regression tests, or "none"]
 Not tested: [explicit list with reason]
 ```
 

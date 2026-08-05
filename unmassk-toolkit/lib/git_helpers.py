@@ -848,10 +848,11 @@ def run_git(
                  text for every one of those would be log noise, not a
                  diagnostic. Opt in only where a failure here is a genuine
                  "something we didn't expect" case whose silence previously
-                 hid the real cause (House root-cause, issue #61,
-                 boot_git_checks.py's get_timeline()/get_last_context_time()
-                 — a future git-level read failure must leave a breadcrumb,
-                 not a silent empty result). This is the canonical
+                 hid the real cause (House root-cause, issue #61; the two
+                 boot_git_checks.py readers involved were retired on
+                 feat/memoria-v2 and no longer exist — the lesson stands,
+                 don't go looking for them: a future git-level read failure
+                 must leave a breadcrumb, not a silent empty result). This is the canonical
                  explanation for the pattern: every other
                  log_stderr_on_failure=True call site in the codebase (and
                  boot_memory.py's two manual-print sites, which can't take
@@ -897,9 +898,13 @@ def run_git(
         # SEC-CRIT-16 (issue #59, Argus): the previous `text=True,
         # encoding="utf-8"` (no `newline=` kwarg) made Python's own
         # universal-newlines decoding silently translate every raw `\r`
-        # (and `\r\n`) in git's stdout into `\n` BEFORE any caller (e.g.
-        # scan_trailers_memory()) ever saw the string — forging a second
-        # physical line out of what git itself stored as one, reopening the
+        # (and `\r\n`) in git's stdout into `\n` BEFORE any caller ever saw
+        # the string. The caller that made this concrete was a
+        # boot_git_checks.py reader splitting one `%h\x1f%s\x1f%at` record
+        # per commit on `\n`; it was retired on feat/memoria-v2 and no
+        # longer exists, but any reader of that shape hits the same trap
+        # — forging a second physical line out of what
+        # git itself stored as one, reopening the
         # exact record/field-forgery class the root-fix round already
         # closed for \x1c/\x1d/\x1e. Capturing raw bytes here and decoding
         # manually with bytes.decode() performs NO newline translation at
@@ -1122,92 +1127,6 @@ def run_git_read_retrying(run_git_fn, args: list[str], **kwargs) -> tuple[int, s
             break  # this attempt alone ate the remaining budget — stop here
         time.sleep(READ_RETRY_BACKOFF_SECONDS)
     return code, output
-
-
-_CONSOLIDATION_SENTINEL = 9999  # returned when no context(consolidation) exists
-
-
-def commits_since_last_consolidation(cwd: str | None = None) -> int:
-    """Return the number of commits since the last context(consolidation) commit.
-
-    Scans the full git history (no window limit) for the most recent commit
-    whose subject matches context(consolidation) — ONLY that scope. Any other
-    context(X) scope is ignored.
-
-    Returns:
-        - Number of commits since that SHA (exclusive) up to HEAD.
-        - _CONSOLIDATION_SENTINEL (9999) if no context(consolidation) exists
-          in history — forces a first-time warning.
-        - 0 on any git error (fail-safe: do not alert on broken git).
-    """
-    try:
-        # Find the most recent commit with subject containing "context(consolidation)"
-        # Using --grep with --fixed-strings, no -n limit → full history scan.
-        # The pattern matches "context(consolidation)" anywhere in the subject line.
-        # issue #61: transient git failure here used to collapse to 0 with
-        # zero trace on the FIRST failure; run_git_read_retrying() gives it
-        # a bounded second/third chance before falling back, and
-        # log_stderr_on_failure still leaves a trace on the final failure
-        # (see run_git()'s docstring above).
-        rc, output = run_git_read_retrying(
-            run_git,
-            ["log", "--all", "--format=%H %s", "--grep=context(consolidation)", "--fixed-strings"],
-            cwd=cwd,
-            log_stderr_on_failure=True,
-        )
-        if rc != 0:
-            return 0
-
-        # Walk through matches top-to-bottom (most recent first) and pick the
-        # first one whose subject actually contains ONLY the consolidation scope.
-        consolidation_sha: str | None = None
-        if output:
-            import re as _re
-            _pat = _re.compile(r"context\(consolidation\)", _re.IGNORECASE)
-            # issue #57 round 2d (Argus LOW, bullet F): .splitlines() treats
-            # \x1c-\x1e (and other Unicode line-boundary bytes) as line
-            # boundaries, not just real "\n". A commit whose subject embeds
-            # a raw \x1e BEFORE the "context(consolidation)" keyword split
-            # this function's own %H %s output line into two fragments,
-            # neither of which matched "<sha> <subject with keyword>" --
-            # making the real checkpoint invisible and inflating the result
-            # to _CONSOLIDATION_SENTINEL. `git log --format=%H %s` output is
-            # newline (\n)-delimited only; split on the real character.
-            for line in output.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                parts = line.split(" ", 1)
-                if len(parts) < 2:
-                    continue
-                sha, subject = parts[0], parts[1]
-                if _pat.search(subject):
-                    consolidation_sha = sha
-                    break  # most recent match
-
-        if not consolidation_sha:
-            return _CONSOLIDATION_SENTINEL
-
-        # Count commits from consolidation_sha (exclusive) to HEAD.
-        # issue #61: same retry rationale as the run_git_read_retrying()
-        # call above.
-        rc2, count_str = run_git_read_retrying(
-            run_git,
-            ["rev-list", "--count", f"{consolidation_sha}..HEAD"],
-            cwd=cwd,
-            log_stderr_on_failure=True,
-        )
-        if rc2 != 0 or not count_str:
-            return 0
-        return int(count_str)
-    except (ValueError, TypeError):
-        # Expected failure mode only: `count_str` came back non-numeric
-        # (unexpected git output). run_git() itself never raises — it
-        # already collapses subprocess/OSError to (1, ""), handled by the
-        # rc2 check above. A different exception here would be a real bug
-        # in this function's own logic and should surface, not be masked as
-        # "0 commits since consolidation".
-        return 0  # fail-safe: never crash the boot
 
 
 def is_git_repo() -> bool:

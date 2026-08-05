@@ -127,9 +127,31 @@ class TestUserPromptMemoryCheckCp1252:
             f"hook must exit 0 under cp1252 stdout (never blocks user input).\n"
             f"--- stdout ---\n{out}\n--- stderr ---\n{err}"
         )
-        assert "git-memory-recall.py" in out, (
-            f"hook output must still contain the recall-pointer reminder "
-            f"(now folded into the unconditional _BANNER, issue #69).\n"
+        # 2026-08-04: the old assertion here checked for the literal string
+        # "git-memory-recall.py" — a v1-system script deleted at the start
+        # of this branch (feat/memoria-v2), so the string can never appear
+        # again. Do NOT restore it — it wasn't lost by accident, it's stale.
+        # Replaced with a structural check of the SAME real invariant this
+        # test class exists to protect (encoding, not content): the owner
+        # decided 2026-08-04 that this hook must always print something,
+        # even "nothing to report", so a silent hook is provably not a
+        # working one (see hook's own comment, main(), just above the
+        # fallback line). Tied to the bracket-label convention every line
+        # in this hook follows ([git-memory-boot], [git-memory],
+        # [skill-router], [memory-check], ...) rather than to literal
+        # banner wording, so a future rewrite of the banner text doesn't
+        # flip this test red for no reason.
+        stripped = out.strip()
+        assert stripped, (
+            f"hook must still emit non-empty output when run under cp1252 "
+            f"stdout encoding — a crash or a swallowed exception could "
+            f"silently produce empty output even with rc == 0.\n"
+            f"--- stdout ---\n{out}"
+        )
+        assert stripped.startswith("["), (
+            f"hook output must follow the bracket-label convention "
+            f"(e.g. '[memory-check] ...') even under cp1252 — structural "
+            f"check, not literal banner text.\n"
             f"--- stdout ---\n{out}"
         )
 

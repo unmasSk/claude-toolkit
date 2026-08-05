@@ -48,7 +48,7 @@ PLUGIN_DIR_NAME = "unmassk-toolkit"
 # deliberately absent -- lib/boot_health.py's check_skill_drift() already
 # covers those at boot, and duplicating it here would produce two warnings
 # for one fact.
-COMPARED_SUBDIRS = ("hooks", "lib", "bin")
+COMPARED_SUBDIRS = ("hooks", "lib", "bin", "agents")
 
 # Never a source file, always regenerated locally, and guaranteed to differ
 # between two copies of the same tree.
@@ -59,32 +59,47 @@ _MAX_NAMED_FILES = 3
 
 
 def _dir_fingerprint(path: str) -> dict[str, str] | None:
-    """Map filename -> content digest for the regular files directly in `path`.
+    """Map relative-path -> content digest for every regular file under
+    `path`, at any depth (DEUDA.md #5: the v2 memory system lives entirely
+    under lib/memory/ and bin/memory/ -- a flat, one-level scan would never
+    see those files change).
 
-    Not recursive: hooks/, lib/ and bin/ are flat directories, and the only
-    nested entry any of them has is __pycache__, which is excluded.
+    Keys are the path relative to `path` itself, with `/` as the separator
+    regardless of platform (e.g. "memory/vocabulary.py", not just
+    "vocabulary.py"). That is what keeps two files with the same basename in
+    different subdirectories from colliding on the same key and one of them
+    silently overwriting the other in the fingerprint dict -- which would
+    make the comparison lie by comparing the wrong pair of files.
+
+    `__pycache__` directories (and any dotfile/dotdir) are pruned from the
+    walk itself, so nothing below them is ever visited, at any depth.
 
     Returns:
-        The digest map, or None if the directory does not exist or cannot be
-        listed (fail-open -- the caller treats that as "cannot compare").
+        The digest map, or None if `path` does not exist (fail-open -- the
+        caller treats that as "cannot compare"). An existing directory with
+        no comparable files below it (including one whose only content is a
+        subdirectory, e.g. lib/ having nothing but lib/memory/) returns {},
+        not None -- only a genuinely missing directory returns None.
     """
-    try:
-        entries = os.listdir(path)
-    except OSError:
+    if not os.path.isdir(path):
         return None
     fingerprint: dict[str, str] = {}
-    for name in entries:
-        if name.startswith(".") or name in _IGNORED_ENTRIES:
-            continue
-        full = os.path.join(path, name)
-        if not os.path.isfile(full):
-            continue
-        try:
-            fingerprint[name] = _md5_file(full)
-        except OSError:
-            # One unreadable file must not void the whole comparison; leaving
-            # it out only ever makes the check quieter, never louder.
-            continue
+    for root, dirnames, filenames in os.walk(path):
+        dirnames[:] = [
+            d for d in dirnames
+            if not d.startswith(".") and d not in _IGNORED_ENTRIES
+        ]
+        for name in filenames:
+            if name.startswith("."):
+                continue
+            full = os.path.join(root, name)
+            key = os.path.relpath(full, path).replace(os.sep, "/")
+            try:
+                fingerprint[key] = _md5_file(full)
+            except OSError:
+                # One unreadable file must not void the whole comparison; leaving
+                # it out only ever makes the check quieter, never louder.
+                continue
     return fingerprint
 
 

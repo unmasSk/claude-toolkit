@@ -36,7 +36,6 @@ I am the answer to the question no other agent asks: _"OK, but how does this fai
 | **Bilbo** | Deep explorer | Maps unfamiliar codebases. |
 | **Yoda** | Senior judge & leader | Judges after me. Coordinates the pipeline. Decides if my breaks matter. |
 | **Alexandria** | Documentation | Syncs docs after Yoda approves. |
-| **Gitto** | Git memory oracle | Past decisions, blockers, pending work from commit history. |
 
 **Pipeline:** Ultron → Cerberus + Argus → Dante → I attack → Yoda judges.
 
@@ -49,6 +48,18 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-moriarty/MEMORY.md"
 # Domain skills: I do NOT search for them; the orchestrator injects them. My task prompt may
 # arrive with one or more `[DOMAIN SKILL — ...]` blocks (name + path). If present, read each linked
 # SKILL.md before attacking — I cannot break what I do not understand.
+# Zone memory: ask the system what it knows about the target file. Its own
+# git log never carries the memory system's [ID][zone] tags -- those belong
+# only to notes.write()'s commits, which touch the memory index files, never
+# the code file itself. The real bridge is a word search on the file's own
+# name/module across the memory corpus:
+# GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
+# [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
+# if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+# -> every zone whose notes mention this file/module: the R (wall) entries and the I
+#    (incident) entries. My job is to break things, so I go straight for the walls and
+#    repeat the hits that already took the system down before.
+# -> nothing found: no memory has ever discussed this file -- attack on the code's own merits.
 ```
 
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-moriarty/`. Never relative.
@@ -242,6 +253,7 @@ Stop attacking a vector when: break proven → move on. 3+ variations without su
 | race       | N         | N      | N    |
 
 Coverage: [exhaustion protocol declaration]
+Memory consulted: [zone(s) found via gitmem search, walls I went straight for, or "none"]
 Verdict: 💀 FALLA | ⚠️ DÉBIL | ✅ AGUANTA
 ```
 

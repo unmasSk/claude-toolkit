@@ -11,10 +11,30 @@ import argparse
 import datetime
 import os
 import sys
+from pathlib import Path
 
 _BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BIN_DIR not in sys.path:
     sys.path.insert(0, _BIN_DIR)
+
+_LIB_MEMORY_DIR = os.path.normpath(
+    os.path.join(_BIN_DIR, "..", "unmassk-toolkit", "lib", "memory")
+)
+
+
+def _load_memory_lib() -> None:
+    """Deja importable el sistema de memoria v2, y falla en voz alta si no
+    está. Se resuelve desde este fichero, no desde el directorio de
+    trabajo: publicar se ejecuta desde la raíz del repositorio que se
+    publica, que no tiene por qué ser este.
+    """
+    if not os.path.isdir(_LIB_MEMORY_DIR):
+        _die(
+            f"no encuentro el sistema de memoria en {_LIB_MEMORY_DIR}. "
+            "Sin él no hay con qué escribir el commit del release."
+        )
+    if _LIB_MEMORY_DIR not in sys.path:
+        sys.path.insert(0, _LIB_MEMORY_DIR)
 
 from release_helpers import (  # noqa: E402
     EXIT_OK,
@@ -83,7 +103,7 @@ def _print_dry_run_plan(plugin: str, new_ver: str, repo_root: str,
     print(f"  2. Promover CHANGELOG: ## [Unreleased] -> ## [{new_ver}] - {today}")
     print(f"     - {changelog_path}")
     print(f"  3. Stage: solo los 3 ficheros anteriores")
-    print(f"  4. Commit + push vía git-memory-commit.py")
+    print(f"  4. Commit + push vía el generador de memoria (notes.write_work)")
     print(f"  5. Verify: versiones en remoto origin/{current_branch}")
     print(f"[DRY-RUN] Sin cambios aplicados.")
 
@@ -134,38 +154,49 @@ def _execute_commit_push(plugin: str, new_ver: str, repo_root: str,
                          plugin_json_path: str, marketplace_path: str,
                          changelog_path: str) -> None:
     """
-    Commit vía git-memory-commit.py (sin --push) y luego push por separado.
-    El commit local queda aunque el push falle (recuperable con 'git push').
+    Commit vía el generador del sistema de memoria v2, y luego push por
+    separado. El commit local queda aunque el push falle (recuperable con
+    'git push').
+
+    Llama a `notes.write_work()` — la pieza, no el script `bin/memory/work.py`
+    — y esa distinción es deliberada, no un atajo:
+
+    - `write_work()` se escribió PARA esto. Su propio docstring lo dice:
+      "lo necesita la publicacion del toolkit, que commitea unos pocos
+      ficheros sin llevarse cambios a medias de otros".
+    - La protección de la rama principal vive en los SCRIPTS (`work.py`,
+      `wip.py`), no en la pieza. Es una regla sobre el trabajo del día:
+      el trabajo no aterriza en la rama principal por su cuenta. Publicar
+      es justamente el acto que sí va ahí — someterlo a esa regla haría
+      imposible publicar, que es lo contrario de lo que la regla protege.
+
+    Ya no viaja el campo de ficheros tocados: el v2 lo retiró entero
+    porque git guarda el diff y `git log -- <ruta>` ya responde eso
+    [TEXTOS.md §6, punto 7].
     """
-    commit_script = os.path.normpath(
-        os.path.join(_BIN_DIR, "..", "unmassk-toolkit", "bin", "git-memory-commit.py")
-    )
+    _load_memory_lib()
+    import notes  # noqa: E402  (import tras sys.path, resuelto en _load_memory_lib)
 
-    touched_rel = ", ".join(
-        os.path.relpath(p, repo_root)
-        for p in [plugin_json_path, marketplace_path, changelog_path]
-    )
-    # Pathspec relativo al repo root para cada uno de los 3 ficheros.
-    # El wrapper commitea SOLO esos paths (sin tocar el resto del índice).
-    path_args = []
-    for p in [plugin_json_path, marketplace_path, changelog_path]:
-        path_args += ["--path", os.path.relpath(p, repo_root)]
+    paths = [Path(plugin_json_path), Path(marketplace_path), Path(changelog_path)]
 
-    commit_args = [
-        sys.executable, commit_script,
-        "chore", plugin, f"release v{new_ver}",
-        "--body", f"Release {plugin} v{new_ver}: bump versiones y promover CHANGELOG.",
-        "--trailer", f"Why=release v{new_ver}",
-        "--trailer", f"Touched={touched_rel}",
-    ] + path_args
-    commit_result = _run(commit_args, cwd=repo_root)
-    if commit_result.returncode != 0:
-        if commit_result.stdout.strip():
-            print(commit_result.stdout, end="")
-        _die(
-            f"git-memory-commit.py falló al crear el commit (exit {commit_result.returncode}): "
-            f"{commit_result.stderr.strip()}"
-        )
+    # Los bytes que este proceso acaba de escribir, leídos antes de tocar
+    # git: es lo que `write_work()` compara para no commitear el contenido
+    # de otro bajo este mensaje [DEUDA.md punto 27].
+    known_content = []
+    for path in paths:
+        try:
+            known_content.append(path.read_bytes())
+        except OSError:
+            known_content.append(None)
+
+    result = notes.write_work(
+        f"release {plugin} v{new_ver}",
+        paths,
+        None,
+        known_content=known_content,
+    )
+    if not result.ok:
+        _die(f"el generador de memoria falló al crear el commit: {result.git_error}")
 
     push_result = _git(["push"], repo_root)
     if push_result.returncode != 0:

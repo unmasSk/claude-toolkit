@@ -67,7 +67,7 @@ import time
 
 import pytest
 
-from conftest import SOURCE_ROOT, UNINSTALL, run_cmd
+from conftest import SOURCE_ROOT, run_cmd
 
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
 if LIB_DIR not in sys.path:
@@ -610,72 +610,13 @@ class TestAtomicGuardRejectsNonWriteMode:
             git_helpers.open_no_follow_symlink(claude_md, "a", atomic=True)
 
 
-# ── Test: uninstall's remove_claude_md_block() survives a write failure ──
-# (ROB-MED-001)
-
-
-class TestUninstallAtomicWriteFailureDoesNotAbort:
-    def test_remove_claude_md_block_returns_false_and_does_not_propagate(self, tmp_path):
-        """MED-001 (Cerberus): if the atomic write inside
-        remove_claude_md_block() fails (e.g. mkstemp() can't create a temp
-        file in the containing directory), the function must catch OSError,
-        print a warning, and return False -- never propagate the exception
-        and never abort the rest of the uninstall flow (remove_manifest(),
-        remove_old_install_files(), etc. must still run afterward in
-        main()). Reproduced via a real, isolated subprocess that
-        monkeypatches tempfile.mkstemp to fail globally, loads the real
-        hyphenated bin/git-memory-uninstall.py via importlib (mirrors this
-        codebase's own convention for hyphenated-filename scripts), and
-        calls remove_claude_md_block() directly.
-        """
-        target = _target_dir(tmp_path)
-        claude_md = _claude_md_path(target)
-        # Real canonical content WITH managed blocks present AND user text
-        # outside the blocks -- if the blocks were the ONLY content,
-        # remove_claude_md_block() would collapse to "" and take its
-        # separate os.unlink()-the-whole-file early-return branch (a
-        # DIFFERENT code path that never reaches the atomic write / mkstemp
-        # at all), never exercising the write-failure branch this test
-        # targets. The leading user text guarantees content survives block
-        # removal and the function reaches its atomic write step.
-        canonical_content, _log = upsert_managed_blocks("# User notes\n\nKeep this line.\n")
-        _write(claude_md, canonical_content)
-
-        code = f"""
-import sys, os, json, tempfile, importlib.util
-sys.path.insert(0, {LIB_DIR!r})
-os.chdir({target!r})
-
-def _failing_mkstemp(*args, **kwargs):
-    raise OSError(13, "simulated: permission denied creating temp file")
-
-tempfile.mkstemp = _failing_mkstemp
-
-spec = importlib.util.spec_from_file_location("uninstall_mod", {UNINSTALL!r})
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-
-result = mod.remove_claude_md_block({target!r})
-print(json.dumps({{"result": result}}))
-"""
-        rc, out, err = _run_py(code, target)
-        assert rc == 0, (
-            f"remove_claude_md_block() must not crash/propagate the write failure "
-            f"out of the subprocess. stdout={out!r} stderr={err!r}"
-        )
-        payload = json.loads(out.strip().splitlines()[-1])
-        assert payload["result"] is False, (
-            "remove_claude_md_block() must return False (not raise, not return "
-            f"True) when the atomic write itself fails. payload={payload!r}"
-        )
-
-        # CLAUDE.md must be left as-is (write failed before any replace) --
-        # the function's own docstring/comment says "left as-is" on failure.
-        content_after = _read(claude_md)
-        assert content_after == canonical_content, (
-            "CLAUDE.md must be left untouched when the write fails -- the "
-            f"original content must survive. Got {content_after!r}."
-        )
+# Retirement note (2026-08-02): TestUninstallAtomicWriteFailureDoesNotAbort
+# (ROB-MED-001) was removed here. It targeted remove_claude_md_block()
+# inside bin/git-memory-uninstall.py, loaded via importlib -- that script
+# no longer exists on disk (docs/memoria-v2/PLAN-CONSTRUCCION.md §5.4, "ya
+# estaban muertos") and remove_claude_md_block() has no successor anywhere
+# in lib/ (confirmed by grep -rn "def remove_claude_md_block" across
+# lib/, bin/, hooks/ -- zero hits). Retired per §9.3.
 
 
 # ═══════════════════════════════════════════════════════════════════════════

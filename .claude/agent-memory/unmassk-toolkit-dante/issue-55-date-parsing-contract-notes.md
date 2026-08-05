@@ -146,6 +146,34 @@ honestly GREEN and documented as such rather than faked red:
   message, since Ultron's clamp-vs-distinct-message choice isn't fixed
   yet — same "define the contract, don't pre-guess the wording"
   discipline as BUG-4.
+
+**RETIREMENT (memoria-v2 cleanup pass, plan step 9.3, session 2026-08-02):
+`tests/test_date_parsing_epoch_contract.py` no longer exists.** `lib/date_parsing.py`
+was retired with zero real importers left (verified: `bin/git-memory-gc.py`
+and `bin/git-memory-doctor.py`, the only two production callers, were
+themselves already retired earlier in the same v1→v2 surgery), which broke
+the file's module-level `from date_parsing import parse_date` and killed
+collection of the whole file (`ModuleNotFoundError`, 13 tests down at once).
+Verified case-by-case which classes still had a live target before deciding
+anything: `TestParseDateNonStringInputContract`,
+`TestParseDateNonAsciiDigitsContract`, `TestParseDateLengthGuardContract` all
+called `parse_date()` directly — deleted along with the file, no salvage
+possible, target is gone. `TestBootstrapCommitsDateFieldContract` was the one
+exception: it targets `lib/bootstrap_commits.py::scan_recent_commits()`,
+which was deliberately NOT retired and never imported `date_parsing` at all
+(presentation-only field, %aI contract, unrelated dependency graph) — only
+shared a file with the dead classes by accident of an earlier reconciliation
+pass. Moved verbatim (with its two helpers, `_make_repo`/`_real_iso_of_head`)
+to its own new file, `tests/test_bootstrap_commits_date_field_contract.py`,
+rather than let it die as collateral damage. Confirmed green standalone
+after the move (1/1 passed) and confirmed the full-suite failure count did
+not move (still 48 pre-existing failures on unrelated fronts, same test IDs,
+before and after — only the collection error disappeared and one previously
+uncounted passing test was added, 660→661 passed). Lesson for future
+retirement passes: a shared test file dying from one broken import can hide
+a class whose target survived — always check each class's own import/target
+before deleting the whole file, not just the file's own top-level import
+line.
 - All 6 new RED tests reproduced live via raw bash/python BEFORE being
   encoded as pytest assertions (both the `sys.set_int_max_str_digits`
   probe for BUG-2 and the two `git commit --allow-empty` + `git fsck

@@ -20,7 +20,7 @@ import sys
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, git_cmd, run_script, run_cmd
+from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, git_cmd, run_script, run_cmd
 
 # Make lib/ importable
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
@@ -81,12 +81,20 @@ class TestBlocksDefinition:
             assert b["body"].strip(), f"Block '{b['begin']}' has empty body"
 
     def test_toolkit_block_content(self):
-        """First block must contain the boot instructions."""
+        """First block must contain the boot instructions.
+
+        Aligned 2026-08-02 to the shorter, honest body reinstated this
+        session: it no longer promises the unmassk-gitmemory skill or its
+        CALIBRATION.md, both deliberately absent from this branch so the
+        CLAUDE.md written into every installed project never carries an
+        instruction the toolkit can't actually keep. This contract is
+        touched again at plan step 7.12, once the new skill exists and the
+        block is rewritten wholesale -- whoever reads this then should know
+        it was already revisited once, and why.
+        """
         body = BLOCKS[0]["body"]
         assert "unmassk-toolkit Active" in body
         assert "unmassk-core" in body
-        assert "unmassk-gitmemory" in body
-        assert "CALIBRATION.md" in body
 
     def test_protocols_block_content(self):
         body = BLOCKS[1]["body"]
@@ -236,6 +244,48 @@ class TestUpsertManagedBlocks:
         assert "unmassk-toolkit Active" in content2
         # Log should mention the update
         assert any("updated" in entry for entry in log)
+
+    def test_foreign_content_inside_block_is_not_silently_discarded(self):
+        """DEUDA.md #15 -- hand-written content placed between an existing
+        block's own BEGIN/END markers must not vanish without a trace when
+        upsert regenerates that block.
+
+        Real incident (2026-08-02): a state note was hand-written inside an
+        existing managed block in this project's own CLAUDE.md. The next
+        upsert matched BEGIN...END and replaced the whole span with the
+        canonical body, discarding the note -- the only log line produced
+        was the generic "updated {begin}", which carries no trace of what
+        was destroyed. It was recovered by luck from conversation history,
+        not from anything the function reported.
+
+        This test writes a distinctive, non-canonical note into one block's
+        interior -- text upsert_managed_blocks() never generated, so it
+        compares two things written separately: this test's own note vs.
+        the function's canonical BLOCKS body -- and asserts the note is
+        recoverable from what the function reports afterwards.
+
+        This does NOT assert whether the function should refuse to
+        overwrite foreign content or warn-and-overwrite-anyway -- that is
+        an open design question, not decided by any document (see report).
+        It fixes only what's clear: foreign content must not be swallowed
+        in total silence, leaving zero trace of what was lost.
+        """
+        content, _ = upsert_managed_blocks("")
+        build_mode = BLOCKS[3]
+        distinctive_note = (
+            "STATE NOTE (hand-written, not generated): remember to check "
+            "PR #491 with Bex before the next merge."
+        )
+        content = content.replace(build_mode["body"], distinctive_note)
+        assert distinctive_note in content  # fixture sanity check
+
+        _, log = upsert_managed_blocks(content)
+
+        assert any(distinctive_note in entry for entry in log), (
+            "Foreign content overwritten inside a managed block left no "
+            "trace in the log -- it was destroyed in total silence. "
+            f"log was: {log!r}"
+        )
 
     def test_missing_single_block_is_appended(self):
         """If one block is missing, it gets appended (others untouched)."""
@@ -484,37 +534,17 @@ class TestCrewHookFourBlocks:
 
 
 # ── Integration tests: uninstall removes all 4 blocks ────────────────────
-
-class TestUninstallFourBlocks:
-    def test_uninstall_removes_all_four_blocks(self, tmp_path):
-        """After uninstall, CLAUDE.md has no managed block markers."""
-        repo = _make_repo(tmp_path)
-        run_script(INSTALL, repo, ["--auto"])
-        run_script(UNINSTALL, repo, ["--auto"])
-
-        claude_md = os.path.join(repo, "CLAUDE.md")
-        if os.path.isfile(claude_md):
-            with open(claude_md, encoding="utf-8") as f:
-                content = f.read()
-            for b in BLOCKS:
-                assert b["begin"] not in content, (
-                    f"Uninstall left block '{b['begin']}' in CLAUDE.md"
-                )
-                assert b["end"] not in content, (
-                    f"Uninstall left end marker '{b['end']}' in CLAUDE.md"
-                )
-
-    def test_uninstall_preserves_user_content(self, tmp_path):
-        """Uninstall removes blocks but preserves user content in CLAUDE.md."""
-        repo = _make_repo(tmp_path)
-        claude_md = os.path.join(repo, "CLAUDE.md")
-        with open(claude_md, "w", encoding="utf-8") as f:
-            f.write("# My Project\n\nUser notes here.\n")
-
-        run_script(INSTALL, repo, ["--auto"])
-        run_script(UNINSTALL, repo, ["--auto"])
-
-        if os.path.isfile(claude_md):
-            with open(claude_md, encoding="utf-8") as f:
-                content = f.read()
-            assert "User notes here." in content
+#
+# Retirement note (2026-08-02): both tests that lived in this section are
+# gone now. test_uninstall_removes_all_four_blocks was removed first
+# (invoked bin/git-memory-uninstall.py, which no longer exists on disk --
+# §5.4, "ya estaban muertos" -- retired per §9.3). test_uninstall_preserves
+# _user_content followed on the same grounds, per Yoda's call: it invoked
+# the same dead script and never asserted on its return code, so
+# run_script(UNINSTALL, ...) being a permanent no-op (dead script,
+# FileNotFoundError before any code runs) made its one assertion ("User
+# notes here." still present) trivially true regardless of whether
+# uninstall ever ran. PIEZAS.md §3.1's rule -- a test survives only if the
+# code it exercises still runs -- settles it: the code is gone, so does
+# the test, even though it happened to stay green. §9.3 applies the same
+# way it did to its sibling above.

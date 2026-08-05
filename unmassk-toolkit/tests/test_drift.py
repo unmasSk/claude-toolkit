@@ -1,9 +1,14 @@
 """
 Drift tests simulating 6 months of commit history.
 
-Generates 200 commits across 6 scopes, then validates search, dedup,
-snapshot budget, truncation, hook robustness, delimiter collision, nested
-prefixes, and GC tombstones.
+Generates 200 commits across 6 scopes, then validates deep search, hook
+robustness (fixup!/squash!/amend!/merge/revert), and nested Git prefixes.
+
+Retirement note (memoria-v2 cleanup, docs/memoria-v2/PLAN-CONSTRUCCION.md
+§9.3): test_gc_tombstones, test_dedup_integrity, test_snapshot_budget,
+test_truncation and test_delimiter_collision were all removed — every one
+of them depended on hooks/precompact-snapshot.py (via the run_snapshot()
+helper), which no longer exists on disk.
 """
 
 import os
@@ -18,8 +23,8 @@ from datetime import datetime, timedelta
 import pytest
 
 from conftest import (
-    PRECOMPACT_SCRIPT, PRE_HOOK,
-    run_cmd, git_cmd, check_hook_msg, assert_repo_integrity,
+    PRE_HOOK,
+    git_cmd, check_hook_msg, assert_repo_integrity,
 )
 
 # ── Config ──────────────────────────────────────────────────────────────
@@ -31,7 +36,6 @@ SCOPES = ["auth", "forms", "api", "ui", "billing", "reports"]
 EMOJIS = {"feat": "✨", "fix": "🐛", "refactor": "♻️", "chore": "🔧",
            "context": "💾", "decision": "🧭", "memo": "📌"}
 CODE_TYPES = ["feat", "fix", "refactor", "chore"]
-SNAPSHOT_MAX_LINES = 18
 
 
 # ── Commit generators ──────────────────────────────────────────────────
@@ -139,40 +143,12 @@ def build_history(cwd):
             gen_code_commit(i, scope, date_str, cwd)
 
 
-def run_snapshot(cwd):
-    """Run precompact-snapshot and return the snapshot portion of stdout.
-
-    Filters out any post-snapshot instructions (e.g. context checkpoint
-    reminder) by extracting only lines between the snapshot markers.
-
-    Issue #52 (House, round 2): stderr used to be silently discarded here
-    (`rc, out, _ = ...`). Every one of this helper's callers asserts on the
-    RETURNED SNAPSHOT STRING (e.g. "Snapshot returned empty"), which gives
-    zero diagnostic trail if precompact-snapshot.py actually crashed --
-    exactly the situation for the 7 ubuntu-only CI failures under issue #52
-    that don't reproduce locally. Fail loudly here with rc/stdout/stderr
-    embedded the moment the script doesn't exit 0, so the NEXT CI run
-    surfaces the real cause in the pytest failure message instead of a
-    downstream assert with no clue why the snapshot was empty/malformed.
-    """
-    rc, out, err = run_cmd([sys.executable, PRECOMPACT_SCRIPT], cwd, timeout=15)
-    assert rc == 0, (
-        f"precompact-snapshot.py exited {rc} (expected 0).\n"
-        f"--- stdout ---\n{out}\n"
-        f"--- stderr ---\n{err}"
-    )
-    # Extract only the snapshot block (between markers)
-    lines = out.split("\n")
-    snapshot_lines = []
-    in_snapshot = False
-    for line in lines:
-        if "GIT MEMORY SNAPSHOT" in line:
-            in_snapshot = True
-        if in_snapshot:
-            snapshot_lines.append(line)
-        if "END SNAPSHOT" in line:
-            break
-    return "\n".join(snapshot_lines) if snapshot_lines else out
+# RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): run_snapshot() invocaba
+# hooks/precompact-snapshot.py, que ya no existe en disco (confirmado por
+# FileNotFoundError en ejecucion real) — eliminado junto con el resto del
+# sistema de memoria v1. Sus unicos cuatro llamadores (test_dedup_integrity,
+# test_snapshot_budget, test_truncation, test_delimiter_collision, mas
+# abajo) se retiraron con el.
 
 
 # ── Module-scoped fixture ──────────────────────────────────────────────
@@ -250,75 +226,10 @@ def test_deep_search(drift_repo):
     assert issue_count >= 50
 
 
-def test_dedup_integrity(drift_repo):
-    """Verify snapshot preserves entries from different scopes."""
-    cwd = drift_repo
-    snapshot = run_snapshot(cwd)
-    assert snapshot, "Snapshot returned empty"
-
-    # Verify blocker dedup
-    blocker_texts = []
-    in_blockers = False
-    for line in snapshot.split("\n"):
-        if "Blockers:" in line:
-            in_blockers = True
-            continue
-        elif line and not line.startswith("  "):
-            in_blockers = False
-        if in_blockers and line.strip().startswith("- ["):
-            m = re.match(r"\s*-\s*\[\w+\]\s*(.+)", line)
-            if m:
-                blocker_texts.append(m.group(1).lower())
-
-    assert len(blocker_texts) == len(set(blocker_texts)), f"Duplicate blockers: {blocker_texts}"
-
-
-def test_snapshot_budget(drift_repo):
-    """Verify budget in normal and stress scenarios."""
-    cwd = drift_repo
-
-    # Normal snapshot
-    snapshot = run_snapshot(cwd)
-    lines = snapshot.split("\n")
-    assert len(lines) <= SNAPSHOT_MAX_LINES, f"Normal: {len(lines)} > {SNAPSHOT_MAX_LINES}"
-    assert any("GIT MEMORY SNAPSHOT" in l for l in lines)
-    assert any("END SNAPSHOT" in l for l in lines)
-    assert any(l.startswith("Branch:") for l in lines)
-
-    # Stress: max out every section
-    for i, scope in enumerate(["alpha", "beta", "gamma", "delta", "epsilon"]):
-        msg = f"🧭 decision({scope}): stress decision {i}\n\nWhy: stress test\nDecision: stress pick {scope}"
-        git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    for i, scope in enumerate(["alpha", "beta", "gamma", "delta"]):
-        msg = f"📌 memo({scope}): stress memo {i}\n\nMemo: preference - stress pref for {scope}"
-        git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    for i in range(5):
-        scope = SCOPES[i % len(SCOPES)]
-        msg = f"✨ feat({scope}): stress feature {i}\n\nWhy: stress test\nTouched: app/{scope}/stress-{i}.php\nNext: stress pending item {i}"
-        git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    for i in range(3):
-        scope = SCOPES[i % len(SCOPES)]
-        msg = f"💾 context({scope}): stress context {i}\n\nWhy: stress test\nNext: stress next from context {i}\nBlocker: unique blocker {i} for {scope}"
-        git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    stress_snapshot = run_snapshot(cwd)
-    stress_lines = stress_snapshot.split("\n")
-    assert len(stress_lines) <= SNAPSHOT_MAX_LINES, f"Stress: {len(stress_lines)} > {SNAPSHOT_MAX_LINES}"
-
-
-def test_truncation(drift_repo):
-    """Verify long trailer values get truncated in snapshot."""
-    cwd = drift_repo
-    long_text = "X" * 300
-    msg = f"🧭 decision(trunc): long test\n\nWhy: test\nDecision: {long_text}"
-    git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    snapshot = run_snapshot(cwd)
-    assert "..." in snapshot and "X" * 50 in snapshot, "Truncation not detected"
-    assert "X" * 250 not in snapshot, "Value not truncated — full 300 chars present"
+# RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_dedup_integrity,
+# test_snapshot_budget y test_truncation llamaban a run_snapshot() (ver
+# nota de retiro mas arriba) — 100% de su contenido probaba
+# hooks/precompact-snapshot.py, eliminado.
 
 
 def test_hook_robustness(drift_repo):
@@ -355,21 +266,10 @@ def test_hook_robustness(drift_repo):
 # string — so there is no live pre-hook behavior to adapt this test toward.
 
 
-def test_delimiter_collision(drift_repo):
-    """Verify commit messages with pipe characters don't break the snapshot."""
-    cwd = drift_repo
-
-    msg = "✨ feat(parser): fix collision with |---END---| tokens\n\nIssue: CU-042\nWhy: pipes in messages | should not | break parsing\nTouched: parser.py"
-    git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    msg2 = "🧭 decision(parser): choose approach A | not B | not C\n\nWhy: A handles edge cases\nDecision: approach A over B|C — cleaner API"
-    git_cmd(["commit", "--allow-empty", "-m", msg2], cwd)
-
-    snapshot = run_snapshot(cwd)
-    assert snapshot, "Snapshot empty after pipe-containing commits"
-    assert "GIT MEMORY SNAPSHOT" in snapshot, "Snapshot corrupted by pipes"
-    assert "END SNAPSHOT" in snapshot, "Snapshot missing footer"
-    assert len(snapshot.split("\n")) <= SNAPSHOT_MAX_LINES
+# RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_delimiter_collision
+# llamaba a run_snapshot() (ver nota de retiro mas arriba) — probaba que
+# los pipes no rompian el snapshot de hooks/precompact-snapshot.py,
+# eliminado.
 
 
 def test_nested_prefixes(drift_repo):
@@ -387,29 +287,6 @@ def test_nested_prefixes(drift_repo):
     assert check_hook_msg(
         "amend! squash! fixup! ♻️ refactor(ui): triple nested",
         cwd, "Why: test\nTouched: ui.py\nIssue: CU-042") == 0
-
-
-def test_gc_tombstones(drift_repo):
-    """Verify GC tombstone trailers suppress items from the snapshot."""
-    cwd = drift_repo
-
-    # Create Next + Blocker
-    msg = "💾 context(api): pause api work\n\nWhy: end of day\nNext: implement rate limiting for api\nBlocker: waiting for api credentials"
-    git_cmd(["commit", "--allow-empty", "-m", msg], cwd)
-
-    snapshot_before = run_snapshot(cwd)
-    assert "rate limiting" in snapshot_before, "Next not found before GC"
-    assert "api credentials" in snapshot_before, "Blocker not found before GC"
-
-    # GC tombstones
-    gc_msg = "🔧 chore(memory): gc — 2 items cleaned\n\nWhy: automated memory garbage collection\nResolved-Next: implement rate limiting for api\nStale-Blocker: waiting for api credentials"
-    git_cmd(["commit", "--allow-empty", "-m", gc_msg], cwd)
-
-    snapshot_after = run_snapshot(cwd)
-    assert "rate limiting" not in snapshot_after, "Next still present after GC"
-    assert "api credentials" not in snapshot_after, "Blocker still present after GC"
-    assert "GIT MEMORY SNAPSHOT" in snapshot_after
-    assert "END SNAPSHOT" in snapshot_after
 
 
 if __name__ == "__main__":

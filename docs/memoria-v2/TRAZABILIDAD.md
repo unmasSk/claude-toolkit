@@ -1,10 +1,12 @@
-# Trazabilidad — los 131 requisitos de la especificación, uno a uno
+# Trazabilidad — los 168 requisitos de la especificación, uno a uno
 
 **Para qué sirve este documento:** demostrar que ningún requisito de la especificación se queda sin paso. Si algo no está aquí, no se construye — y eso es exactamente lo que le pasó al v1, donde cinco campos se escribieron miles de veces sin que nadie los leyera y cinco scripts murieron sin que nadie se enterara en meses.
 
 **Cómo se lee:** el número de paso remite a `PLAN-CONSTRUCCION.md`. Un requisito sin paso es un fallo del plan, no del documento.
 
-**Estado de partida:** la auditoría sobre el plan v1.0 encontró **68 cubiertos, 32 ambiguos y 31 huérfanos**. Esta versión asigna paso a los 131.
+**Estado de partida:** la auditoría sobre el plan v1.0 encontró **68 cubiertos, 32 ambiguos y 31 huérfanos**. Esta versión asigna paso a todos.
+
+**El número, contado:** son **168 requisitos**, de los cuales 5 están retirados con su motivo (los 43 y 44, el campo de ficheros tocados; y los 18, 19 y 20, el banco adversarial y el principio P12 que lo obligaba como invariante — `[decisión del propietario, 2026-08-03]`: *«`bench` se borra entero, no lo he autorizado en la vida»*), 6 declarados como no construibles o abiertos (162, 164, 165, 166, 167 y el juicio final del propietario) y **4 sin paso asignado en este plan** (106, 107, 160 y 161 — `[corregido 2026-08-04]`: sus pasos 5.3, 5.2+5.7, 5.5+5.6 y 5.5 murieron todos con la FASE 5 entera, retirada por decisión **B20** el 2026-08-03; el propio `PLAN-CONSTRUCCION.md` declara sin ambigüedad que el sustituto de 106/107 es «trabajo de otra fase, no de esta obra», y 160/161 —la semana de prueba— no tienen sustituto de ningún tipo hoy, ni construido ni pendiente; ver la nota al final del documento). Quedan **153 con paso asignado** (168 − 5 − 6 − 4 = 153, sumado, no estimado). La cabecera decía «131» hasta el 2026-08-02, «157 con paso asignado» hasta el 2026-08-03 y «155 con paso asignado» durante esta misma revisión del 2026-08-04, antes de encontrar que 160 y 161 tenían el mismo problema que 106 y 107: cifras que se recuentan cada vez que cambia una decisión — el tipo exacto de dato que este documento existe para que no ocurra.
 
 ---
 
@@ -23,15 +25,15 @@
 | 9 | La skill enseña a traer los flags puestos | P5 | 7.1 |
 | 10 | Toda pieza enseña un número al arrancar; el cero es alarma en alto | P6 | 3.5 |
 | 11 | Chequeo instalado↔escrito desde fuera de la caché | P7 | 7.14 |
-| 12 | Idioma por función: titular y keys en inglés; porqué, descripción y contexto en español | P8 | 1.8 |
+| 12 | Idioma por función: **etiquetas estructurales en inglés** (titulares, keys, y las etiquetas del arranque — `COUNTS`/`CHECKS`/`RESTRICTIONS`/`BLOCKERS`/`MEMORY`, etc.); **contenido explicativo en español** (porqués, descripciones, contexto). `[decisión del propietario, 2026-08-03]` — el eje deja de ser «lo que se busca / lo que se lee» (así lo redacta P8 en la especificación, y de ahí salió todo el castellano que quedaba); el eje correcto es **etiqueta contra explicación**, más amplio que Titulares y Keys | P8 | 1.8 |
 | 13 | Se retira todo lo que no tenga caso de uso demostrado | P9 | §5 del plan |
 | 14 | Emojis por tipo conservados: ❓ pregunta · 🚫 descarte · 🔥 incidencia | P10 | 0.2 |
 | 15 | Estructura visual jerárquica conservada | P10 | 4.4 |
 | 16 | Todo timestamp en UTC | P11 | 1.5 |
 | 17 | Toda hora mostrada lleva la etiqueta UTC explícita | P11 | 3.5 + 4.4 |
-| 18 | Banco adversarial existe | P12 | 6.7 |
-| 19 | El banco se ejecuta automáticamente | P12 | 6.8 |
-| 20 | El banco enseña su resultado | P12 | 6.8 |
+| 18 | ~~Banco adversarial existe~~ | P12 | **RETIRADO 2026-08-03** — `bench` se borra entero, decisión del propietario (*«no lo he autorizado en la vida»*); con él cae P12 como invariante obligatorio de la especificación |
+| 19 | ~~El banco se ejecuta automáticamente~~ | P12 | **RETIRADO 2026-08-03** — mismo motivo que el 18 |
+| 20 | ~~El banco enseña su resultado~~ | P12 | **RETIRADO 2026-08-03** — mismo motivo que el 18 |
 
 ## El formato de nota (§3)
 
@@ -39,7 +41,7 @@
 |---|---|---|
 | 21 | Formato del titular con tipo, ID y dos zonas | 1.5 |
 | 22 | Titular en inglés | 1.8 |
-| 23 | Titular de 60 caracteres como máximo, validado | 1.8 |
+| 23 | Titular de 80 caracteres como máximo, validado | 1.8 |
 | 24 | Contador por tipo, asignado por el script leyendo el índice | 2.3 |
 | 25 | Chequeo de IDs duplicados como alarma pasiva | 2.3 + 3.4 |
 | 26 | Lista base de zonas de trabajo | 1.4 |
@@ -76,11 +78,11 @@
 | 52 | Mueren las cinco categorías del memo del v1 | 9.1 |
 | 53 | Los cinco destinos de las cinco poblaciones, aplicados en la destilación | **8.4** |
 | 54 | La pregunta del dolor, literal y en una sola copia | 1.2 + 1.8 |
-| 55 | Al nacer una valla se presentan todas las incidencias candidatas | **6.5** |
+| 55 | Al nacer un muro se presentan todas las incidencias candidatas | **6.5** |
 | 56 | Se elige una, varias o ninguna, con calma | **6.5** |
-| 57 | Poda de vallas en el cierre de sesión | 7.10 |
-| 58 | Todas las vallas en cada arranque, sin tope | 3.5 |
-| 59 | Vallas arriba y literales en el informe | 4.3 |
+| 57 | Poda de muros en el cierre de sesión | 7.10 |
+| 58 | Todos los muros en cada arranque, sin tope | 3.5 |
+| 59 | Muros arriba y literales en el informe | 4.3 |
 | 60 | La pregunta abierta caduca por evento, no por fecha | **7.5** |
 | 61 | Debe resolverse antes de construir sobre su módulo | **7.5** |
 | 62 | Puede parir una issue de investigación | **7.5** |
@@ -147,8 +149,8 @@
 | 103 | Entrada por palabra, con las líneas que casaron señaladas | 4.6 |
 | 104 | Entrada por fichero, bajo demanda | 4.7 |
 | 105 | Zona sin notas: cero notas en alto | 4.5 |
-| 106 | Momento 1: el contenido viaja dentro del encargo al despachar | 5.3 |
-| 107 | Reparto por oficio, los siete | 5.2 + 5.7 |
+| 106 | Momento 1: el contenido viaja dentro del encargo al despachar `[corregido 2026-08-04]` | ~~5.3~~ — ese paso no existe: `[decisión del propietario, 2026-08-03, B20]` retiró la FASE 5 entera, pasos 5.1-5.7 (`PLAN-CONSTRUCCION.md` líneas 254-260); `lib/dispatch.py` y `hooks/inject.py` están borrados de disco (verificado). Lo sustituye que cada agente busque él solo su propia memoria, en tres pasos escritos en su propio prompt. **Sin paso asignado en este plan**: el propio `PLAN-CONSTRUCCION.md` (línea 258) dice de ese trabajo que es «trabajo de otra fase, no de esta obra». Confirmado en el código, no solo en la decisión: los nueve `agents/*.md` ya llaman a `gitmem search <fichero/módulo>` en su Boot — pero ningún paso numerado de este plan lo declara |
+| 107 | Reparto por oficio, los siete `[corregido 2026-08-04]` | ~~5.2 + 5.7~~ — ninguno de los dos existe: misma decisión **B20** que el 106. `lib/dispatch.py` (paso 5.2, la tabla de qué ve cada oficio) y la semana de prueba (paso 5.7) se retiraron con la FASE 5 entera. El reparto adivinado por las palabras del encargo lo sustituye que cada agente detecte su propia zona sin adivinarla — vía el mismo `gitmem search` del 106. **Sin paso asignado en este plan**, mismas palabras que el 106: «trabajo de otra fase, no de esta obra» |
 | 108 | Momento 2: el disparador es el usuario en lenguaje natural | **7.3** |
 | 109 | Prohibidos los disparadores léxicos, el juicio espontáneo y la inyección por mensaje | **7.3** |
 | 110 | El arranque: el orden exacto de las cinco líneas | 3.5 |
@@ -167,8 +169,8 @@
 
 | # | Requisito | Paso |
 |---|---|---|
-| 121 | El titular es el avance, obligatorio, con su emoji | **3.2** |
-| 122 | El cuerpo es el contexto en puntos, sin transcripción | **3.2** |
+| 121 | El titular es el avance, obligatorio, con su emoji — corchete `[NEXT]` literal delante del emoji `[decisión del propietario, 2026-08-03]` | **3.2** |
+| 122 | El cuerpo es el contexto **en prosa corrida, no en puntos** `[decisión del propietario, 2026-08-03 — corrige la especificación, que lo pedía «destilada en puntos»]`: un resumen de toda la sesión — lo hablado, lo decidido, lo que se rompió, lo que quedó a medias y los cabreos con su motivo. Sigue sin transcripción literal | **3.2** |
 | 123 | Sus keys, en inglés | **3.2** |
 | 124 | Sin zonas, sin índice, sin lápida — y **exento en la aduana** | **3.2 + 6.3** |
 | 125 | Cada cierre pisa al anterior; el arranque enseña solo el último | 3.2 |
@@ -199,7 +201,7 @@
 | 140 | Se guarda la incidencia al volver el diagnóstico; el diagnosticador no escribe en git | 7.13 |
 | 141 | El pie estructurado del informe de diagnóstico | 7.8 |
 | 142 | Rama del fix, pipeline completa, compresión y cierres | **7.13** |
-| 143 | Al cerrar la incidencia se retiene el cierre preguntando si sale valla | **6.4** |
+| 143 | Al cerrar la incidencia se retiene el cierre preguntando si sale muro | **6.4** |
 | 144 | Recuento de incidencias abiertas en el arranque | 3.5 |
 | 145 | Puerta manual siempre abierta | **7.13** |
 | 146 | Los cinco puntos internos se resuelven al redactar la skill | **7.13** |
@@ -226,8 +228,8 @@
 
 | # | Requisito | Paso |
 |---|---|---|
-| 160 | La prueba: una semana, un solo rol | 5.5 + 5.6 |
-| 161 | El implementador declara si una valla le cambió lo que iba a hacer | 5.5 |
+| 160 | La prueba: una semana, un solo rol `[corregido 2026-08-04]` | ~~5.5 + 5.6~~ — los dos murieron con la FASE 5 entera, la misma decisión **B20** que se llevó los pasos de los requisitos 106 y 107 (`PLAN-CONSTRUCCION.md` línea 256: «sustituye a esta fase entera, pasos 5.1 a 5.7 incluidos, con la semana de prueba (5.6)»). **Sin paso asignado en este plan** — no hay ningún paso vivo hoy que prevea un ensayo de una semana con un solo rol |
+| 161 | El implementador declara si un muro le cambió lo que iba a hacer `[corregido 2026-08-04]` | ~~5.5~~ — mismo motivo y misma decisión **B20** que el 160. **Sin paso asignado en este plan** |
 | 162 | El juicio final es del propietario; sin métricas numéricas | — (declarado, no construible) |
 | 163 | El explorador: zoom-out obligatorio | 7.9 |
 | 164 | El papel del documentador | §6.2 del plan (abierto) |
@@ -248,8 +250,8 @@
 | Su exención en la aduana | 6.3 |
 | El commit de trabajo (con su referencia a issue; sin campo de ficheros tocados) | 2.7 |
 | Los descartes automáticos | 2.5 |
-| La oferta de valla al cerrar una incidencia | 6.4 |
-| Las incidencias candidatas al nacer una valla | 6.5 |
+| La oferta de muro al cerrar una incidencia | 6.4 |
+| Las incidencias candidatas al nacer un muro | 6.5 |
 | Alta de zona, paso 2 | 6.6 |
 | Keys: tope, ausencia en el titular, idioma | 1.8 |
 | Rechazo de campos inexistentes | 1.8 |
@@ -285,4 +287,16 @@ Los requisitos 43 y 44 quedan **retirados por decisión del propietario**: el ca
 
 **La función se conserva entera sin él.** La vista por fichero usa `git log -- <ruta>` y la capa se deduce del diff nativo. Se documenta como mini-sección propia dentro de la skill de memoria (paso 7.2b), con sus dos comandos y con qué oficio la usa cuándo — y **los prompts de los agentes solo la referencian**, para que el contenido viva una sola vez y no acabe habiendo cinco versiones distintas en tres meses.
 
-Es el único requisito de la especificación que se retira, y se retira con el dato delante.
+Hasta el 2026-08-02 fue el único caso retirado. **Ya no lo es** `[decisión del propietario, 2026-08-03]`: los requisitos 18, 19 y 20 —el banco adversarial y el principio P12 que lo obligaba— se retiran por el mismo motivo (`bench` borrado entero, *«no lo he autorizado en la vida»*). Los dos casos comparten la misma regla: se retira con el dato delante, nunca se borra la fila.
+
+## Nota sobre los requisitos 106 y 107 — el desfase encontrado el 2026-08-04
+
+Los requisitos 106 y 107 apuntaban a los pasos 5.3 y 5.2+5.7 de `PLAN-CONSTRUCCION.md`. **Esos pasos ya no existen.** La FASE 5 entera —pasos 5.1 a 5.7, con la semana de prueba incluida— se retiró el 2026-08-03 por decisión del propietario (**B20**): *«¿Por qué necesitamos inyectarle mierda de memoria a la gente? En su prompt le dices que lo primero que tiene que hacer es investigar en la memoria lo que tiene que ver con el fichero que va a tocar.»* `lib/dispatch.py` y `hooks/inject.py` están borrados de disco — verificado, no hay rastro en `unmassk-toolkit/lib/memory/` ni en `unmassk-toolkit/hooks/`.
+
+**No son el mismo caso que 43/44 o 18/19/20.** Ahí el requisito entero dejó de aplicar. Aquí la necesidad sigue en pie —la memoria tiene que llegar al agente, repartida por lo que le toca— y **sí tiene un sustituto real**: cada agente busca su propia memoria en el arranque de su propio prompt, vía `gitmem search <fichero/módulo>` (confirmado leyendo los nueve ficheros de `unmassk-toolkit/agents/*.md` — todos lo llaman en su sección `Boot`, no solo declarado en `DEUDA.md`). Lo que falta no es el sustituto: es que **este plan nunca le puso un paso numerado propio**. `PLAN-CONSTRUCCION.md` lo dice con esas palabras, línea 258: *«Escribir esos tres pasos en los nueve prompts es trabajo de otra fase, no de esta obra.»* Un requisito puede estar cumplido en el código y seguir sin paso en el plan que se supone que demuestra que todo tiene uno — y eso es exactamente lo que este documento existe para hacer visible, no para callar.
+
+## Nota sobre los requisitos 160 y 161 — encontrados en el mismo barrido, mismo día
+
+Al comprobar si algún otro requisito citaba un paso `5.x` muerto, aparecieron dos más: el **160** («la prueba: una semana, un solo rol») apuntaba a **5.5 + 5.6**, y el **161** («el implementador declara si un muro le cambió lo que iba a hacer») apuntaba a **5.5**. Los tres pasos —5.5, 5.6 y 5.7— eran, según el propio `DEUDA.md` (línea 412, leído solo para contrastar la fecha y el alcance, no como fuente de verdad de este documento), la semana de uso real que cerraba la fase 5: Ultron recibía muros en solitario durante una semana y declaraba en su informe si alguno le cambió lo que iba a hacer, antes de repartir el tubo a los demás oficios. **Esos tres pasos murieron con la FASE 5 entera** (`PLAN-CONSTRUCCION.md` línea 256), la misma decisión **B20** que el 106 y el 107.
+
+**Este caso es distinto al de 106/107.** Ahí había un sustituto real, solo sin numerar. Aquí **no hay sustituto de ningún tipo** — ni construido, ni declarado como trabajo de otra fase: el primer ensayo con un solo rol, con su criterio de éxito escrito de antemano, simplemente no está previsto en ningún paso vivo de `PLAN-CONSTRUCCION.md` hoy. Quedan **sin paso asignado**, con la misma regla que el resto de esta nota: se corrige dejando escrito qué decía la fila, qué es verdad y desde cuándo — nunca se borra.

@@ -13,17 +13,20 @@ coverage):
        write is even needed -- crashing a boot that would otherwise have been
        a pure no-op read.
 
-  T1-2 (git-memory-uninstall.py): remove_claude_md_block()'s `with
-       file_lock(claude_md):` is not wrapped in any try/except -- a
-       PermissionError raised at lock-acquisition time propagates straight
+  T1-2 (git-memory-uninstall.py, RETIRED 2026-08-02): remove_claude_md_block()'s
+       `with file_lock(claude_md):` was not wrapped in any try/except -- a
+       PermissionError raised at lock-acquisition time propagated straight
        out of remove_claude_md_block() and out of main(), aborting the WHOLE
        uninstall (remove_manifest(), remove_old_install_files() never run)
        instead of degrading gracefully the way the write-failure path a few
-       lines later already does (see ROB-MED-001 in
-       test_atomic_claude_md_write.py -- that test sabotages
-       tempfile.mkstemp AFTER the lock is already held; this file sabotages
-       the LOCK ACQUISITION itself, a step earlier, which today's try/except
-       around the write does not cover at all).
+       lines later already did (see ROB-MED-001 in
+       test_atomic_claude_md_write.py -- that test sabotaged
+       tempfile.mkstemp AFTER the lock was already held; this file's now-
+       removed TestUninstallReadOnlyRepoDegradesGracefully class sabotaged
+       the LOCK ACQUISITION itself). bin/git-memory-uninstall.py no longer
+       exists on disk (§5.4 "ya estaban muertos") and remove_claude_md_block()
+       has no successor -- the finding is kept here as history, the test
+       for it is gone (§9.3).
 
   T1-3 (Windows branch, deception): `while True: try: msvcrt.locking(...);
        break except OSError: continue` retries on ANY OSError, forever, with
@@ -73,7 +76,7 @@ import sys
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, run_script, git_cmd
+from conftest import SOURCE_ROOT, HOOKS_DIR, INSTALL, run_script, git_cmd
 
 LIB_DIR = os.path.join(SOURCE_ROOT, "lib")
 if LIB_DIR not in sys.path:
@@ -107,10 +110,6 @@ def _install(repo):
 
 def _claude_md_path(repo):
     return os.path.join(repo, "CLAUDE.md")
-
-
-def _manifest_path(repo):
-    return os.path.join(repo, ".claude", ".unmassk", "manifest.json")
 
 
 def _read(path):
@@ -151,10 +150,6 @@ def _remove_stale_lock(repo):
 
 def _run_crew(repo):
     return run_script(CREW_HOOK, repo)
-
-
-def _run_uninstall_auto(repo):
-    return run_script(UNINSTALL, repo, ["--auto"])
 
 
 def _popen_py(code, cwd):
@@ -279,96 +274,13 @@ class TestCrewBootReadOnlyRepoNoOpRegression:
         )
 
 
-# ── T1-2: git-memory-uninstall.py --auto must degrade gracefully (warn, not
-# abort) when file_lock() acquisition fails, and still run the REMAINING
-# uninstall steps ────────────────────────────────────────────────────────
-
-
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="POSIX permission bits only -- chmod does not restrict the owning process on Windows",
-)
-class TestUninstallReadOnlyRepoDegradesGracefully:
-    def test_auto_uninstall_survives_readonly_claude_md_and_completes(self, tmp_path):
-        """Fixture: a real installed repo (manifest.json + canonical
-        CLAUDE.md via the real installer), then real user text prepended
-        outside the managed blocks so remove_claude_md_block() takes its
-        WRITE branch, not its "content becomes empty -> unlink the whole
-        file" early-return branch (a fixture built from ONLY managed blocks
-        would silently dodge the write path entirely -- see this project's
-        own documented gotcha in
-        unmassk-toolkit-python-test-conventions.md's
-        "fix-atomic-claude-md-write, hardening pass" entry; the identical
-        real block content from the real installer is kept, only the
-        wrapping user-text literal is added, same technique
-        test_atomic_claude_md_write.py's ROB-MED-001 test already uses).
-
-        bin/git-memory-uninstall.py::remove_claude_md_block()'s `with
-        file_lock(claude_md):` (line ~126) has NO try/except around it --
-        unlike the write step a few lines later (which DOES catch OSError
-        and returns False, per ROB-MED-001). A PermissionError raised at
-        lock ACQUISITION time -- one step earlier than the write --
-        propagates straight out of remove_claude_md_block(), out of
-        main(), aborting the whole uninstall before remove_manifest() or
-        remove_old_install_files() ever run.
-
-        RED today: rc != 0, unhandled traceback, manifest.json survives
-        (remove_manifest() never reached).
-
-        Expected fixed behavior: rc == 0, "Uninstall complete" printed,
-        AND -- verified via the INDEPENDENT channel of the manifest file's
-        real on-disk presence, not just stdout text -- manifest.json is
-        actually gone, proving the later steps genuinely ran rather than
-        the process merely not crashing.
-        """
-        repo = _make_repo(tmp_path)
-        _install(repo)
-
-        claude_md = _claude_md_path(repo)
-        canonical_content = _read(claude_md)
-        _write(claude_md, "# User notes\n\nKeep this line.\n\n" + canonical_content)
-
-        manifest_path = _manifest_path(repo)
-        assert os.path.isfile(manifest_path), (
-            "precondition: manifest.json must exist before uninstall runs"
-        )
-
-        # See _remove_stale_lock()'s own docstring: the real installer above
-        # already exercises file_lock() as a side effect and leaves
-        # CLAUDE.md.lock behind (anti-pollution finding) -- without removing
-        # it first, the read-only-directory regression below would silently
-        # fail to reproduce (os.open() on an EXISTING file doesn't need
-        # directory-write permission at all).
-        _remove_stale_lock(repo)
-        _make_dir_readonly_or_skip(repo)
-        try:
-            rc, stdout, stderr = _run_uninstall_auto(repo)
-        finally:
-            os.chmod(repo, 0o755)
-
-        combined = stdout + "\n" + stderr
-        assert "Traceback" not in combined, (
-            f"git-memory-uninstall.py --auto must not crash with an "
-            f"unhandled exception when CLAUDE.md's directory is read-only "
-            f"-- it must degrade gracefully and keep going. "
-            f"rc={rc} stdout={stdout!r} stderr={stderr!r}"
-        )
-        assert rc == 0, (
-            f"uninstall --auto must exit 0 (degrade, not abort) when only "
-            f"the CLAUDE.md step fails due to a read-only directory. "
-            f"stdout={stdout!r} stderr={stderr!r}"
-        )
-        assert "Uninstall complete" in stdout, (
-            f"the uninstall flow must reach its normal completion message "
-            f"even though the CLAUDE.md step failed. stdout={stdout!r}"
-        )
-        assert not os.path.isfile(manifest_path), (
-            "remove_manifest() must still have run (and succeeded -- "
-            ".claude/.unmassk/ itself is NOT read-only, only the repo "
-            "root is) even though remove_claude_md_block() failed earlier "
-            "in the SAME main() -- proving the abort didn't take out the "
-            f"rest of the flow. manifest still present at {manifest_path!r}"
-        )
+# Retirement note (2026-08-02): TestUninstallReadOnlyRepoDegradesGracefully
+# (T1-2) was removed here, along with its dedicated _run_uninstall_auto()
+# and _manifest_path() helpers (both unused by anything else in this
+# file). It targeted bin/git-memory-uninstall.py's remove_claude_md_block(),
+# which no longer exists on disk (docs/memoria-v2/PLAN-CONSTRUCCION.md
+# §5.4, "ya estaban muertos") and has no successor anywhere in lib/.
+# Retired per §9.3.
 
 
 # ── T1-3: Windows branch deception -- a PERMANENT locking error must raise,

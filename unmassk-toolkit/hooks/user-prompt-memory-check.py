@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-UserPromptSubmit hook -- bootstrap + memory capture reminder.
+UserPromptSubmit hook -- bootstrap + first-message skill routing.
 
-Fires on every user message. Two responsibilities:
+Fires on every user message. Responsibilities:
 1. If git-memory is not configured: tell Claude to install it
-2. If configured: remind Claude to boot (if not done) + check for memory-worthy content
+2. If configured: remind Claude to boot (if not done) + route to relevant skills
 
 Exit codes:
     0: Always (never blocks user input).
@@ -105,34 +105,9 @@ def _read_prompt_text() -> str | None:
         return None
 
 
-# Recall push→pull (git-memory decision 1e94975, issue #69): automatic
-# per-message memory injection was removed — the recall machinery
-# (recall.py, git-memory-recall.py) still exists, but Claude now pulls it
-# on demand instead of it being pushed into every message's stdout. This
-# banner folds the old "NOT YAPPING/DON'T ASSUME" box AND the old separate
-# "[memory-check] Save only if durable…" reminder into a single unit, so
-# the recall pointer and the save reminder are never seen apart.
-_BANNER = (
-    "╔══════════════════════════════════════════════════════════════════╗\n"
-    "║                    NOT YAPPING  ·  DON'T ASSUME                  ║\n"
-    "║        Verify before you claim it (memory / code / web) —        ║\n"
-    "║                        never make it up.                         ║\n"
-    "║         Ambiguous, or touches something already decided?         ║\n"
-    "║                 → git-memory-recall.py \"<terms>\"               ║\n"
-    "║       Durable fact / decision / correction in this message?      ║\n"
-    "║               → save it now (gitmemory capture rules)            ║\n"
-    "╚══════════════════════════════════════════════════════════════════╝\n"
-    "        THIS BANNER IS NOT OPTIONAL — SKIPPING IT HAS CONSEQUENCES."
-)
-
-
 def main() -> None:
     """Print hook output for Claude to process."""
-    # Banner — unconditional, first line of stdout on every exit path
-    # (needs_install, not-a-git-repo, normal flow). Static text, cannot fail.
-    print(_BANNER)
-
-    # ── Toolkit incidents — printed with the banner, before any early exit
+    # ── Toolkit incidents — printed before any early exit
     # (not-a-git-repo, needs_install) so a toolkit failure is announced in
     # EVERY project, whatever state that project is in. At most 3 detailed
     # per message; the rest are stated in one line and detailed next time.
@@ -166,9 +141,7 @@ def main() -> None:
             "BEFORE doing anything else:\n"
             f'1. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-install.py" --auto\n'
             '2. Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
-            '3. Use the Skill tool with skill="unmassk-gitmemory" (TOOL CALL, not bash)\n'
-            f'4. Read CALIBRATION.md: Read tool on {PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md\n'
-            "5. Show the user a boot summary from the SessionStart output above.\n"
+            "3. Show the user a boot summary from the SessionStart output above.\n"
             "DO NOT greet the user first. Install and boot FIRST.\n"
             "DO NOT SKIP ANY STEP."
         )
@@ -192,9 +165,7 @@ def main() -> None:
             f"[git-memory-boot] Plugin root: {PLUGIN_ROOT}\n"
             "MANDATORY — Do these steps NOW before responding to the user:\n"
             '  Step 1: Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
-            '  Step 2: Use the Skill tool with skill="unmassk-gitmemory" (TOOL CALL, not bash)\n'
-            f'  Step 3: Read CALIBRATION.md: Read tool on {PLUGIN_ROOT}/skills/unmassk-gitmemory/CALIBRATION.md\n'
-            "  Step 4: Show the user a boot summary from the SessionStart output above\n"
+            "  Step 2: Show the user a boot summary from the SessionStart output above\n"
             "DO NOT SKIP ANY STEP. DO NOT GREET THE USER BEFORE COMPLETING ALL STEPS."
         )
         # Create the flag so subsequent messages don't repeat this
@@ -229,19 +200,16 @@ def main() -> None:
             print(f"[git-memory] skill_router fail-open: {e!r}", file=sys.stderr)
             # fail-open: router failure must never affect the hook output
 
-    # Recall injection (the old "[memoria relevante...]" / <memory-data>
-    # block) and the separate "[memory-check] Save only if durable…"
-    # reminder are both removed from here (git-memory decision 1e94975,
-    # issue #69, recall push→pull): recall.py / git-memory-recall.py still
-    # exist and are callable on demand — the automatic per-message push is
-    # gone. Both the recall pointer and the save reminder now live in
-    # _BANNER above, which prints unconditionally at the top of every
-    # invocation. At least one non-ASCII char ("→") remains in _BANNER
-    # deliberately — test_encoding_contract.py's
-    # TestUserPromptMemoryCheckCp1252 needs a non-ASCII line in this hook's
-    # unconditional stdout for its cp1252 encoding-crash regression.
-    if lines:
-        print("\n".join(lines))
+    # A watchdog that only speaks when it has something to flag is
+    # indistinguishable from a watchdog that isn't running at all (P6:
+    # this hook already ran silently for days once with nobody noticing —
+    # see agent memory). Owner decision 2026-08-04 revokes the prior
+    # "stay silent" call: this hook must always print, even when there is
+    # nothing to report, so its own execution is provable every message.
+    if not lines:
+        lines.append("[memory-check] No skill match this turn — nothing to report.")
+
+    print("\n".join(lines))
     sys.exit(0)
 
 

@@ -34,12 +34,19 @@ PRECOMPACT_SCRIPT = os.path.join(HOOKS_DIR, "precompact-snapshot.py")
 PRE_HOOK = os.path.join(HOOKS_DIR, "pre-validate-commit-trailers.py")
 
 DOCTOR = os.path.join(BIN_DIR, "git-memory-doctor.py")
-GC = os.path.join(BIN_DIR, "git-memory-gc.py")
 INSTALL = os.path.join(BIN_DIR, "git-memory-install.py")
 REPAIR = os.path.join(BIN_DIR, "git-memory-repair.py")
-UNINSTALL = os.path.join(BIN_DIR, "git-memory-uninstall.py")
-UPGRADE = os.path.join(BIN_DIR, "git-memory-upgrade.py")
-BOOTSTRAP = os.path.join(BIN_DIR, "git-memory-bootstrap.py")
+# GC/UPGRADE/BOOTSTRAP/UNINSTALL retired 2026-08-02: bin/git-memory-gc.py,
+# bin/git-memory-upgrade.py, bin/git-memory-bootstrap.py, and
+# bin/git-memory-uninstall.py no longer exist on disk
+# (docs/memoria-v2/PLAN-CONSTRUCCION.md §5.4, "ya estaban muertos"). Every
+# test that referenced these four constants was removed per §9.3 -- the
+# last one, test_managed_blocks.py::test_uninstall_preserves_user_content,
+# went even though it was green, per PIEZAS.md §3.1 ("a test survives only
+# if the code it exercises still runs") -- it never checked UNINSTALL's
+# return code, so it stayed green purely because the dead script's
+# invocation was a silent no-op. Constants dropped here too: zero
+# consumers left anywhere in tests/.
 
 
 # ── Helpers ────────────────────────────────────────────────────────────

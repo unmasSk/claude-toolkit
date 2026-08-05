@@ -6,7 +6,7 @@
 ## Task: Final senior evaluation of module [MODULE]
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 - Full enterprise audit complete (steps 1-10 executed)
 
@@ -22,10 +22,10 @@
 [PASTE coverage result — % lines, % branches]
 
 ### Reference module (optional)
-- Previously approved module: `backend/src/api/[REFERENCE_MODULE]/`
+- Previously approved module: `[REFERENCE_MODULE_PATH]`
 - Previous score: [XX/110]
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 2. Run TWICE
 ```

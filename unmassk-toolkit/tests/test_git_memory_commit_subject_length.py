@@ -1,46 +1,21 @@
 """
-Acceptance contract (test-first, RED pass): git-memory-commit.py must fail
-closed on an oversized context() subject.
+Subject-length guard for git-memory-commit.py's context() commits.
 
-Root cause (House diagnosis, see test_boot_output.py's
-TestBootStdoutMinimalWithHeavyContent / TestBootLogFileFullContent for the
-other half of the fix): a real context() commit had a 1297-byte subject.
-Combined with the SCOPES section, that alone blew the harness's ~2KB stdout
-preview window and dropped the Next: instruction. The boot-hook fix (moving
-full content to a file) treats the symptom; this is the root-cause fix at
-the source — a commit should never be allowed to create a subject that
-large in the first place.
+History: this file originally pinned a fail-closed contract for oversized
+context() subjects (SUBJECT_MAX_LEN = 100 chars, reject + exit non-zero,
+tell the caller to use --body). That gate was retired on purpose (Bex's
+call, not an accident) -- an oversized subject now commits successfully
+instead of being rejected. TestSubjectLengthFailClosed exercised exactly
+that removed gate (asserted rc != 0 for an oversized subject, which is no
+longer true) and has been removed along with it.
 
-Design decision taken here (git-memory-commit.py has no prior subject-length
-validation to extend, so this is a new contract, not a change to an existing
-one):
+What survives is the half of the contract that never depended on the
+gate's existence and is still true today: a subject built right at the
+100-char boundary is accepted, and a short subject with an arbitrarily
+long --body still succeeds. SUBJECT_MAX_LEN is kept as the boundary this
+file measures against, not as a claim that a gate enforces it.
 
-  - SUBJECT_MAX_LEN = 100 characters, measured on the FULL constructed
-    subject line: EMOJIS[type] + " " + f"{type}({scope}): " + message. This
-    is exactly the string build_commit_message() currently assembles as
-    `parts[0]`, and exactly what ends up on git log %s / the boot hook's
-    RESUME "Last:" line.
-  - If the constructed subject exceeds SUBJECT_MAX_LEN: git-memory-commit.py
-    must fail closed — exit non-zero, create NO commit — and the stderr
-    message must name the limit and tell the caller to shorten `message` and
-    move the remaining detail into `--body`.
-  - `--body` itself stays completely unrestricted (it already exists for
-    long-form content — see build_commit_message()); a short subject with a
-    long --body must keep succeeding exactly as it does today. This is the
-    "forcing the excess into --body" half of Bex's design decision — the
-    script does not auto-split long messages, it rejects them and tells the
-    caller to use the existing --body mechanism.
-  - This gate applies to type "context" specifically, per Bex's design
-    decision item 4 ("un commit context() que exceda ~100 caracteres").
-    Other commit types are out of scope for this contract.
-
-[ROJO] (must fail against the current script — no subject-length check
-exists today, so oversized subjects commit successfully):
-    - test_long_message_without_body_is_rejected
-    - test_long_message_rejection_mentions_body_and_limit
-    - test_subject_over_limit_by_one_char_is_rejected
-
-[GUARDA] (must already pass today, and must keep passing after the fix):
+[GUARDA] (passes today, independent of whether a length gate exists):
     - test_subject_exactly_at_limit_is_accepted
     - test_short_message_with_long_body_still_succeeds
 """
@@ -80,37 +55,6 @@ def _subject_prefix_len(type_, scope):
     """Length of everything in the subject before the free-form message,
     exactly matching build_commit_message()'s f"{emoji} {type_}({scope}): "."""
     return len(f"{EMOJIS[type_]} {type_}({scope}): ")
-
-
-class TestSubjectLengthFailClosed:
-    """[ROJO] Oversized context() subjects must be rejected, not committed."""
-
-    def test_long_message_without_body_is_rejected(self, tmp_path):
-        repo = _make_repo(tmp_path)
-        before = _commit_count(repo)
-        long_message = "x" * 150  # prefix + this comfortably exceeds SUBJECT_MAX_LEN
-        rc, out, err = run_script(COMMIT_SCRIPT, repo, ["context", "auth", long_message])
-        assert rc != 0, "commit with oversized subject and no --body must fail closed"
-        assert _commit_count(repo) == before, (
-            "no commit should have been created for a rejected oversized subject"
-        )
-
-    def test_long_message_rejection_mentions_body_and_limit(self, tmp_path):
-        repo = _make_repo(tmp_path)
-        long_message = "x" * 150
-        rc, out, err = run_script(COMMIT_SCRIPT, repo, ["context", "auth", long_message])
-        assert str(SUBJECT_MAX_LEN) in err, f"error should name the {SUBJECT_MAX_LEN}-char limit: {err!r}"
-        assert "--body" in err, f"error should tell the caller to use --body for the rest: {err!r}"
-
-    def test_subject_over_limit_by_one_char_is_rejected(self, tmp_path):
-        """Boundary: exactly SUBJECT_MAX_LEN + 1 chars must already be rejected."""
-        repo = _make_repo(tmp_path)
-        before = _commit_count(repo)
-        prefix_len = _subject_prefix_len("context", "auth")
-        message = "x" * (SUBJECT_MAX_LEN - prefix_len + 1)
-        rc, out, err = run_script(COMMIT_SCRIPT, repo, ["context", "auth", message])
-        assert rc != 0, "subject one character over the limit must be rejected"
-        assert _commit_count(repo) == before
 
 
 class TestSubjectLengthBoundaryAndBodyPathUnaffected:

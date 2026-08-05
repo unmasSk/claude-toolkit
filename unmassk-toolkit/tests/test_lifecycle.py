@@ -1,12 +1,22 @@
 """
-Lifecycle tests for doctor, install, repair, and uninstall.
+Lifecycle tests for doctor, install, and repair.
 
-Runs the full install, doctor, break, repair, uninstall cycle
-in a shared temporary repo.
+Runs the install, doctor, break, repair cycle in a shared temporary repo.
 
 NOTE: The plugin runs from the cache (SOURCE_ROOT). Install only creates
 CLAUDE.md + manifest at the project root. Doctor checks the plugin cache
 for hooks/skills and the project for CLAUDE.md/manifest.
+
+Retirement note (2026-08-02): bin/git-memory-uninstall.py no longer exists
+on disk (see docs/memoria-v2/PLAN-CONSTRUCCION.md §5.4, "ya estaban
+muertos") -- test_uninstall and test_uninstall_full_local were removed
+along with the run_uninstall() helper and the UNINSTALL import, per §9.3
+("borrar los tests de cada pieza retirada, a la vez que la pieza").
+test_doctor_after_uninstall was left in place unmodified: it already
+passed without a real uninstall ever running in this sequence (the dead
+script call inside the old test_uninstall failed at its own rc==0
+assertion before touching the filesystem, so this test's outcome is
+unchanged by the removal).
 """
 
 import json
@@ -19,7 +29,7 @@ import tempfile
 import pytest
 
 from conftest import (
-    DOCTOR, INSTALL, REPAIR, UNINSTALL,
+    DOCTOR, INSTALL, REPAIR,
     run_cmd, git_cmd, run_script, run_doctor_json,
 )
 from version import VERSION
@@ -35,11 +45,6 @@ def run_install(cwd, extra_args=None):
 def run_repair(cwd, extra_args=None):
     """Run the repair script with --auto."""
     return run_script(REPAIR, cwd, ["--auto"] + (extra_args or []))
-
-
-def run_uninstall(cwd, extra_args=None):
-    """Run the uninstall script with --auto."""
-    return run_script(UNINSTALL, cwd, ["--auto"] + (extra_args or []))
 
 
 # ── Module-scoped fixture (sequential tests share one repo) ───────────
@@ -147,27 +152,6 @@ def test_repair_missing_claude_md_block(lifecycle_repo):
         assert "BEGIN unmassk-toolkit" in f.read()
 
 
-def test_uninstall(lifecycle_repo):
-    """Uninstall should remove CLAUDE.md block and manifest but preserve git history."""
-    _, count_before, _ = git_cmd("rev-list --count HEAD", lifecycle_repo)
-
-    rc, _, _ = run_uninstall(lifecycle_repo)
-    assert rc == 0
-
-    # CLAUDE.md block gone
-    claude_md = os.path.join(lifecycle_repo, "CLAUDE.md")
-    if os.path.isfile(claude_md):
-        with open(claude_md, encoding="utf-8") as f:
-            assert "BEGIN unmassk-toolkit" not in f.read()
-
-    # Manifest gone
-    assert not os.path.exists(os.path.join(lifecycle_repo, ".claude", ".unmassk", "manifest.json"))
-
-    # History preserved
-    _, count_after, _ = git_cmd("rev-list --count HEAD", lifecycle_repo)
-    assert count_before == count_after
-
-
 def test_doctor_after_uninstall(lifecycle_repo):
     """Doctor after uninstall should find missing components."""
     result, _ = run_doctor_json(lifecycle_repo)
@@ -182,18 +166,6 @@ def test_reinstall(lifecycle_repo):
     result, _ = run_doctor_json(lifecycle_repo)
     error_checks = [c for c in result.get("checks", []) if c.get("level") == "error"]
     assert not error_checks
-
-
-def test_uninstall_full_local(lifecycle_repo):
-    """Uninstall --full-local removes generated files too."""
-    dashboard = os.path.join(lifecycle_repo, ".claude", "dashboard.html")
-    os.makedirs(os.path.dirname(dashboard), exist_ok=True)
-    with open(dashboard, "w", encoding="utf-8") as f:
-        f.write("<html>dashboard</html>")
-
-    rc, _, _ = run_uninstall(lifecycle_repo, ["--full-local"])
-    assert rc == 0
-    assert not os.path.exists(dashboard)
 
 
 def test_repair_dry_run(lifecycle_repo):

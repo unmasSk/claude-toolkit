@@ -21,7 +21,6 @@ force_utf8_streams()
 
 from git_helpers import run_git, is_git_repo
 from colors import RED, YELLOW, RESET
-from parsing import sanitize_trailer_value
 
 # git-memory project files — only CLAUDE.md and manifest live at the project root.
 # The stop hook should not flag these for auto-wip.
@@ -126,34 +125,6 @@ def count_consecutive_wips() -> int:
     return count
 
 
-def has_recent_memory_commits(depth: int = 10) -> bool:
-    """Check if any recent commits are decision(), memo(), or remember() commits.
-
-    Scans the last `depth` commits for subjects containing "decision(",
-    "memo(", or "remember(" (case-insensitive), indicating memory was captured.
-
-    Args:
-        depth: Number of recent commits to scan.
-
-    Returns:
-        True if at least one decision/memo/remember commit was found.
-    """
-    code, output = run_git(["log", f"-n{depth}", "--pretty=format:%s"])
-    if code != 0 or not output:
-        return True  # If git fails, don't nag
-
-    # FIX3 (issue #57, Task 2b): split("\n"), not .splitlines() -- see
-    # count_consecutive_wips() above for the rationale.
-    for line in output.split("\n"):
-        subject = line.strip().lower()
-        # Strip emoji prefix before checking
-        cleaned = re.sub(r"^[^\w#]+", "", subject).strip()
-        if cleaned.startswith("decision(") or cleaned.startswith("memo(") or cleaned.startswith("remember("):
-            return True
-
-    return False
-
-
 def get_last_commit_next() -> str | None:
     """Check if the last commit has an unresolved Next: trailer.
 
@@ -168,11 +139,12 @@ def get_last_commit_next() -> str | None:
         line = line.strip()
         match = re.match(r"^Next:\s*(.+)$", line)
         if match:
-            # SEC-LOW-11 (issue #57): HEAD's Next: value is fully
-            # attacker-controlled (it's just commit body text) and main()
-            # prints it verbatim to stderr. Sanitize with the canonical
-            # sanitizer before it ever leaves this function.
-            return sanitize_trailer_value(match.group(1))
+            # Trim the trailer value before printing to stderr. Previously
+            # went through sanitize_trailer_value (parsing.py); that import
+            # was removed from this file, so just strip it here — no
+            # external-attacker model in this project, this only keeps the
+            # stderr line clean.
+            return match.group(1).strip()
 
     return None
 
@@ -210,24 +182,6 @@ def main() -> None:
         msg = f"\n{YELLOW}>>> Note: Last commit has pending work: Next: {next_item}{RESET}"
         msg += f"\n{YELLOW}>>> Consider informing the user about unfinished tasks.{RESET}"
         messages.append(msg)
-
-    # Check 4: Memory capture reminder
-    if not has_recent_memory_commits():
-        msg = f"\n{YELLOW}>>> Memory check: No decision() or memo() commits in recent history.{RESET}"
-        msg += f"\n{YELLOW}>>> Were any decisions, preferences, or requirements discussed this session?{RESET}"
-        msg += f"\n{YELLOW}>>> If yes, create decision() or memo() commits NOW before ending. Do NOT skip this.{RESET}"
-        messages.append(msg)
-
-    # Check 5: ALWAYS create a context() commit on session end
-    # This is mandatory — Claude must not skip this
-    plugin_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    commit_script = os.path.join(plugin_root, "bin", "git-memory-commit.py")
-    msg = f"\n[MANDATORY] Before ending, you MUST create a context() commit.\n"
-    msg += f"Use: python3 {commit_script} context <scope> \"<what was accomplished>\" "
-    msg += f"--trailer \"Next=<what to do next>\" --push\n"
-    msg += f"This is NOT optional. Do NOT skip it. Do NOT ask the user. Just do it.\n"
-    msg += f"If you already created a context() commit in the last 5 messages, you may skip this."
-    messages.append(msg)
 
     if messages:
         for m in messages:

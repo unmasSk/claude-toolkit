@@ -22,10 +22,6 @@ SKILL_TRIGGER_PHRASES: dict[str, list[str]] = {
     "unmassk-core": [
         "agents", "delegate", "invoke workflows", "domain plugins", "standards",
     ],
-    "unmassk-gitmemory": [
-        "memory", "resume", "context", "decision", "memo", "remember",
-        "what did we decide", "what's pending",
-    ],
     "unmassk-flow": [
         "build a feature", "requires writing code", "implement",
         "add functionality", "non-trivial bug", "refactor",

@@ -21,7 +21,7 @@ If the behavior is clear and being wrong is costly (business logic, APIs, a real
 
 ## What to test (after implementation)
 
-Follow standards.md §7 (backend) and §27 (frontend) per module type and tier. Dante's hardening pass owns this in Verify — same coverage bar as any Flow feature.
+Follow standards.md §1 (tier system — what's load-bearing per module) and §9's Real-verification checklist (round-trip against the real seam per §34, no tautological/order-dependent assertion, no mock replicating production). Dante's hardening pass owns this in Verify — same coverage bar as any Flow feature.
 
 ## Boundary
 

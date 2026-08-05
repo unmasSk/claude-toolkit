@@ -10,9 +10,9 @@
 ## Task: Golden tests for [FILE] — 97%+ coverage
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
-- Source file: `backend/src/[MODULE]/[FILE].ts`
+- Source file: `[MODULE_PATH]/[FILE]`
 - Existing tests: [TEST_FILE or "none"]
 
 ### Exports to cover
@@ -32,12 +32,12 @@
 ### Enterprise test reference
 
 Tests approved by Yoda — use as style and structure model:
-- `backend/src/api/[REFERENCE_MODULE]/__tests__/[reference_test].ts`
+- `[REFERENCE_MODULE_PATH]/[reference_test]` (test directory per project convention)
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/[TEST_FILE] --coverage`
+1. `[TEST_CMD]` scoped to `[MODULE_PATH]/[TEST_FILE]`, with coverage
 2. If < 97%: identify uncovered branches
-3. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+3. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 4. Run TWICE
 ```
 
@@ -49,7 +49,7 @@ Tests approved by Yoda — use as style and structure model:
 ## Task: Adversarial tests for [MODULE] based on adversarial validation report
 
 ### Context
-- Module: `backend/src/[MODULE]/`
+- Module: `[MODULE_PATH]`
 - Issue: #[N]
 
 ### Adversarial report
@@ -62,10 +62,10 @@ Tests approved by Yoda — use as style and structure model:
 | ABUSE | ... | HELD | ... |
 
 ### Output file
-- `backend/src/[MODULE]/__tests__/[MODULE].adversarial.test.ts`
+- `[MODULE_PATH]/[test dir]/[MODULE].adversarial.test` (extension and test-dir convention per project)
 
 ### Verification
-1. `cd backend && npx vitest run src/[MODULE]/__tests__/[MODULE].adversarial.test.ts`
-2. `cd backend && npx vitest run src/[MODULE]/__tests__/`
+1. `[TEST_CMD]` scoped to the new adversarial test file
+2. `[TEST_CMD]` scoped to `[MODULE_PATH]`
 3. Run TWICE
 ```

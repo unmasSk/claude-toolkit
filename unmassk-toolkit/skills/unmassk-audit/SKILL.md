@@ -28,10 +28,11 @@ Before step 0, create a TodoWrite with one item per step (steps 0-13). Update st
 ### Step 0 -- Preparation (ORCHESTRATOR (Claude + User))
 
 1. Select or create a GitHub issue for the audit target.
-2. Create the audit branch -- branch strategy depends on `repo_type` (defined in `unmassk-gitmemory`; inherit, do not redefine here):
+2. Create the audit branch -- branch strategy depends on the project's `repo_type` (declared in `.claude/project-memory/config.json`; read it, do not redefine it here):
    - **gitflow** → `git checkout -b chore/audit-<module> dev`
    - **trunk** → work directly on `main`; no separate audit branch needed
-3. Context commit: `context(audit-<module>): start enterprise audit -- issue #N`
+3. Save the opening note:
+   `gitmem note M --zones codeaudit <module-zone> "enterprise audit of <module> starts" --description "..." --stops no --issue N`
 4. Load `unmassk-standards` skill for quality criteria + read any project-level CLAUDE.md
 
 ### Step 1 -- Scan (Bilbo Agent)
@@ -78,11 +79,11 @@ Run in parallel with step 3 (independent work). Cerberus and Argus run simultane
 4. Produce weighted score out of 110.
 5. Agents ONLY report -- never fix.
 
-**Argus** (deep security audit):
-1. Full security analysis of the module: OWASP patterns, auth design, secrets, data flow.
-2. Threat modeling for the module's attack surface.
+**Argus** (deep integrity audit — no external attacker in this project's threat model, target is the system breaking itself):
+1. Full integrity analysis of the module: memory/persistence integrity, silent-failure surfaces, concurrency races, platform robustness, data flow traceability.
+2. Deeper pass on the same T1 surfaces Moriarty later attacks: memory corruption, silent failure, concurrency race, round-trip sabotage.
 3. Classify findings by tier (T1/T2/T3).
-4. ONLY report -- never fix. Do not duplicate Cerberus surface-level security checks.
+4. ONLY report -- never fix. Do not duplicate Cerberus surface-level checks.
 
 ORCHESTRATOR (Claude + User) compiles findings from both Cerberus and Argus into a single findings table.
 
@@ -100,7 +101,7 @@ Order: T1 first, then T2, then T3. 1 agent per finding or group of findings in t
 
 Gate: tests pass after each round.
 
-House circuit breaker: if Ultron fails the same fix 3 times, launch House (agent: `house`) to diagnose root cause before retrying.
+House circuit breaker: if Ultron fails the same fix 3 times, launch House (agent: `house`) to diagnose root cause before retrying. **Say in the prompt that this is a stuck fix, not a failure in delivered behaviour** — otherwise the diagnosis comes back proposing an incident note, and a defect found while fixing is ordinary work, not a scar.
 
 Prompt templates: see `prompts/ultron.md` and `prompts/house.md`
 
@@ -177,12 +178,13 @@ Prompt template: see `prompts/alexandria.md`
 1. Delete temporary files (`AUDIT-<module>.tmp.md`).
 2. **MANDATORY: Run FULL test suite** (detect and use the project's test command — e.g., `npx vitest run`, `pytest`, `go test ./...`) — not just the module tests. If any test fails that was passing before the audit started, the audit introduced a regression. Fix before merging.
 3. Final commit with score and closed findings.
-4. Merge and push — strategy depends on `repo_type` (inherit from `unmassk-gitmemory`; do not redefine here):
+4. Merge and push — strategy depends on the same `repo_type` read in step 0:
    - **gitflow** → `git checkout dev && git merge --no-ff chore/audit-<module>` then `git push origin dev`
    - **trunk** → changes already committed to `main`; push directly. No branch merge needed.
 5. Close issue: `gh issue close N --comment "Enterprise audit complete -- YY/110"`
 6. Delete branch (local and remote) if a branch was created (gitflow only).
-7. Context commit: `context(audit-<module>): issue #N CLOSED`
+7. Save the closing note, with the score and what it cost:
+   `gitmem note M --zones codeaudit <module-zone> "<module> audited: YY/110" --description "..." --stops no --issue N`
 
 ## Loop Conditions
 
@@ -197,9 +199,9 @@ Prompt template: see `prompts/alexandria.md`
 
 | When | Commit type |
 |------|-------------|
-| Step 0 | `context(audit-<module>): start` -- real commit |
-| Steps 1-12 | WIP commits only (`/cu-wip`) |
-| Step 13 | `chore(<module>): enterprise audit complete` -- real commit |
+| Step 0 | a memo saying the audit starts -- real note |
+| Steps 1-12 | checkpoints only (`gitmem wip "..."`) |
+| Step 13 | `gitmem work "<module>: enterprise audit complete"` + the closing memo |
 
 ## ORCHESTRATOR (Claude + User) Rules
 
@@ -239,7 +241,7 @@ ORCHESTRATOR (Claude + User) compiles agent outputs into `AUDIT-<module>.tmp.md`
 
 ### Score
 
-Scoring dimensions, weights (Security x3, Error handling x3, Structure x2, Testing x2, Maintainability x1), and tier definitions live in `unmassk-standards`. Do not redefine them here -- agents load `unmassk-standards` to apply them. Only the final table structure lives here:
+Scoring dimensions, weights (Integrity x3, Silent-failure/Error handling x3, Structure x2, Real verification x2, Maintainability x1), and tier definitions live in `unmassk-standards`. Do not redefine them here -- agents load `unmassk-standards` to apply them. Only the final table structure lives here:
 
 | Dimension | Score | Weight | Total |
 |-----------|-------|--------|-------|
@@ -270,16 +272,18 @@ Scoring dimensions, weights (Security x3, Error handling x3, Structure x2, Testi
 
 ### Standards
 
-The enterprise quality standards (tiers, scoring, checklists, OWASP, anti-patterns) are in a separate skill: **`unmassk-standards`**. Every crew agent loads it on boot via the `skills: unmassk-standards` declaration in its frontmatter. The audit workflow references standards but does not bundle them.
+The enterprise quality standards (tiers, scoring, checklists, anti-patterns — calibrated to "the system against itself", no OWASP or external-attacker material) are in a separate skill: **`unmassk-standards`**. Every crew agent loads it on boot via the `skills: unmassk-standards` declaration in its frontmatter. The audit workflow references standards but does not bundle them.
 
 ### Prompt Templates
+
+Every template below is stack-agnostic: `[MODULE_PATH]` stands for the module's real path in the audited project (not a fixed layout), and `[TEST_CMD]` / `[FORMAT_CMD]` / `[LINT_CMD]` stand for that project's own commands. Resolve them the same way `unmassk-flow` resolves its stack-specific values (`unmassk-flow/SKILL.md` §"Project profile"): read the project's `CLAUDE.md`/git-memory profile first; if not declared, detect from the repo (`package.json` scripts, `pyproject.toml`, `Makefile`, `go.mod`, etc.) and record what you found. Never assume a fixed path like `backend/src/`, a fixed runner like `npx vitest`/`npx prettier`, or a specific validation library like Zod — those are project-specific, not universal defaults.
 
 - **`prompts/bilbo.md`** -- Module scan prompt template
 - **`prompts/ultron.md`** -- Fix findings prompt template
 - **`prompts/house.md`** -- Diagnostic prompt templates (new investigation, continue, re-diagnose)
 - **`prompts/dante.md`** -- Golden tests + adversarial tests prompt templates
 - **`prompts/cerberus.md`** -- Enterprise audit + re-audit prompt templates
-- **`prompts/argus.md`** -- Deep security audit prompt template
+- **`prompts/argus.md`** -- Deep integrity audit prompt template
 - **`prompts/moriarty.md`** -- Adversarial validation prompt template
 - **`prompts/yoda.md`** -- Senior review prompt template
 - **`prompts/alexandria.md`** -- Documentation prompt template

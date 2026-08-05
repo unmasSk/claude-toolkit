@@ -9,7 +9,7 @@ Usage:
   git-memory-commit.py <type> <scope> <message> [--body TEXT] [--trailer KEY=VALUE]...
   git-memory-commit.py decision auth "usar JWT"
   git-memory-commit.py memo api "preference - siempre async/await" --trailer "Why=equipo lo prefiere"
-  git-memory-commit.py feat forms "add date picker" --body "Full body text" --trailer "Why=users need dates" --trailer "Touched=src/forms/"
+  git-memory-commit.py feat forms "add date picker" --body "Full body text" --trailer "Why=users need dates"
   git-memory-commit.py context forms "validación completada" --trailer "Next=wire to API"
   git-memory-commit.py wip forms "half-done date picker"
 
@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath
 from encoding_guard import force_utf8_streams
 force_utf8_streams()
 
-from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR, MEMO_CATEGORIES, REMEMBER_CATEGORIES
+from constants import MEMORY_TYPES, DEFAULT_CO_AUTHOR
 from git_helpers import run_git, open_no_follow_symlink
 from parsing import suggest_scope_from_paths, sanitize_trailer_value
 
@@ -59,73 +59,6 @@ EMOJIS = {
     "wip": "🚧", "context": "💾", "decision": "🧭", "memo": "📌",
     "remember": "🧠",
 }
-
-SUBJECT_MAX_LEN = 100  # chars, measured on the full built subject line for context() commits
-
-_gh_available_cache: bool | None = None
-
-def _gh_available() -> bool:
-    """Check if gh CLI is installed and authenticated. Result is cached for the process."""
-    global _gh_available_cache
-    if _gh_available_cache is not None:
-        return _gh_available_cache
-    try:
-        result = subprocess.run(
-            ["gh", "auth", "status"],
-            capture_output=True, text=True, timeout=5,
-        )
-        _gh_available_cache = result.returncode == 0
-    except (FileNotFoundError, OSError):
-        _gh_available_cache = False
-    return _gh_available_cache
-
-
-def _auto_create_issue(next_text: str) -> str | None:
-    """Try to create a GitHub issue from a Next: trailer text.
-
-    Returns '#N' issue reference if successful, None otherwise.
-    Only runs if gh CLI is available and the text has no existing #ref.
-    """
-    if re.search(r"#\d+", next_text):
-        return None  # Already has an issue reference
-    if not _gh_available():
-        return None
-    try:
-        result = subprocess.run(
-            ["gh", "issue", "create", "--title", next_text, "--label", "next", "--body",
-             f"Auto-created from git-memory Next: trailer.\n\nSource: `Next: {next_text}`"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if result.returncode == 0:
-            # gh issue create prints the URL, extract issue number
-            url = result.stdout.strip()
-            # URL format: https://github.com/owner/repo/issues/42
-            match = re.search(r"/issues/(\d+)", url)
-            if match:
-                return f"#{match.group(1)}"
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        pass
-    return None
-
-
-def _auto_close_issue(issue_ref: str) -> None:
-    """Try to close a GitHub issue referenced in a Resolved-Next: trailer.
-
-    Silently degrades if gh CLI is unavailable.
-    """
-    match = re.search(r"#(\d+)", issue_ref)
-    if not match:
-        return
-    if not _gh_available():
-        return
-    try:
-        subprocess.run(
-            ["gh", "issue", "close", match.group(1), "--comment",
-             "Resolved via git-memory Resolved-Next: trailer"],
-            capture_output=True, text=True, timeout=15,
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        pass
 
 # ANSI colors
 RESET = "\033[0m"
@@ -200,98 +133,57 @@ def _suggest_scope(given_scope: str) -> None:
 
 
 def _build_subject(type_: str, scope: str, message: str) -> str:
-    """Build the commit subject line: '{emoji} {type}({scope}): {message}'.
-
-    Single source of truth for the subject format — used by both
-    _check_subject_length() (to measure it) and build_commit_message() (to
-    emit it), so the two can never drift apart if the format changes.
-    """
+    """Build the commit subject line: '{emoji} {type}({scope}): {message}'."""
     emoji = EMOJIS.get(type_, "")
     return f"{emoji} {type_}({scope}): {message}"
 
 
-def _check_subject_length(type_: str, scope: str, message: str) -> None:
-    """Fail closed if a context() commit's subject would exceed SUBJECT_MAX_LEN.
-
-    Root-cause fix for the boot-hook stdout truncation bug: a 1297-byte
-    context() subject alone was enough to blow the harness's ~2KB stdout
-    preview window. Rather than let an oversized subject land at all, reject
-    it here — exit non-zero, create no commit — and tell the caller to
-    shorten the message and move the rest into --body (which stays
-    unrestricted). Only applies to type "context" (Bex's design decision);
-    other commit types are out of scope.
-    """
-    if type_ != "context":
-        return
-    subject = _build_subject(type_, scope, message)
-    if len(subject) > SUBJECT_MAX_LEN:
-        print(
-            f"{RED}{BOLD}Error{RESET}: subject line is {len(subject)} chars, "
-            f"exceeds the {SUBJECT_MAX_LEN}-char limit for context() commits. "
-            "Shorten the message and move the rest into --body.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-
-# Trailer keys whose VALUE content is validated before the commit is made,
-# and the enum each one is checked against. Both require the
-# "category - description" shape: category in the enum, description
-# non-empty after strip().
-_TRAILER_CONTENT_ENUMS: dict[str, set[str]] = {
-    "Memo": MEMO_CATEGORIES,
-    "Remember": REMEMBER_CATEGORIES,
-}
+# Trailer keys whose VALUE content is checked for an empty description
+# before the commit is made. Both use the "category - description" shape;
+# there is no importable category enum left to validate against (retired
+# in 578177a, DEUDA.md #16), so only the description-emptiness half is
+# restored here -- never re-add a hardcoded category list.
+_TRAILER_CONTENT_KEYS: set[str] = {"Memo", "Remember"}
 
 
 def _validate_trailer_content(key: str, value: str) -> str | None:
     """Validate the CONTENT of a Memo:/Remember: trailer value.
 
     Returns None if valid (or if `key` isn't one we content-validate), or a
-    human-readable error string if invalid. Does NOT validate message SHAPE
-    (blank lines, Co-Authored-By) -- build_commit_message() already builds
-    that correctly; this only checks the "category - description" content
-    of Memo/Remember values, which nothing validated before this commit is
-    built (the PreToolUse hook only intercepts raw `git commit` Bash
-    commands, never this wrapper's own in-process trailers -- see the
-    contract test docstring for the full explanation).
+    human-readable error string if the description is empty. Does NOT
+    validate a category enum -- none exists in this codebase anymore (see
+    DEUDA.md #16). Nothing else validates Memo:/Remember: content before
+    this wrapper builds the commit (the PreToolUse hook only intercepts raw
+    `git commit` Bash commands, never this wrapper's own in-process
+    trailers).
 
-    Validates the SANITIZED value, not the raw one. build_commit_message()
+    Validates the SANITIZED value, not the raw one -- build_commit_message()
     always runs sanitize_trailer_value() on every trailer value before it is
-    written to the commit -- that is what actually lands in the repo. A
-    description made only of control bytes (e.g. "\\x1b\\x1b\\x1b") passes a
-    raw non-empty check but collapses to "" once sanitized, which would let
-    "Memo: preference -" (no description) through with a passing check here
-    and land as inert memory. Validating the same string that gets committed
-    closes that gap -- Cerberus repro (2026-07-25).
+    written to the commit, so a description that looks non-empty in the raw
+    string (e.g. a bare trailing dash, or a stray embedded newline plus
+    spaces) but collapses to "" once sanitized must be rejected the same as
+    an outright empty one.
     """
-    categories = _TRAILER_CONTENT_ENUMS.get(key)
-    if categories is None:
+    if key not in _TRAILER_CONTENT_KEYS:
         return None
 
-    valid_list = "|".join(sorted(categories))
     sanitized = sanitize_trailer_value(value)
-    parts = sanitized.split(" - ", 1)
-    if len(parts) < 2 or not parts[1].strip():
+    _, sep, description = sanitized.partition(" - ")
+    if not sep or not description.strip():
         return (
-            f"invalid {key} format: {sanitized!r}. "
-            f"Must be: {valid_list} - description"
-        )
-    category = parts[0].strip()
-    if category not in categories:
-        return (
-            f"invalid {key} category {category!r}. "
-            f"Valid categories: {valid_list}"
+            f"empty {key} description: {sanitized!r}. "
+            "Must be: 'category - description' with a non-empty description"
         )
     return None
 
 
 def _check_trailer_content(trailers: list[str]) -> None:
     """Fail closed before the commit is built if any Memo:/Remember:
-    trailer's content is malformed.
+    trailer's description is empty (once sanitized).
 
     Runs BEFORE build_commit_message()/_do_commit() so an invalid trailer
-    never reaches git: exit 2, clear stderr message, no commit created.
+    never reaches git: exit 2, clear stderr message naming the trailer and
+    what's wrong with it, no commit created.
     """
     for t in trailers:
         key, _, value = t.partition("=")
@@ -303,11 +195,7 @@ def _check_trailer_content(trailers: list[str]) -> None:
 
 def build_commit_message(type_: str, scope: str, message: str,
                          body: str | None, trailers: list[str]) -> str:
-    """Build the full commit message with emoji, subject, body, trailers.
-
-    Note: does NOT process Next/Resolved-Next issues — that happens
-    post-commit in main() to avoid side effects if the commit fails.
-    """
+    """Build the full commit message with emoji, subject, body, trailers."""
     subject = _build_subject(type_, scope, message)
 
     parts = [subject]
@@ -325,15 +213,14 @@ def build_commit_message(type_: str, scope: str, message: str,
             key, _, value = t.partition("=")
             # BUG T1 fix: a raw CR/LF inside `value` (e.g. free text an
             # agent wrote with a real newline) would split this trailer
-            # across multiple PHYSICAL lines. scan_trailers_memory() (the
-            # recall/boot read path, lib/parsing.py) splits the commit
-            # body on real "\n" boundaries, so only the first physical
+            # across multiple PHYSICAL lines, so only the first physical
             # line would ever be recognized as this trailer's value --
             # everything after the embedded newline is silently lost on
-            # every future read. sanitize_trailer_value() (canonical,
-            # already used at read time) collapses any embedded CR/LF/
-            # control byte to a single space instead of truncating, so
-            # the full value always survives on ONE physical line.
+            # every future line-based read. sanitize_trailer_value()
+            # (canonical, already used at read time) collapses any
+            # embedded CR/LF/control byte to a single space instead of
+            # truncating, so the full value always survives on ONE
+            # physical line.
             # Collapse any resulting run of spaces (e.g. from a CRLF
             # pair producing two substitutions) so the value stays tidy.
             clean_value = re.sub(r" {2,}", " ", sanitize_trailer_value(value))
@@ -361,53 +248,6 @@ def _validate_path_args(paths: list[str], repo_real: str | None) -> None:
             if not abs_p.startswith(repo_real + os.sep) and abs_p != repo_real:
                 print(f"{RED}{BOLD}Error{RESET}: path fuera del repo: {p!r}", file=sys.stderr)
                 sys.exit(1)
-
-
-def _process_trailers(trailers: list[str]) -> list[str]:
-    """Resuelve trailers Next/Resolved-Next para la gestión de issues.
-
-    Expande 'Next=texto' con la referencia #N si gh crea el issue.
-    Devuelve la lista de trailers procesados (pre-commit).
-    """
-    processed: list[str] = []
-    for t in trailers:
-        key, _, value = t.partition("=")
-        if key == "Next":
-            issue_ref = _auto_create_issue(value)
-            processed.append(f"Next={value} {issue_ref}" if issue_ref else t)
-        else:
-            processed.append(t)
-    return processed
-
-
-def _check_behind_warn_only(type_: str) -> None:
-    """Aviso (no bloqueo) si la rama local está detrás de su upstream.
-
-    Solo aplica a tipos de memoria (context/decision/memo/remember) — un
-    commit normal (feat/fix/wip/...) no lo necesita. Issue #49: NO hace
-    fetch propio — usa las tracking refs (@{u}) tal cual están, ya que el
-    fetch del boot es quien las mantiene frescas; un commit no puede pagar
-    la latencia de red de un fetch adicional.
-
-    Fail-open total: sin upstream configurado, repo sin remoto, o
-    cualquier error de git -> silencio y el commit sigue su curso normal.
-    Nunca bloquea, nunca llama a sys.exit — warn-only.
-    """
-    if type_ not in MEMORY_TYPES:
-        return
-    code, output = run_git(["rev-list", "--count", "HEAD..@{u}"])
-    if code != 0:
-        return
-    try:
-        behind = int(output.strip() or "0")
-    except ValueError:
-        return
-    if behind > 0:
-        print(
-            f"  {YELLOW}⚠{RESET}  local {behind} commit(s) por detrás del remoto "
-            "— considera hacer 'git pull' antes de seguir. El commit se hace igualmente.",
-            file=sys.stderr,
-        )
 
 
 def _do_commit(type_: str, msg: str, paths: list[str]) -> subprocess.CompletedProcess:
@@ -452,9 +292,8 @@ def _do_push() -> None:
 
 
 def _print_commit_result(type_: str, scope: str, message: str,
-                         result: subprocess.CompletedProcess,
-                         processed_trailers: list[str]) -> None:
-    """Imprime la línea de confirmación del commit y los avisos de issues creados."""
+                         result: subprocess.CompletedProcess) -> None:
+    """Imprime la línea de confirmación del commit."""
     sha = "?"
     sha_match = re.search(r"\[\S+\s+([a-f0-9]+)\]", result.stdout)
     if sha_match:
@@ -463,14 +302,6 @@ def _print_commit_result(type_: str, scope: str, message: str,
     emoji = EMOJIS.get(type_, "")
     color = TYPE_COLORS.get(type_, RESET)
     print(f"  {emoji} {color}{BOLD}{type_}{RESET}{DIM}({scope}){RESET}: {message} {DIM}[{sha}]{RESET}")
-
-    for t in processed_trailers:
-        key, _, value = t.partition("=")
-        if key == "Next":
-            match = re.search(r"#(\d+)", value)
-            if match:
-                print(f"  📎 Issue {match.group(0)} created — fill in the body with: "
-                      f"gh issue edit {match.group(1)} --body \"<description, context, acceptance criteria>\"")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -504,8 +335,6 @@ def main() -> None:
         print(f"{RED}{BOLD}Error{RESET}: unknown type '{type_}'. Valid: {', '.join(sorted(EMOJIS))}", file=sys.stderr)
         sys.exit(1)
 
-    _check_subject_length(type_, args.scope, args.message)
-
     # Validación de --path: deben quedar dentro del repo root
     if args.paths:
         try:
@@ -521,27 +350,16 @@ def main() -> None:
             repo_real = None
         _validate_path_args(args.paths, repo_real)
 
-    # Fail closed on malformed Memo:/Remember: trailer content BEFORE any
-    # commit-building or side effects (e.g. gh issue creation in
-    # _process_trailers below).
-    _check_trailer_content(args.trailers)
-
     # Scope suggestion from staged files (non-blocking hint)
     if type_ not in MEMORY_TYPES:
         _suggest_scope(args.scope)
 
-    processed_trailers = _process_trailers(args.trailers)
-    msg = build_commit_message(type_, args.scope, args.message, args.body, processed_trailers)
-    _check_behind_warn_only(type_)
+    _check_trailer_content(args.trailers)
+
+    msg = build_commit_message(type_, args.scope, args.message, args.body, args.trailers)
     result = _do_commit(type_, msg, args.paths)
 
-    # Post-commit: close resolved issues
-    for t in args.trailers:
-        key, _, value = t.partition("=")
-        if key == "Resolved-Next":
-            _auto_close_issue(value)
-
-    _print_commit_result(type_, args.scope, args.message, result, processed_trailers)
+    _print_commit_result(type_, args.scope, args.message, result)
 
     if args.push:
         _do_push()

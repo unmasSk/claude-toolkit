@@ -1,49 +1,64 @@
 ---
 name: unmassk-close-session
-description: >
-  Close a working session cleanly so nothing decided is lost and the next session
-  can pick up where this one left off. Use when the user says "let's wrap up",
-  "close the session", "we're done for today", "hand off", or when a session is
-  ending. Also the natural anchor for end-of-session consolidation. Reach for this
-  before ending any substantive session — an unsaved session is the failure this
-  whole system exists to prevent.
+description: Use when the user says "let's wrap up", "close the session", "we're done for today", "hand off", "save where we are", or otherwise signals that a working session is ending and wants it closed properly
 ---
 
 # Close Session
 
-Adapted from Matt Pocock's handoff (MIT). Persistence changed: the handoff goes to git-memory, not to a `handoff-*.md` file.
+Write down what this session knew before the window shuts. The commits are kept; the conversation is not.
 
-> Note: closing a session is **process that should always happen**. The reliable enforcement of it belongs to a hook on `Stop`/`PreCompact`, not to this voluntary skill. This skill is the *content* of the close; the hook is what guarantees it fires. Keep both.
+## When it runs
 
-## What the close does
+Only when the user asks. Not on compaction, not at the end of a turn, not because the session looks finished. Offer it in one line; do not start it.
 
-1. **Flush uncommitted decisions.** Any decision/memo from this session not yet in git-memory → commit it now, with its Why. Live-write, immediately — a deferred commit is a lost commit.
+## 1. Clean up
 
-2. **Run the curator** (when it exists) to consolidate: merge duplicates, promote maturity, resolve contradictions. Memory only, never code.
-   - **A discard is not done while its front still has live memos/`Next:`.** When the session *decides against* a candidate (a "don't build X" decision), tombstone the memos and resolve the `Next:` entries of that same front in the same close — otherwise they resurface at the next boot and lead a future session to re-offer something already decided. Before proposing to resume any candidate, cross-check it against the DECISIONS, not just against Next/memos.
+Scratch files, temporary files, caches, build leftovers, folders with no owner.
 
-3. **Write the resume point.** A short handoff so the next session knows where it stopped: what's done, what's in progress, what's next, which skills the next session should use.
+Never touch source. For anything that looks orphaned, say what it is and why before removing it; if you cannot say, leave it.
 
-4. **Don't duplicate.** Reference decisions/commits/issues by their git reference instead of re-summarizing their content. The handoff points; it doesn't copy.
+## 2. Branches and issues
 
-## Project housekeeping (adaptive — only what the project actually has)
+Write the answer into the conversation — step 4 sends an agent to read it.
 
-Before the resume point, inspect the project and run what applies. Adaptive: check, don't assume.
+- **The branch the work is on**, by name, and whether it is merged or still open.
+- Issues opened, advanced or finished, by number.
+- What merged, and what is waiting to.
+- Anything still uncommitted, by name. It appears in no commit list and no boot.
 
-5. **Versioning** — if the project has a version (`plugin.json`/`package.json`/etc.) and the session shipped changes worth a release → run the version bump. For THIS toolkit marketplace, the release is one command: `python3 bin/release.py <plugin> <new-version>` (dry-run first) — it bumps, promotes the changelog, commits, pushes, and verifies. See the `unmassk-gitmemory` skill's "Releases" section. No versioning → skip. **The release is part of finishing, not an optional follow-up:** when the session's work justifies a release, run it now as part of the close — don't defer it or ask permission to publish.
-6. **Changelog** — if there's a `CHANGELOG` → hand to **Alexandria** to update the `[Unreleased]` section. Do this BEFORE the release command (it aborts on an empty `[Unreleased]`). No changelog → skip.
-7. **Cleanup** — remove temporary/scratch files the session created (drafts, tmp, scratch). Never touch real source.
-8. **Tracker & branch hygiene** — inspect what the session actually finished. This step deletes branches and closes issues: both are outward-facing and hard to undo, so it is **fail-safe by default** — act only on what you can *mechanically verify* as done/merged; on any doubt, do nothing and record it in the resume point instead of deleting or closing. Before any destructive or outward-facing action (remote branch delete, issue close), list exactly what will be closed/deleted and get the user's confirmation — never batch-delete or bulk-close silently. (a) If the work completed one or more GitHub issues that are still open → after confirmation, close them (`gh issue close <n>` with a one-line reason). (b) If the work lived on a branch that is now merged and no longer needed → after confirmation, delete it, local **and** remote (`git branch -d <b>`; `git push origin --delete <b>`). Adaptive and **repo_type-aware**: a **trunk** repo works on `main` — usually there's no branch to delete; a **gitflow** repo deletes the merged `feat/*`/`fix/*` branch after the merge. Never delete an unmerged branch or one with open work, and never close an issue whose work isn't actually done. Nothing closed/merged this session → skip.
-   - **(c) Reconcile the WHOLE open backlog, not just this session's work.** The recurring leak is issues resolved in a *previous* session that were never closed: a fix commit references `#N` but no `Resolved-Next:` trailer fired (the work didn't come from a `Next:`), so GitHub stayed open and the tracker drifts out of sync with reality. At close, list every open issue (`gh issue list --state open`) and cross-reference each number against the commit history (`git log --all --grep="#<n>"`) and git-memory. Any open issue with a commit that *demonstrably* resolves it → surface it with the evidence commit and, after confirmation, close it citing that commit (`gh issue close <n> --comment "Resuelto: <fix> (<hash>)"`). Same fail-safe rules as (a): evidence-or-nothing, list don't bulk-close, confirm first, and on any doubt leave it open and note it in the resume point. This sweep is what stops the backlog from silently accumulating done-but-open issues across sessions.
-   - **Remote delete has no merge guard.** Only run the remote delete once the local `git branch -d` succeeded (that's what confirms the branch is merged). If the platform already removed the remote branch (GitHub "auto-delete head branches" after a PR merge), treat the failing remote delete as success, not an error — just drop the stale local ref. Never fall back to `-D` to force a local delete that `-d` refused.
-   - **Gitflow hotfix isn't done at `main`.** A hotfix merged to `main` but not yet back-merged to `dev` still satisfies "merged", but deleting it there loses the only signal that the back-merge is missing (the bug returns next time `dev` promotes). In gitflow, confirm the back-merge to `dev` before deleting a hotfix branch — a merge to `main` alone is not "finished".
-9. **Three-audience doc check** — for anything new the session shipped (feature, script, flag, convention), confirm it is documented for ALL three audiences (humans → `README`/`docs`, us → roadmap/git-memory, Claude → `SKILL.md`/`CLAUDE.md`). See `unmassk-core` "Documentation discipline". A capability documented in only one surface is unfinished — hand the sync to **Alexandria**.
+Closing an issue or deleting a branch: act only on what you can mechanically verify as done or merged, show the exact list first, and wait for the user. Never bulk-close, never force a delete git refused. On doubt, leave it and write it down.
 
-## Output
+## 3. Alexandria, in `close` mode
 
-The resume point and the flushed decisions all live in **git-memory** (commits), not in a file. The next session's boot reads them back.
+`subagent_type: unmassk-toolkit-alexandria`. Her profile holds the protocol; give her only what she cannot read from the repository — one line per thing the session shipped that is new or changed.
 
-## Boundary
+Expect back: what she corrected, where a document and the code contradict each other, and anything shipped with no home in the documentation. If the project has no documentation set she says so and stops — building one is her `foundation` mode, which the user asks for by name.
 
-- Persistence → git-memory only. No `handoff-*.md`, no CONTEXT.md.
-- This skill writes memory and nothing else. Never touches code.
+## 4. The close itself
+
+**After Alexandria, never alongside her.** She commits; the close lists every commit of the session, and a list taken while she is still working is a list missing her work.
+
+A `general-purpose` agent, handed the prompt at `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-close-session/references/close-agent-prompt.md` verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline, the context as the body, and every commit since the last close underneath.
+
+Then read the result out of git, not out of the agent's report: `git log -1` — the subject starts with `[NEXT]`, the body carries the prose, and it ends with the commit list. Each close replaces the previous one.
+
+## Not part of a close
+
+| | Where it belongs |
+|---|---|
+| Saving a decision the session never saved | When it was made |
+| Registering work blocked on someone | When it stopped |
+| Retiring a rule that stopped being true | When it stopped being true |
+| Consolidating memory | Its own pass |
+| Updating the CHANGELOG | The merge |
+| A handoff document | The Next is the handoff |
+| Releasing a version | The user's call, in the project's own instructions |
+
+## Red flags
+
+- Starting a close nobody asked for.
+- Writing the close yourself instead of sending the agent.
+- Sending the close agent while Alexandria is still running.
+- A body that lists what was built instead of what was said.
+- Deleting or closing something you cannot prove.
+- Finishing without naming the branch.

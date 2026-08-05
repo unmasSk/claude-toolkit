@@ -1,6 +1,12 @@
 """
 Pase de endurecimiento — tests de regresión y adversariales para los arreglos
-de seguridad recientes en hooks/user-prompt-memory-check.py y lib/recall.py.
+de seguridad recientes en hooks/user-prompt-memory-check.py.
+
+RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): lib/recall.py ya no existe en
+disco — eliminado junto con el resto del sistema de memoria v1. Los tests
+T1-B/T1-C/T1-D (recall push→pull) y T2-B (Unicode separators en
+_sanitize()) que dependian de el se retiraron completos; ver el comentario
+al final de este fichero.
 
 Arreglos cubiertos
 ──────────────────
@@ -16,23 +22,8 @@ T1-A [fail-open upgrade]
     needs_upgrade()/subprocess.run() en absoluto tras el refactor. Ver
     TestFailOpenUpgrade más abajo para el canal real ejercitado.
 
-T1-B/T1-C/T1-D [RETIRADO — recall push→pull, decision 1e94975, issue #69]
-    El bloque de recall inyectado por-mensaje ('[memoria relevante...]',
-    <memory-data>...</memory-data>) fue eliminado del hook; ya no existe nada
-    de lo que escaparse por ese canal. Los tests end-to-end-vía-hook que
-    afirmaban ver ese wrapper (framing label, open/close tag, contenido entre
-    etiquetas, break-out lowercase/uppercase) se eliminaron por dead-assertion
-    (issue #72, cut useless tests). Lo que sobrevive: los tests UNITARIOS de
-    _sanitize() (TestSanitizeBreakoutBlocked) siguen siendo válidos porque
-    _sanitize() sigue siendo real y usada por recall.py bajo demanda; y el
-    único end-to-end que queda (test_framing_absent_when_recall_does_not_fire)
-    confirma la ausencia de la etiqueta.
-
 T2-A [stdin acotado — DoS por tamaño]
     Un payload JSON >600 KB no debe colgar el hook ni causar exit != 0.
-
-T2-B [Unicode separators]
-    _sanitize() elimina U+2028 y U+2029 reales (no solo escapes explícitos).
 
 Patrón de importación en-proceso
 ─────────────────────────────────
@@ -44,8 +35,6 @@ antes de cargar el hook — ver TestFailOpenUpgrade más abajo.
 
 Para los tests de salida que quedan se usa el patrón de subproceso de
 test_user_prompt_recall.py: _run_hook(repo, prompt).
-
-Para los tests de _sanitize se importa recall.py directamente.
 """
 
 import json
@@ -365,183 +354,12 @@ class TestFailSafeLargeStdin:
             f"Hook debe salir con código 0 con stdin de basura grande; rc={rc}"
         )
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# T2-B: Unicode line/paragraph separators — robustez de _sanitize
-# ══════════════════════════════════════════════════════════════════════════════
-
-class TestSanitizeUnicodeSeparators:
-    """_sanitize() debe eliminar U+2028 (LINE SEPARATOR) y U+2029 (PARAGRAPH SEPARATOR).
-
-    Estos caracteres de control Unicode actúan como separadores de línea en algunos
-    parsers y renderizadores. Si se cuelan en el output del hook pueden romper el
-    framing de una sola línea o engañar a parsers JSON downstream.
-
-    Los tests usan los caracteres literales (no escapes) para confirmar que
-    el arreglo funciona con caracteres reales y no sólo con la representación escape.
-    """
-
-    def _recall_sanitize(self):
-        import recall as _recall_mod
-        return _recall_mod._sanitize
-
-    def test_u2028_line_separator_stripped(self):
-        """U+2028 real (LINE SEPARATOR) es eliminado por _sanitize()."""
-        sanitize = self._recall_sanitize()
-        text_with_sep = "prefijo sufijo"
-        result = sanitize(text_with_sep)
-        assert " " not in result, (
-            f"_sanitize() debe eliminar U+2028; resultado={result!r}"
-        )
-
-    def test_u2029_paragraph_separator_stripped(self):
-        """U+2029 real (PARAGRAPH SEPARATOR) es eliminado por _sanitize()."""
-        sanitize = self._recall_sanitize()
-        text_with_sep = "prefijo sufijo"
-        result = sanitize(text_with_sep)
-        assert " " not in result, (
-            f"_sanitize() debe eliminar U+2029; resultado={result!r}"
-        )
-
-    def test_u2028_replaced_by_space_not_deleted(self):
-        """U+2028 es reemplazado por espacio (no simplemente eliminado), preservando
-        la legibilidad del texto."""
-        sanitize = self._recall_sanitize()
-        result = sanitize("antes despues")
-        # El arreglo usa re.sub con reemplazo " ", no "".
-        # El texto debe quedar separado, no pegado.
-        assert "antesdespues" not in result, (
-            f"U+2028 debe producir un espacio entre tokens, no pegarlos; resultado={result!r}"
-        )
-
-    def test_u2029_replaced_by_space_not_deleted(self):
-        """U+2029 es reemplazado por espacio, no eliminado."""
-        sanitize = self._recall_sanitize()
-        result = sanitize("antes despues")
-        assert "antesdespues" not in result, (
-            f"U+2029 debe producir un espacio entre tokens, no pegarlos; resultado={result!r}"
-        )
-
-    def test_multiple_unicode_separators_all_stripped(self):
-        """Múltiples U+2028 y U+2029 en el mismo texto son todos eliminados."""
-        sanitize = self._recall_sanitize()
-        text = "a b c d"
-        result = sanitize(text)
-        assert " " not in result, "Todos los U+2028 deben eliminarse"
-        assert " " not in result, "Todos los U+2029 deben eliminarse"
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Cobertura adicional: caminos de borde de recall_relevant no cubiertos antes
-# ══════════════════════════════════════════════════════════════════════════════
-
-class TestRecallRelevantEdgeCases:
-    """Caminos de borde de recall_relevant() y _sanitize() no cubiertos
-    por test_recall_gated.py, detectados durante el pase de exhaustion.
-    """
-
-    def _recall_relevant_in(self, repo, query, **kwargs):
-        from recall import recall_relevant
-        return recall_relevant(query, _repo_dir=repo, **kwargs)
-
-    def test_single_entry_corpus_returns_block(self, tmp_path):
-        """Corpus de 1 sola entrada que coincide → devuelve bloque (no None).
-
-        Verifica que la lógica de IDF funciona cuando N=1 (caso degenerado:
-        df[t] = 1 para todos los tokens del único entry; IDF = log(1 + 1/2) ≈ 0.405).
-        """
-        repo = _make_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/single): corpus unico",
-            "Decision: zorblax como unico motor del corpus",
-        )
-        result = self._recall_relevant_in(repo, "zorblax")
-        assert result is not None, (
-            "Corpus de 1 entrada con token coincidente debe devolver bloque, no None"
-        )
-        assert "zorblax" in result
-
-    def test_single_entry_corpus_no_match_returns_none(self, tmp_path):
-        """Corpus de 1 entrada sin coincidencia → None."""
-        repo = _make_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/single): corpus unico",
-            "Decision: zorblax como unico motor del corpus",
-        )
-        result = self._recall_relevant_in(repo, "qwzzzmatch")
-        assert result is None, (
-            "Corpus de 1 entrada sin coincidencia debe devolver None"
-        )
-
-    def test_max_results_one_returns_exactly_one(self, tmp_path):
-        """max_results=1 devuelve exactamente 1 entrada aunque haya 3 coincidentes."""
-        repo = _make_repo(tmp_path)
-        for i in range(3):
-            _commit(
-                repo,
-                f"decision(plugin/s{i}): zorblax entry {i}",
-                f"Decision: zorblax motor especial modulo {i}",
-            )
-        result = self._recall_relevant_in(repo, "zorblax", max_results=1)
-        assert result is not None
-        entry_lines = [l for l in result.splitlines() if l.startswith("  (")]
-        assert len(entry_lines) == 1, (
-            f"max_results=1 debe devolver exactamente 1 entrada; encontradas {len(entry_lines)}"
-        )
-
-    def test_tied_scores_deterministic_order(self, tmp_path):
-        """Entradas con scores idénticos se ordenan de forma determinista.
-
-        Con 3 entradas que contienen exactamente el mismo token raro 'zorblax'
-        y el mismo corpus size, sus IDF scores son idénticos. La función debe
-        usar el índice de inserción como desempate (stable sort por idx), no orden
-        aleatorio. Dos llamadas consecutivas deben devolver el mismo bloque.
-        """
-        repo = _make_repo(tmp_path)
-        for i in range(3):
-            _commit(
-                repo,
-                f"decision(plugin/tie{i}): zorblax tie {i}",
-                f"Decision: zorblax motor idéntico {i}",
-            )
-        result1 = self._recall_relevant_in(repo, "zorblax")
-        result2 = self._recall_relevant_in(repo, "zorblax")
-        assert result1 == result2, (
-            f"Con scores empatados, el orden debe ser determinista entre llamadas; "
-            f"result1={result1!r}, result2={result2!r}"
-        )
-
-    def test_floor_boundary_entry_exactly_at_floor_excluded(self, tmp_path):
-        """Una entrada con score == floor es descartada (la condición es score > floor,
-        no score >= floor). Verificamos con floor muy alto que deja pasar sólo IDF > floor.
-        """
-        repo = _make_repo(tmp_path)
-        _commit(
-            repo,
-            "decision(plugin/boundary): zorblax boundary",
-            "Decision: zorblax raro en corpus de 1 para test de boundary",
-        )
-        # IDF para corpus de 1: log(1 + 1/2) ≈ 0.405
-        # Con floor=0.5 > 0.405, la entrada queda en la zona del floor → None
-        result = self._recall_relevant_in(repo, "zorblax", floor=0.5)
-        assert result is None, (
-            "Entrada con score por debajo del floor debe ser descartada (None)"
-        )
-
-    def test_sanitize_html_comment_markers_removed(self):
-        """_sanitize() elimina <!-- y --> para prevenir inyección via comentarios HTML."""
-        from recall import _sanitize
-        text = "normal <!-- COMMENT --> más texto --> cierre"
-        result = _sanitize(text)
-        assert "<!--" not in result, "_sanitize debe eliminar '<!--'"
-        assert "-->" not in result, "_sanitize debe eliminar '-->'"
-
-    def test_sanitize_vertical_tab_and_form_feed_removed(self):
-        """_sanitize() elimina \\x0b (VT) y \\x0c (FF)."""
-        from recall import _sanitize
-        result_vt = _sanitize("antes\x0bdespues")
-        result_ff = _sanitize("antes\x0cdespues")
-        assert "\x0b" not in result_vt, "_sanitize debe eliminar \\x0b (vertical tab)"
-        assert "\x0c" not in result_ff, "_sanitize debe eliminar \\x0c (form feed)"
+# RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): TestSanitizeUnicodeSeparators
+# (T2-B, U+2028/U+2029 en _sanitize()) y TestRecallRelevantEdgeCases
+# (bordes de recall_relevant()/_sanitize()) importaban `recall` directamente
+# (`import recall`, `from recall import recall_relevant, _sanitize`) —
+# lib/recall.py ya no existe en disco, eliminado junto con el resto del
+# sistema de memoria v1 (ver memoria-v2-boot-memory-precompact-retirement-
+# notes.md en la memoria de este agente). El docstring del modulo (arriba)
+# menciona T2-B y afirma que "_sanitize() sigue siendo real y usada por
+# recall.py bajo demanda" -- ya no es asi, esa parte quedo desactualizada.

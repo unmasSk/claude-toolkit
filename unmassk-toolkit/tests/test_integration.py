@@ -1,13 +1,22 @@
 """
 End-to-end integration tests.
 
-Covers real-world scenarios: install over existing config,
-bootstrap, sessions, compaction, GC, branch-aware context,
-uninstall+reinstall, upgrade, and bootstrap detection.
+Covers real-world scenarios: install over existing config, sessions,
+compaction, and branch-aware context.
 
-NOTE: The plugin runs from the cache (SOURCE_ROOT). Install only creates
-CLAUDE.md + manifest at the project root. Hooks/skills/bin are never
-copied to the project.
+NOTE: The plugin runs from the cache. Install only creates CLAUDE.md +
+manifest at the project root. Hooks/skills/bin are never copied to the
+project.
+
+Retirement note (2026-08-02): test_bootstrap_with_commits,
+test_bootstrap_detects_installed (bin/git-memory-bootstrap.py),
+test_gc_real (bin/git-memory-gc.py), test_uninstall_reinstall_data_intact
+(bin/git-memory-uninstall.py), and test_upgrade_creates_backup
+(bin/git-memory-upgrade.py) were removed -- all four scripts no longer
+exist on disk (docs/memoria-v2/PLAN-CONSTRUCCION.md §5.4, "ya estaban
+muertos"). Retired per §9.3. SOURCE_ROOT/UNINSTALL/UPGRADE/BOOTSTRAP/
+run_doctor_json were dropped from the import block below since nothing
+else in this file used them.
 """
 
 import json
@@ -18,9 +27,9 @@ import sys
 import pytest
 
 from conftest import (
-    SOURCE_ROOT, HOOKS_DIR, INSTALL, UNINSTALL, UPGRADE, BOOTSTRAP, DOCTOR,
+    HOOKS_DIR, INSTALL, DOCTOR,
     PRE_HOOK, CLAUDE_ENV_VAR,
-    run_cmd, git_cmd, write_file, run_script, run_doctor_json,
+    run_cmd, git_cmd, write_file, run_script,
 )
 from version import VERSION
 
@@ -95,36 +104,6 @@ def test_install_only_creates_claude_md_and_manifest(tmp_path):
     assert not os.path.isdir(os.path.join(repo, ".claude-plugin"))
 
 
-def test_bootstrap_with_commits(tmp_path):
-    """Bootstrap detects stack in project with commits."""
-    repo = str(tmp_path / "repo")
-    os.makedirs(repo)
-    git_cmd(["init"], repo)
-    write_file(repo, "package.json", json.dumps({
-        "name": "test-app",
-        "dependencies": {"react": "^18.0.0", "next": "^14.0.0"},
-        "devDependencies": {"typescript": "^5.3.0"},
-    }))
-    write_file(repo, "tsconfig.json", "{}")
-    git_cmd(["add", "-A"], repo)
-    git_cmd(["commit", "-m", "setup"], repo)
-
-    for i in range(25):
-        write_file(repo, f"src/file{i}.ts", f"export const x{i} = {i}")
-        git_cmd(["add", "-A"], repo)
-        git_cmd(["commit", "-m", f"feat(app): add file{i}"], repo)
-
-    rc, out, _ = run_script(BOOTSTRAP, repo, ["--json"])
-    data = json.loads(out)
-    findings = data.get("findings", [])
-    stack_findings = [f for f in findings if f["category"] == "stack"]
-    history_findings = [f for f in findings if f["category"] == "history"]
-
-    assert len(stack_findings) > 0
-    assert len(history_findings) > 0
-    assert any("React" in f["text"] or "Next" in f["text"] for f in stack_findings)
-
-
 def test_session_with_trailers(tmp_path):
     """Pre-hook does not block a normal session commit (hook runs from plugin cache).
 
@@ -173,27 +152,6 @@ def test_compaction_snapshot(tmp_path):
         if stdout:
             lines = stdout.strip().split("\n")
             assert len(lines) <= 18, f"Snapshot has {len(lines)} lines"
-
-
-def test_gc_real(tmp_path):
-    """GC executes and produces tombstones or reports clean."""
-    repo = make_installed_repo(tmp_path)
-
-    git_cmd(["commit", "--allow-empty", "-m",
-             "📌 memo(old): setup\n\nNext: tarea vieja\nBlocker: algo bloqueado"], repo)
-
-    old_date = "2025-01-01T00:00:00"
-    git_cmd(["commit", "--allow-empty", "--date", old_date, "-m",
-             "📌 memo(legacy): old stuff\n\nNext: tarea antigua\nBlocker: blocker viejo"], repo)
-
-    gc_script = os.path.join(SOURCE_ROOT, "bin", "git-memory-gc.py")
-    rc, stdout, _ = run_cmd([sys.executable, gc_script, "--auto", "--days", "7"], repo)
-    assert rc == 0
-
-    _, log_output, _ = git_cmd(["log", "-n", "5", "--pretty=format:%s%n%b"], repo)
-    has_tombstone = ("Resolved-Next:" in log_output or "Stale-Blocker:" in log_output
-                     or "Nothing" in stdout or "nothing" in stdout)
-    assert has_tombstone
 
 
 def test_human_commits_not_blocked(tmp_path):
@@ -249,80 +207,6 @@ def test_branch_context(tmp_path):
     _, log_output, _ = git_cmd(["log", "-n", "5", "--pretty=format:%s%n%b"], repo)
     assert "monolito" in log_output
     assert "microservicios" not in log_output
-
-
-def test_uninstall_reinstall_data_intact(tmp_path):
-    """Uninstall + reinstall preserves git history and trailers."""
-    repo = make_installed_repo(tmp_path)
-
-    git_cmd(["commit", "--allow-empty", "-m",
-             "🧭 decision(api): usar REST\n\nDecision: REST over GraphQL\nWhy: simplicidad"], repo)
-    git_cmd(["commit", "--allow-empty", "-m",
-             "📌 memo(stack): Python 3.12\n\nMemo: stack - Python 3.12, FastAPI"], repo)
-
-    _, log_before, _ = git_cmd(["log", "--oneline"], repo)
-    commits_before = len(log_before.strip().split("\n"))
-
-    run_script(UNINSTALL, repo, ["--auto"])
-
-    # After uninstall: CLAUDE.md block gone, manifest gone
-    claude_md = os.path.join(repo, "CLAUDE.md")
-    if os.path.isfile(claude_md):
-        with open(claude_md, encoding="utf-8") as f:
-            assert "BEGIN unmassk-toolkit" not in f.read()
-    assert not os.path.isfile(os.path.join(repo, ".claude", ".unmassk", "manifest.json"))
-
-    _, log_after, _ = git_cmd(["log", "--oneline"], repo)
-    assert len(log_after.strip().split("\n")) == commits_before
-
-    _, full_log, _ = git_cmd(["log", "--pretty=format:%b"], repo)
-    assert "Decision:" in full_log
-    assert "Memo:" in full_log
-
-    # Reinstall
-    run_script(INSTALL, repo, ["--auto"])
-    with open(os.path.join(repo, "CLAUDE.md"), encoding="utf-8") as f:
-        assert "BEGIN unmassk-toolkit" in f.read()
-
-    _, log_final, _ = git_cmd(["log", "--oneline"], repo)
-    assert len(log_final.strip().split("\n")) == commits_before
-
-
-def test_upgrade_creates_backup(tmp_path):
-    """Upgrade creates a backup and updates CLAUDE.md managed block."""
-    repo = make_installed_repo(tmp_path)
-
-    # Tamper with the managed block to trigger an upgrade
-    claude_md = os.path.join(repo, "CLAUDE.md")
-    with open(claude_md, encoding="utf-8") as f:
-        content = f.read()
-    content = content.replace("unmassk-toolkit Active", "OLD VERSION BLOCK")
-    with open(claude_md, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    rc, _, _ = run_script(UPGRADE, repo, ["--auto"])
-    assert rc == 0
-
-    # Backup exists
-    backup_dir = os.path.join(repo, ".claude", "backups")
-    assert os.path.isdir(backup_dir) and len(os.listdir(backup_dir)) > 0
-
-    # CLAUDE.md restored
-    with open(claude_md, encoding="utf-8") as f:
-        assert "unmassk-toolkit Active" in f.read()
-
-    result, _ = run_doctor_json(repo)
-    assert result.get("status") != "error"
-
-
-def test_bootstrap_detects_installed(tmp_path):
-    """Bootstrap detects already-installed git-memory."""
-    repo = make_installed_repo(tmp_path)
-
-    rc, out, _ = run_script(BOOTSTRAP, repo, ["--json"])
-    data = json.loads(out)
-    suggestions = [s["action"] for s in data.get("suggestions", [])]
-    assert "skip_bootstrap" in suggestions
 
 
 if __name__ == "__main__":

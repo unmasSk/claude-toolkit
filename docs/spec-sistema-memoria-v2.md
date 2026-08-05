@@ -24,22 +24,22 @@ Estos principios no son aspiraciones: son reglas de validación. Cualquier pieza
 
 **P4 — Mecanismo antes que disciplina; protocolo antes que automatismo.** Nada crítico depende de que el modelo "se acuerde". Lo que debe ocurrir siempre lo garantiza un gate (hook que valida) o un protocolo invocado por el usuario (skill). Los automatismos complejos con estado se evitan: cada pieza automática es superficie de fallo. Evidencia en ambos sentidos: las reglas de proceso guardadas como memoria produjeron 114 recordatorios duplicados sin efecto; las skills de protocolo invocadas explícitamente (close-session) se ejecutan correctamente de forma consistente.
 
-**P5 — La aduana nunca pregunta en el aire.** Un hook solo puede permitir o rechazar. Toda "pregunta" del sistema es un rechazo cuyo mensaje contiene la pregunta y las opciones; responder es relanzar el comando con la respuesta como argumento (`--replaces D-030`, `--origin none`, `--incident new`). El ciclo es: intento → rechazo informativo → relanzamiento. Es síncrono, visible en el chat, y el canal de rechazo está medido como fiable (`decision:block` llega al modelo).
+**P5 — La aduana nunca pregunta en el aire.** Un hook solo puede permitir o rechazar. Toda "pregunta" del sistema es un rechazo cuyo mensaje contiene la pregunta y las opciones; responder es relanzar el comando con la respuesta como argumento (`--replaces D-030`, `--origin none`, `--incident new`). El ciclo es: intento → rechazo informativo → relanzamiento. Es síncrono, visible en el chat, y el canal de rechazo está medido como fiable (`decision:block` llega al modelo). **[decisión del propietario, 2026-08-03]** Este principio, tal como estaba escrito, asumía que quien responde y relanza es siempre Claude. No es universal: para los comandos de git que pueden hacer desaparecer trabajo (fuera del alcance de esta aduana de notas), el rechazo dice literalmente que Claude no puede confirmar por su cuenta — tiene que preguntarle al usuario y esperar su respuesta real, y esa confirmación se pide por duplicado. Es la única excepción conocida al patrón "Claude decide y relanza".
 **Las respuestas se traen por adelantado:** el comando admite todos los flags en el primer intento (`--stops no --origin none`), y la aduana solo rechaza si FALTA información. El coste normal de guardar una nota es UN comando, cero rechazos; la skill de memoria enseña a traer los flags puestos. Los rechazos son la excepción, no el ciclo habitual.
 
 **P6 — Toda pieza enseña un número al arrancar; el cero es alarma, no silencio.** Una zona sin notas devuelve "cero notas" en alto. Un contador que no aparece es un fallo, no una ausencia.
 
 **P7 — Lo instalado se verifica contra lo escrito.** El sistema corre desde una caché de plugin que puede congelarse. Evidencia: seis hooks corrieron versiones viejas durante días mientras el repo contenía los arreglos; el vigilante existente no podía detectarlo porque viajaba dentro de la caché que vigilaba. El chequeo de sincronización debe operar desde fuera de la caché.
 
-**P8 — Idioma por función: lo que se busca, en inglés; lo que se lee, en español.** Titulares y Keys (superficies de búsqueda) en inglés. Why, Description y Context (superficies de lectura) en español. Sin mezclas: una key en español es un agujero en la red de búsqueda.
+**P8 — Idioma por función: etiqueta estructural en inglés, contenido explicativo en español. [decisión del propietario, 2026-08-03]** El eje no es "lo que se busca / lo que se lee" — así estaba escrito hasta hoy, y de ahí salió texto en español que no debía estarlo (recuentos, avisos, restricciones, bloqueantes, todos con etiqueta en castellano). El eje real: **etiqueta mecánica del sistema (titulares, Keys, nombres de campo, recuentos, avisos) en inglés; contenido explicativo (Why, Description, Context — el porqué, los hechos, lo hablado) en español.** Sin mezclas: una etiqueta en español es un agujero en la red de búsqueda.
 
 **P9 — Cuantas menos piezas, mejor — pero cada una clarísima y fiable.** Se retira todo lo que no tenga caso de uso real demostrado. Los campos diseñados "por si acaso" nacen muertos (evidencia: `Conflict:`/`Resolution:` nacieron en el commit inicial sin decisión que los justificara; 1 uso en 5 meses).
 
-**P10 — Presentación heredada.** Los emojis por tipo y la estructura visual jerárquica del formato v1 se conservan en todo (🧭 decisión, 📌 memo, 💾 context, etc.). El rediseño cambia tipos, zonas y campos, no la legibilidad.
+**P10 — Presentación heredada.** Los emojis por tipo y la estructura visual jerárquica del formato v1 se conservan en todo (🧭 decisión, 📌 memo, ⏩ Next, etc.). El rediseño cambia tipos, zonas y campos, no la legibilidad.
 
 **P11 — Todo timestamp en UTC**, y toda hora mostrada al usuario lleva la etiqueta "UTC" explícita.
 
-**P12 — Banco de pruebas adversarial** con ejecución automática y resultado visible, que intente romper el sistema de forma continua.
+**P12 — retirado. [decisión del propietario, 2026-08-03]** Exigía un banco de pruebas adversarial con ejecución automática y resultado visible. El comando que lo habría sustentado, `bench`, se borra entero — *«no lo he autorizado en la vida»*. Lo que ataca el sistema de forma adversarial es Moriarty, un agente dentro de la secuencia de revisión de cada capa, no un automatismo continuo ni un invariante de diseño aparte.
 
 ---
 
@@ -48,7 +48,7 @@ Estos principios no son aspiraciones: son reglas de validación. Cualquier pieza
 ### 3.1 Titular
 
 ```
-[TIPO-ID][zona1][zona2] resumen en inglés, ≤60 caracteres
+[TIPO-ID][zona1][zona2] resumen en inglés, ≤80 caracteres
 ```
 
 - **TIPO-ID:** letra del tipo + contador simple por tipo (`D-030`, `R-007`). El contador lo asigna el script leyendo el índice. El choque multi-máquina no existe operativamente (el usuario trabaja en una sola máquina a la vez); como salvaguarda, el boot incluye un chequeo de IDs duplicados como alarma pasiva — detecta, no repara.
@@ -74,9 +74,8 @@ Estos principios no son aspiraciones: son reglas de validación. Cualquier pieza
 | `Description:` | Sí | Español | Resumen destilado de la conversación o trabajo que dio lugar a la nota. |
 | `Origin:` | Ver §3.4 | — | Puntero "de qué nota/incidencia nazco". |
 | `Replaces:` | Al sustituir | — | Puntero "a qué nota reemplazo". |
-| `Touched:` | Automático | — | Solo en commits de trabajo; lo escribe **exclusivamente el script** desde `git diff --name-only`. Prohibido a mano: del diff no se puede mentir. |
 
-No existen más campos. `Council` y `Plan` no son campos de la nota: el veredicto de un council forma parte del Why o la Description; el plan es otro canal (§10). Retirados con evidencia: `Risk` (79 escritos, 0 leídos, enum jamás validado; la urgencia son labels de issue), `Conflict`/`Resolution` (1 uso, lector inalcanzable), `Sources` (duplicaba `Origin:`; su regla sobrevive en §6.5), `Crown`/`Retract-Crown` (sin función en el diseño nuevo), `Subsume`/`Triage` (nunca existieron como trailers).
+No existen más campos. `Council` y `Plan` no son campos de la nota: el veredicto de un council forma parte del Why o la Description; el plan es otro canal (§10). Retirados con evidencia: `Risk` (79 escritos, 0 leídos, enum jamás validado; la urgencia son labels de issue), `Conflict`/`Resolution` (1 uso, lector inalcanzable), `Sources` (duplicaba `Origin:`; su regla sobrevive en §6, regla de consolidación, punto 5), `Touched` (605 escritos en el v1, 0 leídos por ningún programa; su función la da hoy `git log -- <ruta>`), `Crown`/`Retract-Crown` (sin función en el diseño nuevo), `Subsume`/`Triage` (nunca existieron como trailers).
 
 ### 3.4 Keys marcadoras
 
@@ -89,20 +88,20 @@ Cuatro keys tienen significado transversal y vocabulario controlado por la aduan
 | Tipo | Nombre | Qué es | Cómo muere |
 |---|---|---|---|
 | **D** | decision | Elección tomada, con su Why obligatorio | Nunca se borra; otra D la sustituye con `Replaces:` |
-| **M** | memo | Hecho estable del proyecto ("Stripe manda webhooks en UTC") | `Replaces:` o `close` (§5) |
-| **R** | restriction | La valla: hecho que puede **parar o romper** un desarrollo ("jamás tests contra producción") | `Replaces:` o `close` |
+| **M** | memo | Hecho estable del proyecto ("Stripe manda webhooks en UTC") | `Replaces:` o `remove` (§5) |
+| **R** | restriction | El muro: hecho que puede **parar o romper** un desarrollo ("jamás tests contra producción") | `Replaces:` o `remove` |
 | **Q** | question | Pregunta abierta sin confirmar | Asciende a M o cae a X; caduca **por evento**, no por fecha |
 | **X** | discarded | Lo estudiado y rechazado; existe para que nadie lo re-proponga | Permanente |
-| **I** | incident | Postmortem: se rompió algo + causa + qué se hizo | Se cierra (dentro de bug-protocol, §11) |
-| **B** | blocker | Pendiente **de fuera** que hace que cosas no funcionen o no sean verdad ("el dominio .es de staging no está comprado") | `close` al resolverse |
+| **I** | incident | Postmortem de algo **ya entregado**: se rompió + causa + qué se hizo. **Un defecto encontrado mientras se construye NO es una incidencia** `[decisión del propietario, 2026-08-05]` | Se cierra (§11). **Cerrada es historia: si vuelve a romperse es una incidencia NUEVA**, no una reapertura ni una sustitución |
+| **B** | blocker | Pendiente **de fuera** que hace que cosas no funcionen o no sean verdad ("el dominio .es de staging no está comprado") | `remove` al resolverse |
 
 Notas por tipo:
 
 - **D:** decidir y planificar son actos distintos (§10). Al guardarse una D tras una elección entre opciones, las opciones perdedoras nacen como **X automáticos enlazados** con `Origin: D-nnn` en el mismo acto.
-- **M:** las cinco categorías del memo v1 (preference/requirement/antipattern/stack/deadend) **mueren**. El censo real de los 201 memos del repo del toolkit reveló cinco poblaciones distintas conviviendo, y cada una tiene ahora su destino: hechos → M; vallas → R; preferencias de trabajo → rules (§12); informes de investigación → se destilan (hechos a M, negativos a X, el informe completo a docs vía Alexandria si tiene valor de mapa); trabajo pendiente → Q. `antipattern` sobrevive como key marcadora.
+- **M:** las cinco categorías del memo v1 (preference/requirement/antipattern/stack/deadend) **mueren**. El censo real de los 201 memos del repo del toolkit reveló cinco poblaciones distintas conviviendo, y cada una tiene ahora su destino: hechos → M; muros → R; preferencias de trabajo → rules (§12); informes de investigación → se destilan (hechos a M, negativos a X, el informe completo a docs vía Alexandria si tiene valor de mapa); trabajo pendiente → Q. `antipattern` sobrevive como key marcadora.
 - **R:** nace de la **pregunta obligatoria de la aduana** en todo alta de M/R: "¿puede costar datos, horas o producción caída? sí/no". Una sola vara, la estricta, y la pregunta de la aduana la usa literal — el contrato vive en una pieza (P3). Y la R tiene muerte por protocolo: close-session incluye la pregunta "¿alguna R del arranque ya no es verdad? ciérrala", de modo que la lista no crece sin poda. **Todas las R salen en cada arranque sin tope** (§8.3): son pocas por naturaleza, y si hay 47 el propio número delata que algo se está clasificando mal. En los informes de zona van arriba, literales. Al nacer una R, la aduana presenta **todas** las incidencias candidatas de la zona (nunca una sola preseleccionada) y Claude elige con calma —en su turno normal, pudiendo leer los commits candidatos o preguntar al usuario— una, varias o ninguna como `Origin:`.
 - **Q:** caduca por evento: debe resolverse antes de construir sobre su módulo o cuando una decisión pisa su terreno; el informe de zona la planta delante. Puede **parir una issue de investigación** cuando el usuario decide atacarla (simetría con D→plan-issue): la Q sigue viva en memoria; la issue es el vehículo; al cerrarse la issue, la Q asciende a M o cae a X.
-- **B:** criterio de calibración (irá en la skill de memoria): pendiente **de fuera** (del usuario, del cliente, de un proveedor) **y** convierte afirmaciones del proyecto en falsas o acciones en imposibles. Lleva campo `espera:` con el responsable. Nace en caliente (al chocar con el muro) o en el cierre de sesión (renglón del protocolo: "¿quedó algo parado esperando algo de alguien?").
+- **B:** criterio de calibración (irá en la skill de memoria): pendiente **de fuera** (del usuario, del cliente, de un proveedor) **y** convierte afirmaciones del proyecto en falsas o acciones en imposibles. Lleva campo `awaits:` **[decisión del propietario, 2026-08-03: las etiquetas mecánicas van en inglés]** con el responsable. Nace en caliente (al chocar con el muro) o en el cierre de sesión (renglón del protocolo: "¿quedó algo parado esperando algo de alguien?").
 
 ---
 
@@ -112,7 +111,7 @@ Un solo mecanismo universal de retirada, con dos caminos. Los trailers-lápida v
 
 **Camino 1 — la mata su reemplazo (el habitual).** Al guardar una nota, la aduana busca parecidas en la zona (keys compartidas y texto). Si encuentra, rechaza con las candidatas dentro: "¿la tuya sustituye a M-041, conviven, o es duplicado?". El relanzamiento con `--replaces M-041` escribe la nueva con su puntero; el script retira la línea vieja del índice hacia ARCHIVED.md ("replaced by M-062"). **La nota vieja no se caza por memoria ni por vigilancia: se caza cuando su reemplazo intenta entrar por la puerta.**
 
-**Camino 2 — se cruza y chirría (sin reemplazo).** `close M-041 "motivo"` → commit vacío de cierre; la línea sale del índice y entra en ARCHIVED.md ("closed: motivo"). El disparador es cruzársela en un informe y ver que ya no es verdad — no la memoria de nadie.
+**Camino 2 — se cruza y chirría (sin reemplazo).** `remove M-041 "motivo"` **[decisión del propietario, 2026-08-03: el comando se llama `remove`, no `close` — en todo el documento]** → commit vacío de cierre; la línea sale del índice y entra en ARCHIVED.md ("closed: motivo"). El disparador es cruzársela en un informe y ver que ya no es verdad — no la memoria de nadie.
 
 Las notas que nadie se cruza jamás no necesitan caza: son inofensivas por definición. Los tipos peligrosos tienen visibilidad forzada propia (R y B completos en cada boot; Q por evento; I contadas en boot).
 
@@ -120,10 +119,10 @@ Las notas que nadie se cruza jamás no necesitan caza: son inofensivas por defin
 
 ## 6. La aduana
 
-Dos piezas con papeles distintos: **el generador** escribe los commits (formato, emojis, Touched desde el diff, propagación de errores de git) y **la aduana** valida antes de dejar pasar. La lista de zonas, campos y keys válidos vive en la aduana (P3). La aduana es un hook PreToolUse sobre el comando de commit. Intercepta a **todos** los que commitean —sesión principal y subagentes— porque el hook es del harness, no de la sesión (verificado: los hooks disparan también en despachos de subagentes). Validaciones:
+Dos piezas con papeles distintos: **el generador** escribe los commits (formato, emojis, propagación de errores de git) y **la aduana** valida antes de dejar pasar. La lista de zonas, campos y keys válidos vive en la aduana (P3). La aduana es un hook PreToolUse sobre el comando de commit. Intercepta a **todos** los que commitean —sesión principal y subagentes— porque el hook es del harness, no de la sesión (verificado: los hooks disparan también en despachos de subagentes). Validaciones:
 
 1. **Zonas** contra zones.json, con alias y el alta en dos pasos (§3.2). Lista negra y palabra ilegal `audit`.
-2. **Árbol de tipos que acaba en pregunta, nunca en cajón:** ¿elección? → D (con sus X automáticos). ¿Hecho? → M. ¿Valla? → R. ¿Pregunta abierta? → Q. ¿Pendiente de fuera? → B. Si la nota no encaja limpiamente en D/M/R/Q/X/I/B, la aduana rechaza y pregunta qué es. Que el sistema diga "no sé clasificar esto" es información de diseño; embutirlo en un saco es como se pudrió la memoria v1.
+2. **Árbol de tipos que acaba en pregunta, nunca en cajón:** ¿elección? → D (con sus X automáticos). ¿Hecho? → M. ¿Muro? → R. ¿Pregunta abierta? → Q. ¿Pendiente de fuera? → B. Si la nota no encaja limpiamente en D/M/R/Q/X/I/B, la aduana rechaza y pregunta qué es. Que el sistema diga "no sé clasificar esto" es información de diseño; embutirlo en un saco es como se pudrió la memoria v1.
 3. **Pregunta obligatoria M/R** ("¿puede costar datos, horas o producción caída?").
 4. **Sustitución exigida:** decisión que pisa a otra sin `Replaces:` → rechazo pidiéndolo. Detector de parecidas con candidatas completas (§5).
 5. **Regla de consolidación:** toda nota de consolidación/destilación (las de la adaptación, §13) exige `Origin:` con al menos una fuente — **por tipo de nota, no por firma del autor**: compactar sin fuentes es imposible por definición, lo escriba quien lo escriba. Así el contrato vive en la aduana (P3), no en la prosa de ningún agente.
@@ -144,8 +143,8 @@ INCIDENTS.md  DISCARDED.md  BLOCKED.md  ARCHIVED.md
 ```
 
 - **Son índices, no la memoria:** una línea por nota = ID + titular. El contenido vive solo en git.
-- Los escribe **solo el script**; nadie los edita a mano; si divergen de git, manda git (P1) — y esa regla tiene ejecutor: el boot comprueba la coherencia índices↔git y la enseña (✓/⚠), y existe un comando de regeneración total desde git. La actualización del índice viaja **en el mismo commit** que la nota.
-- **Concurrencia:** las notas de memoria las escribe solo el orquestador, de una en una — sin caso de choque. Los commits de CÓDIGO sí pueden coincidir (oleadas con varios implementadores en paralelo): para eso **se conserva el candado del v1**, ya probado en producción.
+- Los escribe **solo el script**; nadie los edita a mano; si divergen de git, manda git (P1) — y esa regla tiene ejecutor: el boot comprueba la coherencia índices↔git y la enseña, desglosada con archivadas **[decisión del propietario, 2026-08-03: hoy imprime dos números que no cuadran y nadie los explica]**: `✓ indexes match git (68 lines / 68 notes)` sin archivadas, o `✓ indexes match git (587 live + 25 archived / 612 notes)` cuando las hay; y existe un comando de regeneración total desde git. La actualización del índice viaja **en el mismo commit** que la nota.
+- **Concurrencia:** las notas de memoria las escribe solo el orquestador, de una en una **[decisión del propietario, 2026-08-03: «el único que commitea eres tú»]**. Pero esto no hace innecesario el candado: es la misma frase que se dejó sin él, y el candado hizo falta igual. Medido en la capa 1, sin candado y con dos procesos reales escribiendo índices a la vez, la nota recién insertada **desaparecía en 14 de 40 intentos, sin un solo error** — el choque no viene de dos orquestadores a la vez (eso no ocurre), sino de cualquier otro proceso tocando el mismo índice en la ventana de escritura (un test, un segundo agente commiteando código). Los commits de CÓDIGO sí pueden coincidir (oleadas con varios implementadores en paralelo): para eso, y para el caso de arriba, **se conserva el candado del v1**, ya probado en producción.
 - **ARCHIVED.md es un fichero único cronológico** (no una carpeta): todo lo retirado, una línea por nota — fecha + titular + destino ("replaced by D-031" / "closed: motivo" / "promoted to M-062"). El tipo viaja en la propia línea; se pregunta al pasado por fecha.
 - **No existe fichero índice general** (MEMORY.md rechazado): la lista de ficheros la documenta la skill; los números los calcula el boot al vuelo contando líneas; un fichero-portada sería un duplicado capaz de mentir.
 - **No existe PLANS.md**: los planes no se indexan aquí (§10.2).
@@ -156,9 +155,9 @@ INCIDENTS.md  DISCARDED.md  BLOCKED.md  ARCHIVED.md
 
 ### 8.1 El informe (único producto de búsqueda)
 
-Buscar devuelve **el estado completo de una zona**, nunca una lista de commits: vigente por defecto; historia completa tras `--todo`; agrupación en racimos **por punteros** (`Origin`/`Replaces` — determinista, falla a gritos; nunca por similitud de IA ni por keys); restricciones ⚠ arriba, literales; preguntas Q vivas al final como "lo que espera del dueño". Cuatro entradas:
+Buscar devuelve **el estado completo de una zona**, nunca una lista de commits: vigente por defecto; historia completa tras `--todo`; agrupación en racimos **por punteros** (`Origin`/`Replaces` — determinista, falla a gritos; nunca por similitud de IA ni por keys); restricciones ⚠️ arriba, literales; preguntas Q vivas al final como "lo que espera del dueño". Cuatro entradas:
 
-- **Por ID:** `D-030` → la nota y su racimo.
+- **Por ID:** `D-030` → la nota y su racimo. El molde exacto está dictado por el propietario en `TEXTOS.md` §2.4 **[decisión del propietario, 2026-08-03]**: cabecera con identificador, tipo y estado (vigente/archivada); todos los campos del commit por su nombre, sin imprimir los vacíos; las dos zonas con la fecha en que se escribió; debajo, lo que cuelga de ella por punteros; el pie ofrece esa zona en vez de `--todo`.
 - **Por zona:** `auth` → estado completo de auth.
 - **Por palabra:** `stripe` → estado completo de las zonas donde aparece, con las líneas que casaron señaladas.
 - **Por fichero:** `auth.service.ts` → sus commits (titular, desplegable al cuerpo). Implementación: `git log -- <fichero>`; git ya es ese registro, la pieza nueva es solo la vista. **Bajo demanda exclusivamente** — el hook de pre-edición fue evaluado y rechazado: para editar, el pasado sobra (el agente lee el fichero como está); inyectar historia en cada edición es gasto de tokens sin valor. El radio de daño es oficio de Bilbo (zoom-out), no de quien edita.
@@ -167,31 +166,31 @@ Zona sin notas → "cero notas" en alto (P6).
 
 ### 8.2 Los tres momentos de lectura
 
-1. **Al despachar un agente a una zona:** el informe de la zona viaja dentro del encargo. Usa el tubo de inyección ya existente y medido (llega a los nueve agentes); cambia el contenido, no el mecanismo. **El contenido se reparte por oficio** (veredicto del Council, aceptado): quien puede violar una valla es quien tiene que verla —
+1. **Al despachar un agente a una zona:** el informe de la zona viaja dentro del encargo. Usa el tubo de inyección ya existente y medido (llega a los nueve agentes); cambia el contenido, no el mecanismo. **El contenido se reparte por oficio** (veredicto del Council, aceptado): quien puede violar un muro es quien tiene que verlo —
    - **Ultron** (implementa): las R de la zona + la D vigente que gobierna el módulo.
    - **Dante** (tests): las R + las I de la zona — cada cicatriz pasada se convierte en test de regresión sin que nadie lo pida.
    - **House** (diagnostica): las I de la zona — medio bug es el mismo bug de la otra vez.
    - **Argus/Cerberus** (revisan): las I abiertas + notas con keys `security`/`antipattern` — revisan contra lo que ya falló.
-   - **Moriarty** (ataca): las R + las I de la zona — su oficio es intentar romper: que ataque directamente las vallas y repita los golpes que ya tumbaron el sistema antes.
+   - **Moriarty** (ataca): las R + las I de la zona — su oficio es intentar romper: que ataque directamente los muros y repita los golpes que ya tumbaron el sistema antes.
    - **Yoda** (juzga): la D vigente + las R de la zona — se juzga contra el contrato escrito, no contra el gusto del juez.
    - **Bilbo** (explora): el informe completo de la zona.
-   Con el reparto por oficio, la valla llega directa a quien puede romperla — sin depender del resumen de ningún intermediario.
+   Con el reparto por oficio, el muro llega directo a quien puede romperlo — sin depender del resumen de ningún intermediario.
 2. **Pregunta del usuario que mira al pasado:** el disparador es **el usuario en lenguaje natural** ("busca en memoria qué decidimos del login") → Claude ejecuta el script de búsqueda. Sin disparadores léxicos, sin juicio espontáneo del modelo (medido como no fiable; council 4-1 en contra), sin inyección por mensaje (retirada en v1 por ruido). Pedir explícito no falla.
 3. **Reglas de conducta:** canal aparte (§12).
 
 ### 8.3 El boot: el menú del día
 
-El arranque de sesión (canal medido 100% fiable: 64/64) presenta, en este orden:
+**[decisión del propietario, 2026-08-03]** El arranque **deja de ser invocable**: no hay comando de boot entre los nueve del sistema. Se dispara solo al abrir sesión y **escribe un documento que Claude lee entero** — no una inyección con tope de tamaño, que es como estaba descrito hasta hoy. El canal que lo dispara (SessionStart) sigue siendo el mismo, medido 100% fiable (64/64); lo que cambia es que ya no hay un límite de bytes por delante del contenido. Presenta, en este orden, con sus etiquetas mecánicas en inglés (P8):
 
 ```
-⏩ ÚLTIMO NEXT (con su Context debajo)                     ← §9
-⛔ TODOS los B, con su "espera: quién"                     ← sin tope
-⚠ TODAS las R                                             ← sin tope ni presupuesto
-Recuentos: Q sin resolver · issues abiertas · I abiertas   ← solo números
-Avisos: plan #N con commits sin reflejar (§10.4) · IDs duplicados (§3.1) · índices coherentes con git ✓/⚠
+⏩ LAST NEXT (con su Context debajo)                        ← §9
+⛔ BLOCKERS: TODOS los B, con su "awaits: quién"             ← sin tope
+⚠️ RESTRICTIONS: TODAS las R                                ← sin tope ni presupuesto
+COUNTS: open questions (diciendo cuáles bloquean trabajo) · issues abiertas · open incidents
+CHECKS: plan #N con commits sin reflejar (plans with a record, §10.4) · no duplicate IDs (§3.1) · indexes match git ✓/⚠️ (§7)
 ```
 
-Claude comunica el menú al usuario en su primer mensaje y **el usuario decide el rumbo** (Next, preguntas, issues u otra cosa). El boot pone el mapa; no decide. **Criterio de visibilidad, explícito:** R y B salen enteras porque son seguridad — no se puede trabajar sin verlas; las Q e issues salen como recuento porque son el backlog del propietario — las elige él del menú. No es una inconsistencia: son dos naturalezas distintas. (Las Q vivas de una zona ya aparecen, además, al final del informe de esa zona cuando viaja a un agente.) Los presupuestos de renderizado del v1 (que ocultaban el 94-96% de la memoria) desaparecen para R y B: su valor es precisamente la visibilidad incondicional.
+Claude comunica el menú al usuario en su primer mensaje, y ese mensaje **no puede ser breve** **[decisión del propietario, 2026-08-03: «con seis preguntas abiertas, yo no me entero de nada»]**: lleva el Next con lo que pasó, los bloqueantes con fecha si la tienen, **las preguntas abiertas diciendo cuáles bloquean trabajo** (no un número suelto), las incidencias, los planes con commits sin reflejar y los muros que apliquen — con un emoji por sección. **El usuario decide el rumbo** (Next, preguntas, issues u otra cosa); el boot pone el mapa completo, no decide. **Criterio de visibilidad:** R y B salen enteras porque son seguridad — no se puede trabajar sin verlas. Las Q ya no se reducen a un número solo: el recuento sigue existiendo, pero el mensaje señala cuáles bloquean el trabajo de hoy. (Las Q vivas de una zona ya aparecen, además, al final del informe de esa zona cuando viaja a un agente.) Los presupuestos de renderizado del v1 (que ocultaban el 94-96% de la memoria) desaparecen para R y B: su valor es precisamente la visibilidad incondicional.
 
 ---
 
@@ -199,21 +198,24 @@ Claude comunica el menú al usuario en su primer mensaje y **el usuario decide e
 
 Redefinición completa respecto al v1. El context **no** es otro commit que narra trabajo (eso ya lo cuentan los commits de la sesión): es **la compactación de la conversación** — lo hablado que no vive en ningún commit y se perdería al cerrar.
 
+**[decisión del propietario, 2026-08-03]** El ejemplo ilustrativo de abajo se actualiza para no contradecir la forma decidida; el molde exacto que el propietario aprobó vive en `TEXTOS.md` §5.
+
 ```
-⏩ implement discussed changes to close-session skill
+[NEXT] ⏩ implement discussed changes to close-session skill
 Keys: close-session, checkpoint, plan
 Context:
-- Revisado el diseño del checkpoint: muere el automático, lo hace close-session
-- Punto de inflexión: fuera comodines — toda nota lleva dos zonas reales
-- Decidido de palabra: los planes viven en docs/ como plan-*.md
-- Quedó en el aire el alcance de facturación; hablar antes de empezar
+Se revisó el diseño del checkpoint (muere el automático, lo hace close-session) y se decidió,
+tras dar vueltas a los comodines de zona, que toda nota lleva dos zonas reales siempre. Se
+discutió dónde viven los planes y se fijó que van en docs/ como plan-*.md. A media sesión se
+rompió la suite al tocar el candado de índices y hubo que pararse a arreglarlo antes de seguir.
+Quedó en el aire el alcance de facturación — hablar antes de empezar mañana.
 ```
 
-- **El titular ES el Next**, obligatorio, con el emoji de avance ⏩. Es la orden del día de la sesión siguiente.
+- **El titular ES el Next**, con el corchete `[NEXT]` literal, su emoji de avance ⏩ y el título — obligatorio. Es la orden del día de la sesión siguiente.
 - `Keys:` como cualquier commit (es su superficie de enlace), en inglés.
-- El cuerpo es **`Context:`** (no Description): la conversación destilada en puntos — inflexiones, decisiones de palabra, hilos abiertos. Sin transcripción ("Jose dijo / yo dije"). En español.
+- El cuerpo es **`Context:`** (no Description): **un resumen en prosa de toda la sesión** — lo que se habló, lo que se decidió, lo que se rompió, lo que quedó a medias, y los cabreos con su motivo **[decisión del propietario, 2026-08-03]**. No una lista de puntos (así estaba descrito hasta hoy) y no un acta de lo construido — eso ya lo cuentan los commits. Sin transcripción ("Jose dijo / yo dije"). En español.
 - Lo escribe **close-session**. Cada cierre pisa al anterior: el boot enseña solo el último; los anteriores quedan en git como historia gratuita.
-- **Renglones que close-session gana con este diseño (consolidado):** (1) escribir el context/Next; (2) actualizar la issue-plan trabajada — checkboxes + comentario resumen (§10.4); (3) poda de vallas — "¿alguna R del arranque ya no es verdad? ciérrala" (§4); (4) alta de bloqueantes — "¿quedó algo parado esperando algo de alguien? → commitea el B" (§4).
+- **Renglones que close-session gana con este diseño (consolidado):** (1) escribir el context/Next; (2) actualizar la issue-plan trabajada — checkboxes + comentario resumen (§10.4); (3) poda de muros — "¿alguna R del arranque ya no es verdad? ciérrala" (§4); (4) alta de bloqueantes — "¿quedó algo parado esperando algo de alguien? → commitea el B" (§4).
 - **Sin zonas, sin índice, sin lápida:** es estado, no memoria del proyecto. No se busca; se lee entero al arrancar.
 - Puede citar issues (`#47`) a mano. **La creación automática de issues desde el Next queda retirada** — evidencia concluyente: 416 trailers `Next:` en el proyecto más grande y **cero** issues creadas por el mecanismo automático en toda su vida; además los Next reales son párrafos con condiciones y gates, no títulos.
 
@@ -226,7 +228,7 @@ Context:
 Nota D con Why + Keys + Description, y los X de las alternativas perdedoras enlazados con `Origin:` en el mismo acto. Ejemplo canónico:
 
 ```
-🧭 [D-030][product][auth] login with JWT + Google OAuth
+[D-030][product][auth] 🧭 login with JWT + Google OAuth
 Why: sesiones no escalan multi-tenant; Google evita gestionar passwords propios
 Keys: token, oauth, sso, signin
 Description: Brainstorm sobre el login. Se valoraron sesiones de servidor,
@@ -250,7 +252,7 @@ Nueva D con `Replaces: D-030`. Git no se toca; la issue del plan —que es mutab
 - Los commits de trabajo llevan `Issue: #47` (detección exacta verificada: `git log --grep="^Issue: #N"`, cero falsos positivos).
 - **La issue la pone al día el protocolo close-session** (renglón nuevo en su paso de higiene de tracker): marcar checkboxes de lo completado + comentario resumen. El checkpoint automático en SessionEnd fue diseñado, ensayado y **retirado** en favor del protocolo; con él mueren sus tres complicaciones (frontera de sesión, marca de máquina en comentarios, coste por N planes).
 - **Red de seguridad en el boot** (consulta simple, 0,85 s medidos): si hay commits `Issue: #N` posteriores al último comentario de la issue → aviso "plan #47: N commits sin reflejar".
-- **Al merge: squash.** Los wips se comprimen; el Touched del commit final es la unión completa del diff contra la base de la rama (verificado empíricamente). La historia que importa es la de capítulos (un merge = un capítulo), no la de borradores.
+- **Al merge: squash.** Los wips se comprimen; el diff del commit final es la unión completa de los diffs contra la base de la rama (verificado empíricamente). La historia que importa es la de capítulos (un merge = un capítulo), no la de borradores.
 
 ---
 
@@ -262,7 +264,7 @@ La incidencia vive dentro de la **skill `unmassk-bug-protocol`** (hermana de clo
 2. **A la vuelta de House con veredicto de bug encontrado → Claude commitea la I en ese momento**, con el pie estructurado que House incorpora a su informe (causa raíz + titular y zonas propuestos). House no escribe git.
 3. Rama del fix → pipeline completa (Ultron, tests, wips necesarios).
 4. Al terminar: squash, cierre de rama, cierre de issue si la hubo.
-5. **Cierre de la I** en el commit final; la aduana "ofrece" ahí la **R** con su única mecánica posible (P5): rechaza el commit de cierre con la pregunta dentro ("¿de esta cicatriz sale valla? --restriction new|no") — la cadena explosión → diagnóstico → postmortem → valla, sin depender de memoria.
+5. **Cierre de la I** en el commit final; la aduana "ofrece" ahí la **R** con su única mecánica posible (P5): rechaza el commit de cierre con la pregunta dentro ("¿de esta cicatriz sale muro? --restriction new|no") — la cadena explosión → diagnóstico → postmortem → muro, sin depender de memoria.
 
 La pregunta del dolor (¿esto costó datos/horas/producción?) vive **en el protocolo**, no en la aduana. Red de seguridad: recuento de I abiertas en cada boot. Puerta manual siempre abierta (incidencias sin House: aviso externo del cliente, etc.). Una I con trabajo largo puede parir issue, como D y Q.
 
@@ -278,7 +280,7 @@ Los remember (user/claude) son configuración de cómo trabajar, no memoria del 
 
 - Flujo: commit vacío (nomenclatura nueva posible) → el script lo detecta → lo añade a la lista de remembers, organizada, en su fichero propio.
 - **No** aparecen en búsquedas, ni en informes, ni los lee ningún agente.
-- El usuario los invoca con su comando (`/remember`), que entrega el fichero **entero** a Claude.
+- El usuario los invoca con su comando (`rule`) **[decisión del propietario, 2026-08-03: el comando se llama `rule`, no `/remember` — «hubiera preferido remember, pero como habría que cambiar muchas cosas, vale»]**, que entrega el fichero **entero** a Claude.
 - Sin zonas, sin aduana de zonas, sin casilla — a propósito.
 - Punto abierto declarado: el dedup de remembers (dos frases distintas con el mismo significado) excede a un script; requiere agente. Pendiente de revisar; no bloquea nada.
 
@@ -291,8 +293,7 @@ Los remember (user/claude) son configuración de cómo trabajar, no memoria del 
 - **Fecha de corte por proyecto:** lo que el v1 escriba hasta ese día entra en la destilación; desde ese día, solo formato nuevo. Sin fecha explícita, las notas de las semanas de construcción no las destila nadie.
 
 - **La consolidación periódica muere.** Era la medicina del sistema enfermo (puerta abierta → bibliotecario a posteriori). La sustituyen: aduana en la entrada + muerte por diseño de cada tipo + lectura de solo-vigente. No queda trabajo para un compactador recurrente.
-- **La adaptación es una fase única de instalación:** en un proyecto con memoria v1, Gitto la destila **una vez** a notas de formato nuevo. Aditivo (los commits viejos no se tocan jamás — P1), por partes con tope por pasada, "en la duda, proponer al usuario", y `Origin:` obligatorio citando los hashes v1 de los que destila (§6.5).
-- Gitto pierde su modo consolidador periódico (coronas), gana el modo adaptador único, y conserva sus modos oráculo y ejecutor.
+- **La adaptación es una fase única de instalación:** en un proyecto con memoria v1, se destila **una vez** a notas de formato nuevo. Aditivo (los commits viejos no se tocan jamás — P1), por partes con tope por pasada, "en la duda, proponer al usuario", y `Origin:` obligatorio citando los hashes v1 de los que destila (§6, regla de consolidación, punto 5). **Ejecutor por decidir** (Gitto se retiró, decisión del propietario 2026-08-02): candidatos son Bilbo con un prompt específico que le diga exactamente qué buscar y qué crear, o un agente genérico con un prompt específico — se decide cuando llegue el momento (ver `PLAN-CONSTRUCCION.md` FASE 8).
 - **Cero migración de historia. Cero reescritura.** Lo no destilado queda como archivo muerto consultable.
 
 ---
@@ -316,11 +317,11 @@ Resumen de mediciones y ensayos realizados sobre los repos reales (claude-toolki
 
 ## 15. Validación del sistema
 
-**Primera prueba de la construcción (Council + criterio del propietario):** antes de repartir el tubo a los nueve roles, una semana con UN solo cambio — las R de la zona inyectadas a Ultron. Criterio de éxito decidido de antemano para que el resultado sea un sí/no y no una impresión: el prompt de Ultron exige una línea en su informe si una R le cambió lo que iba a hacer ("R-007 me hizo apuntar los tests a staging en vez de a prod"). Si en una semana ninguna valla cambió nada observable, el problema no es la selección del contenido sino que lo inyectado se ignora — conclusión más valiosa que descubrirlo con el sistema entero construido.
+**Primera prueba de la construcción (Council + criterio del propietario):** antes de repartir el tubo a los nueve roles, una semana con UN solo cambio — las R de la zona inyectadas a Ultron. Criterio de éxito decidido de antemano para que el resultado sea un sí/no y no una impresión: el prompt de Ultron exige una línea en su informe si una R le cambió lo que iba a hacer ("R-007 me hizo apuntar los tests a staging en vez de a prod"). Si en una semana ningún muro cambió nada observable, el problema no es la selección del contenido sino que lo inyectado se ignora — conclusión más valiosa que descubrirlo con el sistema entero construido.
 
 **Aviso estructural asumido (Council):** el `wip` está exento de toda pregunta de la aduana (correcto: fricción al guardar = no se guarda), y por tanto es el desagüe natural cuando la aduana moleste — el escape no produce notas malas, produce CERO notas. Se vigila con el uso, no con maquinaria.
 
-**El juicio final sobre si el sistema funciona es del propietario** — él conserva la continuidad entre sesiones que los modelos no tienen. Lo que sea testeable mecánicamente, se testea (banco de pruebas adversarial de P12, con ejecución automática y resultado visible); lo que no, lo dictamina el propietario con el uso. No se fijan métricas de éxito numéricas: los contadores del sistema (P6) informan, no juzgan.
+**El juicio final sobre si el sistema funciona es del propietario** — él conserva la continuidad entre sesiones que los modelos no tienen. Lo que sea testeable mecánicamente, se testea — la suite de contrato de cada pieza, más el ataque manual de Moriarty en la secuencia de revisión por capas **(P12 retirado, decisión del propietario, 2026-08-03: no hay banco de pruebas adversarial automático)**; lo que no, lo dictamina el propietario con el uso. No se fijan métricas de éxito numéricas: los contadores del sistema (P6) informan, no juzgan.
 
 Nota de revisión: se evaluó y descartó un contador de "notas con puntero". El detector de parecidas de la aduana es léxico y puede no ver equivalencias con vocabulario distinto — no es garantía total. El descarte es decisión del propietario: los contadores informan, el juicio es suyo.
 
@@ -331,7 +332,7 @@ Nota de revisión: se evaluó y descartó un contador de "notas con puntero". El
 Ninguno bloquea la construcción del núcleo. Se listan para que la revisión no los descubra como omisiones:
 
 1. Los cinco puntos internos de la skill bug-protocol (§11), a definir al redactarla.
-2. Prompts por reescribir: Gitto (§13), House (pie de informe, §11), Bilbo (zoom-out como paso obligatorio: mapa de módulos, llamantes y radio de daño en todo informe).
+2. Prompts por reescribir: House (pie de informe, §11), Bilbo (zoom-out como paso obligatorio: mapa de módulos, llamantes y radio de daño en todo informe).
 3. Papel de Alexandria en el sistema nuevo (destino "docs" de §4 ya decidido; el flujo de documentación, por hablar).
 4. Listas de zonas definitivas por proyecto (tarea del usuario; materia prima preparada para monyma y omawa).
 5. Dedup semántico de remembers (§12).
@@ -344,7 +345,7 @@ Ninguno bloquea la construcción del núcleo. Se listan para que la revisión no
 ## 17. Puntos muertos (no reabrir sin evidencia nueva)
 
 - Cambiar el almacén a SQLite/JSONL/embeddings → git se queda (decisión explícita del propietario).
-- La capa (frontend/backend) como tercera casilla → se deduce de Touched en los commits de trabajo (las notas de memoria no tocan ficheros y no lo llevan).
+- La capa (frontend/backend) como tercera casilla → se deduce del diff nativo del commit de trabajo (`Touched` se retiró, §3.3; las notas de memoria no tocan ficheros y no tienen diff que mirar).
 - La actividad (auditoría, migración) como eje/casilla → va en el titular.
 - Comodines de zona (`core`, `producto`, `general`, `all`) → dos zonas reales siempre.
 - Deducción de zona desde ficheros (mapa zona↔rutas) → innecesaria: el fichero es el fichero.
@@ -372,22 +373,22 @@ Ninguno bloquea la construcción del núcleo. Se listan para que la revisión no
 | Término | Definición |
 |---|---|
 | **Nota** | Entrada de memoria: commit sin código de aplicación (lleva la nota + su línea de índice) de tipo D, M, R, Q, X, I o B |
-| **Titular** | Primera línea: `[TIPO-ID][zona1][zona2] resumen` en inglés, ≤60 chars |
+| **Titular** | Primera línea: `[TIPO-ID][zona1][zona2] resumen` en inglés, ≤80 chars |
 | **Zona** | Palabra válida de casilla; vive en zones.json (lista cerrada con alias) |
 | **Aduana** | Hook PreToolUse que valida todo commit de memoria; único enforcement (P5) |
-| **Rechazo informativo** | Mecánica universal de la aduana: bloqueo cuyo mensaje contiene pregunta y opciones; se responde relanzando con flags |
+| **Rechazo informativo** | Mecánica de la aduana de notas: bloqueo cuyo mensaje contiene pregunta y opciones; se responde relanzando con flags. Excepción: los comandos de git que borran trabajo la responde el usuario, no Claude (P5) |
 | **Keys** | ≤5 sinónimos de búsqueda en inglés, ausentes del titular |
 | **Key marcadora** | Key de vocabulario controlado: antipattern, security, performance, legal |
 | **Origin / Replaces** | Punteros: "de qué nazco" / "a qué reemplazo". Costuras del informe |
 | **Racimo** | Grupo de notas unidas por punteros; su título es la nota viva más reciente |
-| **close** | Comando de retirada sin reemplazo → ARCHIVED.md |
+| **remove** | Comando de retirada sin reemplazo → ARCHIVED.md (antes `close`; renombrado, decisión del propietario, 2026-08-03) |
 | **ARCHIVED.md** | Fichero cronológico único de todo lo retirado: fecha + titular + destino |
 | **Índice** | Fichero de una línea por nota (ID + titular); solo lo escribe el script |
 | **Informe** | Producto de toda búsqueda: estado completo de una zona, vigente por defecto |
-| **Menú del día** | El boot: ⏩ Next+Context, todos los B y R, recuentos, avisos. El usuario decide el rumbo |
+| **Menú del día** | El boot: ⏩ Next+Context, todos los B y R, COUNTS, CHECKS. El usuario decide el rumbo |
 | **Context/Next** | Compactación de la conversación al cierre; titular = ⏩ Next |
 | **Acta de plan** | Commit que enlaza D → issue del plan; única verificación GitHub de la aduana |
-| **Adaptación** | Destilación única y aditiva de memoria v1 a formato nuevo (Gitto) |
-| **rules / remembers** | Configuración de trabajo, fuera del sistema; se entrega entera con `/remember` |
+| **Adaptación** | Destilación única y aditiva de memoria v1 a formato nuevo (ejecutor por decidir, §13) |
+| **rules / remembers** | Configuración de trabajo, fuera del sistema; se entrega entera con `rule` (antes `/remember`; el comando se llama `rule`, decisión del propietario, 2026-08-03) |
 | **zones.json** | Lista cerrada de zonas del proyecto; altas en dos pasos, a la vista |
 | **Zombi** | Campo que se escribe y nadie lee; prohibido por P2 |

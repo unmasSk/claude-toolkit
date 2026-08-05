@@ -36,15 +36,16 @@ When a single agent (Ultron) builds its slice within one context, it MAY run the
 
 ## What to test
 
-Follow standards.md §7 (backend) and §27 (frontend) for what to test per module type and at which tier. In short:
-- Security modules: missing/manipulated token, privilege escalation, env guards (T1).
-- API modules: happy path, invalid input, not found, DB error, permissions.
+Follow standards.md §1 (tier system — what's load-bearing per module) and §9's Real-verification checklist for what to test and at which tier. In short:
+- Integrity/persistence modules: write-then-read verified across the real seam, atomic writes, no concurrent-write race (T1 — §3/§6/§34).
+- Silent-failure paths: no swallowed catch, no masked exit code, a fail-open logs why it fell back (T1 — §4).
+- Behavior/API modules: happy path, invalid input, not-found, error paths, whatever permissions the project actually defines.
 - Don't test: getters without logic, library internals, exhaustive param combos.
 
 ## Quality rules for the tests themselves
 
-From standards.md §7: AAA pattern, reset any shared mock/fixture state between tests, no tautological assertions (an always-true assert is forbidden, T2), no tests depending on execution order (T2), no mocks replicating production logic (T2). Test behavior through public interfaces, not implementation — a test that breaks on a rename was testing the wrong thing. **Run against the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run in the test environment, and wire at least one test to the core seam end-to-end (`unmassk-standards` §34.5).
+From standards.md §9's Real-verification checklist: no tautological assertions (an always-true assert is forbidden, T2), no tests depending on execution order (T2), no mocks replicating production logic (T2), mocks cleared between tests. Test behavior through public interfaces, not implementation — a test that breaks on a rename was testing the wrong thing. **Run against the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run in the test environment, and wire at least one test to the core seam end-to-end (`unmassk-standards` §34.5).
 
 ## Persistence
 
-Acceptance criteria and behavior decisions that emerge → `decision()` in git-memory with their Why. Never to `.md` files.
+Acceptance criteria and behaviour decisions that emerge are saved as decisions, with their why. Never to a `.md` file.

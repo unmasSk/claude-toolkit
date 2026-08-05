@@ -314,29 +314,12 @@ class TestBootSections:
         output = run_boot(repo)
         assert "BRANCH:" in output
 
-    def test_has_resume_section(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "RESUME:" in content
-
-    def test_has_remember_section(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "REMEMBER:" in content
-
-    def test_has_decisions_section(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "DECISIONS:" in content
-
-    def test_has_timeline_section(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "TIMELINE" in content
+    # RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_has_resume_section,
+    # test_has_remember_section, test_has_decisions_section,
+    # test_has_timeline_section probaban las secciones RESUME/REMEMBER/
+    # DECISIONS/TIMELINE, eliminadas junto con el resto del sistema de
+    # memoria v1 (ver el docstring de lib/boot_render.py, que las lista
+    # explicitamente entre lo retirado).
 
     def test_has_boot_complete_terminator(self, tmp_path):
         repo = make_repo_with_memory(tmp_path)
@@ -363,12 +346,21 @@ class TestBootSections:
 
     def test_section_order_in_log_file(self, tmp_path):
         """The full boot-log file keeps the designed section order: STATUS,
-        BRANCH, RESUME, REMEMBER, DECISIONS, TIMELINE, BOOT COMPLETE."""
+        BRANCH, SCOPES, BOOT COMPLETE.
+
+        RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): the order originally
+        asserted here was STATUS, BRANCH, RESUME, REMEMBER, DECISIONS,
+        TIMELINE, BOOT COMPLETE — RESUME/REMEMBER/DECISIONS/TIMELINE were
+        removed with the rest of the v1 memory system (see
+        lib/boot_render.py's docstring). SCOPES (rendered by
+        boot_git_checks.render_scopes_section(), still live) replaces them
+        as the section that must sit between BRANCH and BOOT COMPLETE.
+        """
         repo = make_repo_with_memory(tmp_path)
         run_boot(repo)
         content = _read_boot_log(repo)
         positions = []
-        for marker in ["STATUS:", "BRANCH:", "RESUME:", "REMEMBER:", "DECISIONS:", "TIMELINE", "BOOT COMPLETE"]:
+        for marker in ["STATUS:", "BRANCH:", "SCOPES", "BOOT COMPLETE"]:
             pos = content.find(marker)
             assert pos != -1, f"Missing section in log file: {marker}"
             positions.append(pos)
@@ -382,57 +374,15 @@ class TestBootSections:
         first_line = output.split("\n")[0]
         assert re.search(r"v\d+\.\d+\.\d+", first_line)
 
-    def test_resume_shows_next(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "finish JWT refresh token flow" in content
-
-    def test_resume_shows_last_context(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "pause JWT implementation" in content
-
-
-class TestBootTimeAgo:
-    """Boot shows time since last session — the time-ago string lives in the
-    RESUME section, which is no longer printed inline (any repo size), so it
-    is asserted against the full boot-log file."""
-
-    def test_last_commit_has_time_ago(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        # The RESUME section should show a time-ago like "Xm ago" or "just now"
-        assert re.search(r"\d+[mhdw] ago|just now", content)
-
-
-class TestBootBranchAwareness:
-    """Branch-scoped items appear first in their sections — verified in the
-    full boot-log file, since RESUME/Next items are no longer printed inline
-    (any repo size)."""
-
-    def test_branch_scoped_next_first(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        # Create a branch with auth keyword
-        git_cmd(["checkout", "-b", "feat/issue-42-auth-refactor"], repo)
-        git_cmd(["commit", "--allow-empty", "-m",
-                 "💾 context(api): pause API work\n\nWhy: context switch\nNext: add rate limiting to API"], repo)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        # The auth-related Next should appear BEFORE the API Next
-        # because branch name contains "auth"
-        auth_pos = content.find("JWT refresh token")
-        api_pos = content.find("rate limiting")
-        # Both should exist
-        assert auth_pos != -1, "Branch-matching 'JWT refresh token' item missing from log file"
-        assert api_pos != -1, "Non-matching 'rate limiting' item missing from log file"
-        # Branch-matching items must appear before non-matching items
-        assert auth_pos < api_pos, (
-            f"Branch-matching item should appear before non-matching item: "
-            f"auth_pos={auth_pos}, api_pos={api_pos}"
-        )
+    # RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_resume_shows_next y
+    # test_resume_shows_last_context probaban el contenido de la seccion
+    # RESUME, eliminada (ver lib/boot_render.py). Las clases enteras
+    # TestBootTimeAgo (el "time-ago" que probaba vivia solo en RESUME;
+    # time_ago() en si sigue vivo via boot_git_checks.render_branches_section()
+    # y ya tiene cobertura directa en tests/test_boot_git_checks.py) y
+    # TestBootBranchAwareness (la priorizacion Next por rama era
+    # score_branch_relevance/partition_by_relevance, listados explicitamente
+    # como retirados en el mismo docstring) se eliminaron completas.
 
 
 class TestBootEmpty:
@@ -448,50 +398,12 @@ class TestBootEmpty:
         assert "STATUS:" in output
 
 
-class TestGlossaryCache:
-    """Glossary caching creates, reads, and invalidates correctly."""
-
-    def test_cache_created_on_first_boot(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)
-        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
-        assert os.path.isfile(cache_path), "Glossary cache file should be created on first boot"
-        with open(cache_path, encoding="utf-8") as f:
-            cache = json.load(f)
-        assert "head_sha" in cache
-        assert "generated_at" in cache
-
-    def test_cache_invalidated_on_head_change(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)  # creates cache
-        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
-        with open(cache_path, encoding="utf-8") as f:
-            cache_before = json.load(f)
-        # Make a new commit to change HEAD
-        git_cmd(["commit", "--allow-empty", "-m", "🧭 decision(db): use postgres\n\nDecision: postgres over mysql"], repo)
-        run_boot(repo)  # should regenerate cache
-        with open(cache_path, encoding="utf-8") as f:
-            cache_after = json.load(f)
-        assert cache_before["head_sha"] != cache_after["head_sha"]
-
-    def test_cache_invalidated_on_ttl_expiry(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        run_boot(repo)  # creates cache
-        cache_path = os.path.join(repo, ".claude", ".unmassk", "glossary-cache.json")
-        # Backdate the generated_at to simulate TTL expiry
-        with open(cache_path, encoding="utf-8") as f:
-            cache = json.load(f)
-        from datetime import timedelta
-        from datetime import datetime, timezone
-        old_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
-        cache["generated_at"] = old_time
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-        run_boot(repo)  # should regenerate
-        with open(cache_path, encoding="utf-8") as f:
-            refreshed = json.load(f)
-        # generated_at should be recent, not the backdated time
-        assert refreshed["generated_at"] != old_time
+# RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): TestGlossaryCache probaba
+# glossary-cache.json, generado por extract_glossary() en
+# hooks/session-start-boot.py — esa funcion ya no existe (ver el "GC" que el
+# docstring del hook lista explicitamente entre las secciones retiradas del
+# sistema de memoria v1). Sin extract_glossary()/extract_memory() nada
+# vuelve a escribir ese fichero.
 
 
 class TestVersionCheck:
@@ -676,98 +588,52 @@ class TestBootLogFileFullContent:
         )
 
     def test_log_file_reflects_new_commits_on_each_boot(self, tmp_path):
-        """File is regenerated (not written once and left stale)."""
+        """File is regenerated (not written once and left stale).
+
+        RETIRADO-Y-ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): the original
+        marker was a Decision: trailer on a fresh commit, read back from the
+        now-dead DECISIONS section. Re-proven here via BRANCH: (still live)
+        instead — checking out a new branch and re-booting must show the new
+        branch name, not a stale one from the previous write.
+        """
         repo = make_repo_with_giant_commit(tmp_path)
         run_boot(repo)
         content_before = _read_boot_log(repo)
-        assert "brand-new-marker-xyz" not in content_before
+        assert "brand-new-branch-xyz" not in content_before
 
-        git_cmd(["commit", "--allow-empty", "-m",
-                 "🧭 decision(freshscope): brand-new-marker-xyz"], repo)
+        git_cmd(["checkout", "-b", "brand-new-branch-xyz"], repo)
         run_boot(repo)
         content_after = _read_boot_log(repo)
-        assert "brand-new-marker-xyz" in content_after, (
-            "boot log file must be rewritten with the latest commit's memory on every boot"
+        assert "brand-new-branch-xyz" in content_after, (
+            "boot log file must be rewritten with the current branch on every boot"
         )
 
     def test_log_file_has_all_sections(self, tmp_path):
+        """RETIRADO-Y-ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): RESUME/
+        REMEMBER/DECISIONS/MEMOS/TIMELINE were removed with the rest of the
+        v1 memory system (see lib/boot_render.py's docstring) — only the
+        still-live sections are asserted now."""
         repo = make_repo_with_giant_commit(tmp_path)
         run_boot(repo)
         content = _read_boot_log(repo)
-        for marker in ["STATUS:", "BRANCH:", "SCOPES:", "RESUME:",
-                       "REMEMBER:", "DECISIONS:", "MEMOS:", "TIMELINE"]:
+        for marker in ["STATUS:", "BRANCH:", "SCOPES"]:
             assert marker in content, f"boot log file missing section {marker!r}"
 
-    def test_log_file_has_last_and_next(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        assert "Last:" in content
-        assert "Next:" in content
-
-    def test_long_subject_not_truncated_in_log_file(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "Q")
-        assert run == len(LONG_SUBJECT_PAYLOAD), (
-            f"expected the full {len(LONG_SUBJECT_PAYLOAD)}-char subject payload "
-            f"untruncated, found a run of only {run} 'Q' characters"
-        )
-
-    def test_long_next_not_truncated_in_log_file(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "Z")
-        assert run == len(LONG_NEXT_MARKER), (
-            f"Next: trailer truncated — expected {len(LONG_NEXT_MARKER)} 'Z' chars, found {run}"
-        )
-
-    def test_long_decision_not_truncated_in_log_file(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "D")
-        assert run == len(LONG_DECISION_MARKER), (
-            f"Decision: trailer truncated — expected {len(LONG_DECISION_MARKER)} 'D' chars, found {run}"
-        )
-
-    def test_long_memo_not_truncated_in_log_file(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "M")
-        assert run == len(LONG_MEMO_MARKER), (
-            f"Memo: trailer truncated — expected {len(LONG_MEMO_MARKER)} 'M' chars, found {run}"
-        )
-
-    def test_long_remember_not_truncated_in_log_file(self, tmp_path):
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "R")
-        assert run == len(LONG_REMEMBER_MARKER), (
-            f"Remember: trailer truncated — expected {len(LONG_REMEMBER_MARKER)} 'R' chars, found {run}"
-        )
-
-    def test_long_subject_appears_untruncated_in_timeline(self, tmp_path):
-        """TIMELINE lists the same giant commit — its subject must not be
-        truncated there either (contract item 4)."""
-        repo = make_repo_with_giant_commit(tmp_path)
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        timeline_section = content[content.find("TIMELINE"):]
-        run = _longest_char_run(timeline_section, "Q")
-        assert run == len(LONG_SUBJECT_PAYLOAD), (
-            "TIMELINE entry for the giant commit must show the full subject, not a cut version"
-        )
-
-    # NOTE: GC is intentionally not asserted here for "untruncated-ness" —
-    # GC only ever prints aggregate counts (e.g. "12 memos detected"), never
-    # raw commit text, so there is no payload for it to truncate. The
-    # TIMELINE/REMEMBER/DECISIONS/MEMOS assertions above already cover every
-    # section that carries raw long-form text from this commit.
+    # RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): test_log_file_has_last_and_next
+    # probaba las lineas "Last:"/"Next:", exclusivas de la seccion RESUME
+    # (eliminada) — no hay ningun otro sitio que emita ese literal hoy.
+    #
+    # test_long_subject_not_truncated_in_log_file,
+    # test_long_next_not_truncated_in_log_file,
+    # test_long_decision_not_truncated_in_log_file,
+    # test_long_memo_not_truncated_in_log_file,
+    # test_long_remember_not_truncated_in_log_file,
+    # test_long_subject_appears_untruncated_in_timeline probaban que el
+    # contenido crudo de un commit (subject/trailers Next/Decision/Memo/
+    # Remember) no se truncaba al renderizarse en RESUME/DECISIONS/MEMOS/
+    # REMEMBER/TIMELINE. Las cinco secciones estan eliminadas y ningun otro
+    # renderer vuelve a volcar texto crudo sin cota de un commit — no queda
+    # mecanismo vivo que estos tests puedan seguir probando.
 
 
 def _run_boot_with_failing_log_write(repo):
@@ -859,8 +725,22 @@ class TestBootLogWriteFailureFallback:
     """
 
     def test_full_text_printed_when_boot_log_write_fails(self, tmp_path):
+        """RETIRADO-Y-ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): the giant
+        commit's Next: trailer used to prove "the full content survived"
+        via the now-dead RESUME section — nothing renders commit trailers
+        anymore, so that marker never reached `full_text` at all. SCOPES
+        (still live, boot_git_checks.render_scopes_section()) renders a
+        per-entry description verbatim with no length cap, so a long scope
+        description is the still-live equivalent unbounded payload.
+        """
         repo = make_repo_with_giant_commit_no_install(tmp_path)
         claude_dir = os.path.join(repo, ".claude")
+        os.makedirs(claude_dir, exist_ok=True)
+        scopes_path = os.path.join(claude_dir, "git-memory-scopes.json")
+        with open(scopes_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {"scopes": {"giant": {"description": LONG_NEXT_MARKER, "children": {}}}}, f
+            )
 
         rc, output, stderr = _run_boot_with_failing_log_write(repo)
 
@@ -880,14 +760,14 @@ class TestBootLogWriteFailureFallback:
         )
 
         # Correct behavior: the full inline text (same as the "fits under
-        # budget" branch) must be printed, so the Next: content survives.
+        # budget" branch) must be printed, so the SCOPES content survives.
         run = _longest_char_run(output, "Z")
         assert run == len(LONG_NEXT_MARKER), (
             "when the boot log file write fails, stdout must contain the "
             f"full inline briefing (expected {len(LONG_NEXT_MARKER)} 'Z' "
-            f"chars from the Next: trailer, found a run of only {run}) — "
-            "printing the short banner here silently loses this content, "
-            "exactly the bug this fix exists to prevent"
+            f"chars from the SCOPES entry description, found a run of only "
+            f"{run}) — printing the short banner here silently loses this "
+            "content, exactly the bug this fix exists to prevent"
         )
 
 
@@ -972,6 +852,14 @@ def _render_banner_with_branch(repo, fake_branch):
     arbitrary branch-name STRING, without ever creating a real git ref for
     it.
 
+    ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3 / DEUDA.md punto 9): the call
+    below used to pass a stray extra "" positional argument before
+    pull_directive_lines — a leftover from an older render_boot_banner_lines()
+    signature — which made every test using this helper crash with
+    TypeError before ever reaching the byte-budget assertion it exists to
+    guard. render_boot_banner_lines() itself is unchanged; only this call
+    site was out of date.
+
     Why not `git checkout -b <name>`: some payloads worth testing here
     (very long names, names containing `<`/`>`) cannot exist as real git
     refs on Windows (MAX_PATH / NTFS-reserved-character rules reject them
@@ -1043,7 +931,7 @@ boot_log_path = boot.write_boot_log("probe content for banner test", {repr(repo)
 banner = boot.render_boot_banner_lines(
     plugin_root, status, status_detail, branch_result.branch, branch_result.ahead_behind,
     boot_log_path, commit_script, log_script,
-    "", branch_result.pull_directive_lines,
+    branch_result.pull_directive_lines,
 )
 print(json.dumps({{"banner": "\\n".join(banner)}}))
 """
@@ -1108,9 +996,15 @@ class TestNoByteThresholdRegression:
     ordinary scopes, nothing extreme) rather than the giant-single-commit
     reproduction used elsewhere in this file.
 
-    [ROJO]: fails against the current hook, which still has
-    STDOUT_FULL_INLINE_BUDGET_BYTES and would print this repo's briefing
-    fully inline (it measures under 6000 bytes).
+    ARREGLADO (PLAN-CONSTRUCCION.md paso 9.3): the original version of this
+    test also asserted that the repo's Next: trailer ("ship the release
+    notes") survived — in the log file, and never inline. RESUME (the only
+    section that ever rendered Next:) was removed with the rest of the v1
+    memory system (see lib/boot_render.py's docstring), so neither half of
+    that assertion tests anything live anymore: "Next:" is never printed
+    anywhere today, inline or in the log file, regardless of this fix. The
+    byte-budget guard below is unrelated to that removal and stays exactly
+    as designed.
     """
 
     def test_normal_repo_with_25_scopes_still_gets_banner(self, tmp_path):
@@ -1138,14 +1032,12 @@ class TestNoByteThresholdRegression:
             "expected the short banner regardless, since there is no byte "
             "threshold left to cross"
         )
-        assert "Next:" not in output, (
-            "Next: must never appear inline — it belongs only in the full "
-            "boot-log file, regardless of the total briefing size"
-        )
-        content = _read_boot_log(repo)
-        assert "ship the release notes" in content, (
-            "the Next: instruction must survive in full in the boot-log file"
-        )
+        # RETIRADO (PLAN-CONSTRUCCION.md paso 9.3): the assertions that used
+        # to live here ("Next:" not inline / "ship the release notes"
+        # present in the log file) tested RESUME, which is gone — nothing
+        # renders "Next:" anywhere today, so both would now be vacuously
+        # true regardless of whether this fix works. The byte-budget
+        # assertion above is the live guard this class exists to protect.
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1222,74 +1114,6 @@ class TestScopesRenderStaysSingleLine:
         assert "normal desc" in scope_lines[0], (
             "sanitization must strip the newline/control content, not the "
             "legitimate description text alongside it"
-        )
-
-
-class TestCrownedEntriesHaveSensibleCaps:
-    """SEC-MED-005: crowned Decision/Memo/Remember entries intentionally
-    bypass MAX_DECISIONS/MAX_MEMOS/BOOT_MAX_REMEMBERS (see the "crowned
-    entries bypass MAX_DECISIONS cap" comment in extract_memory()) — a
-    crowned entry must never be evicted by a newer, non-crowned one within
-    the normal budget. But nothing bounds the TOTAL number of DISTINCT
-    crowned entries that can accumulate over a project's lifetime (one
-    always-shown line per crowned scope, forever), and nothing bounds the
-    length of a single crowned trailer value.
-
-    Contract decided here (Dante, acceptance pass — exact numbers are a
-    documented design choice for Ultron to implement against, not a
-    pre-existing constant):
-      - crowned entries still respect a sensible ceiling on TOTAL COUNT
-        shown per section — this contract reuses the existing MAX_DECISIONS
-        value (20) itself as that ceiling, rather than an unbounded separate
-        lane alongside the normal budget.
-      - a single crowned trailer VALUE is capped at 2000 characters — generous
-        enough for a real crowned summary, small enough to bound a
-        single-entry blowup growing the boot log without limit.
-
-    [ROJO]: expected to fail against the current hook, which shows every
-    crowned entry with no count cap and no per-value length cap.
-    """
-
-    CROWN_VALUE_MAX_LEN = 2000
-    CROWN_COUNT_CAP = 20  # same ceiling as MAX_DECISIONS
-
-    def test_crowned_decisions_count_is_capped(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        # MAX_DECISIONS is 20 — crown 5 more distinct scopes than that.
-        for i in range(25):
-            git_cmd(["commit", "--allow-empty", "-m",
-                     f"🧭 decision(crownscope{i}): pick option {i}\n\n"
-                     f"Decision: crowned canonical choice {i}\nCrown: Decision"], repo)
-
-        run_boot(repo)
-        content = _read_boot_log(repo)
-
-        start = content.find("DECISIONS:")
-        end = content.find("\n\n", start)
-        section_text = content[start:end] if end != -1 else content[start:]
-        crowned_lines = [l for l in section_text.splitlines() if "👑" in l]
-
-        assert len(crowned_lines) <= self.CROWN_COUNT_CAP, (
-            f"crowned decisions must respect a sensible ceiling "
-            f"({self.CROWN_COUNT_CAP}, same as MAX_DECISIONS) — got "
-            f"{len(crowned_lines)} crowned lines with no cap applied"
-        )
-
-    def test_crowned_decision_value_length_is_capped(self, tmp_path):
-        repo = make_repo_with_memory(tmp_path)
-        huge_value = "X" * 5000
-        git_cmd(["commit", "--allow-empty", "-m",
-                 f"🧭 decision(hugecrown): huge crowned value\n\n"
-                 f"Decision: {huge_value}\nCrown: Decision"], repo)
-
-        run_boot(repo)
-        content = _read_boot_log(repo)
-        run = _longest_char_run(content, "X")
-
-        assert run <= self.CROWN_VALUE_MAX_LEN, (
-            f"a single crowned Decision trailer value must be capped at a "
-            f"sensible max length ({self.CROWN_VALUE_MAX_LEN} chars) — got an "
-            f"uncapped run of {run} 'X' characters in the boot log"
         )
 
 
