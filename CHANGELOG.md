@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-08-05
+
 ### Removed
 
 - **El sistema de memoria anterior está borrado del repositorio.** Ya no estaba registrado desde la 1.27.0, pero sus ficheros seguían en disco. Se van dieciocho: el arranque viejo (`session-start-boot.py`), su aduana (`pre-validate-commit-trailers.py`), su vigilante de cierre (`stop-dod-check.py`), su generador de commits (`bin/git-memory-commit.py`), cuatro módulos de `lib/` (`boot_checks`, `boot_git_checks`, `boot_render`, `boot_migrations`) y once ficheros de test — **109 casos** que probaban código que ya no existe.
