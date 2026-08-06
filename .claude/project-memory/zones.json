@@ -1,4 +1,10 @@
 {
+  "3d": {
+    "aliases": [
+      "cad"
+    ],
+    "description": "el plugin de 3D y CAD: piezas imprimibles y modelado"
+  },
   "architecture": {
     "aliases": [],
     "description": "como esta montado el toolkit por dentro y por que"
