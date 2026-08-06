@@ -28,5 +28,11 @@
       "agents"
     ],
     "description": "las skills del toolkit y las fichas de los agentes"
+  },
+  "testing": {
+    "aliases": [
+      "tests"
+    ],
+    "description": "la suite de tests: que entra, que sobra y como se ejecuta"
   }
 }
