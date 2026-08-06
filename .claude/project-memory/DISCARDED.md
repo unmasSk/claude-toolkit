@@ -52,3 +52,4 @@
 [X-050][install][architecture] MCPs conectados por defecto en el proyecto
 [X-051][install][architecture] instalar los MCP a nivel de proyecto
 [X-052][memory][architecture] construir un mecanismo dedicado para objective-profile
+[X-053][memory][architecture] arreglar solo la entrega sin tocar el almacenamiento
