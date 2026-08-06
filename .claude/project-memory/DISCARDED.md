@@ -14,3 +14,4 @@
 [X-012][standards][install] POSIX-first con Windows como extra
 [X-013][standards][memory] perseguir el 110 exacto tambien en Security para estas features
 [X-014][skills][architecture] construir unmassk-spec como skill independiente
+[X-015][docs][release] CHANGELOG por-plugin en <plugin>/CHANGELOG.md, migrando el root
