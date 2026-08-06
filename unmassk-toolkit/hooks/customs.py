@@ -205,16 +205,56 @@ def _split_statements(tokens):
     return statements
 
 
+def _shell_statements(command):
+    """EL UNICO tokenizador de shell del fichero [fase 2 del contrato del
+    `cd`, hallazgo Cerberus 2026-08-06 -- antes habia DOS mecanismos que
+    resolvian el mismo problema de formas distintas: `shlex.split()`
+    plano aqui, `shlex.shlex(punctuation_chars=True)` solo en
+    `_resolve_effective_cwd`]. Devuelve la lista de SENTENCIAS (cada una
+    ya partida por `_split_statements`) o `None` si `command` no tokeniza
+    en absoluto (comillas desbalanceadas -- p.ej. un apostrofo sin
+    escapar en un mensaje).
+
+    `punctuation_chars=True` en vez del modo plano de `shlex.split()`:
+    `;`/`&&`/`||`/`|` PEGADOS sin espacio a la palabra siguiente/anterior
+    (`echo hi;git commit`, `cd /ruta;`) quedan FUERA de `wordchars` en
+    este modo, asi que siempre tokenizan como separador propio -- en el
+    modo plano se funden con la palabra vecina en un solo token
+    (`'hi;git'`, `'/ruta;'`), y ni `_GIT_PROGRAM_TOKEN_RE` ni la
+    deteccion de `cd` casan nunca contra ese token fundido [hallazgo
+    Cerberus T1, 2026-08-06: con el modo plano, `_find_commit_creating_statement`
+    devolvia `None` para el comando ENTERO -- el commit pasaba sin
+    evaluacion alguna, ni rescate ni lectura de config.json]. Verificado
+    en vivo que las comillas se siguen respetando igual en este modo
+    (`'git commit -m "a;b"'` mantiene `;` DENTRO del token citado) y que
+    sigue lanzando la misma `ValueError` ante comillas desbalanceadas que
+    el modo plano -- mismo camino de fallback para quien la llama.
+    """
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = "#"
+        tokens = list(lexer)
+    except ValueError:
+        return None
+    return _split_statements(tokens)
+
+
 def _find_commit_creating_statement(command):
-    """Devuelve `(subcommand, tokens_tras_el_subcomando)` para la primera
-    sentencia de `command` que invoca `commit`/`merge`/`rebase`/
-    `cherry-pick` como subcomando REAL de git -- o `None` si ninguna
-    sentencia lo hace. Deteccion PURA de forma: que se haga con cada
-    subcomando (aprobar siempre, rechazar salvo `--abort`, seguir el
-    camino de nota...) es decision de `_decide_commit_creating`, no de
-    esta funcion -- la aduana "los ve pasar" aqui; decide que hacer con
-    cada uno en la capa de decision [correccion del propietario,
-    2026-08-03: "ver pasar no es bloquear"].
+    """Devuelve `(subcommand, tokens_tras_el_subcomando, stmt_index)`
+    para la primera sentencia de `command` que invoca `commit`/`merge`/
+    `rebase`/`cherry-pick` como subcomando REAL de git -- o `None` si
+    ninguna sentencia lo hace. `stmt_index` es la posicion de esa
+    sentencia dentro de la lista que produce `_shell_statements`
+    [contrato nuevo, fase 2 del `cd`, 2026-08-06: `_resolve_effective_cwd`
+    la usa para no aplicar un `cd` que llega DESPUES de la sentencia de
+    commit -- ver su propio docstring]; `None` cuando `command` no
+    tokeniza (fallback de abajo, sin sentencias que indexar). Deteccion
+    PURA de forma: que se haga con cada subcomando (aprobar siempre,
+    rechazar salvo `--abort`, seguir el camino de nota...) es decision de
+    `_decide_commit_creating`, no de esta funcion -- la aduana "los ve
+    pasar" aqui; decide que hacer con cada uno en la capa de decision
+    [correccion del propietario, 2026-08-03: "ver pasar no es bloquear"].
 
     Fallback si `command` no tokeniza (comillas desbalanceadas): trata
     cualquier aparicion textual de git+<subcomando> como candidata --
@@ -253,9 +293,8 @@ def _find_commit_creating_statement(command):
     dejarlo al orden del `set`. Sin bandera de rescate en el texto, el
     orden no cambia: mismo comportamiento de siempre.
     """
-    try:
-        tokens = shlex.split(command, comments=True)
-    except ValueError:
+    statements = _shell_statements(command)
+    if statements is None:
         rescue_tokens = _RESCUE_FLAG_RE.findall(command)
         order = _COMMIT_CREATING_SUBCOMMANDS
         if rescue_tokens:
@@ -265,10 +304,10 @@ def _find_commit_creating_statement(command):
             )
         for sub in order:
             if re.search(rf"\bgit\b.*\b{re.escape(sub)}\b", command):
-                return sub, rescue_tokens
+                return sub, rescue_tokens, None
         return None
 
-    for statement in _split_statements(tokens):
+    for stmt_index, statement in enumerate(statements):
         n = len(statement)
         for i, tok in enumerate(statement):
             if not _GIT_PROGRAM_TOKEN_RE.search(tok):
@@ -284,8 +323,79 @@ def _find_commit_creating_statement(command):
             sub = statement[j].lower()
             if sub not in _COMMIT_CREATING_SUBCOMMANDS:
                 continue
-            return sub, statement[j + 1:]
+            return sub, statement[j + 1:], stmt_index
     return None
+
+
+def _resolve_effective_cwd(command, base_cwd, limit_index=None):
+    """Directorio EFECTIVO tras aplicar cada sentencia `cd` de `command`
+    que llega ANTES de la sentencia de commit, en orden, empezando en
+    `base_cwd` -- `hook_input['cwd']` si vino en el payload, si no
+    `os.getcwd()` [contrato del `cd`, 2026-08-06: la aduana miraba el
+    proyecto de la SESION en vez del del COMANDO real].
+
+    `limit_index`, si no es `None`, es el `stmt_index` que devuelve
+    `_find_commit_creating_statement` -- solo se consideran sentencias
+    con indice MENOR (las que ya se ejecutaron cuando bash llega a la
+    sentencia de commit); la sentencia de commit misma y cualquier `cd`
+    POSTERIOR quedan fuera [fase 2 del contrato, hallazgo Cerberus
+    2026-08-06: un `cd` que llega DESPUES del commit (p.ej. `cd proyecto
+    && git commit -m x && cd ..`) no puede pisar el directorio que ya
+    era vigente EN EL MOMENTO del commit -- lo unico que bash conocia al
+    ejecutar esa sentencia]. `None` (el default) no limita -- usado solo
+    cuando `_find_commit_creating_statement` tampoco pudo indexar
+    sentencias (su propio `stmt_index` tambien es `None`, caso en el que
+    `_shell_statements(command)` aqui abajo va a fallar identico y
+    devolver `base_cwd` sin cambios de todas formas).
+
+    Reutiliza `_shell_statements` [el UNICO tokenizador de shell del
+    fichero, ver su docstring] -- una sentencia cuenta como `cd` cuando
+    su PRIMER token es exactamente `"cd"`, nunca por contener la
+    subcadena "cd" en cualquier parte (mismo principio anti-falso-positivo
+    que ya aplica la deteccion de `git commit`/`git log`, ver
+    `TestCommitDetectionHasNoFalsePositivesOnMereMentions` mas arriba: la
+    palabra "cd" dentro del MENSAJE de un commit vive dentro de UN SOLO
+    token de `shlex` -- nunca es el primer token de su propia sentencia).
+
+    Cada `cd` encontrado se aplica sobre el `cwd` YA actualizado por el
+    `cd` anterior (bash real: cuando la sentencia de commit se ejecuta,
+    el shell esta en el directorio del ULTIMO `cd` anterior a ella, sea o
+    no la primera sentencia de la cadena) -- por eso "encadenados manda
+    el ultimo" y "un `cd` que no esta al principio tambien se aplica"
+    salen gratis de la misma iteracion secuencial, sin caso especial para
+    ninguno de los dos.
+
+    Sin argumento (`cd` a secas) va al HOME real del proceso, igual que
+    bash. `~` se expande con `os.path.expanduser` (lee el `HOME` real
+    del proceso en el momento de la llamada, no en el import -- por eso
+    el test de expansion de `~` que fuerza un `HOME` de prueba via `env`
+    del subproceso funciona sin ningun cambio aqui). Una ruta relativa
+    se resuelve contra el `cwd` corriente (el `base_cwd` para el primer
+    `cd`, el resultado del `cd` anterior para los siguientes).
+
+    Si el destino resuelto NO es un directorio real (ruta inexistente,
+    o `command` no tokeniza en absoluto -- comillas desbalanceadas), esa
+    sentencia `cd` se ignora y `cwd` no cambia -- cae al comportamiento
+    de hoy para esa sentencia, nunca revienta sin capturar [mismo
+    principio que ya fija el escape hatch de fichero corrupto: una ruta
+    que no resuelve no puede tumbar la evaluacion].
+    """
+    statements = _shell_statements(command)
+    if statements is None:
+        return base_cwd
+    if limit_index is not None:
+        statements = statements[:limit_index]
+
+    cwd = base_cwd
+    for statement in statements:
+        if not statement or statement[0] != "cd":
+            continue
+        raw_target = statement[1] if len(statement) > 1 else "~"
+        target = os.path.expanduser(raw_target)
+        candidate = target if os.path.isabs(target) else os.path.join(cwd, target)
+        if os.path.isdir(candidate):
+            cwd = os.path.normpath(candidate)
+    return cwd
 
 
 def _extract_dash_m_message(tokens):
@@ -574,16 +684,28 @@ def _decide(hook_input):
     found = _find_commit_creating_statement(command)
     if found is None:
         return {"decision": "approve"}
-    subcommand, rest_tokens = found
+    subcommand, rest_tokens, stmt_index = found
 
     passthrough = _decide_rescue_passthrough(subcommand, rest_tokens)
     if passthrough is not None:
         return passthrough
 
-    # cwd: prefiere un `cwd` explicito del payload del hook (no lo manda
-    # Claude Code hoy, pero se comprueba a la defensiva -- mismo patron
-    # que hooks/pre-merge-gate.py); si no, el cwd heredado del proceso.
-    cwd = hook_input.get("cwd") or os.getcwd()
+    # cwd base: prefiere un `cwd` explicito del payload del hook (no lo
+    # manda Claude Code hoy, pero se comprueba a la defensiva -- mismo
+    # patron que hooks/pre-merge-gate.py); si no, el cwd heredado del
+    # proceso -- comportamiento SIN CAMBIOS respecto a antes de este
+    # contrato. Un `cd <ruta>` dentro de `command` QUE LLEGA ANTES de la
+    # sentencia de commit (al principio, encadenado, o no al principio)
+    # desplaza el directorio EFECTIVO desde esa base -- bash ya esta ahi
+    # para cuando se ejecuta la sentencia que crea el commit real
+    # [contrato del `cd`, 2026-08-06 -- antes de esto la aduana evaluaba
+    # siempre contra el proyecto de la SESION, nunca el del COMANDO]. Un
+    # `cd` que llega DESPUES de esa sentencia (`stmt_index`) NO se aplica
+    # -- ese es el directorio a donde bash se movio TRAS commitear, ya
+    # sin relacion con el commit que se acaba de crear [fase 2, hallazgo
+    # Cerberus 2026-08-06].
+    session_cwd = hook_input.get("cwd") or os.getcwd()
+    cwd = _resolve_effective_cwd(command, session_cwd, limit_index=stmt_index)
 
     try:
         root = gitcmd.repo_root(Path(cwd))
