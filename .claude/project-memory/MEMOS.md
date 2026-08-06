@@ -98,6 +98,5 @@
 [M-096][memory][architecture] vector search deferred as non-foundational, unlike the git decision graph
 [M-098][docs][architecture] shared installer content stays English, Spanish is Bex's own channel
 [M-099][memory][hooks] recall has two separate channels: subagent portero and orchestrator
-[M-100][memory][hooks] the near-dup write-path gate stays lexical and non-blocking, on purpose
 [M-101][memory][release] code commits: local WIPs per sub-step, single squash and push at close
 [M-102][boot][memory] boot hook output is always a minimal banner, full content lives only in the file
