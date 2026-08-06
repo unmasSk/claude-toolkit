@@ -77,3 +77,4 @@
 [M-075][install][skills] the Scout agent was built then removed the same session
 [M-076][memory][install] no confirmation before saving memos and decisions
 [M-077][extension][design] VS Code extension parked in favor of the memory system
+[M-078][skills][architecture] BM25 skill routing replaced the static CLAUDE.md skill-map
