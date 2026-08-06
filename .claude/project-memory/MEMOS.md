@@ -96,7 +96,6 @@
 [M-094][docs][architecture] public repo content: English code and UI, Spanish conversation
 [M-095][skills][docs] Alexandria rewrites existing content, never creates from a blank page
 [M-096][memory][architecture] vector search deferred as non-foundational, unlike the git decision graph
-[M-097][standards][testing] unmassk-standards gained Producer-Consumer round-trip integrity (§34)
 [M-098][docs][architecture] shared installer content stays English, Spanish is Bex's own channel
 [M-099][memory][hooks] recall has two separate channels: subagent portero and orchestrator
 [M-100][memory][hooks] the near-dup write-path gate stays lexical and non-blocking, on purpose
