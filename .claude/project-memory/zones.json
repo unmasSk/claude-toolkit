@@ -33,6 +33,10 @@
     "aliases": [],
     "description": "el parseo de logs y rastros de ejecucion del toolkit"
   },
+  "marketing": {
+    "aliases": [],
+    "description": "el plugin de marketing"
+  },
   "memory": {
     "aliases": [
       "gitmem"
