@@ -6,3 +6,4 @@
 2026-08-06  [M-101][memory][release] 📌 code commits: local WIPs per sub-step, single squash and push at close  →  closed: reclasificada como decision
 2026-08-06  [M-102][boot][memory] 📌 boot hook output is always a minimal banner, full content lives only in the file  →  closed: reclasificada como decision
 2026-08-06  [M-105][docs][architecture] 📌 important content is documented in three audiences at once  →  closed: reclasificada como decision
+2026-08-06  [M-072][release][install] 📌 plugin marketplace distribution replaces manual git-clone install  →  closed: reclasificada como decision
