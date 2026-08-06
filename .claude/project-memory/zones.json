@@ -29,6 +29,10 @@
     ],
     "description": "la instalacion del toolkit en un proyecto: arranque, PATH, indices y config"
   },
+  "log-parsing": {
+    "aliases": [],
+    "description": "el parseo de logs y rastros de ejecucion del toolkit"
+  },
   "memory": {
     "aliases": [
       "gitmem"
