@@ -38,3 +38,4 @@
 [D-037][memory][architecture] memory v1 stored everything but surfaced almost nothing, so v2 was born
 [D-038][memory][architecture] remember() leaves the project-memory system entirely
 [D-039][memory][architecture] two mandatory zones, decided by whether a word can modify another
+[D-040][memory][architecture] commit headline format: brackets first, emoji after, no ANSI color
