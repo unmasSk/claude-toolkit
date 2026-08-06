@@ -78,3 +78,4 @@
 [M-076][memory][install] no confirmation before saving memos and decisions
 [M-077][extension][design] VS Code extension parked in favor of the memory system
 [M-078][skills][architecture] BM25 skill routing replaced the static CLAUDE.md skill-map
+[M-079][skills][architecture] canonical agent template fixed for the whole crew
