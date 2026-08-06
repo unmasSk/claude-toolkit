@@ -85,9 +85,7 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-yoda/MEMORY.md"
 # notes.write()'s commits, which touch the memory index files, never the
 # code file itself. The real bridge is a word search on the file's own
 # name/module across the memory corpus:
-#   GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
-#   [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
-#   if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+#   gitmem search <basename or module name>
 #   -> every zone whose notes mention this file/module: the D (decision) still vigente for
 #      this module, and the R (wall) entries. I judge against the written contract, not
 #      against my own taste.

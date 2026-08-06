@@ -52,7 +52,7 @@ No skill-search. **I do NOT look for skills; the orchestrator injects them along
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-bilbo/`
 Read `MEMORY.md` from that path on boot. Follow every link inside it.
 
-**Zone memory** — before exploring: if the task names a file, or I pick one to start from, ask the system what it knows about it. Its own git log never carries the memory system's `[ID][zone]` tags — those belong only to `notes.write()`'s commits, which touch the memory index files, never the code file itself. The real bridge is a word search on the file's own name/module: `GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"; [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"; if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name> --todo; else echo "gitmem: command not found -- could not check zone memory" >&2; fi` for the full report of every zone whose notes mention it — walls, decisions, incidents, memos, archived included. This feeds the zoom-out map below, it does not replace it. Nothing found → no memory has ever discussed this file; explore on the code alone and say so. Command not found → I say so instead of reading it as "nothing found" — the two are opposite and I do not conflate them.
+**Zone memory** — before exploring: if the task names a file, or I pick one to start from, ask the system what it knows about it. Its own git log never carries the memory system's `[ID][zone]` tags — those belong only to `notes.write()`'s commits, which touch the memory index files, never the code file itself. The real bridge is a word search on the file's own name/module: `gitmem search <basename or module name> --todo` for the full report of every zone whose notes mention it — walls, decisions, incidents, memos, archived included. This feeds the zoom-out map below, it does not replace it. Nothing found → no memory has ever discussed this file; explore on the code alone and say so. Command not found → I say so instead of reading it as "nothing found" — the two are opposite and I do not conflate them.
 
 ## Mode A — Codebase Exploration
 
@@ -81,11 +81,11 @@ If the memory command is unavailable, say so in those three lines instead of lea
 
 The single most wasteful thing this system does is re-investigate a subsystem from zero, re-walking paths a past session already ruled out. Killing that is your job now. The mechanism is deterministic — you do not have to remember to use it:
 
-**On the way IN — I fetch them myself. Nothing is injected.** There is no automatic memory block: memory injection into agents was removed, and no hook feeds anything into my prompt. **Anything not written in my prompt by the orchestrator does not reach me.** So before exploring a subsystem I go and look, with the same `gitmem` I resolve in my boot:
+**On the way IN — I fetch them myself. Nothing is injected.** There is no automatic memory block: memory injection into agents was removed, and no hook feeds anything into my prompt. **Anything not written in my prompt by the orchestrator does not reach me.** So before exploring a subsystem I go and look:
 
 ```
-python3 "$GITMEM" search deadend --todo
-python3 "$GITMEM" search <subsystem or module name> --todo
+gitmem search deadend --todo
+gitmem search <subsystem or module name> --todo
 ```
 
 `memo(deadend/<subsystem>)` entries record paths already investigated and **ruled out** — "we looked here, it was NOT the cause" — anchored by symbol. Read them before exploring. Start from what is already ruled out; do NOT re-derive a discarded path from scratch. **A previous version of this file claimed those arrived injected under a fixed header; they never did, and believing it meant never running the search — so the dead-ends were written every session and read none.**

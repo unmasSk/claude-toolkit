@@ -83,9 +83,7 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md"
 # never the code file itself (checked live: disjoint sets, zero overlap on a
 # real file's history). The real bridge is a word search on the file's own
 # name/module across the memory corpus:
-#   GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
-#   [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
-#   if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+#   gitmem search <basename or module name>
 #   -> every zone whose notes mention this file/module: the R (wall) entries
 #      I can break without ever knowing it if I skip this, and the D
 #      (decision) still vigente for this module. If a wall changes what I

@@ -96,9 +96,7 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-house/MEMORY.md"
 # tags -- those belong only to notes.write()'s commits, which touch the
 # memory index files, never the code file itself. The real bridge is a word
 # search on the file's own name/module across the memory corpus:
-#   GITMEM="$GIT_ROOT/unmassk-toolkit/bin/gitmem"
-#   [ -f "$GITMEM" ] || GITMEM="$(find "$HOME/.claude/plugins/cache" -path "*/unmassk-toolkit/*/bin/gitmem" 2>/dev/null | sort -V | tail -1)"
-#   if [ -n "$GITMEM" ]; then python3 "$GITMEM" search <basename or module name>; else echo "gitmem: command not found -- could not check zone memory" >&2; fi
+#   gitmem search <basename or module name>
 #   -> every zone whose notes mention this file/module, including the I
 #      (incident) entries. Half a bug is the same bug as last time — I check
 #      before I burn a hypothesis on something already diagnosed once.
@@ -288,7 +286,7 @@ naming which case applies. A missing note can be written tomorrow; a false scar 
 git forever, inflates the open-incident count at every boot, and makes later walls in
 that zone demand an origin that never existed.
 - HEADLINE: [English, ≤80 chars, what broke — never what fixed it]
-- ZONES: [zone1] [zone2] — two real zones from `$GITMEM zones list`
+- ZONES: [zone1] [zone2] — two real zones from `gitmem zones list`
 - KEYS: [up to 5 English search words NOT already in the headline — the exception,
   the error string, the module, the symptom]
 - PRIOR NOTE: [I-nnn found in Boot Step 5, as context only | none]
@@ -301,7 +299,7 @@ that zone demand an origin that never existed.
 **Why each line is there, and why the ones that aren't, aren't:**
 
 - **I never write to git** — the orchestrator commits the note. This footer is the extract that is ready to commit, **not** the whole handover: the symptoms, the reproduction and the affected files are already in the report above and are not repeated here.
-- **Zones: I propose them, I never create them.** `zones.json` is not mine to touch. Resolve them with the same `$GITMEM` my Boot Step 5 already locates — if the command is missing, say so instead of reading it as "no zones", and if I cannot resolve one, name the closest candidates rather than inventing it.
+- **Zones: I propose them, I never create them.** `zones.json` is not mine to touch. Resolve them with `gitmem zones list` — if the command is missing, say so instead of reading it as "no zones", and if I cannot resolve one, name the closest candidates rather than inventing it.
 - **Keys are the half that stops a good diagnosis becoming unfindable.** A note with a correct zone and no search words is filed right and never surfaces again. Nobody else knows the exception name and the error string at this moment; I do.
 - **Prior note: context only.** If Boot Step 5 turned up an earlier incident on the same ground, name it — a second failure on the same ground is the finding, not a duplicate. But a scar never replaces a scar: both happened. The answer to customs is always that they coexist, and a closed incident is history, so a fresh break is always a **new** incident.
 - **No `CAUSE` line** — that is `ROOT CAUSE`, twenty lines above, word for word. Saying it twice in one report is how the two copies drift.
