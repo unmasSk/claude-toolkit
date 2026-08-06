@@ -28,3 +28,4 @@
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
 [remember][user] 🧠 en modo brainstorm nunca delegar codigo a Ultron -- brainstorm es analizar, proponer y discutir, no implementar
 [remember][user] 🧠 pedir confirmacion antes de cada commit rutinario es friccion innecesaria -- solo pausar a pedir permiso cuando el cambio es de alto riesgo
+[remember][user] 🧠 nada se construye que no este en el roadmap, y nada entra al roadmap sin que el usuario lo firme -- una idea a media tarea se anota como candidata al final, no se abre ahi mismo
