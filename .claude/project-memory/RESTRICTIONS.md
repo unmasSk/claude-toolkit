@@ -5,3 +5,4 @@
 [R-003][install][hooks] never delete the plugin cache during an active session
 [R-004][release][architecture] every plugin change bumps version and syncs marketplace.json
 [R-005][db][docs] reference-heavy skills must cite verified sources, never invented content
+[R-006][memory][release] main branch protection depends on the repo_type marker
