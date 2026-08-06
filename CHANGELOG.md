@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dos ficheros de configuración decían lo contrario sobre la misma cosa.** `.claude/git-memory-config.json`, del sistema anterior, llevaba dentro un `repo_type` que **nadie leía** —`stop-dod-gate.py` solo saca `test_command` de ahí— y que contradecía al del sistema nuevo. El hook pasa a leer `.claude/project-memory/config.json`, donde viven juntas las tres claves, y el fichero viejo se retira.
+- **Cinco ficheros huérfanos fuera de `.claude/.unmassk/`:** el contador de mensajes, el sello del fetch, el estado de contexto, el registro del arranque viejo y la caché del glosario. Ninguno tenía ya quien lo escribiera — sus productores se borraron con el sistema anterior; solo sobrevivían citados en comentarios.
+
 ## [1.29.0] - 2026-08-06
 
 ### Added
