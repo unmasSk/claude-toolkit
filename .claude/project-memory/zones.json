@@ -25,6 +25,10 @@
     "aliases": [],
     "description": "la documentacion del repositorio y sus superficies"
   },
+  "electronics": {
+    "aliases": [],
+    "description": "el plugin de electronica y hardware"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
