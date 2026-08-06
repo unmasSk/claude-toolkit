@@ -95,3 +95,4 @@
 [M-107][humanizer][docs] unmassk-humanizer: anti-slop core, protect-list and corpus seeded empty
 [M-108][design][architecture] unmassk-design absorbs every design front as branches of one plugin
 [M-109][3d][electronics] unmassk-3d and unmassk-electronics ship as hardware-gated multi-branch plugins
+[M-110][frontend][architecture] AgentBrowser lives inside unmassk-frontend via MCP, not as its own plugin
