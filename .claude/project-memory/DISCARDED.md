@@ -41,3 +41,4 @@
 [X-039][skills][architecture] gate BM25 automatico sobre .skillcat
 [X-040][skills][architecture] hook que auto-inyecta la skill en el prompt del subagente
 [X-041][boot][memory] usar el mtime de FETCH_HEAD como señal de frescura
+[X-042][boot][memory] usar el alias 'origin' como identidad del repo
