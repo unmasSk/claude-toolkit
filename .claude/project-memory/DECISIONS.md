@@ -17,3 +17,4 @@
 [D-015][release][install] plugin marketplace distribution replaces manual git-clone install
 [D-016][memory][install] no confirmation before saving memos and decisions
 [D-017][skills][architecture] BM25 skill routing replaced the static CLAUDE.md skill-map
+[D-018][release][architecture] this marketplace repo works directly on main
