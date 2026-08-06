@@ -32,3 +32,4 @@
 [X-030][memory][hooks] inyectar via additionalContext
 [X-031][testing][skills] fijar el build-mode en Triage (Step 0 de Flow)
 [X-032][testing][skills] unmassk-test-first como skill suelta de primer nivel
+[X-033][testing][skills] Diseno B: metodos de build cargables en el front matter
