@@ -88,3 +88,4 @@
 [M-086][architecture][memory] the four core plugins begin merging into unmassk-core v2.0
 [M-087][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [M-088][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
+[M-089][testing][skills] two build modes: test-first for clear contracts, linear Flow for the rest
