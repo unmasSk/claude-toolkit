@@ -37,6 +37,12 @@
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
   },
+  "humanizer": {
+    "aliases": [
+      "humanize"
+    ],
+    "description": "el plugin que quita las muletillas de IA de un texto"
+  },
   "install": {
     "aliases": [
       "setup"
