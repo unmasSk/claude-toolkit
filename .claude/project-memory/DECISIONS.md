@@ -15,3 +15,4 @@
 [D-013][hooks][memory] hostile-commit forgery defense uses an unpredictable nonce fence, not a denylist
 [D-014][docs][architecture] important content is documented by hand in three audiences at once
 [D-015][release][install] plugin marketplace distribution replaces manual git-clone install
+[D-016][memory][install] no confirmation before saving memos and decisions
