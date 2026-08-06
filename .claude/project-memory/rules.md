@@ -27,3 +27,4 @@
 [remember][user] 🧠 reparar todos los hallazgos de una revision, incluidos los nitpicks, no solo los bloqueantes -- el objetivo es la puntuacion maxima, nunca conformarse
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
 [remember][user] 🧠 en modo brainstorm nunca delegar codigo a Ultron -- brainstorm es analizar, proponer y discutir, no implementar
+[remember][user] 🧠 pedir confirmacion antes de cada commit rutinario es friccion innecesaria -- solo pausar a pedir permiso cuando el cambio es de alto riesgo
