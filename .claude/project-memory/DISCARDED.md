@@ -15,3 +15,4 @@
 [X-013][standards][memory] perseguir el 110 exacto tambien en Security para estas features
 [X-014][skills][architecture] construir unmassk-spec como skill independiente
 [X-015][docs][release] CHANGELOG por-plugin en <plugin>/CHANGELOG.md, migrando el root
+[X-016][hooks][memory] A1: denylist total de caracteres a escapar
