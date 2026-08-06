@@ -40,3 +40,4 @@
 [X-038][testing][standards] mocks por defecto, real como excepcion
 [X-039][skills][architecture] gate BM25 automatico sobre .skillcat
 [X-040][skills][architecture] hook que auto-inyecta la skill en el prompt del subagente
+[X-041][boot][memory] usar el mtime de FETCH_HEAD como señal de frescura
