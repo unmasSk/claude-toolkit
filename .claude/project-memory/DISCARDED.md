@@ -36,3 +36,4 @@
 [X-034][docs][architecture] todo el contenido del repo en ingles, sin excepcion
 [X-035][memory][architecture] construir busqueda vectorial ahora, como parte del cimiento
 [X-036][standards][testing] mantener tests y arneses anti-atacante (injection, symlinks, inputs maliciosos)
+[X-037][standards][architecture] mantener standards centrada en stack de app web (OWASP/React/TypeScript/Zod)
