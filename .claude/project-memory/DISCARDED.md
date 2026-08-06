@@ -38,3 +38,4 @@
 [X-036][standards][testing] mantener tests y arneses anti-atacante (injection, symlinks, inputs maliciosos)
 [X-037][standards][architecture] mantener standards centrada en stack de app web (OWASP/React/TypeScript/Zod)
 [X-038][testing][standards] mocks por defecto, real como excepcion
+[X-039][skills][architecture] gate BM25 automatico sobre .skillcat
