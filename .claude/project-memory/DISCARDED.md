@@ -53,3 +53,4 @@
 [X-051][install][architecture] instalar los MCP a nivel de proyecto
 [X-052][memory][architecture] construir un mecanismo dedicado para objective-profile
 [X-053][memory][architecture] arreglar solo la entrega sin tocar el almacenamiento
+[X-054][memory][architecture] forzar los remember dentro de las dos zonas obligatorias
