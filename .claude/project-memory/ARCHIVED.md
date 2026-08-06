@@ -8,3 +8,4 @@
 2026-08-06  [M-105][docs][architecture] 📌 important content is documented in three audiences at once  →  closed: reclasificada como decision
 2026-08-06  [M-072][release][install] 📌 plugin marketplace distribution replaces manual git-clone install  →  closed: reclasificada como decision
 2026-08-06  [M-076][memory][install] 📌 no confirmation before saving memos and decisions  →  closed: reclasificada como decision
+2026-08-06  [M-078][skills][architecture] 📌 BM25 skill routing replaced the static CLAUDE.md skill-map  →  closed: reclasificada como decision
