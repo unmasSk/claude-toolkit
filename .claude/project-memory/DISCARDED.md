@@ -22,3 +22,4 @@
 [X-020][docs][architecture] generador automatico de README desde una fuente unica
 [X-021][release][install] clonar+instalar a mano como via primaria
 [X-022][memory][install] pedir confirmacion (ok?) antes de cada memo o decision
+[X-023][skills][architecture] tabla estatica de skills en CLAUDE.md
