@@ -44,3 +44,4 @@
 [X-042][boot][memory] usar el alias 'origin' como identidad del repo
 [X-043][boot][memory] detectar y cambiar a la rama con trabajo en proceso
 [X-044][skills][architecture] añadir un gate mecanico a START
+[X-045][skills][architecture] bucle repite-hasta-limpio entre agentes
