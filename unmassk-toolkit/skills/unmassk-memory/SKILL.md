@@ -286,6 +286,8 @@ gitmem rule "always read the existing patterns first" --kind claude
 gitmem rule
 ```
 
+**The user's own door into the rules is `/remember`** — the one slash command this toolkit ships. Bare, it delivers the whole rules file into your context and you treat every line as binding from that moment. With text after it, it saves that text as a new rule. It is the same `gitmem rule` underneath: the command is the lid, not a second system.
+
 **`gitmem` is on the PATH — type it bare.** The installer puts a launcher at `~/.local/bin/gitmem` that resolves the newest installed version on every run, so it keeps working across upgrades. Write `gitmem note ...`, never a long path into the plugin cache: a pasted cache path carries a version number in it and goes stale the day the toolkit updates.
 
 **If the bare command is not found, that is not a reason to reach for a long path — it is the signal that this project was never set up.** Run the installer once, `python3 ${CLAUDE_PLUGIN_ROOT}/bin/git-memory-install.py --auto`, and then use `gitmem`. It puts the launcher on the PATH and, in the same pass, seeds the eight indexes and writes the project's config — the things whose absence makes the first note bounce.

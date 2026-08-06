@@ -26,6 +26,9 @@ Check two facts, by looking — not by assuming:
 1. **Does this project carry our memory?** `gitmem search <any word>` answers
    something, or `.claude/project-memory/` exists with notes in it.
 2. **Is there existing code?** Source files, package manifests, config.
+3. **Does it have zones?** `gitmem zones list`. A fresh project has **none** — the
+   installer leaves the list empty on purpose and never guesses one. Check this
+   here so it is not discovered mid-protocol, at the moment a note bounces.
 
 Route:
 
@@ -45,6 +48,16 @@ State the detected situation to the user in one line before proceeding.
 Goal: an idea turned into a project prepared *perfectly* before a single line of business code — requirements, behavior, visuals and engineering foundations all seeded first.
 
 **First, calibrate.** START is not one rail for everything. A throwaway script or a one-screen tool does NOT walk all six phases — see the triage at the top of `references/start.md`. The full protocol below is for a real product; trivial work skips the heavy phases the same way Flow's triage skips its pipeline.
+
+**Before phase A, create the first zones.** A brand new project has none, and **every note carries two** — so until zones exist, phase A cannot save a single answer and every `gitmem note` bounces. Two or three are enough to start: one for the *kind of work* (`product`, `testing`, `deploy`…) and one or two for the *part of the product* this project is about, taken from what the user just described. More get added as they are needed — never invented ahead of time, never a catch-all.
+
+```
+gitmem zones list                      # confirm it is empty
+gitmem zones add product --description "what the product must do"
+gitmem zones add <part> --description "<what that part of the product is>"
+```
+
+Six words a note may never use, so do not create them: `claude`, `user`, `session`, `project`, `workflow` and `audit`. If a note keeps reaching for one of them, it is a **rule** trying to come in through the wrong door — save it with `gitmem rule`.
 
 **Run the full protocol in [`references/start.md`](references/start.md)** (the "director" — the master file that orchestrates the phases). Read it top to bottom. In summary, six phases:
 
@@ -80,7 +93,8 @@ Order matters — code is the reliable source, git is the complement:
 1. **Scan code + config first.** `package.json` → stack. Folder structure → architecture. `.env.example` → services. Tests → what's validated. These yield **EXTRACTED** decisions (real, verifiable).
 2. **Each decision must reference its proof** — `file:line`. Not "uses Next.js" but "uses Next.js — package.json:14". This is what separates the scan from a mass hallucination.
 3. **Cross with commits** for dates, authors, context. What can't be verified from code → mark **INFERRED**.
-4. **Seed:** one note per decision, each with its why and its `file:line`. Zero changes to the existing history or code.
+4. **Name the zones before seeding anything.** The scan of steps 1–3 is what tells you what this project actually speaks about — that is the material for the zone list, and it is a judgement call, never a script's default. `gitmem zones list` will be empty; add one zone per *kind of work* and one per *part of the product* the scan surfaced, and **show the list to the user for approval before seeding**. Nothing can be saved until they exist: a note with an unknown zone is rejected outright.
+5. **Seed:** one note per decision, each with its why and its `file:line`. Zero changes to the existing history or code.
 
 This takes time. That's expected — it's a once-per-project setup. Make it explicit to the user ("I'm going to scan this project, it'll take a while"), not silent.
 
