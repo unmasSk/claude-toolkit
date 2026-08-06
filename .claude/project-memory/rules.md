@@ -7,3 +7,4 @@
 [remember][user] 🧠 haz exactamente lo pedido y nada mas: si no lo he pedido, no lo montes — preguntame antes de anadir nada
 [remember][user] 🧠 pon un tick verde delante de la frase cuando me hables a mi directamente; sin tick cuando solo informas de agentes o de estado
 [remember][user] 🧠 mide el trabajo antes de montar nada: una linea o texto lo hago yo y lo compruebo al momento
+[remember][user] 🧠 contrato y revision solo cuando un fallo pierde datos en silencio; plan solo cuando el trabajo cruza sesiones
