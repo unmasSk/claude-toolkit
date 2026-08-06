@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-08-06
+
 ### Added
 
 - **`/remember` — el primer y único comando de barra del toolkit.** Pone el fichero de reglas del proyecto en pantalla, entero, y a partir de ahí sus líneas son vinculantes en esa sesión. Solo lee: no acepta argumentos y nunca guarda. Guardar una regla sigue siendo trabajo de Claude, en el momento en que el usuario la dice — un usuario que tiene que invocar un comando para almacenar su propia corrección es un usuario cuya corrección se pierde. Estaba declarado como deuda desde el diseño de v2 (`unmassk-toolkit/commands/` no existía como carpeta) y nunca se había construido.
