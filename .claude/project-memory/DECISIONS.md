@@ -29,3 +29,4 @@
 [D-028][skills][architecture] domain skills route by orchestrator judgment from loaded front matter
 [D-029][boot][memory] freshness stamp: own success-stamp only, real remote+branch identity
 [D-030][boot][memory] boot fetches every branch and shows a global summary, never switches locally
+[D-031][skills][architecture] START stays a prose checklist, deliberately without a mechanical gate
