@@ -31,3 +31,4 @@
 [remember][user] 🧠 nada se construye que no este en el roadmap, y nada entra al roadmap sin que el usuario lo firme -- una idea a media tarea se anota como candidata al final, no se abre ahi mismo
 [remember][user] 🧠 cuando vuelve un agente: UNA linea con el resultado, nada mas; el detalle solo si lo pido
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
+[remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
