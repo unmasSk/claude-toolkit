@@ -47,11 +47,31 @@ from emojis import CHANNEL_EMOJI  # noqa: E402
 _DEFAULT_KIND = "user"
 
 
+# Palabras que NADIE quiere guardar como regla: son subcomandos de otras
+# familias del sistema (`gitmem zones list`, `gitmem rezones --verify`)
+# y teclearlas aqui es la equivocacion natural, no un capricho
+# [2026-08-05, House: `gitmem rule list` guardaba una regla cuyo texto era
+# literalmente "list" Y DEJABA SU COMMIT en el historial del proyecto para
+# siempre. Como este comando lee con `rule` a secas y escribe con
+# `rule "<texto>"`, la forma equivocada era indistinguible de la buena].
+#
+# `list`/`ls` se tratan como la lectura, que es lo que el usuario queria.
+# El resto rebota en vez de guardarse: una regla de una sola palabra suelta
+# no es una regla, y aqui lo barato es preguntar.
+_LEEN_EN_VEZ_DE_ESCRIBIR = ("list", "ls")
+_NO_SON_UNA_REGLA = ("add", "find", "show", "read", "verify", "rebuild", "help")
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="rule.py")
     parser.add_argument("text", nargs="?", default=None)
     parser.add_argument("--kind", choices=("user", "claude"), default=None)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.text is not None:
+        palabra = args.text.strip().lower()
+        if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:
+            args.text = None
+    return args
 
 
 def _cmd_read():
@@ -128,6 +148,13 @@ def main(argv):
     args = _parse_args(argv)
     if args.text is None:
         return _cmd_read()
+    if args.text.strip().lower() in _NO_SON_UNA_REGLA:
+        print(
+            f"❌ \"{args.text}\" no se ha guardado: es una palabra suelta, no una regla.\n"
+            "   Para LEER tus reglas:      gitmem rule\n"
+            "   Para guardar una nueva:    gitmem rule \"<la regla entera, en una frase>\""
+        )
+        return 1
     kind = args.kind or _DEFAULT_KIND
     return _cmd_add(args.text, kind)
 

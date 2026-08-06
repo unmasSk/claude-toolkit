@@ -106,11 +106,28 @@ def _print_upgrade_check(git_root: Path) -> None:
     Both calls already fail-open internally; wrapped again here so an
     import failure alone can't skip the printed line either.
     """
+    # El manifest AUSENTE se dice aparte, y no es un detalle
+    # [2026-08-05, medido en un proyecto nuevo sin instalar nunca]: hasta
+    # esta linea, `needs_upgrade()` devolvia False tanto para "estas al
+    # dia" como para "no hay manifest del que estar al dia" -- su
+    # fail-safe documentado, para no entrar en bucle de instalacion. El
+    # efecto era que el arranque de un proyecto SIN INSTALAR imprimia
+    # "manifest al dia", que es literalmente lo contrario de lo que pasa,
+    # y encima en el primer mensaje que ve el usuario. Un proyecto puede
+    # quedarse asi para siempre: nada dispara el instalador solo.
     try:
         from upgrade_check import needs_upgrade, trigger_auto_upgrade_if_needed
+        manifest = git_root / ".claude" / ".unmassk" / "manifest.json"
+        installed = manifest.is_file()
         pending = needs_upgrade(str(git_root))
     except Exception as e:
         print(f"[crew] UPGRADE: no verificable ({type(e).__name__})")
+        return
+    if not installed:
+        print(
+            "[crew] UPGRADE: este proyecto NO tiene el toolkit instalado "
+            "(falta .claude/.unmassk/manifest.json)"
+        )
         return
     if not pending:
         print("[crew] UPGRADE: manifest al dia, no hace falta actualizar")
