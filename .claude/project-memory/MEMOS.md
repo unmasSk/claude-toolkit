@@ -82,7 +82,6 @@
 [M-083][compliance][docs] unmassk-compliance ships nine skills, English-only content
 [M-084][skills][docs] Alexandria owns documentation work, not Ultron
 [M-086][architecture][memory] the four core plugins begin merging into unmassk-core v2.0
-[M-090][skills][architecture] Gitto existed as a dedicated git-ops subagent, later retired
 [M-091][skills][testing] House owns diagnostic logging, Dante owns test tooling, not Ultron
 [M-092][memory][hooks] the recall search engine shipped as v1.2.0, the auto-injection hook did not
 [M-093][memory][hooks] the context-percentage tracking mechanism was removed entirely in v1.2.0
