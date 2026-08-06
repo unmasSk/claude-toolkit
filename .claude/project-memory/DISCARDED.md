@@ -51,3 +51,4 @@
 [X-049][skills][architecture] prompt-improver and Fine skills fronts dropped from the roadmap
 [X-050][install][architecture] MCPs conectados por defecto en el proyecto
 [X-051][install][architecture] instalar los MCP a nivel de proyecto
+[X-052][memory][architecture] construir un mecanismo dedicado para objective-profile
