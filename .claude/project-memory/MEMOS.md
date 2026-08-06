@@ -87,3 +87,4 @@
 [M-085][release][architecture] this marketplace repo works directly on main
 [M-086][architecture][memory] the four core plugins begin merging into unmassk-core v2.0
 [M-087][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
+[M-088][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
