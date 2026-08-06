@@ -27,3 +27,4 @@
 [D-025][standards][testing] the toolkit's threat model is the system against itself, not an attacker
 [D-026][standards][architecture] unmassk-standards rewritten generic, axis: the system against itself
 [D-027][testing][standards] tests default to real dependencies, mock only what cannot run
+[D-028][skills][architecture] domain skills route by orchestrator judgment from loaded front matter
