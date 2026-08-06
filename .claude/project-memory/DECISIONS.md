@@ -25,3 +25,4 @@
 [D-023][docs][architecture] public repo content: English code and UI, Spanish conversation
 [D-024][memory][architecture] vector search deferred as non-foundational, unlike the git decision graph
 [D-025][standards][testing] the toolkit's threat model is the system against itself, not an attacker
+[D-026][standards][architecture] unmassk-standards rewritten generic, axis: the system against itself
