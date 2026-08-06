@@ -94,3 +94,4 @@
 [M-106][pentesting][architecture] unmassk-pentesting: full-spectrum personal tool, no authorization gate
 [M-107][humanizer][docs] unmassk-humanizer: anti-slop core, protect-list and corpus seeded empty
 [M-108][design][architecture] unmassk-design absorbs every design front as branches of one plugin
+[M-109][3d][electronics] unmassk-3d and unmassk-electronics ship as hardware-gated multi-branch plugins
