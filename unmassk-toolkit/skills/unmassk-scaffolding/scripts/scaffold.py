@@ -29,6 +29,51 @@ from encoding_guard import force_utf8_streams  # noqa: E402  (import after sys.p
 force_utf8_streams()
 
 
+def _toml_escape(value: str) -> str:
+    """Escape a string for use inside a TOML basic (double-quoted) string.
+
+    Per the TOML spec, a basic string must escape backslash, double quote,
+    and control characters other than tab (U+0000-U+0008, U+000A-U+001F,
+    U+007F). Everything else -- including non-ASCII Unicode -- is valid
+    literal content in a UTF-8 TOML file, so it is left untouched (unlike
+    `json.dumps`, which would additionally mangle astral characters into
+    UTF-16 surrogate-pair `\\uXXXX` escapes that TOML's parser rejects,
+    since each `\\uXXXX` in TOML must be a full Unicode scalar value)."""
+    out = []
+    for ch in value:
+        code = ord(ch)
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ch == "\b":
+            out.append("\\b")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\f":
+            out.append("\\f")
+        elif ch == "\r":
+            out.append("\\r")
+        elif code < 0x20 or code == 0x7F:
+            out.append(f"\\u{code:04x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _js_string_literal(value: str) -> str:
+    """Render a Python string as a double-quoted JS string literal.
+
+    Reuses the stdlib JSON encoder instead of hand-rolling a second escaper:
+    a JSON string literal is always a valid JS string literal, and JSON's
+    surrogate-pair `\\uXXXX` encoding of astral characters is exactly how JS
+    (UTF-16-based strings) represents them too -- unlike TOML, so this must
+    stay a separate function from `_toml_escape`, not a shared one."""
+    return json.dumps(value)
+
+
 class Language(Enum):
     TYPESCRIPT = "typescript"
     JAVASCRIPT = "javascript"
@@ -122,6 +167,19 @@ class ProjectScaffolder:
 
     def create_project(self, config: ProjectConfig) -> Path:
         """Create a new project from configuration."""
+        # config.name must be a plain directory name -- pathlib silently
+        # discards base_path if name is absolute (`Path(base) / "/x"` == "/x"),
+        # and a name containing a separator (e.g. "../x") could likewise
+        # write outside base_path. Neither is an attacker scenario here;
+        # it is upstream template/caller error the scaffolder must not let
+        # through silently (issue: absolute/relative project name escapes
+        # base_path, see unmassk-toolkit-python test_scaffold_bug_contracts.py).
+        if not config.name or config.name in (".", "..") or "/" in config.name or "\\" in config.name:
+            raise ValueError(
+                f"Invalid project name: {config.name!r} -- must be a plain "
+                "directory name with no path separators, and not '.' or '..'"
+            )
+
         project_path = self.base_path / config.name
 
         if project_path.exists():
@@ -195,6 +253,15 @@ class ProjectScaffolder:
 
         if config.css_framework == CSSFramework.TAILWIND:
             dev_deps["tailwindcss"] = "^4.1.0"
+        elif config.css_framework == CSSFramework.SCSS:
+            dev_deps["sass"] = "^1.83.0"
+        elif config.css_framework == CSSFramework.STYLED_COMPONENTS:
+            deps["styled-components"] = "^6.1.0"
+            if config.language == Language.TYPESCRIPT:
+                dev_deps["@types/styled-components"] = "^5.1.34"
+        elif config.css_framework == CSSFramework.EMOTION:
+            deps["@emotion/react"] = "^11.14.0"
+            deps["@emotion/styled"] = "^11.14.0"
 
         if config.eslint:
             dev_deps.update({
@@ -266,6 +333,11 @@ class ProjectScaffolder:
         self._write_file(path / f"src/App.{ext}", self._react_app(config))
         self._write_file(path / "src/styles/globals.css", self._css_globals(config))
         self._write_file(path / "index.html", self._react_index_html(config))
+
+        # CSS Modules has no dependency to install (native Vite support) --
+        # the differentiator is a real, ready-to-use example module.
+        if config.css_framework == CSSFramework.CSS_MODULES:
+            self._write_file(path / "src/components/ui/Example.module.css", self._css_module_example())
 
         # Vitest config
         if config.testing:
@@ -769,6 +841,11 @@ Thumbs.db
             deps["reflect-metadata"] = "^0.1.0"
         elif config.orm == ORM.SEQUELIZE:
             deps["sequelize"] = "^6.35.0"
+        elif config.orm == ORM.DRIZZLE:
+            deps["drizzle-orm"] = "^0.38.0"
+            dev_deps["drizzle-kit"] = "^0.30.0"
+        elif config.orm == ORM.MONGOOSE:
+            deps["mongoose"] = "^8.0.0"
 
         if config.database == Database.POSTGRESQL:
             deps["pg"] = "^8.11.0"
@@ -927,6 +1004,8 @@ Thumbs.db
                 requirements.append("aiosqlite>=0.19.0")
         elif config.orm == ORM.SQLMODEL:
             requirements.append("sqlmodel>=0.0.14")
+        elif config.orm == ORM.TORTOISE:
+            requirements.append("tortoise-orm>=0.21.0")
 
         if "jwt" in config.features:
             requirements.extend([
@@ -1872,6 +1951,15 @@ body {
 }
 """
 
+    def _css_module_example(self) -> str:
+        return """.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+"""
+
     def _react_index_html(self, config: ProjectConfig) -> str:
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1921,8 +2009,8 @@ export default nextConfig;
 import './globals.css';
 
 export const metadata: Metadata = {{
-  title: '{config.name}',
-  description: '{config.description or "Generated by Next.js"}',
+  title: {_js_string_literal(config.name)},
+  description: {_js_string_literal(config.description or "Generated by Next.js")},
 }};
 
 export default function RootLayout({{
@@ -2289,10 +2377,10 @@ export class AppService {
 
     def _fastapi_pyproject(self, config: ProjectConfig) -> str:
         return f"""[project]
-name = "{config.name}"
+name = "{_toml_escape(config.name)}"
 version = "{config.version}"
-description = "{config.description or ''}"
-authors = [{{name = "{config.author}"}}]
+description = "{_toml_escape(config.description or '')}"
+authors = [{{name = "{_toml_escape(config.author)}"}}]
 readme = "README.md"
 requires-python = ">={config.python_version}"
 
@@ -2722,12 +2810,12 @@ if __name__ == '__main__':
 
     def _python_pyproject(self, config: ProjectConfig, package_name: str) -> str:
         return f"""[project]
-name = "{config.name}"
+name = "{_toml_escape(config.name)}"
 version = "{config.version}"
-description = "{config.description or ''}"
-authors = [{{name = "{config.author}"}}]
+description = "{_toml_escape(config.description or '')}"
+authors = [{{name = "{_toml_escape(config.author)}"}}]
 readme = "README.md"
-license = {{text = "{config.license}"}}
+license = {{text = "{_toml_escape(config.license)}"}}
 requires-python = ">={config.python_version}"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -2783,10 +2871,10 @@ def test_hello():
 
     def _python_cli_pyproject(self, config: ProjectConfig, package_name: str) -> str:
         return f"""[project]
-name = "{config.name}"
+name = "{_toml_escape(config.name)}"
 version = "{config.version}"
-description = "{config.description or ''}"
-authors = [{{name = "{config.author}"}}]
+description = "{_toml_escape(config.description or '')}"
+authors = [{{name = "{_toml_escape(config.author)}"}}]
 readme = "README.md"
 requires-python = ">={config.python_version}"
 dependencies = [
@@ -2795,7 +2883,7 @@ dependencies = [
 ]
 
 [project.scripts]
-{config.name} = "{package_name}.cli:app"
+"{_toml_escape(config.name)}" = "{package_name}.cli:app"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -3440,6 +3528,23 @@ document.addEventListener('DOMContentLoaded', () => {
 """
 
 
+# Which project types a given --css-framework value actually produces
+# differentiated output for. Built from the real creator bodies (grep
+# confirmed), not assumed -- e.g. "tailwind" is NOT understood by every
+# project type despite being the oldest/most-common option: `_create_angular`
+# never reads config.css_framework at all, and none of the backend/library
+# creators (express, fastapi, django, flask, python, typescript, cli,
+# electron, monorepo) do either. CSSFramework.NONE is left out on purpose --
+# "no framework" is a real, universally-honored request, never a lie.
+_CSS_FRAMEWORK_SUPPORTED_TYPES = {
+    "tailwind": {"html", "react", "nextjs", "vue", "nuxt", "svelte"},
+    "css-modules": {"react"},
+    "styled-components": {"react"},
+    "emotion": {"react"},
+    "scss": {"react"},
+}
+
+
 def main():
     """Main entry point for CLI usage."""
     import argparse
@@ -3466,11 +3571,28 @@ Examples:
     # Language options
     parser.add_argument("--typescript", action="store_true", help="Use TypeScript")
     parser.add_argument("--javascript", action="store_true", help="Use JavaScript")
+    parser.add_argument(
+        "--language",
+        choices=["typescript", "javascript", "python"],
+        help="Language (overrides --typescript/--javascript; needed to reach "
+             "the Python generator for project types that support more than "
+             "one language, e.g. 'cli')",
+    )
 
     # Framework options
-    parser.add_argument("--tailwind", action="store_true", help="Include Tailwind CSS")
+    parser.add_argument("--tailwind", action="store_true", help="Include Tailwind CSS (shorthand for --css-framework tailwind)")
+    parser.add_argument(
+        "--css-framework",
+        choices=["none", "tailwind", "css-modules", "styled-components", "emotion", "scss"],
+        help="CSS framework/approach (overrides --tailwind). Only 'tailwind' and "
+             "'none' are supported outside of 'react' -- see error message if rejected.",
+    )
     parser.add_argument("--database", choices=["sqlite", "postgresql", "mysql", "mongodb"], help="Database type")
-    parser.add_argument("--orm", choices=["prisma", "drizzle", "typeorm", "sqlalchemy", "sqlmodel"], help="ORM/ODM")
+    parser.add_argument(
+        "--orm",
+        choices=["prisma", "drizzle", "typeorm", "sequelize", "sqlalchemy", "sqlmodel", "tortoise", "mongoose"],
+        help="ORM/ODM",
+    )
 
     # Tooling
     parser.add_argument("--eslint", action="store_true", default=True, help="Include ESLint")
@@ -3490,9 +3612,34 @@ Examples:
     args = parser.parse_args()
 
     # Determine language
-    language = Language.TYPESCRIPT if args.typescript else Language.JAVASCRIPT
+    if args.language:
+        language = Language(args.language)
+    else:
+        language = Language.TYPESCRIPT if args.typescript else Language.JAVASCRIPT
     if args.type in ["python", "fastapi", "django", "flask"]:
         language = Language.PYTHON
+
+    # Determine CSS framework -- --css-framework takes priority over the
+    # older --tailwind boolean shorthand, same precedence pattern as --language.
+    if args.css_framework:
+        css_framework = CSSFramework(args.css_framework)
+    elif args.tailwind:
+        css_framework = CSSFramework.TAILWIND
+    else:
+        css_framework = CSSFramework.NONE
+
+    # Reject a css-framework request the chosen project type would otherwise
+    # silently ignore, instead of scaffolding something that doesn't match
+    # what was asked -- same failure class as the ORM options fixed earlier.
+    if css_framework != CSSFramework.NONE:
+        supported_types = _CSS_FRAMEWORK_SUPPORTED_TYPES.get(css_framework.value, set())
+        if args.type not in supported_types:
+            print(
+                f"❌ Error: --css-framework '{css_framework.value}' is not supported "
+                f"for project type '{args.type}'. Supported project types: "
+                f"{', '.join(sorted(supported_types)) or 'none'}"
+            )
+            sys.exit(1)
 
     # Parse features
     features = args.features.split(",") if args.features else []
@@ -3506,7 +3653,7 @@ Examples:
         author=args.author or "",
         license=args.license,
         version=args.version,
-        css_framework=CSSFramework.TAILWIND if args.tailwind else CSSFramework.NONE,
+        css_framework=css_framework,
         database=Database(args.database) if args.database else Database.NONE,
         orm=ORM(args.orm) if args.orm else ORM.NONE,
         eslint=args.eslint,
