@@ -39,3 +39,4 @@
 [X-037][standards][architecture] mantener standards centrada en stack de app web (OWASP/React/TypeScript/Zod)
 [X-038][testing][standards] mocks por defecto, real como excepcion
 [X-039][skills][architecture] gate BM25 automatico sobre .skillcat
+[X-040][skills][architecture] hook que auto-inyecta la skill en el prompt del subagente
