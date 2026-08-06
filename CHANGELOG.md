@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.29.2] - 2026-08-06
+
 ### Fixed
 
 - **Los comandos de rescate de un merge o rebase a medias ya no dependen de leer una memoria que puede estar corrupta.** `git merge`/`rebase --abort`/`--continue`/`--skip`/`cherry-pick` se aprueban ANTES de tocar `config.json`/`zones.json` — antes, un `config.json` roto (típico de un merge o rebase a medias) bloqueaba también la única salida real del conflicto, dejando al usuario atascado.
