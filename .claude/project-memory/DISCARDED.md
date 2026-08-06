@@ -13,3 +13,4 @@
 [X-011][boot][memory] converger solo al cierre de sesion
 [X-012][standards][install] POSIX-first con Windows como extra
 [X-013][standards][memory] perseguir el 110 exacto tambien en Security para estas features
+[X-014][skills][architecture] construir unmassk-spec como skill independiente
