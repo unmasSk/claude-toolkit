@@ -33,3 +33,4 @@
 [D-032][skills][architecture] Flow's agent sequence is fixed to a canonical, loop-free order
 [D-033][memory][boot] CLAUDE.md managed-block writes became atomic
 [D-034][memory][testing] memory readers retry and warn loud instead of returning empty
+[D-035][install][architecture] MCPs install on-demand per skill, at user scope, none wired by default
