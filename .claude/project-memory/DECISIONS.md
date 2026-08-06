@@ -37,3 +37,4 @@
 [D-036][memory][architecture] objective-profile is a documented convention over git-memory, not new machinery
 [D-037][memory][architecture] memory v1 stored everything but surfaced almost nothing, so v2 was born
 [D-038][memory][architecture] remember() leaves the project-memory system entirely
+[D-039][memory][architecture] two mandatory zones, decided by whether a word can modify another
