@@ -81,3 +81,4 @@
 [M-079][skills][architecture] canonical agent template fixed for the whole crew
 [M-080][skills][docs] Alexandria lives at project level, not inside the plugin
 [M-081][architecture][release] marketplace reached 11 plugins aiming at full web project lifecycle
+[M-082][ops][architecture] unmassk-ops covers five domains
