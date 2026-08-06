@@ -42,3 +42,4 @@
 [X-040][skills][architecture] hook que auto-inyecta la skill en el prompt del subagente
 [X-041][boot][memory] usar el mtime de FETCH_HEAD como señal de frescura
 [X-042][boot][memory] usar el alias 'origin' como identidad del repo
+[X-043][boot][memory] detectar y cambiar a la rama con trabajo en proceso
