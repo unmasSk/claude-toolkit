@@ -7,6 +7,10 @@
     "aliases": [],
     "description": "el arranque de sesion: que se lee, que se pinta y en que orden"
   },
+  "ci": {
+    "aliases": [],
+    "description": "la integracion continua y sus workflows"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
