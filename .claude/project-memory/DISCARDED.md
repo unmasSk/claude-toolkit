@@ -9,3 +9,4 @@
 [X-007][memory][release] sincronizacion continua entre las 4 maquinas durante la tarea
 [X-008][boot][memory] modo condicional: contenido inline en stdout si el repo es pequeño
 [X-009][boot][memory] fetch sincrono en el arranque
+[X-010][boot][memory] fetch universal en cualquier repo
