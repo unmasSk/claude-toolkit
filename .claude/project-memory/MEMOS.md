@@ -86,7 +86,6 @@
 [M-091][skills][testing] House owns diagnostic logging, Dante owns test tooling, not Ultron
 [M-092][memory][hooks] the recall search engine shipped as v1.2.0, the auto-injection hook did not
 [M-093][memory][hooks] the context-percentage tracking mechanism was removed entirely in v1.2.0
-[M-094][docs][architecture] public repo content: English code and UI, Spanish conversation
 [M-095][skills][docs] Alexandria rewrites existing content, never creates from a blank page
 [M-096][memory][architecture] vector search deferred as non-foundational, unlike the git decision graph
 [M-098][docs][architecture] shared installer content stays English, Spanish is Bex's own channel
