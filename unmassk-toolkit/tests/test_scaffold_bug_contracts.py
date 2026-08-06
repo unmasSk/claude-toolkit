@@ -132,7 +132,17 @@ class TestDescriptionApostropheBreaksNextjsLayout:
 
         start = raw.index("export const metadata: Metadata = {")
         brace_start = raw.index("{", start)
-        brace_end = raw.index("};", brace_start) + 1
+        # +2, not +1: `str.index("};", ...)` returns the position of the
+        # "}" character, and the slice below is exclusive of its end index
+        # -- +1 lands exactly ON the ";" and excludes it from the slice,
+        # leaving `object_literal_src` ending in "}" with no terminator.
+        # Concatenated below with only a space (no newline/semicolon)
+        # before `process.stdout.write(...)`, that missing ";" is exactly
+        # what made Node reject valid output: automatic semicolon
+        # insertion does not kick in there, so `node -e` saw one broken
+        # statement regardless of what scaffold.py emitted. +2 includes
+        # both "}" and ";".
+        brace_end = raw.index("};", brace_start) + 2
         object_literal_src = raw[brace_start:brace_end]
 
         node_script = (
@@ -141,8 +151,11 @@ class TestDescriptionApostropheBreaksNextjsLayout:
         )
         rc, stdout, stderr = run_cmd([node, "-e", node_script], cwd=str(tmp_path))
 
-        # RED today: the apostrophe breaks the single-quoted JS string, Node
-        # raises a SyntaxError, rc != 0.
+        # GREEN today (fixed by Ultron, verified 2026-08-06): scaffold.py
+        # now emits a double-quoted, escaped literal for this field, so
+        # Node accepts it. Kept as a regression guard, not a RED contract
+        # anymore -- would fail again if a future change reintroduces raw
+        # interpolation here.
         assert rc == 0, f"node rejected the emitted metadata object -- stderr={stderr!r}"
         parsed = json.loads(stdout)
         assert parsed["description"] == self._QUOTED_DESCRIPTION
