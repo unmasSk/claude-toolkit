@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`/remember` — el primer y único comando de barra del toolkit.** Pone el fichero de reglas del proyecto en pantalla, entero, y a partir de ahí sus líneas son vinculantes en esa sesión. Solo lee: no acepta argumentos y nunca guarda. Guardar una regla sigue siendo trabajo de Claude, en el momento en que el usuario la dice — un usuario que tiene que invocar un comando para almacenar su propia corrección es un usuario cuya corrección se pierde. Estaba declarado como deuda desde el diseño de v2 (`unmassk-toolkit/commands/` no existía como carpeta) y nunca se había construido.
+- **`--css-framework` en el scaffolder**, con las opciones que de verdad existen, y error explicativo cuando el tipo de proyecto elegido no las soporta.
+
+### Fixed
+
+- **La aduana decide por el directorio del comando, no por el de la sesión.** `cd /otro/proyecto && git commit ...` se evaluaba contra el proyecto de la sesión — podía dejar pasar un commit que debía bloquear. Y un `cd` posterior al commit (`cd proyecto && git commit && cd ..`, el idioma normal de trabajo) ya no pisa el directorio vigente en el momento del commit.
+- **Un commit con un separador pegado sin espacio se saltaba la aduana entera.** `echo hi;git commit -m x` (y lo mismo con `&&`, `||`, `|`) no se reconocía como commit: no pasaba por el rescate, ni resolvía el directorio, ni leía la configuración. Un solo tokenizador en todo el fichero cierra el hueco.
+- **El scaffolder ya no genera ficheros rotos en silencio.** `description`/`author`/`name` se interpolaban crudos en TOML y JS escritos a mano: una comilla dejaba el `pyproject.toml` inválido o el `layout.tsx` sin ser JavaScript, y el script imprimía «✅ Created» igualmente. Ahora se escapan con las reglas de cada formato.
+- **Opciones del scaffolder que se aceptaban y no hacían nada.** `--orm drizzle/mongoose/tortoise/sequelize` producía exactamente el mismo proyecto que no pedir ORM; las cuatro opciones de CSS ni siquiera tenían flag. Ahora funcionan, o fallan diciendo qué sí vale.
+- **El generador de CLI en Python era inalcanzable**: `--language` no existía como opción, así que `--type cli` nunca podía ser Python pese a que el generador estaba completo.
+- **Un nombre de proyecto con ruta escribía fuera del directorio destino** sin quejarse, y el mensaje final seguía siendo «✅ Created».
+- **El protocolo de proyecto nuevo menciona las zonas.** La detección comprueba si existen, START las crea antes de la fase de definición (sin ellas no se puede guardar ni una respuesta) y SCAN las nombra a partir del propio escaneo, pasándolas por el usuario antes de sembrar.
+
+### Changed
+
+- **Guardar una regla o dar de alta una zona ya no crea un commit propio.** Escriben su fichero y viajan pegados al siguiente commit que haya. Lo que la restricción exigía era que no se perdieran al clonar, no un commit por línea.
+- **Retirada la comprobación de coherencia de reglas** (`health.coherence_rules()`): sin commits de regla no hay divergencia que detectar, y mantenerla habría hecho que cada regla nueva saliera como discrepancia falsa en cada arranque, para siempre.
+
 ## [1.29.2] - 2026-08-06
 
 ### Fixed
