@@ -21,3 +21,4 @@
 [D-019][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [D-020][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
 [D-021][testing][skills] two build modes: test-first for clear contracts, linear Flow for the rest
+[D-022][testing][skills] two build modes: test-first for clear contracts, linear Flow for the rest
