@@ -89,3 +89,4 @@
 [M-087][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [M-088][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
 [M-089][testing][skills] two build modes: test-first for clear contracts, linear Flow for the rest
+[M-090][skills][architecture] Gitto existed as a dedicated git-ops subagent, later retired
