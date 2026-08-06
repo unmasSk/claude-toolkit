@@ -11,6 +11,10 @@
     "aliases": [],
     "description": "la integracion continua y sus workflows"
   },
+  "design": {
+    "aliases": [],
+    "description": "el diseno visual y de interaccion"
+  },
   "docs": {
     "aliases": [],
     "description": "la documentacion del repositorio y sus superficies"
