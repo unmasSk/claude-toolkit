@@ -45,6 +45,10 @@
     ],
     "description": "la extension de VS Code, aparcada"
   },
+  "frontend": {
+    "aliases": [],
+    "description": "el plugin de desarrollo frontend web"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
@@ -82,10 +86,6 @@
   "pentesting": {
     "aliases": [],
     "description": "el plugin de seguridad ofensiva y sus skills"
-  },
-  "prueba2": {
-    "aliases": [],
-    "description": "zona de prueba temporal, ultron demo 2026-08-06 -- se retira al terminar"
   },
   "release": {
     "aliases": [],
