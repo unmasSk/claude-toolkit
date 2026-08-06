@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.30.4] - 2026-08-06
+
 ### Fixed
 
 - **La memoria de callejones sin salida de Bilbo estaba rota por los dos extremos.** La lectura esperaba un bloque inyectado que ya no existe, y la escritura prometía guardarlos como `memo(deadend/<subsystem>)` — un tipo de nota que el sistema no acepta (`deadend` no es zona, y toda nota exige dos zonas reales). Resultado: se escribían cada sesión y no se leía ninguno. Ahora los busca él en el arranque con `gitmem search`, y el orquestador los persiste como nota `M` con las dos zonas del subsistema y `deadend` entre sus claves.
