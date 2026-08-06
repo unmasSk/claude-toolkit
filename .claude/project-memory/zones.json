@@ -23,6 +23,10 @@
     ],
     "description": "el sistema de memoria: comandos, indices, aduana y arranque"
   },
+  "release": {
+    "aliases": [],
+    "description": "publicar version: empaquetado, versionado y distribucion"
+  },
   "skills": {
     "aliases": [
       "agents"
