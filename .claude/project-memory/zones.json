@@ -11,6 +11,10 @@
     "aliases": [],
     "description": "la integracion continua y sus workflows"
   },
+  "docs": {
+    "aliases": [],
+    "description": "la documentacion del repositorio y sus superficies"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
