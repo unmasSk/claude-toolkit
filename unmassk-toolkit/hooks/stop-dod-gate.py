@@ -2,7 +2,7 @@
 """
 Stop hook -- Definition of Done gate.
 
-Opt-in hard brake on session close. Reads `.claude/git-memory-config.json`
+Opt-in hard brake on session close. Reads `.claude/project-memory/config.json`
 from cwd; if the field `test_command` (non-empty string) is present, runs
 that command before allowing the session to end.
 
@@ -39,7 +39,24 @@ force_utf8_streams()
 from git_helpers import open_no_follow_symlink
 
 TIMEOUT_SECONDS = 60
-CONFIG_SUBPATH = os.path.join(".claude", "git-memory-config.json")
+# El fichero de configuracion del proyecto es el del sistema nuevo
+# [movido 2026-08-06]. Hasta hoy este hook leia
+# `.claude/git-memory-config.json`, el del sistema anterior, y era el
+# ULTIMO consumidor vivo que le quedaba.
+#
+# No era solo un nombre viejo: ese fichero llevaba dentro su propio
+# `repo_type`, que NADIE lee -- este hook solo saca `test_command` de ahi --
+# y que **contradecia al del sistema nuevo**. Medido en este mismo
+# repositorio: el viejo decia `trunk` y el vivo dice `gitflow`. Dos
+# ficheros de configuracion diciendo lo contrario sobre si la rama
+# principal esta protegida es exactamente el fallo callado que este
+# proyecto declara como su unica amenaza: el que lea el equivocado
+# concluye lo contrario y no hay nada que le avise.
+#
+# Las tres claves del sistema nuevo (`customs_enabled`, `repo_type`,
+# `test_command`) viven juntas en un solo sitio, que es lo que ya
+# declaraba `lib/memory/config.py`.
+CONFIG_SUBPATH = os.path.join(".claude", "project-memory", "config.json")
 
 
 def _tokenize(cmd: str) -> list[str]:
@@ -74,7 +91,7 @@ def _tokenize(cmd: str) -> list[str]:
 
 
 def _read_test_command(cwd: str) -> str | None:
-    """Return test_command from .claude/git-memory-config.json, or None.
+    """Return test_command from .claude/project-memory/config.json, or None.
 
     Returns None on any error (missing file, parse error, wrong type,
     empty/null value) — all of which are treated as opt-out.
@@ -82,7 +99,7 @@ def _read_test_command(cwd: str) -> str | None:
     config_file = os.path.join(cwd, CONFIG_SUBPATH)
     try:
         # barrido finding: never follow a symlink planted at
-        # git-memory-config.json — an attacker-controlled test_command must
+        # config.json — an attacker-controlled test_command must
         # never be read from (and thus executed via) an external file.
         with open_no_follow_symlink(config_file, "r") as f:
             config = json.load(f)

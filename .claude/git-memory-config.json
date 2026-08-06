@@ -1,5 +1,0 @@
-{
-  "repo_type": "trunk",
-  "_note": "trunk: main is the working branch, no auto-deploy on commit. See unmassk-gitmemory Safety > Repo type.",
-  "_note_test_command": "DELIBERATELY ABSENT. The stop-dod-gate hook runs test_command on EVERY Stop event -- and Stop fires once per assistant turn, not once per session (measured: 2506 executions across 23 sessions). This suite takes 280s against the hook's own 60s cap, so it would time out every single turn: fail-open, zero guarantee, 60s added to every reply. Arming this gate needs a fast subset (<20s) chosen on purpose, not the full suite. Tracked as part of phase 4."
-}

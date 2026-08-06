@@ -1,3 +1,5 @@
 {
-  "repo_type": "gitflow"
+  "repo_type": "trunk",
+  "_note_test_command": "DELIBERADAMENTE AUSENTE. stop-dod-gate.py corre test_command en CADA Stop -- y Stop dispara una vez por turno, no por sesion (medido: 2506 ejecuciones en 23 sesiones). Esta suite tarda 280s contra el tope de 60s del hook: se agotaria en cada turno, sin garantia ninguna y con 60s de mas en cada respuesta. Armar esta puerta exige un subconjunto rapido (<20s) elegido a proposito, nunca la suite entera.",
+  "_note_repo_type": "trunk: main es la rama de trabajo. Un commit normal a main NO publica nada por si solo -- publicar es bin/release.py, que sube la version en plugin.json y marketplace.json y empuja; hasta que el usuario no hace /plugin update no le llega nada. Corregido el 2026-08-06: se habia escrito 'gitflow' y obligaba a una rama y una fusion por cada cambio."
 }
