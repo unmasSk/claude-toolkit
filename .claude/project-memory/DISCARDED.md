@@ -24,3 +24,4 @@
 [X-022][memory][install] pedir confirmacion (ok?) antes de cada memo o decision
 [X-023][skills][architecture] tabla estatica de skills en CLAUDE.md
 [X-024][skills][architecture] hook PreToolUse que fuerza la inyeccion de skill (exit 2 en Agent tool)
+[X-025][release][architecture] acumular trabajo en ramas de feature antes de fusionar
