@@ -4,3 +4,4 @@
 2026-08-06  [M-097][standards][testing] 📌 unmassk-standards gained Producer-Consumer round-trip integrity (§34)  →  closed: reclasificada como decision (era una eleccion entre alternativas, no un hecho estable) -- ver D-004
 2026-08-06  [M-100][memory][hooks] 📌 the near-dup write-path gate stays lexical and non-blocking, on purpose  →  closed: reclasificada como decision -- ver la nota nueva
 2026-08-06  [M-101][memory][release] 📌 code commits: local WIPs per sub-step, single squash and push at close  →  closed: reclasificada como decision
+2026-08-06  [M-102][boot][memory] 📌 boot hook output is always a minimal banner, full content lives only in the file  →  closed: reclasificada como decision
