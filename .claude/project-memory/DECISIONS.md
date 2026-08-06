@@ -8,3 +8,4 @@
 [D-006][memory][release] code commits: local WIPs per sub-step, single squash and push at close
 [D-007][boot][memory] boot hook output is always a minimal banner, content lives only in the file
 [D-008][boot][memory] boot fetches async before reading memory, never blocks or force-pulls
+[D-009][standards][install] Windows/macOS/Linux support became a hard requirement
