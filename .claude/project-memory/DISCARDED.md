@@ -16,3 +16,4 @@
 [X-014][skills][architecture] construir unmassk-spec como skill independiente
 [X-015][docs][release] CHANGELOG por-plugin en <plugin>/CHANGELOG.md, migrando el root
 [X-016][hooks][memory] A1: denylist total de caracteres a escapar
+[X-017][hooks][memory] A3: solo normalizacion unicode
