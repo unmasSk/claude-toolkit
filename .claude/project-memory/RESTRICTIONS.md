@@ -7,3 +7,4 @@
 [R-005][db][docs] reference-heavy skills must cite verified sources, never invented content
 [R-006][memory][release] main branch protection depends on the repo_type marker
 [R-007][hooks][skills] parallel agents never run global git stash/reset/checkout on a shared repo
+[R-008][architecture][install] write access is only granted in claude-toolkit itself
