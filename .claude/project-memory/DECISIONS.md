@@ -27,3 +27,4 @@
 [D-026][standards][architecture] unmassk-standards rewritten generic, axis: the system against itself
 [D-027][testing][standards] tests default to real dependencies, mock only what cannot run
 [D-028][skills][architecture] domain skills route by orchestrator judgment from loaded front matter
+[D-029][boot][memory] freshness stamp: own success-stamp only, real remote+branch identity
