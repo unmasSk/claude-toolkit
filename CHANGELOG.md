@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-08-06
+
 ### Added
 
 - **Un proyecto se instala solo al abrir sesión.** Si no tiene manifest, el arranque lanza el instalador antes de leer memoria: deja `gitmem` en el PATH, siembra los ocho índices, deduce y escribe `config.json`, y pone el `.gitignore`. Medido de punta a punta: de **nueve pasos manuales —dos de ellos rechazos— a cero**.
