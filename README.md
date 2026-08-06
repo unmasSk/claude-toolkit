@@ -76,7 +76,7 @@ Always installed. Contains everything Claude needs to orchestrate.
 | **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
 | **Standards** | Stack-agnostic quality criteria under the "system against itself" model — tiers, weighted scoring, producer↔consumer data integrity (§34), silent-failure and concurrency rules. No OWASP/React/TypeScript: framework rules live in their own plugins |
-| **`/remember`** | The one slash command. Bare, it delivers your whole rules file into Claude's context and every line becomes binding from that moment. With text after it (`/remember never rewrite my prose`), it saves that text as a new rule. Rules live outside the note system: no zones, never in a search or a report, never read by an agent |
+| **`/remember`** | The one slash command, and it only reads: it delivers your whole rules file into Claude's context, where every line becomes binding from that moment. Saving is never yours to trigger — Claude saves a rule the moment you state it in conversation. Rules live outside the note system: no zones, never in a search or a report, never read by an agent |
 | **Protocols** | 5 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (end-of-session housekeeping: version, changelog, cleanup, branch/issue hygiene, doc check), `unmassk-scaffolding` (stack choice and project scaffolding) |
 
 ### Domain plugins
