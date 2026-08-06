@@ -39,6 +39,10 @@
     ],
     "description": "el sistema de memoria: comandos, indices, aduana y arranque"
   },
+  "ops": {
+    "aliases": [],
+    "description": "el plugin de infraestructura y despliegue"
+  },
   "pentesting": {
     "aliases": [],
     "description": "el plugin de seguridad ofensiva y sus skills"
