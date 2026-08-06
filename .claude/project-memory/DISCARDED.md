@@ -56,3 +56,4 @@
 [X-054][memory][architecture] forzar los remember dentro de las dos zonas obligatorias
 [X-055][memory][architecture] esquema dominio+capa, ej. [inventario][backend]
 [X-056][memory][architecture] segunda casilla opcional
+[X-057][memory][architecture] conservar los codigos de color ANSI en la salida
