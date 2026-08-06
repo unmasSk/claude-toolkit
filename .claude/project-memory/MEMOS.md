@@ -93,3 +93,4 @@
 [M-104][docs][skills] the docs/skills generator only lists finished, installed skills
 [M-106][pentesting][architecture] unmassk-pentesting: full-spectrum personal tool, no authorization gate
 [M-107][humanizer][docs] unmassk-humanizer: anti-slop core, protect-list and corpus seeded empty
+[M-108][design][architecture] unmassk-design absorbs every design front as branches of one plugin
