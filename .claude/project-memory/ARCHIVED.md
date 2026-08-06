@@ -17,3 +17,4 @@
 2026-08-06  [M-096][memory][architecture] 📌 vector search deferred as non-foundational, unlike the git decision graph  →  closed: reclasificada como decision
 2026-08-06  [D-017][skills][architecture] 🧭 BM25 skill routing replaced the static CLAUDE.md skill-map  →  closed: el gate BM25 se deprecó de verdad en julio -- ver D-028, que lo sustituye
 2026-08-06  [M-090][skills][architecture] 📌 Gitto existed as a dedicated git-ops subagent, later retired  →  closed: fecha y motivo exactos confirmados -- ver la nota nueva
+2026-08-06  [Q-001][memory][hooks] ❓ can a hook launch a headless CLI session in the background, unverified  →  closed: hipotesis de una IA externa que el propietario nunca pidio; no se construye nada sobre ella
