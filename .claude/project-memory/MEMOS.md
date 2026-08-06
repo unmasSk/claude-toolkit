@@ -92,3 +92,4 @@
 [M-103][memory][release] close-session also closes finished issues and deletes merged branches
 [M-104][docs][skills] the docs/skills generator only lists finished, installed skills
 [M-106][pentesting][architecture] unmassk-pentesting: full-spectrum personal tool, no authorization gate
+[M-107][humanizer][docs] unmassk-humanizer: anti-slop core, protect-list and corpus seeded empty
