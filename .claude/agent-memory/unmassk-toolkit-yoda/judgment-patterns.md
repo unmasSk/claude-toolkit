@@ -550,3 +550,40 @@ Checked `.claude/agent-memory/unmassk-toolkit-moriarty/MEMORY.md` mtime: last to
 
 **Pattern: a dead pre-commit validation layer is not automatically a T1 blocking the feature that happens to add a new value to the validated set.**
 `pre-/post-validate-commit-trailers.py` don't fire on the real wrapper commit path (`extract_commit_message` looks for `-m`, the wrapper never uses it) — confirmed pre-existing, not touched by this diff. Distinguished this from BREAK2 (T1, active silent data loss on ALL trailers via embedded newline, fixed this round) by checking whether the feature's actual READ path depends on the dead layer: `scan_trailers_memory()`/`recall()` (what Bilbo/boot actually use) are independent of `parse_trailers()`/`validate_trailers()` (the dead hooks) — grep-verified via `git-memory-commit.py`'s import list (`from parsing import ... sanitize_trailer_value`, no `validate_trailers` import at all). A missing guardrail (defense-in-depth gap) that nothing currently exploits is T2/T3-class disclosed debt, not a T1 blocking THIS merge — verify the dependency graph before applying the FALLA/T1 auto-reject rule to a pre-existing finding.
+
+## 2026-08-06 — Robustez memoria v2 + CI (customs.py rescate, stop-dod-gate aviso, doctor zonas #13)
+
+**Pattern: mutation-kill en vivo sobre el fix de determinismo de Moriarty, con 5+ PYTHONHASHSEED reales, no solo confiar en el reporte "confirmado en 5 corridas".**
+El fix reordena `_COMMIT_CREATING_SUBCOMMANDS` (un `set`, orden dependiente del hash seed del proceso) para
+priorizar `rebase`/`merge`/`cherry-pick` en el fallback de `_find_commit_creating_statement` cuando
+`shlex.split()` falla. Corri la clase de test real (`TestRescuePassthroughSurvivesShlexTokenizationFailure`)
+bajo `PYTHONHASHSEED=0..4`: 5/5 verde con el fix. Luego muté una copia EN MEMORIA (no en disco de forma
+permanente -- ver lessons.md, incidente de git-safety de esta misma sesión) quitando solo el reordenamiento
+(dejando el resto del fix intacto) y corrí `PYTHONHASHSEED=0..7`: rojo en 6/8 seeds, con fallos distintos según
+el seed (a veces `merge --abort`, a veces `rebase --continue`/`--skip`) -- exactamente el bug no-determinista
+que el fix documenta haber cerrado. El fix es real, no cosmético.
+
+**Pattern: verificar un "T1 de Moriarty arreglado" ejecutando el escenario exacto contra el binario real, no solo leyendo el test.**
+Para el segundo T1 (`check_project_config()` da falso verde sobre `{"customs_enabled": "true"}`), corrí
+`git-memory-doctor.py --json` de verdad contra un `config.json` con ese contenido exacto: `level: "error"`,
+mensaje `"corrupt: 'customs_enabled' must be boolean, got str"`. Coincide exactamente con lo que Ultron/Cerberus
+reportan, verificado por un canal independiente (stdout JSON real del proceso, no el reporte del agente).
+
+**Pattern: "N fallos preexistentes, confirmado por Ultron revirtiendo sus ficheros" se re-verifica con
+`git show HEAD:<path> > <path>` (lectura pura), NUNCA con `git stash`/`git checkout --` en este repo específico.**
+Ver lessons.md -- este repo tiene una regla dura de git-safety escrita por Ultron (múltiples sesiones
+concurrentes sin commitear en el mismo árbol). Repetí la comparación de los 3 fallos (`test_boundary.py` x2,
+`test_rejection_relaunch_commands.py` x1) con el método correcto después del incidente: idénticos antes/después,
+confirmado también que un 4to fallo que apareció en una corrida completa (`test_gitcmd.py::
+test_concurrent_writers_to_same_index_serialize_via_file_lock`) es flaky bajo carga (rojo en la corrida
+completa de 580s/966 tests concurrente con otro proceso, verde en aislamiento) -- no es un 4to fallo real.
+
+**Pattern: una función helper que "resuelve un caso" puede dejar el otro caso (corrupción real, no solo
+vacío) cayendo en el manejo de errores YA existente más arriba en la pila -- verificar el camino completo,
+no solo la función nueva.** `health.zones_state()` colapsa corrupto→"empty" a propósito (documentado, mismo
+criterio que `memory_mounted()` ya aplicaba). Verifiqué que esto NO deja `zones.py list` crasheando con una
+traza cruda sobre zones.json corrupto: `_cmd_list()` cae al `zones_lib.load()` real después del check de
+"absent", que SÍ lanza `ValueError`, pero el `except Exception` genérico de `main()` (línea 259, comentario
+"nunca una traza de pila") lo convierte en stderr limpio + exit 1 -- confirmado ejecutando el escenario real
+(rc=1, stderr con mensaje claro, sin traceback). Mismo comportamiento que existía ANTES de este diff
+(`_cmd_list` ya llamaba `zones_lib.load()` sin try/except propio desde siempre) -- no es una regresión.

@@ -17,20 +17,29 @@ on:
       - "unmassk-electronics/**"
       - ".github/workflows/plugin-tests.yml"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Plugin script tests (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
+          cache: pip
+          cache-dependency-path: .github/workflows/plugin-tests.yml
 
       - name: Install deps
-        run: pip install pytest pyyaml numpy trimesh manifold3d pyserial cadquery
+        run: pip install pytest==9.1.1 pyyaml==6.0.3 numpy==2.4.6 trimesh==5.0.0 manifold3d==3.5.2 pyserial==3.5 cadquery==2.8.0
 
       - name: unmassk-3d script tests
         run: python -m pytest unmassk-3d/skills/unmassk-3d/scripts/tests -q

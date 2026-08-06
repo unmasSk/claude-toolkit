@@ -41,3 +41,26 @@
 ## unmassk-toolkit git-memory: read path (recall/boot) is independent of the write-time validation hooks
 
 `lib/parsing.py::scan_trailers_memory()` (recall/boot read path, feeds `recall()`) and `lib/parsing.py::parse_trailers_full()` do NOT call or depend on `hooks/pre-validate-commit-trailers.py::validate_trailers()` in any way — they are separate code paths reading the same commit trailers independently. Confirmed 2026-07-25 (dead-end memory loop judgment): even with the validation hooks structurally dead on the wrapper commit path, memory recall/boot correctness is unaffected. When judging whether a validation-layer gap blocks a feature, check whether the feature's actual read path imports/depends on the broken validator before treating it as blocking.
+
+## Git-safety HARD RULE en claude-git-memory (unmassk-toolkit/) -- vale para MI, no solo para Ultron
+
+`.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md` (tope del fichero): NUNCA `git stash`, `git reset`,
+`git checkout -- <path>`, `git restore`, ni ningún comando que mueva/mute el árbol de trabajo en este repo --
+ni siquiera acotado a un path, ni siquiera "solo para mirar". Dos sesiones de trabajo sin commitear conviven
+en el mismo árbol (varios agentes construyendo en paralelo a petición del propietario). Ya pasó dos veces
+antes de esta sesión (ver lessons.md de Ultron) y una tercera vez conmigo (2026-08-06, ver mi propio
+lessons.md) -- las tres veces recuperadas por suerte (fsck de commits colgantes, nunca garantizado). Lectura
+pura de git (`status`, `diff`, `log`, `show`) siempre es segura -- la prohibición es sobre cualquier cosa que
+mueva el árbol. Para una comparación antes/después de un fichero real: copiar a variable en memoria (Python
+`open().read()`), mutar/restaurar por escritura directa, nunca por comando git que mute el índice o el árbol.
+
+## Round-trip real en customs.py / stop-dod-gate.py / zones.py list / doctor.py: subprocess real, no mock
+
+Los 4 ficheros de test tocados en la tanda del 2026-08-06 (`test_customs_hook.py`, `test_stop_dod_gate.py`,
+`test_zones_script.py`, `test_doctor_derived_expectations.py`) invocan el hook/script REAL como proceso aparte
+(`subprocess.run([sys.executable, HOOK_PATH], ...)` o equivalente) contra ficheros REALES en un repo temporal
+(`tmp_repo`/`tmp_path`), nunca contra un mock del parser de JSON o del filesystem. `zones.py`'s `_cmd_list` y
+`git-memory-doctor.py`'s `check_project_zones`/`check_project_config` se prueban con `zones.json`/`config.json`
+corruptos escritos byte a byte en disco (marcadores de conflicto de merge sin resolver, tipos JSON equivocados)
+-- satisface la Regla de Evidencia de Round-Trip sin necesitar reconstruir el seam yo mismo, aunque lo repetí
+de todas formas para los 2 hallazgos T1 de Moriarty (ver judgment-patterns.md).

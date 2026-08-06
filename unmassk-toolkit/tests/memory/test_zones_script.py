@@ -430,3 +430,104 @@ class TestRegisteringANameThatIsAnotherZonesAliasBounces:
             "llevara a otra zona (o a ninguna), el alias quedo secuestrado en "
             "silencio, el mismo fallo que el rebote existe para evitar"
         )
+
+
+# ---------------------------------------------------------------------------
+# RED (encargo del orquestador, 2026-08-06) -- `zones.py list` enmascara
+# "zones.json no existe" como "zones.json existe pero esta vacio". Las dos
+# ramas de `_cmd_list()` pasan por `zones_lib.load(path)`, y esa funcion
+# devuelve `{}` en ambos casos: fichero ausente (captura `FileNotFoundError`,
+# `lib/memory/zones.py::load`, docstring: "Un fichero ausente se trata como
+# 'todavia no hay ninguna zona'") y fichero presente con el objeto JSON
+# vacio `{}` -- exactamente el mismo `len(zones_map) == 0` en los dos casos,
+# asi que `_cmd_list()` imprime el MISMO texto (`f"zones.json tiene 0
+# zonas:"`) para dos hechos distintos.
+#
+# `lib/memory/health.py::memory_mounted()` YA distingue estos dos casos para
+# su propio informe (lineas ~448-457, citadas tal cual):
+#
+#     zones_path = pm / "zones.json"
+#     if not zones_path.exists():
+#         missing.append("zones.json (no existe)")
+#     else:
+#         ...
+#         if zone_count == 0:
+#             missing.append("zones.json (existe, pero no tiene ninguna zona
+#             dada de alta)")
+#
+# Este contrato no fabrica un texto nuevo para "no existe": reutiliza el
+# MISMO texto que `memory_mounted()` ya imprime en produccion hoy (no un
+# texto tecleado a mano por este fichero de test) -- el encargo pide
+# explicitamente reusar esa logica, no una segunda lectura silenciosa.
+# ---------------------------------------------------------------------------
+
+
+class TestListDistinguishesAbsentFromEmptyZonesJson:
+    """`zones list` en un proyecto recien instalado (zones.json nunca
+    sembrado) y en un proyecto donde zones.json existe pero quedo con
+    `{}` (todas las zonas borradas a mano, o un alta que fallo a mitad)
+    son dos estados distintos -- el primero significa "todavia no se ha
+    dado de alta ninguna zona nunca", el segundo "alguien ya toco este
+    fichero y hoy no queda ninguna zona en el". Hoy `zones.py list`
+    imprime la misma linea para los dos.
+    """
+
+    def test_missing_and_empty_zones_json_produce_different_output(self, tmp_repo):
+        zones_path = pm_path(tmp_repo) / "zones.json"
+        assert not zones_path.exists(), (
+            "asuncion del fixture: tmp_repo empieza sin zones.json"
+        )
+
+        rc_missing, out_missing, err_missing = run_memory_script(
+            "zones.py", ["list"], cwd=tmp_repo
+        )
+        assert rc_missing == 0, f"stdout={out_missing!r} stderr={err_missing!r}"
+        assert "Traceback" not in out_missing and "Traceback" not in err_missing
+
+        zones_path.parent.mkdir(parents=True, exist_ok=True)
+        zones_path.write_text("{}", encoding="utf-8")
+
+        rc_empty, out_empty, err_empty = run_memory_script(
+            "zones.py", ["list"], cwd=tmp_repo
+        )
+        assert rc_empty == 0, f"stdout={out_empty!r} stderr={err_empty!r}"
+        assert "Traceback" not in out_empty and "Traceback" not in err_empty
+
+        assert out_missing != out_empty, (
+            "'zones list' imprime el MISMO mensaje tanto si zones.json "
+            "nunca se creo como si existe pero quedo vacio -- son dos "
+            "hechos distintos y tienen que leerse distinto.\n"
+            f"ausente: {out_missing!r}\n"
+            f"vacio:   {out_empty!r}"
+        )
+
+    def test_missing_zones_json_says_it_does_not_exist(self, tmp_repo):
+        zones_path = pm_path(tmp_repo) / "zones.json"
+        assert not zones_path.exists()
+
+        rc, out, err = run_memory_script("zones.py", ["list"], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        assert "no existe" in out, (
+            "cuando zones.json nunca se ha creado, la salida tiene que "
+            "decirlo explicitamente -- mismo texto que "
+            "health.memory_mounted() ya usa hoy para este mismo hecho "
+            "(lib/memory/health.py: \"zones.json (no existe)\"), no una "
+            f"frase nueva inventada por este test: {out!r}"
+        )
+
+    def test_present_but_empty_zones_json_does_not_claim_it_does_not_exist(
+        self, tmp_repo
+    ):
+        zones_path = pm_path(tmp_repo) / "zones.json"
+        zones_path.parent.mkdir(parents=True, exist_ok=True)
+        zones_path.write_text("{}", encoding="utf-8")
+
+        rc, out, err = run_memory_script("zones.py", ["list"], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        assert "no existe" not in out, (
+            "zones.json SI existe en disco (esta prueba lo escribe antes de "
+            "invocar el script) -- la salida no puede decir que no existe, "
+            f"eso mentiria sobre un fichero que esta ahi mismo: {out!r}"
+        )

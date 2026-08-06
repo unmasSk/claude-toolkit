@@ -131,6 +131,8 @@ Check this once, at the start, before writing anything. The three look alike fro
 
 Every note carries two, both real, no catch-alls.
 
+**A zone is a judgment call, never a script's default.** Naming the zones a project speaks about means reading its history and distilling what it is really about — which is why an installer leaves the zone list empty on purpose and never guesses one for you. You create the first zone after reading the commits; in a project carrying old memory, that is the *harvest* step of the distill pass (the third situation above).
+
 - **Zone 1 — the kind of work you speak from:** `product`, `testing`, `codeaudit`, `docs`, `deploy`, `database`, `api`, `ui`, `auth`. Not pre-installed: a fresh project has none.
 - **Zone 2 — the part of the product you speak about:** different in every project.
 

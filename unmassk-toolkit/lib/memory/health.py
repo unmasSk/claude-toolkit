@@ -376,7 +376,7 @@ def _total_commit_count() -> int:
     return sum(1 for record in raw_stdout.split("\0") if record)
 
 
-def possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | None:
+def _possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | None:
     """Aviso A -- "esto puede ser memoria del sistema anterior sin
     destilar" [encargo 2026-08-06, fallo 1 real: un proyecto con once
     commits y tres de ellos con decisiones reales del sistema anterior en
@@ -404,7 +404,37 @@ def possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | Non
     return None
 
 
-def memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
+def zones_state(zones_path: Path) -> tuple[str, int]:
+    """Tres estados reales de `zones.json` -- ausente (nunca creado),
+    vacio (presente pero sin ninguna zona dada de alta, incluido un
+    fichero corrupto: `zones.load()` lanza `ValueError` a proposito
+    ["fallo en alto, nunca silencioso", su propio docstring], contado
+    aqui igual que cero zonas utilizables, mismo criterio que
+    `memory_mounted()` ya aplicaba antes de esta funcion existir) y
+    poblado (al menos una zona real).
+
+    Extraida de dentro de `memory_mounted()` [2026-08-06] para que un
+    segundo llamador (`bin/memory/zones.py list`, y el chequeo homologo
+    de `git-memory-doctor.py`) reutilice la MISMA distincion en vez de
+    volver a leer el fichero por su cuenta -- el fallo real que esto
+    cierra: `zones.py list` imprimia el mismo texto ("zones.json tiene 0
+    zonas") tanto si el fichero nunca existio como si existia vacio.
+
+    Devuelve `(estado, numero_de_zonas)`. `numero_de_zonas` es siempre 0
+    para "absent" y "empty".
+    """
+    if not zones_path.exists():
+        return "absent", 0
+    try:
+        zone_count = len(zones.load(zones_path))
+    except ValueError:
+        zone_count = 0
+    if zone_count == 0:
+        return "empty", 0
+    return "populated", zone_count
+
+
+def _memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
     """Aviso B -- "este proyecto no tiene la memoria montada" [encargo
     2026-08-06, fallo 2 real: el mismo informe en verde salia en un
     proyecto sin `.claude/project-memory/`, sin `zones.json` y sin
@@ -445,16 +475,11 @@ def memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
     if missing_indices:
         missing.append(".claude/project-memory/: faltan " + ", ".join(missing_indices))
 
-    zones_path = pm / "zones.json"
-    if not zones_path.exists():
+    state, _zone_count = zones_state(pm / "zones.json")
+    if state == "absent":
         missing.append("zones.json (no existe)")
-    else:
-        try:
-            zone_count = len(zones.load(zones_path))
-        except ValueError:
-            zone_count = 0
-        if zone_count == 0:
-            missing.append("zones.json (existe, pero no tiene ninguna zona dada de alta)")
+    elif state == "empty":
+        missing.append("zones.json (existe, pero no tiene ninguna zona dada de alta)")
 
     config_path = pm / "config.json"
     if not config_path.exists():
@@ -583,8 +608,8 @@ def build() -> HealthReport:
 
     archived_notes = len(indexes.archived_ids(notes.pm_root(root)))
 
-    legacy_commits_suspected = possible_unconverted_legacy(_total_commit_count(), git_notes)
-    _mounted, memory_setup_missing = memory_mounted(root)
+    legacy_commits_suspected = _possible_unconverted_legacy(_total_commit_count(), git_notes)
+    _mounted, memory_setup_missing = _memory_mounted(root)
 
     return HealthReport(
         duplicate_ids=duplicates(root),

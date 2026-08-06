@@ -1888,3 +1888,146 @@ write the smoke test as a `.py` file (Write tool) that calls
 tool_input text itself. `git init`/`git checkout -b`/`git log`/`git show`
 are all fine as plain inline Bash; only the literal substring `commit`
 next to `git` in the SAME tool_input string triggers the guard.
+
+## customs.py corrupt-config-blocks-rescue-commands fix (2026-08-06) -- a "move the I/O-free branches earlier" refactor is NOT behavior-preserving if any of those branches is itself gated by the thing you're skipping
+
+Bug: `hooks/customs.py::_decide()` called `config.load(pm/"config.json")`
+unconditionally, for EVERY commit-creating subcommand, before dispatching
+to `_decide_commit_creating`. A corrupt `config.json` therefore blocked
+`git merge --abort`/`--continue` and `git rebase --abort`/`--continue` too
+-- the only real way out of a stuck merge/rebase -- via `main()`'s generic
+`except Exception` catch-all, with no repair instruction in the reason.
+
+First design I considered (rejected before writing it): move ALL of
+`_decide_commit_creating`'s branches that don't need `cfg` (merge/
+cherry-pick always approve, rebase-with-abort/continue/skip approve,
+rebase-without-those-flags blocks, commit --amend blocks) to run BEFORE
+`config.load()`, since none of those branches' OWN logic reads `cfg`.
+This is wrong: in the current code those branches are only ever reached
+AFTER `_customs_active(cfg, pm)` returns `True` -- with customs inactive,
+`_decide()` returns `approve` before ever dispatching, so e.g. a bare
+`git rebase main` currently passes when customs is off and blocks when
+customs is on. Moving the "doesn't read cfg" branches earlier would make
+`git rebase main` block unconditionally, regardless of customs state --
+a real behavior change with no test catching it (no test exercises
+"customs explicitly off + a blocking-shaped rebase/amend").
+
+The fix that IS behavior-preserving: only pre-check the subset of
+branches whose OUTCOME is identical in both customs-on and customs-off
+worlds -- merge/cherry-pick (always approve either way) and rebase with
+an `--abort`/`--continue`/`--skip` flag (always approve either way,
+reusing the same `_REBASE_PASSTHROUGH_FLAGS` frozenset the gated code
+already uses, so there's one source of truth for that flag set, not two
+that could drift). Bare rebase and `commit --amend` stay gated behind
+`config.load()`/`_customs_active()`, unchanged. New function
+`_decide_rescue_passthrough(subcommand, rest_tokens)` returns the decision
+dict or `None` ("still depends on customs state, keep going"), called
+from `_decide()` right after `_find_commit_creating_statement` and before
+any file I/O.
+
+Second half of the same fix: `config.load()` and `zones_lib.load()` (the
+latter inside `_decide_note`, only reachable when the message parses as
+a note) are each wrapped in their own `try/except Exception`, producing a
+new `_corrupt_file_rejection(filename, exc)` block (same 3-part
+`rejection_.build()` contract as the module's other hand-written
+rejections, e.g. `_history_rewrite_rejection`) instead of falling through
+to `main()`'s generic "fallo inesperado" catch-all. A normal commit still
+blocks on a corrupt file (no reliable flag to read), but the reason now
+names the file and gives a repair instruction, verified by a
+regex-of-hint-words test helper (`_reason_has_escape_hatch` in the test
+file) rather than an exact string match -- the exact wording was left to
+Ultron by the owner's task, only the two minimum properties (not the
+generic prefix, names the file + a repair verb) were contractually fixed.
+
+General rule: before moving a "doesn't need X" branch earlier to skip
+loading X, check whether that branch is only reachable TODAY behind a
+gate that depends on X (or on something computed from X). If so, the
+branch's "doesn't need X" is only true for its own body, not for its
+reachability -- moving it changes when it fires, not just how.
+
+## customs.py _find_commit_creating_statement's except-ValueError fallback: fixing dropped tokens isn't enough, the subcommand pick itself is non-deterministic (Moriarty T1, 2026-08-06)
+
+Moriarty's PoC: `git commit -m 'WIP: don't lose this' && git rebase --abort`
+(unescaped apostrophe) makes `shlex.split()` raise `ValueError` for the
+WHOLE string. The `except ValueError` fallback used to `return sub, []`
+(discard tokens), so `_decide_rescue_passthrough`/`_decide_commit_creating`
+never saw `--abort` and blocked the only real way out of an in-progress
+rebase. First fix attempt (just stop discarding tokens: regex-extract
+`--abort`/`--continue`/`--skip` from the raw string with `_RESCUE_FLAG_RE`
+and return them) passed my own manual repro but Dante's parallel contract
+test (`TestRescuePassthroughSurvivesShlexTokenizationFailure`) still failed
+red — because `for sub in _COMMIT_CREATING_SUBCOMMANDS` iterates over a
+`set`, and `PYTHONHASHSEED` (unset by default) makes the iteration order
+vary per PROCESS. The fallback's own regex `\bgit\b.*\b{sub}\b` isn't
+statement-scoped — it matches the ENTIRE raw string with a greedy `.*`, so
+for a string containing both "commit" and "rebase", BOTH subcommand regexes
+match. Whichever the set yields first wins, and "commit" winning means
+`rest_tokens=['--abort']` under `sub="commit"` still blocks (the commit
+branch only ever checks `--amend`, never rebase's rescue flags) — so the
+fix "worked" only in ~1/2 to ~4/5 of process runs by luck of hash seed,
+confirmed by looping `PYTHONHASHSEED=1..5 python3 repro.py` before AND
+after each fix attempt.
+
+Real fix: when `_RESCUE_FLAG_RE.findall(command)` finds a rescue flag in
+the raw text, check `("rebase", "merge", "cherry-pick")` BEFORE the rest of
+`_COMMIT_CREATING_SUBCOMMANDS` (fixed order, not the set's), since those
+are exactly the three subcommands where a rescue flag can flip block->approve.
+With no rescue flag present in the raw text, iteration order is left
+unchanged (same pre-existing nondeterminism, out of scope — Dante's test
+suite documents it explicitly as "the bug itself is non-deterministic,
+not the test").
+
+Rule: when a regex-based fallback scans a WHOLE unparsed string instead of
+a scoped statement, fixing "the right value gets dropped" is not the same
+as fixing "the right value gets attributed to the right candidate" — verify
+determinism across several `PYTHONHASHSEED` values (or any other source of
+iteration-order variance) before trusting a single manual repro run, since
+one lucky run can hide a set-ordering bug completely.
+
+## `bin/memory/*.py::_parse_args` must be `return parser.parse_args(argv)` and
+nothing else (2026-08-06, House diagnosis, `rule.py`)
+
+`tests/memory/test_rejection_relaunch_commands.py::_real_parser_for_subcommand`
+gets the REAL argparse object for every `bin/memory/<sub>.py` by monkey-patching
+`ArgumentParser.parse_args` to return a bare `argparse.Namespace()` (no
+attributes at all) and calling `module._parse_args([])`. Any post-processing
+inside `_parse_args` that touches `args.<field>` after that call (e.g. `rule.py`
+normalizing `list`/`ls` to `args.text = None`) raises `AttributeError` under
+that spy, because the returned object has none of the parser's actual fields.
+9 of the 10 `bin/memory/*.py` scripts already end `_parse_args` with a bare
+`return parser.parse_args(argv)` (PIEZAS.md Sec.10: no logic in `_parse_args`,
+only the parser) — `rule.py` was the one exception, and it's what the harness
+depends on structurally, not just style. Fix: any input normalization based on
+parsed values belongs in `main`, right where the analogous check already lives
+(`rule.py`'s `_NO_SON_UNA_REGLA` check), never inside `_parse_args`.
+
+## Near-miss: a bare `python3 -m pytest -q` over the whole toolkit tree can reach `tests/memory/test_notes.py`, the file [[memoria-v2-notes-cwd-incident]] says not to re-run (2026-08-06)
+
+While verifying the `install_apply.py` boundary fix, ran an unscoped
+`cd unmassk-toolkit && python3 -m pytest -q` (no path filter) to check for
+regressions. It exceeded the Bash tool's 120s timeout and got silently
+auto-backgrounded — at that point it was already running real test files,
+with no way to know from the visible output whether it had reached
+`tests/memory/test_notes.py` (whose rows 7-10, per existing memory, seed
+`notes.write()` outside `_cwd(root)` and can produce 70+ real commits on
+whatever branch is checked out). Killed the background `python3.exe`
+process immediately (`taskkill //F //IM python3.exe //T`) rather than
+waiting for it to finish or polling. Checked `git log --oneline -5` and
+`git status --porcelain` on the real repo immediately after — HEAD and
+branch were unchanged from the start of the session, so nothing landed
+this time, but it was a live risk, not a hypothetical one: the run had
+only reached ~14% of collection (per the partial output file) when
+killed, and file collection order is not something this task controls or
+verified in advance.
+
+**Rule going forward in this repo: never run a bare, unscoped `pytest`
+(whole-suite or whole-`tests/` directory) here.** Always scope to the
+specific file/test the task's VERIFICA step names (e.g.
+`pytest tests/memory/test_boundary.py::test_x`), exactly as the task
+instructions already asked for in this case — running the wider suite
+"just to be thorough" was scope creep on my own initiative, not something
+the task requested, and it's the one class of command in this repo with a
+known history of writing real, unwanted commits as a side effect of
+merely *reading* test coverage. If broader regression coverage is
+genuinely needed, that's Dante's/the orchestrator's call to make
+explicitly, file-by-file, never a blanket `pytest -q`.

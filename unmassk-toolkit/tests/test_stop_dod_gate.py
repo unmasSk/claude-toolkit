@@ -3,8 +3,19 @@ Tests for stop-dod-gate.py — freno duro de Definition of Done.
 
 Comportamiento del hook
 -----------------------
-Stop hook opt-in. Lee `.claude/git-memory-config.json`; si tiene el campo
+Stop hook opt-in. Lee `.claude/project-memory/config.json`; si tiene el campo
 `test_command` (string), ejecuta ese comando al cierre de sesión.
+
+[corregido 2026-08-06: este docstring y `_write_config()` decian
+`.claude/git-memory-config.json` (sistema viejo). El hook se movio al
+fichero nuevo `.claude/project-memory/config.json` el mismo dia (ver
+comentario CONFIG_SUBPATH en stop-dod-gate.py) y el fichero de test no se
+actualizo -- 4 de los 21 tests de entonces (TestCommandFailsBlocks
+completa) llevaban corriendo en rojo silencioso porque `_write_config`
+escribia en una ruta que el hook ya no lee: `_read_test_command` no
+encontraba `config.json`, devolvia None, y el hook entraba siempre por
+el camino "sin test_command", nunca por el de bloqueo. Confirmado
+re-ejecutando la suite antes de este arreglo: 4 failed, 17 passed.]
 
 - tests pasan (exit 0)   → DEJA cerrar (allow / exit 0 sin JSON de bloqueo).
 - tests fallan (exit ≠0) → BLOQUEA: stdout JSON {"decision":"block","reason":"..."}.
@@ -45,9 +56,18 @@ Formato I/O de Stop hook
 - Exit:   0 siempre (el hook no comunica la decisión vía exit code).
 
 Test surface: 3 responsabilidades (leer config, ejecutar comando, formatear
-respuesta), 12 ramas/caminos, 9 clases de test, 20 tests.
+respuesta), 12 ramas/caminos, 11 clases de test, 27 tests.
+[2026-08-06: +2 clases / +7 tests -- contrato "config corrupto debe avisar,
+distinto de no-configurado" (RED en TestCorruptConfigMustWarn hasta que
+Ultron implemente el aviso); también se corrigió la ruta de config
+(`.claude/git-memory-config.json` → `.claude/project-memory/config.json`)
+que había dejado 4 tests de TestCommandFailsBlocks en rojo silencioso
+desde el movimiento del fichero de config el mismo día.]
 Not tested: comportamiento del comando de test en sí mismo (eso es del usuario);
-integración real con Claude Code (fuera de alcance de tests unitarios de hook).
+integración real con Claude Code (fuera de alcance de tests unitarios de hook);
+OSError de permisos reales (chmod) -- no reproducible de forma fiable en
+Windows, cubierto en su lugar por el caso "config.json es un directorio"
+(mismo except OSError, repro cross-platform confirmada a mano).
 """
 
 import json
@@ -67,12 +87,29 @@ _STOP_PAYLOAD = json.dumps({"hook_event_name": "Stop"})
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+# Misma ruta que CONFIG_SUBPATH en stop-dod-gate.py -- no se importa
+# directamente (el hook se invoca como subprocess, no como módulo) pero
+# debe seguir siendo la MISMA cadena si el hook vuelve a moverse.
+_CONFIG_SUBPATH = os.path.join(".claude", "project-memory", "config.json")
+
+
 def _write_config(repo: str, config: dict) -> None:
-    """Escribe .claude/git-memory-config.json en el repo temporal."""
-    claude_dir = os.path.join(repo, ".claude")
-    os.makedirs(claude_dir, exist_ok=True)
-    with open(os.path.join(claude_dir, "git-memory-config.json"), "w", encoding="utf-8") as f:
+    """Escribe .claude/project-memory/config.json en el repo temporal."""
+    config_path = os.path.join(repo, _CONFIG_SUBPATH)
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f)
+
+
+def _write_raw_config(repo: str, raw_content: str) -> None:
+    """Escribe contenido crudo (no necesariamente JSON válido) en
+    .claude/project-memory/config.json. Usado para simular un config
+    corrupto/ilegible como JSON -- `_write_config` de arriba siempre
+    produce JSON válido por diseño."""
+    config_path = os.path.join(repo, _CONFIG_SUBPATH)
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(raw_content)
 
 
 def _run_hook(cwd: str, payload: str = _STOP_PAYLOAD):
@@ -220,7 +257,7 @@ class TestNoCommandConfigAllowsClose:
             )
 
     def test_no_config_file_does_not_block(self, tmp_path):
-        """Sin fichero .claude/git-memory-config.json → no bloquea."""
+        """Sin fichero .claude/project-memory/config.json → no bloquea."""
         workdir = _makes_tmp_dir(tmp_path)
         # No creamos ningún config
 
@@ -263,14 +300,15 @@ class TestInfraErrorsFailOpen:
     """
 
     def test_unreadable_config_fails_open(self, tmp_path):
-        """Config que no se puede leer → fail-open, no bloquea."""
+        """Config que no se puede leer → fail-open, no bloquea.
+
+        (No AVISA todavía -- eso es el gap cubierto por
+        TestCorruptConfigMustWarn más abajo. Este test solo fija la mitad
+        "no bloquea" del contrato de fail-open.)
+        """
         workdir = _makes_tmp_dir(tmp_path)
-        claude_dir = os.path.join(workdir, ".claude")
-        os.makedirs(claude_dir)
-        config_path = os.path.join(claude_dir, "git-memory-config.json")
         # Crear un fichero con JSON inválido para simular config corrupta
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write("{ INVALID JSON }")
+        _write_raw_config(workdir, "{ INVALID JSON }")
 
         rc, parsed, stdout, _ = _run_hook(workdir)
 
@@ -402,6 +440,167 @@ class TestAlwaysValidJson:
         rc, _, _, stderr = _run_hook(workdir, payload="{NOT VALID JSON}")
 
         assert rc == 0, f"stdin inválido no debe crashear; rc={rc!r}, stderr={stderr!r}"
+
+
+# ── Caso 7: config corrupto vs no configurado -- deben distinguirse ───────────
+#
+# Gap reportado 2026-08-06: `_read_test_command()` atrapa
+# `(OSError, json.JSONDecodeError)` y devuelve None en los DOS casos, y
+# `main()` trata "None" siempre igual: `if not test_command: sys.exit(0)`.
+# Un config.json CORRUPTO (JSON inválido, o ilegible) y un config.json SIN
+# `test_command` declarado (opt-in no configurado) producen HOY la MISMA
+# salida: silencio total, exit 0, stdout vacío, stderr vacío.
+#
+# Confirmado a mano antes de escribir estos tests (ver informe): ambos
+# casos dan rc=0, stdout='', stderr=''.
+#
+# Eso es fallo callado, prohibido por el modelo de amenaza de este
+# proyecto ("un fallo no debe pasar callado" -- unmassk-standards §4,
+# "the system against itself"). El caso "no configurado" es CORRECTO y no
+# debe cambiar (TestNoCommandStaysSilent lo fija como regresión). El caso
+# "corrupto" SÍ debe cambiar: el hook tiene que avisar (stderr, o
+# cualquier warning visible) que el config está corrupto -- sin dejar de
+# ser fail-open (nunca debe bloquear el cierre de sesión por esto; eso es
+# competencia de config.py/Ultron, no de estos tests).
+
+class TestNoCommandStaysSilent:
+    """Config SIN test_command (o config ausente) -- opt-in no
+    configurado. Este es el comportamiento CORRECTO y NO debe cambiar:
+    silencio total, ni una línea en stderr. Sirve de línea base directa
+    para contrastar con TestCorruptConfigMustWarn de abajo -- los dos
+    casos deben verse DISTINTOS y hoy no se ven."""
+
+    def test_valid_config_without_test_command_is_fully_silent(self, tmp_path):
+        """config.json válido, sin `test_command` → stdout Y stderr vacíos."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_config(workdir, {"repo_type": "gitflow"})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir)
+
+        assert rc == 0
+        assert stdout.strip() == "", f"no configurado no debe emitir stdout; stdout={stdout!r}"
+        assert stderr.strip() == "", (
+            f"no configurado es opt-in válido, no debe avisar nada; "
+            f"stderr={stderr!r}"
+        )
+
+    def test_missing_config_file_is_fully_silent(self, tmp_path):
+        """Sin fichero config.json en absoluto → stdout Y stderr vacíos."""
+        workdir = _makes_tmp_dir(tmp_path)
+
+        rc, parsed, stdout, stderr = _run_hook(workdir)
+
+        assert rc == 0
+        assert stdout.strip() == ""
+        assert stderr.strip() == "", (
+            f"sin config.json es el estado por defecto de un proyecto "
+            f"recién iniciado, no debe avisar nada; stderr={stderr!r}"
+        )
+
+
+class TestCorruptConfigMustWarn:
+    """Config PRESENTE pero corrupto/ilegible como JSON → debe AVISAR,
+    distinto del silencio total de TestNoCommandStaysSilent. Fail-open se
+    mantiene (rc=0, nunca bloquea), pero el silencio TOTAL no es
+    aceptable: hoy `_read_test_command()` atrapa
+    `(OSError, json.JSONDecodeError)` y devuelve None, indistinguible del
+    caso "no configurado" para quien lee la salida del hook.
+
+    RED hoy (2026-08-06, confirmado a mano antes de escribir estos tests):
+    un config.json con `{ INVALID JSON }` produce rc=0, stdout='',
+    stderr='' -- el mismo silencio que sin configurar."""
+
+    def test_invalid_json_syntax_emits_visible_warning(self, tmp_path):
+        """config.json con JSON inválido → el hook debe avisar (stderr no
+        vacío), no tragárselo en silencio."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_raw_config(workdir, "{ INVALID JSON }")
+
+        rc, parsed, stdout, stderr = _run_hook(workdir)
+
+        assert rc == 0, "config corrupto sigue siendo fail-open (exit 0)"
+        if parsed is not None:
+            assert parsed.get("decision") != "block", (
+                f"config corrupto no debe bloquear el cierre; parsed={parsed!r}"
+            )
+        assert stderr.strip() != "", (
+            "config.json corrupto (JSON inválido) no debe pasar en silencio "
+            "total -- el hook debe avisar por stderr que el config no se "
+            f"pudo leer. stdout={stdout!r} stderr={stderr!r}"
+        )
+
+    def test_invalid_json_warning_mentions_config_problem(self, tmp_path):
+        """El aviso, cuando exista, debe señalar hacia el problema real
+        (config/JSON/parseo), no ser un mensaje genérico sin relación."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_raw_config(workdir, "{ INVALID JSON }")
+
+        rc, parsed, stdout, stderr = _run_hook(workdir)
+
+        assert rc == 0
+        warning = stderr.lower()
+        assert any(
+            keyword in warning
+            for keyword in [
+                "config", "json", "pars", "corrupt", "inválid", "invalid",
+                "malformed", "leer", "read",
+            ]
+        ), (
+            f"el aviso de config corrupto debe mencionar el problema real "
+            f"(config/JSON/parseo), no ser genérico; stderr={stderr!r}"
+        )
+
+    def test_directory_at_config_path_emits_visible_warning(self, tmp_path):
+        """config.json existe como DIRECTORIO (no fichero) → open() lanza
+        OSError/PermissionError, mismo camino silencioso que JSON inválido.
+
+        Repro cross-platform confirmada a mano: en Windows produce
+        PermissionError (subclase de OSError) al abrir un directorio en
+        modo lectura; en POSIX típicamente IsADirectoryError (también
+        subclase de OSError). Ambos caen en el mismo
+        `except (OSError, json.JSONDecodeError): return None`, así que
+        este es un segundo repro real del mismo gap, no una variante
+        cosmética del primero."""
+        workdir = _makes_tmp_dir(tmp_path)
+        config_path = os.path.join(workdir, _CONFIG_SUBPATH)
+        os.makedirs(config_path)  # config.json como directorio, no fichero
+
+        rc, parsed, stdout, stderr = _run_hook(workdir)
+
+        assert rc == 0, "config ilegible (directorio) sigue siendo fail-open"
+        if parsed is not None:
+            assert parsed.get("decision") != "block", (
+                f"config ilegible no debe bloquear el cierre; parsed={parsed!r}"
+            )
+        assert stderr.strip() != "", (
+            "config.json ilegible como fichero (es un directorio) no debe "
+            f"pasar en silencio total; stdout={stdout!r} stderr={stderr!r}"
+        )
+
+    def test_corrupt_config_warning_differs_from_not_configured_silence(self, tmp_path):
+        """Verificación directa del gap: mismo hook, dos configs
+        distintos (uno corrupto, uno simplemente sin test_command) → las
+        dos salidas por stderr deben DIFERIR. Hoy son idénticas (ambas
+        vacías), que es exactamente el fallo callado reportado."""
+        not_configured_dir = _makes_tmp_dir(tmp_path, "not_configured")
+        _write_config(not_configured_dir, {"repo_type": "gitflow"})
+        _, _, _, stderr_not_configured = _run_hook(not_configured_dir)
+
+        corrupt_dir = _makes_tmp_dir(tmp_path, "corrupt")
+        _write_raw_config(corrupt_dir, "{ INVALID JSON }")
+        _, _, _, stderr_corrupt = _run_hook(corrupt_dir)
+
+        assert stderr_not_configured.strip() == "", (
+            "el caso 'no configurado' debe seguir en silencio total (línea base)"
+        )
+        assert stderr_corrupt.strip() != stderr_not_configured.strip(), (
+            "un config CORRUPTO y un config SIN test_command no pueden "
+            "producir la misma salida (mismo silencio) -- son fallos "
+            "distintos y quien lee la salida del hook tiene que poder "
+            f"distinguirlos. corrupto: stderr={stderr_corrupt!r} | "
+            f"no configurado: stderr={stderr_not_configured!r}"
+        )
+
 
 # ── Import / syntax sanity ──────────────────────────────────────────────────────
 

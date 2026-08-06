@@ -833,3 +833,386 @@ class TestCommitDetectionHasNoFalsePositivesOnMereMentions:
             f"esto tambien aprobara, ninguno de ellos probaria nada; "
             f"llego {parsed!r}"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Contrato nuevo (2026-08-06, hallazgo reportado -- Bilbo confirmo que
+# `config.json`/`zones.json` corrupto dispara el mismo bloqueo generico):
+# con `.claude/project-memory/config.json` o `zones.json` ilegible (p.ej.
+# marcadores de conflicto de merge sin resolver, ya no es JSON valido),
+# `config.load()`/`zones.load()` lanza y el `except Exception` de
+# `main()` (hooks/customs.py) bloquea "por seguridad" -- ANTES de llegar
+# a la logica de paso libre que ya existe para `git merge --abort` /
+# `git rebase --abort`/`--continue`. Consecuencia real medida: un merge
+# en conflicto deja al usuario atascado, porque el comando natural para
+# salir (`git merge --abort`) tambien matchea el vocabulario cerrado que
+# dispara la evaluacion y cae en el mismo bloqueo ciego.
+#
+# Decision del propietario ("bloquear con salida clara"): un commit
+# normal SIGUE bloqueado (no hay bandera fiable que leer de un fichero
+# roto) pero el `reason` tiene que decir COMO reparar el fichero, no
+# solo nombrarlo; los cuatro comandos de RESCATE
+# (`git merge --abort`/`--continue`, `git rebase --abort`/`--continue`)
+# tienen que APROBAR siempre, corrupcion o no.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+_RESCUE_COMMANDS = (
+    "git merge --abort",
+    "git merge --continue",
+    "git rebase --abort",
+    "git rebase --continue",
+)
+
+_GENERIC_NO_ESCAPE_PREFIX = "customs.py: fallo inesperado, bloqueando por seguridad: "
+
+# Vocabulario razonable de verbos de reparacion -- ver ASUNCIONES DE
+# FIRMA punto 1 de la clase de abajo: este contrato no fija la redaccion
+# final (Ultron no la ha escrito todavia), solo que deje de ser un
+# volcado de excepcion y de que, ademas de nombrar el fichero, de una
+# instruccion accionable.
+_REPAIR_VERB_HINTS = (
+    "repara", "arregla", "corrige", "edita", "resuelve", "valida", "revisa",
+)
+
+
+def _write_corrupt_json(repo, filename):
+    """Escribe `filename` (`config.json`/`zones.json`) dentro de
+    `.claude/project-memory/` con marcadores de conflicto de merge sin
+    resolver -- exactamente la forma de corrupcion que motiva este
+    contrato: un merge que se dejo a medias deja el fichero con
+    `<<<<<<<`/`=======`/`>>>>>>>` dentro, invalido para `json.loads`
+    ("Expecting value: line 1 column 1"). No usa `seed_config_json`/
+    `seed_zones_json` (esos escriben JSON valido por diseno) -- este
+    helper escribe el contenido roto tal cual.
+    """
+    pm = pm_path(repo)
+    pm.mkdir(parents=True, exist_ok=True)
+    content = (
+        "<<<<<<< HEAD\n"
+        '{"left": "value"}\n'
+        "=======\n"
+        '{"right": "value"}\n'
+        ">>>>>>> feature-branch\n"
+    )
+    (pm / filename).write_text(content, encoding="utf-8")
+
+
+def _reason_has_escape_hatch(reason, filename):
+    """Las dos propiedades minimas que el encargo exige del `reason` de
+    un fichero de memoria corrupto (ver ASUNCIONES DE FIRMA punto 1 de
+    `TestCorruptMemoryFileBlocksWithEscapeHatch`): (a) ya NO es el
+    prefijo generico actual seguido tal cual del texto crudo de la
+    excepcion de Python, y (b) nombra el fichero corrupto ADEMAS de
+    traer una instruccion accionable -- nombrar el fichero solo no
+    basta, el encargo lo dice explicitamente.
+    """
+    if reason is None:
+        return False
+    if reason.startswith(_GENERIC_NO_ESCAPE_PREFIX):
+        return False
+    if filename not in reason:
+        return False
+    lowered = reason.lower()
+    return any(hint in lowered for hint in _REPAIR_VERB_HINTS)
+
+
+class TestCorruptMemoryFileBlocksWithEscapeHatch:
+    """Fallo real que este contrato cierra: con `config.json` o
+    `zones.json` corrupto, el `except Exception` generico de `main()`
+    bloquea CUALQUIER sentencia detectada como creadora de commit --
+    incluidos los cuatro comandos de RESCATE que son la salida natural de
+    un merge/rebase en conflicto, y el commit normal que si sigue
+    bloqueado no dice como reparar el fichero.
+
+    ASUNCIONES DE FIRMA, DISCLOSED (PIEZAS.md Sec.0.2 -- ningun documento
+    fija esto todavia, se anota en vez de inventarse en silencio):
+
+    1. **Que cuenta como "menciona la via de salida".** El encargo dice
+       literalmente "el reason... debe MENCIONAR la via de salida (como
+       reparar el fichero), no solo nombrar el fichero corrupto". Este
+       contrato no fija la redaccion final (Ultron no la ha escrito
+       todavia, es el arreglo de este mismo encargo) -- fija DOS
+       propiedades minimas verificables sin adivinar la prosa
+       (`_reason_has_escape_hatch` arriba): deja de ser el volcado crudo
+       de excepcion con el prefijo generico actual, Y nombra el fichero
+       corrupto mas una instruccion accionable. Una redaccion que solo
+       nombra el fichero sin ninguna instruccion es rechazada a
+       proposito por este contrato -- es exactamente el caso que el
+       encargo dice que NO basta.
+    2. **`git merge --continue` no es sintaxis real de git** (`merge` no
+       tiene esa bandera -- existe para `rebase`/`cherry-pick`). Se
+       incluye tal cual porque el encargo lo pide explicitamente Y
+       porque `_decide_commit_creating` (hooks/customs.py) ya trata
+       `merge` como aprobacion incondicional sin mirar sus banderas
+       ["ASUNCIONES DE FIRMA" punto 2 del docstring del modulo] -- la
+       forma del comando basta para ejercitar el mismo despacho que un
+       `git merge --abort` real.
+    3. **Solo `config.json` corrupto rompe HOY los cuatro comandos de
+       rescate** -- confirmado ejecutando el hook real (proceso aparte,
+       mismo mecanismo que `run_customs_hook`) antes de escribir este
+       contrato: `config.load()` se llama SIEMPRE, para cualquier
+       subcomando, antes de despachar a `_decide_commit_creating`, asi
+       que su excepcion se dispara sin condicion. `zones.json` en
+       cambio solo se lee dentro de `_decide_note()`, alcanzable
+       UNICAMENTE cuando el subcomando es `commit` (nunca
+       `merge`/`rebase`) Y el mensaje parsea como nota reconocible --
+       los cuatro tests de rescate con `zones.json` corrupto de esta
+       clase YA APRUEBAN hoy (no son rojo). Se incluyen de todas formas
+       porque el encargo pide cubrir "los dos ficheros" en los "dos
+       puntos" y porque fijan el comportamiento correcto como red de
+       seguridad si algun dia cambia el orden de lectura de `_decide()`.
+       Los cinco tests que SI son rojo hoy: los cuatro de rescate con
+       `config.json` corrupto, mas el commit normal con `config.json`
+       corrupto. El commit-con-forma-de-nota con `zones.json` corrupto
+       tambien es rojo (el `reason` de hoy ni siquiera nombra
+       `zones.json` -- ver salida real pegada en el informe).
+    """
+
+    def test_normal_commit_blocks_with_escape_hatch_when_config_json_corrupt(
+        self, tmp_repo,
+    ):
+        """Con `config.json` corrupto, cualquier `git commit` normal
+        (sin nota reconocible siquiera -- no importa, `config.load()`
+        revienta antes de mirar el mensaje) sigue bloqueado, pero el
+        `reason` tiene que decir como reparar `config.json`, no solo
+        volcar la excepcion cruda de `json`."""
+        _write_corrupt_json(tmp_repo, "config.json")
+        command = _commit_command("fix: a normal code commit, not a memory note")
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"con config.json corrupto, un commit normal tiene que "
+            f"seguir bloqueado (no hay bandera fiable que leer del "
+            f"fichero roto); llego {parsed!r}"
+        )
+        reason = parsed.get("reason")
+        assert _reason_has_escape_hatch(reason, "config.json"), (
+            "el reason del bloqueo con config.json corrupto tiene que "
+            "mencionar como repararlo, no solo nombrar el fichero ni "
+            f"volcar la excepcion cruda sin mas contexto; llego: {reason!r}"
+        )
+
+    def test_normal_commit_blocks_with_escape_hatch_when_zones_json_corrupt(
+        self, tmp_repo,
+    ):
+        """Con `zones.json` corrupto (y `config.json` valido y
+        encendido), un commit CON FORMA DE NOTA reconocible -- la unica
+        forma de que `_decide_note()` llegue a leer `zones.json` -- sigue
+        bloqueado, y el `reason` tiene que decir como reparar
+        `zones.json`, no solo volcar la excepcion cruda de `json`."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        _write_corrupt_json(tmp_repo, "zones.json")
+        message = (
+            "[M-001][product][testarea] 📌 a note-shaped message so zones.json gets read\n"
+            "\n"
+            "Description: contenido de prueba, no deberia importar."
+        )
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, _commit_command(message))
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"con zones.json corrupto, un commit con forma de nota "
+            f"tiene que seguir bloqueado; llego {parsed!r}"
+        )
+        reason = parsed.get("reason")
+        assert _reason_has_escape_hatch(reason, "zones.json"), (
+            "el reason del bloqueo con zones.json corrupto tiene que "
+            "mencionar como repararlo, no solo nombrar el fichero ni "
+            f"volcar la excepcion cruda sin mas contexto; llego: {reason!r}"
+        )
+
+    @pytest.mark.parametrize("rescue_command", _RESCUE_COMMANDS)
+    def test_rescue_command_passes_when_config_json_corrupt(
+        self, tmp_repo, rescue_command,
+    ):
+        """Los cuatro comandos de rescate tienen que aprobar SIEMPRE,
+        incluso con config.json corrupto -- son la unica salida real de
+        un merge/rebase en conflicto; bloquearlos deja al usuario
+        atascado con el repositorio a medias."""
+        _write_corrupt_json(tmp_repo, "config.json")
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, rescue_command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"{rescue_command!r} tiene que aprobar SIEMPRE, incluso con "
+            f"config.json corrupto -- es la unica salida real de un "
+            f"merge/rebase en conflicto; llego {parsed!r}"
+        )
+
+    @pytest.mark.parametrize("rescue_command", _RESCUE_COMMANDS)
+    def test_rescue_command_passes_when_zones_json_corrupt(
+        self, tmp_repo, rescue_command,
+    ):
+        """Mismo contrato que el test anterior, con `zones.json`
+        corrupto en vez de `config.json` -- ver ASUNCIONES DE FIRMA
+        punto 3 de la clase: `zones.json` no se lee en el camino de
+        `merge`/`rebase`, asi que estos cuatro YA aprueban hoy; se fijan
+        aqui como red de seguridad, no como brecha nueva."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        _write_corrupt_json(tmp_repo, "zones.json")
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, rescue_command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"{rescue_command!r} tiene que aprobar SIEMPRE, incluso con "
+            f"zones.json corrupto; llego {parsed!r}"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Contrato nuevo (2026-08-06, hallazgo de Moriarty via PoC en vivo): con
+# `shlex.split()` fallando (comilla simple sin escapar en una sentencia
+# ANTERIOR de la misma cadena bash), `_find_commit_creating_statement()`
+# (hooks/customs.py:212-218) cae en su rama `except ValueError` y
+# devuelve `(sub, [])` -- SIN los tokens que siguen al subcomando. Con
+# `rest_tokens` vacio, `_decide_rescue_passthrough()` nunca puede ver
+# `--abort`/`--continue`/`--skip`, asi que el rebase de rescate (la unica
+# salida real de un rebase en conflicto) queda bloqueado por el mismo
+# motivo que un `git rebase` que EMPIEZA uno -- dejando al usuario
+# atascado con el repositorio a medias.
+#
+# Disparador ordinario, no un ataque: un apostrofo sin escapar dentro del
+# MENSAJE de un commit anterior en la misma linea de bash (p.ej.
+# `git commit -m 'WIP: don't lose this...' && git rebase --abort`) rompe
+# `shlex.split()` para la CADENA ENTERA -- shlex no sabe donde termina la
+# comilla abierta, asi que ni siquiera llega a intentar tokenizar la
+# segunda sentencia.
+#
+# Nota de determinismo, verificada en vivo antes de escribir este
+# contrato (ejecutando el fallback real cinco veces, procesos distintos):
+# `_COMMIT_CREATING_SUBCOMMANDS` es un `set` de cadenas -- con
+# `PYTHONHASHSEED` sin fijar (el default de este repo), el ORDEN en que
+# el bucle `for sub in _COMMIT_CREATING_SUBCOMMANDS` prueba cada
+# subcomando varia entre procesos. Para los tres casos de `rebase`
+# (--abort/--continue/--skip) esto NO importa: tanto si el fallback casa
+# primero "commit" como "rebase", el resultado de hoy es SIEMPRE bloqueo
+# (con `rest_tokens=[]`, ninguno de los dos caminos puede aprobar) --
+# rojo deterministico, confirmado en las cinco corridas (4/5 "commit",
+# 1/5 "rebase", las dos bloquean). Para `merge --abort` SI importa: de
+# las cinco corridas, 4/5 caso "commit" primero (bloquea, INCORRECTO) y
+# 1/5 caso "merge" primero (aprueba, porque `merge` aprueba SIEMPRE, con
+# o sin tokens -- nunca dependio de `rest_tokens`). Ese test se deja tal
+# cual, con el comportamiento de hoy documentado como no-deterministico
+# en su propio docstring -- no es un artefacto de test inestable, es el
+# propio bug fuente el que no es deterministico.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRescuePassthroughSurvivesShlexTokenizationFailure:
+    """Fallo real que este contrato fija: un apostrofo sin escapar en una
+    sentencia ANTERIOR de la misma cadena bash no puede tirar abajo el
+    rescate de un rebase/merge en conflicto que va DESPUES en la misma
+    cadena."""
+
+    def test_rebase_abort_survives_shlex_failure_from_earlier_apostrophe(
+        self, tmp_repo,
+    ):
+        """El PoC literal de Moriarty. Hoy bloquea SIEMPRE (ver nota de
+        determinismo arriba: los dos posibles matches del fallback --
+        "commit" o "rebase" -- llevan a bloqueo con `rest_tokens=[]`)."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        command = (
+            "git commit -m 'WIP: don't lose this before aborting' "
+            "&& git rebase --abort"
+        )
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"un `git rebase --abort` que va DESPUES de una sentencia que "
+            f"rompe shlex.split() (comilla simple sin escapar en el "
+            f"mensaje del commit anterior) tiene que aprobar igual -- es "
+            f"la unica salida real de un rebase en conflicto; llego "
+            f"{parsed!r}"
+        )
+
+    def test_rebase_continue_survives_shlex_failure_from_earlier_apostrophe(
+        self, tmp_repo,
+    ):
+        seed_config_json(tmp_repo, customs_enabled=True)
+        command = (
+            "git commit -m 'WIP: don't lose this before aborting' "
+            "&& git rebase --continue"
+        )
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"`git rebase --continue` tras una sentencia que rompe "
+            f"shlex.split() tiene que aprobar igual; llego {parsed!r}"
+        )
+
+    def test_rebase_skip_survives_shlex_failure_from_earlier_apostrophe(
+        self, tmp_repo,
+    ):
+        seed_config_json(tmp_repo, customs_enabled=True)
+        command = (
+            "git commit -m 'WIP: don't lose this before aborting' "
+            "&& git rebase --skip"
+        )
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"`git rebase --skip` tras una sentencia que rompe "
+            f"shlex.split() tiene que aprobar igual; llego {parsed!r}"
+        )
+
+    def test_merge_abort_survives_shlex_failure_from_earlier_apostrophe(
+        self, tmp_repo,
+    ):
+        """A diferencia de los tres de arriba, este caso es
+        NO-DETERMINISTICO hoy (ver nota de determinismo arriba): `merge`
+        aprueba siempre en `_decide_rescue_passthrough`/
+        `_decide_commit_creating` independientemente de `rest_tokens`,
+        asi que si el fallback casa "merge" antes que "commit" en el
+        orden de iteracion del set (dependiente del hash seed del
+        proceso), este test ya pasa hoy por casualidad -- no porque el
+        mecanismo preserve los tokens, sino porque `merge` nunca los
+        necesito. Se fija de todas formas como contrato: tiene que
+        aprobar SIEMPRE, no solo cuando el hash seed favorece a
+        "merge" (medido en vivo: 1 de 5 corridas)."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        command = (
+            "git commit -m 'WIP: don't lose this before aborting' "
+            "&& git merge --abort"
+        )
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"`git merge --abort` tras una sentencia que rompe "
+            f"shlex.split() tiene que aprobar igual; llego {parsed!r}"
+        )
+
+    def test_anchor_plain_rebase_abort_without_shlex_failure_already_approves(
+        self, tmp_repo,
+    ):
+        """Control balanceado: SIN ningun apostrofo que rompa shlex,
+        `git rebase --abort` a secas ya aprueba hoy (cubierto tambien por
+        `TestRebasePassthroughOnlyForInFlightOperations::
+        test_git_rebase_abort_passes`, replicado aqui como ancla propia
+        de esta clase para que quede claro que el fallo es especifico del
+        camino `except ValueError`, no del passthrough de rebase en
+        general)."""
+        seed_config_json(tmp_repo, customs_enabled=True)
+        rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, "git rebase --abort")
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "approve", (
+            f"sin fallo de shlex de por medio, `git rebase --abort` ya "
+            f"aprueba hoy -- si esto tambien bloqueara, ninguno de los "
+            f"tests de arriba probaria nada especifico del camino "
+            f"`except ValueError`; llego {parsed!r}"
+        )

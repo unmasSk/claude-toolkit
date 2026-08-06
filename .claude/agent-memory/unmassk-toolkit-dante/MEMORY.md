@@ -119,6 +119,11 @@
 - [promotes-flag-third-archive-destination-contract-notes.md](promotes-flag-third-archive-destination-contract-notes.md) — --promotes RED via bin/gitmem (not note.py direct): third archive destination "promoted to <ID>" has reader, no writer
 - [note-archived-similarity-bypass-contract-notes.md](note-archived-similarity-bypass-contract-notes.md) — query.by_zone() includes archived notes, closed note wrongly blocks similar new note; --replaces none sentinel for overcorrection guard
 - [v1-guard-changeover-2026-08-05-notes.md](v1-guard-changeover-2026-08-05-notes.md) — v1 final deletion pass: mixed-file surgery beyond given list, whole-module-death invalidates prior salvage files, "reapuntar not borrar" pattern
+- [customs-corrupt-memory-file-escape-hatch-contract-notes.md](customs-corrupt-memory-file-escape-hatch-contract-notes.md) — customs.py RED: corrupt config.json breaks 4 rescue commands, corrupt zones.json doesn't (verified empirically, not assumed)
+- [stop-dod-gate-corrupt-config-contract-notes.md](stop-dod-gate-corrupt-config-contract-notes.md) — stop-dod-gate.py RED: corrupt config must warn vs not-configured silence; same-day config-path test drift found+fixed (4 tests were red-for-wrong-reason)
+- [zones-list-doctor-absent-vs-empty-contract-notes.md](zones-list-doctor-absent-vs-empty-contract-notes.md) — zones.py list + doctor RED: absent-vs-empty zones.json masking, doctor has zero zones awareness
+- [doctor-zones-check-retirement-notes.md](doctor-zones-check-retirement-notes.md) — check_project_zones (#13) closed the gap; anti-vacuity control retired not inverted, redundant with existing hardening class
+- [customs-doctor-20260806-two-red-contracts-notes.md](customs-doctor-20260806-two-red-contracts-notes.md) — shlex-failure rescue passthrough + doctor config type-gap, both closed same day; set-iteration-order nondeterminism pitfall
 
 ## Retired (different stack, no longer this project's shape)
 

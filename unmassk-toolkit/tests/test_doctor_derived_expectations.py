@@ -678,3 +678,295 @@ class TestCountRepoCacheDrift:
         sync_descriptions = cache_sync_check.check_repo_cache_sync(project)
 
         assert descriptions == sync_descriptions
+
+
+# ── RED-then-closed (encargo del orquestador, 2026-08-06): the doctor did
+# not check zones.json at all ───────────────────────────────────────────────
+#
+# `grep -in "zones" bin/git-memory-doctor.py` returned zero matches when this
+# contract was written (verified live -- the only "zone" substring in the
+# whole file was inside the stdlib import `from datetime import ...,
+# timezone`, which is why the helper below matches on "zones", not "zone").
+# `lib/memory/health.py::memory_mounted()` already treats a missing or
+# empty zones.json as blocking the very first note (Aviso B, 2026-08-06:
+# "un proyecto SIN la memoria montada recibia el mismo informe en verde que
+# uno sano y vacio"). git-memory-doctor.py is the OTHER health surface this
+# project ships (a hand-run `git memory doctor`, not the session boot
+# banner) and it had no equivalent: an install missing zones.json passed
+# every one of its checks in green without a word about it.
+#
+# check_project_memory_seed() (line ~232) already distinguished three
+# states for the EIGHT index files (missing pm dir / some files missing /
+# all present) -- the same three-state shape this contract asked for
+# zones.json (absent / present-but-empty / present-with-a-zone), just never
+# extended to this one file.
+#
+# [cerrado 2026-08-06: Ultron anadio check_project_zones() (check #13,
+# bin/git-memory-doctor.py:283, cableado en run_doctor() en la linea 536).
+# El hueco que este bloque documentaba ya no existe -- el anti-vacuity
+# control de abajo (`TestDoctorNeverMentionsZonesToday`, que probaba que el
+# hueco era real antes del fix) se retiro entero porque su premisa ("el
+# informe de hoy no menciona zonas") paso a ser falsa a proposito: hoy el
+# doctor SI menciona zonas, en todos los estados. La clase
+# `TestDoctorChecksZonesJson` de abajo sigue siendo la prueba viva del
+# check -- sus 5 tests (tres estados + mensajes distintos + populated=ok)
+# ya cubren tanto que el check aparece como que no se vuelve verde a
+# ciegas, asi que no hace falta un test inverso aparte.]
+
+
+def _project_with_zones_state(tmp_path, state):
+    """Build a real repo (via `_make_repo`) with `.claude/project-memory/`
+    and zones.json in one of three states: "absent" (dir exists, no
+    zones.json -- the state check_project_memory_seed() already treats as
+    normal for a repo mid-install), "empty" (zones.json is a valid `{}`),
+    "populated" (zones.json has one real zone, same shape zones_lib
+    serializes in production).
+    """
+    project = _make_repo(tmp_path)
+    pm_dir = os.path.join(project, ".claude", "project-memory")
+    os.makedirs(pm_dir, exist_ok=True)
+    if state == "absent":
+        pass
+    elif state == "empty":
+        with open(os.path.join(pm_dir, "zones.json"), "w", encoding="utf-8") as f:
+            f.write("{}")
+    elif state == "populated":
+        with open(os.path.join(pm_dir, "zones.json"), "w", encoding="utf-8") as f:
+            json.dump({"billing": {"description": "cobros y pagos", "aliases": []}}, f)
+    else:
+        raise ValueError(state)
+    return project
+
+
+def _zones_check(parsed):
+    """Any check in the report whose component or message names zones.
+    Wording-agnostic on purpose -- the exact component name/message text is
+    Ultron's implementation call, not fixed by this contract."""
+    for check in parsed.get("checks", []):
+        haystack = (check.get("component", "") + " " + check.get("message", "")).lower()
+        if "zones" in haystack:
+            return check
+    return None
+
+
+class TestDoctorChecksZonesJson:
+    """The doctor must have a check that reports on zones.json -- absent,
+    present-but-empty, and present-with-a-zone are three different facts
+    (mirrors check_project_memory_seed()'s own three states for the eight
+    index files, and health.memory_mounted()'s Aviso B for the same file).
+    """
+
+    @pytest.mark.parametrize("state", ["absent", "empty", "populated"])
+    def test_a_zones_check_appears_in_the_report_for_every_state(
+        self, tmp_path, monkeypatch, capsys, state
+    ):
+        doctor = _load_doctor(f"doctor_zones_state_{state}")
+        project = _project_with_zones_state(tmp_path, state)
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _zones_check(parsed)
+
+        assert check is not None, (
+            f"no check in the doctor's report mentions zones for "
+            f"state={state!r} -- git-memory-doctor.py has no zones.json "
+            f"check at all today: {parsed['checks']}"
+        )
+
+    def test_the_three_states_are_reported_with_three_different_messages(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        messages = {}
+        for state in ("absent", "empty", "populated"):
+            doctor = _load_doctor(f"doctor_zones_distinct_{state}")
+            project = _project_with_zones_state(tmp_path / state, state)
+
+            parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+            check = _zones_check(parsed)
+            assert check is not None, f"no zones check for state={state!r}: {parsed['checks']}"
+            messages[state] = check["message"]
+
+        assert len(set(messages.values())) == 3, (
+            "absent / present-but-empty / present-with-a-zone must each "
+            f"produce a DIFFERENT message -- collapsing any two of them "
+            f"masks a real state, the exact failure this contract exists "
+            f"to close: {messages}"
+        )
+
+    def test_a_populated_zones_json_is_reported_ok_not_as_a_problem(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Anti-vacuity control for the class: a doctor that reports every
+        zones state as an error/warning (never "ok") would pass the tests
+        above just as trivially as a doctor that never checks anything."""
+        doctor = _load_doctor("doctor_zones_populated_is_ok")
+        project = _project_with_zones_state(tmp_path, "populated")
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _zones_check(parsed)
+
+        assert check is not None, f"no zones check at all: {parsed['checks']}"
+        assert check["level"] == "ok", (
+            f"a real, populated zones.json (one real zone) must be reported "
+            f"as ok, not flagged as a problem: {check!r}"
+        )
+
+
+# ── T2 de Cerberus (encargo del orquestador, 2026-08-06): forma invalida
+# disfrazada de JSON valido ──────────────────────────────────────────────
+
+
+class TestDoctorRejectsInvalidZoneShape:
+    """zones.json puede ser JSON sintacticamente valido, con forma
+    top-level de objeto no vacio, y aun asi estar corrupto: una zona cuyo
+    VALOR no es un objeto JSON -- caso concreto `{"billing": "oops"}`,
+    la misma forma que `test_zones.py::
+    test_regression_aliases_as_string_fails_loud_naming_file_and_zone`
+    hace lanzar `ValueError` dentro de `zones.load()` (`lib/memory/
+    zones.py`, "la zona {name!r} debe ser un objeto JSON").
+
+    `check_project_zones()` (bin/git-memory-doctor.py:283) NO pasa por
+    `zones.load()` -- lee el JSON crudo y solo comprueba
+    `isinstance(data, dict)` en el nivel superior y `len(data)`. Con
+    `{"billing": "oops"}` las dos comprobaciones pasan (es un dict, tiene
+    1 entrada) y el check de hoy sale "ok" con "1 zone(s) registered" --
+    el falso-verde que esta clase existe para cerrar (bug real,
+    verificado leyendo bin/git-memory-doctor.py:308-320: no hay ninguna
+    rama que valide la FORMA de cada zona, solo la forma del objeto
+    superior).
+
+    Ultron esta arreglando esto en paralelo en bin/git-memory-doctor.py
+    -- este test puede quedar ROJO hasta que el fix llegue, es lo
+    esperado en test-first.
+    """
+
+    def test_a_syntactically_valid_but_malformed_zone_is_reported_as_a_problem(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        doctor = _load_doctor("doctor_zones_invalid_shape")
+        project = _make_repo(tmp_path)
+        pm_dir = os.path.join(project, ".claude", "project-memory")
+        os.makedirs(pm_dir, exist_ok=True)
+        with open(os.path.join(pm_dir, "zones.json"), "w", encoding="utf-8") as f:
+            json.dump({"billing": "oops"}, f)
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _zones_check(parsed)
+
+        assert check is not None, f"no zones check at all: {parsed['checks']}"
+        assert check["level"] != "ok", (
+            f"zones.json es JSON valido a nivel superior (un dict no vacio) pero "
+            f"la zona 'billing' vale una cadena, no un objeto -- esto NO es una "
+            f"zona utilizable y el doctor no puede reportarlo como 'ok'. Salio "
+            f"{check!r}"
+        )
+        assert check["level"] == "error", (
+            f"forma invalida es la misma clase de fallo que un zones.json "
+            f"sintacticamente corrupto (check_project_zones() ya reporta 'error' "
+            f"para ese caso) -- deberia reportarse igual, no como 'warn'. Salio "
+            f"{check!r}"
+        )
+
+
+# ── T1 (encargo del orquestador, 2026-08-06): config.json mal tipado pasa
+# en verde ─────────────────────────────────────────────────────────────
+
+class TestDoctorRejectsInvalidConfigShape:
+    """`check_project_config()` (bin/git-memory-doctor.py:257) solo
+    comprueba que `repo_type` EXISTA -- no valida su tipo, ni el de
+    `customs_enabled`/`test_command`, pese a que su propio docstring dice
+    replicar el contrato de `config.py::load()`
+    (lib/memory/config.py:76-126): esa pieza lanza `ValueError` si
+    `customs_enabled` no es booleano, si `repo_type` no es texto, o si
+    `test_command` no es texto/`null`. La aduana (hooks/customs.py::
+    `_decide()`) atrapa esa excepcion y bloquea TODO commit contra un
+    `config.json` asi de mal tipado -- pero el doctor de hoy dice "ok"
+    con el mismo fichero, exactamente el mismo hueco que
+    `TestDoctorRejectsInvalidZoneShape` de arriba ya cierra para
+    zones.json (una zona cuyo valor no es un objeto), aqui aplicado a
+    config.json.
+
+    Verificado en vivo antes de escribir este contrato (proceso aparte,
+    llamando a `config.load()` real sobre
+    `{"customs_enabled": "true", "repo_type": "gitflow"}`): lanza
+    `ValueError: config.py: config.json esta corrupto -- 'customs_enabled'
+    debe ser booleano y llego str`. `check_project_config()` contra el
+    MISMO diccionario no comprueba el tipo de `customs_enabled` en
+    absoluto -- solo mira si `repo_type` esta presente -- y devuelve
+    `("ok", "repo_type='gitflow'")`.
+
+    Ultron esta arreglando esto en paralelo en bin/git-memory-doctor.py
+    -- estos tests pueden quedar ROJOS hasta que el fix llegue, es lo
+    esperado en test-first.
+    """
+
+    def test_customs_enabled_wrong_type_is_reported_as_a_problem(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        doctor = _load_doctor("doctor_config_customs_enabled_wrong_type")
+        project = _make_repo(tmp_path)
+        pm_dir = os.path.join(project, ".claude", "project-memory")
+        os.makedirs(pm_dir, exist_ok=True)
+        with open(os.path.join(pm_dir, "config.json"), "w", encoding="utf-8") as f:
+            json.dump({"customs_enabled": "true", "repo_type": "gitflow"}, f)
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _find_check(parsed, "Project config")
+
+        assert check is not None, f"no Project config check at all: {parsed['checks']}"
+        assert check["level"] != "ok", (
+            f"config.json es JSON valido a nivel superior, pero "
+            f"'customs_enabled' vale la cadena 'true' en vez de un booleano "
+            f"-- config.load() lanza ValueError sobre este MISMO diccionario "
+            f"(verificado en vivo) y la aduana bloquea TODO commit contra el. "
+            f"El doctor no puede reportarlo como 'ok'. Salio {check!r}"
+        )
+        assert check["level"] == "error", (
+            f"forma invalida es la misma clase de fallo que un config.json "
+            f"sintacticamente corrupto (esa rama ya reporta 'error') -- "
+            f"deberia reportarse igual, no como 'warn'. Salio {check!r}"
+        )
+
+    def test_repo_type_non_string_is_reported_as_a_problem(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        doctor = _load_doctor("doctor_config_repo_type_non_string")
+        project = _make_repo(tmp_path)
+        pm_dir = os.path.join(project, ".claude", "project-memory")
+        os.makedirs(pm_dir, exist_ok=True)
+        with open(os.path.join(pm_dir, "config.json"), "w", encoding="utf-8") as f:
+            json.dump({"repo_type": 123}, f)
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _find_check(parsed, "Project config")
+
+        assert check is not None, f"no Project config check at all: {parsed['checks']}"
+        assert check["level"] == "error", (
+            f"'repo_type' vale 123 (no texto) -- config.load() lanza "
+            f"ValueError sobre este MISMO diccionario (verificado en vivo); "
+            f"el doctor tiene que reportarlo como error, no 'ok'. Salio "
+            f"{check!r}"
+        )
+
+    def test_a_well_typed_config_is_still_reported_ok(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Anti-vacuidad de la clase: un config.json bien tipado sigue
+        saliendo 'ok' -- si esto tambien fallara, los dos tests de arriba
+        no probarian nada especifico de la validacion de tipo (un doctor
+        que reporta 'error' para CUALQUIER config.json pasaria los dos de
+        igual de trivial)."""
+        doctor = _load_doctor("doctor_config_well_typed_ok")
+        project = _make_repo(tmp_path)
+        pm_dir = os.path.join(project, ".claude", "project-memory")
+        os.makedirs(pm_dir, exist_ok=True)
+        with open(os.path.join(pm_dir, "config.json"), "w", encoding="utf-8") as f:
+            json.dump({"customs_enabled": True, "repo_type": "gitflow"}, f)
+
+        parsed, _rc = _run_doctor_json(doctor, project, REAL_PLUGIN_ROOT, monkeypatch, capsys)
+        check = _find_check(parsed, "Project config")
+
+        assert check is not None, f"no Project config check at all: {parsed['checks']}"
+        assert check["level"] == "ok", (
+            f"un config.json bien tipado no puede reportarse como "
+            f"problema; salio {check!r}"
+        )

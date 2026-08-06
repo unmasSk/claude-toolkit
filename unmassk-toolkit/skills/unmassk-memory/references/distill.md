@@ -2,7 +2,7 @@
 
 **This runs once per project, deliberately, and never on its own.** It is not maintenance and not a migration: the earlier history is **read and never touched**, and what comes out is new notes that cite where they came from.
 
-**Who does it:** the explorer agent, round by round. **Who approves the zones:** the user. **Who never does it:** a script, in one pass, unattended.
+**Who does it:** the explorer agent — Bilbo — round by round. **Who approves the zones:** the user. **Who never does it:** a script, in one pass, unattended.
 
 ## The Iron Law
 

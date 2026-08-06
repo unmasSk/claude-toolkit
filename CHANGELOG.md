@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Los comandos de rescate de un merge o rebase a medias ya no dependen de leer una memoria que puede estar corrupta.** `git merge`/`rebase --abort`/`--continue`/`--skip`/`cherry-pick` se aprueban ANTES de tocar `config.json`/`zones.json` — antes, un `config.json` roto (típico de un merge o rebase a medias) bloqueaba también la única salida real del conflicto, dejando al usuario atascado.
+- **Y ese rescate ya no depende de que `shlex` tokenice.** Un apóstrofo sin escapar en el mensaje de un commit encadenado (p.ej. `git commit -m 'WIP: don't lose this' && git rebase --abort`) hacía fallar el tokenizador; el fallback devolvía el rebase sin flags y el `--abort` se perdía. Ahora el fallback busca las tres banderas de rescate directamente en la cadena cruda y prioriza `rebase`/`merge`/`cherry-pick` cuando aparecen.
+- **Un `config.json`/`zones.json` ilegible ya no bloquea con el volcado crudo de la excepción.** La aduana explica ahora cómo repararlo (revisar marcadores de conflicto sin resolver) en vez de mostrar la excepción tal cual.
+- **`stop-dod-gate.py` avisa por stderr cuando `config.json` existe pero no se puede leer**, en vez de tragarse el fallo en el mismo silencio que el caso "no configurado" (que sigue callado — es opt-in). El docstring de `lib/memory/config.py` aclara que la garantía "nunca en silencio" es solo de su propio `load()`; quien lea el fichero por otra vía decide su propio contrato.
+- **`gitmem zones list` y el médico del sistema distinguen "zones.json no existe" de "existe pero vacío"** — antes ambos casos imprimían el mismo "0 zonas". El médico gana además un check de zonas con validación de forma (cada zona debe ser un objeto; `description` texto; `aliases` lista de texto), y `check_project_config` ahora valida tipos, así que un `config.json` con un campo mal tipado (p.ej. `"customs_enabled": "true"`) ya no pasa en verde aunque la aduana lo rechace.
+
+### Changed
+
+- **`zones_state()` extraída en `lib/memory/health.py`**, reutilizada por `_memory_mounted()` y `gitmem zones list` en vez de que cada uno relea el fichero por su cuenta.
+- **El instalador ya no importa `lib/memory` directamente.** `lib/install_apply.py` siembra los índices vía `gitmem rezones` (canal ya autorizado — `rezones.py` llama a `indexes.seed()` como primer paso) en vez de insertar `lib/memory/` en `sys.path`, preservando la garantía de que la memoria v2 se puede borrar entera sin romper la instalación.
+- **CI endurecida:** `toolkit-ci.yml` y `plugin-tests.yml` ganan permisos de solo lectura, dependencias de Python fijadas por versión, `actions/checkout`/`setup-python` a `@v6`, caché de pip y `concurrency` con cancelación de ejecuciones en curso.
+- **`rule.py::_parse_args` alineado con sus scripts hermanos** — el filtro de "palabras que se leen en vez de escribirse" se mueve de `_parse_args` a `main()`. `health.memory_mounted`/`possible_unconverted_legacy` pasan a privados (`_memory_mounted`/`_possible_unconverted_legacy`).
+
+### Removed
+
+- **`chatroom-ci.yml`** — chatroom es un subproyecto de referencia, no parte del pipeline principal.
+
 ## [1.29.1] - 2026-08-06
 
 ### Fixed

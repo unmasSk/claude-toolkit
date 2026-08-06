@@ -82,6 +82,7 @@ from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 force_utf8_streams()
 
 import gitcmd  # noqa: E402
+import health  # noqa: E402
 import notes  # noqa: E402
 import notes_commit  # noqa: E402
 import zones as zones_lib  # noqa: E402
@@ -204,6 +205,20 @@ def _cmd_add(args, path):
 
 
 def _cmd_list(path):
+    # "zones.json no existe" y "zones.json existe pero esta vacio" son dos
+    # hechos distintos [encargo del orquestador, 2026-08-06] -- antes de
+    # esta linea `zones_lib.load(path)` los devolvia como el mismo `{}`
+    # ["Un fichero ausente se trata como 'todavia no hay ninguna zona'",
+    # lib/memory/zones.py::load, docstring], y `_cmd_list()` imprimia el
+    # mismo "zones.json tiene 0 zonas:" para los dos. La distincion ya
+    # existe en produccion, en `health.memory_mounted()` (Aviso B) -- se
+    # reutiliza aqui via `health.zones_state()` en vez de anadir una
+    # segunda lectura silenciosa del fichero.
+    state, _ = health.zones_state(path)
+    if state == "absent":
+        print("zones.json (no existe) -- todavia no se ha dado de alta ninguna zona.")
+        return 0
+
     zones_map = zones_lib.load(path)
     print(f"zones.json tiene {len(zones_map)} zonas:")
     for name in sorted(zones_map):

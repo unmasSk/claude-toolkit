@@ -1134,3 +1134,112 @@ def test_coherence_rules_on_a_repo_with_zero_commits_does_not_crash(health, tmp_
         "un repo sin ningun commit deberia dar (0, 0, ()) -- salio "
         f"({commits!r}, {lineas!r}, {discrepancias!r})"
     )
+
+
+# ---------------------------------------------------------------------------
+# zones_state() -- fijado directo (encargo del orquestador, 2026-08-06,
+# T3-4 de Cerberus). La funcion ya esta en produccion, extraida desde
+# dentro de memory_mounted() el mismo dia (ver su propio docstring,
+# lineas 407-434: "para que un segundo llamador... reutilice la MISMA
+# distincion en vez de volver a leer el fichero por su cuenta"), pero
+# hasta ahora solo tenia cobertura INDIRECTA via sus tres consumidores
+# (memory_mounted() arriba en este mismo fichero, bin/memory/zones.py
+# list, y el check homologo de git-memory-doctor.py). Este bloque la fija
+# en un sitio propio: los tres estados que su propio docstring declara
+# (absent/empty/populated) mas el caso de forma invalida, que hoy
+# DEGRADA a "empty" via el `except ValueError` -- ese ultimo assert fija
+# el contrato TAL COMO ESTA HOY (docstring, lineas 410-414: "contado aqui
+# igual que cero zonas utilizables"), no una mejora deseada; si algun dia
+# deja de comportarse asi, este test es el que lo dice primero.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def zones():
+    return import_lib_memory_module("zones")
+
+
+def test_zones_state_on_a_missing_file_is_absent_with_zero_zones(health, tmp_path):
+    """Estado 1: el fichero nunca se creo -- "absent", nunca un error ni
+    una excepcion (proyecto recien instalado)."""
+    path = tmp_path / "zones.json"
+
+    state, count = health.zones_state(path)
+
+    assert (state, count) == ("absent", 0), (
+        f"un zones.json inexistente deberia dar ('absent', 0), salio "
+        f"({state!r}, {count!r})"
+    )
+
+
+def test_zones_state_on_an_empty_object_is_empty_with_zero_zones(health, tmp_path):
+    """Estado 2: fichero presente, `{}` valido, sin ninguna zona dada de
+    alta -- "empty", distinto de "absent"."""
+    path = tmp_path / "zones.json"
+    path.write_text("{}", encoding="utf-8")
+
+    state, count = health.zones_state(path)
+
+    assert (state, count) == ("empty", 0), (
+        f"un zones.json presente pero vacio deberia dar ('empty', 0), salio "
+        f"({state!r}, {count!r})"
+    )
+
+
+def test_zones_state_with_one_real_zone_is_populated_with_its_real_count(
+    health, zones, model, tmp_path
+):
+    """Estado 3: al menos una zona real -- "populated", con el numero
+    real de zonas.
+
+    Sembrado real via zones.add() [Sec.6.2, ya en produccion] -- nunca un
+    zones.json escrito a mano, misma disciplina que test_zones.py.
+    """
+    path = tmp_path / "zones.json"
+    zones.add(
+        model.Zone(name="billing", description="cobros y pagos", aliases=()), path
+    )
+
+    state, count = health.zones_state(path)
+
+    assert (state, count) == ("populated", 1), (
+        f"una zona real dada de alta deberia dar ('populated', 1), salio "
+        f"({state!r}, {count!r})"
+    )
+
+
+def test_zones_state_on_a_malformed_zone_shape_degrades_to_empty_not_a_crash(
+    health, tmp_path
+):
+    """Contrato del `except ValueError`, fijado TAL COMO ESTA HOY: un
+    zones.json sintacticamente valido a nivel superior (un objeto JSON no
+    vacio) pero con una zona cuyo VALOR no es un objeto -- caso concreto
+    `{"billing": "oops"}`, la misma forma que hace lanzar `ValueError` en
+    `zones.load()` (ver `test_zones.py::
+    test_regression_aliases_as_string_fails_loud_naming_file_and_zone`
+    para el hermano de esta forma con "aliases": "front").
+
+    `zones_state()` no deja pasar esa excepcion: la captura y devuelve
+    "empty", el mismo resultado que un fichero realmente vacio -- "fallo
+    en alto, nunca silencioso" es responsabilidad de `zones.load()` para
+    quien SI necesita escribir en el fichero (docstring de la propia
+    funcion, lineas 408-414); `zones_state()` solo decide si hay una zona
+    UTILIZABLE hoy, y con esta forma no la hay.
+
+    Este es el mismo caso concreto que el T2 de Cerberus senala como el
+    falso-verde de `bin/git-memory-doctor.py::check_project_zones()`
+    (ese check no pasa por `zones.load()` y por eso no lo detecta, ver
+    `test_doctor_derived_expectations.py::
+    TestDoctorRejectsInvalidZoneShape`) -- aqui, en la pieza de mas
+    abajo, el mismo dato SI se detecta, y su contrato es degradar, no
+    lanzar.
+    """
+    path = tmp_path / "zones.json"
+    path.write_text(json.dumps({"billing": "oops"}), encoding="utf-8")
+
+    state, count = health.zones_state(path)
+
+    assert (state, count) == ("empty", 0), (
+        f"una zona de forma invalida deberia degradar a ('empty', 0) via el "
+        f"except ValueError de zones_state(), salio ({state!r}, {count!r})"
+    )

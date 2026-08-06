@@ -90,11 +90,46 @@ def _tokenize(cmd: str) -> list[str]:
     return result
 
 
+def _warn_corrupt_config(config_file: str, error: BaseException) -> None:
+    """Emit a visible stderr warning that config.json exists but could not
+    be read/parsed. Never raises — a failure to write the warning itself
+    must not escape (stderr is best-effort, same discipline as the rest of
+    this hook's fail-open contract).
+
+    Distinct on purpose from the "no test_command configured" case, which
+    stays fully silent (see TestNoCommandStaysSilent /
+    TestCorruptConfigMustWarn in test_stop_dod_gate.py) — this path only
+    fires when config.json is PRESENT but unreadable/invalid, never when
+    it is simply absent or doesn't declare test_command.
+    """
+    try:
+        sys.stderr.write(
+            f"stop-dod-gate: {config_file} exists but could not be read as "
+            f"valid JSON ({error.__class__.__name__}: {error}). "
+            "test_command gate skipped (fail-open) -- fix or remove the "
+            "config file.\n"
+        )
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+
 def _read_test_command(cwd: str) -> str | None:
     """Return test_command from .claude/project-memory/config.json, or None.
 
     Returns None on any error (missing file, parse error, wrong type,
-    empty/null value) — all of which are treated as opt-out.
+    empty/null value) — all of which are treated as opt-out (fail-open).
+
+    A MISSING config file is the normal "opt-in not configured" state and
+    stays fully silent -- this is a real reader of config.py's contract,
+    same as customs.py, but unlike customs.py (which fails loud/high on a
+    corrupt config) this hook is fail-open by design: it must never block
+    session close over its own infra problems. A PRESENT but corrupt/
+    unreadable config file (invalid JSON, or the path is a directory) is a
+    DIFFERENT case and emits a visible stderr warning via
+    _warn_corrupt_config() before returning None, so it is never
+    indistinguishable from "not configured" to whoever reads the hook's
+    output.
     """
     config_file = os.path.join(cwd, CONFIG_SUBPATH)
     try:
@@ -103,7 +138,14 @@ def _read_test_command(cwd: str) -> str | None:
         # never be read from (and thus executed via) an external file.
         with open_no_follow_symlink(config_file, "r") as f:
             config = json.load(f)
-    except (OSError, json.JSONDecodeError):
+    except FileNotFoundError:
+        # No config file at all — normal opt-in-not-configured state.
+        # Stays fully silent (TestNoCommandStaysSilent).
+        return None
+    except (OSError, json.JSONDecodeError) as e:
+        # config.json exists but is unreadable/invalid — distinct failure,
+        # must not pass in total silence (TestCorruptConfigMustWarn).
+        _warn_corrupt_config(config_file, e)
         return None
 
     cmd = config.get("test_command")
@@ -171,7 +213,7 @@ def main() -> None:
             sys.exit(0)
 
         # TRUST ASSUMPTION: test_command is executed as a subprocess with the
-        # privileges of the current process. The file .claude/git-memory-config.json
+        # privileges of the current process. The file .claude/project-memory/config.json
         # must only contain commands from trusted sources (repo authors). It is NOT
         # sandboxed — do not place commands from untrusted or user-supplied input here.
         passed, exit_code, output = _run_test_command(test_command)

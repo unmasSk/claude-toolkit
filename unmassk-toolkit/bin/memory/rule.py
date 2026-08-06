@@ -66,12 +66,7 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="rule.py")
     parser.add_argument("text", nargs="?", default=None)
     parser.add_argument("--kind", choices=("user", "claude"), default=None)
-    args = parser.parse_args(argv)
-    if args.text is not None:
-        palabra = args.text.strip().lower()
-        if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:
-            args.text = None
-    return args
+    return parser.parse_args(argv)
 
 
 def _cmd_read():
@@ -146,6 +141,10 @@ def _cmd_add(text, kind):
 
 def main(argv):
     args = _parse_args(argv)
+    if args.text is not None:
+        palabra = args.text.strip().lower()
+        if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:
+            args.text = None
     if args.text is None:
         return _cmd_read()
     if args.text.strip().lower() in _NO_SON_UNA_REGLA:

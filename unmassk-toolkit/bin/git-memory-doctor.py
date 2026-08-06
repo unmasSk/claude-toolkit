@@ -261,6 +261,21 @@ def check_project_config(project_root: str) -> tuple[str, str]:
     own load() already enforces for every real reader of this file; the
     doctor must not be the one place that quietly looks away from it.
 
+    Deliberate exception to the no-import-lib/memory pattern, same
+    reasoning `check_project_zones()` already states for its own file:
+    this function replicates, locally and without importing
+    `lib/memory/config.py::load()`, the same per-field type contract
+    that function enforces (`customs_enabled` must be boolean if
+    present; `test_command` must be text if present; `repo_type` must
+    be text if present) -- `config.json` with valid top-level JSON but
+    a mistyped field (e.g. `{"customs_enabled": "true"}`) passes
+    `json.load` and `isinstance(data, dict)` without a problem, yet
+    `config.load()` rejects it with `ValueError` and every real reader
+    of this file (the customs hook among them) never even gets to run.
+    Reporting that state as "ok" here would be the doctor looking away
+    from a failure its own real consumer already treats as fatal
+    [hallazgo Moriarty T1, 2026-08-06].
+
     Returns:
         Tuple of (level, message).
     """
@@ -274,10 +289,80 @@ def check_project_config(project_root: str) -> tuple[str, str]:
         return "error", f"corrupt: {e}"
     if not isinstance(data, dict):
         return "error", "corrupt: expected a JSON object"
+    customs_enabled = data.get("customs_enabled")
+    if customs_enabled is not None and not isinstance(customs_enabled, bool):
+        return "error", f"corrupt: 'customs_enabled' must be boolean, got {type(customs_enabled).__name__}"
+    test_command = data.get("test_command")
+    if test_command is not None and not isinstance(test_command, str):
+        return "error", f"corrupt: 'test_command' must be text, got {type(test_command).__name__}"
     repo_type = data.get("repo_type")
+    if repo_type is not None and not isinstance(repo_type, str):
+        return "error", f"corrupt: 'repo_type' must be text, got {type(repo_type).__name__}"
     if repo_type is None:
         return "warn", "present but repo_type not set (defaults to protected 'gitflow')"
     return "ok", f"repo_type={repo_type!r}"
+
+
+def check_project_zones(project_root: str) -> tuple[str, str]:
+    """Check `.claude/project-memory/zones.json` -- three real states:
+    absent, present-but-empty, present-with-at-least-one-zone [encargo
+    2026-08-06: "un install missing zones.json passes every one of its
+    checks in green without a word about it" -- `grep -in "zones"
+    bin/git-memory-doctor.py` returned zero matches before this check].
+    Mirrors the same three-state shape `check_project_memory_seed()`
+    already applies to the eight index files, and
+    `lib/memory/health.py::memory_mounted()`'s Aviso B for this same
+    file.
+
+    Reads the file directly (no import of `lib/memory/`), same
+    reasoning `check_project_memory_seed()`/`check_project_config()`
+    already apply to their own expected values: this doctor stays
+    independent of `lib/memory/`'s own import chain (`health.py` alone
+    pulls in `ids`, `indexes`, `notes`, `query`, `rules`, `zones`,
+    `health_plans`, `model`, `vocabulary`).
+
+    A corrupt file is reported as an error, same fail-loud contract
+    `check_project_config()` already enforces for its own JSON file. A
+    populated zones.json is reported "ok", never as a problem.
+
+    Deliberate exception to the no-import-lib/memory pattern stated
+    above: this function also replicates, locally and without importing
+    `lib/memory/zones.py::load()`, the same three per-zone shape checks
+    that function enforces (each zone value must be an object; its
+    `description` must be text if present; its `aliases` must be a list
+    of text if present) -- `zones.json` with valid top-level JSON but an
+    invalid per-zone shape (e.g. `{"billing": "oops"}`) passes
+    `json.load` and `isinstance(data, dict)` without a problem, yet
+    `zones_lib.load()` rejects it with `ValueError` and the customs hook
+    blocks the commit on it. Reporting that state as "ok" here would be
+    the doctor looking away from a failure its own real consumer
+    already treats as fatal.
+
+    Returns:
+        Tuple of (level, message).
+    """
+    zones_path = os.path.join(project_root, ".claude", "project-memory", "zones.json")
+    if not os.path.isfile(zones_path):
+        return "warn", "zones.json not found (run install to seed, or 'zones add' to register the first zone)"
+    try:
+        with open_no_follow_symlink(zones_path, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return "error", f"zones.json corrupt: {e}"
+    if not isinstance(data, dict):
+        return "error", "zones.json corrupt: expected a JSON object"
+    for name, fields in data.items():
+        if not isinstance(fields, dict):
+            return "error", f"zones.json corrupt: zone {name!r} must be a JSON object"
+        description = fields.get("description", "")
+        if not isinstance(description, str):
+            return "error", f"zones.json corrupt: 'description' of zone {name!r} must be text"
+        aliases = fields.get("aliases", [])
+        if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+            return "error", f"zones.json corrupt: 'aliases' of zone {name!r} must be a list of text"
+    if len(data) == 0:
+        return "warn", "zones.json present but no zone registered yet ('zones add' to register one)"
+    return "ok", f"zones.json has {len(data)} zone(s) registered"
 
 
 def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
@@ -491,6 +576,14 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
     elif cfg_level == "warn":
         has_warnings = True
     results.append((cfg_level, "Project config", cfg_msg))
+
+    # 13. Project memory: zones.json
+    zones_level, zones_msg = check_project_zones(project_root)
+    if zones_level == "error":
+        has_errors = True
+    elif zones_level == "warn":
+        has_warnings = True
+    results.append((zones_level, "Project zones", zones_msg))
 
     # Output
     if as_json:

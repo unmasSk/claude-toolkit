@@ -15,11 +15,16 @@ _cleanup_old_install() must agree on exactly which files count as an
 old-style install. One-way dependency: this module may import from
 install_inspect.py, never the reverse.
 
-The memory system's own modules (lib/memory/indexes.py, lib/memory/
-config.py) live in a sibling directory not on sys.path by default — every
-bin/memory/*.py script inserts lib/memory/ itself before importing them
-(see bin/memory/work.py); the same insertion happens below, once, before
-the `indexes` import.
+`lib/install_apply.py` lives OUTSIDE the allowed zone that
+tests/memory/test_boundary.py protects (lib/memory/, bin/memory/,
+bin/gitmem, hooks/customs.py, hooks/boot_launcher.py, tests/memory/ — the
+memory v2 system has to stay deletable without breaking install/boot).
+It therefore never imports lib/memory/* directly. Project-memory seeding
+instead shells out to `bin/gitmem rezones` as a subprocess — an
+already-authorized channel (bin/memory/rezones.py::_rebuild calls the
+real indexes.seed() as its first step, idempotent by construction), the
+same by-path dispatch the gitmem PATH launcher itself uses instead of an
+import. See _seed_project_memory below.
 """
 
 import json
@@ -29,7 +34,6 @@ import shutil
 import sys
 import tempfile
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from git_helpers import claude_md_lock_path, ensure_gitignore, file_lock, open_no_follow_symlink, verify_path_within_project
@@ -37,12 +41,6 @@ from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
 from install_inspect import OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS
-
-_LIB_MEMORY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
-if _LIB_MEMORY_DIR not in sys.path:
-    sys.path.insert(0, _LIB_MEMORY_DIR)
-
-import indexes  # noqa: E402  (import after sys.path insert, same pattern as bin/memory/work.py)
 
 
 def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
@@ -76,7 +74,7 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
                     print("  ⚠️  ~/.local/bin is not in your PATH. Add this line to your ~/.zshrc:")
                     print('      export PATH="$HOME/.local/bin:$PATH"')
             elif action == "seed_project_memory":
-                _seed_project_memory(target)
+                _seed_project_memory(target, source)
             elif action == "write_config_json":
                 print(f"  {_write_config_json(target, plan.get('repo_type', 'trunk'))}")
             elif action == "create_manifest":
@@ -540,17 +538,58 @@ def _install_gitmem_launcher(source: str, target: str) -> dict[str, Any]:
 
 # ── Project-memory seeding ───────────────────────────────────────────────
 
-def _seed_project_memory(target: str) -> None:
+def _seed_project_memory(target: str, source: str) -> None:
     """Seed `.claude/project-memory/`'s eight index files with their
     headers [encargo: "no inventes el sembrado: la funcion existe y es
     lib/memory/indexes.py::seed(pm). Llamala."]. Reuses the real seeding
     function the rest of the memory system already writes through —
     idempotent by construction (seed() only creates a file that is
     missing, never touches one that already has notes).
+
+    `install_apply.py` lives outside the zone `tests/memory/
+    test_boundary.py` protects, so it cannot `import indexes` directly
+    (Puerta 3, fila 1: "ningun fichero del toolkit fuera de lib/memory/,
+    bin/memory/, bin/gitmem... importa nada de lib/memory/"). Instead it
+    shells out to `bin/gitmem rezones` — a real, already-authorized
+    channel: `bin/memory/rezones.py::_rebuild()` calls `indexes.seed(pm)`
+    as its very first step, unconditionally, before computing anything
+    else. `rezones` (without `--verify`) then diffs git history against
+    the now-seeded indices and reconciles any drift — a no-op on a fresh
+    install, since a repo with no prior memoria-v2 notes has nothing to
+    insert or remove. This does not duplicate indexes.seed()'s logic,
+    only its invocation channel: the seeder itself still lives in exactly
+    one place.
+
+    `gitmem` resolves its own subcommands BY PATH relative to itself
+    (bin/gitmem's own docstring: "cada subcomando llega a su script real,
+    por ruta -- nunca importado"), so `source` (the plugin/source root,
+    already the same root `_install_gitmem_launcher` uses to compute
+    `bin/gitmem`'s path) is what locates it here -- never a second,
+    independent guess at where the toolkit lives.
+
+    `cwd=target` matters: `bin/memory/rezones.py` finds the repo root via
+    `notes.repo_root()` -> `Path.cwd()`, not an argument -- same reason
+    `_commit_what_the_install_created` below runs its own git subprocess
+    calls with `cwd=target`.
+
+    Raises RuntimeError (caught by apply_plan's existing per-action
+    try/except, same as every other action here) if the subprocess exits
+    non-zero, carrying gitmem's own stderr/stdout instead of a generic
+    message -- rezones.py never prints a Python traceback (its own
+    top-level guard), so the real diagnostic is always in one of the two
+    streams.
     """
     pm_dir = os.path.join(target, ".claude", "project-memory")
     verify_path_within_project(pm_dir, target)
-    indexes.seed(Path(pm_dir))
+
+    gitmem_path = os.path.join(source, "bin", "gitmem")
+    result = subprocess.run(
+        [sys.executable, gitmem_path, "rezones"],
+        cwd=target, capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
+        raise RuntimeError(f"gitmem rezones fallo sembrando project-memory: {detail}")
 
 
 # ── config.json: deduced repo_type ───────────────────────────────────────
