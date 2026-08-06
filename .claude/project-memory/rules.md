@@ -23,3 +23,4 @@
 [remember][user] 🧠 antes de que Ultron refactorice, Dante escribe y verifica los golden tests que cubren el codigo afectado -- nunca refactorizar sin esa red debajo
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
 [remember][user] 🧠 ejecutar EXACTAMENTE el comando que pide el usuario, sin añadir nohup, &, redirecciones ni flags extra que no pidio
+[remember][user] 🧠 nunca tratar datos de ejemplo o placeholders de la documentacion como hechos reales del usuario o del proyecto -- los hechos reales vienen del usuario, el codigo o la memoria
