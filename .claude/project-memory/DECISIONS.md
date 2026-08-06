@@ -35,3 +35,4 @@
 [D-034][memory][testing] memory readers retry and warn loud instead of returning empty
 [D-035][install][architecture] MCPs install on-demand per skill, at user scope, none wired by default
 [D-036][memory][architecture] objective-profile is a documented convention over git-memory, not new machinery
+[D-037][memory][architecture] memory v1 stored everything but surfaced almost nothing, so v2 was born
