@@ -34,3 +34,4 @@
 [D-033][memory][boot] CLAUDE.md managed-block writes became atomic
 [D-034][memory][testing] memory readers retry and warn loud instead of returning empty
 [D-035][install][architecture] MCPs install on-demand per skill, at user scope, none wired by default
+[D-036][memory][architecture] objective-profile is a documented convention over git-memory, not new machinery
