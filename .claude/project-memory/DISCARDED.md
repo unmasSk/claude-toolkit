@@ -46,3 +46,4 @@
 [X-044][skills][architecture] añadir un gate mecanico a START
 [X-045][skills][architecture] bucle repite-hasta-limpio entre agentes
 [X-046][memory][boot] dejar la escritura truncate-in-place
+[X-047][memory][testing] reescribir el contrato de retorno de los 4 lectores de memoria
