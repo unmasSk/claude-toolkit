@@ -28,3 +28,4 @@
 [X-026][memory][architecture] convertir la memoria a MCP-only
 [X-027][memory][architecture] inyectar memoria al subagente via SubagentStart
 [X-028][memory][architecture] inyectar memoria al subagente via additionalContext
+[X-029][memory][hooks] inyectar via SubagentStart
