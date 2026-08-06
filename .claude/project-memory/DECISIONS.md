@@ -2,3 +2,4 @@
 
 [D-001][memory][hooks] delete the v1 memory system instead of keeping it dormant on disk
 [D-002][install][memory] the boot installs the project by itself when no manifest is present
+[D-003][memory][skills] the CLI stays 'gitmem rule'; the user's door is the slash command /remember
