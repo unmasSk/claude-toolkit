@@ -18,3 +18,4 @@
 [X-016][hooks][memory] A1: denylist total de caracteres a escapar
 [X-017][hooks][memory] A3: solo normalizacion unicode
 [X-018][release][hooks] an automatic push-after-commit hook was discarded permanently
+[X-019][skills][testing] chasing a fully deterministic skill-routing gate was abandoned
