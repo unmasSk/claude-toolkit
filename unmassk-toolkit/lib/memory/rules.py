@@ -17,57 +17,48 @@ se fijo con el dato delante (mediana 125, 15 de 19 remembers reales del
 v1 caben en 200; los que no caben mezclaban varias reglas en una, y
 partirlos en dos es mejor que alargar el tope).
 
-EL FLUJO ES DE DOS PASOS, no de uno [spec Sec.12]:
+``add()`` HOY (desde 2026-08-06) es UN SOLO PASO: escribe la linea en el
+fichero de reglas, atomicamente, y se acaba ahi -- **sin tocar git para
+nada, ni un commit vacio ni un commit con el fichero como pathspec**
+[orden del propietario, mismo dia y mismo motivo que
+``zones.py::_cmd_add()`` (``bin/memory/zones.py``): una sola tarde de
+trabajo metio 18 commits propios de regla y 23 de zona en el historial
+-- ``rules.md``, igual que ``zones.json``, es fichero de CONFIGURACION,
+no una nota de memoria, y no le corresponde un commit por linea]. La
+regla queda como una modificacion sin comitear en el arbol de trabajo,
+lista para que la arrastre el SIGUIENTE commit real que pase por el
+proyecto (``gitmem work``/``gitmem wip``/``gitmem note``/el cierre de
+sesion) -- ninguno de los cuatro necesita cableado nuevo para esto:
+todos comitean con ``git add --all`` sobre las rutas que reciben
+[``notes_commit.stage_and_commit()``], asi que ``rules.md`` entra igual
+que cualquier otro fichero modificado, con solo pasarlo como ruta.
 
-    linea en el fichero de reglas                -- de donde se lee entero
-            |
-    commit vacio  [remember][user] 🧠 <texto>   -- queda en git, nada se pierde
+**[corregido 2026-08-06] Lo que este docstring describia hasta hoy se
+retira, no solo se desactualiza.** El flujo era de DOS pasos -- linea en
+el fichero primero, un commit real despues con esa misma linea como
+pathspec (antes de eso, mas atras todavia, un commit genuinamente vacio)
+-- y esta seccion documentaba con detalle POR QUE ese orden y una
+ventana real que ni el orden invertido podia cerrar: un ``SIGKILL`` entre
+``atomic_write()`` (fichero ya con la linea nueva) y el commit dejaba la
+linea escrita SIN ningun commit detras, sin ninguna excepcion que
+disparara la restauracion. Esa ventana, y el mecanismo que la discutia
+(``_restore_file_best_effort``, la restauracion de mejor esfuerzo si el
+commit fallaba a medias), YA NO EXISTEN: sin ningun commit que pueda
+fallar a medias, no hay nada que restaurar. ``add()`` escribe con
+``gitcmd.atomic_write()`` (fichero temporal + ``fsync`` + ``os.replace()``,
+atomico de verdad, Sec.7.1) y termina ahi -- un fallo a mitad de esa
+escritura deja ``rules.md`` con su contenido ANTERIOR intacto por la
+propia garantia de ``atomic_write()``, nunca a medias, nunca huerfano;
+esta pieza no necesita (ni podria) reforzar esa garantia por su cuenta.
 
-EL ORDEN ES EL FICHERO PRIMERO, EL COMMIT DESPUES -- no al reves, y no
-es negociable [correccion 2026-08-02, mismo criterio que ya fija
-``notes.write`` para nota+indice, PIEZAS.md Sec.8.1]. La version
-anterior de esta pieza comiteaba primero y escribia el fichero despues:
-si el proceso moria entre los dos pasos, el commit quedaba en el
-historial para siempre y ``rules.md`` nunca llegaba a tener la linea --
-una regla que se escribe (en git) y desaparece (de lo que ``/remember``
-entrega), sin un solo error, exactamente el modelo de amenaza de este
-proyecto. Con el orden invertido, si el commit falla (o revienta a
-mitad) el fichero YA tiene la linea escrita -- ``add()`` la retira con
-``_restore_file_best_effort`` antes de devolver el rechazo, y el
-fichero vuelve a decir exactamente lo que decia antes de la llamada --
-**siempre que el proceso siga vivo para ejecutar esa restauracion**.
-
-**Esta pieza NO puede cerrar una ventana real, y decirlo es mejor que
-callarlo** [correccion 2026-08-02, hallazgo 4 de Moriarty, ronda 2 -- una
-version anterior de este parrafo afirmaba, sin matiz, que el fichero
-"vuelve a decir exactamente lo que decia antes de la llamada", lo cual es
-falso en el peor caso y es justo lo que hacia que nadie mirara mas alla].
-Entre ``gitcmd.atomic_write()`` (el fichero YA tiene la linea nueva) y el
-``try`` que envuelve el commit hay una ventana en la que un ``SIGKILL`` (o
-cualquier muerte del proceso que no pase por una excepcion de Python)
-deja la linea escrita en el fichero SIN ningun commit detras -- ninguna
-excepcion se lanza en ese hueco, asi que ``_restore_file_best_effort``
-nunca llega a ejecutarse. Es la "muerte que no se puede capturar": el
-reverso exacto del fallo que motivo el cambio de orden de arriba (antes
-era el commit el que sobrevivia solo; con este orden invertido, en el
-peor caso es la linea del fichero la que sobrevive sola). Por eso
-``health.coherence_rules()`` (Sec.9.4) existe como la red que queda
-cuando la propia escritura no puede protegerse de esa muerte: detecta
-esta linea huerfana desde el otro lado ("esta en el fichero de reglas
-pero no existe en ningun commit de regla"), en los dos sentidos posibles
-de la divergencia, no solo en este.
-
-El commit es GENUINAMENTE vacio (``git commit --allow-empty`` sin
-pathspec): no hay ninguna nota ni indice que commitear junto a el, a
-diferencia de ``notes.write`` -- por eso este modulo llama a
-``gitcmd.commit_empty()`` (Sec.7.1) en vez de ``gitcmd.commit()``, que
-exige un pathspec no vacio y no encaja aqui. ``context.write()``
-necesita el mismo commit genuinamente vacio por el mismo motivo -- las
-dos piezas compartian antes la misma invocacion de git construida a
-mano, cada una por su lado (dos copias identicas del mismo
-``--cleanup=verbatim`` + ``--allow-empty``); ``gitcmd.commit_empty()``
-es la pieza unica de la que ahora leen las dos, para que el dia que a
-una se le olvide un flag no sea posible.
+``health.coherence_rules()`` -- la funcion que cruzaba commits de regla
+contra ``rules.md`` para cazar precisamente esa ventana -- **se retira
+por este mismo cambio** [ver ``lib/memory/health.py``, mismo dia]: sin
+ningun commit de regla que la propia escritura genere nunca mas, cada
+linea nueva anadida de la forma normal es, desde hoy, indistinguible de
+la corrupcion que ese chequeo existia para detectar -- seguiria
+gritando, siempre, sobre cualquier regla nueva, un falso positivo
+permanente en vez de un chequeo mudo.
 
 RUTA DEL FICHERO DE REGLAS -- resuelta por el propietario en pleno
 desarrollo (el encargo original decia ``.claude/commands/remember.md``,
@@ -81,13 +72,19 @@ ocho indices y a ``zones.json``/``config.json`` [PIEZAS.md Sec.9.7,
 ARQUITECTURA.md Sec.207]. Como la ruta es relativa al proyecto, las
 reglas de un proyecto nunca se enseñan en otro. La ruta sigue viviendo
 en un UNICO punto, ``rules_file_path()``, por si se mueve mas adelante --
-publica (sin guion bajo) desde 2026-08-02 porque ``health.coherence_rules``
-(Sec.9.4) necesita la ruta real para un ``root`` explicito que no siempre
-es el cwd del proceso, el mismo motivo por el que ``iter_rule_texts()``
-(el reconocimiento de una linea de regla, antes ``_iter_rule_texts``) se
-hizo publica a la vez: para que ``health.py`` reutilice el mismo
-reconocimiento en vez de reimplementarlo una segunda vez sobre el cuerpo
-de un commit.
+publica (sin guion bajo) desde 2026-08-02. El motivo original de esa
+visibilidad -- que ``health.coherence_rules()`` (Sec.9.4) la necesitaba
+para un ``root`` explicito que no siempre es el cwd del proceso -- se
+retira junto con esa funcion el 2026-08-06 [ver mas arriba], pero la
+ruta se queda publica igual: varios tests la ejercitan directamente
+sobre un ``root`` de fuera (mismo patron que el resto del sistema,
+``zones.load(path)``/``indexes.read(name, root)``), y sigue siendo el
+unico punto de cambio si la ruta se mueve mas adelante. Mismo criterio
+para ``iter_rule_texts()`` (el reconocimiento de una linea de regla,
+antes ``_iter_rule_texts``): se hizo publica el mismo dia por el mismo
+motivo, y se queda publica ahora que ``health.py`` ya no la reutiliza --
+sigue siendo el UNICO reconocimiento de "esto es una linea de regla" en
+todo el sistema, para cualquier lector futuro del fichero.
 
 DUPLICACION DELIBERADA (Jaccard sobre texto): ``similar.py`` ya calcula
 un solapamiento de vocabulario, pero esta atado a ``Note`` (headline +
@@ -114,8 +111,11 @@ Quien lo llama: ``bin/memory/rule.py`` y el comando ``/remember``
 estandar de Python [PIEZAS.md Sec.13]. Imports planos entre hermanos
 [PIEZAS.md Sec.3.3bis]. Este proyecto no defiende contra un atacante
 externo (un solo dueno) -- lo que importa es que el sistema no se
-rompa a si mismo: un remember que se escribe y desaparece de uno de
-los dos sitios (git o fichero) es exactamente ese fallo.
+rompa a si mismo: desde el 2026-08-06 el UNICO sitio donde vive un
+remember es ``rules.md`` [corregido -- hasta entonces habia dos, el
+fichero y un commit propio], asi que el fallo que importa es una
+escritura truncada o interrumpida a medias, lo que ``gitcmd.
+atomic_write()`` existe para impedir.
 """
 
 import re
@@ -153,19 +153,25 @@ def rules_file_path(root: Path) -> Path:
     """Ruta del fichero de reglas -- ver "RUTA DEL FICHERO DE REGLAS" en
     el docstring del modulo. Un unico punto de cambio.
 
-    Publica (sin guion bajo): `health.coherence_rules` (Sec.9.4) la
-    necesita para leer el fichero de un `root` explicito, que no siempre
-    coincide con el cwd del proceso -- ver el docstring del modulo.
+    Publica (sin guion bajo) desde 2026-08-02, cuando `health.coherence_rules`
+    la necesitaba para leer el fichero de un `root` explicito que no
+    siempre coincide con el cwd del proceso. Esa funcion se retira el
+    2026-08-06 [ver docstring del modulo], pero la ruta se queda publica:
+    varios tests la siguen ejercitando directamente sobre un `root` de
+    fuera.
     """
     return root / ".claude" / "project-memory" / "rules.md"
 
 
 def _lock_resource(root: Path) -> Path:
     """Candado GLOBAL propio de este modulo, mismo espiritu que
-    ``notes._lock_resource`` -- envuelve la transaccion completa (commit
-    + escritura del fichero) para que dos ``add()`` concurrentes no
-    pierdan ninguna regla y no se peleen por ``.git/index.lock`` de
-    verdad. Vive dentro de ``.git/`` para no aparecer en ``git status``.
+    ``notes._lock_resource`` -- envuelve la lectura-modificacion-escritura
+    completa del fichero (leer el contenido previo, anadir la linea,
+    escribir) para que dos ``add()`` concurrentes no pierdan ninguna
+    regla [correccion 2026-08-06: hasta entonces tambien serializaba
+    ``git add``/``git commit``, retirados de ``add()`` ese mismo dia --
+    ver docstring del modulo]. Vive dentro de ``.git/`` para no aparecer
+    en ``git status``.
     """
     return root / ".git" / "memory-rules"
 
@@ -195,10 +201,12 @@ def iter_rule_texts(content: str) -> tuple[str, ...]:
     mano no tumba la lectura entera.
 
     Publica (sin guion bajo): es el UNICO reconocimiento de "esto es una
-    linea de regla" en todo el sistema -- `health.coherence_rules`
-    (Sec.9.4) la reutiliza sobre el cuerpo de un commit (una sola linea,
-    mismo formato exacto que escribe `add()`) para no reimplementar
-    `_RULE_LINE_RE` una segunda vez.
+    linea de regla" en todo el sistema. Hasta el 2026-08-06 tambien la
+    reutilizaba `health.coherence_rules` sobre el cuerpo de un commit --
+    esa funcion se retira ese mismo dia [ver docstring del modulo], pero
+    la forma (solo texto, sin `kind`) se queda intacta: `similar_existing()`
+    la sigue usando por debajo (via `_iter_rule_lines()`) y hay un
+    consumidor de test directo (`test_rule_script.py`).
     """
     texts = []
     for line in content.splitlines():
@@ -228,13 +236,13 @@ def _iter_rule_lines(content: str) -> tuple[tuple[str, str], ...]:
     este mismo fichero.
 
     `iter_rule_texts()` en si no se toca ni cambia de forma: descarta el
-    grupo `kind` a proposito porque `health.coherence_rules()` (Sec.9.4,
-    `health.py` lineas 264 y 290) depende de que siga devolviendo solo
-    texto para cruzar commits contra el fichero -- cambiar esa forma
-    rompe esa costura de produccion. Esta funcion reutiliza el mismo
-    `_RULE_LINE_RE` (mismo reconocimiento de linea, nunca una segunda
-    copia del patron) y simplemente conserva el campo que
-    `iter_rule_texts()` descarta.
+    grupo `kind` a proposito porque tiene su propio consumidor real que
+    depende de que siga devolviendo solo texto (`test_rule_script.py`;
+    hasta el 2026-08-06 tambien `health.coherence_rules()`, retirada ese
+    dia [ver docstring del modulo]) -- cambiar esa forma rompe esa
+    costura. Esta funcion reutiliza el mismo `_RULE_LINE_RE` (mismo
+    reconocimiento de linea, nunca una segunda copia del patron) y
+    simplemente conserva el campo que `iter_rule_texts()` descarta.
     """
     lines = []
     for line in content.splitlines():
@@ -327,51 +335,30 @@ def _reject_invalid_text(text: str) -> Rejection:
     )
 
 
-def _restore_file_best_effort(path: Path, previous_content: str, existed_before: bool) -> None:
-    """Devuelve `path` a como estaba ANTES de esta llamada a `add()`, tras
-    un commit que no llego a completarse -- mejor esfuerzo, mismo
-    espiritu que `notes.py::_restore_index_best_effort`: si la propia
-    restauracion revienta, su excepcion no debe sustituir el motivo real
-    por el que se esta restaurando (el fallo de git, o la excepcion que
-    interrumpio el commit) -- eso convertiria un fallo con causa en un
-    fallo sin causa. Quien llama decide que hacer con el diagnostico
-    original; esta funcion nunca lo tapa con uno propio.
-
-    `existed_before` distingue las dos formas reales de "como estaba
-    antes": si el fichero YA existia, se reescribe con `previous_content`
-    (mismo mecanismo que ya usaba esta funcion); si NO existia todavia
-    (el primer remember del proyecto, fallando), la vuelta exacta es
-    BORRARLO, no dejarlo con solo la cabecera -- demostrado ejecutando:
-    sin esta distincion, un primer `add()` que falla deja un
-    `rules.md` con cabecera y ninguna regla, un estado que `read_all()`
-    no distingue de "nunca se escribio nada" (ambos deberian devolver
-    exactamente lo mismo que antes de la llamada) pero que SI es un
-    fichero nuevo, sin trackear, que no existia un instante antes.
-    """
-    try:
-        if existed_before:
-            gitcmd.atomic_write(path, previous_content)
-        else:
-            path.unlink(missing_ok=True)
-    except Exception:
-        pass
-
-
 def add(text: str, kind: str) -> WriteResult:
-    """Anade una regla: linea en el fichero de reglas + commit vacio en
-    git -- los dos pasos del flujo, EN ESE ORDEN, ver docstring del
-    modulo.
+    """Anade una regla: una linea mas en el fichero de reglas, escrita de
+    forma atomica -- UN SOLO PASO, sin tocar git para nada [orden del
+    propietario, 2026-08-06, ver docstring del modulo]. La linea queda
+    como una modificacion sin comitear en el arbol de trabajo, lista para
+    que la arrastre el siguiente commit real del proyecto.
 
     Si `text` supera `_TEXT_MAX_CHARS`, lleva un salto de linea, o esta
-    vacio/solo espacios, rebota SIN tocar git ni el fichero. Lo mismo si
-    `kind` lleva un salto de linea o esta vacio/solo espacios [correccion
+    vacio/solo espacios, rebota SIN tocar el fichero. Lo mismo si `kind`
+    lleva un salto de linea o esta vacio/solo espacios [correccion
     2026-08-02, hallazgo 5b de Moriarty, ronda 2 -- ver
     `_reject_invalid_kind`: antes solo `text` se validaba, y un `kind` mal
     formado rompia la estructura de una-linea-por-regla igual que ya lo
-    hacia un `text` sin proteger]. Si el fichero ya se escribio pero el
-    commit falla, la linea recien anadida se retira del fichero antes de
-    devolver el rechazo -- ni commit a medias ni linea huerfana en ningun
-    sentido.
+    hacia un `text` sin proteger].
+
+    No hay ningun paso que pueda fallar a medias y dejar algo que
+    restaurar: `gitcmd.atomic_write()` (fichero temporal + `fsync` +
+    `os.replace()`) es atomico de verdad -- un fallo a mitad de la
+    escritura deja `rules.md` con su contenido ANTERIOR intacto, por la
+    propia garantia de esa funcion [ver docstring del modulo, correccion
+    2026-08-06: el mecanismo de restauracion de mejor esfuerzo que existia
+    aqui, `_restore_file_best_effort`, se retira con este cambio -- solo
+    tenia sentido cuando `add()` tambien comiteaba y ese commit podia
+    fallar a medias].
     """
     if "\n" in kind or not kind.strip():
         return WriteResult(
@@ -393,59 +380,11 @@ def add(text: str, kind: str) -> WriteResult:
 
         path = rules_file_path(root)
         path.parent.mkdir(parents=True, exist_ok=True)
-        existed_before = path.exists()
-        if existed_before:
+        if path.exists():
             previous_content = path.read_text(encoding="utf-8")
         else:
             previous_content = _RULES_HEADER + "\n"
         gitcmd.atomic_write(path, previous_content + subject + "\n")
-
-        # Todo lo que sigue puede fallar de dos formas: un `GitResult` con
-        # `returncode != 0` (git respondio, pero mal), o una excepcion
-        # real a mitad (un Ctrl-C durante un commit lento). La
-        # restauracion del fichero tiene que darse en los dos casos --
-        # mismo patron que `notes.write` (Sec.8.1).
-        # La regla y su linea viajan en EL MISMO commit, igual que una nota
-        # viaja con su linea de indice [2026-08-05]. Antes era
-        # `gitcmd.commit_empty()`: el commit iba genuinamente vacio y
-        # `rules.md` se quedaba fuera de git, tratado como proyeccion
-        # local. Eso rompia dos cosas, las dos encontradas ejecutandolo:
-        #
-        # 1. **Las reglas no sobrevivian a un clon ni a otra maquina.**
-        #    Nada reconstruye este fichero desde git -- `rezones` declara
-        #    expresamente que no lo toca -- asi que en un clon limpio los
-        #    commits estaban y el fichero no: `gitmem rule` devolvia vacio
-        #    y el arranque cantaba una discrepancia por cada regla. Es la
-        #    unica amenaza que este proyecto declara: memoria perdida al
-        #    cambiar de maquina, sin un solo aviso.
-        # 2. **Dejaba el arbol sucio para siempre**, y con el arbol sucio
-        #    `bin/release.py` se niega a publicar. Guardar una regla
-        #    bloqueaba la publicacion.
-        #
-        # `commit()` con pathspec explicito en vez de `commit_empty()`:
-        # ahora SI hay algo que comitear junto al mensaje. `coherence_rules()`
-        # sigue valiendo igual -- compara commits contra lineas del fichero,
-        # y que ademas viaje versionado no le quita ninguna divergencia que
-        # antes detectara.
-        try:
-            add_result = gitcmd.run(
-                ["add", "--all", "--", str(path)], cwd=root, timeout=gitcmd.GIT_TIMEOUT
-            )
-            if add_result.returncode != 0:
-                _restore_file_best_effort(path, previous_content, existed_before)
-                return WriteResult(
-                    ok=False, note_id=None, rejections=(), git_error=add_result.stderr
-                )
-            git_result = gitcmd.commit(subject, [path], allow_empty=False, cwd=root)
-        except BaseException:
-            _restore_file_best_effort(path, previous_content, existed_before)
-            raise
-
-        if git_result.returncode != 0:
-            _restore_file_best_effort(path, previous_content, existed_before)
-            return WriteResult(
-                ok=False, note_id=None, rejections=(), git_error=git_result.stderr
-            )
 
         return WriteResult(ok=True, note_id=None, rejections=(), git_error=None)
 

@@ -409,13 +409,22 @@ def _avisos_block(summary: BootSummary) -> list[str]:
     imprime siempre el numero real, gane o pierda la comparacion, nunca
     el silencio de una linea ausente.
 
-    Tres anadidos 2026-08-02 (hallazgos de Argus): (1) si `gh` fallo,
+    Dos anadidos 2026-08-02 (hallazgos de Argus): (1) si `gh` fallo,
     `plans_unreflected_error` lo dice en esta misma seccion en vez de
     tumbar el arranque entero -- nunca un cero inventado en su lugar
     [punto 2]; (2) cada discrepancia de indice nombra la nota que
-    diverge, no solo los dos numeros [punto 4]; (3) las reglas [`health.
-    coherence_rules`] se pintan junto a los otros dos chequeos, tambien
-    cuando estan bien [punto 3, "el vigilante mudo"].
+    diverge, no solo los dos numeros [punto 4].
+
+    **Las reglas dejan de pintarse aqui, 2026-08-06** [orden del
+    propietario, mismo dia que `health.coherence_rules()` se retira --
+    ver su docstring]. Entre el 2026-08-02 y hoy, esta seccion pintaba
+    una tercera linea ("rules match git"/"rules do not match git") junto
+    a las otras dos [punto 3 de la lista de arriba, "el vigilante
+    mudo"]; sin ningun commit de regla que `rules.add()` genere ya, ese
+    chequeo habria gritado siempre sobre cualquier regla nueva -- un
+    falso positivo permanente. Se retira la pintura entera, no solo se
+    silencia: CHECKS no vuelve a mencionar las reglas, ni con ✓ ni con
+    ⚠️.
 
     **Ronda 2 (hallazgo 1 de Moriarty) -- el visto bueno que mentia:**
     los ✓/⚠️ ya no comparan `lineas == notas`/`lineas == commits` (dos
@@ -499,14 +508,6 @@ def _avisos_block(summary: BootSummary) -> list[str]:
     else:
         lines.append(f"   ⚠️  indexes do not match git ({numbers})")
     for text in report.index_discrepancies:
-        lines.append(f"      - {text}")
-
-    rule_numbers = f"{report.rule_lines} lines / {report.rule_commits} commits"
-    if not report.rule_discrepancies:
-        lines.append(f"   ✓  rules match git ({rule_numbers})")
-    else:
-        lines.append(f"   ⚠️  rules do not match git ({rule_numbers})")
-    for text in report.rule_discrepancies:
         lines.append(f"      - {text}")
 
     return lines

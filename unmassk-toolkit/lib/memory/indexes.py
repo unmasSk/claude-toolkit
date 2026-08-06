@@ -273,8 +273,9 @@ def archived_ids(root: Path) -> frozenset[str]:
     Un `ARCHIVED.md` que todavia no existe no es un fallo: es el estado
     real de un proyecto recien instalado, antes de que `seed()` haya
     corrido ni una vez -- cero archivados es un dato valido, no una
-    excepcion [mismo criterio que `health.coherence_rules()` ya aplica a
-    la ausencia del fichero de reglas]. Sin este descuento, `boot.build()`
+    excepcion [mismo criterio que `rules.read_all()` ya aplica a la
+    ausencia del fichero de reglas: cadena vacia, nunca una excepcion].
+    Sin este descuento, `boot.build()`
     revienta con `FileNotFoundError` en la primerisima sesion de
     cualquier proyecto, antes de que exista una sola nota que mostrar.
     """

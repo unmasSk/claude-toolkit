@@ -20,17 +20,16 @@ NO hace"].
 
 **Superficie de esta pieza segun PIEZAS.md Sec.9.4 declara CINCO
 funciones** (`coherence`, `coherence_rules`, `duplicates`,
-`plans_unreflected`, `build`) -- las CINCO estan implementadas hoy.
+`plans_unreflected`, `build`). De esas cinco, **CUATRO siguen vigentes
+hoy** -- `coherence_rules` se retira el 2026-08-06 [ver "coherence_rules
+SE RETIRA" mas abajo, donde vivia su parrafo propio hasta hoy].
 `coherence` cubre las filas 1-3 de "Sus tests" (Sec.9.4). `plans_unreflected`
 nacio sin fila propia porque `vocabulary.FIELDS["issue"].reader` la declara
 como el UNICO lector real del campo `issue` (regla de los tres estados,
-Sec.6.1 -- confirmado con el orquestador antes de escribirla). `coherence_rules`
-(ver su propio parrafo mas abajo) y `duplicates` (reutiliza
-`ids.find_duplicates`, Sec.7.2) se anadieron el mismo dia. `build`
-compone las cuatro de arriba en el `HealthReport` que el arranque pinta,
-sin volver a calcular nada -- desde la ronda 2 (Moriarty), tambien lleva
-las discrepancias de `coherence_rules`, no solo sus dos numeros (ver
-"Revision ronda 2" mas abajo).
+Sec.6.1 -- confirmado con el orquestador antes de escribirla). `duplicates`
+(reutiliza `ids.find_duplicates`, Sec.7.2) se anadio el mismo dia que
+`coherence_rules`. `build` compone las tres que quedan en el
+`HealthReport` que el arranque pinta, sin volver a calcular nada.
 
 **Una SEXTA funcion, `rebuild_plan`, se anade el 2026-08-02** -- fuera de
 la superficie que Sec.9.4 declara letra por letra (ese numero no se toca
@@ -50,13 +49,10 @@ encima invitaba a un comando garantizado a fallar (`--zones <zona1>
 <zona2>` sin que existiera ninguna zona). Ver el docstring de cada
 funcion para el umbral, el mecanismo y el porque completo.
 
-`coherence_rules(root)` es la hermana de `coherence()`, pero para el
-fichero de reglas en vez de los indices de notas -- ver la seccion
-"coherence_rules se anade el 2026-08-02" mas abajo para el porque y el
-mecanismo completo. Nace sin fila propia en "Sus tests" (igual que le
-paso a `plans_unreflected`, mismo patron del punto 11 de DEUDA.md): el
-encargo del orquestador la pide directamente, con firma ya fijada en
-Sec.9.4.
+`coherence_rules(root)` existio entre el 2026-08-02 y el 2026-08-06 como
+la hermana de `coherence()` para el fichero de reglas -- ver
+"coherence_rules SE RETIRA" mas abajo para el porque completo de su
+retirada.
 
 `coherence(root)` cruza dos fuentes, cada una con su propia pieza ya en
 produccion, sin reimplementar ninguna:
@@ -77,46 +73,42 @@ indice ("falta en indice"), y lo que esta en el indice y no en git
 ("no existe en git"). Cada discrepancia nombra el ID afectado en texto,
 para que el informe pueda decir cual nota, no solo "algo diverge".
 
-**`coherence_rules(root)` se añade el 2026-08-02** `[decision del
-orquestador en modo autonomo, derivada del hallazgo de Argus, PIEZAS.md
-Sec.9.4]`. Un remember se guarda EN DOS SITIOS A LA VEZ (`rules.py`,
-Sec.9.7): un commit vacio en git y una linea en
-`.claude/project-memory/rules.md`. El orden de escritura ya se corrigio
--- fichero primero, commit despues, y si el commit falla la linea se
-retira -- pero eso protege del fallo FUTURO, no detecta un desfase que YA
-exista (un proceso matado entre las dos escrituras en una version
-anterior de `rules.py`, o un `rules.md` tocado a mano). Sin este chequeo
-una regla perdida no la descubre nadie: no hay ID que la nombre, asi que
-nadie sabe siquiera que buscar. Mismo criterio que `coherence()` de
-arriba, aplicado a la otra pareja de fuentes:
+**`coherence_rules(root)` SE RETIRA el 2026-08-06** `[orden del
+propietario]`. Vivio desde el 2026-08-02 `[decision del orquestador en
+modo autonomo, derivada del hallazgo de Argus, PIEZAS.md Sec.9.4]` como
+la hermana de `coherence()` para el fichero de reglas: un remember se
+guardaba EN DOS SITIOS A LA VEZ (`rules.py`, Sec.9.7) -- un commit en
+git y una linea en `.claude/project-memory/rules.md` -- y esta funcion
+cruzaba los commits de regla reales del historial contra las lineas del
+fichero para cazar un desfase entre los dos sitios (un proceso matado a
+medio camino de la escritura antigua, o un `rules.md` tocado a mano).
 
-- **Commits de regla**: el historial COMPLETO leido con
-  `query.run_git_log()` (el UNICO punto de entrada a `git log` de todo
-  el sistema desde el 2026-08-02 -- ver "Revision 2026-08-02, tercera
-  tanda" mas abajo), con el cuerpo de cada commit pasado por
-  `rules.iter_rule_texts()` -- el MISMO reconocimiento de linea que
-  `rules.py` ya aplica al fichero (antes `_iter_rule_texts`, publica desde
-  hoy para esto), nunca una segunda copia de `_RULE_LINE_RE`. Un commit
-  de regla real trae siempre una unica linea reconocida (`rules.add()`
-  escribe el mismo texto exacto a los dos lados); un commit ajeno (init,
-  trabajo normal) no reconoce ninguna y se descarta en silencio, igual
-  que una linea a mano en `rules.md` que no case.
-- **Lineas del fichero**: `rules.rules_file_path(root)` (antes
-  `_rules_file_path`, publica desde hoy) resuelta contra el `root`
-  explicito -- nunca via `rules.read_all()`, que resuelve su raiz por el
-  cwd del proceso y no acepta un `root` de fuera -- seguida del mismo
-  `rules.iter_rule_texts()`. Un fichero que todavia no existe no es un
-  fallo: cero reglas es un estado valido (mismo criterio que
-  `rules.read_all()` devolviendo cadena vacia), y aqui vale `lineas=0`,
-  nunca una excepcion.
+Ese motivo desaparece el mismo dia que se retira esta funcion:
+`rules.add()` (`lib/memory/rules.py`) deja de comitear nada -- escribe
+la linea en `rules.md`, atomicamente, y se acaba ahi [ver el docstring
+de ese modulo para el detalle completo]. Sin ningun commit de regla que
+la propia escritura genere NUNCA MAS, `coherence_rules()` quedaria
+ESTRUCTURALMENTE rota, no solo desactualizada: cada regla nueva, sin
+excepcion, pasaria a vivir en el fichero sin ningun commit de regla
+detras -- exactamente la forma que hasta hoy significaba "regla
+perdida, avisa". El chequeo dejaria de detectar una corrupcion real y
+pasaria a gritar SIEMPRE, sobre cualquier regla recien anadida, para
+todo el mundo: un falso positivo permanente, peor que no tener el
+chequeo.
 
-La divergencia, otra vez en los dos sentidos, sale de comparar los dos
-conjuntos de TEXTOS (una regla no tiene ID -- el texto es el unico dato
-que la identifica de verdad): lo que esta en un commit de regla y no en
-el fichero, y lo que esta en el fichero y no en ningun commit de regla.
-Como `coherence()`, devuelve siempre los dos numeros reales, gane o
-pierda la comparacion -- los dos ✓ del bloque AVISOS importan tanto como
-el ⚠️, y un chequeo mudo es indistinguible de uno que no corre.
+Se retira ENTERA -- ella misma, `_rule_commit_texts()` (su unico
+colaborador privado, el lector de commits de regla via
+`query.run_git_log()`), los campos `HealthReport.rule_commits`/
+`rule_lines`/`rule_discrepancies` (sin productor desde hoy, campos
+zombi si se quedaran) y la linea "rules match git"/"rules do not match
+git" que `boot._avisos_block()` pintaba en el bloque CHECKS
+[`lib/memory/boot.py`] -- sin commits de regla no hay divergencia que
+detectar, asi que CHECKS deja de mencionar las reglas en absoluto, ni
+en verde ni en rojo. Varios tests existentes en `tests/memory/
+test_boot.py`, `tests/memory/test_health.py` y una referencia de
+docstring en `tests/memory/test_boundary.py` fijaban esta funcion --
+fuera del alcance de esta tarea, quien la retire de produccion los
+reconcilia por separado.
 
 **`plans_unreflected()` vive desde el 2026-08-02 en `health_plans.py`**
 -- partida fuera de aqui por tamano, mismo motivo y mismo techo que
@@ -170,7 +162,6 @@ import ids
 import indexes
 import notes
 import query
-import rules
 import zones
 from health_plans import plans_unreflected
 from model import HealthReport, IndexLine, Note
@@ -277,76 +268,6 @@ def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
     )
 
     return len(index_lines), len(git_notes), discrepancies
-
-
-def _rule_commit_texts() -> tuple[str, ...]:
-    """El texto reconocido de cada commit de regla real del historial
-    completo -- ver "coherence_rules se anade el 2026-08-02" en el
-    docstring del modulo.
-
-    Lee TODO el historial via `query.run_git_log()` -- el UNICO punto de
-    entrada a `git log` de todo el sistema desde la consolidacion del
-    2026-08-02 (ver "tercera tanda" en el docstring del modulo) -- y
-    aplica `rules.iter_rule_texts()` al cuerpo de CADA commit por
-    separado -- nunca al historial entero concatenado, para que una linea
-    de un commit ajeno no pueda "prestarse" a otro. Reutiliza el mismo
-    reconocimiento de linea que ya usa `rules.py` para su propio fichero
-    -- nunca una segunda copia de `_RULE_LINE_RE`. `run_git_log()` falla
-    en alto (`RuntimeError` con el `stderr` real) si `git log` no puede
-    leerse -- devolver `()` aqui se leeria como "no hay ningun commit de
-    regla", exactamente el fallo silencioso que esta pieza existe para
-    impedir.
-
-    Una rama sin ningun commit todavia devuelve `()` sin lanzar --
-    `query.run_git_log()` ya trata ese caso como estado valido (cadena
-    vacia), nunca como el fallo real de la rama de abajo.
-    """
-    raw_stdout = query.run_git_log("--pretty=format:%B")
-
-    texts: list[str] = []
-    for body in raw_stdout.split("\0"):
-        if not body:
-            continue
-        texts.extend(rules.iter_rule_texts(body))
-    return tuple(texts)
-
-
-def coherence_rules(root: Path) -> tuple[int, int, tuple[str, ...]]:
-    """Cruza los commits de regla reales en git contra las lineas del
-    fichero de reglas -- ver "coherence_rules se anade el 2026-08-02" en
-    el docstring del modulo.
-
-    Devuelve `(commits, lineas, discrepancias)`: cuantos commits de regla
-    hay en el historial completo, cuantas lineas de regla tiene
-    `rules.md`, y el texto de cada divergencia encontrada en cualquiera
-    de los dos sentidos (vacio si todo coincide) -- siempre los dos
-    numeros reales, gane o pierda la comparacion, nunca solo la lista de
-    discrepancias [mismo criterio que `coherence()`].
-
-    Un fichero de reglas que todavia no existe no es un fallo: cero
-    reglas es un estado valido (mismo criterio que `rules.read_all()`
-    devolviendo cadena vacia), y aqui vale `lineas=0`, nunca una
-    excepcion.
-    """
-    root = Path(root)
-    git_texts = _rule_commit_texts()
-
-    path = rules.rules_file_path(root)
-    file_content = path.read_text(encoding="utf-8") if path.exists() else ""
-    file_texts = rules.iter_rule_texts(file_content)
-
-    git_set = set(git_texts)
-    file_set = set(file_texts)
-
-    discrepancies = tuple(
-        f"{text}: existe en un commit de regla pero falta en el fichero de reglas"
-        for text in sorted(git_set - file_set)
-    ) + tuple(
-        f"{text}: esta en el fichero de reglas pero no existe en ningun commit de regla"
-        for text in sorted(file_set - git_set)
-    )
-
-    return len(git_texts), len(file_texts), discrepancies
 
 
 def duplicates(root: Path) -> tuple[str, ...]:
@@ -567,19 +488,20 @@ def build() -> HealthReport:
     resto del sistema para la misma raiz, y se lo pasa tal cual a
     `coherence`/`duplicates`: una sola raiz para las dos llamadas.
 
-    **Revision 2026-08-02 (hallazgos de Argus):** `coherence_rules()` YA
-    entra (`rule_commits`/`rule_lines` -- antes se excluia por falta de
-    sitio en el molde). Y si `plans_unreflected()` revienta (falla `gh`:
-    sin red, sin autenticar, issue borrada -- su propio docstring sigue
-    sin tragar la excepcion), eso YA NO tumba `build()` entero: se
-    captura aqui una vez, `plans_unreflected` queda `()` y el motivo real
-    va a `plans_unreflected_error` -- nunca un `()` sin ese campo
-    (mentiria "todo correcto"), nunca tampoco tumbar el resto del informe
-    (indices, reglas, IDs), que sigue siendo real.
+    **Revision 2026-08-02 (hallazgos de Argus):** si `plans_unreflected()`
+    revienta (falla `gh`: sin red, sin autenticar, issue borrada -- su
+    propio docstring sigue sin tragar la excepcion), eso YA NO tumba
+    `build()` entero: se captura aqui una vez, `plans_unreflected` queda
+    `()` y el motivo real va a `plans_unreflected_error` -- nunca un `()`
+    sin ese campo (mentiria "todo correcto"), nunca tampoco tumbar el
+    resto del informe (indices, IDs), que sigue siendo real.
 
-    Revision ronda 2, punto 1: el tercer valor de `coherence_rules()` ya
-    no se tira -- viaja en `HealthReport.rule_discrepancies` (ver
-    "Revision ronda 2" arriba en el docstring del modulo).
+    **`coherence_rules()` se retira el 2026-08-06** [ver su propio
+    parrafo en el docstring del modulo] -- `build()` deja de llamarla y
+    `HealthReport` deja de llevar `rule_commits`/`rule_lines`/
+    `rule_discrepancies`: entraron aqui el 2026-08-02 (hallazgos de
+    Argus, y despues el tercer valor en la ronda 2 de Moriarty) y salen
+    juntos, el mismo dia que su unico productor.
 
     **`bench.py` se retira entero, 2026-08-03** [decision del propietario:
     "no lo he autorizado en la vida"] -- este modulo ya no importa
@@ -598,7 +520,6 @@ def build() -> HealthReport:
     """
     root = notes.repo_root()
     index_lines, git_notes, index_discrepancies = coherence(root)
-    rule_commits, rule_lines, rule_discrepancies = coherence_rules(root)
     try:
         unreflected = plans_unreflected()
         unreflected_error = None
@@ -617,10 +538,7 @@ def build() -> HealthReport:
         git_notes=git_notes,
         index_discrepancies=index_discrepancies,
         plans_unreflected=unreflected,
-        rule_commits=rule_commits,
-        rule_lines=rule_lines,
         plans_unreflected_error=unreflected_error,
-        rule_discrepancies=rule_discrepancies,
         archived_notes=archived_notes,
         legacy_commits_suspected=legacy_commits_suspected,
         memory_setup_missing=memory_setup_missing,

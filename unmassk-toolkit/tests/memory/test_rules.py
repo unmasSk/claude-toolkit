@@ -233,37 +233,76 @@ def test_adding_several_rules_at_the_same_time_loses_none(rules, tmp_repo):
 
 
 # ---------------------------------------------------------------------------
-# Fila 4 -- la mas importante de la tabla
+# Fila 4 -- reescrita 2026-08-06 [orden del propietario]: `gitmem rule`
+# ("[remember]") deja de comitear. Antes esta fila probaba que "el commit y
+# el fichero acaban con lo mismo" -- el flujo era de dos pasos, fichero
+# primero, commit vacio despues (ver el docstring del modulo, todavia sin
+# actualizar por el propio encargo: "no toques rules.py"). El flujo nuevo
+# es de UN paso: `add()` escribe la linea en `rules.md` y se acaba ahi, sin
+# ningun commit propio -- la regla queda como una modificacion sin
+# comitear, lista para que la arrastre el SIGUIENTE commit real que pase
+# por el proyecto (`gitmem work`/`gitmem wip`/`gitmem note`/el cierre de
+# sesion), exactamente como ya lo hizo `gitmem zones add` (verificado por
+# Ultron con HEAD antes/despues antes de este encargo).
+#
+# Motivo del cambio [encargo original, citado]: el commit vacio anterior
+# (a) nunca sobrevivia a un clon limpio (nada reconstruye `rules.md` desde
+# git) y (b) dejaba el arbol sucio para siempre, lo que bloqueaba
+# `bin/release.py`. Guardar una regla no puede impedir publicar.
 # ---------------------------------------------------------------------------
 
 
-def test_commit_and_file_end_up_with_the_same_text(rules, tmp_repo):
-    """Fila 4: el commit y el fichero acaban con lo mismo.
+def test_add_writes_the_file_and_creates_no_commit(rules, tmp_repo):
+    """Fila 4 reescrita: `add()` escribe la linea en el fichero de reglas y
+    NO crea ningun commit -- ni vacio, ni con el fichero como pathspec.
 
-    Fallo real que previene: que quede en git y no en el fichero, o al
-    reves -- `/remember` entregaria una lista incompleta sin decirlo.
-
-    Compara DOS artefactos escritos por separado, cada uno leido por su
-    propia costura, nunca un valor tecleado a mano: el titular real del
-    commit (`git log -1 --format=%s`, leido con git de verdad) contra el
-    contenido real del fichero (`rules.read_all()`).
+    Medido por el camino real: HEAD (git de verdad, `git rev-parse HEAD`)
+    ANTES y DESPUES de la llamada tienen que coincidir byte a byte. Un
+    commit que cambia HEAD es, en si mismo, el fallo que esta fila existe
+    para prevenir ahora -- lo contrario de la fila 4 original.
     """
     root = Path(tmp_repo)
-    marker = "MARK_ROW4 el commit y el fichero deben decir exactamente lo mismo"
+    marker = "MARK_ROW4 la regla queda en el fichero, nunca en un commit propio"
+
+    _rc, head_before, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
 
     with _cwd(root):
         result = rules.add(marker, "claude")
         assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
         file_content = rules.read_all()
 
-    _rc, commit_subject, _err = run_git(["log", "-1", "--format=%s"], tmp_repo)
+    _rc, head_after, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
 
-    assert marker in commit_subject, (
-        f"el titular real del commit no contiene el texto anadido: {commit_subject!r}"
-    )
     assert marker in file_content, (
-        f"el fichero de reglas no contiene el mismo texto que el commit: "
-        f"{file_content!r}"
+        f"el fichero de reglas no contiene el texto anadido: {file_content!r}"
+    )
+    assert head_after == head_before, (
+        "add() movio HEAD -- gitmem rule ya no debe crear ningun commit, "
+        f"antes={head_before!r} despues={head_after!r}"
+    )
+
+
+def test_add_leaves_the_rules_file_as_an_uncommitted_modification(rules, tmp_repo):
+    """La linea recien anadida queda como cambio sin comitear de verdad
+    (`git status --porcelain` real sobre `rules.md`), lista para que la
+    arrastre el siguiente commit real -- no solo "HEAD no se movio", sino
+    "el fichero esta genuinamente sucio en el arbol de trabajo".
+    """
+    root = Path(tmp_repo)
+    marker = "MARK_ROW4B modificacion sin comitear, lista para el siguiente commit real"
+    rules_relpath = ".claude/project-memory/rules.md"
+
+    with _cwd(root):
+        result = rules.add(marker, "user")
+        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
+
+    _rc, status_out, _err = run_git(["status", "--porcelain", "--", rules_relpath], tmp_repo)
+
+    assert status_out.strip(), (
+        "git status --porcelain no muestra ningun cambio sin comitear sobre "
+        f"rules.md tras add() -- salida: {status_out!r}. El fichero deberia "
+        "quedar modificado (o nuevo, sin trackear), listo para el siguiente "
+        "commit real, no ya integrado en git"
     )
 
 
@@ -373,103 +412,33 @@ def test_rule_over_200_characters_is_rejected(rules, tmp_repo):
 # con test para que nadie los reintroduzca. Ninguna de las dos es una
 # fila nueva de la tabla "Sus tests" de Sec.9.7 -- son regresiones sobre
 # comportamiento ya descrito en el docstring del propio modulo.
+#
+# RETIRADAS 2026-08-06 [orden del propietario]: `test_failed_commit_
+# reverts_the_file_to_its_previous_content` y `test_failed_first_ever_
+# commit_deletes_the_file_entirely` vivian aqui. Las dos plantaban un
+# `.git/index.lock` real para forzar el FALLO del segundo paso del flujo
+# viejo (commit vacio tras el fichero) y comprobaban que `_restore_file_
+# best_effort` devolvia el fichero a como estaba (o lo borraba entero, si
+# era el primer remember del proyecto) -- la red de rescate de un commit
+# que no llega a completarse.
+#
+# Con `add()` reescrito para NO comitear nunca (ver la fila 4 de arriba,
+# reescrita el mismo dia), ese segundo paso deja de existir: no hay ningun
+# commit que pueda fallar a medio camino, asi que no hay nada que
+# `_restore_file_best_effort` tenga que revertir ni que borrar. El
+# escenario que estos dos tests montaban (indice bloqueado, commit
+# rechazado por git) ya no ocurre nunca dentro de `add()` -- plantar
+# `.git/index.lock` y llamar a `add()` ahora simplemente no toca git en
+# absoluto, y el test perderia su unica razon de fallar. Se retiran
+# enteros en vez de dejarlos en verde por casualidad (un test que ya no
+# puede fallar por la causa que dice probar es peor que ausente). No se
+# duplica cobertura en su lugar: la fila 4 de arriba (HEAD no se mueve) y
+# el `test_invalid_text_bounces_before_touching_git_or_the_file`/
+# `test_invalid_kind_bounces_before_touching_git_or_the_file` de mas abajo
+# (que ya comprueban "cero commits nuevos" para el camino de RECHAZO por
+# validacion, sin tocar el mecanismo de rescate) siguen cubriendo lo que
+# de verdad importa hoy.
 # ---------------------------------------------------------------------------
-
-
-def test_failed_commit_reverts_the_file_to_its_previous_content(rules, tmp_repo):
-    """Item 1 del endurecimiento: el orden de escritura de `add()` es el
-    fichero primero, el commit despues -- si el commit falla, el fichero
-    vuelve EXACTAMENTE a como estaba antes.
-
-    Fallo real que previene: la version anterior de `rules.py` comiteaba
-    primero y escribia el fichero despues -- si el proceso moria entre los
-    dos pasos, el commit quedaba en git para siempre y `rules.md` nunca
-    llegaba a tener la linea. Una regla que se escribe (en git) y
-    desaparece (de lo que `/remember` entrega), sin un solo error.
-
-    El fallo del commit es REAL, no simulado: se planta un
-    `.git/index.lock` antes de llamar a `add()` -- git rechaza cualquier
-    `git commit` mientras ese fichero exista ("Unable to create
-    .../.git/index.lock: File exists", verificado en vivo antes de
-    escribir este test), el mismo fallo real que produciria un commit
-    concurrente de verdad. No toca el candado propio de `rules.py`
-    (`.git/memory-rules`, un fichero distinto).
-    """
-    root = Path(tmp_repo)
-    first_marker = "MARK_ORDER1 primera regla, debe sobrevivir intacta al fallo"
-
-    with _cwd(root):
-        first_result = rules.add(first_marker, "user")
-        assert first_result.ok, f"add() de la primera regla fallo: {first_result.git_error}"
-        content_before = rules.read_all()
-
-    lock_path = root / ".git" / "index.lock"
-    lock_path.write_text("", encoding="utf-8")
-    try:
-        with _cwd(root):
-            second_result = rules.add(
-                "MARK_ORDER1_SHOULD_NOT_SURVIVE regla que no debe quedar", "user"
-            )
-    finally:
-        lock_path.unlink(missing_ok=True)
-
-    assert second_result.ok is False, (
-        "add() deberia fallar cuando el commit real de git no puede completarse "
-        f"(.git/index.lock plantado): {second_result!r}"
-    )
-    assert second_result.git_error, (
-        "add() no propago ningun git_error tras el fallo real del commit"
-    )
-
-    with _cwd(root):
-        content_after = rules.read_all()
-
-    assert content_after == content_before, (
-        "el fichero de reglas no volvio exactamente a como estaba antes del add() "
-        f"fallido -- antes: {content_before!r}, despues: {content_after!r}"
-    )
-    assert "MARK_ORDER1_SHOULD_NOT_SURVIVE" not in content_after, (
-        "la linea de la regla que fallo quedo huerfana en el fichero -- exactamente "
-        "el fallo que el orden fichero-primero-commit-despues existe para prevenir"
-    )
-
-
-def test_failed_first_ever_commit_deletes_the_file_entirely(rules, tmp_repo):
-    """Continua el item 1: si el PRIMER remember del proyecto falla, la
-    vuelta exacta es BORRAR el fichero, no dejarlo con solo la cabecera.
-
-    Fallo real que previene: sin esta distincion (`existed_before` en
-    `_restore_file_best_effort`, `rules.py`), un primer `add()` que falla
-    deja un `rules.md` con cabecera y ninguna regla -- un estado que
-    `read_all()` no distingue de "nunca se escribio nada", pero que SI es
-    un fichero nuevo, sin trackear, que un instante antes no existia.
-    """
-    root = Path(tmp_repo)
-    rules_path = root / ".claude" / "project-memory" / "rules.md"
-    assert not rules_path.exists(), (
-        "el fixture de este test asume que rules.md NO existe todavia -- si ya "
-        "existe, el test no prueba el caso 'primer remember del proyecto'"
-    )
-
-    lock_path = root / ".git" / "index.lock"
-    lock_path.write_text("", encoding="utf-8")
-    try:
-        with _cwd(root):
-            result = rules.add(
-                "MARK_ORDER2 primer remember del proyecto, debe desaparecer entero",
-                "user",
-            )
-    finally:
-        lock_path.unlink(missing_ok=True)
-
-    assert result.ok is False, (
-        "add() deberia fallar cuando el commit real de git no puede completarse "
-        f"(.git/index.lock plantado): {result!r}"
-    )
-    assert not rules_path.exists(), (
-        "tras fallar el PRIMER add() del proyecto, rules.md deberia haber "
-        "desaparecido entero, no quedar con solo la cabecera (existe todavia)"
-    )
 
 
 def test_invalid_text_bounces_before_touching_git_or_the_file(rules, tmp_repo):
@@ -730,6 +699,21 @@ def test_remember_from_a_plain_subfolder_of_the_same_repo_still_works(rules, tmp
     Misma razon que su gemelo en test_context.py: no depende de ningun
     arreglo, git ya resuelve esto correctamente por su cuenta -- debe
     seguir en VERDE antes y despues.
+
+    Lector cambiado 2026-08-06 [orden del propietario, mismo dia que el
+    reescrito de `add()` a "ya no comitea"]: antes se comprobaba mirando
+    `git log -1 --format=%s` -- con `add()` sin commit propio, HEAD nunca
+    se mueve, asi que ese lector ya no puede probar nada (ni aunque la
+    resolucion de raiz estuviera rota, el log seguiria intacto). Lo que
+    este test comprueba sigue siendo real y valioso -- que la raiz del
+    repositorio se resuelve bien desde una subcarpeta normal, no solo
+    desde la raiz -- asi que se conserva, cambiando SOLO el lector: se
+    lee el fichero real (`rules.rules_file_path(project_root)`, la misma
+    funcion de un unico punto que `add()` usa por dentro, aqui llamada con
+    la raiz EXPLICITA, nunca dependiente del cwd) para confirmar que la
+    linea aterrizo en `.claude/project-memory/rules.md` de la RAIZ del
+    repo, no en ningun sitio relativo a la subcarpeta desde la que se
+    llamo.
     """
     project_root = Path(tmp_repo)
     subfolder = project_root / "src" / "some" / "module"
@@ -745,8 +729,13 @@ def test_remember_from_a_plain_subfolder_of_the_same_repo_still_works(rules, tmp
         f"repositorio: {result.git_error}"
     )
 
-    _rc, subject, _err = run_git(["log", "-1", "--format=%s"], str(project_root))
-    assert marker in subject, (
-        "el remember anadido desde una subcarpeta normal del mismo "
-        f"repositorio no aparece en su git log: {subject!r}"
+    rules_path = rules.rules_file_path(project_root)
+    assert rules_path.exists(), (
+        "add() desde una subcarpeta normal no escribio el fichero de reglas "
+        f"en la raiz real del repositorio: {rules_path!r} no existe"
+    )
+    content = rules_path.read_text(encoding="utf-8")
+    assert marker in content, (
+        "el remember anadido desde una subcarpeta normal del mismo repositorio "
+        f"no aparece en rules.md, leido directamente de la raiz real: {content!r}"
     )

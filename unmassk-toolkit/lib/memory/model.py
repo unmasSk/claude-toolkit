@@ -180,17 +180,19 @@ class HealthReport:
     git_notes: int                 #   con git (68 lineas / 68 notas)"
     index_discrepancies: tuple[str, ...]   # que nota diverge, no solo cuantas
     plans_unreflected: tuple[tuple[int, int], ...]   # (issue, commits sin reflejar)
-    rule_commits: int              # los dos numeros de "reglas coherentes
-    rule_lines: int                #   con git (N lineas / M commits)"
     # motivo real si la consulta a gh fallo -- None si se pudo comprobar de
     # verdad (con o sin plans_unreflected) o si no habia nada que consultar
     plans_unreflected_error: str | None = None
-    # que regla diverge, no solo cuantas -- mismo hueco que ya tenia
-    # index_discrepancies antes de esta pieza; sin este campo,
-    # health.build() calculaba la divergencia de reglas y la tiraba, asi
-    # que una regla desincronizada no dejaba ningun rastro en el arranque
-    # [hallazgo 1 de Moriarty, ronda 2, 2026-08-02]
-    rule_discrepancies: tuple[str, ...] = ()
+    # rule_commits/rule_lines/rule_discrepancies existieron aqui entre el
+    # 2026-08-02 y el 2026-08-06 -- los numeros de "reglas coherentes con
+    # git" y que regla divergia, alimentados por health.coherence_rules().
+    # Se retiran los tres juntos, el mismo dia que esa funcion [orden del
+    # propietario: rules.add() deja de comitear, asi que no hay ningun
+    # commit de regla que cruzar contra el fichero -- ver el docstring de
+    # health.py, "coherence_rules SE RETIRA"]. Sin productor, los tres
+    # campos habrian quedado zombi (ver bench_caught/bench_total/
+    # bench_failures mas abajo para el precedente de "lo que se retira,
+    # se retira entero").
     # Cuantas de las `git_notes` de arriba estan archivadas -- anadido
     # 2026-08-03 [TEXTOS.md Sec.5, decision del propietario]: sin este
     # numero, "N lineas / M notas" no explica por que M > N cuando hay

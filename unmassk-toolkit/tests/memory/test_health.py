@@ -207,7 +207,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import import_lib_memory_module, run_git
+from .conftest import import_lib_memory_module
 
 _BASE_NOTE_FIELDS = dict(
     type="M",
@@ -774,283 +774,38 @@ def test_coherence_does_not_false_alarm_on_a_legitimately_archived_note(
 
 
 # ---------------------------------------------------------------------------
-# coherence_rules() -- endurecimiento del 2026-08-02, punto 1 del encargo:
-# funcion nueva sin ningun test (patron del punto 11 de DEUDA.md, mismo
-# hueco ya cerrado arriba para plans_unreflected()). Cinco filas: los
-# cuatro escenarios comprobados a mano al escribirla, mas una quinta que
-# es la que de verdad importa -- los numeros salen siempre, tambien cuando
-# todo va bien (mismo criterio que
-# test_fully_coherent_state_reports_the_real_numbers_not_silence de
-# coherence() arriba). Sembrado real via rules.add() en todos los casos --
-# nunca se fabrica a mano un commit ni la linea inicial que ya deberia
-# estar sincronizada.
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def rules():
-    return import_lib_memory_module("rules")
-
-
-@pytest.fixture
-def emojis():
-    return import_lib_memory_module("emojis")
-
-
-def _delete_rule_line_by_hand(rules_mod, root, marker):
-    """Retira del fichero de reglas, a mano (fuera de add()), la unica
-    linea que contiene `marker` -- deja el commit real de esa regla
-    intacto en git. Simula el mismo hueco que un fichero de reglas
-    editado directamente, o una migracion a medias.
-    """
-    path = rules_mod.rules_file_path(root)
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    kept = [line for line in lines if marker not in line]
-    assert len(kept) == len(lines) - 1, (
-        f"se esperaba borrar exactamente una linea con {marker!r} de {path}, "
-        f"se borraron {len(lines) - len(kept)}"
-    )
-    path.write_text("".join(kept), encoding="utf-8")
-
-
-def _append_uncommitted_rule_line_by_hand(rules_mod, emojis_mod, root, kind, text):
-    """Anade al fichero de reglas, a mano, una linea con el MISMO formato
-    exacto que `add()` escribe -- pero sin ningun commit real detras.
-    Reutiliza `emojis.CHANNEL_EMOJI['rule']` real (nunca un emoji tecleado
-    a mano que podria divergir del que `add()` usa de verdad).
-    """
-    path = rules_mod.rules_file_path(root)
-    emoji = emojis_mod.CHANNEL_EMOJI["rule"]
-    line = f"[remember][{kind}] {emoji} {text}\n"
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(line)
-
-
-def test_coherence_rules_on_a_clean_repo_reports_zero_and_no_discrepancies(
-    health, rules, tmp_repo
-):
-    """Escenario 1 (comprobado a mano al escribir coherence_rules(), ahora
-    fila de test de verdad): un repo limpio, sin ningun remember todavia,
-    reporta ceros y ninguna discrepancia -- nunca una excepcion por "el
-    fichero no existe", mismo criterio que `rules.read_all()` devolviendo
-    cadena vacia.
-    """
-    root = Path(tmp_repo)
-
-    with _cwd(root):
-        commits, lineas, discrepancias = health.coherence_rules(root)
-
-    assert commits == 0, (
-        f"un repo sin remembers no deberia tener commits de regla, salio {commits}"
-    )
-    assert lineas == 0, (
-        f"un repo sin rules.md no deberia tener lineas de regla, salio {lineas}"
-    )
-    assert discrepancias == (), (
-        f"un repo limpio no deberia reportar ninguna discrepancia, salieron: {discrepancias!r}"
-    )
-
-
-def test_coherence_rules_with_one_rule_added_reports_one_and_one_no_discrepancies(
-    health, rules, tmp_repo
-):
-    """Escenario 2: una regla dada de alta con la pieza real (`rules.add()`)
-    reporta uno y uno, sin discrepancias.
-    """
-    root = Path(tmp_repo)
-    marker = "MARK_COHRULES_ROW2 regla real dada de alta con la pieza real"
-
-    with _cwd(root):
-        result = rules.add(marker, "user")
-        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-        commits, lineas, discrepancias = health.coherence_rules(root)
-
-    assert commits == 1, f"deberia haber exactamente un commit de regla, salio {commits}"
-    assert lineas == 1, f"deberia haber exactamente una linea de regla, salio {lineas}"
-    assert discrepancias == (), (
-        "con el commit y el fichero sincronizados no deberia haber ninguna "
-        f"discrepancia, salieron: {discrepancias!r}"
-    )
-
-
-def test_coherence_rules_reports_a_line_deleted_by_hand_as_missing_from_the_file(
-    health, rules, tmp_repo
-):
-    """Escenario 3: se borra la linea del fichero a mano, el commit sigue
-    -- una discrepancia que nombra la regla que falta.
-
-    Fallo real que previene: un proceso matado entre las dos escrituras
-    en una version anterior de `rules.py`, o un `rules.md` tocado a mano
-    -- sin este chequeo, la regla perdida no la descubre nadie: no hay ID
-    que la nombre, asi que nadie sabe siquiera que buscar.
-    """
-    root = Path(tmp_repo)
-    marker = "MARK_COHRULES_ROW3 regla cuya linea se borra a mano del fichero"
-
-    with _cwd(root):
-        result = rules.add(marker, "user")
-        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-
-    _delete_rule_line_by_hand(rules, root, marker)
-
-    with _cwd(root):
-        commits, lineas, discrepancias = health.coherence_rules(root)
-
-    assert commits == 1, f"el commit de la regla sigue real en git, salio commits={commits}"
-    assert lineas == 0, f"la linea se borro a mano del fichero, salio lineas={lineas}"
-    assert discrepancias, (
-        "coherence_rules() no reporto ninguna discrepancia tras borrar a mano la "
-        f"linea de {marker!r} del fichero, aunque su commit sigue real en git -- un "
-        "chequeo mudo es indistinguible de uno que no se ejecuta"
-    )
-    assert any(marker in d and "falta en el fichero de reglas" in d for d in discrepancias), (
-        f"ninguna discrepancia nombra a {marker!r} en el sentido correcto "
-        f"('falta en el fichero de reglas'): {discrepancias!r}"
-    )
-
-
-def test_coherence_rules_reports_a_line_added_by_hand_never_committed(
-    health, rules, emojis, tmp_repo
-):
-    """Escenario 4: se anade una linea al fichero que nunca se commiteo --
-    discrepancia en el OTRO sentido.
-    """
-    root = Path(tmp_repo)
-    committed_marker = "MARK_COHRULES_ROW4_COMMITTED regla real, con su commit"
-    uncommitted_marker = "MARK_COHRULES_ROW4_UNCOMMITTED linea anadida a mano, sin commit"
-
-    with _cwd(root):
-        result = rules.add(committed_marker, "user")
-        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-
-    _append_uncommitted_rule_line_by_hand(rules, emojis, root, "user", uncommitted_marker)
-
-    with _cwd(root):
-        commits, lineas, discrepancias = health.coherence_rules(root)
-
-    assert commits == 1, f"solo hay un commit de regla real, salio commits={commits}"
-    assert lineas == 2, (
-        f"el fichero tiene la regla real mas la linea anadida a mano, salio lineas={lineas}"
-    )
-    assert discrepancias, (
-        "coherence_rules() no reporto ninguna discrepancia tras anadir a mano una "
-        f"linea que nunca se commiteo ({uncommitted_marker!r}) -- un chequeo mudo es "
-        "indistinguible de uno que no se ejecuta"
-    )
-    assert any(
-        uncommitted_marker in d and "no existe en ningun commit de regla" in d
-        for d in discrepancias
-    ), (
-        f"ninguna discrepancia nombra a {uncommitted_marker!r} en el sentido correcto "
-        f"('no existe en ningun commit de regla'): {discrepancias!r}"
-    )
-
-
-def test_coherence_rules_fully_coherent_multiple_rules_reports_the_real_numbers_not_silence(
-    health, rules, tmp_repo
-):
-    """Fila que de verdad importa, y no esta en la lista de escenarios: los
-    numeros salen siempre, tambien cuando todo va bien -- un chequeo que
-    solo habla cuando falla es indistinguible de uno que no se ejecuta
-    (mismo criterio que
-    `test_fully_coherent_state_reports_the_real_numbers_not_silence` de
-    `coherence()` arriba). Se siembran TRES reglas reales, mezclando los
-    dos `kind`, para que el numero comprobado no coincida por casualidad
-    con un valor por defecto (0, o el 1 que ya usa el escenario 2).
-    """
-    root = Path(tmp_repo)
-    markers = (
-        ("MARK_COHRULES_ROW5_A primera de tres reglas reales", "user"),
-        ("MARK_COHRULES_ROW5_B segunda de tres reglas reales", "claude"),
-        ("MARK_COHRULES_ROW5_C tercera de tres reglas reales", "user"),
-    )
-
-    with _cwd(root):
-        for text, kind in markers:
-            result = rules.add(text, kind)
-            assert result.ok, f"add({text!r}, {kind!r}) fallo: {result.git_error}"
-
-        commits, lineas, discrepancias = health.coherence_rules(root)
-
-    assert commits == 3, (
-        f"deberian salir los tres commits reales de regla, salio commits={commits} -- "
-        "un chequeo mudo devolveria 0 o un numero por defecto, nunca el real"
-    )
-    assert lineas == 3, (
-        f"deberian salir las tres lineas reales del fichero, salio lineas={lineas}"
-    )
-    assert discrepancias == (), (
-        "con las tres reglas sincronizadas no deberia haber ninguna discrepancia, "
-        f"salieron: {discrepancias!r}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# El vigilante mudo -- hallazgo de Cerberus (2026-08-02): coherence_rules()
-# funciona y tiene sus 5 tests en verde (arriba), pero no llega a ninguna
-# parte -- model.HealthReport declara CUATRO campos y ninguno tiene sitio
-# para sus dos numeros, health.build() la excluye a proposito por eso (ver
-# su propio docstring, "coherence_rules() NO entra"), y boot.py nunca la
-# pinta en el bloque de avisos. Es el mismo patron que ya costo caro en la
-# capa 1: un chequeo escrito para cazar un fallo, en verde, y mudo.
+# RETIRADA 2026-08-06 [orden del propietario]: aqui vivian las cinco filas
+# de "coherence_rules() -- endurecimiento del 2026-08-02" (los cuatro
+# escenarios comprobados a mano al escribirla, mas la fila del "vigilante
+# mudo" -- "los numeros salen siempre, tambien cuando todo va bien") y,
+# justo despues, `test_health_report_carries_the_real_rule_coherence_numbers`
+# (la mitad de `health.py` de la tuberia "el informe de salud lleva los
+# numeros de las reglas" -- las otras tres filas, sobre `boot.py`, vivian
+# en `test_boot.py`, retiradas el mismo dia). Los seis existian para
+# fijar UNA sola cosa: que `health.coherence_rules()` cruzase los commits
+# `[remember]` del historial contra las lineas de `rules.md` y nombrase la
+# divergencia en los dos sentidos.
 #
-# Esta fila (la que corresponde a health.py -- las otras tres, sobre
-# boot.py, viven en test_boot.py) prueba el primer tramo de esa tuberia
-# rota: el informe de salud lleva los numeros de las reglas.
-#
-# DECISION DE NOMBRES DE CAMPO [no fijada en ningun documento -- Sec.5.3 de
-# PIEZAS.md todavia declara HealthReport con solo cuatro campos, el
-# propietario esta fuera, "decide con lo que tienes delante y anota"]:
-# `rule_commits`/`rule_lines`, mismo orden que ya fija la firma de
-# `coherence_rules(root) -> tuple[int, int, tuple[str, ...]]` ("commits de
-# regla, lineas, discrepancias" -- PIEZAS.md Sec.9.4) y mismo patron de
-# nombres que los ya existentes `index_lines`/`git_notes` (el lado que
-# viene del fichero primero, el lado que viene de git segundo). Si Ultron
-# elige otro nombre, solo estas dos lineas de assert cambian, no el test
-# entero.
+# Ultron reescribio `rules.add()` para que YA NO comitee (`gitmem rule`
+# escribe la linea y se acaba ahi, listo para que la arrastre el
+# siguiente commit real -- ver `test_rules.py`/`test_rule_script.py`,
+# mismo dia) y retiro `coherence_rules()` entera junto con
+# `_rule_commit_texts()` y los campos `rule_commits`/`rule_lines`/
+# `rule_discrepancies` de `HealthReport` -- decision correcta: sin
+# commits de regla que cruzar contra el fichero, ya no hay divergencia
+# real que estos seis tests puedan seguir demostrando. Los cuatro
+# escenarios llamaban a `health.coherence_rules(root)` directamente (ya
+# no existe, `AttributeError` de coleccion en cuanto se retire de
+# produccion) y la fila del informe de salud leia
+# `summary.rule_commits`/`rule_lines` (campos que ya no estan en
+# `HealthReport`). Ninguno comprobaba de paso algo que siga siendo
+# verdad -- a diferencia del `[GUARD]` de subcarpeta en `test_rules.py`,
+# que se conservo adaptando SOLO su lector -- asi que se retiran enteros,
+# junto con sus dos fixtures locales (`rules`/`emojis`, sin mas
+# consumidores en este fichero tras esta retirada) y sus dos helpers de
+# siembra a mano (`_delete_rule_line_by_hand`/
+# `_append_uncommitted_rule_line_by_hand`, sin mas llamadores).
 # ---------------------------------------------------------------------------
-
-
-def test_health_report_carries_the_real_rule_coherence_numbers(
-    health, model, indexes, notes, rules, tmp_repo
-):
-    """El informe de salud lleva los numeros de las reglas -- cuantos
-    commits de regla hay y cuantas lineas tiene el fichero -- no solo los
-    de `coherence()` (indices de notas).
-
-    RED por su causa real: `model.HealthReport` no declara estos dos
-    campos todavia (`AttributeError` al leerlos de un `HealthReport` real
-    devuelto por `health.build()`) -- los escribira Ultron. No se toca
-    produccion en esta tarea.
-
-    Round-trip real [unmassk-standards Sec.34]: el numero esperado sale de
-    llamar aqui mismo a `health.coherence_rules(root)`, la misma pieza ya
-    en produccion y en verde -- nunca tecleado.
-    """
-    root = Path(tmp_repo)
-    marker = "MARK_HEALTHREPORT_RULES regla real para probar que su numero llega al informe"
-
-    with _cwd(root):
-        indexes.seed(notes.pm_root(root))  # health.build() tambien cruza coherence()/duplicates()
-        result = rules.add(marker, "user")
-        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-        expected_commits, expected_lineas, _ = health.coherence_rules(root)
-        summary = health.build()
-
-    assert isinstance(summary, model.HealthReport), (
-        f"health.build() no devolvio un HealthReport, devolvio {type(summary)!r}"
-    )
-    assert summary.rule_commits == expected_commits, (
-        f"summary.rule_commits no coincide con el commits real de "
-        f"coherence_rules() ({expected_commits!r}) -- el vigilante de reglas "
-        "escrito para cazar la perdida silenciosa (Cerberus, 2026-08-02) no "
-        "llega al informe de salud: HealthReport no tiene sitio para su numero"
-    )
-    assert summary.rule_lines == expected_lineas, (
-        f"summary.rule_lines no coincide con el lineas real de "
-        f"coherence_rules() ({expected_lineas!r}) -- mismo hueco que "
-        "rule_commits arriba"
-    )
 
 
 def test_gh_failure_raises_instead_of_reporting_all_clear(health, notes, tmp_repo):
@@ -1086,54 +841,16 @@ def test_gh_failure_raises_instead_of_reporting_all_clear(health, notes, tmp_rep
 
 
 # ---------------------------------------------------------------------------
-# Ronda 2 (Moriarty) -- un arreglo mas, ya hecho, sin ninguna red que lo
-# proteja. Tercer lector independiente del mismo hallazgo 2 (rama sin
-# commits = estado valido, no fallo): `boot.build()` y `context.latest()`
-# tienen su propio test del mismo hallazgo en sus respectivos ficheros --
-# este es el que le toca a `health.py` (`_rule_commit_texts()`/
-# `_issue_commit_dates()`, ver "Revision 2026-08-02, ronda 2 (Moriarty)" en
-# el docstring del modulo). No toca produccion.
+# RETIRADA 2026-08-06 [orden del propietario, misma tanda que arriba]: aqui
+# vivian `_zero_commit_repo()` y
+# `test_coherence_rules_on_a_repo_with_zero_commits_does_not_crash`
+# (hallazgo 2 de Moriarty, ronda 2 -- "una rama sin ningun commit todavia
+# no debe reventar `coherence_rules()`"). Llamaba a
+# `health.coherence_rules(root)` directamente, la misma funcion retirada
+# arriba -- sin ella, no queda nada que este test pueda seguir
+# demostrando. `_zero_commit_repo()` no tenia mas llamadores en este
+# fichero, se retira con el.
 # ---------------------------------------------------------------------------
-
-
-def _zero_commit_repo(tmp_path, name="zero_commit_repo"):
-    """Un repo git genuinamente SIN NINGUN commit -- distinto de
-    `tmp_repo` (conftest.py), que ya trae un commit 'init' de fabrica.
-    `git log` sobre este repo devuelve el mensaje real de rama sin nacer
-    ('does not have any commits yet'), no un fallo simulado.
-    """
-    repo = tmp_path / name
-    repo.mkdir()
-    rc, _out, err = run_git(["init"], str(repo))
-    assert rc == 0, f"git init fallo montando el repo sin commits: {err}"
-    return repo
-
-
-def test_coherence_rules_on_a_repo_with_zero_commits_does_not_crash(health, tmp_path):
-    """Hallazgo 2 de Moriarty, ronda 2 -- antes de la consolidacion del
-    2026-08-02, `_rule_commit_texts()` tenia su PROPIO `git log` a mano
-    (via `gitcmd.run(["log", ...])`), con el mismo agujero que
-    `context.latest()`/`query.run_git_log()` ya habian arreglado por
-    separado: una rama sin ningun commit todavia (`returncode=128`,
-    "does not have any commits yet") se trataba como el mismo fallo
-    transitorio que un `index.lock` en curso, se reintentaba, y al
-    agotar los intentos se lanzaba -- `health.coherence_rules()` (y por
-    tanto `health.build()`/`boot.build()`) reventaba en el primerisimo
-    arranque de cualquier proyecto sin un solo commit.
-
-    Un repo sin commits tampoco tiene ningun commit de regla ni ningun
-    fichero de reglas todavia -- (0, 0, ()) es su estado real, no un
-    fallo.
-    """
-    root = _zero_commit_repo(tmp_path)
-
-    with _cwd(root):
-        commits, lineas, discrepancias = health.coherence_rules(root)  # NO debe lanzar
-
-    assert (commits, lineas, discrepancias) == (0, 0, ()), (
-        "un repo sin ningun commit deberia dar (0, 0, ()) -- salio "
-        f"({commits!r}, {lineas!r}, {discrepancias!r})"
-    )
 
 
 # ---------------------------------------------------------------------------

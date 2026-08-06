@@ -177,11 +177,6 @@ def rules():
 
 
 @pytest.fixture
-def emojis():
-    return import_lib_memory_module("emojis")
-
-
-@pytest.fixture
 def vocabulary():
     return import_lib_memory_module("vocabulary")
 
@@ -190,8 +185,7 @@ def _index_line_for(indexes_mod, vocabulary_mod, root, note_id):
     """Busca `note_id` en los siete indices VIGENTES (no ARCHIVED.md).
     Devuelve `(nombre_fichero, IndexLine)`, o `(None, None)` -- mismo
     helper que `test_health.py::_index_line_for`, duplicado a proposito
-    (mismo criterio que `_cwd`/`_delete_rule_line_by_hand` repetidos en
-    cada fichero de este contrato).
+    (mismo criterio que `_cwd` repetido en cada fichero de este contrato).
     """
     for name in vocabulary_mod.INDEX_FILES:
         if name == "ARCHIVED.md":
@@ -200,27 +194,6 @@ def _index_line_for(indexes_mod, vocabulary_mod, root, note_id):
             if line.id == note_id:
                 return name, line
     return None, None
-
-
-def _swap_rule_line_by_hand(rules_mod, emojis_mod, root, real_marker, bogus_text, kind="user"):
-    """Retira la unica linea del fichero de reglas que contiene
-    `real_marker` (dejando su commit real intacto, mismo mecanismo que
-    `_delete_rule_line_by_hand`) y anade EN SU LUGAR una linea bogus con
-    el mismo formato exacto que `rules.add()` escribe -- para que el
-    NUMERO de lineas del fichero quede igual que antes del cambio, pero
-    el CONTENIDO diverja en los dos sentidos: la real desaparece, la
-    bogus no tiene commit detras.
-    """
-    path = rules_mod.rules_file_path(root)
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    kept = [line for line in lines if real_marker not in line]
-    assert len(kept) == len(lines) - 1, (
-        f"se esperaba borrar exactamente una linea con {real_marker!r} de {path}, "
-        f"se borraron {len(lines) - len(kept)}"
-    )
-    emoji = emojis_mod.CHANNEL_EMOJI["rule"]
-    bogus_line = f"[remember][{kind}] {emoji} {bogus_text}\n"
-    path.write_text("".join(kept) + bogus_line, encoding="utf-8")
 
 
 def _zero_commit_repo(tmp_path, name="zero_commit_repo"):
@@ -234,23 +207,6 @@ def _zero_commit_repo(tmp_path, name="zero_commit_repo"):
     rc, _out, err = run_git(["init"], str(repo))
     assert rc == 0, f"git init fallo montando el repo sin commits: {err}"
     return repo
-
-
-def _delete_rule_line_by_hand(rules_mod, root, marker):
-    """Retira del fichero de reglas, a mano (fuera de `rules.add()`), la
-    unica linea que contiene `marker` -- deja el commit real de esa regla
-    intacto en git. Mismo helper que
-    `test_health.py::_delete_rule_line_by_hand` -- duplicado a proposito,
-    mismo criterio que `_cwd` repetido en cada fichero de este contrato.
-    """
-    path = rules_mod.rules_file_path(root)
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    kept = [line for line in lines if marker not in line]
-    assert len(kept) == len(lines) - 1, (
-        f"se esperaba borrar exactamente una linea con {marker!r} de {path}, "
-        f"se borraron {len(lines) - len(kept)}"
-    )
-    path.write_text("".join(kept), encoding="utf-8")
 
 
 @pytest.fixture
@@ -652,218 +608,61 @@ def test_context_and_generated_timestamps_carry_the_utc_label(
 
 
 # ---------------------------------------------------------------------------
-# El vigilante mudo -- hallazgo de Cerberus (2026-08-02): `health.coherence_rules()`
-# funciona, esta en produccion y tiene sus 5 tests en verde
-# (`test_health.py`), pero no llega a ninguna parte: `model.HealthReport`
-# no tiene sitio para sus dos numeros, `health.build()` la excluye a
-# proposito por eso, y `boot.py` nunca la pinta en el bloque CHECKS. Mismo
-# patron que ya costo caro en la capa 1 (seis hooks en version vieja, tests
-# en verde, nadie avisado).
+# RETIRADAS 2026-08-06 [orden del propietario, misma tanda que
+# `test_health.py`]: aqui vivia "El vigilante mudo" -- hallazgo de Cerberus
+# (2026-08-02) de que `health.coherence_rules()` funcionaba, tenia sus 5
+# tests en verde, pero no llegaba a ninguna parte (`HealthReport` sin sitio
+# para sus numeros, `boot.py` sin pintarlos) -- y sus tres filas de test:
+# `test_avisos_block_paints_rule_coherence_alongside_the_other_two_checks`,
+# `test_avisos_block_shows_the_real_rule_count_when_everything_is_fine` y
+# `test_a_rule_line_deleted_by_hand_is_shown_as_a_warning_at_boot_end_to_end`.
+# Las tres llamaban a `health.coherence_rules(root)` directamente y leian
+# `summary.health.rule_commits`/`rule_lines` -- ya retirados de produccion
+# junto con el resto del mecanismo (ver `test_checks_block_never_mentions_
+# rules_after_a_normal_add` mas abajo, el reemplazo funcional). Sus dos
+# helpers de siembra a mano (`_delete_rule_line_by_hand`,
+# `_swap_rule_line_by_hand`, mas arriba en este fichero) y la fixture local
+# `emojis` (solo la usaba `_swap_rule_line_by_hand` y la cuarta fila de
+# abajo) se retiraron con ellas, sin mas consumidores. La fixture `rules`
+# SI se conserva: la sigue usando el test de mas abajo.
 #
-# Tres filas -- las tres viven aqui porque las tres son sobre boot.py (la
-# cuarta fila del encargo, sobre HealthReport, vive en
-# `test_health.py::test_health_report_carries_the_real_rule_coherence_numbers`).
-# Ninguna toca produccion. Las tres empiezan comprobando directamente
-# `summary.health.rule_commits`/`rule_lines` -- eso es lo que hace que el
-# rojo sea por su causa REAL (los campos no existen todavia, `AttributeError`),
-# no solo un texto ausente en el render.
-#
-# DECISION DE TEXTO [no fijada en TEXTOS.md Sec.3.1 -- esa fila no existe
-# ahi todavia; se decide aqui, con el mismo patron literal que ya usa el
-# arranque para las otras dos confirmaciones]: una tercera linea en CHECKS,
-# junto a "no duplicate IDs" e "indices coherentes con git" --
-#
-#     Y  rules match git (N lineas / M commits)
-#     O  rules do not match git (N lineas / M commits)
-#
-# mismo formato que la linea de indices (`{lineas} lineas / {notas} notas`),
-# cambiando "indices"->"reglas" y "notas"->"commits". Los tests de aqui
-# comprueban el contenido (la palabra "reglas", el simbolo correcto, los
-# numeros reales) sin fijar el texto letra por letra -- si Ultron elige otra
-# redaccion, solo esas comprobaciones puntuales cambian, no el test entero
-# [mismo criterio que el supuesto 4 de test_health.py].
+# Una cuarta fila, `test_avisos_shows_warning_not_checkmark_for_rules_when_
+# counts_match_but_content_differs` (~linea 1453, no estaba en la lista
+# original del encargo -- encontrada ejecutando el fichero, no de grep),
+# vivia mas adelante en este mismo fichero y se retiro por el MISMO motivo
+# exacto: comparaba "rules do not match git"/"rules match git" contra una
+# regla sustituida a mano, mismo mecanismo ya retirado.
 # ---------------------------------------------------------------------------
 
 
-def test_avisos_block_paints_rule_coherence_alongside_the_other_two_checks(
+def test_checks_block_never_mentions_rules_after_a_normal_add(
     boot, model, indexes, notes, health, rules, tmp_repo
 ):
-    """Fila 2 del encargo: el arranque pinta los numeros de reglas en su
-    bloque CHECKS, JUNTO a los otros dos chequeos que ya salen ahi ('IDs
-    sin duplicados' / 'indices coherentes con git').
+    """El bloque CHECKS del arranque no debe mencionar las reglas en
+    absoluto tras `gitmem rule` -- ni un aviso (falso, ya no hay nada
+    corrupto que detectar) ni una confirmacion (no hay nada que confirmar
+    si el chequeo no existe).
 
-    Estado simple y sano: una sola regla real, coherente. El fallo real
-    que esta fila previene es de CABLEADO, no de calculo -- coherence_rules()
-    ya funciona; lo que falta es que boot.build()/boot.render() la lean y
-    la pinten junto a las otras dos.
+    Escenario mas simple posible: una unica regla, anadida de la forma
+    normal, sin ningun truco.
     """
     root = Path(tmp_repo)
-    marker = "MARK_BOOTRULES_ROW2 unica regla real, coherente, para probar el cableado"
+    marker = "MARK_BOOTRULES_RETIRED una regla normal, anadida como cualquier otra"
 
     with _cwd(root):
-        indexes.seed(notes.pm_root(root))  # boot.build() cruza coherence()/duplicates() tambien
+        indexes.seed(notes.pm_root(root))
         result = rules.add(marker, "user")
         assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-        expected_commits, expected_lineas, _ = health.coherence_rules(root)
         summary = boot.build()
         rendered = boot.render(summary)
-
-    assert summary.health.rule_commits == expected_commits, (
-        f"summary.health.rule_commits no coincide con el commits real de "
-        f"coherence_rules() ({expected_commits!r}) -- sin este campo el "
-        "arranque no tiene de donde pintar la linea de reglas"
-    )
-    assert summary.health.rule_lines == expected_lineas, (
-        f"summary.health.rule_lines no coincide con el lineas real de "
-        f"coherence_rules() ({expected_lineas!r})"
-    )
 
     avisos_split = rendered.split("CHECKS", 1)
     assert len(avisos_split) == 2, f"el render no trae ninguna seccion CHECKS:\n{rendered}"
     avisos_block = avisos_split[1]
 
-    assert "no duplicate IDs" in avisos_block, (
-        f"el chequeo de IDs, que ya sale hoy en CHECKS, deberia seguir ahi "
-        f"junto al nuevo de reglas:\n{avisos_block}"
-    )
-    assert (
-        "indexes match git" in avisos_block
-        or "indexes do not match git" in avisos_block
-    ), (
-        f"el chequeo de indices, que ya sale hoy en CHECKS, deberia seguir "
-        f"ahi junto al nuevo de reglas:\n{avisos_block}"
-    )
-    assert "rules" in avisos_block, (
-        f"ninguna linea de CHECKS menciona las reglas -- coherence_rules() "
-        f"existe y esta en verde (test_health.py), pero boot.render() no la "
-        f"pinta junto a los otros dos chequeos:\n{avisos_block}"
-    )
-    assert str(expected_lineas) in avisos_block and str(expected_commits) in avisos_block, (
-        f"los numeros reales de coherence_rules() (lineas={expected_lineas}, "
-        f"commits={expected_commits}) no aparecen en el bloque CHECKS:\n{avisos_block}"
-    )
-
-
-def test_avisos_block_shows_the_real_rule_count_when_everything_is_fine(
-    boot, model, indexes, notes, health, rules, tmp_repo
-):
-    """Fila 3 del encargo: los numeros de reglas salen TAMBIEN cuando todo
-    esta bien, con su numero real -- no solo al fallar. Es la leccion ya
-    escrita en la ficha de `coherence()`/`coherence_rules()`: un chequeo
-    que solo habla cuando falla es indistinguible de uno que no se ejecuta.
-
-    Se siembran TRES reglas coherentes (no una) para que el numero
-    comprobado no coincida por casualidad con un 0 o un 1 por defecto --
-    mismo criterio que
-    `test_health.py::test_coherence_rules_fully_coherent_multiple_rules_reports_the_real_numbers_not_silence`.
-    """
-    root = Path(tmp_repo)
-    markers = (
-        ("MARK_BOOTRULES_ROW3_A primera de tres reglas reales", "user"),
-        ("MARK_BOOTRULES_ROW3_B segunda de tres reglas reales", "claude"),
-        ("MARK_BOOTRULES_ROW3_C tercera de tres reglas reales", "user"),
-    )
-
-    with _cwd(root):
-        indexes.seed(notes.pm_root(root))  # boot.build() cruza coherence()/duplicates() tambien
-        for text, kind in markers:
-            result = rules.add(text, kind)
-            assert result.ok, f"add({text!r}, {kind!r}) fallo: {result.git_error}"
-        expected_commits, expected_lineas, expected_discrepancias = health.coherence_rules(root)
-        summary = boot.build()
-        rendered = boot.render(summary)
-
-    assert expected_discrepancias == (), (
-        "comprobacion previa: con las tres reglas sincronizadas no deberia "
-        f"haber ninguna discrepancia, salieron: {expected_discrepancias!r}"
-    )
-    assert expected_commits == 3 and expected_lineas == 3, (
-        f"comprobacion previa: deberian salir los tres commits/lineas "
-        f"reales, salio commits={expected_commits}, lineas={expected_lineas}"
-    )
-
-    assert summary.health.rule_commits == 3, (
-        f"summary.health.rule_commits deberia ser 3 (las tres reglas reales "
-        f"sembradas) -- un chequeo mudo devolveria 0 o un numero por "
-        "defecto, nunca el real"
-    )
-    assert summary.health.rule_lines == 3, (
-        "summary.health.rule_lines deberia ser 3, mismo criterio que "
-        "rule_commits arriba"
-    )
-
-    avisos_block = rendered.split("CHECKS", 1)[1]
-    assert "✓" in avisos_block, (
-        f"con las reglas coherentes deberia aparecer al menos una "
-        f"confirmacion junto a las que ya salen hoy en CHECKS:\n{avisos_block}"
-    )
-    assert "rules" in avisos_block and "3" in avisos_block, (
-        f"la linea de reglas deberia mostrar el numero real (3), no callar "
-        f"solo porque todo esta bien:\n{avisos_block}"
-    )
-
-
-def test_a_rule_line_deleted_by_hand_is_shown_as_a_warning_at_boot_end_to_end(
-    boot, model, indexes, notes, health, rules, tmp_repo
-):
-    """Fila 4 del encargo, la que de verdad importa: con una regla perdida
-    de VERDAD -- se le borra la linea del fichero dejando el commit -- el
-    arranque LO DICE. Fallo real reproducido de punta a punta: el mismo
-    hueco que un proceso muerto entre las dos escrituras de `rules.add()`
-    dejaria, exactamente lo que `coherence_rules()` se escribio para cazar
-    [hallazgo de Cerberus, 2026-08-02].
-    """
-    root = Path(tmp_repo)
-    marker = "MARK_BOOTRULES_ROW4 regla cuya linea se borra a mano tras commitear"
-
-    with _cwd(root):
-        indexes.seed(notes.pm_root(root))  # boot.build() cruza coherence()/duplicates() tambien
-        result = rules.add(marker, "user")
-        assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-
-    _delete_rule_line_by_hand(rules, root, marker)
-
-    with _cwd(root):
-        expected_commits, expected_lineas, expected_discrepancias = health.coherence_rules(root)
-        summary = boot.build()  # NO debe lanzar pese a la regla perdida
-        rendered = boot.render(summary)
-
-    assert expected_discrepancias, (
-        "comprobacion previa: borrar la linea a mano deberia producir una "
-        f"discrepancia real de health.coherence_rules({root!r}) -- salio "
-        "vacio, el escenario de este test no se monto de verdad"
-    )
-    assert expected_commits != expected_lineas, (
-        f"comprobacion previa: tras borrar la linea a mano, commits "
-        f"({expected_commits}) y lineas ({expected_lineas}) deberian divergir"
-    )
-
-    assert isinstance(summary, model.BootSummary), (
-        f"boot.build() no devolvio un BootSummary pese a la regla perdida "
-        f"-- devolvio {type(summary)!r} (¿lanzo una excepcion en su lugar?)"
-    )
-    assert summary.health.rule_commits == expected_commits, (
-        f"summary.health.rule_commits no coincide con el commits real de "
-        f"coherence_rules() ({expected_commits!r})"
-    )
-    assert summary.health.rule_lines == expected_lineas, (
-        f"summary.health.rule_lines no coincide con el lineas real de "
-        f"coherence_rules() ({expected_lineas!r})"
-    )
-
-    avisos_block = rendered.split("CHECKS", 1)[1]
-    assert "⚠️" in avisos_block, (
-        f"con una regla perdida de verdad, el bloque CHECKS deberia llevar "
-        f"un aviso, no solo confirmaciones:\n{avisos_block}"
-    )
-    assert "rules" in avisos_block, (
-        f"ninguna linea de CHECKS menciona las reglas tras perder una de "
-        f"verdad:\n{avisos_block}"
-    )
-    assert str(expected_lineas) in avisos_block and str(expected_commits) in avisos_block, (
-        f"los numeros reales divergentes de coherence_rules() (lineas="
-        f"{expected_lineas}, commits={expected_commits}) no aparecen en "
-        f"CHECKS:\n{avisos_block}"
+    assert "rules" not in avisos_block, (
+        "el bloque CHECKS menciona las reglas -- coherence_rules() deberia "
+        f"estar retirada del todo, sin ✓ ni ⚠️ para las reglas:\n{avisos_block}"
     )
 
 
@@ -1371,75 +1170,15 @@ def test_avisos_shows_warning_not_checkmark_when_index_counts_match_but_content_
     )
 
 
-def test_avisos_shows_warning_not_checkmark_for_rules_when_counts_match_but_content_differs(
-    boot, model, indexes, notes, health, rules, emojis, tmp_repo
-):
-    """Mismo hallazgo 1 de Moriarty, ronda 2, aplicado a las reglas: se
-    sustituye a mano la linea de fichero de una regla real por una linea
-    bogus (mismo formato exacto, nunca commiteada) -- el numero de
-    lineas del fichero vuelve a igualar al de commits reales (2 == 2),
-    pero el contenido diverge en los dos sentidos.
-
-    Ademas comprueba que la discrepancia se NOMBRA en CHECKS -- antes del
-    "Revision ronda 2, punto 1" (docstring de health.py), el tercer valor
-    de `coherence_rules()` se calculaba y se tiraba: `build()` nunca lo
-    guardaba en `HealthReport`, asi que aunque el chequeo detectara la
-    divergencia por dentro, nada de eso llegaba a pintarse.
-    """
-    root = Path(tmp_repo)
-    marker_a = "MARK_LYING_RULE_A regla real cuya linea de fichero se sustituye"
-    marker_b = "MARK_LYING_RULE_B regla real que se queda igual"
-    bogus_text = "MARK_LYING_RULE_BOGUS linea de fichero anadida a mano, sin commit real"
-
-    with _cwd(root):
-        indexes.seed(notes.pm_root(root))  # boot.build() cruza coherence()/duplicates() tambien
-        result_a = rules.add(marker_a, "user")
-        result_b = rules.add(marker_b, "user")
-    assert result_a.ok, f"add(marker_a) fallo: {result_a.git_error}"
-    assert result_b.ok, f"add(marker_b) fallo: {result_b.git_error}"
-
-    _swap_rule_line_by_hand(rules, emojis, root, marker_a, bogus_text)
-
-    with _cwd(root):
-        expected_commits, expected_lineas, expected_discrepancias = health.coherence_rules(root)
-        summary = boot.build()
-        rendered = boot.render(summary)
-
-    assert expected_commits == expected_lineas, (
-        "comprobacion previa: tras cambiar una linea por otra, los NUMEROS "
-        f"deberian volver a cuadrar (commits={expected_commits}, "
-        f"lineas={expected_lineas}) -- si no cuadran, este test no monta el "
-        "escenario que el hallazgo describe"
-    )
-    assert expected_discrepancias, (
-        "comprobacion previa: pese a que los numeros cuadran, el CONTENIDO "
-        "diverge -- deberia haber discrepancias reales, salio vacio"
-    )
-    assert any(marker_a in d for d in expected_discrepancias), (
-        f"ninguna discrepancia nombra la regla real sustituida: "
-        f"{expected_discrepancias!r}"
-    )
-    assert any(bogus_text in d for d in expected_discrepancias), (
-        f"ninguna discrepancia nombra la linea bogus sin commit: "
-        f"{expected_discrepancias!r}"
-    )
-
-    avisos_block = rendered.split("CHECKS", 1)[1]
-    assert "rules do not match git" in avisos_block, (
-        f"con los numeros cuadrando pero el contenido divergiendo, CHECKS "
-        f"deberia decir 'rules do not match git', no callarlo:\n"
-        f"{avisos_block}"
-    )
-    assert "rules match git" not in avisos_block, (
-        f"el visto bueno afirmativo ('rules match git', sin 'no') "
-        f"no deberia aparecer -- los numeros cuadran mintiendo, el contenido "
-        f"no:\n{avisos_block}"
-    )
-    assert marker_a in avisos_block or bogus_text in avisos_block, (
-        "la discrepancia de reglas deberia NOMBRARSE en CHECKS, no solo "
-        f"cambiar el simbolo -- antes se calculaba y se tiraba (build() no "
-        f"guardaba el tercer valor de coherence_rules()):\n{avisos_block}"
-    )
+# RETIRADO 2026-08-06 [orden del propietario, misma tanda que arriba]:
+# `test_avisos_shows_warning_not_checkmark_for_rules_when_counts_match_but_
+# content_differs` vivia aqui (hallazgo 1 de Moriarty, ronda 2, aplicado a
+# las reglas -- linea de fichero sustituida a mano, numeros cuadran,
+# contenido diverge). Llamaba a `health.coherence_rules(root)` y comprobaba
+# "rules do not match git"/"rules match git" en CHECKS -- mismo mecanismo
+# ya retirado (ver el bloque "RETIRADAS 2026-08-06" mas arriba en este
+# fichero). `_swap_rule_line_by_hand()` (arriba en este fichero) no tenia
+# mas llamadores y se retiro con el.
 
 
 def test_boot_build_on_a_repo_with_zero_commits_does_not_crash(boot, model, tmp_path):

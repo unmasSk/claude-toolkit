@@ -53,7 +53,12 @@ import os
 
 import pytest
 
-from .conftest import import_lib_memory_module, run_git, run_memory_script
+from .conftest import (
+    import_lib_memory_module,
+    run_git,
+    run_memory_script,
+    seed_config_json,
+)
 
 
 @contextlib.contextmanager
@@ -98,14 +103,29 @@ class TestAcceptsAllFlagsWithoutBouncing:
         assert "Traceback" not in out and "Traceback" not in err
 
 
-class TestRuleEndsUpInBothPlacesForReal:
-    """El encargo literal de esta tarea: "la regla acaba en los dos sitios
-    -- el registro (git) y el fichero (rules.md)". Los dos se comprueban
-    con lectores REALES e independientes, nunca uno derivado del otro."""
+class TestRuleEndsUpInTheFileNotInAnOwnCommit:
+    """Reescrita 2026-08-06 [orden del propietario]. El encargo original
+    decia "la regla acaba en los dos sitios -- el registro (git) y el
+    fichero (rules.md)", con un commit vacio propio por cada regla --
+    `test_rule_appears_in_the_file_and_in_a_real_git_commit` (el nombre de
+    esta clase, y de este test, antes del reescrito) llegaba a afirmar
+    literalmente "una regla anadida tiene que producir exactamente un
+    commit". Eso dejo de ser el contrato: `gitmem rule` YA NO comitea --
+    escribe la linea en `rules.md` y se acaba ahi, sin ningun commit
+    propio, lista para que la arrastre el siguiente commit real del
+    proyecto (`gitmem work`/`gitmem wip`/`gitmem note`/el cierre de
+    sesion) -- el mismo patron que ya sigue `gitmem zones add`. Motivo
+    citado en el encargo: el commit vacio anterior no sobrevivia a un
+    clon limpio y dejaba el arbol sucio para siempre, bloqueando
+    `bin/release.py`.
 
-    def test_rule_appears_in_the_file_and_in_a_real_git_commit(
-        self, tmp_repo, rules_lib, emojis_lib
-    ):
+    Los hechos se comprueban con lectores REALES e independientes, nunca
+    uno derivado del otro: conteo de commits (`git rev-list --count
+    HEAD`), estado del arbol de trabajo (`git status --porcelain`) y
+    contenido del fichero (`rules.read_all()` real).
+    """
+
+    def test_rule_ends_up_in_the_file_and_creates_no_commit(self, tmp_repo, rules_lib):
         text = "never mock the database in integration tests"
         before = _git_commit_count(tmp_repo)
 
@@ -113,7 +133,10 @@ class TestRuleEndsUpInBothPlacesForReal:
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
 
         after = _git_commit_count(tmp_repo)
-        assert after == before + 1, "una regla anadida tiene que producir exactamente un commit"
+        assert after == before, (
+            "gitmem rule ya no debe crear ningun commit -- antes de la llamada "
+            f"habia {before} commit(s) en HEAD, despues {after}"
+        )
 
         with _cwd(tmp_repo):
             file_texts = rules_lib.iter_rule_texts(rules_lib.read_all())
@@ -121,11 +144,72 @@ class TestRuleEndsUpInBothPlacesForReal:
             f"la regla no aparece en rules.md (leido con rules.read_all() real): {file_texts!r}"
         )
 
-        emoji = emojis_lib.CHANNEL_EMOJI["rule"]
-        message = _git_head_message(tmp_repo)
-        assert message.strip() == f"[remember][user] {emoji} {text}", (
-            f"el commit real no lleva el asunto exacto que rules.py ya escribe "
-            f"en produccion: {message!r}"
+    def test_rule_leaves_the_file_as_a_real_uncommitted_change(self, tmp_repo):
+        text = "never mock the database in integration tests"
+        rules_relpath = ".claude/project-memory/rules.md"
+
+        rc, out, err = run_memory_script("rule.py", [text, "--kind", "user"], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        rc_status, status_out, err_status = run_git(
+            ["status", "--porcelain", "--", rules_relpath], tmp_repo
+        )
+        assert rc_status == 0, f"git status fallo en el test: {err_status}"
+        assert status_out.strip(), (
+            "rules.md deberia quedar como cambio sin comitear tras gitmem rule "
+            f"-- git status --porcelain no muestra nada: {status_out!r}"
+        )
+
+    def test_a_later_gitmem_work_picks_up_the_pending_rule_line(self, tmp_repo):
+        """Punto 3 del encargo: un `gitmem work` posterior se lleva la
+        modificacion pendiente, si se le pasa esa ruta -- mismo mecanismo
+        con el que cualquier otro fichero sin comitear viaja en el
+        siguiente commit real de trabajo. No hace falta ningun cableado
+        nuevo para esto: `work.py` ya acepta rutas concretas por `--path`
+        y comitea exactamente lo que se le pasa (PIEZAS.md Sec.10).
+
+        `repo_type="trunk"` sembrado a proposito: sin el, `work.py` rebota
+        por proteccion de rama principal (Sec.10.1 punto 3) y el test no
+        probaria el arrastre, solo el rechazo -- mismo patron que
+        `test_work_script.py`.
+        """
+        seed_config_json(tmp_repo, repo_type="trunk")
+        text = "stop summarizing what you just did at the end"
+        rules_relpath = ".claude/project-memory/rules.md"
+
+        rc_rule, out_rule, err_rule = run_memory_script(
+            "rule.py", [text, "--kind", "claude"], cwd=tmp_repo
+        )
+        assert rc_rule == 0, f"stdout={out_rule!r} stderr={err_rule!r}"
+
+        before = _git_commit_count(tmp_repo)
+        rc_work, out_work, err_work = run_memory_script(
+            "work.py",
+            ["carry the pending rule line", "--path", rules_relpath],
+            cwd=tmp_repo,
+        )
+        assert rc_work == 0, f"stdout={out_work!r} stderr={err_work!r}"
+
+        after = _git_commit_count(tmp_repo)
+        assert after == before + 1, (
+            "gitmem work no produjo exactamente un commit nuevo al comitear la "
+            f"ruta pendiente: antes={before}, despues={after}"
+        )
+
+        rc_status, status_out, err_status = run_git(
+            ["status", "--porcelain", "--", rules_relpath], tmp_repo
+        )
+        assert rc_status == 0, f"git status fallo en el test: {err_status}"
+        assert status_out.strip() == "", (
+            "tras gitmem work, rules.md no deberia seguir apareciendo como "
+            f"cambio sin comitear: {status_out!r}"
+        )
+
+        rc_show, show_out, err_show = run_git(["show", f"HEAD:{rules_relpath}"], tmp_repo)
+        assert rc_show == 0, f"git show fallo leyendo el blob comiteado: {err_show}"
+        assert text in show_out, (
+            "el commit de gitmem work no incluye el contenido real de la linea "
+            f"de regla pendiente -- blob comiteado: {show_out!r}"
         )
 
 

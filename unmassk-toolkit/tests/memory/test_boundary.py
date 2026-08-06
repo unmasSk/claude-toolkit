@@ -942,6 +942,28 @@ def test_no_public_symbol_has_zero_production_and_zero_tests(capsys):
     codigo hace de verdad). El veredicto de la puerta 3 no cambia --
     sigue habiendo codigo muerto de verdad (6 simbolos) -- pero dos de los
     que antes se contaban como parte de ese muerto no lo eran.
+
+    **Correccion 2026-08-06 -- la tabla de arriba es una foto fija del
+    2026-08-04, ya no describe la salida de hoy** (la propia tabla ha
+    seguido creciendo desde entonces con trabajo no relacionado, p.ej.
+    `remote.*`; no se re-audita entera aqui, eso excede esta tarea). El
+    UNICO punto que si hacia falta corregir, porque quedo falso por este
+    encargo: `health.coherence_rules` **ya no aparece en la tabla en
+    absoluto** -- Ultron la retiro entera de `lib/memory/health.py` (junto
+    con `_rule_commit_texts()` y los campos `rule_commits`/`rule_lines`/
+    `rule_discrepancies` de `HealthReport`), asi que ya no es un simbolo
+    definido que este test pueda ni deba vigilar; no es un caso de
+    "produccion 0, con test" como decia el parrafo de arriba. `gitmem rule`
+    (`rules.add()`) dejo de comitear el mismo dia (ver `test_rules.py`/
+    `test_rule_script.py`), lo que a su vez dejo a `rules.rules_file_path`
+    sin su unico llamador de produccion externo (`health.coherence_rules`
+    era el unico fuera del propio `rules.py`) -- verificado ejecutando este
+    test tras la retirada: aparecia listado con produccion=0 Y tests=0 (el
+    caso rojo). Se le dio un test real y directo
+    (`test_rules.py::test_remember_from_a_plain_subfolder_of_the_same_repo_still_works`,
+    reescrito el mismo dia para leer `rules.rules_file_path(project_root)`
+    en vez de `git log`) en vez de tocar produccion o debilitar este
+    chequeo -- vuelve a salir con al menos un test, no rojo.
     """
     report = _symbol_usage_report(
         LIB_MEMORY_DIR, BIN_MEMORY_DIR, GITMEM_BIN, MEMORY_HOOK_FILES, TESTS_MEMORY_DIR

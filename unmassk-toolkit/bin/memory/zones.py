@@ -81,13 +81,10 @@ from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 
 force_utf8_streams()
 
-import gitcmd  # noqa: E402
 import health  # noqa: E402
 import notes  # noqa: E402
-import notes_commit  # noqa: E402
 import zones as zones_lib  # noqa: E402
 from model import Zone  # noqa: E402
-from pathlib import Path  # noqa: E402
 
 
 def _parse_args(argv):
@@ -157,50 +154,30 @@ def _cmd_add(args, path):
     total = len(zones_lib.load(path))
     unit = "zona" if total == 1 else "zonas"
 
-    # El alta se COMITEA, igual que una nota viaja con su indice y una
-    # regla con su fichero [2026-08-05, hallazgo de Argus reproducido con
-    # un `git clone` real]. Hasta hoy `zones.json` era el UNICO fichero de
-    # memoria que el sistema escribia y no comiteaba nunca -- ni esta
-    # funcion ni `lib/memory/zones.py` tocaban git en ninguna linea.
+    # El alta YA NO se comitea a si misma [orden del propietario,
+    # 2026-08-06: 23 altas de zona en una sola tarde metieron 23 commits
+    # propios en el historial -- `zones.json` es fichero de configuracion,
+    # no una nota de memoria, y no le corresponde un commit por linea,
+    # igual que a `rules.md` (ver `lib/memory/rules.py`)].
     #
-    # Por que era el hallazgo mas grave del barrido: el nombre de una zona
-    # se puede deducir de los titulares de las notas, pero su DESCRIPCION y
-    # sus ALIAS no viven en ningun commit, en ningun sitio. `rezones`
-    # reconstruye los ocho indices porque cada nota lleva su contenido
-    # entero dentro de su propio commit; con las zonas no tiene de donde
-    # sacarlas, y su docstring ya declara que no las toca. Resultado
-    # medido: al clonar el proyecto en otra maquina `zones.json`
-    # desaparecia, el arranque lo daba todo en verde sin mencionarlo, y la
-    # siguiente nota rebotaba con "la zona no existe / zones.json tiene 0
-    # zonas". Memoria perdida en silencio al cambiar de maquina, que es la
-    # unica amenaza que este proyecto declara.
-    #
-    # Un fallo de git aqui NO deshace el alta: la zona ya esta en disco y
-    # es utilizable en el acto. Se dice en alto y se sigue -- callarlo
-    # devolveria el mismo silencio que este arreglo viene a cerrar.
-    # Mensaje LLANO, sin corchete ni emoji propios. El sistema tiene tres
-    # canales con corchete -- `[NEXT] ⏩️`, `[remember] 🧠`, `[WIP] 🚧` -- y
-    # los siete tipos de nota; ninguno es para zonas, y ningun documento
-    # fija una forma para esta operacion. La primera version de esta linea
-    # se invento un `[zones] 🗺️` que no existe en ninguna parte
-    # [corregido 2026-08-05, el propietario lo paro en el acto].
-    #
-    # El precedente real de una operacion de mantenimiento que se comitea
-    # a si misma es `rezones`, y su mensaje es llano con prefijo:
-    # `rezones: reparación de índices (...)` -- su propio docstring declara
-    # que ningun texto fija uno para ese caso. Se sigue ese patron, que ya
-    # esta en el sistema, en vez de anadir una cuarta forma con corchete.
-    result = notes_commit.stage_and_commit(
-        f"zones: alta de {args.name}", [path], gitcmd.repo_root(Path.cwd())
-    )
+    # [corregido 2026-08-06] Este bloque decia hasta hoy que el alta SI se
+    # comiteaba a si misma [2026-08-05, hallazgo de Argus reproducido con
+    # un `git clone` real] -- lo que sigue vigente de ese hallazgo es el
+    # REQUISITO, no el mecanismo de entonces: `zones.json` tiene que
+    # acabar versionado en git, porque su DESCRIPCION y sus ALIAS no viven
+    # en ningun otro sitio y `rezones` declara expresamente que no los
+    # reconstruye [docstring de `rezones.py`]. Sin eso, un clon en otra
+    # maquina pierde la zona en silencio -- la unica amenaza que este
+    # proyecto declara. Lo que cambia es COMO se cumple ese requisito:
+    # antes, un commit propio por cada alta; ahora, `zones.json` se queda
+    # modificado en el arbol de trabajo (`zones_lib.add()` ya lo escribe)
+    # y viaja dentro del PROXIMO commit real que se haga por otra via
+    # (`gitmem work`, `gitmem wip`, `gitmem note`, el cierre de sesion) --
+    # las cuatro comitean con `git add --all` sobre las rutas que reciben
+    # [`notes_commit.stage_and_commit()`], asi que `zones.json` entra
+    # igual que cualquier otro fichero modificado, con solo pasarlo como
+    # ruta. No hace falta ningun mecanismo propio aqui para eso.
     print(f"✅ {args.name} añadida — zones.json tiene {total} {unit}")
-    if result.returncode != 0:
-        print(
-            f"⚠️  la zona esta en disco y ya se puede usar, pero NO se ha "
-            f"podido guardar en git: {result.stderr.strip()}\n"
-            f"   Sin ese commit, un clon de este proyecto en otra maquina "
-            f"no tendria esta zona."
-        )
     return 0
 
 
