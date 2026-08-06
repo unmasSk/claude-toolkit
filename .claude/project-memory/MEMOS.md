@@ -72,3 +72,4 @@
 [M-070][product][notes-test] MARK_ROW7_OLD headline that replace() must retire in one commit
 [M-071][memory][architecture] git-memory v1 was built and later fully replaced by v2
 [M-072][release][install] plugin marketplace distribution replaces manual git-clone install
+[M-073][architecture][install] Claude executes, never asks the user to run commands
