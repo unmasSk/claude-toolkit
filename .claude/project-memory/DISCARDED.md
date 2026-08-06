@@ -17,3 +17,4 @@
 [X-015][docs][release] CHANGELOG por-plugin en <plugin>/CHANGELOG.md, migrando el root
 [X-016][hooks][memory] A1: denylist total de caracteres a escapar
 [X-017][hooks][memory] A3: solo normalizacion unicode
+[X-018][release][hooks] an automatic push-after-commit hook was discarded permanently
