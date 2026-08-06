@@ -45,6 +45,10 @@
     ],
     "description": "las skills del toolkit y las fichas de los agentes"
   },
+  "standards": {
+    "aliases": [],
+    "description": "los criterios de calidad con los que se mide el codigo"
+  },
   "testing": {
     "aliases": [
       "tests"
