@@ -19,3 +19,4 @@
 [D-017][skills][architecture] BM25 skill routing replaced the static CLAUDE.md skill-map
 [D-018][release][architecture] this marketplace repo works directly on main
 [D-019][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
+[D-020][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
