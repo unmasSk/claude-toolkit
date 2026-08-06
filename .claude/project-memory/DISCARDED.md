@@ -21,3 +21,4 @@
 [X-019][skills][testing] chasing a fully deterministic skill-routing gate was abandoned
 [X-020][docs][architecture] generador automatico de README desde una fuente unica
 [X-021][release][install] clonar+instalar a mano como via primaria
+[X-022][memory][install] pedir confirmacion (ok?) antes de cada memo o decision
