@@ -48,3 +48,4 @@
 [X-046][memory][boot] dejar la escritura truncate-in-place
 [X-047][memory][testing] reescribir el contrato de retorno de los 4 lectores de memoria
 [X-048][testing][memory] the 3 mechanical punishment-for-assumption candidates were dropped for good
+[X-049][skills][architecture] prompt-improver and Fine skills fronts dropped from the roadmap
