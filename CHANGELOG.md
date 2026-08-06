@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.30.2] - 2026-08-06
+
 ### Fixed
 
 - **La ficha de Bilbo prometía una inyección de memoria que ya no existe.** Decía que recibía automáticamente un bloque `[PROJECT MEMORY — auto-recalled]` con los callejones sin salida de sesiones anteriores. Ese canal se retiró y ningún hook alimenta el prompt de un agente: el resultado era que Bilbo escribía dead-ends cada sesión y no leía ninguno. Ahora los busca él con `gitmem search`, y su ficha dice explícitamente que lo que no esté en su prompt no le llega.
