@@ -99,3 +99,4 @@
 [M-097][standards][testing] unmassk-standards gained Producer-Consumer round-trip integrity (§34)
 [M-098][docs][architecture] shared installer content stays English, Spanish is Bex's own channel
 [M-099][memory][hooks] recall has two separate channels: subagent portero and orchestrator
+[M-100][memory][hooks] the near-dup write-path gate stays lexical and non-blocking, on purpose
