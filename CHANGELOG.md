@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.30.3] - 2026-08-06
+
 ### Fixed
 
 - **Las nueve fichas de agente llamaban a `gitmem` por una ruta larga al caché del plugin**, con un `find` de rescate incluido — justo lo que la skill de memoria prohíbe, porque esa ruta lleva un número de versión dentro y se queda obsoleta el día que el toolkit se actualiza. Ahora todas escriben `gitmem` pelado, que es lo que el instalador pone en el PATH.
