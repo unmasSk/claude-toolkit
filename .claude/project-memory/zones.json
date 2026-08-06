@@ -3,6 +3,12 @@
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
   },
+  "install": {
+    "aliases": [
+      "setup"
+    ],
+    "description": "la instalacion del toolkit en un proyecto: arranque, PATH, indices y config"
+  },
   "memory": {
     "aliases": [
       "gitmem"

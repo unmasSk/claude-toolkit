@@ -144,6 +144,24 @@ _MAP_IS_SET = (
     "El mapa está puesto. Dime por dónde: el Next, una pregunta, una issue,",
     "o lo que traigas.",
 )
+# Pie del arranque cuando `health.memory_mounted` dice que falta algo --
+# anadido 2026-08-06 [Aviso B, fallo 2 real: el pie de siempre
+# (`_FIRST_NOTE_HINT`) invitaba a `--zones <zona1> <zona2>` con dos
+# zonas inventadas, el primer comando garantizado a fallar cuando
+# `zones.json` no tiene ninguna zona todavia -- `validator.validate_zones`
+# rechaza cualquier nombre que no exista ya]. Ensena el orden real: las
+# zonas se dan de alta ANTES de que exista una nota que pueda llevarlas.
+_SETUP_MISSING_HINT = (
+    "La memoria de este proyecto todavía no está montada del todo -- antes",
+    "de guardar una nota hace falta dar de alta al menos una zona:",
+    "",
+    '  gitmem zones add <nombre> --description "..."',
+    "",
+    "Con al menos una zona dada de alta, la primera nota se guarda así:",
+    "",
+    '  gitmem note <TIPO> --zones <zona1> <zona2> "titular en inglés" \\',
+    '    --description "..." --stops <yes|no>',
+)
 
 
 def build() -> BootSummary:
@@ -424,9 +442,32 @@ def _avisos_block(summary: BootSummary) -> list[str]:
     `bench.py` se retira entero, 2026-08-03 [decision del propietario:
     "no lo he autorizado en la vida"] -- esta seccion ya no pinta ningun
     veredicto de banco adversarial.
+
+    **Dos avisos mas, anadidos 2026-08-06 [Aviso A/B, fallos 1 y 2
+    reales, ver `health.possible_unconverted_legacy`/`health.memory_mounted`]
+    -- y los DOS, a proposito, rompen la regla de arriba de "los ✓
+    importan tanto como los ⚠️": solo hablan cuando hay algo real que
+    avisar, se callan del todo en un proyecto sano [encargo explicito:
+    "los dos avisos nuevos tienen que callarse"]. No son un chequeo de
+    coherencia como los tres de arriba (una comparacion que siempre tiene
+    un resultado, gane o pierda) -- son una senal de sospecha (Aviso A) y
+    un requisito de arranque (Aviso B), y un requisito cumplido no es
+    noticia.
     """
     report = summary.health
     lines = ["CHECKS"]
+
+    if report.legacy_commits_suspected is not None:
+        lines.append(
+            f"   ⚠️  {report.legacy_commits_suspected} commits en el historial, "
+            f"0 notas reconocidas -- puede ser memoria del sistema anterior "
+            "sin destilar"
+        )
+
+    if report.memory_setup_missing:
+        lines.append("   ⚠️  la memoria de este proyecto no está montada:")
+        for text in report.memory_setup_missing:
+            lines.append(f"      - {text}")
 
     if report.plans_unreflected_error is not None:
         lines.append(
@@ -502,7 +543,9 @@ def render(summary: BootSummary) -> str:
     lines.extend(_avisos_block(summary))
     lines.append("")
 
-    if summary.health.git_notes == 0:
+    if summary.health.memory_setup_missing:
+        lines.extend(_SETUP_MISSING_HINT)
+    elif summary.health.git_notes == 0:
         lines.extend(_FIRST_NOTE_HINT)
     else:
         lines.extend(_MAP_IS_SET)

@@ -65,7 +65,35 @@ def get_project_root() -> str | None:
 
 
 def needs_install(root: str) -> bool:
-    """Check if git-memory CLAUDE.md managed block is present."""
+    """True when this project has never had the installer run on it.
+
+    Asks for what the INSTALLER produces (`manifest.json`), not for a
+    marker somebody else writes [2026-08-05, House: reproduced by firing
+    the three hooks in Claude Code's real order].
+
+    Until this change the gate read `"BEGIN unmassk-toolkit" in CLAUDE.md`
+    — and `hooks/session-start-crew.py` writes that exact string into
+    CLAUDE.md on EVERY SessionStart, which runs BEFORE the first user
+    prompt. So by the time this hook could ask, the answer was always
+    "already installed". **The install prompt could never fire, in any
+    project, ever**, and the loop closed on itself: no install → no
+    manifest → `upgrade_check.needs_upgrade()` returns False by its own
+    documented fail-safe (no manifest, don't loop) → nothing triggers the
+    installer from that side either. Two pieces each failing open for a
+    good local reason, and between them the installer was orphaned.
+
+    What was actually lost is what ONLY the installer writes: the
+    project's `.gitignore` and `manifest.json`. Without the first,
+    `.claude/` is never ignored and the boot report — a file rewritten
+    every session — is committable. Measured across the owner's own
+    repositories: 8 of 14 had neither.
+
+    A missing CLAUDE.md still means "install" (it did before, and a
+    project without it has nothing set up either way).
+    """
+    manifest = os.path.join(root, ".claude", ".unmassk", "manifest.json")
+    if os.path.isfile(manifest):
+        return False
     claude_md = os.path.join(root, "CLAUDE.md")
     if not os.path.isfile(claude_md):
         return True
@@ -73,9 +101,10 @@ def needs_install(root: str) -> bool:
         # barrido finding: never follow a symlink planted at CLAUDE.md —
         # treat it exactly like "no CLAUDE.md present" (needs install).
         with open_no_follow_symlink(claude_md, "r") as f:
-            return "BEGIN unmassk-toolkit" not in f.read()
+            f.read()
     except OSError:
         return True
+    return True
 
 
 # Maximum stdin bytes we will read before parsing JSON.

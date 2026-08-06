@@ -202,6 +202,19 @@ class HealthReport:
     # "no lo he autorizado en la vida"] -- bench_caught/bench_total/
     # bench_failures desaparecen del molde con el, sin dejar campo
     # huerfano.
+    # Aviso A, anadido 2026-08-06 [ver health.possible_unconverted_legacy
+    # para el umbral y el porque]: cuantos commits tiene el historial
+    # cuando la señal "muchos commits, cero notas reconocidas" dispara --
+    # `None` cuando no dispara (haya notas reconocidas, o el historial
+    # sea corto de verdad, p.ej. un proyecto recien creado). El numero
+    # real viaja aqui, nunca un bool suelto, para que `boot.py` no tenga
+    # que recalcularlo para pintar el aviso.
+    legacy_commits_suspected: int | None = None
+    # Aviso B, anadido 2026-08-06 [ver health.memory_mounted para el
+    # mecanismo]: que falta para poder guardar la primera nota en este
+    # proyecto -- vacio cuando no falta nada (memoria montada de verdad).
+    # Nombra cada pieza ausente por su nombre real, nunca un bool suelto.
+    memory_setup_missing: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

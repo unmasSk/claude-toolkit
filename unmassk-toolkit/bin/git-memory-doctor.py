@@ -200,6 +200,86 @@ def check_claude_md(project_root: str) -> tuple[bool, str]:
 
 
 
+def check_gitmem_launcher() -> tuple[str, str]:
+    """Check ~/.local/bin/gitmem: installed, and whether ~/.local/bin is
+    on PATH -- the two failure modes a dead/unreachable launcher has
+    [encargo: "Fase 5... tiene que probar cada cosa nueva con su
+    ✅/⚠️/❌: el lanzador del PATH (y si el PATH lo ve o no)"].
+
+    Never "error": a missing or unreachable launcher means `gitmem` still
+    works via its full cache path, it is only less convenient -- same
+    severity class as the existing CLI/hooks.json checks below, which are
+    warnings, not errors.
+
+    Returns:
+        Tuple of (level, message).
+    """
+    launcher_dir = os.path.join(os.path.expanduser("~"), ".local", "bin")
+    launcher_path = os.path.join(launcher_dir, "gitmem")
+    if not os.path.isfile(launcher_path):
+        return "warn", "not installed at ~/.local/bin/gitmem (run install to create)"
+
+    path_dirs = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    in_path = any(os.path.realpath(p) == os.path.realpath(launcher_dir) for p in path_dirs)
+    if in_path:
+        return "ok", f"{launcher_path} (~/.local/bin is in PATH)"
+    return "warn", (
+        f"{launcher_path} exists but ~/.local/bin is not in PATH -- add to "
+        'your ~/.zshrc: export PATH="$HOME/.local/bin:$PATH"'
+    )
+
+
+def check_project_memory_seed(project_root: str) -> tuple[str, str]:
+    """Check that `.claude/project-memory/`'s eight index files exist
+    [encargo: "Fase 5... los ocho indices"]. Expected list is the same
+    INDEX_FILES tuple lib/memory/vocabulary.py declares and
+    lib/memory/indexes.py::seed() writes -- read directly from disk here
+    (a fixed literal, not an import) to keep this check independent of
+    lib/memory/'s own import chain, same reasoning check_hooks()/
+    check_skills() above already apply to their own expected lists.
+
+    Returns:
+        Tuple of (level, message).
+    """
+    expected = (
+        "DECISIONS.md", "MEMOS.md", "RESTRICTIONS.md", "QUESTIONS.md",
+        "INCIDENTS.md", "DISCARDED.md", "BLOCKED.md", "ARCHIVED.md",
+    )
+    pm_dir = os.path.join(project_root, ".claude", "project-memory")
+    if not os.path.isdir(pm_dir):
+        return "warn", "not found (run install to seed)"
+    missing = [f for f in expected if not os.path.isfile(os.path.join(pm_dir, f))]
+    if missing:
+        return "warn", f"{len(expected) - len(missing)}/{len(expected)} index files present -- missing: {', '.join(missing)}"
+    return "ok", f"{len(expected)}/{len(expected)} index files present"
+
+
+def check_project_config(project_root: str) -> tuple[str, str]:
+    """Check `.claude/project-memory/config.json` [encargo: "Fase 5...
+    config.json con el tipo deducido"]. A corrupt file is reported as an
+    error, not silently skipped -- same fail-loud contract config.py's
+    own load() already enforces for every real reader of this file; the
+    doctor must not be the one place that quietly looks away from it.
+
+    Returns:
+        Tuple of (level, message).
+    """
+    config_path = os.path.join(project_root, ".claude", "project-memory", "config.json")
+    if not os.path.isfile(config_path):
+        return "warn", "config.json not found (run install to create)"
+    try:
+        with open_no_follow_symlink(config_path, "r") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return "error", f"corrupt: {e}"
+    if not isinstance(data, dict):
+        return "error", "corrupt: expected a JSON object"
+    repo_type = data.get("repo_type")
+    if repo_type is None:
+        return "warn", "present but repo_type not set (defaults to protected 'gitflow')"
+    return "ok", f"repo_type={repo_type!r}"
+
+
 def check_manifest(project_root: str) -> tuple[dict[str, Any] | None, str]:
     """Check if .claude/.unmassk/manifest.json exists and is valid JSON.
 
@@ -391,6 +471,26 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
                     results.append(("ok", "Settings hooks", "clean"))
         except (json.JSONDecodeError, OSError):
             pass
+
+    # 10. gitmem PATH launcher (~/.local/bin/gitmem)
+    launcher_level, launcher_msg = check_gitmem_launcher()
+    if launcher_level == "warn":
+        has_warnings = True
+    results.append((launcher_level, "gitmem launcher", launcher_msg))
+
+    # 11. Project memory: eight index files seeded
+    pm_level, pm_msg = check_project_memory_seed(project_root)
+    if pm_level == "warn":
+        has_warnings = True
+    results.append((pm_level, "Project memory", pm_msg))
+
+    # 12. Project memory: config.json / repo_type
+    cfg_level, cfg_msg = check_project_config(project_root)
+    if cfg_level == "error":
+        has_errors = True
+    elif cfg_level == "warn":
+        has_warnings = True
+    results.append((cfg_level, "Project config", cfg_msg))
 
     # Output
     if as_json:

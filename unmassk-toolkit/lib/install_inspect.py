@@ -52,6 +52,35 @@ OLD_SKILL_DIRS = [
 ]  # Keep old dirs listed for cleanup during upgrades
 
 
+def _deduce_repo_type(target: str) -> str:
+    """Deduce config.json's repo_type from `target`'s branches alone —
+    fixed rule [encargo: "config.json, deducido y escrito"], not to be
+    changed here:
+
+    - a single branch total -> "trunk" (nothing to protect: every commit
+      already lives on the only branch there is).
+    - two or more branches AND one of them is literally named "dev" or
+      "develop" -> "gitflow".
+    - anything else, including "branches could not be listed at all" ->
+      "trunk" — same fail-open direction as the single-branch case; the
+      caller reports what got deduced and how to override it, so a wrong
+      guess is never silent.
+
+    Never raises: a git failure here must not abort the install (this
+    runs during inspect(), before the user has even seen a plan) — it
+    just falls back to the same "trunk" default as every unmatched case.
+    """
+    code, output = run_git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"], cwd=target)
+    if code != 0:
+        return "trunk"
+    branches = [b.strip() for b in output.splitlines() if b.strip()]
+    if len(branches) <= 1:
+        return "trunk"
+    if any(b in ("dev", "develop") for b in branches):
+        return "gitflow"
+    return "trunk"
+
+
 def inspect(target: str) -> dict[str, Any]:
     """Inspect the target repository and detect its current state.
 
@@ -144,6 +173,17 @@ def inspect(target: str) -> dict[str, Any]:
                 report["suggested_mode"] = "compatible"
         except (json.JSONDecodeError, OSError):
             pass
+
+    # config.json's repo_type, deduced from branches alone [decision
+    # fijada por el encargo, no se cambia aqui]:
+    #   - una sola rama -> "trunk" (todo el historial vive en ella).
+    #   - dos o mas ramas Y una se llama literalmente "dev" o "develop"
+    #     -> "gitflow".
+    #   - cualquier otro caso (incluido "no se pudieron listar ramas") ->
+    #     "trunk", mismo lado fail-open que el caso de una sola rama; la
+    #     fase 5 dice en alto que se dedujo y como cambiarlo, para que un
+    #     acierto equivocado nunca sea silencioso.
+    report["deduced_repo_type"] = _deduce_repo_type(target)
 
     # Detect stale hook entries in project .claude/settings.json
     project_settings_path = os.path.join(target, ".claude", "settings.json")

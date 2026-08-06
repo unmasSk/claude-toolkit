@@ -49,6 +49,60 @@ try:
 
     cwd = payload.get("cwd") or os.getcwd()
 
+    # Si este proyecto no ha pasado nunca por el instalador, se instala
+    # AQUI, solo, antes de leer memoria [decision del propietario,
+    # 2026-08-06: "yo solo tengo que entrar, decir buenos dias y que el me
+    # diga lo que hay que hacer"].
+    #
+    # Por que aqui y no esperando a que alguien lo pida: sin instalador el
+    # proyecto se queda a medias para siempre y NADA lo saca de ahi. Sin
+    # `config.json` el sistema da por protegida la rama principal y rechaza
+    # el primer commit de trabajo del dia -- medido sobre los 14
+    # repositorios del propietario, 11 chocarian el primer dia. Sin los
+    # ocho indices, sin `.gitignore` y sin el lanzador en el PATH, cada
+    # sesion nueva vuelve a empezar de cero. El instalador es idempotente
+    # (probado lanzandolo dos veces seguidas: mismo resultado, no duplica
+    # nada) y nunca pisa una clave que ya exista.
+    #
+    # Se traga cualquier fallo, igual que todo lo demas de este fichero: la
+    # memoria ayuda, nunca bloquea. Si la instalacion no sale, el arranque
+    # sigue y el informe se escribe igual -- el hueco lo canta despues el
+    # propio informe, que ya sabe decir que la memoria no esta montada.
+    _INSTALLER = os.path.join(_TOOLKIT_ROOT, "bin", "git-memory-install.py")
+    manifest = os.path.join(cwd, ".claude", ".unmassk", "manifest.json")
+    if not os.path.isfile(manifest) and os.path.isfile(_INSTALLER):
+        try:
+            done = subprocess.run(
+                [sys.executable, _INSTALLER, "--auto"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if done.returncode == 0:
+                print(
+                    "[memory] este proyecto no estaba instalado y se acaba de "
+                    "instalar solo: gitmem en el PATH, los ocho indices y la "
+                    "configuracion del repositorio."
+                )
+            else:
+                print(
+                    "[memory] este proyecto NO esta instalado y la instalacion "
+                    "automatica ha fallado. Lanzala a mano:\n"
+                    f"  python3 {_INSTALLER} --auto"
+                )
+        except Exception:
+            pass
+
+    # `flush` antes de ceder la salida al subproceso, y no es cosmetico:
+    # `bin/memory/boot.py` escribe directo al descriptor real, mientras que
+    # lo impreso aqui se queda en el buffer de Python hasta que el proceso
+    # muere. Sin esto, el aviso de "se acaba de instalar solo" aterrizaba
+    # DESPUES del informe entero -- justo la linea que explica por que ha
+    # cambiado el proyecto, leida al final y fuera de contexto
+    # [comprobado ejecutandolo, 2026-08-06].
+    sys.stdout.flush()
+
     subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd)
 except Exception:
     pass

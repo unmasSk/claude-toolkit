@@ -284,7 +284,13 @@ gitmem rule "always read the existing patterns first" --kind claude
 gitmem rule
 ```
 
-**If `gitmem` isn't on the PATH** it ships inside the toolkit, at `${CLAUDE_PLUGIN_ROOT}/bin/gitmem`. Resolve that path once, at the start, and reuse it — and never report "no memory" when what happened is that the command wasn't found. Those are opposite claims.
+**`gitmem` is on the PATH — type it bare.** The installer puts a launcher at `~/.local/bin/gitmem` that resolves the newest installed version on every run, so it keeps working across upgrades. Write `gitmem note ...`, never a long path into the plugin cache: a pasted cache path carries a version number in it and goes stale the day the toolkit updates.
+
+**If the bare command is not found, that is not a reason to reach for a long path — it is the signal that this project was never set up.** Run the installer once, `python3 ${CLAUDE_PLUGIN_ROOT}/bin/git-memory-install.py --auto`, and then use `gitmem`. It puts the launcher on the PATH and, in the same pass, seeds the eight indexes and writes the project's config — the things whose absence makes the first note bounce.
+
+Reaching for the cache path instead leaves the project half-set-up forever: the command appears to work, so nobody notices there is no config and no indexes, and the next session pays for it again.
+
+**And never report "no memory" when what happened is that the command wasn't found.** Those are opposite claims: one says the project has nothing saved, the other says you couldn't ask.
 
 **And never ask the user to run any of them. You run them.**
 

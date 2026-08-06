@@ -405,8 +405,38 @@ def add(text: str, kind: str) -> WriteResult:
         # real a mitad (un Ctrl-C durante un commit lento). La
         # restauracion del fichero tiene que darse en los dos casos --
         # mismo patron que `notes.write` (Sec.8.1).
+        # La regla y su linea viajan en EL MISMO commit, igual que una nota
+        # viaja con su linea de indice [2026-08-05]. Antes era
+        # `gitcmd.commit_empty()`: el commit iba genuinamente vacio y
+        # `rules.md` se quedaba fuera de git, tratado como proyeccion
+        # local. Eso rompia dos cosas, las dos encontradas ejecutandolo:
+        #
+        # 1. **Las reglas no sobrevivian a un clon ni a otra maquina.**
+        #    Nada reconstruye este fichero desde git -- `rezones` declara
+        #    expresamente que no lo toca -- asi que en un clon limpio los
+        #    commits estaban y el fichero no: `gitmem rule` devolvia vacio
+        #    y el arranque cantaba una discrepancia por cada regla. Es la
+        #    unica amenaza que este proyecto declara: memoria perdida al
+        #    cambiar de maquina, sin un solo aviso.
+        # 2. **Dejaba el arbol sucio para siempre**, y con el arbol sucio
+        #    `bin/release.py` se niega a publicar. Guardar una regla
+        #    bloqueaba la publicacion.
+        #
+        # `commit()` con pathspec explicito en vez de `commit_empty()`:
+        # ahora SI hay algo que comitear junto al mensaje. `coherence_rules()`
+        # sigue valiendo igual -- compara commits contra lineas del fichero,
+        # y que ademas viaje versionado no le quita ninguna divergencia que
+        # antes detectara.
         try:
-            git_result = gitcmd.commit_empty(subject)
+            add_result = gitcmd.run(
+                ["add", "--all", "--", str(path)], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+            )
+            if add_result.returncode != 0:
+                _restore_file_best_effort(path, previous_content, existed_before)
+                return WriteResult(
+                    ok=False, note_id=None, rejections=(), git_error=add_result.stderr
+                )
+            git_result = gitcmd.commit(subject, [path], allow_empty=False, cwd=root)
         except BaseException:
             _restore_file_best_effort(path, previous_content, existed_before)
             raise

@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Un proyecto se instala solo al abrir sesión.** Si no tiene manifest, el arranque lanza el instalador antes de leer memoria: deja `gitmem` en el PATH, siembra los ocho índices, deduce y escribe `config.json`, y pone el `.gitignore`. Medido de punta a punta: de **nueve pasos manuales —dos de ellos rechazos— a cero**.
+- **`gitmem` en el PATH**, con un lanzador en `~/.local/bin/gitmem` que resuelve la versión instalada más nueva en cada ejecución, así que no se queda muerto al actualizar. Si `~/.local/bin` no está en el PATH, la instalación lo dice con la línea exacta para el `~/.zshrc` — nunca edita el perfil del usuario.
+- **`config.json` se deduce del repositorio**: una sola rama es `trunk`; varias con `dev`/`develop`, `gitflow`. Nunca pisa una clave existente. Antes **no lo escribía nadie**, y su defecto protegido rechazaba el primer commit de trabajo del día — en **11 de los 14 repositorios del propietario**.
+- **El arranque avisa de dos cosas que antes callaba:** que la memoria del proyecto no está montada, diciendo qué falta por su nombre; y que puede haber **memoria del sistema anterior sin destilar** (muchos commits, cero notas reconocidas). Un proyecto con años de decisiones dentro se presentaba como *«todavía no se ha escrito nada»*.
+- **El médico del sistema ausculta la memoria**: el lanzador, los ocho índices y la configuración, con su ✅/⚠️/❌ en la fase 5 de la instalación.
+
+### Fixed
+
+- **La instalación guarda en git lo que crea.** Un proyecto recién instalado terminaba el día con **diez ficheros sin guardar**: ruido permanente en `git status`, publicar bloqueado, y al clonar en otra máquina ni configuración ni índices. Pathspec explícito, nunca `git add -A`: el trabajo a medias del usuario no se arrastra dentro de un commit de instalación.
+- **Las zonas viajan en git.** `zones.json` era el único fichero de memoria que el sistema escribía y **no commiteaba jamás**. Su nombre se puede deducir de los titulares, pero **su descripción y sus alias no viven en ningún commit** y `rezones` no puede reconstruirlos: al clonar desaparecían, y el arranque lo daba todo en verde.
+- **El fichero de reglas viaja en git**, dentro del mismo commit que la regla. Antes se quedaba fuera: en un clon, `gitmem rule` devolvía vacío y el arranque cantaba una discrepancia por cada regla.
+- **`gitmem work` sabe guardar un borrado.** Dejar de versionar un fichero era imposible con el sistema puesto: la aduana cierra la puerta de `git commit` y el comando propio no tenía esa operación.
+- **`gitmem rule list` guardaba una regla que decía «list»**, y dejaba su commit para siempre. Ahora `list` lee, y una palabra suelta rebota.
+- **El arranque decía «manifest al día» en proyectos sin instalar.** Ahora dice que no lo están.
+- **La skill de memoria dejó de ofrecer la ruta larga como salida.** Si `gitmem` no se encuentra, eso no es motivo para tirar de la caché: es la señal de que ese proyecto nunca se montó, y tirar de la ruta lo deja a medias para siempre.
+
 ## [1.28.2] - 2026-08-05
 
 ### Fixed

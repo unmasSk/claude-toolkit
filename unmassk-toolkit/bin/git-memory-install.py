@@ -119,7 +119,24 @@ def create_plan(report: dict[str, Any], source: str, target: str,
     else:
         plan["actions"].append(("update_claude_md", "Add managed block to CLAUDE.md"))
 
-    # Manifest
+    # gitmem PATH launcher (~/.local/bin/gitmem) -- survives cache upgrades.
+    plan["actions"].append(("install_gitmem_launcher", "Install/refresh gitmem launcher in ~/.local/bin (PATH)"))
+
+    # Project memory: seed the eight empty index files.
+    plan["actions"].append(("seed_project_memory", "Seed .claude/project-memory/ index files (8 files)"))
+
+    # Project memory: config.json's repo_type, deduced from branches
+    # unless the file already declares one (never overwritten -- see
+    # install_apply.py::_write_config_json).
+    plan["repo_type"] = report.get("deduced_repo_type", "trunk")
+    plan["actions"].append((
+        "write_config_json",
+        f"Write/merge .claude/project-memory/config.json (repo_type deduced: {plan['repo_type']!r}, unless already set)",
+    ))
+
+    # Manifest -- always last (Decision 2d56444 / Moriarty #63, see
+    # apply_plan()'s comment on this same invariant): create_manifest
+    # stamps the version only once every earlier action has succeeded.
     plan["actions"].append(("create_manifest", "Create/update .claude/.unmassk/manifest.json"))
 
     return plan

@@ -5,19 +5,31 @@ Split out of git-memory-install.py (600+ LOC, growing every round with
 security guards) to keep the CLI entrypoint under the project's 500 LOC
 limit. This module owns "actually change something on disk": cleaning up
 old-style install remnants, removing stale hook entries, writing the
-CLAUDE.md managed block, and creating the manifest.
+CLAUDE.md managed block, creating the manifest, installing the gitmem
+PATH launcher, seeding the project-memory index files, and writing/
+merging config.json's deduced repo_type.
 
 Imports OLD_BIN_FILES/OLD_HOOK_FILES/OLD_LIB_FILES/OLD_SKILL_DIRS from
 lib/install_inspect.py rather than duplicating them — inspect() and
 _cleanup_old_install() must agree on exactly which files count as an
 old-style install. One-way dependency: this module may import from
 install_inspect.py, never the reverse.
+
+The memory system's own modules (lib/memory/indexes.py, lib/memory/
+config.py) live in a sibling directory not on sys.path by default — every
+bin/memory/*.py script inserts lib/memory/ itself before importing them
+(see bin/memory/work.py); the same insertion happens below, once, before
+the `indexes` import.
 """
 
 import json
 import os
+import subprocess
 import shutil
+import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from git_helpers import claude_md_lock_path, ensure_gitignore, file_lock, open_no_follow_symlink, verify_path_within_project
@@ -25,6 +37,12 @@ from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
 from install_inspect import OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS
+
+_LIB_MEMORY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory")
+if _LIB_MEMORY_DIR not in sys.path:
+    sys.path.insert(0, _LIB_MEMORY_DIR)
+
+import indexes  # noqa: E402  (import after sys.path insert, same pattern as bin/memory/work.py)
 
 
 def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
@@ -50,6 +68,17 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
                 _cleanup_stale_settings_hooks(target)
             elif action == "update_claude_md":
                 _update_claude_md(target)
+            elif action == "install_gitmem_launcher":
+                info = _install_gitmem_launcher(source, target)
+                suffix = " (self-install: points at source tree, not the cache)" if info["is_self"] else ""
+                print(f"  gitmem launcher: {info['path']}{suffix}")
+                if not info["in_path"]:
+                    print("  ⚠️  ~/.local/bin is not in your PATH. Add this line to your ~/.zshrc:")
+                    print('      export PATH="$HOME/.local/bin:$PATH"')
+            elif action == "seed_project_memory":
+                _seed_project_memory(target)
+            elif action == "write_config_json":
+                print(f"  {_write_config_json(target, plan.get('repo_type', 'trunk'))}")
             elif action == "create_manifest":
                 # Decision 2d56444 / Moriarty #63: create_manifest is always
                 # the last action in plan["actions"] (see create_plan() in
@@ -68,7 +97,97 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
         except Exception as e:
             errors.append(f"{action}: {e}")
 
+    if not errors:
+        _commit_what_the_install_created(target)
+
     return errors
+
+
+# Ficheros que la instalacion crea y que TIENEN que viajar en git. No es
+# una lista de "por si acaso": cada uno se pierde en un clon si no esta
+# aqui, y su ausencia rompe algo concreto. Los ocho indices y `config.json`
+# son la memoria del proyecto; `.gitignore` es lo que impide que el informe
+# del arranque -- reescrito en cada sesion -- acabe commiteado; `CLAUDE.md`
+# es lo que le dice a Claude que cargue las skills.
+#
+# `manifest.json` NO esta y es deliberado: vive bajo `.claude/.unmassk/`,
+# que el propio `.gitignore` ignora, porque dice que version hay instalada
+# EN ESTA MAQUINA. Versionarlo haria que un clon heredara la version de
+# otro ordenador.
+_LO_QUE_CREA_LA_INSTALACION = (
+    ".gitignore",
+    "CLAUDE.md",
+    ".claude/project-memory/config.json",
+    ".claude/project-memory/ARCHIVED.md",
+    ".claude/project-memory/BLOCKED.md",
+    ".claude/project-memory/DECISIONS.md",
+    ".claude/project-memory/DISCARDED.md",
+    ".claude/project-memory/INCIDENTS.md",
+    ".claude/project-memory/MEMOS.md",
+    ".claude/project-memory/QUESTIONS.md",
+    ".claude/project-memory/RESTRICTIONS.md",
+)
+
+
+def _commit_what_the_install_created(target: str) -> None:
+    """Guarda en git lo que la instalacion acaba de crear.
+
+    Sin esto, un proyecto recien instalado termina el dia con DIEZ ficheros
+    sin guardar [medido 2026-08-06, simulacion de un dia entero de punta a
+    punta]. Tres consecuencias, y ninguna es cosmetica:
+
+    1. **Ruido permanente en `git status`.** Diez lineas que no son trabajo
+       del usuario y que no desaparecen nunca por si solas.
+    2. **Publicar se bloquea.** `bin/release.py` se niega a correr con el
+       arbol sucio, asi que instalar la memoria impedia publicar.
+    3. **Al clonar en otra maquina no hay ni configuracion ni indices.** Es
+       el mismo agujero que ya se cerro en `rules.py` (el fichero de reglas
+       se quedaba fuera de git) y en `zones.py` (las zonas se perdian
+       enteras al clonar) -- este era el tercer sitio, y el mas grande.
+
+    Pathspec EXPLICITO, nunca `git add -A`: el usuario puede tener trabajo
+    suyo a medias en el indice cuando esto corre, y arrastrarlo dentro de un
+    commit de instalacion seria robarle su commit. Mismo contrato que
+    `gitcmd.commit()` ya cumple para la publicacion del toolkit.
+
+    Falla en silencio a proposito: un repositorio sin un solo commit
+    todavia, un `user.email` sin configurar o un `pre-commit` ajeno que
+    rechaza son casos normales, y **ninguno justifica reventar una
+    instalacion que por lo demas ha ido bien**. Lo que queda entonces son
+    unos ficheros sin commitear, que es exactamente el estado de antes de
+    este arreglo -- nunca algo peor.
+    """
+    existentes = [
+        rel for rel in _LO_QUE_CREA_LA_INSTALACION
+        if os.path.isfile(os.path.join(target, rel))
+    ]
+    if not existentes:
+        return
+    try:
+        add = subprocess.run(
+            ["git", "add", "--"] + existentes,
+            cwd=target, capture_output=True, text=True, timeout=15,
+        )
+        if add.returncode != 0:
+            return
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--"] + existentes,
+            cwd=target, capture_output=True, text=True, timeout=15,
+        )
+        # Nada que guardar: la instalacion no cambio ninguno de estos
+        # ficheros (segunda pasada sobre un proyecto ya instalado). Sin esta
+        # comprobacion, `git commit` fallaria por "nothing to commit" y
+        # dejaria un error donde no hay ninguno.
+        if staged.returncode != 0 or not staged.stdout.strip():
+            return
+        subprocess.run(
+            ["git", "commit", "-m",
+             "install: memoria del proyecto (indices, config y gitignore)",
+             "--"] + existentes,
+            cwd=target, capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return
 
 
 def _cleanup_old_install(target: str, source: str) -> None:
@@ -312,3 +431,178 @@ def _create_manifest(target: str, mode: str) -> None:
         json.dump(manifest, f, indent=2)
 
     ensure_gitignore(target)
+
+
+# ── gitmem PATH launcher ─────────────────────────────────────────────────
+
+def _gitmem_launcher_dir() -> str:
+    return os.path.join(os.path.expanduser("~"), ".local", "bin")
+
+
+def _gitmem_launcher_self_content(source: str) -> str:
+    """Launcher content for the dogfooding case (source == target): the
+    plugin's own source tree is never versioned into the cache, so there
+    is nothing to resolve on every run — the launcher points straight at
+    bin/gitmem inside the source tree, fixed at install time.
+    """
+    gitmem_path = os.path.join(source, "bin", "gitmem")
+    return (
+        "#!/usr/bin/env python3\n"
+        "import subprocess, sys\n"
+        f"sys.exit(subprocess.run([sys.executable, {gitmem_path!r}, *sys.argv[1:]]).returncode)\n"
+    )
+
+
+def _gitmem_launcher_cache_content() -> str:
+    """Launcher content for a real project: resolves the newest plugin
+    cache version on EVERY run, so the launcher survives a plugin
+    upgrade without being reinstalled.
+
+    Does not reimplement the semver-picking algorithm [encargo: "la
+    pieza que ya sabe encontrarla existe y se reutiliza, no se
+    reescribe: lib/boot_health.py::_latest_version_dir() y
+    CACHE_BASE_DIR"] — it bootstraps into whichever cache version it
+    finds first purely to import the real function/constant, then asks
+    THAT function for the true latest version and dispatches there. The
+    bootstrap version is never itself trusted as "the latest" — only
+    used to reach the code that decides that.
+    """
+    return (
+        "#!/usr/bin/env python3\n"
+        "import glob, os, subprocess, sys\n"
+        "_toolkit_versions = os.path.join(os.path.expanduser('~'), '.claude', 'plugins',\n"
+        "    'cache', 'unmassk-claude-toolkit', 'unmassk-toolkit')\n"
+        "_bootstrap_lib = next(iter(sorted(glob.glob(os.path.join(_toolkit_versions, '*', 'lib')))), None)\n"
+        "if _bootstrap_lib:\n"
+        "    sys.path.insert(0, _bootstrap_lib)\n"
+        "try:\n"
+        "    from boot_health import CACHE_BASE_DIR, _latest_version_dir\n"
+        "    _latest = _latest_version_dir(os.path.join(CACHE_BASE_DIR, 'unmassk-toolkit'))\n"
+        "except Exception:\n"
+        "    _latest = None\n"
+        "if not _latest:\n"
+        "    print('gitmem: no unmassk-toolkit version found in the plugin cache "
+        "-- run the installer again.', file=sys.stderr)\n"
+        "    sys.exit(1)\n"
+        "sys.exit(subprocess.run([sys.executable, os.path.join(_latest, 'bin', 'gitmem'), "
+        "*sys.argv[1:]]).returncode)\n"
+    )
+
+
+def _install_gitmem_launcher(source: str, target: str) -> dict[str, Any]:
+    """Install/replace the ~/.local/bin/gitmem launcher [encargo: "gitmem
+    en el PATH -- y que sobreviva a las actualizaciones"]. A direct
+    symlink to the cache's version-numbered gitmem would go dead on the
+    next plugin upgrade; this launcher re-resolves the version on every
+    invocation instead (self-install case excepted, see
+    _gitmem_launcher_self_content).
+
+    Always overwritten unconditionally, no prior-launcher check: the
+    generated content is a pure function of (source, target), so there is
+    nothing meaningful to compare before replacing an old one.
+
+    Not project-scoped (~/.local/bin lives outside `target`), so
+    verify_path_within_project doesn't apply here — that guard exists for
+    attacker-planted symlinks inside a hostile repo, and this project's
+    threat model has no external attacker [CLAUDE.md, "que security y
+    tests son para"]. The atomic temp-file + os.replace() write is kept
+    anyway: it protects against THIS process crashing mid-write, which is
+    the real, in-scope risk (system harming itself), not against a
+    hostile third party.
+
+    Returns {"path", "is_self", "in_path"} for the caller to report.
+    """
+    is_self = os.path.realpath(source) == os.path.realpath(target)
+    launcher_dir = _gitmem_launcher_dir()
+    os.makedirs(launcher_dir, exist_ok=True)
+    launcher_path = os.path.join(launcher_dir, "gitmem")
+
+    content = _gitmem_launcher_self_content(source) if is_self else _gitmem_launcher_cache_content()
+
+    fd, tmp_path = tempfile.mkstemp(dir=launcher_dir, prefix=".gitmem-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.chmod(tmp_path, 0o755)
+        os.replace(tmp_path, launcher_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+    path_dirs = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    in_path = any(os.path.realpath(p) == os.path.realpath(launcher_dir) for p in path_dirs)
+
+    return {"path": launcher_path, "is_self": is_self, "in_path": in_path}
+
+
+# ── Project-memory seeding ───────────────────────────────────────────────
+
+def _seed_project_memory(target: str) -> None:
+    """Seed `.claude/project-memory/`'s eight index files with their
+    headers [encargo: "no inventes el sembrado: la funcion existe y es
+    lib/memory/indexes.py::seed(pm). Llamala."]. Reuses the real seeding
+    function the rest of the memory system already writes through —
+    idempotent by construction (seed() only creates a file that is
+    missing, never touches one that already has notes).
+    """
+    pm_dir = os.path.join(target, ".claude", "project-memory")
+    verify_path_within_project(pm_dir, target)
+    indexes.seed(Path(pm_dir))
+
+
+# ── config.json: deduced repo_type ───────────────────────────────────────
+
+def _write_config_json(target: str, deduced_repo_type: str) -> str:
+    """Write or merge `.claude/project-memory/config.json` with the
+    deduced repo_type [encargo: "Nunca sobrescribas un config.json que ya
+    exista, ni una clave que ya tenga... Si ya existe con repo_type, se
+    respeta y se anuncia como respetado"]. config.py's own Config
+    dataclass models exactly three keys (customs_enabled, repo_type,
+    test_command) — those are the only keys this file can ever hold, so
+    merging means: keep every key already present untouched, add
+    repo_type only if it is missing.
+
+    A corrupt existing file is never silently treated as empty and
+    overwritten — same fail-loud contract as config.py::load()'s own
+    docstring ("un fichero corrupto FALLA EN ALTO, nunca devuelve los
+    valores por defecto en silencio"): overwriting a corrupt file here
+    would risk discarding a repo_type a human already set that just
+    happens to sit next to a JSON syntax error. Raises ValueError, caught
+    by apply_plan()'s existing per-action try/except and reported as an
+    install error instead.
+
+    Returns a one-line message for the Phase 3/5 report.
+    """
+    pm_dir = os.path.join(target, ".claude", "project-memory")
+    verify_path_within_project(pm_dir, target)
+    os.makedirs(pm_dir, exist_ok=True)
+    config_path = os.path.join(pm_dir, "config.json")
+
+    data: dict[str, Any] = {}
+    if os.path.isfile(config_path):
+        try:
+            with open_no_follow_symlink(config_path, "r") as f:
+                raw = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            raise ValueError(
+                f"install_apply.py: {config_path} existe y esta corrupto -- "
+                f"no se toca sin saber que clave conserva: {exc}"
+            ) from exc
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f"install_apply.py: {config_path} existe pero no es un "
+                f"objeto JSON (diccionario) -- no se toca"
+            )
+        data = raw
+
+    if "repo_type" in data:
+        return f"config.json: repo_type={data['repo_type']!r} ya existente, respetado ({config_path})"
+
+    data["repo_type"] = deduced_repo_type
+    with open_no_follow_symlink(config_path, "w", atomic=True) as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    return f"config.json: repo_type={deduced_repo_type!r} deducido y escrito ({config_path})"
