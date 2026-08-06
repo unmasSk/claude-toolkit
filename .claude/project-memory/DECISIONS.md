@@ -31,3 +31,4 @@
 [D-030][boot][memory] boot fetches every branch and shows a global summary, never switches locally
 [D-031][skills][architecture] START stays a prose checklist, deliberately without a mechanical gate
 [D-032][skills][architecture] Flow's agent sequence is fixed to a canonical, loop-free order
+[D-033][memory][boot] CLAUDE.md managed-block writes became atomic
