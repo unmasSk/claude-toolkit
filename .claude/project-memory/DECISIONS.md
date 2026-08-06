@@ -5,3 +5,4 @@
 [D-003][memory][skills] the CLI stays 'gitmem rule'; the user's door is the slash command /remember
 [D-004][standards][testing] unmassk-standards gained Producer-Consumer round-trip integrity (§34)
 [D-005][memory][hooks] the near-dup write-path gate stays lexical, not semantic
+[D-006][memory][release] code commits: local WIPs per sub-step, single squash and push at close
