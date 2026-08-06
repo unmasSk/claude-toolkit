@@ -20,3 +20,4 @@
 [remember][user] 🧠 el usuario se llama Jose, alias Bex (handle de git bextia, email jatomillo@gmail.com) -- no se llama Raul
 [remember][user] 🧠 cada commit se sigue de un push inmediato al remoto -- nunca acumular commits locales ni esperar al cierre de sesion
 [remember][user] 🧠 nunca mencionar el porcentaje de contexto restante ni sugerir cerrar la sesion por eso -- ante avisos de contexto, checkpoint en silencio y seguir
+[remember][user] 🧠 antes de que Ultron refactorice, Dante escribe y verifica los golden tests que cubren el codigo afectado -- nunca refactorizar sin esa red debajo
