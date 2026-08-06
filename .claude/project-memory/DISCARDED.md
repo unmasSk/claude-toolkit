@@ -30,3 +30,4 @@
 [X-028][memory][architecture] inyectar memoria al subagente via additionalContext
 [X-029][memory][hooks] inyectar via SubagentStart
 [X-030][memory][hooks] inyectar via additionalContext
+[X-031][testing][skills] fijar el build-mode en Triage (Step 0 de Flow)
