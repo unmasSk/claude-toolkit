@@ -9,3 +9,4 @@
 2026-08-06  [M-072][release][install] 📌 plugin marketplace distribution replaces manual git-clone install  →  closed: reclasificada como decision
 2026-08-06  [M-076][memory][install] 📌 no confirmation before saving memos and decisions  →  closed: reclasificada como decision
 2026-08-06  [M-078][skills][architecture] 📌 BM25 skill routing replaced the static CLAUDE.md skill-map  →  closed: reclasificada como decision
+2026-08-06  [M-085][release][architecture] 📌 this marketplace repo works directly on main  →  closed: reclasificada como decision

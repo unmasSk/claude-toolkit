@@ -81,7 +81,6 @@
 [M-082][ops][architecture] unmassk-ops covers five domains
 [M-083][compliance][docs] unmassk-compliance ships nine skills, English-only content
 [M-084][skills][docs] Alexandria owns documentation work, not Ultron
-[M-085][release][architecture] this marketplace repo works directly on main
 [M-086][architecture][memory] the four core plugins begin merging into unmassk-core v2.0
 [M-087][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [M-088][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
