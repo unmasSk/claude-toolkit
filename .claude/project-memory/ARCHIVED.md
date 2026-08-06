@@ -15,3 +15,4 @@
 2026-08-06  [M-089][testing][skills] 📌 two build modes: test-first for clear contracts, linear Flow for the rest  →  closed: reclasificada como decision
 2026-08-06  [M-094][docs][architecture] 📌 public repo content: English code and UI, Spanish conversation  →  closed: reclasificada como decision
 2026-08-06  [M-096][memory][architecture] 📌 vector search deferred as non-foundational, unlike the git decision graph  →  closed: reclasificada como decision
+2026-08-06  [D-017][skills][architecture] 🧭 BM25 skill routing replaced the static CLAUDE.md skill-map  →  closed: el gate BM25 se deprecó de verdad en julio -- ver D-028, que lo sustituye

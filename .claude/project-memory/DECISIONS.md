@@ -16,7 +16,6 @@
 [D-014][docs][architecture] important content is documented by hand in three audiences at once
 [D-015][release][install] plugin marketplace distribution replaces manual git-clone install
 [D-016][memory][install] no confirmation before saving memos and decisions
-[D-017][skills][architecture] BM25 skill routing replaced the static CLAUDE.md skill-map
 [D-018][release][architecture] this marketplace repo works directly on main
 [D-019][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [D-020][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
