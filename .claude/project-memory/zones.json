@@ -47,6 +47,10 @@
     "aliases": [],
     "description": "publicar version: empaquetado, versionado y distribucion"
   },
+  "seo": {
+    "aliases": [],
+    "description": "el plugin de SEO"
+  },
   "skills": {
     "aliases": [
       "agents"
