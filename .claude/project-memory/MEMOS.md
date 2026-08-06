@@ -98,3 +98,4 @@
 [M-111][skills][architecture] unmassk-flow-stack renamed to unmassk-scaffolding
 [M-112][skills][architecture] Gitto was retired on 2026-08-02, moved to deprecated, not deleted
 [M-113][install][release] the plugin cache freezes per version, repo patches have zero effect
+[M-114][memory][hooks] zone memory search by filename replaces role-based push injection
