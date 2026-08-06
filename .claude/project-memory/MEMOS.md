@@ -97,3 +97,4 @@
 [M-095][skills][docs] Alexandria rewrites existing content, never creates from a blank page
 [M-096][memory][architecture] vector search deferred as non-foundational, unlike the git decision graph
 [M-097][standards][testing] unmassk-standards gained Producer-Consumer round-trip integrity (§34)
+[M-098][docs][architecture] shared installer content stays English, Spanish is Bex's own channel
