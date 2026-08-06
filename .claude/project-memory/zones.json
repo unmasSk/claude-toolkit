@@ -83,6 +83,10 @@
     "aliases": [],
     "description": "el plugin de seguridad ofensiva y sus skills"
   },
+  "prueba": {
+    "aliases": [],
+    "description": "zona de prueba temporal, ultron demo 2026-08-06 -- se retira al terminar"
+  },
   "release": {
     "aliases": [],
     "description": "publicar version: empaquetado, versionado y distribucion"
