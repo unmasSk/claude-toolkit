@@ -13,3 +13,4 @@
 [D-011][skills][architecture] unmassk-grill absorbs the Spec Kit investigation instead of a new skill
 [D-012][docs][release] one root CHANGELOG.md for every plugin, not one per plugin
 [D-013][hooks][memory] hostile-commit forgery defense uses an unpredictable nonce fence, not a denylist
+[D-014][docs][architecture] important content is documented by hand in three audiences at once
