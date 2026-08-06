@@ -11,6 +11,12 @@
     "aliases": [],
     "description": "la integracion continua y sus workflows"
   },
+  "db": {
+    "aliases": [
+      "database"
+    ],
+    "description": "el plugin de bases de datos"
+  },
   "design": {
     "aliases": [],
     "description": "el diseno visual y de interaccion"
