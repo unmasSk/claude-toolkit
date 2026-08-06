@@ -2138,3 +2138,72 @@ calls — the fase-1→fase-2 gap here is exactly what happens when they
 drift apart (fase 1 fixed the tokenizer for `cd` only, left the git
 detector on the old one, and Cerberus caught the asymmetry on the next
 pass).
+
+## `gitmem` on $PATH resolves to the plugin CACHE, not the source repo (2026-08-06)
+
+Fixing `bin/memory/zones.py::_cmd_add()` to stop self-committing
+(`notes_commit.stage_and_commit()` removed — owner order: 23 zone-add
+commits and 18 rule commits polluted one afternoon's history; these are
+config files, not memory notes) and then verifying it by running
+`gitmem zones add ...` from `$PATH` showed the OLD (pre-fix) commit
+message `zones: alta de prueba` — the fix appeared to not work.
+
+Root cause: `/Users/unmassk/.local/bin/gitmem` is a bootstrap launcher
+(`installer-gitmem-launcher-seed-config.md` already documented this
+shape) that resolves `_latest_version_dir()` under
+`~/.claude/plugins/cache/unmassk-claude-toolkit/unmassk-toolkit/` and
+subprocess-execs THAT copy's `bin/gitmem` — never the dev repo. Editing
+`unmassk-toolkit/bin/memory/zones.py` in the source tree has zero effect
+on `$PATH gitmem` until a release ships. **To test a live source-tree
+fix, invoke `python3 unmassk-toolkit/bin/gitmem <subcommand>` directly
+from the repo root — never the bare `gitmem` on `$PATH`.** This produced
+one real, unwanted commit in the actual project repo before catching it
+(`zones: alta de prueba`, since undone by editing the zone back out of
+`zones.json` — file edit only, no `git reset`/`stash`, per this repo's
+hard git-safety rule).
+
+## rules.py/rule.py: existing tests hard-assert a commit-per-rule contract
+
+`tests/memory/test_rules.py` (`test_commit_and_file_end_up_with_the_same_text`,
+`test_failed_commit_reverts_the_file_to_its_previous_content`,
+`test_failed_first_ever_commit_deletes_the_file_entirely`) and
+`tests/memory/test_rule_script.py`
+(`test_rule_appears_in_the_file_and_in_a_real_git_commit`, literal
+assertion "una regla anadida tiene que producir exactamente un commit")
+all assume `rules.add()`/`rule.py` creates a real git commit per rule.
+When an owner order says "stop committing per rule", this is exactly
+the CLAUDE.md/this-agent's-prompt circuit breaker: STOP, don't touch the
+tests, report the specific test names blocking the change — that
+contract update is Dante's, not Ultron's. `bin/memory/zones.py` had the
+mirror change (stop committing per zone-add) with ZERO test assumptions
+found (`tests/memory/test_zones.py`, `tests/memory/test_zones_script.py`
+— grepped for "commit", zero hits) — so that half shipped, the rules.py
+half didn't, same task, different blast radius per file.
+
+## rules.py commit-removal (2026-08-06, follow-up): a 4th and a 5th test broke that weren't on Dante's list
+
+After Dante rewrote the contract (6 red tests across `test_rules.py`,
+`test_rule_script.py`, `test_boot.py`) and I implemented
+`rules.py::add()` to stop committing (mirroring the earlier `zones.py`
+fix), running the FULL scope of the three contract files (not just the
+6 named tests) surfaced two extra casualties Dante's enumeration missed:
+
+1. `tests/memory/test_boot.py::test_avisos_shows_warning_not_checkmark_for_rules_when_counts_match_but_content_differs`
+   (~line 1453) — calls `health.coherence_rules(root)` directly, same as
+   the 3 tests Dante DID list (~688, ~747, ~806), but wasn't named in his
+   "these will break" comment block. 4 test_boot.py failures total, not 3.
+2. `tests/memory/test_rules.py::test_remember_from_a_plain_subfolder_of_the_same_repo_still_works`
+   (line 696, assertion at 718) — a `[GUARD]` test unrelated to the
+   numbered contract rows, asserts `git log -1 --format=%s` contains the
+   rule marker. Directly contradicts the new no-commit contract. Not in
+   Dante's list at all (it's not one of the coherence_rules tests — it's
+   in `test_rules.py`, the same file I *did* touch, but a test Dante's
+   rewrite left behind).
+
+**Lesson: when a coordinator hands you a list of "tests that will
+break," verify it by running the actual scoped file(s), don't trust the
+list as exhaustive.** Their list is exactly what's declared in a comment
+block written before the fix existed — it's a good starting point, not a
+substitute for execution. Scope stays "only the contract files," per
+instruction, but *within* those files, run the whole file, not just the
+named tests, to catch what the enumeration missed.

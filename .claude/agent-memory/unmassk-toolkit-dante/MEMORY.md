@@ -124,6 +124,9 @@
 - [zones-list-doctor-absent-vs-empty-contract-notes.md](zones-list-doctor-absent-vs-empty-contract-notes.md) — zones.py list + doctor RED: absent-vs-empty zones.json masking, doctor has zero zones awareness
 - [doctor-zones-check-retirement-notes.md](doctor-zones-check-retirement-notes.md) — check_project_zones (#13) closed the gap; anti-vacuity control retired not inverted, redundant with existing hardening class
 - [customs-doctor-20260806-two-red-contracts-notes.md](customs-doctor-20260806-two-red-contracts-notes.md) — shlex-failure rescue passthrough + doctor config type-gap, both closed same day; set-iteration-order nondeterminism pitfall
+- [issue-81-suite-audit-reconfirmation-notes.md](issue-81-suite-audit-reconfirmation-notes.md) — issue #81's 180-test cut re-audited 2026-08-06: nearly all already resolved, ratio-alone-is-not-tautology lesson
+- [scaffold-py-red-contract-notes.md](scaffold-py-red-contract-notes.md) — scaffold.py 4-bug RED contract (raw TOML/JS interpolation, dead ORM/CSS options, unreachable python-cli, absolute-name escape); golden-test scope cancelled mid-task, dispatch-table mapping reused
+- [gitmem-rule-no-commit-contract-notes.md](gitmem-rule-no-commit-contract-notes.md) — rules.py/rule.py rewritten to never-commit contract (mirrors zones add), coherence_rules() retirement in boot.py CHECKS, existing test debt flagged not touched
 
 ## Retired (different stack, no longer this project's shape)
 
