@@ -2030,4 +2030,111 @@ the task requested, and it's the one class of command in this repo with a
 known history of writing real, unwanted commits as a side effect of
 merely *reading* test coverage. If broader regression coverage is
 genuinely needed, that's Dante's/the orchestrator's call to make
+
+## `shlex.split()` glues a bare separator to the PRECEDING token when there's no whitespace before it — use `shlex.shlex(..., punctuation_chars=True)` instead when the separator needs its own token (2026-08-06, `hooks/customs.py::_resolve_effective_cwd`)
+
+Fixing the "aduana mira la sesión, no el comando" gap (`hooks/customs.py`
+line ~586: `cwd = hook_input.get("cwd") or os.getcwd()`, never resolving a
+leading/chained `cd` in the Bash command string). Wrote
+`_resolve_effective_cwd(command, base_cwd)`: tokenize `command`, split
+into statements on `&&`/`||`/`;`/`|` (reusing the file's existing
+`_split_statements`), walk them in order applying any `cd <path>`
+sequentially so "last cd wins" and "cd not at the start still applies"
+fall out for free — no special-casing needed for either.
+
+First pass used plain `shlex.split(command, comments=True)` — the same
+tokenizer `_find_commit_creating_statement` already uses in this file.
+51/52 tests went green; the one holdout was
+`test_cd_with_semicolon_uses_cd_target`: `cd {target_repo};` (semicolon
+glued directly to the path, no space — a real, common shell form).
+`shlex.split` does NOT treat `;`/`&`/`|` as tokens in their own right
+when using its default (non-punctuation) mode — it only splits on
+**whitespace**, so `/some/path;` comes back as ONE token
+(`'/some/path;'`), silently corrupting both the cd target (trailing `;`
+never stripped) and the statement boundary (the separator token
+`_split_statements` looks for never appears). `&&`/`||` don't hit this
+bug in practice only because the test fixtures always put spaces around
+them — the underlying tokenizer bug is identical, it just wasn't
+triggered.
+
+Fix: build the lexer explicitly with `punctuation_chars=True`
+(`shlex.shlex(command, posix=True, punctuation_chars=True)`,
+`.whitespace_split = True`, `.commenters = "#"`, then `list(lexer)`).
+This mode carves `;`/`&`/`|`/`(`/`)`/`<`/`>` out of `wordchars` so they
+always tokenize separately (and multi-char operators like `&&`/`||`
+still merge into one token each) — verified live: `'cd /tmp/foo; echo
+bar'` → `['cd', '/tmp/foo', ';', 'echo', 'bar']`. It still raises the
+same `ValueError` on unbalanced quotes as plain `shlex.split`, so the
+existing `except ValueError: return base_cwd` fallback needed no change.
+Scoped this tokenizer change to `_resolve_effective_cwd` only —
+`_find_commit_creating_statement` (the git-subcommand detector) was left
+on plain `shlex.split` since no failing test exercised it and touching a
+second detector wasn't in this task's surface.
+
+**Rule going forward:** when a shell-command parser in this codebase
+needs to recognize `;`/`&`/`|` as statement separators, don't assume
+`shlex.split()`'s default whitespace-only splitting gives you a
+standalone separator token — it only does when the separator is
+surrounded by spaces in the input. If the separator can plausibly be
+glued to the previous argument with no space (`cd path;`, `foo&&bar`),
+use `shlex.shlex(..., punctuation_chars=True)` with `whitespace_split =
+True` instead. `_find_commit_creating_statement` in this same file has
+this same latent gap for `;`-glued-to-path forms — not fixed here
+(out of scope for this task), flagged for whoever touches it next.
 explicitly, file-by-file, never a blanket `pytest -q`.
+
+## `hooks/customs.py` cd-fix, fase 2 (2026-08-06, Cerberus findings, both fixed in the same pass) — statement-index truncation + collapsing to ONE shell tokenizer
+
+Follow-up to the `_resolve_effective_cwd` entry above. Cerberus found two
+gaps in that first pass, both fixed together, no test touched (52 green
+tests untouched, 11 new ones from Dante went green too, 63/63 total):
+
+**Gap 1 — a `cd` AFTER the commit statement wrongly overrode the
+directory used to decide.** `_resolve_effective_cwd` walked every `cd`
+in the whole command regardless of position, so `cd sub && git commit
+-m x && cd ..` ended up evaluating the session dir (where `cd ..`
+lands) instead of `sub` (where bash actually was when the commit ran).
+Fix: `_find_commit_creating_statement` now returns a 3-tuple
+`(subcommand, rest_tokens, stmt_index)` — `stmt_index` is the position
+of the commit statement in the split-by-separator statement list.
+`_resolve_effective_cwd` gained a `limit_index` param and slices
+`statements[:limit_index]` before walking — a `cd` at or after the
+commit's own index is structurally excluded, no special-casing needed
+for "last cd before wins" or "cd not at start still applies" (those
+still fall out of the same sequential walk, unchanged from fase 1).
+
+**Gap 2 (the more serious one) — `_find_commit_creating_statement` still
+used plain `shlex.split()`.** `echo hi;git commit -m x` (separator glued
+to `git` with no space) fuses into one token `'hi;git'`; the anchored
+regex `_GIT_PROGRAM_TOKEN_RE` never matches a fused token, so the
+function returned `None` for the WHOLE command and `_decide()` approved
+with **zero evaluation** — no rescue check, no cwd resolution, no
+config.json read. Same bug class as the semicolon-cd bug from fase 1,
+different call site. Fix: extracted the punctuation_chars tokenizer from
+`_resolve_effective_cwd` into a new shared `_shell_statements(command)`
+(returns pre-split statements, or `None` on unbalanced quotes) and made
+BOTH `_find_commit_creating_statement` and `_resolve_effective_cwd` call
+it — one tokenizer in the file, not two solving the same problem
+differently (explicit orchestrator instruction, and the right call
+regardless: two independent tokenizers for the same shell string is how
+this class of bug happens in the first place).
+
+**Anchors that had to keep passing, unmodified test-side:** plain
+spaced `git commit -m x`, `/usr/bin/git commit -m x` (absolute path to
+binary), a `;` INSIDE a quoted message (`-m "a;b"`, quotes still protect
+it under punctuation_chars mode — verified, no regression), a `;`
+glued right AFTER the `-m` value (`git commit -m x;otra_cosa` — decides
+identically to the isolated `git commit -m x` because the reroute-to-
+`gitmem work` rejection template doesn't interpolate the message field;
+this one was flagged by Dante as "already green today, fixed as an
+explicit anchor" not as a red test), and every rescue/corrupt-file
+safety net from fase 1.
+
+**Rule going forward:** when a shell command can be tokenized more than
+one way for two different purposes in the same file (here: "find the
+git subcommand" vs. "find the cd targets"), those two purposes should
+share ONE tokenizer function, never grow independent ad-hoc `shlex`
+calls — the fase-1→fase-2 gap here is exactly what happens when they
+drift apart (fase 1 fixed the tokenizer for `cd` only, left the git
+detector on the old one, and Cerberus caught the asymmetry on the next
+pass).
