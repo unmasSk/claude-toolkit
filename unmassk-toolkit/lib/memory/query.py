@@ -226,9 +226,17 @@ def by_id(note_id: str) -> Note | None:
     """La nota con `id == note_id`, o `None` si no existe -- nunca una
     excepcion ni una cadena vacia (fila 2 de Sec.8.2): un fallo que se
     confunde con "no hay nada" es un fallo que pasa callado.
+
+    La comparacion se normaliza a minusculas [hallazgo en vivo
+    2026-08-06: `--id r-001` no encontraba `R-001`, aunque `next_id()`
+    siempre genera el prefijo en mayusculas -- un usuario tecleando en
+    minuscula es el caso normal, no el raro]. El `Note` devuelto trae
+    `note.id` tal cual esta escrito en el commit -- solo la comparacion
+    se normaliza, nunca el dato.
     """
+    target = note_id.lower()
     for note, _text in _all_notes():
-        if note.id == note_id:
+        if note.id.lower() == target:
             return note
     return None
 
@@ -250,10 +258,20 @@ def by_word(word: str) -> tuple[tuple[Note, tuple[str, ...]], ...]:
     casaron (fila 4 de Sec.8.2) -- si esta funcion devolviera solo notas,
     el informe tendria que volver a buscar dentro para marcar la linea,
     una segunda puerta de lectura.
+
+    La comparacion se normaliza a minusculas [hallazgo en vivo
+    2026-08-06: `gitmem search ultron` y `gitmem search Ultron` daban
+    resultados distintos -- una sustancial perdida de memoria real,
+    porque la prosa de las notas escribe los nombres propios en
+    mayuscula inicial (`Ultron`, `Moriarty`) y la mayoria de las
+    busquedas reales se teclean en minuscula]. Las lineas devueltas
+    llevan su texto ORIGINAL, tal cual esta en el commit -- solo la
+    comparacion se normaliza, nunca lo que se enseña.
     """
+    needle = word.lower()
     results: list[tuple[Note, tuple[str, ...]]] = []
     for note, text in _all_notes():
-        matched_lines = tuple(line for line in text.split("\n") if word in line)
+        matched_lines = tuple(line for line in text.split("\n") if needle in line.lower())
         if matched_lines:
             results.append((note, matched_lines))
     return tuple(results)

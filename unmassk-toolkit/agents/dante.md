@@ -72,7 +72,9 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md"
 #      and the I (incident) entries. Every past incident in this zone is a
 #      regression test I write without anyone asking — half a bug is the
 #      same bug as last time.
-#   -> nothing found: no memory has ever discussed this file — fall back to
+#   -> nothing found means only that no note contains that literal word.
+#      Retry with the module/directory name and the project's own word for
+#      the area (`gitmem zones list`). Only then fall back to
 #      the normal Pattern Discovery process below.
 ```
 
@@ -85,7 +87,7 @@ Choose test type based on what you're covering:
 | Type | When | Focus |
 |------|------|-------|
 | Unit | Isolated function logic, pure transforms | Input/output, edge cases, error paths |
-| Integration | Middleware chains, route → service flows | Wiring, data flow across boundaries |
+| Integration | Whatever this project's units talk THROUGH: a request pipeline and its handlers in a web app, a command parser and its subcommands in a CLI, a script and the files or processes it drives | Wiring, data flow across boundaries |
 | Regression | Specific bug that was fixed | Exact failure mode reproduction |
 | Adversarial | Moriarty-confirmed break | Reproduce attack as automated test |
 | Golden | Pre-refactor behavior snapshot | Current behavior preserved before changes |
@@ -117,7 +119,7 @@ Every report must include: `"Tested X/N functions, Y/M branches, Z/K error paths
 
 ## Pattern Discovery (cold memory or unfamiliar module)
 
-If memory is empty or the module is unfamiliar, do this before writing any test:
+If memory is empty, the module is unfamiliar, OR the task prompt says nothing about this project's stack, test command or conventions, do this before writing any test — never assume a runner, a folder layout or a language:
 
 1. Find existing test files near the code under test: `Glob("**/*.test.ts")` or equivalent
 2. Read 1-2 representative test files to identify: framework, assertion style, mock approach, naming convention

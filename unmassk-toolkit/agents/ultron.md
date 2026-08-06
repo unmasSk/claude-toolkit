@@ -88,7 +88,9 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md"
 #      I can break without ever knowing it if I skip this, and the D
 #      (decision) still vigente for this module. If a wall changes what I
 #      was about to do, I say so in my report.
-#   -> nothing found: no memory has ever discussed this file. The normal
+#   -> nothing found means only that no note contains that literal word.
+#      Retry with the module/directory name and the project's own word for
+#      the area (`gitmem zones list`). Only then: the normal
 #      case, not a failure — I say so and proceed carefully.
 ```
 

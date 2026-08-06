@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Las nueve fichas concluían en falso cuando la memoria no devolvía nada.** Todas decían *«nada encontrado: ninguna memoria ha hablado nunca de este fichero»*. Lo único que prueba un cero es que ninguna nota contiene esa palabra literal. Ahora las nueve reintentan con el nombre del módulo y con la palabra que el propio proyecto usa para esa área, y dicen qué palabras probaron.
+- **House usaba `git checkout` como forma preferida de limpiar sus marcas de diagnóstico.** A House lo llaman con alguien a medio arreglar el fichero: ese comando no borra sus líneas, devuelve el fichero al último guardado y se lleva por delante el trabajo sin commitear. Ahora las quita a mano, y `checkout`/`restore`/`reset`/`stash` quedan prohibidos ahí con el motivo escrito.
+- **House registraba sus marcas en una herramienta que no tiene** (`TodoWrite`), así que la limpieza no tenía registro; y las verificaba con `grep ... src/`, una carpeta que no existe en todos los proyectos — donde no existe, el comprobante salía limpio siempre. Ahora usa su propio marcador y busca desde la raíz del repositorio.
+- **House exigía una base de datos** entre sus señales obligatorias y paraba si faltaba. Ahora habla de estado persistente: base de datos, ficheros o el propio historial de git.
+- **Argus era el único agente sin memoria propia**, y encima su ficha le decía que no persistiera nada — lo contrario de lo que hace el resto del crew. Ahora la lee al arrancar y tiene escrito qué guardar: sobre todo sus falsos positivos, que repetidos tres auditorías seguidas son peores que no auditar.
+- **Argus llevaba `KillShell`** contra su propia prohibición de no tocar un sistema en marcha, y era el único de los nueve. Retirado; gana `Write` para su memoria.
+- **Moriarty no podía escribir su memoria**: su cierre se la exigía y no tenía `Edit` ni `Write`. Y su ficha no nombraba los dos tipos de rotura que sí ha encontrado de verdad — la operación correcta contra el destino equivocado, y los tests en verde mientras lo guardado está vacío. Ahora sí.
+- **Cerberus y Yoda no prohibían `git stash` ni `git restore`** en sus listas de comandos vetados.
+- **Yoda no tenía escrito qué hacer con un alcance sin definir**, y por eso auditó un subproyecto que nadie le había pedido.
+- **Ejemplos atados a un lenguaje**, en fichas que viajan a todos los proyectos: Cerberus hablaba de `console.log`, promesas y sintaxis de TypeScript; Dante solo daba integración web; Argus listaba tres gestores de paquetes como si fueran todos.
+- **Alexandria tenía la regla de las tres audiencias sin ningún paso ejecutable.** Ahora lleva los tres comandos, y el `CLAUDE.md` raíz pasa a ser objetivo de verificación de sus propias afirmaciones, no solo fuente de verdad para los demás.
+
 ## [1.30.4] - 2026-08-06
 
 ### Fixed

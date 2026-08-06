@@ -32,3 +32,5 @@
 [remember][user] 🧠 cuando vuelve un agente: UNA linea con el resultado, nada mas; el detalle solo si lo pido
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
+[remember][user] 🧠 cuando lanzo varios agentes a la vez: no me informes uno por uno, dame el total cuando acaben todos
+[remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
