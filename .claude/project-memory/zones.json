@@ -39,6 +39,12 @@
     "aliases": [],
     "description": "el plugin de electronica y hardware"
   },
+  "extension": {
+    "aliases": [
+      "vscode-extension"
+    ],
+    "description": "la extension de VS Code, aparcada"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
