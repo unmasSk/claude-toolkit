@@ -1,4 +1,8 @@
 {
+  "boot": {
+    "aliases": [],
+    "description": "el arranque de sesion: que se lee, que se pinta y en que orden"
+  },
   "hooks": {
     "aliases": [],
     "description": "los hooks del toolkit: arranque, aduana, cierre"
