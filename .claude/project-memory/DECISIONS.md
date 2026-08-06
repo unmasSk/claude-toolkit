@@ -36,3 +36,4 @@
 [D-035][install][architecture] MCPs install on-demand per skill, at user scope, none wired by default
 [D-036][memory][architecture] objective-profile is a documented convention over git-memory, not new machinery
 [D-037][memory][architecture] memory v1 stored everything but surfaced almost nothing, so v2 was born
+[D-038][memory][architecture] remember() leaves the project-memory system entirely
