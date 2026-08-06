@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.30.1] - 2026-08-06
+
 ### Fixed
 
 - **`/remember` carga las reglas para Claude, no las imprime al usuario.** El usuario las escribió; no necesita que se las lean de vuelta. Ahora responde con una línea diciendo cuántas quedan cargadas, y solo detalla las que contradicen algo ya dicho o hecho en esa sesión.
