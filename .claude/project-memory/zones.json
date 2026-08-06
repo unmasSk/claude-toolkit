@@ -11,6 +11,10 @@
     "aliases": [],
     "description": "la integracion continua y sus workflows"
   },
+  "compliance": {
+    "aliases": [],
+    "description": "el plugin de normativa y cumplimiento"
+  },
   "db": {
     "aliases": [
       "database"
