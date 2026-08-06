@@ -71,3 +71,4 @@
 [M-069][product][notes-test] MARK_ROW10_REPLACE_OLD headline that must survive a failed replace
 [M-070][product][notes-test] MARK_ROW7_OLD headline that replace() must retire in one commit
 [M-071][memory][architecture] git-memory v1 was built and later fully replaced by v2
+[M-072][release][install] plugin marketplace distribution replaces manual git-clone install
