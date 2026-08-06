@@ -1,4 +1,8 @@
 {
+  "architecture": {
+    "aliases": [],
+    "description": "como esta montado el toolkit por dentro y por que"
+  },
   "boot": {
     "aliases": [],
     "description": "el arranque de sesion: que se lee, que se pinta y en que orden"
