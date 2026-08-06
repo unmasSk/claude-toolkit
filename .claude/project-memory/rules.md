@@ -10,3 +10,4 @@
 [remember][user] 🧠 contrato y revision solo cuando un fallo pierde datos en silencio; plan solo cuando el trabajo cruza sesiones
 [remember][user] 🧠 cuando digas una hora, di siempre si es UTC o espanola; nunca sueltes una hora a secas
 [remember][user] 🧠 los prompts a los agentes deben ser cortos: solo el QUE, nunca el COMO -- el agente ya tiene sus instrucciones en su propia definicion
+[remember][user] 🧠 nunca proponer cerrar la sesion ni aplazar trabajo -- el usuario decide cuando parar
