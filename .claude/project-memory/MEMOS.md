@@ -82,7 +82,6 @@
 [M-083][compliance][docs] unmassk-compliance ships nine skills, English-only content
 [M-084][skills][docs] Alexandria owns documentation work, not Ultron
 [M-086][architecture][memory] the four core plugins begin merging into unmassk-core v2.0
-[M-087][memory][architecture] the memory system stays a hooks-based plugin, not an MCP
 [M-088][memory][hooks] subagent recall needs a PreToolUse/Task hook rewriting the prompt
 [M-089][testing][skills] two build modes: test-first for clear contracts, linear Flow for the rest
 [M-090][skills][architecture] Gitto existed as a dedicated git-ops subagent, later retired
