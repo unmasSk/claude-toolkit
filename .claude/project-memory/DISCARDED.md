@@ -34,3 +34,4 @@
 [X-032][testing][skills] unmassk-test-first como skill suelta de primer nivel
 [X-033][testing][skills] Diseno B: metodos de build cargables en el front matter
 [X-034][docs][architecture] todo el contenido del repo en ingles, sin excepcion
+[X-035][memory][architecture] construir busqueda vectorial ahora, como parte del cimiento
