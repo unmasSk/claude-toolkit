@@ -11,3 +11,4 @@
 [X-009][boot][memory] fetch sincrono en el arranque
 [X-010][boot][memory] fetch universal en cualquier repo
 [X-011][boot][memory] converger solo al cierre de sesion
+[X-012][standards][install] POSIX-first con Windows como extra
