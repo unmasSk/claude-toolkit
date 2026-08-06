@@ -11,3 +11,4 @@
 [D-009][standards][install] Windows/macOS/Linux support became a hard requirement
 [D-010][standards][memory] context-injection features cap Security below 10/10 by design
 [D-011][skills][architecture] unmassk-grill absorbs the Spec Kit investigation instead of a new skill
+[D-012][docs][release] one root CHANGELOG.md for every plugin, not one per plugin
