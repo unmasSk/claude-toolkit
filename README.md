@@ -107,11 +107,13 @@ Several domain skills build on prior open-source work instead of reinventing it.
 - **unmassk-ops** — `cc-devops-skills` by akin-ozer (Apache-2.0)
 - **unmassk-compliance** — `privacy-security-skills` by Jeremy Longshore (MIT), the NIS2 SMB package by Paolo Carner / BARE Consulting (CC BY 4.0), `comply` by Alireza Rezvani (MIT)
 - **unmassk-media** — `@remotion/skills` by Remotion Inc. (MIT), `claude-screenshots` by Shpigford (MIT)
-- **unmassk-design** — `claudedesignskills` by freshtechbro (Apache-2.0), `Impeccable` by Paul Bakaus (Apache-2.0), `UI/UX Pro Max` by nextlevelbuilder (MIT), plugins by bencium.io (MIT), the `emil-design-eng` and `animation-vocabulary` skills by Emil Kowalski (MIT), the `apple-design` skill (MIT), the `taste-skill` collection by leonxlnx (MIT), and `flutter-ui` from `claude-flutter-ui-skills` by Naimehossein77
+- **unmassk-design** — `claudedesignskills` by freshtechbro (Apache-2.0), `Impeccable` by Paul Bakaus (Apache-2.0), `UI/UX Pro Max` by nextlevelbuilder (MIT), plugins by bencium.io (MIT), the `emil-design-eng` and `animation-vocabulary` skills by Emil Kowalski (MIT), the `apple-design` skill (MIT), the `taste-skill` collection by leonxlnx (MIT), and `flutter-ui` from `claude-flutter-ui-skills` by Naimehossein77 (no license stated at source)
 - **unmassk-marketing** — `marketingskills` by coreyhaines31 (MIT)
 - **unmassk-seo** — `claude-seo` by AgriciDaniel (MIT)
 - **unmassk-pentesting** — techniques from `communitytools` by Transilience AI (MIT)
 - **unmassk-humanizer** — a fusion of `humanizer` by blader (MIT), `humanize-writing` by lguz (MIT), and `anti-slop` by kjmagnan1s (MIT, itself building on `avoid-ai-writing` by Conor Bronsdon (MIT) and `stop-slop` by Hardik Pandya (MIT)); its content-pattern catalog traces back to Wikipedia's "Signs of AI writing" (CC BY-SA 4.0)
+
+A few skills are written from official product documentation rather than from someone else's skill — MongoDB's own docs behind `db-mongodb`, the OWASP Top 10 and ASVS behind `compliance-owasp-privacy`. Those are cited inside each skill; they are not listed above because there is no third-party author to credit.
 
 Everything not listed here — the core toolkit, the agent crew, memory, Flow, Audit, and any plugin not named above — is original to this repo.
 
