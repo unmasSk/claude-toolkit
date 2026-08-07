@@ -46,7 +46,7 @@ Expected output:
   2. Promover CHANGELOG: ## [Unreleased] -> ## [1.1.0] - 2026-06-09
      - CHANGELOG.md
   3. Stage: solo los 3 ficheros anteriores
-  4. Commit + push vía git-memory-commit.py
+  4. Commit + push vía el generador de memoria (notes.write_work)
   5. Verify: versiones en remoto origin/main
 [DRY-RUN] Sin cambios aplicados.
 ```
@@ -78,16 +78,20 @@ python3 bin/release.py <plugin> <new-version>
 4. **Stage** — runs `git add` on exactly the three files: `plugin.json`, `marketplace.json`,
    `CHANGELOG.md`. No other staged or unstaged changes are touched.
 
-5. **Commit + push** — creates the commit via `git-memory-commit.py` using a `--path`
-   pathspec so only the three release files enter the commit, then runs `git push`.
+5. **Commit + push** — creates the commit by calling `notes.write_work()`
+   (`unmassk-toolkit/lib/memory/notes_commit.py`) directly in-process, not through the
+   `gitmem` CLI: it scopes the commit to exactly the three release files via a git
+   pathspec (`git commit -- <paths>`), then runs `git push`. This is deliberate, not a
+   shortcut — `write_work()` exists specifically so publishing can commit a handful of
+   files without dragging in unrelated half-finished changes elsewhere in the tree.
 
-   > **Manual commit footgun:** if you ever write the commit message by hand, place
-   > `Co-Authored-By:` **before** the business trailers (`Why:`, `Touched:`,
-   > `Decision:`…), not after them. `parse_trailers()` reads the message bottom-up
-   > and stops at the first blank line or non-trailer line — a trailing
-   > `Co-Authored-By:` at the very end causes it to miss every trailer above it.
-   > `git-memory-commit.py` already handles this correctly; the footgun only affects
-   > hand-written commits.
+   > **The release commit carries no business trailers.** Its message is just the
+   > headline (`release <plugin> v<version>`) — no `Why:`, `Description:`, `Keys:`,
+   > or `Co-Authored-By:`. If you ever hand-write a *memory note* commit elsewhere in
+   > this repo (not a release), remember `parse_trailers()` (`unmassk-toolkit/lib/parsing.py`)
+   > reads trailers bottom-up and stops at the first blank or non-trailer line — a
+   > trailing `Co-Authored-By:` after the business trailers hides all of them. That
+   > footgun doesn't apply here: there's nothing to reorder in a release commit.
 
 6. **Verify** — checks two things:
    - The local commit is on `origin/<branch>` (push succeeded)
@@ -112,10 +116,13 @@ python3 bin/release.py <plugin> <new-version>
 
 The script is fail-closed at pre-flight: no files are touched until all checks pass.
 
-If the script fails **after** promoting the changelog but **before** the commit:
+If the script fails **after** bumping the version and promoting the changelog but
+**before** the commit: all three release files are already modified on disk (the bump
+touches `<plugin>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+before the changelog is even promoted), so revert all three, not just the changelog:
 
 ```bash
-git checkout CHANGELOG.md
+git checkout -- <plugin>/.claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md
 ```
 
 If the commit was created locally but `git push` failed, the commit exists and is

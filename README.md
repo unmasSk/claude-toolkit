@@ -71,13 +71,13 @@ Always installed. Contains everything Claude needs to orchestrate.
 
 | Component | What it does |
 |-----------|-------------|
-| **Memory** | Persistent memory via git commits. Decisions, memos, remembers survive across sessions — and across machines: boot detects when local memory is behind another machine's and proposes a pull before you start working. Dead ends Bilbo rules out while exploring a subsystem are remembered too, so the next exploration starts from what's already ruled out instead of re-investigating from scratch. |
+| **Memory** | Persistent memory via git commits. Decisions, memos, remembers survive across sessions — and across machines: boot fetches automatically and warns you when local memory is behind another machine's, before you start working. It never pulls on its own — bringing the work over is your call. Dead ends Bilbo rules out while exploring a subsystem are remembered too, so the next exploration starts from what's already ruled out instead of re-investigating from scratch. |
 | **9 Agents** | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document) |
 | **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
 | **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
 | **Standards** | Stack-agnostic quality criteria under the "system against itself" model — tiers, weighted scoring, producer↔consumer data integrity (§34), silent-failure and concurrency rules. No OWASP/React/TypeScript: framework rules live in their own plugins |
 | **`/remember`** | The one slash command, and it only reads: it delivers your whole rules file into Claude's context, where every line becomes binding from that moment. Saving is never yours to trigger — Claude saves a rule the moment you state it in conversation. Rules live outside the note system: no zones, never in a search or a report, never read by an agent |
-| **Protocols** | 5 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (end-of-session housekeeping: version, changelog, cleanup, branch/issue hygiene, doc check), `unmassk-scaffolding` (stack choice and project scaffolding) |
+| **Protocols** | 5 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (end-of-session housekeeping: cleanup, branch/issue hygiene, doc check, writes the session's closing commit — versioning and the changelog happen elsewhere, at release and at merge), `unmassk-scaffolding` (stack choice and project scaffolding) |
 
 ### Domain plugins
 
@@ -129,7 +129,7 @@ Full release procedure is documented in [`docs/RELEASING.md`](docs/RELEASING.md)
 
 | Script | What it does |
 |--------|-------------|
-| `git-memory-commit.py` | Creates a commit with structured trailers (Why, Touched, Decision…) and the correct emoji prefix (`unmassk-toolkit/bin/`) |
+| `gitmem` | Facade for the memory system: nine subcommands (`note`, `work`, `wip`, `remove`, `next`, `search`, `zones`, `rezones`, `rule`), each dispatching to its own script in `unmassk-toolkit/bin/memory/`. Writes commits with structured trailers (Why, Description, Keys, Origin) and the correct emoji prefix (`unmassk-toolkit/bin/gitmem`) |
 | `release.py` | Bumps plugin version, promotes CHANGELOG, commits, and pushes in one step (lives in `bin/` at the repo root, not in `unmassk-toolkit/bin/`) |
 
 ---

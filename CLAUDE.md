@@ -12,7 +12,7 @@
 
 **El sistema de memoria está publicado, corriendo, y con la memoria vieja ya destilada.** La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. El sistema anterior está borrado del repositorio.
 
-**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **29 reglas** del propietario separadas en su propio canal. Lo que quedó abierto está abierto de verdad, y es una sola cosa: la issue #83.
+**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **34 reglas** del propietario separadas en su propio canal. Lo que quedó abierto está abierto de verdad, y es una sola cosa: la issue #83.
 
 **Las zonas van siempre en minúsculas**, en los tres puntos — al crear, al buscar y al guardar una nota. Su descripción y cualquier otro texto se guardan tal cual se escribieron.
 
@@ -35,7 +35,7 @@
 
 Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que hicieron perder horas.**
 
-**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto y hoy son 29 — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
+**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto y hoy son 34 — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
 
 **1 · No repitas lo que ya has dicho.** Un hallazgo se cuenta **una vez**. Explicarlo por segunda vez «para que se entienda» es gastar el contexto de la sesión, que es el recurso que se acaba. *«Creo que me lo has dicho ya diez veces, cómo te gusta gastar contexto.»*
 
