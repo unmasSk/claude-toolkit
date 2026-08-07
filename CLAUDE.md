@@ -10,16 +10,20 @@
 
 **Esto es la herramienta personal del propietario: el suelo sobre el que corren todos sus proyectos.** No es un producto público. Que alguien más lo descargue da igual; lo único que cuenta es que a él le funcione perfectamente.
 
-**El sistema de memoria v2 está publicado y corriendo** desde la versión 1.26.0 `[2026-08-05]`. La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. Sus dos hooks —el arranque (`boot_launcher.py`) y la aduana (`customs.py`)— **están registrados y disparando**, y el sistema anterior está borrado del repositorio.
+**El sistema de memoria está publicado, corriendo, y con la memoria vieja ya destilada.** La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. El sistema anterior está borrado del repositorio.
+
+**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **29 reglas** del propietario separadas en su propio canal. Lo que quedó abierto está abierto de verdad, y es una sola cosa: la issue #83.
+
+**Las zonas van siempre en minúsculas**, en los tres puntos — al crear, al buscar y al guardar una nota. Su descripción y cualquier otro texto se guardan tal cual se escribieron.
 
 **Cómo funciona la memoria hoy se lee en un solo sitio: `unmassk-toolkit/skills/unmassk-memory/`**, que es lo que se carga en cada sesión. No hay un segundo sitio.
 
+**`/remember` es el único comando de barra del toolkit.** Solo lee: pone en contexto el fichero de reglas del proyecto (`.claude/project-memory/rules.md`) y a partir de ahí obligan. **Guardar una regla es trabajo de Claude**, en el momento en que el propietario la dice — nunca algo que él tenga que invocar.
+
 **Lo que queda por hacer, y en este orden:**
 
-1. **Borrar el sistema viejo.** Sus hooks ya no se disparan, pero sus ficheros siguen en disco con sus tests. Es una pasada propia: arrastra tests compartidos.
-2. **Destilar la memoria vieja** (fase 8), primero aquí y después en un proyecto de verdad. El protocolo está escrito y nadie lo ha ejecutado.
-3. **Compactar la memoria de cada agente.** Protocolo escrito, tampoco ejecutado.
-4. **Yoda, una sola vez**, con el sistema entero delante.
+1. **Compactar la memoria de cada agente.** Protocolo escrito, no ejecutado.
+2. **Yoda, una sola vez**, con el sistema entero delante.
 
 **Todo lo que sirvió para construirlo está retirado en `docs/deprecated/`** — la especificación, el plan, la deuda y los contratos de cada pieza. Cuenta por qué las cosas son como son y guarda las decisiones del propietario con su fecha, pero **no describe el presente y no se mantiene**. No lo leas para saber cómo funciona algo hoy: manda el código.
 
@@ -30,6 +34,8 @@
 ## Las broncas — lo que el propietario tuvo que repetir, y algunas varias veces
 
 Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que hicieron perder horas.**
+
+**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto y hoy son 29 — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
 
 **1 · No repitas lo que ya has dicho.** Un hallazgo se cuenta **una vez**. Explicarlo por segunda vez «para que se entienda» es gastar el contexto de la sesión, que es el recurso que se acaba. *«Creo que me lo has dicho ya diez veces, cómo te gusta gastar contexto.»*
 
@@ -71,6 +77,8 @@ Estas cinco salieron de fallos reales, no de teoría.
 
 **5. La secuencia de revisión no se abrevia.** Cerberus y Argus en paralelo, y **Moriarty el último, siempre**. Cuatro veces ha encontrado algo que los dos primeros dieron por bueno — entre ellas, pérdida silenciosa de notas con todos los tests en verde, y un arranque que inyectaba el Next de otro proyecto.
 
+**6. Una ficha de agente o una skill se repasa palabra por palabra, y se le consulta al propio agente.** No es ceremonia: el 2026-08-06 se revisaron las nueve y cada agente encontró en la suya algo que quien la escribió no vio. House rechazó **tres** versiones seguidas de un mismo comando escrito por el orquestador —el primero no casaba ni una línea de las que buscaba, el segundo ignoraba los ficheros sin guardar en git, el tercero se rompía en silencio desde una subcarpeta—. Y al darle a Moriarty permiso de escritura se le quitó sin querer la barrera que le impedía tocar código: la regla se sostenía en que no tenía la herramienta, no en estar escrita.
+
 ---
 
 ## Reglas vivas
@@ -81,6 +89,7 @@ Estas cinco salieron de fallos reales, no de teoría.
 - **No hay atacante externo** en el modelo de amenaza. La única amenaza es el sistema rompiéndose a sí mismo: memoria perdida o corrompida, escritura en el sitio equivocado, fallo que pasa callado. Un hallazgo sobre entrada hostil aquí sobra.
 - **Modo test-first:** Dante escribe el contrato en rojo, Ultron implementa hasta el verde. **Un test entra solo si compara dos cosas escritas por separado.** Si solo se mira a sí mismo, sobra.
 - **Ningún agente escribe en `lib/memory/` fuera de su propio fichero**, ni siquiera un temporal. Ya costó un incidente.
+- **Nada llega solo a un agente.** No hay inyección automática de memoria ni de skills: un agente solo recibe lo que el orquestador le escribe en el prompt, más las skills que él le pegue en un bloque `[DOMAIN SKILL]`. Si una ficha promete recibir algo por su cuenta, esa ficha miente — pasó con Bilbo, que por creerlo nunca buscaba lo que le hacía falta.
 - **Aquí, y solo aquí, el cierre de sesión publica versión** `[2026-08-05]`. Este repositorio es el que se publica: `python3 bin/release.py <plugin> <versión>`, con la pasada en seco antes. **No está en la skill de cierre a propósito** — allí sería una orden de publicar en todos sus proyectos.
 
 ---
@@ -180,6 +189,7 @@ This toolkit is the owner's personal tool — the foundation under all his proje
 - **Robustness against the system breaking itself → THIS matters, and it's the priority.** What must be protected is that the system **does not self-harm**: a bug must not corrupt memory, a script must not write where it shouldn't, data must not be lost to an internal failure, a failure must not pass silently. That is the real threat model: the system against itself, not a person against the system.
 - **Rule for writing or reviewing tests:** a test is justified **only** if it proves the system doesn't break on its own (memory loss or corruption, writing to the wrong place, silent failure, data lost across sessions/machines). A test that simulates a malicious attacker is **surplus** — cut it.
 - **`unmassk-standards` IS this project's yardstick — it was rewritten and now fits.** (This bullet used to say the opposite: that standards was web-app material to be ignored. That was true once and is false now — verified 2026-07-29: no OWASP, React, TypeScript, Zod, PostgreSQL, 97% or role names anywhere in it. Its 400 lines are generic and its declared axis is literally "the system against itself", i.e. exactly the criterion this section demands. Scoring: Integrity ×3, Silent-failure ×3, Structure ×2, Real verification ×2, Maintainability ×1.)
-- ~~**Where the web-app material actually lives: `unmassk-audit`.** Sus nueve prompts cablean `npx vitest`, `npx prettier`, `backend/src/[MODULE]/`, Zod y un 97% de cobertura.~~ **YA NO ES VERDAD, comprobado línea a línea el 2026-08-05.** Los prompts usan **36 marcadores** (`[MODULE_PATH]`, `[TEST_CMD]`, `[FORMAT_CMD]`, `[LINT_CMD]`) y **no queda ni un `npx`, ni vitest, ni prettier, ni `backend/src`, ni Zod**. El `SKILL.md` prohíbe expresamente asumir cualquiera de los tres. Lo único que sobrevive es el **97% de cobertura**, y no es una suposición de stack: es una puerta que la skill declara a propósito, porque una auditoría es más estricta que una fusión normal. Se arregló en algún momento y nadie tachó este párrafo — **una contradicción declarada abierta que ya estaba cerrada es peor que ninguna**, porque frena trabajo que se podía hacer.
+- **`unmassk-audit` también está limpia** — comprobado línea a línea el 2026-08-05. Sus prompts usan 36 marcadores (`[MODULE_PATH]`, `[TEST_CMD]`, `[FORMAT_CMD]`, `[LINT_CMD]`) y no queda ni un `npx`, ni vitest, ni prettier, ni `backend/src`, ni Zod. Lo único fijo es el 97% de cobertura, y eso no es una suposición de stack: es una puerta que la skill declara a propósito, porque una auditoría es más estricta que una fusión normal.
+- **Las fichas de los nueve agentes son agnósticas** y viajan a todos los proyectos del propietario. **Nunca se juzgan contra el proyecto en el que estás:** que aquí no haya atacante externo no dice nada sobre si el material de OWASP de Argus debe existir — lo pone el proyecto anfitrión. Ese error costó una ronda entera de revisiones el 2026-08-06.
 
 In one line: **less ceremony, zero attacker paranoia, focus on the system not breaking itself.**
