@@ -47,6 +47,25 @@ from pathlib import Path
 from model import Zone
 
 
+def normalize(name: str) -> str:
+    """El NOMBRE de una zona -- su clave de comparacion y de persistencia
+    -- va siempre en minuscula [orden del propietario, 2026-08-07: dos
+    sesiones nombrando la misma zona distinto (`Boot` / `boot`) acababan
+    con dos zonas que nunca se cruzaban entre si, memoria perdida sin un
+    solo error]. Esto se aplica SOLO al nombre canonico y a los alias --
+    son llaves de busqueda, no texto libre. La descripcion de la zona, y
+    cualquier otro texto del sistema (titulares, why, keys, contexto de
+    cierre, reglas), no pasa por aqui y se guarda tal cual se escribio
+    [precision del propietario, 2026-08-07].
+
+    Punto unico para esta regla -- `load()`, `resolve()`, `candidates()`
+    y `add()` la llaman a traves de esta funcion en vez de repetir
+    `.lower()` cada uno por su cuenta, para que un cambio futuro (p.ej.
+    tambien recortar espacios) solo se toque aqui.
+    """
+    return name.lower()
+
+
 def load(path: Path) -> dict[str, Zone]:
     """Lee zones.json y devuelve las zonas indexadas por su nombre canonico.
 
@@ -68,6 +87,13 @@ def load(path: Path) -> dict[str, Zone]:
     cada zona sea un objeto, que su ``description`` sea texto y que sus
     ``aliases`` sean una lista de texto -- y lanza ``ValueError``
     nombrando el fichero y la zona afectada si no.
+
+    El nombre y los alias se normalizan a minuscula al releer
+    [`normalize()`, arriba] -- no solo al escribir: un `zones.json`
+    escrito ANTES de esta regla (una zona en mayuscula, de una sesion
+    vieja) tiene que seguir resolviendo igual, nunca quedar huerfano
+    porque el fichero en disco no se toco. La descripcion viaja tal cual
+    esta en el fichero, sin normalizar.
     """
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -105,7 +131,11 @@ def load(path: Path) -> dict[str, Zone]:
                 f"{aliases!r}"
             )
 
-        zones[name] = Zone(name=name, description=description, aliases=tuple(aliases))
+        canonical_name = normalize(name)
+        canonical_aliases = tuple(normalize(a) for a in aliases)
+        zones[canonical_name] = Zone(
+            name=canonical_name, description=description, aliases=canonical_aliases
+        )
     return zones
 
 
@@ -114,12 +144,26 @@ def resolve(name: str, zones: dict[str, Zone]) -> str | None:
 
     None, nunca una excepcion ni una cadena vacia: una cadena vacia se
     confundiria con "zona sin notas" y el fallo pasaria callado.
+
+    `name` se normaliza [`normalize()`, arriba] antes de comparar --
+    `Boot`, `BOOT` y `boot` tienen que llegar los tres a la misma zona.
+    La comparacion normaliza TAMBIEN cada clave y cada alias de `zones`
+    sobre la marcha, en vez de asumir que el diccionario ya llego
+    normalizado -- en produccion siempre es asi (`load()`/`add()` lo
+    garantizan), pero esta funcion no depende de quien la llama: un
+    `zones` construido a mano en otro sitio (p.ej. un `Context` de
+    prueba armado directamente, sin pasar por `load()`) tiene que seguir
+    resolviendo igual. Devuelve la clave TAL CUAL esta en `zones` (no la
+    version normalizada del argumento de busqueda) -- es el nombre
+    canonico real de quien llamo, y coincide con la version normalizada
+    solo porque en produccion `zones` ya viene asi.
     """
-    if name in zones:
-        return name
-    for zone in zones.values():
-        if name in zone.aliases:
-            return zone.name
+    target = normalize(name)
+    for canonical, zone in zones.items():
+        if normalize(canonical) == target:
+            return canonical
+        if target in (normalize(a) for a in zone.aliases):
+            return canonical
     return None
 
 
@@ -128,8 +172,14 @@ def candidates(name: str, zones: dict[str, Zone], limit: int = 3) -> tuple[Zone,
 
     Devuelve zonas enteras (con su descripcion), no nombres sueltos --
     asi es como sale el rechazo [TEXTOS Sec.1.1].
+
+    `name` se normaliza antes de comparar, igual que en `resolve()` --
+    para que "FACTURACION" mal escrito tambien encuentre "facturacion"
+    como candidata, no solo su forma exacta.
     """
-    close_names = difflib.get_close_matches(name, list(zones.keys()), n=limit, cutoff=0.6)
+    close_names = difflib.get_close_matches(
+        normalize(name), list(zones.keys()), n=limit, cutoff=0.6
+    )
     return tuple(zones[n] for n in close_names)
 
 
@@ -151,12 +201,24 @@ def add(zone: Zone, path: Path) -> None:
     `bin/memory/zones.py` en vez de aqui, obligando a cada futuro llamador
     -- el script de zonas, y el alta en dos pasos de la aduana -- a
     acordarse de crear la carpeta por su cuenta].
+
+    `zone.name` y `zone.aliases` se normalizan a minuscula antes de
+    persistir [`normalize()`, arriba] -- esta es la UNICA escritura de
+    `zones.json`, asi que es el sitio correcto para garantizarlo pase lo
+    que pase por donde entre `zone` (hoy solo `bin/memory/zones.py`, pero
+    no depende de que ese script se acuerde de normalizar por su cuenta).
+    `zone.description` viaja tal cual, sin tocar.
     """
+    canonical = Zone(
+        name=normalize(zone.name),
+        description=zone.description,
+        aliases=tuple(normalize(a) for a in zone.aliases),
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_name(path.name + ".lock")
     with _exclusive_lock(lock_path):
         existing = load(path)
-        existing[zone.name] = zone
+        existing[canonical.name] = canonical
         _write_atomic(path, existing)
 
 

@@ -21,6 +21,7 @@ one, if it reads `version.py`). This is the ONLY permitted way to get an
 isolated "before" run. Read-only git (`status`, `diff`, `log`, `show`) is
 always fine — the ban is on anything that moves the tree.
 
+- [zones-lowercase-normalization.md](zones-lowercase-normalization.md) — zone name/alias always lowercase (description untouched); resolve() must normalize its OWN zones-dict arg (hand-built Context fixtures aren't pre-normalized); 2 collateral test breaks in test_note_script.py (mixed-case zone used as arbitrary token) reported not fixed
 - [scaffold-py-scaffolding-bugs.md](scaffold-py-scaffolding-bugs.md) — scaffold.py (2026-08-06): TOML vs JS escaping (why NOT to reuse json.dumps for TOML — surrogate pairs), real ORM/CSS enum implementations vs rejection, --language CLI reachability, absolute/traversal name rejection, and a found-not-fixed test off-by-one (`raw.index("};")+1` drops the `;` via slice-exclusive semantics)
 - [memoria-v2-health-two-boot-checks.md](memoria-v2-health-two-boot-checks.md) — health.possible_unconverted_legacy/memory_mounted (2026-08-06): real-repo config.json true-positive tension, zones sibling import w/ caught ValueError, legacy threshold reasoning, git-commit-text Bash-block gotcha in scratch repos, health.py now 602 lines over its own 500-line convention
 - [v1-boot-chain-deletion.md](v1-boot-chain-deletion.md) — deleting v1 boot files: OLD_HOOK_FILES/old_files lists are target-repo cleanup strings, not live callers; DAG docstrings + repo grep to prove safe deletion

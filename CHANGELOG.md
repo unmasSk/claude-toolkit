@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- **Las zonas se guardan y se buscan siempre en minúsculas.** Antes se podía crear `Boot` con mayúscula, y luego buscar `boot` no la encontraba: dos sesiones nombrando la misma zona distinto acababan con dos zonas que nunca se cruzaban, y las notas de una eran invisibles desde la otra — sin un solo error por pantalla. Arreglado en los tres puntos: al crear (avisando de la normalización, no en silencio), al resolver, y en la puerta de zonas de una nota. Las zonas ya escritas con mayúscula en otros proyectos se siguen resolviendo, porque también se normaliza al leer. **Solo el nombre de la zona y sus alias**: la descripción, los titulares y cualquier texto libre se guardan tal cual se escribieron.
+- **La búsqueda en memoria distinguía mayúsculas.** `gitmem search ultron` devolvía 0 notas vigentes y `gitmem search Ultron` devolvía 10 — los agentes perdían casi toda la memoria real y su ficha les decía que concluyeran que no existía. Corregido en la búsqueda por palabra y por identificador; lo que se muestra sale con su texto original.
+
+### Fixed
+
 - **Las nueve fichas concluían en falso cuando la memoria no devolvía nada.** Todas decían *«nada encontrado: ninguna memoria ha hablado nunca de este fichero»*. Lo único que prueba un cero es que ninguna nota contiene esa palabra literal. Ahora las nueve reintentan con el nombre del módulo y con la palabra que el propio proyecto usa para esa área, y dicen qué palabras probaron.
 - **House usaba `git checkout` como forma preferida de limpiar sus marcas de diagnóstico.** A House lo llaman con alguien a medio arreglar el fichero: ese comando no borra sus líneas, devuelve el fichero al último guardado y se lleva por delante el trabajo sin commitear. Ahora las quita a mano, y `checkout`/`restore`/`reset`/`stash` quedan prohibidos ahí con el motivo escrito.
 - **House registraba sus marcas en una herramienta que no tiene** (`TodoWrite`), así que la limpieza no tenía registro; y las verificaba con `grep ... src/`, una carpeta que no existe en todos los proyectos — donde no existe, el comprobante salía limpio siempre. Ahora usa su propio marcador y busca desde la raíz del repositorio.

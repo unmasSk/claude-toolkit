@@ -326,7 +326,19 @@ class TestCreatesAllSevenNoteTypesForReal:
     def test_each_of_the_seven_types_produces_a_real_commit_and_index_line(
         self, tmp_repo, indexes, vocabulary
     ):
-        seed_zones_json(tmp_repo, ["product", "sevenTypes"])
+        # Zona ya en minuscula -- orden del propietario, 2026-08-07: el
+        # nombre de zona se normaliza siempre a minuscula al escribir y al
+        # resolver [lib/memory/zones.py::normalize]. Sembrar "sevenTypes"
+        # (identificador arbitrario, sin significado -- solo tenia que ser
+        # unico) y comparar despues contra esa misma cadena con mayuscula
+        # intercalada dejaba de casar: la nota se guarda bien, en
+        # "seventypes", y la busqueda literal contra "sevenTypes" no la
+        # encontraba. No es lo que este test quiere probar -- lo que
+        # prueba es que las siete clases de nota se crean de verdad, no el
+        # comportamiento de normalizacion de zonas (eso vive en
+        # test_zones.py). Se sembra ya en minuscula para no tocar esa
+        # mecanica en absoluto.
+        seed_zones_json(tmp_repo, ["product", "seventypes"])
         before = _git_commit_count(tmp_repo)
 
         # (tipo, titular, descripcion, flags extra obligatorios para ESE
@@ -410,7 +422,7 @@ class TestCreatesAllSevenNoteTypesForReal:
                 "note.py",
                 [
                     type_letter,
-                    "--zones", "product", "sevenTypes",
+                    "--zones", "product", "seventypes",
                     headline,
                     "--description", description,
                     *extra_flags,
@@ -421,7 +433,7 @@ class TestCreatesAllSevenNoteTypesForReal:
 
             pm = pm_path(tmp_repo)
             name, line = _find_by_zone_and_headline(
-                indexes, vocabulary, pm, "product", "sevenTypes", headline
+                indexes, vocabulary, pm, "product", "seventypes", headline
             )
             assert name == expected_index_file[type_letter], (
                 f"tipo {type_letter}: se esperaba en {expected_index_file[type_letter]}, "
@@ -491,14 +503,23 @@ class TestRepoResolvedByProcessCwd:
     ):
         nested = os.path.join(tmp_repo, "src", "some", "nested", "place")
         os.makedirs(nested, exist_ok=True)
-        seed_zones_json(tmp_repo, ["product", "nestedCwd"])
+        # Zona ya en minuscula -- mismo motivo que en
+        # TestCreatesAllSevenNoteTypesForReal de mas arriba: "nestedCwd" es
+        # un identificador arbitrario (solo tenia que ser unico), y el
+        # nombre de zona se normaliza siempre a minuscula al escribir
+        # [lib/memory/zones.py::normalize, orden del propietario,
+        # 2026-08-07]. Este test prueba que el script resuelve el
+        # repositorio por el cwd del proceso, no el comportamiento de
+        # normalizacion de zonas -- se sembra ya en minuscula para no
+        # rozar esa mecanica.
+        seed_zones_json(tmp_repo, ["product", "nestedcwd"])
         before = _git_commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
             "note.py",
             [
                 "M",
-                "--zones", "product", "nestedCwd",
+                "--zones", "product", "nestedcwd",
                 "note written from a nested cwd",
                 "--description", "MARK description",
                 "--stops", "no",
@@ -516,7 +537,7 @@ class TestRepoResolvedByProcessCwd:
 
         pm = pm_path(tmp_repo)
         name, line = _find_by_zone_and_headline(
-            indexes, vocabulary, pm, "product", "nestedCwd", "note written from a nested cwd"
+            indexes, vocabulary, pm, "product", "nestedcwd", "note written from a nested cwd"
         )
         assert name == "MEMOS.md" and line is not None
 
@@ -663,6 +684,101 @@ class TestZoneAliasIsResolvedToCanonicalNameOnWrite:
             f"buscar por el ALIAS usado al dar de alta tambien tiene que "
             f"encontrar la nota: {out_alias!r}"
         )
+
+
+class TestZoneNameCaseIsNormalizedToLowercaseEverywhere:
+    """Orden del propietario, 2026-08-07: el nombre de zona va siempre en
+    minuscula -- dos sesiones nombrando la misma zona distinto (`Boot` /
+    `boot`) acababan con dos zonas que nunca se cruzaban entre si, y las
+    notas de una eran invisibles desde la otra: memoria perdida sin un
+    solo error por pantalla. Mismo tipo de fallo, misma forma de prueba,
+    que la clase de arriba (`TestZoneAliasIsResolvedToCanonicalNameOnWrite`)
+    ya fija para alias -- este es su gemelo para mayusculas.
+
+    Round-trip real de punta a punta, no una unidad aislada: alta con el
+    script real de zonas (mayuscula inicial) -> resolucion (las tres
+    formas llegan a la misma zona) -> la puerta de la nota (se acepta en
+    mayuscula, se guarda en minuscula) -> se encuentra buscando por
+    cualquiera de las tres formas. Un solo test -- fija el comportamiento
+    nuevo, no vuelve a probar zones.py entero por dentro (esa cobertura
+    exhaustiva, si hace falta, es tarea de test_zones.py/
+    test_zones_script.py, ninguno de los dos tocados aqui)."""
+
+    def test_mixed_case_zone_created_resolved_and_written_all_land_on_the_same_lowercase_zone(
+        self, tmp_repo, indexes, vocabulary, zones
+    ):
+        seed_zones_json(tmp_repo, ["product"])
+
+        # Punto 1 del encargo: el alta con mayuscula inicial guarda en
+        # minuscula y lo dice.
+        rc_add, out_add, err_add = run_memory_script(
+            "zones.py",
+            ["add", "Boot", "--description", "MARK zone description for boot"],
+            cwd=tmp_repo,
+        )
+        assert rc_add == 0, f"stdout={out_add!r} stderr={err_add!r}"
+        assert "boot" in out_add, (
+            f"el alta tiene que confirmar el nombre real guardado (minuscula), "
+            f"no solo repetir 'Boot' tal cual se tecleo: {out_add!r}"
+        )
+
+        pm = pm_path(tmp_repo)
+        zones_map = zones.load(pm / "zones.json")
+        assert "boot" in zones_map and "Boot" not in zones_map, (
+            f"zones.json tiene que guardar una UNICA zona en minuscula, "
+            f"nunca 'Boot' y 'boot' como dos zonas distintas que nunca se "
+            f"cruzan -- exactamente el fallo que motivo esta orden: {list(zones_map)!r}"
+        )
+
+        # Punto 2: las tres formas resuelven a la misma zona canonica.
+        for spelling in ("Boot", "BOOT", "boot"):
+            assert zones.resolve(spelling, zones_map) == "boot", (
+                f"{spelling!r} tiene que resolver a la zona canonica 'boot'"
+            )
+
+        # Punto 3: la puerta de la nota acepta la zona en mayuscula
+        # porque existe en minuscula, y la nota se guarda en minuscula.
+        rc_note, out_note, err_note = run_memory_script(
+            "note.py",
+            [
+                "M",
+                "--zones", "product", "BOOT",
+                "boot sequence prints the wrong session id",
+                "--description", "MARK description for the zone-case round trip",
+                "--stops", "no",
+            ],
+            cwd=tmp_repo,
+        )
+        assert rc_note == 0, f"stdout={out_note!r} stderr={err_note!r}"
+        assert "Traceback" not in out_note and "Traceback" not in err_note
+        note_id = extract_note_id(out_note)
+
+        name, line = _find_by_zone_and_headline(
+            indexes, vocabulary, pm, "product", "boot",
+            "boot sequence prints the wrong session id",
+        )
+        assert name == "MEMOS.md" and line is not None, (
+            f"la nota tiene que aparecer en el indice real bajo 'boot' "
+            f"(minuscula), no bajo 'BOOT' tal cual se tecleo en el CLI ni "
+            f"desaparecida del todo -- salida del alta: {out_note!r}"
+        )
+        assert line.zone2 == "boot", (
+            f"zone2 del indice real tiene que ser 'boot' en minuscula, "
+            f"nunca 'BOOT': {line.zone2!r}"
+        )
+        assert line.id == note_id
+
+        # Se encuentra buscando por cualquiera de las tres formas -- si
+        # fallara con alguna, seria la misma perdida silenciosa que
+        # motivo el cambio: una nota real, invisible desde otra sesion
+        # que tecleo la zona distinto.
+        for spelling in ("Boot", "BOOT", "boot"):
+            rc_s, out_s, err_s = run_memory_script("search.py", [spelling], cwd=tmp_repo)
+            assert rc_s == 0, f"stdout={out_s!r} stderr={err_s!r}"
+            assert note_id in out_s, (
+                f"buscar por {spelling!r} tiene que encontrar la nota guardada "
+                f"bajo 'boot': {out_s!r}"
+            )
 
 
 class TestControlWithCanonicalNamesStillWorksAsBaseline:

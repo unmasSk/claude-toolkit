@@ -111,6 +111,19 @@ def _zones_path():
 
 
 def _cmd_add(args, path):
+    # El NOMBRE de la zona y sus alias van siempre en minuscula [orden
+    # del propietario, 2026-08-07: "Boot" y "boot" tecleados en sesiones
+    # distintas acababan siendo dos zonas que nunca se cruzaban -- memoria
+    # perdida sin un solo error]. `zones_lib.add()` normaliza igual antes
+    # de escribir [lib/memory/zones.py::add, docstring] -- normalizar
+    # TAMBIEN aqui, antes del rebote, es lo que permite que el propio
+    # rebote de mas abajo compare contra el nombre normalizado (si no, un
+    # "Boot" tecleado nunca chocaria contra el "boot" ya existente). La
+    # descripcion NO se normaliza -- solo el nombre y los alias, que son
+    # llaves de busqueda, nunca texto libre [precision del propietario].
+    name = zones_lib.normalize(args.name)
+    aliases = tuple(zones_lib.normalize(a) for a in args.aliases)
+
     # El script conoce el estado previo -- `zones_lib.add()` en si mismo
     # no comprueba nada [docstring del modulo, arriba]. Se lee
     # `zones_lib.load(path)` UNA vez, antes de tocar nada: si el nombre
@@ -119,15 +132,15 @@ def _cmd_add(args, path):
     # era la segunda alta pisando el alias/descripcion de la primera en
     # silencio.
     existing = zones_lib.load(path)
-    if args.name in existing:
+    if name in existing:
         print(
-            f"❌ \"{args.name}\" ya es una zona -- no se ha tocado zones.json. "
+            f"❌ \"{name}\" ya es una zona -- no se ha tocado zones.json. "
             "Si quieres cambiar su descripcion o sus alias, edita el fichero "
             "a mano (todavia no hay comando de edicion)."
         )
         return 1
 
-    # Mismo rebote, agujero al lado: `args.name` no es un nombre canonico
+    # Mismo rebote, agujero al lado: `name` no es un nombre canonico
     # pero SI es el alias de OTRA zona -- `zones_lib.resolve()` ya sabe
     # aplicar alias [lib/memory/zones.py::resolve], asi que se reusa en
     # vez de recorrer `existing` a mano por segunda vez. Si resuelve a
@@ -136,10 +149,10 @@ def _cmd_add(args, path):
     # DE QUIEN es el alias, porque el nombre tecleado no aparece en
     # ningun listado y un "ya existe" sin decir a quien no le da salida
     # al usuario.
-    owner = zones_lib.resolve(args.name, existing)
+    owner = zones_lib.resolve(name, existing)
     if owner is not None:
         print(
-            f"❌ \"{args.name}\" ya es alias de la zona \"{owner}\" -- no se ha "
+            f"❌ \"{name}\" ya es alias de la zona \"{owner}\" -- no se ha "
             "tocado zones.json. Si quieres cambiar sus alias, edita el "
             "fichero a mano (todavia no hay comando de edicion)."
         )
@@ -149,10 +162,22 @@ def _cmd_add(args, path):
     # [lib/memory/zones.py::add, docstring] -- este script no anade
     # ningun mecanismo propio, mismo patron que `indexes.seed()` aplica a
     # su propio directorio.
-    zone = Zone(name=args.name, description=args.description, aliases=tuple(args.aliases))
+    zone = Zone(name=name, description=args.description, aliases=aliases)
     zones_lib.add(zone, path)
     total = len(zones_lib.load(path))
     unit = "zona" if total == 1 else "zonas"
+
+    # La normalizacion NO es silenciosa [orden del propietario,
+    # 2026-08-07: "se le dice al usuario que se ha normalizado, no en
+    # silencio. Lo mismo con los alias"] -- se compara lo tecleado contra
+    # lo que de verdad se guardo y, si algo cambio, se enseña.
+    changed = []
+    if name != args.name:
+        changed.append(f"\"{args.name}\" → \"{name}\"")
+    for raw, normalized in zip(args.aliases, aliases):
+        if raw != normalized:
+            changed.append(f"alias \"{raw}\" → \"{normalized}\"")
+    notice = f" (normalizado a minuscula: {', '.join(changed)})" if changed else ""
 
     # El alta YA NO se comitea a si misma [orden del propietario,
     # 2026-08-06: 23 altas de zona en una sola tarde metieron 23 commits
@@ -177,7 +202,7 @@ def _cmd_add(args, path):
     # [`notes_commit.stage_and_commit()`], asi que `zones.json` entra
     # igual que cualquier otro fichero modificado, con solo pasarlo como
     # ruta. No hace falta ningun mecanismo propio aqui para eso.
-    print(f"✅ {args.name} añadida — zones.json tiene {total} {unit}")
+    print(f"✅ {name} añadida — zones.json tiene {total} {unit}{notice}")
     return 0
 
 
