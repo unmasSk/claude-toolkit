@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-08-07
+
 ### Fixed
 
 - **Las zonas se guardan y se buscan siempre en minúsculas.** Antes se podía crear `Boot` con mayúscula, y luego buscar `boot` no la encontraba: dos sesiones nombrando la misma zona distinto acababan con dos zonas que nunca se cruzaban, y las notas de una eran invisibles desde la otra — sin un solo error por pantalla. Arreglado en los tres puntos: al crear (avisando de la normalización, no en silencio), al resolver, y en la puerta de zonas de una nota. Las zonas ya escritas con mayúscula en otros proyectos se siguen resolviendo, porque también se normaliza al leer. **Solo el nombre de la zona y sus alias**: la descripción, los titulares y cualquier texto libre se guardan tal cual se escribieron.
