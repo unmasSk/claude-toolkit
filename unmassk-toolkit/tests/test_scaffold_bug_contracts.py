@@ -24,12 +24,32 @@ import json
 import os
 import shutil
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
 
 from conftest import SOURCE_ROOT, run_cmd
+
+try:
+    import tomllib  # stdlib only from Python 3.11 (PEP 680).
+except ModuleNotFoundError:
+    tomllib = None
+
+# toolkit-ci.yml pins Python 3.10 on both matrix legs (Ubuntu and Windows) --
+# `tomllib` does not exist there, and this project adds no third-party TOML
+# parser to keep tests dependency-free (CLAUDE.md: "no vamos a empezar
+# ahora"). The two tests below that need a REAL TOML parser (not a
+# hand-rolled string check -- that would stop comparing two independently
+# produced things and become worthless, unmassk-standards S34) skip on
+# Python < 3.11 with this reason, so the pyproject.toml-quoting contract is
+# NOT verified on CI until CI's Python is bumped past 3.11 -- everything
+# else in this file still collects and runs on 3.10 (the package.json/ORM/
+# CSS/CLI-language/absolute-path/Node tests need no TOML parser at all).
+_TOMLLIB_UNAVAILABLE_REASON = (
+    "tomllib is stdlib only from Python 3.11+; this project adds no "
+    "third-party TOML parser, and CI (toolkit-ci.yml) pins Python 3.10 -- "
+    "this contract is not verified on CI"
+)
 
 SCAFFOLD_PATH = os.path.join(
     SOURCE_ROOT, "skills", "unmassk-scaffolding", "scripts", "scaffold.py"
@@ -70,6 +90,7 @@ def _snapshot(root: Path):
 # prints "Created" and exits 0, and nobody finds out until they try to build
 # that project.
 
+@pytest.mark.skipif(tomllib is None, reason=_TOMLLIB_UNAVAILABLE_REASON)
 class TestDescriptionQuoteBreaksPyproject:
     """Contract: whatever the script writes to pyproject.toml must be
     accepted by `tomllib` -- the real, official parser pip/build/uv actually
@@ -324,6 +345,7 @@ class TestGeneratedManifestsParseWithRealParsers:
         data = json.loads(package_json.read_text(encoding="utf-8"))
         assert data["name"] == "validity-check"
 
+    @pytest.mark.skipif(tomllib is None, reason=_TOMLLIB_UNAVAILABLE_REASON)
     @pytest.mark.parametrize("project_type", ["python", "fastapi", "cli"])
     def test_pyproject_toml_is_valid_toml(self, tmp_path, project_type):
         scaffold = _load_scaffold()
