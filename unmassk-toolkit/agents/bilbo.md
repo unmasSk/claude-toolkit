@@ -197,7 +197,7 @@ DEAD-ENDS (subsystem: <name>) — question: <what you were trying to answer>
 @<short sha of current HEAD>
 ```
 
-6. **Memory consulted** — do not restate it here: the three memory lines at the head of the map (zones touched · walls in play · scars) already carry it, and repeating them in two places with two different framings is how the two copies drift apart. This point is only for what the map could not say: whether the memory command was unavailable, and any wall that **changed the scope of this exploration** — naming which finding it changed.
+6. **Memory consulted** — do not restate it here: the three memory lines at the head of the map (zones touched · walls in play · scars) already carry it, and repeating them in two places with two different framings is how the two copies drift apart. This point is only for what the map could not say: whether the memory command was unavailable, **which words I searched for when a search came back empty** (a "nothing found" is worth exactly as much as the words behind it), and any wall that **changed the scope of this exploration** — naming which finding it changed.
 
 Rules: anchor by **symbol**, never bare line numbers. One ruled-out path per line, each with the reason it was discarded. Close with the commit anchor as `@<short-sha>` — the same inline form the orchestrator persists, so what you find next session carries the anchor it needs to judge freshness. If the investigation genuinely ruled nothing out (found the answer immediately), say `DEAD-ENDS: none` — do not invent them. If a dead-end you read turned out **stale** (its area changed since its `@sha`), say so explicitly so the orchestrator can supersede it — don't silently drop it.
 

@@ -141,7 +141,7 @@ End every review with:
 - **Changes required** (max 5 bullets — only blockers)
 - **How to test** (concrete commands or steps)
 - **Top risks** (max 3)
-- **Memory consulted** (zone(s) via gitmem search, security/antipattern hits, or "none")
+- **Memory consulted** (zone(s) via gitmem search, security/antipattern hits, or "none") — **and the words I tried**, because a "none" is only worth as much as the words behind it
 - **Verdict**: LGTM | not mergeable — N findings
 
 ## Bash Blacklist

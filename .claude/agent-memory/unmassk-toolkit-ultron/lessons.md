@@ -2207,3 +2207,41 @@ block written before the fix existed — it's a good starting point, not a
 substitute for execution. Scope stays "only the contract files," per
 instruction, but *within* those files, run the whole file, not just the
 named tests, to catch what the enumeration missed.
+
+## query.py by_word/by_id case-sensitivity fix (2026-08-06): my own uncommitted edit got swept into an unrelated concurrent commit
+
+Fixed `query.py::by_word`/`::by_id` (lines ~225-278) to compare
+case-insensitively (`.lower()` on both sides of the comparison only —
+never on the returned `note.id` or the displayed matched lines, which
+stay byte-identical to the commit text). Live-verified before/after:
+`gitmem search moriarty` vs `Moriarty` went from `1 zona/0 vigentes` vs
+`7/7` to identical `7/7` both ways; `--id r-001` vs `R-001` went from
+"no existe la nota" vs a real hit, to both hitting. `by_zone` audited
+and confirmed NOT affected — it only ever compares already-canonical
+zone strings (from `zones.resolve()`'s dict lookup or from `Note`
+fields the system itself wrote), never raw freeform text.
+`zones.resolve()` itself (in `zones.py`, a *different* function/file
+from `query.by_zone`) has the same case-sensitivity gap for zone
+names/aliases (`search Boot` doesn't resolve the `boot` zone) — left
+untouched, out of the task's declared scope, flagged as an
+observation only.
+
+**Separately, and NOT something I did:** while I was mid-task, `git
+status`/`git diff` on my own edited file suddenly came back clean —
+`git log -1` showed my uncommitted `query.py` change had landed inside
+a brand-new HEAD commit (`0617850`, message about revising nine agent
+fichas) that I never authored and never ran `git commit` for. That
+commit's diff bundled my `query.py` fix together with a pile of
+unrelated `agents/*.md`/`CHANGELOG.md`/`rules.md` changes I never
+touched. This is a live, concrete instance of exactly what the HARD
+RULE at the top of this file warns about: **this repo routinely has
+multiple concurrent sessions with uncommitted work sitting in the same
+tree**, and a commit run by ANY one of them (`git commit -a` or
+similar) will silently sweep in every other session's unstaged edits
+too — including mine, though I ran zero git write commands. Nothing
+was lost here (my fix is intact in the resulting commit and tests
+still pass), but it's the mechanism by which the HARD RULE's `git
+stash`/`reset`/`checkout`/`restore` ban would turn catastrophic if
+anyone violated it while a commit like this was in flight elsewhere.
+No action taken — reported to the orchestrator, not mine to fix or
+reverse (reversing would itself violate the HARD RULE).

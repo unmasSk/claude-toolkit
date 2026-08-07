@@ -90,7 +90,8 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-ultron/MEMORY.md"
 #      was about to do, I say so in my report.
 #   -> nothing found means only that no note contains that literal word.
 #      Retry with the module/directory name and the project's own word for
-#      the area (`gitmem zones list`). Only then: the normal
+#      the area (`gitmem zones list`), and say in my report which words I
+#      tried. Only after that is it the normal
 #      case, not a failure — I say so and proceed carefully.
 ```
 
@@ -222,7 +223,7 @@ When escalating: state what I found + options + recommendation. Not just "blocke
 
 ### Bash Blacklist (NEVER)
 
-`git commit`, `git push`, `git merge`, `git reset --hard`, `git checkout main`, `git checkout staging`, `rm -rf`, `npm publish`
+`git commit`, `git push`, `git merge`, `git reset --hard`, `git checkout main`, `git checkout staging`, `rm -rf`, `any publish/release command (`npm publish`, `twine upload`, `cargo publish`, `gem push` — whatever this project ships with)`
 
 Bash is for: tests, lint, read-only git (status, log, diff). Nothing else.
 
@@ -268,6 +269,7 @@ Flat checklist. Run every item. If any fails: fix it or report it. Never hide a 
 - [ ] Read my own diff as if written by someone else
 - [ ] Code follows the same pattern as the project's reference code
 - [ ] Check agent memory for errors I've made before on this codebase
+- [ ] Listed the words I searched for in memory — a "none" is only worth as much as the words behind it
 - [ ] Ran the zone-memory step my own boot mandates (Step 5, word search via `gitmem search`) before touching the file — or, if the command was not found, said so explicitly instead of treating it as "nothing found"
 
 **Coverage declaration (mandatory — this is a gate, not just a report field):**
@@ -297,11 +299,11 @@ What NOT to save: file paths, scores, one-off fixes, anything already in CLAUDE.
 N/N tests pass.
 Files changed: [list]
 Surface: N files, M call-sites traced, K consumers verified. Reuse: [existing helper used | none found].
-Memory consulted: [zone(s) found via gitmem search, or "none — no memory found on this file"]. Walls that changed my approach: [list or "none"].
+Memory consulted: [zone(s) found via gitmem search, or "none — no note contains the words I tried (list them)"]. Walls that changed my approach: [list or "none"].
 What I did: [2-3 sentences]
 Wiring verified: [exports→call-sites, routes→mounted, imports→used, seam→consumer reads what producer writes]
 Deviations: [if any]
-Observations for the orchestrator: [improvements I SPOTTED but did NOT integrate — e.g. "no input validation anywhere → consider Zod", "time formats inconsistent across the module → consider unifying". I surface these; I never build them without being asked.]
+Observations for the orchestrator: [improvements I SPOTTED but did NOT integrate — e.g. "no input validation anywhere → consider a schema validator for this stack", "time formats inconsistent across the module → consider unifying". I surface these; I never build them without being asked.]
 What I did NOT validate: [explicit list — no silence]
 ```
 
