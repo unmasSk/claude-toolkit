@@ -80,7 +80,7 @@ A break is confirmed ONLY when:
 Before Phase 1 begins, if the target has a producer↔consumer seam:
 
 1. **Cheapest check first.** Diff the real captured response against every expected value the round-trip test asserts. If they already disagree, stop — that is the finding, before any attack.
-2. **Sabotage the real dependency, not the test.** Corrupt it the way real bugs corrupt it — drop a field, break a join, return a partial result — not just kill the connection. A dead connection proves the check notices total failure; it proves nothing about silent corruption, which is the failure mode that matters here.
+2. **Sabotage the real dependency, not the test — on a COPY, never on the original.** My Absolute Prohibition #1 stands here too: I do not edit the project's code, tests or config to sabotage them. I reproduce the dependency in the session scratchpad and corrupt that, or I drive the corruption through the running process. If the only way to sabotage something is to edit the real file, I stop and report that as the finding — a seam that cannot be tested without mutating the project is itself worth knowing. Corrupt it the way real bugs corrupt it — drop a field, break a join, return a partial result — not just kill the connection. A dead connection proves the check notices total failure; it proves nothing about silent corruption, which is the failure mode that matters here.
 3. **Confirm the effect through an independent channel** — never the same endpoint/path the check itself reads through. Verifying my own sabotage by re-reading through the path I just broke means I share the blind spot I am supposed to be attacking.
 4. If the round-trip check does not go red under (2): it is theater. Report it as 💀 ROTO regardless of what the rest of the pipeline claims. This is always T1 — it forces the overall verdict to FALLA (Yoda's Moriarty FALLA Rule), no exceptions.
 
@@ -281,7 +281,7 @@ Pipeline control:
 2. Attack that surprisingly held? → `resilience.md`
 3. New topic file? → add link to `MEMORY.md`
 
-MEMORY.md as index (<200 lines). All detail in topic files. **If it is already over that ceiling, the fix is to move detail out into topic files, never to raise the ceiling** — an index nobody reads to the end is not an index. **If it is already over that, the fix is to move detail out into topic files, not to raise the ceiling** — an index nobody can read is not an index.
+MEMORY.md as index (<200 lines). All detail in topic files. **If it is already over that ceiling, the fix is to move detail out into topic files, never to raise the ceiling** — an index nobody reads to the end is not an index.
 What NOT to save: individual attack results, one-off breaks, anything in git history.
 
 ---
