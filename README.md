@@ -1,20 +1,70 @@
 <h1 align="center">unmassk toolkit</h1>
 
 <p align="center">
-  <strong>Claude Code that remembers, delegates, and delivers enterprise-quality code.</strong>
+  <strong>Claude Code that remembers what you told it — and a crew of nine agents that catch each other's mistakes before you ever see the code.</strong>
+</p>
+
+<p align="center">
+  One install. No config file to maintain. You give instructions, Claude delivers.
 </p>
 
 ---
 
-## The problem
+## The problem this solves
 
-Every Claude Code session starts from zero. You repeat your preferences. You re-explain your architecture. You correct the same mistakes. Claude forgets what you decided yesterday, writes code without reading existing patterns, and improvises when it should follow a plan.
+Every new Claude Code session starts from zero. You repeat the same preference for the third time. You re-explain a decision you already made last week. Claude writes code without reading how the rest of the project already solved the same thing. And when the same model reviews its own work, that's not a review — it's the author marking their own homework.
 
-## The fix
+This toolkit gives Claude a memory that survives you closing the laptop, and a team that doesn't grade itself.
 
-One install. Claude remembers everything, delegates to specialized agents, follows structured workflows, and applies enterprise quality standards to every line of code — automatically.
+---
 
-The user sees none of the machinery. You give instructions. Claude delivers.
+## Proof, not promises
+
+Marketing copy is cheap. Here's what this system actually caught — on itself, this week, with the receipts still in the git history.
+
+**A search bug quietly wiped out an agent's memory, and nothing on screen said so.** `gitmem search ultron` returned 0 real memories. `gitmem search Ultron` — same word, one capital letter — returned 10. Every agent whose own name has a capital letter was reading a near-empty memory and concluding, wrongly, that nothing had ever been decided. No crash, no warning. Found by reading the code, fixed same day, with a test that checks both cases so it can't come back quiet.
+
+**One of the nine agents had been writing to a memory it never read.** Bilbo, the agent that explores unfamiliar code, believed it automatically received a block of "dead ends already ruled out" at the start of every session. It didn't — that channel had been shut off months earlier, and nothing told Bilbo. So it kept writing down what it ruled out, session after session, and reading back none of it. The exact institutional-memory loss this whole project exists to prevent — happening inside the project itself, until someone actually read the agent's own instructions instead of trusting what they claimed.
+
+**The most common moment of all — a brand-new install, first commit, zero memory — crashed instead of showing "nothing yet."** The security reviewer found it, and it was confirmed by running it, not by reading the diff: the very first thing a new user would see was a raw Python error. Fixed the same session it was found, with a test that pins the empty-state as valid instead of a crash.
+
+**A concurrency fix passed 60 out of 60 tests run directly against the function — then failed 16 out of 30 tries run the way a person actually triggers it.** Calling the function in-process and typing the two ordinary commands a user types are not the same test. The fix that looked perfect from the inside had a real gap that only showed up from the outside — which is now the standard this whole toolkit tests itself against: measure how the user enters, never how the code is called from within.
+
+None of these shipped as bugs users hit. They shipped as regression tests, the day they were found, because the crew that builds this toolkit is the same crew documented below.
+
+---
+
+## What you get
+
+**Memory that's actually memory.** Decisions, corrections, and rules persist as git commits — readable, diffable, yours. Working across two machines, it fetches and warns you when local is behind before you start (it never pulls on its own; bringing the work over stays your call). One command, `/remember`, puts your own rules file in front of Claude and every line becomes binding from that moment.
+
+**Nine agents, one job each, and they don't take each other's word for it.** Bilbo explores, Ultron implements, Dante tests, Cerberus and Argus review code quality and security in parallel, then Moriarty attacks whatever they let through — that order never gets shortened. It's not a formality: Moriarty has caught four real problems the first two reviewers already approved, including a silent loss of saved memory while every test stayed green, and a session start that fed one project's plan into a different one. House diagnoses when something breaks anyway, Yoda gives the final verdict, Alexandria documents what's real.
+
+**Two structured pipelines instead of improvisation.** An 8-step build pipeline (triage → brainstorm → research → plan → execute → verify → document → close) for features and fixes. A 14-step enterprise audit with a weighted /110 score for reviewing existing code — same crew, adversarial validation included, nothing self-graded.
+
+**Quality rules that assume the code will try to lie to you.** Tiered findings, producer↔consumer round-trip checks (a fix isn't verified until it's proven against the real data on both ends, not a fixture someone guessed at), and a fail-loud rule: a silent failure ranks worse than a loud one, every time.
+
+---
+
+## Also covers, if you need it
+
+Install only what applies to your project — every plugin below is optional, on top of the core.
+
+| Plugin | What it's for |
+|--------|---------------|
+| **unmassk-db** | Postgres, MySQL, MongoDB, Redis — schema design, migrations, vector/RAG search |
+| **unmassk-ops** | Terraform, Docker/K8s/Helm, CI/CD, observability, deploy scripts, error tracking |
+| **unmassk-compliance** | GDPR, LOPDGDD, NIS2, ENS, SOC2/ISO, OWASP, cookies, i18n, legal docs |
+| **unmassk-media** | Video (Remotion/ffmpeg), image generation/editing, mermaid diagrams, PDF, screenshots, transcription |
+| **unmassk-design** | Design systems, motion, 3D/WebGL, scroll animation, Lottie/Rive/Anime.js, named style directions, Flutter UI |
+| **unmassk-seo** | Technical SEO, schema markup, Core Web Vitals, GEO/AEO |
+| **unmassk-marketing** | Copywriting, CRO, email, retention, paid ads, analytics, growth |
+| **unmassk-pentesting** | Web/API/mobile/cloud/blockchain pentesting, recon, AD attacks, DFIR, CTF |
+| **unmassk-humanizer** | Makes text stop reading as AI-written, in English and Spanish |
+| **unmassk-3d** | 3D-printable parts sized to real objects from real measurements, not guesses |
+| **unmassk-electronics** | Microcontroller firmware, Raspberry Pi, robotics — the device has to confirm, or it isn't done |
+| **unmassk-frontend** | React component quality, UI state, accessibility, styling discipline |
+| **unmassk-typescript** | Strict TypeScript — type safety, type guards, no silent `any` |
 
 ---
 
@@ -27,7 +77,7 @@ Add the marketplace and install the core:
 /plugin install unmassk-toolkit@unmassk-claude-toolkit
 ```
 
-Then install the domain plugins you need:
+Then install whatever domain plugins you need:
 
 ```
 /plugin install unmassk-db@unmassk-claude-toolkit
@@ -49,88 +99,21 @@ Restart Claude Code. Done.
 
 ---
 
-## What changes
+## Attribution
 
-| Before | After |
-|--------|-------|
-| Every session starts from zero | Claude remembers decisions, preferences, and your personality across sessions |
-| Claude writes all the code | Claude orchestrates 9 agents — each with a defined role |
-| "Review this code" → generic feedback | The orchestrator routes the right domain skill into each agent's prompt and it applies specific checklists |
-| You ask for an audit, Claude improvises | 14-step enterprise audit with scoring /110 |
-| You ask to build a feature, Claude jumps in | 8-step creative pipeline from brainstorm to merge |
-| No quality standards | T1/T2/T3 tiers, weighted /110 scoring, producer↔consumer round-trip integrity, silent-failure rules |
-| You manage everything | The machinery is invisible — you give instructions, Claude delivers |
+Several domain skills build on prior open-source work instead of reinventing it. Credit where it's owed:
 
----
+- **unmassk-db** — `pg-aiguide` by Timescale (MIT), `database-skills` by PlanetScale (MIT), `agent-skills` by Redis (MIT), `claude-skills` by alirezarezvani (MIT)
+- **unmassk-ops** — `cc-devops-skills` by akin-ozer (Apache-2.0)
+- **unmassk-compliance** — `privacy-security-skills` by Jeremy Longshore (MIT), the NIS2 SMB package by Paolo Carner / BARE Consulting (CC BY 4.0), `comply` by Alireza Rezvani (MIT)
+- **unmassk-media** — `@remotion/skills` by Remotion Inc. (MIT), `claude-screenshots` by Shpigford (MIT)
+- **unmassk-design** — `claudedesignskills` by freshtechbro (Apache-2.0), `Impeccable` by Paul Bakaus (Apache-2.0), `UI/UX Pro Max` by nextlevelbuilder (MIT), plugins by bencium.io (MIT), the `emil-design-eng` and `animation-vocabulary` skills by Emil Kowalski (MIT), the `apple-design` skill (MIT), the `taste-skill` collection by leonxlnx (MIT), and `flutter-ui` from `claude-flutter-ui-skills` by Naimehossein77
+- **unmassk-marketing** — `marketingskills` by coreyhaines31 (MIT)
+- **unmassk-seo** — `claude-seo` by AgriciDaniel (MIT)
+- **unmassk-pentesting** — techniques from `communitytools` by Transilience AI (MIT)
+- **unmassk-humanizer** — a fusion of `humanizer` by blader (MIT), `humanize-writing` by lguz (MIT), and `anti-slop` by kjmagnan1s (MIT, itself building on `avoid-ai-writing` by Conor Bronsdon (MIT) and `stop-slop` by Hardik Pandya (MIT)); its content-pattern catalog traces back to Wikipedia's "Signs of AI writing" (CC BY-SA 4.0)
 
-## What's inside
-
-### Core (unmassk-toolkit)
-
-Always installed. Contains everything Claude needs to orchestrate.
-
-| Component | What it does |
-|-----------|-------------|
-| **Memory** | Persistent memory via git commits. Decisions, memos, remembers survive across sessions — and across machines: boot fetches automatically and warns you when local memory is behind another machine's, before you start working. It never pulls on its own — bringing the work over is your call. Dead ends Bilbo rules out while exploring a subsystem are remembered too, so the next exploration starts from what's already ruled out instead of re-investigating from scratch. |
-| **9 Agents** | Bilbo (explore), Ultron (implement), Dante (test), Cerberus (review), Argus (security), Moriarty (break), House (diagnose), Yoda (judge), Alexandria (document) |
-| **Flow** | 8-step pipeline: triage → brainstorm → research → plan → execute → verify → document → close |
-| **Audit** | 14-step enterprise audit with weighted scoring /110 and adversarial validation |
-| **Standards** | Stack-agnostic quality criteria under the "system against itself" model — tiers, weighted scoring, producer↔consumer data integrity (§34), silent-failure and concurrency rules. No OWASP/React/TypeScript: framework rules live in their own plugins |
-| **`/remember`** | The one slash command, and it only reads: it delivers your whole rules file into Claude's context, where every line becomes binding from that moment. Saving is never yours to trigger — Claude saves a rule the moment you state it in conversation. Rules live outside the note system: no zones, never in a search or a report, never read by an agent |
-| **Protocols** | 5 decision and lifecycle skills: `unmassk-grill` (interrogate ambiguous requests), `unmassk-council` (5-advisor pressure-test for real choices), `unmassk-project-lifecycle` (new / continuing / external repo routing), `unmassk-close-session` (end-of-session housekeeping: cleanup, branch/issue hygiene, doc check, writes the session's closing commit — versioning and the changelog happen elsewhere, at release and at merge), `unmassk-scaffolding` (stack choice and project scaffolding) |
-
-### Domain plugins
-
-Install what you need. The orchestrator picks the right skill and pastes it into the agent's prompt — there is no automatic discovery gate (the old BM25 one was removed).
-
-| Plugin | Skills | What it covers |
-|--------|--------|---------------|
-| **unmassk-db** | 7 | PostgreSQL, MySQL, MongoDB, Redis, migrations, schema design, vector/RAG |
-| **unmassk-ops** | 7 | Terraform, Docker/K8s/Helm, CI/CD, observability, scripting, deploy, error tracking |
-| **unmassk-compliance** | 9 | GDPR, LOPDGDD, NIS2, ENS, SOC2/ISO, OWASP, cookies, i18n, legal docs |
-| **unmassk-media** | 8 | Video (Remotion/ffmpeg), image gen/edit, mermaid, PDF, screenshots, transcription |
-| **unmassk-design** | 7 | Design systems, color, typography, accessibility, agentic UX + 6 specialist branches: motion craft, 3D/WebGL, scroll-driven animation, animation formats (Lottie/Rive/Anime.js), named aesthetic directions (taste), Flutter UI |
-| **unmassk-seo** | 1 | Technical SEO, schema markup, Core Web Vitals, GEO/AEO |
-| **unmassk-marketing** | 1 | CRO, copywriting, email, retention, paid ads, analytics, growth |
-| **unmassk-pentesting** | 30 | Web/API/mobile/cloud/blockchain pentesting, recon, AD/system attacks, DFIR, CTF/bug bounty, adversarial engagement method with blind validation |
-| **unmassk-humanizer** | 1 | Make text stop reading as AI, English + Spanish; 3-pass rewrite, detect/rewrite/ingest modes, named voices, voice-protection seam, bilingual pattern catalogs |
-| **unmassk-3d** | 1 | Reality-first CAD for 3D printing — printable parts that fit real objects from real measurements (scan + caliper), pipeline with scale + watertight gates, CadQuery/OpenSCAD + Blender via MCP |
-| **unmassk-electronics** | 4 | Agent-driven electronics — microcontroller firmware (ESP32/PlatformIO, serial-assert gate), Raspberry Pi (SSH/gpiozero, read-back gate), robotics (motors/sensors, sensor gate). One rule: the device confirms, or it isn't done |
-| **unmassk-frontend** | 1 | Frontend code-quality — React components, hooks, UI state & data-fetching, accessibility, styling discipline, file structure. Ships AgentBrowser (MCP) to observe/drive the rendered UI; tests stay on Playwright |
-| **unmassk-typescript** | 1 | TypeScript language — strict tsconfig, type safety (any/unknown/as/!), type guards, discriminated unions; any TS project, backend or frontend |
-
----
-
-## Development
-
-### Running tests
-
-Tests live in `unmassk-toolkit/tests/` and are configured in `pyproject.toml`:
-
-```bash
-pytest unmassk-toolkit/tests
-```
-
-### Releasing a plugin
-
-```bash
-python3 bin/release.py <plugin> <new-version>
-```
-
-Always dry-run first:
-
-```bash
-python3 bin/release.py <plugin> <new-version> --dry-run
-```
-
-Full release procedure is documented in [`docs/RELEASING.md`](docs/RELEASING.md).
-
-### Key scripts
-
-| Script | What it does |
-|--------|-------------|
-| `gitmem` | Facade for the memory system: nine subcommands (`note`, `work`, `wip`, `remove`, `next`, `search`, `zones`, `rezones`, `rule`), each dispatching to its own script in `unmassk-toolkit/bin/memory/`. Writes commits with structured trailers (Why, Description, Keys, Origin) and the correct emoji prefix (`unmassk-toolkit/bin/gitmem`) |
-| `release.py` | Bumps plugin version, promotes CHANGELOG, commits, and pushes in one step (lives in `bin/` at the repo root, not in `unmassk-toolkit/bin/`) |
+Everything not listed here — the core toolkit, the agent crew, memory, Flow, Audit, and any plugin not named above — is original to this repo.
 
 ---
 
