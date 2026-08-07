@@ -338,6 +338,35 @@ def check_project_zones(project_root: str) -> tuple[str, str]:
     the doctor looking away from a failure its own real consumer
     already treats as fatal.
 
+    Zone names/aliases are lowercased everywhere since 2026-08-07
+    [`lib/memory/zones.py::normalize()`] -- `load()` normalizes on
+    READ too, so a `zones.json` written before that order (a zone
+    persisted as "Boot", say) still resolves fine in production; it is
+    not corrupt. Reporting it as "error" here, or silently as "ok",
+    would both be wrong against what the real system does with it: an
+    "error" contradicts a file the customs hook and every real reader
+    accept without complaint, and a silent "ok" hides a fact the owner
+    asked to see (stale casing left over from before the fix, or
+    brought in from another machine). So this check reports a THIRD
+    thing for this case -- "warn", naming which zone(s) are not
+    normalized and how to clean them up by hand (there is no `zones`
+    edit command yet, per `bin/memory/zones.py::_cmd_add`'s own rebound
+    message for an existing zone).
+
+    This also means duplicating `zones.normalize()` itself, inline as
+    `name == name.lower()` below, instead of importing it from
+    `lib/memory/zones.py` -- same trade this function already makes for
+    the three shape checks above, extended to the one-line rule too:
+    importing `zones.py` for a single `.lower()` would still pull in
+    `model.Zone`, `difflib`, `tempfile`, and the `add()` file-lock
+    machinery, exactly the import chain this function's independence is
+    for. `normalize()` is a plain `.lower()` today and nothing else --
+    if it ever grows (its own docstring floats trimming whitespace as a
+    future possibility), this duplicate needs the same change by hand
+    or this check silently drifts from what `zones.py` actually
+    resolves. Do not "unify" this by importing `zones.py` without
+    re-reading that docstring first.
+
     Returns:
         Tuple of (level, message).
     """
@@ -351,6 +380,7 @@ def check_project_zones(project_root: str) -> tuple[str, str]:
         return "error", f"zones.json corrupt: {e}"
     if not isinstance(data, dict):
         return "error", "zones.json corrupt: expected a JSON object"
+    not_normalized: list[str] = []
     for name, fields in data.items():
         if not isinstance(fields, dict):
             return "error", f"zones.json corrupt: zone {name!r} must be a JSON object"
@@ -360,8 +390,19 @@ def check_project_zones(project_root: str) -> tuple[str, str]:
         aliases = fields.get("aliases", [])
         if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
             return "error", f"zones.json corrupt: 'aliases' of zone {name!r} must be a list of text"
+        if name != name.lower() or any(a != a.lower() for a in aliases):
+            not_normalized.append(name)
     if len(data) == 0:
         return "warn", "zones.json present but no zone registered yet ('zones add' to register one)"
+    if not_normalized:
+        listed = ", ".join(repr(n) for n in not_normalized)
+        return (
+            "warn",
+            f"zones.json has {len(data)} zone(s) registered, but not lowercase-normalized: "
+            f"{listed} -- the system still resolves them fine (names/aliases are matched "
+            "case-insensitively), but zones.json itself should be edited by hand to lowercase "
+            "them (no 'zones' edit command yet)"
+        )
     return "ok", f"zones.json has {len(data)} zone(s) registered"
 
 

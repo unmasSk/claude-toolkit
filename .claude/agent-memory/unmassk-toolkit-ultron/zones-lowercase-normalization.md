@@ -59,3 +59,27 @@ the ONLY two casualties.
 
 See also [lessons.md](lessons.md) for the general git-safety and
 prior zones.py history (rename batch, health checks).
+
+## Closed the doctor gap, 2026-08-07 -- deliberately duplicated, not imported
+
+`bin/git-memory-doctor.py::check_project_zones()` used to report a
+populated `zones.json` as flat "ok" regardless of casing, silent about
+a zone left over from before this normalization (or brought in from
+another machine). Fixed by adding a THIRD outcome, not just a binary
+error/ok: valid-shape zones whose name/alias isn't already lowercase
+now report `"warn"` naming which zone(s) and how to fix them by hand
+(no `zones` edit command exists yet -- confirmed via
+`bin/memory/zones.py::_cmd_add`'s own rebound message).
+
+Decision on independence (owner asked for it explicitly before
+touching the file): **duplicated `normalize()` inline as
+`name == name.lower()`, did NOT import `zones.py`.** This file already
+duplicates `zones.load()`'s three shape checks on purpose, to stay
+independent of `lib/memory/`'s import chain (`model.Zone`, `difflib`,
+`tempfile`, the `add()` file-lock code) -- importing `zones.py` for a
+single `.lower()` would drag all of that in for one line. The
+docstring on `check_project_zones()` now spells out the same warning
+zones.py's own `normalize()` docstring gives: it's a plain `.lower()`
+today, but if it ever grows (whitespace trimming is floated as a
+future possibility in `zones.py`), this duplicate silently drifts
+unless someone updates it by hand at the same time.
