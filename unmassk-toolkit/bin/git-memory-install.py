@@ -152,14 +152,24 @@ def verify(target: str) -> dict[str, Any]:
     """
     doctor_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "git-memory-doctor.py")
     if os.path.isfile(doctor_script):
+        # encoding="utf-8", errors="replace": sin `encoding=`, `text=True`
+        # decodifica con el codec de la consola (cp1252 en Windows) y un
+        # caracter fuera de ese codec en la salida del doctor deja
+        # `result.stdout` en `None` sin lanzar nada [House, 2026-08-08].
         result = subprocess.run(
             [sys.executable, doctor_script, "--json"],
             capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         try:
+            # TypeError incluido a proposito: con encoding/errors fijados
+            # arriba `result.stdout` ya no deberia poder ser `None`, pero
+            # si lo fuera por otra causa, `json.loads(None)` lanza
+            # TypeError (no JSONDecodeError) -- sin capturarlo tambien,
+            # revienta el instalador entero en vez de caer al fallback.
             data: dict[str, Any] = json.loads(result.stdout)
             return data
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             return {"status": "error", "checks": []}
     return {"status": "unknown", "checks": []}
 

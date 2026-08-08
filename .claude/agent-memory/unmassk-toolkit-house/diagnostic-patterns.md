@@ -4,6 +4,18 @@ description: Recurring root cause patterns found during investigations in unmass
 type: reference
 ---
 
+## Pattern: `shlex(posix=True)` EATS the backslashes of a native Windows path — any test that interpolates `str(Path)` into a shell-command string is POSIX-only by construction
+
+**Project:** unmassk-toolkit (hooks/customs.py, `cd` resolution) · **Seen:** 2026-08-08 · confirmed by local execution of the real tokenizer
+
+`shlex.shlex(cmd, posix=True, punctuation_chars=True)` turns `cd C:\Users\x\proj` into the single token `C:UsersxProj` — every `\` is consumed as an escape. Verified locally (platform-independent, so macOS reproduces it exactly). Downstream on Windows: `ntpath.isabs("C:Usersx...")` is **False** → the mangled string is joined onto the base cwd → `os.path.isdir` False → the `cd` is silently ignored and the caller keeps evaluating the ORIGINAL directory. In `customs.py` that means the commit gate decides about the wrong repository.
+
+**The discriminator is free and lives in the same test file — look for the sibling controls before hypothesising:** in the 2026-08-08 round, of the `cd` tests, the ones that **quote** the path (`cd "…"` / `cd '…'`) PASSED on Windows (quoting protects `\`), the ones using a **relative** path (`cd subproject`, `cd proj`) PASSED, and only the ones interpolating an unquoted absolute `str(tmp_path)` FAILED. Six passing controls against seven failures, all in one file: no instrumentation needed.
+
+**Second, independent POSIX assumption in the same family: `ntpath.expanduser` NEVER reads `HOME`.** It reads `USERPROFILE`, else `HOMEDRIVE`+`HOMEPATH` (CPython source, inspected). A test that forces a fake home via `env={"HOME": ...}` is a no-op on Windows — the runner's real profile wins and the `~` target resolves somewhere that does not exist.
+
+**Which forms actually work on Windows** (so a harness fix does not paper over a real gap): relative paths ✅ · forward-slash absolute (`C:/Users/x/proj`) ✅ · quoted backslash ✅ · unquoted backslash ❌ (but bash eats them too, so the product agrees with reality) · MSYS/Git-Bash style `/c/Users/x/proj` ❌ **and this one is a genuine product hole** — it is what Git Bash really emits, `shlex` passes it through untouched, and `os.path.isdir` on Windows cannot see it. Harness fix = `Path.as_posix()` + set `USERPROFILE` alongside `HOME`; product fix = normalise the `cd` target before `isdir` (accept `/c/...`).
+
 ## Pattern: git renders UTC-offset-0 dates as `Z`, and Python 3.10's `fromisoformat` rejects `Z` — CI-only red on BOTH OSes, green on every dev box
 
 **Project:** unmassk-toolkit (memoria-v2 readers) · **Seen:** 2026-08-08 · confirmed by exact local reproduction (run 31161644404)

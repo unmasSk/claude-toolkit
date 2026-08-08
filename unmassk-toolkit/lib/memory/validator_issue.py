@@ -71,12 +71,21 @@ def _issue_exists(issue: int) -> bool:
     Sec.10.1, punto 1: "*no se puede comprobar* nunca es *esta bien*"].
     """
     try:
+        # encoding="utf-8", errors="replace": mismo motivo que
+        # health.py::_last_activity_at -- sin `encoding=`, `text=True`
+        # decodifica con el codec de la consola (cp1252 en Windows) y un
+        # caracter fuera de ese codec en la salida de `gh` deja
+        # `stdout`/`stderr` en `None` sin ninguna excepcion que capturar
+        # aqui [House, 2026-08-08]. `errors="replace"` no es opcional: la
+        # salida de `gh` no la controlamos.
         proc = subprocess.run(
             ["gh", "issue", "view", str(issue), "--json", "number"],
             cwd=Path.cwd(),
             capture_output=True,
             text=True,
             timeout=_GH_TIMEOUT,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
@@ -90,10 +99,15 @@ def _issue_exists(issue: int) -> bool:
 
     if proc.returncode == 0:
         return True
-    if _ISSUE_NOT_FOUND_MARKER in proc.stderr:
+    # (proc.stderr or ""): con encoding/errors fijados arriba esto ya no
+    # deberia poder ser `None`, pero esta es la rama de error -- leerla
+    # con un `in None`/`.strip()` pelado convertiria un fallo real de
+    # `gh` en un TypeError/AttributeError sin explicar nada.
+    stderr = proc.stderr or ""
+    if _ISSUE_NOT_FOUND_MARKER in stderr:
         return False
     raise RuntimeError(
-        f"gh issue view #{issue} fallo: {proc.stderr.strip() or proc.stdout.strip()}"
+        f"gh issue view #{issue} fallo: {stderr.strip() or (proc.stdout or '').strip()}"
     )
 
 

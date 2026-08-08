@@ -164,9 +164,16 @@ def repair_issue(issue_type: str, source: str, target: str) -> bool:
         # Run install with --auto to clean up old files
         install_script = os.path.join(source, "bin", "git-memory-install.py")
         if os.path.isfile(install_script):
+            # encoding="utf-8", errors="replace": sin `encoding=`,
+            # `text=True` decodifica con el codec de la consola (cp1252 en
+            # Windows) y puede reventar la decodificacion en un hilo aparte
+            # [House, 2026-08-08]. Su salida no se lee aqui (solo importa el
+            # returncode implicito de "termino"), pero el propio
+            # `subprocess.run` puede fallar si el hilo lector muere.
             subprocess.run(
                 [sys.executable, install_script, "--auto"],
                 capture_output=True, text=True, timeout=30,
+                encoding="utf-8", errors="replace",
             )
             return True
         return False

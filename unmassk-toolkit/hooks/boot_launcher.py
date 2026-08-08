@@ -72,12 +72,21 @@ try:
     manifest = os.path.join(cwd, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest) and os.path.isfile(_INSTALLER):
         try:
+            # encoding="utf-8", errors="replace": sin `encoding=`,
+            # `text=True` decodifica con el codec de la consola (cp1252 en
+            # Windows), y el instalador imprime emojis que no existen en
+            # ese codec -- la decodificacion revienta en un hilo lector
+            # aparte, fuera del alcance de este try/except [House,
+            # 2026-08-08]. `errors="replace"` no es opcional: la salida del
+            # instalador no la controlamos.
             done = subprocess.run(
                 [sys.executable, _INSTALLER, "--auto"],
                 cwd=cwd,
                 capture_output=True,
                 text=True,
                 timeout=60,
+                encoding="utf-8",
+                errors="replace",
             )
             if done.returncode == 0:
                 print(

@@ -125,12 +125,21 @@ def _last_activity_at(issue_number: int) -> datetime:
     silencioso que esta pieza existe para impedir.
     """
     try:
+        # encoding="utf-8", errors="replace": sin `encoding=`, `text=True`
+        # decodifica con el codec de la consola (cp1252 en Windows) y un
+        # caracter fuera de ese codec en la salida de `gh` revienta la
+        # decodificacion en un hilo aparte -- el llamante recibe
+        # `stdout = None` sin ninguna excepcion que capturar aqui [House,
+        # 2026-08-08]. `errors="replace"` no es opcional: la salida de `gh`
+        # no la controlamos.
         proc = subprocess.run(
             ["gh", "issue", "view", str(issue_number), "--json", "comments,createdAt"],
             cwd=Path.cwd(),
             capture_output=True,
             text=True,
             timeout=_GH_TIMEOUT,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
@@ -143,9 +152,13 @@ def _last_activity_at(issue_number: int) -> datetime:
         ) from exc
 
     if proc.returncode != 0:
+        # (proc.stderr or "") / (proc.stdout or ""): con encoding/errors
+        # fijados arriba esto ya no deberia poder ser `None`, pero esta es
+        # la rama de error -- la que de verdad tiene que contar la causa
+        # real, nunca reventar con un AttributeError pelado por leerla.
         raise RuntimeError(
             f"gh issue view #{issue_number} fallo: "
-            f"{proc.stderr.strip() or proc.stdout.strip()}"
+            f"{(proc.stderr or '').strip() or (proc.stdout or '').strip()}"
         )
 
     try:

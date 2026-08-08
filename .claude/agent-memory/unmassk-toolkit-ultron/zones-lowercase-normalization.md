@@ -1,6 +1,6 @@
 ---
 name: zones-lowercase-normalization
-description: lib/memory/zones.py + bin/memory/zones.py (2026-08-07) -- zone NAME/alias lowercased everywhere, description untouched; resolve() must not assume its zones dict already came from load()
+description: lib/memory/zones.py + bin/memory/zones.py (2026-08-07) -- zone NAME/alias lowercased everywhere, description untouched; resolve() must not assume its zones dict already came from load(). Also lib/memory/report.py::build_word() (2026-08-08) -- same key-vs-content split applied to WordReport.word
 metadata:
   type: project
 ---
@@ -59,6 +59,25 @@ the ONLY two casualties.
 
 See also [lessons.md](lessons.md) for the general git-safety and
 prior zones.py history (rename batch, health checks).
+
+## Same principle, different field -- `WordReport.word` (2026-08-08)
+
+Owner order: `gitmem search WINDOWS` echoed the header back in the typed
+case (`«WINDOWS»`) even though `query.by_word()` already compared
+case-insensitively (its own `.lower()` fix, dated 2026-08-06 in that
+function's docstring). Same split as zones: **the searched word is a
+key, normalize it; the matched lines/note text is content, leave it
+verbatim.**
+
+Normalized in `lib/memory/report.py::build_word()` -- `WordReport(word=
+word.lower(), ...)` -- NOT in `report_render.py`. Reason: `report.py`
+"decide QUE se enseña", `report_render.py`'s own docstring says it
+"no decide nada", only paints what it's handed. `report_render.py`
+reads `r.word` in two places (header line 421, footer command example
+line 443) and both come out lowercase for free since the field itself
+is normalized at the source -- no need to touch the painter at all.
+Zero test hand-builds a `WordReport` fixture with a `word=` field, so
+no collateral breakage this time (checked via grep before editing).
 
 ## Closed the doctor gap, 2026-08-07 -- deliberately duplicated, not imported
 

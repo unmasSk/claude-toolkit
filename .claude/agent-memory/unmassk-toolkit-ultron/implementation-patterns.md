@@ -4,30 +4,30 @@ description: Key patterns for chatroom backend WS handlers, process tracking, pr
 type: project
 ---
 
-## Skill scripts CAN reach into `lib/memory/` (2026-08-08)
+## `lib/` and `lib/memory/` are NOT the same permission (corrected 2026-08-08)
 
-A skill script living under `skills/<name>/scripts/*.py` (outside `lib/memory/`)
-is not barred from importing a `lib/memory/*.py` module — there is direct
-precedent already in the repo for reaching into `lib/` from a skill script
-(`unmassk-scaffolding/scripts/scaffold.py` inserts `.../unmassk-toolkit/lib`
-onto `sys.path` and imports `encoding_guard` from it), and `bin/memory/*.py`
-entry points (`boot.py`, `remove.py`, `rule.py`, `zones.py`) all use the same
-`_LIB_MEMORY_DIR = join(_TOOLKIT_ROOT, "lib", "memory")` + `sys.path.insert`
-pattern to import sibling modules there directly by name (`import timefmt`,
-not `from lib.memory import timefmt` — there's no `__init__.py` in
-`lib/memory/`, it's a flat sys.path-inserted namespace, not a package).
+**Wrong turn, caught by CI, keep this correction:** `lib/memory/` is a
+DECLARED ZONE with its own boundary test,
+`tests/memory/test_boundary.py::test_no_file_outside_the_allowed_zone_imports_lib_memory`
+— it enumerates exactly who may import from `lib/memory/` (siblings inside
+it, `bin/memory/*.py`, `bin/gitmem`, the 2 memory hooks, `tests/memory/`)
+and nothing outside that list, on purpose: the memory system has to be
+deletable whole without breaking the rest of the toolkit. `lib/` (the
+parent, not `lib/memory/`) has NO such test/zone — `scaffold.py` reaching
+`encoding_guard` from `lib/` is NOT a precedent for reaching `lib/memory/`;
+they are different permissions and I conflated them the first time. Run
+`tests/memory/test_boundary.py` BEFORE assuming a `sys.path` trick into
+`lib/memory/` is fine from outside it, even with a real precedent for `lib/`
+in hand — the precedent has to match the exact directory, not the pattern.
 
 Fixed `skills/unmassk-close-session/scripts/session_transcript.py`
 (`_last_close`, was `%aI` + `datetime.fromisoformat` — same class of bug as
 the four `lib/memory/*.py` sites fixed the same day: Python 3.10 can't read
-git's `Z`-suffixed ISO date for a huso-cero commit) the same way: resolve
-`_TOOLKIT_ROOT` from `__file__` (three `dirname()` up from
-`skills/X/scripts/`, not four like `scaffold.py` — one skill-folder level
-less), insert `lib/memory` on `sys.path`, `import timefmt`, call
-`timefmt.from_git_seconds(raw_epoch)` on a `%at` (epoch-seconds) git format
-field instead of parsing `%aI` text. No duplicated conversion logic needed —
-check the real import path before assuming a skill script must vendor its
-own copy of lib code.
+git's `Z`-suffixed ISO date for a huso-cero commit) with a DELIBERATE
+in-file duplicate `_from_git_seconds()`, `%at` (epoch-seconds) instead of
+`%aI` text, and a docstring naming `lib/memory/timefmt.from_git_seconds` as
+the real owner + the exact boundary-test name, so nobody "unifies" it back
+across the zone line in six months without reading why not.
 
 Verified A/B on Python 3.10 (`/Users/unmassk/.local/bin/python3.10` — the
 3.14 on this machine does NOT reproduce this bug, `fromisoformat` there

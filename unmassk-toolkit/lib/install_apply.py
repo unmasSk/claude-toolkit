@@ -162,27 +162,53 @@ def _commit_what_the_install_created(target: str) -> None:
     if not existentes:
         return
     try:
+        # encoding="utf-8", errors="replace" en los tres subprocess.run de
+        # aqui abajo: sin `encoding=`, `text=True` decodifica con el
+        # codec de la consola -- cp1252 en Windows -- y una salida de git
+        # con un caracter fuera de ese codec (p.ej. el emoji que ya
+        # imprime install_apply.py mas arriba en la misma ejecucion)
+        # revienta la decodificacion en un hilo lector separado; el
+        # llamante nunca ve la excepcion, solo recibe `stdout = None`
+        # [House, diagnosticado 2026-08-08, 8 tests rojos en el CI de
+        # Windows]. `errors="replace"` no es opcional: la salida de `git`
+        # no la controlamos, y sin el la decodificacion simplemente falla
+        # en otro punto en vez de desaparecer.
         add = subprocess.run(
             ["git", "add", "--"] + existentes,
             cwd=target, capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         if add.returncode != 0:
             return
         staged = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--"] + existentes,
             cwd=target, capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         # Nada que guardar: la instalacion no cambio ninguno de estos
         # ficheros (segunda pasada sobre un proyecto ya instalado). Sin esta
         # comprobacion, `git commit` fallaria por "nothing to commit" y
         # dejaria un error donde no hay ninguno.
-        if staged.returncode != 0 or not staged.stdout.strip():
+        #
+        # `staged.stdout is not None` es a proposito, y no un simple `or
+        # ""`: con `encoding=`/`errors=` fijados arriba `stdout` ya nunca
+        # deberia ser `None`, pero si algun dia lo fuera por otra causa,
+        # tratarlo como "no hay nada preparado" perderia en silencio
+        # justo el commit que esta funcion existe para proteger -- este
+        # es el UNICO de los nueve sitios que pierde trabajo sin decirlo
+        # (el commit de instalacion se saltaba entero). Si no se puede
+        # leer la salida, se sigue adelante y se intenta el commit en vez
+        # de rendirse.
+        if staged.returncode != 0:
+            return
+        if staged.stdout is not None and not staged.stdout.strip():
             return
         subprocess.run(
             ["git", "commit", "-m",
              "install: memoria del proyecto (indices, config y gitignore)",
              "--"] + existentes,
             cwd=target, capture_output=True, text=True, timeout=30,
+            encoding="utf-8", errors="replace",
         )
     except Exception:
         return
@@ -583,12 +609,22 @@ def _seed_project_memory(target: str, source: str) -> None:
     verify_path_within_project(pm_dir, target)
 
     gitmem_path = os.path.join(source, "bin", "gitmem")
+    # encoding="utf-8", errors="replace": mismo motivo que los tres
+    # subprocess.run de _commit_what_the_install_created -- sin esto,
+    # `stdout`/`stderr` pueden llegar como `None` en Windows y el `.strip()`
+    # de la rama de error de abajo revienta con un AttributeError pelado en
+    # vez de contar lo que de verdad fallo.
     result = subprocess.run(
         [sys.executable, gitmem_path, "rezones"],
         cwd=target, capture_output=True, text=True, timeout=30,
+        encoding="utf-8", errors="replace",
     )
     if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
+        # (result.stderr or "") / (result.stdout or ""): defensa igual,
+        # por si `stdout`/`stderr` llegaran `None` por otra causa --
+        # esta rama de error es la que de verdad importa reportar, no
+        # tragar en un AttributeError.
+        detail = (result.stderr or "").strip() or (result.stdout or "").strip() or f"exit code {result.returncode}"
         raise RuntimeError(f"gitmem rezones fallo sembrando project-memory: {detail}")
 
 

@@ -2245,3 +2245,51 @@ stash`/`reset`/`checkout`/`restore` ban would turn catastrophic if
 anyone violated it while a commit like this was in flight elsewhere.
 No action taken — reported to the orchestrator, not mine to fix or
 reverse (reversing would itself violate the HARD RULE).
+
+## subprocess.run(text=True) without encoding= is a DISTINCT bug class from encoding_guard.py (2026-08-08, House diagnosis, Windows CI)
+
+`force_utf8_streams()` (lib/encoding_guard.py / lib/memory/utf8.py) only
+fixes THIS process's own stdout/stderr. It does nothing for a CHILD
+process spawned via `subprocess.run(..., text=True)` without an explicit
+`encoding=` — on Windows that decodes the child's captured stdout/stderr
+with the console's codepage (cp1252), and a byte outside that codec (any
+emoji git/gh might print) crashes the decode in a reader THREAD, outside
+the caller's try/except. The caller doesn't see an exception — it just
+gets `stdout = None`. On POSIX the same missing `encoding=` usually still
+raises (caught by a nearby `except Exception`), which is WHY this defect
+was invisible outside Windows CI for so long.
+
+Fixed at 9 sites across `lib/install_apply.py` (4), `lib/memory/
+health_plans.py` (1), `lib/memory/validator_issue.py` (1), `bin/
+git-memory-install.py` (1), `bin/git-memory-repair.py` (1), `hooks/
+boot_launcher.py` (1) — every `subprocess.run(..., text=True)` that
+captures output from `git`/`gh`/another Python entrypoint now also passes
+`encoding="utf-8", errors="replace"`. `errors="replace"` is load-bearing,
+not decoration: the output source (`git`/`gh`) isn't ours to control, so
+without it the failure just moves to a different byte instead of going
+away.
+
+**Second-order defect this exposed:** 5 call sites downstream blindly
+assumed `.stdout`/`.stderr` were always `str` (`.strip()`, `in proc.stderr`,
+`json.loads(result.stdout)`). The worst was `install_apply.py::
+_commit_what_the_install_created` — `staged.stdout.strip()` on `None` raised
+`AttributeError`, swallowed by the function's own (deliberately broad,
+for legitimate no-op cases like "no commits yet" / unconfigured
+`user.email`) `except Exception: return` — silently skipping the
+install's own commit with zero trace. Fix pattern used: for a check whose
+purpose is "is there genuinely nothing to do", `None` must NOT be treated
+the same as `""` (that's still a silent skip) — only skip on a confirmed
+non-empty-checked string; if the string can't be read, fall through and
+attempt the action anyway rather than assuming "nothing to do". For pure
+error-message construction (`detail = stderr.strip() or stdout.strip()`),
+`(x or "")` is the right guard — a `None` there only degrades the message,
+it doesn't erase user work.
+
+No shared constant/helper introduced for the `encoding="utf-8",
+errors="replace"` pair despite 9 repeats — the 6 touched files span
+`lib/`, `lib/memory/`, `bin/`, `hooks/` with an existing, deliberate
+import boundary (`install_apply.py` cannot import `lib/memory/*`, is
+outside `test_boundary.py`'s protected zone). A shared constant would
+need a location reachable by all 6 that doesn't currently exist —
+flagged to the orchestrator as an observation, not built (architecture
+decision, not mine to make unilaterally).
