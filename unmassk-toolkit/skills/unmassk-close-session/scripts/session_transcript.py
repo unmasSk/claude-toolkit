@@ -41,20 +41,7 @@ import subprocess
 import sys
 import tempfile
 import time
-
-# This script lives inside a skill, not inside `lib/memory/`, but it reads
-# git dates the same way the memory system does and must not reinvent that
-# reading a fifth time. Same pattern `bin/memory/boot.py` uses to reach its
-# sibling `lib/memory/`, and the one `scaffold.py` uses to reach `lib/` from
-# a different skill's `scripts/` folder: resolve the path from `__file__`,
-# no assumption about the current working directory.
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_TOOLKIT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_SCRIPT_DIR)))
-_LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
-if _LIB_MEMORY_DIR not in sys.path:
-    sys.path.insert(0, _LIB_MEMORY_DIR)
-
-import timefmt  # noqa: E402  (import after sys.path mutation)
+from datetime import datetime, timezone
 
 # A close is the only mark git carries for "a session ended here".
 _NEXT_MARK = "[NEXT]"
@@ -192,6 +179,35 @@ def _newest_transcript(repo):
     return newest, ""
 
 
+def _from_git_seconds(raw):
+    """The UTC `datetime` of a git epoch-seconds field (`%at`).
+
+    This is a DELIBERATE, in-file copy of
+    `lib/memory/timefmt.from_git_seconds` -- not a fifth chance to forget
+    it exists. That function is the real owner of "how this toolkit reads
+    a git date"; this script cannot import it because it lives outside
+    `lib/memory/`, and `lib/memory/` is a declared zone with a boundary
+    the toolkit enforces on purpose: the memory system has to be
+    deletable whole without breaking anything else that depends on it,
+    and a skill importing its internals would break that. The test that
+    would catch an import here (and did, once) is
+    `tests/memory/test_boundary.py::test_no_file_outside_the_allowed_zone_imports_lib_memory`.
+
+    Do NOT "clean this up" by importing `timefmt` instead -- that crosses
+    the boundary right back. If the conversion ever needs to change, change
+    it in `timefmt.py` first (it is the source of truth) and mirror the
+    change here by hand; the two are intentionally decoupled, not
+    accidentally duplicated.
+
+    Raises `ValueError` as-is if `raw` is not a number, same as
+    `timefmt.from_git_seconds`: a date that cannot be read must not come
+    back as `None` or silently "as if nothing happened" -- that is
+    indistinguishable from "no activity", the exact silence this exists to
+    avoid.
+    """
+    return datetime.fromtimestamp(int(raw), tz=timezone.utc)
+
+
 def _last_close(repo):
     """The boundary of "this session" is the last close, because git has
     no idea what a session is and that mark is the only thing a close
@@ -207,15 +223,16 @@ def _last_close(repo):
     """
     # `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso
     # cero, que `datetime.fromisoformat` de Python 3.10 no sabe leer)
-    # [decision del propietario, 2026-08-08 -- ver
-    # `lib/memory/timefmt.from_git_seconds` para el porque completo].
+    # [decision del propietario, 2026-08-08 -- ver `_from_git_seconds`
+    # arriba para el porque esta conversion vive aqui duplicada en vez de
+    # importada de `lib/memory/timefmt.from_git_seconds`].
     for line in _git_log(["--format=%H%x00%at%x00%s"], repo).split("\n"):
         if line.count("\0") != 2:
             continue
         sha, raw_epoch, subject = line.split("\0")
         if not subject.startswith(_NEXT_MARK):
             continue
-        stamp = timefmt.from_git_seconds(raw_epoch)
+        stamp = _from_git_seconds(raw_epoch)
         return sha, stamp.strftime("%Y-%m-%dT%H:%M:%S"), subject
     return None, None, None
 
