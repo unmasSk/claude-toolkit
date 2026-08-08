@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-08-08
+
 ### Fixed
 
 - **Un solo commit hecho en huso horario cero borraba la memoria entera del proyecto para quien la leyera con Python 3.10.** Git escribe esa fecha con una `Z` final (`2026-08-08T04:49:21Z`) y `datetime.fromisoformat` no la aceptó hasta Python 3.11 — que es la versión que fija el CI de este repositorio y la que trae Ubuntu 22.04 de serie. Y el huso lo lleva guardado el commit, no lo pone quien lee: basta un contenedor sin zona horaria, una fusión hecha desde la web de GitHub o un bot para envenenar el historial **para todo el mundo y para siempre**. Medido por el camino real: con tres notas y solo la de en medio envenenada, `gitmem search` perdía **las tres** y salía con código 1. En el lector del remoto era peor — se tragaba el error y devolvía «no hay actividad», indistinguible de que de verdad no hubiera nada.
