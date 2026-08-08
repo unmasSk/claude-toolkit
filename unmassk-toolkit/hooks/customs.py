@@ -327,6 +327,47 @@ def _find_commit_creating_statement(command):
     return None
 
 
+_GIT_BASH_DRIVE_RE = re.compile(r"^/([A-Za-z])(/.*)?$")
+
+
+def _translate_git_bash_drive_path(target):
+    """Traduce una ruta absoluta estilo Git Bash (`/c/Users/x`) a su forma
+    nativa de Windows (`C:/Users/x`) -- SOLO llamarla en Windows
+    (`os.name == "nt"`, comprobado por quien la llama, nunca aqui dentro).
+
+    Git Bash en Windows escribe una ruta absoluta como `C:\\Users\\x` en su
+    propio formato POSIX: `/c/Users/x` [hallazgo House, sin maquina Windows
+    a mano, razonamiento verificado con `ntpath` importado en macOS --
+    mismo modulo que usa Windows para `os.path` -- ver
+    TestGitBashStyleAbsolutePathResolvesToTheRealTargetRepo en
+    test_customs_hook.py]. `ntpath.isabs("/c/Users/x")` da `True` (empieza
+    por `/`) SIN traducir el prefijo `/c/` a la unidad real -- la rama "ya
+    es absoluta" de `_resolve_effective_cwd` la deja tal cual, y
+    `ntpath.isdir("/c/Users/x")` busca una carpeta LITERAL `c` bajo la raiz
+    de la unidad actual (normalmente no existe), asi que el `cd` se
+    ignoraba en silencio y la aduana evaluaba el proyecto de la SESION en
+    vez del de destino.
+
+    Solo traduce el patron `/<letra-de-unidad>` o `/<letra>/resto` -- una
+    letra de unidad es UNA SOLA letra seguida de `/` o de fin de cadena.
+    `/c/Users/x` -> `C:/Users/x`; `/d/algo` -> `D:/algo`; `/casa/x` NO
+    casa (la letra `c` esta seguida de `asa/x`, no de `/` ni de fin de
+    cadena -- es una carpeta llamada "casa", no la unidad C) y se devuelve
+    sin cambios. Una ruta ya nativa (`C:/Users/x`, no empieza por `/`)
+    tampoco casa -- se devuelve sin cambios.
+
+    Si el destino traducido no existe, el llamador ya cae al
+    comportamiento de hoy (`cd` ignorado, `cwd` sin cambios) via el mismo
+    chequeo `os.path.isdir` que ya tenia -- esta funcion no decide eso,
+    solo traduce el FORMATO de la ruta.
+    """
+    match = _GIT_BASH_DRIVE_RE.match(target)
+    if match is None:
+        return target
+    drive_letter, rest = match.group(1), match.group(2) or "/"
+    return f"{drive_letter.upper()}:{rest}"
+
+
 def _resolve_effective_cwd(command, base_cwd, limit_index=None):
     """Directorio EFECTIVO tras aplicar cada sentencia `cd` de `command`
     que llega ANTES de la sentencia de commit, en orden, empezando en
@@ -379,6 +420,12 @@ def _resolve_effective_cwd(command, base_cwd, limit_index=None):
     de hoy para esa sentencia, nunca revienta sin capturar [mismo
     principio que ya fija el escape hatch de fichero corrupto: una ruta
     que no resuelve no puede tumbar la evaluacion].
+
+    En Windows (`os.name == "nt"`), una ruta absoluta estilo Git Bash
+    (`/c/Users/x`) se traduce a su forma nativa (`C:/Users/x`) ANTES de
+    comprobar `os.path.isabs`/`os.path.isdir` -- ver
+    `_translate_git_bash_drive_path`. Fuera de Windows no se traduce nada
+    (`/c/Users/x` puede ser una ruta real y valida en Linux/macOS).
     """
     statements = _shell_statements(command)
     if statements is None:
@@ -392,6 +439,8 @@ def _resolve_effective_cwd(command, base_cwd, limit_index=None):
             continue
         raw_target = statement[1] if len(statement) > 1 else "~"
         target = os.path.expanduser(raw_target)
+        if os.name == "nt":
+            target = _translate_git_bash_drive_path(target)
         candidate = target if os.path.isabs(target) else os.path.join(cwd, target)
         if os.path.isdir(candidate):
             cwd = os.path.normpath(candidate)

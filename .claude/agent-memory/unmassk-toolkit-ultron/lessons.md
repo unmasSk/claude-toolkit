@@ -2293,3 +2293,56 @@ outside `test_boundary.py`'s protected zone). A shared constant would
 need a location reachable by all 6 that doesn't currently exist —
 flagged to the orchestrator as an observation, not built (architecture
 decision, not mine to make unilaterally).
+
+## `hooks/customs.py::_resolve_effective_cwd` Git Bash drive-path fix (2026-08-08): `ntpath.isabs("/c/...")` behavior is NOT stable across Python versions — translate before the isabs check, never branch on it
+
+Fixing the Windows-CI-confirmed bug (`TestGitBashStyleAbsolutePathResolvesToTheRealTargetRepo`,
+run 31243044556): Git Bash writes an absolute path as `/c/Users/x` instead
+of `C:/Users/x`. House's hypothesis (and the skipped test's own docstring)
+assumed `ntpath.isabs("/c/Users/x")` returns `True`, silently skipping
+translation and then failing `os.path.isdir` because it looks for a
+literal folder named `c`.
+
+**Verified empirically on this machine (Python 3.14.6) that this
+hypothesis is only PARTLY right**: `ntpath.isabs("/c/Users/x")` here
+returns `False`, not `True` — a leading single slash with no drive letter
+is no longer treated as absolute in this ntpath version. The actual
+pre-fix failure path on THIS Python is different: `isabs` is False, so
+`os.path.join(cwd, "/c/Users/x")` runs, and `ntpath.join` with a
+sep-prefixed-but-driveless second argument keeps the drive of `cwd` and
+resets the path, producing `C:/c/Users/x` — still a nonexistent
+directory, same net effect (cd silently ignored, wrong project
+evaluated), but through a different branch than the isabs=True hypothesis
+described. This means the exact mechanism likely depends on which Python
+version ships with the actual Windows CI runner (older CPython versions
+had the isabs=True behavior for this shape; this was changed around
+3.13ish) — could not pin the exact version boundary without a Windows
+box, so this is `unverified` in that narrower sense.
+
+**Why this doesn't matter for the fix**: the fix (`_translate_git_bash_drive_path`)
+runs BEFORE either `os.path.isabs` or `os.path.join` — it's a pure string
+rewrite on the raw `cd` target (regex `^/([A-Za-z])(/.*)?$`, single-letter
+drive only, translates `/c/Users/x` -> `C:/Users/x`). Once translated, the
+string always starts with `X:`, which both ntpath.isabs variants agree is
+absolute — so the fix is version-independent even though the bug's exact
+failure mechanism is not fully pinned. Proved this explicitly by
+simulating both `isabs` behaviors through the same post-translation
+candidate-resolution code and getting `C:/Users/x` either way.
+
+**Rule for future Windows-path fixes on a non-Windows dev machine**: don't
+trust a doc comment's claim about `ntpath`'s behavior for an edge case —
+`import ntpath` directly (safe on any platform, it's pure Python, no OS
+calls) and check the actual return value before writing the fix
+docstring. If the CI failure's exact mechanism can't be pinned without a
+Windows box, say so explicitly (`unverified`) rather than asserting the
+hypothesis as fact — but note when the fix itself is mechanism-independent
+(applies before the branching point that differs), which makes the
+uncertainty a footnote, not a blocker.
+
+Regex detail worth keeping: `^/([A-Za-z])(/.*)?$` only matches when the
+single letter is followed by `/` or end-of-string — `/casa/x` does NOT
+match (the `c` is followed by `asa/x`, neither `/` nor end), so ordinary
+POSIX-looking multi-letter directory names never get mis-translated as a
+drive letter. Guard the whole translation behind `os.name == "nt"` at the
+call site (not inside the helper) so macOS/Linux behavior is provably
+untouched — `/c/Users/...` can be a real, valid path there.
