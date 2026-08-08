@@ -141,6 +141,7 @@ unica, ver mas arriba.
 
 import hashlib
 import os
+import tempfile
 from pathlib import Path
 
 import gitcmd
@@ -316,6 +317,42 @@ def _content_fingerprint(path: Path) -> str | None:
         return None
 
 
+def _git_blob_hash_of_bytes(content: bytes, root: Path) -> str | None:
+    """Hash de blob que git le daria a `content` si se escribiera tal
+    cual y se le pasara `git hash-object` -- SIN escribirlo al object
+    store (`hash-object` sin `-w`) y sin tocar el arbol de trabajo del
+    repositorio real: `content` se vuelca a un fichero temporal fuera
+    del repo (siempre borrado, salga bien o mal la consulta) solo porque
+    `gitcmd.run()` no expone stdin. `None` si `git hash-object` fallo --
+    nunca se trata como si coincidiera con nada [punto 8 de
+    `write_work()`].
+    """
+    fd, tmp_path = tempfile.mkstemp(prefix=".write_work_verify.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(content)
+        result = gitcmd.run(["hash-object", tmp_path], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _committed_blob_hash(path: Path, root: Path) -> str | None:
+    """Hash del blob que `HEAD` tiene DE VERDAD para `path` ahora mismo,
+    o `None` si no se pudo determinar (ruta ausente en `HEAD`, fallo de
+    git) -- nunca se trata como si coincidiera con nada [punto 8 de
+    `write_work()`]. `path` viaja absoluta -- se relativiza a `root` y se
+    fuerza a `/` (nunca `\\`) porque `git rev-parse HEAD:<ruta>`
+    interpreta el pathspec como ruta de git, no del sistema de ficheros.
+    """
+    rel = Path(os.path.relpath(str(path), str(root))).as_posix()
+    result = gitcmd.run(["rev-parse", f"HEAD:{rel}"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
 def write_work(
     message: str,
     paths: list[Path],
@@ -448,6 +485,46 @@ def write_work(
     que el punto 25-. **El candado y `known_content` se quedan tal cual
     estan** -cierran lo que ya cerraban-, no porque tapen esta ventana,
     que ya no se persigue.
+
+    **8. La ventana DENTRO de esta funcion, la que el punto 7 daba por
+    cerrada y no lo estaba -- arreglo 2026-08-08, CI la cazo con el test
+    de dos procesos reales (rojo intermitente: la carrera anterior con
+    el mismo codigo paso).** Los puntos 6/7 comparan huellas leidas del
+    DISCO antes de comitear, pero `stage_and_commit()` hace `git add
+    --all` y LUEGO `gitcmd.commit()`, que usa la forma con pathspec y
+    RELEE EL ARBOL DE TRABAJO otra vez en el instante del commit (su
+    propio docstring, verificado contra git real). Entre la ultima
+    comprobacion de huella (arriba) y esa relectura final hay una
+    rendija -- pequeña, pero real: si el otro escritor pisa el fichero
+    justo ahi, el commit se lleva su contenido bajo nuestro mensaje y
+    esta funcion, sin verificar nada mas, devolvia `ok=True` mintiendo.
+
+    Ampliar el candado no sirve -- el otro proceso escribe el fichero
+    sin pedirlo, fuera de este candado, por diseño (es la escritura de
+    trabajo del llamador, no una operacion de este modulo). La unica
+    forma de cerrarlo es comprobar DESPUES de comitear, contra lo que
+    `HEAD` de verdad quedo llevando -- no contra lo que la funcion CREE
+    que comiteo: para cada `path` con `known_content` conocido, el hash
+    de blob que tendrian esos bytes (`_git_blob_hash_of_bytes`, via
+    `git hash-object` sobre un fichero temporal, nunca sobre el arbol de
+    trabajo) tiene que coincidir exactamente con el blob que `HEAD`
+    tiene para esa ruta (`_committed_blob_hash`, via `git rev-parse
+    HEAD:<ruta>`). Si no coincide -- o si cualquiera de las dos consultas
+    falla, que se trata igual que un desajuste, nunca como una
+    coincidencia -- el commit que se acaba de crear es la mentira: se
+    deshace con `git reset --mixed HEAD~1` (mueve `HEAD` e indice al
+    padre, nunca toca el arbol de trabajo -- el otro escritor puede
+    seguir escribiendolo) y se devuelve `ok=False` con la causa. Deshacer
+    es seguro porque el candado global sigue tomado en todo este bloque:
+    nadie mas pudo comitear entre nuestro commit y esta verificacion, asi
+    que `HEAD~1` es, sin ambiguedad, el padre de nuestro propio commit.
+
+    Recuperar el contenido bueno sigue siendo imposible (mismo limite
+    que el punto 6 ya dejaba escrito) -- esto no lo intenta; solo
+    garantiza que `ok=True` nunca vuelva a mentir. Sin `known_content`
+    para una ruta (`None`), no hay bytes contra los que comparar -- esa
+    ruta no se verifica, mismo hueco ya aceptado que el punto 7 documenta
+    para ese caso.
     """
     resolved_paths = [Path(os.path.abspath(str(p))) for p in paths]
     if known_content is not None and len(known_content) != len(paths):
@@ -512,5 +589,31 @@ def write_work(
                 timeout=gitcmd.GIT_TIMEOUT,
             )
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_result.stderr)
+
+        mismatched = []
+        for path, content in zip(resolved_paths, known_content or [None] * len(resolved_paths)):
+            if content is None:
+                continue
+            expected_hash = _git_blob_hash_of_bytes(content, root)
+            actual_hash = _committed_blob_hash(path, root)
+            if expected_hash is None or actual_hash is None or expected_hash != actual_hash:
+                mismatched.append(path)
+        if mismatched:
+            gitcmd.run(["reset", "--mixed", "HEAD~1"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
+            mismatched_list = ", ".join(str(p) for p in mismatched)
+            return WriteResult(
+                ok=False,
+                note_id=None,
+                rejections=(),
+                git_error=(
+                    f"el commit se creo pero {mismatched_list} no lleva el "
+                    "contenido que este escritor tenia en la mano -- otro "
+                    "proceso lo piso justo en el instante de comitear ('git "
+                    "commit -- <rutas>' relee el arbol de trabajo, punto 8 del "
+                    "docstring de esta funcion). Se deshizo el commit ('git "
+                    "reset --mixed HEAD~1', sin tocar el arbol de trabajo) y se "
+                    "devuelve ok=False con causa en vez de mentir con ok=True."
+                ),
+            )
 
         return WriteResult(ok=True, note_id=None, rejections=(), git_error=None)
