@@ -41,7 +41,20 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+
+# This script lives inside a skill, not inside `lib/memory/`, but it reads
+# git dates the same way the memory system does and must not reinvent that
+# reading a fifth time. Same pattern `bin/memory/boot.py` uses to reach its
+# sibling `lib/memory/`, and the one `scaffold.py` uses to reach `lib/` from
+# a different skill's `scripts/` folder: resolve the path from `__file__`,
+# no assumption about the current working directory.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_TOOLKIT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_SCRIPT_DIR)))
+_LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
+if _LIB_MEMORY_DIR not in sys.path:
+    sys.path.insert(0, _LIB_MEMORY_DIR)
+
+import timefmt  # noqa: E402  (import after sys.path mutation)
 
 # A close is the only mark git carries for "a session ended here".
 _NEXT_MARK = "[NEXT]"
@@ -192,13 +205,17 @@ def _last_close(repo):
     A session that died without closing leaves no mark, so the next close
     picks up both and nothing is lost. That is intended, not a bug.
     """
-    for line in _git_log(["--format=%H%x00%aI%x00%s"], repo).split("\n"):
+    # `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso
+    # cero, que `datetime.fromisoformat` de Python 3.10 no sabe leer)
+    # [decision del propietario, 2026-08-08 -- ver
+    # `lib/memory/timefmt.from_git_seconds` para el porque completo].
+    for line in _git_log(["--format=%H%x00%at%x00%s"], repo).split("\n"):
         if line.count("\0") != 2:
             continue
-        sha, raw_date, subject = line.split("\0")
+        sha, raw_epoch, subject = line.split("\0")
         if not subject.startswith(_NEXT_MARK):
             continue
-        stamp = datetime.fromisoformat(raw_date).astimezone(timezone.utc)
+        stamp = timefmt.from_git_seconds(raw_epoch)
         return sha, stamp.strftime("%Y-%m-%dT%H:%M:%S"), subject
     return None, None, None
 

@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Un solo commit hecho en huso horario cero borraba la memoria entera del proyecto para quien la leyera con Python 3.10.** Git escribe esa fecha con una `Z` final (`2026-08-08T04:49:21Z`) y `datetime.fromisoformat` no la aceptó hasta Python 3.11 — que es la versión que fija el CI de este repositorio y la que trae Ubuntu 22.04 de serie. Y el huso lo lleva guardado el commit, no lo pone quien lee: basta un contenedor sin zona horaria, una fusión hecha desde la web de GitHub o un bot para envenenar el historial **para todo el mundo y para siempre**. Medido por el camino real: con tres notas y solo la de en medio envenenada, `gitmem search` perdía **las tres** y salía con código 1. En el lector del remoto era peor — se tragaba el error y devolvía «no hay actividad», indistinguible de que de verdad no hubiera nada.
+  Arreglado matando la clase entera, no el síntoma: **las fechas se le piden a git en segundos**, un número que no tiene formato que interpretar mal. Un único lector en `timefmt.py` y cinco llamadores; el `except` que se tragaba el error, eliminado. Ya se había decidido así en el sistema anterior y se perdió al reescribirlo — era la segunda vez que este fallo aparecía.
+- **La suite de tests no corría en ninguna máquina que no tuviera una identidad de git configurada.** El andamio creaba repositorios de prueba y commiteaba sin decir quién era el autor: en la máquina del propietario funcionaba, en el CI fallaba con 284 errores. Ahora la identidad la pone el propio andamio, así que no depende de cómo esté configurada la máquina que corra los tests.
+- **El fichero de tests del scaffold tumbaba el CI entero.** Usaba `tomllib`, que solo existe desde Python 3.11: reventaba al recolectar, así que pytest abortaba y **no se ejecutaba ni uno** de los 1.015 tests. Los dos contratos que necesitan un parser de TOML se saltan ahora en Python 3.10, dicho en voz alta en el motivo del salto.
+- **El médico del sistema avisa de una zona sin normalizar** en vez de pasarla en silencio o darla por corrupta, nombrándola y diciendo qué hacer.
+
+### Changed
+
+- **Las nueve fichas de agente, revisadas una por una con su propio agente.** Salieron: instrucciones que usaban una herramienta que el agente no tiene, comprobaciones que daban «limpio» siempre por buscar donde no era, ejemplos atados a un solo lenguaje en fichas que viajan a todos los proyectos, y una frase repetida en las nueve que les hacía concluir «no hay memoria» cuando la búsqueda simplemente no había encontrado esa palabra. Argus gana memoria propia como el resto del crew y pierde una herramienta que contradecía sus propias prohibiciones; Moriarty gana la barrera que le impide tocar código, que hasta ahora se sostenía solo en que no tenía con qué.
+- **README reescrito.** Deja de ser un inventario: abre con lo que gana quien lo instala y lo sostiene con cuatro fallos reales que este sistema se encontró a sí mismo, con las cifras y trazables en el historial. Añadida la sección de **atribución** que faltaba — cada skill de terceros con su autor y su licencia.
+- **La documentación de publicar decía cómo rescatar una publicación a medias, y la instrucción dejaba dos ficheros con la versión nueva puesta y sin guardar.** Corregida, junto con dos referencias a un script que no existe.
+
 ## [1.31.0] - 2026-08-07
 
 ### Fixed

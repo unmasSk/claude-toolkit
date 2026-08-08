@@ -24,11 +24,11 @@ fecha de un commit hecho en offset +00:00 (un contenedor sin TZ, un merge
 desde la web de GitHub, un bot) como `...T04:49:21Z` -- formato ISO-8601
 estricto con sufijo `Z`. `datetime.fromisoformat` de Python 3.10 no sabe
 leer esa `Z` (soporte anadido en 3.11), y el CI de este repo fija Python
-3.10. Un solo commit en huso cero envenenaba la lectura ENTERA en cuatro
+3.10. Un solo commit en huso cero envenenaba la lectura ENTERA en cinco
 sitios distintos (`query.py`, `context.py`, `health_plans.py`,
 `remote.py`) -- cada uno pidiendole a git la fecha como texto ISO y
 convirtiendola por su cuenta con `fromisoformat`, la misma implementacion
-repetida cuatro veces que este fichero existe para no permitir.
+repetida cinco veces que este fichero existe para no permitir.
 
 **La solucion no es normalizar la `Z`: es dejar de pedir texto.** Un
 numero de segundos-epoch (`%at` en un `--pretty=format:`,
@@ -37,7 +37,10 @@ ni huso horario que una version de Python pueda leer distinto de otra --
 mata la clase entera de fallo, no solo el sintoma. Ya se habia decidido
 asi una vez en el sistema anterior por este mismo motivo y se perdio al
 reescribirlo [`lib/boot_git_checks.py:117`]; esta vez el unico lector
-vive aqui y los cuatro sitios lo llaman, ninguno vuelve a convertir texto
+vive aqui y los cinco sitios lo llaman -- los cuatro de lib/memory/ mas
+el transcript del cierre de sesion, que vive en una skill y llega hasta
+aqui por sys.path igual que el resto de scripts del toolkit --, ninguno
+vuelve a convertir texto
 por su cuenta.
 """
 
