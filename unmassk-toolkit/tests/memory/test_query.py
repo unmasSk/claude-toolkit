@@ -399,6 +399,108 @@ def test_by_word_returns_the_matched_lines_not_only_the_notes(
 
 
 # ---------------------------------------------------------------------------
+# T1 real, no de laboratorio (House + coordinador, 2026-08-08). git escribe
+# la fecha de un commit hecho en offset +00:00 (un contenedor sin TZ, un
+# merge desde la web de GitHub, un bot) como `...T04:49:21Z` -- formato
+# ISO-8601 estricto, sufijo `Z` para offset cero. `datetime.fromisoformat`
+# de Python 3.10 no sabe leer esa `Z` (soporte anadido en 3.11); el CI de
+# este repo (`toolkit-ci.yml`) fija Python 3.10 en las dos patas del
+# matrix. `_parse_records()` (query.py, la funcion detras de las CUATRO
+# lecturas publicas de esta pieza) llama a `fromisoformat` SIN red de
+# seguridad, para cada registro, ANTES de devolver nada -- un solo commit
+# envenenado revienta la lectura ENTERA, perdiendo notas que no tienen
+# nada que ver con el.
+#
+# Reproducido en vivo por el coordinador antes de encargar esto: tres
+# notas reales, una en huso cero, `gitmem search` pierde las TRES y sale
+# con codigo 1. Este test fija ese mismo caso al nivel de la pieza que lo
+# causa -- historial MIXTO, dos notas normales y una en huso cero de por
+# medio, y las tres tienen que seguir apareciendo. No solo "no revienta":
+# que no se pierda ninguna.
+#
+# El huso cero se fuerza con `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` en
+# `+00:00` -- verificado por House: git escribe la fecha con `Z`, sea cual
+# sea la zona horaria de la maquina que corre el test. Sin este gancho el
+# rojo dependeria de en que huso este la maquina que ejecuta pytest, y no
+# seria un rojo real en todas partes.
+#
+# Este test SOLO reproduce el fallo en Python < 3.11 -- confirmado corriendo
+# este mismo fichero con un interprete 3.10 real (venv separado, no el
+# `sys.executable` de esta maquina, que en desarrollo es 3.14 y ya sabe leer
+# `Z` desde siempre): ver la entrega de esta tarea para el comando exacto y
+# la salida real.
+# ---------------------------------------------------------------------------
+
+
+def test_zero_offset_commit_among_two_normal_ones_does_not_lose_any_note(
+    query, model, fmt, gitcmd, tmp_repo, monkeypatch
+):
+    monkeypatch.chdir(tmp_repo)
+
+    note_a = _note(
+        model,
+        id="M-201",
+        zone1="testing",
+        zone2="mixed-a",
+        headline="normal offset note committed before the poisoned one",
+        description="mixedhistorysurvivor note A, hora ambiental de la maquina, offset normal.",
+    )
+    note_b = _note(
+        model,
+        id="M-202",
+        zone1="testing",
+        zone2="mixed-b",
+        headline="zero offset note poisons the whole read on python 3.10",
+        description="mixedhistorysurvivor note B, la que trae la Z que 3.10 no sabe leer.",
+    )
+    note_c = _note(
+        model,
+        id="M-203",
+        zone1="testing",
+        zone2="mixed-c",
+        headline="normal offset note committed after the poisoned one",
+        description="mixedhistorysurvivor note C, hora ambiental de la maquina, offset normal.",
+    )
+
+    _commit_note(tmp_repo, fmt, gitcmd, note_a, "markers/mixed_a.txt")
+
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-01-01T00:00:00+00:00")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-01-01T00:00:00+00:00")
+    _commit_note(tmp_repo, fmt, gitcmd, note_b, "markers/mixed_b.txt")
+    monkeypatch.delenv("GIT_AUTHOR_DATE", raising=False)
+    monkeypatch.delenv("GIT_COMMITTER_DATE", raising=False)
+
+    _commit_note(tmp_repo, fmt, gitcmd, note_c, "markers/mixed_c.txt")
+
+    # El montaje es invalido si git no escribio de verdad el huso cero que
+    # este test necesita -- comprobado leyendo el historial por OTRO
+    # camino (`git log` crudo), nunca asumido.
+    raw_log = subprocess.run(
+        ["git", "log", "--format=%aI"], cwd=tmp_repo, capture_output=True, text=True
+    )
+    assert raw_log.returncode == 0, f"git log fallo montando la prueba: {raw_log.stderr}"
+    dates = raw_log.stdout.strip().split("\n")
+    assert any(d.endswith("Z") for d in dates), (
+        f"el montaje de la prueba es invalido: ningun commit quedo con "
+        f"sufijo Z (huso cero) -- {dates!r}"
+    )
+
+    # Las tres notas tienen que seguir apareciendo -- hoy, en Python < 3.11,
+    # esta misma llamada no devuelve un resultado incompleto: lanza
+    # `ValueError` sin llegar a devolver nada, porque `_parse_records()`
+    # parsea las fechas de TODOS los registros antes de devolver el
+    # primero. Eso es el ROJO real -- la misma forma de fallo que
+    # `gitmem search` reproduce como codigo de salida 1.
+    result = query.by_word("mixedhistorysurvivor")
+    matched_ids = {n.id for n, _lines in result}
+    assert matched_ids == {note_a.id, note_b.id, note_c.id}, (
+        f"se esperaban las tres notas del historial mixto, aparecieron "
+        f"{matched_ids!r} -- la nota en huso cero se llevo consigo a las "
+        f"otras dos, o desaparecio ella sola"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Endurecimiento (2026-08-02) -- estructural, no una fila de la tabla. El
 # sistema volvio a tener TRES lectores del historial de git
 # (`_rule_commit_texts()`/`_issue_commit_dates()` en health.py,

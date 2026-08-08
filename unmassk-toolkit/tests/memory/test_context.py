@@ -179,6 +179,64 @@ def test_write_then_latest_returns_the_same_context_note_with_its_points(
     _assert_context_fields_match(read_back, written)
 
 
+def test_a_zero_offset_close_still_reads_back_instead_of_crashing_the_boot(
+    context, model, tmp_repo, monkeypatch
+):
+    """T1 real (House + coordinador, 2026-08-08), lector 3 de 4 del mismo
+    fallo: git escribe la fecha de un commit hecho en offset +00:00 (un
+    contenedor sin TZ, un merge desde la web de GitHub, un bot) como
+    `...T04:49:21Z` -- `datetime.fromisoformat` de Python 3.10 no sabe leer
+    esa `Z` (soporte anadido en 3.11), y `toolkit-ci.yml` fija Python 3.10.
+
+    `latest()` (context.py ~163) llama a `fromisoformat` sobre la fecha de
+    autor del commit de cierre SIN red de seguridad -- un cierre de sesion
+    hecho en huso cero revienta la primera linea del arranque siguiente,
+    justo la unica cosa para la que existe esta pieza (perder el hilo
+    entre sesiones).
+
+    El huso cero se fuerza con `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` en
+    `+00:00` -- verificado por House: git escribe la fecha con `Z` pase lo
+    que pase con la zona horaria de la maquina que corre el test, asi el
+    rojo no depende de en que huso este quien ejecuta pytest.
+
+    Este test SOLO reproduce el fallo en Python < 3.11 -- ver la entrega
+    de esta tarea para la salida real bajo un interprete 3.10.
+    """
+    monkeypatch.chdir(tmp_repo)
+
+    written = _context_note(
+        model,
+        headline="zero-offset close-session commit must still read back",
+        context="cierre hecho con GIT_AUTHOR_DATE/GIT_COMMITTER_DATE en +00:00 a proposito.",
+        keys=("context", "zero-offset"),
+    )
+
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-01-01T00:00:00+00:00")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-01-01T00:00:00+00:00")
+    write_result = context.write(written)
+    monkeypatch.delenv("GIT_AUTHOR_DATE", raising=False)
+    monkeypatch.delenv("GIT_COMMITTER_DATE", raising=False)
+    assert write_result.ok, (
+        f"context.write() no dio ok=True sobre un repo real: {write_result!r}"
+    )
+
+    # El montaje es invalido si git no escribio de verdad el huso cero --
+    # comprobado leyendo el historial por OTRO camino, nunca asumido.
+    rc, out, err = run_git(["log", "-1", "--format=%aI"], str(tmp_repo))
+    assert rc == 0, f"git log fallo montando la prueba: {err}"
+    assert out.endswith("Z"), (
+        f"el montaje de la prueba es invalido: el ultimo commit no quedo "
+        f"con sufijo Z (huso cero) -- {out!r}"
+    )
+
+    # Hoy, en Python < 3.11, esto no devuelve `None` ni un dato viejo:
+    # lanza `ValueError` sin llegar a devolver nada -- la primera linea
+    # del arranque real revienta con la misma excepcion.
+    read_back = context.latest()
+
+    _assert_context_fields_match(read_back, written)
+
+
 def test_second_close_overwrites_the_first_and_latest_shows_only_the_newest(
     context, model, tmp_repo, monkeypatch
 ):

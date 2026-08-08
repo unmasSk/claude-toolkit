@@ -110,6 +110,98 @@ class TestLatestActivityFindsTheBranchGitAlsoNames:
         assert not state.elsewhere
 
 
+def _commit_with_zero_offset_date(repo: Path, name: str, message: str) -> None:
+    """Mismo patron que `_commit()` de arriba, pero fuerza
+    `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` a un offset `+00:00` explicito.
+
+    Verificado por House: con este gancho git escribe la fecha del commit
+    con sufijo `Z` (formato ISO-8601 estricto que usa `%(committerdate:
+    iso8601-strict)`, el mismo que `remote.py` pide) SEA CUAL SEA la zona
+    horaria de la maquina que ejecuta el test -- sin el, el rojo de este
+    fichero dependeria de en que huso este quien corre pytest, y en
+    Madrid (o cualquier sitio que no sea offset cero) nunca reproduciria
+    nada.
+    """
+    # Muy en el futuro a proposito, no "2026-01-01" a secas: `main` trae un
+    # commit "seed" con la hora AMBIENTAL real (la del reloj de quien
+    # ejecuta el test) -- una fecha forzada que quedase mas vieja que ese
+    # seed haria que `main` ganase el orden por `-committerdate` de forma
+    # legitima, sin que el bug de la `Z` tuviera nada que ver, y el rojo
+    # de este test seria un rojo por la razon equivocada.
+    env_with_zero_offset_date = {
+        **_ENV,
+        "GIT_AUTHOR_DATE": "2030-01-01T00:00:00+00:00",
+        "GIT_COMMITTER_DATE": "2030-01-01T00:00:00+00:00",
+    }
+    (repo / name).write_text(f"{name}\n")
+    subprocess.run(["git", "add", name], cwd=repo, env=env_with_zero_offset_date)
+    subprocess.run(
+        ["git", "-c", "core.hooksPath=/dev/null", "commit", "-qm", message],
+        cwd=repo,
+        env=env_with_zero_offset_date,
+    )
+
+
+class TestZeroOffsetCommitDateNeverSilentlyLosesTheLatestActivity:
+    """T1 real (House + coordinador, 2026-08-08), lector 1 de 4 del mismo
+    fallo: git escribe la fecha de un commit hecho en offset +00:00 (un
+    contenedor sin TZ, un merge desde la web de GitHub, un bot) como
+    `...T04:49:21Z`. `datetime.fromisoformat` de Python 3.10 no sabe leer
+    esa `Z` (soporte anadido en 3.11), y `toolkit-ci.yml` fija Python
+    3.10.
+
+    `latest_activity()` (remote.py ~197-198) ya envuelve el parseo en un
+    `try/except ValueError: continue` -- no revienta, pero el resultado es
+    peor: se traga el error EN SILENCIO y sigue como si esa referencia no
+    existiera. Con un solo commit en el repo, "seguir como si no
+    existiera" es devolver `None` -- indistinguible de "este repositorio
+    no tiene ninguna actividad todavia", que es un estado real y
+    completamente distinto. El arranque no puede contar la diferencia
+    entre las dos cosas si la pieza que lee tampoco puede.
+
+    Este test SOLO reproduce el fallo en Python < 3.11 -- ver la entrega
+    de esta tarea para la salida real bajo un interprete 3.10.
+    """
+
+    def test_a_zero_offset_branch_is_found_not_silently_dropped(
+        self, repo: Path
+    ) -> None:
+        _git(repo, "checkout", "-q", "-b", "feat/huso-cero")
+        _commit_with_zero_offset_date(repo, "b.txt", "trabajo en huso cero")
+        _git(repo, "checkout", "-q", "main")
+
+        # El montaje es invalido si git no escribio de verdad el huso cero
+        # -- comprobado leyendo el historial por OTRO camino, nunca
+        # asumido.
+        newest_by_git = _git(
+            repo,
+            "for-each-ref",
+            "--sort=-committerdate",
+            "--count=1",
+            "--format=%(committerdate:iso8601-strict)",
+            "refs/heads/feat/huso-cero",
+        )
+        assert newest_by_git.endswith("Z"), (
+            f"el montaje de la prueba es invalido: la rama nueva no quedo "
+            f"con sufijo Z (huso cero) -- {newest_by_git!r}"
+        )
+
+        # Hoy esto no devuelve la Activity real de `feat/huso-cero` (la
+        # unica rama con un commit de verdad aparte del seed): devuelve
+        # `None`, indistinguible de "no hay actividad" -- la misma
+        # perdida silenciosa que este proyecto existe para impedir.
+        found = remote.latest_activity(repo, local_only=True)
+
+        assert found is not None, (
+            "latest_activity() devolvio None -- el commit en huso cero "
+            "existe de verdad (confirmado por git arriba), pero la pieza "
+            "lo trago en silencio y reporto 'no hay actividad'"
+        )
+        assert found.branch == "feat/huso-cero", (
+            f"se esperaba la rama con el commit real mas reciente, salio {found.branch!r}"
+        )
+
+
 class TestDivergenceMatchesWhatGitCountsByAnotherRoute:
     """`divergence()` lee referencias; `git rev-list` cuenta commits. Las
     dos cuentas tienen que coincidir -- si no, el arranque dice un numero

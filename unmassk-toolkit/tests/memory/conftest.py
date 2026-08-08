@@ -531,19 +531,84 @@ def seed_config_json(repo, **fields):
     (pm / "config.json").write_text(json.dumps(fields), encoding="utf-8")
 
 
+# Identidad git deterministica -- ese dia llego (House, 2026-08-08).
+# Reproducido real, sin tocar ningun test: un runner limpio, sin
+# ~/.gitconfig ni --system, no tiene NADIE que resuelva user.name/
+# user.email:
+#   printf '[user]\n\tuseConfigOnly = true\n' > /tmp/fakegitconfig
+#   GIT_CONFIG_GLOBAL=/tmp/fakegitconfig GIT_CONFIG_SYSTEM=/dev/null \
+#       python3 -m pytest <fichero> -q
+# -> 284 fallos "Author identity unknown" -- todo lo que pasa por
+# `tmp_repo` (que es casi todo este fichero) monta un commit inicial via
+# `run_git(["commit", ...])` sin identidad propia, confiando en la de la
+# maquina del propietario (unico sitio donde SI corria, y por eso nunca
+# se vio en local).
+#
+# Reincidencia, no un fallo nuevo: `unmassk-toolkit/tests/conftest.py`
+# (el conftest del v1, hermano de este, sigue vivo hoy) ya resolvio EXACTO
+# este problema (issue #50/#51) con `_DEFAULT_GIT_IDENTITY_ENV` -- la
+# reescritura de este fichero para v2 partio de cero (regla del plan,
+# "sin reutilizar ninguna linea") y con el codigo se perdio tambien la
+# leccion. El docstring de esta funcion decia literalmente "si algun dia
+# esto corre en un runner sin identidad global, fallara ruidosamente --
+# ese es el momento de anadir un fallback". Ese dia fue ayer.
+#
+# Por que AQUI y no en el workflow de CI: un `git config --global` en el
+# runner tapa el sintoma en ESTA maquina concreta y vuelve a morder en la
+# siguiente (otro runner limpio, un contribuidor nuevo, un contenedor de
+# verificacion) -- exactamente el ciclo que ya paso una vez. Puesto en el
+# entorno del PROCESO de test, en cambio, viaja con el repositorio, nunca
+# depende de quien ni donde se ejecuta.
+#
+# Por que basta con tocar `run_git`: las variables de entorno de git
+# (`GIT_AUTHOR_NAME`/`EMAIL`, `GIT_COMMITTER_NAME`/`EMAIL`) SIEMPRE ganan
+# a cualquier fichero de configuracion (repo, global o system) -- regla
+# propia de git, no de este proyecto. Escribirlas UNA vez en el
+# `os.environ` real del proceso de pytest (no en un diccionario local)
+# hace que las herede cualquier subproceso lanzado desde aqui en
+# adelante: `run_git` mismo (no pasa `env=`, hereda por defecto), y
+# tambien `run_memory_script`/`run_gitmem_script`/`run_hook_with_payload`/
+# `run_hook_raw_stdin` de mas arriba, que construyen su propio entorno
+# copiando `os.environ` en el momento de la llamada -- ninguno de ellos
+# necesita tocarse. `tmp_repo` invoca `run_git` en su propio setup, antes
+# de que el cuerpo de ningun test lance un script, asi que para cuando
+# eso ocurre el entorno ya lleva la identidad.
+#
+# Incondicional, no `setdefault`: hay un unico sitio en esta suite que fija
+# identidad PROPIA por repositorio (`test_customs_hook.py::_init_repo`, que
+# hace `git config user.name/user.email` local para que un test de
+# expansion de `~` no dependa de la identidad global de la maquina). Un
+# `git config` de repositorio NUNCA gana a una variable de entorno --
+# `setdefault` no cambiaria eso. Verificado que ese test no comprueba en
+# ningun sitio el VALOR del autor/committer (solo que el commit tiene
+# exito), asi que esta prioridad no le cambia nada -- sus llamadas a
+# `git config` quedan inertes para identidad, no rotas.
+#
+# Mismos NOMBRE/EMAIL que `unmassk-toolkit/tests/conftest.py` (el hermano
+# v1, `_DEFAULT_GIT_IDENTITY_ENV`) a proposito, no por casualidad: un `pytest
+# unmassk-toolkit/tests -q` (el comando real de CI) importa los dos
+# conftest.py del arbol en el mismo proceso, y `os.environ` es una unica
+# tabla compartida -- si llevaran valores distintos, el que se importe
+# despues pisaria al otro para TODA la suite, no solo para este
+# subdirectorio, y un commit de un test ajeno a memoria apareceria firmado
+# "memory". Ningun test de ningun lado comprueba el literal, asi que la
+# unica forma limpia de que el orden de import nunca importe es que los dos
+# escriban la misma cosa.
+os.environ["GIT_AUTHOR_NAME"] = "unmassk-toolkit-tests"
+os.environ["GIT_AUTHOR_EMAIL"] = "tests@unmassk-toolkit.invalid"
+os.environ["GIT_COMMITTER_NAME"] = "unmassk-toolkit-tests"
+os.environ["GIT_COMMITTER_EMAIL"] = "tests@unmassk-toolkit.invalid"
+
+
 def run_git(args, cwd):
     """Ejecuta un comando git en `cwd` y devuelve (returncode, stdout, stderr).
 
-    No fusiona ni sobreescribe variables de entorno: la identidad git de
-    esta maquina ya esta configurada globalmente (user.name/user.email
-    en ~/.gitconfig, verificado antes de escribir este fixture), asi que
-    `git commit` la resuelve sin ayuda. Si algun dia estos tests corren
-    en un runner sin identidad global (CI limpio), `git commit` fallara
-    aqui con returncode != 0 de forma ruidosa -- ese es el momento de
-    anadir un fallback explicito de identidad (mismo patron que el v1
-    documenta en su propio conftest.py), no antes: anticipar esa
-    infraestructura sin haber visto el fallo real es exactamente el tipo
-    de pieza que el plan pide no copiar sin necesidad.
+    No pasa `env=` explicito -- hereda `os.environ` del proceso de pytest
+    por defecto, que ya lleva la identidad deterministica inyectada arriba
+    (`GIT_AUTHOR_NAME`/`EMAIL`, `GIT_COMMITTER_NAME`/`EMAIL`). `git commit`
+    ya no depende de que la maquina que ejecuta los tests tenga
+    `~/.gitconfig` -- funciona igual en el portatil del propietario, en un
+    runner de CI limpio o en un contenedor de verificacion.
     """
     result = subprocess.run(
         ["git"] + args,

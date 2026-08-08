@@ -715,6 +715,81 @@ def test_no_commit_citing_an_issue_returns_empty_without_calling_gh(
 
 
 # ---------------------------------------------------------------------------
+# T1 real (House + coordinador, 2026-08-08), lector 2 de 4 del mismo fallo:
+# git escribe la fecha de un commit hecho en offset +00:00 (un contenedor sin
+# TZ, un merge desde la web de GitHub, un bot) como `...T04:49:21Z`.
+# `datetime.fromisoformat` de Python 3.10 no sabe leer esa `Z` (soporte
+# anadido en 3.11), y `toolkit-ci.yml` fija Python 3.10.
+#
+# `_issue_commit_dates()` (health_plans.py ~96) llama a `fromisoformat`
+# sobre la fecha de autor SIN red de seguridad -- un solo commit de trabajo
+# en huso cero revienta `plans_unreflected()` entero, la red de seguridad
+# que avisa cuando un plan se queda sin reflejar en su issue.
+# ---------------------------------------------------------------------------
+
+
+def test_zero_offset_work_commit_does_not_crash_the_coherence_check(
+    health, notes, tmp_repo, monkeypatch
+):
+    """El huso cero se fuerza con `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` en
+    `+00:00` -- verificado por House: git escribe la fecha con `Z` sea cual
+    sea la zona horaria de la maquina que corre el test, asi el rojo no
+    depende de en que huso este quien ejecuta pytest.
+
+    Sin mock de `gh`: el fallo real esta en `_issue_commit_dates()`, que se
+    ejecuta ANTES de que `plans_unreflected()` llegue a consultar `gh` --
+    si esto crashea, tiene que crashear sin haber llamado a `gh` ni una
+    vez (comprobado con `_patch_gh`, igual que la fila 6 de arriba).
+
+    Este test SOLO reproduce el fallo en Python < 3.11 -- ver la entrega
+    de esta tarea para la salida real bajo un interprete 3.10.
+    """
+    root = Path(tmp_repo)
+    issue_number = 48
+
+    monkeypatch.setenv("GIT_AUTHOR_DATE", "2026-01-01T00:00:00+00:00")
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2026-01-01T00:00:00+00:00")
+    _write_work_commit(
+        notes, root, "work_zero_offset.txt", "commit de trabajo en huso cero",
+        "trabajo citando la issue, hecho con offset +00:00", issue_number,
+    )
+    monkeypatch.delenv("GIT_AUTHOR_DATE", raising=False)
+    monkeypatch.delenv("GIT_COMMITTER_DATE", raising=False)
+
+    # El montaje es invalido si git no escribio de verdad el huso cero --
+    # comprobado leyendo el historial por OTRO camino, nunca asumido.
+    log_check = subprocess.run(
+        ["git", "log", "-1", "--format=%aI"], cwd=root, capture_output=True, text=True
+    )
+    assert log_check.returncode == 0, f"git log fallo montando la prueba: {log_check.stderr}"
+    assert log_check.stdout.strip().endswith("Z"), (
+        f"el montaje de la prueba es invalido: el commit de trabajo no "
+        f"quedo con sufijo Z (huso cero) -- {log_check.stdout!r}"
+    )
+
+    calls = _patch_gh(
+        monkeypatch,
+        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+    )
+
+    # Hoy, en Python < 3.11, esto no devuelve un resultado incompleto ni
+    # "todo correcto": lanza `ValueError` sin llegar siquiera a consultar
+    # `gh` -- el chequeo de coherencia del arranque revienta.
+    with _cwd(root):
+        result = health.plans_unreflected()
+
+    assert result == ((issue_number, 1),), (
+        f"con un commit de trabajo en huso cero posterior a la ultima "
+        f"actividad de la issue #{issue_number}, plans_unreflected() "
+        f"deberia devolver (({issue_number}, 1),) -- salio {result!r}"
+    )
+    assert len(calls) == 1, (
+        f"deberia consultarse gh UNA vez por issue, igual que con un commit "
+        f"de fecha normal -- se observaron {len(calls)} llamadas: {calls!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Fila 7
 # ---------------------------------------------------------------------------
 
