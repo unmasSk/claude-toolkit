@@ -4,6 +4,26 @@ description: Recurring root cause patterns found during investigations in unmass
 type: reference
 ---
 
+## Pattern: git renders UTC-offset-0 dates as `Z`, and Python 3.10's `fromisoformat` rejects `Z` — CI-only red on BOTH OSes, green on every dev box
+
+**Project:** unmassk-toolkit (memoria-v2 readers) · **Seen:** 2026-08-08 · confirmed by exact local reproduction (run 31161644404)
+
+`%(committerdate:iso8601-strict)` and `%aI` both render the timezone **stored in the commit**, not the reader's `TZ` — verified by reading one repo with two commits (one authored `TZ=UTC`, one `TZ=Europe/Madrid`) from three different reader TZs: the rendering never moved. Offset 0 renders as a bare `Z` (`2026-08-08T04:49:21Z`); any other offset renders `+HH:MM`. `datetime.fromisoformat` accepts `Z` only from **Python 3.11 onward** — on 3.10 it raises `ValueError: Invalid isoformat string`. Isolated with three controls: py3.10+Madrid green, py3.14+UTC green, py3.11+UTC green, **py3.10+UTC red**. So the bug needs BOTH halves and is invisible on any dev box outside the UTC band or on any modern Python.
+
+**Why it reads as "CI-only":** GitHub runners are TZ=UTC, so every fixture commit they create is poisoned; the CI pins `python-version: "3.10"`. Both OSes fail identically ⇒ NOT platform, NOT encoding. That uniform-across-OS shape is the discriminator that separates this from the Windows-cp1252 family.
+
+**Blast radius is by call site, and the two failure modes are opposite.** `remote.py::latest_activity` wraps the parse in `except ValueError: continue`, so a poisoned line is skipped and the function returns `None` — **silent**, indistinguishable from "no activity". `query.py::_parse_records`, `context.py` and `health_plans.py` parse naked, so the `ValueError` escapes and **kills the whole read**: one poisoned commit anywhere in history loses every other note too, including well-dated ones (proved via `gitmem search` → rc=1, one cryptic line, 3 notes invisible). `health_plans.py` already had the correct `raw.replace("Z","+00:00")` on its `gh`-JSON path — the fix existed in one place and was never generalized. Right home for the shared parser is `timefmt.py` (already owns `_as_utc`/`utc_label`/`ago`).
+
+**Cheap probe before diagnosing anything date-shaped here:** `TZ=UTC uv run --no-project --python 3.10 --with pytest python -m pytest <file> -q`. Reproduces byte-for-byte.
+
+## Pattern: a fail-loud fixture error MASKS the bigger bug behind it — always re-run with the fixture precondition satisfied before sizing the damage
+
+**Project:** unmassk-toolkit (memoria-v2 CI) · **Seen:** 2026-08-08 · confirmed by dependency grep + controlled re-run
+
+284 `ERROR at setup` from one fixture (`tmp_repo`, no git identity) plus "only 2 real failures" reads like a small tail. It was not: the 284 errored tests **never executed**, and `test_query.py`, `test_context.py` and `test_health.py` — the three homes of the real product bug — were all inside that 284. Re-running those files with the fixture precondition satisfied (identity present) turned 2 failures into **17**. An error count is not a damage estimate; it is a blindfold.
+
+**Procedure:** when a shared fixture errors en masse, (1) `grep -l <fixture>` to list which suites were suppressed, (2) satisfy the precondition locally and re-run exactly those suites under the CI's Python and TZ, (3) report the post-fix number, not the observed one. Sequencing the fixes matters: fixing the fixture alone would have turned a red CI into a *redder* CI and looked like a regression caused by the fix.
+
 ## Pattern: "Failed to traverse parents of commit" on CI = MISSING reachable object in the fixture object-store, NOT a stale/corrupt commit-graph
 
 **Project:** unmassk-toolkit (#61 reopened, Ubuntu-CI-only) · **Seen:** 2026-07-22 · confirmed by exact reproduction + real CI log (run 29702760223)

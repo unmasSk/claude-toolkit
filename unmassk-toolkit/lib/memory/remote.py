@@ -29,14 +29,14 @@ porque todo lo que venga despues puede estar mirando una foto vieja.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import re
 import sys
 
 import gitcmd
-import timefmt  # noqa: F401  (reexportado para boot.py)
+import timefmt  # reexportado para boot.py, y usado aqui mismo abajo
 
 # El fetch sale a la red: se le da mas margen que a una lectura local,
 # pero acotado -- un arranque que se queda colgado es un arranque roto.
@@ -81,9 +81,13 @@ _HARDENED_ENV = {
 # git, porque un argumento de proceso no admite nulos dentro -- se ve al
 # ejecutarlo, no leyendo.
 _FIELD_SEP = "\x1f"
+# `%(committerdate:unix)` (segundos-epoch), no `:iso8601-strict` (sufijo
+# `Z` en huso cero, que `datetime.fromisoformat` de Python 3.10 no sabe
+# leer) [decision del propietario, 2026-08-08 -- ver
+# `timefmt.from_git_seconds`].
 _REF_FORMAT = _FIELD_SEP.join(
     (
-        "%(committerdate:iso8601-strict)",
+        "%(committerdate:unix)",
         "%(refname:short)",
         "%(objectname:short)",
         "%(symref)",
@@ -194,10 +198,13 @@ def latest_activity(root: Path, local_only: bool = False) -> Activity | None:
         if symref:
             continue
 
-        try:
-            moment = datetime.fromisoformat(when).astimezone(timezone.utc)
-        except ValueError:
-            continue
+        # Sin red de seguridad a proposito: una fecha que `timefmt` no
+        # pueda leer es un fallo real de git, no "esta referencia no
+        # existe" -- devolver `None` ahi seria indistinguible de "no hay
+        # actividad" [condicion del encargo, 2026-08-08]. Con
+        # segundos-epoch (arriba) este caso no deberia darse nunca; si se
+        # da, tiene que gritar, no callarse.
+        moment = timefmt.from_git_seconds(when)
         return Activity(branch=branch, sha=sha, when=moment, subject=subject)
     return None
 

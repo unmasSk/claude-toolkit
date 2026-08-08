@@ -4,6 +4,18 @@ description: Failed hypotheses and investigation lessons to avoid repeating dead
 type: feedback
 ---
 
+## Lesson: a docstring that says "we deliberately did NOT build this defence, wait for the real failure" is a countdown, not a decision — check it against agent memory
+
+The memoria-v2 `tests/memory/conftest.py::run_git` carries a long docstring arguing that adding a git identity fallback would be "anticipating infrastructure without having seen the real failure". The failure had already been seen and written down **thirteen months of sessions earlier** (diagnostic-patterns, "CI Runner Has No Git Identity", 2026-07-07), including the correct fix layer and the exact `useConfigOnly=true` reproduction. The v2 rewrite re-derived the reasoning from scratch and lost the prior round.
+
+**How to apply:** when a fixture/helper docstring explicitly declines a hardening step, grep agent memory for that failure class before accepting the argument. Rewrites do not inherit scars. The v2 code did improve one thing — it fails **loud** with an `assert` where v1 swallowed the rc — so the diagnosis is cheap; but the recurrence itself is the finding.
+
+## Lesson: three environment variables, changed one at a time, beat any amount of code reading on a "CI-only" red
+
+For a CI-only failure in this repo, the variables that actually matter are **Python version** (CI pins 3.10; dev boxes are 3.14), **TZ** (runners are UTC; owner is +01:00/+02:00) and **locale encoding** (Windows runner is cp1252; dev boxes are UTF-8). Run the failing file under each combination before forming a hypothesis — `uv run --no-project --python 3.10 --with pytest==9.1.1` and a `TZ=` prefix cost seconds and turn "not reproducible locally" into an exact reproduction. In the 2026-08-08 round all three groups fell out of this matrix alone: py3.10×TZ=UTC explained the both-OS failures, cp1252 explained the Windows-only ones, and neither needed a single instrumentation statement.
+
+**Corollary on shape-reading:** failures identical on Ubuntu AND Windows are never platform or encoding — look at the interpreter or the data. Failures on Windows only, with a `_readerthread`/`charmap` frame, are always the missing `encoding="utf-8"` on a text-mode `subprocess`.
+
 ## Lesson: Check ALL schema sources, not just schema.sql
 
 When investigating schema-code divergence, check:

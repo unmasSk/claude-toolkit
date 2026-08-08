@@ -70,10 +70,10 @@ estandar de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
 """
 
 import dataclasses
-from datetime import datetime
 
 import format
 import gitcmd
+import timefmt
 from model import ContextNote, WriteResult
 from query import run_git_log
 
@@ -82,7 +82,10 @@ from query import run_git_log
 # contener un NUL, y el mensaje crudo (`%B`) va ultimo para que un
 # `\x1f` que aparezca dentro del propio mensaje nunca particione de mas.
 _FIELD_SEP = "\x1f"
-_LOG_FORMAT = f"--pretty=format:%aI{_FIELD_SEP}%B"
+# `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso cero,
+# que `datetime.fromisoformat` de Python 3.10 no sabe leer) [decision del
+# propietario, 2026-08-08 -- ver `timefmt.from_git_seconds`].
+_LOG_FORMAT = f"--pretty=format:%at{_FIELD_SEP}%B"
 
 
 def write(ctx: ContextNote) -> WriteResult:
@@ -160,5 +163,5 @@ def latest(all_refs: bool = True) -> ContextNote | None:
         author_date, raw_message = record.split(_FIELD_SEP, 1)
         parsed = format.parse_context_message(raw_message.rstrip("\n"))
         if parsed is not None:
-            return dataclasses.replace(parsed, timestamp=datetime.fromisoformat(author_date))
+            return dataclasses.replace(parsed, timestamp=timefmt.from_git_seconds(author_date))
     return None

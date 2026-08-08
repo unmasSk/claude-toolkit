@@ -62,6 +62,7 @@ from datetime import datetime
 from pathlib import Path
 
 import query
+import timefmt
 
 _FIELD_SEP = "\x1f"
 _ISSUE_TRAILER_RE = re.compile(r"^Issue: #(\d+)$", re.MULTILINE)
@@ -85,15 +86,24 @@ def _issue_commit_dates() -> dict[int, tuple[datetime, ...]]:
     Una rama sin ningun commit todavia devuelve `{}` sin lanzar --
     `query.run_git_log()` ya trata ese caso como estado valido (cadena
     vacia), nunca como el fallo real de la rama de abajo.
+
+    `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso
+    cero, que `datetime.fromisoformat` de Python 3.10 no sabe leer)
+    [decision del propietario, 2026-08-08 -- ver
+    `timefmt.from_git_seconds`]. Esta es la fecha de un commit de GIT; la
+    de `_last_activity_at()` mas abajo es de OTRA fuente (la respuesta de
+    `gh`, ya en ISO-8601 de verdad) y se queda con su propio parseo --
+    unificar las dos en un solo lector mezclaria dos formatos distintos
+    bajo un nombre que promete uno solo.
     """
-    raw_stdout = query.run_git_log(f"--pretty=format:%aI{_FIELD_SEP}%B")
+    raw_stdout = query.run_git_log(f"--pretty=format:%at{_FIELD_SEP}%B")
 
     by_issue: dict[int, list[datetime]] = {}
     for record in raw_stdout.split("\0"):
         if not record:
             continue
         author_date, _sep, body = record.partition(_FIELD_SEP)
-        commit_date = datetime.fromisoformat(author_date)
+        commit_date = timefmt.from_git_seconds(author_date)
         for match in _ISSUE_TRAILER_RE.finditer(body):
             by_issue.setdefault(int(match.group(1)), []).append(commit_date)
 

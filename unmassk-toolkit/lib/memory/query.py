@@ -79,18 +79,22 @@ de Python [PIEZAS.md Sec.13]. Import plano entre hermanos (`import format`,
 
 import dataclasses
 import time
-from datetime import datetime
 from pathlib import Path
 
 import format
 import gitcmd
+import timefmt
 from model import Note
 
 _FIELD_SEP = "\x1f"
 _MAX_ATTEMPTS = 3  # intento inicial + hasta 2 reintentos
 _RETRY_DELAY_SECONDS = 0.05
 
-_LOG_FORMAT = f"--pretty=format:%H{_FIELD_SEP}%aI{_FIELD_SEP}%B"
+# `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso cero,
+# que `datetime.fromisoformat` de Python 3.10 no sabe leer) [decision del
+# propietario, 2026-08-08 -- ver `timefmt.from_git_seconds` para el porque
+# completo].
+_LOG_FORMAT = f"--pretty=format:%H{_FIELD_SEP}%at{_FIELD_SEP}%B"
 
 # El mensaje literal y estable que git escribe cuando `git log` se pide
 # sobre una rama que todavia no tiene ni un commit -- un repo recien
@@ -213,7 +217,7 @@ def _parse_records(raw_stdout: str) -> tuple[tuple[Note, str], ...]:
         note = format.parse_message(text)
         if note is None:
             continue
-        note = dataclasses.replace(note, timestamp=datetime.fromisoformat(author_date))
+        note = dataclasses.replace(note, timestamp=timefmt.from_git_seconds(author_date))
         parsed.append((note, text))
     return tuple(parsed)
 

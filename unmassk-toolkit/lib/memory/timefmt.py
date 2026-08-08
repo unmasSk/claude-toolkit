@@ -16,8 +16,29 @@ fecha sin zona horaria se trata como UTC en vez de estallar al restarla.
 Un arranque que revienta por una fecha rara deja al usuario sin memoria
 esa mañana, que es un precio absurdo por un dato de adorno.
 
-Lo que NO se trae: leer epoch y cadenas ISO. Aqui todo el mundo maneja
+Lo que NO se trae: leer cadenas ISO. Aqui casi todo el mundo maneja
 `datetime` ya construido -- quien lo parsea es quien lo saca de git.
+
+**Excepcion, desde 2026-08-08:** `from_git_seconds()`. Git escribe la
+fecha de un commit hecho en offset +00:00 (un contenedor sin TZ, un merge
+desde la web de GitHub, un bot) como `...T04:49:21Z` -- formato ISO-8601
+estricto con sufijo `Z`. `datetime.fromisoformat` de Python 3.10 no sabe
+leer esa `Z` (soporte anadido en 3.11), y el CI de este repo fija Python
+3.10. Un solo commit en huso cero envenenaba la lectura ENTERA en cuatro
+sitios distintos (`query.py`, `context.py`, `health_plans.py`,
+`remote.py`) -- cada uno pidiendole a git la fecha como texto ISO y
+convirtiendola por su cuenta con `fromisoformat`, la misma implementacion
+repetida cuatro veces que este fichero existe para no permitir.
+
+**La solucion no es normalizar la `Z`: es dejar de pedir texto.** Un
+numero de segundos-epoch (`%at` en un `--pretty=format:`,
+`%(committerdate:unix)` en un `for-each-ref`) no tiene formato, ni `Z`,
+ni huso horario que una version de Python pueda leer distinto de otra --
+mata la clase entera de fallo, no solo el sintoma. Ya se habia decidido
+asi una vez en el sistema anterior por este mismo motivo y se perdio al
+reescribirlo [`lib/boot_git_checks.py:117`]; esta vez el unico lector
+vive aqui y los cuatro sitios lo llaman, ninguno vuelve a convertir texto
+por su cuenta.
 """
 
 from __future__ import annotations
@@ -45,6 +66,23 @@ def utc_label(moment: datetime) -> str:
     if utc is None:
         return _UNKNOWN
     return f"{utc:%Y-%m-%d %H:%M} UTC"
+
+
+def from_git_seconds(raw: str) -> datetime:
+    """El `datetime` UTC-aware de lo que git escribe en segundos-epoch --
+    `%at` en un `--pretty=format:`, `%(committerdate:unix)` en un
+    `for-each-ref`. Unico lector del historial de este tipo: `query.py`,
+    `context.py`, `health_plans.py` y `remote.py` pasan su fecha de autor
+    por aqui, ninguno convierte texto de git por su cuenta [ver el porque
+    completo en el docstring del modulo].
+
+    No atrapa nada: si `raw` no es un numero, `int()` lanza `ValueError`
+    tal cual y se propaga. Una fecha que no se puede leer no puede volver
+    a devolver `None` ni "seguir como si no hubiera pasado nada" -- eso es
+    indistinguible de "no hay actividad", el mismo silencio que esta
+    pieza existe para impedir [condicion del encargo, 2026-08-08].
+    """
+    return datetime.fromtimestamp(int(raw), tz=timezone.utc)
 
 
 def ago(moment: datetime, now: datetime | None = None) -> str:
