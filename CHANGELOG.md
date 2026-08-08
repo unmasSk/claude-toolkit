@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-08-08
+
 ### Fixed
 
 - **`gitmem wip` no guardaba nada en Windows**, y llevaba así desde la 1.32.0. La verificación que se añadió para detectar contenido cruzado comparaba los bytes tal cual contra el blob que git guarda **después** de normalizar los finales de línea — cosa que git hace por defecto en Windows. Nunca coincidían, así que el sistema leía cada commit legítimo como sabotaje, lo deshacía, y decía *«otro proceso lo pisó»* sin que hubiera nadie. Ahora se compara contra el blob que git de verdad guardaría para esa ruta.
