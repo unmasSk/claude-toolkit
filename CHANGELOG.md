@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **En Windows con Git Bash, la aduana decidía sobre el proyecto equivocado.** Ahí una ruta absoluta se escribe `/c/Users/x/proyecto`, y el hook no la reconocía como tal: ignoraba el `cd` y evaluaba el proyecto de la sesión en vez del de destino. O sea que `cd /c/otro && git commit ...` **podía aprobar un commit que tenía que bloquear**, y al revés. La aduana es lo que decide si un commit pasa, así que era lo más grave que podía fallar ahí. Lo destapó un test escrito a propósito para averiguarlo, que solo corre en Windows.
+- **La instalación se saltaba su propio commit en silencio.** Nueve subprocesos leían la salida de sus hijos sin decir en qué codificación: en Windows eso mata el hilo lector y el llamante recibe «nada» en vez del texto. Uno de esos sitios trataba «no hay salida» y «no pude leer la salida» como la misma cosa — que son opuestas — y se saltaba el commit dándolo por hecho. Arreglados los nueve, y los cinco consumidores que podían tragarse ese vacío a ciegas.
+- **El arranque escupía una traza de Python la primera vez que se instalaba en Windows**, por la misma causa: el instalador imprime un emoji que la codificación por defecto de esa consola no sabe leer.
+- **La búsqueda de memoria distinguía mayúsculas.** `gitmem search windows` decía que no había nada mientras `gitmem search Windows` devolvía dos notas — o sea que preguntarle al sistema podía dar una respuesta falsa. Ahora encuentra lo mismo se escriba como se escriba, y muestra la palabra buscada en minúscula; el texto de las notas sale siempre tal cual se escribió.
+- **La suite volvió a correr entera en las dos plataformas.** Venía de 284 errores y ni un test ejecutándose; ahora son 1.007 en verde en Ubuntu y en Windows.
+
 ## [1.32.0] - 2026-08-08
 
 ### Fixed
