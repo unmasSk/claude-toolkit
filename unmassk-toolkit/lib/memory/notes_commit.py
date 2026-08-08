@@ -141,6 +141,7 @@ unica, ver mas arriba.
 
 import hashlib
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -317,32 +318,60 @@ def _content_fingerprint(path: Path) -> str | None:
         return None
 
 
-def _git_blob_hash_of_bytes(content: bytes, root: Path) -> str | None:
-    """Hash de blob que tendrian los `content` EXACTOS, byte a byte -- SIN
-    escribirlo al object store (`hash-object` sin `-w`) y sin tocar el
-    arbol de trabajo del repositorio real: `content` se vuelca a un
-    fichero temporal fuera del repo (siempre borrado, salga bien o mal la
-    consulta) solo porque `gitcmd.run()` no expone stdin. `None` si `git
-    hash-object` fallo -- nunca se trata como si coincidiera con nada
-    [punto 8 de `write_work()`].
+def _relpath_posix(path: Path, root: Path) -> str:
+    """`path` (absoluta) relativa a `root`, forzada a `/` (nunca `\\`) --
+    git interpreta pathspecs y argumentos `--path` con `/`,
+    independientemente del sistema de ficheros. Compartido entre
+    `_git_blob_hash_of_bytes()` y `_committed_blob_hash()` para que las
+    dos calculen exactamente la misma ruta relativa.
+    """
+    return Path(os.path.relpath(str(path), str(root))).as_posix()
 
-    `--no-filters` es obligatorio, no cosmetico [hallazgo de Cerberus,
-    2026-08-08]: sin el, `git hash-object` busca atributos de
-    `.gitattributes` para la RUTA DEL TEMPORAL (un nombre en
-    `tempfile.mkstemp()`, nada que ver con la ruta real que el llamador
-    esta verificando) y podria aplicarle un filtro de limpieza antes de
-    hashear -- un desajuste de FILTRO, no de CONTENIDO, que rechazaria un
-    commit perfectamente bueno. Este repositorio no tiene
-    `.gitattributes` hoy, asi que hoy da lo mismo -- pero el docstring
-    promete "el hash de estos bytes exactos", y sin `--no-filters` esa
-    promesa deja de ser cierta el dia que alguien añada uno.
+
+def _git_blob_hash_of_bytes(content: bytes, path: Path, root: Path) -> str | None:
+    """Hash del blob que git GUARDARIA DE VERDAD para `content` si se
+    escribiera en `path` y se hiciera `git add` -- SIN escribirlo al
+    object store (`hash-object` sin `-w`) y sin tocar el arbol de trabajo
+    real: `content` se vuelca a un fichero temporal fuera del repo
+    (siempre borrado, salga bien o mal la consulta) solo porque
+    `gitcmd.run()` no expone stdin. `None` si `git hash-object` fallo --
+    nunca se trata como si coincidiera con nada [punto 8 de
+    `write_work()`].
+
+    **`--path <ruta relativa real>` es obligatorio, y `--no-filters` esta
+    PROHIBIDO -- arreglo 2026-08-08, corrigiendo un hallazgo previo mal
+    resuelto.** La primera version de esta funcion usaba `--no-filters`
+    para blindarse contra un filtro de `.gitattributes` resuelto por la
+    ruta INCORRECTA (la del temporal) -- razonamiento correcto, arreglo
+    equivocado: `--no-filters` hashea los BYTES CRUDOS, pero
+    `stage_and_commit()` comitea pasando por el `git add` normal, que SI
+    aplica los filtros de la ruta real -- en Windows, por defecto,
+    `core.autocrlf` normaliza `\\r\\n` a `\\n` al guardar. El resultado:
+    en cualquier repo con autocrlf activo, esta funcion comparaba el hash
+    de los bytes CRLF crudos contra el blob LF que git de verdad guardo
+    -- SIEMPRE distinto, para CUALQUIER escritura, sin que nadie pisara
+    nada. Rompio `gitmem wip` en CI de Windows: cada commit valido salia
+    "corrupto" y se deshacia. Reproducido y confirmado antes de tocar
+    nada: en un repo con `core.autocrlf=true`, `git hash-object
+    --no-filters` sobre bytes CRLF NO coincide con el blob real
+    (`rev-parse HEAD:<ruta>`); `git hash-object --path <ruta>` (sin
+    `--no-filters`) SI coincide, byte a byte con lo que git de verdad
+    almacena. `--path` resuelve el mismo problema que `--no-filters`
+    intentaba resolver -- que filtro de `.gitattributes` aplica -- pero
+    contra la ruta CORRECTA (la real, no la del temporal), en vez de
+    desactivar los filtros por completo. La promesa de esta funcion ya no
+    es "el hash de estos bytes exactos" -- es "el hash que estos bytes
+    tendrian SI se guardaran en `path`", que es lo unico que puede
+    coincidir con lo que `stage_and_commit()` de verdad comitea.
     """
     fd, tmp_path = tempfile.mkstemp(prefix=".write_work_verify.", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(content)
         result = gitcmd.run(
-            ["hash-object", "--no-filters", tmp_path], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+            ["hash-object", "--path", _relpath_posix(path, root), tmp_path],
+            cwd=root,
+            timeout=gitcmd.GIT_TIMEOUT,
         )
     finally:
         try:
@@ -356,12 +385,59 @@ def _committed_blob_hash(path: Path, root: Path) -> str | None:
     """Hash del blob que `HEAD` tiene DE VERDAD para `path` ahora mismo,
     o `None` si no se pudo determinar (ruta ausente en `HEAD`, fallo de
     git) -- nunca se trata como si coincidiera con nada [punto 8 de
-    `write_work()`]. `path` viaja absoluta -- se relativiza a `root` y se
-    fuerza a `/` (nunca `\\`) porque `git rev-parse HEAD:<ruta>`
-    interpreta el pathspec como ruta de git, no del sistema de ficheros.
+    `write_work()`].
     """
-    rel = Path(os.path.relpath(str(path), str(root))).as_posix()
+    rel = _relpath_posix(path, root)
     result = gitcmd.run(["rev-parse", f"HEAD:{rel}"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+# `[<rama> <sha-corto>] <asunto>` o `[<rama> (root-commit) <sha-corto>]
+# <asunto>` -- la linea de resumen que `git commit` imprime en su PROPIA
+# salida estandar salvo que se le pida `--quiet` (esta funcion no lo
+# hace). `.+` es voraz a proposito: si el asunto del mensaje contiene un
+# `]` mas temprano, el motor de regex retrocede hasta encontrar el
+# ULTIMO `<espacio><hex>]` de la primera linea -- que es siempre el que
+# cierra el resumen de git, sin importar cuantos espacios lleve el
+# nombre de la rama (p.ej. HEAD separado: `[detached HEAD abcdef1]`).
+_COMMIT_SUMMARY_SHA_RE = re.compile(r"^\[.+\s([0-9a-fA-F]{4,40})\]")
+
+
+def _own_commit_sha_from_commit_output(commit_stdout: str, root: Path) -> str | None:
+    """Identificador COMPLETO (40 caracteres) del commit que `git commit`
+    ACABA de crear, leido de la PRIMERA linea de SU PROPIA salida --
+    nunca de un `git rev-parse HEAD` en un subproceso posterior [agujero
+    5, hallado por Cerberus en vivo, 2026-08-08]. Entre el `git commit`
+    que crea nuestro commit y CUALQUIER subproceso siguiente que relea
+    `HEAD` como referencia (una rama que se mueve), un proceso ajeno
+    puede comitear encima -- `HEAD` para entonces ya no es nuestro
+    commit, y esa lectura envenenaria la referencia desde el origen,
+    antes incluso de que nada la compare con nada. La linea de resumen
+    de `git commit` no tiene ese hueco: es la MISMA llamada que crea el
+    commit, nunca una posterior.
+
+    El sha corto de esa linea se expande a los 40 caracteres completos
+    con `git rev-parse <corto>^{commit}` -- una busqueda por CONTENIDO
+    (el objeto ya existe en la base de datos de git bajo ese hash), NUNCA
+    por REFERENCIA (`HEAD`/una rama, que puede moverse). Un commit ajeno
+    que aterrice entre medias no cambia a que apunta un hash de
+    contenido que ya existe, asi que esta segunda llamada, aunque es un
+    subproceso separado, no tiene la misma ventana que un `rev-parse
+    HEAD` -- solo depende de que el objeto exista, nunca de que ref
+    apunte a donde en este instante.
+
+    `None` si la primera linea no tiene la forma esperada o si la
+    expansion falla -- nunca se trata como si hubiera un identificador
+    valido.
+    """
+    first_line = commit_stdout.split("\n", 1)[0]
+    match = _COMMIT_SUMMARY_SHA_RE.match(first_line)
+    if match is None:
+        return None
+    short_sha = match.group(1)
+    result = gitcmd.run(
+        ["rev-parse", f"{short_sha}^{{commit}}"], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+    )
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -537,74 +613,125 @@ def write_work(
     ruta no se verifica, mismo hueco ya aceptado que el punto 7 documenta
     para ese caso.
 
-    **9. El propio "deshacer" del punto 8 tenia dos agujeros -- misma
-    fecha, unas horas despues, cazados por Cerberus con tests
-    deterministas antes de que saliera a produccion. Van TRES veces que
-    este punto se da por cerrado y no lo esta: el patron en si es la
-    leccion, no solo el detalle de cada agujero.**
+    **9. El propio "deshacer" del punto 8 -- TRES rondas de agujeros en
+    el mismo dia, las dos primeras cazadas por Cerberus con tests
+    deterministas, la tercera por Cerberus reproduciendola EN VIVO contra
+    codigo ya en produccion. Van CUATRO veces que este punto se da por
+    cerrado y no lo esta. La leccion de las rondas 1 y 2 no bastaba
+    -- esta es la de la ronda 3, y es la que de verdad cierra el patron:
+    NINGUN NUMERO DE COMPROBACIONES ANTES DE UN ACTO QUE APUNTA A UNA
+    REFERENCIA VIVA lo cierra. No es "comprobar mejor" -- es no separar
+    "mirar" de "actuar": tienen que ser el MISMO acto, uno que solo
+    puede fallar, nunca mentir.**
 
-    - **El primero:** el `reset` de la primera version de este punto no
-      comprobaba su propio resultado -- ni lo guardaba en una variable.
-      Si fallaba (repo sin ningun commit previo: el commit que acabamos
-      de crear ES el primero, no existe `HEAD~1`; o el indice de git
-      ocupado por otro proceso), el commit corrupto se quedaba de verdad
-      como `HEAD`, y la funcion devolvia igualmente el texto fijo "se
-      deshizo el commit" -- mentira sobre la propia mentira que este
-      punto existe para atajar.
-    - **El segundo, el grave:** la version anterior resolvia `HEAD~1` EN
-      EL MOMENTO del reset, no fijado al commit propio. La razon que se
-      escribio entonces para justificar que era seguro -- "el candado
-      global sigue tomado, nadie mas pudo comitear" -- es CIERTA solo
-      para quien toma ese candado, y `bin/release.py` (un publicador
-      real) no lo toma. Si una publicacion legitima aterriza justo entre
-      nuestro commit y esta verificacion, `HEAD~1` en el momento del
-      reset deja de ser nuestro padre -- pasa a ser nuestro propio
-      commit, y el reset se comeria el commit ajeno de la publicacion.
-      No es una hipotesis: reproducido determinista inyectando un commit
-      real desde dentro de `_committed_blob_hash` (el punto exacto donde
-      `write_work()` la llama) y comprobando, contra `git log` real, que
-      el commit ajeno sobrevive.
+    - **Ronda 1:** el `reset` no comprobaba su propio resultado. Si
+      fallaba (sin `HEAD~1`, o el indice ocupado), el commit corrupto
+      seguia siendo `HEAD` y la funcion decia igualmente "se deshizo".
+    - **Ronda 2:** `HEAD~1` se resolvia EN EL MOMENTO del reset, no
+      fijado al commit propio -- la razon que lo justificaba entonces
+      ("el candado global sigue tomado") solo vale para quien toma ese
+      candado, y `bin/release.py` no lo toma. Arreglo de la ronda 2:
+      fijar `own_commit_sha` con un `rev-parse HEAD` justo despues del
+      commit, y comprobar que `HEAD` seguia siendo ese valor ANTES de
+      resetear.
+    - **Ronda 3, la que de verdad importa:** ese arreglo de la ronda 2
+      segui­a siendo "comprobar, LUEGO actuar" -- dos actos separados, con
+      un hueco real entre medias, por pequeño que fuera. Cerberus
+      reproduzco EN VIVO, contra el codigo de la ronda 2, TRES agujeros
+      en ese hueco:
+        - El `reset --mixed HEAD~1` en si mismo resuelve `HEAD~1` cuando
+          el subproceso ARRANCA -- un commit ajeno que aterriza DESPUES
+          de que la comprobacion ya diera bien, pero ANTES de que el
+          propio subproceso de `git reset` se ejecute, se lo come
+          igual: la comprobacion anterior no protege el acto que viene
+          despues.
+        - `own_commit_sha` en si mismo se capturaba con un `git
+          rev-parse HEAD` en un SUBPROCESO SEPARADO del propio `git
+          commit`. Un commit ajeno que aterriza en ESE hueco (antes de
+          esa lectura, no despues) envenena la referencia desde el
+          origen -- el recheck posterior compara el veneno consigo
+          mismo, coincide por construccion, y no detecta nada.
+        - La rama de "el historial se movio" no nombraba el commit
+          corrupto (a diferencia de su rama hermana, "el reset fallo",
+          que si lo hacia) -- justo donde mas hace falta, porque ahi el
+          commit corrupto sigue siendo `HEAD`, enterrandose bajo mas
+          historial con cada commit legitimo que llega despues.
 
-    **El arreglo, en dos piezas, ninguna opcional:**
+    **El arreglo de la ronda 3 -- un solo acto atomico, no una
+    comprobacion seguida de un acto [primitiva propuesta por Cerberus]:**
 
-    1. `own_commit_sha` se fija con `git rev-parse HEAD` justo despues de
-       que `stage_and_commit()` salga bien -- ANTES de llamar a
-       `_committed_blob_hash()` ni una sola vez, porque esa llamada es
-       exactamente el punto donde un commit ajeno puede colarse (ver el
-       segundo agujero). Es la unica referencia fija a NUESTRO commit
-       que esta llamada tiene.
-    2. Si hay desajuste, antes de tocar nada, se relee `HEAD` una
-       segunda vez y se compara contra `own_commit_sha`. Si ya NO
-       coinciden, el historial se movio por un proceso ajeno -- no se
-       toca nada, `ok=False` con una causa que dice que hace falta
-       revision manual, sin la palabra "se deshizo" en ningun sitio
-       (no seria verdad). Solo si siguen coincidiendo se intenta el
-       `reset --mixed HEAD~1`, y su resultado SI se guarda y se
-       comprueba: si falla, el mensaje nombra el commit corrupto (que
-       sigue siendo `HEAD` de verdad) para poder arreglarlo a mano; solo
-       si el reset devuelve exito el mensaje dice que se deshizo.
+    1. `own_commit_sha` ya NO se lee con un `rev-parse HEAD` posterior --
+       se PARSEA de la primera linea de la salida del propio `git
+       commit` (`_own_commit_sha_from_commit_output()`, arriba): la
+       MISMA llamada que crea el commit, nunca una posterior, asi que no
+       hay hueco en el que envenenarla. El sha corto de esa linea se
+       expande a los 40 caracteres con `git rev-parse
+       <corto>^{commit}` -- busqueda por CONTENIDO, no por referencia:
+       un commit ajeno no cambia a que apunta un hash que ya existe, asi
+       que esta segunda llamada, aunque es un subproceso aparte, no
+       tiene la misma ventana.
+    2. El padre se resuelve con `git rev-parse <own_commit_sha>~1` --
+       tambien por CONTENIDO (el padre de ESTE commit concreto), nunca
+       "`HEAD~1`" (una referencia que se mueve).
+    3. Deshacer es UNA sola llamada: `git update-ref -m <razon> HEAD
+       <padre> <own_commit_sha>` -- mueve `HEAD` a `<padre>` SOLO SI su
+       valor actual es, exactamente, `own_commit_sha`; la comprobacion y
+       el movimiento son la MISMA operacion atomica, bajo el candado de
+       referencias del propio git, sin ningun subproceso independiente
+       entre "mirar" y "actuar". Si `HEAD` ya no es `own_commit_sha`
+       (un commit ajeno aterrizo en CUALQUIER momento anterior, sin
+       importar cuando), este comando FALLA solo, sin tocar nada -- ni
+       siquiera hace falta saber cuando aterrizo el commit ajeno para
+       estar a salvo.
+    4. Solo si el paso 3 tuvo exito se sincroniza el indice con `git
+       reset --mixed HEAD` (sin `~1`: en este punto `HEAD` YA es el
+       padre, de forma verificada, asi que este ultimo paso no mueve
+       ninguna referencia -- es higiene, mejor esfuerzo, nunca el acto
+       que decide si algo se pierde).
+    5. Las tres ramas de fallo (no se identifico el commit propio; el
+       commit es el primero del repositorio, sin padre; el
+       `update-ref` fallo) nombran `own_commit_sha` SIEMPRE que el
+       commit corrupto sigue vivo -- nunca solo en una de las tres.
 
-    Ademas, `_git_blob_hash_of_bytes()` pasa `--no-filters` a `git
-    hash-object` [hallazgo no bloqueante de Cerberus, misma revision]:
-    sin el, un filtro de `.gitattributes` resuelto contra la ruta del
-    fichero TEMPORAL (no la ruta real que se esta verificando) podria
-    dar un hash distinto al de los bytes crudos, y rechazar un commit
-    bueno por una diferencia de filtro, no de contenido. Este repo no
-    tiene `.gitattributes` hoy -- inofensivo ahora, pero la promesa del
-    docstring ("el hash de estos bytes exactos") solo es cierta con el
-    flag puesto.
+    **Ademas, `_git_blob_hash_of_bytes()` -- otro hallazgo en vivo de
+    Cerberus, el mismo dia, en produccion real:** la version de la ronda
+    3 le paso `--no-filters` a `git hash-object`, razonando (rondas
+    atras) que asi se evitaba un filtro de `.gitattributes` resuelto por
+    la ruta INCORRECTA (la del temporal). El razonamiento sobre el
+    riesgo era correcto; el arreglo apuntaba al lado equivocado:
+    `--no-filters` hashea los BYTES CRUDOS, pero `stage_and_commit()`
+    comitea con `git add` normal, que SI aplica los filtros de la ruta
+    real -- en Windows, por defecto, `core.autocrlf` normaliza `\r\n` a
+    `\n` al guardar. Resultado en produccion: en CUALQUIER repositorio
+    con autocrlf activo, esta funcion comparaba el hash de los bytes
+    CRLF crudos contra el blob LF que git de verdad guardo -- rojo
+    SIEMPRE, para cualquier escritura, sin que nadie pisara nada.
+    `gitmem wip` dejo de guardar nada en Windows: cada commit valido
+    salia "corrupto" y se deshacia. Confirmado antes de tocar nada,
+    reproducido con `core.autocrlf=true`: `hash-object --no-filters`
+    sobre bytes CRLF NO coincide con el blob real; `hash-object --path
+    <ruta>` (sin `--no-filters`) SI coincide, byte a byte, con lo que
+    git de verdad almaceno. El arreglo: `--path <ruta relativa real>`
+    -- resuelve el MISMO problema que `--no-filters` queria resolver
+    (que filtro aplica) pero contra la ruta CORRECTA, en vez de apagar
+    los filtros por completo. Ver el docstring de la funcion, arriba,
+    para el detalle completo y la reproduccion.
 
-    **Para la cuarta vuelta, si la hay:** las dos veces anteriores el
-    error fue optimizar el camino feliz (que el commit lleve lo
-    correcto) y tratar el camino de fallo -- deshacer lo que no deberia
-    haberse comiteado -- como un detalle menor, casi una ocurrencia
-    tardia. Las dos roturas de esta vuelta vivian ahi: un resultado sin
-    comprobar, una referencia sin fijar. Cualquier operacion de
-    "deshacer" que se añada aqui en el futuro necesita el mismo
-    tratamiento que el camino feliz: resultado comprobado, referencia
-    fija a ANTES de que nada mas pueda moverse, y un test que fuerce el
-    caso de fallo del propio deshacer, no solo el caso que el deshacer
-    esta ahi para arreglar.
+    **Para la quinta vuelta, si la hay:** la ronda 3 demostro que
+    "comprobar antes de actuar" nunca cierra una carrera contra una
+    referencia que otro proceso puede mover -- hace falta que la
+    comprobacion y el acto sean la MISMA operacion atomica (aqui,
+    `update-ref` con `<oldvalue>`). La ronda 4 (el filtro) demostro algo
+    distinto: un arreglo de concurrencia puede introducir su PROPIO
+    falso positivo si asume una plataforma en vez de comprobarla --
+    "arreglar sin reproducir en la plataforma real" cuesta tan caro como
+    "comprobar en vez de actuar atomicamente". Cualquier verificacion de
+    contenido que se añada aqui en el futuro necesita las dos disciplinas
+    a la vez: el acto decisivo tiene que ser atomico contra la
+    referencia que puede moverse, y el calculo de hash tiene que
+    reproducirse contra lo que git REALMENTE almacena en la plataforma
+    real (o, como minimo, contra un `core.autocrlf`/`.gitattributes`
+    simulado), nunca contra una suposicion de que "aqui no hace falta".
     """
     resolved_paths = [Path(os.path.abspath(str(p))) for p in paths]
     if known_content is not None and len(known_content) != len(paths):
@@ -670,20 +797,16 @@ def write_work(
             )
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_result.stderr)
 
-        # Fijado ANTES de verificar nada -- punto 9 mas abajo. `_committed_blob_hash()`
-        # solo lee `HEAD` en el instante en que se la llama; si el historial se
-        # mueve DURANTE la verificacion (otro proceso ajeno comitea encima),
-        # comparar contra `HEAD` recalculado mas tarde ya no dice nada sobre
-        # NUESTRO commit. `own_commit_sha` es la unica referencia fija al commit
-        # que esta llamada, y solo esta llamada, acaba de crear.
-        own_commit_result = gitcmd.run(["rev-parse", "HEAD"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
-        own_commit_sha = own_commit_result.stdout.strip() if own_commit_result.returncode == 0 else None
+        # Leido de la salida del PROPIO `git commit` -- nunca de un
+        # `rev-parse HEAD` posterior. Ver el docstring de la funcion de
+        # arriba y el punto 9 mas abajo para el porque exacto (agujero 5).
+        own_commit_sha = _own_commit_sha_from_commit_output(git_result.stdout, root)
 
         mismatched = []
         for path, content in zip(resolved_paths, known_content or [None] * len(resolved_paths)):
             if content is None:
                 continue
-            expected_hash = _git_blob_hash_of_bytes(content, root)
+            expected_hash = _git_blob_hash_of_bytes(content, path, root)
             actual_hash = _committed_blob_hash(path, root)
             if expected_hash is None or actual_hash is None or expected_hash != actual_hash:
                 mismatched.append(path)
@@ -699,52 +822,92 @@ def write_work(
             "arbol de trabajo, punto 8 del docstring de esta funcion)."
         )
 
-        # Punto 9: comprobar que `HEAD` sigue siendo NUESTRO commit ANTES de
-        # intentar deshacer nada -- si otro proceso ajeno (uno que no toma
-        # este candado, como `bin/release.py`) ya comiteo algo legitimo
-        # encima mientras verificabamos, `HEAD~1` en el momento del reset ya
-        # no es el padre de nuestro commit: es nuestro propio commit, y
-        # resetear se comeria el commit ajeno. No se toca el historial en
-        # absoluto en ese caso.
-        current_head_result = gitcmd.run(["rev-parse", "HEAD"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
-        current_head = current_head_result.stdout.strip() if current_head_result.returncode == 0 else None
-
-        if own_commit_sha is None or current_head is None or current_head != own_commit_sha:
+        if own_commit_sha is None:
             return WriteResult(
                 ok=False,
                 note_id=None,
                 rejections=(),
                 git_error=(
-                    base_cause + " Ademas, el historial se movio entre nuestro "
-                    "commit y esta verificacion -- otro proceso ajeno ya "
-                    "comiteo algo legitimo encima. No se toca el historial en "
-                    "absoluto: intentar deshacer aqui borraria ese commit "
-                    "ajeno. Hace falta revision manual."
+                    base_cause + " Ademas, no se pudo identificar de forma "
+                    "fiable el commit que esta llamada acaba de crear -- no "
+                    "se intenta deshacer nada sin esa referencia. Hace falta "
+                    "revision manual."
                 ),
             )
 
-        reset_result = gitcmd.run(["reset", "--mixed", "HEAD~1"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
-        if reset_result.returncode != 0:
+        # `<sha>~1` es una busqueda por CONTENIDO (el padre de ESTE commit
+        # concreto), no por referencia -- resuelve igual sin importar donde
+        # este `HEAD` ahora mismo, asi que no tiene la ventana del punto 9.
+        parent_result = gitcmd.run(
+            ["rev-parse", f"{own_commit_sha}~1"], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+        )
+        parent_sha = parent_result.stdout.strip() if parent_result.returncode == 0 else None
+
+        if parent_sha is None:
             return WriteResult(
                 ok=False,
                 note_id=None,
                 rejections=(),
                 git_error=(
-                    base_cause + " El intento de deshacerlo con 'git reset "
-                    f"--mixed HEAD~1' fallo ({reset_result.stderr}) -- el "
-                    f"commit corrupto {own_commit_sha} SIGUE siendo HEAD de "
-                    "verdad. Hace falta arreglarlo a mano: revisar y quitar "
-                    "ese commit."
+                    base_cause + f" El commit {own_commit_sha} es el primero "
+                    "del repositorio -- no tiene padre al que volver, asi que "
+                    f"no se puede deshacer. El commit corrupto {own_commit_sha} "
+                    "SIGUE siendo HEAD de verdad. Hace falta arreglarlo a "
+                    "mano: revisar y quitar ese commit."
                 ),
             )
+
+        # Punto 9: un unico acto atomico, no una comprobacion seguida de un
+        # acto -- `git update-ref` mueve `HEAD` a `parent_sha` SOLO SI su
+        # valor actual sigue siendo, exactamente, `own_commit_sha`; la
+        # comparacion y el movimiento son la MISMA operacion, bajo el
+        # candado de referencias del propio git, sin ningun hueco entre
+        # "mirar" y "actuar" que un proceso ajeno pueda colarse por medio.
+        cas_result = gitcmd.run(
+            [
+                "update-ref",
+                "-m",
+                f"write_work(): deshacer commit corrupto {own_commit_sha}",
+                "HEAD",
+                parent_sha,
+                own_commit_sha,
+            ],
+            cwd=root,
+            timeout=gitcmd.GIT_TIMEOUT,
+        )
+
+        if cas_result.returncode != 0:
+            return WriteResult(
+                ok=False,
+                note_id=None,
+                rejections=(),
+                git_error=(
+                    base_cause + " El intento de deshacerlo con 'git "
+                    f"update-ref' fallo ({cas_result.stderr}) -- lo mas "
+                    "probable es que el historial se moviera entre nuestro "
+                    "commit y este intento (otro proceso ajeno ya comiteo "
+                    "algo legitimo encima), y por eso NO se toca el "
+                    f"historial en absoluto. El commit corrupto "
+                    f"{own_commit_sha} sigue siendo alcanzable. Hace falta "
+                    "revision manual."
+                ),
+            )
+
+        # `HEAD` ya apunta, de forma segura y verificada, a `parent_sha` --
+        # sincronizar el indice ahora es solo higiene (mejor esfuerzo, sin
+        # comprobar el resultado, igual que el resto de restauraciones de
+        # este fichero): no mueve ninguna referencia, asi que ninguna carrera
+        # posterior puede volver a comerse un commit ajeno por esta via.
+        gitcmd.run(["reset", "--mixed", "HEAD"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
 
         return WriteResult(
             ok=False,
             note_id=None,
             rejections=(),
             git_error=(
-                base_cause + " Se deshizo el commit ('git reset --mixed "
-                "HEAD~1', sin tocar el arbol de trabajo) y se devuelve "
-                "ok=False con causa en vez de mentir con ok=True."
+                base_cause + " Se deshizo el commit ('git update-ref', "
+                "comparar-y-cambiar atomico sobre HEAD, sin tocar el arbol "
+                "de trabajo) y se devuelve ok=False con causa en vez de "
+                "mentir con ok=True."
             ),
         )
