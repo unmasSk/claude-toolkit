@@ -2511,63 +2511,125 @@ def test_matching_content_undoes_nothing(notes, notes_commit, tmp_repo):
 
 
 # ---------------------------------------------------------------------------
-# Contrato en ROJO, CUARTA vuelta sobre el mismo punto (Cerberus, 2026-08-08,
+# Contrato, CUARTA vuelta sobre el mismo punto (Cerberus, 2026-08-08,
 # reproducido en vivo con `prove_hole4.py` -- ver
 # /private/tmp/claude-501/-Users-unmassk-Workspace-claude-toolkit/
 # 14757cf4-3930-4b7a-a25b-7688c36efc7a/scratchpad/prove_hole4.py, usado
 # como punto de partida de la tecnica de aqui abajo). El punto 9 de
-# `write_work()` (notes_commit.py ~702-750) ya cierra el agujero de la
-# vuelta anterior comprobando `HEAD` ANTES de intentar el reset -- pero
-# quedan dos huecos MAS ESTRECHOS en el mismo patron, y un tercero de
-# calidad del mensaje:
+# `write_work()` (notes_commit.py ~702-750, version original) ya cerraba
+# el agujero de la vuelta anterior comprobando `HEAD` ANTES de intentar el
+# reset -- pero quedaban dos huecos MAS ESTRECHOS en el mismo patron
+# (check-then-act, nunca del todo atomico), y un tercero de calidad del
+# mensaje. Los tres se documentaron aqui como agujeros 4/5/6.
 #
-#   4. El propio `git reset --mixed HEAD~1` (linea ~726) sigue resolviendo
-#      "HEAD~1" como referencia VIVA en el instante en que el subproceso
-#      arranca -- no una referencia fija al padre de `own_commit_sha`. Si
-#      un commit ajeno aterriza justo entre la comprobacion de la linea
-#      709-712 y la ejecucion real del comando de reset, ese commit ajeno
-#      se convierte en el nuevo HEAD, `HEAD~1` pasa a ser NUESTRO propio
-#      commit, y el reset lo borra -- exactamente el mismo peligro que el
-#      punto 9 dice haber cerrado, en una ventana mas estrecha.
+# QUINTA vuelta (Ultron, 2026-08-08, MISMO DIA): reescribio el mecanismo
+# entero -- ya no es "comprobar y luego actuar" en ningun punto:
 #
-#   5. `own_commit_sha` (linea 679) se captura con un `git rev-parse HEAD`
-#      en un SUBPROCESO SEPARADO del propio commit -- no es el resultado
-#      de `gitcmd.commit()`, es una relectura posterior. Un commit ajeno
-#      que aterriza justo en ESE hueco (antes de esta relectura, no
-#      despues) envenena `own_commit_sha` DESDE EL ORIGEN: pasa a valer el
-#      SHA del commit ajeno. La comprobacion de la linea 712
-#      (`current_head != own_commit_sha`) compara entonces el HEAD real
-#      (que sigue siendo el ajeno, sin que nada mas lo mueva) contra ese
-#      mismo valor envenenado -- coinciden, el codigo se cree a salvo, y
-#      procede al reset -- que se come el commit ajeno de todas formas.
+#   - `own_commit_sha` ya NO se lee con un `git rev-parse HEAD` en un
+#     subproceso posterior (lo que el agujero 5 explotaba) -- se lee de la
+#     PRIMERA LINEA de la salida del propio `git commit`
+#     (`_own_commit_sha_from_commit_output()`), la MISMA llamada que crea
+#     el commit, sin ningun subproceso adicional de por medio. El sha
+#     corto de esa linea se expande a 40 caracteres con
+#     `git rev-parse <corto>^{commit}` -- busqueda por CONTENIDO (el
+#     objeto ya existe bajo ese hash), nunca por REFERENCIA -- un commit
+#     ajeno que aterrice justo ahi no cambia a que apunta un hash de
+#     contenido que ya existe.
+#   - El padre se resuelve con `git rev-parse <own_commit_sha>~1` --
+#     tambien por CONTENIDO, no por `HEAD~1` (referencia viva).
+#   - Deshacer es una UNICA llamada atomica:
+#     `git update-ref -m <razon> HEAD <padre> <own_commit_sha>` --
+#     comparar-y-cambiar bajo el candado de referencias del propio git:
+#     mueve `HEAD` a `<padre>` SOLO SI su valor actual es, exactamente,
+#     `own_commit_sha`. Mirar y actuar son el MISMO acto, sin hueco entre
+#     medias en el que un proceso ajeno pueda colarse.
 #
-#   6. Cuando SI se detecta que el historial se movio (punto 9, rama de la
-#      linea 712-724) y se niega a tocar nada -- correcto no tocar nada,
-#      pero el mensaje de ESA rama NUNCA nombra el identificador del
-#      commit corrupto (`own_commit_sha`). La rama hermana, "el reset
-#      fallo" (727-739), SI lo nombra. Es justo en la rama del historial
-#      movido donde mas falta hace: sin el identificador, el commit
-#      corrupto queda enterrado en el historial sin ninguna pista de cual
-#      es.
+# Consecuencia para los tests de aqui abajo, verificada ejecutandolos
+# contra el codigo nuevo ANTES de tocar nada (regla de esta tarea:
+# "averiguarlo antes de tocar nada"): los ganchos de los agujeros 4 y 5
+# filtraban por la forma EXACTA de comandos que ya no existen
+# (`["reset", "--mixed", "HEAD~1"]` y `["rev-parse", "HEAD"]` a secas) --
+# no intervienen nunca, y la propia asercion de montaje de cada test
+# ("el commit ajeno nunca se creo") es la que fallaba, no el mecanismo de
+# `write_work()`. El test del agujero 6 (el mensaje nombra el commit
+# corrupto) SI paso limpio sin tocarlo -- el mismo commit que reescribio el
+# mecanismo ya incluye `own_commit_sha` en el mensaje de la rama de
+# comparar-y-cambiar fallido.
 #
-# Misma tecnica que Cerberus, misma familia que los cuatro tests de arriba:
-# desajuste de hash forzado sustituyendo `notes_commit._committed_blob_hash`,
-# y el commit ajeno inyectado interceptando `gitcmd.run` (agujero 4) o
-# `_committed_blob_hash` (agujeros 5 y 6) -- nunca un hilo real, nunca una
-# ventana de tiempo de la que dependa el color de estos tests.
+# Reapuntados, no reescritos desde cero -- misma propiedad bajo prueba en
+# los dos, misma tecnica de Cerberus (inyectar un commit ajeno real
+# interceptando `gitcmd.run`), solo cambia DONDE se engancha el gancho:
+#
+#   4 (REAPUNTADO). El instante peligroso equivalente ya no es un reset
+#      que resuelve una referencia viva -- es la propia llamada a
+#      `update-ref`. El test intercepta esa llamada por su SUBCOMANDO
+#      (`args[0] == "update-ref"`), nunca por sus argumentos completos
+#      (que incluyen SHAs impredecibles y un texto de mensaje que puede
+#      cambiar) -- exactamente la leccion de esta vuelta: atarse a la
+#      forma exacta del comando es lo que acaba de romperse. Las
+#      aserciones siguen siendo sobre la PROPIEDAD (el commit ajeno sigue
+#      en el log, HEAD sigue siendo el suyo, el mensaje no miente) -- ni
+#      una sola asercion sobre que argumentos exactos llevo el comando.
+#      Ahora pasa limpio: es la prueba viva de que el CAS atomico protege
+#      donde el check-then-act anterior no podia.
+#
+#   5 (RETIRADO). El hueco que probaba -- un commit ajeno envenenando
+#      `own_commit_sha` ANTES de que se lea -- ya no puede existir: la
+#      lectura ya no es un subproceso separado que pueda perder una
+#      carrera, es la salida del PROPIO `git commit` (ya en memoria, sin
+#      ningun subproceso de por medio que un commit ajeno pudiera ganar) y
+#      una expansion corta->completa que busca por CONTENIDO, no por
+#      referencia -- un commit ajeno no puede cambiar a que apunta un hash
+#      ya existente. Intentar reapuntar este test habria significado
+#      interceptar la llamada de expansion (`rev-parse <corto>^{commit}`)
+#      e inyectar un commit ajeno ahi -- probado mentalmente (y coincide
+#      con el propio razonamiento del docstring de
+#      `_own_commit_sha_from_commit_output`): el resultado de esa consulta
+#      no cambia pase lo que pase, porque no depende de ninguna referencia
+#      que se pueda mover, solo de que el objeto exista. Un test asi
+#      pasaria SIEMPRE, no por construccion correcta sino porque no hay
+#      forma real de hacerlo fallar -- verde que no protege nada. Se
+#      retira en vez de dejarlo así; su nombre y motivo quedan aqui por si
+#      la mecanica vuelve a cambiar y hace falta reabrirlo.
+#
+#   6 (SIN CAMBIOS, sigue verde). No se toca -- ya prueba lo que tiene que
+#      probar contra el codigo nuevo sin ningun ajuste.
+#
+# NUEVO (respuesta a la pregunta explicita de esta vuelta -- "¿y si HEAD no
+# es una rama sino un estado suelto?"): `git update-ref HEAD <viejo>
+# <nuevo>` resuelve `HEAD` de forma transparente tanto si es una referencia
+# simbolica a una rama (caso normal) como si es un estado suelto (un SHA
+# directo, sin rama) -- no es una suposicion de este fichero, es
+# comportamiento documentado de `update-ref`. Verificado en vivo, no solo
+# leido: `test_foreign_commit_landing_right_before_the_update_ref_call_
+# survives_in_detached_head_too` monta un repo en HEAD SUELTO (`git
+# checkout --detach`) y repite el mismo ataque -- si esta suposicion fuera
+# falsa, este test fallaria exactamente igual que el agujero 4 original.
+# Pasa limpio: la proteccion generaliza.
+#
+# La otra pregunta explicita ("¿y si el commit ajeno aterriza entre el
+# 'git commit' y la lectura de su salida?") no tiene test dedicado: esa
+# lectura no es un subproceso, es una cadena Python ya en memoria
+# (`git_result.stdout`, capturada por el MISMO `subprocess.run` que crea
+# el commit) -- no hay ningun subproceso adicional ahi en el que un commit
+# ajeno pudiera intercalarse. No se fabrica un test para una ventana que
+# no existe (mismo criterio que el agujero 5, arriba).
 # ---------------------------------------------------------------------------
 
 
-def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
+def test_foreign_commit_landing_right_before_the_update_ref_call_does_not_lose_it(
     notes, notes_commit, gitcmd_mod, tmp_repo, monkeypatch
 ):
-    """Agujero 4: el reset en si mismo (notes_commit.py ~726) resuelve
-    'HEAD~1' en el instante en que el subproceso arranca. Un commit ajeno
-    que aterriza justo ahi -- DESPUES de que el punto 9 ya comprobara que
-    HEAD seguia siendo nuestro, pero ANTES de que el propio comando de
-    reset se ejecute -- tiene que sobrevivir igual: el historial ajeno no
-    se toca, y la respuesta no puede afirmar que se deshizo el commit
-    corrupto sin mas."""
+    """Agujero 4, REAPUNTADO (2026-08-08, misma vuelta): el instante
+    peligroso equivalente ya no es un reset que resuelve 'HEAD~1' como
+    referencia viva -- es la propia llamada de comparar-y-cambiar
+    (`git update-ref HEAD <padre> <own_commit_sha>`). Prueba la PROPIEDAD,
+    no el comando: un commit ajeno real que aterriza en el peor instante
+    posible (justo antes de esa llamada) no se pierde, y lo que
+    `write_work()` devuelve dice la verdad. El gancho intercepta por
+    SUBCOMANDO (`update-ref`), nunca por la lista completa de argumentos
+    -- esos llevan SHAs y un texto que pueden cambiar sin que la propiedad
+    bajo prueba cambie."""
     root = Path(tmp_repo)
     target = root / "work.txt"
     content = b"MARK_HOLE4 contenido real que este escritor prepara\n"
@@ -2581,11 +2643,9 @@ def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
     foreign_sha_holder = {}
 
     def _patched_run(args, cwd, timeout, env=None):
-        if list(args) == ["reset", "--mixed", "HEAD~1"]:
-            # El peor caso posible: el proceso ajeno aterriza en el ULTIMO
-            # instante antes de que el propio comando de reset se ejecute
-            # -- ya pasado el recheck de HEAD que el punto 9 hace justo
-            # antes (notes_commit.py ~709-712).
+        if args and args[0] == "update-ref":
+            # El peor caso posible: el proceso ajeno aterriza justo antes
+            # de que el propio comparar-y-cambiar se ejecute.
             rc, _out, err = run_git(
                 ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE4"],
                 str(cwd),
@@ -2600,7 +2660,7 @@ def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
 
     with _cwd(root):
         result = notes.write_work(
-            "MARK_HOLE4 commit cuyo padre puede dejar de ser el nuestro justo antes del reset",
+            "MARK_HOLE4 commit cuyo padre puede dejar de ser el nuestro justo antes del update-ref",
             [target],
             None,
             known_content=[content],
@@ -2614,10 +2674,9 @@ def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
     rc_head, head_after, err_head = run_git(["rev-parse", "HEAD"], str(root))
     assert rc_head == 0, f"git rev-parse HEAD fallo verificando: {err_head}"
     assert head_after == foreign_sha, (
-        f"el commit ajeno aterrizo DESPUES de que el punto 9 comprobara "
-        f"HEAD y ANTES de que el propio 'git reset --mixed HEAD~1' se "
-        f"ejecutara -- el historial ajeno no se puede tocar: HEAD tiene "
-        f"que seguir siendo {foreign_sha!r}, salio {head_after!r}"
+        f"el commit ajeno aterrizo justo antes de la llamada real de "
+        f"comparar-y-cambiar -- el historial ajeno no se puede tocar: "
+        f"HEAD tiene que seguir siendo {foreign_sha!r}, salio {head_after!r}"
     )
 
     rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
@@ -2628,88 +2687,121 @@ def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
     )
 
     assert "se deshizo" not in (result.git_error or "").lower(), (
-        f"si el reset se comio el commit ajeno, la respuesta no puede "
-        f"afirmar sin mas que 'se deshizo el commit' como si todo hubiera "
-        f"ido segun lo esperado; git_error={result.git_error!r}"
+        f"si el comparar-y-cambiar se hubiera comido el commit ajeno, la "
+        f"respuesta no podria afirmar sin mas que 'se deshizo el commit' "
+        f"como si todo hubiera ido segun lo esperado; "
+        f"git_error={result.git_error!r}"
     )
 
 
-def test_foreign_commit_landing_before_own_commit_sha_capture_does_not_produce_a_false_all_clear(
+def test_foreign_commit_landing_right_before_the_update_ref_call_survives_in_detached_head_too(
     notes, notes_commit, gitcmd_mod, tmp_repo, monkeypatch
 ):
-    """Agujero 5, un paso mas atras que el 4: `own_commit_sha` se captura
-    con un 'git rev-parse HEAD' en un SUBPROCESO SEPARADO del propio
-    commit (notes_commit.py ~679). Un commit ajeno que aterriza JUSTO EN
-    ESE hueco -- antes de esa relectura, no despues -- envenena
-    `own_commit_sha` desde el origen: pasa a valer el SHA del commit
-    ajeno, no el nuestro. La comprobacion de la linea 712 compara
-    entonces el HEAD real (todavia el ajeno) contra ese mismo valor
-    envenenado -- coinciden por construccion, el punto 9 se cree a salvo,
-    y el reset se ejecuta igualmente -- comiendose el commit ajeno por
-    una via distinta a la del agujero 4."""
+    """Respuesta EMPIRICA a la segunda pregunta explicita de esta vuelta:
+    '¿y si HEAD no es una rama sino un estado suelto?'. Mismo ataque que
+    el test de arriba, mismo gancho, unica diferencia: el repo se pone en
+    HEAD SUELTO (`git checkout --detach`) antes de escribir nada. Si
+    `git update-ref HEAD <padre> <own_commit_sha>` no resolviera HEAD
+    igual de bien en este estado, el commit ajeno se perderia exactamente
+    igual que en el agujero 4 original -- este test fallaria con la misma
+    forma. No es una suposicion leida del docstring: es la misma prueba
+    de fuego, en el otro estado posible de HEAD."""
     root = Path(tmp_repo)
+
+    rc_detach, _out, err_detach = run_git(["checkout", "--detach", "HEAD"], str(root))
+    assert rc_detach == 0, f"el montaje es invalido: no se pudo soltar HEAD: {err_detach}"
+    rc_symbolic, symbolic_out, _err = run_git(["symbolic-ref", "-q", "HEAD"], str(root))
+    assert rc_symbolic != 0 and not symbolic_out, (
+        f"el montaje es invalido: HEAD sigue siendo una referencia "
+        f"simbolica tras el checkout --detach -- symbolic-ref devolvio "
+        f"rc={rc_symbolic!r} out={symbolic_out!r}"
+    )
+
     target = root / "work.txt"
-    content = b"MARK_HOLE5 contenido real que este escritor prepara\n"
+    content = b"MARK_HOLE4_DETACHED contenido real que este escritor prepara\n"
     target.write_bytes(content)
 
-    real_run = gitcmd_mod.run
-    rev_parse_head_calls = {"count": 0}
-    foreign_sha_holder = {}
-
-    def _patched_run(args, cwd, timeout, env=None):
-        if list(args) == ["rev-parse", "HEAD"]:
-            rev_parse_head_calls["count"] += 1
-            if rev_parse_head_calls["count"] == 1:
-                # La PRIMERA lectura de HEAD tras comitear es la que se
-                # convierte en own_commit_sha -- el commit ajeno aterriza
-                # justo antes de que ESA lectura, en concreto, se ejecute.
-                rc, _out, err = run_git(
-                    ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE5"],
-                    str(cwd),
-                )
-                assert rc == 0, f"commit ajeno de montaje fallo: {err}"
-                rc2, sha, err2 = run_git(["rev-parse", "HEAD"], str(cwd))
-                assert rc2 == 0, err2
-                foreign_sha_holder["sha"] = sha
-        return real_run(args, cwd, timeout, env)
-
-    monkeypatch.setattr(gitcmd_mod, "run", _patched_run)
     monkeypatch.setattr(
         notes_commit, "_committed_blob_hash", lambda path, root: "0" * 40
     )
 
+    real_run = gitcmd_mod.run
+    foreign_sha_holder = {}
+
+    def _patched_run(args, cwd, timeout, env=None):
+        if args and args[0] == "update-ref":
+            rc, _out, err = run_git(
+                ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE4_DETACHED"],
+                str(cwd),
+            )
+            assert rc == 0, f"commit ajeno de montaje fallo: {err}"
+            rc2, sha, err2 = run_git(["rev-parse", "HEAD"], str(cwd))
+            assert rc2 == 0, err2
+            foreign_sha_holder["sha"] = sha
+        return real_run(args, cwd, timeout, env)
+
+    monkeypatch.setattr(gitcmd_mod, "run", _patched_run)
+
     with _cwd(root):
         result = notes.write_work(
-            "MARK_HOLE5 commit cuyo identificador propio se envenena antes de leerse",
+            "MARK_HOLE4_DETACHED commit cuyo padre puede dejar de ser el nuestro en HEAD suelto",
             [target],
             None,
             known_content=[content],
         )
 
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
     foreign_sha = foreign_sha_holder.get("sha")
     assert foreign_sha, "el montaje de la prueba es invalido: el commit ajeno nunca se creo"
 
-    # La fuente de verdad es git, no lo que la funcion afirma: el commit
-    # ajeno, real y legitimo, tiene que seguir siendo HEAD -- si
-    # `own_commit_sha` se envenena con su propio SHA, el punto 9 compara
-    # el veneno consigo mismo, no detecta nada raro, y el reset que viene
-    # despues se lo come.
     rc_head, head_after, err_head = run_git(["rev-parse", "HEAD"], str(root))
     assert rc_head == 0, f"git rev-parse HEAD fallo verificando: {err_head}"
     assert head_after == foreign_sha, (
-        f"el commit ajeno aterrizo ANTES de que own_commit_sha se "
-        f"capturara -- envenena la referencia desde el origen, y el "
-        f"recheck de la linea 712 compara el veneno consigo mismo. HEAD "
-        f"tiene que seguir siendo el commit ajeno {foreign_sha!r}, salio "
-        f"{head_after!r}"
+        f"con HEAD suelto, el commit ajeno aterrizo justo antes del "
+        f"comparar-y-cambiar -- el historial ajeno no se puede tocar: "
+        f"HEAD tiene que seguir siendo {foreign_sha!r}, salio {head_after!r}"
     )
 
     rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
     assert rc_log == 0, f"git log fallo verificando: {err_log}"
-    assert "MARK_FOREIGN_RELEASE_COMMIT_HOLE5" in log_out, (
-        f"el commit ajeno desaparecio del historial -- exactamente el "
-        f"fallo que este contrato existe para impedir: {log_out!r}"
+    assert "MARK_FOREIGN_RELEASE_COMMIT_HOLE4_DETACHED" in log_out, (
+        f"el commit ajeno desaparecio del historial con HEAD suelto -- "
+        f"exactamente el fallo que este contrato existe para impedir: "
+        f"{log_out!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# RETIRADO (agujero 5), 2026-08-08 -- ver el bloque de comentarios grande
+# de mas arriba para el razonamiento completo. Nombre que tenia este test:
+# `test_foreign_commit_landing_before_own_commit_sha_capture_does_not_
+# produce_a_false_all_clear`. Probaba que un commit ajeno aterrizando
+# ANTES de que `own_commit_sha` se leyera podia envenenar esa lectura
+# desde el origen -- valido contra el codigo de la vuelta anterior, donde
+# esa lectura era un `git rev-parse HEAD` en un subproceso separado (una
+# referencia VIVA, que un commit ajeno si podia mover antes de que el
+# subproceso arrancara).
+#
+# La reescritura de Ultron (misma vuelta, mismo dia) elimina esa lectura
+# por completo: `own_commit_sha` sale ahora de la PRIMERA LINEA de la
+# salida del propio `git commit` (`_own_commit_sha_from_commit_output()`,
+# notes_commit.py) -- ya en memoria, sin ningun subproceso adicional en el
+# que un commit ajeno pudiera ganar la carrera -- y el sha corto de esa
+# linea se expande a 40 caracteres con `git rev-parse <corto>^{commit}`,
+# una busqueda por CONTENIDO: el objeto ya existe bajo ese hash, y ningun
+# commit ajeno que aterrice despues cambia a que apunta un hash que ya
+# existe.
+#
+# Reapuntar este test habria significado interceptar esa llamada de
+# expansion e inyectar ahi un commit ajeno -- pero su resultado no puede
+# cambiar por eso: no depende de ninguna referencia movible, solo de que
+# el objeto ya exista en la base de datos de git. Un test asi pasaria
+# SIEMPRE, no porque el mecanismo lo proteja sino porque no hay forma real
+# de hacerlo fallar -- verde por construccion, que es exactamente lo que
+# esta obra pide no dejar pasar ("un test que no puede fallar no protege
+# nada"). Se retira con el motivo escrito en vez de forzar un montaje
+# artificial.
 
 
 def test_head_moved_message_names_the_corrupt_commit_identifier(
