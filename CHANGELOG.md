@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`gitmem wip` no guardaba nada en Windows**, y llevaba así desde la 1.32.0. La verificación que se añadió para detectar contenido cruzado comparaba los bytes tal cual contra el blob que git guarda **después** de normalizar los finales de línea — cosa que git hace por defecto en Windows. Nunca coincidían, así que el sistema leía cada commit legítimo como sabotaje, lo deshacía, y decía *«otro proceso lo pisó»* sin que hubiera nadie. Ahora se compara contra el blob que git de verdad guardaría para esa ruta.
+- **Deshacer un commit corrupto podía llevarse por delante un commit ajeno y legítimo, y mentir sobre lo que había hecho.** El mecanismo comprobaba que el historial no se hubiera movido y **después** ejecutaba `git reset --mixed HEAD~1` — una referencia que git resuelve en el instante de ejecutarse, no en el de la comprobación. Entre las dos cosas cabía un commit de otro proceso (una publicación, un commit a mano), y el reset se lo llevaba mientras el corrupto sobrevivía; el mensaje afirmaba lo contrario en las dos direcciones. Reproducido en vivo tres veces, cada una en un punto distinto.
+  Cerrado cambiando de forma, no de cuidado: el deshacer es ahora **un único comando atómico** que lleva la condición dentro (`git update-ref` con el valor esperado) y falla solo si algo se movió. Mirar y actuar dejaron de ser dos momentos. Y el identificador del commit propio ya no se lee con un comando aparte: sale de la salida del propio `git commit`.
+- **Un commit podía guardarse con el contenido de otro escritor bajo el mensaje del primero, y decir que todo fue bien.** Es el caso que la deuda tenía descartado desde el 4 de agosto por *«no va a pasar nunca»* — cierto cuando el único que escribía era una persona en una ventana, falso ahora que pueden ser dos agentes a la vez. Se verifica después de commitear y, si lo commiteado no es lo que se preparó, se deshace y se dice.
+
+### Changed
+
+- **Los tests del deshacer fijan la propiedad, no el comando.** Dos de ellos espiaban comandos concretos de git y se rompieron cuando el arreglo bueno los eliminó; se reapuntaron a lo que de verdad importa —que un commit ajeno no se pierde y que el mensaje no miente— y uno se retiró con el motivo escrito, porque el hueco que probaba dejó de poder existir.
+
 ## [1.33.0] - 2026-08-08
 
 ### Fixed
