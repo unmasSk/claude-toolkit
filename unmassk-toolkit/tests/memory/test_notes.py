@@ -123,6 +123,19 @@ def notes_commit():
 
 
 @pytest.fixture
+def gitcmd_mod():
+    """El modulo `gitcmd`, la MISMA instancia que `notes_commit.gitcmd`
+    referencia por dentro (import PLANO entre hermanos de `lib/memory/`,
+    mismo mecanismo de `sys.modules` compartido que explica el fixture
+    `notes_commit` de arriba). Parchear `gitcmd_mod.run` aqui es lo que
+    permite interceptar UNA llamada concreta (por sus argumentos exactos)
+    dentro de `write_work()` sin tocar `lib/memory/gitcmd.py` -- tecnica
+    de Cerberus, reproducida en `prove_hole4.py`.
+    """
+    return import_lib_memory_module("gitcmd")
+
+
+@pytest.fixture
 def query():
     return import_lib_memory_module("query")
 
@@ -2494,4 +2507,259 @@ def test_matching_content_undoes_nothing(notes, notes_commit, tmp_repo):
     assert "MARK_HAPPY_PATH" in log_out, (
         f"el commit del camino feliz tiene que seguir siendo HEAD, nada se "
         f"deshizo: {log_out!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contrato en ROJO, CUARTA vuelta sobre el mismo punto (Cerberus, 2026-08-08,
+# reproducido en vivo con `prove_hole4.py` -- ver
+# /private/tmp/claude-501/-Users-unmassk-Workspace-claude-toolkit/
+# 14757cf4-3930-4b7a-a25b-7688c36efc7a/scratchpad/prove_hole4.py, usado
+# como punto de partida de la tecnica de aqui abajo). El punto 9 de
+# `write_work()` (notes_commit.py ~702-750) ya cierra el agujero de la
+# vuelta anterior comprobando `HEAD` ANTES de intentar el reset -- pero
+# quedan dos huecos MAS ESTRECHOS en el mismo patron, y un tercero de
+# calidad del mensaje:
+#
+#   4. El propio `git reset --mixed HEAD~1` (linea ~726) sigue resolviendo
+#      "HEAD~1" como referencia VIVA en el instante en que el subproceso
+#      arranca -- no una referencia fija al padre de `own_commit_sha`. Si
+#      un commit ajeno aterriza justo entre la comprobacion de la linea
+#      709-712 y la ejecucion real del comando de reset, ese commit ajeno
+#      se convierte en el nuevo HEAD, `HEAD~1` pasa a ser NUESTRO propio
+#      commit, y el reset lo borra -- exactamente el mismo peligro que el
+#      punto 9 dice haber cerrado, en una ventana mas estrecha.
+#
+#   5. `own_commit_sha` (linea 679) se captura con un `git rev-parse HEAD`
+#      en un SUBPROCESO SEPARADO del propio commit -- no es el resultado
+#      de `gitcmd.commit()`, es una relectura posterior. Un commit ajeno
+#      que aterriza justo en ESE hueco (antes de esta relectura, no
+#      despues) envenena `own_commit_sha` DESDE EL ORIGEN: pasa a valer el
+#      SHA del commit ajeno. La comprobacion de la linea 712
+#      (`current_head != own_commit_sha`) compara entonces el HEAD real
+#      (que sigue siendo el ajeno, sin que nada mas lo mueva) contra ese
+#      mismo valor envenenado -- coinciden, el codigo se cree a salvo, y
+#      procede al reset -- que se come el commit ajeno de todas formas.
+#
+#   6. Cuando SI se detecta que el historial se movio (punto 9, rama de la
+#      linea 712-724) y se niega a tocar nada -- correcto no tocar nada,
+#      pero el mensaje de ESA rama NUNCA nombra el identificador del
+#      commit corrupto (`own_commit_sha`). La rama hermana, "el reset
+#      fallo" (727-739), SI lo nombra. Es justo en la rama del historial
+#      movido donde mas falta hace: sin el identificador, el commit
+#      corrupto queda enterrado en el historial sin ninguna pista de cual
+#      es.
+#
+# Misma tecnica que Cerberus, misma familia que los cuatro tests de arriba:
+# desajuste de hash forzado sustituyendo `notes_commit._committed_blob_hash`,
+# y el commit ajeno inyectado interceptando `gitcmd.run` (agujero 4) o
+# `_committed_blob_hash` (agujeros 5 y 6) -- nunca un hilo real, nunca una
+# ventana de tiempo de la que dependa el color de estos tests.
+# ---------------------------------------------------------------------------
+
+
+def test_foreign_commit_landing_right_before_the_reset_call_does_not_lose_it(
+    notes, notes_commit, gitcmd_mod, tmp_repo, monkeypatch
+):
+    """Agujero 4: el reset en si mismo (notes_commit.py ~726) resuelve
+    'HEAD~1' en el instante en que el subproceso arranca. Un commit ajeno
+    que aterriza justo ahi -- DESPUES de que el punto 9 ya comprobara que
+    HEAD seguia siendo nuestro, pero ANTES de que el propio comando de
+    reset se ejecute -- tiene que sobrevivir igual: el historial ajeno no
+    se toca, y la respuesta no puede afirmar que se deshizo el commit
+    corrupto sin mas."""
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_HOLE4 contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    monkeypatch.setattr(
+        notes_commit, "_committed_blob_hash", lambda path, root: "0" * 40
+    )
+
+    real_run = gitcmd_mod.run
+    foreign_sha_holder = {}
+
+    def _patched_run(args, cwd, timeout, env=None):
+        if list(args) == ["reset", "--mixed", "HEAD~1"]:
+            # El peor caso posible: el proceso ajeno aterriza en el ULTIMO
+            # instante antes de que el propio comando de reset se ejecute
+            # -- ya pasado el recheck de HEAD que el punto 9 hace justo
+            # antes (notes_commit.py ~709-712).
+            rc, _out, err = run_git(
+                ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE4"],
+                str(cwd),
+            )
+            assert rc == 0, f"commit ajeno de montaje fallo: {err}"
+            rc2, sha, err2 = run_git(["rev-parse", "HEAD"], str(cwd))
+            assert rc2 == 0, err2
+            foreign_sha_holder["sha"] = sha
+        return real_run(args, cwd, timeout, env)
+
+    monkeypatch.setattr(gitcmd_mod, "run", _patched_run)
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_HOLE4 commit cuyo padre puede dejar de ser el nuestro justo antes del reset",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
+    foreign_sha = foreign_sha_holder.get("sha")
+    assert foreign_sha, "el montaje de la prueba es invalido: el commit ajeno nunca se creo"
+
+    rc_head, head_after, err_head = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_head == 0, f"git rev-parse HEAD fallo verificando: {err_head}"
+    assert head_after == foreign_sha, (
+        f"el commit ajeno aterrizo DESPUES de que el punto 9 comprobara "
+        f"HEAD y ANTES de que el propio 'git reset --mixed HEAD~1' se "
+        f"ejecutara -- el historial ajeno no se puede tocar: HEAD tiene "
+        f"que seguir siendo {foreign_sha!r}, salio {head_after!r}"
+    )
+
+    rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
+    assert rc_log == 0, f"git log fallo verificando: {err_log}"
+    assert "MARK_FOREIGN_RELEASE_COMMIT_HOLE4" in log_out, (
+        f"el commit ajeno desaparecio del historial -- exactamente el "
+        f"fallo que este contrato existe para impedir: {log_out!r}"
+    )
+
+    assert "se deshizo" not in (result.git_error or "").lower(), (
+        f"si el reset se comio el commit ajeno, la respuesta no puede "
+        f"afirmar sin mas que 'se deshizo el commit' como si todo hubiera "
+        f"ido segun lo esperado; git_error={result.git_error!r}"
+    )
+
+
+def test_foreign_commit_landing_before_own_commit_sha_capture_does_not_produce_a_false_all_clear(
+    notes, notes_commit, gitcmd_mod, tmp_repo, monkeypatch
+):
+    """Agujero 5, un paso mas atras que el 4: `own_commit_sha` se captura
+    con un 'git rev-parse HEAD' en un SUBPROCESO SEPARADO del propio
+    commit (notes_commit.py ~679). Un commit ajeno que aterriza JUSTO EN
+    ESE hueco -- antes de esa relectura, no despues -- envenena
+    `own_commit_sha` desde el origen: pasa a valer el SHA del commit
+    ajeno, no el nuestro. La comprobacion de la linea 712 compara
+    entonces el HEAD real (todavia el ajeno) contra ese mismo valor
+    envenenado -- coinciden por construccion, el punto 9 se cree a salvo,
+    y el reset se ejecuta igualmente -- comiendose el commit ajeno por
+    una via distinta a la del agujero 4."""
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_HOLE5 contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    real_run = gitcmd_mod.run
+    rev_parse_head_calls = {"count": 0}
+    foreign_sha_holder = {}
+
+    def _patched_run(args, cwd, timeout, env=None):
+        if list(args) == ["rev-parse", "HEAD"]:
+            rev_parse_head_calls["count"] += 1
+            if rev_parse_head_calls["count"] == 1:
+                # La PRIMERA lectura de HEAD tras comitear es la que se
+                # convierte en own_commit_sha -- el commit ajeno aterriza
+                # justo antes de que ESA lectura, en concreto, se ejecute.
+                rc, _out, err = run_git(
+                    ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE5"],
+                    str(cwd),
+                )
+                assert rc == 0, f"commit ajeno de montaje fallo: {err}"
+                rc2, sha, err2 = run_git(["rev-parse", "HEAD"], str(cwd))
+                assert rc2 == 0, err2
+                foreign_sha_holder["sha"] = sha
+        return real_run(args, cwd, timeout, env)
+
+    monkeypatch.setattr(gitcmd_mod, "run", _patched_run)
+    monkeypatch.setattr(
+        notes_commit, "_committed_blob_hash", lambda path, root: "0" * 40
+    )
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_HOLE5 commit cuyo identificador propio se envenena antes de leerse",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    foreign_sha = foreign_sha_holder.get("sha")
+    assert foreign_sha, "el montaje de la prueba es invalido: el commit ajeno nunca se creo"
+
+    # La fuente de verdad es git, no lo que la funcion afirma: el commit
+    # ajeno, real y legitimo, tiene que seguir siendo HEAD -- si
+    # `own_commit_sha` se envenena con su propio SHA, el punto 9 compara
+    # el veneno consigo mismo, no detecta nada raro, y el reset que viene
+    # despues se lo come.
+    rc_head, head_after, err_head = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_head == 0, f"git rev-parse HEAD fallo verificando: {err_head}"
+    assert head_after == foreign_sha, (
+        f"el commit ajeno aterrizo ANTES de que own_commit_sha se "
+        f"capturara -- envenena la referencia desde el origen, y el "
+        f"recheck de la linea 712 compara el veneno consigo mismo. HEAD "
+        f"tiene que seguir siendo el commit ajeno {foreign_sha!r}, salio "
+        f"{head_after!r}"
+    )
+
+    rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
+    assert rc_log == 0, f"git log fallo verificando: {err_log}"
+    assert "MARK_FOREIGN_RELEASE_COMMIT_HOLE5" in log_out, (
+        f"el commit ajeno desaparecio del historial -- exactamente el "
+        f"fallo que este contrato existe para impedir: {log_out!r}"
+    )
+
+
+def test_head_moved_message_names_the_corrupt_commit_identifier(
+    notes, notes_commit, tmp_repo, monkeypatch
+):
+    """Agujero 6, de calidad del mensaje, no de historial: cuando el punto
+    9 SI detecta que el historial se movio y se niega a tocar nada (rama
+    de notes_commit.py ~712-724), esa rama nunca nombra el identificador
+    del commit corrupto (`own_commit_sha`) -- a diferencia de su rama
+    hermana, "el reset fallo" (~727-739), que si lo hace. Sin el
+    identificador, el commit corrupto queda vivo en el historial sin
+    ninguna pista de cual es -- justo la rama donde mas falta hace, porque
+    aqui el commit corrupto SIGUE siendo HEAD (nada se deshizo)."""
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_HOLE6 contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    captured = {}
+
+    def _fake_committed_blob_hash(path, repo_root):
+        if "own_sha" not in captured:
+            rc_own, own_sha, err_own = run_git(["rev-parse", "HEAD"], str(repo_root))
+            assert rc_own == 0, f"rev-parse de montaje fallo: {err_own}"
+            captured["own_sha"] = own_sha
+            rc_foreign, _out, err_foreign = run_git(
+                ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT_HOLE6"],
+                str(repo_root),
+            )
+            assert rc_foreign == 0, f"commit ajeno de montaje fallo: {err_foreign}"
+        return "0" * 40
+
+    monkeypatch.setattr(notes_commit, "_committed_blob_hash", _fake_committed_blob_hash)
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_HOLE6 commit corrupto cuyo identificador tiene que quedar nombrado",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
+    own_sha = captured.get("own_sha")
+    assert own_sha, "el montaje de la prueba es invalido: own_sha nunca se capturo"
+
+    assert own_sha in (result.git_error or ""), (
+        f"con el historial movido y nada deshecho, el commit corrupto "
+        f"{own_sha!r} SIGUE siendo HEAD -- la respuesta tiene que nombrar "
+        f"su identificador para poder arreglarlo a mano, igual que ya "
+        f"hace la rama hermana del reset fallido; git_error={result.git_error!r}"
     )
