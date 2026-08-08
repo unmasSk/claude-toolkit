@@ -1310,7 +1310,17 @@ class TestLeadingCdOverridesSessionCwd:
         seed_config_json(target_repo, customs_enabled=True)
         seed_zones_json(target_repo, ["infra", "deploy"])
 
-        command = f"cd {target_repo} && {_invalid_note_command('infra', 'deploy')}"
+        # `.as_posix()`, no `str(target_repo)` crudo -- en Windows
+        # `target_repo` trae barras invertidas (`C:\Users\...`), y
+        # `shlex.shlex(..., posix=True)` (usado dentro de `customs.py` para
+        # partir la sentencia `cd`) SE COME las barras invertidas como
+        # escapes: el destino queda hecho basura, `os.path.isdir` da falso,
+        # el `cwd` no cambia, y la aduana evalua el repositorio de la
+        # sesion (apagado en este test) en vez del de destino -- rojo SOLO
+        # en Windows, confirmado por House ejecutando en CI. `.as_posix()`
+        # da `C:/Users/...`, que sobrevive a `shlex` y que `os.path.isdir`
+        # resuelve bien en Windows/Linux/macOS por igual.
+        command = f"cd {Path(target_repo).as_posix()} && {_invalid_note_command('infra', 'deploy')}"
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
 
         assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
@@ -1329,7 +1339,9 @@ class TestLeadingCdOverridesSessionCwd:
         seed_config_json(target_repo, customs_enabled=True)
         seed_zones_json(target_repo, ["infra", "deploy"])
 
-        command = f"cd {target_repo}; {_invalid_note_command('infra', 'deploy')}"
+        # `.as_posix()` -- ver el comentario identico en
+        # `test_cd_with_double_ampersand_uses_cd_target` arriba.
+        command = f"cd {Path(target_repo).as_posix()}; {_invalid_note_command('infra', 'deploy')}"
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
 
         assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
@@ -1494,8 +1506,20 @@ class TestCdPathExpansionAndQuoting:
         seed_zones_json(home_target, ["infra", "deploy"])
 
         command = f"cd ~/homerepo && {_invalid_note_command('infra', 'deploy')}"
+        # `HOME` solo no basta en Windows: `ntpath.expanduser` (fuente de
+        # CPython, leido por House) lee `USERPROFILE` primero, y si no
+        # existe `HOMEDRIVE`+`HOMEPATH` -- NUNCA `HOME`. Sin `USERPROFILE`
+        # en el entorno del hijo, `~` se expande contra el perfil REAL del
+        # runner de Windows en vez de contra `fake_home`, y este test no
+        # prueba nada alli (aprobaria o bloquearia por casualidad, segun lo
+        # que hubiera en ese perfil). En POSIX `USERPROFILE` no significa
+        # nada -- `os.path.expanduser` lo ignora y sigue leyendo `HOME` --
+        # asi que pasar los dos a la vez es correcto en los tres sistemas,
+        # no una rama condicional por plataforma dentro del test.
         rc, parsed, stdout, stderr = run_customs_hook(
-            session_repo, command, env={"HOME": str(fake_home)},
+            session_repo,
+            command,
+            env={"HOME": str(fake_home), "USERPROFILE": str(fake_home)},
         )
 
         assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
@@ -1543,6 +1567,87 @@ class TestCdPathExpansionAndQuoting:
         assert parsed.get("decision") == "block", (
             f"\"cd '{target_repo}'\" (comillas simples, espacios dentro) "
             f"tiene que reconocerse como UNA sola ruta; llego {parsed!r}"
+        )
+
+
+class TestGitBashStyleAbsolutePathResolvesToTheRealTargetRepo:
+    """Sospecha de House, NO confirmada -- sin maquina Windows a mano para
+    ejecutarlo. Se escribe igual porque el razonamiento tiene sitio real y
+    el coste de fijarlo es bajo; el color en Windows es informacion nueva,
+    no un requisito para que este test tenga valor.
+
+    Git Bash en Windows traduce una ruta absoluta como `C:\\Users\\x\\proj`
+    a su propio formato POSIX: `/c/Users/x/proj` -- es el idioma normal de
+    cualquiera que use git desde Git Bash en Windows (el shell mas comun
+    ahi para trabajar con git), no un caso de laboratorio.
+
+    Leido `_resolve_effective_cwd()` (hooks/customs.py ~330-398, SOLO
+    LECTURA -- esta fase no toca produccion, ver regla del encargo):
+
+        target = os.path.expanduser(raw_target)
+        candidate = target if os.path.isabs(target) else os.path.join(cwd, target)
+        if os.path.isdir(candidate):
+            cwd = os.path.normpath(candidate)
+
+    En Windows, `ntpath.isabs("/c/Users/x/proj")` devuelve `True` (empieza
+    por `/`) -- entra por la rama "ya es absoluta" SIN traducir el prefijo
+    `/c/` a la unidad real `C:\\`. `os.path.isdir("/c/Users/x/proj")` en
+    Windows busca una carpeta llamada LITERALMENTE "c" bajo la raiz de la
+    unidad actual, no la unidad C: -- normalmente no existe. Si el
+    razonamiento es correcto, la sentencia `cd` se ignora en silencio, el
+    `cwd` no cambia, y la aduana evalua el repositorio de la SESION en vez
+    del de destino: el mismo fallo T1 que el resto de este fichero ya
+    corrige para las demas formas de `cd` (`&&`, `;`, encadenados,
+    relativos, `~`, comillas), pero sin cubrir para esta.
+
+    Si sale ROJO en Windows: hallazgo real de `customs.py`, para Ultron --
+    no del arnes. La prueba: no toca ninguna barra invertida de Python
+    (`Path.as_posix()`, el arreglo de los siete tests de arriba), toca una
+    traduccion de FORMATO de ruta que `_resolve_effective_cwd` no hace.
+    Si sale VERDE: la sospecha era infundada (quiza `os.path.isdir`
+    resuelve `/c/...` de otra forma en Windows de la que este razonamiento
+    no da cuenta), y queda como red de regresion.
+
+    Se salta en macOS/Linux -- `/c/Users/...` no es una convencion real
+    fuera de Windows, no hay nada que este test pudiera comprobar alli."""
+
+    @pytest.mark.skipif(
+        sys.platform != "win32",
+        reason=(
+            "/c/Users/... es la traduccion de Git Bash de una ruta de Windows -- "
+            "no existe una unidad C: en macOS/Linux, este test no tiene "
+            "equivalente fuera de Windows"
+        ),
+    )
+    def test_git_bash_style_absolute_path_resolves_to_the_real_target_repo(
+        self, tmp_path, tmp_repo,
+    ):
+        session_repo = tmp_repo
+        seed_config_json(session_repo, customs_enabled=False)
+
+        target_repo = _init_repo(tmp_path / "gitbash-target")
+        seed_config_json(target_repo, customs_enabled=True)
+        seed_zones_json(target_repo, ["infra", "deploy"])
+
+        drive = Path(target_repo).drive
+        assert drive, (
+            f"el montaje de la prueba es invalido: {target_repo!r} no "
+            f"trae letra de unidad -- este test solo tiene sentido en Windows"
+        )
+        rest = Path(target_repo).as_posix()[len(drive):]
+        git_bash_target = f"/{drive[0].lower()}{rest}"
+
+        command = f"cd {git_bash_target} && {_invalid_note_command('infra', 'deploy')}"
+        rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
+
+        assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
+        assert parsed is not None, f"stdout no es JSON valido: {stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"'cd {git_bash_target}' (estilo Git Bash) tiene que resolver "
+            f"al repositorio real de destino ({target_repo!r}, encendido) "
+            f"y bloquear -- si aprueba, la aduana esta evaluando la sesion "
+            f"(apagada) porque no tradujo el prefijo /c/ a la unidad "
+            f"Windows real; llego {parsed!r}"
         )
 
 
@@ -1615,8 +1720,12 @@ class TestChainedCdLastOneWins:
         seed_config_json(last_target, customs_enabled=True)
         seed_zones_json(last_target, ["infra", "deploy"])
 
+        # `.as_posix()` en los dos -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` mas arriba (mismo motivo:
+        # `shlex(..., posix=True)` se come las barras invertidas de Windows).
         command = (
-            f"cd {first_target} && cd {last_target} && "
+            f"cd {Path(first_target).as_posix()} && "
+            f"cd {Path(last_target).as_posix()} && "
             f"{_invalid_note_command('infra', 'deploy')}"
         )
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
@@ -1686,7 +1795,9 @@ class TestCdFixDoesNotBreakExistingSafetyNets:
         target_repo = _init_repo(tmp_path / "rescue-corrupt-target")
         _write_corrupt_json(target_repo, "config.json")
 
-        command = f"cd {target_repo} && git merge --abort"
+        # `.as_posix()` -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` mas arriba.
+        command = f"cd {Path(target_repo).as_posix()} && git merge --abort"
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
 
         assert rc == 0, f"el proceso del hook fallo: rc={rc}, stderr={stderr!r}"
@@ -1711,8 +1822,10 @@ class TestCdFixDoesNotBreakExistingSafetyNets:
         target_repo = _init_repo(tmp_path / "escape-hatch-target")
         _write_corrupt_json(target_repo, "config.json")
 
+        # `.as_posix()` -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` mas arriba.
         command = (
-            f"cd {target_repo} && "
+            f"cd {Path(target_repo).as_posix()} && "
             f"{_commit_command('fix: a normal code commit, not a memory note')}"
         )
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
@@ -1813,9 +1926,12 @@ class TestCdAfterCommitStatementDoesNotOverrideEffectiveCwd:
         repo_b = _init_repo(tmp_path / "repo-b-after-commit")
         seed_config_json(repo_b, customs_enabled=False)
 
+        # `.as_posix()` en los dos -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` mas arriba.
         command = (
-            f"cd {repo_a} && {_invalid_note_command('infra', 'deploy')} "
-            f"&& cd {repo_b}"
+            f"cd {Path(repo_a).as_posix()} && "
+            f"{_invalid_note_command('infra', 'deploy')} "
+            f"&& cd {Path(repo_b).as_posix()}"
         )
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
 
@@ -1852,10 +1968,13 @@ class TestCdAfterCommitStatementDoesNotOverrideEffectiveCwd:
         after_commit_target = _init_repo(tmp_path / "chain2-after-commit")
         seed_config_json(after_commit_target, customs_enabled=False)
 
+        # `.as_posix()` en los tres -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` mas arriba.
         command = (
-            f"cd {first_target} && cd {winning_target} && "
+            f"cd {Path(first_target).as_posix()} && "
+            f"cd {Path(winning_target).as_posix()} && "
             f"{_invalid_note_command('infra', 'deploy')} && "
-            f"cd {after_commit_target}"
+            f"cd {Path(after_commit_target).as_posix()}"
         )
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
 
