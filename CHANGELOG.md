@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-08-08
+
 ### Fixed
 
 - **En Windows con Git Bash, la aduana decidía sobre el proyecto equivocado.** Ahí una ruta absoluta se escribe `/c/Users/x/proyecto`, y el hook no la reconocía como tal: ignoraba el `cd` y evaluaba el proyecto de la sesión en vez del de destino. O sea que `cd /c/otro && git commit ...` **podía aprobar un commit que tenía que bloquear**, y al revés. La aduana es lo que decide si un commit pasa, así que era lo más grave que podía fallar ahí. Lo destapó un test escrito a propósito para averiguarlo, que solo corre en Windows.
