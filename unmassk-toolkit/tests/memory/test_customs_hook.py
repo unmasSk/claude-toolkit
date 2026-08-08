@@ -1759,8 +1759,16 @@ class TestCdNotAtBeginningStillApplies:
         seed_config_json(target_repo, customs_enabled=True)
         seed_zones_json(target_repo, ["infra", "deploy"])
 
+        # `.as_posix()` -- ver el comentario en
+        # `TestLeadingCdOverridesSessionCwd` (arriba del todo del fichero).
+        # Se me escapo en la primera pasada: mi busqueda de entonces asumia
+        # que todo `cd` era el PRIMER token del comando (`f"cd {...`), y
+        # aqui va detras de `echo hello &&` -- la comilla no queda pegada a
+        # `cd`, el patron no lo vio. `target_repo` es una ruta absoluta
+        # igual que las otras siete, mismo fallo en Windows: `str(Path)`
+        # con barras invertidas, comidas por `shlex(posix=True)`.
         command = (
-            f"echo hello && cd {target_repo} && "
+            f"echo hello && cd {Path(target_repo).as_posix()} && "
             f"{_invalid_note_command('infra', 'deploy')}"
         )
         rc, parsed, stdout, stderr = run_customs_hook(session_repo, command)
