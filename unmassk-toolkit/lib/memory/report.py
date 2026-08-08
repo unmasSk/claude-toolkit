@@ -179,6 +179,19 @@ def build_word(word: str, include_archived: bool) -> WordReport:
     """La busqueda por palabra: un ``WordChunk`` por pareja de zonas que
     caso, con el estado COMPLETO de esa pareja (fila 5 de Sec.9.2, "Sus
     tests") y que notas de esa pareja casaron de verdad.
+
+    ``WordReport.word`` se guarda en minusculas -- es la palabra
+    BUSCADA (una llave), no el texto de ninguna nota, y la comparacion
+    en ``query.by_word`` ya es insensible a mayusculas [hallazgo en
+    vivo 2026-08-06, docstring de ``query.by_word``]. Sin esto el
+    informe repetia la palabra tal cual se tecleo (`WINDOWS`) aunque la
+    busqueda ya encontrara `windows`/`Windows` por igual -- normalizar
+    aqui, en el constructor, y no en ``report_render.py``, porque este
+    modulo es el que "decide QUE se enseña" [docstring de
+    ``report_render.py``]; el pintor solo pinta lo que recibe. Las
+    lineas que casaron dentro de cada nota siguen con su texto
+    ORIGINAL -- eso no cambia, solo la palabra buscada que se repite en
+    la cabecera y en el pie del informe.
     """
     root = _repo_root()
     pm_root = notes.pm_root(root)
@@ -200,7 +213,7 @@ def build_word(word: str, include_archived: bool) -> WordReport:
     chunks.sort(key=lambda c: (c.zone1, c.zone2))
 
     return WordReport(
-        word=word,
+        word=word.lower(),
         generated_at=_now(),
         zone_count=len(chunks),
         live_count=sum(len(c.matched_ids) for c in chunks),
