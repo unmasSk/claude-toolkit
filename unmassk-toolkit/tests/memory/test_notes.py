@@ -105,6 +105,24 @@ def notes():
 
 
 @pytest.fixture
+def notes_commit():
+    """El modulo donde vive `write_work()` de verdad -- `notes.write_work`
+    es EL MISMO objeto funcion (import PLANO, ver docstring de
+    notes_commit.py: "notes.py importa los siete nombres de aqui de forma
+    PLANA"), asi que sus nombres globales (`_committed_blob_hash`,
+    `_git_blob_hash_of_bytes`, `gitcmd`, ...) se resuelven en el
+    `__dict__` de ESTE modulo, no en el de `notes`. `import_lib_memory_module`
+    registra bajo el nombre plano en `sys.modules` (ver su propio
+    docstring, "REGISTRO BAJO EL NOMBRE PLANO") y adopta la instancia que
+    `notes.py` ya cargo por su cuenta si llega primero -- pedir `notes_commit`
+    aqui, en vez de `notes`, siempre da el objeto que `write_work()` ve de
+    verdad en tiempo de ejecucion, monkeypatchear un atributo aqui SI
+    afecta a lo que la funcion ejecuta.
+    """
+    return import_lib_memory_module("notes_commit")
+
+
+@pytest.fixture
 def query():
     return import_lib_memory_module("query")
 
@@ -201,6 +219,22 @@ def _cwd(path):
         yield
     finally:
         os.chdir(previous)
+
+
+def _empty_repo(tmp_path, name="empty_repo_no_parent"):
+    """Repo git real con CERO commits -- distinto de `tmp_repo`
+    (conftest.py), que ya trae un commit `init` de fabrica. Hace falta
+    para reproducir, sin depender de nada probabilistico, el caso en que
+    `git reset --mixed HEAD~1` FALLA de verdad: un commit que es el
+    PRIMERO del repositorio no tiene padre, y `HEAD~1` no resuelve --
+    mismo patron que `_zero_commit_repo` en test_context.py, reescrito
+    aqui sin importar de un fichero companero.
+    """
+    repo = tmp_path / name
+    repo.mkdir()
+    rc, _out, err = run_git(["init"], str(repo))
+    assert rc == 0, f"git init fallo montando el repo sin commits: {err}"
+    return repo
 
 
 @contextlib.contextmanager
@@ -2208,4 +2242,256 @@ def test_write_work_with_directory_path_and_known_content_none_fails_clean_not_a
         "write_work() devolvio ok=False para la ruta-directorio pero sin causa en "
         "git_error -- fallar en silencio es el mismo defecto que el resto de este "
         "fichero de tests existe para prevenir"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contrato en ROJO, tercera vuelta sobre el mismo punto (Cerberus, 2026-08-08):
+# el punto 8 de `write_work()` (notes_commit.py ~489-527) detecta un commit
+# que se llevo el contenido de otro escritor y lo deshace con
+# `git reset --mixed HEAD~1` -- pero el propio arreglo tiene DOS agujeros que
+# `hooks/customs.py` NO se toca aqui, y `lib/memory/` TAMPOCO -- Ultron
+# arregla, esto solo fija el contrato:
+#
+#   1. El resultado del reset (linea ~602) se descarta entero -- si el
+#      reset falla (repo sin HEAD~1, primer commit; o el indice ocupado por
+#      otro proceso), el commit corrupto se queda como HEAD y la funcion
+#      devuelve igual el texto fijo "Se deshizo el commit..." -- miente.
+#   2. `HEAD~1` se resuelve EN EL MOMENTO del reset, no se fija al padre del
+#      commit propio en cuanto ese commit se crea. El docstring lo justifica
+#      con el candado global -- pero eso solo cubre a quien USA ese candado,
+#      y `bin/release.py` no lo usa. Si otro proceso comitea de verdad entre
+#      nuestro commit y esta verificacion, `HEAD~1` deja de ser nuestro
+#      padre: pasa a ser nuestro PROPIO commit, y el reset borra el commit
+#      legitimo del otro proceso.
+#
+# Los cuatro tests de aqui abajo comparan el HISTORIAL DE GIT REAL (nunca lo
+# que `WriteResult`/`git_error` afirman) contra lo que estos deberian hacer.
+# El desajuste de hash que dispara la rama del reset se fuerza sustituyendo
+# `notes_commit._committed_blob_hash` -- tecnica de Cerberus, deterministica
+# al 100%, nunca una carrera real de la que dependa el color del test.
+# ---------------------------------------------------------------------------
+
+
+def test_reset_failure_leaves_the_corrupt_commit_alive_and_names_it(
+    notes, notes_commit, tmp_path, monkeypatch
+):
+    """Agujero 1: si el reset FALLA (repo sin padre -- el commit que
+    `write_work()` acaba de crear es el PRIMERO del repositorio, no existe
+    `HEAD~1`), el commit corrupto sigue siendo HEAD de verdad. La respuesta
+    tiene que decirlo -- nombrar su identificador para poder arreglarlo a
+    mano -- y NUNCA afirmar que se deshizo, porque no es verdad."""
+    root = _empty_repo(tmp_path)
+    target = root / "work.txt"
+    content = b"MARK_RESET_FAILS contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    # Desajuste forzado, determinista -- nunca coincide con nada real.
+    monkeypatch.setattr(
+        notes_commit, "_committed_blob_hash", lambda path, root: "0" * 40
+    )
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_RESET_FAILS commit cuyo contenido no puede verificarse",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
+    rc_head, corrupt_sha, err_head = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_head == 0, f"git rev-parse HEAD fallo verificando el montaje: {err_head}"
+
+    # El montaje es invalido si este commit SI tiene padre -- comprobado
+    # con OTRO comando de solo lectura, nunca asumido: sin padre, ni
+    # siquiera resuelve HEAD~1, que es exactamente lo que hace que el
+    # 'git reset --mixed HEAD~1' interno de write_work() falle de verdad.
+    rc_parent_probe, _out, err_parent_probe = run_git(["rev-parse", "HEAD~1"], str(root))
+    assert rc_parent_probe != 0, (
+        f"el montaje de la prueba es invalido: HEAD~1 SI resolvio en este "
+        f"repo (deberia ser el primer commit, sin padre) -- {err_parent_probe!r}"
+    )
+
+    # La fuente de verdad es git, no lo que la funcion afirma.
+    rc_head_final, head_final, _err = run_git(["rev-parse", "HEAD"], str(root))
+    assert head_final == corrupt_sha, (
+        f"el reset no puede haber funcionado (sin HEAD~1) -- HEAD tiene que "
+        f"seguir siendo el commit corrupto {corrupt_sha!r}, salio {head_final!r}"
+    )
+
+    assert "se deshizo" not in (result.git_error or "").lower(), (
+        f"el reset FALLA en un repo sin padre -- decir que 'se deshizo el "
+        f"commit' cuando el reset fallo es mentira; git_error={result.git_error!r}"
+    )
+    assert corrupt_sha in (result.git_error or ""), (
+        f"el reset fallo y el commit corrupto {corrupt_sha!r} sigue siendo "
+        f"HEAD -- la respuesta tiene que nombrar su identificador para "
+        f"poder arreglarlo a mano; git_error={result.git_error!r}"
+    )
+
+
+def test_reset_success_actually_removes_the_corrupt_commit_from_history(
+    notes, notes_commit, tmp_repo, monkeypatch
+):
+    """Camino feliz del FALLO: cuando el reset SI puede funcionar (hay un
+    padre real -- `tmp_repo` ya trae el commit `init`), el commit corrupto
+    tiene que desaparecer de verdad del historial. Comprobado mirando el
+    log real, no lo que `WriteResult` dice."""
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_RESET_SUCCEEDS contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    rc_before, sha_before, err_before = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_before == 0, f"git rev-parse HEAD fallo montando la prueba: {err_before}"
+
+    monkeypatch.setattr(
+        notes_commit, "_committed_blob_hash", lambda path, root: "0" * 40
+    )
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_RESET_SUCCEEDS commit cuyo contenido no puede verificarse",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
+    rc_after, sha_after, err_after = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_after == 0, f"git rev-parse HEAD fallo verificando: {err_after}"
+    assert sha_after == sha_before, (
+        f"HEAD~1 existia de verdad (el padre de antes de esta llamada, "
+        f"{sha_before!r}) -- el reset tenia que funcionar y devolver HEAD "
+        f"ahi, salio {sha_after!r}"
+    )
+
+    rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
+    assert rc_log == 0, f"git log fallo verificando: {err_log}"
+    assert "MARK_RESET_SUCCEEDS" not in log_out, (
+        f"el commit corrupto sigue apareciendo en el historial real tras un "
+        f"reset que deberia haberlo quitado de verdad: {log_out!r}"
+    )
+
+
+def test_head_moved_by_another_process_leaves_history_untouched(
+    notes, notes_commit, tmp_repo, monkeypatch
+):
+    """Agujero 2, el que puede destruir trabajo AJENO: si HEAD se mueve
+    entre nuestro commit y esta verificacion (un `bin/release.py` real, que
+    no toma el candado de `write_work()`, comitea de verdad justo ahi),
+    `HEAD~1` en el momento del reset deja de ser el padre de NUESTRO
+    commit -- pasa a ser nuestro propio commit, y el reset borraria el
+    commit legitimo del otro proceso. La respuesta correcta: no tocar el
+    historial en absoluto, y fallar con una causa que no diga que se
+    deshizo nada (porque no se deshace nada).
+
+    El commit ajeno se inyecta DETERMINISTICAMENTE desde dentro de
+    `_committed_blob_hash` (la funcion que write_work() llama justo
+    despues de comitear lo suyo, para verificar) -- nunca dos hilos ni
+    ningun timing real del que dependa el color de este test.
+    """
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_HEAD_MOVED contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    foreign_sha_holder = {}
+
+    def _fake_committed_blob_hash(path, repo_root):
+        if "sha" not in foreign_sha_holder:
+            rc_foreign, _out, err_foreign = run_git(
+                ["commit", "--allow-empty", "-m", "MARK_FOREIGN_RELEASE_COMMIT"],
+                str(repo_root),
+            )
+            assert rc_foreign == 0, f"commit ajeno de montaje fallo: {err_foreign}"
+            rc_sha, sha, err_sha = run_git(["rev-parse", "HEAD"], str(repo_root))
+            assert rc_sha == 0, f"git rev-parse HEAD fallo montando el commit ajeno: {err_sha}"
+            foreign_sha_holder["sha"] = sha
+        # Fuerza el desajuste igualmente -- sin esto no se entra ni en la
+        # rama que intenta el reset.
+        return "0" * 40
+
+    monkeypatch.setattr(notes_commit, "_committed_blob_hash", _fake_committed_blob_hash)
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_HEAD_MOVED commit cuyo padre deja de ser el nuestro a mitad de la verificacion",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is False, "un desajuste de hash tiene que negarse a reportar exito"
+
+    foreign_sha = foreign_sha_holder.get("sha")
+    assert foreign_sha, "el montaje de la prueba es invalido: el commit ajeno nunca se creo"
+
+    rc_head, head_after, err_head = run_git(["rev-parse", "HEAD"], str(root))
+    assert rc_head == 0, f"git rev-parse HEAD fallo verificando: {err_head}"
+    assert head_after == foreign_sha, (
+        f"HEAD se movio por otro proceso ANTES de esta verificacion -- el "
+        f"reset no puede tocar el historial en ese caso: el commit legitimo "
+        f"del otro proceso ({foreign_sha!r}) tiene que seguir siendo HEAD, "
+        f"salio {head_after!r} -- si es distinto, el reset se comio el "
+        f"commit ajeno"
+    )
+
+    rc_log, log_out, err_log = run_git(["log", "--oneline", "--all"], str(root))
+    assert rc_log == 0, f"git log fallo verificando: {err_log}"
+    assert "MARK_FOREIGN_RELEASE_COMMIT" in log_out, (
+        f"el commit ajeno desaparecio del historial -- exactamente el fallo "
+        f"que este contrato existe para impedir: {log_out!r}"
+    )
+
+    assert "se deshizo" not in (result.git_error or "").lower(), (
+        f"con el historial sin tocar, la respuesta no puede afirmar que se "
+        f"deshizo un commit -- nada se deshizo; git_error={result.git_error!r}"
+    )
+    assert result.git_error, (
+        "un fallo tan serio como este (pudo haber borrado trabajo ajeno) "
+        f"tiene que devolver una causa, no quedarse callado: {result!r}"
+    )
+
+
+def test_matching_content_undoes_nothing(notes, notes_commit, tmp_repo):
+    """El camino feliz de los cuatro: cuando el contenido comiteado SI
+    coincide con el que este escritor tenia en la mano, no hay ningun
+    desajuste que verificar -- no se toca el reset en absoluto, y el
+    commit se queda tal cual. Sin ningun monkeypatch: `_committed_blob_hash`
+    real, `_git_blob_hash_of_bytes` real, los dos calculando el MISMO hash
+    para el MISMO contenido."""
+    root = Path(tmp_repo)
+    target = root / "work.txt"
+    content = b"MARK_HAPPY_PATH contenido real que este escritor prepara\n"
+    target.write_bytes(content)
+
+    rc_before, count_before, err_before = run_git(["rev-list", "--count", "HEAD"], str(root))
+    assert rc_before == 0, f"git rev-list fallo montando la prueba: {err_before}"
+
+    with _cwd(root):
+        result = notes.write_work(
+            "MARK_HAPPY_PATH commit cuyo contenido SI coincide",
+            [target],
+            None,
+            known_content=[content],
+        )
+
+    assert result.ok is True, f"contenido coincidente tiene que dar ok=True: {result.git_error}"
+
+    rc_after, count_after, err_after = run_git(["rev-list", "--count", "HEAD"], str(root))
+    assert rc_after == 0, f"git rev-list fallo verificando: {err_after}"
+    assert int(count_after) == int(count_before) + 1, (
+        f"se esperaba exactamente un commit nuevo, nada deshecho: antes "
+        f"{count_before!r} commits, despues {count_after!r}"
+    )
+
+    rc_log, log_out, err_log = run_git(["log", "--oneline", "-1"], str(root))
+    assert rc_log == 0, f"git log fallo verificando: {err_log}"
+    assert "MARK_HAPPY_PATH" in log_out, (
+        f"el commit del camino feliz tiene que seguir siendo HEAD, nada se "
+        f"deshizo: {log_out!r}"
     )
