@@ -138,6 +138,8 @@ Every note carries two, both real, no catch-alls.
 
 **The two-second rule:** if the word can modify another one — "the *testing* OF X" — it's zone 1. If it can only be the object, it's zone 2.
 
+**Zones are always lowercase** — on creation, on lookup, and on a note's own zone fields. `Billing` and `billing` are the same zone; write them however, the system normalizes them. `gitmem search` is case-insensitive the same way, and echoes the searched word back in lowercase.
+
 **List before guessing, search before creating.** Adding one that already exists, or that is another's alias, bounces and touches nothing. Six words a note may never use: `claude`, `user`, `session`, `project`, `workflow` — those are rules, not memory — and `audit`, which is ambiguous. The zone command will create all six anyway: the guard is at the note, so creating one buys a zone nothing can use. **And needing one of them is the signal, not the obstacle:** if a note keeps reaching for `workflow` or `project` to get a second zone, the note is not missing a word — it is a rule trying to come in through the wrong door.
 
 ## The signals
