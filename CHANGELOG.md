@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.35.1] - 2026-08-09
+
 ### Changed
 
 - **La skill de memoria explica el catálogo de zonas.** El cambio de la 1.35.0 no estaba escrito en la superficie que Claude carga en cada sesión, así que la instrucción de qué hacer ante una búsqueda vacía seguía siendo la vieja.
