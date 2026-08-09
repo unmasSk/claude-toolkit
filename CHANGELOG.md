@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Una búsqueda que no encuentra nada ya no es un callejón sin salida: enseña el vocabulario del proyecto.** `gitmem search` es una búsqueda literal de letras, así que un cero no significa «no hay memoria de esto» sino «esa cadena no está escrita en ninguna parte» — y las dos cosas salían idénticas por pantalla. Ahora, cuando no hay resultados, la salida incluye las zonas del proyecto con su descripción y sus alias, que son las palabras que ese proyecto sí usa, y quien busca acierta a la segunda. Si el proyecto todavía no tiene zonas, lo dice en vez de enseñar una lista vacía — que es lo que separa «no hay nada de esto» de «aquí aún no hay memoria». Una búsqueda con resultados no cambia en nada.
+  Salió de un caso real: un agente hizo cuatro búsquedas por nombre de fichero, se llevó cuatro ceros y se puso a leer código, teniendo al lado 18 notas de la zona exacta de su tarea, con los dos muros que le aplicaban y el bloqueador de lo que estaba investigando. Su ficha ya le decía que reintentara con la palabra del proyecto; no lo hizo. Por eso el arreglo va en la herramienta, que todos tocan, y no en las nueve fichas, que hay que acordarse de cumplir.
+
 ## [1.34.0] - 2026-08-08
 
 ### Fixed
