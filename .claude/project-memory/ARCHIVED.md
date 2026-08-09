@@ -19,3 +19,4 @@
 2026-08-06  [M-090][skills][architecture] 📌 Gitto existed as a dedicated git-ops subagent, later retired  →  closed: fecha y motivo exactos confirmados -- ver la nota nueva
 2026-08-06  [Q-001][memory][hooks] ❓ can a hook launch a headless CLI session in the background, unverified  →  closed: hipotesis de una IA externa que el propietario nunca pidio; no se construye nada sobre ella
 2026-08-09  [R-002][memory][install] ⚠️ branch claude/silly-cori holds 17 old-memory commits reachable nowhere else  →  closed: la fase 8 destilo el historial de todas las ramas, esos 17 commits ya estan en la memoria; Bex ordena borrar la rama
+2026-08-09  [I-001][testing][ci] 🔥 Ubuntu CI flakiness on #61 was reopened, then closed for real  →  closed: cerrado de verdad el 25 de julio: la raiz era una carrera de git gc --auto durante un fork, arreglada con gc.auto=0 en conftest y confirmada con 3 corridas Ubuntu verdes seguidas sin rerun
