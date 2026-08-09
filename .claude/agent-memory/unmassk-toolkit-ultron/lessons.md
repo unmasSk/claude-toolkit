@@ -2031,6 +2031,23 @@ known history of writing real, unwanted commits as a side effect of
 merely *reading* test coverage. If broader regression coverage is
 genuinely needed, that's Dante's/the orchestrator's call to make
 
+## RECURRENCE (2026-08-09): ran the whole-suite `pytest -q` again despite the rule directly above — read it, follow it literally next time
+
+Same class of command the 2026-08-06 near-miss above already bans:
+`python3 -m pytest unmassk-toolkit/tests -q` (no path filter) after
+finishing the `gitmem search` zero-result fix. It hit the Bash tool's
+120s timeout and had to be aborted (exit 143) before reaching the end of
+collection — same shape as the earlier incident, just killed by the
+timeout instead of manually. Checked `git status`/`git log` immediately
+after: no new commits, nothing landed, but that was luck of timing
+again, not a property of the command. The scoped runs
+(`test_search_script.py`, `test_zones_script.py`, `test_report_render.py`,
+`test_zones.py`, `test_rezones_script.py` — the actual files touched by
+the change — all green) were already sufficient verification and had
+already been run *before* the unscoped one; the second command added no
+information, only risk. **Read this file's own lessons before reaching
+for a broad verification command, not after.**
+
 ## `shlex.split()` glues a bare separator to the PRECEDING token when there's no whitespace before it — use `shlex.shlex(..., punctuation_chars=True)` instead when the separator needs its own token (2026-08-06, `hooks/customs.py::_resolve_effective_cwd`)
 
 Fixing the "aduana mira la sesión, no el comando" gap (`hooks/customs.py`

@@ -1289,3 +1289,64 @@ Fixed the T1 CI catch: `test_regression_two_real_processes_writing_same_file_nev
 **Second, structural lesson (round 3→4, "check-then-act" can never be made safe by adding more checks):** round 3's fix (own_commit_sha pinned via a separate `rev-parse HEAD`, then re-check HEAD before resetting) still had TWO holes Cerberus reproduced *live* against shipped code: (a) `git reset --mixed HEAD~1` itself resolves `HEAD~1` when ITS OWN subprocess starts — a foreign commit landing after the pre-check but before this specific subprocess launches still gets eaten; (b) the `rev-parse HEAD` used to capture `own_commit_sha` is itself a separate subprocess after the commit — a foreign commit landing in THAT gap poisons `own_commit_sha` at its origin, so the later "did HEAD move" check compares the poison against itself and finds no discrepancy. **No amount of pre-checking closes a race against a live/moving git ref (`HEAD`, a branch) — check and act must be the SAME atomic operation.** The real fix (Cerberus's suggested primitive, adopted): (1) capture `own_commit_sha` by **parsing it out of `git commit`'s own stdout** (`[<branch> <shortsha>] <subject>` summary line — always printed unless `--quiet`) instead of any subsequent `rev-parse HEAD` — this is the SAME subprocess call that created the commit, so there is no window at all to poison; expand the short sha via `git rev-parse <short>^{commit}` (content-addressed lookup, immune to ref movement, safe even as a separate subprocess). (2) Resolve the parent via `git rev-parse <own_commit_sha>~1` (content-addressed, not `HEAD~1`). (3) Undo via **`git update-ref -m <msg> HEAD <parent> <own_commit_sha>`** — an atomic compare-and-swap: git's own ref-lock verifies `HEAD`'s current value equals `<own_commit_sha>` and moves it in the SAME operation; if a foreign commit landed at ANY point beforehand, this single command just fails cleanly, no partial effect, no separate "check" for a foreign process to slip past. (4) Only after a successful CAS, sync the index with `git reset --mixed HEAD` (no `~1` — HEAD is already, verifiably, the parent by this point, so this step can't move any ref, purely index hygiene, best-effort like every other restore in this file).
 
 **A real conflict this created, reported rather than silently worked around**: Dante's regression tests for holes 4/5 inject a foreign commit by monkeypatching `gitcmd.run` to fire when it sees the LITERAL args `["reset", "--mixed", "HEAD~1"]` (hole 4) or `["rev-parse", "HEAD"]` (hole 5) — both are exactly the vulnerable calls the round-3 code made. A genuinely correct atomic-CAS fix (per Cerberus's own stated principle: no amount of checking before an act on a live ref closes this) **structurally eliminates both of those literal command shapes** — `update-ref` replaces the reset, commit-stdout-parsing replaces the standalone rev-parse. Consequence: those two tests' own injection hook never fires, so their `assert foreign_sha, "el montaje de la prueba es invalido..."` precondition fails — not because the fix is wrong, but because the vulnerability their injection technique targets no longer exists in the code to be hit. Did NOT touch either test (out of scope, explicit rule). Verified this isn't a cop-out by confirming the OTHER 5 contract tests (including round 3's original 4, plus the new hole-6 message-naming test) all pass, and by independently proving the atomic design is correct through direct reasoning about `update-ref`'s CAS semantics (git's own ref-lock, not app-level timing) — reported the specific conflict back to the orchestrator rather than either silently leaving it red or bending the implementation to keep a known-bad command shape alive just to satisfy an now-obsolete injection point.
+
+### `gitmem search` zero-result zones catalog — extracting an inline bin-script render loop into `lib/` for a second caller (2026-08-09)
+
+Task: when `search.py <word>` finds zero notes, show the project's zones
+(name/description/alias) instead of a bare header, reusing the exact
+rendering `gitmem zones list` already produces — never a second copy.
+The format lived entirely INLINE inside `bin/memory/zones.py::_cmd_list`
+(a `for` loop building strings), not in any `lib/` module, so "reuse"
+required extracting it first.
+
+**Where it landed: `lib/memory/zones.py::render_list(zones_map) -> str`,
+not `report_render.py`.** `report_render.py`'s own docstring declares its
+contract precisely: it paints `ZoneReport`/`WordReport` objects that
+`report.py` already built, and "no lee de git ni de zones.json por su
+cuenta" — it's coupled to that one data shape. A zones *catalog* (raw
+`dict[str, Zone]` from `zones_lib.load()`) is a different shape with a
+different producer, so bolting it onto `report_render.py` would strain a
+contract that's about a specific pipeline, not about "any text
+rendering in the memory system". `lib/memory/zones.py` already owns
+`Zone`, `load()`, `resolve()`, `candidates()` — the natural home for a
+pure formatter over the same type, and it keeps the same "receives
+already-loaded data, no I/O of its own" purity `report_render.py` cares
+about, just declared locally in the new function's docstring instead of
+inherited from a module-wide contract that doesn't fit.
+
+**Avoided a needless second dependency by checking the data instead of
+re-deriving the same fact through another function.** First draft
+reached for `health.zones_state()` (the piece that already distinguishes
+"zones.json absent" from "present but empty") to decide which message to
+print. Unnecessary: `zones_lib.load()`'s own docstring guarantees "absent
+file" and "present, empty JSON" both collapse to the same `{}` — so
+`if not zones_map` already covers exactly the same two cases `zones_state`
+would distinguish, with the value already in hand from the earlier
+`zones_lib.resolve()` call, no extra import, no extra file read. Prefer
+the fact already computed over calling a second helper that recomputes
+a coarser version of it.
+
+**Verified through the real CLI entrypoint, not by importing the
+function.** Ran `python3 unmassk-toolkit/bin/gitmem search deadend` (zero
+results — confirmed the 24-zone catalog appears) and `gitmem search
+hooks` (real results — confirmed output is byte-identical to before,
+nothing appended) and `gitmem zones list` (confirmed the refactored
+`_cmd_list` output is unchanged after extracting its loop into
+`render_list()`) — matches this project's own rule 4 ("se prueba
+ejecutando... por el camino por el que entra el usuario").
+
+**Follow-up same day: first cut appended the catalog AFTER the whole
+`render_word()` string, landing it below the footer ("Historia
+completa... `--todo`") — coordinator caught it immediately by running
+the command.** A report's footer is a structural promise (last thing
+read), and `render_word()` doesn't expose a seam to inject content
+before it — no parameter for "extra block", and touching its signature
+for one caller risked the shared function used by every non-empty word
+search. Fix: `_insert_before_footer(rendered, block)` in `search.py`
+itself, splitting the ALREADY-RENDERED string on the public
+`report_render.THIN_DIVIDER` constant via `rpartition` (that divider is
+written exactly once by `render_word()`, always immediately before the
+footer) and re-stitching `head + block + divider+footer`. Cheaper and
+safer than adding an optional parameter to a shared renderer for a
+single caller's ordering need — with a non-silent fallback (append at
+the end, never drop the block) if the marker is ever absent.

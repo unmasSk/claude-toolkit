@@ -1,3 +1,16 @@
+> **STALE — 2026-08-09.** Este mapa es de 2026-07-11 (`8f509fc`), sobre el árbol de hooks
+> PRE-`memoria-v2`. Ese árbol ya no existe: `hooks/session-start-boot.py`,
+> `hooks/pre-task-recall.py`, `hooks/precompact-snapshot.py`, `hooks/stop-close-session.py`
+> y `lib/recall.py` fueron retirados. Hoy el boot es
+> `hooks/boot_launcher.py` → `bin/memory/boot.py` → `lib/memory/boot.py` (informe completo
+> escrito a fichero `.claude/.unmassk/boot-latest.txt`, **nunca inyectado** por diseño — B4).
+> `hooks/session-start-crew.py` sigue vivo pero solo para los 5 bloques gestionados de
+> CLAUDE.md + 3 checks (plugin sync/upgrade/repo status), no para memoria. Los puntos 1/2/6
+> de abajo (managed blocks sin gate de versión, auto-upgrade por mensaje, texto largo de
+> `[memory-check]`) ya NO aplican tal cual — ver mapa fresco en
+> `.claude/agent-memory/unmassk-toolkit-bilbo/memory-injection-2026-08-09.md`. Se deja este
+> documento como historia, no como estado actual.
+
 # Mapa técnico — issue #63 (simplificación del boot)
 
 Rama: `feat/issue-63-simplificacion-boot`. Alcance FIRMADO, 6 puntos (decisión 0f5af98). Este documento es

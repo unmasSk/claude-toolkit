@@ -127,6 +127,7 @@
 - [issue-81-suite-audit-reconfirmation-notes.md](issue-81-suite-audit-reconfirmation-notes.md) — issue #81's 180-test cut re-audited 2026-08-06: nearly all already resolved, ratio-alone-is-not-tautology lesson
 - [scaffold-py-red-contract-notes.md](scaffold-py-red-contract-notes.md) — scaffold.py 4-bug RED contract (raw TOML/JS interpolation, dead ORM/CSS options, unreachable python-cli, absolute-name escape); golden-test scope cancelled mid-task, dispatch-table mapping reused
 - [gitmem-rule-no-commit-contract-notes.md](gitmem-rule-no-commit-contract-notes.md) — rules.py/rule.py rewritten to never-commit contract (mirrors zones add), coherence_rules() retirement in boot.py CHECKS, existing test debt flagged not touched
+- [search-word-zones-catalog-contract-notes.md](search-word-zones-catalog-contract-notes.md) — search.py zero-result word search shows zones catalog before footer, absent-vs-present-empty parity, zone-path guard
 
 ## Retired (different stack, no longer this project's shape)
 
