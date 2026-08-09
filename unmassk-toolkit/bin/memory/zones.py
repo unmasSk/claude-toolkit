@@ -221,14 +221,12 @@ def _cmd_list(path):
         print("zones.json (no existe) -- todavia no se ha dado de alta ninguna zona.")
         return 0
 
+    # El formato (cabecera + una linea por zona con nombre/descripcion/
+    # alias) vive en `zones_lib.render_list()` -- reutilizado tal cual
+    # por el aviso de cero resultados de `search.py` [2026-08-09]. Este
+    # script ya no lo formatea por su cuenta, solo lo imprime.
     zones_map = zones_lib.load(path)
-    print(f"zones.json tiene {len(zones_map)} zonas:")
-    for name in sorted(zones_map):
-        zone = zones_map[name]
-        line = f"  {name}   {zone.description}"
-        if zone.aliases:
-            line += f"   (alias: {', '.join(zone.aliases)})"
-        print(line)
+    print(zones_lib.render_list(zones_map))
     return 0
 
 

@@ -183,6 +183,32 @@ def candidates(name: str, zones: dict[str, Zone], limit: int = 3) -> tuple[Zone,
     return tuple(zones[n] for n in close_names)
 
 
+def render_list(zones_map: dict[str, Zone]) -> str:
+    """El texto de la lista de zonas -- cabecera con el recuento total,
+    luego una linea por zona con su nombre, su descripcion y sus alias
+    si tiene.
+
+    Pura presentacion: no lee `zones.json` ni ningun otro fichero por su
+    cuenta, solo formatea lo que recibe ya cargado (`load()`) -- mismo
+    principio que declara el docstring de `report_render.py` para las
+    piezas que "pintan" en vez de "decidir".
+
+    Extraida de `bin/memory/zones.py::_cmd_list` [encargo del
+    propietario, 2026-08-09] para que un segundo llamador -- el aviso de
+    cero resultados de `bin/memory/search.py` cuando una busqueda por
+    palabra no encuentra ninguna nota -- enseñe las zonas del proyecto
+    con el mismo formato exacto, sin reimplementarlo.
+    """
+    lines = [f"zones.json tiene {len(zones_map)} zonas:"]
+    for name in sorted(zones_map):
+        zone = zones_map[name]
+        line = f"  {name}   {zone.description}"
+        if zone.aliases:
+            line += f"   (alias: {', '.join(zone.aliases)})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def add(zone: Zone, path: Path) -> None:
     """Da de alta `zone` en zones.json, bajo candado y de forma atomica.
 

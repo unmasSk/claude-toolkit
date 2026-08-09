@@ -107,12 +107,58 @@ def _render_by_file(path, include_archived):
     return "\n\n".join(reports)
 
 
+def _render_zones_catalog(zones_map):
+    """Catalogo de zonas del proyecto -- lo que se enseña cuando una
+    busqueda por palabra no encuentra ninguna nota, para que quien busca
+    tenga algo que hacer en vez de una cabecera vacia [encargo del
+    propietario, 2026-08-09]. Mismo formato que `gitmem zones list`
+    (`zones_lib.render_list()`) -- no se reimplementa el formato aqui.
+
+    `zones_map` ya llega cargado desde `_render_by_query` (`load()`
+    trata "zones.json ausente" y "zones.json presente pero vacio" como
+    el mismo `{}` [docstring de `zones_lib.load()`], asi que no hace
+    falta distinguirlos aqui: los dos son "todavia no hay ninguna zona",
+    y una lista en blanco no lo dice -- esta frase si).
+    """
+    if not zones_map:
+        return "Este proyecto todavía no tiene ninguna zona dada de alta."
+    return zones_lib.render_list(zones_map)
+
+
+def _insert_before_footer(rendered, block):
+    """Inserta `block` justo ANTES del pie del informe de palabra (el
+    separador fino y su linea final) en vez de colgarlo detras
+    [correccion del orquestador, 2026-08-09: el catalogo de zonas salia
+    DESPUES del pie, dejando "Historia completa..." de no ser lo ultimo
+    que se lee].
+
+    `report_render.render_word()` no expone un hueco para insertar
+    contenido a mitad de su propio render -- se localiza el separador
+    fino publico (`report_render.THIN_DIVIDER`), que esa funcion
+    escribe una unica vez, siempre justo antes del pie, y se corta ahi
+    en vez de reimplementar el resto del formato.
+    """
+    marker = "\n" + report_render.THIN_DIVIDER
+    head, sep, tail = rendered.rpartition(marker)
+    if not sep:
+        # No deberia pasar en la rama de cero resultados -- si el
+        # separador no aparece, no hay pie que respetar: se deja el
+        # bloque al final antes que perderlo en silencio.
+        return rendered + "\n\n" + block
+    return f"{head}\n\n{block}{sep}{tail}"
+
+
 def _render_by_query(text, include_archived, pm):
     zones_map = zones_lib.load(pm / "zones.json")
     resolved = zones_lib.resolve(text, zones_map)
     if resolved is not None:
         return report_render.render_zone(report.build_zone(resolved, include_archived))
-    return report_render.render_word(report.build_word(text, include_archived))
+
+    word_report = report.build_word(text, include_archived)
+    rendered = report_render.render_word(word_report)
+    if word_report.zone_count == 0:
+        rendered = _insert_before_footer(rendered, _render_zones_catalog(zones_map))
+    return rendered
 
 
 def main(argv):

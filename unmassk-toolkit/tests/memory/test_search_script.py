@@ -69,6 +69,7 @@ import pytest
 from .conftest import (
     extract_note_id,
     import_lib_memory_module,
+    pm_path,
     run_git,
     run_memory_script,
     seed_note_via_script,
@@ -108,6 +109,11 @@ def report_render_lib():
 @pytest.fixture
 def format_lib():
     return import_lib_memory_module("format")
+
+
+@pytest.fixture
+def zones_lib():
+    return import_lib_memory_module("zones")
 
 
 def _commit_sha_for_note(repo, note_id):
@@ -684,4 +690,186 @@ class TestByIdRule5FooterOffersTheZoneNeverTodo:
             f"ofrecer --todo aqui mentiria: lo archivado ya sale marcado en "
             f"el racimo [TEXTOS Sec.2.4, regla 5, y DEUDA.md #24 punto 3]: "
             f"{out!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Catalogo de zonas del proyecto en un resultado VACIO de busqueda por
+# palabra -- `bin/memory/search.py::_render_zones_catalog` +
+# `_insert_before_footer`, encargo del propietario 2026-08-09: si
+# `search.py <palabra>` no encuentra ninguna nota, ahora enseña el catalogo
+# de zonas del proyecto (mismo formato que `gitmem zones list`,
+# `zones.render_list()`), insertado justo ANTES del pie del informe de
+# palabra -- para que quien busca tenga algo que hacer en vez de una
+# cabecera vacia. Sin tests todavia antes de esta tanda (encargo de esta
+# tarea).
+#
+# Round trip real, sin fabricar el texto esperado [unmassk-standards Sec.34]:
+# el catalogo se compara contra `zones.render_list()` llamado en el MISMO
+# proceso de test con los mismos datos (nunca contra una cadena escrita a
+# mano), y el pie se compara contra `report_render.render_word()` llamado
+# igual de independiente -- mismo patron ya usado arriba en este fichero
+# para el round trip de zona/palabra.
+# ---------------------------------------------------------------------------
+
+
+class TestWordSearchWithoutResultsShowsTheProjectsZonesCatalog:
+    """Busqueda por palabra sin resultados, con zonas dadas de alta: el
+    catalogo tiene que salir, y el pie del informe de palabra tiene que
+    seguir siendo la ULTIMA linea de la salida [correccion del
+    orquestador, 2026-08-09: el catalogo salia detras del pie, dejando
+    'Historia completa...' de no ser lo ultimo que se lee]."""
+
+    def test_zones_catalog_appears_and_footer_stays_the_last_line(
+        self, tmp_repo, zones_lib, report_lib, report_render_lib
+    ):
+        seed_zones_json(tmp_repo, ["auth", "billing"])
+        rc_seed, out_seed, err_seed = seed_note_via_script(
+            tmp_repo, "M", "auth", "billing",
+            "the invoice pdf export retries three times",
+            description="MARK description", stops="no",
+        )
+        assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
+
+        word = "zzzznomatchxyz"
+        rc, out, err = run_memory_script("search.py", [word], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+        assert "Traceback" not in out and "Traceback" not in err
+
+        with _cwd(tmp_repo):
+            zones_map = zones_lib.load(pm_path(tmp_repo) / "zones.json")
+            expected_catalog = zones_lib.render_list(zones_map)
+            expected_word_report = report_render_lib.render_word(
+                report_lib.build_word(word, False)
+            )
+        expected_footer_line = expected_word_report.splitlines()[-1]
+
+        assert expected_catalog in out, (
+            f"el catalogo de zonas tiene que salir tal cual construye "
+            f"zones.render_list() para las mismas zonas -- ¿reimplementa "
+            f"su propio formato?: {out!r}"
+        )
+
+        lines = out.rstrip("\n").splitlines()
+        assert lines[-1] == expected_footer_line, (
+            f"el pie del informe de palabra tiene que seguir siendo la "
+            f"ULTIMA linea, con el catalogo colgado antes: {out!r}"
+        )
+        assert out.index(expected_catalog) < out.index(lines[-1]), (
+            f"el catalogo tiene que ir ANTES del pie, nunca detras: {out!r}"
+        )
+
+
+class TestWordSearchWithoutResultsAndWithoutAnyZoneSaysSoNotAnEmptyList:
+    """Sin ninguna zona dada de alta en el proyecto, la ausencia se DICE,
+    nunca se enseña como una lista con recuento cero -- `zones.load()`
+    trata 'zones.json ausente' y 'zones.json presente pero vacio' como el
+    mismo `{}` [docstring de `_render_zones_catalog`], asi que las dos
+    formas tienen que decir lo mismo."""
+
+    def test_absent_zones_json_says_no_zones_yet(
+        self, tmp_repo, report_lib, report_render_lib
+    ):
+        # sin seed_zones_json -- zones.json no existe en absoluto en este
+        # repositorio de prueba
+        word = "zzzznomatchxyz"
+        rc, out, err = run_memory_script("search.py", [word], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+        assert "Traceback" not in out and "Traceback" not in err
+
+        assert "Este proyecto todavía no tiene ninguna zona dada de alta." in out, (
+            f"sin ninguna zona, tiene que decirlo -- no una lista en blanco: "
+            f"{out!r}"
+        )
+        assert "zones.json tiene" not in out, (
+            f"no puede colarse el formato de lista con recuento cuando no "
+            f"hay ninguna zona: {out!r}"
+        )
+
+        with _cwd(tmp_repo):
+            expected_footer_line = report_render_lib.render_word(
+                report_lib.build_word(word, False)
+            ).splitlines()[-1]
+        lines = out.rstrip("\n").splitlines()
+        assert lines[-1] == expected_footer_line, (
+            f"el pie tiene que seguir siendo la ultima linea aunque no haya "
+            f"ninguna zona: {out!r}"
+        )
+
+    def test_present_but_empty_zones_json_says_the_same_as_absent(self, tmp_repo):
+        """Caso limite -- paridad ausente/vacio-presente. Un `zones.json`
+        presente con el literal `{}` (dado de alta el fichero, sin ninguna
+        zona dentro todavia) tiene que decir exactamente lo mismo que si
+        el fichero no existiera -- nunca 'zones.json tiene 0 zonas:'."""
+        pm = pm_path(tmp_repo)
+        pm.mkdir(parents=True, exist_ok=True)
+        (pm / "zones.json").write_text("{}", encoding="utf-8")
+
+        rc, out, err = run_memory_script(
+            "search.py", ["zzzznomatchxyz"], cwd=tmp_repo
+        )
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+        assert "Traceback" not in out and "Traceback" not in err
+        assert "Este proyecto todavía no tiene ninguna zona dada de alta." in out, (
+            f"zones.json presente-pero-vacio tiene que decir lo mismo que "
+            f"ausente, nunca una lista con recuento 0: {out!r}"
+        )
+        assert "zones.json tiene" not in out
+
+
+class TestWordSearchWithResultsNeverShowsTheZonesCatalog:
+    """Con al menos una nota que casa, el catalogo de zonas no puede
+    aparecer -- ni el formato con recuento, ni el aviso de 'sin zonas'."""
+
+    def test_a_real_match_never_prints_the_zones_catalog(self, tmp_repo):
+        seed_zones_json(tmp_repo, ["billing", "api"])
+        rc_seed, out_seed, err_seed = seed_note_via_script(
+            tmp_repo, "M", "billing", "api",
+            "the webhook retries are capped at three attempts",
+            description="MARK description", stops="no",
+        )
+        assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
+
+        rc, out, err = run_memory_script("search.py", ["webhook"], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+        assert "Traceback" not in out and "Traceback" not in err
+        assert "the webhook retries are capped at three attempts" in out, (
+            f"la nota real tiene que aparecer -- si no, este test no prueba "
+            f"nada: {out!r}"
+        )
+
+        assert "zones.json tiene" not in out, (
+            f"con resultados reales, el catalogo de zonas no puede "
+            f"aparecer: {out!r}"
+        )
+        assert "todavía no tiene ninguna zona dada de alta" not in out, (
+            f"con resultados reales, tampoco puede salir el aviso de 'sin "
+            f"zonas': {out!r}"
+        )
+
+
+class TestZoneQueryNeverShowsTheWordZonesCatalogEvenWithoutNotes:
+    """La rama de ZONA resuelta ('resolved is not None') devuelve antes de
+    llegar a la logica del catalogo, que vive solo en la rama de PALABRA
+    ('word_report.zone_count == 0') -- guarda de raiz contra que un futuro
+    cambio cuele el catalogo tambien aqui: una zona real sin ninguna nota
+    tiene que seguir enseñando el informe VACIO de esa zona, nunca el
+    catalogo de zonas del proyecto."""
+
+    def test_a_real_zone_with_no_notes_shows_its_own_empty_report_not_the_catalog(
+        self, tmp_repo
+    ):
+        seed_zones_json(tmp_repo, ["auth", "empty"])
+        # ninguna nota sembrada en absoluto -- "empty" es una zona REAL,
+        # dada de alta, sin notas todavia
+        rc, out, err = run_memory_script("search.py", ["empty"], cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+        assert "Traceback" not in out and "Traceback" not in err
+        assert "ZONA" in out, (
+            f"una zona real resuelta tiene que enseñar su propio informe, "
+            f"nunca el catalogo de palabra: {out!r}"
+        )
+        assert "zones.json tiene" not in out, (
+            f"el catalogo de la busqueda por palabra no puede colarse en la "
+            f"rama de zona: {out!r}"
         )
