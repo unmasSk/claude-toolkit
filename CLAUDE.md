@@ -12,7 +12,7 @@
 
 **El sistema de memoria está publicado, corriendo, y con la memoria vieja ya destilada.** La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. El sistema anterior está borrado del repositorio.
 
-**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **34 reglas** del propietario separadas en su propio canal. Lo que quedó abierto está abierto de verdad, y es una sola cosa: la issue #83.
+**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **34 reglas** del propietario separadas en su propio canal. Lo único que quedó abierto, la issue #83, se cerró el 2026-08-09: Bex descartó reinstaurar la inyección de memoria por mensaje (X-063) porque el hueco real —el agente subordinado trabajando a ciegas sobre la memoria— ya se había cerrado por otra vía, en el buscador (D-041). No queda nada abierto.
 
 **Las zonas van siempre en minúsculas**, en los tres puntos — al crear, al buscar y al guardar una nota. Su descripción y cualquier otro texto se guardan tal cual se escribieron.
 

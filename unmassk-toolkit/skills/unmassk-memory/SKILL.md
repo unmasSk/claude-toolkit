@@ -288,6 +288,8 @@ gitmem rule "always read the existing patterns first" --kind claude
 gitmem rule
 ```
 
+**A word search that finds nothing shows the project's zone catalog, not a blank header.** `gitmem search <word>` is literal-text matching: zero results means that string isn't written anywhere, not that there's no memory of it. When a word search comes back empty, the output now lists the project's zones with their description and aliases — the words this project actually uses — so retry with one of those before concluding there's nothing. This only fires for a plain word search with zero matches; `--id`, `--file`, and a search that resolves to a zone name are unaffected. A project with no zones yet says so instead of showing an empty list.
+
 **The user's own door into the rules is `/remember`** — the one slash command this toolkit ships, and it **only reads**: it delivers the whole rules file into your context, and you treat every line as binding from that moment. It takes no arguments and never saves. **Saving a rule is yours, always** — the moment the user says how they want to be worked with, you run `gitmem rule` there and then. A user who has to invoke a command to store their own correction is a user whose correction gets lost.
 
 **`gitmem` is on the PATH — type it bare.** The installer puts a launcher at `~/.local/bin/gitmem` that resolves the newest installed version on every run, so it keeps working across upgrades. Write `gitmem note ...`, never a long path into the plugin cache: a pasted cache path carries a version number in it and goes stale the day the toolkit updates.

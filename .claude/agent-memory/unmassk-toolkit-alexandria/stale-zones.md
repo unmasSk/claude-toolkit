@@ -4,6 +4,13 @@ description: Documentation zones known to be outdated or needing review — revi
 type: project
 ---
 
+## Cleared zones (fixed 2026-08-09, close pass)
+
+- Root `CLAUDE.md` line 15: claimed "lo que quedó abierto... es una sola cosa: la issue #83" — stale, issue #83 closed 2026-08-09 (`gh issue view 83` → CLOSED; X-063/DISCARDED.md: Bex declined to reinstate message-level memory injection because D-041/M-115 already closed the real gap via zone-word search). Corrected in place, not silently dropped — stated the closure and why. This is a **descriptive** claim (root CLAUDE.md's intro prose about present state), code/reality wins, per the file's own rule 12 ("un documento desactualizado no frena trabajo ya hecho").
+- `unmassk-toolkit/skills/unmassk-memory/SKILL.md`: zero-result word search now shows the project's zone catalog (shipped v1.35.0, `bin/memory/search.py`) — was a genuine coverage gap, zero prior mention anywhere (README, SKILL.md). Added one paragraph after the commands block. See doc-map.md.
+- Checked, not changed: the v1.34.0 atomic-undo-after-commit fix (`notes_commit.py`) has no SKILL.md equivalent to extend (internal integrity guarantee, no usage/output change) — already fully covered by CHANGELOG `[1.34.0]`, which is where it belongs.
+- Flagged, not edited (editorial call, not a factual gap): README.md's "Proof, not promises" section is a curated 4-example list of self-caught bugs; the zero-result-search fix would fit the pattern but adding a 5th is the owner's call on emphasis, not a correction of something false.
+
 ## Cleared zones (fixed 2026-07-11, issue #63)
 
 - `unmassk-toolkit/skills/unmassk-gitmemory/SKILL.md` "Self-Healing (rebase/reset detection)" + "Force Push Handling" sections (~lines 491-507): described automatic amnesia/history-rewrite detection ("compare known commit hashes", "detect history rewrite... SHAs missing from tree") that never existed as code — pure prose, confirmed by repo-wide grep (zero hits for `amnesia`/`reflog`/`history rewrite` in `lib/`, `hooks/`, `bin/`). This was flagged CRITICAL by the requester because the fiction had persisted undetected through prior Alexandria passes. Rewrote to `### Passive Healing`, describing the real mechanism (live `git log` re-extraction every boot via `extract_memory()`, no stored hash comparison, no reconciliation). **Lesson: a "how we recover from X" section reads as plausible and doesn't get challenged like a feature claim does — actively grep for the implementing code behind recovery/safety-net prose, don't just check it's internally consistent.**
