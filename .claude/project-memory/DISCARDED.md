@@ -61,3 +61,4 @@
 [X-059][memory][skills] cambiar las nueve fichas para que el agente busque por zona
 [X-060][memory][skills] un hook que pegue los 7 muros y el bloqueador al prompt de cada agente
 [X-061][memory][skills] obligar al agente a devolver en su informe zona X, N notas, M muros
+[X-062][memory][hooks] una puerta de salida que contraste lo que Claude escribe contra los muros
