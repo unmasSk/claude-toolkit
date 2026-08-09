@@ -58,3 +58,4 @@
 [X-056][memory][architecture] segunda casilla opcional
 [X-057][memory][architecture] conservar los codigos de color ANSI en la salida
 [X-058][architecture][standards] the #57 hostile-commit fence front is abandoned for good
+[X-059][memory][skills] cambiar las nueve fichas para que el agente busque por zona
