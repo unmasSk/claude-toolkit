@@ -57,3 +57,4 @@
 [X-055][memory][architecture] esquema dominio+capa, ej. [inventario][backend]
 [X-056][memory][architecture] segunda casilla opcional
 [X-057][memory][architecture] conservar los codigos de color ANSI en la salida
+[X-058][architecture][standards] the #57 hostile-commit fence front is abandoned for good
