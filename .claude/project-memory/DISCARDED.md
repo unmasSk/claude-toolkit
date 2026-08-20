@@ -63,3 +63,4 @@
 [X-061][memory][skills] obligar al agente a devolver en su informe zona X, N notas, M muros
 [X-062][memory][hooks] una puerta de salida que contraste lo que Claude escribe contra los muros
 [X-063][memory][hooks] reinstaurar la inyeccion de memoria por mensaje via UserPromptSubmit
+[X-064][hooks][testing] seguir bloqueando el modulo top-level nuevo
