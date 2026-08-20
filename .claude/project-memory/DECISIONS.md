@@ -40,3 +40,4 @@
 [D-039][memory][architecture] two mandatory zones, decided by whether a word can modify another
 [D-040][memory][architecture] commit headline format: brackets first, emoji after, no ANSI color
 [D-041][memory][skills] a zero-result search must name the candidate zones, instead of nine agent cards
+[D-042][hooks][testing] the DoD gate recognises first-party modules by declared project identity
