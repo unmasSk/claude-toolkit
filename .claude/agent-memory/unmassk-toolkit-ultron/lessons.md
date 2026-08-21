@@ -2363,3 +2363,237 @@ POSIX-looking multi-letter directory names never get mis-translated as a
 drive letter. Guard the whole translation behind `os.name == "nt"` at the
 call site (not inside the helper) so macOS/Linux behavior is provably
 untouched — `/c/Users/...` can be a real, valid path there.
+
+## Rewriting the SAME file twice within one filesystem mtime tick can make a subprocess re-run silently reuse the FIRST run's stale `__pycache__` (2026-08-20, `hooks/stop-dod-gate.py`, test-first exit-5/1/2 classification)
+
+Found while making `TestBlockSignatureDedupBySession::test_new_failure_content_same_session_gets_full_reason_again`
+go green (test-first, RED before this task). The test overwrites the SAME
+test file twice with two different-content but SAME-LENGTH markers, then
+runs `python3 -m pytest -q` via subprocess both times in quick succession.
+The signature-dedup logic was correct, but the SECOND real pytest run's
+output was reproducibly wrong: the traceback's `>` source line showed the
+NEW marker (read fresh from disk by linecache at report time) while the
+`E   AssertionError:` line — the actual executed assertion message, baked
+into compiled bytecode — still showed the OLD marker. Reproduced by hand
+outside the hook entirely (bare `python3 -m pytest -q` subprocess, no
+hook involved) — this is a genuine CPython/pytest behavior, not a bug in
+the classification code: Python's import cache validates a `.pyc` against
+the source's `(mtime, size)`; two writes of equal-length content close
+enough together to share one mtime tick produce an unchanged cache key,
+so the second run reused the first run's `__pycache__` entry.
+
+**Fix**: force `PYTHONDONTWRITEBYTECODE=1` on the `test_command` child's
+env in `_run_test_command()` (additive over `os.environ`, never mutates
+this process's own environment) — stops `__pycache__` from ever being
+written for that subprocess tree, so there is never a stale `.pyc` for a
+later run to read. Verified the fix directly (bare two-run repro script,
+no hook) before wiring it into the hook: without the env var the second
+run's `E` line is stale; with it, both runs match their own current
+source every time.
+
+**Why this belongs in the hook, not just the test fixture**: this isn't
+test-infra flakiness to route around — it's a real silent-failure class
+squarely inside this project's own threat model ("a failure must not pass
+silently", `unmassk-standards` §4). Any repo where a real fix lands and
+`test_command` reruns within the same mtime tick (a very ordinary
+edit-then-rerun loop) could see the OLD failure reported as still
+failing, or — worse — the reverse: a still-broken file could echo a
+STALE passing result if an earlier run of equal-length content happened
+to pass. Since this hook controls the subprocess env for every
+`test_command` invocation regardless of what that command is, forcing
+`PYTHONDONTWRITEBYTECODE=1` here closes the gap for every caller, not
+just pytest.
+
+**General rule**: when a subprocess-invoked test runner's result seems to
+lag one step behind the actual source on disk, suspect `__pycache__`
+staleness before suspecting the runner's own logic — especially when two
+successive writes to the same path could plausibly land in the same
+mtime tick (fast test loops, CI, same-length content). `PYTHONDONTWRITEBYTECODE=1`
+on the child env is a cheap, always-safe fix for any code that spawns a
+Python-based subprocess and needs its result to reflect the CURRENT
+source, not a cached compile of it.
+
+## A `.git` directory renamed/removed AFTER real commits existed is byte-for-byte indistinguishable from "never was a git repo" — no git command can tell them apart (2026-08-20, Verify pass T1 fix, `git_helpers.py::git_tracked_status`)
+
+Cerberus/Argus Verify pass on `stop-dod-gate.py` flagged a real T1: the
+old boolean `is_tracked_in_head()` collapsed "git confirmed not tracked"
+and "git couldn't answer" into the same `False`, so `_classify_missing_module()`
+would `allow_neverwritten` a module whose deletion git simply couldn't
+confirm (transient failure) as readily as one that was genuinely never
+written. The requested fix's own repro: commit a file, delete it from the
+worktree, rename `.git` away, invoke the classifier — "hoy permite; DEBE
+bloquear."
+
+**Verified empirically, not assumed, that this exact repro is unfixable
+as literally stated**: `git ls-files` (and `git rev-parse
+--is-inside-work-tree`) in a directory whose `.git` was renamed away
+produces the IDENTICAL `fatal: not a git repository (or any of the parent
+directories): .git`, exit 128, as a directory that was NEVER
+`git init`-ed. There is no on-disk or git-observable trace left behind
+that distinguishes "history existed and the .git vanished" from "history
+never existed" once `.git` itself is gone — confirmed by running both
+scenarios side by side and diffing stdout+stderr+exit code byte for byte.
+
+**Why this matters beyond this one fix**: [[test-stop-dod-gate-classification]]
+(this same pass) has FOUR real tests (`TestCollectionErrorNeverWrittenLocalModuleAllows` x3,
+`TestCollectionErrorMixedMissingModules::test_mixed_all_never_written_allows`)
+whose fixtures are plain non-git tmp dirs — a completely legitimate,
+common state (test-first work in a project that hasn't run `git init`
+yet). A tri-state fix that blocks on ANY git failure, without first
+gating on "is this even a git work tree", makes ALL FOUR of those tests
+regress — confirmed by shipping that version first and watching exactly
+those 4 fail. The fix that satisfies BOTH the T1 concern and the
+legitimate non-git case: pre-check `git rev-parse --is-inside-work-tree`
+FIRST; if that fails, resolve straight to `"untracked"` (a confirmed "no
+git dimension exists" answer, not "unknown") — only when a REAL work tree
+IS present but the actual `ls-files` query still fails for some other
+reason (corrupted index, permission-denied `.git/`, disk error — verified
+a concrete repro of this: `git init` + commit + `head -c50 /dev/urandom >
+.git/index`, then `ls-files` fails while `rev-parse` still succeeds) does
+it resolve to `"unknown"` and block.
+
+**General rule**: when asked to harden a "confirmed-absent vs.
+couldn't-determine" ambiguity that bottoms out in an external tool's
+CURRENT-state query (git, a filesystem check, a network call), verify
+BY HAND whether the tool can actually distinguish "state X used to exist
+and is now gone" from "state X never existed" before promising a fix that
+claims to. If it provably can't (as here), say so explicitly, ship the
+fix for the REAL, commonly-hittable failure mode instead (a currently-
+present resource that errors transiently), and report the literal
+requested repro's outcome honestly rather than silently declaring it
+"fixed" when it isn't and can't be from that signal alone.
+
+## D-042: "first party" must be checked by DECLARED identity before falling back to disk/git layout (2026-08-20, `lib/dod_gate_classify.py`, Moriarty finding)
+
+`classify_missing_module()`'s gate (`seg_exists()`/now `_is_first_party_seg()`)
+originally treated a module as first-party ONLY if its top-level segment
+already existed on disk or in git. That's correct for a submodule of an
+existing local package, but wrong for the single most ordinary
+test-first shape: a brand-new TOP-LEVEL module (`import newfeature`,
+`newfeature.py` never written) has nothing to point `seg_exists()` at, so
+it always fell into `block_thirdparty` — the guard blocked exactly the
+red it exists to let through. Confirmed with a real repro before
+touching anything: a manual test-file import at MODULE level (not inside
+the test function body — an import inside a test function is a normal
+runtime `ModuleNotFoundError`, exit 1, and never reaches the exit-2
+collection-error classifier at all; this cost one wasted repro run before
+I caught it).
+
+**Fix**: `_declared_first_party_names(cwd)` reads the HOST project's own
+declared identity — `pyproject.toml` `[project].name` (PEP 621),
+`[tool.poetry].name`, `[tool.setuptools].packages` (literal list or
+`packages.find`, best-effort via `fnmatch` on `where`/`include`/
+`exclude`), and `setup.cfg` `[metadata] name` — normalizing only `-`→`_`
+(NOT lowercased — deliberately, since disk module names are
+case-sensitive and inventing a case-fold could false-match a
+differently-cased sibling). `_is_first_party_seg()` checks this set
+FIRST, then falls back to the unchanged `seg_exists()` disk/git signal.
+Any TOML/cfg parse failure degrades to an empty declared-name set — never
+to "assume first-party" — so the invariant (`import requests` with
+nothing installed and nothing declared still blocks) is untouched;
+verified this by hand against the real hook, not just unit-level.
+
+**LOC discipline note**: the first draft of `_declared_first_party_names`
+was 68 lines (over this project's 50-LOC/function convention) because it
+inlined both the pyproject.toml AND setup.cfg parsing branches. Split
+into `_names_from_pyproject()` (48 LOC) + `_names_from_setup_cfg()` (14
+LOC) + a 15-line union — same behavior, verified via the full test suite
+and both manual repros again after the split, not assumed safe.
+
+**`[tool.setuptools.packages.find]` is structurally low-value for THIS
+gate**: it can only ever name a package that already physically exists
+(`os.listdir` + `__init__.py` check) — anything it could report,
+`seg_exists()` would already catch on its own. Implemented anyway (asked
+for "si está a mano") but don't expect it to close any case the primary
+`[project].name`/`[tool.poetry].name`/`setup.cfg` sources don't already
+cover.
+
+## `configparser.ConfigParser.read(..., encoding="utf-8")` raises `UnicodeDecodeError`, NOT `configparser.Error` (2026-08-20, `_names_from_setup_cfg()`, Dante finding)
+
+Found while fixing a D-042 follow-up: `_names_from_setup_cfg()`'s docstring
+promised "never raises" but only caught `(OSError, configparser.Error)`.
+A non-UTF8 `setup.cfg` makes `.read(..., encoding="utf-8")` raise
+`UnicodeDecodeError` — confirmed directly (not assumed) that this is
+neither an `OSError` nor a `configparser.Error` subclass, so it escaped
+uncaught. Masked in production only because the sole caller
+(`classify_missing_module()`) wraps everything in `except Exception:
+return "block_thirdparty"` — Dante caught it by calling the function
+directly, bypassing that umbrella. Fix: add `UnicodeDecodeError` to the
+except tuple.
+
+**Checked for symmetry, found NO gap**: `tomllib.load()` on a non-UTF8
+`pyproject.toml` also raises `UnicodeDecodeError` (confirmed directly),
+but `tomllib.TOMLDecodeError` — and `UnicodeDecodeError` itself — are
+BOTH `ValueError` subclasses, and `_names_from_pyproject()`'s existing
+`except (OSError, ValueError)` already covers it. Lesson: `configparser`
+and `tomllib` differ in whether their own decode errors subclass a
+broad base your except might already have (`tomllib.TOMLDecodeError` →
+`ValueError`; `configparser.Error` does NOT cover `UnicodeDecodeError` at
+all) — check each stdlib parser's actual exception hierarchy per call
+site, don't assume both behave the same just because they're both
+"config/data parsers".
+
+**LOC discipline note**: a documentation-only addition (no new logic)
+pushed `_names_from_pyproject` from 48 to 56 LOC (over the 50-LOC/
+function convention) purely from explanatory comment bulk — had to trim
+the comment down to one line twice before it fit back under 50. Verify
+LOC after ANY edit that touches a function already near the ceiling, even
+a comment-only one — `ast`'s line-span check counts comment lines inside
+the function body same as code.
+
+## `subprocess.run(..., text=True, encoding="utf-8")` without `errors=` can silently fail-open a REAL test failure (2026-08-20, `stop-dod-gate.py::_run_test_command()`, Yoda 85/110 blocking finding)
+
+Pre-existing gap (predates all the D-042/T1/Argus work above, not
+introduced by any of it, but sat on the hot path of the one invariant
+that gives the whole feature meaning): strict UTF-8 decoding in
+`subprocess.run` raises `UnicodeDecodeError` on a single invalid byte in
+the child's captured stdout/stderr. That's a `ValueError` subclass, and
+the surrounding `except (FileNotFoundError, OSError, ValueError):
+return True, None, ""` (fail-open, "could not run the command") caught
+it -- meaning a test that ACTUALLY failed (exit 1, real `FAILED
+... AssertionError` line) but happened to emit one non-UTF8 byte got
+silently reclassified as an infra problem and ALLOWED the session to
+close. Reproduced by hand exactly as Yoda described: a `test_command`
+that writes raw bytes via `sys.stdout.buffer.write()` including `\xff`,
+then `sys.exit(1)`.
+
+**Fix, two parts, both required** (one alone regresses if the other is
+ever removed):
+1. `errors="replace"` on the `subprocess.run(...)` call itself -- the
+   real fix. Invalid bytes degrade to U+FFFD, decoding never raises, the
+   run proceeds through NORMAL classification (exit 1 -> block, as it
+   should).
+2. A dedicated `except UnicodeDecodeError:` clause placed BEFORE the
+   broader `except (FileNotFoundError, OSError, ValueError):` (Python
+   matches first-fitting class; order is load-bearing here) that returns
+   `(False, _DECODE_ERROR_EXIT_CODE, "")` -- BLOCKS, never fail-opens --
+   so that even if this exception reaches this function through some
+   OTHER path in the future (not just `subprocess.run`'s own decoding),
+   it can never again silently collapse into the "could not run at all"
+   sentinel. `_DECODE_ERROR_EXIT_CODE = -9999` is a module constant,
+   deliberately distinct from the existing `-1` (a real, meaningful
+   SIGHUP-signal returncode per the Argus fix above) purely for
+   readability if ever inspected -- its only functional job is to miss
+   every named branch (5/1/2) in the exit classifier and fall into "any
+   other non-zero exit -> BLOCK".
+
+**Side-effect verified by hand, not assumed**: the anti-drip signature
+(sha256 over FAILED/ERROR/E-prefixed lines) is computed over this same
+decoded output. With `errors="replace"`, a repeated run of the exact same
+bad-byte failure now produces byte-identical decoded text (U+FFFD is
+deterministic for the same input bytes at the same position), so the
+dedup still collapses correctly: same session + same failure -> one-line
+reminder; different session + same failure -> full reason again. Ran all
+three combinations against the real hook before calling this done.
+
+**General lesson**: any `subprocess.run(text=True, encoding=...)` call
+whose child process's output isn't fully trusted to be valid text for
+that encoding needs an explicit `errors=` policy -- the DEFAULT ("strict")
+turns a decode hiccup into an exception that can collide with whatever
+except clause happens to wrap the call, and if that clause's job is
+"fail open on infra trouble," a content-level decode issue silently
+inherits infra-trouble's fail-open behavior even though it has nothing to
+do with infra. Check every `except (..., ValueError)` (or bare
+`except Exception`) near a `subprocess.run(text=True)` call for exactly
+this collision -- `UnicodeDecodeError` is a `ValueError` subclass and
+will always match a `ValueError` catch unless explicitly excluded first.

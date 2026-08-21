@@ -587,3 +587,74 @@ traza cruda sobre zones.json corrupto: `_cmd_list()` cae al `zones_lib.load()` r
 "nunca una traza de pila") lo convierte en stderr limpio + exit 1 -- confirmado ejecutando el escenario real
 (rc=1, stderr con mensaje claro, sin traceback). Mismo comportamiento que existía ANTES de este diff
 (`_cmd_list` ya llamaba `zones_lib.load()` sin try/except propio desde siempre) -- no es una regresión.
+
+## 2026-08-20 — stop-dod-gate.py exit 5/1/2 classification + D-042 (declared identity) + git tri-state
+
+**Pattern: never background a real pytest run with raw `nohup ... &` when the suite under test contains a
+real-signal test (SIGHUP/SIGINT/etc.) -- it produces a reproducible FALSE failure, not a flaky one.**
+`TestSignalKilledProcessBlocks::test_process_killed_by_sighup_blocks` failed 2/2 identically when I
+backgrounded the full suite myself via `nohup python3 -m pytest ... &`, but passed 1/1 in isolation and
+981/981 (0 failed) when I reran the exact same 78-file subset via the harness's own `run_in_background`
+(no `nohup`). Root cause confirmed by a minimal repro: `nohup`'s whole purpose is to set `SIGHUP` to
+`SIG_IGN` for its direct child, and POSIX `exec()` PRESERVES an ignored disposition across exec (only
+CAUGHT dispositions reset to default) -- so every grandchild `subprocess.run()` spawns downstream (pytest's
+own child, and that child's own child in the SIGHUP self-kill test) inherits the ignore, and
+`os.kill(os.getpid(), SIGHUP)` becomes a silent no-op, changing the test's own precondition ("the child
+really gets killed by a real signal") without changing anything in the code under test. Isolated repro:
+`nohup python3 -c "subprocess.run([...self-SIGHUP...])" ` -> returncode 0 (ignored) vs the same command
+run directly -> returncode -1 (really killed). **Rule going forward: for any test suite in this repo that
+exercises real OS signals, use the Bash tool's own `run_in_background: true` to background a long pytest
+run, never a manually-typed `nohup ... &`** -- confirmed one is safe, the other silently corrupts signal
+tests' own preconditions. Do not report a signal-based test failure as a real regression before ruling
+this out first (rerun in isolation AND rerun the background job without `nohup`).
+
+**Pattern: a hook's `_run_test_command()`-style subprocess wrapper with `subprocess.run(...,
+encoding="utf-8", ...)` (strict decode) inside a broad `except (..., ValueError)` fail-open clause silently
+swallows a REAL failure whenever the child's stdout/stderr contains one invalid UTF-8 byte -- because
+`UnicodeDecodeError` IS a `ValueError` subclass, so it lands in the SAME bucket as "could not run the
+command at all," even though the command DID run and DID fail for real.** Live repro against the actual
+hook (`hooks/stop-dod-gate.py::_run_test_command`, this exact idiom pre-dates this session's diff --
+confirmed via `git diff`, lines unchanged): `test_command` prints `b"FAILED test_x - AssertionError: bad
+byte \xff\xfe here"` and exits 1 (a completely real, unambiguous red) -- the hook produces ZERO output
+(no JSON block, no stderr) and exits 0, silently allowing session close. This is exactly the project's own
+named worst case ("un fallo que pasa callado"), live on the hot path of the one feature whose entire
+stated purpose is "never let a real red pass silently" -- and missed by Cerberus, Argus, Dante, AND
+Moriarty across a fairly deep multi-round pass on this same file. Reported as a Major (not blocking that
+session's diff, since the buggy code pre-dates it and lives in an untouched function -- D1-D5's scope was
+only the exit 5/1/2 tree), named as an urgent follow-up with the exact fix (`errors="replace"` on the
+`subprocess.run` call, or split `UnicodeDecodeError` out of the generic fail-open except into its own
+"real failure, non-UTF8 output" block-branch). **Check for this pattern in ANY hook that runs an
+arbitrary, project-configured external command** (as opposed to this codebase's OWN git subprocess calls,
+which are much more UTF-8-hardened already per many prior sessions) -- `test_command` is uniquely exposed
+because it can be literally any test runner in any language, unlike the codebase's internal `git` calls.
+
+**Pattern: a Cerberus "NOT MERGEABLE" T1 verdict can be legitimately, honestly closed WITHOUT literally
+satisfying the reviewer's own repro, when the repro turns out to be provably unfixable from the available
+signal, and the fix instead covers the REAL underlying risk class.** Cerberus's T1 repro for the
+`is_tracked_in_head()` boolean-collapse bug used "commit a file, delete it, rename `.git` away" as the
+demonstration. Ultron's fix (`git_tracked_status()`, tri-state) verifiably CANNOT make that exact literal
+scenario block, because `git rev-parse --is-inside-work-tree` and `git ls-files` produce byte-identical
+output/exit-code whether `.git` was renamed away after real commits existed or never existed at all --
+confirmed by hand, no git-observable signal survives `.git`'s removal to distinguish the two. Ultron
+documented this explicitly (docstring "Known, accepted limitation (verified by hand, not assumed)") and
+shipped the fix for the actually-realistic, actually-repeatable transient-failure class instead (a LIVE
+repo whose `ls-files` fails for some other reason -- corrupted index, permission error), which I
+independently re-verified live (real repo, real `.git/index` corruption, hook correctly blocks) --
+distinct from the ".git entirely gone" case, which I ALSO independently reproduced and confirmed resolves
+to ALLOW, exactly as documented, not a new silent regression. No subsequent Cerberus re-pass exists
+confirming this narrower closure (their memory's last recorded verdict is still literally "NOT
+MERGEABLE") -- treated this as a stale-Cerberus-scope gap (same class as the 2026-07-18 pattern) and
+closed it myself via direct live reproduction of BOTH sides of the fix, rather than either trusting an
+unconfirmed narrative or mechanically rejecting on a stale verdict. Recommend the `.git`-fully-gone
+residual get the same explicit owner sign-off D-042 got (Bex named it directly), since it's the same "D2
+golden rule" territory -- named as a Minor, not blocking.
+
+**Verdict: APPROVED WITH CONDITIONS, 85/110.** Full detail: D-042 (Moriarty's flagship T1+DECEPTION --
+brand-new top-level test-first module always blocked) verified fixed live, both sides (declared identity
+via pyproject.toml allows; no declared identity still blocks, exactly the accepted residual, both
+independently reproduced against the real hook). Git tri-state T1 (Cerberus) verified fixed for the real
+transient-failure class live. Argus's SIGHUP-vs-infra-sentinel LOW fix verified via direct code read +
+isolated test + clean full-suite background run. §34 round-trip gate on the state file done personally
+(real write→read, 2 sabotage variants). The one NEW Major finding above (UTF-8 strict-decode swallowing a
+real failure) is the single named condition, urgent but not blocking THIS diff (pre-existing, untouched
+function, out of D1-D5's stated scope).
