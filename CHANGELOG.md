@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-08-21
+
 ### Changed
 
 - **El hook de cierre de sesión ya no bloquea cualquier rojo por igual — clasifica antes de decidir.** `stop-dod-gate` corría `test_command` y paraba el cierre ante cualquier exit no-cero; en una sesión de obra real con tubería test-first, eso significaba que el Stop saltaba 40+ veces pegando la salida entera de pytest, siendo el rojo el estado esperado (el test del contrato, escrito antes que el código). Ahora exit 5 (suite vacía) y exit 2 con un módulo propio que nunca se llegó a escribir (ausente en disco y en git) dejan cerrar, con un aviso informativo una sola vez por sesión o por módulo; exit 1 (tests que corren y fallan de verdad) y cualquier otro caso siguen bloqueando igual que antes. Al bloquear, una firma de la salida evita repetir el volcado completo dentro de la misma sesión si el fallo no cambió.
