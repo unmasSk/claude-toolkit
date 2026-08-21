@@ -2597,3 +2597,53 @@ do with infra. Check every `except (..., ValueError)` (or bare
 `except Exception`) near a `subprocess.run(text=True)` call for exactly
 this collision -- `UnicodeDecodeError` is a `ValueError` subclass and
 will always match a `ValueError` catch unless explicitly excluded first.
+
+## `tomllib` (3.11+ stdlib) fallback needs a REAL 3-tier chain, not just try/except -> None -- and CI's own pytest install can mask the deepest tier (2026-08-21, `lib/dod_gate_classify.py`, CI red on ubuntu/windows)
+
+D-042's `_names_from_pyproject()` originally had `try: import tomllib
+except ImportError: tomllib = None` with no further fallback. CI pins
+Python 3.10 (`.github/workflows/toolkit-ci.yml`, `tomllib` is stdlib only
+since 3.11) — so on CI this always degraded to "no declared identity",
+silently disabling the whole D-042 feature there, while passing clean in
+every local dev session (this machine runs 3.14). Real runner failures:
+5 named lines in `test_dod_gate_classify.py` + the stop-dod-gate.py
+end-to-end, all `'block_thirdparty' == 'allow_neverwritten'` or
+`in set()` assertions.
+
+**Fix**: 3-tier backend chain — `tomllib` -> `tomli` (if installed) ->
+`_minimal_toml_identity()`, a deliberately bounded (NOT general) TOML
+line-scanner recognizing only `[project].name`, `[tool.poetry].name`,
+`[tool.setuptools].packages` (single-line list), and
+`[tool.setuptools.packages.find]` `where`/`include` (single-line lists,
+resolved against the real filesystem through the SAME
+`_resolve_setuptools_find()` the real-parser path already used). Shared
+`_names_from_toml_data(cwd, data)` extracts identity from an
+already-parsed dict, reused by BOTH `tomllib` and `tomli` (same API
+shape) so there's no duplicate dict-walking logic between them.
+
+**Trap that would have produced a false "verified" claim**: `pytest`
+itself depends on `tomli` on Python <3.11 (to parse a project's own
+`pyproject.toml` for `[tool.pytest.ini_options]` at rootdir-detection
+time) — `pip install pytest==9.1.1` on a fresh Python 3.10 venv installs
+`tomli` as a TRANSITIVE dependency, even though nothing in this repo's
+CI workflow names it explicitly. First verification pass under a real
+`python3.10 -m venv` + `pip install pytest==9.1.1 pyyaml==6.0.3` (exactly
+CI's own install line) showed `_toml_lib is tomli`, not `None` — meaning
+that run exercised tier 2 (`tomli`), NOT tier 3 (the bounded fallback
+scanner), even though the goal was to prove the DEEPEST fallback works.
+Confirmed by inspection (`_toml_lib is None` printed `False`) before
+trusting the run. Had to `pip uninstall tomli` in that SAME venv to
+force tier 3 for real -- and at that point `pytest` itself can no longer
+even start in this repo (`ModuleNotFoundError: No module named 'tomli'`
+from `_pytest/config/findpaths.py`, trying to read the repo's own root
+`pyproject.toml`), so tier 3 had to be verified via direct function
+calls (`import dod_gate_classify; dgc._names_from_pyproject(...)`),
+bypassing pytest's own launcher entirely -- not through the test suite.
+
+**General lesson**: "I ran it under Python 3.10" is not the same claim as
+"I ran the exact fallback branch I meant to test" -- a transitive
+dependency of the TEST RUNNER itself can silently supply the very library
+your fallback exists to work without. Print/assert the actual resolved
+backend (`_toml_lib is None` or equivalent) before trusting that a
+downgrade/fallback path was genuinely exercised, don't infer it from the
+Python version alone.
