@@ -34,3 +34,4 @@
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
 [remember][user] 🧠 cuando lanzo varios agentes a la vez: no me informes uno por uno, dame el total cuando acaben todos
 [remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
+[remember][claude] 🧠 en una tuberia de agentes no narres cada vuelta: silencio real entre hitos, solo hablo para un resultado que decide, una pregunta, o la entrega final
