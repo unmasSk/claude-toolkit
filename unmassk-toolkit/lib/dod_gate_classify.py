@@ -42,9 +42,18 @@ import os
 import re
 
 try:
-    import tomllib
-except ImportError:  # pragma: no cover -- stdlib since Python 3.11
-    tomllib = None
+    import tomllib as _toml_lib
+except ImportError:
+    try:
+        import tomli as _toml_lib  # type: ignore[no-redef]
+    except ImportError:
+        # [2026-08-21, CI finding] neither present -- reproduced for
+        # real, not assumed: CI pins Python 3.10 (`tomllib` is stdlib
+        # only since 3.11) and installs ONLY pytest+pyyaml (no `tomli`).
+        # `_names_from_pyproject()` falls back to `_minimal_toml_identity()`
+        # below in this case -- never to "no identity, but also never to
+        # crashing or to assuming first-party.
+        _toml_lib = None  # type: ignore[assignment]
 
 from git_helpers import git_tracked_status
 
@@ -138,26 +147,19 @@ def _resolve_setuptools_find(cwd: str, find_table: object) -> set[str]:
     return found
 
 
-def _names_from_pyproject(cwd: str) -> set[str]:
-    """[project].name (PEP 621), [tool.poetry].name (Poetry), and
-    [tool.setuptools].packages / packages.find from pyproject.toml.
-    Missing tomllib, missing file, or malformed TOML all degrade to an
-    empty set -- never raises, never assumes first-party.
-    """
+_TOML_SECTION_RE = re.compile(r"^\[([^\]]+)\]\s*(?:#.*)?$")
+_TOML_KEY_STR_RE = re.compile(
+    r"^([A-Za-z0-9_.\-]+)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')\s*(?:#.*)?$"
+)
+_TOML_KEY_LIST_RE = re.compile(r"^([A-Za-z0-9_.\-]+)\s*=\s*(\[[^\]]*\])\s*(?:#.*)?$")
+_TOML_LIST_ITEM_RE = re.compile(r"""["']((?:[^"'\\]|\\.)*)["']""")
+
+
+def _names_from_toml_data(cwd: str, data: dict) -> set[str]:
+    """Extract D-042 identity names from an already-parsed pyproject.toml
+    dict (tomllib or tomli output -- both have the same shape). Shared by
+    both real TOML backends in `_names_from_pyproject()`."""
     names: set[str] = set()
-    if tomllib is None:
-        return names
-
-    try:
-        with open(os.path.join(cwd, "pyproject.toml"), "rb") as f:
-            data = tomllib.load(f)
-    except (OSError, ValueError):
-        # Non-UTF8 pyproject.toml -> tomllib.load() raises
-        # UnicodeDecodeError (confirmed), a ValueError subclass -- already caught.
-        return names
-    if not isinstance(data, dict):
-        return names
-
     project_tbl = data.get("project")
     if isinstance(project_tbl, dict):
         project_name = project_tbl.get("name")
@@ -188,6 +190,114 @@ def _names_from_pyproject(cwd: str) -> set[str]:
             }
 
     return names
+
+
+def _scan_toml_lines(text: str) -> tuple[set[str], list[str], list[str]]:
+    """Pure, disk-free line scan for `_minimal_toml_identity()`: tracks
+    the current `[section]` header and recognizes exactly `name` under
+    `[project]`/`[tool.poetry]`, `packages` under `[tool.setuptools]`
+    (single-line list only), and `where`/`include` under
+    `[tool.setuptools.packages.find]` (single-line lists only). Returns
+    (names_from_name_and_packages, find_where, find_include) -- the
+    caller resolves `find_where`/`find_include` against the real
+    filesystem via `_resolve_setuptools_find()`, which this function
+    never touches. Never raises.
+    """
+    names: set[str] = set()
+    section = ""
+    find_where: list[str] = []
+    find_include: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        section_match = _TOML_SECTION_RE.match(line)
+        if section_match:
+            section = section_match.group(1).strip()
+            continue
+        str_match = _TOML_KEY_STR_RE.match(line)
+        if str_match:
+            key = str_match.group(1)
+            value = str_match.group(2) if str_match.group(2) is not None else str_match.group(3)
+            if key == "name" and section in ("project", "tool.poetry"):
+                names.add(_normalize_declared_name(value))
+            continue
+        list_match = _TOML_KEY_LIST_RE.match(line)
+        if list_match:
+            key, list_body = list_match.group(1), list_match.group(2)
+            items = _TOML_LIST_ITEM_RE.findall(list_body)
+            if section == "tool.setuptools" and key == "packages":
+                for item in items:
+                    if item:
+                        names.add(_normalize_declared_name(item.split(".")[0]))
+            elif section == "tool.setuptools.packages.find":
+                if key == "where":
+                    find_where = items
+                elif key == "include":
+                    find_include = items
+    return names, find_where, find_include
+
+
+def _minimal_toml_identity(text: str, cwd: str) -> set[str]:
+    """[2026-08-21, CI finding] ACOTADA (deliberately not a general TOML
+    parser) line-based extraction of just the D-042 identity signals,
+    used ONLY when NEITHER `tomllib` (3.11+) NOR `tomli` is importable --
+    reproduced for real: CI pins Python 3.10 and installs only
+    pytest+pyyaml, so this path runs there, not just in theory.
+
+    Delegates the actual line-by-line recognition to `_scan_toml_lines()`
+    (pure, disk-free); this function's only job is resolving any
+    `[tool.setuptools.packages.find]` `where`/`include` it found against
+    the real filesystem, via the SAME `_resolve_setuptools_find()` the
+    real-TOML-backend path uses. Anything the scanner doesn't recognize
+    -- multi-line arrays, inline tables, dotted keys, TOML escape edge
+    cases -- is silently ignored, never guessed at. Can only ADD names; a
+    line/file it doesn't recognize contributes nothing, same as a
+    missing file. Never raises.
+    """
+    names, find_where, find_include = _scan_toml_lines(text)
+
+    if find_where or find_include:
+        find_table: dict = {}
+        if find_where:
+            find_table["where"] = find_where
+        if find_include:
+            find_table["include"] = find_include
+        names |= {_normalize_declared_name(n) for n in _resolve_setuptools_find(cwd, find_table)}
+
+    return names
+
+
+def _names_from_pyproject(cwd: str) -> set[str]:
+    """[project].name (PEP 621), [tool.poetry].name (Poetry), and
+    [tool.setuptools].packages / packages.find from pyproject.toml.
+    Missing file, unreadable/malformed TOML, or no TOML library at all
+    all degrade to an empty set -- never raises, never assumes
+    first-party. Backend order: `tomllib` (3.11+) -> `tomli` (if
+    installed) -> `_minimal_toml_identity()`'s bounded fallback scanner.
+    """
+    path = os.path.join(cwd, "pyproject.toml")
+
+    if _toml_lib is not None:
+        try:
+            with open(path, "rb") as f:
+                data = _toml_lib.load(f)
+        except (OSError, ValueError):
+            # Missing file, malformed TOML (TOMLDecodeError from either
+            # backend is a ValueError subclass), or non-UTF8 content
+            # (UnicodeDecodeError, also a ValueError subclass) -- all
+            # already caught here.
+            return set()
+        if not isinstance(data, dict):
+            return set()
+        return _names_from_toml_data(cwd, data)
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError):
+        return set()
+    return _minimal_toml_identity(text, cwd)
 
 
 def _names_from_setup_cfg(cwd: str) -> set[str]:
