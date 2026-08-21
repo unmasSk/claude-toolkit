@@ -56,18 +56,55 @@ Formato I/O de Stop hook
 - Exit:   0 siempre (el hook no comunica la decisión vía exit code).
 
 Test surface: 3 responsabilidades (leer config, ejecutar comando, formatear
-respuesta), 12 ramas/caminos, 11 clases de test, 27 tests.
+respuesta). El conteo de clases/tests de esta línea ha quedado desfasado
+dos veces seguidas (decía "11 clases de test" cuando ya eran 9) -- para
+el número real, `pytest --collect-only` en vez de confiar en esta cifra.
+A fecha 2026-08-20: 24 clases / 52 tests en este fichero; junto con
+`test_dod_gate_classify.py` (6 clases / 17 tests), 69 tests en verde.
 [2026-08-06: +2 clases / +7 tests -- contrato "config corrupto debe avisar,
 distinto de no-configurado" (RED en TestCorruptConfigMustWarn hasta que
 Ultron implemente el aviso); también se corrigió la ruta de config
 (`.claude/git-memory-config.json` → `.claude/project-memory/config.json`)
 que había dejado 4 tests de TestCommandFailsBlocks en rojo silencioso
 desde el movimiento del fichero de config el mismo día.]
+[2026-08-20: +8 clases / +13 tests -- CONTRATO DE ACEPTACIÓN test-first
+(RED antes de que Ultron implemente) para la clasificación de exit
+5/1/2 de `test_command` cuando ES pytest de verdad, en vez de tratar
+cualquier exit ≠0 como bloqueo: exit 5 (suite vacía) permite con aviso
+una vez por sesión; exit 1 sigue bloqueando; exit 2 exige parsear
+"No module named 'X'" de la salida real y decidir según si X vive en
+disco/git (never-written permite con aviso una vez por módulo/sesión,
+deleted-tracked y third-party bloquean, sin-match bloquea, mezcla
+bloquea si al menos uno bloquea); y anti-goteo por firma keyeada a
+session_id (firma repetida en la misma sesión = recordatorio de una
+línea sin volcado; firma nueva o sesión distinta = reason completa).
+Estas clases invocan pytest de verdad (`_PYTEST_COMMAND`), no un
+`python -c "sys.exit(N)"` simulado -- necesario porque lo que hay que
+probar es que el hook sabe leer la salida real de pytest, no solo
+reaccionar al exit code. Ver TestRealPytestEmptySuiteAllows,
+TestRealPytestFailureBlocks, TestCollectionErrorNoModuleMatch,
+TestCollectionErrorThirdPartyModuleBlocks,
+TestCollectionErrorNeverWrittenLocalModuleAllows,
+TestCollectionErrorDeletedTrackedModuleBlocks,
+TestCollectionErrorMixedMissingModules, TestBlockSignatureDedupBySession.]
 Not tested: comportamiento del comando de test en sí mismo (eso es del usuario);
 integración real con Claude Code (fuera de alcance de tests unitarios de hook);
 OSError de permisos reales (chmod) -- no reproducible de forma fiable en
 Windows, cubierto en su lugar por el caso "config.json es un directorio"
 (mismo except OSError, repro cross-platform confirmada a mano).
+[2026-08-20] la sub-rama "seg existe, el fuente concreto de X está
+PRESENTE en disco pero revienta al importar" (bloquea) no tiene un
+repro real construible vía pytest genuino: si el fichero de X existe y
+es importable, CPython no levanta ModuleNotFoundError nombrando
+exactamente ese X (se probó a mano: SyntaxError propio da
+"SyntaxError", no "No module named"; un ImportError encadenado da
+"cannot import name", no "No module named"; el X que SÍ aparece en un
+ModuleNotFoundError real siempre resultó ser el que está ausente, nunca
+el presente). Queda para la pasada de hardening (después de que Ultron
+implemente) construirlo a nivel unitario contra la función de
+clasificación en sí, no contra pytest real -- de momento el contrato
+solo fija que las dos ramas realmente observables (ausente+trackeado
+→ bloquea, ausente+no-trackeado → permite) están cubiertas.
 """
 
 import json
@@ -77,7 +114,12 @@ import textwrap
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, run_cmd, run_script
+from conftest import SOURCE_ROOT, HOOKS_DIR, LIB_DIR, run_cmd, run_script, git_cmd
+
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from git_helpers import UNMASSK_RUNTIME_DIR  # real constant -- no ruta a mano
 
 HOOK_PATH = os.path.join(HOOKS_DIR, "stop-dod-gate.py")
 
@@ -132,6 +174,61 @@ def _makes_tmp_dir(tmp_path: object, name: str = "workdir") -> str:
     d = str(tmp_path / name)
     os.makedirs(d)
     return d
+
+
+# ── Helpers -- clasificación de salida real de pytest (2026-08-20) ────────────
+#
+# Contrato de aceptación nuevo: el hook debe saber leer la salida REAL de
+# pytest (no un `python -c "sys.exit(N)"` simulado) para distinguir suite
+# vacía / fallo real / error de colección. `_PYTEST_COMMAND` invoca pytest
+# de verdad; el hook hereda su cwd = workdir (confirmado leyendo
+# `_run_test_command()` en stop-dod-gate.py: no pasa `cwd=` explícito a
+# `subprocess.run`, así que hereda el cwd del propio proceso del hook, que
+# es `workdir` porque `_run_hook()` ya lanza el hook con `cwd=workdir`).
+
+_PYTEST_COMMAND = f"{sys.executable} -m pytest -q"
+
+
+def _write_source_file(repo: str, relpath: str, content: str) -> None:
+    """Escribe un fichero fuente arbitrario (test_*.py, paquete, etc.) en
+    el workdir, creando directorios intermedios si hace falta. Distinto de
+    `_write_config`/`_write_raw_config`, que solo escriben config.json."""
+    path = os.path.join(repo, relpath)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def _stop_payload(session_id: str) -> str:
+    """Payload de evento Stop con `session_id` explícito -- el evento Stop
+    real de Claude Code trae este campo (hecho verificado por Bilbo, no
+    reinvestigado aquí). Necesario porque el anti-goteo de esta mejora
+    dedup-a por session_id: dos invocaciones con el mismo session_id deben
+    poder verse como "la misma sesión" desde el test."""
+    return json.dumps({"hook_event_name": "Stop", "session_id": session_id})
+
+
+def _init_git_repo_with_commit(workdir: str) -> None:
+    """git init + primer commit (vacío) en el workdir. Mismo patrón que el
+    fixture `tmp_repo` de conftest.py, pero sobre un workdir con nombre
+    propio en lugar de `tmp_path / "repo"` -- estos tests necesitan
+    controlar el nombre del workdir para los escenarios que lo comparan
+    contra uno hermano no-git."""
+    rc, _, stderr = git_cmd(["init"], workdir)
+    assert rc == 0, f"git init falló en el fixture: {stderr!r}"
+    rc, _, stderr = git_cmd(["commit", "--allow-empty", "-m", "init"], workdir)
+    assert rc == 0, f"git commit inicial falló en el fixture: {stderr!r}"
+
+
+def _git_add_all_commit(workdir: str, message: str) -> None:
+    """git add -A + commit en el workdir -- fixture, no una acción del
+    agente sobre este repositorio; es código que pytest ejecuta al correr
+    la suite, igual que el resto de fixtures git de este fichero de
+    tests."""
+    rc, _, stderr = git_cmd(["add", "-A"], workdir)
+    assert rc == 0, f"git add falló en el fixture: {stderr!r}"
+    rc, _, stderr = git_cmd(["commit", "-m", message], workdir)
+    assert rc == 0, f"git commit falló en el fixture: {stderr!r}"
 
 
 # ── Caso 1: test_command configurado + tests pasan → DEJA cerrar ──────────────
@@ -599,6 +696,988 @@ class TestCorruptConfigMustWarn:
             "distintos y quien lee la salida del hook tiene que poder "
             f"distinguirlos. corrupto: stderr={stderr_corrupt!r} | "
             f"no configurado: stderr={stderr_not_configured!r}"
+        )
+
+
+# ── Caso 8: clasificación de la salida REAL de pytest -- exit 5/1/2 ───────────
+#
+# CONTRATO DE ACEPTACIÓN 2026-08-20 (test-first, RED antes de que Ultron
+# implemente). Hoy el hook trata CUALQUIER exit ≠0 de test_command como
+# bloqueo -- la mejora reportada por el propietario exige clasificar el
+# resultado antes de decidir:
+#   - exit 0                → permite (ya cubierto arriba, sin cambios).
+#   - exit 5 (suite vacía, pytest "no tests ran") → permite, con un aviso
+#     informativo UNA vez por sesión (no un bloqueo).
+#   - exit 1 (tests corren y fallan de verdad)     → bloquea (ya cubierto
+#     arriba con exit codes simulados; aquí se confirma con pytest real).
+#   - exit 2 (error de colección)                  → ver Caso 9 más abajo,
+#     requiere parsear "No module named 'X'".
+#
+# Estas clases invocan pytest DE VERDAD (`_PYTEST_COMMAND`), no un
+# `python -c "sys.exit(N)"` simulado -- lo que hay que probar es que el
+# hook sabe LEER y clasificar la salida real de pytest 9.0.2 / Python
+# 3.14, no solo reaccionar al exit code. Exit codes confirmados a mano
+# antes de escribir las aserciones (ver hechos de Bilbo en el prompt de
+# esta tarea, no reinvestigados aquí).
+
+class TestRealPytestEmptySuiteAllows:
+    """exit 5 (pytest real, ningún test recogido) -- debe DEJAR cerrar,
+    no bloquear. RED hoy: el hook actual bloquea ante CUALQUIER exit ≠0,
+    incluido el 5."""
+
+    def test_empty_suite_exit5_allows_close(self, tmp_path):
+        """Workdir sin ningún test_*.py -- pytest real sale 5 ("no tests
+        ran"). El hook no debe bloquear el cierre."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-empty-1"))
+
+        assert rc == 0, f"Hook siempre sale 0; rc={rc!r}"
+        assert parsed is None or parsed.get("decision") != "block", (
+            f"Suite vacía (exit 5) no debe bloquear el cierre; "
+            f"parsed={parsed!r}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+    def test_empty_suite_warning_does_not_repeat_same_session(self, tmp_path):
+        """El aviso informativo de suite vacía es UNA vez por sesión: dos
+        invocaciones seguidas con el MISMO session_id y la misma suite
+        vacía no deben repetir el aviso en la segunda."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-empty-repeat"
+
+        rc1, parsed1, _, stderr1 = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, stderr2 = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is None or parsed1.get("decision") != "block"
+        assert parsed2 is None or parsed2.get("decision") != "block"
+        assert stderr2.strip() == "", (
+            "El aviso de suite vacía debe verse UNA vez por sesión -- la "
+            f"segunda invocación con el mismo session_id no debe repetirlo; "
+            f"stderr primera={stderr1!r}, stderr segunda={stderr2!r}"
+        )
+
+
+class TestRealPytestFailureBlocks:
+    """exit 1 (pytest real: tests corren y fallan) -- debe seguir
+    bloqueando, confirmado contra la salida real de pytest (no
+    simulada)."""
+
+    def test_real_pytest_failure_exit1_blocks(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_source_file(
+            workdir,
+            "test_real_fail.py",
+            "def test_should_pass_but_fails():\n"
+            "    assert 1 == 2\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-fail-1"))
+
+        assert rc == 0
+        assert parsed is not None, f"Fallo real de pytest debe bloquear; stdout={stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"exit 1 de pytest real debe bloquear; parsed={parsed!r}"
+        )
+
+
+# ── Caso 9: exit 2 -- error de colección, parseo de "No module named" ─────────
+#
+# Contrato (hechos de Bilbo, no reinvestigados): para cada módulo
+# faltante X extraído de "No module named '(X)'" en stdout+stderr,
+# seg = X.split('.')[0]:
+#   - si NINGUNA coincidencia del patrón aparece (p.ej. sintaxis rota en
+#     el propio fichero de test, sin relación con imports) → bloquea.
+#   - si seg NO existe en disco (`<cwd>/<seg>/`, `<cwd>/<seg>.py`,
+#     `<cwd>/src/<seg>/`) NI está trackeado bajo esos paths en git HEAD →
+#     bloquea (dependencia de verdad ausente, típicamente third-party).
+#   - si seg SÍ existe, pero el fuente concreto de X está ausente en
+#     disco Y NO trackeado en git HEAD (módulo local que nunca se llegó
+#     a escribir) → permite, con aviso una vez por módulo/sesión.
+#   - si seg SÍ existe, pero el fuente concreto de X está ausente en
+#     disco Y SÍ trackeado en git HEAD (existió y se borró) → bloquea.
+#   - con varios módulos faltantes en la misma corrida: si al menos uno
+#     bloquea, el resultado global bloquea; solo si TODOS caen en
+#     "nunca escrito" el resultado permite.
+#
+# Cada fixture de abajo fue confirmada a mano contra pytest 9.0.2 /
+# Python 3.14 antes de escribir la aserción (exit code + presencia real
+# de "No module named" en la salida), igual que Bilbo hizo para los
+# hechos que trae este prompt -- no se asume ningún mensaje de pytest sin
+# haberlo visto salir de un run real.
+
+class TestCollectionErrorNoModuleMatch:
+    """Error de colección SIN "No module named" en la salida -- no hay
+    módulo que clasificar, el hook no puede saber si es seguro. Debe
+    bloquear."""
+
+    def test_syntax_error_in_own_test_file_blocks(self, tmp_path):
+        """Sintaxis rota en el propio fichero de test -- pytest sale 2 con
+        un SyntaxError, no un ModuleNotFoundError. Confirmado a mano:
+        stdout+stderr no contienen "No module named" en absoluto."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_source_file(workdir, "test_broken_syntax.py", "def test_foo(:\n    pass\n")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-syntax-1"))
+
+        assert rc == 0
+        assert parsed is not None, f"Error de colección sin match debe bloquear; stdout={stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"Sin coincidencia de 'No module named', debe bloquear (no se "
+            f"puede clasificar); parsed={parsed!r}"
+        )
+
+
+class TestCollectionErrorThirdPartyModuleBlocks:
+    """Módulo faltante cuyo `seg` (primer segmento) no existe ni en disco
+    ni en git HEAD -- dependencia de verdad ausente (típicamente
+    third-party). Debe bloquear."""
+
+    def test_missing_thirdparty_single_segment_blocks(self, tmp_path):
+        """Import de un paquete inventado de un solo segmento -- pytest
+        sale 2 con "No module named 'totally_fake_thirdparty_pkg_xyz'".
+        Ese `seg` no existe en disco ni en git en ningún sitio del
+        workdir."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_source_file(
+            workdir,
+            "test_import_thirdparty.py",
+            "import totally_fake_thirdparty_pkg_xyz\n\n"
+            "def test_foo():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-thirdparty-1"))
+
+        assert rc == 0
+        assert parsed is not None, f"Dependencia third-party ausente debe bloquear; stdout={stdout!r}"
+        assert parsed.get("decision") == "block", (
+            f"seg ausente en disco y en git debe bloquear; parsed={parsed!r}"
+        )
+
+
+class TestCollectionErrorNeverWrittenLocalModuleAllows:
+    """`seg` existe (paquete local real en el workdir), pero el submódulo
+    concreto importado nunca se llegó a escribir (ausente en disco Y no
+    trackeado en git) -- caso benigno de referencia adelantada. Debe
+    permitir, con aviso una vez por módulo/sesión."""
+
+    def _build_never_written_fixture(self, workdir: str) -> None:
+        _write_source_file(workdir, "moria/__init__.py", "")
+        _write_source_file(
+            workdir,
+            "test_import_never_written.py",
+            "import moria.never_written_submodule\n\n"
+            "def test_foo():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+    def test_never_written_submodule_allows_close(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        self._build_never_written_fixture(workdir)
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-neverwritten-1"))
+
+        assert rc == 0
+        assert parsed is None or parsed.get("decision") != "block", (
+            f"Submódulo local nunca escrito (no trackeado) no debe "
+            f"bloquear el cierre; parsed={parsed!r}, stdout={stdout!r}, "
+            f"stderr={stderr!r}"
+        )
+
+    def test_never_written_submodule_warns_with_module_name(self, tmp_path):
+        """El aviso (cuando exista) debe señalar el módulo concreto que
+        falta, no ser genérico -- quien lee el aviso necesita saber qué
+        fichero crear."""
+        workdir = _makes_tmp_dir(tmp_path)
+        self._build_never_written_fixture(workdir)
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-neverwritten-2"))
+
+        assert rc == 0
+        assert stderr.strip() != "", (
+            "Un módulo local nunca escrito debe avisar (no silencio "
+            f"total) aunque no bloquee; stdout={stdout!r}"
+        )
+        assert "moria" in stderr, (
+            f"El aviso debe mencionar el módulo concreto ('moria...'), "
+            f"no ser genérico; stderr={stderr!r}"
+        )
+
+    def test_never_written_submodule_warning_does_not_repeat_same_session(self, tmp_path):
+        """Aviso una vez por módulo/sesión -- misma sesión, mismo módulo
+        faltante dos veces seguidas: la segunda no debe repetir el
+        aviso."""
+        workdir = _makes_tmp_dir(tmp_path)
+        self._build_never_written_fixture(workdir)
+        session = "sess-neverwritten-repeat"
+
+        _, _, _, stderr1 = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, stderr2 = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc2 == 0
+        assert parsed2 is None or parsed2.get("decision") != "block"
+        assert stderr2.strip() == "", (
+            "El aviso de módulo local nunca escrito debe verse UNA vez "
+            f"por módulo/sesión; primera={stderr1!r}, segunda={stderr2!r}"
+        )
+
+
+class TestCollectionErrorDeletedTrackedModuleBlocks:
+    """`seg` existe, pero el fuente concreto del submódulo importado está
+    ausente en disco Y SÍ trackeado en git HEAD (existió, se commiteó, se
+    borró del árbol de trabajo). Debe bloquear -- a diferencia del caso
+    "nunca escrito", aquí SÍ hubo código real que dejó de estar."""
+
+    def test_deleted_but_git_tracked_submodule_blocks(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _init_git_repo_with_commit(workdir)
+        _write_source_file(workdir, "moria/__init__.py", "")
+        _write_source_file(workdir, "moria/foo.py", "X = 1\n")
+        _write_source_file(
+            workdir,
+            "test_import_deleted.py",
+            "import moria.foo\n\ndef test_foo():\n    pass\n",
+        )
+        _git_add_all_commit(workdir, "add moria.foo -- fixture del test")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        # Ahora se borra del árbol de trabajo, pero sigue en HEAD.
+        os.remove(os.path.join(workdir, "moria", "foo.py"))
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-deleted-1"))
+
+        assert rc == 0
+        assert parsed is not None, (
+            f"Submódulo borrado pero trackeado en git HEAD debe bloquear; "
+            f"stdout={stdout!r}, stderr={stderr!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"seg existe, submódulo ausente en disco pero trackeado en "
+            f"HEAD (borrado) debe bloquear; parsed={parsed!r}"
+        )
+
+
+class TestCollectionErrorMixedMissingModules:
+    """Varios módulos faltantes en la misma corrida (pytest SÍ acumula
+    "ERROR collecting ..." de varios ficheros independientes en la misma
+    corrida -- confirmado a mano con dos ficheros de test rotos por
+    razones distintas): si al menos uno bloquea, el resultado global
+    bloquea; solo si TODOS caen en "nunca escrito" permite."""
+
+    def test_mixed_thirdparty_and_never_written_blocks(self, tmp_path):
+        """Un fichero importa un third-party inexistente (bloquea) y otro
+        importa un submódulo local nunca escrito (permitiría solo). El
+        resultado global debe bloquear -- basta con que uno bloquee."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_source_file(
+            workdir,
+            "test_a_thirdparty.py",
+            "import totally_fake_thirdparty_pkg_mixed_aaa\n\n"
+            "def test_a():\n    pass\n",
+        )
+        _write_source_file(workdir, "moria/__init__.py", "")
+        _write_source_file(
+            workdir,
+            "test_b_never_written.py",
+            "import moria.never_written_mixed_bbb\n\n"
+            "def test_b():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-mixed-block-1"))
+
+        assert rc == 0
+        assert parsed is not None, (
+            f"Mezcla con al menos un módulo que bloquea debe bloquear "
+            f"globalmente; stdout={stdout!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"Un third-party ausente entre varios módulos faltantes basta "
+            f"para bloquear el resultado global; parsed={parsed!r}"
+        )
+
+    def test_mixed_all_never_written_allows(self, tmp_path):
+        """Dos ficheros, cada uno con un submódulo local distinto nunca
+        escrito (ninguno trackeado, ninguno third-party). TODOS caen en
+        "nunca escrito" -- el resultado global debe permitir."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_source_file(workdir, "moria/__init__.py", "")
+        _write_source_file(
+            workdir,
+            "test_a_never_written.py",
+            "import moria.never_written_aaa\n\ndef test_a():\n    pass\n",
+        )
+        _write_source_file(
+            workdir,
+            "test_b_never_written.py",
+            "import moria.never_written_bbb\n\ndef test_b():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-mixed-allow-1"))
+
+        assert rc == 0
+        assert parsed is None or parsed.get("decision") != "block", (
+            f"Todos los módulos faltantes son 'nunca escritos' -- el "
+            f"resultado global no debe bloquear; parsed={parsed!r}, "
+            f"stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+
+# ── Caso 10: anti-goteo -- firma del bloqueo, dedup por session_id ────────────
+#
+# Contrato: al BLOQUEAR, firma = sha256 del conjunto ordenado de líneas
+# FAILED…/ERROR…/E … + exit_code, keyeada por session_id. Firma repetida
+# en la misma sesión → la 'reason' es un recordatorio de UNA línea (NO
+# contiene el volcado de salida). Firma nueva (sesión nueva, o contenido
+# de fallo distinto) → 'reason' completa (con el snippet de salida, como
+# hoy). Estos tests no verifican el algoritmo de firma en sí (eso es
+# implementación de Ultron) -- verifican el CONTRATO observable: mismo
+# fallo + misma sesión = recordatorio corto sin volcado; fallo distinto o
+# sesión distinta = reason completa con el detalle de siempre.
+#
+# Los ficheros de test usan un marcador único en el mensaje de assert
+# para poder comprobar, sin ambigüedad, si el volcado de pytest está o no
+# presente en el 'reason'.
+
+_MARKER_A = "ZZZMARKERDEADBEEF1234"
+_MARKER_B = "ZZZMARKERCAFEBABE5678"
+
+
+def _write_failing_test_with_marker(workdir: str, marker: str) -> None:
+    _write_source_file(
+        workdir,
+        "test_marked_fail.py",
+        "def test_should_pass_but_fails():\n"
+        f"    assert False, {marker!r}\n",
+    )
+    _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+
+class TestBlockSignatureDedupBySession:
+    """Anti-goteo: firma repetida en la misma sesión → reason corta, sin
+    volcado. Firma nueva (sesión distinta, o contenido distinto) →
+    reason completa, como hoy."""
+
+    def test_repeated_signature_same_session_gets_oneliner_without_dump(self, tmp_path):
+        """Misma sesión, mismo fallo dos veces seguidas -- la primera
+        reason trae el volcado (contiene el marcador), la segunda es un
+        recordatorio de una línea que NO lo repite."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_failing_test_with_marker(workdir, _MARKER_A)
+        session = "sess-dedup-repeat-1"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        reason1 = parsed1.get("reason", "")
+        reason2 = parsed2.get("reason", "")
+
+        assert _MARKER_A in reason1, (
+            f"Primera vez que se ve esta firma en la sesión -- la reason "
+            f"debe traer el volcado completo (con el marcador); "
+            f"reason={reason1!r}"
+        )
+        assert _MARKER_A not in reason2, (
+            "Firma repetida en la misma sesión -- la segunda reason NO "
+            f"debe repetir el volcado de salida; reason={reason2!r}"
+        )
+        assert "\n" not in reason2.strip(), (
+            "Firma repetida en la misma sesión -- la reason debe ser un "
+            f"recordatorio de UNA sola línea; reason={reason2!r}"
+        )
+        assert len(reason2) < len(reason1), (
+            "El recordatorio de firma repetida debe ser sensiblemente más "
+            f"corto que la reason completa; reason1={reason1!r} "
+            f"({len(reason1)} chars), reason2={reason2!r} ({len(reason2)} chars)"
+        )
+
+    def test_new_failure_content_same_session_gets_full_reason_again(self, tmp_path):
+        """Misma sesión, pero el SEGUNDO fallo tiene contenido distinto
+        (firma nueva) -- debe traer la reason completa de nuevo, no un
+        recordatorio corto."""
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-dedup-newcontent-1"
+
+        _write_failing_test_with_marker(workdir, _MARKER_A)
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        _write_failing_test_with_marker(workdir, _MARKER_B)
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        reason2 = parsed2.get("reason", "")
+        assert _MARKER_B in reason2, (
+            "Contenido de fallo distinto (firma nueva) en la misma sesión "
+            f"debe traer la reason completa, no un recordatorio corto; "
+            f"reason={reason2!r}"
+        )
+
+    def test_same_signature_different_session_gets_full_reason_each(self, tmp_path):
+        """Mismo fallo exacto, pero en sesiones DISTINTAS -- el dedup es
+        per-session_id, así que cada sesión debe ver la reason completa
+        (no se contamina de una sesión a otra)."""
+        workdir_a = _makes_tmp_dir(tmp_path, "workdir_a")
+        workdir_b = _makes_tmp_dir(tmp_path, "workdir_b")
+        _write_failing_test_with_marker(workdir_a, _MARKER_A)
+        _write_failing_test_with_marker(workdir_b, _MARKER_A)
+
+        rc_a, parsed_a, _, _ = _run_hook(workdir_a, payload=_stop_payload("sess-diff-a"))
+        rc_b, parsed_b, _, _ = _run_hook(workdir_b, payload=_stop_payload("sess-diff-b"))
+
+        assert rc_a == 0 and rc_b == 0
+        assert parsed_a is not None and parsed_a.get("decision") == "block"
+        assert parsed_b is not None and parsed_b.get("decision") == "block"
+
+        reason_a = parsed_a.get("reason", "")
+        reason_b = parsed_b.get("reason", "")
+        assert _MARKER_A in reason_a, f"sesión A debe traer reason completa; reason={reason_a!r}"
+        assert _MARKER_A in reason_b, (
+            f"sesión B (session_id distinto) debe traer su PROPIA reason "
+            f"completa, no un recordatorio heredado de la sesión A; "
+            f"reason={reason_b!r}"
+        )
+
+
+# ── Caso 11 (hardening/Verify 2026-08-20) -- proceso matado por señal ─────────
+#
+# Argus finding: un test_command cuyo proceso muere por señal (returncode
+# negativo, p.ej. SIGHUP) NO es un error de infraestructura del hook --
+# es un rojo real (algo mató el proceso de tests) y debe bloquear, no
+# fail-open. `_run_test_command()` distingue esto por construcción:
+# exit_code=None SOLO quiere decir "no se pudo ni arrancar" (binario
+# inexistente, timeout, etc); un returncode negativo real de
+# subprocess.run() (matado por señal) es un int válido que cae en la
+# rama "cualquier otro exit ≠0 -> bloquea" de _handle_nonzero_exit().
+#
+# SIGHUP no existe en Windows (module `signal` no expone SIGHUP fuera de
+# POSIX) -- skip explícito, no una condición silenciosa.
+
+class TestSignalKilledProcessBlocks:
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="signal.SIGHUP no existe en Windows -- no hay repro real posible ahí",
+    )
+    def test_process_killed_by_sighup_blocks(self, tmp_path):
+        """test_command se suicida con SIGHUP -- returncode negativo real
+        (no None, no un sentinel de infra-fallo). Debe bloquear."""
+        workdir = _makes_tmp_dir(tmp_path)
+        kill_cmd = (
+            f"{sys.executable} -c "
+            "\"import os, signal; os.kill(os.getpid(), signal.SIGHUP)\""
+        )
+        _write_config(workdir, {"test_command": kill_cmd})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-sighup-1"))
+
+        assert rc == 0, f"El hook siempre sale 0 aunque bloquee; rc={rc!r}"
+        assert parsed is not None, (
+            "Un test_command matado por SIGHUP (returncode negativo real) "
+            f"no es un fallo de infraestructura -- debe bloquear, no "
+            f"fail-open en silencio; stdout={stdout!r}, stderr={stderr!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"returncode negativo real (señal) debe clasificarse como un "
+            f"rojo genuino, no colapsar con el sentinel de fail-open; "
+            f"parsed={parsed!r}"
+        )
+
+
+# ── Caso 12 (hardening/Verify 2026-08-20) -- anti-goteo también en exit 2 ─────
+#
+# Los tests de firma de TestBlockSignatureDedupBySession solo cubrían
+# exit 1 (fallo real de un test). El anti-goteo (sha256 de líneas
+# FAILED/ERROR/E + exit_code, keyeado por session_id) se computa igual
+# para CUALQUIER bloqueo, incluido un exit 2 (error de colección) que no
+# se clasificó como "todo nunca-escrito". Estos tests fijan el mismo
+# contrato para ese camino.
+
+class TestCollectionErrorSignatureDedup:
+    # `_build_block_reason()` trunca el volcado a 500 chars -- el nombre
+    # del módulo third-party vive al FINAL de un traceback real (detrás
+    # de una ruta absoluta de tmp_path larga) y queda fuera de esa
+    # ventana (confirmado a mano: un primer intento buscando el nombre
+    # del módulo en `reason` falló con `AssertionError` porque el propio
+    # `reason` venía truncado antes de llegar a esa línea). El nombre del
+    # fichero de test SÍ cae dentro de la ventana -- aparece pegado a la
+    # cabecera "ERROR collecting <fichero>", que es de las primeras
+    # líneas del volcado -- así que se usa como marcador de firma en su
+    # lugar, un fichero por escenario para que la firma cambie de verdad
+    # entre "mismo error" y "error distinto". "Output:" es el marcador de
+    # "es la reason completa" -- solo aparece cuando `_build_block_reason`
+    # incluyó el volcado; el recordatorio corto de
+    # `_build_block_reason_deduped` es la frase fija que nunca lo trae.
+    def _write_thirdparty_import(self, workdir: str, fake_module: str, test_filename: str) -> None:
+        _write_source_file(
+            workdir,
+            test_filename,
+            f"import {fake_module}\n\ndef test_foo():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+    def test_repeated_collection_error_same_session_gets_oneliner(self, tmp_path):
+        """Mismo error de colección (mismo third-party ausente) dos veces
+        seguidas, misma sesión -- la primera reason trae el volcado real
+        de pytest, la segunda es un recordatorio corto que no lo repite."""
+        workdir = _makes_tmp_dir(tmp_path)
+        fake_module = "totally_fake_thirdparty_pkg_dedup_exit2_aaa"
+        test_filename = "test_collection_dedup_aaa.py"
+        self._write_thirdparty_import(workdir, fake_module, test_filename)
+        session = "sess-dedup-exit2-repeat"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        reason1 = parsed1.get("reason", "")
+        reason2 = parsed2.get("reason", "")
+        assert test_filename in reason1 and "Output:" in reason1, (
+            f"Primera vez que se ve esta firma -- reason completa con el "
+            f"volcado real de pytest; reason={reason1!r}"
+        )
+        assert "Output:" not in reason2, (
+            "Firma repetida en la misma sesión (mismo error de colección) "
+            f"-- la segunda reason no debe traer el volcado; "
+            f"reason={reason2!r}"
+        )
+        assert "\n" not in reason2.strip(), (
+            f"Recordatorio de firma repetida debe ser una sola línea; "
+            f"reason={reason2!r}"
+        )
+
+    def test_new_collection_error_content_same_session_gets_full_reason_again(self, tmp_path):
+        """Misma sesión, pero el segundo error de colección es sobre un
+        módulo third-party DISTINTO (firma nueva) -- debe traer la reason
+        completa otra vez."""
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-dedup-exit2-newcontent"
+
+        module_a = "totally_fake_thirdparty_pkg_dedup_exit2_bbb"
+        self._write_thirdparty_import(workdir, module_a, "test_collection_dedup_bbb.py")
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        module_b = "totally_fake_thirdparty_pkg_dedup_exit2_ccc"
+        test_filename_b = "test_collection_dedup_ccc.py"
+        self._write_thirdparty_import(workdir, module_b, test_filename_b)
+        # El fichero del escenario A queda en el workdir -- borrarlo para
+        # que pytest solo vea el escenario B en la segunda corrida (si no,
+        # ambos ficheros colisionan en la colección y contaminan la firma).
+        os.remove(os.path.join(workdir, "test_collection_dedup_bbb.py"))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        reason2 = parsed2.get("reason", "")
+        assert test_filename_b in reason2 and "Output:" in reason2, (
+            "Error de colección con contenido distinto (firma nueva) en "
+            f"la misma sesión debe traer la reason completa de nuevo (con "
+            f"volcado), no un recordatorio corto; reason={reason2!r}"
+        )
+
+
+# ── Caso 13 (hardening/Verify 2026-08-20) -- round-trip real del estado ───────
+#
+# §34 (unmassk-standards): la firma esperada en la segunda invocación
+# nunca se escribe a mano -- se lee del propio fichero real que la
+# primera invocación acaba de escribir. Esto es lo que
+# TestBlockSignatureDedupBySession / TestCollectionErrorSignatureDedup
+# NO comprueban directamente: verifican el comportamiento observable
+# (reason corta vs completa) pero nunca abren
+# `.claude/.unmassk/stop-dod-gate-state.json` en sí. Este test sí lo
+# abre, en las dos puntas del round-trip.
+
+class TestStateFileRoundTrip:
+    # Mismo nombre de fichero que STATE_FILENAME en stop-dod-gate.py -- no
+    # se importa directamente (el hook es un fichero con guion, se invoca
+    # como subprocess, no como módulo; mismo motivo que _CONFIG_SUBPATH
+    # arriba), pero UNMASSK_RUNTIME_DIR sí es un módulo normal importable.
+    _STATE_FILENAME = "stop-dod-gate-state.json"
+
+    def _state_path(self, workdir: str) -> str:
+        return os.path.join(workdir, UNMASSK_RUNTIME_DIR, self._STATE_FILENAME)
+
+    def test_block_signature_round_trips_through_real_state_file(self, tmp_path):
+        """La firma que la primera invocación escribe en el fichero de
+        estado real es la MISMA que la segunda invocación relee (round
+        trip contra el fichero real, sin ningún literal de firma escrito
+        a mano por el test)."""
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_failing_test_with_marker(workdir, _MARKER_A)
+        session = "sess-roundtrip-state-1"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc1 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+
+        state_path = self._state_path(workdir)
+        assert os.path.isfile(state_path), (
+            f"El hook debe persistir el estado real en {state_path!r} "
+            f"tras un bloqueo"
+        )
+        with open(state_path, "r", encoding="utf-8") as f:
+            state_after_first = json.load(f)
+
+        signature_after_first = state_after_first.get("last_block_signature")
+        assert isinstance(signature_after_first, str) and signature_after_first, (
+            f"La firma persistida debe ser un string real no vacío -- "
+            f"nunca la escribimos a mano en el test, la leemos del propio "
+            f"fichero que el hook acaba de escribir; state={state_after_first!r}"
+        )
+        assert state_after_first.get("session_id") == session
+
+        # Segunda invocación, MISMO fallo -- debe releer esa firma real
+        # (no recomputar a ciegas sin comparar) y el fichero, tras la
+        # segunda pasada, debe seguir teniendo la MISMA firma que
+        # escribió la primera.
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc2 == 0
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        with open(state_path, "r", encoding="utf-8") as f:
+            state_after_second = json.load(f)
+        signature_after_second = state_after_second.get("last_block_signature")
+
+        assert signature_after_second == signature_after_first, (
+            "La firma releída tras la segunda invocación debe coincidir "
+            f"byte a byte con la que la primera escribió en el fichero "
+            f"real (ida y vuelta genuina, sin literal de firma escrito a "
+            f"mano); primera={signature_after_first!r}, "
+            f"segunda={signature_after_second!r}"
+        )
+
+        # Y el comportamiento observable derivado de ese round-trip:
+        # reason corta en la segunda, sin el marcador del volcado.
+        reason2 = parsed2.get("reason", "")
+        assert _MARKER_A not in reason2, (
+            f"Si el round-trip de la firma funcionó de verdad, la segunda "
+            f"reason debe ser el recordatorio corto, no repetir el "
+            f"volcado; reason={reason2!r}"
+        )
+
+
+# ── Caso 14 (hardening/Verify 2026-08-20) -- D-042, identidad declarada ───────
+#
+# Ultron implementó D-042 (lib/dod_gate_classify.py: "primera parte" ahora
+# mira primero la identidad declarada del proyecto -- pyproject.toml
+# [project].name / [tool.poetry].name / [tool.setuptools] packages,
+# setup.cfg [metadata] name -- antes de caer al chequeo de disco/git) sin
+# un solo test end-to-end. La cobertura unitaria directa contra
+# lib/dod_gate_classify.py vive en test_dod_gate_classify.py
+# (TestDeclaredFirstPartyIdentity / TestDeclaredIdentityFailsSafe /
+# TestNoDeclaredIdentityStillBlocksNewTopLevel) -- estas dos de aquí son
+# el regreso end-to-end real: hook + pytest real + git real, exactamente
+# la forma que rompió Moriarty.
+#
+# OJO (encontrado escribiendo esta cobertura, no antes): el import tiene
+# que ser a NIVEL DE MÓDULO (arriba del fichero), no dentro del cuerpo de
+# una función de test -- un `import moria` dentro de `def test_foo():`
+# hace que pytest RECOJA el test con éxito (el ImportError ocurre en
+# tiempo de EJECUCIÓN del test, no de colección) y el test simplemente
+# falla con exit 1, sin pasar nunca por classify_collection_error(). Ese
+# es el falso negativo exacto que Ultron se comió -- confirmado a mano
+# antes de escribir estas aserciones (import a nivel de módulo -> exit 2
+# real con "No module named 'moria'" en la salida).
+
+class TestDeclaredIdentityD042EndToEnd:
+    def _write_pyproject_declaring_moria(self, workdir: str) -> None:
+        _write_source_file(workdir, "pyproject.toml", '[project]\nname = "moria"\nversion = "0.1.0"\n')
+
+    def test_declared_identity_allows_never_written_toplevel_module(self, tmp_path):
+        """El caso que rompió Moriarty: proyecto con pyproject.toml
+        [project].name = "moria", `import moria` a NIVEL DE MÓDULO en un
+        test, 'moria' nunca escrito ni trackeado en ningún sitio. Antes
+        de D-042 esto bloqueaba SIEMPRE (seg_exists() no tenía forma de
+        saber que 'moria' era el propio proyecto). Debe permitir."""
+        workdir = _makes_tmp_dir(tmp_path)
+        self._write_pyproject_declaring_moria(workdir)
+        _write_source_file(
+            workdir,
+            "test_moria_toplevel.py",
+            "import moria\n\ndef test_foo():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-d042-allow-1"))
+
+        assert rc == 0
+        assert parsed is None or parsed.get("decision") != "block", (
+            "Identidad declarada (pyproject.toml [project].name = 'moria') "
+            f"+ 'moria' nunca escrito -- debe permitir el cierre, no "
+            f"bloquear como third-party; parsed={parsed!r}, "
+            f"stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+    def test_undeclared_thirdparty_still_blocks_in_same_project(self, tmp_path):
+        """Invariante que no se puede perder: en ESE MISMO proyecto (con
+        identidad declarada para 'moria'), un import de un third-party
+        que NO está declarado y NO existe en ningún sitio sigue
+        bloqueando -- la identidad declarada no es un permiso general."""
+        workdir = _makes_tmp_dir(tmp_path)
+        self._write_pyproject_declaring_moria(workdir)
+        _write_source_file(
+            workdir,
+            "test_undeclared_thirdparty.py",
+            "import totally_fake_thirdparty_xyz\n\ndef test_foo():\n    pass\n",
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-d042-block-1"))
+
+        assert rc == 0
+        assert parsed is not None, (
+            f"Third-party no declarado y ausente debe bloquear incluso en "
+            f"un proyecto con identidad propia declarada; stdout={stdout!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"La identidad declarada para 'moria' no debe filtrarse a "
+            f"'totally_fake_thirdparty_xyz' -- ese import sigue sin "
+            f"declarar ni existir; parsed={parsed!r}"
+        )
+
+
+# ── Caso 15 (hardening/Verify 2026-08-20) -- Yoda finding: fallo callado ──────
+# ante bytes invalidos en la salida de un fallo REAL ────────────────────────
+#
+# Yoda: un test que fallaba DE VERDAD (exit 1) pero cuya salida traia un
+# byte invalido en UTF-8 lanzaba UnicodeDecodeError dentro de
+# subprocess.run() -- ese ValueError caia en el `except (..., ValueError)`
+# de fail-open y PERMITIA cerrar en silencio sobre un rojo real. Ultron
+# arreglo esto con `errors="replace"` en subprocess.run() (la decodificacion
+# ya no puede lanzar -- el byte invalido se sustituye por el caracter de
+# reemplazo U+FFFD) mas un `except UnicodeDecodeError:` propio, anterior al
+# `except (..., ValueError)` mas ancho, que devuelve un exit code centinela
+# nuevo (_DECODE_ERROR_EXIT_CODE = -9999) por si la excepcion llegara a
+# lanzarse de todos modos -- defensa en profundidad.
+#
+# `errors="replace"` hace que, en la practica, decodificar YA NO PUEDA
+# lanzar -- confirmado a mano: un byte 0xFF crudo en stdout, capturado con
+# `text=True, encoding="utf-8", errors="replace"`, se decodifica sin
+# excepcion a "...ZZZBADBYTE � end\n" (rc=1 real, nunca -9999). El
+# camino del centinela -9999 es defensivo por diseno y no tiene un repro
+# real alcanzable a traves de un subprocess.run() normal -- lo que SI se
+# puede fijar de extremo a extremo es el contrato que -9999 explota
+# (cualquier exit no-cero no nombrado explicitamente cae en BLOQUEAR), con
+# un exit code real y arbitrario que tampoco es 0/1/2/5/negativo-por-senal.
+
+def _write_invalid_byte_failing_script(workdir: str, filename: str = "emit_invalid_byte_fail.py") -> str:
+    """Escribe un script que imprime una linea FAILED... con un byte
+    invalido en UTF-8 (0xFF crudo, via stdout.buffer) y sale con exit 1 --
+    el repro exacto de Yoda. Determinista: mismo byte, mismo texto, mismo
+    exit code en cada ejecucion (confirmado a mano antes de escribir estos
+    tests)."""
+    _write_source_file(
+        workdir,
+        filename,
+        "import sys\n"
+        "sys.stdout.write(\"FAILED test_x.py::test_should_fail - AssertionError: ZZZBADBYTE \")\n"
+        "sys.stdout.flush()\n"
+        "sys.stdout.buffer.write(bytes([0xFF]))\n"
+        "sys.stdout.buffer.write(b\" end\\n\")\n"
+        "sys.exit(1)\n",
+    )
+    return f"{sys.executable} {filename}"
+
+
+class TestInvalidUtf8ByteInRealFailureBlocks:
+    """El repro exacto de Yoda: exit 1 real, salida con un byte invalido.
+    Debe bloquear, y la reason debe traer la salida con el caracter de
+    reemplazo, no quedarse vacia ni caer en fail-open."""
+
+    def test_invalid_byte_in_failing_output_blocks_with_replacement_char(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        cmd = _write_invalid_byte_failing_script(workdir)
+        _write_config(workdir, {"test_command": cmd})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-invalidbyte-1"))
+
+        assert rc == 0, f"El hook siempre sale 0 aunque bloquee; rc={rc!r}"
+        assert parsed is not None, (
+            "Un fallo real (exit 1) con un byte invalido en la salida NO "
+            f"es un fallo de infraestructura -- debe bloquear, nunca "
+            f"fail-open en silencio; stdout={stdout!r}, stderr={stderr!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"exit 1 real con byte invalido en la salida debe bloquear, "
+            f"igual que cualquier otro fallo real; parsed={parsed!r}"
+        )
+        reason = parsed.get("reason", "")
+        assert reason != "", (
+            "La reason no puede quedar vacia -- el fallo callado exacto "
+            "que reporto Yoda era precisamente esto: bloqueo con "
+            "contenido vacio/perdido, o peor, ni siquiera bloqueo"
+        )
+        assert "ZZZBADBYTE" in reason, (
+            f"La reason debe traer la salida real del fallo (con el texto "
+            f"anterior al byte invalido intacto); reason={reason!r}"
+        )
+        assert "\ufffd" in reason, (
+            f"El byte invalido debe aparecer sustituido por el caracter de "
+            f"reemplazo U+FFFD ('\ufffd'), no provocar una excepcion ni "
+            f"desaparecer en silencio; reason={reason!r}"
+        )
+
+
+class TestInvalidUtf8ByteDedupStability:
+    """La dedup (firma sha256 de lineas FAILED/ERROR/E + exit_code) sigue
+    siendo estable cuando el contenido trae un byte invalido sustituido --
+    el caracter de reemplazo es parte del texto que se hashea, y debe
+    producir el mismo comportamiento de dedup que cualquier otro fallo."""
+
+    def test_repeated_invalid_byte_failure_same_session_gets_oneliner(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        cmd = _write_invalid_byte_failing_script(workdir)
+        _write_config(workdir, {"test_command": cmd})
+        session = "sess-invalidbyte-dedup-repeat"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+
+        reason1 = parsed1.get("reason", "")
+        reason2 = parsed2.get("reason", "")
+        assert "Output:" in reason1 and "ZZZBADBYTE" in reason1, (
+            f"Primera vez que se ve esta firma -- reason completa con el "
+            f"volcado real (incluido el caracter de reemplazo); "
+            f"reason={reason1!r}"
+        )
+        assert "Output:" not in reason2, (
+            "Firma repetida en la misma sesion (mismo fallo con byte "
+            f"invalido) -- la segunda reason no debe traer el volcado; "
+            f"reason={reason2!r}"
+        )
+        assert "\n" not in reason2.strip(), (
+            f"Recordatorio de firma repetida debe ser una sola linea; "
+            f"reason={reason2!r}"
+        )
+
+    def test_invalid_byte_failure_different_session_gets_full_reason_with_deterministic_signature(self, tmp_path):
+        """Sesion distinta, mismo fallo con byte invalido -- reason
+        completa en ambas (dedup es per-session), y la firma persistida en
+        el fichero de estado real de cada workdir debe ser IDENTICA byte a
+        byte (misma firma determinista para el mismo contenido, sin
+        literal de firma escrito a mano -- se lee del propio fichero que
+        cada invocacion acaba de escribir, mismo patron que
+        TestStateFileRoundTrip)."""
+        workdir_a = _makes_tmp_dir(tmp_path, "workdir_a")
+        workdir_b = _makes_tmp_dir(tmp_path, "workdir_b")
+        cmd_a = _write_invalid_byte_failing_script(workdir_a)
+        cmd_b = _write_invalid_byte_failing_script(workdir_b)
+        _write_config(workdir_a, {"test_command": cmd_a})
+        _write_config(workdir_b, {"test_command": cmd_b})
+
+        rc_a, parsed_a, _, _ = _run_hook(workdir_a, payload=_stop_payload("sess-invalidbyte-diff-a"))
+        rc_b, parsed_b, _, _ = _run_hook(workdir_b, payload=_stop_payload("sess-invalidbyte-diff-b"))
+
+        assert rc_a == 0 and rc_b == 0
+        assert parsed_a is not None and parsed_a.get("decision") == "block"
+        assert parsed_b is not None and parsed_b.get("decision") == "block"
+
+        reason_a = parsed_a.get("reason", "")
+        reason_b = parsed_b.get("reason", "")
+        assert "ZZZBADBYTE" in reason_a and "Output:" in reason_a, (
+            f"sesion A debe traer reason completa; reason={reason_a!r}"
+        )
+        assert "ZZZBADBYTE" in reason_b and "Output:" in reason_b, (
+            f"sesion B (session_id distinto) debe traer su PROPIA reason "
+            f"completa, no un recordatorio heredado; reason={reason_b!r}"
+        )
+
+        state_path_a = os.path.join(workdir_a, UNMASSK_RUNTIME_DIR, "stop-dod-gate-state.json")
+        state_path_b = os.path.join(workdir_b, UNMASSK_RUNTIME_DIR, "stop-dod-gate-state.json")
+        with open(state_path_a, "r", encoding="utf-8") as f:
+            signature_a = json.load(f).get("last_block_signature")
+        with open(state_path_b, "r", encoding="utf-8") as f:
+            signature_b = json.load(f).get("last_block_signature")
+
+        assert isinstance(signature_a, str) and signature_a, (
+            f"firma real persistida en el workdir A, nunca escrita a "
+            f"mano; got={signature_a!r}"
+        )
+        assert signature_a == signature_b, (
+            "La firma debe ser determinista: mismo contenido de fallo "
+            f"(mismo byte invalido, mismo texto, mismo exit code) en dos "
+            f"sesiones distintas debe producir la MISMA firma persistida; "
+            f"a={signature_a!r}, b={signature_b!r}"
+        )
+
+
+class TestUnknownNonzeroExitCodeAlwaysBlocks:
+    """El centinela _DECODE_ERROR_EXIT_CODE (-9999) no tiene un repro real
+    alcanzable via subprocess.run() (errors="replace" ya impide que la
+    decodificacion lance) -- pero el contrato que protege SI es alcanzable
+    de extremo a extremo: _handle_nonzero_exit() no nombra explicitamente
+    ningun exit code fuera de {5, 1, 2} y cae siempre a BLOQUEAR para
+    cualquier otro, sea cual sea su valor. Un exit code real, arbitrario,
+    que no es 0/1/2/5 ni un negativo-por-senal fija ese contrato general
+    -- el mismo que -9999 explota si el camino defensivo se llegara a
+    activar alguna vez."""
+
+    def test_arbitrary_unnamed_nonzero_exit_code_blocks(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_config(workdir, {"test_command": f"{sys.executable} -c \"import sys; sys.exit(77)\""})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-unknown-exit-1"))
+
+        assert rc == 0
+        assert parsed is not None, (
+            f"Un exit code no nombrado explicitamente (77) debe bloquear "
+            f"por el fallback generico, nunca fail-open; stdout={stdout!r}"
+        )
+        assert parsed.get("decision") == "block", (
+            f"El fallback \"cualquier otro exit no-cero -> bloquea\" es "
+            f"lo unico que protege contra un centinela futuro que llegue "
+            f"a dispararse; parsed={parsed!r}"
+        )
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="signal.SIGHUP no existe en Windows -- no hay repro real posible ahí",
+    )
+    def test_arbitrary_exit_code_stays_distinct_from_real_sighup(self, tmp_path):
+        """Verificacion cruzada explicita: un exit code positivo arbitrario
+        (77) y el returncode negativo real de SIGHUP (-1) son casos
+        DISTINTOS por construccion (uno cae directo al fallback generico,
+        el otro pasa primero por la distincion None-vs-int-negativo de
+        _run_test_command) pero ambos deben terminar bloqueando -- ninguno
+        de los dos puede colapsar en fail-open."""
+        workdir_arbitrary = _makes_tmp_dir(tmp_path, "workdir_arbitrary")
+        workdir_sighup = _makes_tmp_dir(tmp_path, "workdir_sighup")
+        _write_config(workdir_arbitrary, {"test_command": f"{sys.executable} -c \"import sys; sys.exit(77)\""})
+        _write_config(
+            workdir_sighup,
+            {"test_command": f"{sys.executable} -c \"import os, signal; os.kill(os.getpid(), signal.SIGHUP)\""},
+        )
+
+        rc_arb, parsed_arb, _, _ = _run_hook(workdir_arbitrary, payload=_stop_payload("sess-cross-arbitrary"))
+        rc_sig, parsed_sig, _, _ = _run_hook(workdir_sighup, payload=_stop_payload("sess-cross-sighup"))
+
+        assert rc_arb == 0 and rc_sig == 0
+        assert parsed_arb is not None and parsed_arb.get("decision") == "block", (
+            f"exit code arbitrario (77) debe bloquear; parsed={parsed_arb!r}"
+        )
+        assert parsed_sig is not None and parsed_sig.get("decision") == "block", (
+            f"SIGHUP (returncode negativo real) debe bloquear; "
+            f"parsed={parsed_sig!r}"
         )
 
 
