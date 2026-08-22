@@ -66,3 +66,4 @@
 [X-064][hooks][testing] seguir bloqueando el modulo top-level nuevo
 [X-065][memory][architecture] la puerta del trabajo que pregunta al guardar la nota
 [X-066][memory][architecture] un contador en el arranque de notas que piden trabajo sin issue
+[X-067][memory][architecture] enganchar una issue a una nota ya guardada
