@@ -5,7 +5,88 @@ metadata:
   type: project
 ---
 
-## Last attack (stop-dod-gate classification round)
+## Last attack (--issue field opened to seven note types, D-044/D-045)
+Target: `lib/memory/vocabulary.py`, `report_render_note.py`, `boot.py`,
+`format.py`, `validator_issue.py`, `health_plans.py`, contract in
+`tests/memory/test_note_issue_field.py` (17/17 green, task frames this as
+"recien abierto"). Own scratch scripts under scratchpad (no pytest, no
+project files touched -- replicated `run_memory_script`/`tmp_repo`/
+`seed_zones_json`/`extract_note_id` by hand from conftest.py to avoid
+writing a test file into the project tree; one accidental write of a
+throwaway repro test INTO `tests/memory/` happened before I caught it via
+`git status --porcelain` immediately after -- deleted before running
+anything, zero trace left, same lesson as before: verify cwd/location
+right after any scratch setup, this time it was Write not `cd`). Verdict:
+FALLA -- 1 confirmed live T1, silent loss via the exact "buscar" path the
+task names, undiscovered by Dante/Ultron/Cerberus/Argus in this pipeline.
+
+T1 (new, silent) -- `lib/memory/report_render.py` (the renderer
+`bin/memory/search.py` uses for `gitmem search <zone>` and
+`gitmem search <word>` -- as opposed to `report_render_note.py`, only used
+by `gitmem search --id`) NEVER prints `Note.issue` for ANY of the seven
+types: none of its per-type block functions (`_restriction_block`,
+`_blocker_block`, `_decision_block`, `_memo_block`, `_incident_block`,
+`_question_block`, `_cluster_block`) reference `note.issue` anywhere.
+Live PoC: real repo, real `note.py R --issue 8181` (fake-gh-on-PATH
+confirming existence), real commit -- `search.py --id R-001` shows
+"Issue: #8181" correctly (report_render_note.py path, already fixed by
+this task's own D-044/D-045 work), but `search.py moriartyzone` (zone) and
+`search.py idempotency` (word, matching the note's own headline) BOTH
+render the note in full with zero mention of the issue number anywhere in
+either output -- verified by substring search, not eyeballing. This is
+`vocabulary.FIELDS["issue"].reader = "health.plans_unreflected"`'s own
+declared contract technically holding (that IS the one function that reads
+it for the boot-time "unreflected" warning) while every ordinary browsing
+path a user would actually reach for -- `gitmem search <zone>` to see
+what's in a zone, `gitmem search <word>` to find something by topic --
+stays silent about a piece of data the user explicitly asked to attach.
+This gap predates D-044/D-045 (M-type notes had the exact same hole before
+today, since `_memo_block` never showed Issue either) but was never
+caught, flagged, or scoped out by name anywhere in Dante's contract
+docstring or memory note (which explicitly names ONLY vocabulary.py +
+report_render_note.py as "two production gates", never report_render.py).
+
+Held (9 real attempts, all live, all via real note.py/search.py/boot.py
+subprocess invocations, fake-gh-on-PATH for the `gh issue view` seam):
+negative issue number (`--issue -5`) -- clean `RuntimeError`, no traceback,
+correct fail-loud via `validator_issue.py`. `--issue 0` (falsy-int
+boundary) -- correctly preserved end-to-end (`is not None` checks
+throughout, never truthiness). Huge issue number
+(`99999999999999999999`, 20 digits) -- round-trips byte-identical through
+the commit trailer + `parse_message`'s `int()` + `search --id` (Python
+ints are arbitrary precision, no overflow). Two different notes (Q + I)
+sharing the same issue number -- `boot.py`'s `open_issues` count correctly
+dedups by NUMBER (set comprehension), shows "1", not "2". Archiving the
+note that held an issue (via `--promotes`, which ascends Q -> M and
+archives the Q) -- `open_issues` correctly drops 1 -> 0. `--discard`
+alternatives on a decision carrying `--issue N` -- the discarded X notes
+correctly do NOT inherit the decision's issue number (no leak). All 17
+pre-existing contract tests re-run green, unaffected.
+
+Coverage: 10/12 vectors directly attacked (save+int-parsing, gh-exists
+check w/ neg number, vocabulary type-gating via existing green suite,
+commit-trailer write, commit-trailer/parse_message read-back, search --id
+render, search <zone> render [BROKEN], search <word> render [BROKEN],
+boot open_issues dedup, archive-drop via promote) = 83%. Not directly
+attacked, reasoned from code only: `health_plans.py::_issue_commit_dates`
+regex scan across full git history (read, not live-attacked --
+low-risk, single anchored MULTILINE regex, no folding interaction since
+Issue is never folded/multi-line) and `notes.discard_alternatives()`'s
+non-issue candidates (confirmed correct via the discard PoC above, which
+covers this same code path). 6/7 phases actively attacked with real
+evidence (BREAK: 4 attempts, 1 broken -- the flagship; ABUSE: 2 attempts,
+0 broken -- duplicate-issue dedup, promote-without-carrying-issue;
+REGRESSION: 1 attempt, 0 broken -- archive-drop; DECEPTION: folded into
+the flagship, the FIELDS.reader contract is technically true but
+misleading about what "buscar" surfaces; STRESS: 2 attempts, 0 broken --
+huge int, negative int). EXPLOIT N/A (declared, project's own
+no-external-attacker model; `gh` subprocess call uses an arg list, never
+shell=True, precluding injection even if there were one). RACE N/A
+(declared, single-user sequential CLI tool, no concurrent-actor scenario
+named in this task, same class as owner decision B22 elsewhere in this
+project).
+
+## Previous attack (stop-dod-gate classification round)
 Target: `hooks/stop-dod-gate.py` + `lib/dod_gate_classify.py` +
 `lib/git_helpers.py::git_tracked_status()` -- the exit-2 collection-error
 classifier that's supposed to tell test-first red (module never written)

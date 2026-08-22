@@ -1,6 +1,6 @@
 # Moriarty — Memory Index
 
-- [round-history.md](round-history.md) — full chronological log, one entry per attack round, newest first. Latest: stop-dod-gate classification round (2026-08-20), FALLA — a legitimate test-first red (brand-new top-level module, never written) gets wrongly BLOCKED by `dod_gate_classify.py::classify_missing_module()` because `seg_exists()` gates "is this first-party" on the top-level segment already existing, which is false for a module that's never been written at all — exactly the (b) worst case named in that round's task.
+- [round-history.md](round-history.md) — full chronological log, one entry per attack round, newest first. Latest: `--issue` field opened to seven note types (D-044/D-045, 2026-08-22), FALLA — `report_render.py` (the `gitmem search <zone>`/`<word>` renderer) never shows `Note.issue` for any type, a second undiscovered renderer gap beside the one Dante already found and Ultron already fixed (`report_render_note.py`).
 - [attack-patterns.md](attack-patterns.md) — reusable attack techniques that worked, organized by mechanism (concurrency/TOCTOU races, docstring-vs-code DECEPTION pairs, silent-loss shapes, tokenizer/regex edge cases), not by round.
 - [resilience.md](resilience.md) — what held under real attack and why, organized by mechanism (locking designs, atomic-write guarantees, fail-loud checks) — read before re-attacking something already proven solid, to avoid repeating a closed round.
 

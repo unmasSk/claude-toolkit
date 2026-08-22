@@ -1167,3 +1167,28 @@ two genuinely concurrent invocations (same transcript, e.g. compounding
 with the wrong-session bug above, or a duplicate/retried tool call)
 interleave into ONE corrupted file -- 10/15 (67%) live trials mixed both
 sessions' content with zero error.
+
+## A field opened to all note types can have a SECOND, undiscovered renderer gap besides the one everyone found
+- Pattern: when a field (e.g. `Note.issue`) goes from "only type M" to "all seven
+  types", the obvious production gates to check are the vocabulary/type allowlist
+  and the by-id renderer (`report_render_note.py`). Both were correctly found and
+  fixed here (D-044/D-045, `lib/memory/vocabulary.py` + `report_render_note.py`).
+- But a SIBLING renderer (`lib/memory/report_render.py`, used by `gitmem search
+  <zone>` and `gitmem search <word>` -- the two most ordinary "browse/find"
+  commands, as opposed to `search --id`, which needs the id already known) can
+  independently never have supported the field AT ALL, for ANY type, including the
+  one type (M) that already had the field before this task. Grep every per-type
+  block-render function (`_restriction_block`/`_blocker_block`/`_decision_block`/
+  `_memo_block`/`_incident_block`/`_question_block`/`_cluster_block` in this repo)
+  for the field name -- a field with a real value that's genuinely stored and
+  correctly shown by ONE renderer can be silently absent from a SECOND renderer of
+  the exact same note, with zero test anywhere catching it, because the two
+  renderers were built/reviewed at different times and nobody diffed them against
+  each other for field parity.
+- The module's own "single declared reader" self-check (`vocabulary.py::FIELDS`,
+  a `_FieldSpec.reader` string per field, asserted to exist at import time so an
+  unread field can't happen) does NOT catch this: the declared reader
+  (`health.plans_unreflected`, a totally different subsystem reading the git-log
+  trailer, not the rendered UI) is real and does read the field -- so the
+  self-check is satisfied even while the field is invisible through the routine
+  browsing path a user would actually use.

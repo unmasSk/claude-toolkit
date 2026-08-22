@@ -129,6 +129,12 @@
 - [gitmem-rule-no-commit-contract-notes.md](gitmem-rule-no-commit-contract-notes.md) — rules.py/rule.py rewritten to never-commit contract (mirrors zones add), coherence_rules() retirement in boot.py CHECKS, existing test debt flagged not touched
 - [search-word-zones-catalog-contract-notes.md](search-word-zones-catalog-contract-notes.md) — search.py zero-result word search shows zones catalog before footer, absent-vs-present-empty parity, zone-path guard
 - [stop-dod-gate-d042-declared-identity-coverage-notes.md](stop-dod-gate-d042-declared-identity-coverage-notes.md) — D-042 declared-identity coverage gap closed, module-vs-function-level import gotcha, masked UnicodeDecodeError bug found (reported, not fixed)
+- [note-issue-field-seven-types-contract-notes.md](note-issue-field-seven-types-contract-notes.md) — --issue opens from M-only to all 7 types: two production gates (vocabulary + report_render_note), fake-gh-on-PATH technique
+- [boot-open-issues-label-rename-contract-notes.md](boot-open-issues-label-rename-contract-notes.md) — boot counter relabel "plans with a record" to "issues with a live note", keeping Argus's no-GitHub-state invariant
+- [render-issue-zone-word-contract-notes.md](render-issue-zone-word-contract-notes.md) — report_render.py never showed Issue on zone/word search for any type: D/I/R contract plus 4-type + issue-0 + cluster hardening
+- [work-issue-validation-gap-contract-notes.md](work-issue-validation-gap-contract-notes.md) — work.py --issue N never checks the issue exists at all (Argus gap): reject-if-missing, degrade-with-warning if gh cannot answer
+- [stop-dod-gate-fingerprint-cache-contract-notes.md](stop-dod-gate-fingerprint-cache-contract-notes.md) — working-tree fingerprint cache so the suite is not rerun when nothing changed, plus signature surviving volatile memory addresses
+- [stop-dod-gate-declared-contract-in-flight-notes.md](stop-dod-gate-declared-contract-in-flight-notes.md) — declared test-first RED must not block Stop, new bin/stop-dod-declare.py, per-session, auto-clears on green
 
 ## Retired (different stack, no longer this project's shape)
 

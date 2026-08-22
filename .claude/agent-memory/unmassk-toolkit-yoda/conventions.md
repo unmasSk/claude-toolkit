@@ -54,6 +54,27 @@ pura de git (`status`, `diff`, `log`, `show`) siempre es segura -- la prohibici�
 mueva el árbol. Para una comparación antes/después de un fichero real: copiar a variable en memoria (Python
 `open().read()`), mutar/restaurar por escritura directa, nunca por comando git que mute el índice o el árbol.
 
+## lib/memory/vocabulary.py::FIELDS[x].reader es "el mas directo", no "el unico" -- por diseno
+
+El propio docstring de `vocabulary.py` (parrafo "Tabla campo -> lector") dice explicitamente
+que cuando ARQUITECTURA.md Sec.6 lista mas de un lector real para un campo, `FIELDS[x].reader`
+copia solo el PRIMERO -- no es una afirmacion de que solo exista un lector, es una eleccion de
+cual citar. Antes de marcar como "documentacion desfasada" que un campo tenga un segundo lector
+real no listado (ej. `report_render.py` leyendo `note.issue` ademas de `health.plans_unreflected`),
+comprobar este parrafo -- puede ser exactamente el caso previsto, no una deriva.
+
+## Un hallazgo fuera del diff, en la misma working tree, no bloquea el veredicto de la feature -- pero se reporta aparte
+
+2026-08-22 (--issue abierto a los siete tipos, D-044/D-045): mientras revisaba el diff de la
+feature encontre que `.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md` (fichero de otro
+agente, tocado en la misma sesion para anadir 3 lineas nuevas legitimas) tenia sus ~102 lineas
+PREEXISTENTES truncadas mecanicamente a mitad de palabra frente a HEAD (confirmado con
+`git show HEAD:<ruta>` byte a byte, no una sospecha) -- perdida real de contenido en un indice
+de memoria, justo el eje que este proyecto mas protege. No bloquee el veredicto de la feature
+(codigo/tests de `lib/memory/vocabulary.py` etc. intactos y correctos, la corrupcion no la causo
+esta logica) pero lo marque como condicion explicita a resolver antes de comitear el lote --
+memory es un commit y no se reescribe, asi que si esto entra sin corregir queda para siempre.
+
 ## Round-trip real en customs.py / stop-dod-gate.py / zones.py list / doctor.py: subprocess real, no mock
 
 Los 4 ficheros de test tocados en la tanda del 2026-08-06 (`test_customs_hook.py`, `test_stop_dod_gate.py`,
