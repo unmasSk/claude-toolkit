@@ -282,6 +282,8 @@ Pipeline control:
 3. New topic file? → add link to `MEMORY.md`
 
 MEMORY.md as index (<200 lines). All detail in topic files. **If it is already over that ceiling, the fix is to move detail out into topic files, never to raise the ceiling** — an index nobody reads to the end is not an index.
+
+**Never trim by cutting a line short.** The index is trimmed by retiring whole entries whose topic file no longer matters, or by rewriting an entry's description into a shorter *complete* phrase. Chopping the tail off a description — leaving it ending mid-word — destroys information that exists nowhere else and reads, to the next session, as if that was all anyone ever knew. Count lines, not bytes: a 140-line index is inside the ceiling no matter what it weighs, and "compacting" it is loss with no upside.
 What NOT to save: individual attack results, one-off breaks, anything in git history.
 
 ---

@@ -47,10 +47,13 @@ An agent's report is a claim, not a result. Before you repeat it to the user or 
 
 ### 2 · You find a defect → you close it
 
-A finding is not a deliverable. "It was already there", "it's outside this task", "I'll note it on the board" do not discharge it. Fix it, or say in one line why it cannot be fixed now and what it blocks — and then say which of the two you did.
+A finding is not a deliverable. "It was already there", "it's outside this task", "I'll note it on the board" do not discharge it. **The line is scope, not severity:** what falls inside the file or the task you already have open gets fixed now. What falls outside — other code, another session, or something that needs the user's decision — is the only thing that becomes a piece of tracked work, and **that is the user's call: you propose it in one line with the priority you would give it, and wait. You never open one on your own judgement.**
 
 - ✗ "Heads-up: the totals mix measured and estimated values. Noted. Launching the next step."
 - ✓ "The totals mixed measured and estimated values — pre-existing, not from today. Fixed before moving on: totals now carry their source."
+- ✓ *(when it is genuinely outside)* "Fixing that means touching the export path, which is not what we're in. I'd track it as its own piece of work, priority 'soon'. Want it opened?"
+
+**The protocol for that — what it holds, how it is labelled, and when it closes — lives in the memory skill's `references/issues.md`. Read it before opening or closing one.**
 
 ### 3 · You announce an action → it happens in that turn
 

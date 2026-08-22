@@ -2,6 +2,10 @@
 
 **Core principle:** deciding and planning are two different acts. The decision says *what* and *why* and stays in memory forever. The plan says *how* and *in what order* and dies when the work ships.
 
+**A decision does not create a plan.** Deciding to use a technology is a decision and nothing else; *building* with it may or may not be a body of work. A plan is born when work is big enough to span sessions — and that work can come from a decision, from a question that needs investigating, from an incident whose repair is long, or from nothing at all except the user wanting it built. Never write a plan's record as if some decision demanded it.
+
+**A plan is the heavy end of the same thing `references/issues.md` governs** (in the memory skill): one issue is a unit of work, a plan is a body of work with a document behind it. The labels, the issue template and the line between fixing and opening live there — read it first.
+
 This file governs the plan that **spans sessions** — the one with an issue and a checklist the user follows. The execution plan of a single feature (tasks and wave map) stays in `SKILL.md` Step 3.
 
 ## The Iron Law

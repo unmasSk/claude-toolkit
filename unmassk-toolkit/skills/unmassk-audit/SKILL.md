@@ -28,7 +28,7 @@ Before step 0, create a TodoWrite with one item per step (steps 0-13). Update st
 
 ### Step 0 -- Preparation (ORCHESTRATOR (Claude + User))
 
-1. Select or create a GitHub issue for the audit target.
+1. Point the audit at an issue. If one already covers the target, use it. If none does, **propose it in one line and wait — you never open one on your own judgement** (the protocol, the labels and the template are in the memory skill's `references/issues.md`). If the user declines, the audit still runs; the opening note simply carries no issue number.
 2. Create the audit branch -- branch strategy depends on the project's `repo_type` (declared in `.claude/project-memory/config.json`; read it, do not redefine it here):
    - **gitflow** → `git checkout -b chore/audit-<module> dev`
    - **trunk** → work directly on `main`; no separate audit branch needed

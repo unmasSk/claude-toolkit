@@ -89,19 +89,43 @@ a wall, something that broke, something waiting on someone:
 
 **The blocker yardstick:** it comes from **outside** *and* makes a project claim false or an action impossible. Something pending on you is not a blocker.
 
+## Static, or asking for work
+
+Every note is one of two things, and the type does not decide it — the note does.
+
+**Static:** a fact that just needs keeping. It changes only by being replaced. Most notes are this, and nothing else happens to them.
+
+**Asking for work:** it says something has to be done. That work does not live in memory — memory only points at where it lives, with an issue number. **Every type accepts one.**
+
+```
+Is it inside the file or the task you already have open?
+    YES → FIX IT NOW. The note records that it was fixed.
+    NO  → it is outside, or it needs the user's decision:
+          propose an issue in one line, with the priority you'd give it,
+          and wait. You never open one on your own judgement.
+```
+
+"I'll note it" is not an answer to something you could fix, and "it was already there" is not an exemption. But an issue **is** a decision, so it is proposed and never assumed — and how long the user takes to answer is their business, never a reason to save the question for later.
+
+Usually static: memo, restriction, discarded, and a decision (deciding something is not building it). Usually work: a question that needs measuring instead of answering, and an incident whose repair is still pending — a repair already done leaves only the scar.
+
+**The full reading, the labels, and the issue template are in `references/issues.md`.** Read it before opening or closing one.
+
 ## Fields, by type
 
 Sending a field a type doesn't accept is rejected exactly like omitting a required one.
 
 | | Required | Also accepted |
 |---|---|---|
-| **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` |
+| **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` `--issue` |
 | **M** | `--description` `--stops yes\|no` | `--keys` `--replaces` `--origin` `--issue` |
-| **R** | `--description` `--stops yes` | `--why` `--keys` `--replaces` `--origin` |
-| **Q** | `--description` | `--keys` |
-| **X** | `--description` | `--why` `--keys` `--origin` |
-| **I** | `--description` | `--why` `--keys` |
-| **B** | `--description` `--awaits` | `--keys` |
+| **R** | `--description` `--stops yes` | `--why` `--keys` `--replaces` `--origin` `--issue` |
+| **Q** | `--description` | `--keys` `--issue` |
+| **X** | `--description` | `--why` `--keys` `--origin` `--issue` |
+| **I** | `--description` | `--why` `--keys` `--issue` |
+| **B** | `--description` `--awaits` | `--keys` `--issue` |
+
+**`--issue` is accepted by all seven** — a note that points at work can be of any type. The number must belong to an issue that already exists; the system checks it once, when the note is saved, and rejects the note if it doesn't. If the issue is opened *after* the note was saved, the note is not rewritten: the issue cites the note instead.
 
 **Headline and keys in English; the body in the user's language.** The headline is ≤80 characters and says what happened, not what was fixed. Keys are up to five search words **not already in the headline** — without them a correct note is unfindable.
 
@@ -255,6 +279,12 @@ gitmem note D --zones product auth "login with JWT + Google OAuth" \
 
 gitmem note M --zones api billing "Stripe sends webhooks in UTC" \
   --description "Confirmed against their dashboard while debugging a 2h offset." --stops no
+
+# a note that points at work carries its issue number — any of the seven types.
+# The issue must already exist: the user opens it, you never do. See references/issues.md
+gitmem note Q --zones api billing "unknown whether the export holds at 1000 users" \
+  --description "Nobody has measured it. Investigating means a load run, not an answer." \
+  --keys load capacity export --issue 91
 
 gitmem note R --zones testing database "never point the test suite at production" \
   --description "A seed run wiped the users table." --stops yes --origin I-014
