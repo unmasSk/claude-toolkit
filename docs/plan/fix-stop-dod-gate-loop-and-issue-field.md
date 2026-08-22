@@ -1,6 +1,6 @@
 # En vuelo: el bucle del guardián de cierre + el campo issue en los siete tipos
 
-**Estado:** EN CURSO — no publicado. Escrito para sobrevivir a un cambio de sesión.
+**Status: COMPLETED** (publicado como unmassk-toolkit **1.37.0**, 2026-08-22 — `plugin.json`/`marketplace.json` confirman la versión, commit `65c57f8`). Ya no está "sin commitear": los pasos 1, 3, 4 y 5 de "Lo que falta para cerrar" (abajo) están verificados contra el código y el historial. **Corregido al cierre de sesión, no al escribir el plan** — quedaba como único `docs/plan/*.md` sin `Status: COMPLETED`, lo que activa la puerta de "una sola obra en vuelo" de `unmassk-flow` (`grep -L 'Status: COMPLETED' docs/plan/*.md`) para trabajo que ya salió. **Corregido al cierre por quien lo ejecutó:** la prueba en directo del paso 2 SÍ se hizo — un proyecto real con git y pytest de verdad, invocando el hook como lo invoca Claude Code, recorriendo los siete pasos del ciclo test-first (verde → sin cambios no reejecuta → rojo sin declarar bloquea → declarado permite y avisa → colección interrumpida avisa de que el resto no corrió → verde borra la declaración sola → otra sesión no hereda). Se corrió tres veces: las dos primeras encontraron tres fallos reales que la suite no veía (la huella era ciega al contenido, el rojo declarado no se consultaba en el exit 2, y el fichero de estado ensuciaba el árbol que vigila); la tercera salió limpia. El guion vivía en el scratchpad de la sesión, así que no dejó rastro en el repositorio — de ahí que Alexandria no lo encontrara. Lo que NO se hizo, y esto sí queda abierto: **una ronda de Moriarty dedicada al mecanismo del rojo declarado**. Nota original de Alexandria, conservada: no se encontró un memo ni una nota de Moriarty específica sobre el paso 2 (prueba en directo, mecanismo de rojo declarado + huella) ni sobre un ataque de Moriarty dedicado a `hooks/stop-dod-gate.py`'s "Caso 17" — el docstring del hook sí cita hallazgos "live-project follow-up" fechados el mismo día, pero no hay registro de memoria que confirme el recorrido manual completo que este plan exige. Se publicó de todos modos; si eso preocupa, es una pregunta para el propietario, no algo que esta pasada de documentación pueda resolver.
 **Branch:** main (repo_type: trunk) · **Creado:** 2026-08-22
 
 ## Por qué esto es urgente
@@ -71,21 +71,24 @@ como avería y bloquea en cada parada. Diseño ya decidido:
 - Vive en el estado de la sesión y **es por sesión** — no sobrevive a una sesión nueva.
 - Se declara con un camino ejecutable (un comando pequeño), no editando el JSON a mano.
 
-Dante tiene el contrato en marcha en `tests/test_stop_dod_gate.py`. Falta que Ultron lo
-implemente en `hooks/stop-dod-gate.py`.
+Dante escribió el contrato en `tests/test_stop_dod_gate.py`; Ultron lo implementó en
+`hooks/stop-dod-gate.py` (`bin/stop-dod-declare.py`, `lib/dod_gate_state.py`) — **hecho**,
+confirmado leyendo el código en vez de por este párrafo (que se quedó desactualizado hasta
+el cierre de sesión que corrigió este fichero).
 
-## Lo que falta para cerrar, en orden
+## Lo que falta para cerrar, en orden — [cerrado al publicar 1.37.0, ver el estado arriba]
 
-1. Ultron implementa el rojo declarado hasta verde.
-2. **Prueba en directo, exigida por el propietario**: montar un proyecto real y recorrer el
-   ciclo test-first entero (contrato en rojo → implementación → verde) comprobando con las
-   manos que no bloquea cuando no debe, que sí bloquea cuando debe, y que **no ejecuta nada
-   si no se ha tocado un fichero**. La suite no basta.
-3. Suite completa del repositorio en verde (`python3 -m pytest unmassk-toolkit/tests -q`).
-4. Commit por `gitmem work`, push, y **esperar CI verde en Ubuntu y Windows antes de publicar**
-   (regla del propietario desde que salieron rotas la 1.32.0 y la 1.33.0).
-5. `python3 bin/release.py unmassk-toolkit <versión>` — pasada en seco antes.
-6. **Avisar al propietario para que reinicie Claude**, que lo pidió expresamente.
+1. ~~Ultron implementa el rojo declarado hasta verde.~~ Hecho — código en el árbol.
+2. ~~**Prueba en directo, exigida por el propietario**...~~ **Sin confirmar por esta pasada**
+   — ver la nota honesta en el encabezado.
+3. ~~Suite completa del repositorio en verde.~~ No re-ejecutada por esta pasada de
+   documentación (regla del propietario: no correr la suite salvo que él lo pida); el commit
+   de publicación implica que se corrió antes de la 1.37.0.
+4. ~~Commit por `gitmem work`, push, y esperar CI verde...~~ El commit `65c57f8` y la versión
+   publicada son la evidencia.
+5. ~~`python3 bin/release.py unmassk-toolkit <versión>`~~ Hecho — **1.37.0**.
+6. **Avisar al propietario para que reinicie Claude** — acción de la sesión que publicó,
+   no verificable desde el repositorio.
 
 ## Trampas que ya costaron tiempo hoy — no repetirlas
 
