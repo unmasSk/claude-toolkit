@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-08-22
+
 ### Changed
 
 - **El campo `--issue` de `gitmem note` deja de ser solo del acta de plan (tipo M) y se abre a los siete tipos.** Antes, una decisión, una pregunta o un incidente que apuntaba a trabajo real solo podía citar su issue fingiendo ser un memo. Ahora D, M, R, Q, X, I y B aceptan `--issue`; el sistema comprueba una vez, al guardar, que esa issue existe de verdad y rechaza la nota si no — y si el número llega después, la nota no se reescribe, es la issue la que cita la nota. El número ahora se ve por los tres caminos de búsqueda (`--id`, por zona, por palabra), no solo en `--id` de un memo como antes. El contador del arranque pasa de "plans with a record" a "issues with a live note", sin tocar el invariante de que nunca consulta GitHub — solo cuenta notas locales sin archivar.
