@@ -68,3 +68,4 @@
 [X-066][memory][architecture] un contador en el arranque de notas que piden trabajo sin issue
 [X-067][memory][architecture] enganchar una issue a una nota ya guardada
 [X-068][memory][architecture] un tipo de nota nuevo para el plan
+[X-069][memory][architecture] cinco niveles de prioridad
