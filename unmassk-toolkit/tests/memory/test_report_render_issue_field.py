@@ -74,13 +74,31 @@ aqui.
 """
 
 import os
+import sys
 
 import pytest
 
 from .conftest import (
     extract_note_id,
+    path_without_real_gh,
     run_memory_script,
     seed_zones_json,
+)
+
+# CI incident 2026-08-22 (conftest.py::path_without_real_gh): en Windows,
+# `subprocess.run(["gh", ...])` sin `shell=True` (produccion, no tocada
+# aqui) nunca resuelve un fichero sin extension `.exe` via CreateProcess
+# -- estructural, no arreglable desde el lado del test. Se salta
+# explicito, nunca en silencio, en los tests que dependen de que el `gh`
+# falso GANE la resolucion de `PATH`.
+_WIN_GH_SKIP_REASON = (
+    "tecnica de gh falso en PATH: en Windows, subprocess.run(['gh', ...]) "
+    "sin shell=True nunca resuelve un fichero sin extension .exe -- "
+    "estructural, no arreglable sin tocar validator_issue.py (fuera de "
+    "alcance de Dante)"
+)
+_skip_on_windows = pytest.mark.skipif(
+    sys.platform == "win32", reason=_WIN_GH_SKIP_REASON
 )
 
 _ZONE1 = "reportissuezoneone"
@@ -144,7 +162,7 @@ sys.exit(97)
 
 
 def _env_with_fake_gh(fake_gh_dir):
-    return {"PATH": fake_gh_dir + os.pathsep + os.environ.get("PATH", "")}
+    return {"PATH": fake_gh_dir + os.pathsep + path_without_real_gh()}
 
 
 def _seed_with_issue(repo, note_type, headline, description, issue, extra_flags, env):
@@ -201,6 +219,7 @@ _DECISION_INCIDENT_RESTRICTION = [
 ]
 
 
+@_skip_on_windows
 class TestIssueSurvivesZoneSearchAcrossThreeTypes:
     """Item 1 del encargo: `gitmem search <zona>` (`render_zone`, via
     `_restriction_block`/`_incident_block`/`_cluster_block` -- D pasa
@@ -245,6 +264,7 @@ class TestIssueSurvivesZoneSearchAcrossThreeTypes:
         )
 
 
+@_skip_on_windows
 class TestIssueSurvivesWordSearchAcrossThreeTypes:
     """Item 2 del encargo: `gitmem search <palabra>` (`render_word`, via
     `_restriction_block`/`_incident_block`/`_decision_block` -- la
@@ -426,6 +446,7 @@ _BLOCKER_MEMO_QUESTION_DISCARD = [
 _BLOCKER_MEMO_QUESTION_DISCARD_WORDS = ("replication", "cleanup", "invite", "caching")
 
 
+@_skip_on_windows
 class TestIssueSurvivesZoneSearchAcrossRemainingFourTypes:
     """Cierra el hueco declarado en la primera pasada: bloqueador, memo,
     pregunta y descarte, por `gitmem search <zona>` -- mismo patron que
@@ -473,6 +494,7 @@ class TestIssueSurvivesZoneSearchAcrossRemainingFourTypes:
         )
 
 
+@_skip_on_windows
 class TestIssueSurvivesWordSearchAcrossRemainingFourTypes:
     """Mismo cierre que la clase anterior, por `gitmem search <palabra>`
     -- mismo patron que `TestIssueSurvivesWordSearchAcrossThreeTypes`.
@@ -529,6 +551,7 @@ class TestIssueSurvivesWordSearchAcrossRemainingFourTypes:
         )
 
 
+@_skip_on_windows
 class TestIssueZeroIsNotFalsyOnEitherSearchPath:
     """El cero es un numero de issue valido -- `Note.issue: int | None`,
     el centinela de "no se dio" es `None`, nunca `0` (`model.py:68`,
@@ -614,6 +637,7 @@ class TestIssueZeroIsNotFalsyOnEitherSearchPath:
         )
 
 
+@_skip_on_windows
 class TestClusterRootShowsIssueChildrenDoNot:
     """Decision deliberada de Ultron, fijada tal cual esta: la RAIZ de un
     racimo (`_cluster_block`) enseña su `Issue:` -- los HIJOS no,

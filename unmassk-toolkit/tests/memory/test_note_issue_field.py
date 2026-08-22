@@ -78,14 +78,37 @@ aqui.
 """
 
 import os
+import sys
 
 import pytest
 
 from .conftest import (
     extract_note_id,
+    path_without_real_gh,
     run_git,
     run_memory_script,
     seed_zones_json,
+)
+
+# CI incident 2026-08-22 (ver conftest.py::path_without_real_gh): en
+# windows-latest, `subprocess.run(["gh", ...])` sin `shell=True` (la
+# forma real que usa `validator_issue.py`, produccion, no tocada aqui)
+# NUNCA encuentra un fichero SIN extension via CreateProcess -- solo
+# antepone ".exe" de forma implicita, nunca ".cmd"/".bat"/sin extension
+# (mismo motivo documentado por el que `subprocess.Popen(["algo"])` no
+# encuentra "algo.bat" en Windows sin `shell=True`). Esto es estructural
+# -- ningun arreglo posible desde el lado del test hace que un `gh`
+# falso sin `.exe` gane en Windows, sin tocar la invocacion real de
+# produccion. Se salta explicito (nunca en silencio) en vez de fingir
+# un verde que no se puede verificar en esta maquina.
+_WIN_GH_SKIP_REASON = (
+    "tecnica de gh falso en PATH: en Windows, subprocess.run(['gh', ...]) "
+    "sin shell=True nunca resuelve un fichero sin extension .exe -- "
+    "estructural, no arreglable sin tocar validator_issue.py (fuera de "
+    "alcance de Dante)"
+)
+_skip_on_windows = pytest.mark.skipif(
+    sys.platform == "win32", reason=_WIN_GH_SKIP_REASON
 )
 
 _ZONE1 = "issuefieldzone"
@@ -199,7 +222,7 @@ sys.exit(97)
 
 
 def _env_with_fake_gh(fake_gh_dir):
-    return {"PATH": fake_gh_dir + os.pathsep + os.environ.get("PATH", "")}
+    return {"PATH": fake_gh_dir + os.pathsep + path_without_real_gh()}
 
 
 def _seed_with_issue(repo, note_type, headline, description, issue, extra_flags, env):
@@ -214,6 +237,7 @@ def _seed_with_issue(repo, note_type, headline, description, issue, extra_flags,
     return run_memory_script("note.py", args, cwd=repo, env=env)
 
 
+@_skip_on_windows
 class TestSevenTypesAcceptIssueAndCarryItToARealCommitTrailer:
     """Items 1 y 4 del encargo, juntos a proposito: los dos transicionan
     de rojo a verde con el MISMO arreglo real (`vocabulary.py`,
@@ -265,6 +289,7 @@ class TestSevenTypesAcceptIssueAndCarryItToARealCommitTrailer:
         )
 
 
+@_skip_on_windows
 class TestIssueNotFoundRejectionAppliesToAllSevenTypes:
     """Item 2 del encargo: `validate_issue()` (la comprobacion real
     contra `gh issue view`) rechaza una issue que no existe -- para
@@ -320,6 +345,7 @@ class TestIssueNotFoundRejectionAppliesToAllSevenTypes:
         )
 
 
+@_skip_on_windows
 class TestIssueSurvivesTheRoundTripThroughSearchById:
     """Item 3 del encargo (unmassk-standards Sec.34 -- ida y vuelta
     real): se guarda una nota REAL de un tipo no-M con `--issue N`, y se

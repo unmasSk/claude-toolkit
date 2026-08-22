@@ -66,10 +66,28 @@ salida no vacia), nunca un texto inventado a mano.
 """
 
 import os
+import sys
 
 import pytest
 
-from .conftest import run_git, run_memory_script, seed_config_json
+from .conftest import path_without_real_gh, run_git, run_memory_script, seed_config_json
+
+# CI incident 2026-08-22 (conftest.py::path_without_real_gh): en Windows,
+# `subprocess.run(["gh", ...])` sin `shell=True` (produccion, no tocada
+# aqui) nunca resuelve un fichero sin extension `.exe` via CreateProcess
+# -- estructural, no arreglable desde el lado del test. Se salta
+# explicito, nunca en silencio, en los tests que dependen de que el `gh`
+# falso GANE la resolucion de `PATH` (los que NO dependen de eso, como
+# "gh ausente del PATH", no se saltan).
+_WIN_GH_SKIP_REASON = (
+    "tecnica de gh falso en PATH: en Windows, subprocess.run(['gh', ...]) "
+    "sin shell=True nunca resuelve un fichero sin extension .exe -- "
+    "estructural, no arreglable sin tocar validator_issue.py (fuera de "
+    "alcance de Dante)"
+)
+_skip_on_windows = pytest.mark.skipif(
+    sys.platform == "win32", reason=_WIN_GH_SKIP_REASON
+)
 
 
 def _git_commit_count(repo):
@@ -165,23 +183,20 @@ sys.exit(97)
 
 
 def _env_with_fake_gh(fake_gh_dir):
-    return {"PATH": fake_gh_dir + os.pathsep + os.environ.get("PATH", "")}
+    return {"PATH": fake_gh_dir + os.pathsep + path_without_real_gh()}
 
 
 def _path_without_gh():
     """El `PATH` real heredado, MENOS cualquier directorio que contenga
     un `gh` de verdad -- no un `PATH` vacio (eso tambien se llevaria
-    `git`, que `write_work()` necesita para comitear de verdad). Filtra
-    por contenido real de cada directorio, nunca por una ruta fija
-    (`/opt/homebrew/bin` en esta maquina, pero eso es un detalle de
-    entorno, no algo que el test deba asumir) -- portable a cualquier
-    maquina donde `gh` viva en otro sitio.
-    """
-    dirs = os.environ.get("PATH", "").split(os.pathsep)
-    kept = [d for d in dirs if not os.path.isfile(os.path.join(d, "gh"))]
-    return os.pathsep.join(kept)
+    `git`, que `write_work()` necesita para comitear de verdad). Ahora
+    delega en `conftest.py::path_without_real_gh()` (mismo filtro,
+    generalizado tras el incidente de CI 2026-08-22 a los tres ficheros
+    que fabrican un `gh` falso -- este era el original que lo motivo)."""
+    return path_without_real_gh()
 
 
+@_skip_on_windows
 class TestNonexistentIssueRejectsWithoutCommitting:
     """Item 1 del encargo -- el UNICO rojo real hoy: `work.py` no llama a
     `gh` en absoluto, asi que un numero inventado se comitea igual que
@@ -224,6 +239,7 @@ class TestNonexistentIssueRejectsWithoutCommitting:
         )
 
 
+@_skip_on_windows
 class TestExistingIssuePassesAndTrailerEnters:
     """Item 2 del encargo. GUARDA, no rojo hoy (ver docstring del
     modulo): `work.py` ya comitea con el trailer para cualquier numero,
@@ -309,6 +325,7 @@ class TestGhInfrastructureFailureNeverBlocksTheCommit:
             f"(stderr), no en silencio -- stderr real: {err!r}"
         )
 
+    @_skip_on_windows
     def test_gh_answers_an_unrelated_error_still_commits_with_a_visible_warning(
         self, tmp_repo, tmp_path
     ):
@@ -348,6 +365,7 @@ class TestGhInfrastructureFailureNeverBlocksTheCommit:
         )
 
 
+@_skip_on_windows
 class TestNoIssueFlagNeverCallsGh:
     """Item 4 del encargo. GUARDA hoy (ver docstring del modulo) --
     tiene que seguir siendo cierto tras la implementacion real: el

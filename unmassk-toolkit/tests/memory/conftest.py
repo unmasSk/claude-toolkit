@@ -298,6 +298,49 @@ def run_memory_script(script_name, args, cwd, env=None):
     return result.returncode, result.stdout, result.stderr
 
 
+# CI incident (2026-08-22): tres ficheros de esta carpeta escribian un
+# `gh` FALSO en un directorio propio y lo ANTEPONIAN al `PATH` heredado
+# (`fake_dir + os.pathsep + os.environ["PATH"]`), asumiendo que "primero
+# en el PATH" basta para ganar siempre. En local (`gh` autenticado) esto
+# funciona; en ubuntu-latest/windows-latest (gh real presente, SIN
+# credenciales) el `gh` de verdad se ejecuto en su lugar y fallo con su
+# propio mensaje de autenticacion -- confirmado reproduciendo la caida
+# en vivo: si el `gh` falso no es ejecutable por CUALQUIER motivo,
+# `execvp`/`posix_spawnp` (POSIX) NO lanza un error -- sigue buscando en
+# el resto del `PATH` y ejecuta silenciosamente el siguiente candidato
+# real (comportamiento POSIX documentado, reproducido aqui con un
+# `chmod(0o644)` deliberado sobre el falso: el resultado fue la MISMA
+# forma de fallo que did el runner). Anteponer no es suficiente cuando
+# el candidato real sigue estando en el `PATH` como red de reserva
+# silenciosa.
+#
+# Arreglo (solo en tests, nunca en produccion): construir el `PATH` del
+# proceso hijo SIN ningun directorio que contenga un `gh` real -- asi,
+# si el falso alguna vez no se pudiera ejecutar, la busqueda no tiene a
+# donde caer y `validator_issue.py::issue_exists()` lo convierte en un
+# `RuntimeError` claro ("no se pudo ejecutar 'gh'"), nunca en el `gh`
+# real ejecutandose sin avisar. Generaliza el patron que ya existia,
+# aislado, en `test_work_issue_field.py::_path_without_gh` (solo lo
+# usaba el caso "gh no esta instalado") a los tres ficheros que fabrican
+# un `gh` falso.
+def path_without_real_gh():
+    """El `PATH` heredado por el proceso de test, MENOS cualquier
+    directorio que contenga un `gh` real -- nunca un `PATH` vacio (eso
+    tambien se llevaria `git`/`python3`, que los scripts bajo prueba
+    necesitan de verdad). Filtra por CONTENIDO real de cada directorio
+    (`gh` en POSIX, `gh.exe`/`gh.cmd`/`gh.bat` en Windows), nunca por una
+    ruta fija -- portable a cualquier maquina donde `gh` viva en otro
+    sitio.
+    """
+    names = ("gh", "gh.exe", "gh.cmd", "gh.bat")
+    dirs = os.environ.get("PATH", "").split(os.pathsep)
+    kept = [
+        d for d in dirs
+        if not any(os.path.isfile(os.path.join(d, name)) for name in names)
+    ]
+    return os.pathsep.join(kept)
+
+
 GITMEM_BIN = os.path.join(_TOOLKIT_ROOT, "bin", "gitmem")
 
 
