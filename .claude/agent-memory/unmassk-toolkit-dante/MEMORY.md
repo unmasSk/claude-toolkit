@@ -135,6 +135,7 @@
 - [work-issue-validation-gap-contract-notes.md](work-issue-validation-gap-contract-notes.md) — work.py --issue N never checks the issue exists at all (Argus gap): reject-if-missing, degrade-with-warning if gh cannot answer
 - [stop-dod-gate-fingerprint-cache-contract-notes.md](stop-dod-gate-fingerprint-cache-contract-notes.md) — working-tree fingerprint cache so the suite is not rerun when nothing changed, plus signature surviving volatile memory addresses
 - [stop-dod-gate-declared-contract-in-flight-notes.md](stop-dod-gate-declared-contract-in-flight-notes.md) — declared test-first RED must not block Stop, new bin/stop-dod-declare.py, per-session, auto-clears on green
+- [ci-fake-gh-path-fallthrough-fix-notes.md](ci-fake-gh-path-fallthrough-fix-notes.md) — CI red both platforms: POSIX EACCES-fallthrough + Windows CreateProcess .exe-only, path_without_real_gh() fix, win32 skip
 
 ## Retired (different stack, no longer this project's shape)
 
