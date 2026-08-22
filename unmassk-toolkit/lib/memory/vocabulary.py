@@ -58,9 +58,13 @@ ejemplo que el mismo documento usa para ilustrarse. Una decision SI
 puede nacer de otra decision (se decide el login con Google, y de ahi
 nace una mas pequena -- cuanto dura la sesion -- que sin puntero queda
 suelta). Ningun otro tipo lo tiene citado.
-``issue`` solo aparece citado para el acta de plan, que "es una M"
-(ARQUITECTURA.md Sec.6, fila Issue; spec Sec.10.2) -- por eso solo M
-lo permite. ``awaits`` es el campo ``espera:`` de spec Sec.4 ("B ...
+``issue`` nacio citado solo para el acta de plan, que "es una M"
+(ARQUITECTURA.md Sec.6, fila Issue; spec Sec.10.2). **Abierto a los
+siete tipos el 2026-08-22** [decision del propietario, D-044/D-045]:
+una nota que apunta a trabajo puede ser de cualquier tipo, no solo M
+-- restringirlo a M forzaba a guardar un plan como memo aunque un memo
+este definido como "hecho estable". ``awaits`` es el campo ``espera:``
+de spec Sec.4 ("B ...
 Lleva campo `espera:` con el responsable"), obligatorio en B y en
 ningun otro tipo. ``context`` no entra en ningun tipo: el contexto de
 cierre vive "sin zonas, sin indice" (TEXTOS.md, titulo de Sec.1
@@ -156,7 +160,7 @@ TYPES = MappingProxyType(
             description="se eligió entre opciones",
             required_fields=frozenset({"description", "why"}),
             allowed_fields=frozenset(
-                {"description", "why", "keys", "replaces", "origin"}
+                {"description", "why", "keys", "replaces", "origin", "issue"}
             ),
         ),
         "M": _TypeSpec(
@@ -170,28 +174,30 @@ TYPES = MappingProxyType(
             description="un muro: saltarlo rompe algo",
             required_fields=frozenset({"description"}),
             allowed_fields=frozenset(
-                {"description", "why", "keys", "origin", "replaces"}
+                {"description", "why", "keys", "origin", "replaces", "issue"}
             ),
         ),
         "Q": _TypeSpec(
             description="pregunta abierta, sin respuesta todavía",
             required_fields=frozenset({"description"}),
-            allowed_fields=frozenset({"description", "keys"}),
+            allowed_fields=frozenset({"description", "keys", "issue"}),
         ),
         "X": _TypeSpec(
             description="se estudió y se descartó",
             required_fields=frozenset({"description"}),
-            allowed_fields=frozenset({"description", "why", "keys", "origin"}),
+            allowed_fields=frozenset(
+                {"description", "why", "keys", "origin", "issue"}
+            ),
         ),
         "I": _TypeSpec(
             description="se rompió algo: causa y qué se hizo",
             required_fields=frozenset({"description"}),
-            allowed_fields=frozenset({"description", "why", "keys"}),
+            allowed_fields=frozenset({"description", "why", "keys", "issue"}),
         ),
         "B": _TypeSpec(
             description="pendiente de fuera; bloquea",
             required_fields=frozenset({"description", "awaits"}),
-            allowed_fields=frozenset({"description", "awaits", "keys"}),
+            allowed_fields=frozenset({"description", "awaits", "keys", "issue"}),
         ),
     }
 )

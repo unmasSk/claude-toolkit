@@ -116,6 +116,8 @@ def _restriction_block(note: Note, marker: str) -> list[str]:
         lines.append(f"         Origin: {', '.join(note.origin)}")
     if note.keys:
         lines.append(f"         Keys: {', '.join(note.keys)}")
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
     return lines
 
 
@@ -124,6 +126,8 @@ def _blocker_block(note: Note, marker: str) -> list[str]:
     if note.awaits:
         lines.append(f"         awaits: {note.awaits}")
     lines.append(f"         Description: {note.description}")
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
     return lines
 
 
@@ -136,21 +140,31 @@ def _decision_block(note: Note, marker: str) -> list[str]:
         lines.append(f"         Why: {note.why}")
     if note.origin:
         lines.append(f"         Origin: {', '.join(note.origin)}")
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
     return lines
 
 
 def _memo_block(note: Note, marker: str) -> list[str]:
-    return [f"{marker}{note.id}  {note.headline}"]
+    lines = [f"{marker}{note.id}  {note.headline}"]
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
+    return lines
 
 
 def _incident_block(note: Note, marker: str) -> list[str]:
-    return [f"{marker}{note.id}  {note.headline}"]
+    lines = [f"{marker}{note.id}  {note.headline}"]
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
+    return lines
 
 
 def _question_block(note: Note, marker: str) -> list[str]:
     lines = [f"{marker}{note.id}  {note.headline}"]
     if note.description:
         lines.append(f"         {note.description}")
+    if note.issue is not None:
+        lines.append(f"         Issue: #{note.issue}")
     return lines
 
 
@@ -165,6 +179,8 @@ def _cluster_block(cluster: Cluster) -> list[str]:
     lines = [_header_line(f"  {root.id}  {root.headline}", root.timestamp.strftime("%Y-%m-%d"))]
     if root.why:
         lines.append(f"         Why: {root.why}")
+    if root.issue is not None:
+        lines.append(f"         Issue: #{root.issue}")
 
     children = cluster.children
     for index, child in enumerate(children):

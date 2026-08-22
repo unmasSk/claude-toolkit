@@ -48,7 +48,9 @@ force_utf8_streams()
 
 import config  # noqa: E402
 import notes  # noqa: E402
+import rejection as rejection_  # noqa: E402
 import repo_guard  # noqa: E402
+import validator_issue  # noqa: E402
 
 
 def _parse_args(argv):
@@ -57,6 +59,28 @@ def _parse_args(argv):
     parser.add_argument("--path", action="append", required=True, dest="paths")
     parser.add_argument("--issue", type=int, default=None)
     return parser.parse_args(argv)
+
+
+def _issue_rejection(message, paths, issue):
+    """Rechazo real para `--issue N` cuando `gh` CONFIRMA que la issue no
+    existe -- el UNICO caso que bloquea (encargo del propietario, regla
+    2). Reusa `rejection.build`/`render_terminal`, la misma forma que
+    `note.py` ya usa para su propio rechazo de issue -- ningun texto
+    inventado a mano [Sec.7.4]. El comando de relanzamiento es el de
+    `gitmem work`, no el de `gitmem note` (`validator_issue.validate_issue`
+    no aplica aqui: exige una `Note` terminada que este script no
+    construye)."""
+    what = f"COMMIT DE TRABAJO RECHAZADO — la issue #{issue} no existe en este repo"
+    options = (
+        "Esta es la unica vez que se comprueba. Un numero mal tecleado aqui",
+        "queda en el historial para siempre -- un commit no se reescribe.",
+        "",
+        "  gh issue list --limit 20          ver las abiertas",
+        '  gh issue create --title "..."     crearla ahora',
+    )
+    path_flags = " ".join(f"--path {p}" for p in paths)
+    command = (f'gitmem work "{message}" {path_flags} --issue <numero real>',)
+    return rejection_.build(kind="issue_not_found", what=what, options=options, command=command)
 
 
 def main(argv):
@@ -100,6 +124,29 @@ def main(argv):
         if branch in repo_guard.MAIN_BRANCH_NAMES:
             print(repo_guard.protected_branch_rejection(branch, config_path))
             return 1
+
+    # `--issue N` [encargo del propietario, dos reglas ya decididas]:
+    # 1) `gh` CONFIRMANDO que la issue no existe es el UNICO caso que
+    #    bloquea -- se rechaza, cero commit nuevo.
+    # 2) Cualquier fallo de INFRAESTRUCTURA de `gh` (no instalado, sin
+    #    red, timeout, una respuesta que no sea el "no existe" real --
+    #    `validator_issue.issue_exists` ya distingue las dos, no se
+    #    reimplementa aqui) NUNCA bloquea el commit de trabajo -- perder
+    #    un checkpoint por estar sin red es peor que el problema. Solo se
+    #    avisa, de forma visible, por stderr.
+    if args.issue is not None:
+        try:
+            exists = validator_issue.issue_exists(args.issue)
+        except RuntimeError as exc:
+            print(
+                f"aviso: no se pudo comprobar la issue #{args.issue} ({exc}) -- "
+                "el commit de trabajo se guarda igual",
+                file=sys.stderr,
+            )
+        else:
+            if not exists:
+                print(rejection_.render_terminal(_issue_rejection(args.message, paths, args.issue)))
+                return 1
 
     result = notes.write_work(args.message, paths, args.issue, known_content=known_content)
     if not result.ok:

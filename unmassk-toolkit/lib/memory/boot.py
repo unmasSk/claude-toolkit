@@ -72,24 +72,32 @@ delante y anota lo que decidas"]:
   `ARCHIVED.md` por el mismo mecanismo que D/M/R. Sin campo nuevo, sin
   llamada externa nueva.
 - `open_issues`: cuenta de numeros de issue DISTINTOS que llevan notas
-  vigentes con `Note.issue` puesto -- ese campo "solo vive en el acta de
-  plan" [model.py]. Se descarta a proposito una segunda llamada a `gh`
-  (el `state` real de la issue en GitHub): `health.py` ya paga una
-  llamada a `gh` por boot dentro de `plans_unreflected()`
-  [`_GH_TIMEOUT`, "0.85s medidos" segun spec Sec.10.4] y anadir una
-  segunda, redundante, en este modulo -- que el propio Sec.9.5 dice que
-  "no calcula salud" -- inflaria el arranque con una dependencia externa
-  mas por una fila que ningun test pide.
+  vigentes con `Note.issue` puesto. Ese campo YA NO "solo vive en el
+  acta de plan" -- D-044/D-045 (2026-08-22) lo abrieron a los siete
+  tipos [`model.py:68`, "opcional en los siete tipos"]. Se descarta a
+  proposito una segunda llamada a `gh` (el `state` real de la issue en
+  GitHub): `health.py` ya paga una llamada a `gh` por boot dentro de
+  `plans_unreflected()` [`_GH_TIMEOUT`, "0.85s medidos" segun spec
+  Sec.10.4] y anadir una segunda, redundante, en este modulo -- que el
+  propio Sec.9.5 dice que "no calcula salud" -- inflaria el arranque
+  con una dependencia externa mas por una fila que ningun test pide.
 
   **La etiqueta que se pinta NO dice "issues abiertas"** [correccion
   2026-08-02, hallazgo de Argus]: ese texto mentia -- el numero nunca
-  pregunta a GitHub, solo cuenta actas de plan LOCALES sin archivar, asi
-  que puede decir "0" con una issue real todavia abierta (su acta se
+  pregunta a GitHub, solo cuenta notas LOCALES sin archivar, asi que
+  puede decir "0" con una issue real todavia abierta (su nota se
   archivo por limpieza rutinaria) o seguir en "1" con la issue ya cerrada
-  hace meses (su acta nunca se archivo) -- y puede contradecir, en la
+  hace meses (su nota nunca se archivo) -- y puede contradecir, en la
   misma pantalla, la linea de `plans_unreflected` de mas abajo, que SI
-  consulta `gh` de verdad. `_recuentos_block()` pinta "planes con acta
-  vigente", que es lo que el numero mide de verdad.
+  consulta `gh` de verdad. `_recuentos_block()` pintaba "plans with a
+  record", que era exacto mientras solo el acta de plan podia llevar
+  `issue` -- desde D-044/D-045 el mismo numero tambien cuenta una
+  incidencia o un descarte con issue puesto, asi que esa etiqueta dejo
+  de decir lo que el numero mide de verdad [hallazgo de Cerberus,
+  2026-08-22]. Corregido: pinta "issues with a live note", que sigue sin
+  insinuar que conoce el estado real en GitHub (la invariante de Argus
+  no cambia) pero ya no dice "plans"
+  [`test_boot.py::test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas`].
 
 `lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
 de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
@@ -370,15 +378,18 @@ def _restrictions_block(restrictions) -> list[str]:
 
 
 def _recuentos_block(summary: BootSummary) -> list[str]:
-    # "plans with a record", no "issues abiertas" [correccion 2026-08-02,
-    # hallazgo de Argus]: ver el docstring del modulo, parrafo de
-    # `open_issues`, para el porque -- este numero nunca pregunta a
-    # GitHub, y la etiqueta vieja mentia sobre lo que mide de verdad.
+    # "issues with a live note", no "issues abiertas" [correccion
+    # 2026-08-02, hallazgo de Argus] ni "plans with a record" [hallazgo
+    # de Cerberus, 2026-08-22, D-044/D-045]: ver el docstring del modulo,
+    # parrafo de `open_issues`, para el porque -- este numero nunca
+    # pregunta a GitHub (invariante de Argus, sigue intacta), y desde que
+    # `issue` es opcional en los siete tipos ya no cuenta solo actas de
+    # plan, asi que "plans" dejo de describir lo que mide.
     # Etiquetas estructurales en ingles [decision del propietario,
     # 2026-08-03]: RECUENTOS->COUNTS, el resto de cada fila igual.
     lines = [
         "COUNTS",
-        f"   plans with a record .  {summary.open_issues}",
+        f"   issues with a live note .  {summary.open_issues}",
     ]
     # Una pregunta sin resolver y una incidencia abierta salen POR SU
     # NOMBRE, nunca como una cifra: un "3" no dice cual de las tres te

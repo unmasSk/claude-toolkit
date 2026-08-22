@@ -65,7 +65,7 @@ class Note:
     origin: tuple[str, ...] = ()   # punteros "de que nazco"
     replaces: str | None = None
     awaits: str | None = None      # solo en B
-    issue: int | None = None       # solo en el acta de plan
+    issue: int | None = None       # opcional en los siete tipos; apunta a la issue del trabajo que la nota reclama
 
 
 @dataclass(frozen=True)

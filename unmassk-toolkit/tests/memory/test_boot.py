@@ -988,25 +988,36 @@ def test_avisos_names_the_specific_note_when_an_archived_lines_separator_becomes
     )
 
 
-def test_recuentos_label_says_planes_con_acta_not_issues_abiertas(
+def test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas(
     boot, model, indexes, notes, tmp_repo, make_note, make_context
 ):
     """Bug 4 -- el recuento de planes mentia bajo la etiqueta "issues
-    abiertas".
+    abiertas". Actualizado [D-044/D-045, --issue abierto a los siete tipos
+    de nota]: la etiqueta pasa de "plans with a record" a "issues with a
+    live note", porque el numero ya no cuenta solo actas de plan (tipo M)
+    -- ahora una incidencia o un descarte con issue tambien entran, asi
+    que "plans" dejo de describir lo que mide.
 
-    Fallo real que previene: el numero nunca pregunta a GitHub, solo
-    cuenta actas de plan LOCALES sin archivar -- con la etiqueta vieja
-    podia decir "0" con una issue real todavia abierta (acta archivada
-    por limpieza rutinaria) o "1" con la issue ya cerrada hace meses
-    (acta nunca archivada). El arreglo es el ROTULO, no el calculo:
-    `_recuentos_block()` pinta "plans with a record ....." en vez de "issues
-    abiertas", que es lo que el numero mide de verdad.
+    Fallo real que previene, SIN TOCAR [invariante de Argus, 2026-08-02,
+    no se toca en este cambio]: el numero nunca pregunta a GitHub, solo
+    cuenta notas LOCALES vigentes (sin archivar) con issue -- con la
+    etiqueta "issues abiertas" podia decir "0" con una issue real todavia
+    abierta (su nota archivada por limpieza rutinaria) o "1" con la issue
+    ya cerrada hace meses (su nota nunca se archivo). El arreglo sigue
+    siendo el ROTULO, no el calculo: `_recuentos_block()` debe pintar
+    "issues with a live note ....." en vez de "issues abiertas", que es
+    lo que el numero mide de verdad -- una nota vigente que apunta a una
+    issue, no el estado real de esa issue en GitHub.
 
-    Round-trip real [unmassk-standards Sec.34]: se escribe un acta real
+    Round-trip real [unmassk-standards Sec.34]: se escribe una nota real
     con `issue=47`, se archiva de verdad (`indexes.remove()` +
     `indexes.archive()`), y se comprueba que el numero baja a 0 aunque
     GitHub nunca se toco -- exactamente el hallazgo de
     `argus_open_issues_lie.py`.
+
+    Este test queda EN ROJO a proposito: la produccion todavia pinta
+    "plans with a record" (`boot.py:381`) -- Ultron cambia la etiqueta
+    despues.
     """
     from datetime import date
 
@@ -1033,16 +1044,18 @@ def test_recuentos_label_says_planes_con_acta_not_issues_abiertas(
         rendered_before = boot.render(summary_before)
 
     assert summary_before.open_issues == 1, (
-        f"comprobacion previa: un acta vigente con issue deberia contar como "
+        f"comprobacion previa: una nota vigente con issue deberia contar como "
         f"1, salio {summary_before.open_issues!r}"
     )
     assert "issues abiertas" not in rendered_before, (
         "la etiqueta vieja mentia -- este numero nunca pregunta a GitHub, "
-        f"solo cuenta actas locales sin archivar:\n{rendered_before}"
+        f"solo cuenta notas locales sin archivar:\n{rendered_before}"
     )
-    assert "plans with a record" in rendered_before, (
-        f"la etiqueta real ('plans with a record', que es lo que el numero mide "
-        f"de verdad) no aparece:\n{rendered_before}"
+    assert "issues with a live note" in rendered_before, (
+        "la etiqueta nueva ('issues with a live note', que es lo que el "
+        "numero mide de verdad ahora que --issue no es solo del acta de "
+        f"plan) no aparece -- sigue pintando la vieja 'plans with a "
+        f"record', que ya no describe que cuenta este numero:\n{rendered_before}"
     )
 
     with _cwd(root):
@@ -1064,17 +1077,17 @@ def test_recuentos_label_says_planes_con_acta_not_issues_abiertas(
         rendered_after = boot.render(summary_after)
 
     assert summary_after.open_issues == 0, (
-        "el acta se archivo por limpieza rutinaria, sin tocar GitHub -- el "
+        "la nota se archivo por limpieza rutinaria, sin tocar GitHub -- el "
         f"numero LOCAL deberia bajar a 0, salio {summary_after.open_issues!r} "
         "(si no baja, el calculo dejo de ser el que argus_open_issues_lie.py "
-        "demostro)"
+        "demostro -- esta parte de la invariante no se toca en este cambio)"
     )
     assert "issues abiertas" not in rendered_after, (
         f"la etiqueta vieja no deberia aparecer tampoco tras archivar:\n"
         f"{rendered_after}"
     )
-    assert "plans with a record" in rendered_after, (
-        f"la etiqueta real deberia seguir ahi con su numero real (0):\n"
+    assert "issues with a live note" in rendered_after, (
+        f"la etiqueta nueva deberia seguir ahi con su numero real (0):\n"
         f"{rendered_after}"
     )
 

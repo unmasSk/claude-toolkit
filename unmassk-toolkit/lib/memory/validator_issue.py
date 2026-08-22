@@ -61,7 +61,7 @@ _GH_TIMEOUT = 10
 _ISSUE_NOT_FOUND_MARKER = "Could not resolve to an issue or pull request"
 
 
-def _issue_exists(issue: int) -> bool:
+def issue_exists(issue: int) -> bool:
     """`True` si `gh` confirma que la issue existe, `False` si `gh`
     confirma que NO existe -- las dos son respuestas reales de `gh`
     funcionando. Cualquier otro resultado (no instalado, sin red, timeout,
@@ -69,6 +69,14 @@ def _issue_exists(issue: int) -> bool:
     "no existe", y se propaga como `RuntimeError` con la causa -- mismo
     trato, mismo mensaje, que `health._last_activity_at` [PIEZAS.md
     Sec.10.1, punto 1: "*no se puede comprobar* nunca es *esta bien*"].
+
+    Publica a proposito (no `_issue_exists`): `bin/memory/work.py` la
+    reusa tal cual para su propia comprobacion de `--issue`, que NO pasa
+    por `validate_issue()` (esa funcion exige una `Note` terminada, y
+    `work.py` no construye ninguna) -- mismo precedente que promover los
+    ayudantes de caja de `report_render.py` a publicos cuando
+    `report_render_note.py` necesito reusarlos, en vez de una segunda
+    implementacion de la misma llamada a `gh`.
     """
     try:
         # encoding="utf-8", errors="replace": mismo motivo que
@@ -123,7 +131,7 @@ def validate_issue(note: Note, issue: int | None) -> Rejection | None:
     """
     if issue is None:
         return None
-    if _issue_exists(issue):
+    if issue_exists(issue):
         return None
 
     what = f"ACTA RECHAZADA — la issue #{issue} no existe en este repo"

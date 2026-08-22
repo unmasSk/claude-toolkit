@@ -38,8 +38,9 @@ ENTERO y contiguo en el render (round-trip real, sin fabricar el texto
 esperado -- unmassk-standards Sec.34), y envolver lo partiria en trozos
 con su propia sangria.
 
-`awaits:`/`Issue:` (los campos que solo llevan B/M) NO se alinean en la
-misma columna que Why/Description/Keys -- llevan un unico espacio tras
+`awaits:` (solo lo lleva B) e `Issue:` (los siete tipos desde
+D-044/D-045, 2026-08-22 -- antes solo M) NO se alinean en la misma
+columna que Why/Description/Keys -- llevan un unico espacio tras
 los dos puntos (`"awaits: the user"`, `"Issue: #47"`, el mismo formato
 que ya escribe `format.py::_body_field_line` para el campo real del
 commit), a diferencia de Why/Description/Keys, que SI comparten columna
@@ -72,7 +73,8 @@ def _note_fields(note: Note) -> list[str]:
     `Description`/`Keys` comparten UNA columna de valor (alineados); un
     campo ausente (`None`, tupla vacia) no genera ninguna linea: "no se
     enseñan etiquetas huerfanas" [TEXTOS Sec.2.4]. `awaits:`/`Issue:`
-    (B/M) van aparte, con el formato literal de un espacio -- ver
+    van aparte, con el formato literal de un espacio -- `awaits:` solo
+    en B, `Issue:` en los siete tipos desde D-044/D-045 -- ver
     desviacion en el docstring del modulo.
     """
     aligned: list[tuple[str, str]] = []
@@ -93,7 +95,10 @@ def _note_fields(note: Note) -> list[str]:
     # en castellano, distinto del arranque.
     if note.type == "B" and note.awaits:
         lines.append(f"{_BODY_INDENT}awaits: {note.awaits}")
-    if note.type == "M" and note.issue is not None:
+    # `issue` ya no es solo de M -- D-044/D-045 (2026-08-22) lo abre a
+    # los siete tipos; agnostico de tipo aqui, igual que
+    # `validator.py`/`format.py::_body_field_line` ya lo eran.
+    if note.issue is not None:
         lines.append(f"{_BODY_INDENT}Issue: #{note.issue}")
     return lines
 
