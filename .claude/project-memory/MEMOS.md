@@ -99,3 +99,4 @@
 [M-112][skills][architecture] Gitto was retired on 2026-08-02, moved to deprecated, not deleted
 [M-113][install][release] the plugin cache freezes per version, repo patches have zero effect
 [M-115][memory][hooks] nothing injects memory into any context today
+[M-116][memory][skills] three moria-v3 sessions (Aug 20, 22, 23) are the learning corpus for the toolkit
