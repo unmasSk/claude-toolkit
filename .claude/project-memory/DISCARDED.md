@@ -67,3 +67,4 @@
 [X-065][memory][architecture] la puerta del trabajo que pregunta al guardar la nota
 [X-066][memory][architecture] un contador en el arranque de notas que piden trabajo sin issue
 [X-067][memory][architecture] enganchar una issue a una nota ya guardada
+[X-068][memory][architecture] un tipo de nota nuevo para el plan
