@@ -23,3 +23,4 @@
 2026-08-09  [I-002][memory][testing] 🔥 building v2 found three silent-loss bugs -- fixed, now regression tests  →  closed: los tres fallos de perdida silenciosa se arreglaron el 2 de agosto y los tres quedaron fijados como tests de regresion probados en rojo sin su arreglo: candado en los indices, titular con salto de linea, y --cleanup=verbatim
 2026-08-09  [M-114][memory][hooks] 📌 zone memory search by filename replaces role-based push injection  →  replaced by M-115
 2026-08-09  [B-001][memory][hooks] ⛔ message-level memory injection redesign is paused, awaiting Bex's new approach  →  closed: Bex lo descarta el 2026-08-09: ya no espera planteamiento ninguno, la inyeccion de memoria por mensaje no se reinstaura
+2026-08-22  [D-043][memory][architecture] 🧭 the issue field opens to all seven types; asking moves to session close  →  replaced by D-044
