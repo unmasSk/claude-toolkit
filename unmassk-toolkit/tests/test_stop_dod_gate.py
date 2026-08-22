@@ -105,6 +105,18 @@ implemente) construirlo a nivel unitario contra la función de
 clasificación en sí, no contra pytest real -- de momento el contrato
 solo fija que las dos ramas realmente observables (ausente+trackeado
 → bloquea, ausente+no-trackeado → permite) están cubiertas.
+[2026-08-22: +2 clases / +5 tests -- CONTRATO DE ACEPTACIÓN test-first
+(RED antes de que Ultron implemente) para dos gaps reportados desde un
+proyecto consumidor real: (1) huella del árbol de trabajo -- dos Stop
+seguidos sin tocar nada deben ejecutar test_command UNA sola vez y
+reutilizar la decisión anterior, tanto en rojo como en verde; un cambio
+en el árbol o la imposibilidad de calcular la huella (no-git) siempre
+fuerzan una ejecución real (ver TestFingerprintSkipsRerunWhenTreeUnchanged);
+(2) la firma del anti-goteo debe sobrevivir a contenido volátil (una
+dirección de memoria en una línea `E   ` que cambia entre ejecuciones
+reales del MISMO fallo) -- hoy nunca colapsa porque la dirección forma
+parte literal de la línea hasheada (ver
+TestBlockSignatureSurvivesVolatileMemoryAddress).]
 """
 
 import json
@@ -114,7 +126,7 @@ import textwrap
 
 import pytest
 
-from conftest import SOURCE_ROOT, HOOKS_DIR, LIB_DIR, run_cmd, run_script, git_cmd
+from conftest import SOURCE_ROOT, HOOKS_DIR, BIN_DIR, LIB_DIR, run_cmd, run_script, git_cmd
 
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
@@ -122,6 +134,14 @@ if LIB_DIR not in sys.path:
 from git_helpers import UNMASSK_RUNTIME_DIR  # real constant -- no ruta a mano
 
 HOOK_PATH = os.path.join(HOOKS_DIR, "stop-dod-gate.py")
+
+# Camino ejecutable para declarar/limpiar/consultar un contrato test-first
+# en vuelo (Caso 17 más abajo) -- NO existe todavía, RED por diseño hasta
+# que Ultron lo cree. No es un fichero del propio hook: es un comando
+# pequeño e independiente, mismo patrón que el resto de `bin/*.py`
+# (`git-memory-doctor.py`, `bin/memory/*.py`) -- se invoca como subprocess,
+# nunca se edita el JSON de estado a mano.
+DECLARE_SCRIPT = os.path.join(BIN_DIR, "stop-dod-declare.py")
 
 # Payload mínimo de Stop hook — el hook no usa los campos del evento
 _STOP_PAYLOAD = json.dumps({"hook_event_name": "Stop"})
@@ -1678,6 +1698,649 @@ class TestUnknownNonzeroExitCodeAlwaysBlocks:
         assert parsed_sig is not None and parsed_sig.get("decision") == "block", (
             f"SIGHUP (returncode negativo real) debe bloquear; "
             f"parsed={parsed_sig!r}"
+        )
+
+
+# ── Caso 15 (2026-08-22, CONTRATO test-first, RED antes de Ultron) ────────────
+# Huella del árbol de trabajo -- no ejecutar test_command si nada cambió.
+#
+# Informe real de un proyecto consumidor: el hook corre test_command en
+# CADA evento Stop. Con la suite en rojo eso son decenas de ejecuciones
+# seguidas -- en ese proyecto el comando lanzaba audio real y se
+# acumularon 704 procesos huérfanos hasta agotar `fork` en la máquina.
+#
+# Contrato: junto al estado ya persistido en
+# `.claude/.unmassk/stop-dod-gate-state.json`, el hook debe guardar una
+# huella del árbol de trabajo. En el siguiente Stop, si la huella es
+# IDÉNTICA a la guardada, la decisión anterior se reutiliza SIN volver a
+# ejecutar test_command -- ni con la suite roja ni con la suite verde. Si
+# el árbol cambia (aunque sea sin commit -- es "árbol de trabajo", no
+# HEAD), o si la huella no se puede calcular (no es repo git), test_command
+# se ejecuta siempre. La decisión reutilizada nunca puede convertir un
+# bloqueo en un permiso ni al revés -- por construcción, al reutilizar la
+# MISMA decisión guardada, esto queda cubierto por los mismos tests de
+# rojo/verde de abajo (no un test aparte).
+#
+# `_write_counting_command()` escribe el fichero contador FUERA del
+# workdir (en un directorio hermano bajo tmp_path) a propósito: si
+# viviera dentro del workdir, la propia ejecución de test_command
+# ensuciaría el árbol que se está midiendo, y el segundo Stop nunca vería
+# "árbol sin cambios" aunque el hook cacheara correctamente -- el test se
+# auto-invalidaría.
+
+def _write_counting_command(workdir: str, counter_dir: str, exit_code: int) -> str:
+    """test_command real que deja rastro contable: por cada ejecución real
+    (no cada Stop) añade una línea a `<counter_dir>/run_counter.txt` y
+    sale con `exit_code`. `counter_dir` vive fuera de `workdir` -- ver
+    nota de la sección de arriba."""
+    script_path = os.path.join(workdir, "counting_cmd.py")
+    counter_path = os.path.join(counter_dir, "run_counter.txt")
+    script = (
+        "import sys\n"
+        f"with open({counter_path!r}, 'a', encoding='utf-8') as f:\n"
+        "    f.write('run\\n')\n"
+        f"sys.exit({exit_code})\n"
+    )
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(script)
+    return f"{sys.executable} {script_path}"
+
+
+def _count_runs(counter_dir: str) -> int:
+    counter_path = os.path.join(counter_dir, "run_counter.txt")
+    if not os.path.isfile(counter_path):
+        return 0
+    with open(counter_path, "r", encoding="utf-8") as f:
+        return sum(1 for line in f if line.strip())
+
+
+class TestFingerprintSkipsRerunWhenTreeUnchanged:
+    """Dos Stop seguidos sin tocar el árbol de trabajo -- test_command se
+    ejecuta UNA sola vez, y la segunda invocación reutiliza exactamente la
+    misma decisión. RED hoy: el hook actual no guarda ninguna huella del
+    árbol y ejecuta test_command en cada Stop sin condición."""
+
+    def test_unchanged_tree_red_suite_runs_command_once_across_two_stops(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _init_git_repo_with_commit(workdir)
+        counter_dir = str(tmp_path / "counters_red")
+        os.makedirs(counter_dir)
+        test_command = _write_counting_command(workdir, counter_dir, exit_code=1)
+        _write_config(workdir, {"test_command": test_command})
+        session = "sess-fp-red-nochange"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block", (
+            f"Suite roja, primera invocación -- debe bloquear; parsed1={parsed1!r}"
+        )
+        assert parsed2 is not None and parsed2.get("decision") == "block", (
+            "La decisión reutilizada debe ser EXACTAMENTE la guardada -- "
+            f"árbol sin cambios y suite roja debe seguir bloqueando en la "
+            f"segunda invocación; parsed2={parsed2!r}"
+        )
+        assert _count_runs(counter_dir) == 1, (
+            "Dos Stop seguidos SIN tocar el árbol -- test_command solo "
+            f"debe ejecutarse de verdad UNA vez, no dos; "
+            f"runs={_count_runs(counter_dir)}"
+        )
+
+    def test_unchanged_tree_green_suite_runs_command_once_across_two_stops(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _init_git_repo_with_commit(workdir)
+        counter_dir = str(tmp_path / "counters_green")
+        os.makedirs(counter_dir)
+        test_command = _write_counting_command(workdir, counter_dir, exit_code=0)
+        _write_config(workdir, {"test_command": test_command})
+        session = "sess-fp-green-nochange"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is None or parsed1.get("decision") != "block", (
+            f"Suite verde, primera invocación -- debe permitir; parsed1={parsed1!r}"
+        )
+        assert parsed2 is None or parsed2.get("decision") != "block", (
+            "La decisión reutilizada debe ser EXACTAMENTE la guardada -- "
+            f"árbol sin cambios y suite verde debe seguir permitiendo en "
+            f"la segunda invocación; parsed2={parsed2!r}"
+        )
+        assert _count_runs(counter_dir) == 1, (
+            "Este es el ahorro real (caso normal, suite verde) -- dos Stop "
+            f"sin cambios deben ejecutar test_command UNA sola vez; "
+            f"runs={_count_runs(counter_dir)}"
+        )
+
+    def test_tree_change_between_stops_forces_second_execution(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _init_git_repo_with_commit(workdir)
+        counter_dir = str(tmp_path / "counters_change")
+        os.makedirs(counter_dir)
+        test_command = _write_counting_command(workdir, counter_dir, exit_code=1)
+        _write_config(workdir, {"test_command": test_command})
+        session = "sess-fp-change"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc1 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert _count_runs(counter_dir) == 1
+
+        # Tocar el árbol de trabajo -- deliberadamente SIN commit: el
+        # contrato habla de "árbol de trabajo", no de HEAD.
+        _write_source_file(workdir, "unrelated_new_file.py", "# changed the tree\n")
+
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc2 == 0
+
+        assert _count_runs(counter_dir) == 2, (
+            "Un cambio en el árbol entre los dos Stop debe forzar una "
+            f"segunda ejecución real de test_command (decisión "
+            f"recalculada, no reutilizada); runs={_count_runs(counter_dir)}"
+        )
+
+    def test_fingerprint_unavailable_non_git_repo_always_runs_command(self, tmp_path):
+        """Sin huella calculable (no es un repo git) -- nunca se salta la
+        comprobación por no saber: se ejecuta siempre."""
+        workdir = _makes_tmp_dir(tmp_path)  # NO git init -- no es un repo
+        counter_dir = str(tmp_path / "counters_nogit")
+        os.makedirs(counter_dir)
+        test_command = _write_counting_command(workdir, counter_dir, exit_code=1)
+        _write_config(workdir, {"test_command": test_command})
+        session = "sess-fp-nogit"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+        assert _count_runs(counter_dir) == 2, (
+            "Sin huella calculable (no hay repo git) nunca se debe saltar "
+            f"la comprobación por no saber -- test_command se ejecuta las "
+            f"dos veces; runs={_count_runs(counter_dir)}"
+        )
+
+
+# ── Caso 16 (2026-08-22, CONTRATO test-first, RED antes de Ultron) ────────────
+# La firma del anti-goteo tiene que sobrevivir a contenido volátil.
+#
+# Informe real: el anti-goteo nunca se activó porque la firma es
+# sha256(líneas FAILED/ERROR/E), y las líneas `E   ` de pytest pueden
+# arrastrar contenido volátil -- una dirección de memoria de un objeto
+# generador (`0x...`) que cambia en cada ejecución real, aunque el fallo
+# sea exactamente el mismo. Línea real que lo rompió:
+# `E    +  where False = any(<generator object test_... at 0x1072725a0>)`.
+#
+# Deliberadamente en un workdir NO-git (ver Caso 15,
+# test_fingerprint_unavailable_non_git_repo_always_runs_command): así la
+# segunda invocación de este test está GARANTIZADA a re-ejecutar
+# test_command de verdad (nunca se salta por huella sin cambios), sin
+# depender de que la huella del árbol de trabajo detecte o no un cambio
+# -- lo único que este test quiere aislar es el cálculo de la firma en
+# sí, no la caché del Caso 15.
+
+def _write_address_varying_failing_command(workdir: str) -> str:
+    """test_command real que sale con exit 1 y una línea con la forma
+    exacta de una línea `E   ` de pytest, con una dirección de memoria
+    real (`hex(id(...))` de un objeto recién creado en CADA proceso hijo)
+    que varía de una invocación a otra -- mismo patrón que el informe
+    real de arriba."""
+    script_path = os.path.join(workdir, "address_varying_fail.py")
+    script = (
+        "import sys\n"
+        "addr = hex(id(object()))\n"
+        "print(f'E    +  where False = any(<generator object test_x at {addr}>)')\n"
+        "sys.exit(1)\n"
+    )
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(script)
+    return f"{sys.executable} {script_path}"
+
+
+class TestBlockSignatureSurvivesVolatileMemoryAddress:
+    """Dos ejecuciones REALES del mismo fallo, cuya única diferencia es
+    una dirección de memoria en una línea `E   `, deben producir la MISMA
+    firma -- y por tanto el recordatorio de una línea en la segunda, no
+    el volcado completo repetido. RED hoy: la firma es
+    sha256(conjunto de líneas), y la dirección forma parte literal de la
+    línea, así que cambia en cada ejecución real y el anti-goteo nunca
+    colapsa."""
+
+    def test_same_failure_different_memory_address_same_session_gets_oneliner(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)  # no-git a propósito -- ver nota arriba
+        test_command = _write_address_varying_failing_command(workdir)
+        _write_config(workdir, {"test_command": test_command})
+        session = "sess-volatile-addr-1"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc1 == 0
+        assert parsed1 is not None and parsed1.get("decision") == "block"
+        reason1 = parsed1.get("reason", "")
+        assert "0x" in reason1, (
+            f"Confirma que la dirección real de memoria llegó a la reason "
+            f"de la primera invocación; reason1={reason1!r}"
+        )
+
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc2 == 0
+        assert parsed2 is not None and parsed2.get("decision") == "block"
+        reason2 = parsed2.get("reason", "")
+
+        assert "\n" not in reason2.strip(), (
+            "Misma línea `E   ` con solo la dirección de memoria distinta "
+            f"debe colapsar a la firma anterior (recordatorio de una "
+            f"línea), no a una reason nueva con volcado; reason2={reason2!r}"
+        )
+        assert "0x" not in reason2, (
+            f"El recordatorio corto no debe repetir el volcado ni la "
+            f"dirección volátil; reason2={reason2!r}"
+        )
+
+
+# ── Caso 17 (2026-08-22, CONTRATO test-first, RED antes de Ultron) ────────────
+# Declaración explícita de contrato test-first en vuelo -- un rojo
+# ESPERADO (el test que fija el contrato, escrito antes de que exista el
+# código) no debe bloquear el cierre de sesión como si fuera una avería.
+#
+# Informe real: el propio método de este toolkit (Dante escribe el
+# contrato en rojo, Ultron implementa hasta el verde) choca con esta
+# misma compuerta -- un rojo a propósito bloquea el cierre en CADA Stop
+# mientras dura la implementación, exactamente como cualquier avería real.
+#
+# Solución fijada por el propietario (no inferida, declarada por quien
+# sabe que hay un contrato en vuelo -- el orquestador):
+#
+#   1. Con una declaración en vigor, un fallo DENTRO de ella no bloquea
+#      el cierre -- y lo dice en una línea visible (no en silencio).
+#   2. Un fallo que NO está en la declaración bloquea igual, aunque haya
+#      una declaración en vigor para otros tests.
+#   3. Mezcla (uno declarado + uno no declarado fallando a la vez) →
+#      bloquea, y la razón nombra el que no estaba declarado.
+#   4. La declaración se borra sola en cuanto su rojo se pone verde --
+#      nadie tiene que retirarla a mano.
+#   5. Sin declaración, nada cambia -- un rojo normal bloquea exactamente
+#      igual que hoy.
+#   6. La declaración vive en el MISMO fichero de estado
+#      (`.claude/.unmassk/stop-dod-gate-state.json`) y es por sesión: no
+#      sobrevive a un `session_id` distinto del que declaró.
+#
+# Camino ejecutable elegido por Dante para este contrato (el propietario
+# fijó el comportamiento, no el nombre exacto -- Ultron puede ajustar la
+# forma si documenta por qué, pero el contrato observable de abajo es lo
+# que estos tests exigen):
+#
+#   python3 bin/stop-dod-declare.py declare <test_node_id> [...] --session <ID>
+#   python3 bin/stop-dod-declare.py clear --session <ID>
+#   python3 bin/stop-dod-declare.py status --session <ID>
+#
+# `status` imprime JSON en stdout con, como mínimo, la clave "declared"
+# -- lista de node ids de pytest actualmente declarados para esa sesión
+# (vacía si no hay ninguno). `declare`/`clear` salen 0 en éxito. Todos
+# operan sobre el cwd del proceso (mismo patrón que el resto de scripts
+# de `bin/`), nunca requieren editar el JSON de estado a mano.
+#
+# `<test_node_id>` es el node id de pytest tal y como aparece en una
+# línea `FAILED` real (`<fichero>::<función>`) -- el hook YA necesita
+# parsear esas líneas para el anti-goteo (Caso 10-12), así que la
+# comparación reutiliza esa misma extracción, no una nueva.
+
+def _write_named_failing_test(workdir: str, filename: str, test_name: str) -> str:
+    """Escribe un fichero pytest real con una función que falla siempre
+    (`assert False`) -- devuelve el node id tal y como aparecería en una
+    línea `FAILED` real (`<filename>::<test_name>`)."""
+    content = (
+        f"def {test_name}():\n"
+        f"    assert False, 'contrato en vuelo -- aun sin implementar'\n"
+    )
+    _write_source_file(workdir, filename, content)
+    return f"{filename}::{test_name}"
+
+
+def _write_named_passing_test(workdir: str, filename: str, test_name: str) -> str:
+    """Misma función/fichero que `_write_named_failing_test`, pero en
+    verde -- usado para simular que un contrato declarado se implementó
+    (mismo node id, ahora pasa)."""
+    content = f"def {test_name}():\n    assert True\n"
+    _write_source_file(workdir, filename, content)
+    return f"{filename}::{test_name}"
+
+
+def _run_declare_cmd(cwd: str, args: list, timeout: int = 30):
+    """Invoca `bin/stop-dod-declare.py` con los argumentos dados, cwd =
+    el repo bajo prueba (mismo patrón que `_run_hook`)."""
+    return run_cmd([sys.executable, DECLARE_SCRIPT] + args, cwd=cwd, timeout=timeout)
+
+
+def _declare(cwd: str, session_id: str, *test_node_ids: str):
+    return _run_declare_cmd(cwd, ["declare", *test_node_ids, "--session", session_id])
+
+
+def _clear_declaration(cwd: str, session_id: str):
+    return _run_declare_cmd(cwd, ["clear", "--session", session_id])
+
+
+def _status(cwd: str, session_id: str):
+    rc, stdout, stderr = _run_declare_cmd(cwd, ["status", "--session", session_id])
+    try:
+        parsed = json.loads(stdout) if stdout.strip() else None
+    except (json.JSONDecodeError, ValueError):
+        parsed = None
+    return rc, parsed, stdout, stderr
+
+
+_DECLARATION_KEYWORDS = ("contrato", "declar", "contract")
+
+
+class TestDeclaredContractSkipsBlock:
+    """Requisito 1 -- con una declaración en vigor, un fallo DENTRO de
+    ella no bloquea el cierre, y lo dice en una línea visible. RED hoy:
+    `bin/stop-dod-declare.py` no existe, y el hook no sabe leer ninguna
+    declaración -- cualquier rojo real bloquea sin excepción."""
+
+    def test_declared_single_red_test_allows_close_with_visible_notice(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        node_id = _write_named_failing_test(workdir, "test_decl_single.py", "test_will_be_fixed")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-decl-single"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc == 0, f"Hook siempre sale 0; rc={rc!r}"
+        assert parsed is None or parsed.get("decision") != "block", (
+            f"Fallo DENTRO de la declaración no debe bloquear el cierre; "
+            f"parsed={parsed!r}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+        combined = (stdout + "\n" + stderr).lower()
+        assert any(keyword in combined for keyword in _DECLARATION_KEYWORDS), (
+            "Debe verse una línea diciendo que hay un contrato en vuelo -- "
+            f"no en silencio; stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+    def test_two_declared_red_tests_both_allow_close(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        node_id_a = _write_named_failing_test(workdir, "test_decl_multi_a.py", "test_contract_a")
+        node_id_b = _write_named_failing_test(workdir, "test_decl_multi_b.py", "test_contract_b")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-decl-multi"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id_a, node_id_b)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc == 0
+        assert parsed is None or parsed.get("decision") != "block", (
+            "Dos fallos, los DOS declarados -- no debe bloquear; "
+            f"parsed={parsed!r}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+
+class TestUndeclaredFailureStillBlocks:
+    """Requisito 2 -- un fallo que NO está en la declaración bloquea
+    igual, aunque haya una declaración en vigor para otros. Este es el
+    test que impide que la declaración se convierta en un interruptor
+    para apagar la compuerta entera."""
+
+    def test_declaration_for_other_test_does_not_shield_undeclared_failure(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        # Declaración en vigor para un contrato DISTINTO -- no forma parte
+        # de esta corrida (nunca se escribe ese fichero).
+        session = "sess-undeclared-1"
+        rc_decl, _, stderr_decl = _declare(
+            workdir, session, "test_other_contract.py::test_not_yet_written"
+        )
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        undeclared_node_id = _write_named_failing_test(
+            workdir, "test_real_regression.py", "test_undeclared_break"
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc == 0
+        assert parsed is not None and parsed.get("decision") == "block", (
+            "Un fallo NO declarado debe bloquear igual, aunque haya una "
+            f"declaración en vigor para otro test; parsed={parsed!r}, "
+            f"stdout={stdout!r}, stderr={stderr!r}"
+        )
+        reason = parsed.get("reason", "")
+        assert "test_real_regression.py" in reason or "test_undeclared_break" in reason, (
+            f"La razón debe nombrar el fallo no declarado; reason={reason!r}, "
+            f"undeclared_node_id={undeclared_node_id!r}"
+        )
+
+
+class TestMixedDeclaredAndUndeclaredBlocksNamingUndeclared:
+    """Requisito 3 -- mezcla: uno declarado + uno no declarado fallando a
+    la vez → bloquea, y la razón nombra el que no estaba declarado."""
+
+    def test_mixed_declared_and_undeclared_failures_blocks_naming_the_undeclared_one(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        declared_node_id = _write_named_failing_test(
+            workdir, "test_mixed_declared.py", "test_declared_part"
+        )
+        undeclared_node_id = _write_named_failing_test(
+            workdir, "test_mixed_undeclared.py", "test_undeclared_part"
+        )
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-mixed-1"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, declared_node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc == 0
+        assert parsed is not None and parsed.get("decision") == "block", (
+            "Mezcla de declarado + no declarado debe bloquear; "
+            f"parsed={parsed!r}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+        reason = parsed.get("reason", "")
+        assert "test_mixed_undeclared.py" in reason or "test_undeclared_part" in reason, (
+            f"La razón debe nombrar el fallo NO declarado; reason={reason!r}, "
+            f"undeclared_node_id={undeclared_node_id!r}"
+        )
+
+
+class TestDeclarationAutoClearsWhenGreen:
+    """Requisito 4 -- la declaración se borra sola cuando su rojo se pone
+    verde. Round trip completo: declara, pon el test declarado en verde,
+    comprueba que la declaración ya no está en el estado (vía `status`,
+    el propio comando de consulta -- nunca un literal escrito a mano)."""
+
+    def test_declaration_clears_after_declared_test_turns_green(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        filename, test_name = "test_autoclear.py", "test_soon_fixed"
+        node_id = _write_named_failing_test(workdir, filename, test_name)
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-autoclear-1"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc1, parsed1, stdout1, stderr1 = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc1 == 0
+        assert parsed1 is None or parsed1.get("decision") != "block", (
+            "Rojo declarado -- no debe bloquear todavía; "
+            f"parsed1={parsed1!r}, stdout1={stdout1!r}, stderr1={stderr1!r}"
+        )
+
+        rc_status_before, parsed_status_before, stdout_before, stderr_before = _status(workdir, session)
+        assert rc_status_before == 0
+        assert parsed_status_before is not None, f"status debe imprimir JSON; stdout={stdout_before!r}"
+        assert node_id in parsed_status_before.get("declared", []), (
+            f"Justo tras declarar y antes de arreglarlo, el node id debe "
+            f"seguir en la lista de declarados; status={parsed_status_before!r}"
+        )
+
+        # El "Ultron" del test arregla el contrato -- mismo fichero, mismo
+        # node id, ahora en verde.
+        _write_named_passing_test(workdir, filename, test_name)
+
+        rc2, parsed2, stdout2, stderr2 = _run_hook(workdir, payload=_stop_payload(session))
+        assert rc2 == 0
+        assert parsed2 is None or parsed2.get("decision") != "block", (
+            f"Suite verde -- debe permitir; parsed2={parsed2!r}"
+        )
+
+        rc_status_after, parsed_status_after, stdout_after, stderr_after = _status(workdir, session)
+        assert rc_status_after == 0
+        assert parsed_status_after is not None, f"status debe imprimir JSON; stdout={stdout_after!r}"
+        assert node_id not in parsed_status_after.get("declared", []), (
+            "En cuanto el test declarado pasa a verde, la declaración debe "
+            f"desaparecer del estado -- nadie tiene que retirarla a mano; "
+            f"status={parsed_status_after!r}"
+        )
+
+
+class TestNoDeclarationBehavesAsBefore:
+    """Requisito 5 -- sin declaración, nada cambia: un rojo normal
+    bloquea exactamente igual que hoy. Ancla de no-regresión: la sola
+    EXISTENCIA del mecanismo de declaración no debe aflojar el caso
+    normal (nunca se llama a `declare` en este test)."""
+
+    def test_undeclared_red_pytest_blocks_exactly_as_before(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        _write_named_failing_test(workdir, "test_no_declaration.py", "test_plain_regression")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-nodecl-1"))
+
+        assert rc == 0
+        assert parsed is not None and parsed.get("decision") == "block", (
+            f"Sin ninguna declaración, un rojo real debe bloquear igual "
+            f"que siempre; parsed={parsed!r}, stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+
+class TestDeclarationScopedToSession:
+    """Requisito 6 -- la declaración vive en el estado de la sesión y NO
+    sobrevive a un `session_id` distinto del que la declaró."""
+
+    def test_declaration_from_different_session_does_not_apply(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        node_id = _write_named_failing_test(workdir, "test_session_scope.py", "test_scoped_break")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+
+        rc_decl, _, stderr_decl = _declare(workdir, "sess-scope-old", node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        # Stop real con un session_id DISTINTO del que declaró.
+        rc, parsed, stdout, stderr = _run_hook(workdir, payload=_stop_payload("sess-scope-new"))
+
+        assert rc == 0
+        assert parsed is not None and parsed.get("decision") == "block", (
+            "Una declaración hecha bajo otra sesión no debe blindar el "
+            f"cierre de una sesión nueva; parsed={parsed!r}, "
+            f"stdout={stdout!r}, stderr={stderr!r}"
+        )
+
+    def test_declaration_survives_multiple_stops_within_same_session(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        node_id = _write_named_failing_test(workdir, "test_session_persist.py", "test_still_in_flight")
+        _write_config(workdir, {"test_command": _PYTEST_COMMAND})
+        session = "sess-scope-persist"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc1, parsed1, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+        rc2, parsed2, _, _ = _run_hook(workdir, payload=_stop_payload(session))
+
+        assert rc1 == 0 and rc2 == 0
+        assert parsed1 is None or parsed1.get("decision") != "block"
+        assert parsed2 is None or parsed2.get("decision") != "block", (
+            "La declaración no es de un solo uso -- dos Stop seguidos en "
+            f"la MISMA sesión, mismo rojo declarado, deben permitir los "
+            f"dos; parsed2={parsed2!r}"
+        )
+
+
+class TestDeclareClearStatusCommandRoundTrip:
+    """Camino ejecutable real: `declare` / `clear` / `status` son un
+    comando que se ejecuta, no una instrucción en prosa. RED hoy:
+    `bin/stop-dod-declare.py` no existe todavía."""
+
+    def test_declare_then_status_shows_declared_tests(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-cmd-roundtrip-1"
+        node_id_a = "test_cmd_a.py::test_a"
+        node_id_b = "test_cmd_b.py::test_b"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id_a, node_id_b)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc_status, parsed_status, stdout_status, stderr_status = _status(workdir, session)
+
+        assert rc_status == 0, f"status debe salir 0; stderr={stderr_status!r}"
+        assert parsed_status is not None, f"status debe imprimir JSON válido; stdout={stdout_status!r}"
+        assert set(parsed_status.get("declared", [])) == {node_id_a, node_id_b}, (
+            f"status debe reflejar exactamente lo declarado; status={parsed_status!r}"
+        )
+
+    def test_clear_removes_all_declarations(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-cmd-clear-1"
+        node_id = "test_cmd_clear.py::test_to_clear"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        rc_clear, _, stderr_clear = _clear_declaration(workdir, session)
+        assert rc_clear == 0, f"clear debe salir 0; stderr={stderr_clear!r}"
+
+        rc_status, parsed_status, stdout_status, _ = _status(workdir, session)
+        assert rc_status == 0
+        assert parsed_status is not None, f"status debe imprimir JSON válido; stdout={stdout_status!r}"
+        assert parsed_status.get("declared", []) == [], (
+            f"Tras clear, status debe estar vacío; status={parsed_status!r}"
+        )
+
+    def test_status_empty_when_nothing_ever_declared(self, tmp_path):
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-cmd-empty-1"
+
+        rc_status, parsed_status, stdout_status, _ = _status(workdir, session)
+
+        assert rc_status == 0
+        assert parsed_status is not None, f"status debe imprimir JSON válido; stdout={stdout_status!r}"
+        assert parsed_status.get("declared", []) == [], (
+            f"Sin ninguna llamada previa a declare, status debe salir "
+            f"vacío; status={parsed_status!r}"
+        )
+
+    def test_declare_writes_into_the_same_state_file_the_gate_uses(self, tmp_path):
+        """Requisito 6 (fichero compartido) -- la declaración vive en
+        `.claude/.unmassk/stop-dod-gate-state.json`, el MISMO fichero
+        donde ya viven la firma y los avisos -- no en un fichero propio
+        aparte. No se fija el nombre exacto de la clave interna (eso lo
+        elige la implementación); solo que el node id declarado aparece
+        en efecto dentro de ESE fichero tras declarar."""
+        workdir = _makes_tmp_dir(tmp_path)
+        session = "sess-cmd-samefile-1"
+        node_id = "test_cmd_samefile.py::test_shared_state"
+
+        rc_decl, _, stderr_decl = _declare(workdir, session, node_id)
+        assert rc_decl == 0, f"declare debe salir 0; stderr={stderr_decl!r}"
+
+        state_path = os.path.join(workdir, UNMASSK_RUNTIME_DIR, "stop-dod-gate-state.json")
+        assert os.path.isfile(state_path), (
+            f"declare debe persistir en el fichero de estado existente del "
+            f"hook, no en uno propio; esperado en {state_path!r}"
+        )
+        with open(state_path, "r", encoding="utf-8") as f:
+            raw_state = f.read()
+        assert node_id in raw_state, (
+            f"El node id declarado debe estar dentro del MISMO fichero de "
+            f"estado que ya usa el hook para la firma y los avisos; "
+            f"contenido={raw_state!r}"
         )
 
 
