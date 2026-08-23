@@ -37,3 +37,4 @@
 [remember][claude] 🧠 en una tuberia de agentes no narres cada vuelta: silencio real entre hitos, solo hablo para un resultado que decide, una pregunta, o la entrega final
 [remember][user] 🧠 no me expliques nada con analogias ni metaforas, no las entiendo: dilo directo y con un ejemplo concreto del proyecto
 [remember][user] 🧠 un error que puedas corregir lo corriges sin preguntar; una decision se para y se pregunta, y lo que yo tarde en contestar es mi problema, no tuyo
+[remember][user] 🧠 los informes y comparativas se presentan con emojis por seccion, para leerlos claro

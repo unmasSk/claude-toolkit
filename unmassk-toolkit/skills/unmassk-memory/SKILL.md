@@ -337,7 +337,7 @@ Reaching for the cache path instead leaves the project half-set-up forever: the 
 Generated from `hooks/hooks.json`, never by hand: a hook documented here but not registered is this skill telling the user something untrue.
 
 <!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->
-**7 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
+**6 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
 
 | Event | Matcher | Hook file | Timeout |
 |---|---|---|---|
@@ -347,5 +347,4 @@ Generated from `hooks/hooks.json`, never by hand: a hook documented here but not
 | `PreToolUse` | `Write\|Edit` | `validate-memory-path.py` | 5s |
 | `PreToolUse` | `Bash` | `pre-merge-gate.py` | 10s |
 | `UserPromptSubmit` | — | `user-prompt-memory-check.py` | 10s |
-| `Stop` | — | `stop-dod-gate.py` | 90s |
 <!-- END unmassk-active-hooks -->

@@ -100,8 +100,7 @@ def _make_repo_with_tracked_upstream(tmp_path, branch="main"):
 def _run_hook(cwd, command):
     """Invoke pre-merge-gate.py as a subprocess with a Bash tool_input payload.
 
-    Matches the invocation convention used by test_stop_dod_gate.py:
-    subprocess, JSON via stdin, cwd = the repo.
+    Invocation convention: subprocess, JSON via stdin, cwd = the repo.
 
     Returns (rc, parsed_json_or_None, stdout, stderr).
     """

@@ -1,5 +1,5 @@
 {
-  "description": "unmassk-core hooks \u2014 boot, commit validation, orchestrator rules, memory path safety",
+  "description": "unmassk-core hooks — boot, commit validation, orchestrator rules, memory path safety",
   "hooks": {
     "SessionStart": [
       {
@@ -60,17 +60,6 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-memory-check.py",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/stop-dod-gate.py",
-            "timeout": 90
           }
         ]
       }

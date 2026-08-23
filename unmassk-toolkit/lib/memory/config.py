@@ -33,17 +33,10 @@ el contenido de esta pieza:
 
   Esta garantia es del ``load`` de ESTA pieza -- se cumple para quien lo
   llama a el (hoy, ``customs.py``, que efectivamente falla en alto).
-  ``hooks/stop-dod-gate.py`` lee el MISMO fichero (``test_command``) pero
-  NO pasa por este ``load()`` -- tiene su propio parseo directo, porque
-  su contrato es fail-open (nunca debe bloquear el cierre de sesion por
-  un problema de infraestructura suyo, ver docstring de ese hook). Para
-  ese segundo lector la garantia de "nunca en silencio" se sostiene por
-  otro medio (un aviso visible por stderr, no una excepcion que falla en
-  alto) -- corregido 2026-08-06, antes se tragaba el error igual que el
-  caso "no configurado" y los dos eran indistinguibles. Quien añada un
-  tercer lector de este fichero fuera de esta pieza debe decidir el
-  mismo dilema (fallar en alto vs avisar y seguir) explicitamente, no
-  asumir que hereda esta garantia gratis.
+  Quien añada otro lector de este fichero fuera de esta pieza debe
+  decidir explicitamente si pasa por este ``load()`` (fallar en alto) o
+  se parsea por su cuenta con otro contrato, no asumir que hereda esta
+  garantia gratis.
 
 SOLO DATOS Y SU CARGA. Cero validacion de contenido de negocio: un
 valor de tipo equivocado dentro de un JSON por lo demas valido (por

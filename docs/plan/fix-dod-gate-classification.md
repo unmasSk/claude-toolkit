@@ -1,5 +1,7 @@
 # stop-dod-gate: clasificar rojo intencionado vs rojo real
 
+[2026-08-23] Superseded: the gate was retired by the owner; see D-046.
+
 **Status: COMPLETED** (2026-08-20)
 
 **Issue:** — (trunk, sin issue; una sesión)

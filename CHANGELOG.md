@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **Removed — the Stop-time test gate (stop-dod-gate, stop-dod-declare, dod_gate_classify, dod_gate_state):** it re-ran the project's tests on every stop and consumed more than half of a session's context in moria-v3; retired by the owner.
+
 ## [1.37.0] - 2026-08-22
 
 ### Changed
