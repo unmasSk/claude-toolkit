@@ -100,3 +100,4 @@
 [M-113][install][release] the plugin cache freezes per version, repo patches have zero effect
 [M-115][memory][hooks] nothing injects memory into any context today
 [M-116][memory][skills] three moria-v3 sessions (Aug 20, 22, 23) are the learning corpus for the toolkit
+[M-117][boot][skills] TodoWrite gone since Claude Code 2.1.233; re-enabled with an env var
