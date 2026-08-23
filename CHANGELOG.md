@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-08-23
+
 ### Added
 - **Modo automático** — a named protocol in `unmassk-core`: the owner says "modo automático" and the orchestrator runs the whole board, decides for him (the most enterprise option), shows at most `silencio` / `agente N de M`, and ends with one report in four fixed sections (bien / probado / decisiones tomadas / errores). Triggered by the router on every message while it lasts.
 - **The router speaks the owner's Spanish** — `lib/skill_router.py` matches his real phrases (accent- and case-insensitive) to skills, and emits `[orden]` reminders for four owner orders: silencio, "¿sí o no?", "manda a Bilbo", "quieto". 51 tests.
