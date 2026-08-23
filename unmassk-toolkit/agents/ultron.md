@@ -1,7 +1,7 @@
 ---
 name: ultron
 description: Use this agent when implementing, refactoring, fixing, or extending production code after architecture, review, or direct requirements. Invoke for real code changes, pattern-consistent execution, and test-backed delivery. Do not use for review, security auditing, adversarial validation, final approval, or documentation-only work.
-tools: Task, Read, Edit, Write, Glob, Grep, Bash, TodoWrite, BashOutput
+tools: Read, Edit, Write, Glob, Grep, Bash, TodoWrite, BashOutput
 model: sonnet
 color: blue
 background: true

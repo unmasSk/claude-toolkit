@@ -47,10 +47,15 @@ except Exception as e:
 # SKILL_TRIGGER_PHRASES is re-exported (not just match_skills) so tooling that
 # introspects this hook module directly can read the live trigger table.
 try:
-    from skill_router import match_skills as _match_skills, SKILL_TRIGGER_PHRASES
+    from skill_router import (
+        match_skills as _match_skills,
+        match_reminders as _match_reminders,
+        SKILL_TRIGGER_PHRASES,
+    )
 except Exception as e:
     print(f"[git-memory] skill_router import fail-open: {e!r}", file=sys.stderr)
     _match_skills = None  # type: ignore[assignment]
+    _match_reminders = None  # type: ignore[assignment]
     SKILL_TRIGGER_PHRASES = {}  # type: ignore[assignment]
 
 # Plugin root — derived from this script's location in the cache.
@@ -238,6 +243,19 @@ def main() -> None:
         except Exception as e:
             print(f"[git-memory] skill_router fail-open: {e!r}", file=sys.stderr)
             # fail-open: router failure must never affect the hook output
+
+    # ── Per-message owner-order reminders — same discipline as the skill
+    # router above: runs on every message, purely informational, never
+    # blocks. One "[orden]" line per matched reminder (a message can match
+    # more than one).
+    if prompt_text and _match_reminders is not None:
+        try:
+            matched_reminders = _match_reminders(prompt_text)
+            for _key, text in matched_reminders:
+                lines.append(f"[orden] {text}")
+        except Exception as e:
+            print(f"[git-memory] skill_router reminders fail-open: {e!r}", file=sys.stderr)
+            # fail-open: reminder-matching failure must never affect the hook output
 
     # A watchdog that only speaks when it has something to flag is
     # indistinguishable from a watchdog that isn't running at all (P6:
