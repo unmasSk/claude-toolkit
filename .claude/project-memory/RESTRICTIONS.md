@@ -8,3 +8,4 @@
 [R-007][hooks][skills] parallel agents never run global git stash/reset/checkout on a shared repo
 [R-008][architecture][install] write access is only granted in claude-toolkit itself
 [R-010][skills][architecture] agent frontmatter field memory: is real Claude Code API, never delete it
+[R-011][skills][architecture] agent frontmatter field skills: preloads that skill into the subagent, verified
