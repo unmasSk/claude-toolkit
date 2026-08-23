@@ -105,6 +105,7 @@
 - [stop-dod-gate-declared-contract-in-flight-notes.md](stop-dod-gate-declared-contract-in-flight-notes.md) — declared test-first RED must not block Stop, new bin/stop-dod-declare.py, per-session, auto-clears on green
 - [ci-fake-gh-path-fallthrough-fix-notes.md](ci-fake-gh-path-fallthrough-fix-notes.md) — CI red both platforms: POSIX EACCES-fallthrough + Windows CreateProcess .exe-only, path_without_real_gh() fix, win32 skip
 - [work-staged-deletion-git-rm-contract-notes.md](work-staged-deletion-git-rm-contract-notes.md) — gitmem work fails on a deletion already staged with git rm; stage_and_commit() git-add-then-commit gap, RED contract
+- [rule-quote-contract-notes.md](rule-quote-contract-notes.md) — gitmem rule --quote RED contract, no-commit contradiction reported not resolved, vacuous-green argparse pitfall
 
 ## Retired (different stack, no longer this project's shape)
 

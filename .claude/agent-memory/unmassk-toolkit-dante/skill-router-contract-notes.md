@@ -205,4 +205,23 @@ growth, not a coverage loss — every other skill's 3 cases per skill,
 multi-match, no-match, hook-integration, and the full drift-guard class are
 all untouched).
 
+## "automatico" reminder key added (2026-08-23) — RED contract, small addition to existing file
+
+Task: add a 5th key ("automatico") to the already-implemented `match_reminders()`
+(the other 4 keys — silencio, respuesta-primero, bilbo, orden-literal — were
+GREEN going in; `match_reminders` itself is not new code, just this key).
+Added to `test_skill_router_spanish.py`: 4 parametrized trigger-phrase tests
++ 1 guard ("automaticamente" alone must not fire — same discipline as
+orden-literal's "para ya" vs bare "parar") + 1 hook-level subprocess test
+(`TestHookEmitsSpanishRoutingAndReminders`) asserting a `[orden]` line
+containing "modo automatico" for prompt "ponte en modo automático, me voy a
+dormir". Confirmed RED: 5/6 new tests fail for the right reason (KeyError-
+equivalent: `"automatico" not in keys` because the key doesn't exist in
+`REMINDER_TRIGGERS` yet); the guard test passes trivially both before and
+after (absence is true either way) — expected, guard tests don't need to be
+RED first. Old 45 tests in the file stayed green (51 total, 5 failed, 46
+passed). Task explicitly forbade touching `lib/skill_router.py` — Ultron adds
+the `"automatico"` entry to `REMINDER_TRIGGERS` with text containing both
+"modo automatico" and "informe" (exact wording is his).
+
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md).
