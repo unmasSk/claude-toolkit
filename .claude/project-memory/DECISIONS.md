@@ -47,3 +47,4 @@
 [D-047][skills][hooks] Dante and Ultron lose Task; the router speaks the owner's Spanish
 [D-048][skills][architecture] a user's question is never a go; the message IS the question
 [D-049][skills][architecture] modo automatico: unattended work protocol with a fixed closing report
+[D-050][memory][skills] gitmem rule requires the owner's literal words, or an explicit --quote none
