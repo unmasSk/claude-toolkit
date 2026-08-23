@@ -76,3 +76,4 @@
 [X-074][skills][architecture] arrancar por las reglas locales y el CLAUDE.md de este repo
 [X-075][skills][architecture] partir best-practices.md
 [X-076][skills][architecture] rellenar hoy los ~60 stacks sin material
+[X-077][skills][architecture] recortar la promesa tocando la description del frontmatter
