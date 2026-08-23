@@ -43,3 +43,4 @@
 [D-042][hooks][testing] the DoD gate recognises first-party modules by declared project identity
 [D-044][memory][architecture] the issue is opened the moment the work appears, with the user present
 [D-045][memory][architecture] issue labels: three priorities, the type, and the note's own memory zones
+[D-046][hooks][testing] Stop-time test gate retired: test_command never runs on its own
