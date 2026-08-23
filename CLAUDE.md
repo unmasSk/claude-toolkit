@@ -12,7 +12,7 @@
 
 **El sistema de memoria está publicado, corriendo, y con la memoria vieja ya destilada.** La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. El sistema anterior está borrado del repositorio.
 
-**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **37 reglas** del propietario separadas en su propio canal (el número de reglas crece con cada corrección; el de notas y zonas queda fijado a esa fecha de destilación). Lo único que quedó abierto, la issue #83, se cerró el 2026-08-09: Bex descartó reinstaurar la inyección de memoria por mensaje (X-063) porque el hueco real —el agente subordinado trabajando a ciegas sobre la memoria— ya se había cerrado por otra vía, en el buscador (D-041). No queda nada abierto.
+**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más **42 reglas** del propietario separadas en su propio canal (el número de reglas crece con cada corrección; el de notas y zonas queda fijado a esa fecha de destilación). Lo único que quedó abierto, la issue #83, se cerró el 2026-08-09: Bex descartó reinstaurar la inyección de memoria por mensaje (X-063) porque el hueco real —el agente subordinado trabajando a ciegas sobre la memoria— ya se había cerrado por otra vía, en el buscador (D-041). No queda nada abierto.
 
 **Las zonas van siempre en minúsculas**, en los tres puntos — al crear, al buscar y al guardar una nota. Su descripción y cualquier otro texto se guardan tal cual se escribieron.
 
@@ -35,7 +35,7 @@
 
 Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que hicieron perder horas.**
 
-**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto y hoy son 37 — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
+**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto y hoy son 42 — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
 
 **1 · No repitas lo que ya has dicho.** Un hallazgo se cuenta **una vez**. Explicarlo por segunda vez «para que se entienda» es gastar el contexto de la sesión, que es el recurso que se acaba. *«Creo que me lo has dicho ya diez veces, cómo te gusta gastar contexto.»*
 
@@ -91,6 +91,7 @@ Estas cinco salieron de fallos reales, no de teoría.
 - **Ningún agente escribe en `lib/memory/` fuera de su propio fichero**, ni siquiera un temporal. Ya costó un incidente.
 - **Nada llega solo a un agente.** No hay inyección automática de memoria ni de skills: un agente solo recibe lo que el orquestador le escribe en el prompt, más las skills que él le pegue en un bloque `[DOMAIN SKILL]`. Si una ficha promete recibir algo por su cuenta, esa ficha miente — pasó con Bilbo, que por creerlo nunca buscaba lo que le hacía falta.
 - **Aquí, y solo aquí, el cierre de sesión publica versión** `[2026-08-05]`. Este repositorio es el que se publica: `python3 bin/release.py <plugin> <versión>`, con la pasada en seco antes. **No está en la skill de cierre a propósito** — allí sería una orden de publicar en todos sus proyectos.
+- **El CHANGELOG lo escribe Alexandria, nunca el orquestador** `[2026-08-23]`. Si hace falta antes de publicar, se le manda a ella — el orquestador no rellena entradas por su cuenta.
 
 ---
 

@@ -13,12 +13,15 @@
 
 ### Changed
 - **Dante and Ultron lose the `Task` tool** — they can no longer spawn agents, by construction rather than by prompt (a prompt-level ban failed twice in 24h: 22 agents from one Dante).
-- `gitmem work` commits deletions already staged with `git rm` (it used to fail on the `git add` step).
 
 ### Removed
 - Restriction R-009 (test_command on every Stop) archived: the gate it described no longer exists.
 
 ## [1.37.1] - 2026-08-23
+
+### Fixed
+
+- **`gitmem work` failed to commit a deletion already staged with `git rm`.** `git add --all -- <path>` no longer matches a path that's gone from both the working tree and the index, so it exited 128 (`pathspec did not match any files`) and the commit never ran — even though `git commit -- <path>` alone would have recorded the deletion fine. A path is now only added if it still exists on disk or still has an index entry; an already-staged deletion goes straight to the commit.
 
 ### Removed
 
