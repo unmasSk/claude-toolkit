@@ -73,3 +73,4 @@
 [X-071][hooks][testing] callar el hook si la firma se repite
 [X-072][boot][memory] a compaction-aware boot: Bex no longer compacts, he closes and reopens
 [X-073][skills][release] a clean-tree + Alexandria-commit check before launching the close agent
+[X-074][skills][architecture] arrancar por las reglas locales y el CLAUDE.md de este repo
