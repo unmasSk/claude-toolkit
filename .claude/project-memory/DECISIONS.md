@@ -49,3 +49,4 @@
 [D-049][skills][architecture] modo automatico: unattended work protocol with a fixed closing report
 [D-050][memory][skills] gitmem rule requires the owner's literal words, or an explicit --quote none
 [D-051][skills][architecture] fixes target the toolkit itself, never this repo's local rules or CLAUDE.md
+[D-052][skills][architecture] compliance plan approved: blocks 3 4 5 6 8 9b 9c and program-set checkboxes
