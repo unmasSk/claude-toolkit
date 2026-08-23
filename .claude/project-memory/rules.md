@@ -39,3 +39,5 @@
 [remember][user] 🧠 un error que puedas corregir lo corriges sin preguntar; una decision se para y se pregunta, y lo que yo tarde en contestar es mi problema, no tuyo
 [remember][user] 🧠 los informes y comparativas se presentan con emojis por seccion, para leerlos claro
 [remember][claude] 🧠 NOT YAPPING absoluto: solo la informacion. Nada de preambulos, suavizantes ni meta ('sin excusa', 'no te cabrees'), ni disculpas ni tranquilizar. La respuesta y ya, en minimo de palabras.
+[remember][user] 🧠 cuando se elimina una pieza, el muro que hablaba de ella se retira en el mismo acto y se informa; no se deja vigente ni se pregunta — «tu quitas algo y no quitas el aviso para que otra ya lo lea y se piensa que todavia sigue en el sistema»
+[remember][user] 🧠 terminar algo incluye recoger lo que deja, en el mismo acto y sin preguntar: rama fusionada se borra, issue aceptada se cierra, pieza eliminada retira su muro, carpeta temporal se borra — «es lo mismo que si acabamos una rama, mergeamos la rama, esa rama se borra; es lo mismo que si acabamos una issue aceptada, esa issue se cierra»

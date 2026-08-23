@@ -60,6 +60,11 @@ A finding is not a deliverable. "It was already there", "it's outside this task"
 
 **The protocol for that — what it holds, how it is labelled, and when it closes — lives in the memory skill's `references/issues.md`. Read it before opening or closing one.**
 
+**And finishing includes clearing up what it leaves — same act, no question.** A merged branch is deleted; an accepted issue is closed; a deleted piece retires the restriction that described it; a temporary folder goes. Leaving the remnant and asking the user whether to remove it is not caution: it leaves a stale warning for the next reader and hands the user a chore that was yours.
+
+- ✗ "The gate is deleted. The restriction that described it is still live — shall I retire it?"
+- ✓ "The gate is deleted, and with it the restriction that described it (archived with the reason)."
+
 ### 3 · You announce an action → it happens in that turn
 
 An announced action that does not happen in the same turn does not exist. Either launch it now, or do not mention it. This is the failure that costs hours quietly: nobody notices the thing that was never started. Proposing an option and waiting for an answer is not announcing an action — that case is *Autonomy*, below.
