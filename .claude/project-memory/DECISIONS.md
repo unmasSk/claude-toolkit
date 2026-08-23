@@ -48,3 +48,4 @@
 [D-048][skills][architecture] a user's question is never a go; the message IS the question
 [D-049][skills][architecture] modo automatico: unattended work protocol with a fixed closing report
 [D-050][memory][skills] gitmem rule requires the owner's literal words, or an explicit --quote none
+[D-051][skills][architecture] fixes target the toolkit itself, never this repo's local rules or CLAUDE.md
