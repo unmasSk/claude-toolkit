@@ -25,3 +25,4 @@
 2026-08-09  [B-001][memory][hooks] ⛔ message-level memory injection redesign is paused, awaiting Bex's new approach  →  closed: Bex lo descarta el 2026-08-09: ya no espera planteamiento ninguno, la inyeccion de memoria por mensaje no se reinstaura
 2026-08-22  [D-043][memory][architecture] 🧭 the issue field opens to all seven types; asking moves to session close  →  replaced by D-044
 2026-08-23  [R-009][hooks][testing] ⚠️ test_command runs on every stop, so side effects get multiplied  →  closed: el guardian de tests del Stop se elimino el 2026-08-23 (D-046); nada ejecuta test_command por su cuenta, el muro describe un peligro que ya no existe
+2026-08-23  [M-119][boot][skills] 📌 the task board has zero real calls across all 8 sessions of this repo  →  replaced by M-121
