@@ -45,3 +45,4 @@
 [D-045][memory][architecture] issue labels: three priorities, the type, and the note's own memory zones
 [D-046][hooks][testing] Stop-time test gate retired: test_command never runs on its own
 [D-047][skills][hooks] Dante and Ultron lose Task; the router speaks the owner's Spanish
+[D-048][skills][architecture] a user's question is never a go; the message IS the question
