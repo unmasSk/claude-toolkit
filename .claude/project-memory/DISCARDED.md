@@ -75,3 +75,4 @@
 [X-073][skills][release] a clean-tree + Alexandria-commit check before launching the close agent
 [X-074][skills][architecture] arrancar por las reglas locales y el CLAUDE.md de este repo
 [X-075][skills][architecture] partir best-practices.md
+[X-076][skills][architecture] rellenar hoy los ~60 stacks sin material
