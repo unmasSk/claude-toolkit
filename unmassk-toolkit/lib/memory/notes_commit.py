@@ -185,6 +185,23 @@ def pm_root(root: Path) -> Path:
     return Path(root) / ".claude" / "project-memory"
 
 
+def _path_in_index(path: Path, root: Path) -> bool:
+    """`True` si `path` sigue teniendo entrada en el indice de git ahora
+    mismo -- `git ls-files --error-unmatch -- <path>` sale 0 si la
+    encuentra, distinto de cero (con o sin excepcion) si no. Usada por
+    `stage_and_commit()` para distinguir un borrado SIN stagear (`rm` a
+    pelo: desaparece del arbol de trabajo pero sigue en el indice) de un
+    borrado YA stageado con `git rm` (desaparece de los dos sitios a la
+    vez) -- ver el punto de 2026-08-23 mas abajo.
+    """
+    result = gitcmd.run(
+        ["ls-files", "--error-unmatch", "--", str(path)],
+        cwd=root,
+        timeout=gitcmd.GIT_TIMEOUT,
+    )
+    return result.returncode == 0
+
+
 def stage_and_commit(message: str, paths: list[Path], root: Path) -> gitcmd.GitResult:
     """`git add` explicito (punto 2 del docstring del modulo) seguido de
     `gitcmd.commit()`. Devuelve el `GitResult` del primer paso que falle,
@@ -201,6 +218,28 @@ def stage_and_commit(message: str, paths: list[Path], root: Path) -> gitcmd.GitR
     era el que el usuario queria tocar. Con `root` explicito en las dos, un
     pathspec ya absoluto (ver `write_work()`) se resuelve identico sin
     importar desde donde se invoque el script.
+
+    **`paths` se filtra ANTES del `git add`, nunca del `git commit` --
+    arreglo 2026-08-23, hallazgo real reproducido en vivo contra un repo
+    de scratch.** Un fichero trackeado cuyo borrado ya se stageo a mano
+    con `git rm` (fuera del indice Y fuera del arbol de trabajo a la vez)
+    hacia que `git add --all -- <path>` saliera con codigo 128 (`pathspec
+    '<ruta>' did not match any files`) -- ese pathspec ya no casa con nada
+    que `add` pueda ver, ni el arbol de trabajo (ya no existe el fichero)
+    ni el indice (`git rm` ya lo saco) -- y `stage_and_commit()` devolvia
+    ESE fallo sin llegar nunca a intentar el commit, aunque `git commit --
+    <path>` solo, sin el `add` delante, registra el borrado sin problema
+    (verificado contra un repo real). Una ruta se incluye en el pathspec
+    de `git add --all` solo si sigue existiendo en el arbol de trabajo
+    (`os.path.exists`) O sigue teniendo entrada en el indice
+    (`_path_in_index()`, arriba) -- eso cubre el borrado SIN stagear (el
+    `--all` del punto de 2026-08-05, sigue en el indice aunque ya no este
+    en disco) sin reintroducir el fallo de arriba. Una ruta ausente de LOS
+    DOS sitios se salta del `add` -- no hay nada que `add` pueda hacer con
+    ella -- pero sigue viajando integra al `git commit -- <paths>` de mas
+    abajo: si de verdad no es nada (ni un borrado stageado ni ningun otro
+    estado valido), `git commit` fallara con su propio mensaje, en voz
+    alta, igual que hoy -- esta funcion nunca se lo traga.
     """
     # `--all` (no el `add` pelado): sin el, un BORRADO era imposible de
     # guardar con el sistema puesto, y se descubrio ejecutandolo
@@ -216,13 +255,15 @@ def stage_and_commit(message: str, paths: list[Path], root: Path) -> gitcmd.GitR
     # "commitea SOLO estas rutas, sin arrastrar el resto del indice" --
     # el que exige la publicacion del toolkit [plan Sec.2.7] -- se
     # mantiene intacto.
-    add_result = gitcmd.run(
-        ["add", "--all", "--", *(str(p) for p in paths)],
-        cwd=root,
-        timeout=gitcmd.GIT_TIMEOUT,
-    )
-    if add_result.returncode != 0:
-        return add_result
+    addable_paths = [p for p in paths if os.path.exists(p) or _path_in_index(p, root)]
+    if addable_paths:
+        add_result = gitcmd.run(
+            ["add", "--all", "--", *(str(p) for p in addable_paths)],
+            cwd=root,
+            timeout=gitcmd.GIT_TIMEOUT,
+        )
+        if add_result.returncode != 0:
+            return add_result
     return gitcmd.commit(message, paths, allow_empty=False, cwd=root)
 
 
