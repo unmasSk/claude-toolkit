@@ -2995,3 +2995,39 @@ case) means every observable side effect of that path is also correct --
 the block was right, the reason-naming and the declared-state hygiene
 around it were both silently wrong until checked directly. 86/86 pytest
 green throughout all three live-fire rounds of Caso 17.
+
+## 2026-08-23: skill_router.py Spanish triggers — separate table to protect a drift guard
+
+Task: add accent/case-insensitive Spanish trigger phrases + a new
+`match_reminders()` to `lib/skill_router.py`, wired into
+`hooks/user-prompt-memory-check.py`'s `[skill-router]` block. The task
+prompt literally said "add the Spanish phrases to SKILL_TRIGGER_PHRASES".
+
+Pre-flight caught the trap before writing: `tests/test_user_prompt_skill_router.py`
+has a PERMANENT drift guard (`TestSkillTriggerPhrasesMatchLiveDescriptions`)
+that reads the hook's live `SKILL_TRIGGER_PHRASES` dict (re-exported
+byte-identical from `lib/skill_router.py` via `from skill_router import ...
+SKILL_TRIGGER_PHRASES`) and asserts every phrase in it is a literal
+substring of its own skill's SKILL.md `description` field. Mixing Spanish
+phrases into that same dict would fail 100% of the new entries, since no
+SKILL.md carries Spanish text — an instruction followed literally would
+have broken 20+ previously-green tests.
+
+Fix: added a SEPARATE `SKILL_TRIGGER_PHRASES_ES` dict (same skill-name
+keys), left `SKILL_TRIGGER_PHRASES` byte-for-byte untouched, and had
+`match_skills()` internally merge `phrases + SKILL_TRIGGER_PHRASES_ES.get(skill, [])`
+per skill before matching. Drift guard only ever reads the untouched
+English dict by name, so it never sees the merge. Also added a small
+`_normalize()` helper (NFKD decompose + drop combining marks + lower) used
+by both `match_skills()` and the new `match_reminders()`, since the owner
+dictates by voice and accents are unreliable ("sesión" vs "sesion" must be
+the same trigger). Verified: 45/45 new contract tests green, 74/74
+sibling file green (drift guard included, unmodified), full suite 1090
+passed / 2 skipped, zero regressions.
+
+Rule for next time: when a task instruction says "add X to \<existing
+dict\>" and that dict is a documented input to a live regression/drift
+guard elsewhere in the suite, check the guard's assertion BEFORE writing —
+satisfy the intent (the phrases must exist and be matched) via a sibling
+structure rather than the literal container named in the prompt, when the
+literal container is contractually pure per another test file.
