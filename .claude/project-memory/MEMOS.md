@@ -103,3 +103,4 @@
 [M-117][boot][skills] TodoWrite gone since Claude Code 2.1.233; re-enabled with an env var
 [M-118][boot][skills] Claude Code appends a disclaimer that lets the model ignore CLAUDE.md
 [M-119][boot][skills] the task board has zero real calls across all 8 sessions of this repo
+[M-120][skills][architecture] agents skip their memory when the prompt hands them a chewed diagnosis
