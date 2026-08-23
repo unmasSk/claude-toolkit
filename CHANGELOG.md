@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- **Modo automático** — a named protocol in `unmassk-core`: the owner says "modo automático" and the orchestrator runs the whole board, decides for him (the most enterprise option), shows at most `silencio` / `agente N de M`, and ends with one report in four fixed sections (bien / probado / decisiones tomadas / errores). Triggered by the router on every message while it lasts.
+- **The router speaks the owner's Spanish** — `lib/skill_router.py` matches his real phrases (accent- and case-insensitive) to skills, and emits `[orden]` reminders for four owner orders: silencio, "¿sí o no?", "manda a Bilbo", "quieto". 51 tests.
+- **`gitmem rule --quote`** — a rule is saved only with the owner's literal words (`— «…»` on the line) or an explicit `--quote none`; without it the command bounces. Old rules without a quote stay valid. 11 tests.
+- **Verification story in Argus and Bilbo reports** — every claim tagged EXECUTED / READ / UNVERIFIED, every external figure with its source and date; `unmassk-core` reads the tag before relaying a finding.
+- `unmassk-core`, `unmassk-grill`, `unmassk-flow`: a user's question is never a go, a tepid answer is not a yes, the message IS the question. And finishing includes clearing up what it leaves (branch, issue, restriction, temp folder) in the same act.
+
+### Changed
+- **Dante and Ultron lose the `Task` tool** — they can no longer spawn agents, by construction rather than by prompt (a prompt-level ban failed twice in 24h: 22 agents from one Dante).
+- `gitmem work` commits deletions already staged with `git rm` (it used to fail on the `git add` step).
+
+### Removed
+- Restriction R-009 (test_command on every Stop) archived: the gate it described no longer exists.
+
 ## [1.37.1] - 2026-08-23
 
 ### Removed
