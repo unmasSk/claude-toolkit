@@ -95,8 +95,19 @@ def _git_commit_count(repo):
 
 class TestAcceptsAllFlagsWithoutBouncing:
     def test_text_and_kind_in_one_call(self, tmp_repo):
+        # --quote anadido 2026-08-23 (endurecimiento del propietario, mismo
+        # dia): --quote es ahora obligatorio para CUALQUIER kind -- sin el,
+        # esta llamada rebotaria por falta de cita, no por lo que este test
+        # quiere probar (que text+--kind se aceptan juntos sin reventar).
         rc, out, err = run_memory_script(
-            "rule.py", ["never mock the database in integration tests", "--kind", "user"],
+            "rule.py",
+            [
+                "never mock the database in integration tests",
+                "--kind",
+                "user",
+                "--quote",
+                "no mockees la base de datos en los tests de integracion",
+            ],
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -129,7 +140,14 @@ class TestRuleEndsUpInTheFileNotInAnOwnCommit:
         text = "never mock the database in integration tests"
         before = _git_commit_count(tmp_repo)
 
-        rc, out, err = run_memory_script("rule.py", [text, "--kind", "user"], cwd=tmp_repo)
+        # --quote none (2026-08-23): --quote es obligatorio ahora, y se usa
+        # el escape literal "none" a proposito -- `text in file_texts` mas
+        # abajo compara IGUALDAD exacta con el texto plano; una cita real
+        # anadiria "— «cita»" al texto persistido y rompería esa igualdad
+        # sin cambiar lo que este test quiere probar (fichero + sin commit).
+        rc, out, err = run_memory_script(
+            "rule.py", [text, "--kind", "user", "--quote", "none"], cwd=tmp_repo
+        )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
 
         after = _git_commit_count(tmp_repo)
@@ -148,7 +166,11 @@ class TestRuleEndsUpInTheFileNotInAnOwnCommit:
         text = "never mock the database in integration tests"
         rules_relpath = ".claude/project-memory/rules.md"
 
-        rc, out, err = run_memory_script("rule.py", [text, "--kind", "user"], cwd=tmp_repo)
+        rc, out, err = run_memory_script(
+            "rule.py",
+            [text, "--kind", "user", "--quote", "no mockees la base de datos, nunca"],
+            cwd=tmp_repo,
+        )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
 
         rc_status, status_out, err_status = run_git(
@@ -178,7 +200,7 @@ class TestRuleEndsUpInTheFileNotInAnOwnCommit:
         rules_relpath = ".claude/project-memory/rules.md"
 
         rc_rule, out_rule, err_rule = run_memory_script(
-            "rule.py", [text, "--kind", "claude"], cwd=tmp_repo
+            "rule.py", [text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
         )
         assert rc_rule == 0, f"stdout={out_rule!r} stderr={err_rule!r}"
 
@@ -216,13 +238,27 @@ class TestRuleEndsUpInTheFileNotInAnOwnCommit:
 class TestReadingModeShowsTheWholeFileForReal:
     def test_no_positional_argument_prints_the_real_rules_file_entirely(self, tmp_repo):
         rc_add1, out_add1, err_add1 = run_memory_script(
-            "rule.py", ["never mock the database in integration tests", "--kind", "user"],
+            "rule.py",
+            [
+                "never mock the database in integration tests",
+                "--kind",
+                "user",
+                "--quote",
+                "no mockees la base de datos en los tests de integracion",
+            ],
             cwd=tmp_repo,
         )
         assert rc_add1 == 0, f"siembra fallo: stdout={out_add1!r} stderr={err_add1!r}"
 
         rc_add2, out_add2, err_add2 = run_memory_script(
-            "rule.py", ["stop summarizing what you just did at the end", "--kind", "claude"],
+            "rule.py",
+            [
+                "stop summarizing what you just did at the end",
+                "--kind",
+                "claude",
+                "--quote",
+                "none",
+            ],
             cwd=tmp_repo,
         )
         assert rc_add2 == 0, f"siembra fallo: stdout={out_add2!r} stderr={err_add2!r}"
@@ -308,7 +344,9 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
     ):
         existing_text = "never mock the database in integration tests"
         rc_seed, out_seed, err_seed = run_memory_script(
-            "rule.py", [existing_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [existing_text, "--kind", "user", "--quote", "no mockees la base de datos"],
+            cwd=tmp_repo,
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
 
@@ -328,8 +366,13 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
             f"devolvio {expected_similar!r}"
         )
 
+        # --quote (2026-08-23): sin ella, esta llamada rebotaria por falta
+        # de cita ANTES de llegar al chequeo de parecido -- el rechazo que
+        # este test quiere ver (casi-duplicado) nunca se dispararia.
         rc, out, err = run_memory_script(
-            "rule.py", [candidate_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [candidate_text, "--kind", "user", "--quote", "otra cita, la del candidato"],
+            cwd=tmp_repo,
         )
         combined = out + err
         assert "Traceback" not in combined
@@ -373,14 +416,16 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         candidate_text = "MARK_ROW5_SCRIPT be terse answering questions"
 
         rc_seed_user, out_seed_user, err_seed_user = run_memory_script(
-            "rule.py", [user_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [user_text, "--kind", "user", "--quote", "cita real del propietario"],
+            cwd=tmp_repo,
         )
         assert rc_seed_user == 0, (
             f"siembra [user] fallo: stdout={out_seed_user!r} stderr={err_seed_user!r}"
         )
 
         rc_seed_claude, out_seed_claude, err_seed_claude = run_memory_script(
-            "rule.py", [claude_text, "--kind", "claude"], cwd=tmp_repo
+            "rule.py", [claude_text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
         )
         assert rc_seed_claude == 0, (
             f"siembra [claude] fallo: stdout={out_seed_claude!r} stderr={err_seed_claude!r}"
@@ -397,8 +442,13 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
             f"devolver ('claude', {claude_text!r}); devolvio {expected_similar!r}"
         )
 
+        # --quote (2026-08-23): igual razon que en el escenario anterior --
+        # sin ella esta llamada rebota por falta de cita, no llega al
+        # chequeo de parecido que este test verifica.
         rc, out, err = run_memory_script(
-            "rule.py", [candidate_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [candidate_text, "--kind", "user", "--quote", "cita del candidato mezclado"],
+            cwd=tmp_repo,
         )
         combined = out + err
         assert "Traceback" not in combined
@@ -421,7 +471,9 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
     ):
         unrelated_existing = "never mock the database in integration tests"
         rc_seed, out_seed, err_seed = run_memory_script(
-            "rule.py", [unrelated_existing, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [unrelated_existing, "--kind", "user", "--quote", "no mockees la base de datos"],
+            cwd=tmp_repo,
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
 
@@ -435,7 +487,9 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         )
 
         rc, out, err = run_memory_script(
-            "rule.py", [candidate_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py",
+            [candidate_text, "--kind", "user", "--quote", "deja de resumir, ya lo he visto"],
+            cwd=tmp_repo,
         )
         combined = out + err
         assert "Traceback" not in combined
@@ -449,7 +503,13 @@ class TestForceUtf8StreamsFirstStatement:
     def test_accented_rule_survives_a_restricted_console_encoding(self, tmp_repo):
         rc, out, err = run_memory_script(
             "rule.py",
-            ["nunca commitear sin revisar el diff primero, cuesta caro", "--kind", "claude"],
+            [
+                "nunca commitear sin revisar el diff primero, cuesta caro",
+                "--kind",
+                "claude",
+                "--quote",
+                "none",
+            ],
             cwd=tmp_repo,
             env={"PYTHONIOENCODING": "cp1252", "LANG": "C", "LC_ALL": "C"},
         )

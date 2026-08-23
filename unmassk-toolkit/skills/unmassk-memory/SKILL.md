@@ -313,10 +313,12 @@ gitmem rezones
 
 # rule — how to work, not what the project is. Defaults to the user's;
 # --kind claude marks a rule about your own behaviour. No argument: prints them all
-gitmem rule "be brief: never repeat back what I just said"
-gitmem rule "always read the existing patterns first" --kind claude
+gitmem rule "be brief: never repeat back what I just said" --quote "be brief, don't repeat back what I just said"
+gitmem rule "always read the existing patterns first" --kind claude --quote none
 gitmem rule
 ```
+
+**Every rule is saved with the literal words of whoever said it, via `--quote` — without them it bounces, for either `--kind`.** Claude's own paraphrase is not a substitute; that gap is how a rule the owner never said got saved on 2026-08-20, and how a real owner correction was later saved as `--kind claude` just to dodge the quote. The only way to save without a real quote is the explicit `--quote none` — Claude leaving itself a note, the owner said nothing.
 
 **A word search that finds nothing shows the project's zone catalog, not a blank header.** `gitmem search <word>` is literal-text matching: zero results means that string isn't written anywhere, not that there's no memory of it. When a word search comes back empty, the output now lists the project's zones with their description and aliases — the words this project actually uses — so retry with one of those before concluding there's nothing. This only fires for a plain word search with zero matches; `--id`, `--file`, and a search that resolves to a zone name are unaffected. A project with no zones yet says so instead of showing an empty list.
 

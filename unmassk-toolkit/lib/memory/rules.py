@@ -299,6 +299,84 @@ def _reject_invalid_kind(kind: str) -> Rejection:
     )
 
 
+_QUOTE_NOT_GIVEN = object()
+
+# Separador de la cita dentro de la linea escrita -- em dash + guillemets,
+# nunca comillas rectas (encargo 2026-08-23): "no te enrolles, tio" con
+# comillas rectas se confunde con una comilla dentro del propio texto de
+# la regla; el em dash + guillemets no aparece en ningun texto de regla
+# real hasta ahora y separa visiblemente las dos partes al leer.
+_QUOTE_SUFFIX_RE = re.compile(r"^(?P<text>.*) — «(?P<quote>.*)»$")
+
+
+def _strip_quote_suffix(text: str) -> str:
+    """El texto de una linea ya escrita SIN la parte de cita (` — «...»`),
+    si la lleva -- uso EXCLUSIVO de `similar_existing()`, mas abajo: el
+    parecido (Jaccard) y la candidata que se ensena en el rechazo se
+    miden y se devuelven solo sobre el texto de la regla, nunca sobre la
+    cita [encargo 2026-08-23, punto 4: "la cita nunca debe colarse en el
+    calculo de parecido, ni tapar un duplicado real"].
+
+    `iter_rule_texts()` NO usa esto y sigue devolviendo la linea con la
+    cita incluida a proposito -- ver su propio docstring, es el UNICO
+    reconocimiento de "esto es una linea de regla" del sistema y su forma
+    no cambia con este encargo.
+    """
+    match = _QUOTE_SUFFIX_RE.match(text)
+    if match is not None:
+        return match.group("text")
+    return text
+
+
+_QUOTE_NONE_LITERAL = "none"
+
+
+def _reject_missing_quote(text: str) -> Rejection:
+    """Rebota ANTES de tocar git o el fichero -- mismo momento que
+    `_reject_invalid_kind`/`_reject_invalid_text`/`_reject_too_long`.
+
+    [Corregido 2026-08-23, mismo dia, encargo del propietario en caliente:
+    el requisito de cita empezo limitado a `kind == "user"`, pero eso
+    mismo abrio un hueco -- una correccion real del propietario se guardo
+    como `--kind claude` solo para saltarse la cita. Desde esta correccion
+    el requisito es de AMBOS tipos por igual: `add()` ya no mira `kind`
+    para decidir si exige cita, solo si `quote` fue mencionado y viene en
+    blanco. La UNICA salida sin cita real es `--quote none` explicito
+    (Claude se deja una nota a si mismo y el propietario no dijo nada) --
+    ver `_QUOTE_NONE_LITERAL` mas arriba.]
+
+    Dispara cuando quien llama SI menciono una cita (aunque sea vacia/
+    `None`) y esta viene en blanco y no es el literal `"none"` -- nunca
+    para un llamador de biblioteca que ni siquiera pasa el parametro
+    `quote` (`add(text, kind)`, dos argumentos: el patron de todos los
+    tests anteriores a este encargo, que se queda intacto).
+    `bin/memory/rule.py` (el unico productor real) SIEMPRE pasa `quote`
+    explicitamente desde 2026-08-23, asi que para el es indistinguible de
+    "el usuario no dio --quote".
+
+    Motivo citado en el encargo original: el 2026-08-20 Claude guardo una
+    regla [user] ("jamas guias") que el propietario nunca dijo -- una
+    regla queda respaldada por las palabras REALES de quien la dijo, no
+    por una parafrasis de Claude.
+    """
+    what = "la regla no lleva ni una cita literal ni --quote none explicito"
+    options = (
+        f'  "{text}"',
+        "",
+        "Toda regla se guarda con las palabras REALES de quien la dijo, o con",
+        "--quote none si es Claude quien se la deja a si mismo y el",
+        "propietario no dijo nada -- asi se colo una correccion real del",
+        'propietario guardada como [claude] solo para saltarse la cita.',
+    )
+    command = (
+        f'gitmem rule "{text}" --quote "<sus palabras literales>"',
+        f'gitmem rule "{text}" --quote none',
+    )
+    return rejection.build(
+        kind="rule_missing_quote", what=what, options=options, command=command
+    )
+
+
 def _reject_invalid_text(text: str) -> Rejection:
     """Rebota ANTES de tocar git o el fichero -- mismo momento que
     `_reject_too_long`. Dos casos:
@@ -335,12 +413,33 @@ def _reject_invalid_text(text: str) -> Rejection:
     )
 
 
-def add(text: str, kind: str) -> WriteResult:
+def add(text: str, kind: str, quote=_QUOTE_NOT_GIVEN) -> WriteResult:
     """Anade una regla: una linea mas en el fichero de reglas, escrita de
     forma atomica -- UN SOLO PASO, sin tocar git para nada [orden del
     propietario, 2026-08-06, ver docstring del modulo]. La linea queda
     como una modificacion sin comitear en el arbol de trabajo, lista para
     que la arrastre el siguiente commit real del proyecto.
+
+    `quote` -- las palabras LITERALES de quien la dijo, opcional en la
+    firma pero obligatoria en la practica para CUALQUIER `kind` [encargo
+    2026-08-23, corregido el mismo dia: el requisito empezo limitado a
+    `kind == "user"`, pero eso mismo dejaba un hueco -- una correccion
+    real del propietario se guardo etiquetada `[claude]` solo para
+    saltarse la cita. Desde la correccion, `add()` ya no mira `kind` para
+    decidir si la exige]: si se pasa (aunque sea `None` o en blanco), una
+    cita vacia rebota (`_reject_missing_quote`), salvo el literal
+    `"none"` (`--quote none`) -- la unica salida explicita para "esto es
+    una nota que Claude se deja a si mismo, el propietario no dijo nada".
+    Un llamador que ni siquiera menciona `quote` (la firma de dos
+    argumentos que ya usaba todo el codigo anterior a este encargo,
+    `add(text, kind)`) no activa esta validacion en absoluto -- se queda
+    exactamente con la conducta de antes, sin cita. `bin/memory/rule.py`,
+    el unico productor real, pasa `quote` siempre desde este encargo.
+    Cuando hay cita real (ni ausente/blanca ni `"none"`), la linea escrita
+    lleva un sufijo visible ` — «<cita>»` (em dash + guillemets); con
+    `--quote none` la linea se escribe igual que sin cita, sin ese sufijo.
+    `iter_rule_texts()` no cambia de forma y sigue devolviendo la linea
+    entera, cita incluida cuando la lleva.
 
     Si `text` supera `_TEXT_MAX_CHARS`, lleva un salto de linea, o esta
     vacio/solo espacios, rebota SIN tocar el fichero. Lo mismo si `kind`
@@ -373,10 +472,28 @@ def add(text: str, kind: str) -> WriteResult:
             ok=False, note_id=None, rejections=(_reject_too_long(text),), git_error=None
         )
 
+    quote_mentioned = quote is not _QUOTE_NOT_GIVEN
+    quote_blank = quote_mentioned and (quote is None or not quote.strip())
+    quote_is_explicit_none = (
+        quote_mentioned and not quote_blank and quote.strip().lower() == _QUOTE_NONE_LITERAL
+    )
+    # Kind-agnostic desde la correccion en caliente del 2026-08-23 -- ver
+    # docstring de `_reject_missing_quote`: exigir la cita solo para
+    # `kind == "user"` dejaba un hueco (una regla del propietario
+    # guardada como `[claude]` se saltaba la cita). `--quote none`
+    # explicito es la unica salida real sin cita, para cualquier `kind`.
+    if quote_mentioned and quote_blank and not quote_is_explicit_none:
+        return WriteResult(
+            ok=False, note_id=None, rejections=(_reject_missing_quote(text),), git_error=None
+        )
+    quote_has_content = quote_mentioned and not quote_blank and not quote_is_explicit_none
+
     root = _repo_root()
     with gitcmd.file_lock(_lock_resource(root)):
         emoji = CHANNEL_EMOJI["rule"]
         subject = f"[remember][{kind}] {emoji} {text}"
+        if quote_has_content:
+            subject += f" — «{quote}»"
 
         path = rules_file_path(root)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -430,6 +547,13 @@ def similar_existing(text: str) -> tuple[_RuleMatch, ...]:
     candidate = _tokenize(text)
     matches = []
     for kind, existing_text in _iter_rule_lines(read_all()):
-        if _jaccard(candidate, _tokenize(existing_text)) >= SIMILARITY_THRESHOLD:
-            matches.append(_RuleMatch(kind, existing_text))
+        # La cita (si la linea la lleva) nunca entra en el parecido ni en
+        # lo que se devuelve -- se mide y se ensena solo el texto de la
+        # regla [encargo 2026-08-23, punto 4: la cita no puede colarse en
+        # el calculo ni tapar un duplicado real]. `_strip_quote_suffix` es
+        # un no-op sobre una linea sin cita (formato anterior a este
+        # encargo), asi que esta rama sigue sirviendo a las dos formas.
+        stripped_text = _strip_quote_suffix(existing_text)
+        if _jaccard(candidate, _tokenize(stripped_text)) >= SIMILARITY_THRESHOLD:
+            matches.append(_RuleMatch(kind, stripped_text))
     return tuple(matches)

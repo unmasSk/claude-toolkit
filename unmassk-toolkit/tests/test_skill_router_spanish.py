@@ -220,6 +220,38 @@ class TestMatchReminders:
         assert match_reminders(None) == []
 
 
+# "automatico" reminder — owner puts Claude into unattended/automatic mode
+# and expects a report when he's back. Same accent/case-insensitive
+# discipline as every other reminder key (see _normalize() in
+# lib/skill_router.py). "automaticamente" alone (e.g. "hazlo automaticamente")
+# is a different word in a different sentence shape and must NOT misfire —
+# same discipline as "orden-literal"'s "para ya" vs bare "parar" guard above.
+AUTOMATICO_PROMPTS = [
+    "modo automatico",
+    "modo automático",
+    "ponte en automatico",
+    "automatico hasta que vuelva",
+]
+
+
+class TestMatchRemindersAutomatico:
+    @pytest.mark.parametrize("prompt", AUTOMATICO_PROMPTS)
+    def test_automatico_prompts_trigger_automatico_key(self, prompt):
+        match_reminders = _import_match_reminders()
+        reminders = match_reminders(prompt)
+        keys = [k for k, _ in reminders]
+        assert "automatico" in keys, f"{prompt!r} -> {reminders!r}"
+        texts = [t for k, t in reminders if k == "automatico"]
+        assert any("modo automatico" in t for t in texts), texts
+        assert any("informe" in t for t in texts), texts
+
+    def test_automaticamente_alone_does_not_trigger_automatico(self):
+        match_reminders = _import_match_reminders()
+        reminders = match_reminders("automaticamente")
+        keys = [k for k, _ in reminders]
+        assert "automatico" not in keys, reminders
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # C) The hook wires both match_skills() and match_reminders() into stdout
 # ══════════════════════════════════════════════════════════════════════════
@@ -239,6 +271,14 @@ class TestHookEmitsSpanishRoutingAndReminders:
         assert rc == 0, (rc, stdout, stderr)
         assert SKILL_ROUTER_MARKER in stdout, stdout
         assert "unmassk-flow" in stdout, stdout
+
+    def test_modo_automatico_prompt_emits_orden_marker_with_reminder_text(self, tmp_path):
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, "ponte en modo automático, me voy a dormir")
+        assert rc == 0, (rc, stdout, stderr)
+        orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
+        assert orden_lines, f"Expected a line starting with {REMINDER_MARKER!r}; got stdout: {stdout!r}"
+        assert any("modo automatico" in line for line in orden_lines), orden_lines
 
 
 # ══════════════════════════════════════════════════════════════════════════

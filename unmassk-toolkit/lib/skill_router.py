@@ -168,6 +168,17 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
             "caso merece otra cosa, lo preguntas"
         ),
     },
+    "automatico": {
+        "phrases": [
+            "modo automatico", "ponte en automatico", "automatico hasta que vuelva",
+        ],
+        "text": (
+            "modo automatico: ejecuta todo el tablero, decide por el (la "
+            "opcion mas enterprise), en pantalla solo 'silencio' o 'agente N "
+            "de M', y al acabar UN informe: bien / probado / decisiones "
+            "tomadas por el / errores (unmassk-core, seccion Modo automatico)"
+        ),
+    },
 }
 
 

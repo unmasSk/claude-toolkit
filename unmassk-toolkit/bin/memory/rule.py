@@ -15,8 +15,19 @@ test_rule_script.py, que la fija por simetria con como argparse ya trata
 un posicional opcional en el resto del sistema, antes de que este
 fichero existiera]:
 
-    rule.py "<texto>" [--kind <user|claude>]      # anade, confirma
+    rule.py "<texto>" [--kind <user|claude>] [--quote "<cita literal>"]
     rule.py                                       # imprime rules.md entero
+
+`--quote` [encargo 2026-08-23, corregido el mismo dia]: las palabras
+LITERALES de quien dijo la regla. Obligatorio para CUALQUIER `--kind`
+-- ausente o en blanco rebota antes de tocar el fichero, via
+`rules.add()`. El requisito empezo limitado a `[user]`, pero eso mismo
+dejaba un hueco: una correccion real del propietario se guardo como
+`--kind claude` solo para saltarse la cita. La UNICA salida sin cita
+real es el literal `--quote none` -- "esto es una nota que Claude se
+deja a si mismo, el propietario no dijo nada". Motivo original: el
+2026-08-20 se guardo una regla `[user]` ("jamas guias") que el
+propietario nunca dijo -- redactada por Claude, no citada de el.
 
 `--kind` por defecto es "user" cuando se anade una regla sin el flag
 [ASUNCION -- ningun texto del proyecto fija un valor por defecto para el
@@ -66,6 +77,7 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="rule.py")
     parser.add_argument("text", nargs="?", default=None)
     parser.add_argument("--kind", choices=("user", "claude"), default=None)
+    parser.add_argument("--quote", default=None)
     return parser.parse_args(argv)
 
 
@@ -111,7 +123,7 @@ def _render_similar_rejection(candidates, kind, text):
     return "\n".join(lines)
 
 
-def _cmd_add(text, kind):
+def _cmd_add(text, kind, quote):
     similar = rules_lib.similar_existing(text)
     # El rechazo solo dispara si la casi-duplicada es del MISMO dueno --
     # `rules.similar_existing()` (docstring, endurecimiento 2026-08-04):
@@ -125,7 +137,7 @@ def _cmd_add(text, kind):
         print(_render_similar_rejection(similar, kind, text))
         return 1
 
-    result = rules_lib.add(text, kind)
+    result = rules_lib.add(text, kind, quote=quote)
     if not result.ok:
         if result.rejections:
             for one_rejection in result.rejections:
@@ -155,7 +167,7 @@ def main(argv):
         )
         return 1
     kind = args.kind or _DEFAULT_KIND
-    return _cmd_add(args.text, kind)
+    return _cmd_add(args.text, kind, args.quote)
 
 
 if __name__ == "__main__":
