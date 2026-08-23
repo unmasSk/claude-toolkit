@@ -72,3 +72,4 @@
 [X-070][memory][architecture] etiquetas fijas escritas en la skill
 [X-071][hooks][testing] callar el hook si la firma se repite
 [X-072][boot][memory] a compaction-aware boot: Bex no longer compacts, he closes and reopens
+[X-073][skills][release] a clean-tree + Alexandria-commit check before launching the close agent
