@@ -151,6 +151,7 @@ When escalating: describe the pattern, the suspected chain, and what Moriarty sh
 - Location: file:line
 - Risk: [exploit scenario in 1-2 sentences]
 - Evidence: [code snippet]
+- Verified: EXECUTED `<command>` → `<output line>` | READ `<file(s)>` | UNVERIFIED — one of the three, always. A negative variant check is EXECUTED too (the grep that came back empty is the evidence). A judgement (severity, discoverability) needs no tag — it is your criterion, not a fact you looked up
 - Remediation: [what to fix, pattern to follow]
 - Variant check: [same pattern elsewhere? yes/no + locations]
 
@@ -165,7 +166,15 @@ Memory consulted: [zone(s) found via gitmem search, security/antipattern hits, o
 
 ## Verdict
 X critical, Y high, Z medium, W low
+
+## Verification story
+Executed: [commands run, one per line, with the line of output that matters]
+Read: [files opened, one per line]
+Unverified: [every claim above that rests on neither — listed, or "none"]
+Figures: every EXTERNAL quantitative figure in this report (window size, limit, version, price, rate) with its source and date, e.g. `1M context — docs.anthropic.com, read 2026-08-23` — a figure without a source is UNVERIFIED and must say so. Not for judgements: a severity or a discoverability call is your criterion over code already read, and carries no source line
 ```
+
+**Never fabricate a figure.** A window size, a quota, a version, a price that you did not read today from its primary source is not a finding — it is a guess wearing a finding's clothes. Write `UNVERIFIED` and say where it would be checked. [2026-08-23: a "200k window" stated without opening the reference derailed a real session; the model had 1M.]
 
 ## Noise Control
 

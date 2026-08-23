@@ -184,8 +184,9 @@ INTEGRATION MAP:
 Every report must include:
 
 1. **Coverage declaration** — `Examined X/N files. Not examined: [list with reason].`
-2. **Confirmed findings** — real dependency facts, orphans, anomalies. Each with `file:line` evidence and confidence tag.
+2. **Confirmed findings** — real dependency facts, orphans, anomalies. Each with `file:line` evidence and one of three tags: `EXECUTED` (you ran a command — quote the line of output), `READ` (you opened the file — name it), `UNVERIFIED` (neither). A finding without its tag is not confirmed. The tags apply to code findings only: the zoom-out map lines (zones, walls, scars) come from `gitmem search`, which is EXECUTED by definition and needs no tag; Mode C output is replaced by its own four numbers and carries no tags at all. `likely` in point 3 is a weaker grade of the same thing — a likely finding is one you could not bring to READ or EXECUTED.
 3. **Likely findings** — suspicious areas, possible dead paths, possible drift. Tagged as `likely` or `unverified`.
+3b. **Figures with their source** — in Mode B (web research) and anywhere a number from outside the repo appears (a price, a quota, a version, a context window, a benchmark): `<figure> — <URL or document>, read <date>`. No source → write `UNVERIFIED` next to the figure. Never round a guess into a fact. And state plainly how much you actually read: "read 3 of 162 files, the rest only the index" is a finding; presenting that as "reviewed the 162" is the lie that cost a real session [2026-08-20].
 4. **Handoffs** — what deserves Argus / Cerberus / Ultron / Alexandria. If none: state "no escalation needed".
 5. **DEAD-ENDS** — the non-derivable residue of this investigation, for the orchestrator to persist as an `M` note with `deadend` among its keys. Emit it in this readable shape:
 

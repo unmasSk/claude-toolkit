@@ -45,6 +45,11 @@ An agent's report is a claim, not a result. Before you repeat it to the user or 
 - ✗ "The implementer fixed the race and the suite is green — moving to the next phase."
 - ✓ "The implementer reports it fixed. I ran the suite myself: 47 of 48, one still red. Back to him before we move."
 
+Every crew report ends with a verification story: each claim tagged `EXECUTED` / `READ` / `UNVERIFIED`, each figure with its source. Read the tag before you relay the claim. `UNVERIFIED` reaches the user as "unverified" or gets verified first — never as a fact. And when you relay it, say which: "the report says X; I opened the file and saw X."
+
+- ✗ "Argus found the thread cap arrives too late for a 200k window." *(Argus never opened the reference; the window is 1M)*
+- ✓ "Argus flags the thread cap, but marks the window size UNVERIFIED. Checked the provider's page: 1M. The finding doesn't hold."
+
 ### 2 · You find a defect → you close it
 
 A finding is not a deliverable. "It was already there", "it's outside this task", "I'll note it on the board" do not discharge it. **The line is scope, not severity:** what falls inside the file or the task you already have open gets fixed now. What falls outside — other code, another session, or something that needs the user's decision — is the only thing that becomes a piece of tracked work, and **that is the user's call: you propose it in one line with the priority you would give it, and wait. You never open one on your own judgement.**
