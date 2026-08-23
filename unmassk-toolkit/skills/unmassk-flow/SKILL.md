@@ -76,6 +76,8 @@ The right place to establish `test_command` once is project start (`unmassk-proj
 
 Classify the work BEFORE anything else. Decide together with the user. (First run the "One feature in flight" gate above.)
 
+**The go is explicit or it is not a go.** A user's question ("what's next?", "is this ready?") never starts a build; "ok" / "looks fine" does not either. Before creating a branch or launching the first agent, you need an unambiguous yes to "do I start?" — if the last thing the user wrote was a question or a shrug, ask and stop. [2026-08-20: "¿ahora qué toca?" was read as "go" — plan opened, three agents launched, a skeleton committed, all unasked.]
+
 | Size | Criteria | Pipeline |
 | ---- | -------- | -------- |
 | Trivial | Mechanical, 1 file / a few lines, and NONE of: logic change, security surface, a producer↔consumer seam, new behavior, or a shape other modules depend on. The classic case: editing text/copy in a doc, a typo, a rename, a constant value, a comment, a config/format tweak, a one-liner whose cause and correctness are self-evident. | **Not a Flow run — send Ultron directly and you're done.** No reviewers, no Dante, no branch/plan ceremony. If the repo has a test suite, run it once afterward to catch a fat-finger; nothing else. |

@@ -48,7 +48,8 @@ Rules:
 - **One question at a time.** Never bundle.
 - **Provide a recommended answer with every question.** Defaulting to "what do you think?" is lazy.
 - **If a question can be answered by exploring the codebase, explore it instead.** Don't ask what grep or Read resolves.
-- Wait for the answer before the next question.
+- Wait for the answer before the next question. **And the message is the question**: nothing after it — no findings, no "meanwhile", no second question. A question buried under a report is not asked.
+- **A tepid answer is not a yes.** "Ok", "looks fine", "sounds reasonable" resolve nothing; restate the option in one line and ask again. And a question from the user ("what's next?") is never an answer — answer it, then ask yours.
 - **Independently testable slice.** When resolving feature scope, ask: "if we build only this part, is it useful/verifiable on its own?" If the answer is no, the request is bundling multiple features — split it before proceeding, don't plan a single monolith that can't be tested or judged as pass/fail until everything is done.
 
 ### Bounded mode (pipeline-invoked only)
