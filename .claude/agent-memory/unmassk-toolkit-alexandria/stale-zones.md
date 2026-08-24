@@ -4,6 +4,14 @@ description: Documentation zones known to be outdated or needing review — revi
 type: project
 ---
 
+## Open, flagged not fixed (2026-08-24 close pass, v1.39.0 window)
+
+- `unmassk-close-session/SKILL.md` and `unmassk-council/SKILL.md` have zero mention of the new program-set checklist mechanism (D-052/M-125, shipped 1.39.0) even though `checklists/close-session.json` and `checklists/council.json` exist and gate them via `hooks/checklist-gate.py`. Likely a deliberate omission — the whole point of the design is that the model doesn't need to know in advance, the hook injects the boxes live at Skill-load time — but flagged since close mode's 4-surface table (docs/, module CLAUDE.md, root CLAUDE.md, README) doesn't cover SKILL.md and I didn't touch it. `unmassk-flow/SKILL.md` and `unmassk-audit/SKILL.md` only mention "checklist" in unrelated contexts (trigger phrases, Cerberus's review checklist) — same gap, lower priority since at least a plan doc (`docs/plan/casillas-por-programa.md`) explains the mechanism in full. Re-check on next pass whether the owner wants a one-line mention added. **Re-verified 2026-08-24 (close pass, merge-duplicate-rules window): still zero mention, grep confirms — item still open.**
+
+## Cleared zones (fixed 2026-08-24, not by me)
+
+- Stray file `rules.md` at repo root (flagged in the prior close pass as leftover test/debug output from `gitmem rule`) — removed by the owner directly, commit `05fc1ef` ("quitar rules.md: residuo de prueba... subido por error"), before this close pass started. Confirmed gone (`ls rules.md` → no such file).
+
 ## Cleared zones (fixed 2026-08-09, close pass)
 
 - Root `CLAUDE.md` line 15: claimed "lo que quedó abierto... es una sola cosa: la issue #83" — stale, issue #83 closed 2026-08-09 (`gh issue view 83` → CLOSED; X-063/DISCARDED.md: Bex declined to reinstate message-level memory injection because D-041/M-115 already closed the real gap via zone-word search). Corrected in place, not silently dropped — stated the closure and why. This is a **descriptive** claim (root CLAUDE.md's intro prose about present state), code/reality wins, per the file's own rule 12 ("un documento desactualizado no frena trabajo ya hecho").
