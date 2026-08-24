@@ -104,3 +104,4 @@
 [M-118][boot][skills] Claude Code appends a disclaimer that lets the model ignore CLAUDE.md
 [M-120][skills][architecture] agents skip their memory when the prompt hands them a chewed diagnosis
 [M-121][boot][skills] the task board IS used: M-119 measured the wrong tool (TodoWrite vs TaskCreate)
+[M-122][memory][architecture] rules and notes families share .git/index.lock: 3 real collisions measured
