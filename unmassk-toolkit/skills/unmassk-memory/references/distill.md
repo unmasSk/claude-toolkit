@@ -34,8 +34,6 @@ round 3 → READS the N+M + its own block           → ...
 
 **Cut at a natural seam, not exactly on the number.** A history divides itself into working sessions, and its own closing commits mark them: aim for the size and stop at the nearest one, so a round never splits one piece of work in half.
 
-**And cut at a natural seam, not at a round number.** A history divides itself into working sessions — its own closing commits mark them. Aim for the size above and then cut at the nearest seam, so a round never splits one piece of work down the middle.
-
 **Every round starts by reading the real zone list.** Empty or missing means the harvest was never approved: stop there. And with the list in hand, anything that does not fit is visible at that moment rather than after the fact.
 
 **A round may create a zone that is genuinely missing** — same as anywhere else in this system, in the open, without asking. The harvest catches the bulk; it does not catch everything. **Each round declares in its report which zones it created**, so they get reviewed together instead of being discovered months later.

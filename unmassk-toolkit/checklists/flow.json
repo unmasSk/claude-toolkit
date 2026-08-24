@@ -1,0 +1,20 @@
+{
+  "skill": "unmassk-flow",
+  "boxes": [
+    "Gate: sin feature de Flow abierto antes de arrancar uno nuevo",
+    "Triaje: tamaño decidido (Trivial/Standard/Big) y seam declarada en el context commit",
+    "Brainstorm: gray areas resueltas y modo de build (test-first/linear) decidido",
+    "Research: si Bilbo encontró algo permanente, guardado como memo/decisión/bloqueo antes de escribir el plan",
+    "Plan: docs/plan/*.md escrito y Plan Checker pasado",
+    "Execute: todas las tareas del wave map verificadas",
+    "Verify — Cerberus y Argus entregados, hallazgos leídos",
+    "Verify — Ultron corrigió en un solo pase lo que encontraron",
+    "Verify — Dante entregó los tests, cobertura ≥ barra del perfil",
+    "Verify — Moriarty entregó veredicto sobre código y tests",
+    "Verify — Ultron y Dante repararon lo que Moriarty rompió",
+    "Verify — Yoda dio su único veredicto, ≥ barra del usuario",
+    "Document — Alexandria actualizó las tres superficies y el CHANGELOG",
+    "Close — suite completa del proyecto en verde",
+    "Close — merge/push hecho, rama borrada, issue cerrada, plan COMPLETED"
+  ]
+}

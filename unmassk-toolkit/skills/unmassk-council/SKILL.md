@@ -1,6 +1,6 @@
 ---
 name: unmassk-council
-version: 1.1.0
+version: 1.2.0
 description: >
   Run a high-stakes decision through a council of 5 advisors with opposing thinking
   lenses who analyze independently, peer-review anonymously, and synthesize a verdict.
@@ -27,9 +27,9 @@ Three modes, pick by the kind of uncertainty:
 
 ## Full council
 
-### 1. Frame (with context)
+### 1. Frame (with context) — Done when: the reframed prompt names ONE decision, in one sentence, and the user confirmed it before Convene spawns
 
-Search the project's memory for prior decisions on this question, so the advisors decide *with* the project's context instead of blind — and so nothing already discarded gets proposed again. Then reframe the user's question as one neutral prompt all advisors receive: core decision, key context, project context from memory, what's at stake. Don't steer it. If too vague, ask exactly one clarifying question.
+Search the project's memory for prior decisions on this question, so the advisors decide *with* the project's context instead of blind — and so nothing already discarded gets proposed again. Then reframe the user's question as one neutral prompt all advisors receive: core decision, key context, project context from memory, what's at stake. Don't steer it. Test it the way `unmassk-grill` does: try to state the decision in one sentence — if you cannot without guessing, or the request bundles more than one decision, keep asking (not capped at one question) until it resolves to a single sentence. Then show the user the framed decision in one line and wait for their yes: the council never convenes on an unconfirmed frame.
 
 ### 2. Convene — 5 advisors in parallel
 
@@ -72,7 +72,7 @@ The verdict already has the shape of a decision: the recommendation is the headl
 
 ## Cost warning
 
-5 advisors + 5 reviewers + chairman = 11 sub-agent calls. The most expensive skill in the set. Gate it mentally: **if being wrong wouldn't hurt, don't convene the council.**
+5 advisors + 5 reviewers + chairman = 11 sub-agent calls. The most expensive skill in the set. Before convening, write in one line what it costs if this choice is wrong. If the honest answer is "not much", decide directly instead of convening.
 
 ## Boundary
 

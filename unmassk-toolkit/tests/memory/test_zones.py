@@ -41,10 +41,11 @@ quedan en rojo tal cual estan -- eso es lo esperado.
 
 import json
 import threading
+from pathlib import Path
 
 import pytest
 
-from .conftest import import_lib_memory_module
+from .conftest import _REAL_REPO_ROOT, import_lib_memory_module
 
 
 @pytest.fixture
@@ -242,3 +243,133 @@ def test_regression_aliases_as_string_fails_loud_naming_file_and_zone(zones, tmp
     message = str(exc_info.value)
     assert path.name in message, f"el error no nombra el fichero: {message}"
     assert "billing" in message, f"el error no nombra la zona: {message}"
+
+
+# ---------------------------------------------------------------------------
+# Contrato compartido de normalizacion (D-054 + regla nueva del propietario,
+# 2026-08-24): todo texto que se compare o se use como clave se normaliza a
+# minusculas Y SIN ACENTOS. Hasta ahora `zones.normalize()` solo hacia
+# `.lower()`. Estos tests anclan el comportamiento en el PUNTO DE ENTRADA
+# real (`zones.normalize`, `zones.resolve`) -- nunca en un simbolo fisico
+# compartido: la funcion que hace el trabajo puede vivir en cualquier sitio
+# dentro de lib/memory/ (frontera vigilada por test_boundary.py, que sigue
+# en verde), lo unico que este fichero prueba es lo que `zones.py` hace con
+# la entrada.
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_treats_case_and_accent_variants_as_the_same_form(zones):
+    """Punto 1 del contrato: 'Diseño'/'DISEÑO'/'diseno' normalizan a la
+    MISMA forma, igual que 'Cafe'/'cafe'.
+
+    RED hoy: `normalize()` solo aplica `.lower()`, asi que
+    'Diseño'.lower() == 'diseño' (la ñ no se toca) y 'diseno' se queda
+    'diseno' -- dos cadenas distintas, este assert falla.
+    """
+    assert (
+        zones.normalize("Diseño") == zones.normalize("DISEÑO") == zones.normalize("diseno")
+    ), (
+        f"'Diseño'/'DISEÑO'/'diseno' deberian normalizar a la misma forma: "
+        f"{zones.normalize('Diseño')!r} / {zones.normalize('DISEÑO')!r} / "
+        f"{zones.normalize('diseno')!r}"
+    )
+    assert zones.normalize("Café") == zones.normalize("cafe")
+
+
+def test_normalize_non_string_input_returns_empty_string_without_raising(zones):
+    """Punto 1 del contrato: entrada no-string no revienta -- devuelve
+    cadena vacia.
+
+    Fallo real que previene: un `zones.json` corrupto con un nombre de
+    zona no-string tumbando `normalize()` con un `AttributeError` sin
+    avisar de donde vino, en vez de dejar que `load()` (que SI valida
+    tipos, ver test de regresion mas arriba en este fichero) sea quien
+    decide que hacer con la corrupcion.
+
+    RED hoy: `normalize()` hace `name.lower()` directo -- `None.lower()`
+    lanza `AttributeError`, no devuelve `""`.
+    """
+    assert zones.normalize(None) == ""
+    assert zones.normalize(123) == ""
+
+
+def test_zone_created_with_accent_is_found_by_search_without_accent_and_different_case(
+    zones, model, tmp_path
+):
+    """Punto 2 del contrato -- ZONAS: crear/buscar una zona con acento y
+    encontrarla escrita sin acento y en otra caja.
+
+    Fallo real que previene: dos sesiones nombrando la misma zona
+    "Diseño" y "DISENO" acaban con dos zonas que nunca se cruzan entre
+    si -- memoria partida en dos, sin un solo error (el mismo patron ya
+    medido para 'Boot'/'boot' que motivo `normalize()` en primer lugar).
+
+    RED hoy: `zones.add()` persiste el nombre como `normalize("Diseño")`
+    == 'diseño' (acento intacto); buscar 'DISENO' normaliza a 'diseno'
+    (sin ñ) -- no coincide con la clave real 'diseño', `resolve()`
+    devuelve `None`.
+    """
+    path = tmp_path / "zones.json"
+    zones.add(
+        model.Zone(name="Diseño", description="diseño visual del producto", aliases=()),
+        path,
+    )
+    loaded = zones.load(path)
+
+    resolved = zones.resolve("DISENO", loaded)
+
+    assert resolved is not None, (
+        "una zona creada como 'Diseño' no se encontro buscando 'DISENO' "
+        "(distinta caja, sin acento)"
+    )
+    assert resolved == zones.resolve("diseño", loaded), (
+        "buscar con acento y buscar sin acento deberian resolver a la MISMA "
+        "zona canonica"
+    )
+
+
+def test_real_project_zones_do_not_collide_after_accent_normalization(zones):
+    """Punto 2 del contrato -- el guardian que importa: las 24 zonas
+    reales de este proyecto, hoy todas sin acento y ya distintas entre
+    si, siguen siendo distintas tras normalizar tambien por acentos.
+    Ninguna se fusiona por el cambio.
+
+    Metrica calculada contra las zonas REALES del proyecto (leidas de
+    `.claude/project-memory/zones.json` del propio repositorio), nunca
+    una lista de nombres perdonados escrita a mano -- si alguna vez dos
+    zonas reales colisionaran al quitar acentos, este test lo dice sin
+    que nadie tenga que mantener una lista de excepciones (mismo
+    criterio que ya goberno el cambio de lista-de-perdonados a metrica
+    calculada en `indexes.counts`).
+
+    Se queda en verde antes Y despues del cambio -- es una red de
+    seguridad, no el comportamiento nuevo que este contrato introduce.
+    """
+    real_zones_path = Path(_REAL_REPO_ROOT) / ".claude" / "project-memory" / "zones.json"
+    with open(real_zones_path, "r", encoding="utf-8") as fh:
+        real_zone_names = list(json.load(fh).keys())
+
+    assert real_zone_names, "zones.json real esta vacio -- nada que proteger en este test"
+
+    normalized = [zones.normalize(name) for name in real_zone_names]
+
+    assert len(set(normalized)) == len(real_zone_names), (
+        "dos o mas zonas reales se fusionaron al normalizar tambien por "
+        f"acentos: {real_zone_names!r} -> {normalized!r}"
+    )
+
+
+def test_regression_case_only_zone_names_still_resolve(zones, model, tmp_path):
+    """Punto 4 del contrato -- regresion: lo que hoy ya resuelve solo por
+    minuscula (sin que un acento este de por medio) sigue resolviendo
+    igual tras anadir el paso de acentos.
+    """
+    path = tmp_path / "zones.json"
+    zones.add(
+        model.Zone(name="Boot", description="arranque de sesion", aliases=("Startup",)),
+        path,
+    )
+    loaded = zones.load(path)
+
+    assert zones.resolve("BOOT", loaded) == "boot"
+    assert zones.resolve("startup", loaded) == "boot"

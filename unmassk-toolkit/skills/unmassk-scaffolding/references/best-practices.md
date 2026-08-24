@@ -92,17 +92,16 @@ export const env = envSchema.parse(process.env);
 **Python Env Validation (Pydantic):**
 ```python
 # app/core/config.py
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
     DEBUG: bool = False
     DATABASE_URL: str
     SECRET_KEY: str
     API_KEY: str
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
@@ -233,33 +232,7 @@ repos:
 
 ### Path Aliases
 
-**tsconfig.json:**
-```json
-{
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/components/*": ["./src/components/*"],
-      "@/lib/*": ["./src/lib/*"]
-    }
-  }
-}
-```
-
-**vite.config.ts:**
-```typescript
-import path from 'path';
-import { defineConfig } from 'vite';
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-});
-```
+Base alias `@/*` → `./src/*`, declared identically in `tsconfig.json` (`compilerOptions.paths`) and in the bundler (Vite's `resolve.alias`, or the framework's equivalent). If the project needs them, add specific sub-aliases (`@/components/*`, `@/lib/*`) keeping the same prefix — never mix alias conventions inside one project. Full detail, with the complete config block per framework, in `frameworks/react.md` (or the matching file under `frameworks/`).
 
 ### Type Organization
 
@@ -355,8 +328,10 @@ app.use(helmet.contentSecurityPolicy({
 }));
 ```
 
-**Next.js (next.config.js):**
-```javascript
+**Next.js (next.config.ts):**
+```typescript
+import type { NextConfig } from 'next';
+
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   { key: 'X-XSS-Protection', value: '1; mode=block' },
@@ -365,11 +340,13 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
 ];
 
-module.exports = {
+const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
 };
+
+export default nextConfig;
 ```
 
 ---
@@ -395,6 +372,8 @@ tests/
 ```
 
 ### Vitest Configuration
+
+This is the canonical copy, thresholds at 80 — the per-framework copy must be identical to this one.
 
 ```typescript
 // vitest.config.ts
@@ -689,6 +668,8 @@ volumes:
 
 ### README.md Template
 
+Placeholders to fill according to the scaffolded stack: `[FRONTEND_STACK]`, `[BACKEND_STACK]`, `[DATABASE]`, `[PACKAGE_MANAGER]` (npm/pnpm/yarn), `[RUNTIME_VERSION]`, `[DB_VERSION]`, `[PROJECT_STRUCTURE]`. Replace each with the generated project's real value before delivering the README.
+
 ```markdown
 # Project Name
 
@@ -701,14 +682,14 @@ Brief description of the project.
 
 ## Tech Stack
 
-- Frontend: React, TypeScript, Tailwind CSS
-- Backend: Node.js, Express, Prisma
-- Database: PostgreSQL
+- Frontend: [FRONTEND_STACK]
+- Backend: [BACKEND_STACK]
+- Database: [DATABASE]
 
 ## Prerequisites
 
-- Node.js 24+
-- PostgreSQL 17+
+- [RUNTIME_VERSION]
+- [DB_VERSION]
 - Docker (optional)
 
 ## Getting Started
@@ -721,16 +702,16 @@ git clone https://github.com/user/project.git
 cd project
 
 # Install dependencies
-npm install
+[PACKAGE_MANAGER] install
 
 # Set up environment
 cp .env.example .env.local
 
 # Set up database
-npm run db:push
+[PACKAGE_MANAGER] run db:push
 
 # Start development server
-npm run dev
+[PACKAGE_MANAGER] run dev
 \`\`\`
 
 ### Environment Variables
@@ -745,19 +726,15 @@ npm run dev
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run test` | Run tests |
-| `npm run lint` | Run linter |
+| `[PACKAGE_MANAGER] run dev` | Start development server |
+| `[PACKAGE_MANAGER] run build` | Build for production |
+| `[PACKAGE_MANAGER] run test` | Run tests |
+| `[PACKAGE_MANAGER] run lint` | Run linter |
 
 ## Project Structure
 
 \`\`\`
-src/
-├── components/     # React components
-├── lib/           # Utilities and helpers
-├── app/           # Next.js app directory
-└── types/         # TypeScript types
+[PROJECT_STRUCTURE]
 \`\`\`
 
 ## Contributing

@@ -45,6 +45,12 @@ Present the project type menu. Ask the user to select a category and type:
 | **Full-Stack** | T3 Stack, MERN, PERN, MEAN |
 | **Monorepos** | Turborepo, Nx Workspace, pnpm Workspace |
 
+**Coverage is honest, and it is said out loud before starting.** Every type above can be scaffolded, but through three different depths — name the one that applies when the user picks:
+
+- **Full reference material** — structure and code in `references/frameworks/`: React, Next.js, Vue, Nuxt, SvelteKit, FastAPI, Django, Express, NestJS.
+- **Native CLI** — the framework's own generator does the work (CLI Integration table below).
+- **Generic scaffolding** — no reference material exists for it today (Remix, Qwik, Preact and Ionic among them): it is built from general knowledge, and the user is told exactly that.
+
 ### Step 2: Basic Configuration
 
 Gather for ALL projects:
@@ -106,18 +112,23 @@ Prefer native CLI tools when available:
 
 ## Post-Scaffold Verification
 
-After scaffolding completes, ALWAYS verify the result:
+After scaffolding completes, ALWAYS verify the result — with the project's own language, never assuming Node:
 
 ```bash
-# 1. Check project directory exists and has expected structure
+# 1. Structure exists (every stack)
 ls -la <project-dir>/
-# 2. Check key files exist (package.json, tsconfig.json, etc.)
-test -f <project-dir>/package.json && echo "OK" || echo "MISSING"
-# 3. Install dependencies
-cd <project-dir> && npm install  # or pnpm install
-# 4. Run dev server to verify it starts
-npm run dev  # should start without errors — kill after confirming
 ```
+
+| Stack | Key file to check | Install step | Smoke run (kill after confirming) |
+|---|---|---|---|
+| JS/TS | `package.json` | `npm install` | `npm run dev` |
+| Python | `pyproject.toml` or `requirements.txt` | `python3 -m venv .venv && .venv/bin/pip install -e .` (or `-r requirements.txt`) | start the dev server / entry point |
+| Go | `go.mod` | `go mod tidy` | `go build ./...` |
+| Rust | `Cargo.toml` | — | `cargo check` |
+| Java | `pom.xml` or `build.gradle` | — | `./mvnw -q compile` or `./gradlew build` |
+| Anything else | the stack's own manifest | its own installer | its own build or run smoke test |
+
+A "MISSING" verdict from the wrong column is not a finding — check the column that matches the stack that was just scaffolded.
 
 If scaffolding FAILS mid-way (partial directory created):
 1. Remove the incomplete directory: `rm -rf <project-dir>/`
@@ -251,14 +262,14 @@ Load reference files based on what you need:
 
 | Resource | When to Load | Purpose |
 |----------|--------------|---------|
-| `references/wizard-options.md` | During Step 3 (gathering user preferences) | Configuration choices and defaults for each framework |
-| `references/frameworks.md` | When generating code | Project structures, code examples, configuration files |
+| `references/wizard-options.md` | During Step 3 (gathering user preferences) | INDEX ONLY (~1 page). Read it, then load ONLY the category file it points at under `references/wizard/` for the chosen category — never every category |
+| `references/frameworks.md` | When generating code | INDEX ONLY (~1 page). Load ONLY the per-framework file under `references/frameworks/` for the chosen stack, plus `cross-cutting.md` |
 | `references/best-practices.md` | For architecture decisions | Directory organization, naming conventions, patterns |
 | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py` | For custom scaffolding | Python engine when CLI tools aren't suitable |
 
 **Workflow:**
-1. Present options from `wizard-options.md` to gather user preferences
-2. Use `frameworks.md` for code patterns and project structure when generating
+1. Read the `wizard-options.md` index and load ONLY the chosen category's file under `references/wizard/` to gather user preferences
+2. Load ONLY the chosen stack's file under `references/frameworks/` (plus `cross-cutting.md`) for code patterns and structure when generating
 3. Consult `best-practices.md` for architecture decisions
 
 ## Default Recommendations
@@ -266,7 +277,7 @@ Load reference files based on what you need:
 | Category | Recommendation |
 |----------|----------------|
 | JS Runtime | Node.js 24 LTS |
-| Package Manager | pnpm |
+| Package Manager | npm (pnpm offered as an option) |
 | Python Version | 3.14 |
 | Go Version | 1.26 |
 | Rust Edition | 2024 |

@@ -186,13 +186,33 @@ class HealthReport:
     # rule_commits/rule_lines/rule_discrepancies existieron aqui entre el
     # 2026-08-02 y el 2026-08-06 -- los numeros de "reglas coherentes con
     # git" y que regla divergia, alimentados por health.coherence_rules().
-    # Se retiran los tres juntos, el mismo dia que esa funcion [orden del
-    # propietario: rules.add() deja de comitear, asi que no hay ningun
-    # commit de regla que cruzar contra el fichero -- ver el docstring de
-    # health.py, "coherence_rules SE RETIRA"]. Sin productor, los tres
-    # campos habrian quedado zombi (ver bench_caught/bench_total/
-    # bench_failures mas abajo para el precedente de "lo que se retira,
-    # se retira entero").
+    # Se retiraron los tres juntos, el mismo dia que esa funcion [orden
+    # del propietario: rules.add() dejo de comitear, asi que no habia
+    # ningun commit de regla que cruzar contra el fichero -- ver el
+    # docstring de health.py, "coherence_rules SE RETIRA"]. Sin
+    # productor, los tres campos habrian quedado zombi (ver
+    # bench_caught/bench_total/bench_failures mas abajo para el
+    # precedente de "lo que se retira, se retira entero").
+    #
+    # **RESUCITAN el 2026-08-23, con nombres NUEVOS** [I-003, hallazgo
+    # real de Moriarty: `rules.add()` vuelve a comitear de verdad, asi
+    # que un `kill -9` entre la escritura y el commit vuelve a poder
+    # dejar una linea escrita sin commit detras, en silencio -- ver
+    # `health.py`, "coherence_rules RESUCITA", para el porque completo].
+    # No se reusan los nombres viejos porque el corte que comparan ya no
+    # es el mismo: la version vieja cruzaba TODO el historial de commits
+    # de regla contra las lineas del fichero; la nueva compara solo el
+    # `rules.md` COMITEADO en HEAD contra el `rules.md` real del arbol
+    # de trabajo -- "arqueologia de todo el historial" gritaria siempre
+    # sobre las lineas legitimas de la era sin-commit (2026-08-06 a
+    # 2026-08-23), que nunca tuvieron un commit PROPIO aunque ya viajen
+    # dentro de HEAD.
+    rule_head_lines: int = 0       # lineas de regla que HEAD tiene comiteadas ahora mismo
+    rule_file_lines: int = 0       # lineas de regla que el fichero real tiene ahora mismo
+    rule_discrepancies: tuple[str, ...] = ()   # que linea diverge, no solo cuantas
+    # motivo real si un git corrupto impidio evaluar coherence_rules() --
+    # None si se pudo comprobar de verdad. Mismo patron que plans_unreflected_error.
+    rule_discrepancies_error: str | None = None
     # Cuantas de las `git_notes` de arriba estan archivadas -- anadido
     # 2026-08-03 [TEXTOS.md Sec.5, decision del propietario]: sin este
     # numero, "N lineas / M notas" no explica por que M > N cuando hay

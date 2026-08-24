@@ -1,5 +1,20 @@
 # Attack Patterns — What Worked
 
+## git error-message marker lists miss the "exists on disk, uncommitted" variant
+- Pattern: any code that classifies a `git show`/`git log` failure by matching `stderr` against a fixed marker string list, to distinguish "state X is fine" from "real git error"
+- Real git has MULTIPLE distinct messages for what looks like one conceptual case ("no committed version of this path") depending on whether the path currently exists on disk:
+  - path never existed anywhere: `"fatal: path 'X' does not exist in 'HEAD'"`
+  - path EXISTS on disk right now but was never committed: `"fatal: path 'X' exists on disk, but not in 'HEAD'"` (different string entirely)
+  - zero commits in the repo at all: `"fatal: invalid object name 'HEAD'."`
+- A marker list built from only ONE of these (often the one a happy-path test exercises) makes the uncovered variant raise instead of returning the documented empty/neutral value — reproduce by creating the file on disk without ever adding/committing it, then reading it at HEAD
+- Especially dangerous when the very feature being tested is "detect a file that was written but never committed" (a SIGKILL/partial-write scenario) — that is EXACTLY the disk-exists-but-uncommitted case, so the crash lands on the first real use of the feature, not on an edge case
+- Root location this round: `lib/memory/query.py::show_file_at_head()`, `_SHOW_PATH_MISSING_MARKER = "does not exist in"` only
+
+## Re-running the ORIGINAL reproducing command verbatim after a claimed fix
+- When a prior round left a live PoC (e.g. "delay function X via monkeypatch, race an external writer in during the delay"), re-run that EXACT command against the new code before trusting a docstring that says "closes this window"
+- A fix can legitimately close a related-but-narrower window (e.g. between two internal reads) while leaving the original command's exact target (the gap right before the final write call) unchanged — the fix reads as if it closed "the" race but only closed one shape of it
+- Distinguish the two by testing BOTH: the exact original PoC, and the specific narrower window the fix's own docstring claims to address — a "held" on the narrower one does not imply "held" on the original
+
 ## Mixed alphanumeric tokens silently dropped by tokenizer
 - Pattern: query containing `[A-Z]{1,2}\d+` or `\d+[A-Za-z]+` tokens (BM25, v2, auth3)
 - The regex `[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]{3,}` only captures pure-letter sequences of 3+
@@ -1192,3 +1207,44 @@ sessions' content with zero error.
   trailer, not the rendered UI) is real and does read the field -- so the
   self-check is satisfied even while the field is invisible through the routine
   browsing path a user would actually use.
+
+## Monkeypatch-widen the real gap instead of racing on luck (crash-mid-multi-step-write)
+- Pattern: any write-then-git-commit sequence where the write is atomic but the
+  commit is a SEPARATE later step (e.g. `gitcmd.atomic_write()` then
+  `notes_commit.stage_and_commit()` in `lib/memory/rules.py::add()`) has a real,
+  non-zero gap between the two -- a process death (SIGKILL/OOM/host eviction) in
+  that gap leaves the write on disk with no commit behind it, permanently.
+- The gap is real in production but nanoseconds wide; don't rely on timing luck.
+  In a throwaway scratch script (never edits the project), monkeypatch the
+  function that starts the SECOND step (e.g. `notes_commit.stage_and_commit`) to
+  `time.sleep(N)` before calling the real implementation, then self-SIGKILL
+  (`os.system("(sleep 1; kill -9 <pid>) &")` from inside the same process, or a
+  second thread) during that sleep. This only widens an already-real window to
+  make it observable -- it does not fabricate a new code path.
+- Same trick works for TOCTOU on a read-modify-write: delay the WRITE call
+  (not the read) so a second thread's plain `open()/write()` on the same file
+  lands in the middle, then check whether the delayed write clobbers it.
+- Confirmed twice in one round (2026-08-23, `lib/memory/rules.py::add()`): the
+  atomic_write-then-commit gap silently reproduces exactly the corruption I-003
+  was filed for, and the read-modify-write of `previous_content` silently
+  clobbers a concurrent external edit to the same file -- both `ok=True`.
+
+## Byte-exact checklist-text matching breaks on invisible, everyday variance (checklist-gate.py)
+- Pattern: a gate compares two human-authored strings for EXACT equality (`.strip()` only, no Unicode normalization, no dash/dedup tie-break) where one side is model-generated text and the other is a config file the model is told to reproduce "verbatim"
+- Three independent triggers, same root cause, all reproduced against the real hook (not simulated):
+  1. NFC vs NFD Unicode normalization of the SAME visible accented text (e.g. "código" composed vs decomposed) — checklist manifests ship as NFC; a task subject written in NFD (common on macOS text paths) never matches, forever "missing"
+  2. Em-dash "—" (U+2014) typed/rendered as a plain hyphen "-" — a well-known LLM/terminal substitution; 12 of 19 real checklist boxes in this repo use "—" as their separator, so this alone breaks most of the manifest
+  3. Duplicate-subject task files + Python's default `sorted()` on filenames being LEXICOGRAPHIC not numeric (`"10.json" < "2.json"`) — a stale/duplicate "pending" task with the same subject as a real "completed" one silently wins the dict-overwrite in `_read_board_tasks` depending on which side of a power-of-ten boundary the file id lands on
+- None of these crash or infinite-loop the gate (the max-2-blocks-then-fail-open protection still caps the damage), but all three make the gate falsely report genuinely-completed work as "missing"/"pending" — exactly the failure mode the whole checklist mechanism exists to prevent
+- Root: `hooks/checklist-gate.py::_read_board_tasks()` (line ~111, `tasks[subject.strip()] = status`) and `_violations()` (line ~125, `tasks.get(box.strip())`)
+- General lesson: any "exact text match" gate between LLM-authored and config-authored strings needs Unicode normalization at minimum, and any board keyed by filename needs numeric (not lexicographic) ordering before "last one wins" semantics are safe
+- Status 2026-08-24: all 3 triggers above are now DEAD -- `lib/checklist_state.py::normalize_box_text()` (NFC + dash-fold + whitespace-collapse) plus `_read_board_tasks()` collecting every status per normalized subject in a list (no dict-overwrite) close all three, re-verified live with the exact same recipes. One axis the fix still misses, found this round: it does NOT casefold, so a completed task whose subject differs from the box only by letter case (e.g. an all-lowercase retype) is still reported "missing" -- same failure shape, one variance axis short. Re-check for MORE missed variance axes (whitespace-only-Unicode like NBSP U+00A0, zero-width joiners, smart quotes vs straight quotes) if this surface gets attacked again -- the pattern is "count every axis a human/model could vary the SAME text on, verify normalize_box_text covers each one independently, don't assume fixing 3 named axes means the axis space is closed."
+
+## Message emitted is decoupled from what actually got persisted (skill-checklist-inject.py)
+- Pattern: a hook computes an outbound instruction/promise from a FRESH read of its own inputs (here: the manifest just loaded), but the persistence step that's supposed to back that promise can silently no-op (persistence failure, OR idempotency short-circuit on a second call) — and the instruction is still emitted unconditionally regardless
+- Two real triggers reproduced:
+  1. `session-checklists/` dir unwritable (chmod 555, isolated from the lock file itself so only the WRITE fails) → `_record_skill_load` warns on stderr and returns, but `main()` calls `_emit_checklist_order()` unconditionally right after — Claude is told "the Stop hook WILL block you if this is missing", and the Stop hook then genuinely stays silent forever for that box (verified end-to-end: inject.py under chmod 555 → checklist-gate.py on the same session → mute, no block)
+  2. Same skill reloaded in one session with an EDITED manifest (a live/hot-reload scenario) → the idempotency guard (`already_declared`) correctly prevents the registry from being overwritten with the v2 boxes, but `_emit_checklist_order` still fires with the v2 text as if it were now the enforced contract — the Stop gate only ever checks for the STALE v1 box that's no longer shown to the model anywhere
+- Both are T2 in this project's own tiering (fail-open behavior is intentional and documented, no crash, no infinite block) but both directly defeat the ONE thing this whole feature was built to guarantee (M-119: don't depend on the model's obedience) — flag prominently even at T2
+- Status 2026-08-24: both DEAD -- re-verified live with the exact recipes (chmod 555 registry dir; hot-edited manifest reloaded same session). `_record_skill_load()` now returns an `enforced` bool threaded into `_build_context_message()`, which emits the softer "will NOT be able to enforce" NOTE instead of the block promise when the write failed (confirmed end-to-end against the real Stop hook: silent, no block, matching the NOTE); the hot-edit case now emits the FIRST-loaded box list verbatim on a second same-session load, never the fresh manifest text.
+- Root: `hooks/skill-checklist-inject.py::main()`, `_record_skill_load()` (idempotency + persistence) called before `_emit_checklist_order()` unconditionally, no success signal threaded through

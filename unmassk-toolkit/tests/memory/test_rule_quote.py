@@ -34,25 +34,36 @@ ni una linea de test:
     "unrecognized arguments: --quote" -- ese es el ROJO real de los
     escenarios 2/4/6/7 de mas abajo, no un rechazo de la aduana.
 
-CONTRADICCION DETECTADA CONTRA EL ENCARGO -- reportada, no resuelta en
-silencio (CLAUDE.md, "un hueco puede ser deliberado, se pregunta, no se
-rellena"; "manda el codigo" cuando un texto y el codigo discrepan): el
-encargo pide, para el escenario 2, "exactamente un commit nuevo cuyo
+CONTRADICCION DETECTADA CONTRA EL ENCARGO -- reportada en su momento, y
+RESUELTA POR EL PROPIETARIO EL 2026-08-23 [I-003, confirmado via el
+coordinador: "la contradicción que señalaste queda resuelta por el
+propietario: I-003... revoca la decisión de 2026-08-06. Manda lo que él
+dice."]. Se deja la nota original completa por su valor de rastro (que se
+detecto, cuando, y por que no se asumio en su momento), no porque siga
+abierta:
+
+El encargo pedia, para el escenario 2, "exactamente un commit nuevo cuyo
 mensaje lleve la regla". `lib/memory/rules.py::add()` (docstring, linea
 ~20, decision del propietario del 2026-08-06, la mas reciente de las dos
-fechas) dice literalmente que `add()` es HOY "UN SOLO PASO... sin tocar
-git para nada, ni un commit vacio ni un commit con el fichero como
-pathspec", y `tests/memory/test_rule_script.py::
-TestRuleEndsUpInTheFileNotInAnOwnCommit` ya fija esa conducta como
+fechas en su momento) decia literalmente que `add()` era "UN SOLO PASO...
+sin tocar git para nada, ni un commit vacio ni un commit con el fichero
+como pathspec", y `tests/memory/test_rule_script.py::
+TestRuleEndsUpInTheFileNotInAnOwnCommit` fijaba esa conducta como
 regresion ("gitmem rule ya no debe crear ningun commit"). Pedir aqui "un
-commit nuevo" chocaria de frente con ese test ya en verde -- las dos
-cosas no pueden ser ciertas a la vez. Este fichero seria la NUEVA
-verdad si el encargo pretende revertir esa decision, pero eso excede el
-alcance declarado ("--quote obligatorio"), asi que no se asume: el
-escenario 2 de aqui abajo comprueba, en su lugar, la conducta que el
-codigo actual ya garantiza para cualquier `add()` con exito (HEAD no se
-mueve, `rules.md` queda como cambio sin comitear) y dejo esta nota para
-que quien orquesta decida.
+commit nuevo" chocaba de frente con ese test, entonces en verde -- las dos
+cosas no podian ser ciertas a la vez, asi que no se asumio cual mandaba: el
+escenario 2 se dejo, en su momento, con la conducta que el codigo YA
+garantizaba (HEAD sin mover, `rules.md` sin comitear).
+
+Con I-003 (incidente real del propietario, 2026-08-23: "regla guardada sin
+comitear = fallo silencioso") esa decision de 2026-08-06 queda revertida.
+`TestRuleEndsUpInTheFileNotInAnOwnCommit` ya esta retirada (ver su propio
+banner en `test_rule_script.py`); el test de este fichero que fijaba la
+conducta vieja para el escenario 2
+(`test_a_successful_add_moves_no_head_and_leaves_the_file_uncommitted`)
+tambien queda retirado -- ver su banner mas abajo, en el sitio donde
+vivia -- con su cobertura ya replicada bajo el contrato nuevo en
+`test_rule_commit_contract.py`.
 
 Todo lo demas del encargo se escribe tal cual: formato exacto de la
 linea con cita (`[remember][user] <emoji> <texto> — «<cita>»`), la
@@ -206,41 +217,25 @@ class TestUserRuleWithQuoteIsSavedWithBothTexts:
             f"sistema) no reconoce la linea con cita como una regla valida: {texts!r}"
         )
 
-    def test_a_successful_add_moves_no_head_and_leaves_the_file_uncommitted(
-        self, tmp_repo
-    ):
-        """Ver la nota de contradiccion en el docstring del modulo: el
-        encargo pide "exactamente un commit nuevo" para este escenario,
-        pero `rules.add()` (produccion, decision del propietario del
-        2026-08-06) nunca comitea nada -- lo comprueba ya
-        `test_rule_script.py::TestRuleEndsUpInTheFileNotInAnOwnCommit`.
-        Esta pieza se queda con la conducta que el codigo YA garantiza
-        (HEAD sin mover, `rules.md` como cambio sin comitear) en vez de
-        pedir un commit que el propio modulo declara retirado -- no se
-        inventa una tercera conducta.
-        """
-        rules_relpath = ".claude/project-memory/rules.md"
-        _rc, head_before, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
-
-        rc, out, err = run_memory_script(
-            "rule.py", ["ser breve", "--quote", "no te enrolles, tio"], cwd=tmp_repo
-        )
-        assert rc == 0, f"stdout={out!r} stderr={err!r}"
-
-        _rc, head_after, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
-        assert head_after == head_before, (
-            "gitmem rule con --quote no debe crear ningun commit -- "
-            f"antes={head_before!r} despues={head_after!r}"
-        )
-
-        rc_status, status_out, err_status = run_git(
-            ["status", "--porcelain", "--", rules_relpath], tmp_repo
-        )
-        assert rc_status == 0, f"git status fallo en el test: {err_status}"
-        assert status_out.strip(), (
-            "rules.md deberia quedar como cambio sin comitear tras gitmem rule "
-            f"--quote -- git status --porcelain no muestra nada: {status_out!r}"
-        )
+    # RETIRADO 2026-08-23 [I-003, orden del propietario -- confirmado via
+    # el coordinador: "la contradicción que señalaste queda resuelta por
+    # el propietario: I-003... revoca la decisión de 2026-08-06. Manda lo
+    # que él dice."]. Aqui vivia
+    # `test_a_successful_add_moves_no_head_and_leaves_the_file_uncommitted`,
+    # que fijaba -- citando la CONTRADICCION del docstring del modulo,
+    # arriba -- la conducta vieja (HEAD sin mover, rules.md sin comitear)
+    # porque en su momento pedir un commit real chocaba de frente con
+    # `rules.py::add()` (2026-08-06) y con
+    # `test_rule_script.py::TestRuleEndsUpInTheFileNotInAnOwnCommit`
+    # (retirada esa misma tarde de hoy, ver su propio banner). Con I-003
+    # esa contradiccion queda resuelta a favor del commit real: un
+    # `--kind user` con `--quote` real, guardado por script, ya tiene su
+    # equivalente exacto bajo el contrato nuevo en
+    # `test_rule_commit_contract.py::TestGoodRuleEndsUpCommittedForReal`
+    # (`test_kind_user_creates_exactly_one_commit_and_a_clean_tree` +
+    # `test_the_real_commit_blob_and_message_carry_the_documented_subject`,
+    # ambas con cita real) -- no se reescribe aqui una tercera vez para no
+    # duplicar cobertura, solo se retira.
 
 
 # ---------------------------------------------------------------------------

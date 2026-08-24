@@ -1,0 +1,19 @@
+{
+  "skill": "unmassk-audit",
+  "boxes": [
+    "Step 0 — Preparation: opening note saved (issue number or explicit no-issue), unmassk-standards + project CLAUDE.md recorded",
+    "Step 1 — Scan (Bilbo): summary table produced (file, LOC, existing tests, problems), existing tests run",
+    "Step 2 — Fix Critical Blockers (Ultron): tests pass twice, or explicitly skipped when nothing was broken",
+    "Step 3 — Golden Tests (Dante): 97%+ coverage with real assertions, tests pass twice",
+    "Step 4 — Enterprise Audit (Cerberus + Argus): every finding tiered T1/T2/T3, weighted score out of 110 produced",
+    "Step 5 — Tier Fixes (Ultron): T1 then T2 then T3, tests pass after each round",
+    "Step 6 — Review Fixes (Cerberus): all module files re-read (count stated), verdict APPROVED or looped back to step 5",
+    "Step 7 — Test Fixed Code (Dante): coverage maintained at 97%+, full module suite run twice",
+    "Step 8 — Adversarial Validation (Moriarty): attack report with confirmed breaks and per-phase summary",
+    "Step 9 — Adversarial Tests (Dante): regression tests for every confirmed break, 0 T1/T2 bugs unresolved",
+    "Step 10 — Re-Audit (Cerberus): same closed checklist reapplied, APPROVED or looped back to step 5",
+    "Step 11 — Senior Review (Yoda): all source files read (count stated), weighted score and verdict issued",
+    "Step 12 — Documentation (Alexandria): CLAUDE.md and CHANGELOG updated, memory file named",
+    "Step 13 — Closure: full project test suite green, final commit with score, issue closed, branch deleted"
+  ]
+}

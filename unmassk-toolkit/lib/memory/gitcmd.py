@@ -186,19 +186,26 @@ def commit(
 
 def commit_empty(message: str) -> GitResult:
     """Commit GENUINAMENTE vacio -- ``git commit --allow-empty`` sin
-    pathspec -- para los dos escritores del sistema que no tocan ningun
-    fichero al comitear: ``rules.add()`` (el commit vacio del remember,
-    PIEZAS.md Sec.9.7) y ``context.write()`` (el (arrow) del cierre de
-    sesion, PIEZAS.md Sec.9.6). ``commit()`` de arriba exige ``paths`` no
-    vacio [fila de arriba] y no encaja en ninguno de los dos: no hay
-    ninguna nota ni indice que commitear.
+    pathspec -- para el escritor del sistema que no toca ningun fichero
+    al comitear: ``context.write()`` (el (arrow) del cierre de sesion,
+    PIEZAS.md Sec.9.6). ``commit()`` de arriba exige ``paths`` no vacio
+    [fila de arriba] y no encaja: no hay ninguna nota ni indice que
+    commitear.
 
-    Antes de que existiera esta funcion, cada uno de los dos llamadores
-    construia la misma invocacion de git a mano -- las dos con
-    ``--cleanup=verbatim``, y el dia que a una se le olvidara ese flag el
-    texto plegado se corrompe en silencio (ver el porque exacto en el
-    docstring de ``commit()`` de arriba). Con una unica pieza de git que
-    lo construye, ese olvido deja de ser posible.
+    **[corregido 2026-08-23, hallazgo real de Moriarty]** ``rules.add()``
+    YA NO es llamador de esta funcion -- lo fue entre el 2026-08-02 y el
+    2026-08-06 (el commit vacio original del remember, PIEZAS.md Sec.9.7),
+    pero desde I-003 (2026-08-23) ``rules.add()`` comitea via
+    ``notes_commit.stage_and_commit()`` -- un commit CON pathspec
+    (``rules.md``), no uno vacio -- para que la linea escrita y el commit
+    que la fija viajen del mismo lado. Este parrafo listaba "los DOS
+    escritores" hasta hoy; hoy solo queda uno.
+
+    Antes de que existiera esta funcion, cada llamador construia la misma
+    invocacion de git a mano -- con ``--cleanup=verbatim``, y el dia que
+    se olvidara ese flag el texto plegado se corrompe en silencio (ver el
+    porque exacto en el docstring de ``commit()`` de arriba). Con una
+    unica pieza de git que lo construye, ese olvido deja de ser posible.
 
     No declara su propio ``cwd``: hereda el cwd ambiental del proceso,
     igual que ``commit()``.

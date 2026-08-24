@@ -61,7 +61,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 ## Phase D — Foundations: decide
 
 1. **Write `ARCHITECTURE` and `STANDARDS` as two separate, binding documents**, each with a table of the alternatives considered and *why* they were rejected — not just the final choice.
-2. **Offer the enterprise foundations catalog** in **`references/foundations.md`** — following its "How to run this in phase D" (don't ask 60 questions one by one: auto-accept the Mandatory set with a single "anything to drop?", prune the Conditionals that don't apply to this project's stack/shape, and ask one-by-one only the genuinely doubtful ones). Record every accepted and declined foundation as a decision/a memo so a "no" is a recorded choice, not a silent gap. List by name — the concrete tool per stack is chosen at build time, not here.
+2. **Offer the enterprise foundations catalog** in **`references/foundations.md`** — following its "How to run this in phase D" (don't ask 60 questions one by one: auto-accept the Mandatory set with a single "anything to drop?", prune the Conditionals that don't apply to this project's stack/shape, and ask one-by-one only the Conditionals where the project's shape from phases A–D does not clearly settle yes or no). Record every accepted and declined foundation as a decision/a memo so a "no" is a recorded choice, not a silent gap. List by name — the concrete tool per stack is chosen at build time, not here.
 
 **Done when:** ARCHITECTURE and STANDARDS are written, and every catalog foundation is marked accepted or declined in memory. Close with `context(start): phase D done`. **Stop and confirm** the accepted foundation set with the user before building.
 

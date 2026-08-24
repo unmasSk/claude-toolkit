@@ -1,80 +1,41 @@
-"""Leer desde git hacia objetos -- contrato en docs/memoria-v2/PIEZAS.md
-Sec.8.2.
+"""Leer desde git hacia objetos -- el unico lector del historial de todo
+el sistema de memoria.
 
-Para que: **el unico lector del historial**. El v1 tenia esto implementado
-TRES veces, 562 lineas en tres ficheros sincronizadas a mano, y ya habia
-fallado tres veces con el mismo patron [medido -- TESTIGO Sec.3]. Aqui hay
-uno.
+No reimplementa el parseo del texto de un commit: toda nota sale de
+`format.parse_message(text)` sobre el mensaje real de un commit (`git
+log`), nunca de una regex propia. `Note.timestamp` no viaja en el texto
+del commit -- `format.parse_message` devuelve un marcador de posicion
+(`datetime.now()`); este modulo lo sustituye por la fecha de autor real
+que `git log` ya trae en el mismo registro.
 
-No reimplementa el parseo del texto de un commit -- eso es exactamente el
-fallo del v1 que este modulo existe para no repetir. Toda nota sale de
-`format.parse_message(text)` sobre el mensaje real de un commit (`git log`),
-nunca de una regex propia. `Note.timestamp` no viaja en el texto del commit
-[format.py, docstring]: `format.parse_message` devuelve un marcador de
-posicion (`datetime.now()`); este modulo lo sustituye por la fecha de autor
-real que `git log` ya trae en el mismo registro, con `dataclasses.replace`.
+`by_file` no necesita ningun campo guardado: `git log -- <ruta>` da esa
+funcion directamente.
 
-`by_file` no necesita ningun campo guardado: el campo de ficheros tocados
-no existe en el v2, y su funcion la da `git log -- <ruta>` directamente
-[Sec.8.2] -- en el v1 ese campo se escribio 605 veces sin que nadie lo
-leyera nunca.
+Las cuatro funciones publicas leen contra el cwd del proceso; ninguna
+declara su propio `root`/`cwd`.
 
-Las cuatro funciones leen contra el cwd del proceso (igual que
-`gitcmd.commit()`, que "hereda el cwd ambiental... quien la llama ya esta
-corriendo dentro del repo") -- ninguna declara su propio `root`/`cwd`
-porque la superficie de Sec.8.2 no lo pide.
+`gitcmd.run()` nunca reintenta por su cuenta un fallo de git -- el
+reintento es responsabilidad de esta pieza. `run_git_log()` (unico punto
+de entrada a `git log` de todo el sistema, tambien usado por
+`context.latest()` y `health.py`) reintenta un `returncode != 0` hasta
+`_MAX_ATTEMPTS` veces: un `git` que falla una vez por carga (un
+`index.lock` en curso) no puede leerse como "este proyecto no tiene
+memoria". Si el fallo persiste, es real y se propaga como `RuntimeError`
+con el `stderr` de git -- tragarlo devolveria una memoria vacia que se
+confunde con "no hay nada". `_git_log()` (privada) es un envoltorio
+delgado sobre `run_git_log()` con el formato de `Note` ya fijado.
 
-**El reintento (fila 3) es responsabilidad de esta pieza, no de
-`gitcmd.run()`**: `gitcmd.py` Sec.7.1 declara explicitamente que `run()`
-"nunca lanza por un fallo DE GIT... un returncode != 0 es un resultado
-normal" -- no reintenta por su cuenta. `run_git_log()` (publica, unico
-punto de entrada a `git log` de TODO el sistema de memoria, no solo de
-este modulo -- ver el parrafo siguiente) reintenta un `returncode != 0`
-hasta `_MAX_ATTEMPTS` veces antes de rendirse, con una pausa corta entre
-intentos: un `git` que falla una vez por carga (p.ej. un `index.lock` en
-curso) no puede leerse como "este proyecto no tiene memoria" [Sec.8.2, fila
-3]. Si el fallo persiste tras agotar los reintentos, es un fallo real (no
-transitorio) y se propaga en alto (`RuntimeError` con el `stderr` real de
-git) -- tragarlo devolveria una memoria vacia que se confunde con "no hay
-nada", exactamente lo que la fila 2 prohibe para un caso distinto
-(identificador inexistente) y que aqui seria igual de silencioso.
-`_git_log()` (privada) sigue siendo el unico punto de entrada DENTRO de
-este modulo, fijando el formato de una `Note`; es un envoltorio delgado
-sobre `run_git_log()`.
+Separadores: cada commit se pide con `-z` (terminador NUL entre
+registros) y, dentro de cada registro, los campos van separados por
+`\\x1f`. El mensaje crudo (`%B`) es el ULTIMO campo, partido con
+`maxsplit=2` -- un `\\x1f` dentro del propio mensaje nunca particiona de
+mas.
 
-**`run_git_log()` se hizo publica el 2026-08-02** [encargo del
-orquestador, incidencia real: "hay tres modulos leyendo el historial de
-git por su cuenta, y el contrato dice que solo puede haber uno"].
-`context.latest()` y las dos lecturas de `health.py`
-(`_rule_commit_texts`, `_issue_commit_dates`) tenian cada una su PROPIO
-`git log` directo, construido a mano, sin el reintento de este modulo --
-exactamente el patron que Sec.8.2 declara prohibido ("el v1 tenia esto
-implementado TRES veces... sincronizadas a mano"). El sintoma ya se
-habia pagado: arreglar que una rama sin commits no reventara el arranque
-se arreglo aqui y el arranque siguio reventando en los otros dos
-lectores, cada uno con el mismo agujero por su lado -- hubo que
-arreglarlo cuatro veces. `run_git_log(pretty_format, extra_args=())`
-generaliza lo que antes solo sabia leer el formato de una `Note`: recibe
-el `--pretty=format:...` y los argumentos extra que cada consumidor
-necesita, y devuelve el `stdout` crudo (o RuntimeError si el fallo es
-real) sin saber nada de que campos trae ese formato -- interpretar el
-resultado sigue siendo trabajo de quien llama, nunca de esta funcion.
+Que NO hace: no agrupa en racimos, no decide que esta vigente y que
+archivado (lo dice el indice), no formatea.
 
-Separadores: cada commit se pide con `-z` (terminador NUL entre registros
-completos) y, dentro de cada registro, los campos van separados por
-`\\x1f` -- un commit nunca puede contener un NUL de verdad (git lo rechaza
-a nivel de objeto), asi que el limite de REGISTRO nunca puede confundirse
-con contenido real de una nota, sea el que sea. Dentro de un registro solo
-el mensaje crudo (`%B`) puede traer casi cualquier caracter, y por eso es
-el ULTIMO campo, partido con `maxsplit=2` -- un `\\x1f` que apareciera
-dentro del propio mensaje nunca particiona de mas.
-
-Que NO hace [Sec.8.2]: no agrupa en racimos (`clusters`), no decide que
-esta vigente y que archivado (lo dice el indice), no formatea.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python [PIEZAS.md Sec.13]. Import plano entre hermanos (`import format`,
-`import gitcmd`) [PIEZAS.md Sec.3.3bis].
+`lib/memory/` no importa nada fuera de la biblioteca estandar de Python.
+Import plano entre hermanos.
 """
 
 import dataclasses
@@ -98,46 +59,16 @@ _LOG_FORMAT = f"--pretty=format:%H{_FIELD_SEP}%at{_FIELD_SEP}%B"
 
 # El mensaje literal y estable que git escribe cuando `git log` se pide
 # sobre una rama que todavia no tiene ni un commit -- un repo recien
-# creado, estado NORMAL, no un fallo [hallazgo 2 de Moriarty, ronda 2,
-# 2026-08-02]. Verificado en vivo: `git init` + `git log` da
-# `returncode=128` con `stderr` conteniendo exactamente esta frase (varia
-# el nombre de rama entre comillas, nunca esta frase). Antes de este
-# arreglo, ese `returncode != 0` se trataba como el mismo fallo transitorio
-# que un `index.lock` en curso: se reintentaba tres veces y, al agotar los
-# intentos, se lanzaba -- nadie lo capturaba, y el arranque entero moria en
-# el primerisimo `git log` de cualquier proyecto sin un solo commit todavia.
+# creado, estado NORMAL, no un fallo. Verificado en vivo: `git init` +
+# `git log` da `returncode=128` con `stderr` conteniendo exactamente esta
+# frase.
 UNBORN_BRANCH_MARKER = "does not have any commits yet"
 
 
 def _is_unborn_branch(stderr: str) -> bool:
     """`True` si `stderr` es el mensaje real de git para "esta rama
-    todavia no tiene ningun commit" -- ver `UNBORN_BRANCH_MARKER`. Nunca
-    reintenta este caso: no es una carga pasajera, es el estado real y
-    permanente del repo hasta el primer commit.
-
-    Privada (guion bajo) desde 2026-08-04 -- pero esta es la UNICA de un
-    grupo de seis funciones revisadas ese dia que tuvo un motivo REAL para
-    haber sido publica alguna vez, y ese motivo merece quedar escrito para
-    que nadie lo lea como "esto no se toca".
-
-    Se hizo publica el 2026-08-02 porque `context.py` y `health.py` tenian
-    cada uno su propio `git log` directo y llamaban a esta funcion por
-    separado (ver "`run_git_log()` se hizo publica" en el docstring del
-    modulo). Ese mismo dia los dos se consolidaron para pasar por
-    `run_git_log()` de aqui abajo en vez de invocar `git log` por su
-    cuenta. Comprobado el 2026-08-04 con
-    `grep -rn "is_unborn_branch" unmassk-toolkit/`: ningun fichero fuera
-    de este modulo la nombra ya (los tres tests que la mencionan lo hacen
-    en prosa/docstring, sin llamarla), y hoy el UNICO llamador es
-    `run_git_log()`, mas abajo en este mismo fichero. El motivo por el que
-    se hizo publica desaparecio ese mismo dia; nadie la volvio a bajar
-    hasta ahora.
-
-    Si manana otra pieza necesita saber si una rama esta recien nacida,
-    volver a hacerla publica es LEGITIMO -- no fue un error ponerla
-    publica en su momento, fue que su motivo se resolvio en otro sitio (la
-    consolidacion en `run_git_log()`) y esta funcion se quedo sin el
-    segundo llamador que justificaba el guion bajo fuera.
+    todavia no tiene ningun commit". Nunca se reintenta este caso: es el
+    estado real y permanente del repo hasta el primer commit.
     """
     return UNBORN_BRANCH_MARKER in stderr
 
@@ -147,29 +78,18 @@ def run_git_log(pretty_format: str, extra_args: tuple[str, ...] = ()) -> str:
     proceso, reintentando un `returncode != 0` transitorio hasta
     `_MAX_ATTEMPTS` veces antes de rendirse, y devuelve el `stdout` crudo.
 
-    **Unico punto de entrada a `git log` de todo el sistema de memoria**
-    -- no solo de este modulo. Ver "`run_git_log()` se hizo publica el
-    2026-08-02" en el docstring de arriba para el porque exacto: antes de
-    esta funcion, `query.py`, `context.py` y `health.py` tenian cada uno
-    su propia invocacion de `git log` construida a mano, el mismo patron
-    de tres implementaciones sincronizadas que Sec.8.2 existe para
-    impedir. Esta funcion NO sabe que formato trae `pretty_format` ni que
-    significan `extra_args` -- eso es trabajo de quien llama (`_git_log`
-    de aqui abajo para una `Note`; `context.latest()` para un cierre de
-    sesion; `health._rule_commit_texts()`/`health._issue_commit_dates()`
-    para commits de regla y de trabajo).
+    Unico punto de entrada a `git log` de todo el sistema de memoria --
+    tambien lo usan `context.latest()` y `health.py`. No sabe que formato
+    trae `pretty_format` ni que significan `extra_args`; eso es trabajo
+    de quien llama.
 
     Una rama sin ningun commit todavia (`_is_unborn_branch`) es un estado
-    VALIDO, no un fallo [hallazgo 2 de Moriarty, ronda 2, 2026-08-02]:
-    devuelve cadena vacia de inmediato, sin reintentar y sin contarlo como
-    el fallo real de la rama de abajo -- un repo recien creado, sin un
-    solo commit, no es "git fallo", es "todavia no hay memoria".
+    VALIDO, no un fallo: devuelve cadena vacia de inmediato, sin
+    reintentar.
 
-    Un fallo que persiste tras agotar los reintentos SI es real, no
-    transitorio: se propaga como `RuntimeError` con el `stderr` real de
-    git -- devolver una cadena vacia aqui se confundiria con "no hay
-    nada todavia", el mismo silencio que la fila 2 de Sec.8.2 prohibe
-    para el caso de un identificador inexistente.
+    Un fallo que persiste tras agotar los reintentos SI es real: se
+    propaga como `RuntimeError` con el `stderr` de git -- una cadena
+    vacia aqui se confundiria con "no hay nada todavia".
     """
     args = ["log", "-z", pretty_format, *extra_args]
     result = None
@@ -193,6 +113,60 @@ def _git_log(extra_args: tuple[str, ...]) -> str:
     y `by_file()`). Ver `run_git_log()` para el mecanismo real (reintento,
     rama sin commits, fallo real)."""
     return run_git_log(_LOG_FORMAT, extra_args)
+
+
+def _exists_at_head(relpath: str, root: Path) -> bool:
+    """`True` si `relpath` tiene version comiteada en HEAD ahora mismo --
+    `git cat-file -e HEAD:{relpath}`, que solo comprueba EXISTENCIA
+    (`-e`) sin traer contenido, y sale con `returncode == 0` si existe,
+    distinto de cero si no -- para CUALQUIER motivo de "no": el path
+    nunca se comiteo, el path existe en el arbol de trabajo pero no en
+    HEAD, o el repositorio no tiene NINGUN commit todavia.
+
+    Existencia se decide por `returncode`, nunca parseando el texto de
+    `stderr` de `git show`: git tiene varias redacciones distintas segun
+    el caso ("does not exist in", "invalid object name 'HEAD'", "exists
+    on disk, but not in 'HEAD'"), y depender de esa prosa es una carrera
+    que nunca se cierra del todo. `cat-file -e` es un chequeo de
+    existencia puro.
+
+    Un fallo de `cat-file` que NO sea "no existe" (repo corrupto) es
+    indistinguible, por `returncode`, de "no existe" -- ese hueco lo
+    cierra `show_file_at_head()`: si esta funcion dice `True`, el `git
+    show` que sigue tiene que salir limpio si o si; si falla de todos
+    modos, es un fallo real de git y se propaga en alto.
+    """
+    result = gitcmd.run(
+        ["cat-file", "-e", f"HEAD:{relpath}"], cwd=root, timeout=gitcmd.GIT_TIMEOUT
+    )
+    return result.returncode == 0
+
+
+def show_file_at_head(relpath: str, root: Path) -> str:
+    """El contenido COMITEADO de `relpath` tal como HEAD lo tiene AHORA
+    MISMO, nunca el arbol de trabajo (eso lo lee quien llama, con
+    `path.read_text()`, si lo necesita para comparar).
+
+    Segundo punto de entrada a un lector de historial de git de este
+    modulo, junto a `run_git_log()`. `git show`/`git cat-file` solo se
+    invocan AQUI en todo `lib/memory/`. A diferencia de `run_git_log()`,
+    SI recibe `root` explicito -- su unico llamador
+    (`health.coherence_rules()`) ya recibe un `root` que puede no
+    coincidir con el cwd del proceso.
+
+    Primero pregunta EXISTENCIA (`_exists_at_head()`); solo si existe,
+    pide el CONTENIDO con `git show`. Cadena vacia -- estado valido, no
+    un fallo -- cuando `_exists_at_head()` dice que no. Si dice que si
+    existe pero el `git show` que sigue falla de todos modos, es un
+    fallo real de git y revienta con `RuntimeError` y el `stderr` real,
+    nunca una cadena vacia que lo enmascare.
+    """
+    if not _exists_at_head(relpath, root):
+        return ""
+    result = gitcmd.run(["show", f"HEAD:{relpath}"], cwd=root, timeout=gitcmd.GIT_TIMEOUT)
+    if result.returncode == 0:
+        return result.stdout
+    raise RuntimeError(f"git show HEAD:{relpath} fallo en {root}: {result.stderr}")
 
 
 def _parse_records(raw_stdout: str) -> tuple[tuple[Note, str], ...]:
@@ -228,15 +202,11 @@ def _all_notes() -> tuple[tuple[Note, str], ...]:
 
 def by_id(note_id: str) -> Note | None:
     """La nota con `id == note_id`, o `None` si no existe -- nunca una
-    excepcion ni una cadena vacia (fila 2 de Sec.8.2): un fallo que se
-    confunde con "no hay nada" es un fallo que pasa callado.
+    excepcion ni una cadena vacia.
 
-    La comparacion se normaliza a minusculas [hallazgo en vivo
-    2026-08-06: `--id r-001` no encontraba `R-001`, aunque `next_id()`
-    siempre genera el prefijo en mayusculas -- un usuario tecleando en
-    minuscula es el caso normal, no el raro]. El `Note` devuelto trae
-    `note.id` tal cual esta escrito en el commit -- solo la comparacion
-    se normaliza, nunca el dato.
+    La comparacion se normaliza a minusculas (`--id r-001` tiene que
+    encontrar `R-001`); el `Note` devuelto trae `note.id` tal cual esta
+    escrito en el commit.
     """
     target = note_id.lower()
     for note, _text in _all_notes():
@@ -258,19 +228,14 @@ def by_zone(zone1: str | None, zone2: str | None) -> tuple[Note, ...]:
 
 
 def by_word(word: str) -> tuple[tuple[Note, tuple[str, ...]], ...]:
-    """Notas cuyo texto contiene `word`, junto con las lineas concretas que
-    casaron (fila 4 de Sec.8.2) -- si esta funcion devolviera solo notas,
-    el informe tendria que volver a buscar dentro para marcar la linea,
-    una segunda puerta de lectura.
+    """Notas cuyo texto contiene `word`, junto con las lineas concretas
+    que casaron -- si esta funcion devolviera solo notas, el informe
+    tendria que volver a buscar dentro para marcar la linea.
 
-    La comparacion se normaliza a minusculas [hallazgo en vivo
-    2026-08-06: `gitmem search ultron` y `gitmem search Ultron` daban
-    resultados distintos -- una sustancial perdida de memoria real,
-    porque la prosa de las notas escribe los nombres propios en
-    mayuscula inicial (`Ultron`, `Moriarty`) y la mayoria de las
-    busquedas reales se teclean en minuscula]. Las lineas devueltas
-    llevan su texto ORIGINAL, tal cual esta en el commit -- solo la
-    comparacion se normaliza, nunca lo que se enseña.
+    La comparacion se normaliza a minusculas (la prosa de las notas
+    escribe nombres propios en mayuscula inicial, y la mayoria de las
+    busquedas se teclean en minuscula); las lineas devueltas llevan su
+    texto original.
     """
     needle = word.lower()
     results: list[tuple[Note, tuple[str, ...]]] = []

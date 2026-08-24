@@ -42,13 +42,16 @@ test_similar.py lo dice explicito: el umbral 0.5 de sus tests es
 
 import re
 
+import textnorm
 from model import Note
 
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _tokens(note: Note) -> frozenset:
-    """Vocabulario de una nota: headline + description + why + keys, en minusculas.
+    """Vocabulario de una nota: headline + description + why + keys, en
+    minusculas y sin acentos (``textnorm.normalize_text``, compartida con
+    `zones.py`/`rules_similarity.py` -- ver el docstring de `textnorm.py`).
 
     ``why`` es opcional (``None`` fuera de tipo D, ver model.py); se
     omite cuando falta en vez de tratarlo como cadena vacia. Las keys
@@ -60,7 +63,7 @@ def _tokens(note: Note) -> frozenset:
         parts.append(note.why)
     parts.extend(note.keys)
 
-    text = " ".join(parts).lower()
+    text = textnorm.normalize_text(" ".join(parts))
     return frozenset(_WORD_RE.findall(text))
 
 

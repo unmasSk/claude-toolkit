@@ -233,76 +233,74 @@ def test_adding_several_rules_at_the_same_time_loses_none(rules, tmp_repo):
 
 
 # ---------------------------------------------------------------------------
-# Fila 4 -- reescrita 2026-08-06 [orden del propietario]: `gitmem rule`
-# ("[remember]") deja de comitear. Antes esta fila probaba que "el commit y
-# el fichero acaban con lo mismo" -- el flujo era de dos pasos, fichero
-# primero, commit vacio despues (ver el docstring del modulo, todavia sin
-# actualizar por el propio encargo: "no toques rules.py"). El flujo nuevo
-# es de UN paso: `add()` escribe la linea en `rules.md` y se acaba ahi, sin
-# ningun commit propio -- la regla queda como una modificacion sin
-# comitear, lista para que la arrastre el SIGUIENTE commit real que pase
-# por el proyecto (`gitmem work`/`gitmem wip`/`gitmem note`/el cierre de
-# sesion), exactamente como ya lo hizo `gitmem zones add` (verificado por
-# Ultron con HEAD antes/despues antes de este encargo).
-#
-# Motivo del cambio [encargo original, citado]: el commit vacio anterior
-# (a) nunca sobrevivia a un clon limpio (nada reconstruye `rules.md` desde
-# git) y (b) dejaba el arbol sucio para siempre, lo que bloqueaba
-# `bin/release.py`. Guardar una regla no puede impedir publicar.
+# Fila 4 -- reescrita DOS VECES. Primero 2026-08-06 [orden del propietario]:
+# `gitmem rule` dejo de comitear (fichero solo, sin commit propio). Esa
+# version RETIRADA 2026-08-23 [I-003, orden del propietario -- "regla
+# guardada sin comitear = fallo silencioso", incidente real,
+# `.claude/project-memory/INCIDENTS.md`, confirmado explicitamente por el
+# propietario via el coordinador: "la contradicción... queda resuelta por
+# el propietario: I-003... revoca la decisión de 2026-08-06"]. Contrato
+# vigente desde I-003: `add()` tiene que producir EXACTAMENTE un commit
+# real con la regla dentro y dejar `rules.md` limpio en `git status` --
+# Ultron ya lo implemento (verificado por el coordinador, 7/7 en verde en
+# `test_rule_commit_contract.py`). Estas dos filas se reescriben aqui a
+# nivel de LIBRERIA (llamando a `rules.add()` directamente, sin pasar por
+# el script) porque ese nivel -- "add() en si mismo comitea" -- no estaba
+# cubierto por `test_rule_commit_contract.py`, que solo ejercita el
+# comportamiento vía `bin/memory/rule.py` como proceso.
 # ---------------------------------------------------------------------------
 
 
-def test_add_writes_the_file_and_creates_no_commit(rules, tmp_repo):
-    """Fila 4 reescrita: `add()` escribe la linea en el fichero de reglas y
-    NO crea ningun commit -- ni vacio, ni con el fichero como pathspec.
-
-    Medido por el camino real: HEAD (git de verdad, `git rev-parse HEAD`)
-    ANTES y DESPUES de la llamada tienen que coincidir byte a byte. Un
-    commit que cambia HEAD es, en si mismo, el fallo que esta fila existe
-    para prevenir ahora -- lo contrario de la fila 4 original.
+def test_add_creates_exactly_one_real_commit_containing_the_rule(rules, tmp_repo):
+    """Contrato I-003, a nivel de libreria: `add()` no solo escribe la
+    linea -- tiene que dejarla COMITEADA de verdad. Medido con DOS
+    lectores reales e independientes de lo que `add()` hace por dentro:
+    `git rev-list --count HEAD` (el commit existe, y es exactamente uno
+    mas) y `git show HEAD:<ruta>` (el blob comiteado lleva el texto real,
+    no solo el arbol de trabajo).
     """
     root = Path(tmp_repo)
-    marker = "MARK_ROW4 la regla queda en el fichero, nunca en un commit propio"
+    marker = "MARK_ROW4 la regla queda comiteada de verdad, nunca solo en el arbol"
+    rules_relpath = ".claude/project-memory/rules.md"
 
-    _rc, head_before, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
+    _rc, count_before, _err = run_git(["rev-list", "--count", "HEAD"], tmp_repo)
 
     with _cwd(root):
-        result = rules.add(marker, "claude")
+        result = rules.add(marker, "claude", quote="none")
         assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
-        file_content = rules.read_all()
 
-    _rc, head_after, _err = run_git(["rev-parse", "HEAD"], tmp_repo)
-
-    assert marker in file_content, (
-        f"el fichero de reglas no contiene el texto anadido: {file_content!r}"
-    )
-    assert head_after == head_before, (
-        "add() movio HEAD -- gitmem rule ya no debe crear ningun commit, "
-        f"antes={head_before!r} despues={head_after!r}"
+    _rc, count_after, _err = run_git(["rev-list", "--count", "HEAD"], tmp_repo)
+    assert int(count_after) == int(count_before) + 1, (
+        "add() tiene que producir EXACTAMENTE un commit nuevo (I-003): "
+        f"antes={count_before!r} despues={count_after!r}"
     )
 
+    rc_show, show_out, err_show = run_git(["show", f"HEAD:{rules_relpath}"], tmp_repo)
+    assert rc_show == 0, f"git show fallo leyendo el blob comiteado: {err_show}"
+    assert marker in show_out, (
+        f"el commit real de add() no lleva el texto de la regla: {show_out!r}"
+    )
 
-def test_add_leaves_the_rules_file_as_an_uncommitted_modification(rules, tmp_repo):
-    """La linea recien anadida queda como cambio sin comitear de verdad
-    (`git status --porcelain` real sobre `rules.md`), lista para que la
-    arrastre el siguiente commit real -- no solo "HEAD no se movio", sino
-    "el fichero esta genuinamente sucio en el arbol de trabajo".
+
+def test_add_leaves_the_rules_file_clean_in_git_status(rules, tmp_repo):
+    """Contrato I-003, a nivel de libreria: tras `add()`, `rules.md` NO
+    puede seguir apareciendo como cambio sin comitear -- lo contrario del
+    contrato de 2026-08-06 que esta fila fijaba antes (`git status
+    --porcelain` real, nunca inferido del valor de retorno de `add()`).
     """
     root = Path(tmp_repo)
-    marker = "MARK_ROW4B modificacion sin comitear, lista para el siguiente commit real"
+    marker = "MARK_ROW4B una regla guardada no puede dejar el arbol sucio (I-003)"
     rules_relpath = ".claude/project-memory/rules.md"
 
     with _cwd(root):
-        result = rules.add(marker, "user")
+        result = rules.add(marker, "user", quote="una cita literal cualquiera")
         assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
 
     _rc, status_out, _err = run_git(["status", "--porcelain", "--", rules_relpath], tmp_repo)
 
-    assert status_out.strip(), (
-        "git status --porcelain no muestra ningun cambio sin comitear sobre "
-        f"rules.md tras add() -- salida: {status_out!r}. El fichero deberia "
-        "quedar modificado (o nuevo, sin trackear), listo para el siguiente "
-        "commit real, no ya integrado en git"
+    assert status_out.strip() == "", (
+        "tras add(), rules.md no deberia aparecer como cambio sin comitear "
+        f"(I-003 -- una regla comiteada es una regla guardada): {status_out!r}"
     )
 
 

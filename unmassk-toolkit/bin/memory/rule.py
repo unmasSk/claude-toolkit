@@ -143,7 +143,14 @@ def _cmd_add(text, kind, quote):
             for one_rejection in result.rejections:
                 print(rejection_.render_terminal(one_rejection))
             return 1
-        print(f"git fallo al guardar la regla: {result.git_error}", file=sys.stderr)
+        # Texto de respaldo (nitpick de Cerberus/Argus, 2026-08-23): un
+        # `git_error` vacio o `None` (git fallo sin escribir nada en
+        # stderr NI en stdout -- raro, pero `gitcmd.run()` no lo excluye)
+        # no puede dejar el mensaje real reducido a "git fallo al guardar
+        # la regla: " sin nada detras -- eso es indistinguible de un
+        # mensaje truncado por error.
+        detalle = result.git_error or "git no dio detalle"
+        print(f"git fallo al guardar la regla: {detalle}", file=sys.stderr)
         return 1
 
     emoji = CHANNEL_EMOJI["rule"]

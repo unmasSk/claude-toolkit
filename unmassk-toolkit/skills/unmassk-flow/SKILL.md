@@ -1,6 +1,6 @@
 ---
 name: unmassk-flow
-version: 1.1.0
+version: 1.2.0
 description: >
   Use when the user asks to "build a feature", "implement", "add functionality", "fix a
   non-trivial bug", "refactor", or any task that is not trivial and requires writing
@@ -36,7 +36,7 @@ description: >
 - Refactors that touch 3+ files
 - Any task where "just do it" could go wrong
 
-Do NOT use for: trivial 1-file fixes, documentation-only changes, config tweaks, or enterprise audits (use `unmassk-audit` skill instead).
+Use `unmassk-audit` for enterprise audits. Apply trivial 1-file fixes, documentation-only changes and config tweaks directly, without running Flow.
 
 ## Lane discipline — who does what, and what each NEVER does (ABSOLUTE)
 
@@ -58,7 +58,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 
 ## One feature in flight — close before you open (GATE)
 
-**Do not start a new Flow feature while a previous one is still open.** A feature is "open" from the moment Step 0 creates its branch/issue until Step 7 closes it. Opening a second branch over an unfinished first is how the pipeline ends up with a trail of half-done branches.
+**If a previous Flow feature is still open, finish it through Step 7 — or explicitly park it — before starting a new one.** A feature is "open" from the moment Step 0 creates its branch/issue until Step 7 closes it. Opening a second branch over an unfinished first is how the pipeline ends up with a trail of half-done branches.
 
 Before Step 0 of any new feature, **run the check — don't just recall it:** `git branch --list 'feat/*' 'fix/*' 'refactor/*'` for an un-merged feature branch, and `grep -L 'Status: COMPLETED' docs/plan/*.md 2>/dev/null` for an open plan. A non-empty result means a feature is still in flight → finish it through Step 7 (or explicitly park it: a checkpoint plus a close whose Next says where it stopped) BEFORE starting the new one. One at a time.
 
@@ -149,7 +149,7 @@ Orchestrator chooses depth based on triage (Quick task = quick research, Big tas
 
 ### Process
 
-1. Launch Bilbo agent with appropriate depth and the decisions from Step 1
+1. Launch Bilbo agent with the depth chosen from the table above (Quick / Standard / Deep) and the decisions from Step 1
 2. Info stays in conversation context — no RESEARCH.md file
 3. If Bilbo finds something permanent — a pattern, a constraint, something waiting on someone — save it as a memo, a decision or a blocker
 4. If research reveals infeasibility → close issue with rationale, STOP
@@ -324,7 +324,7 @@ Separate from closure — documentation deserves its own step.
 2. Read all WIP commits and changes from the feature
 3. **Document the new capability for ALL THREE audiences** (deliberate duplication — see `unmassk-core` "Documentation discipline"): humans (`README.md` / `docs/`), us (roadmap + git-memory), and Claude at load (the relevant `SKILL.md` / `CLAUDE.md`). A feature documented in only one surface is half-shipped.
 4. Update module CLAUDE.md if patterns changed
-5. Update CHANGELOG.md under [Unreleased]
+5. Alexandria updates CHANGELOG.md under [Unreleased] — never the orchestrator
 6. Cross-check documentation against current code state — same fact, every surface, no drift
 
 ## Step 7 — Close (ORCHESTRATOR)

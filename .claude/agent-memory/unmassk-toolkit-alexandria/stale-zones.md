@@ -46,6 +46,11 @@ type: project
 - `docs/plan/fix-dod-gate-classification.md` and `docs/plan/fix-stop-dod-gate-loop-and-issue-field.md`: both already carry `[2026-08-23] Superseded: the gate was retired by the owner; see D-046.` at the top — correctly done by the building agents this session (Alexandria only verified, did not author).
 - `M-117` (TodoWrite re-enabled via `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` in `~/.claude/settings.json`) — confirmed outside the repo, no CHANGELOG entry needed (project convention: only repo code changes go in CHANGELOG). Memo exists (`MEMOS.md` line 103). No further doc surface applies — it's a local machine setting, not a project convention.
 
+## Cleared zones (fixed 2026-08-23, D-053 doc restructure)
+
+- `unmassk-toolkit/skills/unmassk-scaffolding/references/frameworks.md` (800 lines) split into `references/frameworks/{react,nextjs,vue,nuxt,sveltekit,fastapi,django,express,nestjs,cross-cutting}.md`, `frameworks.md` rewritten as a 28-line index. `SKILL.md` already described this exact target layout (lines 50/266/272, "INDEX ONLY... load ONLY the per-framework file") before the split happened — confirms this was pre-planned, not improvised. Full line accounting done (800 = 762 moved + 38 deleted separators/category headers/title block, verified exactly). Canonical Vitest config (in `cross-cutting.md`, the only vitest.config.ts in the source file) got `coverage.thresholds` added at 80% per the task's fix (a). Fixes (b) (next.config.ts coherence) and (c) (npm-as-default) were checked and found already satisfied / not applicable — zero `next.config.js` or `pnpm`/`npm`/`yarn` mentions existed anywhere in the source file, nothing to change.
+- **Flagged, not touched** (file was out of scope — SOLO the frameworks.md file was mine): `unmassk-scaffolding/references/best-practices.md:235` still says "Full detail... in `frameworks.md`" — not false (the index still leads there), but now one hop indirect since frameworks.md no longer holds the detail itself. Also noted `SKILL.md`, `wizard-options.md`, and a new `wizard/` dir show as already modified/untracked in git status, presumably a parallel pass on the same D-053 restructure — not mine, not verified by me.
+
 ## Active stale zones
 
 ### Fixed 2026-08-03 (later same day) — `DEUDA.md` PARTE 2, points 13/26/27 + header counts

@@ -880,6 +880,13 @@ def test_coherence_does_not_false_alarm_on_a_legitimately_archived_note(
 # consumidores en este fichero tras esta retirada) y sus dos helpers de
 # siembra a mano (`_delete_rule_line_by_hand`/
 # `_append_uncommitted_rule_line_by_hand`, sin mas llamadores).
+#
+# RESUCITADA 2026-08-23 [I-003]: la premisa que justificaba esta
+# retirada (ninguna regla nueva comitea nunca) queda revertida --
+# `rules.add()` vuelve a comitear de verdad. Contrato nuevo, RED,
+# en `test_health_rules_coherence_contract.py` (fichero hermano,
+# no aqui) -- no se reescribe este bloque retirado, se anade uno
+# nuevo al lado.
 # ---------------------------------------------------------------------------
 
 

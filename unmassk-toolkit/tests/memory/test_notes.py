@@ -265,6 +265,30 @@ def _forced_git_index_lock(root):
         lock_path.unlink(missing_ok=True)
 
 
+@contextlib.contextmanager
+def _forced_pre_commit_hook_rejects(root):
+    """Planta un hook `pre-commit` REAL que siempre rechaza (`exit 1`) --
+    a diferencia de `_forced_git_index_lock` (que bloquea el `git add`
+    tambien, antes de que nada quede staged), este hook deja que
+    `git add` corra con normalidad y solo hace fallar el `git commit`
+    que le sigue -- el escenario donde `stage_and_commit()` ya dejo el
+    indice con el contenido NUEVO staged antes de que el commit reviente
+    (mismo mecanismo que `test_rule_commit_contract.py::
+    _forced_pre_commit_hook_rejects`, copiado aqui porque cada fichero
+    de contrato monta su propio repo semilla). Limpia el hook en un
+    `finally` para no dejarlo huerfano entre tests.
+    """
+    hooks_dir = Path(root) / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / "pre-commit"
+    hook_path.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    hook_path.chmod(0o755)
+    try:
+        yield
+    finally:
+        hook_path.unlink(missing_ok=True)
+
+
 def _index_line_for(indexes_mod, vocabulary_mod, root, note_id):
     """Busca `note_id` en los siete indices VIGENTES (no ARCHIVED.md,
     que no es un indice de notas vivas). Devuelve `(nombre_fichero,
@@ -462,6 +486,81 @@ def test_failed_commit_propagates_the_real_git_error(
         "el error devuelto no es el mensaje real de git para este fallo -- "
         f"se esperaba que contuviera {probe_first_line!r}, resultado real: "
         f"{result.git_error!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Regresion (auditoria de mutaciones, hallazgo real, relayado por el
+# coordinador): el guardian compartido de `stage_and_commit()`
+# (`notes_commit.py`, lineas ~292-307 -- "un `git add` que si entro pero
+# el commit que le sigue falla deja el indice con el contenido NUEVO
+# staged, mismo `git status` en 'MM' que el escenario ya cerrado para
+# `rules.py`") solo lo pinaba UN test de toda la suite, y via `rules.py`
+# -- nunca a traves de uno de los otros tres llamadores reales de
+# `stage_and_commit()` (`notes.write()`/`replace()`/`close()`). Si ese
+# unico test de `rules.py` se retirase o se renombrase algun dia, estos
+# tres llamadores se quedarian sin red sin que nadie lo notase. Este
+# test cierra el hueco para `notes.write()` -- mismo patron de repo
+# semilla que `test_rule_commit_contract.py::
+# TestFailedCommitLeavesNoStagedLeftovers` (una escritura real primero,
+# sin hook, para dejar el indice comiteado; el hook se planta solo para
+# la SEGUNDA escritura, la que este test quiere ver rechazada).
+# ---------------------------------------------------------------------------
+
+
+def test_commit_rejected_by_pre_commit_hook_leaves_a_fully_clean_tree(
+    notes, model, config, indexes, vocabulary, tmp_repo, make_note, make_context
+):
+    root = Path(tmp_repo)
+
+    seed_note = make_note(headline="MARK_HOOK_SEED nota base comiteada antes del hook")
+    seed_ctx = make_context()
+    with _cwd(root):
+        seed_result = notes.write(seed_note, seed_ctx)
+    assert seed_result.ok, f"la siembra tiene que comitear limpia: {seed_result.git_error!r}"
+
+    index_name, _seed_line = _index_line_for(
+        indexes, vocabulary, notes.pm_root(root), seed_result.note_id
+    )
+    assert index_name is not None, (
+        "precondicion del test: la nota semilla tiene que aparecer en algun indice"
+    )
+    index_relpath = os.path.join(".claude", "project-memory", index_name)
+    baseline_content = (notes.pm_root(root) / index_name).read_text(encoding="utf-8")
+
+    note = make_note(headline="MARK_HOOK nota que el hook de pre-commit va a rechazar")
+    ctx = make_context()
+
+    with _forced_pre_commit_hook_rejects(root):
+        with _cwd(root):
+            result = notes.write(note, ctx)
+
+    assert result.ok is False, (
+        f"un commit rechazado por el hook de pre-commit tiene que devolver "
+        f"ok=False: {result!r}"
+    )
+    assert result.git_error, (
+        f"el error real de git (el rechazo del hook) tiene que quedar visible "
+        f"en git_error, no un ok=False mudo: {result!r}"
+    )
+
+    after_content = (notes.pm_root(root) / index_name).read_text(encoding="utf-8")
+    assert after_content == baseline_content, (
+        f"el contenido de {index_name} cambio aunque el commit fallo -- la "
+        f"corrupcion silenciosa que esta pieza existe para prevenir: "
+        f"antes={baseline_content!r} despues={after_content!r}"
+    )
+
+    rc_status, status_out, err_status = run_git(
+        ["status", "--porcelain", "--", index_relpath], str(root)
+    )
+    assert rc_status == 0, f"git status fallo en el test: {err_status}"
+    assert status_out.strip() == "", (
+        f"tras un commit rechazado por el hook, {index_relpath} tiene que quedar "
+        "COMPLETAMENTE limpio -- ni el indice (contenido rechazado ya staged por "
+        "el `git add` que SI corrio antes del hook) ni el arbol de trabajo (ya "
+        f"restaurado) pueden diferir de HEAD: git status --porcelain = "
+        f"{status_out!r} (se espera cadena vacia, nunca 'MM')"
     )
 
 

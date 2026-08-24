@@ -26,8 +26,8 @@ No external attacker in this project's threat model — the target is the system
 6. Environment guard patterns — allowlist vs denylist (§4: a denylist silently enables the wrong behavior in an env it forgot)
 
 ### Rules
-- Do NOT duplicate Cerberus surface-level checklist — go deeper
-- Do NOT attack the module (that is Moriarty's job) — audit patterns
+- Limit scope to the deeper integrity surfaces listed above; leave Cerberus's checklist to Cerberus
+- Audit patterns only; active attacks belong to Moriarty (step 8)
 - Classify every finding by tier (T1/T2/T3)
 - ONLY report — never fix
 

@@ -114,125 +114,46 @@ class TestAcceptsAllFlagsWithoutBouncing:
         assert "Traceback" not in out and "Traceback" not in err
 
 
-class TestRuleEndsUpInTheFileNotInAnOwnCommit:
-    """Reescrita 2026-08-06 [orden del propietario]. El encargo original
-    decia "la regla acaba en los dos sitios -- el registro (git) y el
-    fichero (rules.md)", con un commit vacio propio por cada regla --
-    `test_rule_appears_in_the_file_and_in_a_real_git_commit` (el nombre de
-    esta clase, y de este test, antes del reescrito) llegaba a afirmar
-    literalmente "una regla anadida tiene que producir exactamente un
-    commit". Eso dejo de ser el contrato: `gitmem rule` YA NO comitea --
-    escribe la linea en `rules.md` y se acaba ahi, sin ningun commit
-    propio, lista para que la arrastre el siguiente commit real del
-    proyecto (`gitmem work`/`gitmem wip`/`gitmem note`/el cierre de
-    sesion) -- el mismo patron que ya sigue `gitmem zones add`. Motivo
-    citado en el encargo: el commit vacio anterior no sobrevivia a un
-    clon limpio y dejaba el arbol sucio para siempre, bloqueando
-    `bin/release.py`.
-
-    Los hechos se comprueban con lectores REALES e independientes, nunca
-    uno derivado del otro: conteo de commits (`git rev-list --count
-    HEAD`), estado del arbol de trabajo (`git status --porcelain`) y
-    contenido del fichero (`rules.read_all()` real).
-    """
-
-    def test_rule_ends_up_in_the_file_and_creates_no_commit(self, tmp_repo, rules_lib):
-        text = "never mock the database in integration tests"
-        before = _git_commit_count(tmp_repo)
-
-        # --quote none (2026-08-23): --quote es obligatorio ahora, y se usa
-        # el escape literal "none" a proposito -- `text in file_texts` mas
-        # abajo compara IGUALDAD exacta con el texto plano; una cita real
-        # anadiria "— «cita»" al texto persistido y rompería esa igualdad
-        # sin cambiar lo que este test quiere probar (fichero + sin commit).
-        rc, out, err = run_memory_script(
-            "rule.py", [text, "--kind", "user", "--quote", "none"], cwd=tmp_repo
-        )
-        assert rc == 0, f"stdout={out!r} stderr={err!r}"
-
-        after = _git_commit_count(tmp_repo)
-        assert after == before, (
-            "gitmem rule ya no debe crear ningun commit -- antes de la llamada "
-            f"habia {before} commit(s) en HEAD, despues {after}"
-        )
-
-        with _cwd(tmp_repo):
-            file_texts = rules_lib.iter_rule_texts(rules_lib.read_all())
-        assert text in file_texts, (
-            f"la regla no aparece en rules.md (leido con rules.read_all() real): {file_texts!r}"
-        )
-
-    def test_rule_leaves_the_file_as_a_real_uncommitted_change(self, tmp_repo):
-        text = "never mock the database in integration tests"
-        rules_relpath = ".claude/project-memory/rules.md"
-
-        rc, out, err = run_memory_script(
-            "rule.py",
-            [text, "--kind", "user", "--quote", "no mockees la base de datos, nunca"],
-            cwd=tmp_repo,
-        )
-        assert rc == 0, f"stdout={out!r} stderr={err!r}"
-
-        rc_status, status_out, err_status = run_git(
-            ["status", "--porcelain", "--", rules_relpath], tmp_repo
-        )
-        assert rc_status == 0, f"git status fallo en el test: {err_status}"
-        assert status_out.strip(), (
-            "rules.md deberia quedar como cambio sin comitear tras gitmem rule "
-            f"-- git status --porcelain no muestra nada: {status_out!r}"
-        )
-
-    def test_a_later_gitmem_work_picks_up_the_pending_rule_line(self, tmp_repo):
-        """Punto 3 del encargo: un `gitmem work` posterior se lleva la
-        modificacion pendiente, si se le pasa esa ruta -- mismo mecanismo
-        con el que cualquier otro fichero sin comitear viaja en el
-        siguiente commit real de trabajo. No hace falta ningun cableado
-        nuevo para esto: `work.py` ya acepta rutas concretas por `--path`
-        y comitea exactamente lo que se le pasa (PIEZAS.md Sec.10).
-
-        `repo_type="trunk"` sembrado a proposito: sin el, `work.py` rebota
-        por proteccion de rama principal (Sec.10.1 punto 3) y el test no
-        probaria el arrastre, solo el rechazo -- mismo patron que
-        `test_work_script.py`.
-        """
-        seed_config_json(tmp_repo, repo_type="trunk")
-        text = "stop summarizing what you just did at the end"
-        rules_relpath = ".claude/project-memory/rules.md"
-
-        rc_rule, out_rule, err_rule = run_memory_script(
-            "rule.py", [text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
-        )
-        assert rc_rule == 0, f"stdout={out_rule!r} stderr={err_rule!r}"
-
-        before = _git_commit_count(tmp_repo)
-        rc_work, out_work, err_work = run_memory_script(
-            "work.py",
-            ["carry the pending rule line", "--path", rules_relpath],
-            cwd=tmp_repo,
-        )
-        assert rc_work == 0, f"stdout={out_work!r} stderr={err_work!r}"
-
-        after = _git_commit_count(tmp_repo)
-        assert after == before + 1, (
-            "gitmem work no produjo exactamente un commit nuevo al comitear la "
-            f"ruta pendiente: antes={before}, despues={after}"
-        )
-
-        rc_status, status_out, err_status = run_git(
-            ["status", "--porcelain", "--", rules_relpath], tmp_repo
-        )
-        assert rc_status == 0, f"git status fallo en el test: {err_status}"
-        assert status_out.strip() == "", (
-            "tras gitmem work, rules.md no deberia seguir apareciendo como "
-            f"cambio sin comitear: {status_out!r}"
-        )
-
-        rc_show, show_out, err_show = run_git(["show", f"HEAD:{rules_relpath}"], tmp_repo)
-        assert rc_show == 0, f"git show fallo leyendo el blob comiteado: {err_show}"
-        assert text in show_out, (
-            "el commit de gitmem work no incluye el contenido real de la linea "
-            f"de regla pendiente -- blob comiteado: {show_out!r}"
-        )
+# RETIRADA 2026-08-23 [I-003, orden del propietario -- "regla guardada sin
+# comitear = fallo silencioso", incidente real, revoca la decision de
+# 2026-08-06]: `TestRuleEndsUpInTheFileNotInAnOwnCommit` (3 tests) vivia
+# aqui y fijaba el contrato EXACTAMENTE CONTRARIO al que rige desde I-003
+# -- afirmaba que `gitmem rule` "YA NO comitea" y que la linea queda como
+# cambio sin comitear en el arbol de trabajo. Ese contrato queda revertido:
+# desde I-003, `gitmem rule` tiene que producir un commit real o no decir
+# "guardada" (ver `test_rule_commit_contract.py`, el contrato nuevo).
+#
+# Cobertura de sus 3 tests, verificada antes de retirar (ninguna se pierde
+# en silencio):
+#   - `test_rule_ends_up_in_the_file_and_creates_no_commit` -- su mitad
+#     "la regla aparece en el fichero" (via `rules.iter_rule_texts()`) ya
+#     esta cubierta bajo el contrato nuevo por
+#     `test_rule_commit_contract.py::TestGoodRuleEndsUpCommittedForReal::
+#     test_kind_user_creates_exactly_one_commit_and_a_clean_tree`. Su otra
+#     mitad ("cero commits nuevos") es precisamente lo que I-003 revierte.
+#   - `test_rule_leaves_the_file_as_a_real_uncommitted_change` -- afirmaba
+#     `git status --porcelain` SUCIO tras guardar; el contrato nuevo pide
+#     lo opuesto (arbol LIMPIO), ya cubierto por el mismo test de arriba
+#     (`assert status_out.strip() == ""`).
+#   - `test_a_later_gitmem_work_picks_up_the_pending_rule_line` -- su
+#     premisa (`gitmem rule` deja una linea pendiente que un `gitmem work`
+#     posterior recoge) deja de darse en el flujo normal una vez que
+#     `gitmem rule` comitea por si solo: no queda nada pendiente que
+#     recoger. Sin equivalente en el contrato nuevo, y sin perdida de
+#     cobertura real -- la capacidad generica de `gitmem work --path` de
+#     comitear exactamente la ruta dada, con el contenido real en el blob,
+#     ya tiene su propio test independiente de `rule.py`
+#     (`test_work_script.py::
+#     TestAcceptsAllFlagsWithoutBouncingAndCommitsExactlyGivenPaths::
+#     test_two_paths_and_an_issue_trailer_in_one_call`), que no dependia
+#     de esta clase ni se ve afectado por su retirada.
+#
+# Mismo criterio que la retirada de `_restore_file_best_effort` en
+# `test_rules.py` (2026-08-06): un test que ya no puede fallar por la causa
+# que dice probar (aqui, lo contrario: uno que ahora DEBE fallar porque el
+# contrato que fijaba fue revertido por orden real) es peor que ausente --
+# se retira entero, con el motivo dejado por escrito, en vez de reescribirlo
+# a la fuerza o dejarlo en rojo por sorpresa para quien lea la suite.
 
 
 class TestReadingModeShowsTheWholeFileForReal:

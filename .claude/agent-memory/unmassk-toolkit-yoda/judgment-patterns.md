@@ -658,3 +658,56 @@ isolated test + clean full-suite background run. §34 round-trip gate on the sta
 (real write→read, 2 sabotage variants). The one NEW Major finding above (UTF-8 strict-decode swallowing a
 real failure) is the single named condition, urgent but not blocking THIS diff (pre-existing, untouched
 function, out of D1-D5's stated scope).
+
+## 2026-08-23 — Blind self-review of my own agent sheet (yoda.md diff)
+
+**Pattern: check every new instruction for a term the doc never defines.**
+The diff added "downgrade to the neutral register" (Emotional Register section) but no
+register in the table is labeled "neutral" — the closest candidate ("Solid but unremarkable")
+isn't named that. An instruction that tells me to fall back to an undefined thing is not
+executable as written, even though it reads fine on a first pass. Worth this exact check
+whenever a diff adds a fallback/default behavior: does the target of the fallback actually
+exist elsewhere in the same document?
+
+**Pattern: two structurally parallel rules, added in the same diff, that use different
+anchoring mechanisms for the same underlying question are a coherence gap even with no
+outright contradiction.** Noise Control's Cerberus re-review rule ("if the diff changed
+after his review") and the adjacent Argus re-audit rule ("if code changed... after his
+audit's commit") ask the same thing but only one names a mechanical anchor (a commit).
+Same-shape rules should share the same anchor unless there's a stated reason not to.
+
+## 2026-08-24 — I-003 rules.py split (rules_commit/rules_similarity/rules_validate) + resurrected coherence_rules + checklist-gate/skill-checklist-inject + textnorm.py unification
+
+**Pattern: a centralized fix's mutation-kill can legitimately be green on one caller and red on another, and that split IS the evidence, not a contradiction.**
+Sabotaged `notes_commit.py::stage_and_commit()`'s new post-commit-failure `git reset` (the "MM state" fix) live:
+`test_rule_commit_contract.py::TestFailedCommitLeavesNoStagedLeftovers` went RED (real 'MM' in
+`git status --porcelain`), but `test_notes.py::test_commit_rejected_by_pre_commit_hook_leaves_a_fully_clean_tree`
+stayed GREEN under the same sabotage -- because `notes.write()` already carried its OWN local `git reset`
+predating this centralization (documented explicitly in the same docstring: "los `git reset` que ya existian
+en los llamadores de notes.py... no se tocan -- quedan redundantes pero inofensivos"). Restored via direct
+`open()/write()` (never `git checkout --`/`stash`, per this repo's hard git-safety rule), confirmed both
+green again, confirmed `git diff` byte-identical to pre-sabotage. Lesson: when a "single shared fix" docstring
+names one caller as already-protected-by-something-else, a mutation-kill that only breaks the OTHER caller is
+not a gap in the test suite -- it's the direct confirmation of exactly what the docstring claims.
+
+**Pattern: `query.by_zone()` (called unconditionally right before `health.build()` in `boot.build()`) already
+raises `RuntimeError` on a real, non-transient git failure -- this is Sec.8.2's own declared, pre-existing
+architecture ("fail loud, never silent" for a real git failure, only retry+swallow a transient one). A new
+function (`health.coherence_rules()` -> `query.show_file_at_head()`) that does the same is NOT a new
+availability risk introduced by this diff -- it's following the established convention of the module it lives
+in. Checked this before treating "coherence_rules can raise on real git corruption, uncaught in boot.build()"
+as a finding.
+
+**Verdict: APPROVED, 106/110.** Full suite run personally (`nohup`-free, via harness backgrounding):
+1183 passed, 2 skipped (both pre-existing Windows-only skips, verified irrelevant to this diff), 0 failed.
+Round-trip (§34) evidence: real subprocess git (`index.lock`, real `pre-commit` hook, real thread-race,
+real repo state for "exists on disk but not in HEAD") across `test_rule_commit_contract.py` +
+`test_health_rules_coherence_contract.py` (Moriarty's own two confirmed sabotage classes: pre-commit-hook
+rejection after `git add`, and a never-committed first-ever rule crashing `coherence_rules()` -- both closed,
+both independently reproduced by me for one of them). D-054 (checklist strips accents too) and the
+external-hand-edit race window in `rules.add()` (both pre-accepted per CLAUDE.md's task briefing) correctly
+NOT re-litigated -- confirmed present and correctly scoped as accepted, not silently dropped.
+One stale note found and resolved: Dante's own contract-notes file for D-054 records a RED (non-string input
+to `textnorm.normalize_text` raising instead of returning `""`) that Ultron fixed AFTER that note was written
+-- confirmed by reading `textnorm.py`'s actual guard and re-running the exact named test
+(`test_normalize_non_string_input_returns_empty_string_without_raising`) in isolation: PASSED. Not a live gap.

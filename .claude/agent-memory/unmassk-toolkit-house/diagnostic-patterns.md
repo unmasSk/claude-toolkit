@@ -461,3 +461,33 @@ Two traps that both produce a confident-but-wrong verdict on a large in-flight r
 **Third tell, generic:** `git diff --stat`'s number is insertions+deletions, not deletions. "657 lines lost" in `boot_git_checks.py` was 598 deleted + 59 added; "406" in `boot_render.py` was 391 + 15. Always re-derive with `--numstat` before treating a size gap as evidence of over-cutting.
 
 **Fourth tell, specific to amputations:** a guard written FOR the removed subsystem may also protect surfaces that survive. `check_upstream_shares_history()` was born for the memory fetch, but it also suppressed the PULL DIRECTIVE and the BRANCHES listing when `@{u}` pointed at a repo sharing no history. Removing the fetch removed the guard, and both surviving surfaces started lying. Grep every removed function for call sites in code that stays, not just in code that goes.
+
+## Pattern: on this machine `grep` is ugrep and honors .gitignore — every "grep returns nothing, therefore clean" gate is blind to ignored paths
+
+**Project:** unmassk-toolkit (verification of THE CLEANUP CHECK in agents/house.md) · **Seen:** 2026-08-23 · confirmed by execution with a planted marker file
+
+`grep` on PATH resolves to **ugrep 7.8.4**, not BSD or GNU grep (`/usr/bin/grep` is BSD 2.6.0-FreeBSD and behaves differently). ugrep skips files matched by `.gitignore` by default; `--no-ignore-files` restores them. Planted `unmassk-toolkit/__house_probe__.pyc` (ignored by `.gitignore:6 *.pyc`) containing a real marker: `grep -rn "\[HOUSE:" .` found nothing, `grep -rn --no-ignore-files` found it, `/usr/bin/grep -rn` found it.
+
+**The same blind spot exists on the git side, for a different reason:** `git grep --untracked` includes untracked files but NOT ignored ones — `--no-exclude-standard` is the flag that adds them. So both halves of a "git grep, else fall back to grep" verification agree on a false clean over any ignored path: build output, `.venv/`, `dist/`, `node_modules/`, generated code — all of them ordinary places to have instrumented something.
+
+**Generalisation:** any gate of the shape *"the search returned zero results, therefore the tree is clean"* is only as strong as what the searcher was willing to look at. Before trusting one, plant a file that MUST match, in the least-visible place the gate is supposed to cover, and confirm the gate reports it. A gate that has never been shown to fire has not been tested.
+
+**Second tell from the same session:** BSD `/usr/bin/grep -rn` over a repo root reports `Binary file …/chatroom.db matches` — a zero-results gate then fails for a reason that has nothing to do with what it was checking. Binary exclusion (`-I`) belongs in any such command.
+
+## Pattern: "Where does Claude Code persist X, and can a hook read it?" — answer it from the shipped binary's zod schemas, never from docs or memory
+
+**Project:** unmassk-toolkit (task-board persistence for the checklist gate) · **Seen:** 2026-08-23 · confirmed by live files + binary disassembly of the running version
+
+The Claude Code CLI on macOS is a single Mach-O bundle (`~/.local/share/claude/versions/<ver>`, ~325 MB, `~/.local/bin/claude` is a symlink to it) with the JS bundle embedded as plain text. It is greppable and it is the **running implementation**, so it outranks any documentation. Method that works in ~4 commands:
+
+1. **Never `grep -ao '.\{300\}PATTERN.\{300\}'` on it** — regex backtracking over 325 MB times out at 120 s. Use Python: `data=open(bin,'rb').read().decode('utf-8','replace')`, then `data.find(...)` / `re.finditer(re.escape(...))` and slice `data[i-700:i+900]`. Whole-file read + slice is seconds.
+2. **Anchor on a distinctive literal, not on a concept.** For persistence: the constant filename (`".highwatermark"`, `".lock"`) or the schema literal (`hook_event_name:Ct("Stop")`). For hook payloads: `transcript_path` finds the base schema in one shot.
+3. Names are minified (`Yoe`, `wJ`, `Gt`) but the **string literals and zod field names survive verbatim**, which is all a contract question needs.
+
+**The two contracts recovered this way (valid for 2.1.241):**
+- Hook stdin base schema `YP() = {session_id, transcript_path, cwd, prompt_id?}`, and every event `= YP().and({hook_event_name, ...})`. Built by one function: `{session_id: e.id, transcript_path: jH(e.id), cwd, prompt_id, permission_mode, agent_id, agent_type}` — so **every hook event carries session_id**, including Stop/PostToolUse/SubagentStop.
+- Task board: `~/.claude/tasks/<listId>/<n>.json`, one file per task, `listId = CLAUDE_CODE_TASK_LIST_ID || teamName || sessionId`. Writes are `fs.writeFile` under a directory `.lock` — **not** atomic rename, so an unlocked reader can catch a truncated file. Any hook reading it must tolerate a JSON parse error.
+
+**Corroborate with the live artefact before trusting the read.** Count the real files against a known-truth count (10 `TaskCreate` calls in the transcript ↔ 10 `.json` files) and grep the session's own task subjects. Binary + live files agreeing is confirmed; either alone is a hypothesis.
+
+**Trap: TodoWrite and the Task* tools are different systems.** `~/.claude/todos/` (TodoWrite) does not exist on this machine; the board actually in use is `TaskCreate`/`TaskUpdate` under `~/.claude/tasks/`. A "the board is never used" measurement that counted only `TodoWrite` tool_use is measuring the wrong tool.

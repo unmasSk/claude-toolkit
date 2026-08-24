@@ -1,6 +1,6 @@
 ---
 name: unmassk-memory
-version: 2.0.0
+version: 2.1.0
 description: Use at the start and at the close of every session in a project with git memory; whenever a decision is made, a correction is given, something breaks, or work stops waiting on someone; when the user says "save this", "remember this", "note this down", "from now on", "always", "never", "what did we decide", "what is pending", "why did we do it this way", "we already discussed this"; before proposing an option or building on anything that may already be decided; and when committing code or checkpointing work in progress
 ---
 
@@ -164,7 +164,14 @@ Every note carries two, both real, no catch-alls.
 
 **Zones are always lowercase** — on creation, on lookup, and on a note's own zone fields. `Billing` and `billing` are the same zone; write them however, the system normalizes them. `gitmem search` is case-insensitive the same way, and echoes the searched word back in lowercase.
 
-**List before guessing, search before creating.** Adding one that already exists, or that is another's alias, bounces and touches nothing. Six words a note may never use: `claude`, `user`, `session`, `project`, `workflow` — those are rules, not memory — and `audit`, which is ambiguous. The zone command will create all six anyway: the guard is at the note, so creating one buys a zone nothing can use. **And needing one of them is the signal, not the obstacle:** if a note keeps reaching for `workflow` or `project` to get a second zone, the note is not missing a word — it is a rule trying to come in through the wrong door.
+**List before guessing, search before creating.** Adding one that already exists, or that is another's alias, bounces and touches nothing.
+
+| Word a note may never use | Why it is banned |
+|---|---|
+| `claude`, `user`, `session`, `project`, `workflow` | They describe how you work — that is a rule, not memory |
+| `audit` | Ambiguous: the kind of work and a module name collide |
+
+The zone command will create all six anyway: the guard is at the note, so creating one buys a zone nothing can use. **And needing one of them is the signal, not the obstacle:** if a note keeps reaching for `workflow` or `project` to get a second zone, the note is not missing a word — it is a rule trying to come in through the wrong door.
 
 ## The signals
 
@@ -187,13 +194,12 @@ Every note carries two, both real, no catch-alls.
 
 ### Four calls, worked
 
-**Saved — nobody ever said yes.** Three options were compared, one was picked without drama, and from that point the user talks about it as settled. → A decision, with its why and the other two discarded. Drama is not a requirement; quiet agreement is agreement.
-
-**Not saved — it was still yours.** You lay out three approaches, argue for one, and the user says "let me think about it". → Nothing is saved. A proposal you like is not a decision, and filing it as one puts words in their mouth that come back as fact months later.
-
-**Not saved — it's in the code.** You notice which port the service listens on, or where a module lives. → Not memory. Anything the next session can read off the code or the history in seconds is noise, and noise is what buries the notes that matter.
-
-**Saved, and this is the one that gets lost.** The user corrects you mid-task, you fix it and keep going. The work continues, the session ends, and next time you do the exact same thing. → The correction is the note. If it is about how the project is, a memo or a restriction; if it is about how you must work, a rule.
+| The situation | Saved? | Why |
+|---|---|---|
+| Three options compared, one picked without drama; from then on the user talks about it as settled | **Yes — a decision**, with its why and the losers discarded | Quiet agreement is agreement; drama is not a requirement |
+| You lay out three approaches, argue for one; the user says "let me think about it" | **No** | A proposal you like is not a decision; filing it as one puts words in their mouth that come back as fact months later |
+| You notice which port the service listens on, or where a module lives | **No** | The next session reads it off the code in seconds; that noise buries the notes that matter |
+| The user corrects you mid-task, you fix it and keep going | **Yes — and it is the one that gets lost** | Applied today, forgotten tomorrow, made again. About how the project is → memo or restriction; about how you must work → rule |
 
 ## Red Flags — STOP
 
@@ -218,6 +224,9 @@ Every note carries two, both real, no catch-alls.
 | "The user contradicts a wall, so the wall must be stale" | Show them the wall and let them decide. |
 | "It's a small correction" | Small corrections repeated are what costs hours. |
 | "I'll write it into a file so it's visible" | If it isn't a commit, nothing reaches next session. |
+| "This option is obviously right, searching would just confirm it" | The search takes ten seconds; skipping it is how a discarded option gets proposed again. |
+| "I already know this project well enough" | Confidence is not memory. Search anyway — that is exactly the moment a discarded option resurfaces. |
+| "It's just a suggestion, not a final decision" | The Read Gate applies to proposing, not just deciding. A suggestion built on unsearched ground is how memory starts lying. |
 
 ## When you get rejected
 
@@ -234,7 +243,7 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 ## Opening and closing
 
-**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole and tell the user in the first message — and that message cannot be short. One emoji per section:
+**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole and tell the user in the first message, covering all five sections below — a message missing any of them does not count. One emoji per section:
 
 - 🧭 **Today:** the Next, and what happened in the session that wrote it.
 - ⛔ **Blockers:** each with who it waits on.
@@ -339,7 +348,7 @@ Reaching for the cache path instead leaves the project half-set-up forever: the 
 Generated from `hooks/hooks.json`, never by hand: a hook documented here but not registered is this skill telling the user something untrue.
 
 <!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->
-**6 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
+**8 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
 
 | Event | Matcher | Hook file | Timeout |
 |---|---|---|---|
@@ -349,4 +358,6 @@ Generated from `hooks/hooks.json`, never by hand: a hook documented here but not
 | `PreToolUse` | `Write\|Edit` | `validate-memory-path.py` | 5s |
 | `PreToolUse` | `Bash` | `pre-merge-gate.py` | 10s |
 | `UserPromptSubmit` | — | `user-prompt-memory-check.py` | 10s |
+| `PostToolUse` | `Skill` | `skill-checklist-inject.py` | 5s |
+| `Stop` | — | `checklist-gate.py` | 5s |
 <!-- END unmassk-active-hooks -->

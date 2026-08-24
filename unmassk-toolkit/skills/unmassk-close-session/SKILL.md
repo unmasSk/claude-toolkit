@@ -1,6 +1,6 @@
 ---
 name: unmassk-close-session
-version: 2.0.0
+version: 2.1.0
 description: Use when the user says "let's wrap up", "close the session", "we're done for today", "hand off", "save where we are", or otherwise signals that a working session is ending and wants it closed properly
 ---
 
@@ -14,7 +14,7 @@ Only when the user asks. Not on compaction, not at the end of a turn, not becaus
 
 ## 1. Clean up
 
-Scratch files, temporary files, caches, build leftovers, folders with no owner.
+Scratch files, temporary files, caches, build leftovers, folders with no owner. State the result in one line: what was removed, or "nothing found" — a clean-up with no listed outcome did not happen.
 
 Never touch source. For anything that looks orphaned, say what it is and why before removing it; if you cannot say, leave it.
 
@@ -53,7 +53,7 @@ Then read the result out of git, not out of the agent's report: `git log -1` —
 | Registering work blocked on someone | When it stopped |
 | Retiring a rule that stopped being true | When it stopped being true |
 | Consolidating memory | Its own pass |
-| Updating the CHANGELOG | The merge |
+| Updating the CHANGELOG | Alexandria, in Flow's Document step — never the orchestrator, and never at close |
 | A handoff document | The Next is the handoff |
 | Releasing a version | The user's call, in the project's own instructions |
 

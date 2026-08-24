@@ -178,3 +178,99 @@ def test_returns_full_notes_with_why_and_keys(similar, make_note):
     assert returned.keys == existing_note.keys
     assert returned.id == existing_note.id
     assert returned.timestamp == existing_note.timestamp
+
+
+# ---------------------------------------------------------------------------
+# Contrato compartido de normalizacion (D-054 + regla nueva del propietario,
+# 2026-08-24): todo texto que se compare o se use como clave se normaliza a
+# minusculas Y SIN ACENTOS. `similar.py::_tokens()` hoy solo hace
+# `.lower()` sobre el texto conjunto. Estos tests anclan el comportamiento
+# en el punto de entrada real (`similar.find_similar`) -- nunca en un
+# simbolo fisico compartido: la funcion de normalizacion puede vivir en
+# cualquier sitio dentro de lib/memory/ (frontera de test_boundary.py, que
+# sigue en verde), lo unico que importa es lo que `find_similar` hace con
+# el texto.
+# ---------------------------------------------------------------------------
+
+
+def test_two_notes_differing_only_in_accent_and_case_are_detected_as_similar(
+    similar, make_note
+):
+    """Punto 3 del contrato: dos textos que solo difieren en acentos/caja
+    cuentan como el mismo token (mas parecidos que antes).
+
+    Disenado para NO casar bajo la tokenizacion actual (solo minuscula):
+    las cuatro palabras del vocabulario difieren TODAS por un acento
+    ('diseno'/'diseño', 'pagina'/'página', 'boton'/'botón',
+    'exportacion'/'exportación'), asi que el Jaccard de hoy es 0/8 = 0.0
+    (interseccion vacia), muy por debajo del umbral 0.5 de este fichero.
+    Tras normalizar tambien por acentos, las cuatro palabras coinciden
+    exactas y el Jaccard sube a 4/4 = 1.0.
+    """
+    existing_note = make_note(
+        id="D-030",
+        headline="DISENO PAGINA BOTON EXPORTACION",
+        description="",
+        why=None,
+        keys=(),
+    )
+    candidate = make_note(
+        id="D-099",
+        headline="diseño página botón exportación",
+        description="",
+        why=None,
+        keys=(),
+    )
+
+    result = similar.find_similar(candidate, (existing_note,), threshold=_THRESHOLD)
+
+    assert existing_note in result, (
+        "dos notas con el mismo vocabulario, salvo acentos y caja, no se "
+        "detectaron como parecidas"
+    )
+
+
+def test_two_notes_with_different_accented_words_are_not_detected_as_similar(
+    similar, make_note
+):
+    """Punto 3 del contrato -- control negativo: dos textos GENUINAMENTE
+    distintos (no solo por acentos) no se vuelven iguales al normalizar
+    tambien por acentos. Sobre-normalizar no es gratis.
+    """
+    existing_note = make_note(
+        id="D-030",
+        headline="facturación mensual con IVA incluido siempre",
+        description="",
+        why=None,
+        keys=(),
+    )
+    candidate = make_note(
+        id="D-099",
+        headline="autenticación con clave temporal de un solo uso",
+        description="",
+        why=None,
+        keys=(),
+    )
+
+    result = similar.find_similar(candidate, (existing_note,), threshold=_THRESHOLD)
+
+    assert result == (), (
+        "dos notas sin vocabulario compartido real (mas alla de llevar "
+        f"acentos cada una en una palabra distinta) se marcaron como "
+        f"parecidas: {result!r}"
+    )
+
+
+def test_regression_case_only_difference_still_detected_as_similar(
+    similar, make_note
+):
+    """Punto 4 del contrato -- regresion: dos notas que hoy ya se
+    detectan como parecidas solo por diferencia de CAJA (sin acentos de
+    por medio) siguen detectandose tras anadir el paso de acentos.
+    """
+    existing_note = make_note(id="D-030", headline="LOGIN WITH JWT AND GOOGLE OAUTH")
+    candidate = make_note(id="D-099", headline="login with jwt and google oauth")
+
+    result = similar.find_similar(candidate, (existing_note,), threshold=_THRESHOLD)
+
+    assert existing_note in result

@@ -1,6 +1,6 @@
 ---
 name: unmassk-audit
-version: 1.1.0
+version: 1.2.0
 description: Use when the user asks to "audit a module", "audit this codebase", "code audit", "enterprise review", "launch audit", "review against standards", or mentions auditing EXISTING code against enterprise standards. Works with any stack or language. Also use when resuming an audit in progress.
 ---
 
@@ -16,9 +16,9 @@ Structured 14-step workflow for auditing any module against enterprise quality s
 - User says "audit", "enterprise review", "launch audit"
 - Resuming an in-progress audit (check TodoWrite for current step)
 
-Do NOT use for: one-off code reviews or quick linting checks.
+Use this skill for structured audits of a complete module; a one-off review or a quick lint check is out of scope.
 
-**Audit vs. build pipeline:** this skill is for reviewing an EXISTING module against enterprise standards. Use `unmassk-flow` (the build pipeline) when BUILDING something new. "Auditing" = existing code → standards gap analysis. "Building" = new code → Flow's definition-of-done pipeline. Do not confuse the two.
+**Audit vs. build pipeline:** this skill is for reviewing an EXISTING module against enterprise standards. Use `unmassk-flow` (the build pipeline) when BUILDING something new. "Auditing" = existing code → standards gap analysis. "Building" = new code → Flow's definition-of-done pipeline. Confirm which applies before starting: existing code with no planned rewrite → audit; new code or a full rewrite → Flow.
 
 ## Workflow
 
@@ -34,7 +34,7 @@ Before step 0, create a TodoWrite with one item per step (steps 0-13). Update st
    - **trunk** → work directly on `main`; no separate audit branch needed
 3. Save the opening note:
    `gitmem note M --zones codeaudit <module-zone> "enterprise audit of <module> starts" --description "..." --stops no --issue N`
-4. Load `unmassk-standards` skill for quality criteria + read any project-level CLAUDE.md
+4. Load `unmassk-standards` skill for quality criteria + read any project-level CLAUDE.md — record both (skill version + path read) in the opening note
 
 ### Step 1 -- Scan (Bilbo Agent)
 
@@ -84,7 +84,7 @@ Run in parallel with step 3 (independent work). Cerberus and Argus run simultane
 1. Full integrity analysis of the module: memory/persistence integrity, silent-failure surfaces, concurrency races, platform robustness, data flow traceability.
 2. Deeper pass on the same T1 surfaces Moriarty later attacks: memory corruption, silent failure, concurrency race, round-trip sabotage.
 3. Classify findings by tier (T1/T2/T3).
-4. ONLY report -- never fix. Do not duplicate Cerberus surface-level checks.
+4. Report findings only — fixing happens in step 5 (Ultron). Focus on the integrity surfaces beyond Cerberus's checklist.
 
 ORCHESTRATOR (Claude + User) compiles findings from both Cerberus and Argus into a single findings table.
 
@@ -96,8 +96,8 @@ Order: T1 first, then T2, then T3. 1 agent per finding or group of findings in t
 
 1. Apply fix addressing root cause.
 2. Clean documentation (JSDoc, docstrings, comments) per project conventions if touching the area.
-3. Check file size after fix — flag if it grew significantly.
-4. If fix makes a file excessively large, use architect-then-implementer pattern to split.
+3. Check file size after fix — flag it if it now exceeds the project's declared size limit (default 300 LOC per unmassk-standards §2).
+4. If the fixed file exceeds the size limit from unmassk-standards §2, use architect-then-implementer pattern to split.
 5. Run tests TWICE after each fix round.
 
 Gate: tests pass after each round.
@@ -108,7 +108,7 @@ Prompt templates: see `prompts/ultron.md` and `prompts/house.md`
 
 ### Step 6 -- Review Fixes (Cerberus)
 
-1. Re-read ALL module files (not just touched ones).
+1. Re-read ALL module files (not just touched ones); state the file count reviewed in the findings table.
 2. Verify each original finding: closed? Root cause resolved?
 3. Check for NEW findings introduced by fixes.
 4. Verify no anti-patterns from standards.
@@ -128,7 +128,7 @@ Gate: coverage maintained at 97%+. Same explicit audit exception as step 3 — t
 ### Step 8 -- Adversarial Validation (Moriarty)
 
 1. Moriarty attacks the full module across all attack phases.
-2. Document each break with tier classification. Do NOT fix.
+2. Document each break with tier classification; hand every confirmed break to Ultron (step 5/9) for the fix.
 3. Output: attack report with confirmed breaks and per-phase summary.
 
 Prompt template: see `prompts/moriarty.md`
@@ -153,7 +153,7 @@ Prompt template: see `prompts/cerberus.md` (Template 2: Re-Audit)
 
 ### Step 11 -- Senior Review (Yoda)
 
-1. Read ALL source files (not tests).
+1. Read ALL source files (not tests); state the file count read in the senior evaluation output.
 2. Run tests TWICE.
 3. Write prose evaluation per dimension (2-4 sentences each).
 4. Provide honest professional sentiment (one paragraph, no bullets).
@@ -166,11 +166,11 @@ Prompt template: see `prompts/yoda.md`
 
 ### Step 12 -- Documentation (Alexandria)
 
-1. Read ALL WIP commits and changes accumulated during the audit.
+1. Read ALL WIP commits and changes accumulated during the audit; cite the commit range read (first WIP → last).
 2. Create or update module CLAUDE.md with patterns learned.
 3. Update CHANGELOG.md under [Unreleased] with meaningful descriptions.
 4. Cross-check documentation against current code state.
-5. Update Alexandria memory.
+5. Update Alexandria memory; name the memory file touched in the closing note.
 
 Prompt template: see `prompts/alexandria.md`
 
@@ -207,11 +207,11 @@ Prompt template: see `prompts/alexandria.md`
 ## ORCHESTRATOR (Claude + User) Rules
 
 - Never edit code directly -- everything through agents.
-- Never accept first re-audit as definitive after significant changes. Historical data: one module required 6 re-audit rounds.
+- Require at least a second re-audit round whenever step 5 touched more files than the original findings table listed. Historical data: one module required 6 re-audit rounds.
 - Always verify agent claims independently (run tests, check LOC).
-- Distrust "all clean" reports without evidence. Agents tend to report "clean" without verifying all tiers.
-- Never send 2 agents to the same file simultaneously.
-- Never say "move code AS-IS" if it has anti-patterns from the enterprise standards.
+- Reject an "all clean" report unless it cites, per checklist item, the file:line or command output checked. Agents tend to report "clean" without verifying all tiers.
+- Assign each file to exactly one agent at a time; queue other work on that file until the first agent finishes.
+- Require a fix for every anti-pattern from the enterprise standards before code moves.
 
 ## Agent Dispatch Rules
 
@@ -222,7 +222,7 @@ Each agent receives ONLY context and data, NOT instructions on how to work (agen
 - Reference to `unmassk-standards` skill for quality criteria (agents load it on boot via the `skills: unmassk-standards` frontmatter declaration)
 - Verification block (test commands, run twice)
 
-Never send two agents to the same file simultaneously.
+Assign each file to exactly one agent at a time; queue other work on that file until the first agent finishes.
 
 ## Findings Report Format
 

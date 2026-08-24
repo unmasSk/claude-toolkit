@@ -106,6 +106,10 @@
 - [ci-fake-gh-path-fallthrough-fix-notes.md](ci-fake-gh-path-fallthrough-fix-notes.md) — CI red both platforms: POSIX EACCES-fallthrough + Windows CreateProcess .exe-only, path_without_real_gh() fix, win32 skip
 - [work-staged-deletion-git-rm-contract-notes.md](work-staged-deletion-git-rm-contract-notes.md) — gitmem work fails on a deletion already staged with git rm; stage_and_commit() git-add-then-commit gap, RED contract
 - [rule-quote-contract-notes.md](rule-quote-contract-notes.md) — gitmem rule --quote RED contract, no-commit contradiction reported not resolved, vacuous-green argparse pitfall
+- [rule-commit-i003-contract-notes.md](rule-commit-i003-contract-notes.md) — I-003 RED contract: rule.py must commit for real or not say "guardada", reverses 2026-08-06 no-commit decision (evidenced, not invented)
+- [checklist-gate-inject-contract-notes.md](checklist-gate-inject-contract-notes.md) — D-052 checklist hooks: real schema vs guessed, tests/hooks/ collision fix, race/session_id/chmod hardening round
+- [d054-shared-textnorm-normalization-contract-notes.md](d054-shared-textnorm-normalization-contract-notes.md) — D-054 lowercase+no-accent everywhere: anchor-at-entry-point technique around a live boundary test, real non-string contradiction left RED
+- [boot-git-object-corruption-contract-notes.md](boot-git-object-corruption-contract-notes.md) — surgical .git/objects corruption isolating ONE health check; live cd-safety incident + fix; concurrent-agent RED→GREEN mid-session
 
 ## Retired (different stack, no longer this project's shape)
 

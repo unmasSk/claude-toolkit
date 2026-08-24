@@ -706,3 +706,31 @@ attack-patterns.md for both findings' full detail.
   similar to each other across trials and tripped the real
   `validate_replacement` overlap rejection -- not a bug, a test-design
   artifact; fixed by giving every trial genuinely distinct vocabulary/zones.)
+
+## rule+rule concurrency (I-003 fix, 2026-08-23) -- lock holds
+- 8 real concurrent `bin/memory/rule.py` processes, same repo, same
+  `.git/memory-rules` lock (`gitcmd.file_lock()`, blocking, cross-process):
+  exactly the right commits landed, no lost rule, near-duplicate rejections
+  fired correctly under real contention. Confirms the lock design proven
+  elsewhere in this file (see the `notes.write()` 15/15 entry above) also
+  holds for `rules.py`'s own separate lock file.
+- `_TEXT_MAX_CHARS` boundary is byte-exact: 200 chars accepted, 201 rejected,
+  no off-by-one.
+- Read-only `.git` (chmod -w on `.git` and `.git/objects`) fails loud with a
+  single clean `[Errno 13]` line to stderr, no traceback, no partial write --
+  the failure happens before the lock file can even be created, so nothing
+  gets written to `rules.md` at all.
+- **NOTE, does not generalize**: this round ALSO found the rules.md
+  equivalent of the `notes.write()` SIGKILL gap documented above -- but
+  unlike `notes.py` (where `health.coherence()` independently detects the
+  drift after the fact), `rules.py`'s own equivalent detector
+  (`health.coherence_rules()`) was retired 2026-08-06 and is NOT
+  resurrected by the I-003 fix -- confirmed no safety net exists for
+  `rules.md` today. See round-history.md, I-003 fix round, for the live
+  repro. Don't cite "the notes.py gap is mitigated" as covering rules.py too.
+
+## checklist-gate.py / skill-checklist-inject.py / checklist_state.py (2026-08-24)
+- 4 real concurrent `checklist-gate.py` processes on the same session/registry (true subprocesses, not mocked) → exactly `_MAX_BLOCKS_PER_SESSION` (2) blocked, the other 2 correctly saw the cap and allowed-with-warning, `block_count` landed at exactly 2 on disk — no lost update, no over-increment, the `locked()` + fresh-reload-inside-the-lock pattern held under real contention
+- Symlinked `.claude` (project's own `.claude` directory replaced with a symlink pointing OUTSIDE the project root) → `verify_path_within_project`/`ensure_runtime_dir` rejected it before any write; nothing landed outside the project, nothing landed inside the symlinked dir either; hook still fail-opened cleanly with a stderr warning, exit 0
+- Hostile `CLAUDE_CODE_TASK_LIST_ID` (`"../../../../../../etc"`) → same `is_safe_path_component` guard `checklist-gate.py::_board_dir` shares with `checklist_state.py`'s session_id check rejects it; board dir resolves to `None`; fails open with a named stderr reason, never blocks
+- Stress: a 190MB syntactically-broken task JSON file, a 150MB syntactically-valid one, a 20,000-file task board, and a 200,000-box checklist manifest all processed in well under 1s each (nowhere near the hooks' 5s timeout) — no size cap needed at this scale for this design

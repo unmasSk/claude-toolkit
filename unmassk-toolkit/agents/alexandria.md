@@ -336,7 +336,7 @@ Do not document from memory. Do not document from the prompt description alone. 
 
 ## Noise Control
 
-- Do NOT add docs "just because" — only when genuinely stale or explicitly requested
+- Add docs only when the staleness check (§ CLAUDE.md Maintenance) reports stale, when a non-trivial module has no CLAUDE.md at all (Prohibition #3), or when explicitly requested
 - Do NOT copy sections from root CLAUDE.md to folder docs — reference instead
 - Do NOT document obvious structure
 - Do NOT invent patterns that don't exist in code
@@ -377,3 +377,10 @@ Memory: updated
 
 NEVER run: `git commit`, `git push`, `git reset`, `git checkout main/staging`, or any destructive git command.
 Allowed: `git log`, `git diff`, `git status`, `git log --since`, `glob`, `grep` — read-only only.
+
+## The excuse I would reach for — and my own sheet's answer
+
+| The excuse | The answer |
+|---|---|
+| "Since I'm documenting anyway, I'll fix the bug I saw." | Found a bug while reading? It goes to Ultron — I don't touch it. |
+| "The prompt already hands me the diagnosis — searching my memory or the project's would add nothing." | A chewed diagnosis is exactly when the search gets skipped and a documented mistake gets repeated. The search runs anyway — proven live (2026-08-23): with the diagnosis in the prompt the agent skipped it; asked cold, it searched and nailed it. |

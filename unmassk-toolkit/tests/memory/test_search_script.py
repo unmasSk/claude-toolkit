@@ -63,6 +63,7 @@ causa real: `python3 <ruta inexistente>` -- ver docstring de
 import contextlib
 import os
 import re
+from datetime import datetime, timezone
 
 import pytest
 
@@ -537,10 +538,27 @@ class TestByIdRule3BothZonesWithTheNotesOwnWriteDate:
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
 
         _note, author_date_iso = _read_note_independently(tmp_repo, note_id, format_lib)
-        # `author_date_iso` es un ISO completo (`%aI`, leido de git, jamas
-        # del informe); el molde solo promete la fecha corta ("escrita
-        # 2026-04-11" -- YYYY-MM-DD), asi que se compara por ese prefijo.
-        write_date = author_date_iso[:10]
+        # `author_date_iso` es un ISO completo (`%aI`, leido de git), en
+        # la zona LOCAL de quien comitea -- NUNCA UTC (offset real, o
+        # "Z" si el commit se hizo en huso cero). El informe siempre
+        # renderiza en UTC (convencion de la casa, ver `timefmt.py`), asi
+        # que comparar los primeros 10 caracteres a pelo revienta en la
+        # ventana 22:00-00:00 UTC para cualquier huso positivo: la fecha
+        # local ya cruzo la medianoche mientras la UTC todavia no [hallazgo
+        # real, reproducido en aislamiento cruzando la medianoche local de
+        # Madrid (UTC+2) el 2026-08-23/24 UTC]. Se normaliza aqui a UTC
+        # antes de comparar -- produccion sigue rindiendo en UTC tal cual,
+        # esto es solo el lado independiente de la comparacion.
+        # `.replace("Z", "+00:00")`: mismo idioma ya establecido en este
+        # repo (`health_plans.py`/`context.py`/`query.py`, ver `timefmt.py`)
+        # porque `datetime.fromisoformat` en Python 3.10 (el que fija
+        # `toolkit-ci.yml`) no sabe leer el sufijo "Z" sin normalizar antes.
+        write_date = (
+            datetime.fromisoformat(author_date_iso.replace("Z", "+00:00"))
+            .astimezone(timezone.utc)
+            .date()
+            .isoformat()
+        )
 
         zones_lines = [line for line in out.splitlines() if "[auth] [product]" in line]
         assert len(zones_lines) == 1, (
@@ -548,9 +566,9 @@ class TestByIdRule3BothZonesWithTheNotesOwnWriteDate:
             f"[TEXTOS Sec.2.4, regla 3]: {out!r}"
         )
         assert write_date in zones_lines[0], (
-            f"la fecha REAL de escritura de la nota (leida de git, no del "
-            f"informe) tiene que estar en la MISMA linea que las zonas: "
-            f"{write_date!r} no esta en {zones_lines[0]!r}"
+            f"la fecha REAL de escritura de la nota (leida de git, normalizada "
+            f"a UTC, no del informe) tiene que estar en la MISMA linea que las "
+            f"zonas: {write_date!r} no esta en {zones_lines[0]!r}"
         )
 
 

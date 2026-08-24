@@ -1,6 +1,6 @@
 ---
 name: unmassk-grill
-version: 1.1.0
+version: 1.2.0
 description: >
   Use when the user asks to "grill me", "let's think this through", "help me
   define this", or describes something to build without pinning down what it must
@@ -21,7 +21,7 @@ Adapted from Matt Pocock's grill-me (MIT). The interview discipline is preserved
 
 ## When this fires
 
-Something significant is on the table. **Search the memory first** (`gitmem search <term>`):
+Try to state in one sentence exactly what is on the table — if you cannot without guessing, this skill applies. **Search the memory first** (`gitmem search <term>`):
 
 - **Found a relevant decision** → surface it. Don't re-litigate what's settled.
 - **Nothing found** → ask the user: do we start a brainstorming pass, or do you already know what you want? Route accordingly (council/brainstorm vs. straight grill).

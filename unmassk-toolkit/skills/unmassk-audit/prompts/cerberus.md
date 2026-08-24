@@ -48,7 +48,7 @@ Evaluate against `unmassk-standards` (`references/standards.md`):
 | Maintainability | x1 |
 | **Total** | **/110** |
 
-Do NOT invent criteria outside `standards.md`.
+Score only against criteria found in `standards.md`.
 Do NOT fix anything — report only.
 
 ### Critical rule: verify upstream context before reporting a finding

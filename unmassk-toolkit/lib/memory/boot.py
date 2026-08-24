@@ -1,107 +1,46 @@
-"""El menu del dia -- contrato en docs/memoria-v2/PIEZAS.md Sec.9.5.
+"""El menu del dia. Lo primero que se ve al abrir una sesion -- si esto
+falla, el trabajo del dia empieza a ciegas.
 
-Para que: lo primero que se ve al abrir una sesion. Si esto falla, el
-trabajo del dia empieza a ciegas.
+Orden exacto de los cinco bloques: el NEXT con su contexto debajo, TODOS
+los bloqueantes con a quien esperan, TODAS las restricciones sin tope,
+los recuentos, los avisos (CHECKS).
 
-De que salida se deriva: las dos formas literales del arranque,
-TEXTOS.md Sec.3.1 (proyecto con contenido) y Sec.3.2 (proyecto recien
-instalado) -- "los dos bloques son la salida, no un ejemplo" -- y el
-orden exacto de sus cinco bloques que fija spec Sec.8.3: el `NEXT` con
-su contexto debajo, TODOS los bloqueantes con a quien esperan, TODAS las
-restricciones sin tope, los recuentos, los avisos.
+Que NO hace: **solo compone y pinta**. No lee git directamente (llama a
+`query`), no calcula salud (llama a `health.build()`), no escribe nada.
 
-Que NO hace [Sec.9.5]: **solo compone y pinta**. No lee git directamente
-(llama a `query`), no calcula salud (llama a `health.build()`, Sec.9.4),
-no escribe nada.
-
-**`root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas**
-[correccion 2026-08-02]: `context.latest()`/`query.by_zone()` si pueden
-resolver contra el cwd del proceso sin mas, porque solo lo usan como
-`cwd=` de un `git log` -- git resuelve la raiz real del repositorio solo,
-desde cualquier subcarpeta. Pero `notes.pm_root(root)` (usada aqui para
-`indexes.archived_ids(...)`) es **aritmetica de rutas pura, sin tirar de
-git** -- compone `<root>/.claude/project-memory` tal cual, confiando en
-que `root` YA es la raiz pelada del repositorio. Lanzado desde una
-subcarpeta anidada con `root = Path.cwd()`, esa composicion apunta al
-sitio equivocado: se demostro ejecutando (`project=root.name` mostraba el
-nombre de la subcarpeta, y los indices leidos no eran los reales). El
-apano vivia antes en `bin/memory/boot.py` (`os.chdir()` a la raiz antes
-de llamar); se corrige aqui, en la pieza, para que cualquier llamador
-futuro (el hook del arranque, que aun no existe) no tenga que acordarse
-de repetirlo. `notes.repo_root()` resuelve via `git rev-parse
---show-toplevel` [notes_commit.py], igual que ya hace el resto del
-sistema para la misma raiz.
+`root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas:
+`notes.pm_root(root)` es aritmetica de rutas pura sobre `root`, y si el
+proceso arrancara desde una subcarpeta anidada esa composicion apuntaria
+al sitio equivocado.
 
 Se construye con `context`, `health`, `indexes`, `notes`, `query` --
-NUNCA con `report`/`zones` [encargo explicito de esta tarea]. La
-consecuencia de excluir `zones` es un hueco DECLARADO, no un olvido: las
-dos lineas "." de TEXTOS.md Sec.3.2 (`los ocho indices existen y estan
-vacios` / `zones.json: N zonas de trabajo...`) leen `zones.json`, y sin
-importar `zones` este modulo no puede producirlas. Ningun test de
-`test_boot.py` las pide -- quedan fuera de esta pasada, para quien la
-audite despues, mismo criterio que ya aplican `health.py`/`report.py`
-para sus propios huecos declarados.
+nunca con `report`/`zones` (hueco declarado: las dos lineas de
+TEXTOS.md Sec.3.2 que leen `zones.json` quedan fuera).
 
-**"Vigente" se deduce con `indexes.archived_ids(notes.pm_root(root))`**
--- fuente unica desde 2026-08-02: una nota es vigente si su identificador
-no aparece en `ARCHIVED.md`. Antes de esa fecha este modulo (y
-`report.py`, por separado) tenian cada uno su propia copia privada del
-mismo calculo; ahora los dos llaman a la misma pieza de `indexes.py`
-[revision 2026-08-02, hallazgo de Argus]. Un `ARCHIVED.md` que todavia
-no existe cuenta como cero archivados, nunca como un fallo -- sin este
-descuento, `build()` reventaba con `FileNotFoundError` en la
-primerisima sesion de cualquier proyecto, antes de que hubiera una sola
-nota que mostrar [mismo hallazgo, punto 1]. Blockers y restricciones
-salen de ese mismo filtro, sin tope [spec Sec.8.3: "sin tope ni
-presupuesto" -- el presupuesto de renderizado del v1 ocultaba el 94-96%
-de la memoria].
+"Vigente" se deduce con `indexes.archived_ids(notes.pm_root(root))` --
+una nota es vigente si su id no aparece en `ARCHIVED.md`. Un
+`ARCHIVED.md` ausente cuenta como cero archivados, nunca como un fallo.
+Blockers y restricciones salen de ese mismo filtro, sin tope.
 
-**Los tres recuentos sin fila propia en Sec.9.5** (`open_questions`,
-`open_issues`, `open_incidents`) no tienen fuente fijada por ningun texto
-citado en el encargo -- lo declara el propio `test_boot.py` en su
-docstring ("de donde sale cada numero... no esta fijado... fuera de esta
-pasada"). Decision tomada aqui, con los textos delante, para que
-`BootSummary` no quede con un campo sin llenar [el propietario esta
-fuera; instruccion explicita de la tarea: "decide con los textos
-delante y anota lo que decidas"]:
+Los tres recuentos sin fuente fijada en el contrato (`open_questions`,
+`open_issues`, `open_incidents`):
 
-- `open_questions` / `open_incidents`: cuenta de notas Q / I vigentes
-  (mismo filtro de "no archivada" que restricciones y bloqueantes) --
-  spec Sec.3 confirma que Q "asciende a M o cae a X" y que I "se cierra"
-  [spec, tabla de tipos], y las dos salidas mueven la nota a
-  `ARCHIVED.md` por el mismo mecanismo que D/M/R. Sin campo nuevo, sin
-  llamada externa nueva.
+- `open_questions`/`open_incidents`: cuenta de notas Q/I vigentes (Q
+  asciende a M o cae a X, I se cierra -- las dos mueven la nota a
+  ARCHIVED.md por el mismo mecanismo que D/M/R).
 - `open_issues`: cuenta de numeros de issue DISTINTOS que llevan notas
-  vigentes con `Note.issue` puesto. Ese campo YA NO "solo vive en el
-  acta de plan" -- D-044/D-045 (2026-08-22) lo abrieron a los siete
-  tipos [`model.py:68`, "opcional en los siete tipos"]. Se descarta a
-  proposito una segunda llamada a `gh` (el `state` real de la issue en
-  GitHub): `health.py` ya paga una llamada a `gh` por boot dentro de
-  `plans_unreflected()` [`_GH_TIMEOUT`, "0.85s medidos" segun spec
-  Sec.10.4] y anadir una segunda, redundante, en este modulo -- que el
-  propio Sec.9.5 dice que "no calcula salud" -- inflaria el arranque
-  con una dependencia externa mas por una fila que ningun test pide.
+  vigentes con `Note.issue` puesto (el campo es opcional en los siete
+  tipos, no solo en el acta de plan). Se descarta a proposito una
+  segunda llamada a `gh` -- `health.py` ya paga una por boot dentro de
+  `plans_unreflected()`, y este modulo no calcula salud.
 
-  **La etiqueta que se pinta NO dice "issues abiertas"** [correccion
-  2026-08-02, hallazgo de Argus]: ese texto mentia -- el numero nunca
-  pregunta a GitHub, solo cuenta notas LOCALES sin archivar, asi que
-  puede decir "0" con una issue real todavia abierta (su nota se
-  archivo por limpieza rutinaria) o seguir en "1" con la issue ya cerrada
-  hace meses (su nota nunca se archivo) -- y puede contradecir, en la
-  misma pantalla, la linea de `plans_unreflected` de mas abajo, que SI
-  consulta `gh` de verdad. `_recuentos_block()` pintaba "plans with a
-  record", que era exacto mientras solo el acta de plan podia llevar
-  `issue` -- desde D-044/D-045 el mismo numero tambien cuenta una
-  incidencia o un descarte con issue puesto, asi que esa etiqueta dejo
-  de decir lo que el numero mide de verdad [hallazgo de Cerberus,
-  2026-08-22]. Corregido: pinta "issues with a live note", que sigue sin
-  insinuar que conoce el estado real en GitHub (la invariante de Argus
-  no cambia) pero ya no dice "plans"
-  [`test_boot.py::test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas`].
+  La etiqueta que se pinta dice "issues with a live note", nunca "issues
+  abiertas": el numero nunca pregunta a GitHub, solo cuenta notas
+  locales sin archivar, y puede contradecir la linea de
+  `plans_unreflected` (que SI consulta `gh`) en la misma pantalla.
 
 `lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
-de Python [PIEZAS.md Sec.13]. Import plano entre hermanos
-[PIEZAS.md Sec.3.3bis].
+de Python. Import plano entre hermanos.
 """
 
 import textwrap
@@ -182,15 +121,9 @@ def build() -> BootSummary:
     """
     root = notes.repo_root()
     # Lo primero de todo, antes de leer una sola nota: traerse lo que
-    # haya hecho otra maquina. Sin esto el arranque lee el ultimo cierre
-    # de ESTA copia y lo presenta como el estado del proyecto, sin que
-    # nada delate que el trabajo de verdad esta en otra rama y en otro
-    # sitio [decision del propietario, 2026-08-05].
-    # Un repositorio recien creado, sin un solo commit, no tiene rama que
-    # leer todavia -- y ese es el primer arranque de cualquier proyecto,
-    # el caso mas comun que existe. Se sigue sin ella, nunca se revienta
-    # [mismo criterio que `context.latest()` ya aplica a la rama sin
-    # commits].
+    # haya hecho otra maquina, para no presentar el ultimo cierre de
+    # ESTA copia como si fuera el estado del proyecto. Un repositorio sin
+    # un solo commit no tiene rama que leer todavia -- se sigue sin ella.
     try:
         branch = repo_guard.current_branch(root)
     except RuntimeError:
@@ -346,15 +279,8 @@ def _next_block(ctx: ContextNote | None) -> list[str]:
 
 
 def _blockers_section(blockers) -> list[str]:
-    """Privada -- 2026-08-04 [correccion, decision del orquestador,
-    revocable]: era publica solo para que `vocabulary.FIELDS["awaits"]`
-    tuviera un simbolo con ese nombre que encontrar por reflexion; a
-    esta funcion, fuera de este fichero, no la llamaba nadie -- el mismo
-    patron de "lector de mentira" que `report_render.render` (ver su
-    docstring, ya borrado con la funcion). El lector real y publico de
-    `awaits`, el que de verdad se invoca desde fuera del modulo y llega
-    al campo, es `render()` mas abajo: `vocabulary.FIELDS["awaits"].reader`
-    ahora declara `"boot.render"`.
+    """Privada: el lector real y publico de `awaits` es `render()` mas
+    abajo (`vocabulary.FIELDS["awaits"].reader` declara `"boot.render"`).
     """
     if not blockers:
         return [_ZERO_BLOCKERS]
@@ -416,63 +342,34 @@ def _named_block(title: str, notes_seen) -> list[str]:
 
 
 def _avisos_block(summary: BootSummary) -> list[str]:
-    """Los ✓ importan tanto como los ⚠️ [health.py, docstring]: se
-    imprime siempre el numero real, gane o pierda la comparacion, nunca
-    el silencio de una linea ausente.
+    """Los ✓ importan tanto como los ⚠️: se imprime siempre el numero
+    real, gane o pierda la comparacion, nunca el silencio de una linea
+    ausente. Si `gh` fallo, `plans_unreflected_error` lo dice en vez de
+    tumbar el arranque; cada discrepancia de indice o de regla nombra la
+    nota/linea que diverge, no solo los numeros. `rule_discrepancies_error`
+    sigue el mismo patron: si un git corrupto impidio evaluar el chequeo
+    de reglas, esta seccion lo dice y nunca pinta "rules match git" para
+    un chequeo que no corrio.
 
-    Dos anadidos 2026-08-02 (hallazgos de Argus): (1) si `gh` fallo,
-    `plans_unreflected_error` lo dice en esta misma seccion en vez de
-    tumbar el arranque entero -- nunca un cero inventado en su lugar
-    [punto 2]; (2) cada discrepancia de indice nombra la nota que
-    diverge, no solo los dos numeros [punto 4].
+    Los ✓/⚠️ dependen de que la lista de discrepancias este vacia, nunca
+    de comparar `lineas == notas` a secas (dos numeros pueden coincidir
+    aunque el CONTENIDO diverja).
 
-    **Las reglas dejan de pintarse aqui, 2026-08-06** [orden del
-    propietario, mismo dia que `health.coherence_rules()` se retira --
-    ver su docstring]. Entre el 2026-08-02 y hoy, esta seccion pintaba
-    una tercera linea ("rules match git"/"rules do not match git") junto
-    a las otras dos [punto 3 de la lista de arriba, "el vigilante
-    mudo"]; sin ningun commit de regla que `rules.add()` genere ya, ese
-    chequeo habria gritado siempre sobre cualquier regla nueva -- un
-    falso positivo permanente. Se retira la pintura entera, no solo se
-    silencia: CHECKS no vuelve a mencionar las reglas, ni con ✓ ni con
-    ⚠️.
+    Etiquetas estructurales en ingles: CHECKS, "no duplicate IDs"/
+    "duplicate IDs", "indexes match git"/"indexes do not match git",
+    "rules match git"/"rules do not match git". El contenido explicativo
+    se queda en espanol.
 
-    **Ronda 2 (hallazgo 1 de Moriarty) -- el visto bueno que mentia:**
-    los ✓/⚠️ ya no comparan `lineas == notas`/`lineas == commits` (dos
-    numeros que pueden coincidir aunque el CONTENIDO diverja, demostrado
-    ejecutando) -- dependen de que la lista de discrepancias este vacia,
-    y las de reglas se imprimen linea a linea, igual que las de indice.
-
-    Etiquetas estructurales en ingles [decision del propietario,
-    2026-08-03]: AVISOS->CHECKS, "IDs sin duplicados"->"no duplicate IDs"
-    (y su contraparte "duplicate IDs"), "indices coherentes con
-    git"->"indexes match git" (contraparte "indexes do not match git"),
-    "reglas coherentes con git"->"rules match git" (contraparte "rules do
-    not match git"). El contenido explicativo (el motivo real de cada
-    aviso) se queda en espanol.
-
-    **Desglose con archivadas, 2026-08-03** [TEXTOS.md Sec.5, decision del
-    propietario]: "N lineas / M notas" no explicaba por que M > N cuando
-    hay notas archivadas -- ahora, si `report.archived_notes` es cero se
+    Desglose con archivadas: "N lineas / M notas" no explicaba por que
+    M > N cuando hay notas archivadas -- si `archived_notes` es cero se
     pinta igual que siempre; si no, se desglosa "K live + J archived / M
-    notas" con `report.index_lines` como K (las lineas vigentes, que
-    coinciden con las notas vivas cuando todo es coherente) y
-    `report.archived_notes` como J.
+    notas".
 
-    `bench.py` se retira entero, 2026-08-03 [decision del propietario:
-    "no lo he autorizado en la vida"] -- esta seccion ya no pinta ningun
-    veredicto de banco adversarial.
-
-    **Dos avisos mas, anadidos 2026-08-06 [Aviso A/B, fallos 1 y 2
-    reales, ver `health.possible_unconverted_legacy`/`health.memory_mounted`]
-    -- y los DOS, a proposito, rompen la regla de arriba de "los ✓
-    importan tanto como los ⚠️": solo hablan cuando hay algo real que
-    avisar, se callan del todo en un proyecto sano [encargo explicito:
-    "los dos avisos nuevos tienen que callarse"]. No son un chequeo de
-    coherencia como los tres de arriba (una comparacion que siempre tiene
-    un resultado, gane o pierda) -- son una senal de sospecha (Aviso A) y
-    un requisito de arranque (Aviso B), y un requisito cumplido no es
-    noticia.
+    Dos avisos (memoria del sistema anterior sin destilar / memoria no
+    montada) rompen a proposito la regla de arriba: solo hablan cuando
+    hay algo real que avisar, se callan del todo en un proyecto sano --
+    no son un chequeo de coherencia, son una senal de sospecha y un
+    requisito de arranque.
     """
     report = summary.health
     lines = ["CHECKS"]
@@ -520,6 +417,26 @@ def _avisos_block(summary: BootSummary) -> list[str]:
         lines.append(f"   ⚠️  indexes do not match git ({numbers})")
     for text in report.index_discrepancies:
         lines.append(f"      - {text}")
+
+    # Resucitado 2026-08-23 [I-003, hallazgo real de Moriarty] -- mismas
+    # dos etiquetas que la version original de 2026-08-02 fijaba antes de
+    # retirarse el 2026-08-06 (ver `health.py`, "coherence_rules
+    # RESUCITA"). Mismo criterio que arriba: se pinta SIEMPRE, gane o
+    # pierda la comparacion (los ✓ importan tanto como los ⚠️), nunca solo
+    # cuando falla.
+    if report.rule_discrepancies_error is not None:
+        lines.append(
+            "   ⚠️  no se pudo comprobar si las reglas coinciden con git: "
+            f"{report.rule_discrepancies_error}"
+        )
+    else:
+        rule_numbers = f"{report.rule_file_lines} lines / {report.rule_head_lines} committed"
+        if not report.rule_discrepancies:
+            lines.append(f"   ✓  rules match git ({rule_numbers})")
+        else:
+            lines.append(f"   ⚠️  rules do not match git ({rule_numbers})")
+        for text in report.rule_discrepancies:
+            lines.append(f"      - {text}")
 
     return lines
 

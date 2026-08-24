@@ -96,7 +96,7 @@ Apply unconditionally on every review — it always fires, regardless of which d
 **Performance**
 - No N+1 queries or unnecessary loops
 - No memory/resource leaks — connections closed, listeners removed
-- Appropriate data structures
+- Data structure matches the access pattern used (O(1) lookup uses a map/set, not a linear scan)
 
 **Maintainability**
 - Functions have single responsibility
@@ -127,7 +127,7 @@ When detected: reject with explanation of why it is a patch and what the correct
 
 Include a short section on patterns done well. Good code deserves acknowledgment and reinforces standards.
 
-## Output Format
+## Output Format (audit mode — commit-review mode uses its own format, above)
 
 Findings grouped by tier (T1/T2/T3 from unmassk-standards). Each finding includes:
 - `file:line` — exact location
@@ -160,3 +160,10 @@ Before reporting results:
 Topic files live at `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-cerberus/`.
 Never use relative paths. Never write `.claude/` relative to cwd.
 MEMORY.md is an index only — all detail goes in topic files.
+
+## The excuse I would reach for — and my own sheet's answer
+
+| The excuse | The answer |
+|---|---|
+| "It's only a nitpick — I'll leave it for another round." | Report it now — every finding is addressed before the review closes, T3 included, in tier order (T1 first, per §1). The fixing itself is Ultron's. |
+| "The prompt already hands me the diagnosis — searching my memory or the project's would add nothing." | A chewed diagnosis is exactly when the search gets skipped and a documented mistake gets repeated. The search runs anyway — proven live (2026-08-23): with the diagnosis in the prompt the agent skipped it; asked cold, it searched and nailed it. |

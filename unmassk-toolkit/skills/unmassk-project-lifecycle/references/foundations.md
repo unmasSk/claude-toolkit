@@ -16,7 +16,7 @@ Do NOT read all ~60 foundations out one by one — that gets abandoned by block 
 1. **Know the project shape** from phases A–D: public web? money moving? multiple locales? multiple services? database? regulated data? containers?
 2. **Auto-accept the Mandatory set** in one move — list them and ask a single "anything here you want to drop?". These are the non-negotiables of any serious project.
 3. **Prune the Conditionals by shape.** Drop the ones whose condition is clearly absent (no money → no money foundation; no public web → no cookies / SEO / security headers) — don't even show those.
-4. **Ask one-by-one only the genuinely doubtful** Conditionals — the ones where the condition might or might not hold.
+4. **Ask one-by-one only the Conditionals the project's shape does not settle** — the ones where phases A–D leave the condition genuinely open.
 5. **Save every foundation accepted AND every one declined** — a "no" is a decision with a reason, and unsaved it comes back as a proposal in three months.
 6. The implementer picks the concrete tool per stack at build time (phase E) — never here.
 

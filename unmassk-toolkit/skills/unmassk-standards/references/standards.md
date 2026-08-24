@@ -53,7 +53,7 @@ Origin: a real incident where independent review passes unanimously approved cod
 | Tier | Scope | Blocks merge | Action |
 |------|-------|--------------|--------|
 | T1 | Data/memory integrity, crashes, silent failure of a load-bearing path | Yes, always | Immediate fix |
-| T2 | Error handling, core testing, structure | Yes, unless written justification | Fix before merge |
+| T2 | Error handling, core testing, structure | Yes, unless a `Waiver:` line documents the justification (waiver mechanics below) | Fix before merge |
 | T3 | Naming, cosmetics, extra coverage | No | Fix when convenient |
 
 IF uncertain about tier THEN assign T2.
@@ -298,7 +298,7 @@ Five weighted dimensions, calibrated to "the system against itself". **11 weight
 |-----------|--------|------------------|
 | Integrity (data + memory) | ×3 | Pilars 1 & 3 — no corruption, no loss, round-trip verified |
 | Silent-failure / Error handling | ×3 | §4 & §7 — every failure observable, nothing swallowed |
-| Structure | ×2 | §2 — size limits, SOLID, no significant duplication |
+| Structure | ×2 | §2 — size limits, SOLID, no duplication beyond the DRY threshold (3+ occurrences → extract) |
 | Real verification / round-trip | ×2 | tests exist and exercise the real seam, not a fabricated fixture |
 | Maintainability | ×1 | naming, no dead code, no debug prints, constants |
 
@@ -312,7 +312,7 @@ Scoring rules: 10 = all items pass; 9 = one minor miss; 8 = two misses; <8 = ser
 
 **Integrity (×3):** round-trip verified on every real seam (§34); writes atomic (§3); index↔target consistent (§3); no concurrent-write race (§6); no persisted record lost.
 **Silent-failure / Error handling (×3):** no empty/swallowed catch; no masked exit code (§4); fail-open logs its fallback; status not derived from an unsafe proxy; async errors re-thrown or logged (§7); cleanup in `finally`.
-**Structure (×2):** files/functions within limits (§2); SOLID respected; no significant duplication; platform-portable (§5 — path/encoding/env/timeout).
+**Structure (×2):** files/functions within limits (§2); SOLID respected; no duplication beyond the DRY threshold in §2 (extract at 3+ occurrences); platform-portable (§5 — path/encoding/env/timeout).
 **Real verification (×2):** tests exist for load-bearing logic; they exercise the real seam, not a fabricated fixture; **no tautological assertion** (`expect(true)`), **no test depends on execution order**, **no mock that replicates production logic**, mocks cleared between tests; happy path + error paths covered. Do NOT test: getters without logic, re-exports, external library behavior, every parameter combination.
 **Maintainability (×1):** named constants (no magic numbers in config/limits/timeouts); no dead code / debug prints; comments and naming per §11.
 

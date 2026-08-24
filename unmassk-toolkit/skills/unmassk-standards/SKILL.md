@@ -1,6 +1,6 @@
 ---
 name: unmassk-standards
-version: 1.0.0
+version: 1.1.0
 description: >
   Use EVERY TIME code is written, reviewed, tested, audited, or fixed. Generic,
   stack-agnostic quality criteria under the "system against itself" threat model —

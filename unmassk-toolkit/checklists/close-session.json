@@ -1,0 +1,9 @@
+{
+  "skill": "unmassk-close-session",
+  "boxes": [
+    "Limpieza — temporales listados por nombre, o \"ninguno encontrado\" explícito",
+    "Ramas e issues — rama con su estado, issues por número, ficheros sin commitear por nombre",
+    "Alexandria (modo close) — informe recibido: qué corrigió, qué contradicción encontró, qué quedó sin hogar",
+    "Agente de cierre — commit [NEXT] verificado con git log -1"
+  ]
+}

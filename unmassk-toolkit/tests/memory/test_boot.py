@@ -177,6 +177,11 @@ def rules():
 
 
 @pytest.fixture
+def gitcmd():
+    return import_lib_memory_module("gitcmd")
+
+
+@pytest.fixture
 def vocabulary():
     return import_lib_memory_module("vocabulary")
 
@@ -207,6 +212,58 @@ def _zero_commit_repo(tmp_path, name="zero_commit_repo"):
     rc, _out, err = run_git(["init"], str(repo))
     assert rc == 0, f"git init fallo montando el repo sin commits: {err}"
     return repo
+
+
+def _corrupt_head_blob_for_path(root: Path, relpath: str) -> str:
+    """Corrompe DE VERDAD el objeto de `.git/objects` que HEAD apunta
+    para `relpath` -- ni lo borra ni toca `HEAD`/`refs` (`git log`/
+    `git cat-file -e` siguen funcionando; ver comprobacion previa mas
+    abajo), solo trunca el propio objeto para que `git show` no pueda
+    inflarlo. Verificado en vivo antes de escribir este test (probe
+    manual en un repo desechable): `git cat-file -e HEAD:<relpath>`
+    SIGUE devolviendo `returncode == 0` (el path existe segun HEAD),
+    pero `git show HEAD:<relpath>` falla de verdad con
+    `error: inflate: data stream error...` / `fatal: loose object <sha>
+    ... is corrupt` -- exactamente el vector que el encargo describe
+    ("git show/rev-list falle", ".git/objects manipulado"), y exactamente
+    el hueco de `query.show_file_at_head()`: `_exists_at_head()` (que
+    solo usa `cat-file -e`) dice que SI existe, así que el `git show`
+    que sigue se ejecuta y revienta con `RuntimeError` real.
+
+    Devuelve el `stderr` REAL de un `git show` de sondeo contra el
+    objeto ya corrompido -- nunca un texto tecleado a mano
+    [unmassk-standards Sec.34]: la aserción de este test compara el
+    aviso real contra ESTE texto, capturado en el mismo run.
+    """
+    rc, sha, err = run_git(["rev-parse", f"HEAD:{relpath}"], str(root))
+    assert rc == 0 and sha, (
+        f"comprobacion previa: rev-parse de sondeo tiene que resolver un "
+        f"blob real para poder corromperlo -- rc={rc} err={err!r}"
+    )
+    obj_path = root / ".git" / "objects" / sha[:2] / sha[2:]
+    assert obj_path.exists(), (
+        f"comprobacion previa: el objeto {obj_path} deberia existir en disco "
+        "antes de poder corromperlo"
+    )
+    obj_path.chmod(0o644)
+    obj_path.write_bytes(b"garbage-not-a-real-git-object")
+
+    exists_rc, _exists_out, exists_err = run_git(
+        ["cat-file", "-e", f"HEAD:{relpath}"], str(root)
+    )
+    assert exists_rc == 0, (
+        "comprobacion previa: la corrupcion tiene que dejar 'existe segun "
+        f"HEAD' intacto (cat-file -e) -- salio rc={exists_rc} err={exists_err!r}, "
+        "el montaje no reproduce el hueco real de _exists_at_head()"
+    )
+
+    probe_rc, _probe_out, probe_err = run_git(["show", f"HEAD:{relpath}"], str(root))
+    assert probe_rc != 0 and probe_err, (
+        "comprobacion previa: la corrupcion no produjo un fallo real de "
+        f"'git show' -- rc={probe_rc} err={probe_err!r}, el montaje no sirve "
+        "para este test"
+    )
+    return probe_err
 
 
 @pytest.fixture
@@ -635,23 +692,36 @@ def test_context_and_generated_timestamps_carry_the_utc_label(
 # ---------------------------------------------------------------------------
 
 
-def test_checks_block_never_mentions_rules_after_a_normal_add(
+# ---------------------------------------------------------------------------
+# REESCRITO 2026-08-23 [I-003, hallazgo real de Moriarty -- resucito
+# `health.coherence_rules()`, autorizado, parte del mismo arreglo]. El
+# test de arriba (retirado el 2026-08-06 junto con el mecanismo que
+# fijaba) fijaba el mundo "CHECKS nunca menciona reglas" -- eso deja de
+# ser cierto desde que `coherence_rules()` resucita: `boot.py` vuelve a
+# pintar "rules match git"/"rules do not match git" (docstring de
+# `boot.py`, "Resucitado 2026-08-23 [I-003]"), con las MISMAS dos
+# etiquetas que la version de 2026-08-02 usaba antes de retirarse. Este
+# bloque reemplaza esa asercion por la contraria: tras un add normal y
+# comiteado, CHECKS SI menciona las reglas, en verde (match, sin
+# discrepancias) -- mismo criterio que ya rige `indexes match git`
+# arriba en el mismo render: un chequeo mudo cuando todo va bien es
+# indistinguible de uno que no corre.
+# ---------------------------------------------------------------------------
+
+
+def test_checks_block_shows_rules_match_git_after_a_normal_add(
     boot, model, indexes, notes, health, rules, tmp_repo
 ):
-    """El bloque CHECKS del arranque no debe mencionar las reglas en
-    absoluto tras `gitmem rule` -- ni un aviso (falso, ya no hay nada
-    corrupto que detectar) ni una confirmacion (no hay nada que confirmar
-    si el chequeo no existe).
-
-    Escenario mas simple posible: una unica regla, anadida de la forma
-    normal, sin ningun truco.
+    """Tras una regla normal, comiteada de verdad (I-003), el bloque
+    CHECKS tiene que ensenar la linea de reglas EN VERDE -- sin ningun
+    aviso, porque no hay ninguna discrepancia real que reportar.
     """
     root = Path(tmp_repo)
-    marker = "MARK_BOOTRULES_RETIRED una regla normal, anadida como cualquier otra"
+    marker = "MARK_BOOTRULES_MATCH una regla normal, comiteada como cualquier otra"
 
     with _cwd(root):
         indexes.seed(notes.pm_root(root))
-        result = rules.add(marker, "user")
+        result = rules.add(marker, "user", quote="no hace falta cita para este chequeo")
         assert result.ok, f"add() fallo inesperadamente: {result.git_error}"
         summary = boot.build()
         rendered = boot.render(summary)
@@ -660,9 +730,195 @@ def test_checks_block_never_mentions_rules_after_a_normal_add(
     assert len(avisos_split) == 2, f"el render no trae ninguna seccion CHECKS:\n{rendered}"
     avisos_block = avisos_split[1]
 
-    assert "rules" not in avisos_block, (
-        "el bloque CHECKS menciona las reglas -- coherence_rules() deberia "
-        f"estar retirada del todo, sin ✓ ni ⚠️ para las reglas:\n{avisos_block}"
+    assert "rules match git" in avisos_block, (
+        "tras una regla real y comiteada, CHECKS tiene que confirmar que las "
+        f"reglas coinciden con git, no quedarse mudo:\n{avisos_block}"
+    )
+    assert "rules do not match git" not in avisos_block, (
+        "una regla comiteada normal no puede disparar el aviso de discrepancia:\n"
+        f"{avisos_block}"
+    )
+
+
+def test_checks_block_warns_when_a_rule_line_is_uncommitted(
+    boot, model, indexes, notes, health, rules, gitcmd, tmp_repo
+):
+    """Hermano del test de arriba: una linea de regla anadida a mano
+    (sin comitear -- la misma foto que un proceso matado entre la
+    escritura y el commit de `add()`) hace que CHECKS avise de verdad,
+    nombrando la divergencia.
+
+    No duplica `test_health_rules_coherence_contract.py`: aquel fichero
+    prueba `health.coherence_rules()` como funcion de libreria aislada;
+    este prueba la tuberia COMPLETA hasta el render final del arranque
+    (`boot.build()` -> `boot.render()`), la superficie real que
+    `TEXTOS.md Sec.3.1` describe.
+    """
+    root = Path(tmp_repo)
+    committed_marker = "MARK_BOOTRULES_SEED una regla comiteada de verdad"
+    orphan_marker = "MARK_BOOTRULES_ORPHAN una regla anadida a mano, sin commit"
+
+    with _cwd(root):
+        indexes.seed(notes.pm_root(root))
+        seeded = rules.add(committed_marker, "user", quote="cita real de la siembra")
+        assert seeded.ok, f"la siembra tiene que comitear limpia: {seeded.git_error}"
+
+        path = rules.rules_file_path(root)
+        previous = path.read_text(encoding="utf-8")
+        orphan_line = f"[remember][claude] \U0001F9E0 {orphan_marker}"
+        gitcmd.atomic_write(path, previous + orphan_line + "\n")
+
+        summary = boot.build()
+        rendered = boot.render(summary)
+
+    avisos_split = rendered.split("CHECKS", 1)
+    assert len(avisos_split) == 2, f"el render no trae ninguna seccion CHECKS:\n{rendered}"
+    avisos_block = avisos_split[1]
+
+    assert "rules do not match git" in avisos_block, (
+        "una linea de regla sin comitear tiene que disparar el aviso de "
+        f"discrepancia en CHECKS, no quedarse en verde:\n{avisos_block}"
+    )
+    assert orphan_marker in avisos_block, (
+        "el aviso tiene que nombrar la regla huerfana concreta, no solo decir "
+        f"que algo diverge:\n{avisos_block}"
+    )
+
+
+def test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_check(
+    boot, model, indexes, notes, health, rules, make_note, make_context, tmp_repo
+):
+    """KNOWN de Yoda (hallazgo real, este encargo): un git corrupto
+    revienta el arranque entero.
+
+    `health.coherence_rules()` pide el contenido COMITEADO de
+    `rules.md` en HEAD via `query.show_file_at_head()`; si el objeto que
+    HEAD apunta esta corrompido de verdad en disco (`.git/objects`
+    manipulado -- ver `_corrupt_head_blob_for_path` para la corrupcion
+    real, verificada en vivo, no simulada), `git show` falla con un
+    `RuntimeError` real que HOY sube SIN capturar por
+    `health.coherence_rules()` -> `health.build()` -> `boot.build()` --
+    a diferencia de `plans_unreflected()`, cuyo mismo tipo de fallo real
+    (`gh` inalcanzable) SI se captura ahi (`health.build()`,
+    `try/except RuntimeError` alrededor de `plans_unreflected()`) y sale
+    como un aviso, nunca como una excepcion sin capturar. Sin captura,
+    esto tumba `boot.py` entero (`bin/memory/boot.py::main` -> excepcion
+    sin capturar -> `_leave_a_failure_marker` sustituye el informe
+    COMPLETO por el banner de fallo -- ni el Next, ni los bloqueantes, ni
+    las restricciones, nada de lo que si sigue siendo real sobrevive).
+
+    Comportamiento exigido por este contrato (RED antes de que Ultron lo
+    implemente): `boot.build()`/`boot.render()` NO lanzan -- el chequeo de
+    reglas se degrada a un AVISO explicito, mismo patron ya establecido
+    para el fallo real de `gh` (`plans_unreflected_error`, "no se pudo
+    comprobar..."), nombrando el motivo real (nunca fabricado); el resto
+    del informe (NEXT, BLOCKERS, RESTRICTIONS, COUNTS, y los otros dos
+    chequeos de CHECKS -- IDs duplicados e indices) sigue siendo el real,
+    calculado sobre memoria sembrada DESPUES de corromper el objeto; y
+    nada de esto se cuela como una traza de Python en lo que ve el
+    usuario.
+    """
+    root = Path(tmp_repo)
+    zone = "bootgitcorruptzone"
+    ctx = make_context(zone_names=(zone,))
+
+    with _cwd(root):
+        indexes.seed(notes.pm_root(root))
+        seeded_rule = rules.add(
+            "MARK_BOOTGITCORRUPT regla real antes de corromper su objeto",
+            "user",
+            quote="cita real de la siembra, previa a la corrupcion",
+        )
+    assert seeded_rule.ok, (
+        f"comprobacion previa: la siembra de la regla tiene que comitear "
+        f"limpia: {seeded_rule.git_error}"
+    )
+
+    relpath = rules.rules_file_path(root).relative_to(root).as_posix()
+    real_git_error = _corrupt_head_blob_for_path(root, relpath)
+
+    # Memoria sembrada DESPUES de corromper -- `git log`/el commit de una
+    # nota nueva no tocan para nada el objeto de `rules.md`, asi que el
+    # resto del sistema tiene que seguir funcionando intacto.
+    restriction = make_note(
+        type="R",
+        zone1=zone,
+        zone2=zone,
+        headline="MARK_BOOTGITCORRUPT_R restriccion real sembrada tras la corrupcion",
+    )
+    with _cwd(root):
+        write_result = notes.write(restriction, ctx)
+    assert write_result.ok, (
+        f"comprobacion previa: sembrar una nota real tras la corrupcion del "
+        f"objeto de rules.md tiene que seguir funcionando: "
+        f"{write_result.git_error or write_result.rejections}"
+    )
+
+    with _cwd(root):
+        summary = boot.build()  # NO debe lanzar pese al objeto corrupto
+        rendered = boot.render(summary)
+
+    assert isinstance(summary, model.BootSummary), (
+        f"boot.build() no devolvio un BootSummary pese al objeto git "
+        f"corrupto -- devolvio {type(summary)!r} (¿lanzo una excepcion en "
+        "su lugar?)"
+    )
+
+    # El resto del informe sigue siendo el real -- la corrupcion de UN
+    # objeto no puede apagar la restriccion sembrada despues, ni los
+    # otros dos chequeos de salud.
+    assert any(n.id == write_result.note_id for n in summary.restrictions), (
+        "la restriccion real sembrada tras la corrupcion deberia seguir "
+        f"apareciendo en summary.restrictions: {summary.restrictions!r}"
+    )
+    assert "RESTRICTIONS" in rendered and restriction.headline in rendered, (
+        f"el bloque de restricciones deberia seguir pintando la real:\n{rendered}"
+    )
+
+    avisos_split = rendered.split("CHECKS", 1)
+    assert len(avisos_split) == 2, (
+        f"el render tiene que seguir trayendo una seccion CHECKS pese al "
+        f"objeto corrupto:\n{rendered}"
+    )
+    avisos_block = avisos_split[1]
+
+    assert "no se pudo comprobar" in avisos_block, (
+        "el chequeo de reglas deberia degradarse a un aviso explicito, "
+        f"mismo patron que el fallo real de gh -- bloque CHECKS:\n{avisos_block}"
+    )
+    assert "regla" in avisos_block.lower(), (
+        f"el aviso deberia nombrar que es el chequeo de REGLAS el que no se "
+        f"pudo evaluar, no uno generico -- bloque CHECKS:\n{avisos_block}"
+    )
+    assert "rules match git" not in avisos_block, (
+        "un chequeo que no se pudo evaluar nunca puede mostrar un visto "
+        f"bueno fabricado -- bloque CHECKS:\n{avisos_block}"
+    )
+    real_error_fragment = real_git_error.strip().splitlines()[-1].strip()
+    assert real_error_fragment in rendered, (
+        f"el motivo real de git ({real_error_fragment!r}, capturado en este "
+        "mismo run contra el objeto ya corrompido) deberia aparecer en el "
+        f"informe, nunca un texto generico inventado:\n{rendered}"
+    )
+
+    # Los otros dos chequeos de salud (IDs duplicados, indices) siguen
+    # siendo reales -- un objeto corrupto en rules.md no los toca.
+    assert ("no duplicate IDs" in avisos_block) or ("duplicate IDs" in avisos_block), (
+        f"el chequeo de IDs deberia seguir corriendo pese al objeto "
+        f"corrupto:\n{avisos_block}"
+    )
+    assert ("indexes match git" in avisos_block) or ("indexes do not match git" in avisos_block), (
+        f"el chequeo de indices deberia seguir corriendo pese al objeto "
+        f"corrupto:\n{avisos_block}"
+    )
+
+    assert "Traceback" not in rendered, (
+        f"el informe no puede llevar una traza de Python -- Sec.10: "
+        f"'nunca una traza de pila':\n{rendered}"
+    )
+    assert "RuntimeError" not in rendered, (
+        f"el nombre de la excepcion de Python no puede colarse en lo que "
+        f"lee el usuario:\n{rendered}"
     )
 
 
