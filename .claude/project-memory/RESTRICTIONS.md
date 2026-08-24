@@ -9,3 +9,4 @@
 [R-008][architecture][install] write access is only granted in claude-toolkit itself
 [R-010][skills][architecture] agent frontmatter field memory: is real Claude Code API, never delete it
 [R-011][skills][architecture] agent frontmatter field skills: preloads that skill into the subagent, verified
+[R-012][memory][architecture] next_id must receive live index plus archived ids, or an id gets reused forever
