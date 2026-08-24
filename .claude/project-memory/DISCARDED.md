@@ -77,3 +77,4 @@
 [X-075][skills][architecture] partir best-practices.md
 [X-076][skills][architecture] rellenar hoy los ~60 stacks sin material
 [X-077][skills][architecture] recortar la promesa tocando la description del frontmatter
+[X-078][memory][architecture] reparar la carrera con compare-and-swap a nivel de fichero
