@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-08-24
+
+### Added
+- Program-set checklists: loading a process skill (`unmassk-flow`, `unmassk-close-session`, `unmassk-audit`, `unmassk-council`) now dictates its checklist straight to the task board (`hooks/skill-checklist-inject.py`, manifests in `checklists/*.json`), and a Stop-time gate (`hooks/checklist-gate.py`) blocks closing the session while a program-declared box is missing or still pending. Capped at 2 blocks per session, never re-blocks when `stop_hook_active` is set, fails open on any error. Closes the gap where the task board sat lit with zero real uses across 8 sessions.
+- One shared task-prompt template for delegating to agents (`unmassk-core`), with a mandatory CROSS-CHECK line — verify a chewed-in diagnosis against memory, code and search even when it looks settled — and a separate blind template for review lanes (Cerberus, Argus, Moriarty, Yoda never see the delegator's conclusion, only the artifact and the contract it must meet).
+- An "excuse I would reach for" table added to all 9 agent cards and to `unmassk-memory/SKILL.md`, pairing the rationalization an agent might use to skip its own protocol with the documented answer.
+
+### Changed
+- `unmassk-core`: closed the contradiction that still let the orchestrator "on the rare occasion" touch code itself — delegation is now absolute, no exception; added a "Red Flags" table of stop-thoughts; vague delegation rules rewritten as checkable ones.
+- The 9 agent cards: removed the false claim that they receive the project's git memory on their own — only what the orchestrator writes into the prompt, plus a `[DOMAIN SKILL]` block or the frontmatter's own `skills:`/`memory:` fields (now documented as real, verified against Claude Code's own behavior), ever reaches an agent.
+- `unmassk-flow` and `unmassk-close-session`: the CHANGELOG line now states plainly that Alexandria writes it, never the orchestrator; `unmassk-flow`'s "one feature in flight" gate now also allows explicitly parking a feature instead of only finishing it.
+- `unmassk-scaffolding`: the 3 reference files loaded on every scaffold (2,776 lines total) split into per-stack/category indices plus pieces (`references/frameworks/`, `references/wizard/`); 5 real inconsistencies fixed along the way — npm as the default package manager, verification done in the project's own language instead of assuming Node, CSS-approach options flagged where the generator only supports a subset, duplicated config blocks (Pydantic settings, path aliases, coverage thresholds) reduced to one canonical copy, and the deprecated Angular/Karma default replaced with Vitest.
+- `lib/memory/rules.py` and `lib/memory/zones.py` split into smaller pieces under the module's own size ceiling (`rules_commit.py`, `rules_similarity.py`, `rules_validate.py`, `zones_commit.py`, `zones_load.py`, `zones_query.py`); text normalization (lowercase, accent-stripped) unified into one shared `textnorm.py` inside the `lib/memory` boundary; docstrings trimmed to the essential, with the reasoning behind each moved to git-memory instead.
+
+### Fixed
+- `gitmem rule` now actually commits the rule before reporting it saved (incident I-003) — it used to leave the rules file written to disk but uncommitted, a silent failure. A revived coherence check (`health.coherence_rules()`) compares the committed file against HEAD and warns at boot if a rule was ever left uncommitted.
+- The boot health check no longer takes down the whole boot when a git object is corrupt — a failure in the rules-coherence or plan checks is now caught and degrades to a warning instead of crashing the rest of the report.
+- Checklist box matching and zone/similarity normalization now strip accents in addition to lowercasing — previously lowercase-only, so an accented box name or zone word didn't match its plain-ASCII equivalent.
+
 ## [1.38.0] - 2026-08-23
 
 ### Added
