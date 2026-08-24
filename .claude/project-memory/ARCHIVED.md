@@ -26,3 +26,4 @@
 2026-08-22  [D-043][memory][architecture] 🧭 the issue field opens to all seven types; asking moves to session close  →  replaced by D-044
 2026-08-23  [R-009][hooks][testing] ⚠️ test_command runs on every stop, so side effects get multiplied  →  closed: el guardian de tests del Stop se elimino el 2026-08-23 (D-046); nada ejecuta test_command por su cuenta, el muro describe un peligro que ya no existe
 2026-08-23  [M-119][boot][skills] 📌 the task board has zero real calls across all 8 sessions of this repo  →  replaced by M-121
+2026-08-24  [Q-002][skills][architecture] ❓ skills as checklists ticked on the visible board: does that hold?  →  closed: respondida: mecanismo de casillas por programa construido, probado en vivo y publicado en 1.39.0 (ver M nueva)
