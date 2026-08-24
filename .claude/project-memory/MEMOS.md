@@ -106,3 +106,4 @@
 [M-121][boot][skills] the task board IS used: M-119 measured the wrong tool (TodoWrite vs TaskCreate)
 [M-122][memory][architecture] rules and notes families share .git/index.lock: 3 real collisions measured
 [M-123][memory][architecture] git 'not in HEAD' has 3 message forms: check existence by cat-file -e returncode
+[M-124][memory][architecture] textnorm is duplicated in checklist_state on purpose (lib/memory boundary)
