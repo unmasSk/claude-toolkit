@@ -93,26 +93,39 @@ hardening already in `dispatch-contract-notes.md`'s own Update — all confirmed
 non-duplicated piece (`gitcmd.commit_empty()`'s verbatim-cleanup technique) was rescued into
 [gitcmd-contract-notes.md](gitcmd-contract-notes.md)'s own Update section, replaced here by a pointer.
 
-32 files unlinked 2026-08-23, +2 more 2026-08-25 phase 1 (`bench-adversarial` — bench.py never built, confirmed
-absent; `gitto-retirement-test-mapping` — superseded by test_boundary.py's AST orphan gate, itself re-linked
-phase 3 via [piezas-sec13-boundary-tests-notes.md](piezas-sec13-boundary-tests-notes.md)), +4 more 2026-08-25
-phase 2 (`boot-branches-section`, `boot-fetch-prune`, `deuda17-freshness-disclosure`, `deuda-6-18-upstream-guard`
-— all four confirmed targeting `lib/boot_git_checks.py`, deleted 2026-08-05 commit `615f5cc`, `ls` checked
-directly): the v2-build-phase batch (fase0/capa4/capa5/v1-retirement/48-red-retirement/pm-root-migration/
-boot-contract-root-vs-pmroot/issue-81-audit/every other memoria-v2-* file — construction of a now-stable
-system) and the attacker-model batch (issue-53 hardlink/issue-57 family/boot-stdout-banner-v1/feat-boot-freshness/
-bench-adversarial — no external attacker, see CLAUDE.md).
+32 files unlinked 2026-08-23. Named explicitly below by real filename (2026-08-26: a real link-traversal
+found 17 had drifted to keyword-only coverage — a batch label is not the filename):
 
-**Phase 3 (2026-08-25) — re-linked, NOT retired** (found by checking whether each unlinked file's target
-still exists on disk, same technique that caught the 4 `boot_git_checks.py` files in phase 2):
-[piezas-sec13-boundary-tests-notes.md](piezas-sec13-boundary-tests-notes.md) — `tests/memory/test_boundary.py`
-confirmed still live and enforced. [memoria-v2-zonereport-shared-section-notes.md](memoria-v2-zonereport-shared-section-notes.md)
-— `report.py::build_zone`/`build_word` confirmed still live (`report.py:159`/`:190`), sole source for their
-original contract. `doctor-zones-check-retirement-notes.md` and `health-boot-rule-coherence-wiring-notes.md`
-were the SAME kind of find but with a live merge partner instead of a standalone re-link — folded into
-[zones-py-full-contract-notes.md](zones-py-full-contract-notes.md) (as Round 4, `check_project_zones()` still
-lives at `bin/git-memory-doctor.py:306`) and [boot-py-v2-full-contract-notes.md](boot-py-v2-full-contract-notes.md)
-(as Round 1, `health.coherence_rules()` still lives at `health.py:174`) respectively, not deleted.
+- Attacker-model, obsolete per CLAUDE.md (no external attacker in this project):
+  `issue-53-hardlink-reject-contract-notes.md`, `issue-57-fence-a2-close-contract-notes.md`,
+  `issue-57-field-displacement-contract-notes.md`, `issue-57-output-saneo-round2d-contract-notes.md`,
+  `issue-57-root-fix-subject-vector-contract-notes.md`, `issue-57-round2e-fence-invariant-contract-notes.md`,
+  `boot-stdout-banner-contract-notes.md`, `feat-boot-freshness-contract-notes.md`,
+  `bench-adversarial-contract-notes.md` (`lib/memory/bench.py` never built, confirmed absent).
+- Target module `lib/boot_git_checks.py` confirmed deleted (2026-08-05 commit `615f5cc`, `ls` checked directly):
+  `boot-branches-section-contract-notes.md`, `boot-fetch-prune-contract-notes.md`,
+  `deuda17-freshness-disclosure-contract-notes.md`, `deuda-6-18-upstream-guard-regression-notes.md`.
+- v2-build-phase construction history, superseded by the now-stable shipped system (each already-shipped
+  piece's CURRENT contract lives in its own still-linked or merged file, not here):
+  `memoria-v2-fase0-conftest-notes.md`, `memoria-v2-fase0-emojis-utf8-contract-notes.md`,
+  `memoria-v2-conftest-package-collision-notes.md`, `memoria-v2-48-red-retirement-notes.md`,
+  `memoria-v2-boot-memory-precompact-retirement-notes.md`, `memoria-v2-freshness-retirement-notes.md`,
+  `capa4-moriarty-round2-five-bugs-plus-single-reader-notes.md`, `capa5-read-scripts-and-facade-contract-notes.md`,
+  `capa5-scripts-red-contract-notes.md`, `capa5-six-regressions-notes_commit-close-health-bench-reindex-notes.md`,
+  `capa5-work-branch-protection-and-similarity-fix-notes.md`, `pm-root-migration-test-alignment-notes.md`,
+  `boot-contract-root-vs-pmroot-notes.md`, `issue-81-suite-audit-reconfirmation-notes.md`,
+  `gitto-retirement-test-mapping-notes.md` (superseded by test_boundary.py's AST orphan gate, itself re-linked
+  phase 3 via [piezas-sec13-boundary-tests-notes.md](piezas-sec13-boundary-tests-notes.md)).
+- v1→v2 migration bookkeeping itself, now historical: `v1-guard-changeover-2026-08-05-notes.md`,
+  `v1-retirement-batch-notes.md`.
+
+**Phase 3 (2026-08-25) — re-linked, NOT retired** (target confirmed still on disk, same technique that
+caught the 4 `boot_git_checks.py` files): [piezas-sec13-boundary-tests-notes.md](piezas-sec13-boundary-tests-notes.md)
+(`test_boundary.py` still live) and [memoria-v2-zonereport-shared-section-notes.md](memoria-v2-zonereport-shared-section-notes.md)
+(`report.py::build_zone`/`build_word` still live). Two more of the same kind had a live merge partner instead
+of a standalone re-link: `doctor-zones-check-retirement-notes.md` → [zones-py-full-contract-notes.md](zones-py-full-contract-notes.md)
+Round 4; `health-boot-rule-coherence-wiring-notes.md` → [boot-py-v2-full-contract-notes.md](boot-py-v2-full-contract-notes.md)
+Round 1.
 
 9 issue-63 files merged 2026-08-25 (phase 1) into [issue-63-managed-blocks-hardening-notes.md](issue-63-managed-blocks-hardening-notes.md).
 39 files merged 2026-08-25 (phase 2) into 9 same-theme campaign files:
@@ -130,11 +143,5 @@ lives at `bin/git-memory-doctor.py:306`) and [boot-py-v2-full-contract-notes.md]
 campaigns above (`doctor-zones-check-retirement-notes.md` → zones cluster, `health-boot-rule-coherence-wiring-notes.md`
 → boot-py-v2 cluster). Every episode kept under its own dated heading, nothing cut.
 
-Deliberately left un-merged, re-examined phase 3 with reasons recorded in the declining file's own preamble
-(real but weaker thematic fit — "no fuerces lo que no comparta tema"): `notes-stdout-only-git-error-regression-notes.md`,
-`rejection-contract-notes.md`, `rejection-gitcmd-value-presence-and-stdout-regression-notes.md`,
-`customs-doctor-20260806-two-red-contracts-notes.md` (bundles two unrelated modules), `similar-contract-notes.md`
-(no file shares its theme), `d054-shared-textnorm-normalization-contract-notes.md` (cross-cutting `textnorm.py`
-tested via three OTHER clusters' entry points, never mentions `format.py` at all),
-`moriarty-layer1-race-and-list-folding-regression-notes.md` (majority subject is `indexes.py`'s race, not
-`format.py`'s folding gap).
+Files deliberately left un-merged (weaker thematic fit, reasons in each declining file's own
+preamble) are all directly linked above in Topic Files already — no separate list needed here.
