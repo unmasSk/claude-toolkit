@@ -1,6 +1,6 @@
 ---
 name: note-exact-key-zone-duplicate-gate-contract-notes
-description: test_note_exact_key_zone_duplicate_gate.py RED contract -- same-keys+same-zone exact-match gate missing from validate_replacement (Jaccard alone misses it, 0.227 < 0.5); empty-keys-never-matches guard; remove.py fence structurally can never carry keys
+description: test_note_exact_key_zone_duplicate_gate.py RED contract -- same-keys+same-zone exact-match gate missing from validate_replacement (Jaccard alone misses it, 0.227 < 0.5); empty-keys-never-matches guard; remove.py fence structurally can never carry keys; BREAK 2 (Moriarty) -- zone pair compared positionally, not as a set
 metadata:
   type: project
 ---
@@ -66,5 +66,28 @@ unmassk-toolkit/tests/memory/test_note_exact_key_zone_duplicate_gate.py
 `✅ M-002 guardada` stdout (RED for the right reason: gate absent, not
 an import/collection error). `git status --porcelain` before/after
 confirms only this one new test file touched.
+
+**2026-08-25 addendum -- BREAK 2 (Moriarty), fila 8, new RED, same file:**
+same file extended with `TestSameKeysZonesSwappedStillBounces` -- the
+duplicate gate's zone-pair check is POSITIONAL, not a set. Confirmed by
+reading (not assumed) both call sites in `similar.py`: `find_similar`
+(~line 98) and `_find_exact_key_match` (~lines 133-135) both do `if
+note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2:
+continue` -- swap `zone1`/`zone2` between two notes with the same key
+set and both comparisons read "different" even though the pair is the
+same. Reproduced live before writing the test, standalone script against
+a disposable repo through `bin/gitmem` (never in-process): `note M
+--zones gamma delta ...` then `note M --zones delta gamma ...`, same
+keys `(ansible, terraform)`, low-Jaccard headlines (verified 0.1395 <
+0.5 by replicating `_tokens`/`_jaccard` inline) -- both landed with
+`rc==0`, two live ids. Owner decision: the zone pair is a SET for this
+gate specifically -- same principle row 2 already fixed for keys,
+applied to zones now. Does NOT touch how zones are stored/resolved
+anywhere else in the system. Verification: `python3 -m pytest
+unmassk-toolkit/tests/memory/test_note_exact_key_zone_duplicate_gate.py
+-v` -> 1 failed (the new row, for the right reason: `rc_new==0` with a
+real `✅ M-002 guardada`) / 7 passed (all prior rows/controls intact,
+nothing broken). `git status --porcelain` before/after: only this one
+test file touched.
 
 Reference: [similar-contract-notes](similar-contract-notes.md), [validator-contract-notes](validator-contract-notes.md), [note-archived-similarity-bypass-contract-notes](note-archived-similarity-bypass-contract-notes.md)

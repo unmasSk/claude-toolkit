@@ -3572,3 +3572,32 @@ concepts in the same package is a real readability trap for the next
 reader. Renamed to `find_overlapping` before reporting done. Grep
 `find_duplicates` across the whole tree before naming a new
 cross-module symbol in `lib/memory/` — it is not a rare word there.
+
+## Zone-pair-as-set fix (2026-08-25 follow-up): the comparison lives in similar.py, but the CANDIDATE POOL is filtered upstream of it — same seam as the archived-notes precedent
+
+Row 8 of the same test file (`TestSameKeysZonesSwappedStillBounces`,
+Moriarty BREAK 2 — zones written `gamma delta` vs `delta gamma` must
+still bounce): made `find_similar`/`_find_exact_key_match` compare
+`frozenset((zone1, zone2))` instead of `zone1 == ... and zone2 == ...`
+(new private `_zone_pair()` helper) — verified correct in isolation
+(`similar._find_exact_key_match` now matches swapped-zone notes when
+called directly). Test STILL red after that fix, unchanged failure.
+Root cause: `bin/memory/note.py::_build_context()` builds
+`existing_in_zone` via `query.by_zone(zone1, zone2)` — an EXACT
+positional match — before the candidate ever reaches `similar.py`. A
+note stored `zone1=gamma, zone2=delta` is invisible to
+`query.by_zone('delta', 'gamma')`; it never enters `existing`, so no
+comparison inside `similar.py` (however correct) can ever see it. This
+is the exact same seam already documented for the archived-notes fix in
+`implementation-patterns.md` ("filter existing_in_zone at each script's
+Context-build seam (note.py/remove.py), never in query.by_zone (shared
+reader) or validator.py (contractually pure, no I/O)") — candidate-pool
+SHAPE decisions belong at the calling script's Context-build step, not
+inside the shared reader or the pure validator. Reported to the
+orchestrator as blocked rather than silently widening scope past an
+explicit `NO toques note.py` instruction — the task's own LIMITS and its
+own contract were in direct conflict here; check for that conflict
+BEFORE declaring "done" on a similar.py-only zone/key comparison task —
+grep the actual call chain (`note.py`/`remove.py` → `query.by_zone` →
+`validator.Context.existing_in_zone`) before trusting that the fix is
+contained to the file the task named.

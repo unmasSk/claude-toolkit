@@ -80,6 +80,22 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     return len(a & b) / len(union)
 
 
+def _zone_pair(note: Note) -> frozenset:
+    """La pareja de zonas de una nota como CONJUNTO, no como secuencia.
+
+    Solo para las puertas de duplicado de este modulo (``find_similar``,
+    ``_find_exact_key_match``) [BREAK 2 de Moriarty, test
+    ``TestSameKeysZonesSwappedStillBounces``]: dos notas sobre el mismo
+    asunto con la pareja de zonas escrita al reves (``gamma delta`` vs
+    ``delta gamma``) tienen que verse como la MISMA pareja aqui. No toca
+    como se guardan o se resuelven las zonas en ningun otro sitio del
+    sistema -- ``zone1``/``zone2`` siguen teniendo su rol y su orden en
+    el resto del modelo; esto es solo la comparacion dentro de esta
+    deteccion de duplicados.
+    """
+    return frozenset((note.zone1, note.zone2))
+
+
 def find_similar(
     candidate: Note,
     existing: tuple[Note, ...],
@@ -89,13 +105,15 @@ def find_similar(
 
     Compara solo contra notas de la MISMA zona -- ``zone1`` y ``zone2``
     las dos, nunca solo la primera: comparar entre zonas distintas es
-    ruido por definicion [PIEZAS.md Sec.6.5]. No decide que hacer con
+    ruido por definicion [PIEZAS.md Sec.6.5]. La pareja se compara como
+    CONJUNTO, sin orden (``_zone_pair``) -- no decide que hacer con
     el parecido; eso es ``validator.validate_replacement``.
     """
     candidate_words = _tokens(candidate)
+    candidate_zones = _zone_pair(candidate)
     matches = []
     for note in existing:
-        if note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2:
+        if _zone_pair(note) != candidate_zones:
             continue
         if _jaccard(candidate_words, _tokens(note)) >= threshold:
             matches.append(note)
@@ -108,7 +126,9 @@ def _find_exact_key_match(
 ) -> tuple[Note, ...]:
     """Candidatas de ``existing`` que comparten el MISMO conjunto de
     ``keys`` (conjunto, no secuencia -- el orden no importa) en la MISMA
-    pareja de zonas que ``candidate``.
+    pareja de zonas que ``candidate`` -- la pareja tambien se compara
+    como CONJUNTO (``_zone_pair``): ``zone1``/``zone2`` intercambiados
+    cuentan como la misma pareja [BREAK 2 de Moriarty].
 
     Puerta DISTINTA de ``find_similar``: un titular lo bastante distinto
     diluye el Jaccard por debajo del umbral aunque las dos notas traten
@@ -129,9 +149,10 @@ def _find_exact_key_match(
     if not candidate_keys:
         return ()
 
+    candidate_zones = _zone_pair(candidate)
     matches = []
     for note in existing:
-        if note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2:
+        if _zone_pair(note) != candidate_zones:
             continue
         if frozenset(note.keys) == candidate_keys:
             matches.append(note)

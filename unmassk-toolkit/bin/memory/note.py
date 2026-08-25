@@ -107,6 +107,30 @@ def _parse_args(argv):
     return parser.parse_args(argv)
 
 
+def _existing_in_zone_pair(zone1, zone2, archived):
+    """Notas VIVAS de la pareja de zonas ``(zone1, zone2)``, EN CUALQUIER
+    ORDEN [Moriarty BREAK 2, 2026-08-25, mismo helper duplicado a proposito
+    en `hooks/customs.py::_decide_note` -- los dos caminos de entrada
+    tienen que tratar la pareja de zonas igual, sin acoplar los dos
+    scripts entre si ni tocar `query.py`].
+
+    Une ``query.by_zone(zone1, zone2)`` y ``query.by_zone(zone2, zone1)``,
+    dedup por ``id`` (conserva el primer orden en que aparece), y filtra
+    contra ``archived`` -- mismo filtro que ya vivia aqui antes de este
+    arreglo, ahora aplicado a la union de las dos consultas en vez de a
+    una sola.
+    """
+    seen: set[str] = set()
+    matches = []
+    for note in (*query.by_zone(zone1, zone2), *query.by_zone(zone2, zone1)):
+        if note.id in seen:
+            continue
+        seen.add(note.id)
+        if note.id not in archived:
+            matches.append(note)
+    return tuple(matches)
+
+
 def _build_context(pm, zone1, zone2):
     """El `Context` real que `validator.validate_note` necesita -- cada
     campo, leido de la fuente real que ya existe en produccion, nunca
@@ -146,14 +170,22 @@ def _build_context(pm, zone1, zone2):
     cita con `--origin` la incidencia que el propio cierre acaba de
     archivar), y `validate_pointers` solo comprueba que el identificador
     exista alguna vez, no que siga vigente.
+
+    `existing_in_zone` recorre la pareja de zonas en los DOS ordenes
+    (``_existing_in_zone_pair``) [Moriarty BREAK 2, 2026-08-25]: la
+    puerta de duplicados de `similar.py` ya compara `zone1`/`zone2` como
+    CONJUNTO, pero de nada sirve si la nota con las zonas al reves nunca
+    llega a `existing_in_zone` -- `query.by_zone(zone1, zone2)` por si
+    sola es una coincidencia posicional exacta y la deja fuera. No toca
+    `query.by_zone()` ni como se resuelven las zonas en ningun otro
+    camino: solo une sus dos llamadas aqui, en el mismo sitio donde ya
+    vive el filtro de archivadas.
     """
     zones_map = zones_lib.load(pm / "zones.json")
     zone1 = zones_lib.resolve(zone1, zones_map) or zone1
     zone2 = zones_lib.resolve(zone2, zones_map) or zone2
     archived = indexes.archived_ids(pm)
-    existing_in_zone = tuple(
-        n for n in query.by_zone(zone1, zone2) if n.id not in archived
-    )
+    existing_in_zone = _existing_in_zone_pair(zone1, zone2, archived)
     known_ids = frozenset(n.id for n in query.by_zone(None, None))
     cfg = config.load(pm / "config.json")
     ctx = validator.Context(

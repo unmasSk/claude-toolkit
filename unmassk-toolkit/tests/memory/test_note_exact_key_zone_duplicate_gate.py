@@ -48,7 +48,7 @@ no cuenta como coincidencia) -- ver
 limitacion real de `remove.py`, reportada aqui, no arreglada -- arreglar
 es trabajo de Ultron.
 
-QUE SE FIJA, en siete tests (seis RED, uno control aparte etiquetado
+QUE SE FIJA, en ocho tests (siete RED, uno control aparte etiquetado
 GREEN explicitamente en su propio docstring):
 
 1. Titulares distintos + mismas claves (mismo orden) + misma zona -> la
@@ -72,6 +72,21 @@ GREEN explicitamente en su propio docstring):
 7. Mismo invariante que 6, pero por el SEGUNDO camino de llamada
    (`remove.py --restriction new`): dos muros con claves vacias en la
    misma zona, textos distintos, tienen que nacer los dos sin rebote.
+8. BREAK 2 de Moriarty, RED nuevo: la pareja de zonas se compara HOY
+   POSICIONALMENTE, no como conjunto -- confirmado leyendo el codigo
+   (no supuesto) en `similar.py::find_similar` (`if note.zone1 !=
+   candidate.zone1 or note.zone2 != candidate.zone2: continue`, ~linea
+   98) y `similar.py::_find_exact_key_match` (mismo patron, ~lineas
+   133-135). Dos notas con las MISMAS claves y la MISMA pareja de zonas
+   escrita AL REVES (`--zones gamma delta` vs `--zones delta gamma`)
+   hoy entran las dos limpias -- reproducido en vivo antes de escribir
+   este test (`bin/gitmem note M --zones gamma delta ... --zones delta
+   gamma ...`, las dos con `rc==0`). El propietario decidio que la
+   pareja de zonas se trata como CONJUNTO para esta puerta -- mismo
+   principio que la fila 2 ya fijo para las claves, aplicado ahora a las
+   zonas. No toca cómo se guardan/resuelven las zonas en ningun otro
+   sitio del sistema -- solo la comparacion de esta puerta de
+   duplicados. Ver `TestSameKeysZonesSwappedStillBounces`.
 
 Ejecutado via `bin/gitmem` (la fachada, PIEZAS.md Sec.10 fila
 `bin/gitmem`: "despacha sin logica propia") contra un `tmp_repo`
@@ -134,6 +149,14 @@ _OTHER_DESCRIPTION = (
     "notices only after the customer complains"
 )
 _OTHER_KEYS = ("pdf-render", "invoice-overflow", "line-items")
+
+# Claves para la fila 8 (BREAK 2 de Moriarty, zonas al reves) -- las que
+# el encargo pide literalmente. Jaccard verificado en vivo con estas
+# claves y el mismo par de titulares OLD/NEW de arriba: 0.1395,
+# claramente por debajo de `vocabulary.SIMILARITY_THRESHOLD` (0.5) --
+# el detector de parecido de siempre (`similar.find_similar`) no es lo
+# que tiene que atrapar esta pareja tampoco aqui.
+_ZONE_ORDER_KEYS = ("ansible", "terraform")
 
 
 def _write_note(repo, note_type, zone1, zone2, headline, description, *, keys=(), stops=None, replaces=None):
@@ -223,6 +246,61 @@ class TestSameKeysDifferentOrderStillBounces:
         pm = pm_path(tmp_repo)
         live_ids = {line.id for line in indexes.read("MEMOS.md", pm)}
         assert live_ids == {old_id}
+
+
+class TestSameKeysZonesSwappedStillBounces:
+    """Fila 8 -- BREAK 2 de Moriarty. Misma logica que la fila 2, pero
+    sobre la PAREJA DE ZONAS en vez de sobre las claves: dos notas con
+    el mismo conjunto de claves (mismo orden esta vez, para aislar la
+    variable que se prueba aqui) escriben la misma pareja de zonas en
+    orden CONTRARIO (`--zones gamma delta` la vieja, `--zones delta
+    gamma` la nueva). La puerta tiene que tratar la pareja como
+    CONJUNTO -- sin orden -- y rebotar igual que si las zonas hubieran
+    llegado en el mismo orden.
+
+    HOY no rebota: `similar.py::find_similar` (~linea 98) y
+    `similar.py::_find_exact_key_match` (~lineas 133-135) comparan
+    `note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2`
+    posicionalmente -- `zone1`/`zone2` intercambiados hace que las dos
+    comparaciones den `True` (distintas) aunque la pareja sea la misma.
+    Reproducido en vivo antes de escribir este test contra `bin/gitmem`
+    real: las dos notas quedan con `rc==0`, dos ids vigentes en el
+    indice -- el mismo hueco que fija esta fila, no una suposicion."""
+
+    def test_same_keys_with_the_zone_pair_written_in_reverse_order_still_bounces(
+        self, tmp_repo, indexes
+    ):
+        seed_zones_json(tmp_repo, ["gamma", "delta"])
+
+        rc_old, out_old, err_old = _write_note(
+            tmp_repo, "M", "gamma", "delta",
+            _OLD_HEADLINE, _OLD_DESCRIPTION, keys=_ZONE_ORDER_KEYS, stops="no",
+        )
+        assert rc_old == 0, f"stdout={out_old!r} stderr={err_old!r}"
+        old_id = extract_note_id(out_old)
+
+        rc_new, out_new, err_new = _write_note(
+            tmp_repo, "M", "delta", "gamma",
+            _NEW_HEADLINE, _NEW_DESCRIPTION, keys=_ZONE_ORDER_KEYS, stops="no",
+        )
+        assert rc_new != 0, (
+            "la misma pareja de zonas escrita al reves tiene que rebotar "
+            f"igual que en el mismo orden: stdout={out_new!r} stderr={err_new!r}"
+        )
+        combined = out_new + err_new
+        assert "Traceback" not in combined
+        assert old_id in combined, (
+            f"el rechazo tiene que nombrar la candidata real ({old_id}): {combined!r}"
+        )
+        assert "--replaces" in combined, (
+            f"el rechazo tiene que pedir --replaces como salida: {combined!r}"
+        )
+
+        pm = pm_path(tmp_repo)
+        live_ids = {line.id for line in indexes.read("MEMOS.md", pm)}
+        assert live_ids == {old_id}, (
+            f"la nota rechazada no puede haber entrado en el indice: {sorted(live_ids)!r}"
+        )
 
 
 class TestDifferentKeysSameZoneDoesNotBounce:

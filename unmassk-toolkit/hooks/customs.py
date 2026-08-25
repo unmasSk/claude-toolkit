@@ -97,10 +97,12 @@ deliberado, se anota, no se rellena con criterio propio):
    ciegas.
 6. **El Context real para `validator.validate_note`** se arma leyendo
    el estado real del repositorio -- `zones.load`, `query.by_zone` (para
-   `existing_in_zone` y, con `(None, None)`, para `known_ids`),
-   `config.load` -- exactamente el mismo patron que
-   `bin/memory/note.py::_build_context` [visto en produccion antes de
-   escribir esto], no un `Context` vacio fabricado a mano. En un
+   `existing_in_zone`, en las DOS ordenes de la pareja de zonas via
+   `_existing_in_zone_pair` [Moriarty BREAK 2, 2026-08-25] -- y, con
+   `(None, None)`, para `known_ids`), `config.load` -- exactamente el
+   mismo patron que `bin/memory/note.py::_build_context` [visto en
+   produccion antes de escribir esto], no un `Context` vacio fabricado a
+   mano. En un
    repositorio de pruebas recien creado (sin notas todavia) esto
    coincide byte a byte con un `Context` vacio, que es lo que
    `tests/memory/test_customs_hook.py::_expected_block_text` construye
@@ -654,6 +656,30 @@ def _decide_rescue_passthrough(subcommand, rest_tokens):
 # partida en piezas pequeñas [regla de 50 LOC por funcion]. ─────────────
 
 
+def _existing_in_zone_pair(zone1, zone2, archived):
+    """Notas VIVAS de la pareja de zonas ``(zone1, zone2)``, EN CUALQUIER
+    ORDEN [Moriarty BREAK 2, 2026-08-25, mismo helper duplicado a proposito
+    en `bin/memory/note.py::_existing_in_zone_pair` -- los dos caminos de
+    entrada tienen que tratar la pareja de zonas igual, sin acoplar los
+    dos scripts entre si ni tocar `query.py`].
+
+    Une ``query.by_zone(zone1, zone2)`` y ``query.by_zone(zone2, zone1)``,
+    dedup por ``id`` (conserva el primer orden en que aparece), y filtra
+    contra ``archived`` -- mismo filtro que ya vivia aqui antes de este
+    arreglo, ahora aplicado a la union de las dos consultas en vez de a
+    una sola.
+    """
+    seen: set[str] = set()
+    matches = []
+    for n in (*query.by_zone(zone1, zone2), *query.by_zone(zone2, zone1)):
+        if n.id in seen:
+            continue
+        seen.add(n.id)
+        if n.id not in archived:
+            matches.append(n)
+    return tuple(matches)
+
+
 def _decide_note(note, pm, cfg):
     """El commit trae un mensaje que SI parsea como `Note` -- se valida
     con el Context real del repositorio [ver "ASUNCIONES DE FIRMA"
@@ -664,9 +690,7 @@ def _decide_note(note, pm, cfg):
         reason = rejection_.render_hook_block(_corrupt_file_rejection("zones.json", exc))
         return {"decision": "block", "reason": reason}
     archived = indexes.archived_ids(pm)
-    existing_in_zone = tuple(
-        n for n in query.by_zone(note.zone1, note.zone2) if n.id not in archived
-    )
+    existing_in_zone = _existing_in_zone_pair(note.zone1, note.zone2, archived)
     known_ids = frozenset(n.id for n in query.by_zone(None, None))
     ctx = validator.Context(
         zones=zones_map,
