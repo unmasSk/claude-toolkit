@@ -83,7 +83,7 @@ Estas cinco salieron de fallos reales, no de teoría.
 
 ## Reglas vivas
 
-- **Nada se commitea sin que él lo diga.** La memoria sí se guarda sola.
+- **El trabajo rutinario se commitea y se pushea a cada paso** (D-057); solo se para a pedir permiso cuando el cambio es de alto riesgo: irreversible, de seguridad, o que él no pueda verificar por su cuenta. La memoria se guarda sola.
 - **Nadie usa `git stash`, `reset`, `checkout` ni `restore`** sobre trabajo sin guardar: se perdería todo.
 - **Permiso de escritura solo en este repositorio.** En cualquier otro del propietario, lectura y nada más.
 - **No hay atacante externo** en el modelo de amenaza. La única amenaza es el sistema rompiéndose a sí mismo: memoria perdida o corrompida, escritura en el sitio equivocado, fallo que pasa callado. Un hallazgo sobre entrada hostil aquí sobra.
