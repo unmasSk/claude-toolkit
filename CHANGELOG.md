@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Nueva skill `unmassk-groundhog` (Protocolo Día de la Marmota)**: ante cualquier proyecto, inventaría lo que se repite cada sesión (memoria git, reglas, historial de Next, CLAUDE.md, memorias de agentes, commits, docs), lo cruza contra las skills ya existentes y criba los candidatos por tres preguntas — ¿estable?, ¿mecánico?, ¿recurrente? — proponiendo como máximo 1-3 con evidencia citada; solo crea una skill tras la aprobación del propietario. Incluye el oficio destilado de la skill-creator oficial de Anthropic para que las skills que genere respeten el formato canónico (frontmatter, los tres niveles de carga, `scripts/`/`references/`/`assets/`). Anclada en el menú de protocolos de `unmassk-core` y en el README.
+
 ## [1.40.0] - 2026-08-25
 
 ### Added

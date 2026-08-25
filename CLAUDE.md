@@ -145,6 +145,10 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 - Audit a module or an enterprise review request → Skill `unmassk-audit` (14-step structured audit, weighted score out of 110)
 
+**Hunting repetition (Groundhog Protocol):**
+
+- What the project does or needs repeatedly, every session, that no skill covers yet — "protocolo marmota" → Skill `unmassk-groundhog` (inventory the repetition, check coverage, propose at most 1-3 skill candidates with cited evidence; a skill is created only after the owner approves)
+
 **Ending a session:**
 
 - Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)

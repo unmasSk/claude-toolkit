@@ -285,6 +285,7 @@ Read the skill FIRST. Improvising a review and reading the skill afterwards mean
 | Ambiguous request or a decision with stakes → interrogate first | `unmassk-grill` |
 | A real choice between options / "help me decide" | `unmassk-council` |
 | Reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references | `unmassk-memory-doctor` |
+| Hunting repetition — what the project does every session that no skill covers yet, and turning it into one ("protocolo marmota") | `unmassk-groundhog` |
 | Wrapping up / handoff | `unmassk-close-session` |
 
 The project instruction file carries the same menu — duplicated on purpose.
