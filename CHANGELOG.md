@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- `unmassk-memory`: los muros dejan de listarse en el menú de apertura de sesión. El menú vuelve a tener 4 secciones fijas (Today, Blockers, Open questions, Incidents & plans); los muros los sigue leyendo y aplicando Claude, pero solo se mencionan al usuario en una línea si bloquean directamente lo que va a hacer. Cuando el usuario pide verlos, se presentan en una tabla limpia y en llano — nunca como volcado de ids y zonas.
+
 ## [1.41.0] - 2026-08-25
 
 ### Added
