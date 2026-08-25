@@ -1,5 +1,32 @@
 # Judgment Patterns
 
+## Nota de vigencia (compactación 2026-08-25) — lee esto antes de citar un file:line de abajo
+
+Este fichero es un registro cronológico de veredictos reales. La mayoría de las entradas de
+2026-06-09 a 2026-07-25, más las de 2026-08-06 y 2026-08-20, juzgan el sistema de memoria/boot
+ANTERIOR (`hooks/session-start-boot.py`, `lib/boot_git_checks.py`, `lib/boot_memory.py`,
+`lib/boot_glossary_cache.py`, `lib/boot_fetch_stamp.py`, `bin/git-memory-upgrade.py`,
+`bin/git-memory-commit.py`, `bin/git-memory-gc.py`, `lib/bootstrap_commits.py`,
+`hooks/pre-validate-commit-trailers.py`, `hooks/stop-dod-gate.py`) — **borrado del repositorio**:
+el grueso el 2026-08-05 (commit `615f5cc`, "borrado el sistema de memoria anterior y retirada su
+documentacion de obra", reescritura completa a memoria-v2/gitmem — ver `CLAUDE.md`: "El sistema
+anterior está borrado del repositorio"), y `hooks/stop-dod-gate.py` aparte el 2026-08-23 (commit
+`5f6b513`, "fuera los seis ficheros del guardian"). Verificado por mí mismo con `find`/`git log
+--diff-filter=D` el 2026-08-25, no de memoria.
+
+**Antes de reutilizar cualquier cita de file:line de una entrada anterior a 2026-08-06, comprobar
+primero si el fichero sigue existiendo** (`find`/`ls`) — si no existe, el HECHO concreto que
+describía ya no es verificable contra el código actual, pero la TÉCNICA de verificación (cómo
+reproducir un sabotaje en vivo, cómo leer un canal de CI, cómo distinguir narración de evidencia)
+sigue siendo válida y reutilizable contra el sistema actual (`bin/gitmem`, `lib/memory/`).
+Ficheros confirmados que SÍ sobrevivieron ambas reescrituras y siguen siendo el código real hoy:
+`lib/git_helpers.py`, `lib/install_apply.py`, `lib/parsing.py`, `lib/upgrade_check.py`,
+`lib/boot_health.py`, `lib/managed_blocks.py`, `hooks/session-start-crew.py`, `hooks/customs.py`,
+`hooks/user-prompt-memory-check.py`, `bin/git-memory-doctor.py` (creció a 714 líneas, era 518 en
+2026-07-05), `bin/release.py`+helpers (repo root). Las entradas de 2026-08-22 en adelante (`--issue`
+en los siete tipos de nota, I-003 rules.py split, textnorm.py) ya juzgan el sistema `lib/memory/`
+actual — verificadas vigentes.
+
 ## 2026-06-09 — Release script (release.py + release_helpers.py)
 
 **Pattern: verificar fixes de Moriarty directamente en código, no en tests.**
@@ -558,7 +585,7 @@ El fix reordena `_COMMIT_CREATING_SUBCOMMANDS` (un `set`, orden dependiente del 
 priorizar `rebase`/`merge`/`cherry-pick` en el fallback de `_find_commit_creating_statement` cuando
 `shlex.split()` falla. Corri la clase de test real (`TestRescuePassthroughSurvivesShlexTokenizationFailure`)
 bajo `PYTHONHASHSEED=0..4`: 5/5 verde con el fix. Luego muté una copia EN MEMORIA (no en disco de forma
-permanente -- ver lessons.md, incidente de git-safety de esta misma sesión) quitando solo el reordenamiento
+permanente -- ver conventions.md, sección "Git-safety HARD RULE", incidente de esta misma sesión) quitando solo el reordenamiento
 (dejando el resto del fix intacto) y corrí `PYTHONHASHSEED=0..7`: rojo en 6/8 seeds, con fallos distintos según
 el seed (a veces `merge --abort`, a veces `rebase --continue`/`--skip`) -- exactamente el bug no-determinista
 que el fix documenta haber cerrado. El fix es real, no cosmético.
@@ -571,7 +598,7 @@ reportan, verificado por un canal independiente (stdout JSON real del proceso, n
 
 **Pattern: "N fallos preexistentes, confirmado por Ultron revirtiendo sus ficheros" se re-verifica con
 `git show HEAD:<path> > <path>` (lectura pura), NUNCA con `git stash`/`git checkout --` en este repo específico.**
-Ver lessons.md -- este repo tiene una regla dura de git-safety escrita por Ultron (múltiples sesiones
+Ver conventions.md, sección "Git-safety HARD RULE" -- este repo tiene una regla dura de git-safety escrita por Ultron (múltiples sesiones
 concurrentes sin commitear en el mismo árbol). Repetí la comparación de los 3 fallos (`test_boundary.py` x2,
 `test_rejection_relaunch_commands.py` x1) con el método correcto después del incidente: idénticos antes/después,
 confirmado también que un 4to fallo que apareció en una corrida completa (`test_gitcmd.py::

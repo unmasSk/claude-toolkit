@@ -5,6 +5,15 @@ metadata:
   type: project
 ---
 
+Nota 2026-08-25 (compactación de memoria, sin tocar ninguna entrada de
+abajo): las rondas fechadas 2026-06 a 2026-07 (recall.py, boot freshness
+issues #49/#55/#57/#59/#60, issue #63, capa 2/3 iniciales, atomic
+CLAUDE.md write) atacaron el sistema de memoria v1, borrado entero el
+2026-08-05 (commit `615f5cc`). Esos ficheros ya no existen — el detalle
+completo se queda aquí como historial, pero no hace falta releerlo para
+atacar el código de hoy. `attack-patterns.md`/`resilience.md` ya separan
+"sistema actual" de "retirado" con la lección transferible condensada.
+
 ## D-056 memory-legibility batch first attack (chain view + duplicate gate + rule retract/replace, uncommitted -- 2026-08-25)
 Target: 4 new functions from D-056 ("la memoria se guarda bien pero se lee
 mal") in the memory system's render/validation/rules layers, all

@@ -97,6 +97,14 @@ correct with no defensive fallback.
 ## hooks/pre-task-recall.py issue #68 history: updatedInput propagation bug,
 ## the deny-gate redo, and its later removal (2026-07-12)
 
+**The hook itself is gone** — `hooks/pre-task-recall.py` doesn't exist
+(confirmed 2026-08-25; the `UserPromptSubmit` hook today is
+`hooks/user-prompt-memory-check.py`, part of the v1 boot-chain deletion,
+see [[lessons]]'s top banner). Kept for the `_allow_with_injection`/
+wire-format lessons, which fed directly into memoria-v2's `hooks/inject.py`
+(see [[implementation-patterns]]'s "memoria-v2 inject.py" entry, which
+cites this exact history via `git log --all --diff-filter=D`).
+
 First attempt at #68 (silent skill injection, mirroring how the existing
 git-memory `_allow_with_injection()` rewrites `tool_input.prompt`) was
 implemented, tested green, then fully reverted (`git show 7497f61`) because
@@ -144,13 +152,22 @@ different problem -- don't conflate them or invent a third:
 - `unmassk-toolkit/lib/upgrade_check.py::_parse_semver()` -- simple
   `(major, minor, patch)` int-tuple parser (no pre-release support, returns
   `None` on anything else), the oracle `needs_upgrade()`'s Check 2 already
-  trusts for `manifest_tuple < code_tuple`. `unmassk-toolkit/lib/boot_health.py::check_version_mismatch()`
+  trusts for `manifest_tuple < code_tuple`. **Still live, confirmed
+  2026-08-25** — `_parse_semver` is still used inside `needs_upgrade()`'s
+  Check 2 (`hooks/user-prompt-memory-check.py` re-imports it, per that
+  file's own module docstring). `unmassk-toolkit/lib/boot_health.py::check_version_mismatch()`
   used to compare with raw string inequality (`installed != PLUGIN_VERSION`),
   which suggested "update" even when the installed version was numerically
   NEWER than the code (issue #64, PoC: manifest "9.9.9" vs code "1.19.4").
-  Fixed by importing `_parse_semver` into `check_version_mismatch()` and
-  gating the warning on `installed_tuple < code_tuple` -- same function,
-  imported, not re-derived.
+  Fixed (at the time) by importing `_parse_semver` into
+  `check_version_mismatch()` and gating the warning on `installed_tuple <
+  code_tuple` -- same function, imported, not re-derived. **`check_version_mismatch()`
+  itself no longer exists** — dropped in the 2026-08-05 v1 boot-chain
+  deletion, zero callers left once `hooks/session-start-boot.py` was
+  retired (see [[v1-boot-chain-deletion]]); the fix history above is moot
+  for that specific function but the reuse pattern (`_parse_semver` as the
+  one comparator, imported not re-derived) is exactly what
+  `needs_upgrade()` does today.
 
 **Addendum (issue #58 T3, 2026-07-14):** `bin/release_validators.py:_semver_key()`'s
 `isascii() and isdigit()` guard was already committed in `0fab68eb` (2026-07-12,

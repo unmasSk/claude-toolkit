@@ -1,9 +1,23 @@
 ---
 name: boot-timeline-scope
-description: unmassk-toolkit boot render wiring — TIMELINE git-log call/count-limit location + exclude_remote guard, and the STATUS section's PLUGIN: repo-vs-cache drift count line
+description: RETIRED SUBJECT (confirmed 2026-08-25) — lib/boot_render.py, lib/boot_git_checks.py, lib/boot_memory.py were deleted 2026-08-05 ([[v1-boot-chain-deletion]]). Kept for the TIMELINE/exclude_remote/PLUGIN-line design reasoning, which generalizes; the PLUGIN repo-vs-cache check itself now lives in bin/git-memory-doctor.py instead (still current).
 metadata:
   type: project
 ---
+
+**RETIRED SUBJECT, kept for the reasoning.** Every file this entry names
+(`lib/boot_render.py`, `lib/boot_git_checks.py`, `lib/boot_memory.py`,
+`hooks/session-start-boot.py`) was deleted 2026-08-05 — see
+[[v1-boot-chain-deletion]] and [[lessons]]'s top banner. The `PLUGIN:`
+repo-vs-cache drift check this entry documents is NOT gone: it moved to
+`bin/git-memory-doctor.py` (confirmed still present 2026-08-25) — see
+`unmassk-toolkit-python-entrypoints.md`'s "Since 2026-07-29
+`bin/git-memory-doctor.py` checks this itself" section for the current
+version. What's below is the ORIGINAL design reasoning (why a
+`--exclude=refs/remotes/<name>/*` guard is needed on any `--all`-scanning
+git-log call, why the PLUGIN line needed to exist at all) — still useful
+if the same class of check gets added to whatever reads git history next,
+just not a pointer to live code anymore.
 
 ## Where the boot TIMELINE's git log call and count limit actually live
 

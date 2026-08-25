@@ -47,6 +47,14 @@ a disposable scratch dir several `cd`s away from the real project; write a
 
 ## stop-dod-gate.py: distinguishing "not configured" (silent) from "corrupt config" (warn) while staying fail-open (2026-08-06)
 
+**RETIRED (confirmed 2026-08-25):** `hooks/stop-dod-gate.py` and the rest
+of the DoD-gate subsystem it belonged to no longer exist — replaced by
+`hooks/checklist-gate.py` + `lib/checklist_state.py` as the `Stop` hook
+(a different, checklist-based mechanism, see [[lessons]]'s
+"casillas-por-programa" entries). Kept below for the pattern only
+(silent-vs-warn split on a config-read failure, scoping a promise to its
+real caller) — the file/function names are dead.
+
 `unmassk-toolkit/hooks/stop-dod-gate.py`'s `_read_test_command()` used to catch `(OSError, json.JSONDecodeError)` in one clause and return `None` for both — making a genuinely-missing `config.json` (normal opt-in-not-configured state, must stay silent) indistinguishable from a *present but corrupt* one (invalid JSON, or the path is a directory → `PermissionError`/`IsADirectoryError`). Fix: split the except into `except FileNotFoundError: return None` (silent, no warning) first, then `except (OSError, json.JSONDecodeError) as e:` (any other OSError, i.e. file exists but is unreadable/invalid) which calls a small `_warn_corrupt_config()` helper that writes a best-effort stderr message (wrapped in its own `try/except Exception: pass`, never lets a stderr write failure escape) before returning `None`. Still fully fail-open (never blocks close) — the fix is "warn, don't stay silent," not "fail loud." `FileNotFoundError` must be caught *before* the broader `OSError` clause since it's a subclass. Reusable for any opt-in hook that reads a project config file and must tell "not configured" apart from "configured but broken" without ever blocking on its own infra problems. Also surfaced: `lib/memory/config.py`'s docstring claimed a blanket "corrupt file always fails high, never silent" guarantee — that's only true for callers that go through *its* `load()` (e.g. `customs.py`); `stop-dod-gate.py` reads the same file path with its own direct `json.load()`, bypassing `config.py` entirely, so the guarantee never applied to it. Docstring corrected to scope the promise to `load()`'s actual callers and name the second reader's different (fail-open + warn) contract explicitly, rather than continuing to overclaim.
 
 ## memoria-v2 boot_launcher.py: "no-logic" SessionStart hook = subprocess with inherited stdio (2026-08-02)

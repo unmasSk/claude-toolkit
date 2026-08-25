@@ -312,3 +312,13 @@ services/agent-prompt.ts, services/agent-runner.ts, services/agent-result.ts, db
 - `SELECT rowid, *` in the null branch of getMessagesSince: still present. The suggestion from prior audit to use `SELECT *` in the inner subquery remains open (SQLite allows ORDER BY rowid on derived tables without projection in practice, but it is non-standard). Not a bug, S only.
 
 #### VERDICT: Approve with suggestions. 1 T2 (generic throw — pre-existing, not introduced by this diff). 1 structural S (test SQL not updated to match production fix). 0 regressions introduced.
+
+## 2026-03-18 — early bridge/WS/mention backend findings (moved here 2026-08-25 from anti-patterns.md during memory compaction; chronologically predates the sections above)
+
+Two findings not re-verified against current code this pass (chatroom hasn't been touched since 2026-06-09) — check against the live file before relying on them in a future review:
+
+- **`auth-tokens.ts` — unbounded in-memory token Map.** An in-memory `Map<string, TokenEntry>` for WS auth tokens with no size cap, fed by an unauthenticated, rate-limit-free `POST /api/auth/token` endpoint — a memory-exhaustion vector (the GC interval only removes expired entries, never caps total size). Re-verified live 2026-08-25: `grep -n "TOKEN_MAX" auth-tokens.ts` still returns zero hits — the cap does not exist yet. Still open.
+- **Duplicated rate-limit token-bucket implementation.** `checkApiRateLimit` (`api.ts`), `checkInviteRateLimit` (`invite.test.ts`), `checkRateLimit` (`ws.ts`) were reported as 3 independent copies of the same non-trivial refill/cap algorithm — extract to a shared `createBucket(max, windowMs)` factory. Not re-verified this pass.
+- **Reserved-agent-name collision (`ws.ts`).** A `RESERVED_AGENT_NAMES` Set filtering out certain names (e.g. `!== 'claude'`) to allow them as WS client names created an identity collision with `authorType='human'` for all WS clients. `grep -n "RESERVED_AGENT_NAMES" ws.ts` found zero hits 2026-08-25 — the mechanism may have been renamed or removed; re-verify against the current file's actual reserved-name handling before treating this as either open or closed.
+
+Resolved findings from the same original cluster (mention-parser.ts unused `authorType` param, agent-invoker.ts/ws.ts/mention-parser.ts manual `log()` wrapper, `inFlight` lock key scope, `NODE_ENV` bypass comment, `auth-tokens.ts` duplicate `getReservedAgentNames()` declaration) — see [anti-patterns.md](anti-patterns.md) "chatroom bridge/WS anti-patterns" and the two dedicated RESOLVED entries below it, verified live 2026-08-25; not repeated here since they no longer apply.

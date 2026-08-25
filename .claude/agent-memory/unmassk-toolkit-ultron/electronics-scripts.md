@@ -103,10 +103,18 @@ branch needs a similar gate:
   (verified via manual re-run of all cases pre/post).
 - File lands at 364 LOC / evaluate_gate at 102 LOC, both over the
   unmassk-standards web-app default (300/50) -- left as-is and disclosed
-  rather than fragmented, per this project's CLAUDE.md: "unmassk-standards
-  ... written for a web app ... not this project's yardstick" for
-  toolkit Python scripts. Don't silently "fix" this on a future pass without
-  re-checking that exemption still stands.
+  rather than fragmented, per this project's CLAUDE.md AT THE TIME:
+  "unmassk-standards ... written for a web app ... not this project's
+  yardstick" for toolkit Python scripts.
+  **STALE as of the 2026-07-29 CLAUDE.md rewrite**: the project's own
+  CLAUDE.md now says the opposite explicitly ("`unmassk-standards` IS
+  this project's yardstick — it was rewritten and now fits... verified
+  2026-07-29: no OWASP, React, TypeScript, Zod, PostgreSQL... anywhere in
+  it"). The exemption this LOC decision leaned on no longer holds as
+  written; whether sensor_gate.py's 364/102 LOC is still acceptable under
+  the CURRENT standard (a real ceiling, not "web-app only") is
+  unconfirmed — flagged here, not re-verified as part of this compaction
+  pass (no code change, no re-audit performed).
 
 ## serial_verify.py: empty --expect must be a usage error, not an always-pass
 

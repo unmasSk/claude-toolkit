@@ -1,9 +1,25 @@
 ---
 name: trailer-content-validation
-description: Wrapper-side Memo:/Remember: trailer CONTENT validation in bin/git-memory-commit.py — pattern and enum promotion
+description: RETIRED SUBJECT (confirmed 2026-08-25) — the whole Memo:/Remember: trailer commit system (bin/git-memory-commit.py, hooks/pre-validate-commit-trailers.py, hooks/post-validate-commit-trailers.py, MEMO_CATEGORIES/REMEMBER_CATEGORIES) is gone, replaced by gitmem's own note-type commits ([note_id][zone]). Kept only for the general content-validation/enum-promotion pattern.
 metadata:
   type: project
 ---
+
+**RETIRED SUBJECT.** Every file and constant this entry names
+(`bin/git-memory-commit.py`, `hooks/pre-validate-commit-trailers.py`,
+`hooks/post-validate-commit-trailers.py`, `MEMO_CATEGORIES`,
+`REMEMBER_CATEGORIES`) is gone — confirmed 2026-08-25 via `grep -rn
+"MEMO_CATEGORIES\|REMEMBER_CATEGORIES"` across `lib/`/`bin/`/`hooks/`
+(zero hits) and file-existence checks (all three files absent). The v1
+`Memo:`/`Remember:` git-trailer commit mechanism this file documents was
+replaced whole by the gitmem/memoria-v2 system (`bin/gitmem`,
+`bin/memory/*.py`, `lib/memory/`) — notes have their own types
+(D/M/R/Q/X/I/B) and commit format, documented in the `memoria-v2-*.md`
+files in this same directory, not trailers on an otherwise-plain commit.
+Kept below only for the general, still-transferable pattern (validate
+producer-side content before the commit, not just downstream in a
+PreToolUse hook; promote a hardcoded literal to a shared constant) — no
+current code to point at.
 
 ## Producer-side content validation moved into the wrapper (2026-07-25)
 

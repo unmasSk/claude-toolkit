@@ -1,9 +1,30 @@
 ---
 name: memoria-v2-notes-cwd-incident
-description: test_notes.py rows 7/8/9/10 seed notes.write() outside _cwd(root) -> real repo pollution (70+ garbage commits on feat/memoria-v2, HEAD landed on one). Never re-run that file until fixed.
+description: RESOLVED 2026-08-25 (verified file:line) — test_notes.py rows 7/8/9/11 now correctly wrap their seed calls in _cwd(root). Kept for the general lesson on cwd resolution + git-safety response, not as a live warning.
 metadata:
   type: project
 ---
+
+## RESOLVED — verified 2026-08-25, do not treat the warning below as current
+
+The bug this file documents is fixed. Confirmed by reading
+`unmassk-toolkit/tests/memory/test_notes.py` directly (not from memory):
+the seed `notes.write()` call for row 7 is wrapped in `with _cwd(root):`
+at line 909-910, row 8's seed call at line 999-1000, row 9's seed call at
+line 1049-1050, and row 11's replace/close-on-unknown-id calls at lines
+1207 and 1226 — every write/replace/close call in the file now runs
+inside `_cwd(root)`. The historical entry below (kept verbatim for the
+lesson, not as a live instruction) describes the bug BEFORE this fix; the
+"Do NOT re-run" instruction in it is stale — this specific hazard is
+closed. **This does not lift the file's separate, still-valid hard rule
+against unscoped `pytest -q`** in this repo — that rule also rests on a
+second, independent, still-live hazard (concurrent-session HEAD-move from
+other agents' uncommitted work in the same tree), documented in
+[lessons.md](lessons.md).
+
+---
+
+## Historical incident (2026-08-02) — kept for the lesson, superseded above
 
 2026-08-02, while implementing `notes.replace()`/`notes.close()` (DEUDA
 point 10). `unmassk-toolkit/tests/memory/test_notes.py` rows 7, 8, 9, 10

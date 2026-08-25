@@ -289,7 +289,7 @@ if resolved.lower().startswith(valid_prefix.lower()):
 
 Or use `os.path.normcase()` on both sides before the comparison (platform-aware).
 
-Found in: `unmassk-crew/hooks/validate-memory-path.py:63` (2026-03-16).
+Found in: `unmassk-toolkit/hooks/validate-memory-path.py:63` (2026-03-16; path corrected 2026-08-25 — the project renamed from `unmassk-crew`, the file itself still exists at this new path but the finding was not re-verified against current content this pass).
 
 ## os.path.abspath() anchored to cwd, not to project root
 
@@ -305,7 +305,7 @@ else:
 resolved = resolved.replace("\\", "/")
 ```
 
-Found in: `unmassk-crew/hooks/validate-memory-path.py:61` (2026-03-16).
+Found in: `unmassk-toolkit/hooks/validate-memory-path.py:61` (2026-03-16; path corrected 2026-08-25, not re-verified against current content this pass).
 
 ## Dead negative lookahead for `git mergetool` exclusion
 
@@ -320,77 +320,21 @@ _GIT_MERGE_RE = re.compile(
 
 When reviewing hook regexes that claim to exclude subcommands: verify whether the base pattern would even match the subcommand before adding a lookahead for it.
 
-Found in: `unmassk-crew/hooks/pre-merge-gate.py:17-19` (2026-03-16).
+Found in: `unmassk-toolkit/hooks/pre-merge-gate.py:17-19` (2026-03-16; path corrected 2026-08-25, not re-verified against current content this pass).
 
-## Dual severity framework conflict in agent mode definitions
+## Dual severity framework conflict / mode-scoped "do NOT" vs MANDATORY — both resolved by later full rewrites (verified 2026-08-25)
 
-Agent mode instructions that define two independent severity/category axes (e.g., category: Issue/Suggestion/Nitpick AND severity: Critical/Major/Minor/Trivial) produce incoherent combinations (e.g., "Nitpick Critical"). If both dimensions are needed, add an explicit constraint table showing valid combinations. Otherwise collapse to one axis.
+Two 2026-03-16 findings against the pre-rename `unmassk-crew/agents/cerberus.md` (a second Critical/Major/Minor/Trivial severity axis alongside Issue/Suggestion/Nitpick, producing incoherent combinations like "Nitpick Critical") and `unmassk-crew/agents/alexandria.md` (a mode-scoped "do NOT touch memory" contradicted by an unconditional MANDATORY save section). Re-checked live against the current files (`unmassk-toolkit/agents/cerberus.md`, `unmassk-toolkit/agents/alexandria.md` — the project renamed from `unmassk-crew` since): `grep -n "Critical\|Major\|Minor\|Trivial" cerberus.md` returns zero hits (only Issue/Suggestion/Nitpick remains), and alexandria.md no longer has the conflicting pair — both files were rewritten wholesale during the toolkit rename and the 2026-08 memory-system rewrite. Do not re-flag against the current files. The general check pattern both named — a second severity axis that can combine incoherently with the first; a mode-scoped prohibition sitting below an unconditional MANDATORY section covering the same action — is still worth applying to any *future* agent-sheet edit; see the 2026-08-23 "Mirror functions drift... in agent-sheet prose" entry below for the same class of bug recurring in cerberus.md's own T3-policy wording.
 
-Found in: `unmassk-crew/agents/cerberus.md` commit-review mode (2026-03-16).
+## chatroom bridge/WS anti-patterns (2026-03-18/19) — re-verified live 2026-08-25, most resolved, live ones moved to zone files
 
-## Mode-scoped "do NOT" instructions conflicting with unconditional MANDATORY sections
+Original cluster of findings against the early chatroom bridge/WS/mention subsystem. Re-checked against the current code (chatroom hasn't been touched since 2026-06-09, so this is a point-in-time check, not a guarantee it stays true):
 
-When an agent has multiple modes and one mode prohibits an action (e.g., "do NOT touch memory in merge mode"), any MANDATORY section below it that covers the same action without a mode guard creates a direct instruction conflict. Always add an explicit mode conditional to MANDATORY sections, or move them above the mode definitions.
+**Resolved by removing the whole subsystem** (commit `2a91975`, 2026-03-21, "bridge deleted entirely" — `chatroom/apps/bridge/claude-bridge.ts` and the rest of that directory no longer exist on disk or in `find`): IPC-via-/tmp-files perimeter bypass (server-side guards — origin check, rate limit, Zod validation, author enforcement — bypassed by a trusted long-lived bridge connection forwarding anything placed in a `/tmp` file); setInterval-polling an outbox file instead of `Bun.watch()`; bridge singleton check defeated by an auth guard applied to `GET /health` (probe gets 401 instead of 200, two instances start up). Do not re-flag unless `apps/bridge/` is reintroduced.
 
-Found in: `unmassk-crew/agents/alexandria.md` — merge mode says "do NOT touch memory", Shutdown section says MANDATORY save (2026-03-16).
+**Resolved in the surviving files, verified by grep 2026-08-25 — do not re-flag against current code:** `mention-parser.ts`'s `extractMentions` no longer has an unused `authorType` param (zero matches for `authorType` in the file). `agent-invoker.ts`/`ws.ts`/`mention-parser.ts` no longer define the manual `function log(...)` string-coercion wrapper that defeated pino's structured logging (zero matches — now uses structured `logger.info({...})` as the original finding recommended). `agent-invoker.ts`'s `inFlight` lock already used the compound `${agentName}:${roomId}` key per the 2026-03-18 follow-up note on the original finding (`inFlight` still present at line 49, unchanged). `ws-store.ts`'s async token-fetch path now retries on failure (lines ~285-310 schedule a reconnect on token-fetch error, matching `ws.onclose`'s behavior) — the original "no retry on token fetch failure" asymmetry is gone. `MessageLine.tsx`'s `splitMentions` helper (previously flagged as defined-but-never-wired-in after a ReactMarkdown migration) is now called from inside the children-mapping renderer (line ~98) — genuinely wired in, not dead. `config.ts`'s `NODE_ENV` bypass now goes through a `requireEnumEnv(...)` guard with an explicit risk comment (see the dedicated resolved entry below). `auth-tokens.ts` now has only one `getReservedAgentNames()` declaration (see the dedicated resolved entry below).
 
-## IPC via /tmp files in a security-hardened WS codebase
-
-Using `/tmp` flat files as IPC for a bridge component that connects to a hardened WebSocket server creates a perimeter mismatch: all the server-side guards (origin check, rate limit, Zod validation, author enforcement) are bypassed because the bridge holds a trusted long-lived connection and forwards anything placed in the file. This pattern appeared in the chatroom claude-bridge plan (2026-03-18).
-
-Correct pattern: keep the IPC file under `$XDG_RUNTIME_DIR` (user-private), `chmod 600` immediately, validate owning UID before reading, enforce per-send rate limit and message length cap in the bridge itself before forwarding to WS.
-
-## Polling a file with setInterval when Bun.watch() is available
-
-Using a 500ms `setInterval` to poll an outbox file for new content is a patch when the runtime already provides `Bun.watch()` for zero-latency change detection. Pattern seen in claude-bridge plan (2026-03-18). Always use `Bun.watch()` first; fall back to polling only on platforms where it is unavailable (document explicitly).
-
-## Reserved name set with explicit exclusions that create identity collision
-
-A `RESERVED_AGENT_NAMES` Set that filters OUT certain names (e.g., `!== 'claude'`) to allow them as WS client names creates an identity collision when a bridge script connects with that exact name. If the server sets `authorType='human'` for all WS client messages, the excluded name appears as a human in the DB and triggers @mention agent invocations. Found in chatroom ws.ts + bridge plan (2026-03-18) and confirmed again in claude-bridge.ts implementation audit (2026-03-18). Either: (a) do not exclude names from the reserved set without a corresponding authorType distinction, or (b) introduce a dedicated `authorType='orchestrator'` that bypasses mention parsing.
-
-## Dead parameter in multi-argument guard function (TypeScript)
-
-A function that accepts a parameter (e.g. `authorType: AuthorType`) and uses it in neither the guard condition nor the body creates a false contract. Callers believe the function is author-aware; tests pass for the wrong reason. Found in `mention-parser.ts:extractMentions` (2026-03-18): `authorType` was accepted but unused — the depth guard fired unconditionally for all author types.
-
-Pattern to watch for: functions with a discriminant parameter (`authorType`, `role`, `mode`) whose body contains only one branch. Verify the parameter is read somewhere in the body before approving.
-
-## Bridge singleton check defeated by auth on health endpoint
-
-When a bridge process checks for an existing instance by probing `GET /health` unauthenticated, applying an auth guard to ALL routes (including `/health`) causes the probe to receive `401` instead of `200`. The singleton check only treats `200` as "already running", so `401` is silently interpreted as "no bridge present". Two instances start up. Found in `claude-bridge.ts:checkSingleton + handleRequest` (2026-03-18).
-
-Rule: health/liveness endpoints MUST be exempt from auth if they are used for singleton detection or readiness probing.
-
-## Inline log wrapper anti-pattern: coercing objects to strings manually
-
-In `agent-invoker.ts`, `ws.ts`, and `mention-parser.ts`, a custom `log()` wrapper is defined:
-```typescript
-function log(...args: unknown[]) {
-  logger.info(args.map(a => typeof a === 'object' && a !== null ? JSON.stringify(a) : String(a)).join(' '));
-}
-```
-This defeats pino's structured logging — objects are serialized as opaque strings, losing field-level searchability. The project convention (`createLogger` → `logger.info({ field }, 'message')`) must be used directly. The `log` wrapper is a workaround for a missing import pattern and should be removed in favor of consistent `logger.info({ ... }, 'message')` calls.
-
-## Duplicated rate-limit bucket implementation across api.ts and test files
-
-`checkApiRateLimit` in `api.ts` and `checkInviteRateLimit` in `invite.test.ts` (and `checkRateLimit` in `ws.ts`) contain identical token-bucket logic (3 copies). The bucket algorithm is non-trivial (refill formula, cap logic). If the formula has a bug, it must be fixed in 3 places. Extract to a shared `createBucket(max, windowMs)` factory. This hits the 3+ duplication threshold for mandatory abstraction.
-
-## `inFlight` lock keyed by agent name only (not agent:room)
-
-Using a `Set<string>` keyed by agent name alone for a per-agent in-flight lock blocks the agent across ALL rooms when the desired scope is per-agent-per-room. The `activeInvocations` map uses `${agentName}:${roomId}` — the `inFlight` lock must use the same compound key for consistency. Found in `agent-invoker.ts:inFlight` (2026-03-18). Check that all concurrency primitives in the same module use the same key scope.
-
-NOTE (2026-03-18 follow-up): This was already fixed — `agent-invoker.ts:144` uses `${agentName}:${roomId}` as the compound key. Do not re-flag.
-
-## Unbounded in-memory token Map with public unauthenticated endpoint
-
-An in-memory `Map<string, TokenEntry>` for WS auth tokens with no size cap, combined with a `POST /api/auth/token` endpoint that is unauthenticated and has no rate limit, creates a memory-exhaustion vector. The GC interval only removes expired entries; it does not cap total size. Found in `auth-tokens.ts` (2026-03-18).
-
-Rule: any in-memory store fed by a public endpoint must have an upper-bound (`TOKEN_MAX`) checked in the issuer function before inserting.
-
-## Async reconnect path that omits retry on token fetch failure
-
-When a WS connect function is wrapped in an async IIFE to fetch an auth token first, the catch block for token fetch failure must schedule a reconnect the same way `ws.onclose` does — otherwise token fetch errors leave the UI silently stuck in `disconnected` while WS-level errors correctly retry. Found in `ws-store.ts` (2026-03-18).
-
-Asymmetry pattern: `ws.onclose` → retry; token fetch error → no retry. Always mirror the reconnect logic across all error paths in the same connect flow.
+**Still live or unverified — moved to the zone files with full detail, do not re-derive from this summary:** the unbounded in-memory token `Map` in `auth-tokens.ts` (no `TOKEN_MAX` cap found by grep), the reserved-agent-name-collision finding (its `RESERVED_AGENT_NAMES` symbol no longer greps in `ws.ts` — may be renamed, not re-verified), and the rate-limit-bucket-duplication finding (not re-verified this pass) → see [chatroom-standards.md](chatroom-standards.md). The `MessageLine.tsx` fenced-code-block `isBlock` heuristic (still live, unchanged) and the WS-query-string-token access-log tradeoff (`ws-store.ts` still does `?token=${encodeURIComponent(token)}`, the sibling `claude-bridge.ts` citation is now moot since that file is gone) → see [chatroom-frontend-patterns.md](chatroom-frontend-patterns.md).
 
 ## memoria-v2 lib/memory/ capa-2/3 review (gitcmd/ids/indexes/rejection/validator/notes/query): dead/untested branches confirmed, one docstring already stale
 
@@ -402,16 +346,6 @@ Confirmed 2026-08-02, capa-2/3 review against `docs/memoria-v2/PIEZAS.md` §7.1-
 4. `ids.py:20-24`'s module docstring claims "ninguno de los dos [notes.write, health.duplicates] existe todavía... hoy esta pieza no tiene consumidor real" — false as of this round: `notes.py` exists in the same branch and calls `ids.next_id()` at `notes.py:179`. Only `find_duplicates()` still lacks a real consumer (`health.duplicates`, capa 4, not yet built). Stale self-description, violates the project's own §0.1 sourcing rule.
 
 Check pattern for future memoria-v2 rounds: when a capa-N module's docstring says "no real consumer yet, declared for phase M", re-verify against the CURRENT state of sibling files in the same round before trusting the claim — a sibling written later in the same branch can make the claim stale without anyone touching the module itself. Also: a fully-implemented function whose only declared consumer is a deliberately-`NotImplementedError`-stubbed function in the SAME round is not a contract violation (consumer is declared, just deferred) but IS a real "zero live verification" gap worth a round-trip test now, not "when the consumer ships".
-
-## Token in WS query string without documenting the access-log risk
-
-Passing a short-lived auth token as `?token=<uuid>` in the WS upgrade URL is the only standard option when the `Authorization` header cannot be set (browser WebSocket). However, the token appears in server access logs if logging is enabled. This is acceptable for localhost dev tools, but the trade-off must be documented in a code comment. Found in `claude-bridge.ts:247` and `ws-store.ts` (2026-03-18).
-
-## Dead function after render-path migration (React)
-
-When a React component is migrated from a manual render path (e.g., splitting text with a helper function) to a declarative renderer (e.g., ReactMarkdown), the helper function is often left defined but not wired into the new renderer. The component compiles and renders without errors, but the feature silently stops working.
-
-Pattern to detect: a named function that returns `React.ReactNode[]` or similar, defined in the same file as a component, but never called in the JSX. Always verify that helper functions from the old render path are either deleted or re-wired into the new one.
 
 ## Design-document self-contradiction: caller list vs callee's own "qué NO hace" contract
 
@@ -425,29 +359,15 @@ Confirmed 2026-08-02, review of `docs/memoria-v2/PIEZAS.md` (pre-code design con
 
 Check pattern for future design-doc / pre-code audits: don't just check that a function *has* a "quién la llama" line — cross-check that line against (a) the callee's own "Qué NO hace" section, (b) any routing/dispatch table elsewhere in the doc that names the same script/module, and (c) whether a prose description and the formal caller line agree with each other. A design doc can accumulate exactly the same "declared but unconsumed" grasa a codebase does — checking for it before code exists is cheaper than after.
 
-Found in: `MessageLine.tsx:splitMentions` (2026-03-18) — function defined, ReactMarkdown migration did not wire it in, @mention CSS highlighting silently broken.
+(The `MessageLine.tsx:splitMentions` render-path finding once cited here, and the `MessageLine.tsx` fenced-code-block `isBlock` heuristic finding, both moved to [chatroom-frontend-patterns.md](chatroom-frontend-patterns.md) — see the "chatroom bridge/WS anti-patterns" entry above for the resolved/still-open split.)
 
-## Fenced code block `isBlock` heuristic via `className` presence
+## NODE_ENV bypass comment says "dev" but applies to all non-production environments — RESOLVED, re-verified 2026-08-25
 
-In ReactMarkdown, the `code` component prop receives `className="language-xyz"` for fenced code blocks with a language specifier, and `className={undefined}` for both inline code AND fenced code blocks with no language tag. The pattern `const isBlock = !!className` incorrectly renders unlabeled fenced blocks as inline code.
+Original 2026-03-19 finding: `config.ts:78`'s `process.env.NODE_ENV !== 'production'` WS-origin bypass was documented as "In dev, ..." when it actually activates in staging/test/undefined too. Re-checked live: `chatroom/apps/backend/src/config.ts` now derives `NODE_ENV` through a `requireEnumEnv('NODE_ENV', 'development', ['development','production','test'])` guard (rejects any other value instead of silently falling through) and carries an explicit comment naming the exact risk the original finding raised ("misspelled NODE_ENV ... would silently enable the [bypass]", `config.ts:171-173`). Do not re-flag against the current file.
 
-Correct pattern — use the `node` AST prop (available in react-markdown v9+) to check whether the parent is a `pre` element, or check `node.position.start.line !== node.position.end.line` as a multiline heuristic.
+## Duplicate function declaration in same module (TypeScript) — RESOLVED, re-verified 2026-08-25
 
-Found in: `MessageLine.tsx:65` (2026-03-18).
-
-## NODE_ENV bypass comment says "dev" but applies to all non-production environments
-
-A guard `process.env.NODE_ENV !== 'production'` activates in staging, test, and undefined environments — not just "dev". Documenting it as "In dev, ..." misleads operators who run staging without NODE_ENV=production and believe they are protected.
-
-Always say "non-production environments (NODE_ENV !== 'production')" and add an explicit NOTE that staging operators must set NODE_ENV=production.
-
-Found in: `config.ts:78` (chatroom WS_ALLOWED_ORIGINS dev bypass, 2026-03-18).
-
-## Duplicate function declaration in same module (TypeScript)
-
-When a module is refactored to export a shared function (e.g. `getReservedAgentNames()`), the old local version is sometimes left in place under a slightly different return type (`Set<string>` vs `ReadonlySet<string>`). TypeScript will reject duplicate `export function` declarations with the same name at compile time — but in some editors or loose tsconfig setups the error is surfaced as a type conflict rather than a clear duplicate. The fix is to delete one of the two declarations, keeping only the one with the correct return type.
-
-Found in: `auth-tokens.ts:49-65` (2026-03-19) — two `export function getReservedAgentNames()` declarations, return types `Set<string>` and `ReadonlySet<string>` respectively.
+Original 2026-03-19 finding: `auth-tokens.ts:49-65` had two `export function getReservedAgentNames()` declarations (`Set<string>` vs `ReadonlySet<string>`). Re-checked live: only one declaration remains (`auth-tokens.ts:49`, returns `ReadonlySet<string>`). Do not re-flag against the current file.
 
 ## Dead `if not top` guard after already-proven non-empty slice
 
