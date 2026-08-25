@@ -38,3 +38,4 @@
 2026-08-25  [D-062][boot][memory] 🧭 opening table: one item per line, label only on the first row of its section  →  replaced by D-063
 2026-08-25  [D-063][boot][memory] 🧭 opening table gains a Health row that renders only when something is off  →  replaced by D-064
 2026-08-25  [R-013][memory][install] ⚠️ git hash-object needs --no-filters with --path or wip breaks on Windows autocrlf  →  replaced by R-014
+2026-08-25  [R-006][memory][release] ⚠️ main branch protection depends on the repo_type marker  →  replaced by R-015
