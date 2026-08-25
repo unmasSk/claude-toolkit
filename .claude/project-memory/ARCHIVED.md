@@ -29,3 +29,4 @@
 2026-08-24  [Q-002][skills][architecture] ❓ skills as checklists ticked on the visible board: does that hold?  →  closed: respondida: mecanismo de casillas por programa construido, probado en vivo y publicado en 1.39.0 (ver M nueva)
 2026-08-24  [I-003][memory][skills] 🔥 gitmem rule reports success without committing the rule  →  closed: arreglado y publicado en unmassk-toolkit 1.39.0: gitmem rule commitea de verdad antes de decir guardada, con detector de coherencia reglas-vs-git al arranque. La regla general ya vive en R-001. Toma efecto tras /plugin update.
 2026-08-25  [D-006][memory][release] 🧭 code commits: local WIPs per sub-step, single squash and push at close  →  replaced by D-057
+2026-08-25  [D-022][testing][skills] 🧭 two build modes: test-first for clear contracts, linear Flow for the rest  →  closed: duplicado exacto de D-021: mismo titular, why, descripcion, zonas, claves y fuentes; se conserva D-021
