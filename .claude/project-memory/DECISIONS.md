@@ -53,3 +53,4 @@
 [D-053][skills][architecture] point 7 approved: split wizard and frameworks refs, keep best-practices whole
 [D-054][skills][architecture] checklist box matching strips accents too, not only casefold/dash/whitespace
 [D-055][memory][architecture] two concurrent work-writes to one file are not both required to succeed
+[D-056][memory][architecture] memory legibility and integrity batch scoped and ordered from Moria review
