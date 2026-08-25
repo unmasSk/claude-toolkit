@@ -1350,3 +1350,12 @@ footer) and re-stitching `head + block + divider+footer`. Cheaper and
 safer than adding an optional parameter to a shared renderer for a
 single caller's ordering need — with a non-silent fallback (append at
 the end, never drop the block) if the marker is ever absent.
+
+## managed_blocks.py — insertar sección nueva en un bloque gestionado (2026-08-25)
+Constante real es `BLOCKS` (lista de dicts `begin`/`end`/`body`), no `MANAGED_BLOCKS` —
+el nombre en un encargo puede no coincidir; se verifica leyendo el fichero antes de
+escribir el comando de verificación. Insertar una sección nueva dentro del `body`
+de un bloque (formato: `**Título:**` en negrita + una línea en blanco + un bullet
+`- ... → Skill \`nombre\`` + línea en blanco) solo exige tocar el string literal —
+`upsert_managed_blocks()` y su único call-site (`session-start-crew.py`) no cambian.
+Test dedicado: `tests/test_managed_blocks.py` (39 casos), scoped run, sin tocar tests.
