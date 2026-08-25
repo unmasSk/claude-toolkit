@@ -33,3 +33,4 @@
 2026-08-25  [M-001][memory][skills] 📌 activating memory in a project is a plan, tracked in issue 82  →  closed: premisa cerrada: la issue #82 esta CLOSED y D-002 implemento el auto-instalador; el plan de activar memoria ya no esta abierto
 2026-08-25  [D-058][skills][architecture] 🧭 the repetition-scout skill is named Protocolo Dia de la Marmota  →  replaced by D-059
 2026-08-25  [X-081][skills][architecture] 🚫 protocolo deja vu (Matrix)  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi
+2026-08-25  [X-082][skills][architecture] 🚫 protocolo fragua / hefesto  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi

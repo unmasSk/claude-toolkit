@@ -80,4 +80,3 @@
 [X-078][memory][architecture] reparar la carrera con compare-and-swap a nivel de fichero
 [X-079][memory][architecture] el doctor de memoria como script mecanico de texto
 [X-080][memory][architecture] anadir codigo de salida distinto de cero al rechazo de note
-[X-082][skills][architecture] protocolo fragua / hefesto
