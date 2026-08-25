@@ -68,7 +68,7 @@ if _LIB_DIR not in sys.path:
 TRANSIENT_HOOKS: set[str] = set()
 
 # Matches the hook filename inside a hooks.json command line, e.g.
-# "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-boot.py".
+# "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-crew.py".
 HOOK_COMMAND_RE = re.compile(r"hooks/([^/\s]+\.py)")
 
 # The documented skill, relative to the plugin root.

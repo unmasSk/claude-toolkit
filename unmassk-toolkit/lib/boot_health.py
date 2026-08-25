@@ -1,11 +1,13 @@
 """
-Boot health checks for session-start-boot.py (split out of lib/boot_checks.py,
-Cerberus round-6 LOC audit).
+Boot health checks (split out of lib/boot_checks.py, Cerberus round-6 LOC
+audit) -- originally built for the now-deleted hooks/session-start-boot.py.
 
-Owns the "is the plugin/repo installed correctly?" checks: skill-drift +
-installed-version comparison, and doctor/repair runners. lib/boot_checks.py
-re-imports these functions by name so lib/boot_render.py and any direct
-`boot_checks.<name>()` caller keep resolving unchanged.
+At the time of the split, this module owned the "is the plugin/repo
+installed correctly?" checks: skill-drift + installed-version comparison,
+and doctor/repair runners, re-imported by name from lib/boot_checks.py so
+lib/boot_render.py and any direct `boot_checks.<name>()` caller kept
+resolving unchanged. All of that was removed 2026-08-05 (see below); only
+the functions actually defined in this file today remain.
 
 Memory v2 cleanup: the GitHub issue-status lookups (check_issue_status(),
 _issue_matches_next()) were removed with the rest of the v1 memory system —

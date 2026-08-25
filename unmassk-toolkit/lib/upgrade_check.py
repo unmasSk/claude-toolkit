@@ -6,11 +6,11 @@ hooks/user-prompt-memory-check.py, where needs_upgrade() used to be
 evaluated on EVERY UserPromptSubmit message -- 2 unconditional file reads
 (CLAUDE.md + manifest.json) on every message, plus a subprocess of up to
 15s once the installed manifest fell behind. That cost belongs at session
-boundaries now: hooks/session-start-boot.py calls
-trigger_auto_upgrade_if_needed() once per SessionStart, before
-hooks/session-start-crew.py's manifest-version gate runs (hooks.json's
-declared SessionStart order), so a synced manifest.json is already on disk
-by the time that gate reads it.
+boundaries now: hooks/session-start-crew.py's _print_upgrade_check() calls
+needs_upgrade() then, if pending, trigger_auto_upgrade_if_needed() once per
+SessionStart -- run from main()'s `finally` block, after the managed-blocks
+cycle (hooks.json's declared SessionStart order; hooks/session-start-boot.py,
+which used to own this job, was deleted 2026-08-05).
 
 Accepted loss (decision 0f5af98 + Bilbo's map, section 2, signed off by
 Bex): a `/plugin update` mid-session is no longer detected until the NEXT
@@ -33,10 +33,14 @@ import sys
 
 try:
     # Imported defensively (project convention, see
-    # lib/_symlink_safe_open.py's own docstring): tests/test_migrate_statusline.py
-    # stubs out git_helpers with a minimal fake module that predates this
-    # helper, and this module gets pulled in transitively via
-    # hooks/session-start-boot.py during that stub window.
+    # lib/_symlink_safe_open.py's own docstring): a test could stub out
+    # git_helpers with a minimal fake module that predates this helper.
+    # tests/test_migrate_statusline.py used to do exactly that, pulling
+    # this module in transitively via the now-deleted
+    # hooks/session-start-boot.py; both the test and that hook were
+    # removed 2026-08-05 with the rest of the v1 boot chain, but the
+    # defensive fallback stays -- no current test exercises this
+    # ImportError branch.
     from git_helpers import open_no_follow_symlink
 except ImportError:
     from _symlink_safe_open import open_no_follow_symlink_fallback as open_no_follow_symlink
@@ -120,9 +124,10 @@ def needs_upgrade(root: str) -> bool:
         # guards manifest.json's FINAL path component -- a .claude/.unmassk
         # parent that is ITSELF a symlink to a directory holding a real,
         # non-symlink manifest.json slips past it undetected. Deferred
-        # import: this module is transitively loaded during
-        # session-start-boot.py's git_helpers test-stub window (same reason
-        # open_no_follow_symlink is imported defensively above). Caught by
+        # import: this module used to be transitively loaded during the
+        # now-deleted hooks/session-start-boot.py's git_helpers test-stub
+        # window (same historical reason open_no_follow_symlink is
+        # imported defensively above -- see that comment). Caught by
         # the broad except below exactly like any other untrustworthy
         # manifest.
         from git_helpers import verify_path_within_project

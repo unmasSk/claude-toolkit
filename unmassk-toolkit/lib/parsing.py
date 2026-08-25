@@ -126,8 +126,10 @@ def extract_commit_message(command: str) -> str | None:
 def sanitize_trailer_value(text: str) -> str:
     """Strip injection characters from a trailer value.
 
-    Canonical sanitizer — used by recall, session-start-boot, and
-    precompact-snapshot. Single source of truth.
+    Canonical sanitizer — used by lib/incidents.py, bin/git-memory-log.py,
+    and bin/git-memory-doctor.py (formerly also recall, session-start-boot,
+    and precompact-snapshot, all removed with the v1 boot/memory chain,
+    2026-08-05). Single source of truth.
 
     Removes:
     - Newlines and carriage returns (\\n, \\r)

@@ -1,14 +1,16 @@
 """
 Shared fallback for open_no_follow_symlink() (Cerberus T3-1).
 
-lib/boot_memory.py and hooks/session-start-boot.py each need
-git_helpers.open_no_follow_symlink() but must still import cleanly when
-git_helpers is replaced by a minimal test stub that predates this helper
-(tests/test_migrate_statusline.py does exactly this). Before this module
-existed, both call sites carried a byte-identical local reimplementation
-of the same O_NOFOLLOW logic as a fallback — two copies that could drift
-apart silently. This module is the single shared implementation; both
-call sites import defensively:
+Callers of git_helpers.open_no_follow_symlink() must still import cleanly
+when git_helpers is replaced by a minimal test stub that predates this
+helper -- originally lib/boot_memory.py and hooks/session-start-boot.py
+(both deleted 2026-08-05 with the v1 boot chain; tests/test_migrate_statusline.py,
+which stubbed git_helpers this way, was deleted alongside them). Before
+this module existed, both call sites carried a byte-identical local
+reimplementation of the same O_NOFOLLOW logic as a fallback — two copies
+that could drift apart silently. This module is the single shared
+implementation; today lib/upgrade_check.py is the only caller that still
+imports defensively:
 
     try:
         from git_helpers import open_no_follow_symlink
@@ -24,10 +26,12 @@ Must be kept behaviorally identical to git_helpers.open_no_follow_symlink().
 NOTE (docs/plan/fix-atomic-claude-md-write.md): git_helpers.open_no_follow_symlink()
 also has an `atomic` param (opt-in, mode="w" only) that this fallback does
 NOT implement, and that is intentional, not drift -- `atomic` exists solely
-for the 3 real CLAUDE.md managed-block writers (lib/install_apply.py,
-hooks/session-start-crew.py, bin/git-memory-uninstall.py), none of which
-this fallback's own callers (lib/boot_memory.py, hooks/session-start-boot.py)
-are. Do not duplicate the temp-file+os.replace() logic here; if a future
+for the 2 real CLAUDE.md managed-block writers (lib/install_apply.py,
+hooks/session-start-crew.py -- bin/git-memory-uninstall.py used to be a
+third, deleted 2026-08-05 with the rest of the v1 boot chain), none of
+which this fallback's own caller (lib/upgrade_check.py; formerly also
+lib/boot_memory.py and hooks/session-start-boot.py, both deleted
+2026-08-05) is. Do not duplicate the temp-file+os.replace() logic here; if a future
 caller of THIS fallback ever needs atomic writes, that is a new decision to
 make deliberately, not a drift to silently close.
 """
