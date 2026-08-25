@@ -243,7 +243,7 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 ## Opening and closing
 
-**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole, then give the user the day's map as a **fixed two-column table** — always these five labeled sections, in this order, written in the user's language, with a dash (—) in any section that is empty:
+**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole, then give the user the day's map as a **fixed two-column table** — always these eight labeled sections, in this order, written in the user's language, with a dash (—) in any section that is empty:
 
 | | |
 |---|---|
@@ -252,10 +252,11 @@ A rejection is the system asking, with the options and the exact relaunch inside
 | ⛔ **Blockers** | one per line, each with who it waits on |
 | ❓ **Questions** | one per line, the ones that block work under way, by name — never a bare number |
 | 🔥 **Incidents** | one per line: open incidents, and plans with commits they never reflected |
+| 🌿 **Branch** | the branch you are on; an extra line if it differs from the last worked one, another if there are unpushed commits |
+| 📋 **Issues** | the issues carrying a live note, one per line |
+| ⚙️ **Health** | the boot coherence checks: one line saying all green, or each failure on its own line — failures never softened, always first |
 
-**One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
-
-**A sixth row, ⚙️ Health, appears ONLY when something is off** — never when all is clean (no "all good" row, no dash: the row simply does not exist). It carries, one per line: a branch mismatch or unpushed commits; a boot coherence check that failed (indexes vs git, duplicate IDs, rules count); issues carrying a live note, when there are any. A failed check is never softened — it goes first.
+**Every section is always present** — a dash (—) when empty, never omitted. **One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
 
 **Walls are NOT a row of that table.** They are Claude's seatbelt, not the user's reading: read every one and apply them, but never list them in the opening menu. Mention a wall only if it directly blocks what the user is about to do — one line, in plain words, at the moment it bites. When the user asks to SEE the walls ("show me the walls", an audit of them), present them properly: a clean table in plain language — what each one protects and what it forbids — never a raw dump of ids and zone tags.
 
