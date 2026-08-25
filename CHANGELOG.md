@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-08-25
+
+### Added
+- **Las listas de memoria distinguen las notas ARCHIVADAS de las vivas, y el enlace de sustitución se ve por los dos lados.** Antes una nota archivada salía idéntica a una viva en `--todo`, lo que hizo a un Claude cantar una contradicción falsa entre dos notas que en realidad no competían. Ahora cada línea archivada lleva la marca `archivada`, y la nota que sustituyó a otra pinta `(↺ M-xxx)` en las listas y `sustituye a M-xxx` en su propia vista por `--id`.
+- **Nueva vista `gitmem search <...> --chain`**: cada nota viva aparece con sus antecesoras tachadas debajo, siguiendo el linaje completo. Una archivada sin sucesora se marca `cerrada`; una cuya sucesora se movió de zona se marca `sustituida por M-xxx` en vez de desaparecer del linaje de la zona vieja.
+- **Puerta de duplicados al guardar una nota**: una nota viva con el mismo conjunto de claves (no vacío) en la misma pareja de zonas — en cualquier orden — que una nota viva reciente se rechaza pidiendo `--replaces`. Aplica en los dos caminos que pueden guardar una nota: el CLI (`bin/memory/note.py`) y el hook de commit (`hooks/customs.py`).
+- **`gitmem rule` sabe retirar y sustituir reglas**, no solo añadir: `--retract "<texto>" --kind <user|claude>` retira, y `"<nuevo>" --replaces "<viejo>" --kind <user|claude>` sustituye. Antes una regla que una decisión posterior mataba se seguía leyendo para siempre.
+- **Nueva skill `unmassk-memory-doctor`**: una IA lee el contenido de la memoria del proyecto (y la de cada agente) y lista lo podrido — contradicciones, notas caducas, duplicados semánticos, referencias colgantes — en solo lectura. Retirar lo que encuentra sigue siendo decisión del propietario.
+
+### Fixed
+- El hook de commit (`hooks/customs.py`) ya no rechazaba una nota nueva contra una nota ARCHIVADA con las mismas claves y zona — comparaba contra todo el historial en vez de filtrar los archivados, al revés de lo que ya hacía `note.py`. Ahora las dos rutas comparan solo contra notas vivas.
+- La puerta de duplicados trataba la pareja de zonas como ordenada: la misma pareja en el orden contrario se colaba sin disparar el rechazo. Ahora la comparación es por conjunto, sin importar el orden.
+- `--chain` escondía un linaje entero cuando la nota cabeza cambiaba de pareja de zonas — mostraba menos que `--todo` para el mismo hilo. Ahora una cabeza que se movió de zona sigue apareciendo en el linaje de la zona vieja, marcada `sustituida por M-xxx`.
+- `gitmem rule --replaces` sin el texto nuevo de la regla rebotaba con una traza de Python en vez de un mensaje de uso.
+
 ## [1.39.0] - 2026-08-24
 
 ### Added
