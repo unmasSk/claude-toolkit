@@ -273,8 +273,9 @@ gitmem zones add billing --description "payments and subscriptions" --aliases in
 
 # read — by zone, by word, by ID; --todo adds the archived
 gitmem search auth
-gitmem search stripe --todo
-gitmem search --id D-030
+gitmem search stripe --todo      # archived notes are marked "archivada"; a note that replaced another shows (↺ M-xxx)
+gitmem search --id D-030         # the --id view of a replacement note also shows "sustituye a M-xxx"
+gitmem search auth --chain       # each live note with its superseded ancestors struck through below it (a moved head reads "sustituida por M-xxx", a real end "cerrada")
 
 # a file's history, and what this branch touches
 git log -- src/auth/login.py
@@ -324,6 +325,8 @@ gitmem rezones
 # --kind claude marks a rule about your own behaviour. No argument: prints them all
 gitmem rule "be brief: never repeat back what I just said" --quote "be brief, don't repeat back what I just said"
 gitmem rule "always read the existing patterns first" --kind claude --quote none
+gitmem rule --retract "<exact text>" --kind <user|claude>            # retire a rule that stopped holding
+gitmem rule "<new text>" --replaces "<old text>" --kind <user|claude> --quote "<literal>"  # replace one rule with another, atomically
 gitmem rule
 ```
 
