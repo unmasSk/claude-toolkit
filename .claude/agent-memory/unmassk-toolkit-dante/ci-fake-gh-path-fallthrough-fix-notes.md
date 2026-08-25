@@ -108,3 +108,48 @@ CI-scenario demonstration above was run ad hoc (not committed as a
 permanent regression test), reported EXECUTED. A permanent automated
 version of this demonstration would need a new `test_*.py` file, which
 is outside this round's declared limits -- flagged, not silently added.
+
+## Round 3 (2026-08-26): the flagged follow-up approved, made permanent
+
+New file `tests/memory/test_conftest_path_without_real_gh.py` (7 tests,
+0 skips, no Windows gate needed -- unlike Round 1's tests, these never
+actually invoke `git`/`gh` as subprocesses, only check filesystem
+presence/content through the returned `PATH`, so the whole file is
+cross-platform by construction). Each test builds its OWN synthetic
+"`/usr/bin`-like" directory (`git` + `gh`, sometimes a third binary,
+written by the test itself) via `monkeypatch.setenv("PATH", ...)` --
+never the dev machine's real PATH, which already keeps `git`/`gh` apart
+and would mask the exact bug. Covers: git survives when sharing a
+directory with a real gh, the shared directory itself gets replaced (not
+emptied), a third binary in that directory also survives, no directory
+in the result contains a real `gh`/`gh.exe`/`gh.cmd`/`gh.bat`, the
+sanitized copy is cached per real directory (two calls return the same
+string), and the symlink-unsupported fallback (`os.symlink` forced to
+raise via `monkeypatch.setattr`) still produces a working real-copy
+entry, content-compared against the original.
+
+**RED-with-old-logic proof, done right**: reimplementing the OLD
+directory-drop logic INSIDE the permanent test file would duplicate
+production code inside a test (banned) and the file itself can't hold
+two competing versions of the SUT. Instead: a throwaway script
+(scratchpad, never committed) imported the real test module, replaced
+its imported `path_without_real_gh` name with the pre-fix
+implementation via `pytest.MonkeyPatch()`, and called each test method
+directly (own `tmp_path`/`monkeypatch` built manually, `mp.undo()` in a
+`finally`). Result: the 3 tests that assert "git stays locatable" all
+went RED with the exact CI symptom message ("git ya no es localizable
+tras filtrar -- PATH resultante: ''"); 2 tests stayed green even under
+the old logic, correctly -- one checks gh-absence (old logic also
+achieves that, crudely, by nuking the whole directory) and one checks
+call-to-call cache stability (trivially true when both calls return the
+same empty string). Not every test in a suite needs to fail against the
+old bug; only the ones asserting the specific invariant that broke
+should, and confirming that split (which fail, which don't, and why) is
+what makes the RED proof meaningful rather than decorative.
+
+Verified: new file green ×3 runs (7/7 each), together with
+`test_conftest_smoke.py` + the 3 Round 1/2 files (50/50), no leaked
+`path-without-gh-*` scratch dirs in the OS temp dir after any run
+(autouse fixture pops `_SANITIZED_GH_FREE_DIRS` keys created during each
+test and `shutil.rmtree`s them, same pattern as the module's own
+`atexit` cleanup, at test scope instead of process scope).
