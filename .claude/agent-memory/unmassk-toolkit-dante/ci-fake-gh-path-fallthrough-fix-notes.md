@@ -153,3 +153,61 @@ Verified: new file green ×3 runs (7/7 each), together with
 (autouse fixture pops `_SANITIZED_GH_FREE_DIRS` keys created during each
 test and `shutil.rmtree`s them, same pattern as the module's own
 `atexit` cleanup, at test scope instead of process scope).
+
+## Round 4 (2026-08-26): Round 3's own permanent test file broke on windows-latest
+
+CI run 32904954108: 3 of the 7 tests in `test_conftest_path_without_real_gh.py`
+red on windows-latest, green on ubuntu-latest with the exact same code
+(`test_git_stays_locatable_after_filtering_a_shared_directory`,
+`test_a_third_binary_sharing_the_directory_also_survives`,
+`test_symlink_unsupported_falls_back_to_a_real_copy_of_just_that_entry`
+-- all three via `shutil.which()`). Root cause confirmed by reading
+`shutil.which()`'s actual source (`inspect.getsource`), not assumed: on
+`win32`, `which()` only inserts the bare queried name into its candidate
+list when that name ALREADY ends with a `PATHEXT` extension; a bare name
+like `"git"` is only ever checked as `"git" + ext` for each `PATHEXT`
+entry (`.COM`, `.EXE`, `.BAT`, ...), never as the literal `"git"` itself
+(with the default `mode` including `X_OK`). The synthetic binaries in
+Round 3 were written with bare POSIX-style names on all three platforms
+-- invisible to `shutil.which()` on Windows even though the file genuinely
+existed in the returned `PATH`.
+
+**Fix**: `_binary_name(base)` = `base + (".exe" if sys.platform == "win32"
+else "")`, used for BOTH writing the synthetic binary's filename and for
+the `shutil.which()` query -- never just one side. `sys.platform`, not
+`os.name`, to match this suite's own convention everywhere else
+(`test_work_issue_field.py`/`test_note_issue_field.py`/
+`test_report_render_issue_field.py`/`gitcmd.py` all use
+`sys.platform == "win32"`). No Windows skip anywhere -- the three tests
+run for real on every platform, just against the name each platform's
+own resolver expects. `test_windows_style_gh_names_are_also_filtered`
+(pre-existing, not touched) was never broken -- it already used literal
+`.exe` names, which is exactly why it was absent from the Windows
+failure list; that's what pointed at the extension, not the filter
+logic, as the real cause.
+
+**Verifying a Windows-only code path without a Windows machine**: full
+`shutil.which()` can't even be called with `sys.platform` monkeypatched
+to `"win32"` on macOS/Linux -- it dereferences `_winapi` internally,
+which is `None` off real Windows (`AttributeError: 'NoneType' object has
+no attribute 'NeedCurrentDirectoryForExePath'`, confirmed by trying).
+Worked around by isolating just the candidate-list construction (the
+`if sys.platform == "win32":` branch's `pathext`/`files` lines, copied
+VERBATIM from the source already read via `inspect.getsource`, not
+retyped from memory) into a standalone ad hoc function and running that
+in isolation, with Windows's own `;`-separated `PATHEXT` format hardcoded
+(this machine's `os.pathsep` is `:`, which would silently corrupt the
+`PATHEXT.split()` if reused) -- confirmed `"git"` never appears as a
+candidate, `"git.exe"` always appears first. This is real executed
+evidence for the MECHANISM, not the full Windows runtime -- the actual
+CI result is still declared UNVERIFIED-en-Windows until the next run
+confirms it end to end (filesystem case-folding, real `PATHEXT` content
+on the runner, etc. remain genuinely unexercised here).
+
+Verified locally (POSIX, `_EXE_SUFFIX == ""`, so this is also a
+no-regression check for the already-green platforms): new file green ×3
+(7/7 each), together with `test_conftest_smoke.py` +
+`test_work_issue_field.py`/`test_note_issue_field.py`/
+`test_report_render_issue_field.py` (50/50). `conftest.py` untouched
+(`git status` empty throughout) -- the whole fix lives in the test file,
+per this round's declared limits.

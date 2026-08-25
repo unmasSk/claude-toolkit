@@ -67,7 +67,7 @@
 - [search-word-zones-catalog-contract-notes.md](search-word-zones-catalog-contract-notes.md) — zero-result word search shows zones catalog before footer
 - [render-issue-zone-word-contract-notes.md](render-issue-zone-word-contract-notes.md) — report_render never showed Issue on zone/word search
 - [work-issue-validation-gap-contract-notes.md](work-issue-validation-gap-contract-notes.md) — work.py --issue N never checks issue exists (Argus gap)
-- [ci-fake-gh-path-fallthrough-fix-notes.md](ci-fake-gh-path-fallthrough-fix-notes.md) — CI red both platforms: EACCES-fallthrough + Windows .exe-only; round 2: dir-vs-file PATH filter (git+gh share /usr/bin)
+- [ci-fake-gh-path-fallthrough-fix-notes.md](ci-fake-gh-path-fallthrough-fix-notes.md) — CI red both platforms: EACCES-fallthrough + Windows .exe-only; round 2: dir-vs-file PATH filter; round 4: shutil.which() needs PATHEXT-suffixed names on win32
 - [checklist-gate-inject-contract-notes.md](checklist-gate-inject-contract-notes.md) — D-052 checklist hooks: real schema, race/session_id/chmod round
 - [d054-shared-textnorm-normalization-contract-notes.md](d054-shared-textnorm-normalization-contract-notes.md) — D-054 lowercase+no-accent: entry-point anchor technique
 - [chain-view-full-contract-notes.md](chain-view-full-contract-notes.md) — search.py --chain full campaign (3 rounds merged): D-056 RED contract, cross-zone lineage-loss regression, superseded-labeled-closed regression

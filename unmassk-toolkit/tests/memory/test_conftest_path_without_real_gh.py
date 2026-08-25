@@ -33,15 +33,57 @@ localizar `git` fallan (`shutil.which('git', path=...) is None`) --
 confirmado corriendo estos mismos cuerpos de test contra esa version
 vieja via `pytest.MonkeyPatch` en un script ad hoc, nunca commiteado.
 Contra la version actual, verde.
+
+CORRECCION MULTIPLATAFORMA (CI run 32904954108, 2026-08-26): los
+binarios sinteticos originales se escribian con el nombre PELADO ("git",
+"gh", "some-other-tool") en las tres plataformas. En ubuntu-latest y
+macOS eso es correcto (solo importa el bit +x); en windows-latest,
+`shutil.which()` nunca considera un candidato exacto a un nombre sin
+extension de `PATHEXT` -- 3 tests caian alli con el mismo sintoma que el
+bug real ("git ya no es localizable"), aunque el fichero SI estuviera en
+el PATH devuelto. `_binary_name()` (arriba) escribe y busca cada binario
+con el nombre que CADA plataforma exige (`git.exe` en Windows, `git` en
+POSIX) -- ni un skip de Windows, ni una aserción mas debil: el mismo
+contrato, expresado en la forma que cada plataforma reconoce.
 """
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
 
 from .conftest import _GH_FAKE_NAMES, _SANITIZED_GH_FREE_DIRS, path_without_real_gh
+
+# `shutil.which()` en Windows (leido en la fuente real de la libreria
+# estandar antes de escribir esto, no supuesto) SOLO antepone el nombre
+# PELADO a la lista de candidatos cuando ese nombre YA termina en una
+# extension de PATHEXT (`git.exe`) -- para un nombre sin extension
+# (`git`), which() nunca prueba el fichero exacto, solo `git`+cada
+# extension de PATHEXT (`.COM`, `.EXE`, `.BAT`...). Un binario sintetico
+# escrito literalmente como "git" (correcto en POSIX, donde solo importa
+# el bit +x) es por tanto INVISIBLE para `shutil.which("git", ...)` en
+# Windows, aunque el fichero exista y este en el PATH devuelto -- CI
+# confirmado (run 32904954108): "git ya no es localizable tras filtrar"
+# en windows-latest, verde en ubuntu-latest con el MISMO codigo. La
+# extension no es cosmetica ahi: es lo que which() exige para considerar
+# el fichero un candidato exacto. `sys.platform == "win32"`, no
+# `os.name == "nt"` -- mismo criterio que el resto de la suite
+# (`test_work_issue_field.py`/`test_note_issue_field.py`/
+# `test_report_render_issue_field.py`/`gitcmd.py`, nunca `os.name`).
+_EXE_SUFFIX = ".exe" if sys.platform == "win32" else ""
+
+
+def _binary_name(base):
+    """El nombre de fichero que ESTA plataforma resuelve como ejecutable
+    real -- sufijo `.exe` en Windows, nada en POSIX. Mismo criterio que
+    `conftest.py::_GH_FAKE_NAMES` ya usa para reconocer un `gh` real
+    (`gh`/`gh.exe`/`gh.cmd`/`gh.bat`): un binario de test que se hace
+    pasar por "el ejecutable real de esta plataforma" tiene que llevar
+    la forma que esa plataforma exige, no una fija.
+    """
+    return base + _EXE_SUFFIX
 
 
 @pytest.fixture(autouse=True)
@@ -64,12 +106,15 @@ def _shared_bin_dir(tmp_path, dirname="usr-bin-like", extra_names=()):
     """Simula `/usr/bin` en `ubuntu-latest`: `git` y `gh` (y, si se pide,
     algun binario mas) viviendo en el MISMO directorio -- nunca el PATH
     real de esta maquina de desarrollo, que ya los mantiene separados.
+    Cada nombre pasa por `_binary_name()`: en Windows los ficheros se
+    llaman `git.exe`/`gh.exe`/etc (lo que `shutil.which()` y el propio
+    `PATHEXT` del sistema esperan), en POSIX se quedan pelados.
     """
     shared_dir = tmp_path / dirname
     shared_dir.mkdir()
-    for name in ("git", "gh", *extra_names):
-        binary_path = shared_dir / name
-        binary_path.write_text(f"real {name} binary\n", encoding="utf-8")
+    for base_name in ("git", "gh", *extra_names):
+        binary_path = shared_dir / _binary_name(base_name)
+        binary_path.write_text(f"real {base_name} binary\n", encoding="utf-8")
         binary_path.chmod(0o755)
     return shared_dir
 
@@ -87,12 +132,12 @@ class TestGitSurvivesWhenGitAndGhShareADirectory:
 
         result_path = path_without_real_gh()
 
-        git_hit = shutil.which("git", path=result_path)
+        git_hit = shutil.which(_binary_name("git"), path=result_path)
         assert git_hit is not None, (
             f"git ya no es localizable tras filtrar -- PATH resultante: {result_path!r}"
         )
         assert Path(git_hit).read_text(encoding="utf-8") == (
-            shared_dir / "git"
+            shared_dir / _binary_name("git")
         ).read_text(encoding="utf-8")
 
     def test_shared_directory_itself_is_replaced_not_left_empty(
@@ -116,10 +161,10 @@ class TestGitSurvivesWhenGitAndGhShareADirectory:
 
         result_path = path_without_real_gh()
 
-        tool_hit = shutil.which("some-other-tool", path=result_path)
+        tool_hit = shutil.which(_binary_name("some-other-tool"), path=result_path)
         assert tool_hit is not None
         assert Path(tool_hit).read_text(encoding="utf-8") == (
-            shared_dir / "some-other-tool"
+            shared_dir / _binary_name("some-other-tool")
         ).read_text(encoding="utf-8")
 
 
@@ -190,11 +235,11 @@ class TestSymlinkFallbackWhenSymlinksAreUnsupported:
 
         result_path = path_without_real_gh()
 
-        git_hit = shutil.which("git", path=result_path)
+        git_hit = shutil.which(_binary_name("git"), path=result_path)
         assert git_hit is not None
         assert not os.path.islink(git_hit), (
             "deberia ser una copia real, no un symlink, cuando symlink() falla"
         )
         assert Path(git_hit).read_text(encoding="utf-8") == (
-            shared_dir / "git"
+            shared_dir / _binary_name("git")
         ).read_text(encoding="utf-8")
