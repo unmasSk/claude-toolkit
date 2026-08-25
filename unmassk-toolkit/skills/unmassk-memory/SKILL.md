@@ -243,16 +243,19 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 ## Opening and closing
 
-**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole and tell the user in the first message, covering all four sections below — a message missing any of them does not count. One emoji per section:
+**At the start** the state arrives: the last Next with its context, **every** blocker, **every** wall, the counts and the coherence checks. Read it whole, then give the user the day's map as a **fixed two-column table** — always these five labeled sections, in this order, written in the user's language, with a dash (—) in any section that is empty:
 
-- 🧭 **Today:** the Next, and what happened in the session that wrote it.
-- ⛔ **Blockers:** each with who it waits on.
-- ❓ **Open questions:** how many, **and which block work already under way**, by name. Never a bare number.
-- 🔥 **Incidents and plans:** the open ones, and plans with commits they never reflected.
+| | |
+|---|---|
+| 🧭 **Today** | the Next — one line per task it names |
+| 📦 **Last session** | what the session that wrote the Next left done — one line per thing |
+| ⛔ **Blockers** | one per line, each with who it waits on |
+| ❓ **Questions** | one per line, the ones that block work under way, by name — never a bare number |
+| 🔥 **Incidents** | one per line: open incidents, and plans with commits they never reflected |
 
-**Walls are NOT a section of that message.** They are Claude's seatbelt, not the user's reading: read every one and apply them, but never list them in the opening menu. Mention a wall only if it directly blocks what the user is about to do — one line, in plain words, at the moment it bites. When the user asks to SEE the walls ("show me the walls", an audit of them), present them properly: a clean table in plain language — what each one protects and what it forbids — never a raw dump of ids and zone tags.
+**One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
 
-Then offer where to start. **The user picks the direction**; the boot lays out the map.
+**Walls are NOT a row of that table.** They are Claude's seatbelt, not the user's reading: read every one and apply them, but never list them in the opening menu. Mention a wall only if it directly blocks what the user is about to do — one line, in plain words, at the moment it bites. When the user asks to SEE the walls ("show me the walls", an audit of them), present them properly: a clean table in plain language — what each one protects and what it forbids — never a raw dump of ids and zone tags.
 
 **At the end**, write the Next. Its headline is the order for the next session; its context is prose — what was discussed, decided, broken, left half-done, and what made the user angry and why. Not a list of what was built: the commits already say that.
 
