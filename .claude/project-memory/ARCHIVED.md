@@ -35,3 +35,4 @@
 2026-08-25  [X-081][skills][architecture] 🚫 protocolo deja vu (Matrix)  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi
 2026-08-25  [X-082][skills][architecture] 🚫 protocolo fragua / hefesto  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi
 2026-08-25  [D-061][boot][memory] 🧭 opening menu is a fixed five-row two-column table, dash for empty rows  →  replaced by D-062
+2026-08-25  [D-062][boot][memory] 🧭 opening table: one item per line, label only on the first row of its section  →  replaced by D-063
