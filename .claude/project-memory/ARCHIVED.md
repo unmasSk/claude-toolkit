@@ -41,3 +41,4 @@
 2026-08-25  [R-006][memory][release] ⚠️ main branch protection depends on the repo_type marker  →  replaced by R-015
 2026-08-25  [R-001][memory][install] ⚠️ everything the memory writes must travel in its own commit  →  replaced by R-016
 2026-08-25  [R-007][hooks][skills] ⚠️ parallel agents never run global git stash/reset/checkout on a shared repo  →  replaced by R-017
+2026-08-25  [M-126][architecture][testing] 📌 Yoda system pass: approved with conditions, engine solid under sabotage  →  replaced by M-127
