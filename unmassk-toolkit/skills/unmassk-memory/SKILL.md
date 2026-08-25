@@ -255,6 +255,8 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 **One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
 
+**A sixth row, ⚙️ Health, appears ONLY when something is off** — never when all is clean (no "all good" row, no dash: the row simply does not exist). It carries, one per line: a branch mismatch or unpushed commits; a boot coherence check that failed (indexes vs git, duplicate IDs, rules count); issues carrying a live note, when there are any. A failed check is never softened — it goes first.
+
 **Walls are NOT a row of that table.** They are Claude's seatbelt, not the user's reading: read every one and apply them, but never list them in the opening menu. Mention a wall only if it directly blocks what the user is about to do — one line, in plain words, at the moment it bites. When the user asks to SEE the walls ("show me the walls", an audit of them), present them properly: a clean table in plain language — what each one protects and what it forbids — never a raw dump of ids and zone tags.
 
 **At the end**, write the Next. Its headline is the order for the next session; its context is prose — what was discussed, decided, broken, left half-done, and what made the user angry and why. Not a list of what was built: the commits already say that.

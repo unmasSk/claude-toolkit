@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- `unmassk-memory`: el menú de apertura de sesión pasa a ser una tabla fija de dos columnas y cinco filas (Today, Last session, Blockers, Questions, Incidents), con guion en la fila vacía y escrita en el idioma del usuario, cerrada con una línea que ofrece por dónde empezar. Los muros dejan de listarse ahí: Claude los sigue leyendo y aplicando, pero solo se mencionan al usuario en una línea si bloquean directamente lo que va a hacer; si el usuario pide verlos, se presentan aparte en una tabla limpia y en llano, nunca como volcado de ids y zonas.
+- `unmassk-memory`: el menú de apertura de sesión es una tabla fija de dos columnas y cinco filas (Today, Last session, Blockers, Questions, Incidents) — un elemento por línea, etiqueta solo en la primera fila de cada sección, guion en la fila vacía, escrita en el idioma del usuario, cerrada con una línea que ofrece por dónde empezar. Los muros dejan de listarse ahí: Claude los sigue leyendo y aplicando, pero solo se mencionan al usuario en una línea si bloquean directamente lo que va a hacer; si el usuario pide verlos, se presentan aparte en una tabla limpia y en llano, nunca como volcado de ids y zonas. Una sexta fila, ⚙️ Health, se añade SOLO cuando algo falla — rama distinta o commits sin subir, un chequeo de coherencia del arranque en rojo (siempre va primero), issues con nota viva — y no existe en absoluto cuando todo está sano.
 
 ## [1.41.0] - 2026-08-25
 
