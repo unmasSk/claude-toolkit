@@ -33,6 +33,25 @@
 - Tombstone norm: `'antipattern - <!-- note --> use bm25'`
 - Entry norm: `'antipattern - note use bm25'` → no match → tombstone fails to suppress
 
+## A contract satisfied by ONE caller of a shared validator is not satisfied by the OTHER caller
+- Pattern: a pure validator function (`validate_note`/`validate_replacement`) takes its world-state pre-filtered in a `Context` object, built separately by EACH of its consumers — never fetches anything itself
+- One consumer's own docstring can explicitly document a filter it applies before building `Context` (e.g. `bin/memory/note.py::_build_context()`: "`existing_in_zone` se filtra contra `indexes.archived_ids(pm)` antes de entrar en `Context`") while a SECOND, independent consumer of the exact same validator (`hooks/customs.py::_decide_note()`, the PreToolUse hook that intercepts a raw `git commit`) builds its own `Context` from the unfiltered read (`query.by_zone()`, which deliberately returns the WHOLE history including archived, by design, for OTHER readers like the zone report) and never applies the same filter
+- Net effect: the exact same "similar note, need --replaces" duplicate-gate rejection that the CLI (`note.py`) correctly suppresses for archived candidates still fires against those same archived candidates through the OTHER real entry point (a raw `git commit -m "..."` that an agent or the customs-gated Bash hook processes) — a contract clause ("NO dispara contra archivadas") that reads as globally true is actually only true for ONE of the two real callers
+- Detect by finding every caller of the shared validator/Context builder, diffing what each one does BEFORE constructing `Context`, not just reading the validator's own docstring
+- Root this round: `unmassk-toolkit/hooks/customs.py:666` (`existing_in_zone = query.by_zone(note.zone1, note.zone2)`, no archived filter) vs `unmassk-toolkit/bin/memory/note.py:154-156` (same read, then `if n.id not in archived`)
+
+## An ordered-pair zone comparison silently misses the same pair typed in reverse
+- Pattern: any duplicate/overlap gate that compares `note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2` when the CLI has no canonical order for a "pair" of zones (`--zones z1 z2` accepts any order, nothing sorts or normalizes it before storage)
+- Two notes about the same topic, same exact non-empty key SET, one filed `--zones A B` and the other `--zones B A` — semantically the same "par de zonas" the contract promises to gate on — are NOT caught, because the comparison is positional (zone1-to-zone1, zone2-to-zone2), not set-based
+- Realistic, not manufactured: nobody remembers or is told to preserve zone argument order between two notes on the same subject written weeks apart
+- Root this round: `unmassk-toolkit/lib/memory/similar.py:133-135` (`_find_exact_key_match`'s zone-pair guard, same shape of bug in `find_similar` at line 98)
+
+## A --chain/lineage view built only from "notes touching the queried zone" loses a thread whose HEAD moved zones
+- Pattern: a lineage/chain report resolves its candidate set via a single-zone axis match (`zone1 == q or zone2 == q`), then builds each thread by walking BACKWARD from a head found in that same candidate set — never forward, never independent of the axis
+- If a note's REPLACEMENT (the new head, still fully valid content) was filed under a completely different zone pair (a realistic "this got reclassified/broadened, refiled under different zones" edit — no zone-consistency rule ties a replacement to its predecessor's zones), the archived predecessor still matches the OLD zone's query (so `_chain_is_superseded()` correctly excludes it as a head) — but the new head never enters `matched` for that zone, so no thread ever walks back to it. The entire lineage (predecessor AND, implicitly, the query never learning where it went) disappears from the chain view of the zone it used to belong to
+- Worse than not having the feature: the OLDER, unstructured `--todo` listing for the exact same zone still shows the full archived chain with its `(↺ old_id)` markers — the NEWER `--chain` view (built specifically to fix "el enlace de sustitucion se ve por un solo lado") loses MORE information than the view it was meant to improve on, for this one input shape
+- Root this round: `unmassk-toolkit/lib/memory/report.py::build_chain()`/`_chain_threads()` (matched-set built once via `_notes_touching_zone`, threads only walk backward within it) — reproduced live: M-001→M-002→M-003 chain filed [alpha][beta], M-004 (replaces M-003) filed [gamma][delta]; `search alpha --chain` shows 0 memos (only unrelated I/R threads), `search alpha --todo` (no --chain) still shows all 3 archived memos correctly
+
 ## git add does not clear pre-staged index entries (release.py / --allow-dirty)
 - Pattern: script uses `git add -- [specific files]` to stage only release files
 - If attacker (or user) has pre-staged unrelated files before running with --allow-dirty,

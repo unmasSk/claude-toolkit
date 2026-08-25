@@ -5,6 +5,124 @@ metadata:
   type: project
 ---
 
+## D-056 memory-legibility batch first attack (chain view + duplicate gate + rule retract/replace, uncommitted -- 2026-08-25)
+Target: 4 new functions from D-056 ("la memoria se guarda bien pero se lee
+mal") in the memory system's render/validation/rules layers, all
+uncommitted working-tree changes. Attacked via the REAL user CLIs
+(`bin/memory/note.py`, `bin/memory/remove.py`, `bin/memory/zones.py`,
+`bin/memory/search.py`, `bin/memory/rule.py`) plus direct subprocess/
+in-process calls to `hooks/customs.py` (the real PreToolUse/Bash hook
+that intercepts a raw `git commit`) against 2 disposable scratch git repos
+under scratchpad, never the real repo. Verdict: 💀 FALLA.
+
+BREAK 1 (T1, silent) -- `hooks/customs.py:666`'s `_decide_note()` builds
+`existing_in_zone = query.by_zone(note.zone1, note.zone2)` UNFILTERED --
+`query.by_zone()` returns the whole zone-pair history including archived
+notes, by design (other readers need that). `bin/memory/note.py:154-156`
+filters `n.id not in archived` before building the same `Context`; the
+customs hook, the OTHER real consumer of the same `validator.Context`,
+never does. Reproduced live end-to-end (both as a real subprocess
+invocation of `hooks/customs.py` with a JSON PreToolUse payload
+simulating `git commit -m "<note>"`, and as a direct `customs._decide()`
+call, same result both ways): I-001 written then archived (`closed`, via
+`remove.py --restriction no`) with keys `(socket, leak)`; a brand-new,
+unrelated-content I-002 candidate with the SAME exact key set in the
+SAME zone pair gets `{"decision": "block", ...}` from customs.py, citing
+`--replaces I-001` -- the archived note. The exact same candidate
+written via `note.py` (the CLI path) is accepted cleanly (`I-002
+guardada`) because THAT path does the archived-filter. Direct
+`validator.validate_note()` call with the customs-shaped (unfiltered)
+Context reproduces the identical rejection at the library level,
+confirming root cause. Violates contract clause 2 verbatim: "NO dispara
+contra archivadas." See `attack-patterns.md` ("A contract satisfied by
+ONE caller...").
+
+BREAK 2 (T1, silent) -- `lib/memory/similar.py:98`/`:133-135`
+(`find_similar`/`_find_exact_key_match`) compare `zone1`/`zone2`
+POSITIONALLY, not as a set. Two live notes (M-009 `--zones gamma delta`,
+M-010 `--zones delta gamma`), identical non-empty key set `(ansible,
+terraform)`, deliberately low-Jaccard headlines (to isolate the
+exact-key gate from the lexical one) -- BOTH save cleanly via `note.py`,
+zero rejection, zero `--replaces` prompt. Confirmed via git log that
+keys survived `normalize_keys` intact (an earlier attempt with keys that
+happened to appear in the headline text was a false start -- those got
+silently stripped by the unrelated "no ya en el titular" rule, not by
+this bug; retried with unrelated key words to isolate correctly). A
+"par de zonas" typed in reverse order for the same topic weeks apart is
+ordinary usage, not an edge case -- nothing in the CLI canonicalizes
+zone order. Violates "MISMO par de zonas ... se rechaza."
+
+BREAK 3 (T1, silent, worse-than-baseline) -- `report.py::build_chain()`/
+`_chain_threads()`: the candidate set (`matched`) is built ONCE via
+`_notes_touching_zone(resolved_zone)` (single-axis: zone1==q OR
+zone2==q), then every thread only walks BACKWARD (`.replaces`) within
+that same set -- never forward, never independent of the axis. A
+predecessor whose REPLACEMENT was filed under a totally different zone
+pair (a realistic "reclassified on revision" edit, no rule ties a
+successor's zones to its predecessor's) still matches the OLD zone
+query and gets correctly excluded as a head (`_chain_is_superseded`
+sees `destination=="replaced"` in ARCHIVED.md) -- but its successor,
+the real live head, never enters `matched` for that zone, so no thread
+ever reattaches it. Reproduced live: M-001->M-002->M-003 filed
+[alpha][beta] the whole way, M-004 (`--replaces M-003`) filed
+[gamma][delta] -- `search alpha --chain` shows 3 threads (I-001, I-002,
+R-001), the ENTIRE M-001/M-002/M-003 memo lineage is gone; `search
+alpha --todo` (the older, non-chain listing this feature exists to
+improve on) still shows all 3 archived memos with their `(↺ old_id)`
+markers correctly. The new feature loses MORE than the old one for this
+input shape -- exactly the D-056 problem ("el enlace de sustitucion se
+ve por un solo lado") in a worse form (invisible on BOTH sides).
+
+Held (round-trip sabotage done properly, per unmassk-standards Sec.34):
+`rules.retract()`/`rules.replace()` -- installed a real failing
+`pre-commit` hook in the scratch repo (forces `git commit` to fail,
+sabotaging the real dependency on a disposable copy, never the test
+code), then called BOTH `--retract` and `--replaces` via the real
+`bin/memory/rule.py` CLI. Confirmed via an INDEPENDENT channel each time
+(`cat rules.md` + `git log --oneline --all` + `git status --porcelain`,
+never the writer's own return value) -- file content restored byte for
+byte, no orphan commit, `git status` clean. Atomic "all or nothing"
+holds for both new operations, exactly as `rules.py`'s docstring claims.
+Also held: empty-keys never falsely trigger the exact-key gate (2 notes,
+zero keys, same zone -- both save clean); the archived/live render
+split (`archivada` literal, `(↺ old_id)` mark) matches for R/M/I blocks
+in the real `--todo` listing; `--id` note view prints `sustituye a
+{old_id}` correctly; 3-deep `--chain` (M-001<-M-002<-M-003) renders
+newest-first with all ancestors struck; a chain queried by a WORD that
+only the HEAD contains (not any ancestor) still resolves the full
+ancestor chain via `query.by_id()` fallback (`report.py::
+_chain_ancestors`); the `Origin:` incident->restriction link survives
+untouched in the chain view (R-001 with `Origin: I-002` renders inside
+its own thread, unaffected by the Replaces-only threading); clean,
+traceless rejections (no orphan commit) for retract-wrong-kind,
+replace-missing-new-text, replace-missing-kind, all via the real CLI.
+
+Coverage: BREAK 7/7 attempts (3 broken, 4 held) -- chain-zone-crossing,
+archived-filter-gap, zone-order-bypass, empty-keys-clean, archived-marker-
+render, 3-deep-chain-plus-word-fallback, Origin-link-survival. ABUSE 1/1
+(the zone-order-reversal is realistic unenvisioned-but-valid usage,
+counted under BREAK's demonstrated-input bucket above, not double
+counted). EXPLOIT N/A -- project's own no-external-adversary model, no
+attempt manufactured. REGRESSION 1/1 held -- old `--todo` listing (pre-
+existing render path through the newly-extracted `report_render_blocks.py`)
+still renders R/M/I blocks correctly post-refactor, byte-shape unchanged
+for notes without archived/replaces markers. DECEPTION 0 attempted as a
+separate phase this round -- BREAK 3 is a demonstrated behavioral break
+on real input, not a false claim in text, so filed there rather than
+manufacturing a second framing. STRESS N/A declared -- `_chain_ancestors`
+is an iterative while-loop with an explicit cycle guard (`seen` set), no
+recursion, no unbounded loop; no user-facing size cap relevant to this
+diff. RACE N/A this round -- `rules.retract()`/`replace()` share the
+exact same `lock_resource()`/global-lock mechanism as `add()`, already
+proven to serialize correctly in the 2026-08-23 I-003 re-attack round
+(see below); not re-tested to avoid budget waste on an already-closed
+question, noted here instead of silently skipped.
+Memory consulted: `gitmem search similar`/`jaccard`/`replaces` surfaced
+D-056 itself (the origin decision, scope-matching this task exactly) and
+R-012 (unrelated to this round, next_id/archived-reuse, not touched by
+this diff) -- used D-056's own 5-piece description as the attack
+surface map instead of re-deriving it from the diff alone.
+
 ## Checklist hooks re-attack (normalize_box_text fix verified -- 2026-08-24)
 Target: re-run of the prior round's own 5 findings against
 `hooks/checklist-gate.py` + `hooks/skill-checklist-inject.py` +
@@ -1177,3 +1295,47 @@ MAJORITY of the repo's own real checklist text (12/19 boxes vulnerable to
 the em-dash substitution alone) -- this is not a corner case, it's the
 median path for any checklist box that uses an em-dash or an accented
 character, which is most of them.
+
+## D-056 re-attack: BREAK 1 y BREAK 3 tras el arreglo del coordinador (2026-08-25, mismo dia)
+Reverificacion pedida por el orquestador, solo BREAK 1 y BREAK 3 (BREAK 2,
+orden de zonas, se deja a proposito como decision de diseno -- no
+resenalado). Mismos repros, mismo scratchpad, camino real
+(`hooks/customs.py` como subprocess con payload PreToolUse real,
+`bin/memory/note.py`/`search.py` reales).
+
+BREAK 1 -- CERRADA. `hooks/customs.py::_decide_note` ahora filtra
+`archived = indexes.archived_ids(pm)` antes de construir
+`existing_in_zone`, mismo patron que `note.py`. Repro original (I-010
+candidato, mismas keys que I-001 archivada) -> `approve`. Verificado que
+NO sobre-filtro: mismo candidato contra M-009 VIVA -> sigue bloqueando,
+cita M-009 correctamente. `known_ids` sigue sin filtrar archivadas --
+`Origin: I-001` y `Replaces: M-001` (ambas archivadas) siguen aceptandose
+como punteros validos. Sin agujero nuevo encontrado.
+
+BREAK 3 -- CERRADA (la perdida original), pero el arreglo introduce un
+agujero nuevo de otra naturaleza. `_chain_is_superseded()` ahora recibe
+`by_id` y solo trata una nota como sustituida si `destination_detail`
+(el id de la sustituta real) esta DENTRO de ese conjunto; si no, la nota
+pasa a ser cabeza de su propio hilo. Repro original resuelto: `search
+alpha --chain` ya muestra el linaje M-001->M-002->M-003 (antes 0 hilos
+para ese tramo). Caso normal (cadena dentro de una sola zona, M-011->
+M-012 probado fresco) sigue mostrando la cabeza viva sin "cerrada",
+correcto. Cuenta de notas entre `--todo` y `--chain` coincide (8/8), sin
+duplicar ni perder.
+
+AGUJERO NUEVO (no silencioso-perdida, silencioso-enganoso): M-003 --que
+SI tiene sucesora real y viva, M-004, archivada bajo [gamma][delta]--
+se pinta `M-003 ... (↺ M-002)  cerrada`. El campo `ChainThread.closed`
+esta documentado en `model.py:191` como "True = cierre legitimo sin
+sucesora" -- falso para M-003, que tiene continuacion, solo que fuera de
+la zona consultada. El fix distingue la CAUSA en su propio docstring
+(`_chain_threads`: "archivada con sucesor que vive fuera de matched")
+pero el booleano/la palabra "cerrada" no diferencia ese caso del cierre
+genuino (I-001, sin Replaces en ningun sitio) -- las dos situaciones
+semanticamente distintas colapsan en el mismo texto. `--todo` para la
+misma nota es mas honesto (`archivada (↺ M-002)`, sin afirmar "cerrada").
+No reportado como bloqueante -- es T2/T3 (informacion enganosa, no
+perdida de datos ni fallo), pero real y reproducido.
+
+Coverage: 6/6 sub-checks pedidos por el coordinador (3 por break),
+ningun intento adicional gastado en BREAK 2 (excluido explicitamente).

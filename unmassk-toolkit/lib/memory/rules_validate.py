@@ -5,8 +5,9 @@ disco.
 
 Nombres sin guion bajo (`TEXT_MAX_CHARS`, `reject_too_long`,
 `reject_invalid_kind`, `reject_invalid_text`, `validate_quote`,
-`QUOTE_NOT_GIVEN`) cruzan a `rules.py`, que los llama desde `add()`. Los
-que solo se llaman entre si aqui mismo se quedan privados.
+`QUOTE_NOT_GIVEN`, `reject_rule_not_found`) cruzan a `rules.py`, que los
+llama desde `add()`/`retract()`/`replace()`. Los que solo se llaman
+entre si aqui mismo se quedan privados.
 
 Imports planos entre hermanos. `lib/memory/` no importa nada fuera de la
 biblioteca estandar de Python.
@@ -169,11 +170,35 @@ def _reject_quote_too_long(quote: str) -> Rejection:
     )
 
 
+def reject_rule_not_found(text: str, kind: str) -> Rejection:
+    """Rebota ANTES de tocar git o el fichero -- `retract()`/`replace()`
+    no encontraron ninguna linea `[kind]` cuyo texto BASE (sin cita)
+    case exacto con `text`. Cubre dos casos por igual: el texto nunca se
+    guardo, o se guardo bajo OTRO `kind` -- identificar solo por texto
+    seria ambiguo en cuanto existieran las dos, asi que un `kind`
+    equivocado rebota con el MISMO mensaje que un texto totalmente
+    ausente, nunca un "no encontre nada, no pasa nada" silencioso.
+    """
+    what = f'no existe ninguna regla [{kind}] con ese texto exacto: "{text}"'
+    options = (
+        f'  "{text}"',
+        "",
+        f"No se encontro ninguna linea guardada bajo [{kind}] cuyo texto (sin la",
+        "cita) case caracter a caracter con ese. Puede que el texto no sea",
+        "identico, o que la regla exista bajo el otro --kind.",
+    )
+    command = ("gitmem rule",)
+    return rejection.build(
+        kind="rule_not_found", what=what, options=options, command=command
+    )
+
+
 def validate_quote(quote, text: str) -> tuple[bool, Rejection | None]:
     """Toda la logica de `quote` que `add()` necesita antes de tocar git
     o el fichero. Devuelve `(quote_has_content, rejection)` -- `rejection`
     es `None` si la cita pasa (ausente, `--quote none` explicito, o una
-    cita real dentro de los limites). Unico llamador real: `add()`.
+    cita real dentro de los limites). Llamadores reales: `add()` y
+    `replace()`.
 
     Kind-agnostic: exigir la cita solo para `kind == "user"` dejaria un
     hueco (una regla del propietario guardada como `[claude]` se

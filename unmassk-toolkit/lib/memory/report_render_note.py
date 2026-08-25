@@ -23,7 +23,12 @@ regla:
 2. Todos los campos del commit, con su nombre y alineados; uno vacio no
    se imprime -- `_note_fields`. `Origin`/`Replaces` quedan FUERA a
    proposito: el propio molde los reserva para el racimo (regla 4),
-   nunca los lista como campo de la nota.
+   nunca los lista como campo de la nota. EXCEPCION anadida 2026-08-25
+   [D-056, "el enlace de sustitucion se ve por un solo lado"]:
+   `Replaces` SI se imprime, pero no como campo de esta regla --
+   `_replaces_line`, aparte, con el texto `sustituye a {old_id}`,
+   espejo de `nace de {root_id}` que ya usa la regla 4 para el otro
+   sentido del mismo puntero.
 3. Las dos zonas juntas, con la fecha REAL de escritura de la nota (no
    la hora del informe, que va en la cabecera) -- `render_note`, linea
    de zonas.
@@ -103,6 +108,20 @@ def _note_fields(note: Note) -> list[str]:
     return lines
 
 
+def _replaces_line(note: Note) -> list[str]:
+    """La EXCEPCION declarada a la regla 2 -- ver docstring del modulo
+    [D-056, "el enlace de sustitucion se ve por un solo lado"]: el
+    propio puntero ``Replaces`` se imprime aqui, desde la vista propia
+    de la nota NUEVA, con el texto literal ``sustituye a {old_id}`` --
+    espejo exacto de ``nace de {root_id}`` que ``_cluster_lines`` (regla
+    4) ya usa para el otro sentido del mismo tipo de puntero. Una nota
+    sin ``replaces`` no imprime nada -- ninguna linea, nunca una vacia.
+    """
+    if not note.replaces:
+        return []
+    return [f"{_BODY_INDENT}sustituye a {note.replaces}"]
+
+
 def _child_status(child: Note, archived_ids: frozenset) -> str:
     """descartada/archivada/vigente -- mismo criterio que
     ``report_render._cluster_block`` ya aplica para el racimo del
@@ -161,6 +180,7 @@ def render_note(report: NoteReport) -> str:
         "",
     ]
     lines.extend(_note_fields(note))
+    lines.extend(_replaces_line(note))
     lines.extend(_cluster_lines(report))
     lines.append("")
     lines.append(THIN_DIVIDER)

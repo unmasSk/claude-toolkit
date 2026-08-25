@@ -9,8 +9,18 @@ ver el docstring de test_search_script.py, que la fija antes de que este
 fichero existiera]:
 
     search.py <ZONA-o-PALABRA> [--todo]
+    search.py <ZONA-o-PALABRA> --chain
     search.py --id <ID> [--todo]
     search.py --file <RUTA> [--todo]
+
+`--chain` [D-056, "el enlace de sustitucion se ve por un solo lado",
+contrato de Dante, test-first]: la vista en cadena -- cada nota viva con
+sus antecesoras colgando debajo, tachadas. Mismo positional que ya
+resuelve zona-o-palabra, mismo patron que `--todo` (no un segundo modo
+de invocacion aparte). Trae SIEMPRE el historial completo -- las
+antecesoras son archivadas por definicion, y esconderlas sin `--todo`
+vaciaria la cadena entera; por eso no se combina con `--todo`, que aqui
+no aplica.
 
 El positional resuelve a zona si `zones.resolve()` lo reconoce (nombre
 canonico o alias); si no, se trata como busqueda por palabra -- misma
@@ -68,6 +78,7 @@ import notes  # noqa: E402
 import query  # noqa: E402
 import report  # noqa: E402
 import report_render  # noqa: E402
+import report_render_chain  # noqa: E402
 import report_render_note  # noqa: E402
 import zones as zones_lib  # noqa: E402
 
@@ -78,6 +89,12 @@ def _parse_args(argv):
     parser.add_argument("--id", default=None)
     parser.add_argument("--file", default=None)
     parser.add_argument("--todo", action="store_true")
+    # Vista en cadena, D-056 ("el enlace de sustitucion se ve por un
+    # solo lado"): cada nota viva con sus antecesoras colgando debajo,
+    # tachadas. Se combina con el mismo positional que ya resuelve
+    # zona-o-palabra -- mismo patron que `--todo`, no un segundo modo
+    # de invocacion aparte [contrato de Dante, test-first].
+    parser.add_argument("--chain", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -148,6 +165,15 @@ def _insert_before_footer(rendered, block):
     return f"{head}\n\n{block}{sep}{tail}"
 
 
+def _render_chain(text):
+    """La vista en cadena, ``--chain`` [D-056]. Mismo patron que
+    ``build_zone``/``build_word``: ``report.build_chain`` no declara
+    ``root``/``pm`` -- resuelve contra el cwd del proceso por su cuenta,
+    asi que este envoltorio tampoco los necesita.
+    """
+    return report_render_chain.render_chain(report.build_chain(text))
+
+
 def _render_by_query(text, include_archived, pm):
     zones_map = zones_lib.load(pm / "zones.json")
     resolved = zones_lib.resolve(text, zones_map)
@@ -181,6 +207,10 @@ def main(argv):
     if args.query is None:
         print("search.py: se necesita una zona, una palabra, --id o --file", file=sys.stderr)
         return 1
+
+    if args.chain:
+        print(_render_chain(args.query))
+        return 0
 
     print(_render_by_query(args.query, args.todo, pm))
     return 0

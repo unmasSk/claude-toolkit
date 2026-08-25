@@ -110,6 +110,12 @@
 - [checklist-gate-inject-contract-notes.md](checklist-gate-inject-contract-notes.md) — D-052 checklist hooks: real schema vs guessed, tests/hooks/ collision fix, race/session_id/chmod hardening round
 - [d054-shared-textnorm-normalization-contract-notes.md](d054-shared-textnorm-normalization-contract-notes.md) — D-054 lowercase+no-accent everywhere: anchor-at-entry-point technique around a live boundary test, real non-string contradiction left RED
 - [boot-git-object-corruption-contract-notes.md](boot-git-object-corruption-contract-notes.md) — surgical .git/objects corruption isolating ONE health check; live cd-safety incident + fix; concurrent-agent RED→GREEN mid-session
+- [d056-lineage-and-chain-view-contract-notes.md](d056-lineage-and-chain-view-contract-notes.md) — D-056 RED: archived-vs-live marker, two-sided Replaces link, new --chain flag; own-block-line regex isolation technique
+- [note-exact-key-zone-duplicate-gate-contract-notes.md](note-exact-key-zone-duplicate-gate-contract-notes.md) — same-keys+same-zone exact-match gate RED (Jaccard alone misses it); empty-keys guard; remove.py fence structural gap
+- [rule-retract-replace-contract-notes.md](rule-retract-replace-contract-notes.md) — gitmem rule --retract/--replaces RED: no prior CLI decision, mandatory --kind, bare-text matching, vacuous-green catch
+- [customs-archived-key-zone-duplicate-parity-notes.md](customs-archived-key-zone-duplicate-parity-notes.md) — hooks/customs.py missing note.py's archived-notes filter, second entry point for the same bug class
+- [chain-view-cross-zone-lineage-loss-regression-notes.md](chain-view-cross-zone-lineage-loss-regression-notes.md) — search.py --chain drops whole lineage when head re-archived to another zone pair; --todo still shows it, RED added
+- [chain-view-superseded-labeled-closed-contract-notes.md](chain-view-superseded-labeled-closed-contract-notes.md) — --chain labels cross-zone-superseded head "cerrada" (lying); wording-agnostic RED naming the real successor
 
 ## Retired (different stack, no longer this project's shape)
 

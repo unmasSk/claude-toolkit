@@ -85,7 +85,18 @@ import indexes
 import notes
 import query
 import zones as zones_mod
-from model import Cluster, Note, NoteReport, WordChunk, WordReport, Zone, ZoneReport
+from model import (
+    ArchiveLine,
+    ChainReport,
+    ChainThread,
+    Cluster,
+    Note,
+    NoteReport,
+    WordChunk,
+    WordReport,
+    Zone,
+    ZoneReport,
+)
 
 _DECISION_TYPES = frozenset({"D", "X"})
 _RESTRICTION_TYPES = frozenset({"R"})
@@ -172,6 +183,7 @@ def build_zone(zone: str, include_archived: bool) -> ZoneReport:
         memos=_by_type(visible, _MEMO_TYPES),
         incidents=_by_type(visible, _INCIDENT_TYPES),
         questions=_by_type(visible, _QUESTION_TYPES),
+        archived_ids=archived_ids,
     )
 
 
@@ -208,7 +220,13 @@ def build_word(word: str, include_archived: bool) -> WordReport:
         )
         matched_ids = frozenset(n.id for n in pair_notes if n.id in matched_ids_here)
         chunks.append(
-            WordChunk(zone1=zone1, zone2=zone2, notes=pair_notes, matched_ids=matched_ids)
+            WordChunk(
+                zone1=zone1,
+                zone2=zone2,
+                notes=pair_notes,
+                matched_ids=matched_ids,
+                archived_ids=archived_ids,
+            )
         )
     chunks.sort(key=lambda c: (c.zone1, c.zone2))
 
@@ -285,4 +303,184 @@ def build_note(note_id: str) -> NoteReport | None:
         generated_at=_now(),
         archived=note_id in archived_ids,
         cluster=cluster,
+    )
+
+
+def _archive_lines_by_id(pm_root: Path) -> dict[str, ArchiveLine]:
+    """``ARCHIVED.md`` indexado por id -- fuente para saber, de una nota
+    ya archivada, POR QUE lo esta (``destination``: ``replaced``/
+    ``closed``/``promoted``) [D-056, vista en cadena, caso borde (a)].
+    Un ``ARCHIVED.md`` que todavia no existe cuenta como "nada archivado
+    con destino conocido", mismo criterio declarado que ya aplica
+    ``indexes.archived_ids`` a la ausencia del fichero.
+    """
+    try:
+        lines = indexes.read_archive(pm_root)
+    except FileNotFoundError:
+        return {}
+    return {line.id: line for line in lines}
+
+
+def _chain_is_superseded(
+    note_id: str,
+    archive_lines: dict[str, ArchiveLine],
+    by_id: dict[str, Note],
+    superseded_within_matched: frozenset[str],
+) -> bool:
+    """``True`` si ``note_id`` tiene una sustituta VISIBLE dentro de
+    ``by_id`` (el conjunto ``matched`` de esta vista) -- solo entonces
+    puede dejar de ser cabeza de su propio hilo. ``ARCHIVED.md`` manda
+    cuando tiene una linea de destino ``"replaced"``: su
+    ``destination_detail`` es el id real de la sustituta [ver
+    ``model.ArchiveLine.destination_detail``, "el ID nuevo"], y esa
+    sustituta tiene que estar en ``by_id`` para contar -- si la cabeza
+    viva del linaje se re-archivo bajo OTRA pareja de zonas, la
+    sustituta real no toca la zona pedida y no aparece en ``by_id``:
+    en ese caso ``note_id`` NO esta sustituida DESDE ESTA VISTA, y
+    tiene que quedar como cabeza de su propio hilo (con sus propias
+    antecesoras colgando debajo) en vez de desaparecer entera --
+    regresion de Moriarty, "--chain nunca enseña menos que --todo".
+    A falta de linea en ``ARCHIVED.md`` (fichero ausente, o el id
+    nunca se archivo por esta via) se cae al indicio local: algun otro
+    puntero ``Replaces`` DENTRO del conjunto pedido ya lo nombra como
+    su viejo -- ese indicio ya vive solo dentro de ``by_id`` por
+    construccion, no hace falta comprobarlo aparte.
+    """
+    line = archive_lines.get(note_id)
+    if line is not None:
+        if line.destination != "replaced":
+            return False
+        return line.destination_detail in by_id
+    return note_id in superseded_within_matched
+
+
+def _chain_ancestors(head: Note, by_id: dict[str, Note]) -> tuple[Note, ...]:
+    """Las antecesoras de ``head``, caminando hacia atras por
+    ``Note.replaces`` -- la mas reciente primero [D-056, "las
+    antecesoras cuelgan en orden"]. Un puntero cuyo destino no esta en
+    ``by_id`` (la nota vieja no caso la palabra/zona pedida) se busca
+    igual por ``query.by_id`` -- la cadena entera tiene que verse,
+    nunca solo la parte que la busqueda encontro por su cuenta. Un
+    ciclo mal formado (red de seguridad, sin adversario que lo
+    provoque a proposito [CLAUDE.md "el sistema contra si mismo"]) para
+    la marcha en vez de repetir para siempre.
+    """
+    ancestors: list[Note] = []
+    seen = {head.id}
+    cursor = head
+    while cursor.replaces and cursor.replaces not in seen:
+        prev = by_id.get(cursor.replaces)
+        if prev is None:
+            prev = query.by_id(cursor.replaces)
+        if prev is None:
+            break
+        ancestors.append(prev)
+        seen.add(prev.id)
+        cursor = prev
+    return tuple(ancestors)
+
+
+def _chain_closure(
+    note_id: str,
+    is_archived: bool,
+    archive_lines: dict[str, ArchiveLine],
+) -> tuple[bool, str | None]:
+    """Decide ``closed``/``replaced_by`` para una cabeza de hilo que ya
+    paso el filtro de ``_chain_is_superseded`` -- vigente, archivada sin
+    sucesora, o archivada con una sucesora real que vive FUERA de esta
+    vista [regresion de Moriarty, "una cabeza sustituida nunca puede
+    salir 'cerrada'"]. ``model.ChainThread.closed`` (linea 191) solo
+    puede ser ``True`` en un cierre LEGITIMO sin sucesora -- eso lo
+    viola de raiz una nota con ``ArchiveLine.destination == "replaced"``,
+    tenga o no la sucesora visible aqui: SI tiene sucesora, luego no es
+    un cierre legitimo, solo una vista que no alcanza a mostrarla.
+
+    Nota vigente: ni cerrada ni sustituida. Nota archivada sin linea en
+    ``ARCHIVED.md`` (fichero ausente, o id nunca archivado por esta via):
+    se cae al mismo criterio a ciegas que ya usaba este modulo antes de
+    este arreglo (``closed=True``) -- no hay fuente que distinga el
+    porque, y "cerrada" sigue siendo mejor que inventar un estado sin
+    evidencia. Nota archivada con linea ``"closed"``: cierre legitimo,
+    ``closed=True``. Nota archivada con linea ``"replaced"``: NUNCA
+    cerrada -- ``replaced_by`` es ``destination_detail``, el id real de
+    la sucesora [``model.ArchiveLine.destination_detail``, "el ID
+    nuevo"], visible o no en esta vista.
+    """
+    if not is_archived:
+        return False, None
+    line = archive_lines.get(note_id)
+    if line is not None and line.destination == "replaced":
+        return False, line.destination_detail
+    return True, None
+
+
+def _chain_threads(
+    matched: tuple[Note, ...],
+    archived_ids: frozenset[str],
+    archive_lines: dict[str, ArchiveLine],
+) -> tuple[ChainThread, ...]:
+    """Reparte ``matched`` en hilos: una cabeza (vigente, archivada sin
+    sucesor, o archivada con sucesor que vive fuera de ``matched`` --
+    linaje cuya cabeza real se re-archivo bajo otra pareja de zonas)
+    con sus antecesoras colgando debajo [D-056]. Una nota sustituida
+    por otra del propio conjunto nunca es cabeza -- aparece como
+    antecesora de quien la sustituyo, via ``_chain_ancestors``. La
+    etiqueta de cierre de la cabeza (``closed``/``replaced_by``) la
+    decide ``_chain_closure`` -- nunca el simple ``note.id in
+    archived_ids`` de antes, que confundia "cerrada" con "sustituida
+    pero invisible desde aqui" [regresion de Moriarty].
+    """
+    by_id = {n.id: n for n in matched}
+    superseded_within_matched = frozenset(n.replaces for n in matched if n.replaces)
+
+    threads = []
+    for note in sorted(matched, key=lambda n: n.id):
+        if _chain_is_superseded(note.id, archive_lines, by_id, superseded_within_matched):
+            continue
+        closed, replaced_by = _chain_closure(
+            note.id, note.id in archived_ids, archive_lines
+        )
+        threads.append(
+            ChainThread(
+                head=note,
+                closed=closed,
+                ancestors=_chain_ancestors(note, by_id),
+                replaced_by=replaced_by,
+            )
+        )
+    return tuple(threads)
+
+
+def build_chain(text: str) -> ChainReport:
+    """La vista en cadena de ``text`` (zona o palabra, misma resolucion
+    que ``build_zone``/``build_word``) -- ``search.py --chain`` [D-056,
+    "el enlace de sustitucion se ve por un solo lado"]. Siempre trae el
+    historial COMPLETO (vigente y archivado): a diferencia de
+    ``build_zone``/``build_word``, esta vista no tiene un
+    ``include_archived`` que pedir -- las antecesoras SON archivadas por
+    definicion, y esconderlas sin ``--todo`` vaciaria la cadena entera.
+
+    El enlace ``Origin`` de una incidencia hacia el muro que nacio de
+    cerrarla NUNCA se pierde aqui: no es un ``Replaces``, asi que ningun
+    hilo lo agrupa -- el muro aparece como su propia cabeza (vigente,
+    sin antecesoras via Replaces) y `report_render_chain.py` reutiliza
+    el mismo bloque de restriccion que ya imprime `Origin: <id>` [caso
+    borde (b) del encargo] -- este modulo no reimplementa ese campo.
+    """
+    root = _repo_root()
+    pm_root = notes.pm_root(root)
+    archived_ids = indexes.archived_ids(pm_root)
+    archive_lines = _archive_lines_by_id(pm_root)
+
+    zones_map = zones_mod.load(_zones_json_path(pm_root))
+    resolved_zone = zones_mod.resolve(text, zones_map)
+    if resolved_zone is not None:
+        matched = _notes_touching_zone(resolved_zone)
+    else:
+        matched = tuple(note for note, _matched_lines in query.by_word(text))
+
+    return ChainReport(
+        query=text,
+        generated_at=_now(),
+        threads=_chain_threads(matched, archived_ids, archive_lines),
     )

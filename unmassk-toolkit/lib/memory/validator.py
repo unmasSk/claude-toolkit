@@ -378,7 +378,7 @@ def validate_replacement(
     if note.replaces is not None:
         return None
 
-    candidates = similar.find_similar(
+    candidates = similar.find_overlapping(
         note, existing_in_zone, threshold=SIMILARITY_THRESHOLD
     )
     if not candidates:

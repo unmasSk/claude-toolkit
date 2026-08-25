@@ -663,7 +663,10 @@ def _decide_note(note, pm, cfg):
     except Exception as exc:
         reason = rejection_.render_hook_block(_corrupt_file_rejection("zones.json", exc))
         return {"decision": "block", "reason": reason}
-    existing_in_zone = query.by_zone(note.zone1, note.zone2)
+    archived = indexes.archived_ids(pm)
+    existing_in_zone = tuple(
+        n for n in query.by_zone(note.zone1, note.zone2) if n.id not in archived
+    )
     known_ids = frozenset(n.id for n in query.by_zone(None, None))
     ctx = validator.Context(
         zones=zones_map,

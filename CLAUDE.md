@@ -145,6 +145,10 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 - Audit a module or an enterprise review request → Skill `unmassk-audit` (14-step structured audit, weighted score out of 110)
 
+**Reviewing the memory's own content:**
+
+- Audit the memory for rot — contradictions between live notes/rules, stale notes, semantic duplicates, dangling references → Skill `unmassk-memory-doctor` (an AI reads and lists candidates, read-only; retiring stays the owner's call). Distinct from `git-memory-doctor` (install health) and `gitmem rezones --verify` (index/git coherence).
+
 **Ending a session:**
 
 - Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)

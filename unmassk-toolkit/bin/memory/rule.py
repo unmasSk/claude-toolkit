@@ -17,6 +17,18 @@ fichero existiera]:
 
     rule.py "<texto>" [--kind <user|claude>] [--quote "<cita literal>"]
     rule.py                                       # imprime rules.md entero
+    rule.py --retract "<texto exacto>" --kind <user|claude>
+    rule.py "<texto nuevo>" --replaces "<texto viejo>" \\
+            --kind <user|claude> [--quote "<cita>"|none]
+
+`--retract`/`--replaces` [contrato fijado por
+test_rule_retract_replace_contract.py, test-first]: `--kind` es
+OBLIGATORIO en los dos -- a diferencia del alta, donde tiene un valor
+por defecto (`_DEFAULT_KIND`). `rules.similar_existing()` ya establece
+que una regla `[user]` y una `[claude]` con el mismo texto no son la
+misma regla; identificar solo por texto para retirar/sustituir seria
+ambiguo en cuanto existieran las dos, asi que este comando nunca
+inventa un valor por defecto para ese caso.
 
 `--quote` [encargo 2026-08-23, corregido el mismo dia]: las palabras
 LITERALES de quien dijo la regla. Obligatorio para CUALQUIER `--kind`
@@ -78,6 +90,8 @@ def _parse_args(argv):
     parser.add_argument("text", nargs="?", default=None)
     parser.add_argument("--kind", choices=("user", "claude"), default=None)
     parser.add_argument("--quote", default=None)
+    parser.add_argument("--retract", default=None)
+    parser.add_argument("--replaces", default=None)
     return parser.parse_args(argv)
 
 
@@ -158,8 +172,66 @@ def _cmd_add(text, kind, quote):
     return 0
 
 
+_KIND_REQUIRED_MSG = (
+    "❌ {flag} necesita --kind <user|claude> de forma explicita -- a "
+    "diferencia del alta, aqui no hay valor por defecto."
+)
+
+_NEW_TEXT_REQUIRED_MSG = (
+    "❌ --replaces necesita el texto NUEVO de la regla como posicional -- "
+    "gitmem rule \"<texto nuevo>\" --replaces \"<texto viejo>\" --kind <user|claude>."
+)
+
+
+def _cmd_retract(text, kind):
+    if kind is None:
+        print(_KIND_REQUIRED_MSG.format(flag="--retract"), file=sys.stderr)
+        return 1
+
+    result = rules_lib.retract(text, kind)
+    if not result.ok:
+        if result.rejections:
+            for one_rejection in result.rejections:
+                print(rejection_.render_terminal(one_rejection))
+            return 1
+        detalle = result.git_error or "git no dio detalle"
+        print(f"git fallo al retirar la regla: {detalle}", file=sys.stderr)
+        return 1
+
+    emoji = CHANNEL_EMOJI["rule"]
+    print(f"{emoji} regla retirada — [{kind}] {text}")
+    return 0
+
+
+def _cmd_replace(new_text, old_text, kind, quote):
+    if new_text is None:
+        print(_NEW_TEXT_REQUIRED_MSG, file=sys.stderr)
+        return 1
+    if kind is None:
+        print(_KIND_REQUIRED_MSG.format(flag="--replaces"), file=sys.stderr)
+        return 1
+
+    result = rules_lib.replace(old_text, new_text, kind, quote=quote)
+    if not result.ok:
+        if result.rejections:
+            for one_rejection in result.rejections:
+                print(rejection_.render_terminal(one_rejection))
+            return 1
+        detalle = result.git_error or "git no dio detalle"
+        print(f"git fallo al sustituir la regla: {detalle}", file=sys.stderr)
+        return 1
+
+    emoji = CHANNEL_EMOJI["rule"]
+    print(f"{emoji} regla sustituida — [{kind}] {old_text} → {new_text}")
+    return 0
+
+
 def main(argv):
     args = _parse_args(argv)
+    if args.retract is not None:
+        return _cmd_retract(args.retract, args.kind)
+    if args.replaces is not None:
+        return _cmd_replace(args.text, args.replaces, args.kind, args.quote)
     if args.text is not None:
         palabra = args.text.strip().lower()
         if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:

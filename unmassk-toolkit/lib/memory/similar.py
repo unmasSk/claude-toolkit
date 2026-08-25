@@ -100,3 +100,64 @@ def find_similar(
         if _jaccard(candidate_words, _tokens(note)) >= threshold:
             matches.append(note)
     return tuple(matches)
+
+
+def _find_exact_key_match(
+    candidate: Note,
+    existing: tuple[Note, ...],
+) -> tuple[Note, ...]:
+    """Candidatas de ``existing`` que comparten el MISMO conjunto de
+    ``keys`` (conjunto, no secuencia -- el orden no importa) en la MISMA
+    pareja de zonas que ``candidate``.
+
+    Puerta DISTINTA de ``find_similar``: un titular lo bastante distinto
+    diluye el Jaccard por debajo del umbral aunque las dos notas traten
+    exactamente el mismo asunto -- las keys ya lo dicen sin depender del
+    vocabulario del titular/descripcion.
+
+    El conjunto VACIO nunca cuenta como coincidencia: es ausencia de
+    dato, no un valor que comparar (mismo principio que ``_jaccard``
+    aplica al vocabulario vacio). Sin este guarda, dos notas cualquiera
+    sin ``--keys`` en la misma zona -- el caso mas comun -- chocarian
+    siempre.
+
+    Recibe las keys YA NORMALIZADAS (``validator.normalize_keys`` corre
+    antes de construir cualquier ``Note``, tanto la candidata como las ya
+    guardadas) -- esta funcion no normaliza nada por su cuenta.
+    """
+    candidate_keys = frozenset(candidate.keys)
+    if not candidate_keys:
+        return ()
+
+    matches = []
+    for note in existing:
+        if note.zone1 != candidate.zone1 or note.zone2 != candidate.zone2:
+            continue
+        if frozenset(note.keys) == candidate_keys:
+            matches.append(note)
+    return tuple(matches)
+
+
+def find_overlapping(
+    candidate: Note,
+    existing: tuple[Note, ...],
+    threshold: float,
+) -> tuple[Note, ...]:
+    """Union de las dos puertas de duplicado que usa
+    ``validator.validate_replacement``: parecido lexico (``find_similar``)
+    y coincidencia EXACTA del conjunto de keys (``_find_exact_key_match``).
+
+    Dedup por ``id`` si una misma nota cae por las dos puertas a la vez,
+    preservando el orden en que aparece primero (parecido antes que
+    coincidencia exacta).
+    """
+    seen: set[str] = set()
+    matches: list[Note] = []
+    for note in (
+        *find_similar(candidate, existing, threshold),
+        *_find_exact_key_match(candidate, existing),
+    ):
+        if note.id not in seen:
+            seen.add(note.id)
+            matches.append(note)
+    return tuple(matches)

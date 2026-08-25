@@ -2,9 +2,11 @@
 casi-duplicados por texto -- partido de `rules.py` por tamano.
 
 `iter_rule_texts()`/`strip_quote_suffix()` cruzan a `health.py` ademas de
-a `rules.py` -- se quedan publicos. `similar_existing()` llama a
-`read_all()` (en `rules_commit.py`, no en `rules.py`) para que esta
-llamada nunca tenga que importar DESDE la fachada.
+a `rules.py` -- se quedan publicos. `find_rule_line()`/`remove_rule_line()`
+cruzan solo a `rules.py`, uso exclusivo de `retract()`/`replace()`.
+`similar_existing()` llama a `read_all()` (en `rules_commit.py`, no en
+`rules.py`) para que esta llamada nunca tenga que importar DESDE la
+fachada.
 
 Duplicacion deliberada frente a `similar.py`: ese modulo calcula
 solapamiento de vocabulario pero esta atado a `Note` (headline +
@@ -107,6 +109,48 @@ def strip_quote_suffix(text: str) -> str:
     if match is not None:
         return match.group("text")
     return text
+
+
+def find_rule_line(content: str, text: str, kind: str) -> str | None:
+    """La linea CRUDA (con prefijo `[remember][kind] emoji` y la cita si
+    la lleva, sin el salto de linea final) de `content` cuyo DUENO es
+    `kind` y cuyo texto BASE (`strip_quote_suffix()`) case exacto con
+    `text` -- o `None` si ninguna casa. Uso exclusivo de
+    `rules.retract()`/`rules.replace()`: quien retira/sustituye una
+    regla se refiere a lo que dijo, no a la cita que la acompana en el
+    fichero, asi que la comparacion es siempre sobre el texto sin cita
+    -- igual que ya hace `similar_existing()`.
+
+    Un `kind` distinto NO casa aunque el texto sea identico -- misma
+    regla de negocio que `similar_existing()` (una regla `[user]` y una
+    `[claude]` con el mismo texto no son la misma regla).
+    """
+    for line in content.splitlines():
+        match = _RULE_LINE_RE.match(line)
+        if match is None:
+            continue
+        if match.group("kind") != kind:
+            continue
+        if strip_quote_suffix(match.group("text")) != text:
+            continue
+        return line
+    return None
+
+
+def remove_rule_line(content: str, matched_line: str) -> str:
+    """`content` sin la PRIMERA linea igual a `matched_line` (byte a
+    byte, tal como la devolvio `find_rule_line()`) -- el resto del
+    fichero (cabecera, otras reglas) queda intacto. Uso exclusivo de
+    `rules.retract()`/`rules.replace()`.
+    """
+    kept = []
+    removed = False
+    for line in content.splitlines(keepends=True):
+        if not removed and line.rstrip("\n") == matched_line:
+            removed = True
+            continue
+        kept.append(line)
+    return "".join(kept)
 
 
 def similar_existing(text: str) -> tuple[_RuleMatch, ...]:

@@ -284,6 +284,7 @@ Read the skill FIRST. Improvising a review and reading the skill afterwards mean
 | Scaffolding a new project's stack — normally reached through lifecycle, but go straight here if the user's own words are already scaffold-specific | `unmassk-scaffolding` |
 | Ambiguous request or a decision with stakes → interrogate first | `unmassk-grill` |
 | A real choice between options / "help me decide" | `unmassk-council` |
+| Reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references | `unmassk-memory-doctor` |
 | Wrapping up / handoff | `unmassk-close-session` |
 
 The project instruction file carries the same menu — duplicated on purpose.

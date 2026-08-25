@@ -66,6 +66,14 @@ from typing import NamedTuple
 import timefmt
 from emojis import SECTION_EMOJI
 from model import Cluster, Note, WordChunk, WordReport, ZoneReport
+from report_render_blocks import (
+    blocker_block,
+    decision_block,
+    incident_block,
+    memo_block,
+    question_block,
+    restriction_block,
+)
 
 _BOX_WIDTH = 72
 _DIVIDER = "═" * _BOX_WIDTH  # ====
@@ -108,64 +116,10 @@ header_line = _header_line
 utc_label = timefmt.utc_label
 
 
-def _restriction_block(note: Note, marker: str) -> list[str]:
-    lines = [f"{marker}{note.id}  [{note.zone1}][{note.zone2}]  {note.headline}"]
-    if note.why:
-        lines.append(f"         Why: {note.why}")
-    if note.origin:
-        lines.append(f"         Origin: {', '.join(note.origin)}")
-    if note.keys:
-        lines.append(f"         Keys: {', '.join(note.keys)}")
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
-
-
-def _blocker_block(note: Note, marker: str) -> list[str]:
-    lines = [f"{marker}{note.id}  [{note.zone1}][{note.zone2}]  {note.headline}"]
-    if note.awaits:
-        lines.append(f"         awaits: {note.awaits}")
-    lines.append(f"         Description: {note.description}")
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
-
-
-def _decision_block(note: Note, marker: str) -> list[str]:
-    """Nota D/X suelta, sin racimo -- usada solo por ``render_word``, que
-    recibe ``WordChunk.notes`` en bruto y no un ``Cluster`` (ver
-    desviacion 3 del docstring del modulo)."""
-    lines = [f"{marker}{note.id}  {note.headline}"]
-    if note.why:
-        lines.append(f"         Why: {note.why}")
-    if note.origin:
-        lines.append(f"         Origin: {', '.join(note.origin)}")
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
-
-
-def _memo_block(note: Note, marker: str) -> list[str]:
-    lines = [f"{marker}{note.id}  {note.headline}"]
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
-
-
-def _incident_block(note: Note, marker: str) -> list[str]:
-    lines = [f"{marker}{note.id}  {note.headline}"]
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
-
-
-def _question_block(note: Note, marker: str) -> list[str]:
-    lines = [f"{marker}{note.id}  {note.headline}"]
-    if note.description:
-        lines.append(f"         {note.description}")
-    if note.issue is not None:
-        lines.append(f"         Issue: #{note.issue}")
-    return lines
+# Alias publico de `_NO_MARK` -- mismo motivo que `DIVIDER`/`THIN_DIVIDER`
+# mas arriba: `report_render_chain.py` (vista `--chain`, D-056) lo
+# reutiliza sin duplicarlo.
+NO_MARK = _NO_MARK
 
 
 def _cluster_block(cluster: Cluster) -> list[str]:
@@ -233,20 +187,23 @@ def _section(
     notes: list[Note],
     block_fn,
     marker_fn,
+    archived_ids: frozenset[str],
     compact: bool = False,
 ) -> None:
     """Aniade una seccion (titulo + un bloque por nota) a ``lines`` si
     ``notes`` no esta vacio -- una zona/trozo sin ninguna nota de ese
     tipo no imprime una seccion vacia. ``compact`` deja una sola linea
     en blanco al final en vez de una por nota (los memos, de una linea
-    cada uno [TEXTOS Sec.2.1]).
+    cada uno [TEXTOS Sec.2.1]). ``archived_ids`` es lo que le dice a
+    cada ``block_fn`` si SU nota va marcada ``archivada`` [D-056] --
+    mismo conjunto que ``ZoneReport.archived_ids``/``WordChunk.archived_ids``.
     """
     if not notes:
         return
     lines.append(title)
     lines.append("")
     for note in notes:
-        lines.extend(block_fn(note, marker_fn(note)))
+        lines.extend(block_fn(note, marker_fn(note), note.id in archived_ids))
         if not compact:
             lines.append("")
     if compact:
@@ -273,30 +230,30 @@ def _render_zone_sections(r: ZoneReport) -> list[str]:
             f"{SECTION_EMOJI['restricciones']} RESTRICTIONS ({len(r.restrictions)}) "
             f"— literales",
             r.restrictions,
-            _restriction_block,
+            restriction_block,
             False,
         ),
-        (f"{SECTION_EMOJI['bloqueantes']} BLOCKERS ({len(r.blockers)})", r.blockers, _blocker_block, False),
+        (f"{SECTION_EMOJI['bloqueantes']} BLOCKERS ({len(r.blockers)})", r.blockers, blocker_block, False),
     )
     for title, notes, block_fn, compact in before_decisions:
-        _section(lines, title, notes, block_fn, _no_marker, compact)
+        _section(lines, title, notes, block_fn, _no_marker, r.archived_ids, compact)
 
     _cluster_section(
         lines, f"{SECTION_EMOJI['decisiones']} DECISIONS ({len(r.decisions)} racimos)", r.decisions
     )
 
     after_decisions = (
-        (f"{SECTION_EMOJI['memos']} MEMOS ({len(r.memos)})", r.memos, _memo_block, True),
-        (f"{SECTION_EMOJI['incidencias']} INCIDENTS ({len(r.incidents)})", r.incidents, _incident_block, False),
+        (f"{SECTION_EMOJI['memos']} MEMOS ({len(r.memos)})", r.memos, memo_block, True),
+        (f"{SECTION_EMOJI['incidencias']} INCIDENTS ({len(r.incidents)})", r.incidents, incident_block, False),
         (
             f"{SECTION_EMOJI['preguntas']} OPEN QUESTIONS ({len(r.questions)})",
             r.questions,
-            _question_block,
+            question_block,
             False,
         ),
     )
     for title, notes, block_fn, compact in after_decisions:
-        _section(lines, title, notes, block_fn, _no_marker, compact)
+        _section(lines, title, notes, block_fn, _no_marker, r.archived_ids, compact)
     return lines
 
 
@@ -385,43 +342,50 @@ def _chunk_sections(chunk: WordChunk, by_type: _TypeSplit) -> list[str]:
         (
             f"{SECTION_EMOJI['restricciones']} RESTRICTIONS ({len(by_type.restrictions)})",
             by_type.restrictions,
-            _restriction_block,
+            restriction_block,
             False,
         ),
         (
             f"{SECTION_EMOJI['bloqueantes']} BLOCKERS ({len(by_type.blockers)})",
             by_type.blockers,
-            _blocker_block,
+            blocker_block,
             False,
         ),
         (
             f"{SECTION_EMOJI['decisiones']} DECISIONS ({len(by_type.decisions)})",
             by_type.decisions,
-            _decision_block,
+            decision_block,
             False,
         ),
-        (f"{SECTION_EMOJI['memos']} MEMOS ({len(by_type.memos)})", by_type.memos, _memo_block, True),
+        (f"{SECTION_EMOJI['memos']} MEMOS ({len(by_type.memos)})", by_type.memos, memo_block, True),
         (
             f"{SECTION_EMOJI['incidencias']} INCIDENTS ({len(by_type.incidents)})",
             by_type.incidents,
-            _incident_block,
+            incident_block,
             False,
         ),
     )
     for title, notes, block_fn, compact in specs:
-        _section(lines, title, notes, block_fn, marker_for, compact)
+        _section(lines, title, notes, block_fn, marker_for, chunk.archived_ids, compact)
     return lines
 
 
-def _chunk_body(chunk: WordChunk, pending_questions: list[tuple[Note, bool]]) -> list[str]:
+def _chunk_body(
+    chunk: WordChunk, pending_questions: list[tuple[Note, bool, bool]]
+) -> list[str]:
     """El cuerpo de un trozo de la busqueda por palabra -- todo menos
     las preguntas, que ``render_word`` agrega una sola vez al final
-    [TEXTOS Sec.2.3]."""
+    [TEXTOS Sec.2.3]. Cada pregunta pendiente guarda tambien si esta
+    archivada [D-056] -- el propio trozo ya lo sabe (``chunk.archived_ids``),
+    y ``render_word`` no tiene ningun ``WordChunk`` a mano cuando pinta
+    el bloque agregado al final."""
     lines = [_chunk_header(chunk), ""]
     by_type = _split_by_type(chunk.notes)
     lines.extend(_chunk_sections(chunk, by_type))
     for note in by_type.questions:
-        pending_questions.append((note, note.id in chunk.matched_ids))
+        pending_questions.append(
+            (note, note.id in chunk.matched_ids, note.id in chunk.archived_ids)
+        )
     return lines
 
 
@@ -441,7 +405,7 @@ def render_word(r: WordReport) -> str:
     lines.append(f"  {_MARK} marca la línea que casó")
     lines.append(_DIVIDER)
 
-    pending_questions: list[tuple[Note, bool]] = []
+    pending_questions: list[tuple[Note, bool, bool]] = []
     for chunk in r.chunks:
         lines.append("")
         lines.extend(_chunk_body(chunk, pending_questions))
@@ -450,9 +414,9 @@ def render_word(r: WordReport) -> str:
         lines.append("")
         lines.append(f"{SECTION_EMOJI['preguntas']} OPEN QUESTIONS ({len(pending_questions)})")
         lines.append("")
-        for note, matched in pending_questions:
+        for note, matched, archived in pending_questions:
             marker = _MARK if matched else _NO_MARK
-            lines.extend(_question_block(note, marker))
+            lines.extend(question_block(note, marker, archived))
             lines.append("")
 
     lines.append(_THIN_DIVIDER)

@@ -1,6 +1,6 @@
 # Moriarty — Memory Index
 
-- [round-history.md](round-history.md) — full chronological log, one entry per attack round, newest first. Latest: checklist hooks re-attack (2026-08-24) — DÉBIL: the 5 prior findings (NFC/NFD, dash variants, duplicate-subject sort, false-enforcement promise, hot-edit) are all now DEAD (normalize_box_text + status-list fix confirmed live); one new BREAK alive — normalize_box_text() doesn't casefold, so a same-text-different-case completed task still reports "missing".
+- [round-history.md](round-history.md) — full chronological log, one entry per attack round, newest first. Latest: D-056 re-attack (2026-08-25, same day) — BREAK 1 (customs.py archived-filter) and BREAK 3 (--chain lineage loss) both CLOSED by the fix; BREAK 2 (zone-order) left open by owner design decision, not re-flagged. New T2/T3 hole from the BREAK 3 fix: `--chain` now labels a note "cerrada" even when it has a real live successor filed under different zones (ChainThread.closed's own contract violated).
 - [attack-patterns.md](attack-patterns.md) — reusable attack techniques that worked, organized by mechanism (concurrency/TOCTOU races, docstring-vs-code DECEPTION pairs, silent-loss shapes, tokenizer/regex edge cases), not by round.
 - [resilience.md](resilience.md) — what held under real attack and why, organized by mechanism (locking designs, atomic-write guarantees, fail-loud checks) — read before re-attacking something already proven solid, to avoid repeating a closed round.
 

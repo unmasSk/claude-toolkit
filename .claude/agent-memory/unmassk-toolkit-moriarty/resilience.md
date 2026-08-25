@@ -720,7 +720,16 @@ attack-patterns.md for both findings' full detail.
   single clean `[Errno 13]` line to stderr, no traceback, no partial write --
   the failure happens before the lock file can even be created, so nothing
   gets written to `rules.md` at all.
-- **NOTE, does not generalize**: this round ALSO found the rules.md
+- **STALE, corrected 2026-08-25**: the line below said `health.coherence_rules()`
+  was retired 2026-08-06 and never resurrected -- false as of the
+  2026-08-23 I-003 re-attack round (see round-history.md): it WAS
+  resurrected and is live today, `health.coherence_rules(root)` callable
+  and returning `(file_count, head_count, discrepancies)` -- reconfirmed
+  live 2026-08-25 (D-056 round) after a clean `rule.py --retract` call:
+  `(1, 1, ())`. Original text kept below for the SIGKILL-gap history it
+  documents, but "no safety net exists for rules.md today" is no longer
+  true.
+- this round ALSO found the rules.md
   equivalent of the `notes.write()` SIGKILL gap documented above -- but
   unlike `notes.py` (where `health.coherence()` independently detects the
   drift after the fact), `rules.py`'s own equivalent detector
@@ -728,6 +737,17 @@ attack-patterns.md for both findings' full detail.
   resurrected by the I-003 fix -- confirmed no safety net exists for
   `rules.md` today. See round-history.md, I-003 fix round, for the live
   repro. Don't cite "the notes.py gap is mitigated" as covering rules.py too.
+
+## rules.py retract()/replace() atomic write+commit-or-restore (2026-08-25, D-056 round)
+- A REAL failing `pre-commit` git hook (forces `git commit` to fail) installed in a
+  disposable scratch repo, never the test code itself (round-trip
+  sabotage on a copy, per unmassk-standards Sec.34) — both `bin/memory/rule.py
+  --retract` and `... --replaces` (the two NEW D-056 operations, sharing
+  `commit_or_restore()`/`lock_resource()` with the already-proven `add()`)
+  correctly restore `rules.md` to byte-identical prior content and leave
+  `git status --porcelain` clean, verified through an independent channel
+  (`cat`+`git log`+`git status`, never the writer's own return value) —
+  no orphan commit, no partial line, no drift between file and HEAD.
 
 ## checklist-gate.py / skill-checklist-inject.py / checklist_state.py (2026-08-24)
 - 4 real concurrent `checklist-gate.py` processes on the same session/registry (true subprocesses, not mocked) → exactly `_MAX_BLOCKS_PER_SESSION` (2) blocked, the other 2 correctly saw the cap and allowed-with-warning, `block_count` landed at exactly 2 on disk — no lost update, no over-increment, the `locked()` + fresh-reload-inside-the-lock pattern held under real contention

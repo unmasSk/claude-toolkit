@@ -1,7 +1,7 @@
 """Formas de datos del sistema de memoria v2 -- contrato en docs/memoria-v2/PIEZAS.md Sec.5.3.
 
 Declara UNA sola vez que forma tiene cada cosa que el sistema mueve.
-Catorce dataclasses congeladas (``frozen=True``). CERO FUNCIONES, CERO
+Dieciseis dataclasses congeladas (``frozen=True``). CERO FUNCIONES, CERO
 METODOS -- si a alguna le hace falta un metodo, es que la logica se
 esta colando en la capa de datos, y eso va al modulo que corresponda
 (mismo principio que ya aplican ``emojis.py`` y ``vocabulary.py``).
@@ -25,6 +25,10 @@ Las trece clases y de que salida sale cada una [PIEZAS.md Sec.5.3]:
 - ``WordChunk``   -- un trozo del informe por palabra, una pareja de zonas
                      (apareceio al escribir la firma de WordReport)
 - ``WordReport``  -- la busqueda por palabra, atraviesa varias zonas [TEXTOS Sec.2.3]
+- ``ChainThread`` -- una cabeza de cadena con sus antecesoras [D-056] --
+                     anadida 2026-08-25 (bloc de legibilidad, `--chain`)
+- ``ChainReport`` -- la vista en cadena de `search.py --chain` [D-056] --
+                     anadida 2026-08-25
 - ``WriteResult`` -- lo que devuelve toda escritura (la usaban seis
                      firmas sin estar declarada)
 - ``HealthReport`` -- el bloque AVISOS del arranque [TEXTOS Sec.3.1]
@@ -144,6 +148,17 @@ class ZoneReport:
     memos: tuple[Note, ...]
     incidents: tuple[Note, ...]
     questions: tuple[Note, ...]
+    # Cuales de las notas de arriba estan archivadas ahora mismo -- anadido
+    # D-056 (2026-08-25): antes solo `Cluster.archived_ids` sabia distinguir
+    # una nota archivada de una vigente; para el resto de tuplas planas
+    # (restrictions/blockers/memos/incidents/questions) no habia campo
+    # (hueco declarado en su dia, ver docstring de test_report.py, supuesto
+    # 4). `report_render.py` lo usa para marcar `archivada` en el listado
+    # sin tener que leer `indexes.py` por su cuenta [Sec.9.2, "que NO
+    # hace"]. Mismo conjunto GLOBAL de ids archivados que ya calculaba
+    # `build_zone` (no solo los de esta zona): comprobar pertenencia no
+    # necesita que el conjunto este recortado.
+    archived_ids: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -152,6 +167,11 @@ class WordChunk:                   # un trozo de la busqueda por palabra: una pa
     zone2: str
     notes: tuple[Note, ...]
     matched_ids: frozenset[str]    # cuales llevan el marcador ›
+    # mismo campo y mismo motivo que `ZoneReport.archived_ids` (D-056) --
+    # aqui tambien el mismo conjunto GLOBAL, repetido por trozo porque
+    # `report_render.py` pinta un trozo a la vez y no recibe el informe
+    # entero.
+    archived_ids: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -163,6 +183,23 @@ class WordReport:
     chunks: tuple[WordChunk, ...]
     # NO reutiliza ZoneReport: sus recuentos son "notas que casaron", no
     # "notas de la zona". Mismo nombre, otro significado = trampa
+
+
+@dataclass(frozen=True)
+class ChainThread:                 # una cabeza de cadena con sus antecesoras [D-056]
+    head: Note                     # vigente, o archivada sin sucesor (closed=True)
+    closed: bool                   # True = cierre legitimo sin sucesora ("cerrada")
+    ancestors: tuple[Note, ...]    # antecesoras via Replaces, la mas reciente primero
+    replaced_by: str | None = None  # id de la sucesora real, si closed es False
+    # porque la cabeza SI fue sustituida pero su sucesora vive fuera de
+    # esta vista (otra pareja de zonas) -- nunca True junto a closed=True
+
+
+@dataclass(frozen=True)
+class ChainReport:                 # la vista en cadena, `search.py --chain` [D-056]
+    query: str                     # zona o palabra tal cual se pidio
+    generated_at: datetime
+    threads: tuple[ChainThread, ...]
 
 
 @dataclass(frozen=True)

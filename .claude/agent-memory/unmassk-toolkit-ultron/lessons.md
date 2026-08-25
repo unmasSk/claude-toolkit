@@ -3502,3 +3502,73 @@ dropping them. `notes_commit.py` 1042->670 lines, `health.py` 683->422,
 `notes.py` 423->306, `query.py` 376->255, `checklist_state.py` 253->229,
 `textnorm.py` 57->24. Full suite both before and after: 1184 passed, 2
 skipped, 0 failed (1183->1184 is point 3's new red-to-green test).
+
+## rules.py retract()/replace() (2026-08-25): single atomic_write+commit_or_restore per operation, never two chained commits
+
+Implementing `gitmem rule --retract`/`--replaces` against Dante's
+pre-written contract (`test_rule_retract_replace_contract.py`, 8/8 red
+-> 8/8 green, zero test edits): the atomicity requirement ("retract+add
+enter together or neither does") is met by building ONE new file
+content string (old line removed via a new `rules_similarity.
+remove_rule_line()`, new line appended if it's a replace) and passing
+it through a SINGLE `commit_or_restore()` call — never `retract()` then
+`add()` as two separate library calls, which would leave a real window
+where the removal commits but the addition doesn't. `find_rule_line()`
+(new, `rules_similarity.py`) does the lookup: filters by `kind` FIRST,
+then compares `strip_quote_suffix(stored_text) == text` — a `kind`
+mismatch and a truly-absent text produce the exact same
+`reject_rule_not_found()` rejection (deliberate, matches
+`similar_existing()`'s existing "different kind = different rule"
+rule and avoids inventing an ambiguity-resolution nobody asked for).
+Both new library functions reuse `read_current_rules_content()` +
+`commit_or_restore()` from `rules_commit.py` unchanged — no new git
+mechanics were needed, `health.coherence_rules()` (compares HEAD vs
+working tree by text) stays clean automatically as a side effect of
+going through the same atomic path `add()` already used, no code
+change to `health.py` required. CLI (`rule.py`) requires `--kind`
+explicitly for both new flags (no default, unlike add()'s
+`_DEFAULT_KIND` fallback) — checked BEFORE calling into the library,
+since passing `kind=None` into `retract()`/`replace()` would crash on
+`"\n" in kind`.
+
+**Unrelated pre-existing flake, found not fixed**: `pytest
+tests/memory -q` (full dir) shows 7-8 failures in
+`test_search_chain_view.py`/`test_search_lineage_markers.py`
+(`(↺ <id>)` return-arrow marker missing) and sometimes
+`test_boundary.py::test_no_public_symbol_has_zero_production_and_zero_tests`
+— confirmed order-independent (same files fail even run in complete
+isolation, `pytest test_search_chain_view.py test_search_lineage_markers.py`
+alone, 2 runs), and confirmed unrelated to any rules/rule lane change
+(these test files never mention `rules`/`rule.py`). Do not chase this
+as caused by a rules.py change — it's a pre-existing gap in the
+search/chain-view/lineage-markers rendering lane.
+
+## similar.py exact-key-zone duplicate gate (2026-08-25): private helper for boundary test, naming collision with ids.find_duplicates
+
+Adding the exact-key-set duplicate gate (Dante's contract
+`test_note_exact_key_zone_duplicate_gate.py`, 2 red -> 7/7 green, zero
+test edits): the new matcher (`_find_exact_key_match`, filters by zone
+pair, requires a NON-EMPTY key set — empty never counts as a match, or
+every keyless note in a zone would collide with the next one) is called
+ONLY from a same-file composer (`find_overlapping`, unions
+`find_similar` + `_find_exact_key_match`, dedups by `note.id`) —
+`test_boundary.py::test_no_public_symbol_has_zero_production_and_zero_tests`
+flagged it dead when it was public (`find_exact_key_match`): same-file
+calls do NOT count as "production" for that detector (matches the
+already-documented `health.memory_mounted` quirk, see
+`doctor-and-health-zones-check.md`). Fix: make it private
+(`_find_exact_key_match`), matching the `_tokens`/`_jaccard` convention
+already in `similar.py` — only the composer needs to be public since
+`validator.py` is its only real cross-file caller.
+
+**Naming collision caught before shipping**: my first name for the
+composer was `find_duplicates` — `lib/memory/ids.py` already has an
+unrelated `find_duplicates` (duplicate note *IDs* in the index, used by
+`health.py`'s coherence check). No functional clash (different modules,
+both called qualified — `similar.find_duplicates` vs
+`ids.find_duplicates` — never `from X import find_duplicates`
+unqualified in the same scope), but same name for two unrelated
+concepts in the same package is a real readability trap for the next
+reader. Renamed to `find_overlapping` before reporting done. Grep
+`find_duplicates` across the whole tree before naming a new
+cross-module symbol in `lib/memory/` — it is not a rare word there.
