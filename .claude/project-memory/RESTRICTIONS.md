@@ -10,4 +10,4 @@
 [R-010][skills][architecture] agent frontmatter field memory: is real Claude Code API, never delete it
 [R-011][skills][architecture] agent frontmatter field skills: preloads that skill into the subagent, verified
 [R-012][memory][architecture] next_id must receive live index plus archived ids, or an id gets reused forever
-[R-013][memory][install] git hash-object needs --no-filters with --path or wip breaks on Windows autocrlf
+[R-014][memory][install] wip verify hashes via --path only, --no-filters is forbidden (autocrlf)
