@@ -107,3 +107,4 @@
 [M-123][memory][architecture] git 'not in HEAD' has 3 message forms: check existence by cat-file -e returncode
 [M-124][memory][architecture] textnorm is duplicated in checklist_state on purpose (lib/memory boundary)
 [M-125][skills][architecture] skills-as-checklists holds: program-set boxes plus Stop gate, shipped 1.39.0
+[M-126][architecture][testing] Yoda system pass: approved with conditions, engine solid under sabotage
