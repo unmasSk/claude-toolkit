@@ -54,3 +54,4 @@
 [D-056][memory][architecture] memory legibility and integrity batch scoped and ordered from Moria review
 [D-057][memory][release] code commits: commit and push at every step, never squash-and-push at the close
 [D-059][skills][architecture] repetition-scout skill: Protocolo Dia de la Marmota, file unmassk-groundhog
+[D-060][boot][memory] walls leave the opening menu: Claude-only seatbelt, pretty table on demand
