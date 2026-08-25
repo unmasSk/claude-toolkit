@@ -453,3 +453,52 @@ See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failur
 simulated" family) and [health-contract-notes](health-contract-notes.md)
 (the `gh`-failure isolation precedent `plans_unreflected_error` that
 `rule_discrepancies_error` mirrors almost verbatim).
+
+## Round 5 (2026-08-26): `BootSummary.issues` field + its COUNTS render, new dedicated file
+
+Linear-mode Verify pass, production already implemented (`model.py`'s
+`BootSummary.issues: tuple[Note, ...] = ()`, `boot.py`'s `build()`
+computing it and `_recuentos_block()` printing
+`f"      - issue #{note.issue}: {note.headline}"` per note, sorted by
+`(issue, id)`, D-060/D-064's "Issues" opening-menu row needing to list
+them one per line). New file
+`tests/memory/test_boot_issues_field.py` (3 tests) rather than
+extending `test_boot.py` -- same convention as `test_note_issue_field.py`/
+`test_work_issue_field.py`/`test_report_render_issue_field.py`: a new
+field/surface around `issue(s)` gets its own file, never folded into the
+module's original contract file. All the usual `boot`/`model`/`indexes`/
+`notes`/`make_note`/`make_context`/`_cwd` fixtures are DUPLICATED locally
+per this project's established rule (repeat per file, never share via
+conftest for anything beyond the bare module-import helper) -- confirmed
+by checking `test_health_rules_coherence_contract.py` as the precedent
+before writing.
+
+**Gotcha caught only by running, not reading**: assumed the line right
+after the COUNTS counter would be `❓ OPEN QUESTIONS ....  C E R O` when
+there are zero issues. Wrong -- `_named_block()` always prepends its own
+leading blank line before any titled block (pre-existing behavior, not
+part of this change), so the real sequence is counter -> blank -> the
+questions header. First draft asserted `counts_index + 2` directly
+against the header text and failed; fixed to assert the blank line at
+`+2` and the header at `+3`, with a comment explaining that blank line
+is the pre-existing separator, not an "extra line" the contract's item
+(2) is about.
+
+**RED-with-broken-logic proof**: reimplementing `_recuentos_block()`
+inside the permanent test file was rejected (production logic duplicated
+inside a test = banned) exactly like Round 3 of the `gh`-PATH file. Ad
+hoc script (scratchpad, never committed) imported the real modules,
+`pytest.MonkeyPatch().setattr(boot_mod, "_recuentos_block", <broken>)`
+with TWO independent broken variants -- order (`reversed(summary.issues)`
+instead of the real sorted tuple) and format (`issue {n}` instead of
+`issue #{n}`) -- then called the permanent test's own method object
+directly against each. Both went RED through the exact same assertion
+(`_issue_lines(rendered) == expected_lines`), and a third unpatched
+control run in the same process stayed GREEN afterward, confirming
+`mp.undo()` left no residue between the two monkeypatch scenarios.
+
+Verified: new file green ×3 (3/3 each, 9/9 total), together with
+`test_boot.py` (17/17), full `tests/memory` suite (598 passed, 1
+skipped, no regression from the new fixtures/module-level state). No
+production file touched (`git status` on `lib/memory/boot.py`/`model.py`
+empty throughout).

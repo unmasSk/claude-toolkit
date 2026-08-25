@@ -46,7 +46,7 @@
 - [notes-stdout-only-git-error-regression-notes.md](notes-stdout-only-git-error-regression-notes.md) — git_error empty on stdout-only failure
 - [rejection-gitcmd-value-presence-and-stdout-regression-notes.md](rejection-gitcmd-value-presence-and-stdout-regression-notes.md) — build() key-vs-value gap + stdout-only failure
 - [issue-double-registration-and-notes-path-bug-notes.md](issue-double-registration-and-notes-path-bug-notes.md) — double-registration fix + notes.py index-root bug
-- [boot-py-v2-full-contract-notes.md](boot-py-v2-full-contract-notes.md) — memoria-v2 boot.py rendering + health.py coherence (4 rounds merged): coherence_rules() wiring, 4 Argus regressions, COUNTS label rename, corrupted-git-object isolation
+- [boot-py-v2-full-contract-notes.md](boot-py-v2-full-contract-notes.md) — memoria-v2 boot.py rendering + health.py coherence (5 rounds merged): coherence_rules() wiring, 4 Argus regressions, COUNTS label rename, corrupted-git-object isolation, BootSummary.issues field
 - [inject-hook-contract-notes.md](inject-hook-contract-notes.md) — hooks/inject.py RED, fail-open correction
 - [boot-launcher-hook-contract-notes.md](boot-launcher-hook-contract-notes.md) — boot_launcher.py RED, real SessionStart payload
 - [issue-deuda25-nested-repo-cwd-anchor-notes.md](issue-deuda25-nested-repo-cwd-anchor-notes.md) — DEUDA #25 RED, nested-repo cwd anchor
