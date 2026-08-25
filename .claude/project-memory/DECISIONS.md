@@ -5,7 +5,6 @@
 [D-003][memory][skills] the CLI stays 'gitmem rule'; the user's door is the slash command /remember
 [D-004][standards][testing] unmassk-standards gained Producer-Consumer round-trip integrity (§34)
 [D-005][memory][hooks] the near-dup write-path gate stays lexical, not semantic
-[D-006][memory][release] code commits: local WIPs per sub-step, single squash and push at close
 [D-007][boot][memory] boot hook output is always a minimal banner, content lives only in the file
 [D-008][boot][memory] boot fetches async before reading memory, never blocks or force-pulls
 [D-009][standards][install] Windows/macOS/Linux support became a hard requirement
@@ -54,3 +53,4 @@
 [D-054][skills][architecture] checklist box matching strips accents too, not only casefold/dash/whitespace
 [D-055][memory][architecture] two concurrent work-writes to one file are not both required to succeed
 [D-056][memory][architecture] memory legibility and integrity batch scoped and ordered from Moria review
+[D-057][memory][release] code commits: commit and push at every step, never squash-and-push at the close
