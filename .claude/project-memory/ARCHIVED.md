@@ -34,3 +34,4 @@
 2026-08-25  [D-058][skills][architecture] 🧭 the repetition-scout skill is named Protocolo Dia de la Marmota  →  replaced by D-059
 2026-08-25  [X-081][skills][architecture] 🚫 protocolo deja vu (Matrix)  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi
 2026-08-25  [X-082][skills][architecture] 🚫 protocolo fragua / hefesto  →  closed: descartada trivial de un nombre: ruido, orden del dueno de no guardar descartes asi
+2026-08-25  [D-061][boot][memory] 🧭 opening menu is a fixed five-row two-column table, dash for empty rows  →  replaced by D-062

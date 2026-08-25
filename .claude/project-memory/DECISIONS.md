@@ -55,4 +55,4 @@
 [D-057][memory][release] code commits: commit and push at every step, never squash-and-push at the close
 [D-059][skills][architecture] repetition-scout skill: Protocolo Dia de la Marmota, file unmassk-groundhog
 [D-060][boot][memory] walls leave the opening menu: Claude-only seatbelt, pretty table on demand
-[D-061][boot][memory] opening menu is a fixed five-row two-column table, dash for empty rows
+[D-062][boot][memory] opening table: one item per line, label only on the first row of its section
