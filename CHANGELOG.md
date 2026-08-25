@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-08-25
+
 ### Added
 - **Las listas de memoria distinguen las notas ARCHIVADAS de las vivas, y el enlace de sustitución se ve por los dos lados.** Antes una nota archivada salía idéntica a una viva en `--todo`, lo que hizo a un Claude cantar una contradicción falsa entre dos notas que en realidad no competían. Ahora cada línea archivada lleva la marca `archivada`, y la nota que sustituyó a otra pinta `(↺ M-xxx)` en las listas y `sustituye a M-xxx` en su propia vista por `--id`.
 - **Nueva vista `gitmem search <...> --chain`**: cada nota viva aparece con sus antecesoras tachadas debajo, siguiendo el linaje completo. Una archivada sin sucesora se marca `cerrada`; una cuya sucesora se movió de zona se marca `sustituida por M-xxx` en vez de desaparecer del linaje de la zona vieja.
