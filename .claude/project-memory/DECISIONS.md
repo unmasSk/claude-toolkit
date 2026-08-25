@@ -53,4 +53,4 @@
 [D-055][memory][architecture] two concurrent work-writes to one file are not both required to succeed
 [D-056][memory][architecture] memory legibility and integrity batch scoped and ordered from Moria review
 [D-057][memory][release] code commits: commit and push at every step, never squash-and-push at the close
-[D-058][skills][architecture] the repetition-scout skill is named Protocolo Dia de la Marmota
+[D-059][skills][architecture] repetition-scout skill: Protocolo Dia de la Marmota, file unmassk-groundhog
