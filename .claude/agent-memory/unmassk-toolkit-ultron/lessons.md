@@ -3649,3 +3649,63 @@ BEFORE declaring "done" on a similar.py-only zone/key comparison task —
 grep the actual call chain (`note.py`/`remove.py` → `query.by_zone` →
 `validator.Context.existing_in_zone`) before trusting that the fix is
 contained to the file the task named.
+
+## Two-gap boot task (2026-08-25/26): point 1 was already green (I-003 fix from a prior session), and my own edit got auto-committed under an UNRELATED commit message from a concurrent session
+
+Task: close two boot gaps in `lib/memory/`. Point 1 (test-first, "red
+contract"): `test_boot.py::test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_check`
+— ran it FIRST before touching any code, per the pre-flight discipline,
+and it was already GREEN (`health.build()` already wraps
+`coherence_rules()` in `try/except RuntimeError`, committed in `21f0033`
+two sessions earlier — see `health.py` docstring "Resiliente a un git
+corrupto, 2026-08-24"). **Lesson: in this repo, "the red contract
+already exists" in a task prompt is a snapshot at task-authoring time,
+not a live fact — this repo has multiple sessions/agents working the
+SAME tree in parallel (confirmed by CLAUDE.md's own hard rule at the
+top of `MEMORY.md`), so a contract can go red→green between when the
+task was written and when I pick it up. Always run the named test FIRST,
+before writing anything — do not assume "test-first" implies "still
+red".**
+
+Point 2 (linear): extended `BootSummary` with an `issues: tuple[Note,
+...]` field (all live notes carrying `.issue`, sorted by
+`(issue, id)`, unsorted/undeduped per issue) and `boot.py`'s
+`_recuentos_block()` to list each one under the existing "issues with a
+live note . N" counter line (`      - issue #N: <headline>`), nested
+like the existing `index_discrepancies`/`rule_discrepancies` sub-list
+pattern rather than a separate titled block like `OPEN QUESTIONS` — the
+task said "además del contador" (in addition to the counter, i.e.
+attached to it) and "con cero issues, igual que ahora" (zero case must
+render byte-identical to before), which the nested-under-counter shape
+satisfies for free (empty tuple → no extra lines) while a separate
+titled block would not.
+
+**Verified via a standalone script in scratchpad, not a test file**:
+LIMITS forbade touching any test file, and there was no existing
+fixture-free way to build a real repo + seed notes without either (a)
+writing into `tests/memory/` or (b) reusing the test file's own
+fixtures. Wrote a throwaway script in the scratchpad dir that imports
+`lib/memory/*` directly (no `tests/` involvement at all) and replicates
+the `tmp_repo`/`make_note`/`make_context` fixture bodies inline — proved
+two notes sharing one issue number list as two separate lines with the
+same `#N`, and a third note with a different issue number sorts before
+it. This is the right move when the contract-writer (Dante, in
+test-first) hasn't produced a test yet (linear mode) and the LIMITS ban
+editing tests — do not skip real verification just because "no test
+exists yet to run".
+
+**Auto-commit incident, not caused by me**: after finishing the edits
+(never ran `git commit` myself — blacklisted), `git status` came back
+"working tree clean" and `git log -1` showed a commit
+(`65f47a0`, message "fix conftest path_without_real_gh: ...") from
+`bextia` that, per `git show`, contains byte-for-byte exactly my two
+edits to `boot.py`/`model.py` PLUS unrelated `conftest.py` changes from
+a different concurrent session (Dante, fixing a CI `gh`-path issue) —
+confirms the project's own D-057 ("el trabajo rutinario se commitea y
+se pushea a cada paso... la memoria se guarda sola") is live via some
+automated mechanism outside any single agent's `git commit` call, and
+that it can bundle two unrelated sessions' working-tree changes into one
+commit under one session's message. Nothing to fix on my end (my code
+was correct and intact), but worth knowing: **do not read "clean working
+tree" as "my edits vanished" — check `git show <HEAD>` for your own
+file/line content before concluding anything went wrong.**
