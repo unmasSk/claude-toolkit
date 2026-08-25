@@ -175,7 +175,7 @@ Continuing beyond 3 happens only if the authorization is already written in my t
 **THE CLEANUP CHECK — defined here once, referenced everywhere else.** Three copies of this command in one card is why every fix to it landed half-done:
 
 ```
-git grep -n --untracked --no-exclude-standard "\[HOUSE:" -- ':(top)' ':(top,exclude)agents/house.md' ':(top,exclude)*/agents/house.md' ':(top,exclude).claude/agent-memory/*'
+git grep -n -I --untracked --no-exclude-standard "\[HOUSE:" -- ':(top)' ':(top,exclude)agents/house.md' ':(top,exclude)*/agents/house.md' ':(top,exclude).claude/agent-memory/*'
 ```
 
 Every part of it is there because leaving it out produced a false "clean":
