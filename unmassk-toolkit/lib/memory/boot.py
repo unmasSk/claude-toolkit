@@ -39,6 +39,12 @@ Los tres recuentos sin fuente fijada en el contrato (`open_questions`,
   locales sin archivar, y puede contradecir la linea de
   `plans_unreflected` (que SI consulta `gh`) en la misma pantalla.
 
+  `BootSummary.issues` lleva las notas enteras detras de ese contador
+  (mismas notas, sin deduplicar por numero de issue) -- el contador solo
+  decia CUANTAS, nunca CUALES, y la fila "Issues" del menu que Claude
+  pinta [D-060/D-064] necesita listarlas una por linea con su numero de
+  issue y el titular de su nota.
+
 `lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
 de Python. Import plano entre hermanos.
 """
@@ -144,7 +150,13 @@ def build() -> BootSummary:
     incidents = tuple(sorted((n for n in live_notes if n.type == "I"), key=lambda n: n.id))
     open_questions = len(questions)
     open_incidents = len(incidents)
-    open_issues = len({n.issue for n in live_notes if n.issue is not None})
+    issues = tuple(
+        sorted(
+            (n for n in live_notes if n.issue is not None),
+            key=lambda n: (n.issue, n.id),
+        )
+    )
+    open_issues = len({n.issue for n in issues})
 
     return BootSummary(
         project=root.name,
@@ -160,6 +172,7 @@ def build() -> BootSummary:
         questions=questions,
         incidents=incidents,
         health=health.build(),
+        issues=issues,
     )
 
 
@@ -317,6 +330,14 @@ def _recuentos_block(summary: BootSummary) -> list[str]:
         "COUNTS",
         f"   issues with a live note .  {summary.open_issues}",
     ]
+    # El contador de arriba solo dice CUANTAS issues distintas hay, nunca
+    # CUALES [D-060/D-064, la fila "Issues" del menu que Claude pinta:
+    # "the issues carrying a live note, one per line"] -- cada nota vigente
+    # con `issue` puesto sale debajo, una por linea, con su numero de issue
+    # y el titular de su propia nota. Sin notas con issue, esto no anade
+    # ninguna linea: el contador en cero se queda igual que siempre.
+    for note in summary.issues:
+        lines.append(f"      - issue #{note.issue}: {note.headline}")
     # Una pregunta sin resolver y una incidencia abierta salen POR SU
     # NOMBRE, nunca como una cifra: un "3" no dice cual de las tres te
     # para hoy, y esa era justamente la queja -- "con seis preguntas

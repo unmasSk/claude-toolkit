@@ -297,3 +297,15 @@ class BootSummary:
     questions: tuple[Note, ...]
     incidents: tuple[Note, ...]
     health: HealthReport
+    # Las notas vigentes que llevan `issue` puesto, enteras -- mismo
+    # motivo que `questions`/`incidents`: `open_issues` solo dice CUANTAS
+    # issues distintas hay, nunca CUALES. La fila "Issues" del menu que
+    # Claude pinta necesita el numero de issue y el titular de su nota
+    # para poder listarlas una por linea (D-060/D-064); antes de este
+    # campo esa fila no tenia de donde sacar el dato y solo existia el
+    # contador. Puede llevar varias notas para el mismo numero de issue
+    # -- no se deduplica, cada nota vigente con `issue` sale en su propia
+    # linea. Vacia cuando `open_issues` es cero. Con valor por defecto
+    # porque se anade despues de que el resto del molde ya estaba fijado
+    # [misma razon que `archived_ids` en `ZoneReport`/`WordChunk`].
+    issues: tuple[Note, ...] = ()

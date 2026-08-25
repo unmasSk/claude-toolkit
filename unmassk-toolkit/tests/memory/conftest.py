@@ -15,13 +15,16 @@ fixtures, ficheros) van en ingles; los comentarios y docstrings, en
 espanol.
 """
 
+import atexit
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -323,21 +326,92 @@ def run_memory_script(script_name, args, cwd, env=None):
 # aislado, en `test_work_issue_field.py::_path_without_gh` (solo lo
 # usaba el caso "gh no esta instalado") a los tres ficheros que fabrican
 # un `gh` falso.
-def path_without_real_gh():
-    """El `PATH` heredado por el proceso de test, MENOS cualquier
-    directorio que contenga un `gh` real -- nunca un `PATH` vacio (eso
-    tambien se llevaria `git`/`python3`, que los scripts bajo prueba
-    necesitan de verdad). Filtra por CONTENIDO real de cada directorio
-    (`gh` en POSIX, `gh.exe`/`gh.cmd`/`gh.bat` en Windows), nunca por una
-    ruta fija -- portable a cualquier maquina donde `gh` viva en otro
-    sitio.
+#
+# REAPARICION del mismo incidente (CI run 32895458657, commit d9cec70,
+# 2026-08-25): el arreglo de arriba filtraba el DIRECTORIO entero que
+# contuviera un `gh` real -- correcto mientras `gh` y `git` viven en
+# sitios distintos (macOS local, Homebrew), pero en `ubuntu-latest`
+# ambos conviven en `/usr/bin`, asi que quitar el directorio se llevo
+# `git` por delante y 37 tests cayeron con "git no encontrado". En local
+# no se reproducia porque nunca coinciden en el mismo directorio.
+#
+# Arreglo definitivo: filtrar por FICHERO, no por directorio. Cuando un
+# directorio del `PATH` contiene un `gh` real, no se descarta entero --
+# se reconstruye en un directorio de scratch con un symlink a cada
+# entrada EXCEPTO `gh`/`gh.exe`/`gh.cmd`/`gh.bat`, y ese directorio de
+# scratch sustituye al original en el `PATH` devuelto. `git` (y
+# cualquier otro binario que comparta carpeta con `gh`) sigue siendo
+# localizable; solo `gh` desaparece. Symlinks, nunca copias -- barato
+# incluso cuando el directorio real tiene cientos de entradas
+# (`/usr/bin`), y si el sistema no soporta symlinks (`OSError`) cae a
+# una copia real de esa entrada concreta, nunca del directorio completo.
+_GH_FAKE_NAMES = ("gh", "gh.exe", "gh.cmd", "gh.bat")
+
+# Cache por directorio real -- si el mismo directorio (p.ej. `/usr/bin`)
+# aparece varias veces en el PATH o se pide en varias llamadas dentro de
+# la misma sesion de test, se reconstruye una sola vez. Limpiado al
+# salir del proceso, nunca dentro del test (el PATH devuelto puede seguir
+# vivo en un `subprocess.run` en marcha).
+_SANITIZED_GH_FREE_DIRS = {}
+
+
+def _cleanup_sanitized_gh_free_dirs():
+    for sanitized_dir in _SANITIZED_GH_FREE_DIRS.values():
+        shutil.rmtree(sanitized_dir, ignore_errors=True)
+
+
+atexit.register(_cleanup_sanitized_gh_free_dirs)
+
+
+def _dir_without_gh(real_dir):
+    """Devuelve un directorio equivalente a `real_dir` pero sin ningun
+    `gh` real -- cada entrada que NO sea `gh` se enlaza (symlink) tal
+    cual, asi que `git` u otro binario que viva en el mismo sitio que
+    `gh` (caso `/usr/bin` en ubuntu-latest) sigue siendo localizable.
     """
-    names = ("gh", "gh.exe", "gh.cmd", "gh.bat")
+    if real_dir in _SANITIZED_GH_FREE_DIRS:
+        return _SANITIZED_GH_FREE_DIRS[real_dir]
+    sanitized_dir = tempfile.mkdtemp(prefix="path-without-gh-")
+    try:
+        entries = os.listdir(real_dir)
+    except OSError:
+        entries = []
+    for entry in entries:
+        if entry in _GH_FAKE_NAMES:
+            continue
+        src = os.path.join(real_dir, entry)
+        dst = os.path.join(sanitized_dir, entry)
+        try:
+            os.symlink(src, dst)
+        except OSError:
+            # Sistema sin soporte de symlinks (raro) -- copia real de
+            # ESTA entrada concreta, nunca del directorio completo.
+            try:
+                shutil.copy2(src, dst)
+            except OSError:
+                continue
+    _SANITIZED_GH_FREE_DIRS[real_dir] = sanitized_dir
+    return sanitized_dir
+
+
+def path_without_real_gh():
+    """El `PATH` heredado por el proceso de test, con cada directorio
+    que contenga un `gh` real SUSTITUIDO por una copia sin `gh` (nunca
+    eliminado entero) -- nunca un `PATH` vacio ni un `PATH` que pierda
+    `git`/`python3`/cualquier otro binario que los scripts bajo prueba
+    necesiten de verdad, aunque ese binario comparta carpeta con `gh`
+    (ubuntu-latest: `git` y `gh` conviven en `/usr/bin`). Filtra por
+    CONTENIDO real de cada directorio (`gh` en POSIX, `gh.exe`/`gh.cmd`/
+    `gh.bat` en Windows), nunca por una ruta fija -- portable a
+    cualquier maquina donde `gh` viva en otro sitio.
+    """
     dirs = os.environ.get("PATH", "").split(os.pathsep)
-    kept = [
-        d for d in dirs
-        if not any(os.path.isfile(os.path.join(d, name)) for name in names)
-    ]
+    kept = []
+    for d in dirs:
+        has_real_gh = any(
+            os.path.isfile(os.path.join(d, name)) for name in _GH_FAKE_NAMES
+        )
+        kept.append(_dir_without_gh(d) if has_real_gh else d)
     return os.pathsep.join(kept)
 
 

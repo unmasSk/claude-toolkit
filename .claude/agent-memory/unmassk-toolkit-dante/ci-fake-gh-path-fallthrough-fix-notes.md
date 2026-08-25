@@ -1,6 +1,6 @@
 ---
 name: ci-fake-gh-path-fallthrough-fix-notes
-description: CI red (ubuntu-latest + windows-latest) on the fake-gh-on-PATH technique; POSIX execvp EACCES-fallthrough proven, Windows CreateProcess .exe-only proven; conftest.path_without_real_gh() fix + explicit win32 skip
+description: CI red (ubuntu-latest + windows-latest) on the fake-gh-on-PATH technique; POSIX execvp EACCES-fallthrough proven, Windows CreateProcess .exe-only proven; conftest.path_without_real_gh() fix + explicit win32 skip. Round 2 (2026-08-25): same function's directory-level filter took git down with gh on ubuntu-latest (git+gh share /usr/bin) -- fixed to filter by file via a symlinked scratch dir
 metadata:
   type: project
 ---
@@ -65,3 +65,46 @@ test double meant to intercept a bare-name `subprocess.run([name, ...])`
 call -- always ALSO strip any real candidate from the rest of PATH, so
 an execution failure fails loud instead of silently falling back to the
 real dependency.
+
+## Round 2 (2026-08-25): the 2026-08-22 fix itself broke `git` on ubuntu-latest
+
+CI run 32895458657, commit d9cec70, Yoda's system pass (M-126): 37 tests
+red on ubuntu-latest with "git no encontrado" -- never reproduced locally.
+Root cause: `path_without_real_gh()` filtered by DIRECTORY (dropped every
+PATH entry containing a real `gh`), correct only while `gh` and `git` live
+in different directories (true on this macOS dev machine, Homebrew `gh` vs
+Xcode CLT `git`). On `ubuntu-latest`, both binaries live together in
+`/usr/bin` -- dropping the directory took `git` down with it. Same shape
+as Round 1's lesson, one level deeper: filtering too coarse a unit (a
+whole directory) hides a real dependency that happens to share ground
+with the fake target.
+
+**Fix**: filter by FILE, not by directory. When a PATH entry contains a
+real `gh`, don't drop the entry -- rebuild it in a scratch dir with a
+symlink to every OTHER entry (falls back to `shutil.copy2` per-entry only
+if symlinks aren't supported), and swap that scratch dir in instead.
+`git` (or anything else sharing the directory) stays reachable; only `gh`
+disappears. Cached per real directory (`_SANITIZED_GH_FREE_DIRS`), cleaned
+via `atexit`, never inside the test (the returned PATH can still be live
+inside a running subprocess when the test function returns).
+
+**Verification technique for "can't reproduce locally" CI-only bugs**:
+built a synthetic single-directory PATH (`git` + `gh` both written into
+one fresh `tempfile.mkdtemp()`, mimicking `/usr/bin`) rather than trusting
+the dev machine's real PATH -- the real PATH already keeps `git`/`gh`
+apart, so testing against it silently masks the exact bug being fixed.
+Confirmed the OLD filter logic (re-implemented inline, not imported) lost
+`git` entirely (`shutil.which("git")` -> `None`) on that synthetic PATH,
+and the NEW filter kept it (`shutil.which("git")` -> path inside the
+sanitized scratch dir, `gh` absent from its listing). Proving the old code
+COULD reproduce the failure is what makes the new code's pass meaningful
+-- a demonstration that never breaks under the pre-fix code proves
+nothing.
+
+**Scope note**: this round's task limited edits to `conftest.py` only.
+Pytest's `python_files = ["test_*.py"]` config (`pyproject.toml`) means a
+`def test_...` inside `conftest.py` is never collected -- so the
+CI-scenario demonstration above was run ad hoc (not committed as a
+permanent regression test), reported EXECUTED. A permanent automated
+version of this demonstration would need a new `test_*.py` file, which
+is outside this round's declared limits -- flagged, not silently added.
