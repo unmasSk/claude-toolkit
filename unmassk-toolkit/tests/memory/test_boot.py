@@ -266,6 +266,48 @@ def _corrupt_head_blob_for_path(root: Path, relpath: str) -> str:
     return probe_err
 
 
+def _exempt_path_from_autocrlf_reprocessing(root: Path, relpath: str) -> None:
+    """Dependencia SOLO-POSIX del test que usa `_corrupt_head_blob_for_path`
+    encima, invisible en una caja POSIX y real en Windows -- diagnostico
+    de House (2026-08-26), reproducido AQUI MISMO en macOS con
+    `core.autocrlf=true` (stderr identico byte a byte al de la CI de
+    Windows real, ver `test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_check`).
+
+    Con `core.autocrlf` activo (default de Git for Windows), `git add`
+    relee el CONTENIDO del blob del INDICE de `relpath` para decidir la
+    conversion de fin de linea de entradas cuyo `stat` no es fiable
+    (mtime en el mismo segundo -- lo que un fixture rapido produce
+    SIEMPRE). Si ese blob ya esta corrompido (el propio objeto que este
+    fichero corrompe adrede via `_corrupt_head_blob_for_path`), ese
+    `git add` -- disparado por CUALQUIER commit posterior, incluida una
+    nota nueva que no toca `relpath` para nada -- revienta con el MISMO
+    "inflate: data stream error" que la corrupcion produce a proposito,
+    aunque el commit en curso no tenga nada que ver con `relpath`. La
+    premisa de ese test ("el commit de una nota nueva no toca el objeto
+    de rules.md") solo es cierta sin `autocrlf` -- exactamente lo que
+    esta funcion hace explicito.
+
+    Arreglo, no del producto (el producto ya falla en voz alta con el
+    error real de git en `WriteResult.git_error` -- no hay defecto en
+    `lib/memory/`): una exencion LOCAL, sin trackear, en
+    `.git/info/attributes` (nunca `.gitattributes`, que si se comitea y
+    cambiaria el comportamiento real que R-014 vigila) que marca
+    `relpath` como `-text` -- Git deja de tocar sus finales de linea, y
+    por tanto de releer su blob, para ESA ruta en concreto. `autocrlf`
+    sigue vivo para todo lo demas, asi que esta exencion no enmascara la
+    clase de bug que R-014 exige seguir cubriendo en el resto del repo.
+
+    Verificado en vivo (ad hoc, antes de aplicar esto): con la exencion,
+    `notes.write()` tras corromper el objeto vuelve a `ok=True`, Y
+    `git show HEAD:<relpath>` SIGUE fallando exactamente igual -- la
+    exencion no repara ni enmascara la corrupcion que el test necesita,
+    solo evita que `git add` la vuelva a leer de refilon.
+    """
+    attributes_path = root / ".git" / "info" / "attributes"
+    attributes_path.parent.mkdir(parents=True, exist_ok=True)
+    attributes_path.write_text(f"/{relpath} -text\n", encoding="utf-8")
+
+
 @pytest.fixture
 def make_note(model):
     """Fabrica de `Note`, mismos defaults neutros que test_report.py/
@@ -822,6 +864,19 @@ def test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_che
     zone = "bootgitcorruptzone"
     ctx = make_context(zone_names=(zone,))
 
+    # Exencion de autocrlf, dependencia SOLO-POSIX hecha explicita aqui --
+    # ver `_exempt_path_from_autocrlf_reprocessing` para el porque completo
+    # (diagnostico de House, 2026-08-26): sin esto, un `core.autocrlf`
+    # activo (Git for Windows) hace que CUALQUIER commit posterior a la
+    # corrupcion -- incluida la nota nueva que este test siembra a
+    # proposito DESPUES, sin tocar `rules.md` para nada -- vuelva a leer
+    # el blob ya corrompido y falle, invalidando la premisa del test
+    # ("sembrar tras corromper sigue funcionando"). El relpath se calcula
+    # ANTES de sembrar la regla porque `rules_file_path()` es aritmetica
+    # de rutas pura, no depende de que el fichero ya exista.
+    relpath = rules.rules_file_path(root).relative_to(root).as_posix()
+    _exempt_path_from_autocrlf_reprocessing(root, relpath)
+
     with _cwd(root):
         indexes.seed(notes.pm_root(root))
         seeded_rule = rules.add(
@@ -834,7 +889,6 @@ def test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_che
         f"limpia: {seeded_rule.git_error}"
     )
 
-    relpath = rules.rules_file_path(root).relative_to(root).as_posix()
     real_git_error = _corrupt_head_blob_for_path(root, relpath)
 
     # Memoria sembrada DESPUES de corromper -- `git log`/el commit de una

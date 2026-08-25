@@ -502,3 +502,60 @@ Verified: new file green ×3 (3/3 each, 9/9 total), together with
 skipped, no regression from the new fixtures/module-level state). No
 production file touched (`git status` on `lib/memory/boot.py`/`model.py`
 empty throughout).
+
+## Round 6 (2026-08-26): House's diagnosis, autocrlf reprocessing a corrupted blob on unrelated commits
+
+Windows CI red on
+`test_boot_survives_a_real_corrupted_git_object_and_warns_about_the_rules_check`
+-- House diagnosed and reproduced byte-for-byte on macOS BEFORE handing
+this off: with `core.autocrlf=true` (Git for Windows' default), `git
+add` rereads the INDEX blob content of any entry whose `stat` isn't
+trustworthy (same-second mtime -- what a fast fixture always produces)
+to decide line-ending conversion. The test's own premise comment
+("commit de una nota nueva no toca el objeto de rules.md") only holds
+without `autocrlf` -- with it, ANY later commit, including one that
+never touches `rules.md`, rereads its already-corrupted blob and dies
+with the same "inflate: data stream error" the test deliberately
+produced. Confirmed T3/no-defect: production already fails loud via
+`WriteResult.git_error` -- this is a test-fixture gap, not a `lib/memory/`
+bug.
+
+**Cross-checked, not trusted blind**: reproduced the exact failure AND
+the exact fix locally (macOS, `core.autocrlf=true` forced on a
+throwaway repo) before touching the real test -- 3-way A/B/C script
+(no autocrlf: OK: with autocrlf, no exemption: FAILS with House's exact
+stderr; with autocrlf + exemption: OK again), plus a standalone check
+that `git show HEAD:rules.md` still fails identically AFTER the
+exemption (the fix doesn't repair or mask the corruption the test
+needs).
+
+**Fix**: `_exempt_path_from_autocrlf_reprocessing(root, relpath)`, new
+helper right after `_corrupt_head_blob_for_path` (same natural home),
+writes `.git/info/attributes` (never `.gitattributes` -- that's tracked
+and would change the REAL behavior R-014 watches) marking `rules.md`'s
+relpath `-text`, called in the test body BEFORE `rules.add()` so the
+exemption is live from the very first commit onward. `autocrlf` stays
+live for every other path -- doesn't mask the class of bug R-014 exists
+to catch, only removes this one fixture's false premise.
+
+**Verifying a Windows-only path without Windows, closing the loop both
+ways**: `.__wrapped__` unwraps a `@pytest.fixture`-decorated function
+for direct calling outside a pytest session (confirmed live: calling
+the fixture directly without `.__wrapped__` raises pytest's own
+`Failed: Fixture "X" called directly`). Ran the REAL, unmodified test
+function (never reimplemented) against a `tmp_repo` built with the same
+steps as the real fixture plus `core.autocrlf=true` forced -- passed.
+Then a negative control: `pytest.MonkeyPatch` neutralizing
+`_exempt_path_from_autocrlf_reprocessing` to a no-op, same autocrlf
+scenario -- failed at the EXACT assertion House named ("comprobacion
+previa: sembrar una nota real tras la corrupcion"), with the identical
+stderr fragment. Proves the exemption specifically, not something else,
+is what makes it pass.
+
+Verified: real test green ×3 in the actual repo config (no autocrlf,
+matching macOS/Linux CI), `test_boot.py` green ×3 (14/14 each), full
+`tests/memory` suite (598 passed, 1 skipped, no regression). Only
+`test_boot.py` touched (`git status` confirms). Declared
+UNVERIFIED-en-Windows for the real CI run itself (filesystem specifics
+of a real Windows runner remain unexercised here) -- the mechanism and
+the fix are executed evidence, the actual `windows-latest` pass is not.
