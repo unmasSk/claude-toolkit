@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-08-23
 **Origen:** Q-002 + investigación de 9 agentes (85 repositorios, canales oficiales, foros, papers)
-**Estado:** propuesta, sin aprobar
+**Estado:** APROBADO PARCIALMENTE el 2026-08-23 — D-052 aprueba los bloques 3, 4, 5, 6, 8 y 9b/9c, más las casillas puestas por el programa (bloque 9.1/9.4, ver `docs/plan/casillas-por-programa.md`, ya publicado en 1.39.0). D-053 aprueba el bloque 7 en su variante de partir `wizard-options.md` y `frameworks.md` por categoría, dejando `best-practices.md` entero. Los bloques 1 y 2 quedan aprobados en alcance pero **al final, como limpieza de este repo, no como el arreglo** (D-051: "los arreglos van donde viajan", este repo es solo el que se publica). El bloqueo original del bloque 1 (comando `rule` solo sabe añadir, ver 9.2) ya no aplica: `bin/memory/rule.py` tiene `--retract` y `--replaces` en el árbol.
 
 ---
 
@@ -33,7 +33,7 @@
 
 ## BLOQUE 1 — `.claude/project-memory/rules.md` (43 reglas → 41)
 
-> ⚠️ Cabecera del fichero: *"Lo escribe el script. No editar."* Todo este bloque necesita que el comando `rule` sepa borrar y editar — ver **BLOQUE 9.2**. Hasta entonces, este bloque está bloqueado.
+> ⚠️ Cabecera del fichero: *"Lo escribe el script. No editar."* Todo este bloque necesita que el comando `rule` sepa borrar y editar — ver **BLOQUE 9.2**. **Desbloqueado**: `bin/memory/rule.py` ya tiene `--retract "<texto>" --kind <user|claude>` y `--replaces` en el árbol. Nota aparte: al menos una de las fusiones de 1.1 (la duplicada sobre informar de agentes en paralelo) ya se ejecutó en `rules.md` fuera de este plan — no verificado línea por línea contra el resto de la tabla en esta pasada.
 
 ### 1.1 · Borrados por duplicado
 
@@ -405,19 +405,19 @@ Hoy `SKILL.md:254` carga `wizard-options.md` entero: 1.158 líneas. Para un back
 
 ## BLOQUE 8 — Las nueve fichas de agentes (2.536 líneas)
 
-### 8.1 · La promesa falsa, repetida nueve veces
+### 8.1 · La promesa falsa, repetida nueve veces — **PREMISA DESMENTIDA, ver R-010 (2026-08-23)**
+
+> ⚠️ **Verificado, y la conclusión es la contraria a la de abajo: NO BORRAR.** R-010 confirma contra la documentación oficial (code.claude.com/docs/en/sub-agents, Memory Field Details) que `memory: project|user|local` es API real de Claude Code: da al subagente un directorio de memoria persistente propio (`.claude/agent-memory/<nombre>/`) e inyecta las primeras 200 líneas / 25KB de su `MEMORY.md` en su system prompt. Es la memoria PROPIA del agente — no es la memoria del proyecto (`gitmem`), que sigue sin llegar sola a nadie; eso lo sigue confirmando R-011 para el campo `skills:`. La tabla ANTES/DESPUÉS de abajo queda como registro de la propuesta original, ya descartada por esta verificación — no ejecutar.
 
 Las nueve fichas llevan `memory: project` en el frontmatter. Ese campo:
-- no aparece en ningún script ni JSON del repositorio (verificado con grep),
-- lo contradice el cuerpo de las propias fichas (house:117, bilbo:98 dicen *"no hay inyección automática de memoria; nada llega solo a un agente"*),
-- y D-028 (2026-08-06) probó en vivo que Claude Code no inyecta nada al prompt de un subagente.
+- ~~no aparece en ningún script ni JSON del repositorio (verificado con grep),~~ — es un campo de la API de Claude Code, no del repositorio; por eso no aparece en un grep local.
+- lo contradice el cuerpo de las propias fichas (house:117, bilbo:98 dicen *"no hay inyección automática de memoria; nada llega solo a un agente"*) — **esto sigue siendo cierto para la memoria del PROYECTO**, no para la memoria propia del agente que da `memory:`. Las dos afirmaciones conviven: la del proyecto nunca llega sola, la propia del agente sí.
+- y D-028 (2026-08-06) probó en vivo que Claude Code no inyecta nada al prompt de un subagente — cierto para el prompt del turno, no contradice que `memory:` inyecte su propio `MEMORY.md` al arrancar el agente.
 
 | fichero:línea | ANTES | DESPUÉS |
 |---|---|---|
-| alexandria.md:8, argus.md:8, dante.md:8, house.md:8, moriarty.md:8, ultron.md:8, yoda.md:8 | `memory: project` | (eliminar) |
-| bilbo.md:10, cerberus.md:10 | `memory: project` | (eliminar) |
-
-> ⚠️ **Antes de borrar:** comprobar en ejecución si Claude Code hace algo con ese campo hoy. La comprobación es por lectura, no por prueba de carga.
+| alexandria.md:8, argus.md:8, dante.md:8, house.md:8, moriarty.md:8, ultron.md:8, yoda.md:8 | `memory: project` | ~~(eliminar)~~ **conservar — R-010** |
+| bilbo.md:10, cerberus.md:10 | `memory: project` | ~~(eliminar)~~ **conservar — R-010** |
 
 ### 8.2 · Duplicados entre fichas
 
@@ -587,8 +587,8 @@ Cada skill crea sus casillas en el tablero al cargarse. El cerrojo (9.1) es lo q
 | 5 · skills de proceso | 6 | 11 | bajo |
 | 6 · audit + standards | 5 | 24 | bajo |
 | 7 · scaffolding | 3 → 40 | partición, sin reescritura | medio — mueve ficheros |
-| 8 · fichas de agentes | 9 | 24 + 9 tablas nuevas | medio — **1 verificación pendiente** |
-| 9 · mecanismo | 3 nuevos + 2 | código nuevo | **alto — es lo único que puede romper una sesión** |
+| 8 · fichas de agentes | 9 | 24 + 9 tablas nuevas | medio — **verificación hecha (R-010): la sección 8.1 se descarta, `memory:` no se borra; el resto de la tabla (8.2-8.5) sigue en pie** |
+| 9 · mecanismo | 3 nuevos + 2 | código nuevo | 9.1/9.4 **hecho y publicado en 1.39.0** (M-125); 9.2 **hecho** (`--retract`/`--replaces` en `bin/memory/rule.py`); 9.3 **hecho** (`unmassk-core/SKILL.md:209-214`, "never your conclusion... A reviewer who reads your conclusion agrees with it") |
 
 **Orden obligatorio:** 9.2 (comando de reglas) → 1 y 2 → 3, 4, 5, 6, 8 en paralelo → 7 → 9.1, 9.3, 9.4 al final, cuando las casillas ya digan lo correcto.
 
@@ -596,6 +596,6 @@ Cada skill crea sus casillas en el tablero al cargarse. El cerrojo (9.1) es lo q
 
 ## Las tres cosas que necesitan al propietario
 
-1. **CLAUDE.md:86 contra rules.md:30** — ¿los commits rutinarios piden permiso o no? Las dos reglas son suyas y se contradicen.
-2. **El cerrojo de cierre (9.1)** — es la misma pieza que ayer fundió la memoria en Moria, con la diferencia de que esta solo lee casillas y no ejecuta nada. Va o no va.
-3. **`memory: project`** — antes de borrarlo de las nueve fichas, comprobar en ejecución si Claude Code hace algo con ese campo.
+1. **CLAUDE.md:86 contra rules.md:30** — ¿los commits rutinarios piden permiso o no? Las dos reglas son suyas y se contradicen. **Sigue abierto** — no se encontró decisión ni en `gitmem` ni en el CLAUDE.md actual (línea "Nada se commitea sin que él lo diga" sigue vigente, sin la reconciliación propuesta en el bloque 2.1).
+2. **El cerrojo de cierre (9.1)** — es la misma pieza que ayer fundió la memoria en Moria, con la diferencia de que esta solo lee casillas y no ejecuta nada. Va o no va. — **RESUELTO: va.** D-052 lo aprobó, se construyó, se probó en directo y se publicó en 1.39.0 (M-125; ver `docs/plan/casillas-por-programa.md`).
+3. **`memory: project`** — antes de borrarlo de las nueve fichas, comprobar en ejecución si Claude Code hace algo con ese campo. — **RESUELTO: sí hace algo, no se borra.** R-010, verificado contra la documentación oficial de Anthropic (ver bloque 8.1 arriba).

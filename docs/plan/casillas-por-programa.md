@@ -1,7 +1,7 @@
 # Diseño — las casillas las pone el programa, no Claude
 
 **Fecha:** 2026-08-23 · **Origen:** Q-002, aprobado por Bex en sesión (D-052)
-**Estado:** diseño, pendiente de implementar y PROBAR EN DIRECTO antes de darlo por bueno
+**Estado:** COMPLETADO — implementado, probado en directo el 2026-08-24 (bloquea vacío, deja cerrar completo, re-bloquea una casilla abierta, respeta `stop_hook_active`) y publicado en **1.39.0** (M-125, CHANGELOG). Manifiestos, pieza 2 y pieza 3 existen en el árbol: `unmassk-toolkit/hooks/skill-checklist-inject.py`, `unmassk-toolkit/hooks/checklist-gate.py`, `unmassk-toolkit/checklists/{flow,close-session,audit,council}.json`.
 
 ## La idea en una frase
 
@@ -45,16 +45,18 @@ Compara el registro del programa con el estado real del tablero. Bloquea si hay 
 - Puerta extra disponible: eventos de hook `TaskCreated`/`TaskCompleted` (payload con task_id y subject) — fuente empujada para el registro, sin parsear ficheros.
 - Corrección de premisa: M-119 medía la herramienta equivocada (TodoWrite); el tablero real (TaskCreate) sí se usa. Reemplazada por nota nueva.
 
-## Prueba en directo (definición de hecho)
-1. Cargar Flow en una sesión de prueba → las 15 casillas aparecen sin intervención manual.
-2. Intentar cerrar con casillas abiertas → bloqueo con la lista, una sola vez.
-3. Cerrar con todo marcado → pasa limpio.
-4. Corromper el registro a mano → deja pasar avisando (nunca bloquea en silencio).
-5. Sesión sin skill de proceso cargada → el cerrojo no dice nada.
+## Prueba en directo (definición de hecho) — EJECUTADA, 2026-08-24 (M-125)
+1. Cargar Flow en una sesión de prueba → las 15 casillas aparecen sin intervención manual. — hecho
+2. Intentar cerrar con casillas abiertas → bloqueo con la lista, una sola vez. — hecho
+3. Cerrar con todo marcado → pasa limpio. — hecho
+4. Corromper el registro a mano → deja pasar avisando (nunca bloquea en silencio). — hecho
+5. Sesión sin skill de proceso cargada → el cerrojo no dice nada. — hecho
 
-## Orden de obra
-1. Verificar persistencia del tablero (House, en ejecución).
-2. Manifiestos + pieza 2 (Ultron), test en rojo primero (Dante) para el registro.
-3. Pieza 3 (Ultron) con sus cuatro protecciones testadas una a una (Dante).
-4. Revisión: Cerberus+Argus en paralelo, Moriarty el último.
-5. La prueba en directo de arriba, conmigo al mando, antes de darlo por hecho.
+## Orden de obra — completado
+1. Verificar persistencia del tablero (House, en ejecución). — hecho
+2. Manifiestos + pieza 2 (Ultron), test en rojo primero (Dante) para el registro. — hecho
+3. Pieza 3 (Ultron) con sus cuatro protecciones testadas una a una (Dante). — hecho
+4. Revisión: Cerberus+Argus en paralelo, Moriarty el último. — hecho
+5. La prueba en directo de arriba, conmigo al mando, antes de darlo por hecho. — hecho, 2026-08-24
+
+Nota posterior: D-054 (2026-08-24) afinó el emparejador de casillas para que también ignore tildes, no solo mayúsculas/guiones/espacios — evita bloquear una casilla completada por una diferencia de acento al recopiar el texto.

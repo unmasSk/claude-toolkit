@@ -1,6 +1,6 @@
 # Plan — que activar la memoria en un proyecto sea automático
 
-**Abierto:** 2026-08-06, a petición del propietario · **Estado:** en marcha
+**Abierto:** 2026-08-06, a petición del propietario · **Estado:** COMPLETADO — issue #82 cerrada en dos tandas (1.29.0 publicada, comentario 1; los dos puntos restantes cerrados y verificados ejecutando, comentario 2). Los 14 puntos de este plan están hechos. D-002 documenta la decisión.
 
 ## Qué se busca, en una frase
 
@@ -40,21 +40,23 @@ Dato que lo enmarca: de los **14 repositorios del propietario, solo uno tiene me
 8. **`gitmem rule list` deja de guardar una regla que dice «list»** y de dejar su commit para siempre.
 9. **El arranque deja de decir «manifest al día»** en un proyecto que no está instalado.
 
-### En marcha
+### Hecho (issue #82, comentario 1 — publicado en 1.29.0)
 
 10. **La instalación deja el proyecto entero puesto**, respetando sus cinco fases:
-    - `gitmem` en el PATH, con un lanzador que sobrevive a los cambios de versión.
-    - Los ocho índices sembrados al instalar, no al primer rechazo.
-    - `config.json` **deducido** del propio repositorio: una sola rama es `trunk`. Sin él, **11 de los 14 repositorios rechazan el primer commit del día**.
-    - El médico del sistema pasa a auscultar la memoria, que hoy no mira.
+    - `gitmem` en el PATH, con un lanzador que sobrevive a los cambios de versión. — **hecho**
+    - Los ocho índices sembrados al instalar, no al primer rechazo. — **hecho**
+    - `config.json` **deducido** del propio repositorio: una sola rama es `trunk`. Sin él, **11 de los 14 repositorios rechazan el primer commit del día**. — **hecho**
+    - El médico del sistema pasa a auscultar la memoria, que hoy no mira. — **hecho**
+11. **Un proyecto con memoria anterior se presenta como si estuviera vacío.** — **hecho**: el arranque avisa ahora de memoria sin montar y de memoria anterior sin destilar (los "dos avisos nuevos" del comentario de cierre de la 1.29.0).
+12. **El arranque no distingue «sin memoria» de «memoria sana y vacía».** — **hecho**, mismo aviso que el punto 11.
 
-### Pendiente
+### Hecho (issue #82, comentario 2 — cerrado y verificado ejecutando)
 
-11. **Un proyecto con memoria anterior se presenta como si estuviera vacío.** El arranque dice *«cero notas»* y, textualmente, *«todavía no se ha escrito nada»* sobre repositorios con años de decisiones dentro. Nada avisa de que hay memoria sin convertir.
-12. **El arranque no distingue «sin memoria» de «memoria sana y vacía»**, y su única instrucción para empezar es la que garantiza el primer error: pide dos zonas cuando no hay ninguna.
-13. **La aduana decide si está encendida mirando el proyecto de la sesión**, no el directorio del comando: bloquea commits de repositorios que no tienen memoria.
-14. **El protocolo de proyecto nuevo no menciona las zonas** ni una vez, ni en su skill ni en sus tres documentos.
+13. **La aduana decide si está encendida mirando el proyecto de la sesión**, no el directorio del comando. — **hecho**: `_find_commit_creating_statement` devuelve ahora la posición de la sentencia del commit y la resolución del directorio se recorta ahí; un `cd` posterior ya no pisa el directorio real del commit.
+14. **El protocolo de proyecto nuevo no menciona las zonas.** — **hecho**: START las crea antes de la fase A, SCAN las nombra a partir del propio escaneo y las pasa por el usuario antes de sembrar.
+
+De propina en el mismo cierre: un commit escrito con un separador pegado sin espacio (`;`, `&&`, `||`, `|`) no se reconocía y pasaba sin evaluación — cerrado con el mismo tokenizador para todo el fichero. 63 tests en el hook, todos verdes.
 
 ## Cómo se sabe que está terminado
 
-En un proyecto nuevo, recién clonado y sin tocar: se abre sesión, se dice «buenos días», y el sistema responde con el menú del día **sin que el usuario ejecute un solo comando**. La primera nota se guarda sin un rechazo.
+En un proyecto nuevo, recién clonado y sin tocar: se abre sesión, se dice «buenos días», y el sistema responde con el menú del día **sin que el usuario ejecute un solo comando**. La primera nota se guarda sin un rechazo. **Confirmado: issue #82 cerrada.**
