@@ -112,3 +112,4 @@
 [M-129][architecture][trading] crypto in EUR is the only free live-price path: binance and kraken, no key
 [M-130][architecture][trading] yahoo finance and stooq free feeds are broken: 429 and a JS challenge
 [M-131][skills][trading] material worth copying: tradermonty for discipline, eodhd for shape, ccxt
+[M-132][standards][trading] honest advice is arithmetic and facts, never a direction call
