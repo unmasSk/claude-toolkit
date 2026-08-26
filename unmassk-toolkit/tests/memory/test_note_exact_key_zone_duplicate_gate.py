@@ -159,7 +159,7 @@ _OTHER_KEYS = ("pdf-render", "invoice-overflow", "line-items")
 _ZONE_ORDER_KEYS = ("ansible", "terraform")
 
 
-def _write_note(repo, note_type, zone1, zone2, headline, description, *, keys=(), stops=None, replaces=None):
+def _write_note(repo, note_type, zone1, zone2, headline, description, *, keys=(), stops=None, replaces=None, work=None):
     args = ["note", note_type, "--zones", zone1, zone2, headline, "--description", description]
     if keys:
         args += ["--keys", *keys]
@@ -167,6 +167,8 @@ def _write_note(repo, note_type, zone1, zone2, headline, description, *, keys=()
         args += ["--stops", stops]
     if replaces is not None:
         args += ["--replaces", replaces]
+    if work is not None:
+        args += ["--work", work]
     return run_gitmem_script(args, cwd=repo)
 
 
@@ -471,6 +473,10 @@ class TestFenceCandidatesWithNoKeysNeverCollideOnTheNewGate:
             tmp_repo, "I", "product", "payments",
             "checkout gateway call times out under peak load",
             "load tests show the gateway call exceeding its own timeout during peak traffic",
+            # 2026-08-26, D-065/D-066: la aduana de issues rebota una I
+            # sin --issue/--work antes de llegar a la puerta de claves
+            # vacias que este test prueba -- ajeno al escenario.
+            work="no",
         )
         assert rc_i1 == 0, f"stdout={out_i1!r} stderr={err_i1!r}"
         incident1_id = extract_note_id(out_i1)
@@ -490,6 +496,7 @@ class TestFenceCandidatesWithNoKeysNeverCollideOnTheNewGate:
             tmp_repo, "I", "product", "payments",
             "refund webhook silently drops events during a deploy",
             "events fired while the pod restarts never reach the queue and nobody is told",
+            work="no",
         )
         assert rc_i2 == 0, f"stdout={out_i2!r} stderr={err_i2!r}"
         incident2_id = extract_note_id(out_i2)

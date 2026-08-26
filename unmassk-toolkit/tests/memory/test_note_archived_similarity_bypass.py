@@ -107,12 +107,16 @@ def _write_m(repo, zone1, zone2, *, replaces=None):
 
 def _write_i(repo, zone1, zone2):
     """Da de alta una I con el texto compartido. `I` no pasa por
-    `validate_pain_question` (solo M/R) -- ver docstring del modulo."""
+    `validate_pain_question` (solo M/R) -- ver docstring del modulo.
+    `--work no` [2026-08-26, D-065/D-066]: la aduana de issues rebota una
+    I sin --issue/--work antes de llegar al gate de similitud que este
+    fichero prueba -- ajeno al escenario bajo prueba aqui."""
     args = [
         "note", "I",
         "--zones", zone1, zone2,
         _SHARED_HEADLINE,
         "--description", _SHARED_DESCRIPTION,
+        "--work", "no",
     ]
     return run_gitmem_script(args, cwd=repo)
 

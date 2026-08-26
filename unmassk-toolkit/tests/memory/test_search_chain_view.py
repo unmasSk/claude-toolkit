@@ -192,10 +192,14 @@ class TestChainViewCountsAClosedIncidentWithoutASuccessorAsALegitimateEnd:
         self, tmp_repo
     ):
         seed_zones_json(tmp_repo, ["ops", "reliability"])
+        # work="no" [2026-08-26, D-065/D-066]: la aduana de issues rebota
+        # una I sin --issue/--work antes de llegar a la vista en cadena
+        # que este fichero prueba -- ajeno al escenario bajo prueba aqui.
         rc_seed, out_seed, err_seed = seed_note_via_script(
             tmp_repo, "I", "ops", "reliability",
             "background retries silently drop failed jobs",
             description="MARK_ROOTCAUSE a retry budget was never enforced",
+            work="no",
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
         incident_id = extract_note_id(out_seed)
@@ -233,10 +237,13 @@ class TestChainViewNeverDropsTheIncidentToRestrictionOriginLink:
         self, tmp_repo
     ):
         seed_zones_json(tmp_repo, ["data", "migrations"])
+        # work="no" [2026-08-26, D-065/D-066]: mismo motivo que arriba --
+        # ajeno al enlace Origin incidencia->restriccion bajo prueba.
         rc_seed, out_seed, err_seed = seed_note_via_script(
             tmp_repo, "I", "data", "migrations",
             "database migration silently left an old index behind",
             description="MARK_ROOTCAUSE the migration script never dropped the old index",
+            work="no",
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
         incident_id = extract_note_id(out_seed)

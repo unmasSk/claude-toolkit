@@ -562,6 +562,8 @@ def seed_note_via_script(
     replaces=None,
     awaits=None,
     issue=None,
+    work=None,
+    quote=None,
 ):
     """Da de alta una nota REAL invocando `bin/memory/note.py` como
     PROCESO -- no `notes.write()` en proceso. `note.py` ya existe y su
@@ -580,6 +582,16 @@ def seed_note_via_script(
     cuenta: quien llama decide si una siembra fallida tiene que tumbar el
     test (una siembra que falla en silencio dejaria el resto del test
     construido sobre una nota que nunca llego a escribirse).
+
+    `work`/`quote` [2026-08-26, D-065/D-066, aduana de issues en Q/I]:
+    ninguno de los dos tiene valor por defecto propio de esta funcion --
+    solo se anaden a `args` cuando quien llama los pasa, exactamente
+    igual que el resto de flags opcionales de este helper. Un test que
+    siembra una Q/I sin pasar ni `work` ni `issue` sigue reproduciendo
+    fielmente "nada dado", que es justo lo que la aduana nueva rebota --
+    este helper no decide por su cuenta un `--work no` por defecto, eso
+    debilitaria cualquier test que SI quiera ejercitar el rechazo de la
+    aduana a proposito.
     """
     args = [note_type, "--zones", zone1, zone2, headline]
     if why is not None:
@@ -598,6 +610,10 @@ def seed_note_via_script(
         args += ["--awaits", awaits]
     if issue is not None:
         args += ["--issue", str(issue)]
+    if work is not None:
+        args += ["--work", work]
+    if quote is not None:
+        args += ["--quote", quote]
     return run_memory_script("note.py", args, cwd=repo)
 
 

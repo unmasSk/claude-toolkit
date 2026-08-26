@@ -1,6 +1,6 @@
 ---
 name: note-issue-gate-work-quote-contract-notes
-description: note.py Q/I issue-gate RED contract (D-065/D-066) -- --work no / --issue N / --issue none --quote, two structural CLI gaps found
+description: note.py Q/I issue-gate RED contract (D-065/D-066) -- --work no / --issue N / --issue none --quote, two structural CLI gaps found; Round 2 -- post-implementation harness repair across 19 tests in 10 files, all seeding Q/I with no --work
 metadata:
   type: project
 ---
@@ -88,3 +88,67 @@ without this new file is clean at 598 passed/1 skipped/0 errors).
 
 Reference: [[note-py-script-full-contract-notes]] (Round 7, the `--issue`
 opening this gate builds on top of; the fake-gh technique).
+
+## Round 2 (2026-08-26, same day) -- Ultron shipped the gate, harness repair across 10 files
+
+Context: Ultron implemented the gate from Round 1's contract (18/18 green).
+The gate broke 19 PRE-EXISTING tests across 10 files, all one root cause
+(Ultron's own finding, verified): the shared seeder
+`conftest.py::seed_note_via_script` had no `work`/`quote` params, so every
+Q/I seeded through it with no `--issue` hit the new gate cold.
+
+**Fix shape, decided once and applied everywhere:** added `work=None`/
+`quote=None` to `seed_note_via_script` (only appended to `args` when given
+-- no silent default `--work no`, which would have weakened any FUTURE
+test that wants to exercise the gate's rejection on purpose through this
+shared helper). Local per-file helpers that build their own `note.py`/
+`gitmem note` args by hand (`_seed_i`, `_write_i`, `_write_note`,
+`_seed_question`, `_seed_incident`, three of them) got the same
+`--work`/`work=` threading individually -- no second shared helper
+introduced, matching this suite's existing convention of local per-file
+seed helpers (see Round 1 above and
+[[note-py-script-full-contract-notes]]).
+
+**Went through all 19 one at a time before touching anything, per the
+orchestrator's explicit ask ("decide con criterio") -- none of the 19 was
+exercising the issue-gate itself.** Every one seeds a Q/I purely as setup
+for an UNRELATED mechanism under test (archived-key-zone duplicate parity,
+archived-similarity bypass, empty-keys-never-collide fence gate, the
+seven-types smoke test, `--promotes`, the pain/overlap relaunch-amnesia
+cycle, fence atomicity, the restriction question, chain-view edge cases,
+DEUDA #24's search regression) -- confirmed by reading each failure's
+assertions, not assumed from the file name. Threading `--work no` at
+exactly those call sites (never a blanket default) keeps every one of
+those tests still proving what it always proved, with the gate now
+satisfied as an inert precondition.
+
+**10 files touched, 1 shared + 9 local fixes:**
+`conftest.py` (shared `seed_note_via_script`),
+`test_customs_archived_key_zone_duplicate_parity.py` (`_seed_i`, all 6
+call sites via one shared local helper),
+`test_note_archived_similarity_bypass.py` (`_write_i`),
+`test_note_exact_key_zone_duplicate_gate.py` (`_write_note` gained
+`work=`, threaded at only the 2 call sites that seed type `I` -- the other
+14 call sites in that file are type `M`, untouched),
+`test_note_script.py` (`TestCreatesAllSevenNoteTypesForReal`'s inline
+seven-type table, `Q`/`I` rows only),
+`test_note_script_promotes.py` (`_seed_question`),
+`test_relaunch_command_answer_amnesia.py` (`_seed_existing_similar_note`,
+one call site -- the M under test itself needs no `--work`, only the Q
+seeded as its overlap trigger did),
+`test_remove_incident_close_fence_atomicity.py` (`_seed_incident`),
+`test_remove_incident_close_question.py` (`_seed_incident` -- the file's
+OTHER seed call, `test_closes_directly_without_any_restriction_question`'s
+parametrized M/D table, was never affected: no Q/I row in it),
+`test_search_chain_view.py` (2 of its ~12 `seed_note_via_script` call
+sites -- the two chain-view edge-case classes that seed type `I`; the
+rest of the file's calls were already unaffected, confirmed by running the
+file green before touching anything else in it),
+`test_search_script.py` (both seeds in the DEUDA #24 reproduction test).
+
+Verification: `python3 -m pytest unmassk-toolkit/tests/memory -q`, run
+TWICE as instructed -> both runs identical, `626 passed, 1 skipped` (608
+pre-existing + 18 from Round 1's contract), zero failed, zero errors --
+the `test_zones_script.py` flake noted in Round 1 did not recur either
+time. `git status --porcelain unmassk-toolkit/` after: exactly the 10
+files listed plus `conftest.py`, nothing outside `tests/memory/`.

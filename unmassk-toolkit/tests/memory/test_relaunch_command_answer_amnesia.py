@@ -172,8 +172,13 @@ def _seed_existing_similar_note(repo):
     ninguna pregunta previa (`stops`/`issue`), asi que sembrarla es una
     unica llamada, sin ella misma disparar el ciclo bajo prueba.
     """
+    # --work no [2026-08-26, D-065/D-066]: la aduana de issues rebota una
+    # Q sin --issue/--work antes de llegar al ciclo de rechazos que este
+    # fichero prueba -- esta Q solo es la nota YA existente que dispara
+    # el solapamiento, ajena a la aduana bajo prueba.
     rc, stdout, stderr = seed_note_via_script(
-        repo, "Q", ZONE1, ZONE2, HEADLINE, description=DESCRIPTION_PLACEHOLDER
+        repo, "Q", ZONE1, ZONE2, HEADLINE, description=DESCRIPTION_PLACEHOLDER,
+        work="no",
     )
     assert rc == 0, (
         f"fallo al sembrar la nota existente que dispara el solapamiento "

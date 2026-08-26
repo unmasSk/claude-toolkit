@@ -83,9 +83,13 @@ def query():
 
 def _seed_incident(tmp_repo, zone1, zone2, headline):
     seed_zones_json(tmp_repo, [zone1, zone2])
+    # work="no" [2026-08-26, D-065/D-066]: la aduana de issues rebota una
+    # I sin --issue/--work antes de llegar a la atomicidad del muro que
+    # este fichero prueba -- ajeno al escenario bajo prueba aqui.
     rc, out, err = seed_note_via_script(
         tmp_repo, "I", zone1, zone2, headline,
         description="MARK_ROOTCAUSE a stray retry loop hammered the payments API",
+        work="no",
     )
     assert rc == 0, (
         f"la siembra real de la incidencia fallo, no es parte de lo que "

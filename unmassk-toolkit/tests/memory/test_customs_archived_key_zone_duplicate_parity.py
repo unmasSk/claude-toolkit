@@ -143,6 +143,11 @@ def _seed_i(repo, zone1, zone2, headline_suffix, *, keys=_SHARED_KEYS):
             f"incident report about {headline_suffix}",
             "--description", f"a real, distinct incident description for {headline_suffix}",
             "--keys", *keys,
+            # 2026-08-26, D-065/D-066: la aduana de issues rebota una I
+            # sin --issue/--work antes de llegar siquiera al gate de
+            # claves+zona que este fichero prueba -- --work no declara
+            # "solo respuesta", ajeno al escenario bajo prueba aqui.
+            "--work", "no",
         ],
         cwd=repo,
     )

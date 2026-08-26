@@ -111,9 +111,16 @@ def _seed_question(repo, zone1, zone2, headline, description):
     """Da de alta una `Q` real via `gitmem note` -- nunca escrita a mano
     en el indice. Devuelve su id real, leido de la propia confirmacion
     del comando (`extract_note_id`), nunca supuesto.
+
+    `--work no` [2026-08-26, D-065/D-066]: la aduana de issues rebota una
+    Q sin --issue/--work antes de llegar a `--promotes`, que es lo que
+    este fichero prueba -- ajeno al escenario bajo prueba aqui.
     """
     rc, out, err = run_gitmem_script(
-        ["note", "Q", "--zones", zone1, zone2, headline, "--description", description],
+        [
+            "note", "Q", "--zones", zone1, zone2, headline, "--description", description,
+            "--work", "no",
+        ],
         cwd=repo,
     )
     assert rc == 0, f"la siembra de la pregunta fallo: stdout={out!r} stderr={err!r}"

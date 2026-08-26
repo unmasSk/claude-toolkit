@@ -387,7 +387,10 @@ class TestCreatesAllSevenNoteTypesForReal:
                 "should returns count against the seller's rating",
                 "Support keeps asking whether a returned order should lower a "
                 "seller's star rating.",
-                [],
+                # 2026-08-26, D-065/D-066: la aduana de issues en Q/I
+                # exige --issue o --work -- este test prueba las siete
+                # altas reales, no la aduana en si.
+                ["--work", "no"],
             ),
             (
                 "X",
@@ -401,7 +404,7 @@ class TestCreatesAllSevenNoteTypesForReal:
                 "checkout page crashed for guest users after the coupon field shipped",
                 "A null pointer on the new coupon input crashed checkout for "
                 "anyone without an account for about forty minutes.",
-                [],
+                ["--work", "no"],
             ),
             (
                 "B",

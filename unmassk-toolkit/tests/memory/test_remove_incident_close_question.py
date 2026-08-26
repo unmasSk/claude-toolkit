@@ -111,8 +111,12 @@ def _seed_incident(
     description="MARK_CAUSA root cause: a stray environment variable pointed CI at production",
 ):
     seed_zones_json(tmp_repo, [zone1, zone2])
+    # work="no" [2026-08-26, D-065/D-066]: la aduana de issues rebota una
+    # I sin --issue/--work antes de llegar a la pregunta de restriccion
+    # que este fichero prueba -- ajeno al escenario bajo prueba aqui.
     rc, out, err = seed_note_via_script(
         tmp_repo, "I", zone1, zone2, headline, description=description,
+        work="no",
     )
     assert rc == 0, (
         f"la siembra real de la incidencia fallo, no es parte de lo que "

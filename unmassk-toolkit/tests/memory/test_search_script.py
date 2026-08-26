@@ -400,9 +400,13 @@ class TestByIdRule1HeaderIsTheNoteWithTypeAndStatusNotTheZone:
         enseñar SOLO la nota pedida, marcada `archivada`, sin ni rastro de
         la hermana viva."""
         seed_zones_json(tmp_repo, ["auth", "product"])
+        # work="no" [2026-08-26, D-065/D-066]: la aduana de issues rebota
+        # una I sin --issue/--work antes de llegar a la reproduccion de
+        # DEUDA #24 que este test prueba -- ajeno al escenario.
         rc1, out1, err1 = seed_note_via_script(
             tmp_repo, "I", "auth", "product", "seeds wiped the users table",
             description="MARK description",
+            work="no",
         )
         assert rc1 == 0, f"siembra 1 fallo: stdout={out1!r} stderr={err1!r}"
         first_id = extract_note_id(out1)
@@ -416,6 +420,7 @@ class TestByIdRule1HeaderIsTheNoteWithTypeAndStatusNotTheZone:
         rc2, out2, err2 = seed_note_via_script(
             tmp_repo, "I", "auth", "product", "login loop on safari after cookie change",
             description="MARK description",
+            work="no",
         )
         assert rc2 == 0, f"siembra 2 fallo: stdout={out2!r} stderr={err2!r}"
         second_id = extract_note_id(out2)
