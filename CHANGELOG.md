@@ -12,11 +12,13 @@
 
 ### Added
 - **`BootSummary.issues`**: el informe de arranque lista cada issue con nota viva, una por línea con su número y titular, en vez de solo contarlas — el dato que la fila "Issues" del menú de apertura necesitaba para pintarse (D-060/D-064).
+- **Aduana de issues al guardar una nota `Q`/`I`**: sin `--issue` ni `--work`, la nota rebota con la pregunta de si cerrarla exige trabajo o solo una respuesta, para que una decisión que aplaza construcción no se pierda sin quedar propuesta como issue; `--work no` la deja pasar sin issue, y `--issue none` exige la cita literal del dueño (`Note.quote`, ida y vuelta verificada) en vez de aceptar un no sin rastro (D-065/D-066).
 
 ### Changed
 - **Menú de apertura de sesión**: tabla fija de ocho secciones siempre presentes (Today, Last session, Blockers, Questions, Incidents, Branch, Issues, Health), con Health resumiendo los chequeos de coherencia primero si algo falla, para que la vista sea siempre la misma en vez de una fila condicional que solo aparecía cuando algo iba mal.
 - **Ficha de Alexandria**: exige una línea por párrafo o viñeta en todo lo que escribe (CHANGELOG, README, docs/, CLAUDE.md), nunca cortada a mano por columna, para que un diff siga siendo línea-por-cambio.
 - **Formato del propio CHANGELOG**: pasa a Keep a Changelog con tres desviaciones — `Fixed` primero, enlace a la issue de origen, sección `Known` para lo que se publica roto y conocido — porque lo primero que el propietario quiere ver es qué se rompió y ya no se rompe (D-067).
+- **Formato del propio CHANGELOG, un paso más**: cada entrada baja a 1-2 frases con el porqué en la propia línea, cerrada con su puntero a la nota en vez de repetir la historia — la historia completa se queda en la memoria git, a una búsqueda de distancia (D-068).
 
 ## [1.41.0] - 2026-08-25
 
