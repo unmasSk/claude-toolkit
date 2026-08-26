@@ -22,8 +22,10 @@
 
 **Lo que queda por hacer, y en este orden:**
 
-1. **Compactar la memoria de cada agente.** Protocolo escrito, no ejecutado.
-2. **Yoda, una sola vez**, con el sistema entero delante.
+1. **CI solo en el commit de release**, vía `[skip ci]` en los commits de trabajo (D-070) — decidido el 2026-08-26, sin construir.
+2. **Telemetría de tiempos de sesión y agentes**, mostrada en el arranque siguiente (D-069, issue #84) — decidido el 2026-08-26, sin construir.
+
+Los tres frentes que estaban aparcados —auditar los muros, compactar la memoria de los 9 agentes, Yoda con el sistema entero delante— se cerraron el 2026-08-25/26: R-014 a R-017 sustituyen a R-001/R-006/R-007/R-013, los 9 agentes compactaron su propia memoria, y el veredicto de Yoda quedó registrado en M-127.
 
 **Todo lo que sirvió para construirlo está retirado en `docs/deprecated/`** — la especificación, el plan, la deuda y los contratos de cada pieza. Cuenta por qué las cosas son como son y guarda las decisiones del propietario con su fecha, pero **no describe el presente y no se mantiene**. No lo leas para saber cómo funciona algo hoy: manda el código.
 
