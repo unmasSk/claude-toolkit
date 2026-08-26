@@ -60,3 +60,4 @@
 [D-067][docs][release] changelog adopts Zen-style: Fixed first, issue links, Known section, dates kept
 [D-068][docs][release] changelog entries: 1-2 sentences with the why, pointer to memory, no story
 [D-069][boot][architecture] session timing telemetry, automatic, shown in next boot
+[D-070][ci][release] work/wip commits carry [skip ci]; only the release commit triggers CI
