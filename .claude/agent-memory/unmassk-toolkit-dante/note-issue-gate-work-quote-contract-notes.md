@@ -219,3 +219,125 @@ guessed at.
 
 Reference: [[note-py-script-full-contract-notes]] (fake-gh technique,
 not needed here); Round 1/2 above (the gate this bypass sits on top of).
+
+## Round 4 (2026-08-26, same day) -- points 2/3/4 arrived complete; coordinator flagged a collision on point 1 mid-task
+
+Context: a NEW Dante instance (this one) got the full 4-point message
+this time. Point 1 (customs bypass) was already covered by Round 3's
+`test_customs_issue_gate_bypass.py` (2 RED/3 GREEN, still standing) --
+mid-task the coordinator sent an explicit collision warning: another
+Dante pass had already claimed point 1, do NOT touch that file or
+`test_note_issue_gate.py`. Complied: verified via `git status --porcelain`
+that neither file appears in this round's diff, reduced scope to points
+2/3/4 only, one new file each (three new files total, none overlapping
+Round 3's).
+
+**Point 2 (T1) -- `\r` embedded in `--quote`, followed by a space, loses
+a real character on round trip.** File:
+`unmassk-toolkit/tests/memory/test_note_quote_carriage_return_round_trip.py`
+(7 tests: 1 RED / 6 GREEN). Root cause chain, confirmed reading three
+files before writing anything:
+
+1. `format.py::_fold_raw` (`format.py:117-126`) folds on `"\n"` only --
+   a lone `\r` (no adjacent `\n`) never triggers folding, so the commit
+   body ends up with ONE physical line containing a raw `\r` mid-content
+   (`"Quote: texto con CR\r dentro"`).
+2. `gitcmd.py::run()` (`gitcmd.py:78-92`) reads git's stdout with
+   `subprocess.run(..., text=True, encoding="utf-8", errors="replace")`,
+   no way to pass `newline=""` through the high-level `subprocess.run`
+   text-mode API -- universal-newline translation converts ANY `\r`
+   (mid-line or not) to `\n` on decode, splitting that one physical line
+   into two: `"Quote: texto con CR"` / `" dentro"`.
+3. `format.py::_parse_fields` (`format.py:296`) treats a line starting
+   with a single space as a folded continuation and strips that leading
+   space (`line[1:]`) to undo real folding -- it cannot tell this
+   accidental split from a real one, so the space that was genuine
+   content (the character right after the `\r` in the original) gets
+   eaten as if it were the continuation marker. Net loss: neither the
+   `\r` nor the space that followed it survive; `Quote` ends up
+   `"...CR\ndentro"` instead of `"...CR\r dentro"`.
+
+Round-trip via `query.by_id()` (imported in-process via
+`import_lib_memory_module`, called with `os.chdir()` into `tmp_repo` --
+same `_cwd` context-manager pattern already fixed in `test_report.py`/
+`test_notes.py`, since `query.by_id()` reads `Path.cwd()` with no `root`
+param) -- an INDEPENDENT channel from what `note.py` itself already
+parsed to print its own confirmation. A second test reads the SAME
+commit via `git log --pretty=%B` captured in **binary** mode (no
+`text=True`) to prove the `\r` genuinely survives inside the git object
+itself -- isolates "lost at write" from "mistranslated at read", both
+needed since the bug is specifically a READ-side translation, not a
+write-side loss.
+
+**Five non-corrupting controls fixed as regression, GREEN today,
+verified live before writing:** accented/ñ text, an embedded emoji,
+literal double-quote marks, a real `\n`-only multi-line quote (no `\r`),
+and text starting with a real field label (`"Description: ..."`) --
+`_parse_fields`'s single-leading-space rule already handles the last one
+correctly today because a REAL fold always re-adds exactly one leading
+space to a continuation line, and `field_re.match()` is checked BEFORE
+the "starts with space" branch, so a folded continuation can never be
+mistaken for a new field start. Plain CRLF (`\r\n`, no trailing space)
+was tried live too and also loses its `\r` on readback, but was
+DELIBERATELY left out of the file -- the task's control list named five
+specific survivors, not CRLF, and generalizing scope beyond what was
+asked risks the "casos de laboratorio" trap; flagged here instead for
+whoever picks this up next.
+
+**Point 3 (T2) -- `--issue none` silently resolves to "absent" for
+D/M/R/X/B.** File:
+`unmassk-toolkit/tests/memory/test_note_issue_none_regression_other_types.py`
+(6 tests: 5 RED / 1 GREEN control). Root cause: `_issue_arg` now accepts
+the `"none"` sentinel for ANY type (the Round 1 structural CLI gap,
+closed generically for all seven types, not just Q/I) but
+`validate_issue_gate`'s `note.type not in ("Q", "I")` branch only checks
+`work is not None` -- it never looks at `issue` at all in that branch,
+so `issue == "none"` sails through, `_build_candidate` resolves it to
+`candidate.issue = None` (indistinguishable from "never gave --issue"),
+and `validate_issue(candidate, None)` short-circuits with "nothing to
+check". Live repro before writing: `note.py D --why "..." --issue none`
+saves `D-001` with `rc == 0` today. Pinned properties instead of guessed
+prose (Ultron hasn't written the fix) -- same technique as
+[[customs-py-full-contract-notes]] Round 2's corrupt-file rejection:
+`rc != 0`, no commit/HEAD movement, and the word "issue" present in the
+combined output. GREEN control: a REAL `--issue N` (fake-gh technique,
+local helper, `_skip_on_windows` reused for the same CI incident as
+`test_note_issue_gate.py`) still saves fine outside Q/I -- confirms the
+fix target is specifically the `"none"` sentinel, not `--issue` itself.
+
+**Point 4 (bajo) -- `--issue N` + `--work no` together on a Q/I is a
+silent contradiction.** File:
+`unmassk-toolkit/tests/memory/test_note_issue_and_work_no_contradiction.py`
+(6 tests: 2 RED / 4 GREEN). Root cause: `validate_issue_gate`'s own
+docstring says its three checks are "todas independientes entre si" --
+literally true, and that's the gap: `issue is None and work is None`
+(the D-065 check) is false when `issue` is a real int, and `issue ==
+"none"` (the D-066 check) is false when `issue` is an int too, so the
+combination trips neither. Live repro (fake-gh confirming the issue
+number exists, to isolate this from `validate_issue`/`gh issue view`,
+a different concern already covered by
+`test_note_issue_gate.py::TestIssueNAlonePassesThroughTheExistingValidator`):
+`note.py Q --issue 4242 --work no ...` saves `Q-001` with `rc == 0`
+today. Same pinned-properties technique as point 3 (rc != 0, no
+write, both words "issue" and "work" present). Two GREEN controls:
+`--issue N` alone still saves (parametrized skip-on-windows, same
+fake-gh technique), `--work no` alone still saves (no gh dependency at
+all, no skip needed).
+
+**Full suite verification, run once with all three new files plus
+Round 3's untouched file:** `python3 -m pytest unmassk-toolkit/tests/memory -q`
+-> `10 failed, 640 passed, 1 skipped` -- 2 pre-existing RED (Round 3's
+point 1, untouched, confirmed still failing for its own reason) + 8 new
+RED across the three new files (1 + 5 + 2, matching the RED/GREEN split
+declared above) + 640 passed (629 baseline + 11 new GREEN controls: 6 +
+1 + 4). Zero collateral damage on any pre-existing test.
+`git status --porcelain unmassk-toolkit/tests/memory/` before finishing:
+exactly the three new files, `test_customs_issue_gate_bypass.py` and
+`test_note_issue_gate.py` absent from the diff -- confirmed the
+collision boundary held.
+
+Reference: [[gitcmd-contract-notes]] (the `text=True` subprocess
+convention this bug exploits, same module); [[format-py-full-contract-notes]]
+(`_fold_raw`/`_parse_fields`, the folding contract this bug lives
+inside); [[customs-py-full-contract-notes]] (the pinned-properties
+wording technique for a rejection whose prose doesn't exist yet).
