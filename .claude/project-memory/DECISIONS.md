@@ -57,3 +57,4 @@
 [D-060][boot][memory] walls leave the opening menu: Claude-only seatbelt, pretty table on demand
 [D-064][boot][memory] opening table: eight fixed sections, branch, issues and health always visible
 [D-066][memory][architecture] issue-gate refusal records the owner's exact phrase, like rules do with --quote
+[D-067][docs][release] changelog adopts Zen-style: Fixed first, issue links, Known section, dates kept
