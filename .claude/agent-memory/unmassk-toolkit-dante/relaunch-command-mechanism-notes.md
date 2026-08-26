@@ -245,4 +245,4 @@ failure (`test_remove_incident_close_fence_atomicity.py`, untracked
 file, not touched by this task, confirmed failing in isolation before
 this file existed too) is NOT caused by this change.
 
-Reference: [rejection-relaunch-command-ast-crosscheck-notes](rejection-relaunch-command-ast-crosscheck-notes.md), [rejection-contract-notes](rejection-contract-notes.md), [validator-contract-notes](validator-contract-notes.md)
+Reference: [relaunch-command-mechanism-notes](relaunch-command-mechanism-notes.md), [rejection-contract-notes](rejection-contract-notes.md), [validator-contract-notes](validator-contract-notes.md)

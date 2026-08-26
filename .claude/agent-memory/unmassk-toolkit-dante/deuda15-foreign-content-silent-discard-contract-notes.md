@@ -53,6 +53,6 @@ that's the routine-refresh path, deliberately left alone. The new test
 targets specifically the silent-discard-of-foreign-content failure mode,
 not routine staleness.
 
-Related: [issue-63-t1-end-marker-magic-string-contract-notes](issue-63-t1-end-marker-magic-string-contract-notes.md),
-[issue-63-magic-string-reconciliation-notes](issue-63-magic-string-reconciliation-notes.md) —
+Related: [issue-63-managed-blocks-hardening-notes](issue-63-managed-blocks-hardening-notes.md),
+[issue-63-managed-blocks-hardening-notes](issue-63-managed-blocks-hardening-notes.md) —
 same module, same BEGIN/END marker matching machinery, different bug class.

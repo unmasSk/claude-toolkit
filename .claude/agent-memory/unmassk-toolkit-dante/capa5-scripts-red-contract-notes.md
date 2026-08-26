@@ -11,7 +11,7 @@ Ultron.** Escribi los tests de `bin/memory/note.py` · `close.py` ·
 `unmassk-toolkit/tests/memory/test_{note,close,context,work}_script.py`.
 22 tests, todos ROJOS por la causa real (script inexistente); los 160 ya
 verdes se quedaron verdes. Ver [[memoria-v2-fase0-conftest-notes]] y
-[[notes-cwd-leak-fix-and-guard-fixture-notes]] para el resto del sistema
+[[notes-py-full-contract-notes]] para el resto del sistema
 de memoria v2 -- esta nota es solo la CAPA DE SCRIPTS.
 
 **Los scripts se prueban como procesos reales, nunca importados** --

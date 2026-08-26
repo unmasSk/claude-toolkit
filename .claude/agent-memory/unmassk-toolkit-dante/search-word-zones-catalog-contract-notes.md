@@ -46,7 +46,7 @@ case, which writes the file directly rather than via `seed_zones_json`
 All 20 tests in the file pass (14 pre-existing + 6 new), full suite green
 (1030 passed, 2 skipped, no regressions).
 
-Related: [[zones-list-doctor-absent-vs-empty-contract-notes]] (the
+Related: [[zones-py-full-contract-notes]] (the
 `zones.py::_cmd_list` absent-vs-present-empty distinction this task's
 zones.json load path also relies on, `zones.render_list()` itself was
 extracted from `_cmd_list` for this exact reuse -- see its own docstring);

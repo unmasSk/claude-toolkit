@@ -40,6 +40,6 @@ it the same way, non-empty `cache_files`).
 controls), not the full exhaustion protocol — that pass is for the hardening round after
 Ultron implements the recursion.
 
-Related: [[boot-report-argus-four-regressions-notes]] (same repo-vs-cache watcher family,
+Related: [[boot-py-v2-full-contract-notes]] (same repo-vs-cache watcher family,
 different bug), [[capa5-scripts-red-contract-notes]] (v2 bin/memory scripts this gap makes
 invisible).

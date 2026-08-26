@@ -10,7 +10,7 @@ by design) -- one test per row of PIEZAS.md Sec.7.5's "Sus tests" table,
 literally, no extra coverage (same test-first acceptance-granularity
 override as [config-contract-notes](config-contract-notes.md),
 [rejection-contract-notes](rejection-contract-notes.md),
-[zones-contract-notes](zones-contract-notes.md),
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md),
 [similar-contract-notes](similar-contract-notes.md)).
 
 **Why this piece is different from its siblings: it's the one place
@@ -135,4 +135,4 @@ values" rule as every prior contract here: the pointer string is the test's
 literal, `known_ids` is a separately-built frozenset -- never compare a
 result against itself.**
 
-Reference: [config-contract-notes](config-contract-notes.md), [rejection-contract-notes](rejection-contract-notes.md), [zones-contract-notes](zones-contract-notes.md), [similar-contract-notes](similar-contract-notes.md)
+Reference: [config-contract-notes](config-contract-notes.md), [rejection-contract-notes](rejection-contract-notes.md), [zones-py-full-contract-notes](zones-py-full-contract-notes.md), [similar-contract-notes](similar-contract-notes.md)

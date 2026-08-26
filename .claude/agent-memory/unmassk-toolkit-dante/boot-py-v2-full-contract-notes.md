@@ -290,7 +290,7 @@ Also untouched: the archive-then-recount-to-0 mechanic itself (still
 locally without touching GitHub) — this test still seeds only an M-type
 note with `issue=47`, since the seven-type opening (`--issue` on other
 types) is a SEPARATE contract (`test_note_issue_field.py`, see
-[[note-issue-field-seven-types-contract-notes]]) not yet implemented in
+[[note-py-script-full-contract-notes]]) not yet implemented in
 production. Confirmed RED for the right reason: production still prints
 `plans with a record`, assertion fails on the new label string, not on
 `open_issues` count or the "issues abiertas" guard.
@@ -359,7 +359,7 @@ who knows what" message.
 returns that REAL stderr; the test's final assertion takes the last
 line of THAT captured text (`real_git_error.strip().splitlines()[-1]`)
 and checks it's a substring of the rendered report -- same technique
-lineage as [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)'s
+lineage as [notes-py-full-contract-notes](notes-py-full-contract-notes.md)'s
 "probe fires a second real git op against the same broken state and the
 test compares against ITS stderr", generalized from `index.lock` staging
 failures to a corrupted loose object.
@@ -448,7 +448,7 @@ unmassk-toolkit/tests/memory/test_zones.py
 unmassk-toolkit/tests/memory/test_boundary.py -q` (62 passed); full
 `unmassk-toolkit/tests -q` (1184 passed, 2 skipped).
 
-See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)
+See also: [notes-py-full-contract-notes](notes-py-full-contract-notes.md)
 (the `index.lock` sibling of this same "real git failure, never
 simulated" family) and [health-contract-notes](health-contract-notes.md)
 (the `gh`-failure isolation precedent `plans_unreflected_error` that

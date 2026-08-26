@@ -60,7 +60,7 @@ docstring over the code. Rewrote the paragraph to state the current
 
 **Verification discipline**: this session's `conftest.py` has an
 autouse fixture (`_guard_against_writing_to_the_real_repo`, see
-[[notes-cwd-leak-fix-and-guard-fixture-notes]]) that fails any test
+[[notes-py-full-contract-notes]]) that fails any test
 moving the real repo's HEAD — ran the full `tests/memory` suite and
 confirmed `git rev-parse HEAD` unchanged before/after
 (`010ced6` -> `010ced6`) as an extra check beyond the guard itself.

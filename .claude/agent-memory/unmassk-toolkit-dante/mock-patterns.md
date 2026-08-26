@@ -878,7 +878,7 @@ mutation-check throwaway modules (the "write a fake implementation, run
 the suite against it to prove assertions aren't vacuous, then delete
 it" technique used across
 [vocabulary-contract-notes](vocabulary-contract-notes.md),
-[zones-contract-notes](zones-contract-notes.md),
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md),
 [rejection-contract-notes](rejection-contract-notes.md)) must NEVER be
 written into a directory other agents write to concurrently — not even
 for one bash command, not even if deleted immediately after.

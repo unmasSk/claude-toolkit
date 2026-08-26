@@ -142,7 +142,7 @@ that had asserted against the v1 marker-comparison behavior needed
 reconciling to the v2 contract, not just the gate's own home file) — same
 "map every orphaned test to its replacement before deleting, never delete
 blind" discipline this project's retirement passes always follow (see
-[[gitmem-rule-no-commit-contract-notes]]'s "Ultron's retirement... orphaned
+[[rule-py-full-contract-notes]]'s "Ultron's retirement... orphaned
 12 tests, all reconciled" for the general pattern).
 
 ## Round 9 — producer hardening: apply_plan manifest-stamp gate
@@ -160,5 +160,5 @@ about a hostile actor.
 
 Related: [[deuda15-foreign-content-silent-discard-contract-notes]] (sibling
 finding on the same module, foreign-content-inside-a-block discipline),
-[[gitmem-rule-no-commit-contract-notes]] (same "map orphans before deleting"
+[[rule-py-full-contract-notes]] (same "map orphans before deleting"
 retirement discipline reused in Round 8).

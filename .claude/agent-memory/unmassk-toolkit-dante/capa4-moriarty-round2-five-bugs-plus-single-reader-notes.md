@@ -92,7 +92,7 @@ reintroducing a literal `gitcmd.run(["log", ...])` in a scratch copy of
 ## Batch scratch-copy mutation-check technique for 5 unrelated fixes in one session
 
 Extends the single-bug scratch-copy technique in
-[boot-report-argus-four-regressions-notes](boot-report-argus-four-regressions-notes.md)
+[boot-py-v2-full-contract-notes](boot-py-v2-full-contract-notes.md)
 to 5 independent fixes at once: `cp -r lib/memory <scratch>/caseN_<name>`
 for each case SEPARATELY (never one shared copy reused across mutations
 -- keeps each case's revert isolated and independently reproducible),
@@ -157,8 +157,8 @@ unrelated pre-existing tracked `M` on `utf8.py`/`conftest.py`/
 `test_conftest_smoke.py`, confirmed via `git log -1` to predate this
 session by several commits).
 
-Related: [boot-report-argus-four-regressions-notes](boot-report-argus-four-regressions-notes.md),
-[health-boot-rule-coherence-wiring-notes](health-boot-rule-coherence-wiring-notes.md),
+Related: [boot-py-v2-full-contract-notes](boot-py-v2-full-contract-notes.md),
+[boot-py-v2-full-contract-notes](boot-py-v2-full-contract-notes.md),
 [capa4-hardening-session-notes](capa4-hardening-session-notes.md),
 [dispatch-contract-notes](dispatch-contract-notes.md),
-[rules-contract-notes](rules-contract-notes.md).
+[rule-py-full-contract-notes](rule-py-full-contract-notes.md).

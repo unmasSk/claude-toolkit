@@ -241,7 +241,7 @@ touched (292 tests collected, only this file's own tests changed shape).
 ## Round 3 (2026-08-04, same day) — alias-collision bounce, the hole Round 2 explicitly left open
 
 Context: `unmassk-toolkit/tests/memory/test_zones_script.py`, same file as
-[zones-script-english-rename-and-duplicate-bounce-notes](zones-script-english-rename-and-duplicate-bounce-notes.md),
+Round 2 above,
 same day, follow-up task. That prior session closed "registering an
 existing CANONICAL zone name bounces" (`bin/memory/zones.py::_cmd_add`
 now checks `args.name in existing` and rebota, 10/10 green, confirmed by
@@ -310,7 +310,7 @@ collection error. `--collect-only` on the whole `tests/memory` dir ->
 293 collected (was 292 before this session's one new test), only this
 file's shape changed.
 
-Reference: [zones-script-english-rename-and-duplicate-bounce-notes](zones-script-english-rename-and-duplicate-bounce-notes.md), [zones-contract-notes](zones-contract-notes.md)
+Reference: Round 2 above, Round 1 above
 
 ## Round 4 (before 2026-08-06) — check_project_zones() (#13) added to git-memory-doctor.py; the anti-vacuity control that proved the pre-fix gap retired once it closed
 
@@ -385,5 +385,5 @@ both files, not just the new classes in isolation.
 
 See [[capa5-read-scripts-and-facade-contract-notes]] for the "wording-
 agnostic substring, real production text over fabricated" pattern this
-follows, and [[health-boot-rule-coherence-wiring-notes]] for prior
+follows, and [[boot-py-v2-full-contract-notes]] for prior
 health.py-related RED contracts.

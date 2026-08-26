@@ -178,7 +178,7 @@ Test class: `TestCorruptMemoryFileBlocksWithEscapeHatch` in
 `tests/memory/test_customs_hook.py`. All 26 pre-existing tests in that
 file stayed green -- no regression from the addition.
 
-Reference: [deuda-b19-customs-autoenable-rebase-contract-notes](deuda-b19-customs-autoenable-rebase-contract-notes.md)
+Reference: [customs-py-full-contract-notes](customs-py-full-contract-notes.md)
 -- same file's live-Bash-tool-interception gotcha reconfirmed here: this
 project's own PreToolUse `customs.py` hook intercepts the agent's OWN
 `Bash` tool calls (not just pytest subprocesses) when the command text
@@ -194,7 +194,7 @@ throwaway init commits during manual verification.
 Context: `unmassk-toolkit/tests/memory/test_customs_archived_key_zone_duplicate_parity.py`
 (4 tests: 2 RED, 2 GREEN) -- second entry point for the SAME class of bug
 already fixed on the `note.py` side and documented in
-[note-archived-similarity-bypass-contract-notes](note-archived-similarity-bypass-contract-notes.md).
+[note-py-script-full-contract-notes](note-py-script-full-contract-notes.md).
 `bin/memory/note.py::_build_context()` (note.py:154-156) filters
 `query.by_zone()` against `indexes.archived_ids(pm)` before building
 `existing_in_zone`. `hooks/customs.py::_decide_note()` (customs.py:666)
@@ -207,7 +207,7 @@ producers of the same `Context`, only one patched.
 `similar.py::_find_exact_key_match` (same keys tuple `("socket",
 "leak")`, different headline/description every time) so the RED doesn't
 depend on textual similarity tuning -- matches
-[note-exact-key-zone-duplicate-gate-contract-notes](note-exact-key-zone-duplicate-gate-contract-notes.md).
+[note-py-script-full-contract-notes](note-py-script-full-contract-notes.md).
 
 **Commit message built from the real producer, not hand-typed:**
 `format.build_message()` on a real `model.Note` -- same Sec.34
@@ -236,4 +236,4 @@ unmassk-toolkit/tests/memory/test_customs_archived_key_zone_duplicate_parity.py
 `test_customs_hook.py` suite (65 passed / 1 skipped, pre-existing
 win32-only skip) to confirm no collision on shared fixtures/helpers.
 
-Reference: [note-archived-similarity-bypass-contract-notes](note-archived-similarity-bypass-contract-notes.md), [note-exact-key-zone-duplicate-gate-contract-notes](note-exact-key-zone-duplicate-gate-contract-notes.md)
+Reference: [note-py-script-full-contract-notes](note-py-script-full-contract-notes.md), [note-py-script-full-contract-notes](note-py-script-full-contract-notes.md)

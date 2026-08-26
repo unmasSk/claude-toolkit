@@ -17,7 +17,7 @@ tests-only, both against already-shipped production code:
    `dispatch`, of which 5 concrete items were asked to be pinned with
    tests. Landed as: 2 tests in `test_rules.py` (write-order/restore +
    invalid-text-bounces-before-git, see
-   [rules-contract-notes](rules-contract-notes.md) Update), 1 regression
+   [rule-py-full-contract-notes](rule-py-full-contract-notes.md) Update), 1 regression
    in `test_health.py` (archived-note false positive, see
    [health-contract-notes](health-contract-notes.md) Update), 2 tests in
    `test_dispatch.py` (`DeclaredZoneNotFound`, see

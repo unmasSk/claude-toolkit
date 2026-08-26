@@ -15,7 +15,7 @@ but unauthenticated. CI stderr was literally gh's own auth-wall message
 -- proof the REAL binary executed, not the fake.
 
 **Root cause, measured by reproduction, not assumed** (see
-[[note-issue-field-seven-types-contract-notes]] for the original
+[[note-py-script-full-contract-notes]] for the original
 technique this bug was in):
 
 - POSIX (ubuntu-latest/macOS): `execvp`/`posix_spawnp` does NOT raise on

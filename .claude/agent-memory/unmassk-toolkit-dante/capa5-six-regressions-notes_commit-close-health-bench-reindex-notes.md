@@ -9,7 +9,7 @@ Session 2026-08-03, `feat/memoria-v2` branch, step 5 of PIEZAS.md Sec.12bis
 (hardening pass after Ultron's fixes). Six already-fixed production bugs,
 one regression test each, `tests/memory/` only. All 6 confirmed RED-before
 via scratch-copy mutation-check (pattern from
-[boot-report-argus-four-regressions-notes](boot-report-argus-four-regressions-notes.md)),
+[boot-py-v2-full-contract-notes](boot-py-v2-full-contract-notes.md)),
 GREEN-after against real code. Suite: 230 -> 236, all green.
 
 ## New reusable technique: pre-commit hook to force "add succeeded, commit

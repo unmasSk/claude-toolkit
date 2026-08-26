@@ -7,7 +7,7 @@ metadata:
 
 Context: `unmassk-toolkit/tests/memory/conftest.py`, explicit one-off
 permission to touch only this file (feat/memoria-v2, 2026-08-02, same
-day as [zones-contract-notes](zones-contract-notes.md) and
+day as [zones-py-full-contract-notes](zones-py-full-contract-notes.md) and
 [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md)).
 
 **The bug:** `import_lib_memory_module()` never cached anything — every
@@ -87,7 +87,7 @@ twice via `import_lib_memory_module("model")` now returns
 `model_a is model_b == True`), but harmless to leave — same
 "defensive even after the root cause is fixed" call already made once
 before for `zones.py`'s Row 5 in
-[zones-contract-notes](zones-contract-notes.md). Flagged, not
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md). Flagged, not
 touched — that decision belongs to the orchestrator, not to me.
 
 **INCIDENT during verification — read this before ever using `git
@@ -161,7 +161,7 @@ mutation-check write ever touched the real `lib/memory/` — the RED
 scratchpad against a throwaway `model.py`, per the standing hard rule
 in [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md).
 
-Reference: [zones-contract-notes](zones-contract-notes.md),
+Reference: [zones-py-full-contract-notes](zones-py-full-contract-notes.md),
 [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md),
 [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md),
 [memoria-v2-conftest-package-collision-notes](memoria-v2-conftest-package-collision-notes.md)

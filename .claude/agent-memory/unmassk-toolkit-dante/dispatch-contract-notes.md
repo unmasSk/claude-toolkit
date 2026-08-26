@@ -9,7 +9,7 @@ Context: `unmassk-toolkit/tests/memory/test_dispatch.py` (3 tests, RED by
 design) -- one test per row of the "Sus tests" table in
 `docs/memoria-v2/PIEZAS.md` Sec.9.8, same acceptance-granularity
 override as [query-contract-notes](query-contract-notes.md)/
-[notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md).
+[notes-py-full-contract-notes](notes-py-full-contract-notes.md).
 Surface: `zone_of(prompt, zones) -> tuple[str,str] | None` and
 `content_for(agent, zone) -> str`.
 
@@ -69,7 +69,7 @@ confirmed via `git status --porcelain` (the rest of the wide diff in
 this repo belongs to concurrent parallel agents' work, not this task).
 
 Reference: [query-contract-notes](query-contract-notes.md),
-[notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md),
+[notes-py-full-contract-notes](notes-py-full-contract-notes.md),
 [memoria-v2-conftest-package-collision-notes](memoria-v2-conftest-package-collision-notes.md)
 
 ## Update 2026-08-02: `DeclaredZoneNotFound` hardening -- closed the test gap the module's own docstring flagged as open

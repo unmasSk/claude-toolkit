@@ -9,8 +9,8 @@ Context: `unmassk-toolkit/tests/memory/test_query.py` (4 tests, RED by
 design) -- one test per row of the "Sus tests" table in
 `docs/memoria-v2/PIEZAS.md` Sec.8.2, literally, no extra coverage added
 (same test-first acceptance-granularity override as
-[format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md)
-and [zones-contract-notes](zones-contract-notes.md)). query.py is "el
+[format-py-full-contract-notes](format-py-full-contract-notes.md)
+and [zones-py-full-contract-notes](zones-py-full-contract-notes.md)). query.py is "el
 unico lector del historial" -- the v1 had THREE separate 562-line
 implementations of this, synced by hand, already failed three times the
 same way.
@@ -90,4 +90,4 @@ lib/memory/query.py` -- RED for the right reason, one per row.
 file touched/added this task: `test_query.py` (new) -- confirmed via
 `git status --porcelain`, no other teammate's file modified.
 
-Reference: [format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md), [zones-contract-notes](zones-contract-notes.md), [similar-contract-notes](similar-contract-notes.md), [gitcmd-contract-notes](gitcmd-contract-notes.md)
+Reference: [format-py-full-contract-notes](format-py-full-contract-notes.md), [zones-py-full-contract-notes](zones-py-full-contract-notes.md), [similar-contract-notes](similar-contract-notes.md), [gitcmd-contract-notes](gitcmd-contract-notes.md)

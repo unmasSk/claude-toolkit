@@ -20,7 +20,7 @@ the same technique (`sys.path.insert` + `spec_from_file_location` +
 `exec_module`) parameterized by an arbitrary directory, instead of
 calling the real fixture pointed at the real shared path. Proven
 equivalent in
-[zones-contract-notes](zones-contract-notes.md)'s second round: a probe
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md)'s second round: a probe
 against a scratchpad directory caught the same two conditions
 (`FileNotFoundError` preserved for a missing module; a real flat
 `from model import Zone` resolves) without ever touching `lib/memory/`.
@@ -32,7 +32,7 @@ not the final one.**
 (PIEZAS.md Sec.7.2, RED contract, test-first). Prior sessions in this
 same doc series ([vocabulary-contract-notes](vocabulary-contract-notes.md),
 [config-contract-notes](config-contract-notes.md),
-[zones-contract-notes](zones-contract-notes.md)) established a
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md)) established a
 mutation-check pattern: write a throwaway satisfiable fake for the
 not-yet-existing module + its not-yet-existing dependency (`model.py`),
 confirm the tests pass against it, delete both, confirm RED returns.
@@ -92,10 +92,10 @@ parallel agents:**
 **General rule going forward:** the mutation-check technique itself
 (documented in [vocabulary-contract-notes](vocabulary-contract-notes.md),
 [config-contract-notes](config-contract-notes.md),
-[zones-contract-notes](zones-contract-notes.md)) is still correct and
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md)) is still correct and
 still required for RED-phase verification -- what changed is the
 precondition. Never skip the existence check, and never combine
 "check if it exists" and "write to it" in a single unreviewed command
 again.
 
-Reference: [vocabulary-contract-notes](vocabulary-contract-notes.md), [config-contract-notes](config-contract-notes.md), [zones-contract-notes](zones-contract-notes.md)
+Reference: [vocabulary-contract-notes](vocabulary-contract-notes.md), [config-contract-notes](config-contract-notes.md), [zones-py-full-contract-notes](zones-py-full-contract-notes.md)

@@ -29,7 +29,7 @@ requirement), so the test as a whole is red even though half its
 assertions were already true. **Lesson: don't infer red/green from
 reading code alone when a test bundles multiple assertions -- run it and
 report the real split, then correct the docstring to match**, exactly
-the "honesty" pattern from [[note-issue-field-seven-types-contract-notes]]
+the "honesty" pattern from [[note-py-script-full-contract-notes]]
 but one level more granular (per-assertion, not just per-test).
 
 **Two distinct infra-failure shapes, both from the task's own wording**
@@ -47,7 +47,7 @@ en el PATH"): wrote both as separate tests, not one.
   by directory CONTENT (`os.path.isfile(os.path.join(d, "gh"))`), not by
   a hardcoded path, keeps this portable across machines.
 - `gh` present but answers something else: same fake-gh-on-PATH
-  technique as [[note-issue-field-seven-types-contract-notes]], extended
+  technique as [[note-py-script-full-contract-notes]], extended
   with a third `mode="unrelated_error"` (stderr text without
   `validator_issue.py::_ISSUE_NOT_FOUND_MARKER`, e.g. a rate-limit
   message) alongside the existing `exists`/`missing` modes -- one
@@ -69,4 +69,4 @@ trailer, no-issue-flag-never-calls-gh). Full `tests/memory` suite:
 zero collateral damage, confirmed by re-running the whole suite, not
 just the new file.
 
-See also: [[note-issue-field-seven-types-contract-notes]].
+See also: [[note-py-script-full-contract-notes]].

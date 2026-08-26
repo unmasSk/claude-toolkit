@@ -23,7 +23,7 @@ Context: `unmassk-toolkit/tests/memory/test_note_script.py`, already GREEN
 the task framing this as "test-first, RED before Ultron", both scripts
 already existed with a live bug; this session's contract is a **regression**
 test for a Moriarty-confirmed failure, not a pre-implementation contract).
-See [zones-alias-collision-bounce-contract-notes](zones-alias-collision-bounce-contract-notes.md)
+See [zones-py-full-contract-notes](zones-py-full-contract-notes.md)
 for the sibling bug in `zones.py add` (registering a NEW zone under an
 existing alias) -- this session's bug is different: writing a NOTE using an
 already-valid alias.
@@ -52,7 +52,7 @@ alias. Added `_seed_zones_with_alias(repo, {canonical: [aliases]})` as a
 private helper INSIDE `test_note_script.py` (task explicitly scoped writes
 to this one file; conftest.py is shared, off limits without an explicit
 one-off grant like the one in
-[zones-contract-notes](zones-contract-notes.md)). Same pattern as
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md)). Same pattern as
 `seed_zones_json`: JSON literal matching `zones.py::_serialize`'s real
 on-disk shape, never invoking `zones.add()` (its lock mechanics aren't
 under test here).
@@ -103,12 +103,12 @@ where the real fix belongs -- `note.py::_build_candidate()` should resolve
 approving/rejecting (would change `validate_zones`'s signature/contract,
 bigger blast radius) -- flagged as Ultron/owner's call, not decided here.
 
-Reference: [zones-alias-collision-bounce-contract-notes](zones-alias-collision-bounce-contract-notes.md), [zones-script-english-rename-and-duplicate-bounce-notes](zones-script-english-rename-and-duplicate-bounce-notes.md), [capa5-scripts-red-contract-notes](capa5-scripts-red-contract-notes.md)
+Reference: [zones-py-full-contract-notes](zones-py-full-contract-notes.md), [zones-py-full-contract-notes](zones-py-full-contract-notes.md), [capa5-scripts-red-contract-notes](capa5-scripts-red-contract-notes.md)
 
 ## Round 2 (2026-08-04, same session) — --replaces never calls notes.replace(), old note stays live forever
 
 Context: same file/session as
-[note-script-alias-not-resolved-regression-notes](note-script-alias-not-resolved-regression-notes.md),
+Round 1 above,
 second bug in the same batch, landed as a follow-up message mid-task (both
 fixes go to Ultron in one pass). `note.py` and `notes.py::replace()` both
 already exist and are in production; this is a regression test for a
@@ -185,14 +185,14 @@ VIGENTE... assert 'D-001' not in {'D-001', 'D-002'}` -- both truly present,
 not a collection/import error. `tests/memory --collect-only`: 313 total (was
 311 after the alias session's 3 tests, +2 more this round).
 
-Reference: [note-script-alias-not-resolved-regression-notes](note-script-alias-not-resolved-regression-notes.md), [capa5-scripts-red-contract-notes](capa5-scripts-red-contract-notes.md)
+Reference: Round 1 above, [capa5-scripts-red-contract-notes](capa5-scripts-red-contract-notes.md)
 
 ## Round 3 (2026-08-04) — --discard flag wiring for notes.discard_alternatives()
 
 Task (2026-08-04): `lib/memory/notes.py::discard_alternatives(decision, alternatives, ctx)`
 was written and unit-tested but never called from `bin/memory/note.py` — same
 orphan-wiring pattern `notes.replace()` had earlier in this branch
-([[note-script-replaces-not-archiving-regression-notes]]). Owner decision: wire it.
+(Round 2 above). Owner decision: wire it.
 
 **Flag form decided (Dante's design call, delegated explicitly by the owner):**
 `--discard <headline> <why>`, repeatable (`argparse action="append", nargs=2`), same
@@ -311,7 +311,7 @@ hand or assumes a borderline case survives a future threshold tweak.
 
 **`--replaces none` sentinel needed for note B in test 4, same mechanism
 already documented in
-[note-script-replaces-not-archiving-regression-notes](note-script-replaces-not-archiving-regression-notes.md):**
+Round 2 above:**
 `validate_replacement` returns `None` immediately whenever
 `note.replaces is not None`, regardless of value -- without this, B's own
 creation would bounce against still-archived A under today's bug, and the
@@ -324,7 +324,7 @@ unmassk-toolkit/tests/memory/test_note_archived_similarity_bypass.py -v`
 error -- RED for the right reason. `--collect-only`: 4 tests, matches the
 4-point contract exactly, zero extra coverage added.
 
-Reference: [note-script-replaces-not-archiving-regression-notes](note-script-replaces-not-archiving-regression-notes.md), [query-contract-notes](query-contract-notes.md), [validator-contract-notes](validator-contract-notes.md)
+Reference: Round 2 above, [query-contract-notes](query-contract-notes.md), [validator-contract-notes](validator-contract-notes.md)
 
 ## Round 5 (2026-08-05, +2026-08-25 addendum) — same-keys+same-zone exact-match gate, zone-pair-as-set
 
@@ -348,7 +348,7 @@ under threshold, proving today's detector genuinely misses this case,
 not that the test picked a lucky borderline value.
 
 **Two RED / five GREEN, same mixed pattern as
-[note-archived-similarity-bypass-contract-notes](note-archived-similarity-bypass-contract-notes.md):**
+Round 4 above:**
 1. RED -- same 3 keys (same order), distinct low-Jaccard headlines, same
    zone pair -> today saves cleanly (`rc==0`, `M-002 guardada`); must
    bounce naming the old id and mentioning `--replaces`.
@@ -413,7 +413,7 @@ real `✅ M-002 guardada`) / 7 passed (all prior rows/controls intact,
 nothing broken). `git status --porcelain` before/after: only this one
 test file touched.
 
-Reference: [similar-contract-notes](similar-contract-notes.md), [validator-contract-notes](validator-contract-notes.md), [note-archived-similarity-bypass-contract-notes](note-archived-similarity-bypass-contract-notes.md)
+Reference: [similar-contract-notes](similar-contract-notes.md), [validator-contract-notes](validator-contract-notes.md), Round 4 above
 
 ## Round 6 (2026-08-05) — --promotes: the third archive destination had a reader but no writer
 
@@ -430,8 +430,8 @@ type `X` for the "falls to discarded" branch).
 
 **Task explicitly said "ejecutando `bin/gitmem`"**, not `note.py` direct --
 different from every prior `note.py` contract in this branch
-([[note-script-replaces-not-archiving-regression-notes]],
-[[note-script-discard-alternatives-flag-contract]]), which all used
+(Round 2 above,
+Round 3 above), which all used
 `run_memory_script("note.py", ...)`. `bin/gitmem` is real production code
 (not RED itself -- `test_gitmem_facade.py`'s "NO EXISTE TODAVIA" docstring
 is now stale, the file is fully implemented and green) that dispatches
@@ -477,7 +477,7 @@ naturally restates its question's wording (real `TEXTOS.md` example: "do we
 need per-seat pricing?" -> promoted to M-051), which risks tripping the
 UNRELATED "overlapping note" rejection and misattributing a failure to
 `--promotes`. Same lesson as
-[[note-script-discard-alternatives-flag-contract]]'s Jaccard-overlap
+Round 3 above's Jaccard-overlap
 incident: picked deliberately unrelated headline pairs per test (zero
 shared content words) so a failure can only come from the `--promotes`
 path under test.
@@ -506,9 +506,9 @@ confirmed only this new file carries my edits; the `M` markers on
 `bin/gitmem`/`lib/memory/utf8.py`/`conftest.py`/`test_conftest_smoke.py`
 belong to concurrent colleagues, not this task.
 
-See also: [[notes-replace-close-contract-notes]] (the sibling `replace()`/
+See also: [[notes-py-full-contract-notes]] (the sibling `replace()`/
 `close()` RED contract this one completes the third destination for),
-[[note-script-replaces-not-archiving-regression-notes]] (the `--replaces`
+Round 2 above (the `--replaces`
 CLI wiring this task's `--promotes` is explicitly symmetric to).
 
 ## Round 7 (D-044/D-045, undated in the original file) — --issue opens from M-only to all seven types

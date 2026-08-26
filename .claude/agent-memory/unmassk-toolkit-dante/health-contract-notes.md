@@ -95,7 +95,7 @@ Full `tests/memory -q` run showed additional failures/errors in
 appeared mid-session (parallel colleagues' own in-progress RED
 contracts / real bugs in modules I don't own), not caused by this task.
 
-Reference: [query-contract-notes](query-contract-notes.md), [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md), [notes-three-critical-regressions-notes](notes-three-critical-regressions-notes.md)
+Reference: [query-contract-notes](query-contract-notes.md), [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md), [notes-py-full-contract-notes](notes-py-full-contract-notes.md)
 
 ## Update 2026-08-02: `plans_unreflected()` closed the gap -- 4 more tests, GREEN, code already existed
 

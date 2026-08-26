@@ -9,7 +9,7 @@ Context: `unmassk-toolkit/tests/memory/test_rejection.py` (3 tests, RED
 by design) -- one test per row of PIEZAS.md Sec.7.4 "Sus tests" table,
 literally, no extra coverage (same test-first acceptance-granularity
 override as [vocabulary-contract-notes](vocabulary-contract-notes.md)
-and [zones-contract-notes](zones-contract-notes.md)).
+and [zones-py-full-contract-notes](zones-py-full-contract-notes.md)).
 
 **Which ten rejections, and why 1.8 is excluded:** TEXTOS.md Sec.1 has
 sections 1.1-1.11, but 1.8 ("key marcadora mal escrita") titles itself
@@ -83,4 +83,4 @@ Verification command used (matches the task's exact ask):
 (lib/memory/rejection.py does not exist yet) -- RED for the right
 reason.
 
-Reference: [vocabulary-contract-notes](vocabulary-contract-notes.md), [zones-contract-notes](zones-contract-notes.md)
+Reference: [vocabulary-contract-notes](vocabulary-contract-notes.md), [zones-py-full-contract-notes](zones-py-full-contract-notes.md)

@@ -36,7 +36,7 @@ PIEZAS.md — a gap can be deliberate, ask, don't fill):
    `config.load(path)`). Grepped ARQUITECTURA.md/TEXTOS.md/PLAN-CONSTRUCCION.md/
    TRAZABILIDAD.md — none name the rules-file path either. Tests never
    hardcode a path: they cd into `tmp_repo` (same `_cwd` trick as
-   [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md))
+   [notes-py-full-contract-notes](notes-py-full-contract-notes.md))
    and only call the black-box functions from the Superficie.
 2. `lib/memory/emojis.py` (already in production) claims in its docstring
    that the remember commit is built by `format.build_rule_message` — but
@@ -56,7 +56,7 @@ PIEZAS.md — a gap can be deliberate, ask, don't fill):
   a two-artifact write instead of a single producer↔consumer pair.
 - Row 3 ("añadir dos a la vez no pierde ninguna") read as **concurrent**, not
   sequential — "a la vez" — mirrored on
-  [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)'s
+  [notes-py-full-contract-notes](notes-py-full-contract-notes.md)'s
   thread-based concurrent-write test (4 threads, not 2, to widen the race
   window).
 - Row 6 (200-char cap) tests the boundary inclusively (200 accepted, 201
@@ -68,7 +68,7 @@ PIEZAS.md — a gap can be deliberate, ask, don't fill):
   fires is indistinguishable from no detector") without inflating the test
   count past the 7 rows.
 
-See also [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)
+See also [notes-py-full-contract-notes](notes-py-full-contract-notes.md)
 for the `_cwd`/`tmp_repo`/`import_lib_memory_module` pattern this file reused
 verbatim, and [memoria-v2-fase0-conftest-notes](memoria-v2-fase0-conftest-notes.md)
 for why `tests/memory/` conftest imports must be relative.
@@ -468,7 +468,7 @@ Contract file: `unmassk-toolkit/tests/memory/test_rule_quote.py` (8 tests, all R
 2026-08-23 for the right reason). Feature: `gitmem rule "<texto>"` now requires
 `--quote "<palabras literales de Bex>"` for `--kind user` (default); optional for
 `--kind claude`. Motivation: Claude saved a `[user]` rule 2026-08-20 that the owner never
-said. Related: [[rules-contract-notes]], [[gitmem-rule-no-commit-contract-notes]].
+said. Related: Round 1 above, Round 2 above.
 
 **Contradiction found and reported, not silently resolved:** the task instructions asked
 scenario 2 (quote given) to assert "exactly one new commit whose message carries the
@@ -547,8 +547,8 @@ tests: 5 RED today, 2 green-as-regression-pin, for the right reasons in both
 cases). Feature: `gitmem rule "<texto>"` must produce a REAL git commit
 containing the rule before printing "guardada" -- today (`lib/memory/rules.py`,
 2026-08-06 decision) `add()` never touches git at all, one atomic file write
-and done. See also [[rule-quote-contract-notes]],
-[[gitmem-rule-no-commit-contract-notes]] (the very decision being reversed).
+and done. See also Round 3 above,
+Round 2 above (the very decision being reversed).
 
 **This is a real, evidenced reversal, not a hallucinated task request.**
 Verified via `git log` (EXECUTED, not trusted from the task prompt): commit
@@ -831,7 +831,7 @@ modified (Ultron's parallel round-3 work resurrecting
 was written specifically for the "coherence_rules retired" world and
 will need the same kind of reconciliation Ultron already did once before
 (2026-08-06 cascade, documented in
-[[gitmem-rule-no-commit-contract-notes]]) once boot.py's CHECKS block
+Round 2 above) once boot.py's CHECKS block
 starts mentioning rules again -- not this task's file, not touched here.
 
 Final count this pass: `2 failed, 537 passed, 1 skipped` (one is my new
@@ -998,7 +998,7 @@ literal text (`_RULE_LINE_RE`/`iter_rule_texts()`).
 **No prior decision existed for this CLI shape** -- `gitmem search
 "retirar regla"` / "sustituir regla" / "rule retract" all returned 0
 zones, checked before writing (not assumed). This test file therefore
-FIXES the new surface itself, same pattern [[rules-contract-notes]]'s
+FIXES the new surface itself, same pattern Round 1 above's
 sibling `test_rule_script.py` already used for the read-mode grammar
 assumption:
 
@@ -1028,7 +1028,7 @@ Library: `rules.retract(text, kind) -> WriteResult`,
   failure).
 
 **Vacuous-green pitfall caught and fixed live** (same mechanism as
-[[rule-quote-contract-notes]]): the "wrong kind bounces" test initially
+Round 3 above): the "wrong kind bounces" test initially
 passed for the WRONG reason -- with `--retract` not yet a real flag,
 argparse's own "unrecognized arguments: --retract" already yields
 `rc != 0`, satisfying a naive assertion without ever exercising the
@@ -1046,8 +1046,8 @@ direct call under a forced `.git/index.lock`, same pattern as
 rather than through the script -- the failure scenario lives inside the
 function itself, the script only relays what it returns.
 
-See also: [[rule-commit-i003-contract-notes]] (the atomic file+git path
-this contract reuses), [[gitmem-rule-no-commit-contract-notes]] (history
+See also: Round 4 above (the atomic file+git path
+this contract reuses), Round 2 above (history
 of `coherence_rules()` retirement/resurrection).
 
 **2026-08-25 extension -- real crash pinned RED, existing guard covered:**

@@ -48,7 +48,7 @@ intended shape is a `validator.py` function returning a `Rejection` via
 `rejection_.build(kind=..., command=(cmd_no, cmd_new))`, same pattern as
 `validate_similar`/`validate_distillation` in that file. This matters
 because `tests/memory/test_rejection_relaunch_commands.py` (see
-[rejection-relaunch-command-ast-crosscheck-notes](rejection-relaunch-command-ast-crosscheck-notes.md))
+[relaunch-command-mechanism-notes](relaunch-command-mechanism-notes.md))
 AST-scans exactly six files for `command = (...)` / `relaunch = (...)` --
 `bin/memory/remove.py` is NOT one of them. If the rejection text is
 written by hand inside `remove.py` instead of routed through a
@@ -86,7 +86,7 @@ only matches the `"✅ {id} guardada"` pattern from `note.py`. When
 different emoji. Reused a local regex (`r"[✅⚠️]\s*([A-Z]-\d+)\s+guardada"`)
 instead of the shared helper for this one case.
 
-Reference: [rejection-relaunch-command-ast-crosscheck-notes](rejection-relaunch-command-ast-crosscheck-notes.md)
+Reference: [relaunch-command-mechanism-notes](relaunch-command-mechanism-notes.md)
 
 ## Round 2 (2026-08-05) — --restriction new must be all-or-nothing: fence rejection must not leave the incident closed
 
@@ -162,4 +162,4 @@ not built. Also dropped now-unused imports (`re`, `shlex`,
 `seed_zones_json`) from `test_remove_script.py` since the retired class
 was their only user. `test_remove_script.py` + this file: 8/8 green.
 
-Reference: [incident-close-question-contract-notes](incident-close-question-contract-notes.md)
+Reference: [remove-py-incident-close-full-contract-notes](remove-py-incident-close-full-contract-notes.md)

@@ -186,9 +186,9 @@ untouched). `--collect-only` -> 15 tests, 0 collection errors.
 markers on `utf8.py`/`conftest.py`/`test_conftest_smoke.py` in the same
 status output belong to concurrent colleagues, not this task.
 
-See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)
+See also: Round 1 above
 (the `.git/index.lock` forcing + git-probe techniques rows 10 reuses
-verbatim), [notes-three-critical-regressions-notes](notes-three-critical-regressions-notes.md)
+verbatim), Round 3 above
 (the `notes.gitcmd`/`notes.indexes` module-attribute monkeypatch
 technique, not needed here but same file), [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md)
 (`indexes.archive()`/`read_archive()`'s own contract, reused read-only
@@ -229,7 +229,7 @@ uses internally, to monkeypatch it correctly, when the test harness
 loads siblings by file path (`import_lib_memory_module`, see
 [memoria-v2-fase0-conftest-notes](memoria-v2-fase0-conftest-notes.md)
 and the cross-import-identity risk in
-[format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md)).**
+[format-py-full-contract-notes](format-py-full-contract-notes.md)).**
 `notes.py` does plain `import format`/`import gitcmd`/`import ids`/
 `import indexes` (PIEZAS Sec.3.3bis flat-import convention) -- these
 bind as MODULE-LEVEL ATTRIBUTES on the `notes` module object itself.
@@ -256,7 +256,7 @@ build-message+commit call in `notes.write()`.
 **Fix 3 (restoration's own failure shadowed the real git diagnostic):**
 combined a REAL git failure (`.git/index.lock` pre-created, same
 technique as rows 2/3 -- see
-[notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md))
+Round 1 above)
 with `notes.indexes.remove` also raising during the restoration that
 follows. Asserted `write()` does NOT raise the secondary exception, and
 `result.git_error` is the REAL git message (verified via a live probe --
@@ -280,7 +280,7 @@ pytest scenario. All three: FAIL against the broken copy (note lost /
 index not restored / secondary exception propagates), PASS against the
 real fixed code -- confirmed before a single pytest line was written.
 Same generator/probe pattern as
-[five-regressions-format-zones-notes](five-regressions-format-zones-notes.md),
+[format-py-full-contract-notes](format-py-full-contract-notes.md),
 extended here to exercise real git subprocess calls (temp repo per
 probe, cleaned up in `finally`), not just in-memory round trips.
 
@@ -293,12 +293,12 @@ convention as test_format.py's bottom section). No production code
 touched at any point -- confirmed via `git status --porcelain` showing
 no `lib/memory/*.py` changes.
 
-See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)
+See also: Round 1 above
 (the `.git/index.lock`-forcing and git-probe techniques this session's
-fix-3 test reuses), [format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md)
+fix-3 test reuses), [format-py-full-contract-notes](format-py-full-contract-notes.md)
 (the cross-import-identity finding that motivated reaching through
 `notes.gitcmd`/`notes.indexes` instead of a separately-loaded fixture),
-[five-regressions-format-zones-notes](five-regressions-format-zones-notes.md)
+[format-py-full-contract-notes](format-py-full-contract-notes.md)
 (the scratchpad generator/probe mutation-check pattern this session
 extended to real git subprocess calls).
 
@@ -456,9 +456,9 @@ an owner question per the task's stated baseline -- confirmed unrelated,
 same names, same count). Real repo HEAD unchanged before/after
 (`87c44f4...`), confirmed via `git rev-parse HEAD`.
 
-See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md),
+See also: Round 1 above,
 [capa4-hardening-session-notes](capa4-hardening-session-notes.md),
-[notes-cwd-leak-fix-and-guard-fixture-notes](notes-cwd-leak-fix-and-guard-fixture-notes.md).
+Round 4 above.
 
 ## Round 6 — DEUDA #27: the real two-real-OS-process race that kept this bug open through 3 rounds of 'closed'
 
@@ -596,8 +596,8 @@ readable FAILED with the real exception type/message in the assertion text,
 rather than letting pytest report a bare traceback), `result.ok is False`,
 and `result.git_error` is non-empty (a real cause, not silence).
 
-**Real-repo technique reused from [[write-work-missing-lock-contract-notes]]
-and [[deuda27-write-work-two-process-race-notes]]:** both new tests use the
+**Real-repo technique reused from Round 5 above
+and Round 6 above:** both new tests use the
 real `tmp_repo` git fixture, `_cwd(root)`, and `run_git()` -- no mocking of
 git or of `write_work()` itself. First test asserts `result.ok`, the real
 commit count delta via `git rev-list --count HEAD`, and the real committed
@@ -610,8 +610,8 @@ Both confirmed RED for the right reason (not import/fixture noise): full
 `test_rule_script.py::TestSimilarExistingRuleIsWarnedBeforeAdding` --
 confirmed out of scope, different file, different subsystem, not touched).
 
-See also: [[write-work-missing-lock-contract-notes]],
-[[deuda27-write-work-two-process-race-notes]],
+See also: Round 5 above,
+Round 6 above,
 [[mutation-check-collision-incident-ids]].
 
 ## Round 8 (2026-08-03, capa 5 close-out) — the worst bug of the whole build: a closed note's id gets reused by the next write of the same type
@@ -685,7 +685,7 @@ file/git access, per PIEZAS.md §7.2.
   `find_duplicates`, never `next_id`.
 
 ## RED verification technique (same as
-[boot-report-argus-four-regressions-notes](boot-report-argus-four-regressions-notes.md),
+[boot-py-v2-full-contract-notes](boot-py-v2-full-contract-notes.md),
 generalized to 2 call sites in one file)
 
 Copied the whole `lib/memory/` dir to the session scratchpad

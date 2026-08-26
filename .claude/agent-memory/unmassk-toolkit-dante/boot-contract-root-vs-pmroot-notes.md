@@ -65,6 +65,6 @@ against the raw local-offset value would make the assertion pass or
 fail based on the machine's timezone relative to a day boundary, which
 is exactly the two-machines-disagree bug the row exists to prevent.
 
-Related: [issue-63-t1-manifest-read-hardening-notes](issue-63-t1-manifest-read-hardening-notes.md) for the general
+Related: [issue-63-managed-blocks-hardening-notes](issue-63-managed-blocks-hardening-notes.md) for the general
 `import_lib_memory_module` FileNotFoundError-as-RED pattern this whole
 branch relies on.

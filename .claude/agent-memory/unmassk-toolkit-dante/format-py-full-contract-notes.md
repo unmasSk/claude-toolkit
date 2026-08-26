@@ -97,7 +97,7 @@ this round and say so explicitly in the report instead of forcing it.
 
 **Real cross-module-import-identity risk this incident surfaced --
 already independently confirmed by the parallel `test_zones.py` writer
-(see [zones-contract-notes](zones-contract-notes.md), same session,
+(see [zones-py-full-contract-notes](zones-py-full-contract-notes.md), same session,
 "CRITICAL infra gap"), so this is not a one-off artifact of the
 throwaway harness above, it's a real property of `import_lib_memory_module()`.**
 `format.py`'s declared signatures return `model.py`'s dataclasses
@@ -146,8 +146,8 @@ test locking them in place. Task: add them as permanent regressions to
 `unmassk-toolkit/tests/memory/test_format.py` (4 tests) and
 `test_zones.py` (1 test). Baseline 52 green, ended at 57 green, zero
 regressions. This is a DIFFERENT test type than the contract-pass tests
-already in those files ([format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md),
-[zones-contract-notes](zones-contract-notes.md)) -- those describe a
+already in those files (Round 1 above,
+[zones-py-full-contract-notes](zones-py-full-contract-notes.md)) -- those describe a
 design rule; these describe a specific failure mode that actually
 happened, named in each docstring so the test isn't deleted as
 apparent redundancy a year later.
@@ -196,7 +196,7 @@ to lock in several related regressions at once instead of one.
 **Test design notes:**
 - Bugs 1-4 all reuse the existing `_note()` factory and
   `_assert_fields_match()` helper already in `test_format.py` (see
-  [format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md)
+  Round 1 above
   for why field-by-field, never `==`) -- no new fixtures needed.
 - Bug 3's regression note deliberately reuses `id="D-036"` and a
   rename-flavored headline (`"rename colors.py  →  emojis.py..."`),
@@ -212,4 +212,4 @@ No production code touched. No file written under `lib/memory/` at any
 point (confirmed via `git status --porcelain` before and after -- zero
 new/modified files outside the two test files task-scoped to touch).
 
-Reference: [format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md), [zones-contract-notes](zones-contract-notes.md), [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md)
+Reference: [zones-py-full-contract-notes](zones-py-full-contract-notes.md), [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md)

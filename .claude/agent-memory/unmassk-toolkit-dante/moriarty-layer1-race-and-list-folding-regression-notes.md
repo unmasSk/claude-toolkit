@@ -7,7 +7,7 @@ metadata:
 
 Context: Moriarty broke layer 1 and found two bugs Cerberus/Argus missed,
 already fixed by hand but with zero test coverage -- same pattern as the
-[five-regressions-format-zones-notes](five-regressions-format-zones-notes.md)
+[format-py-full-contract-notes](format-py-full-contract-notes.md)
 batch earlier the same day. Task: lock both in as permanent regressions.
 Baseline 61 green -> 63 green in the two touched files (test_notes.py's
 6 errors were a concurrent colleague's in-progress `notes.py`, unrelated,
@@ -94,7 +94,7 @@ returned `None`, silently, no exception, losing the WHOLE note (not just
 the field) exactly like bugs 1/2 in the earlier five-regressions batch.
 Reused the exact same `_note()`/`_assert_fields_match()` machinery
 already in the file (see
-[five-regressions-format-zones-notes](five-regressions-format-zones-notes.md)),
+[format-py-full-contract-notes](format-py-full-contract-notes.md)),
 no new fixtures needed. Mutation-check (scratchpad,
 `dante_bug_regressions_20260802/format_bug/`, reverted `_fold` back to
 raw f-strings for the three fields): `parse_message` returned `None`
@@ -109,4 +109,4 @@ new files on this branch, no diff to any `lib/memory/*.py`, matching the
 2026-08-02 absolute ban documented in
 [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md)).
 
-Reference: [five-regressions-format-zones-notes](five-regressions-format-zones-notes.md), [file-lock-lost-update-contract-notes](file-lock-lost-update-contract-notes.md), [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md), [format-contract-cross-import-risk-notes](format-contract-cross-import-risk-notes.md), [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md)
+Reference: [format-py-full-contract-notes](format-py-full-contract-notes.md), [file-lock-lost-update-contract-notes](file-lock-lost-update-contract-notes.md), [indexes-contract-and-shared-dir-incident-notes](indexes-contract-and-shared-dir-incident-notes.md), [format-py-full-contract-notes](format-py-full-contract-notes.md), [mutation-check-collision-incident-ids](mutation-check-collision-incident-ids.md)

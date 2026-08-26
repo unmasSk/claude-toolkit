@@ -14,7 +14,7 @@ so `gitmem search <zone>` and `gitmem search <word>` silently drop a
 saved issue number, even though `--id` (via
 `report_render_note.py::_note_fields`) already shows it correctly for
 all seven types since D-044/D-045 (2026-08-22, see
-[[note-issue-field-seven-types-contract-notes]]).
+[[note-py-script-full-contract-notes]]).
 
 **Two independent production gates already closed vs one still open**:
 D-044/D-045 already opened `vocabulary.py::TYPES[*].allowed_fields` (all

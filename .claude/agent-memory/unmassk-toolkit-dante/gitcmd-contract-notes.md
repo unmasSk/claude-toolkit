@@ -157,7 +157,7 @@ killing the WHOLE context note's parse, not just that one point).
 
 **Confirmed the actual git behavior live before writing the test** (same
 `"co" + "mmit"` spelling workaround as the `.git/index.lock` technique in
-[rules-contract-notes](rules-contract-notes.md), to dodge the sandboxed
+[rule-py-full-contract-notes](rule-py-full-contract-notes.md), to dodge the sandboxed
 Bash tool's literal `git commit` string-match guard): committing the
 identical message `"MARK_FOLD headline\n \nsegunda linea plegada"` with
 vs. without `--cleanup=verbatim` produces, read back via

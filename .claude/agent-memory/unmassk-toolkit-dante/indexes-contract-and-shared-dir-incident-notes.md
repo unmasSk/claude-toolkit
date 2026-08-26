@@ -67,7 +67,7 @@ implementation is -- a plain `result == expected` assertion would fail
 against a fully correct `indexes.py`. **A parallel colleague already
 hit and fixed the identical problem in `test_format.py`** (see that
 file's `_assert_fields_match` helper and its docstring, itself citing
-`zones-contract-notes.md` from ANOTHER colleague who found it first in
+`zones-py-full-contract-notes.md` from ANOTHER colleague who found it first in
 `test_zones.py`) -- three independent test files in the same session
 converged on the same fix. Ported the same pattern into
 `test_indexes.py` as `_assert_fields_match`/`_assert_lines_match`

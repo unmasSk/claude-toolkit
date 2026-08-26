@@ -69,7 +69,7 @@ isolate the note's OWN declarative line from any line that merely references
 its id.
 
 Related: [[search-word-zones-catalog-contract-notes]],
-[[note-issue-field-seven-types-contract-notes]] (Origin/Issue precedent for
+[[note-py-script-full-contract-notes]] (Origin/Issue precedent for
 extending a field's visibility across type).
 
 ## Round 2 (Moriarty repro) — --chain drops a whole lineage when its head is re-archived under another zone pair
@@ -77,7 +77,7 @@ extending a field's visibility across type).
 Test-first RED pass (task from orchestrator, Moriarty repro): `--chain`
 already exists and is green for the normal cases (single zone pair,
 closed-without-successor, Origin link -- see
-[[d056-lineage-and-chain-view-contract-notes]]). This is a NEW regression
+Round 1 above). This is a NEW regression
 found on top of that already-shipped feature, not part of the original
 D-056 contract.
 
@@ -130,13 +130,11 @@ even when it's not in the zone's own `matched` set, or the design needs a
 "lineage tail archived elsewhere" thread of its own). Not my call how to
 implement -- report only.
 
-Related: [[d056-lineage-and-chain-view-contract-notes]].
-
 ## Round 3 (Moriarty repro, on top of Round 2's fix) — --chain mislabels the reappearing head 'cerrada' (lying)
 
 Test-first RED pass (task from orchestrator, Moriarty repro, on top of the
 already-fixed cross-zone lineage-loss bug -- see
-[[chain-view-cross-zone-lineage-loss-regression-notes]]). That earlier fix
+Round 2 above). That earlier fix
 made `search alpha --chain` stop dropping a lineage whose head got
 re-archived under another zone pair. This task is the OTHER half of the same
 bug: the reappearing head is now mislabeled.
@@ -193,6 +191,3 @@ but outside the matched set), or replace the bool with an enum/union that
 thread", it just currently discards the successor id it already resolved
 instead of threading it through to render. Not my call how to implement --
 report only.
-
-Related: [[chain-view-cross-zone-lineage-loss-regression-notes]],
-[[d056-lineage-and-chain-view-contract-notes]].

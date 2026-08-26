@@ -10,7 +10,7 @@ key normalizes to lowercase AND accent-stripped, everywhere. Three sites
 only did `.lower()`: `lib/memory/zones.py::normalize`,
 `lib/memory/similar.py::_tokens`, `lib/memory/rules_similarity.py::_tokenize`.
 A fourth site, `lib/checklist_state.py::normalize_box_text`
-([[zones-contract-notes]] sibling area, not linked before), already did
+([[zones-py-full-contract-notes]] sibling area, not linked before), already did
 the full job (NFKD-strip-accents + casefold + dash-fold + whitespace
 collapse) — confirmed by reading the file before writing any test, per
 this agent's boot protocol.
@@ -89,5 +89,5 @@ Full-suite verification: `python3 -m pytest unmassk-toolkit/tests -q` →
 18 passed, same pre-existing symbol-without-caller list as before this
 session (unrelated debt, not touched).
 
-Reference: [[zones-contract-notes]], [[similar-contract-notes]],
+Reference: [[zones-py-full-contract-notes]], [[similar-contract-notes]],
 [[dante-owner-metric-over-allowlist-feedback]]

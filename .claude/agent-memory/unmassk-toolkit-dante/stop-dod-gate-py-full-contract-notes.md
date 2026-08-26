@@ -234,7 +234,7 @@ expected reasons (RED, correct cause confirmed by reading each failure's
 own assertion message before declaring done -- no exception/crash, no
 wrong-reason red).
 
-See also [[stop-dod-gate-d042-declared-identity-coverage-notes]] and
+See also Round 2 above and
 [[customs-doctor-20260806-two-red-contracts-notes]] for prior sessions on
 this same hook file -- same test-first + real-subprocess discipline.
 
@@ -273,7 +273,7 @@ requirements, all written as separate test classes in
    `declare` at all. **Already GREEN today** (58/69 passed baseline
    unaffected) -- pins that the mere existence of the new mechanism
    doesn't loosen the normal case, same "invariant, not new RED" pattern
-   as 2 of [[stop-dod-gate-fingerprint-cache-contract-notes]]'s 4 tests.
+   as 2 of Round 3 above's 4 tests.
 6. `TestDeclarationScopedToSession` (2 tests) -- a declaration made
    under session A does NOT apply to a Stop event carrying session B;
    and (contrast test) a declaration DOES survive multiple Stops within
@@ -306,7 +306,7 @@ exact file after declaring and asserting the node id string is inside
 it, without pinning the internal JSON key name (that's Ultron's choice).
 
 **Deliberate non-git workdirs throughout** (same technique as
-[[stop-dod-gate-fingerprint-cache-contract-notes]]'s Caso 16): isolates
+Round 3 above's Caso 16): isolates
 this contract from the working-tree fingerprint cache Ultron is adding
 in parallel -- a non-git workdir is guaranteed to always re-run
 `test_command` for real, so none of these 12 new tests can accidentally
@@ -320,8 +320,8 @@ assumed. 1 green (the requirement-5 anchor). Whole-file baseline: 58
 passed / 11 failed, no interference detected from Ultron's concurrent
 edits to the hook itself as of this run.
 
-See also [[stop-dod-gate-fingerprint-cache-contract-notes]] and
-[[stop-dod-gate-d042-declared-identity-coverage-notes]] for prior
+See also Round 3 above and
+Round 2 above for prior
 same-file test-first sessions -- same real-subprocess, no-mock
 discipline, same "local helpers next to the test class that needs them"
 placement convention (not the shared Helpers section at the top).

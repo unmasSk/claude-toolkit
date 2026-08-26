@@ -49,7 +49,7 @@ by design, not a defect.
 
 **Wiring into the boot line** (Sec.14: "su veredicto sale en la misma linea
 del arranque... no en un registro aparte", plus the explicit precedent named
-in the task: [[health-boot-rule-coherence-wiring-notes]] -- `coherence_rules()`
+in the task: [[boot-py-v2-full-contract-notes]] -- `coherence_rules()`
 was written, green, and mute for a while until HealthReport/boot.py were
 extended). Same shape applied here, field names decided in this session (not
 sourced from any doc, mirroring `rule_commits`/`rule_lines`/
@@ -90,5 +90,5 @@ the three live hooks bench (Sec.11, different piece), and whether the
 generator/customs assemble the validator's inputs correctly (only that the
 validator rejects when given data describing one of the ten cases).
 
-Related: [[health-boot-rule-coherence-wiring-notes]], [[validator-contract-notes]],
+Related: [[boot-py-v2-full-contract-notes]], [[validator-contract-notes]],
 [[capa5-read-scripts-and-facade-contract-notes]].

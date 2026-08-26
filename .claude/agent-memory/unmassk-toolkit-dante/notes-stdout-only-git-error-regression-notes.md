@@ -7,7 +7,7 @@ metadata:
 
 New real-git-failure shape, distinct from the `.git/index.lock` technique
 already documented in
-[notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md):
+[notes-py-full-contract-notes](notes-py-full-contract-notes.md):
 git's "nothing to commit, working tree clean" failure writes to **stdout**,
 leaves **stderr empty**. `notes.py` returns `git_error=git_result.stderr`
 at both call sites (`write()` and `write_work()`) -- against THIS failure
@@ -54,8 +54,8 @@ Other 9 rows/regressions in the file stayed green. Zero production files
 touched (verified via `git status --porcelain -- lib/memory/`: `notes.py`
 untracked, never written to this session).
 
-See also: [notes-contract-real-git-failure-notes](notes-contract-real-git-failure-notes.md)
+See also: [notes-py-full-contract-notes](notes-py-full-contract-notes.md)
 (the sibling `.git/index.lock`-forcing technique for a real git failure
-that DOES fill stderr), [notes-three-critical-regressions-notes](notes-three-critical-regressions-notes.md)
+that DOES fill stderr), [notes-py-full-contract-notes](notes-py-full-contract-notes.md)
 (the `notes.gitcmd`/`notes.indexes` reach-through-real-module-attribute
 monkeypatch convention this session reused).

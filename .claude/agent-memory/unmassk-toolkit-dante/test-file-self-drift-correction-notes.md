@@ -60,4 +60,4 @@ wrong, and which OTHER file actually verifies executability
 (`test_rejection_relaunch_commands.py`) -- so a future reader doesn't
 mistake this file's green run for proof the command works.
 
-Reference: [incident-close-question-contract-notes](incident-close-question-contract-notes.md), [rejection-relaunch-command-ast-crosscheck-notes](rejection-relaunch-command-ast-crosscheck-notes.md)
+Reference: [remove-py-incident-close-full-contract-notes](remove-py-incident-close-full-contract-notes.md), [relaunch-command-mechanism-notes](relaunch-command-mechanism-notes.md)

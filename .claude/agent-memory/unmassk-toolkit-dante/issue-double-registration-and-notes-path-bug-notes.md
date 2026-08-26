@@ -104,4 +104,4 @@ touching production.
 
 Reference: [import-lib-memory-module-cache-fix-and-stash-incident-notes](import-lib-memory-module-cache-fix-and-stash-incident-notes.md),
 [memoria-v2-conftest-package-collision-notes](memoria-v2-conftest-package-collision-notes.md),
-[notes-replace-close-contract-notes](notes-replace-close-contract-notes.md)
+[notes-py-full-contract-notes](notes-py-full-contract-notes.md)
