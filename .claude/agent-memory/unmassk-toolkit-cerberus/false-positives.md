@@ -12,6 +12,14 @@ In any `scripts/` directory inside a skill, a `README.md` is expected documentat
 
 unmassk-marketing SKILL.md has BOTH a "Request Routing" table (lines 59-73) AND a "Reference Files" table (lines 189-205). Both reference the same 14 files. This is intentional redundancy (one for quick routing, one for load-when context). Do not flag as duplication.
 
+## quote field (Note.quote, D-065/D-066): empty-string still renders a body line
+
+`format.py::_body_field_line` writes `Quote: ` for `note.quote == ""` (checks `is not None`, not `.strip()`) — looks like it could leak an empty-but-present field into a commit body. Confirmed 2026-08-26: this is the SAME pattern `Why`/`Awaits`/`Replaces` already use in the same function, pre-dating this diff — not something the issue-customs gate introduced. In practice it can't fire for `Q`/`I` anyway: `validator._present_fields` only counts `quote` as present after `.strip()`, so an empty `--quote ""` never passes `validate_fields`/the gate in the first place. Do not flag `is not None` vs `.strip()` asymmetry on this one field alone — it's a codebase-wide convention on `_body_field_line`, not a one-off bug.
+
+## quote field (Note.quote) has no newline/length cap unlike rules.py's --quote
+
+`rules_validate.py::validate_quote` rejects a quote with `\n` or over `_QUOTE_MAX_CHARS` (200); `validator_issue.py`'s issue-gate quote check (`note.quote is not None and note.quote.strip()`) does neither. Looks like a missing parity check given D-066 says "same mechanic as rules". Confirmed 2026-08-26 by reading both call sites: `rules.py`'s quote is appended to a single git commit SUBJECT line (`f" — «{quote}»"`, one-line domain, `TEXT_MAX_CHARS=200` from Sec.9.7) while `Note.quote` lives in the commit BODY via `format.py`'s folding mechanism (`_fold`, same multi-line support already used for `Why`/`Description`), which is explicitly built to survive embedded `\n` losslessly. The "same mechanic" D-066 refers to is "no silent default / always demands the owner's literal words", not the subject-line length/newline constraints — those are domain-specific to `rules.py`, not a parity gap in `validator_issue.py`.
+
 ## finalize_exit + exit $? two-step in cluster_health.sh and network_debug.sh
 
 ```bash
