@@ -527,7 +527,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
             results.append(("ok", "Repo vs cache", "hooks/, lib/ and bin/ identical"))
 
     # 5c. SKILL.md's generated hook table vs hooks.json
-    # unmassk-gitmemory is loaded every session, so a hook it describes that
+    # unmassk-memory is loaded every session, so a hook it describes that
     # no longer exists is not a stale doc — it is Claude asserting a falsehood
     # to the user. That direction is an error; a hook declared but not yet
     # documented only under-informs, so it is a warning. None = does not apply

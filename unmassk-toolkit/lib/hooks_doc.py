@@ -1,10 +1,10 @@
 """
-hooks_doc.py -- the "Active Hooks" table of unmassk-gitmemory/SKILL.md,
+hooks_doc.py -- the "Active Hooks" table of unmassk-memory/SKILL.md,
 derived from hooks/hooks.json instead of written by hand.
 
 Why this module exists
 ----------------------
-`skills/unmassk-gitmemory/SKILL.md` is loaded on every session start, so any
+`skills/unmassk-memory/SKILL.md` is loaded on every session start, so any
 falsehood in it is a falsehood Claude states to the user with full confidence.
 Its hook list was hand-written prose and drifted: it described a per-message
 memory-injection hook retired months earlier, named the wrong number of managed

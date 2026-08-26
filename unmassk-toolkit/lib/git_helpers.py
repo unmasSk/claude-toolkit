@@ -707,8 +707,8 @@ def file_lock(target_path: str, lock_path: str | None = None):
 def claude_md_lock_path(project_root: str) -> str:
     """Shared `file_lock()` path for every writer that read-modify-writes
     CLAUDE.md's managed blocks (hooks/session-start-crew.py,
-    lib/install_apply.py::_update_claude_md(), bin/git-memory-uninstall.py)
-    -- mutual exclusion between them only works if all three pass the
+    lib/install_apply.py::_update_claude_md())
+    -- mutual exclusion between them only works if both pass the
     EXACT same `lock_path` to file_lock(), so this is the single source of
     that path (Exit Gate: one constant, one place).
 

@@ -27,11 +27,12 @@ file is the thin CLI entrypoint (planning + orchestration) only:
 
 Every name other scripts depend on is re-exported below (not `import *`)
 so `python3 git-memory-install.py` behaves identically, and so
-git-memory-upgrade.py (install_mod.OLD_BIN_FILES, .OLD_HOOK_FILES,
-._cleanup_old_install, ._update_claude_md), git-memory-repair.py
-(mod._update_claude_md, mod._create_manifest), and tests that load this
-module directly via importlib (mod.inspect, mod._update_claude_md) keep
-working unchanged.
+git-memory-repair.py (mod._update_claude_md, mod._create_manifest) and
+tests that load this module directly via importlib (mod.inspect,
+mod._update_claude_md) keep working unchanged. git-memory-upgrade.py is
+gone: its version-sync effect now runs from SessionStart via
+lib/upgrade_check.py::trigger_auto_upgrade_if_needed(), which shells out
+to this script with `--auto` instead of importing its names.
 """
 
 import argparse

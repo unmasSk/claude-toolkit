@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 hooks_doc_sync -- regenerate (or verify) the generated "Active Hooks" table
-in skills/unmassk-gitmemory/SKILL.md from hooks/hooks.json.
+in skills/unmassk-memory/SKILL.md from hooks/hooks.json.
 
 That skill is loaded on every session start, so a hook list that has drifted
 does not merely go stale: it makes Claude state a behaviour that does not
