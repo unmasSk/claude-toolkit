@@ -152,3 +152,70 @@ pre-existing + 18 from Round 1's contract), zero failed, zero errors --
 the `test_zones_script.py` flake noted in Round 1 did not recur either
 time. `git status --porcelain unmassk-toolkit/` after: exactly the 10
 files listed plus `conftest.py`, nothing outside `tests/memory/`.
+
+## Round 3 (2026-08-26, same day) -- Moriarty T1: hooks/customs.py bypasses the gate entirely
+
+Context: Moriarty broke the shipped gate (Round 2) in (at least) 4 points;
+the coordinator's message was truncated after point 1 (point 2 cut off
+mid-sentence at "gitcmd.py:71", points 3/4 never arrived). Per this
+project's rule ("una pregunta cada vez... si no esta claro, se pregunta"),
+did the one fully-specified point (T1, customs bypass) and stopped --
+did not guess at points 2-4's content. New file:
+`unmassk-toolkit/tests/memory/test_customs_issue_gate_bypass.py` (5 tests:
+2 RED / 3 GREEN by design).
+
+**The bug, confirmed by reading, not assumed:** `hooks/customs.py::
+_decide_note()` (~line 683) only calls `validator.validate_note(note,
+ctx)` -- never `validator.validate_issue_gate()` (the D-065/D-066 gate
+from Round 1/2, real production since the previous pass). `validate_note()`'s
+own docstring documents WHY: it deliberately excludes any check that needs
+data outside `note`/`ctx` (`validate_pain_question`, `validate_issue`, and
+now `validate_issue_gate` too) -- the hook never wired those special-signature
+checks for ANY of them, and the issue gate inherited the same gap on day
+one instead of anyone closing it for this new gate specifically. Live
+repro (confirmed before writing tests): a raw `git commit -m` creating a
+well-formed `I` with neither `Issue:` nor `Quote:` in the body -> hook
+returns `{"decision": "approve"}`.
+
+**`validate_issue_gate` is pure** (confirmed reading its own docstring --
+unlike `validate_issue`, it never calls `gh`) -- no fake-gh technique
+needed anywhere in this file, unlike [[note-py-script-full-contract-notes]]
+Round 7's `--issue` contract.
+
+**Technique reused as instructed** ("mira `test_customs_archived_key_zone_duplicate_parity.py`"):
+same `run_customs_hook`/`HOOK_PATH` locals, same `_commit_command`, same
+`model_mod`/`format_mod` fixtures building the EXACT commit message via
+`format.build_message()` on a real `model.Note` -- never a hand-typed
+string. Pitfall hit and fixed: two of the five candidate headline/description
+pairs used an English contraction/possessive apostrophe ("hasn't", "customer's")
+which collided with the file's own guard against single quotes in the
+commit-command string (`assert "'" not in message`) -- not a production
+bug, a test-fixture wording fix (removed the apostrophes).
+
+**5 tests, same RED/GREEN split pattern as every other file in this
+series:** RED x2 (I and Q, mirroring D-065/D-066 not distinguishing
+between the two gated types) both assert `decision == "block"` PLUS the
+literal `_MEASURING_STICK` text and all three literal relaunch options
+(same constants as Round 1's contract, cross-checked against
+`validator_issue.py`'s real strings -- now in production, confirmed
+identical by reading). GREEN x3: parity control via `note.py` (already
+rejects, proves something real to preserve), non-gated type (`D`) control
+(fix must not touch types outside Q/I), already-answered-gate control (a
+raw commit with a real `Issue: #N` must keep approving -- fix must not
+overtighten).
+
+Verification: `python3 -m pytest unmassk-toolkit/tests/memory/test_customs_issue_gate_bypass.py -v`
+-> 2 failed (both `'approve' == 'block'`, the real bypass, not a
+collection/import error) / 3 passed. Full `tests/memory` suite with the
+new file: 629 passed + 2 RED + 1 skipped, zero collateral damage.
+`git status --porcelain unmassk-toolkit/` before/after: only this one new
+file touched (no `lib/`/`bin/`/`hooks/` edits, per the task's explicit
+limit).
+
+**Open, waiting on the coordinator:** points 2 ("un \r dentro de --quote
+se corrompe al releer... gitcmd.py:71", cut off), 3, and 4 of Moriarty's
+4-point break were never received in full -- not written here, not
+guessed at.
+
+Reference: [[note-py-script-full-contract-notes]] (fake-gh technique,
+not needed here); Round 1/2 above (the gate this bypass sits on top of).
