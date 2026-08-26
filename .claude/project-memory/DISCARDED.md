@@ -81,3 +81,4 @@
 [X-079][memory][architecture] el doctor de memoria como script mecanico de texto
 [X-080][memory][architecture] anadir codigo de salida distinto de cero al rechazo de note
 [X-083][skills][trading] que la skill opere sola conectada a una cuenta
+[X-084][skills][trading] empezar por acciones y ETFs
