@@ -220,6 +220,60 @@ def _reject_missing_measuring_stick_answer(note: Note) -> Rejection:
     )
 
 
+def _reject_issue_none_not_allowed(note: Note) -> Rejection:
+    """`--issue none` fuera de Q/I -- Moriarty T2, 2026-08-26. El
+    centinela `"none"` solo tiene significado dentro de la aduana de
+    issues (D-065/D-066), exclusiva de Q/I: fuera de ahi no existe la
+    mecanica de "el dueño dijo que no, con cita" -- colarlo en silencio
+    resuelto a "sin issue" (lo que hacia `bin/memory/note.py::
+    _build_candidate` antes de este arreglo) pierde la intencion real de
+    quien tecleo el centinela a proposito. Un numero REAL de issue sigue
+    aceptandose igual en los siete tipos [D-044/D-045] -- este rechazo es
+    solo para el centinela `"none"`, nunca para `--issue` en si.
+    """
+    what = f"--issue none no tiene sentido para el tipo {note.type}"
+    options = (
+        "El centinela 'none' es exclusivo de la aduana de issues (Q/I) -- fuera",
+        "de ahi no existe la mecanica del \"no\" del dueño con cita.",
+        "",
+        "  un numero real de issue sigue funcionando  ->  --issue N",
+        "  sin issue, simplemente omite la bandera     ->  (sin --issue)",
+    )
+    command = (
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..."',
+    )
+    return rejection_.build(
+        kind="issue_none_not_allowed", what=what, options=options, command=command
+    )
+
+
+def _reject_issue_and_work_contradiction(note: Note) -> Rejection:
+    """`--issue N` + `--work no` juntos en Q/I -- Moriarty, 2026-08-26,
+    gravedad baja. Las dos respuestas a la vara de medir ("hace falta
+    trabajo, aqui esta la issue" / "no hace falta trabajo") no pueden
+    convivir en la misma nota: son las dos ramas EXCLUYENTES de D-065,
+    nunca una combinacion valida.
+    """
+    what = f"{note.headline!r} contesta la vara de medir con issue y work a la vez"
+    options = (
+        "issue y work no pueden convivir: --issue N dice que hace falta trabajo,",
+        "--work no dice que no hace falta -- son respuestas excluyentes.",
+        "",
+        "  hace falta trabajo, ya hay issue  ->  --issue N (sin --work)",
+        "  no hace falta trabajo             ->  --work no (sin --issue)",
+    )
+    command = (
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --issue N',
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --work no',
+    )
+    return rejection_.build(
+        kind="issue_work_contradiction", what=what, options=options, command=command
+    )
+
+
 def _reject_issue_none_missing_quote(note: Note) -> Rejection:
     """`--issue none` sin `--quote` -- D-066: el no siempre es del dueño y
     siempre lleva cita, sin escape (a diferencia de `rules.add()`, aqui
@@ -253,22 +307,28 @@ def validate_issue_gate(note: Note, issue, work: str | None) -> Rejection | None
     distinguir "ausente" de "`none` explicito", una distincion que se
     pierde en cuanto se resuelve a `note.issue`.
 
-    Orden de las tres comprobaciones, todas independientes entre si:
-
-    1. `work` fuera de Q/I -- rebota SIEMPRE que se de, sin importar que
-       traiga `issue` (misma mecanica que `validate_fields()` usa para
-       `awaits` fuera de B).
-    2. Dentro de Q/I, ni `issue` ni `work` -- la vara de medir, D-065.
-    3. Dentro de Q/I, `--issue none` sin cita -- D-066. Comprueba
-       `note.quote` (ya construido por quien llama con el valor real de
-       `--quote`) en vez de un tercer parametro: a diferencia de
-       `issue`/`work`, `quote` SI es un campo real de `Note` desde
-       D-065/D-066 [`vocabulary.TYPES["Q"/"I"].allowed_fields`].
+    Cinco comprobaciones, en orden [dos añadidas 2026-08-26, Moriarty
+    T2/ABUSE 1 -- las tres originales de D-065/D-066 intactas]: (1)
+    `work` fuera de Q/I rebota siempre; (2) `issue == "none"` fuera de
+    Q/I rebota -- el centinela solo existe dentro de la aduana de
+    issues, fuera de ahi coleaba resuelto a "sin issue" en silencio
+    [REGRESSION 1]; (3) dentro de Q/I, `issue` un `int` real Y `work ==
+    "no"` a la vez rebota -- las dos respuestas de la vara son
+    excluyentes [ABUSE 1]; va ANTES de (4) porque un `issue` real hace
+    que `issue is None and work is None` sea falso, y sin esto la
+    contradiccion pasaba sin que nada la mirara; (4) dentro de Q/I, ni
+    `issue` ni `work`, rebota -- la vara de medir, D-065; (5) dentro de
+    Q/I, `--issue none` sin `note.quote` con contenido, rebota -- D-066.
     """
     if note.type not in ("Q", "I"):
         if work is not None:
             return _reject_work_not_allowed(note)
+        if issue == "none":
+            return _reject_issue_none_not_allowed(note)
         return None
+
+    if isinstance(issue, int) and work == "no":
+        return _reject_issue_and_work_contradiction(note)
 
     if issue is None and work is None:
         return _reject_missing_measuring_stick_answer(note)

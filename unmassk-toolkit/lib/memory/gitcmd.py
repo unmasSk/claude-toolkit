@@ -58,6 +58,36 @@ class GitResult:
     stderr: str
 
 
+def _decode_std(value: bytes | str) -> str:
+    """Decodifica la salida cruda de `subprocess.run(..., capture_output=
+    True)` (sin `text=True`, ver `run()`) SIN traducir saltos de linea --
+    arreglo 2026-08-26, Moriarty BREAK 2: el modo texto de
+    `subprocess.run` traduce CUALQUIER `\\r` a `\\n` al decodificar
+    (`subprocess.Popen._translate_newlines()` hace literalmente
+    `data.decode(...).replace("\\r\\n","\\n").replace("\\r","\\n")`, sin
+    parametro publico para desactivarlo). Un `\\r` real dentro del
+    CONTENIDO de un campo (p.ej. `--quote` citando al dueño con un
+    retorno de carro real) sobrevive intacto dentro del objeto commit --
+    traducirlo aqui inventa un salto de linea que nunca existio, y
+    `format.py::_parse_fields` lo confunde con una continuacion real de
+    campo, perdiendo el caracter (el espacio) que lo seguia. `.decode()`
+    puro no toca ningun byte de salto -- round-trip byte a byte
+    (unmassk-standards Sec.34). Los lectores de plumbing de git
+    (`rev-parse`, `status --porcelain`, etc.) siempre emiten `\\n`, en
+    cualquier plataforma -- nada dependia de la traduccion que se retira.
+
+    Acepta `str` sin tocarlo (no solo `bytes`): `test_query.py::
+    test_by_id_retries_after_transient_git_failure_before_giving_up`
+    sustituye `subprocess.run` por un doble que ya devuelve `str`
+    directamente para simular un fallo transitorio -- decodificar solo
+    si hace falta preserva ese doble sin acoplar esta pieza a como esta
+    escrito el test.
+    """
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
 def run(
     args: Sequence[str], cwd: Path, timeout: int, env: Mapping[str, str] | None = None
 ) -> GitResult:
@@ -73,15 +103,15 @@ def run(
     codigo de salida: el binario `git` ausente o no ejecutable
     (`OSError`) y un proceso que no termina dentro de `timeout`
     (`subprocess.TimeoutExpired`).
+
+    Captura en BINARIO (sin `text=True`) -- ver `_decode_std()` para el
+    porque completo.
     """
     try:
         proc = subprocess.run(
             ["git", *args],
             cwd=str(cwd),
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=timeout,
             # `env` se SUPERPONE al entorno real, nunca lo sustituye:
             # reemplazarlo entero dejaria a git sin PATH ni HOME. Su unico
@@ -102,7 +132,8 @@ def run(
             stdout="",
             stderr=f"no se pudo ejecutar git {list(args)!r}: {e}",
         )
-    stdout, stderr = proc.stdout, proc.stderr
+    stdout = _decode_std(proc.stdout)
+    stderr = _decode_std(proc.stderr)
     if proc.returncode != 0 and not stderr.strip() and stdout.strip():
         # Algunos fallos de git (p.ej. "nothing to commit, working tree
         # clean") escriben el motivo real por stdout y dejan stderr en

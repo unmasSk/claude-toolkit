@@ -3756,3 +3756,64 @@ green). Recommend: Dante adds `work=None`/`quote=None` params to
 call-sites seeding I/Q notes for unrelated behavior (semantically
 correct answer for nearly all of them, since none are testing the issue
 gate itself).
+
+**2026-08-26, second pass -- 4 test-first contracts (customs.py issue
+gate, \r round-trip, --issue none regression, --issue+--work
+contradiction), all 4 closed clean.** BREAK 1: `hooks/customs.py::
+_decide_note()` now also calls `validator.validate_issue_gate(note,
+note.issue, None)` alongside `validate_note()` -- `work` is hardcoded
+`None` because a raw `git commit -m` NEVER carries the CLI-only `--work`
+flag, and `note.issue` is already `int | None` (never the `"none"`
+sentinel -- `format.py` only ever writes `"Issue: #N"` or nothing), so
+it can be passed straight through with the exact same semantics
+`note.py::_build_candidate` already resolves. No new mechanism needed --
+same gate, same rejection text, one more caller.
+
+BREAK 2 root cause was ONE level lower than the contract's own written
+diagnosis pointed (format.py): `subprocess.run(text=True)`'s newline
+translation is HARDCODED inside `Popen._translate_newlines()` --
+literally `data.decode(...).replace("\r\n","\n").replace("\r","\n")` --
+with NO public parameter to disable it (confirmed by inspecting
+`subprocess.Popen.__init__`'s signature: no `newline=` kwarg exists,
+unlike `open()`). Fix: `gitcmd.run()` now captures `capture_output=True`
+WITHOUT `text=`/`encoding=`/`errors=` (raw bytes) and decodes by hand in
+a new `_decode_std()` helper (`.decode("utf-8", errors="replace")`,
+zero newline translation) -- `format.py` needed NO changes at all, since
+it already splits body lines on literal `"\n"` only, never
+`str.splitlines()`. **Gotcha that broke 2 pre-existing tests on the
+first pass**: `test_query.py::
+test_by_id_retries_after_transient_git_failure_before_giving_up`
+monkeypatches `subprocess.run` with a fake that returns a
+`CompletedProcess` with `stdout`/`stderr` as plain `str` (simulating the
+OLD text-mode contract) for its injected transient-failure branch, then
+falls through to the REAL `subprocess.run` (now bytes) for the retry --
+`_decode_std()` must accept `bytes | str` and only `.decode()` when it's
+actually `bytes`, or a test double that predates this fix breaks on
+`AttributeError: 'str' object has no attribute 'decode'`. Same class of
+gotcha as the `A\t`-in-`git diff --name-status` precedent above: a
+private helper's input type contract has to stay compatible with
+existing test doubles even when the real code path changes underneath.
+
+REGRESSION 1 + ABUSE 1 both landed in `validator_issue.py::
+validate_issue_gate`'s existing three-branch structure -- order matters:
+the new "`issue` int + `work == "no"`" contradiction check MUST run
+BEFORE the existing "`issue is None and work is None`" check, because a
+real `issue` makes that first condition false and the contradiction
+would silently pass through untouched otherwise.
+
+**Found-not-fixed, same category as the 19-test conftest.py collision
+above but a DIFFERENT, isolated instance**:
+`test_customs_archived_key_zone_duplicate_parity.py::
+TestCustomsHookDoesNotBlockAgainstAnArchivedKeyZoneDuplicate::
+test_git_commit_with_same_keys_as_an_archived_incident_is_approved`
+builds a raw `I` commit via its own local
+`_commit_message_for_new_note()` helper with no `issue`/`quote` fields
+-- now correctly gated by the BREAK 1 fix, but the test still expects
+`"approve"`. Confirmed via `git status --porcelain`/`git log -1` that
+the file predates this task (last touched by an unrelated commit, no
+working-tree changes from me), and that only 1 of the file's 4 tests is
+affected (the other 3 either don't build via that helper or expect
+`"block"` for unrelated reasons already). Full suite otherwise: 703
+passed, 1 skipped (Windows `gh`-PATH gap, pre-existing/documented),
+this 1 known collision -- reported, not touched (tests off-limits per
+task LIMITS).

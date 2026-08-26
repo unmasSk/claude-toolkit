@@ -683,7 +683,23 @@ def _existing_in_zone_pair(zone1, zone2, archived):
 def _decide_note(note, pm, cfg):
     """El commit trae un mensaje que SI parsea como `Note` -- se valida
     con el Context real del repositorio [ver "ASUNCIONES DE FIRMA"
-    punto 6]."""
+    punto 6].
+
+    **La aduana de issues [D-065/D-066] se aplica tambien aqui desde
+    2026-08-26** -- Moriarty T1, BREAK 1: `validate_note()` NUNCA la
+    incluye a proposito (documentado en su propio docstring, "ASUNCIONES
+    DE FIRMA" en `validator.py`: necesita `issue`/`work`, datos que no
+    son campos de `Note`), asi que un commit crudo la esquivaba por
+    completo, igual que ya esquivaba `validate_pain_question`/
+    `validate_issue` por el mismo motivo -- ese hueco es viejo y
+    compartido, este arreglo solo cierra la parte de issues. Un `git
+    commit -m` a mano NUNCA trae el flag `--work` (es exclusivo del CLI,
+    jamas persistido) ni el centinela literal `"none"` (`format.py`
+    solo escribe `"Issue: #N"` o nada -- ver su docstring, campo
+    `Issue`); `note.issue` ya llega resuelto a `int | None`, la MISMA
+    forma que `bin/memory/note.py::_build_candidate` resuelve para el
+    mismo campo, asi que se pasa tal cual, con `work` fijo a `None`.
+    """
     try:
         zones_map = zones_lib.load(pm / "zones.json")
     except Exception as exc:
@@ -698,7 +714,10 @@ def _decide_note(note, pm, cfg):
         known_ids=known_ids,
         config=cfg,
     )
-    rejections = validator.validate_note(note, ctx)
+    rejections = list(validator.validate_note(note, ctx))
+    gate_rejection = validator.validate_issue_gate(note, note.issue, None)
+    if gate_rejection is not None:
+        rejections.append(gate_rejection)
     if not rejections:
         return {"decision": "approve"}
     reason = "\n\n".join(rejection_.render_hook_block(r) for r in rejections)
