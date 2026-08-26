@@ -120,12 +120,20 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 | **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` `--issue` |
 | **M** | `--description` `--stops yes\|no` | `--keys` `--replaces` `--origin` `--issue` |
 | **R** | `--description` `--stops yes` | `--why` `--keys` `--replaces` `--origin` `--issue` |
-| **Q** | `--description` | `--keys` `--issue` |
+| **Q** | `--description`, and `--work no` **or** `--issue` | `--keys` |
 | **X** | `--description` | `--why` `--keys` `--origin` `--issue` |
-| **I** | `--description` | `--why` `--keys` `--issue` |
+| **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` |
 | **B** | `--description` `--awaits` | `--keys` `--issue` |
 
 **`--issue` is accepted by all seven** — a note that points at work can be of any type. The number must belong to an issue that already exists; the system checks it once, when the note is saved, and rejects the note if it doesn't. If the issue is opened *after* the note was saved, the note is not rewritten: the issue cites the note instead.
+
+**Q and I pass through the issue customs — the gate asks THE work question.** Saving either without `--issue` and without `--work` is rejected, with the yardstick in the rejection: *does closing this note require sitting down to work (code, measuring, building) — or just an answer or a decision in conversation?* The relaunch paths, and each is a recorded answer:
+
+- **Just an answer** → `--work no`. The note passes with no issue; the session close puts these in front of the owner in case one matured into work.
+- **Work, and the owner said yes** → you STOP and propose the issue to the owner in one line first; with his yes YOU create it (`gh issue create`) and relaunch with `--issue N`.
+- **Work, and the owner said no** → `--issue none --quote "<his exact words>"`. The refusal only passes with the owner's literal phrase — same mechanic as rules; there is no `--quote none` here, because the no is always his.
+
+A **D that defers future building** (a feature decided for later) also carries an issue — it is the owner's long-term checklist. The gate cannot detect that mechanically, so it is on you at save time, and the session-close sweep is the net that catches it.
 
 **Headline and keys in English; the body in the user's language.** The headline is ≤80 characters and says what happened, not what was fixed. Keys are up to five search words **not already in the headline** — without them a correct note is unfindable.
 

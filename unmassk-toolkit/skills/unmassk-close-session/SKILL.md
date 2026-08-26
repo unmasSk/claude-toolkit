@@ -29,7 +29,7 @@ Write the answer into the conversation — step 4 sends an agent to read it.
 
 Closing an issue or deleting a branch: act only on what you can mechanically verify as done or merged, show the exact list first, and wait for the user. Never bulk-close, never force a delete git refused. On doubt, leave it and write it down.
 
-This is also the sweep for work that was written down without anyone present to ask: a note saved mid-task, or by a subagent, that points at work with no issue behind it. Put those in front of the user here — one line each, with the priority you would give them — and let them decide. **You never open one on your own judgement.** The protocol, the labels and the template are in the memory skill's `references/issues.md`.
+**The issue sweep is a fixed step of every close — never skipped, never merged into another.** Search the live notes and put in front of the user, one line each with the priority you would give it: every **Q or I saved with `--work no`** (did any mature into real work?), every note that passed with **`--issue none`** (does the refusal still stand?), and every **D that defers future building** without an issue behind it (the long-term checklist the customs cannot detect). Let the user decide each one. **You never open one on your own judgement — but with his yes, you create it (`gh issue create`) and link the note's work to it.** The protocol, the labels and the template are in the memory skill's `references/issues.md`.
 
 ## 3. Alexandria, in `close` mode
 
