@@ -58,3 +58,4 @@
 [D-064][boot][memory] opening table: eight fixed sections, branch, issues and health always visible
 [D-066][memory][architecture] issue-gate refusal records the owner's exact phrase, like rules do with --quote
 [D-067][docs][release] changelog adopts Zen-style: Fixed first, issue links, Known section, dates kept
+[D-068][docs][release] changelog entries: 1-2 sentences with the why, pointer to memory, no story
