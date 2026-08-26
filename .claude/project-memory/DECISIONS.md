@@ -56,3 +56,4 @@
 [D-059][skills][architecture] repetition-scout skill: Protocolo Dia de la Marmota, file unmassk-groundhog
 [D-060][boot][memory] walls leave the opening menu: Claude-only seatbelt, pretty table on demand
 [D-064][boot][memory] opening table: eight fixed sections, branch, issues and health always visible
+[D-065][memory][architecture] customs on note write: Q/I answer the work question, issue proposed to owner
