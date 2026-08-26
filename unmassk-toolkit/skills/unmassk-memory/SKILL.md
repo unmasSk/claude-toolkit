@@ -120,9 +120,9 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 | **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` `--issue` |
 | **M** | `--description` `--stops yes\|no` | `--keys` `--replaces` `--origin` `--issue` |
 | **R** | `--description` `--stops yes` | `--why` `--keys` `--replaces` `--origin` `--issue` |
-| **Q** | `--description`, and `--work no` **or** `--issue` | `--keys` |
+| **Q** | `--description`, and `--work no` **or** `--issue` | `--keys` · `--quote` (only with `--issue none`) |
 | **X** | `--description` | `--why` `--keys` `--origin` `--issue` |
-| **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` |
+| **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` · `--quote` (only with `--issue none`) |
 | **B** | `--description` `--awaits` | `--keys` `--issue` |
 
 **`--issue` is accepted by all seven** — a note that points at work can be of any type. The number must belong to an issue that already exists; the system checks it once, when the note is saved, and rejects the note if it doesn't. If the issue is opened *after* the note was saved, the note is not rewritten: the issue cites the note instead.
