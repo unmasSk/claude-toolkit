@@ -341,3 +341,46 @@ convention this bug exploits, same module); [[format-py-full-contract-notes]]
 (`_fold_raw`/`_parse_fields`, the folding contract this bug lives
 inside); [[customs-py-full-contract-notes]] (the pinned-properties
 wording technique for a rejection whose prose doesn't exist yet).
+
+## Round 5 (2026-08-26, same day) -- BREAK 1's real fix broke 1 pre-existing test, same class as Round 2's 19
+
+Context: Ultron shipped BREAK 1's fix (`_decide_note()` now also calls
+`validate_issue_gate(note, note.issue, None)`, appending its rejection
+to whatever `validate_note()` already found). One pre-existing test broke:
+`test_customs_archived_key_zone_duplicate_parity.py::
+TestCustomsHookDoesNotBlockAgainstAnArchivedKeyZoneDuplicate::
+test_git_commit_with_same_keys_as_an_archived_incident_is_approved` --
+its raw commit (built by the file's own `_commit_message_for_new_note`
+helper) has no `Issue:`/`--work`, so once the gate applies it blocks on
+the measuring-stick rejection BEFORE ever reaching the archived-duplicate
+logic under test, even though `validate_note()` itself found nothing
+(archived correctly filtered).
+
+**Why only 1 test and not the file's other 3** (same helper, same
+missing issue field): `_decide_note()` joins BOTH rejection sources
+(`validate_note()` + `validate_issue_gate()`) with `"\n\n"` rather than
+short-circuiting on the first -- the file's other two hook tests
+(`TestCustomsHookStillBlocksAgainstALiveKeyZoneDuplicate`,
+`TestCustomsHookOvercorrectionGuardNamesTheLiveCandidateNotTheArchivedOne`)
+already expect `"block"` and only assert that a specific id string
+APPEARS in the combined reason -- the duplicate-rejection half still
+names that id regardless of the gate's half being appended alongside it,
+so those two stayed green by accident of the join, not because they
+were unaffected. Only the ARCHIVED-duplicate test (expects `"approve"`)
+had no rejection text to hide behind.
+
+**Fix: `issue=4242` threaded through `_commit_message_for_new_note`'s
+existing `**`-style optional param, only at that one call site** -- not
+`--work` (the coordinator's own message hedged this exactly: "o su
+equivalente"). `--work`/`--issue none` are CLI-only sentinels, never
+persisted (`_decide_note()`'s own docstring says this explicitly: a raw
+`git commit -m` never carries either); the only way a raw commit can
+satisfy `validate_issue_gate` is a REAL `Issue: #N` trailer, which
+resolves to `note.issue = int`, tripping neither of the gate's two
+checks (`issue is None and work is None` / `issue == "none"`). Doesn't
+weaken the archived-duplicate assertion at all -- `issue` is orthogonal
+to `existing_in_zone` filtering.
+
+Verification: `python3 -m pytest unmassk-toolkit/tests/memory
+unmassk-toolkit/tests/hooks -q` -> `704 passed, 1 skipped`, zero red.
+`git status --porcelain` after: exactly the one file, no other diff.

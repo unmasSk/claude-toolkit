@@ -162,12 +162,24 @@ def _archive(repo, note_id, reason):
     )
 
 
-def _commit_message_for_new_note(model_mod, format_mod, note_id, zone1, zone2, headline_suffix, *, keys=_SHARED_KEYS):
+def _commit_message_for_new_note(
+    model_mod, format_mod, note_id, zone1, zone2, headline_suffix, *, keys=_SHARED_KEYS, issue=None,
+):
     """El texto EXACTO de commit para una `Note` nueva, derivado de
     `format.build_message()` sobre un `model.Note` real -- nunca una
     cadena escrita a mano (asi el emoji/formato del titular siempre
     coincide con lo que `format.parse_message()` espera, sin duplicar
     esa tabla aqui).
+
+    `issue` [2026-08-26, D-065/D-066 -- la aduana de issues aplicada
+    tambien a `hooks/customs.py::_decide_note()` desde ese mismo dia]:
+    un `git commit -m` a mano NUNCA trae `--work` ni el centinela
+    `"none"` (los dos son exclusivos del CLI, jamas persistidos -- ver
+    el docstring de `_decide_note()`), asi que la UNICA forma de que una
+    `I`/`Q` cruda pase la vara de medir es traer un `Issue: #N` real ya
+    en el cuerpo del commit. Los call sites de este fichero que solo
+    quieren probar el gate de duplicado archivado (no el de issues) le
+    pasan un entero aqui -- nunca `--work`, que no existe en este canal.
     """
     note = model_mod.Note(
         type="I",
@@ -178,6 +190,7 @@ def _commit_message_for_new_note(model_mod, format_mod, note_id, zone1, zone2, h
         description=f"a fresh, distinct incident description about {headline_suffix}",
         timestamp=datetime.now(timezone.utc),
         keys=keys,
+        issue=issue,
     )
     message = format_mod.build_message(note)
     assert "'" not in message, "el mensaje de prueba no puede llevar comilla simple"
@@ -214,8 +227,18 @@ class TestCustomsHookDoesNotBlockAgainstAnArchivedKeyZoneDuplicate:
         )
         assert rc_close == 0, f"cierre fallo: stdout={out_close!r} stderr={err_close!r}"
 
+        # `issue=4242` -- un `git commit -m` a mano nunca trae `--work`
+        # (exclusivo del CLI, jamas persistido); la unica forma de que
+        # esta `I` cruda pase la vara de medir de D-065/D-066 (aplicada
+        # tambien en `hooks/customs.py::_decide_note()` desde 2026-08-26)
+        # es traer un `Issue: #N` real. Sin esto, el hook bloquearia por
+        # la vara de medir ANTES de llegar siquiera al gate de duplicado
+        # archivado que este test comprueba -- no debilita lo que se
+        # prueba aqui (el filtro de archivadas), solo evita que un gate
+        # DISTINTO tape el resultado.
         message = _commit_message_for_new_note(
             model_mod, format_mod, "I-777", "infra", "deploy", "a file descriptor leak",
+            issue=4242,
         )
         rc, parsed, stdout, stderr = run_customs_hook(tmp_repo, _commit_command(message))
 
