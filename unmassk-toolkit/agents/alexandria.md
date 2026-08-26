@@ -196,7 +196,7 @@ Count > 0 → stale. Update it.
 **Not in `close` mode.** The CHANGELOG records what shipped, and what shipped is settled at the merge, not at the end of a working day.
 
 
-Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
+Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) as the base, with the owner's three deliberate deviations (decided 2026-08-26, inspired by Zen Browser's release notes): **Fixed comes first**, entries born from an issue **link it as `([#N](url))`**, and a **Known** section closes a release with what ships broken and known. Everything else — version + ISO date, typed sections, linkable everything — is standard.
 
 **Format:**
 
@@ -204,6 +204,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Bug fixes — with the issue they came from when there is one ([#47](../../issues/47))
 
 ### Added
 
@@ -213,9 +217,9 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 
 - Changes in existing functionality
 
-### Fixed
+### Known
 
-- Bug fixes
+- What ships broken and known, so nobody rediscovers it
 
 ## [1.0.0] - YYYY-MM-DD
 
@@ -228,7 +232,8 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 - Newest version first, reverse chronological
 - Dates in ISO 8601 format: `YYYY-MM-DD`
 - `[Unreleased]` section always at top for upcoming changes
-- Group changes by type: Added, Changed, Deprecated, Removed, Fixed, Security
+- Group changes by type, in this order: **Fixed, Added, Changed**, then Deprecated/Removed/Security when present, and **Known** last
+- An entry that closes or comes from an issue links it at the end: `([#N](<repo issues url>/N))`
 - Only include sections that have entries — no empty section headers
 - Each entry is a human-readable description of what changed and why it matters
 - Each entry is ONE line — never hard-wrap a bullet at a column width (see § Markdown Style)
