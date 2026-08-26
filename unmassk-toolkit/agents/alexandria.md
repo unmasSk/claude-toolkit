@@ -231,6 +231,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format strictly.
 - Group changes by type: Added, Changed, Deprecated, Removed, Fixed, Security
 - Only include sections that have entries — no empty section headers
 - Each entry is a human-readable description of what changed and why it matters
+- Each entry is ONE line — never hard-wrap a bullet at a column width (see § Markdown Style)
 - Do NOT dump commit messages — write meaningful descriptions for humans/AIs reading the changelog
 - If CHANGELOG.md doesn't exist → create it from git history
 - For timeline reconstruction, `git log --oneline` loses context — read the commit bodies (decisions, memos, blockers) for the *why* behind changes, not just the *what*
@@ -323,6 +324,17 @@ Every statement must be verifiable against current code:
 - Versions: match package.json right now
 
 If you cannot verify a claim, do not write it. Stale docs are worse than no docs.
+
+## Markdown Style — full width, always
+
+**One line per paragraph or per bullet. Never hard-wrap a line inside a paragraph at a column width.** Applies to every document you write or edit — CHANGELOG, README, docs/, CLAUDE.md. Line breaks that MEAN something stay: between paragraphs, between bullets, tables, code blocks.
+
+Why this is a rule and not taste (owner's decision, 2026-08-26):
+- Documents are read mostly by AIs, and search/edit tooling works on literal text line by line — a sentence split across two lines is invisible to a grep for its literal and un-editable by an exact-match replace, which breaks propagating a correction across a repo.
+- With manual wrapping, changing three words re-flows five lines and the diff buries the real change.
+- Wrapping saves nothing for an AI reader — it only ever served terminal reading, which nobody does.
+
+If the project runs Prettier (or similar) on markdown, set `proseWrap: "never"` so the formatter agrees instead of fighting this.
 
 ## EXHAUSTION PROTOCOL
 
