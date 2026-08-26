@@ -101,6 +101,17 @@ mismo nombre, asi que ``validator.validate_zones``/
 ``validator.validate_issue``/``validator.validate_pointers`` no cambian
 para nadie que los llame. Ver el docstring de cada fichero para el
 porque de su corte.
+
+``validate_issue_gate`` **anadida el 2026-08-26** [D-065/D-066, la
+aduana de issues de Q/I] -- vive en ``validator_issue.py`` junto a
+``validate_issue`` (mismo asunto: la pregunta previa al guardado sobre
+si una Q/I necesita issue), reexportada aqui de la misma forma plana.
+Recibe ``issue``/``work`` sin resolver (no campos de ``Note``, mismo
+trato que ``stops``/``is_distillation`` -- ver "ASUNCIONES DE FIRMA"
+arriba) porque solo ``bin/memory/note.py`` conoce la diferencia entre
+"ausente" y el centinela literal ``"none"``. No entra en
+``validate_note`` por la misma razon que ``validate_pain_question`` no
+entra: solo puede invocarse antes de que la ``Note`` este terminada.
 """
 
 import re
@@ -111,7 +122,7 @@ import emojis
 from model import Note, Rejection, Zone
 import rejection as rejection_
 import similar
-from validator_issue import validate_issue
+from validator_issue import validate_issue, validate_issue_gate
 from validator_pointers import carry_answer_flags, validate_pointers
 from validator_zones import validate_zones
 
@@ -291,6 +302,8 @@ def _present_fields(note: Note) -> frozenset[str]:
         present.add("awaits")
     if note.issue is not None:
         present.add("issue")
+    if note.quote is not None and note.quote.strip():
+        present.add("quote")
     return frozenset(present)
 
 

@@ -29,6 +29,16 @@ UNICA llamada externa de todo el modulo `validator.py` (y de este
 fichero) es a `gh`, nunca a `git` [PIEZAS.md Sec.7.5, misma restriccion
 que el resto de la pieza, con esta unica excepcion declarada].
 
+**`validate_issue_gate` anadida el 2026-08-26** [D-065/D-066, la aduana
+de issues de Q/I: "¿cerrar esta nota exige trabajo... o solo una
+respuesta/decision?"]. Vive junto a `validate_issue` porque es el mismo
+asunto (la pregunta previa a `--issue`), no una segunda puerta: sin
+`--issue` NI `--work`, Q/I rebotan pidiendo que se conteste; con
+`--issue none`, exige ademas la cita literal del dueño (`note.quote`,
+mismo trato que `Note.issue` -- campo real, no dato aparte). NO llama a
+`gh` -- a diferencia de `validate_issue`, es pura [mismo contrato que el
+resto de `validator.py`].
+
 No importa nada fuera de la biblioteca estandar de Python y de sus
 hermanos de `lib/memory/` [PIEZAS.md Sec.13], importados PLANOS
 [PIEZAS.md Sec.3.3bis].
@@ -149,3 +159,122 @@ def validate_issue(note: Note, issue: int | None) -> Rejection | None:
     return rejection_.build(
         kind="issue_not_found", what=what, options=options, command=command
     )
+
+
+# La vara de medir literal, D-065 textual -- una sola copia, la misma que
+# `bin/memory/note.py` relanza en el comando de `--issue N`/`--issue none
+# --quote` y la misma que `test_note_issue_gate.py` fija como contrato.
+_MEASURING_STICK = (
+    "¿cerrar esta nota exige trabajo — código, medir, construir — o "
+    "solo una respuesta/decisión?"
+)
+
+
+def _reject_work_not_allowed(note: Note) -> Rejection:
+    """`--work` fuera de Q/I -- mismo texto literal que
+    `validator.validate_fields()` ya usa para un campo no permitido
+    (`"Estos campos no existen para el tipo <T>: <campo>"`), para que sea
+    la MISMA mecanica de rechazo aunque `work` no sea un campo persistido
+    de `Note` [ver docstring del modulo, "QUE NO HACE"] -- por eso este
+    rechazo vive aqui, junto al resto de la aduana de issues, y no dentro
+    de `validate_fields()`, que solo conoce campos reales de `Note`.
+    """
+    what = f"el campo no encaja con el tipo {note.type}"
+    options = (f"Estos campos no existen para el tipo {note.type}: work",)
+    command = (
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..."',
+    )
+    return rejection_.build(
+        kind="field_not_allowed", what=what, options=options, command=command
+    )
+
+
+def _reject_missing_measuring_stick_answer(note: Note) -> Rejection:
+    """Ni `--issue` ni `--work` -- D-065, filas 1/2 del encargo. Las tres
+    salidas de relanzamiento son literales fijados por el propietario
+    (D-065/D-066): `--work no`, `--issue N`, `--issue none --quote
+    "<...>"`. `carry_answer_flags` no se usa aqui -- a diferencia de
+    `validate_pain_question`, la aduana de issues no tiene datos previos
+    (origin/replaces/awaits) que arrastrar en este punto del flujo.
+    """
+    what = f"{note.headline!r} no se guarda sin contestar la vara de medir"
+    options = (
+        _MEASURING_STICK,
+        "",
+        "  no, solo hace falta una respuesta/decision  ->  --work no",
+        "  si, hace falta trabajo y ya hay una issue     ->  --issue N",
+        "  si, hace falta trabajo y el dueño dice que no ->  --issue none --quote",
+    )
+    command = (
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --work no',
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --issue N',
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --issue none '
+        f'--quote "<frase exacta del dueño>"',
+    )
+    return rejection_.build(
+        kind="missing_issue_gate_answer", what=what, options=options, command=command
+    )
+
+
+def _reject_issue_none_missing_quote(note: Note) -> Rejection:
+    """`--issue none` sin `--quote` -- D-066: el no siempre es del dueño y
+    siempre lleva cita, sin escape (a diferencia de `rules.add()`, aqui
+    NO existe un `--quote none` que deje la nota sin cita).
+    """
+    what = f"{note.headline!r} necesita la cita literal del dueño"
+    options = (
+        "El no a abrir una issue es una decision del dueño, nunca un default",
+        "silencioso -- trae sus palabras exactas con --quote.",
+    )
+    command = (
+        f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
+        f'"{note.headline}" --description "..." --issue none '
+        f'--quote "<frase exacta del dueño>"',
+    )
+    return rejection_.build(
+        kind="issue_none_missing_quote", what=what, options=options, command=command
+    )
+
+
+def validate_issue_gate(note: Note, issue, work: str | None) -> Rejection | None:
+    """La aduana de issues, D-065/D-066: solo Q/I contestan la vara de
+    medir [ver docstring del modulo].
+
+    `issue`/`work` NO son campos de `Note` -- viajan aparte, igual que
+    `stops` en `validator.validate_pain_question` [ver "ASUNCIONES DE
+    FIRMA" en `validator.py`]. `issue` es el valor CRUDO de `--issue`
+    (`None` ausente, el centinela literal `"none"`, o un `int`) -- ya
+    resuelto a `int | None` para `note.issue`/`validate_issue()` por
+    quien llama (`bin/memory/note.py`), pero esta funcion necesita
+    distinguir "ausente" de "`none` explicito", una distincion que se
+    pierde en cuanto se resuelve a `note.issue`.
+
+    Orden de las tres comprobaciones, todas independientes entre si:
+
+    1. `work` fuera de Q/I -- rebota SIEMPRE que se de, sin importar que
+       traiga `issue` (misma mecanica que `validate_fields()` usa para
+       `awaits` fuera de B).
+    2. Dentro de Q/I, ni `issue` ni `work` -- la vara de medir, D-065.
+    3. Dentro de Q/I, `--issue none` sin cita -- D-066. Comprueba
+       `note.quote` (ya construido por quien llama con el valor real de
+       `--quote`) en vez de un tercer parametro: a diferencia de
+       `issue`/`work`, `quote` SI es un campo real de `Note` desde
+       D-065/D-066 [`vocabulary.TYPES["Q"/"I"].allowed_fields`].
+    """
+    if note.type not in ("Q", "I"):
+        if work is not None:
+            return _reject_work_not_allowed(note)
+        return None
+
+    if issue is None and work is None:
+        return _reject_missing_measuring_stick_answer(note)
+
+    quote_has_content = note.quote is not None and note.quote.strip()
+    if issue == "none" and not quote_has_content:
+        return _reject_issue_none_missing_quote(note)
+
+    return None

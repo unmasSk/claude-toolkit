@@ -88,6 +88,11 @@ def _note_fields(note: Note) -> list[str]:
     aligned.append(("Description", note.description))
     if note.keys:
         aligned.append(("Keys", ", ".join(note.keys)))
+    # `quote` -- solo Q/I, la cita literal del dueño cuando `--issue none`
+    # [D-065/D-066, 2026-08-26]. Mismo trato que Why/Keys: texto libre,
+    # alineado con el resto en vez de un espacio unico como awaits/Issue.
+    if note.quote:
+        aligned.append(("Quote", note.quote))
 
     width = max(len(label) for label, _ in aligned) + _FIELD_GAP
     lines = [

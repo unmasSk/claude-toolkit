@@ -26,9 +26,20 @@ gramatica antes de que este fichero existiera]:
     note.py <TIPO> --zones <zona1> <zona2> "<titular>" \\
         [--why "..."] [--description "..."] [--keys k1 k2 ...] \\
         [--stops yes|no] [--origin <id1> <id2> ...] \\
-        [--replaces <ID>|none] [--awaits "..."] [--issue N] \\
+        [--replaces <ID>|none] [--awaits "..."] [--issue N|none] \\
+        [--work no] [--quote "..."] \\
         [--discard "<titular alternativa>" "<porque>" ...] \\
         [--promotes <ID de una Q>]
+
+`--work`/`--quote` [D-065/D-066, 2026-08-26]: la aduana de issues,
+exclusiva de Q/I -- sin `--issue` ni `--work`, rebota pidiendo que se
+conteste "¿cerrar esta nota exige trabajo... o solo una
+respuesta/decision?" (`validator.validate_issue_gate`). `--work no`
+deja pasar la nota sin issue; `--issue none` deja pasar el "no" del
+dueño, pero exige `--quote "<sus palabras>"` (sin escape `--quote none`,
+a diferencia de `gitmem rule`: D-066, "el no siempre es del dueño y
+siempre lleva cita"). `--work` no es campo de `Note` -- viaja aparte
+igual que `--stops`; `--quote` SI lo es (`Note.quote`, solo Q/I).
 
 `--promotes <ID>` [2026-08-05, encargo del propietario]: la nota nueva
 asciende la pregunta (Q) `<ID>` -- sube a memo si la respuesta es un
@@ -87,6 +98,26 @@ from model import Note  # noqa: E402
 from vocabulary import MARKER_KEYS  # noqa: E402
 
 
+def _issue_arg(value):
+    """`--issue` acepta un numero real o el centinela literal `"none"`
+    [D-065/D-066, la aduana de issues] -- mismo patron que `--replaces`
+    (cadena libre, distinguida de un id real por quien la usa), pero con
+    forma comprobada aqui: cualquier otra cadena revienta en argparse con
+    un mensaje claro, en vez de propagarse como un `ValueError` sin
+    explicar mas abajo. Devuelve `int` para un numero real, o el string
+    `"none"` tal cual para el centinela -- `main()` resuelve cual de los
+    dos es antes de construir la `Note` candidata.
+    """
+    if value == "none":
+        return value
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"--issue: {value!r} no es ni un numero ni el centinela 'none'"
+        )
+
+
 def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="note.py")
     parser.add_argument("type", help="D M R Q X I B")
@@ -99,7 +130,12 @@ def _parse_args(argv):
     parser.add_argument("--origin", nargs="+", default=())
     parser.add_argument("--replaces", default=None)
     parser.add_argument("--awaits", default=None)
-    parser.add_argument("--issue", type=int, default=None)
+    parser.add_argument("--issue", type=_issue_arg, default=None)
+    # `--work`/`--quote` [D-065/D-066, 2026-08-26]: la aduana de issues de
+    # Q/I. `--work` solo acepta "no" -- D-065 no define un "--work yes"
+    # propio, esa respuesta se contesta dando `--issue` directamente.
+    parser.add_argument("--work", choices=("no",), default=None)
+    parser.add_argument("--quote", default=None)
     parser.add_argument("--promotes", default=None)  # 2026-08-05: asciende una Q
     parser.add_argument(
         "--discard", action="append", nargs=2, metavar=("HEADLINE", "WHY"), default=None
@@ -214,6 +250,14 @@ def _corrected_key_pairs(raw_keys, normalized_keys):
 
 
 def _build_candidate(args, normalized_keys, zone1, zone2):
+    # `args.issue` es `int | "none" | None` [`_issue_arg`] -- `Note.issue`
+    # solo conoce `int | None` (el centinela "none" significa "sin
+    # issue", igual que ausente, para todo lo que lee el campo aguas
+    # abajo: `format.py`, `report_render_note.py`, `health.py`). La
+    # distincion entre "ausente" y "none explicito" solo la necesita la
+    # aduana de issues (`validator.validate_issue_gate`), que recibe
+    # `args.issue` sin resolver por separado -- ver `main()`.
+    issue = args.issue if isinstance(args.issue, int) else None
     return Note(
         type=args.type,
         id="",
@@ -227,7 +271,8 @@ def _build_candidate(args, normalized_keys, zone1, zone2):
         origin=tuple(args.origin),
         replaces=args.replaces,
         awaits=args.awaits,
-        issue=args.issue,
+        issue=issue,
+        quote=args.quote,
     )
 
 
@@ -367,10 +412,19 @@ def main(argv):
         print(rejection_.render_terminal(pain_rejection))
         return 1
 
+    # La aduana de issues [D-065/D-066, 2026-08-26]: la vara de medir
+    # antes de `validate_issue()` -- recibe `args.issue` SIN resolver
+    # (`int | "none" | None`), la unica forma de distinguir "ausente" de
+    # "none explicito" [ver docstring de `_build_candidate`].
+    gate_rejection = validator.validate_issue_gate(candidate, args.issue, args.work)
+    if gate_rejection is not None:
+        print(rejection_.render_terminal(gate_rejection))
+        return 1
+
     try:
-        issue_rejection = validator.validate_issue(candidate, args.issue)
+        issue_rejection = validator.validate_issue(candidate, candidate.issue)
     except RuntimeError as exc:
-        print(f"no se pudo comprobar la issue #{args.issue}: {exc}", file=sys.stderr)
+        print(f"no se pudo comprobar la issue #{candidate.issue}: {exc}", file=sys.stderr)
         return 1
     if issue_rejection is not None:
         print(rejection_.render_terminal(issue_rejection))

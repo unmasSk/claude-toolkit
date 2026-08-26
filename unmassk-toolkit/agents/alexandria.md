@@ -235,8 +235,9 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) as the base, wit
 - Group changes by type, in this order: **Fixed, Added, Changed**, then Deprecated/Removed/Security when present, and **Known** last
 - An entry that closes or comes from an issue links it at the end: `([#N](<repo issues url>/N))`
 - Only include sections that have entries — no empty section headers
-- Each entry is a human-readable description of what changed and why it matters
+- Each entry is a human-readable description of what changed and why it matters — at most one or two sentences, enough for the reader to decide whether it affects them without leaving the file ("fixed X" is too little; "fixed X, which could silently lose Y" is the measure)
 - Each entry is ONE line — never hard-wrap a bullet at a column width (see § Markdown Style)
+- **The changelog is the index into the memory, never its duplicate.** The full story — how it was reproduced, which assumption was false, what was discarded — lives in the project's git memory and is pointed at, not repeated: when a decision, incident, or memo note stands behind the entry, close it with that pointer (`([#N](url))` for an issue, or the note id — `D-xx`, `I-xx`, `M-xx`); an entry with no note behind it stays without one. The history is not deleted; it stops being repeated.
 - Do NOT dump commit messages — write meaningful descriptions for humans/AIs reading the changelog
 - If CHANGELOG.md doesn't exist → create it from git history
 - For timeline reconstruction, `git log --oneline` loses context — read the commit bodies (decisions, memos, blockers) for the *why* behind changes, not just the *what*

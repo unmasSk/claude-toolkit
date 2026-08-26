@@ -71,6 +71,16 @@ cierre vive "sin zonas, sin indice" (TEXTOS.md, titulo de Sec.1
 "Contexto de cierre"), fuera del sistema de zonas/tipos que ``TYPES``
 describe.
 
+``quote`` **anadido el 2026-08-26** [decision del propietario, D-065/
+D-066: la aduana de issues de Q/I]. Solo Q e I lo permiten -- es la cita
+literal del dueño cuando cierra la pregunta del trabajo con
+``--issue none`` ("el no siempre es del dueño y siempre lleva cita",
+D-066 textual). Ningun otro tipo lo trae en ``allowed_fields``: la
+aduana de issues (``validator_issue.validate_issue_gate``) es exclusiva
+de Q/I, y ``validate_fields`` ya rechaza el campo en cualquier otro tipo
+con el mismo texto que usa para ``awaits`` fuera de B -- sin necesidad
+de un chequeo aparte.
+
 ``TYPE_INDEX_FILES`` -- que fichero de ``INDEX_FILES`` le toca a cada
 tipo de ``TYPES``, derivado de las siete muestras literales de
 TEXTOS.md Sec.4 (una por tipo, cada una en el fichero cuyo nombre
@@ -148,6 +158,7 @@ FIELDS = MappingProxyType(
         "replaces": _FieldSpec(reader="clusters.group"),
         "awaits": _FieldSpec(reader="boot.render"),
         "issue": _FieldSpec(reader="health.plans_unreflected"),
+        "quote": _FieldSpec(reader="report_render_note.render_note"),
         "context": _FieldSpec(reader="context.latest"),
     }
 )
@@ -180,7 +191,7 @@ TYPES = MappingProxyType(
         "Q": _TypeSpec(
             description="pregunta abierta, sin respuesta todavía",
             required_fields=frozenset({"description"}),
-            allowed_fields=frozenset({"description", "keys", "issue"}),
+            allowed_fields=frozenset({"description", "keys", "issue", "quote"}),
         ),
         "X": _TypeSpec(
             description="se estudió y se descartó",
@@ -192,7 +203,7 @@ TYPES = MappingProxyType(
         "I": _TypeSpec(
             description="se rompió algo: causa y qué se hizo",
             required_fields=frozenset({"description"}),
-            allowed_fields=frozenset({"description", "why", "keys", "issue"}),
+            allowed_fields=frozenset({"description", "why", "keys", "issue", "quote"}),
         ),
         "B": _TypeSpec(
             description="pendiente de fuera; bloquea",
