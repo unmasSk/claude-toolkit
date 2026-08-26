@@ -75,6 +75,7 @@
 - [memoria-v2-zonereport-shared-section-notes.md](memoria-v2-zonereport-shared-section-notes.md) — re-linked 2026-08-25: report.py §9.2 build_zone/build_word original contract, still live, sole source
 - [dead-script-retirement-sweep-notes.md](dead-script-retirement-sweep-notes.md) — finding every test tied to a deleted script, not just named ones
 - [release-py-contract-notes.md](release-py-contract-notes.md) — rescued from edge-cases.md: bin/release.py/bump-version.py semver, CHANGELOG format, date-rollover technique
+- [note-issue-gate-work-quote-contract-notes.md](note-issue-gate-work-quote-contract-notes.md) — D-065/D-066 note.py Q/I issue-gate RED contract, 2 structural CLI gaps found (--issue type=int, --work missing)
 
 ## Retired (different stack or superseded, kept on disk unlinked)
 
