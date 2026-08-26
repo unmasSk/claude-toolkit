@@ -3709,3 +3709,50 @@ commit under one session's message. Nothing to fix on my end (my code
 was correct and intact), but worth knowing: **do not read "clean working
 tree" as "my edits vanished" — check `git show <HEAD>` for your own
 file/line content before concluding anything went wrong.**
+
+**2026-08-26, note-issue-gate (D-065/D-066) — implemented correctly per
+its own 18-test contract, but blocked on "cero regresiones" by 19
+pre-existing tests across 9 files + `tests/memory/conftest.py`.** New
+Q/I gate lives in `validator_issue.py::validate_issue_gate` (reexported
+via `validator.py`, called from `bin/memory/note.py::main()` alongside
+`validate_pain_question`) — mirrors that function's "raw args, not Note
+fields" pattern for `issue`/`work` since only the caller can tell
+"absent" from the literal `"none"` sentinel. New genuine `Note.quote`
+field added the SAME way `issue` was added under D-044/D-045 (the
+established pattern for "add a field to the mold" in this codebase):
+`model.py` (new frozen field, default `None`), `vocabulary.py` (`FIELDS`
+reader + `TYPES["Q"/"I"].allowed_fields`), `format.py`
+(`_BODY_FIELD_ORDER` + `_body_field_line` + `parse_message`),
+`report_render_note.py` (`_note_fields`), `validator.py::_present_fields`
+— touching all these gets the "not allowed for this type" check for
+free via existing `validate_fields()`, rather than a bespoke check.
+`--work` stayed a NON-persisted flag (like `--stops`) because it isn't
+a real field of `Note` -- its own "not allowed outside Q/I" rejection is
+a bespoke function in `validator_issue.py` that reuses `validate_fields`'s
+exact wording ("Estos campos no existen para el tipo <T>: work") instead
+of routing through `validate_fields()` itself, which only ever inspects
+real `Note` fields.
+
+**The regression, found and NOT fixed (tests off-limits):** `note.py`
+now rejects ANY `Q`/`I` note lacking `--issue`/`--work`, but
+`tests/memory/conftest.py::seed_note_via_script` (the shared helper ~19
+pre-existing tests across `test_customs_archived_key_zone_duplicate_
+parity.py`, `test_note_archived_similarity_bypass.py`,
+`test_note_exact_key_zone_duplicate_gate.py`, `test_note_script.py`,
+`test_note_script_promotes.py`, `test_relaunch_command_answer_amnesia.py`,
+`test_remove_incident_close_fence_atomicity.py`,
+`test_remove_incident_close_question.py`, `test_search_chain_view.py`,
+`test_search_script.py` use to seed I/Q notes) has no `work`/`quote`
+param and never passes `--work`. All 19 failures share this ONE root
+cause (verified individually on samples from 5 of the 9 files, incl. one
+that goes through the customs hook commit path -- same seeding call
+underneath). Confirmed via `git status --porcelain`/`git log` that
+`conftest.py` predates this task (last touched by an unrelated commit)
+-- this is a real, structural collision between the new contract and
+pre-existing test infrastructure, not a bug in the new code (excluding
+those 10 files, the rest of `tests/memory` -- 607 tests -- stayed fully
+green). Recommend: Dante adds `work=None`/`quote=None` params to
+`seed_note_via_script` and threads `--work no` through the ~19
+call-sites seeding I/Q notes for unrelated behavior (semantically
+correct answer for nearly all of them, since none are testing the issue
+gate itself).
