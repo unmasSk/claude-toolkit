@@ -1,24 +1,42 @@
 """
 Tests for user-prompt-memory-check.py (UserPromptSubmit hook).
 
+hooks/user-prompt-memory-check.py is STILL LIVE (confirmed: exists on disk,
+runs on every user message) -- this whole file is NOT the same situation as
+its sibling test_hardening_recall.py (RETIRADO: that one tested lib/recall.py
+directly, which no longer exists).
+
 Recall push→pull (git-memory decision 1e94975, issue #69): the automatic
 per-message recall injection ("[memoria relevante...]" / <memory-data> block)
 and the old "[memory-check]" reminder text were both retired from this hook's
 per-message output — replaced by a single static banner (see _BANNER in the
-hook). recall_relevant() / recall.py still exist and are callable on demand,
-just no longer wired into this hook's main().
+hook).
+
+CORRECCION 2026-08-26 (Bilbo finding): `recall_relevant()` / `lib/recall.py`
+do NOT exist anymore -- deleted with the rest of the v1 memory system
+(confirmed: no such file on disk). This comment used to claim they were
+"still callable on demand"; that stopped being true when v1 was retired.
+The LIB_DIR sys.path insert below is now dead weight from that era (nothing
+in this file imports from lib/ directly) -- left in place, harmless, not
+removed here since this pass is a comment realignment, not a cleanup.
 
 The tests below that asserted the removed injection block or the removed
 "[memory-check]" text were deleted (dead assertions against a feature that no
 longer exists) — see git-memory decision for issue #72 (cut useless tests).
-What remains here documents behaviour that SURVIVES the change: fail-safe
-stdin handling (no crash on empty/garbage/oversized/no-prompt stdin), the
-absence of the retired injection label, and the hook always emitting a
-non-empty banner.
+What remains here documents behaviour that SURVIVES the change, exercised
+via REAL subprocess calls to the real, still-live hook: fail-safe stdin
+handling (no crash on empty/garbage/oversized/no-prompt stdin, real rc==0
+checked against the real process), the absence of the retired injection
+label, and the hook always emitting a non-empty banner. This is real,
+current regression coverage for a hook that still runs on every message --
+not a candidate for the same retirement as test_hardening_recall.py.
 
 Hook invocation pattern
 ───────────────────────
-Mirrors test_pre_task_recall.py exactly: subprocess with JSON on stdin, cwd=temp repo.
+Subprocess with JSON on stdin, cwd=temp repo (test_pre_task_recall.py, which
+this used to mirror, no longer exists on disk either -- see CORRECCION
+above; the pattern itself survives independently in this file's own
+_run_hook() helper).
 The hook is a UserPromptSubmit hook that emits PLAIN TEXT (not JSON) on stdout.
 """
 
@@ -44,7 +62,7 @@ with open(_PLUGIN_JSON, encoding="utf-8") as _f:
     _PLUGIN_VERSION = json.load(_f)["version"]
 
 
-# ── Repo helpers (mirrors test_pre_task_recall.py and test_recall.py) ─────
+# ── Repo helpers (test_pre_task_recall.py/test_recall.py no longer exist; kept for its own sake) ─────
 
 def _make_repo(tmp_path, name="repo"):
     """Create a minimal git repo (no git-memory installation)."""

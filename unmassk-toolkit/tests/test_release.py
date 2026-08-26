@@ -1637,49 +1637,70 @@ class TestT25TimeoutExpired:
 
 class TestT26NoDuplicateStderr:
     """
-    T2.6 — El stderr del fallo de commit no debe imprimirse dos veces.
+    T2.6 -- El stderr del fallo de commit no debe imprimirse dos veces.
+
+    Reescrito 2026-08-26 (Bilbo finding): el mecanismo real ya no es un
+    subprocess a bin/git-memory-commit.py (ese wrapper se borro entero con
+    el resto del sistema de memoria v1, ver la nota RETIRADO mas arriba en
+    este mismo fichero) -- `_execute_commit_push` llama a
+    `notes.write_work()` como funcion Python directa (bin/release.py,
+    linea ~192). El test original interceptaba `_run` buscando
+    "git-memory-commit" en los args: esa rama nunca se disparaba, y el
+    test pasaba por una razon distinta a la que decia comprobar.
+
+    Fuerza un fallo REAL de `notes.write_work()` (no un doble simulado):
+    planta `.git/index.lock` antes de llamar a `_execute_commit_push`, la
+    misma tecnica ya establecida en este repo para forzar un fallo de git
+    genuino sin tocar produccion. `_die()` (release_helpers.py) hace una
+    unica llamada a `print(..., file=sys.stderr)` -- confirmado leyendo el
+    codigo -- asi que hoy esto no puede duplicarse por construccion; el
+    valor del test es de regresion: si alguien anade un print adicional
+    del error antes de `_die()`, este test lo atrapa.
     """
 
     def test_commit_failure_no_duplicate_stderr(self, tmp_path, monkeypatch, capsys):
         """
-        Cuando git-memory-commit.py falla, el mensaje de error NO debe aparecer
-        duplicado en stderr.
+        Cuando notes.write_work() falla (git real, via .git/index.lock),
+        el mensaje de error NO debe aparecer duplicado en stderr.
         """
         import bin.release as rel
 
         repo, bare = _setup_release_repo(tmp_path)
         monkeypatch.chdir(repo)
 
-        # Hacer que _execute_commit_push llame a _run pero forzar fallo del commit
-        original_run = rel._run
-
-        def patched_run(args, **kwargs):
-            if "git-memory-commit" in str(args):
-                result = type("R", (), {
-                    "returncode": 1,
-                    "stdout": "commit stdout msg\n",
-                    "stderr": "commit stderr msg\n",
-                })()
-                return result
-            return original_run(args, **kwargs)
-
-        monkeypatch.setattr(rel, "_run", patched_run)
-
-        # Ejecutar hasta la fase de commit
         plugin_json_path = os.path.join(repo, PLUGIN_NAME, ".claude-plugin", "plugin.json")
         marketplace_path = os.path.join(repo, ".claude-plugin", "marketplace.json")
         changelog_path = os.path.join(repo, "CHANGELOG.md")
 
-        with pytest.raises(SystemExit):
-            rel._execute_commit_push(
-                PLUGIN_NAME, "1.4.0", repo,
-                plugin_json_path, marketplace_path, changelog_path,
-            )
+        # Fuerza un fallo REAL de git (no simulado): index.lock ya existente
+        # hace que el intento real que hace notes.write_work() falle
+        # con un fatal: Unable to create '.../.git/index.lock': File exists.
+        lock_path = os.path.join(repo, ".git", "index.lock")
+        with open(lock_path, "w", encoding="utf-8"):
+            pass
+
+        try:
+            with pytest.raises(SystemExit):
+                rel._execute_commit_push(
+                    PLUGIN_NAME, "1.4.0", repo,
+                    plugin_json_path, marketplace_path, changelog_path,
+                )
+        finally:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
 
         captured = capsys.readouterr()
-        # El mensaje de stderr del commit NO debe aparecer dos veces
         stderr_output = captured.err
-        count = stderr_output.count("commit stderr msg")
+
+        # Confirma que el error real llego a stderr (si esto falla, el
+        # resto del test no prueba nada -- ver Dante's anti-vacuity rule).
+        assert "Unable to create" in stderr_output, (
+            f"El fallo real de git no se propago a stderr como se esperaba. "
+            f"stderr: {stderr_output!r}"
+        )
+
+        # El mensaje de error NO debe aparecer dos veces.
+        count = stderr_output.count("Unable to create")
         assert count <= 1, (
             f"stderr del commit aparece {count} veces (duplicado). Output:\n{stderr_output}"
         )

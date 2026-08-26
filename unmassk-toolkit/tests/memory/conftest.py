@@ -508,9 +508,16 @@ def make_session_start_payload(cwd, source="startup"):
     (`startup`/`resume`/`clear`/`compact`), `model` [fuente:
     `hook-development/references/hook-input-schemas.md`, skill oficial de
     `plugin-dev`, seccion "Common Fields (All Hooks)" + "SessionStart"].
-    `hooks/session-start-boot.py` (el SessionStart del sistema viejo, vivo
-    en esta rama) no sirve como fuente de la forma del payload -- no lee
-    stdin en absoluto, resuelve todo por `git` contra el cwd del proceso.
+    `hooks/session-start-boot.py` (el SessionStart del sistema viejo) ya NO
+    existe en disco -- borrado 2026-08-05 junto con el resto del sistema de
+    memoria v1 (commit 615f5cc). El SessionStart actual es
+    `hooks/boot_launcher.py` (PIEZAS.md Sec.11), y SI lee stdin -- usa
+    `payload["cwd"]` si esta presente, con fallback al cwd heredado del
+    proceso en caso contrario (mismo patron que hooks/pre-merge-gate.py).
+    Aun asi no sirve como unica fuente de la forma completa del payload:
+    solo consume el campo `cwd`, nunca `session_id`/`model`/`source`/etc,
+    asi que esos siguen viniendo de la referencia oficial citada arriba,
+    no de leer el hook.
     """
     return {
         "session_id": "test-session-abc123",
