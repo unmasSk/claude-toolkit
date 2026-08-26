@@ -51,3 +51,4 @@
 [remember][user] 🧠 los revisores y agentes leen el codigo entero, nunca lo barren solo con grep: un grep encuentra palabras, no fallos — «es por la puta manía que tenéis de usar GREP cuando lo que tenéis que hacer es leer código»
 [remember][claude] 🧠 cuando pido prisa, calibra la ceremonia al riesgo: no metas la tuberia pesada por defecto en algo que no pierde datos ni corrompe memoria — «te he dicho rapido y no lo estas haciendo rapido... una cosa muy muy sencilla, como ponerle una coma a un documento MD... me parece una falta de respeto cuando te he dicho que tengo prisa»
 [remember][user] 🧠 si no entiendo un tema, ensename hasta que lo entienda y entonces decido yo: no decidas por mi para ahorrarte la explicacion — «no que lo decidas tu IMBECIL sino que me ense;es»
+[remember][user] 🧠 cuando estoy charlando contigo no guardes nada: se guarda cuando decido algo, no cada frase que suelto — «oye estas guardando cosas cuando solamente estoy charlando contigo»
