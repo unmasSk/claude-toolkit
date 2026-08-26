@@ -5,6 +5,113 @@ metadata:
   type: project
 ---
 
+## D-065/D-066 issue-customs gate (Q/I "vara de medir", --work/--issue/--quote -- 2026-08-26)
+Target: `lib/memory/{model,vocabulary,format,report_render_note,validator,
+validator_issue}.py` + `bin/memory/note.py`, diff `95df7d3^..HEAD`, all
+5 stated round-trip guarantees attacked against 2 disposable scratch git
+repos (never the real repo), real subprocess calls to `note.py`,
+`search.py` and `hooks/customs.py` (never imported/simulated), plus one
+direct-library round-trip check (`query.by_id`) as the independent
+confirmation channel. Verdict: 💀 FALLA.
+
+BREAK 1 (T1, silent, same shape as D-056's BREAK 1) -- `hooks/customs.py::
+_decide_note()` (the OTHER real path that turns a raw `git commit -m`
+into a `Note` and validates it, via `format.parse_message` +
+`validator.validate_note()`) NEVER calls `validator_issue.
+validate_issue_gate()` -- that function is only ever invoked from `bin/
+memory/note.py::main()`. Reproduced live end-to-end: built a well-formed
+`I-901` commit message via `format.build_message()` (Description+Keys,
+NO Issue, NO Quote), fed it to the real `hooks/customs.py` as a
+PreToolUse payload for `git commit -m "<msg>"` -> `{"decision":
+"approve"}`; then actually ran the real `git commit` in the scratch repo
+(dynamic `$SUB` trick to dodge my OWN session's live customs hook) and
+read it back via the real `bin/memory/search.py --id I-901` (independent
+channel) -- the note is fully live, permanent, searchable, with no issue
+and no quote, having never answered "¿cerrar esta nota exige trabajo...
+o solo una respuesta/decision?". `test_note_issue_gate.py` (658 lines,
+18 tests) never mentions "customs" -- 0 coverage of this path. Same
+underlying DECEPTION: `validator_issue.py`'s own module docstring claims
+this as a universal invariant ("sin --issue NI --work, Q/I rebotan"),
+true only for ONE of the two real callers.
+
+BREAK 2 (T1, silent corruption on READ, not WRITE) -- a lone `\r`
+(carriage return) byte inside `--quote` content survives byte-exact in
+git's own object store (confirmed via `git log --format=%B -1` read as
+raw bytes) but gets silently translated to `\n` by `gitcmd.py:71-79`'s
+`subprocess.run(text=True, encoding="utf-8", errors="replace")` (no
+`newline=""`) the moment `query.py`'s `_git_log()` reads it back --
+Python's universal-newlines translation. The resulting SPURIOUS line
+break, when the byte right after the original `\r` happens to be a
+space, gets misread by `format.py:296-297`'s continuation-line stripper
+(`_parse_fields`, `elif line.startswith(" ")... current_parts.append(
+line[1:])`) as `_fold_raw`'s OWN one-space continuation marker --
+eating one real content character permanently. Reproduced live: a
+500KB `--quote` with `"line with CR\r inside it\n"` embedded, saved via
+the real `note.py`, round-tripped through `query.by_id()` (independent
+of the writer's own return value) -- `note.quote != original` (500207
+vs 500208 chars), diff isolated to exactly that point (`\r ` ->
+`\ninside` -- CR AND the following space both consumed). Isolated the
+variable: a pure 200KB same-size quote with NO special chars round-trips
+exact in 0.13s (STRESS held on its own) -- confirms `\r` specifically,
+not size, is the trigger. Same mechanism applies to any `_fold_raw`
+field (Why/Description/Awaits/headline), not only Quote -- but Quote is
+the field this round's contract explicitly puts under test ("sobrevive
+EXACTA cualquier contenido"). `test_issue_none_with_quote_saves_and_the_
+quote_survives_the_round_trip` (the ONE existing round-trip test) only
+uses a plain ASCII sentence, no `\r`, no pathological content -- gap was
+real, not theoretical.
+
+REGRESSION 1 (T2) -- `--issue none` on a non-Q/I type (D/M/R/X/B) used
+to be a LOUD argparse crash (`--issue` was `type=int` before D-065/
+D-066; git-show of the pre-diff `note.py` confirms it) -- today it's a
+SILENT accept: `_issue_arg()` now special-cases the `"none"` literal for
+EVERY type (argparse doesn't know `note.type` yet), `validate_issue_gate`
+only checks `work` for non-Q/I (never `issue`), and `_build_candidate`
+resolves any non-int `args.issue` to `None` -- the user's "none" signal
+is silently discarded with zero trace. Reproduced live: `note.py D
+--zones... --issue none` -> `✅ D-001 guardada`, no rejection, no
+warning. Held (unaffected): the SAME D-type note with `--quote` given
+instead is correctly rejected by `validate_fields` ("Estos campos no
+existen para el tipo D: quote") -- the field-not-allowed mechanic for
+the 5 gate-less types is otherwise intact.
+
+ABUSE 1 (low severity, not re-elevated) -- `--issue N --work no` given
+TOGETHER on a Q/I note (contradictory: "no work needed" AND "work
+needed, here's an issue") passes `validate_issue_gate` cleanly -- none
+of its 3 checks compares `issue`/`work` against each other for
+consistency, only each in isolation. `work` isn't a persisted field, so
+no corrupted state results, just a silently-accepted self-contradiction.
+
+Held: `--issue none` without `--quote` (empty and whitespace-only
+`--quote ""`/`"   "` too, `.strip()` catches both) rejected correctly
+with the literal D-066 relaunch command; the vara-de-medir rejection's
+own relaunch commands #1 (`--work no`) and #3 (`--issue none --quote`)
+copy-pasted verbatim and actually executed both save cleanly (relaunch
+#2, `--issue N`, has `N` as an explicit placeholder in the template --
+not a bug); complex-but-CR-free pathological quote content (embedded
+double quotes, unicode/emoji, backslashes, literal `", "` separator
+text, and a line deliberately spelling `Issue: #999`/`Description:
+...`/`Quote: ...` to probe field-injection) round-trips byte-exact
+through the real commit->query.by_id() path.
+
+Coverage: BREAK 6/6 (2 broken, 4 held), ABUSE 1/1 broken (low severity)
++ 2 relaunch-copy-paste executions (both held, 1 N/A-placeholder),
+EXPLOIT N/A (project's own no-external-adversary model, 0 attempts,
+noted not skipped), REGRESSION 2/2 (1 broken T2, 1 held), DECEPTION 1/1
+(folded into BREAK 1, same T1), STRESS 2/2 (500KB quote surfaced BREAK
+2; 200KB pure-ASCII isolated `\r` as the trigger, not size; 2MB hit an
+OS-level `ARGV` limit unrelated to this code, not counted as a finding),
+RACE N/A -- the gate rejection path never touches state (index/lock/
+commit) BEFORE either check returns, verified by reading `note.py::
+main()`'s control flow rather than manufacturing a synthetic
+interruption with no new information over that proof.
+Memory consulted: `gitmem search --id D-065`/`D-066` (the spec itself,
+via `aduana`/`quote` word search first) -- used D-065/D-066's own
+literal text as the guarantee list instead of re-deriving it from the
+diff; `round-history.md`'s D-056 BREAK 1 (archived-filter, ONE caller
+enforces a contract the OTHER real caller skips) predicted BREAK 1's
+shape before reading a single line of `customs.py` this round.
+
 Nota 2026-08-25 (compactación de memoria, sin tocar ninguna entrada de
 abajo): las rondas fechadas 2026-06 a 2026-07 (recall.py, boot freshness
 issues #49/#55/#57/#59/#60, issue #63, capa 2/3 iniciales, atomic
