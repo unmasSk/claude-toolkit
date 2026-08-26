@@ -108,3 +108,4 @@
 [M-124][memory][architecture] textnorm is duplicated in checklist_state on purpose (lib/memory boundary)
 [M-125][skills][architecture] skills-as-checklists holds: program-set boxes plus Stop gate, shipped 1.39.0
 [M-127][architecture][testing] Yoda system pass closed: both conditions met, CI green on both platforms
+[M-128][architecture][trading] no off-the-shelf trading skill streams: a skill cannot hold a socket open
