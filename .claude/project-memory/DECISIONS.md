@@ -62,3 +62,4 @@
 [D-069][boot][architecture] session timing telemetry, automatic, shown in next boot
 [D-070][ci][release] work/wip commits carry [skip ci]; only the release commit triggers CI
 [D-071][skills][trading] trading skill is for a beginner: live data, plain talk, advice he executes
+[D-072][skills][trading] the trading skill starts on crypto, stocks and the rest come later
