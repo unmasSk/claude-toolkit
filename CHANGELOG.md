@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-08-26
+
 ### Fixed
 - **CI de Ubuntu con 37 tests en rojo**: el filtro que aislaba `gh` para los tests de `test_work_issue_field.py` descartaba el directorio entero, y en `ubuntu-latest` eso se llevaba `git` por delante (conviven en `/usr/bin`). Ahora filtra por fichero, no por directorio (M-127).
 - **Windows: los binarios sintéticos de los tests de `gh` no eran localizables** porque `shutil.which()` en esa plataforma solo resuelve nombres con extensión `PATHEXT` y los fixtures creaban un `gh` a secas. Ahora se crean con `.exe` (M-127).
