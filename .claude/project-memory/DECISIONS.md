@@ -64,3 +64,4 @@
 [D-071][skills][trading] trading skill is for a beginner: live data, plain talk, advice he executes
 [D-072][skills][trading] the trading skill starts on crypto, stocks and the rest come later
 [D-073][architecture][trading] the skill sends the order when he says so, dry-run first, never on its own
+[D-074][skills][trading] the practice mode is a game: fake wallet, score, lessons, real money unlocks
