@@ -42,5 +42,5 @@ __pycache__/
 # relativa al directorio actual, asi que el riesgo real es la raiz del repositorio
 /reports/
 /state/
-unmassk-trading/skills/unmassk-trading/reports/
-unmassk-trading/skills/unmassk-trading/state/
+unmassk-trading/**/reports/
+unmassk-trading/**/state/
