@@ -1,9 +1,9 @@
 # unmassk-trading — Planteamiento y plan
 
 **Issue:** #85 · **Repo:** trunk (`main`) · **Creado:** 2026-08-27
-**Estado:** EN CONSTRUCCIÓN. T1, T2 y T3 cerradas; T4 (comparación) y la primera vuelta de
-T5 (Cerberus y Argus) hechas y sus hallazgos corregidos. Falta Moriarty, Yoda, el Consejo y
-el cierre.
+**Estado:** T1 a T5 cerradas. Comparación línea por línea hecha; Cerberus, Argus, Dante,
+Moriarty y Yoda pasados y todos sus hallazgos corregidos. **Yoda: 87/110, aprobado con tres
+condiciones, las tres aplicadas.** Quedan el Consejo (T6) y el cierre (T7).
 
 ---
 
@@ -68,8 +68,17 @@ pasar de dinero de mentira a dinero de verdad.
 1. **Leer, entender y practicar** — precios en vivo, modo principiante, cuenta de
    práctica, tamaño y riesgo. *(Esta.)*
 2. **Ejecutar de verdad** — llaves recortadas, las cinco vueltas de la orden, promoción.
+   **Puerta de entrada a esta fase, decidida el 2026-08-27 tras el veredicto de Yoda: el
+   freno tiene que funcionar ANTES de que se mueva un euro.** Hoy el freno por pérdidas lee
+   un almacén que este plugin nunca escribe, así que responde «puedes operar» sobre cero
+   datos; y su día es el de Nueva York, así que una pérdida cerrada entre las 00:00 y las
+   05:00 UTC se contabiliza al día anterior. Mientras no se arreglen esas dos cosas, la
+   fase 2 no empieza. Con dinero de mentira no cuesta nada; con dinero de verdad lo cuesta
+   todo.
 3. **El registro y sus estadísticas** — qué funcionó, qué no, y contradecirle con su
-   propio historial.
+   propio historial. Aquí se retira `thesis_store` y el registro pasa entero a la memoria
+   del proyecto — pero la parte que alimenta al freno se adelanta a la fase 2 por la puerta
+   de arriba.
 
 Fuera de todas ellas por ahora: backtesting y la idea del juego.
 
@@ -118,7 +127,7 @@ investigación → plan → planteamiento
 - [ ] **Pendiente de la pasada de adaptación:** etiquetas en dólares y "shares", calendario
       de mercado estadounidense, y rutas de salida relativas al directorio actual
 
-### T2 · El comprobador de precio (Dante contrato → Ultron)
+### T2 · El comprobador de precio — **HECHA**
 
 **Corregido el 2026-08-27 tras la comparación línea por línea:** la afirmación original
 —«nada de las 291 contrasta dos fuentes»— era medio falsa. `agiprolabs/ohlcv-processing/
@@ -135,15 +144,18 @@ escribió.
       propio dato fresco)
 - [x] Implementación hasta verde: **433 tests**
 
-### T3 · La capa que no existe: modo principiante (orquestador)
-- [ ] Evaluación (qué sabe / qué puede permitirse), orden de enseñanza, primera semana,
-      puerta de promoción
+### T3 · La capa que no existe: modo principiante — **HECHA**
+- [x] Evaluación (qué sabe / qué puede permitirse — esta usa el cuestionario levantado),
+      orden de enseñanza, primera semana y puerta de promoción
 
-### T4 · Comparación línea por línea — depende de T1, T2, T3
-- [ ] Lo escrito contra las skills equivalentes de los seis repos; huecos y sobras, con cita
+### T4 · Comparación línea por línea — **HECHA**
+- [x] Hecha: cazó cinco cosas que habrían roto una sesión (invocaciones de los frenos que
+      no arrancaban, un «fallan a gritos» falso, una salida «verificada» inventada, la zona
+      inexistente de las notas, y la skill buscándose a sí misma con un guión de más)
 
-### T5 · Auditores — depende de T4
-- [ ] Cerberus ∥ Argus → arreglos → Moriarty → arreglos → Yoda, una vez
+### T5 · Auditores — **HECHA**
+- [x] Cerberus (7 issues) ∥ Argus (10 hallazgos) → arreglos → Dante (645 tests, 100% de
+      cobertura medida) → Moriarty (FALLA: 6 roturas, 5 engaños) → arreglos → Yoda: 87/110
 
 ### T6 · Consejo — depende de T5
 - [ ] `unmassk-council` sobre el plugin terminado: cinco asesores, y lo que salga se aplica

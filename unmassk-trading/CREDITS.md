@@ -36,6 +36,15 @@ verified by stripping the header and diffing.
 this plugin's flat layout. It now loads the sibling file. The alternative — leaving it —
 would have left the gate silently unable to link a thesis while every other test passed.
 
+**`thesis_store.py` is not concurrency-safe, and that is knowingly accepted.** Its
+`link_report()` is a read-modify-write with no lock: eight concurrent calls on one thesis
+recorded four entries and lost four, and every call returned success. Silent loss of a
+persisted record is exactly what this project's threat model forbids — it is tolerated here
+only because **nothing in the documented workflow reaches that function** (it fires only
+when a candidate carries a `thesis_id` and a `--state-dir`, and the record this plugin keeps
+lives in git-memory instead). It becomes a real defect the moment anything routes to the
+store, and the fix at that point is to stop using the store, not to patch upstream's file.
+
 **`thesis_store.py` and `thesis.schema.json` are carried as a dependency, not as a
 feature.** No document in this plugin routes to them: they are here because
 `check_pre_trade_discipline.py` imports the store when a candidate carries a `thesis_id`,

@@ -94,7 +94,12 @@ they survive the mode.
 ## Reading the market
 
 A price is never stated bare. Every quote carries **its source and its age**, and before
-a number gates a decision it is checked against a second venue:
+a number gates a decision it is checked against a second venue.
+
+**Only `price_check.py` stamps an age.** `kraken ticker` and `kraken ohlc` return no
+timestamp, so the only honest age for their output is "I ran this just now". A quote from
+an earlier turn is **re-fetched, never re-quoted** — there is no way to tell afterwards how
+old it was.
 
 ```bash
 kraken ticker BTCEUR -o json
@@ -146,10 +151,16 @@ JSON and a Markdown report into `reports/` relative to the current directory, wh
 into whatever repository the shell happens to be sitting in.
 
 **The sizer does not check the position against the account, and it will hand you one
-bigger than the account.** Verified: a 500 € account with a 0.75% stop returns a 661 €
-position, exit 0, no warning — the risk is a correct 1%, and the *cost* is 132% of
-everything the user has. Always pass **`--max-position-pct`** (25 is a sane start), and
-say the cost as a share of the account out loud.
+bigger than the account.** Verified with the exact recipe above, only the stop moved to
+67010 (a 0.75% stop, ordinary in crypto): `0.00986193 shares` → **`Position: $665.85`** on
+a 500 € account, exit 0, no warning. The risk is a correct 1%; the *cost* is 133% of
+everything the user has. Always pass **`--max-position-pct`** (25 is a sane start), and say
+the cost as a share of the account out loud.
+
+**And the failure without `--fractional` is a plausible-looking zero, not an error:**
+`Final: 0 shares` / `Position: $0.00` / `Risk: $0.00 (0.0%)`, exit 0 — verified. A report
+saying the trade risks nothing is the most quotable wrong number in this plugin. A zero
+there means the flag is missing, never that the position is safe.
 
 Four lines are always said out loud, in euros: what it **costs**, what that cost is **as a
 percentage of the account**, what it **loses at the stop**, and what that loss is as a

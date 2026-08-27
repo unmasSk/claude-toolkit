@@ -738,3 +738,64 @@ One stale note found and resolved: Dante's own contract-notes file for D-054 rec
 to `textnorm.normalize_text` raising instead of returning `""`) that Ultron fixed AFTER that note was written
 -- confirmed by reading `textnorm.py`'s actual guard and re-running the exact named test
 (`test_normalize_non_string_input_returns_empty_string_without_raising`) in isolation: PASSED. Not a live gap.
+
+## 2026-08-27 — unmassk-trading fase 1 (SKILL.md + 5 refs + 5 scripts + 645 tests), 96/110
+
+**Pattern: cuando una feature es sobre todo PROSA que un Claude ejecuta, el juicio se hace
+verificando afirmación por afirmación contra el canal que la afirmación cita — no leyendo la
+prosa.** SKILL.md/gate-input.md/risk-and-sizing.md afirman ~14 hechos comprobables con la
+palabra "verified" al lado. Los corrí todos yo: `TRADING_ALLOWED`+`EMPTY_STATE` con state-dir
+vacío (exit 0), `REVIEW_REQUIRED` sin el pipe con la lista de razones EXACTA
+`['market_regime artifact not provided','circuit_breaker artifact not provided']`, `NO_GO`
+con el pipe HALTED, `--fail-on-non-go` → exit 2, razones ausentes de stdout y presentes solo
+en el JSON, sizer 500€/0,75% → posición > cuenta con exit 0 y sin aviso, sizer sin
+`--fractional` → "0 shares / Risk: $0.00 (0.0%)" exit 0. Los 14 se sostuvieron. **Una skill
+cuya seguridad vive en prosa se audita ejecutando la prosa, no leyéndola** — y aquí la prosa
+resultó exacta hasta las cadenas literales.
+
+**Pattern: la afirmación "levantado byte a byte" SE VERIFICA con el repo origen clonado, y es
+barata.** `scratchpad/repos/tradermonty_claude-trading-skills` estaba ahí. Diff de los 10
+artefactos levantados: 5 scripts/schema + 5 docs → **exactamente** la cabecera de atribución
+(5 líneas `#` o 8 líneas `<!-- -->`) y **una sola** línea de lógica
+(`check_pre_trade_discipline.py:434`, ruta del módulo hermano), justo lo que declara
+`CREDITS.md`. El schema JSON: 0 líneas de diff. Nunca aceptar "byte-idéntico" narrado cuando
+el origen se puede clonar.
+
+**Pattern: 5 mutaciones en vivo sobre el fichero real (restauradas desde variable en memoria,
+sha256 idéntico antes/después) valen más que 645 tests en verde.** S1 reloj muestreado antes
+del fetch → 3 rojos; S2 spread 0 en vez de None cuando falta una fuente → 9 rojos; S4
+`if missing or len(rows)<2` neutralizado → 17 rojos; S5 check de edad neutralizado → 10
+rojos. **Y dos sabotajes del PRODUCTOR REAL sobre el round-trip vivo**: endpoint Kraken
+cambiado a `/public/Assets` → el test live muere con `SINGLE_SOURCE`; campo `c` (último
+precio) cambiado a `o` (apertura) → el test live muere con `DISAGREE` a 128 bps. El segundo
+es la mejor evidencia posible de que el diseño de dos mercados hace lo que dice: una deriva
+semántica silenciosa en una fuente la cazó la OTRA fuente, no un fixture.
+**Nunca usé `git checkout`** — leer bytes a variable, escribir mutación, restaurar escribiendo
+la variable, verificar sha256 (regla de conventions.md, incidente propio 2026-08-06).
+
+**Pattern: "CI en rojo" no es "esta feature está en rojo" — abrir el run y leer QUÉ job murió.**
+`gh run list` mostraba 5 fallos seguidos en los commits de trading. `gh run view <id>` mostró
+que el job `unmassk-trading script tests (ubuntu)` estaba **verde** (643 passed, 2 deselected —
+los dos `@pytest.mark.live`) y que el rojo era el job de los plugins maker (`numpy==2.4.6` no
+existe para Python 3.10), preexistente y ajeno. Más aún: la decisión de darle a trading su
+propio job (commit `83375b5`) quedó **validada por este mismo run** — sin ella el resultado de
+trading habría quedado escondido tras el fallo de dependencias de otro plugin.
+
+**Pattern: un hallazgo T1 de Moriarty que se cierra con documentación en vez de código es
+aceptable SOLO mientras la fase no toque dinero — y hay que decir en qué fase deja de serlo.**
+De los 6 BREAK de Moriarty, 5 se cerraron con prosa (el código levantado no se toca por
+diseño). Para fase 1 (leer/practicar/dimensionar, cuenta de papel sin clave) eso basta: ningún
+fallo puede costar dinero. Para fase 2 (ejecución real) no basta, y lo dije como condición
+nombrada. **BREAK 6 (carrera lost-update en `thesis_store.link_report`, 4 de 8 entradas
+perdidas y las 8 llamadas devolviendo éxito) es el único que no dejó rastro en NINGÚN sitio del
+plugin** — ni código ni documento. Lo encontré grepeando los 6 BREAK contra los .md del plugin
+uno por uno, no leyendo el informe. Un hallazgo de Moriarty sin rastro en el artefacto es un
+hallazgo que se redescubre entero dentro de dos fases.
+
+**Pattern: reproducir la cifra rara de un documento antes de llamarla falsa.**
+`risk-and-sizing.md`/`SKILL.md` decían "500 € cuenta, stop 0,75% → posición de 661 €". Con la
+receta documentada (`--share-precision 8`) sale 666,64 €. Fuerza bruta: sale **661,67 € exacto
+con `--share-precision 4`**. No es una cifra inventada, es una cifra de una corrida con flags
+distintas a las que el propio documento manda usar. Minor, no fabricación — pero en un fichero
+cuyo lema es "los ejemplos que no sobreviven a ser ejecutados son cómo una skill le enseña algo
+falso a su usuario", la asimetría se nombra.
