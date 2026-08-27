@@ -57,7 +57,8 @@ re-asks every session.)
 Then save it, so it is asked once and never again:
 
 ```bash
-gitmem note M --zones skills trading "trading mode: <beginner|advanced>" \
+gitmem zones list                      # the zones belong to the project this runs in
+gitmem note M --zones <zone1> <zone2> "trading mode: <beginner|advanced>" \
   --description "<what the user said, or what the assessment showed>" --stops no
 ```
 
@@ -164,6 +165,23 @@ python3 scripts/check_pre_trade_discipline.py \
 and the script exits 2 having checked nothing. How to build the answers file, and where
 every field comes from: `references/gate-input.md`.
 
+**Read the verdict from stdout, NEVER from the exit code.** Verified: a `NO_GO` from the
+discipline gate and a `HALTED` from the circuit breaker both exit **0**. This is the
+opposite of `price_check.py`, and getting it wrong means reading a refusal as a pass.
+
+- `check_pre_trade_discipline.py` accepts **`--fail-on-non-go`**, which makes anything
+  other than `GO` exit 2. **Always pass it.**
+- `check_circuit_breaker.py` has no equivalent. Its verdict is the `Recommendation:` line,
+  full stop.
+
+**And the two gates only see each other if you pipe them.** The discipline gate reads the
+breaker's verdict from `--circuit-breaker-decision <its JSON report>`; without it, the
+breaker's `HALTED` cannot block anything, and the gate answers `REVIEW_REQUIRED` because
+an artifact it expected is missing. It also expects `--market-regime-decision`, and
+**nothing in this plugin produces one** — so `GO` is unreachable as shipped. Treat
+`REVIEW_REQUIRED` with only that reason as what it is (a missing input we do not produce),
+not as a warning about the trade, and say which one it is when reporting to the user.
+
 **The two gates do not fail the same way, and the difference matters:**
 
 - **The discipline gate fails loud.** A missing value, an unparseable number, an absent
@@ -180,19 +198,36 @@ because the user asks again in the same session. Thresholds:
 `references/lifted/circuit-breaker-framework.md`. The seven blocking checks:
 `references/lifted/discipline-gate-framework.md`.
 
-These scripts need `PyYAML` and `jsonschema` (`requirements.txt`). Without `jsonschema` the
-test suite cannot even be collected, and the gates raise on import. **A gate that could not
-run has not passed** — say that, never "all clear".
+These scripts need `PyYAML`. They also declare `jsonschema` (`requirements.txt`), but that
+one is imported lazily and only when a candidate carries a `thesis_id` — verified: both
+gates run and return their normal verdicts on an interpreter without it. What genuinely
+breaks without `jsonschema` is the **test suite**, which cannot even be collected.
+
+If an import does fail, say so: **a gate that could not run has not passed** — never
+"all clear".
 
 ## Placing an order
 
+### Paper orders — this is what beginner mode uses
+
+```bash
+kraken paper buy BTCEUR 0.001        # practice account, no key, no money
+kraken paper sell BTCEUR 0.001
+kraken paper balance -o json
+```
+
+**Paper accepts only `market` and `limit` order types** — verified in the CLI's own
+source. There are no stop orders on the practice account.
+
+### Live orders — everything below is REAL money
+
 **Status: written, not yet exercised against a live account.** This plugin ships phase 1 —
-read, practise, size. These five steps are already the procedure for **paper** orders, and
-they are the procedure live execution will follow. Before any live order the promotion
-gate in `references/beginner-mode.md` applies, and the key is created without withdrawal
+read, practise, size. Every command in this section touches the real exchange; none of them
+is the paper procedure. Before any live order the promotion gate in
+`references/beginner-mode.md` applies, and the key is created without withdrawal
 permission.
 
-Five steps, both modes, every time. Detail in `references/kraken-cli.md`.
+Five steps, every time. Detail in `references/kraken-cli.md`.
 
 1. **Dead man's switch, once per session** — `kraken order cancel-after 300 -o json`
 2. **Validate** — `kraken order buy BTCEUR 0.001 --type limit --price 60000 --validate -o json`
@@ -215,11 +250,23 @@ Resubmit only if it is absent from **both**. Tag orders with `--cl-ord-id <id>` 
 question has a cheap answer: query by the tag instead of guessing from timestamps.
 
 Before executing, check the command against the CLI's own `agents/tool-catalog.json`
-`dangerous` field. Never keep a hand-written copy of that list here — it would drift. One
-caveat: `order-cancel-after` is itself marked dangerous and it is step 1 of this procedure.
-Setting the dead man's switch is a safety action, not a spend — do not stop to ask
-permission for it. The field that separates "spends money" from "merely lives in the trade
-group" is `paper_safe`.
+`dangerous` field (it ships inside the `kraken` installation; locate it rather than
+guessing, and **if it cannot be read, treat the command as dangerous** — an unresolvable
+check must never resolve to "proceed"). Never keep a hand-written copy of that list here:
+it would drift.
+
+**`paper_safe` is NOT a "does not spend money" flag.** Verified against the shipped
+catalogue: only four commands carry it — `order-buy`, `order-sell`, `order-cancel`,
+`order-cancel-all` — and it means only that the danger gate relaxes **while the workspace
+is in paper mode**. Reading `order-buy: paper_safe: true` as "this does not spend" is
+exactly backwards on the live path.
+
+One caveat that stands on its own: `order-cancel-after` is marked dangerous and it is step
+1 here. Setting the dead man's switch cancels orders, it never places one, so do not stop
+to ask permission for it. **What the plugin does not know is its expiry semantics** — which
+resting orders it reaches, and whether it must be refreshed. Until that is verified against
+the real CLI, do not leave a protective stop resting behind an unrefreshed timer, and say
+so when a user asks.
 
 ## After a trade
 

@@ -1,6 +1,7 @@
 name: Plugin Tests
 
-# Script test suites that ship inside the maker plugins (unmassk-3d, unmassk-electronics).
+# Script test suites that ship inside the maker plugins (unmassk-3d, unmassk-electronics)
+# and unmassk-trading.
 # They need pip-only third-party libs (cadquery/trimesh/pyserial) and run on Linux only —
 # kept out of the core Toolkit CI so its fast pure-Python suite is not slowed by heavy deps.
 
@@ -10,11 +11,13 @@ on:
     paths:
       - "unmassk-3d/**"
       - "unmassk-electronics/**"
+      - "unmassk-trading/**"
       - ".github/workflows/plugin-tests.yml"
   pull_request:
     paths:
       - "unmassk-3d/**"
       - "unmassk-electronics/**"
+      - "unmassk-trading/**"
       - ".github/workflows/plugin-tests.yml"
 
 permissions:
@@ -39,10 +42,17 @@ jobs:
           cache-dependency-path: .github/workflows/plugin-tests.yml
 
       - name: Install deps
-        run: pip install pytest==9.1.1 pyyaml==6.0.3 numpy==2.4.6 trimesh==5.0.0 manifold3d==3.5.2 pyserial==3.5 cadquery==2.8.0
+        run: pip install pytest==9.1.1 pyyaml==6.0.3 jsonschema==4.26.0 numpy==2.4.6 trimesh==5.0.0 manifold3d==3.5.2 pyserial==3.5 cadquery==2.8.0
 
       - name: unmassk-3d script tests
         run: python -m pytest unmassk-3d/skills/unmassk-3d/scripts/tests -q
+
+      # unmassk-trading: 433 tests. Deselect the two @pytest.mark.live round-trips —
+      # they call Kraken and Binance for real, and CI must not fail on someone else's
+      # outage. They are exercised locally, where a venue format change must be seen.
+      - name: unmassk-trading script tests
+        run: python -m pytest unmassk-trading/skills/unmassk-trading/scripts/tests -q -m "not live"
+
 
       # Run each branch's suite in its OWN pytest invocation: micro and robotics
       # each ship a top-level conftest.py, and their tests do `from conftest import ...`.

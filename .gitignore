@@ -38,6 +38,9 @@ __pycache__/
 # legitimas y tienen que seguir versionadas.
 .claude/project-memory/*.lock
 
-# unmassk-trading: los scripts levantados escriben informes con ruta relativa
+# unmassk-trading: los scripts levantados escriben informes y journal con ruta
+# relativa al directorio actual, asi que el riesgo real es la raiz del repositorio
+/reports/
+/state/
 unmassk-trading/skills/unmassk-trading/reports/
 unmassk-trading/skills/unmassk-trading/state/

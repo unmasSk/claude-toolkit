@@ -1,8 +1,9 @@
 # unmassk-trading — Planteamiento y plan
 
 **Issue:** #85 · **Repo:** trunk (`main`) · **Creado:** 2026-08-27
-**Estado:** EN CONSTRUCCIÓN. T1 cerrada (código traído, 371 tests en verde, commit
-`136fa49`). T2 con el contrato en rojo escrito (62 tests) e implementación en curso.
+**Estado:** EN CONSTRUCCIÓN. T1, T2 y T3 cerradas; T4 (comparación) y la primera vuelta de
+T5 (Cerberus y Argus) hechas y sus hallazgos corregidos. Falta Moriarty, Yoda, el Consejo y
+el cierre.
 
 ---
 
@@ -127,11 +128,12 @@ documentación fija el dato útil: **dos fuentes pueden discrepar legítimamente
 es el contrario al nuestro: ellos *eligen ganador* (prefieren la fuente con más volumen),
 que es justo lo que `honest-advice.md` prohíbe. El nuestro se escribe igualmente, y se
 escribió.
-- [ ] Contrato en rojo: dos fuentes, edad de cada precio, discrepancia en puntos básicos,
-      veredicto `OK` / `DISAGREE` / `STALE` / `SINGLE_SOURCE`, y **salida distinta de cero
-      en los tres malos** para que quien lo llame no pueda ignorarlo
-- [ ] Al menos un test contra los dos mercados reales (§34.5)
-- [ ] Implementación hasta verde
+- [x] Contrato en rojo: 62 tests, con los cuatro veredictos y salida distinta de cero en
+      los tres malos
+- [x] Dos tests contra los dos mercados reales (§34.5) — y uno de ellos cazó un fallo real
+      (el reloj se muestreaba antes de las respuestas y el programa declaraba viejo su
+      propio dato fresco)
+- [x] Implementación hasta verde: **433 tests**
 
 ### T3 · La capa que no existe: modo principiante (orquestador)
 - [ ] Evaluación (qué sabe / qué puede permitirse), orden de enseñanza, primera semana,

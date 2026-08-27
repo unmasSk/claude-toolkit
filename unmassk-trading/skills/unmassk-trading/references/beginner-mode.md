@@ -124,10 +124,11 @@ waiting is part of what is being taught.
 2. **Day 2** — read the same position without touching it. Say whether it is up or down,
    in euros, and whether that is realised. *(This is the lesson.)*
 3. **Day 3** — place a limit buy below the market and watch it not fill. Cancel it.
-4. **Day 4** — place a stop on the open position, sized by `risk-and-sizing.md`:
-   `kraken paper sell BTCEUR <size> --type stop-loss --price <stop>`. Check the exact flag
-   with `kraken order --help` before using it; the stop-order surface is the one part of
-   this week that has not been exercised end to end here.
+4. **Day 4** — decide the stop and write it down, **before** looking at the price again.
+   **The practice account has no stop orders**: verified in the CLI's own source, paper
+   accepts only `market` and `limit`. So the stop is a number the user commits to and this
+   skill holds them to, not an order the exchange holds. Save it with the position note.
+   The exercise is the commitment, and it is the one that transfers to real money.
 5. **Day 5** — sell half. Show the realised result and the fee, in euros.
 6. **Day 6** — read the week: what was bought, what it cost, what it is worth, what the
    fees ate.
@@ -142,8 +143,10 @@ shown, not asserted:
 
 - [ ] At least **two full weeks** of paper activity, with at least **ten** closed paper
       positions. Fewer than ten and there is nothing to learn from.
-- [ ] Every one of those positions had a **stop set before entry**. One that did not
-      resets the count.
+- [ ] Every one of those positions had a **stop written down before entry**, in the
+      position note, with a timestamp that precedes the entry. On the practice account the
+      exchange cannot hold a stop, so the note is the evidence — and a note written after
+      the entry does not count. One missing resets the count.
 - [ ] The user's own written rules exist (day 7) and were **not broken** in the last week.
 - [ ] The user can answer, unprompted: what they are risking per position, what their
       stop is, and what would tell them they were wrong.

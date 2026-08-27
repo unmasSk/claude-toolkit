@@ -28,6 +28,13 @@ verified by stripping the header and diffing.
 this plugin's flat layout. It now loads the sibling file. The alternative — leaving it —
 would have left the gate silently unable to link a thesis while every other test passed.
 
+**`thesis_store.py` and `thesis.schema.json` are carried as a dependency, not as a
+feature.** No document in this plugin routes to them: they are here because
+`check_pre_trade_discipline.py` imports the store when a candidate carries a `thesis_id`,
+and they are what pulls `jsonschema` into `requirements.txt`. The record this plugin
+actually keeps lives in the toolkit's git-memory. Replacing that import with git-memory
+notes, and dropping both files, is phase 3.
+
 Nothing else from that repository was taken. `thesis_review.py`, `thesis_ingest.py`, the
 FMP price adapter and their suites were deliberately left behind: following the import
 chain further buys features nobody asked for, in a store this plugin intends to replace

@@ -65,6 +65,7 @@ Install only what applies to your project — every plugin below is optional, on
 | **unmassk-humanizer** | Makes text stop reading as AI-written, in English and Spanish |
 | **unmassk-3d** | 3D-printable parts sized to real objects from real measurements, not guesses |
 | **unmassk-electronics** | Microcontroller firmware, Raspberry Pi, robotics — the device has to confirm, or it isn't done |
+| **unmassk-trading** | Conversational trading on Kraken — teaches a beginner on a paper account, sizes from risk, never trades on its own |
 | **unmassk-frontend** | React component quality, UI state, accessibility, styling discipline |
 | **unmassk-typescript** | Strict TypeScript — type safety, type guards, no silent `any` |
 
@@ -93,6 +94,7 @@ Then install whatever domain plugins you need:
 /plugin install unmassk-humanizer@unmassk-claude-toolkit
 /plugin install unmassk-3d@unmassk-claude-toolkit
 /plugin install unmassk-electronics@unmassk-claude-toolkit
+/plugin install unmassk-trading@unmassk-claude-toolkit
 /plugin install unmassk-frontend@unmassk-claude-toolkit
 /plugin install unmassk-typescript@unmassk-claude-toolkit
 ```

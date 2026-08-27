@@ -118,9 +118,17 @@ guarantee they drift apart, and the copy would be the one someone reads.
 
 What matters here, in the conversation:
 
-- **Missing data is never a pass.** An unparseable number, an absent artifact or an
-  unanswerable check produces `REVIEW_REQUIRED`. Report that as what it is — the gate did
-  not pass — never as "all clear".
+- **Missing data is never a pass — for the discipline gate.** An unparseable number, an
+  absent artifact or an unanswerable check produces `REVIEW_REQUIRED`. Report that as what
+  it is — the gate did not pass — never as "all clear".
+- **The circuit breaker is the exception, and it is the dangerous one.** A `--state-dir`
+  that does not exist, or a typo in the path, returns `TRADING_ALLOWED` with `EMPTY_STATE`
+  beside it — verified. It answers "you may trade" over zero data. Name the state directory
+  once, save it to memory, and check `theses_scanned`: zero after ten paper trades means
+  the path is wrong, not that the account is clean.
+- **The discipline gate has a quieter version of the same hole:** with an unreachable
+  `--state-dir` its revenge-window check silently evaluates against no history and reports
+  nothing — `warnings` comes back empty. Treat `--state-dir` as required, not optional.
 - **A halt is stated with its number and its reason**, and it is not lifted because the
   user asks again in the same session. The clock lifts it, or the user deliberately changes
   their own rule — which is saved as a rule change, not as an exception.

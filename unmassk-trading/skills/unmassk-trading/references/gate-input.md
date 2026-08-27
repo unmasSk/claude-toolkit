@@ -58,8 +58,17 @@ python3 scripts/check_pre_trade_discipline.py \
   --answers-file <file>.json \
   --state-dir <dir> \
   --output-dir <dir>/reports \
-  --journal-dir <dir>/journal
+  --journal-dir <dir>/journal \
+  --circuit-breaker-decision <dir>/reports/<breaker report>.json \
+  --fail-on-non-go
 ```
+
+**`--fail-on-non-go` or the exit code lies.** Without it, a `NO_GO` exits 0 — verified.
+With it, anything other than `GO` exits 2.
+
+**`--circuit-breaker-decision` is how the breaker's verdict reaches this gate.** Run the
+breaker first, then hand it its JSON report. Without the pipe, a `HALTED` account cannot
+block a single order here.
 
 **Always pass the output directories.** The defaults are relative to the current working
 directory (`reports/`, `state/journal/…`), so running from a repository root writes report
@@ -72,6 +81,14 @@ happens to be.
 explicit rule violation stays visible even when another candidate merely needs review.
 `GO` decisions are journaled too, not only refusals — a record that only holds failures
 cannot show that the good trades also followed the rules.
+
+**`GO` is unreachable as this plugin ships, and that is not a bug in your answers.** The
+gate also expects `--market-regime-decision`, an artifact produced by a skill that was not
+lifted, and a missing upstream artifact is `REVIEW_REQUIRED` by design. So the honest
+reading of a run whose only reasons are the missing artifacts is *"the gate found nothing
+wrong with this trade and is waiting on an input we do not produce"* — say exactly that,
+and never dress it up as approval. A real rule violation shows up as its own reason next
+to them, and that one is a refusal.
 
 The seven blocking rules themselves: `references/lifted/discipline-gate-framework.md`.
 
