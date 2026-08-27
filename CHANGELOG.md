@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-28
+
 ### Fixed
 
 - **Los cuatro comandos volvían a fallar en el primer uso, y el arreglo de la 1.0.1 era el culpable**: `${CLAUDE_PLUGIN_ROOT}` está vacío en la herramienta Bash —solo se sustituye en las entradas de `hooks.json`— y, encima, una variable de shell no sobrevive de una llamada a la siguiente porque cada llamada es su propio shell. Ahora cada bloque resuelve la ruta de la skill en la misma llamada que la usa, y se copia entero (R-019, que sustituye a la R-018 equivocada, [#85](../../issues/85)).

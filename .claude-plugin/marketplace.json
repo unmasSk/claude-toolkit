@@ -146,7 +146,7 @@
     },
     {
       "name": "unmassk-trading",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Conversational trading on Kraken \u2014 teaches a beginner on a paper account, sizes from risk, validates before executing, never trades on its own",
       "source": {
         "source": "git-subdir",
