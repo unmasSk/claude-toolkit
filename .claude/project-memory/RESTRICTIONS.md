@@ -11,4 +11,4 @@
 [R-015][memory][release] main branch protection reads repo_type from .claude/project-memory/config.json
 [R-016][memory][install] a memory note travels in its own commit; a zone add writes zones.json only
 [R-017][hooks][skills] agents never run git stash/reset/checkout/restore, no pathspec exception
-[R-018][skills][install] a skill's scripts are invoked via CLAUDE_PLUGIN_ROOT, never a bare relative path
+[R-019][skills][install] CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory
