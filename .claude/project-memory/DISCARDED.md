@@ -84,3 +84,4 @@
 [X-084][skills][trading] empezar por acciones y ETFs
 [X-085][skills][trading] empezar por forex o indices
 [X-086][architecture][trading] borrar el freno de la fase 1 y dejar un aviso impreso
+[X-087][architecture][trading] retener la publicacion hasta que el freno funcione
