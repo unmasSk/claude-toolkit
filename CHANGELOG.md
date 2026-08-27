@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Los cuatro comandos volvían a fallar en el primer uso, y el arreglo de la 1.0.1 era el culpable**: `${CLAUDE_PLUGIN_ROOT}` está vacío en la herramienta Bash —solo se sustituye en las entradas de `hooks.json`— y, encima, una variable de shell no sobrevive de una llamada a la siguiente porque cada llamada es su propio shell. Ahora cada bloque resuelve la ruta de la skill en la misma llamada que la usa, y se copia entero (R-019, que sustituye a la R-018 equivocada, [#85](../../issues/85)).
+- **Toda orden de práctica acababa en el espacio de trabajo por defecto**: la cuenta se creaba bien y el `export KRAKEN_WORKSPACE` desaparecía en la llamada siguiente, así que se operaba con otro capital, sin deslizamiento, y la evidencia de la puerta de promoción se escribía donde la puerta no la lee. La selección pasa a viajar como prefijo delante de cada comando (R-019, [#85](../../issues/85)).
+- **El entorno virtual de Python aterrizaba en el repositorio del usuario**: el paso que instala las dependencias gastaba el directorio de trabajo dos pasos antes de acordarlo con él. Ahora se crea dentro de `<dir>`, junto a los informes y el diario ([#85](../../issues/85)).
+- **La comprobación de peligro previa a una orden leía el fichero de otro proyecto y contestaba "no es peligroso"**: `agents/tool-catalog.json` vive en el repositorio fuente del CLI y no viaja en el archivo que se publica, así que la búsqueda o fallaba o acertaba con algo ajeno justo antes de una orden real. La sustituye una regla fija: toda `kraken order …` pide el sí explícito, salvo `cancel-after`, que solo cancela ([#85](../../issues/85)).
+- **La skill afirmaba que sin el binario `kraken` no funciona nada, y es falso**: el contraste de precios habla con los mercados por su cuenta, y el calculador de tamaño y las dos puertas son Python puro. Ahora una tabla dice qué funciona sin él —enseñar, cotizar y calcular— y qué no —practicar y ordenar— en vez de parar la sesión ([#85](../../issues/85)).
+- **Mandaba abrir una grabación de sesión que nunca termina**: `kraken session start` exige unas banderas que la skill no nombraba y luego se queda escuchando la cinta, que es exactamente el demonio que este plugin decidió no montar. El consejo queda invertido —no se abre ninguna— y se explica por qué el aviso de "sin sesión" que sale en cada orden de práctica es inofensivo aquí (D-076, [#85](../../issues/85)).
+- **`--allow-pairs` no se puede añadir después de crear la cuenta de práctica**, y el bloque al que apuntaba el modo avanzado no lo llevaba: quien lo siguiera se quedaba para siempre con una cuenta capaz de operar noventa pares en vez del suyo ([#85](../../issues/85)).
+- **Las dos puertas no se usaban en ningún momento del modo principiante**, pese a que la skill decía que se aplicaban. El ensayo entra ahora en la primera semana, el día 6 y sobre una entrada, porque la puerta no tiene concepto de salida ([#85](../../issues/85)).
+- **Dos contradicciones donde el arreglo aterrizó en un fichero y el otro seguía diciendo lo contrario**: la lista de comandos peligrosos, y `--fail-on-non-go`, que `gate-input.md` seguía exigiendo mientras `SKILL.md` ya explicaba que convierte toda salida en un 2 sin información ([#85](../../issues/85)).
+- **Corrección de honestidad sobre el freno por pérdidas**: no era exacto decir que su almacén de tesis "no lo escribe nadie" — `thesis_store.py` sí trae los comandos de ciclo de vida y el freno lee lo que escriben; lo que no se levantó es la pieza que *crea* una tesis, así que es un cable sin conectar y no un adorno. La regla de la venganza tras una pérdida lee ese mismo almacén y por eso hoy no puede dispararse: `metrics.theses_scanned` es la señal, y conectarlo es la issue [#86](../../issues/86), que abre la fase 2.
+
+### Added
+
+- **Paso 0: comprobar el binario `kraken` e instalarlo si falta**, porque en un proyecto abierto por primera vez el cuarto paso moría con un "command not found" ([#85](../../issues/85)).
+- **Aviso de que dos ejecuciones en el mismo segundo se pisan**: los tres scripts nombran su informe con la marca de tiempo al segundo y truncan, así que dos cálculos seguidos dejan un solo fichero — y el calculador sella en hora local mientras las puertas usan UTC ([#85](../../issues/85)).
+
+### Changed
+
+- **La ruta exacta donde la puerta escribe sus razones queda nombrada** (`candidate_results[].reasons`, verificada), y el recorte por tope de posición se ejemplifica con los números de una ejecución real en vez de con un supuesto ([#85](../../issues/85)).
+
 ## [1.0.1] - 2026-08-27
 
 ### Fixed

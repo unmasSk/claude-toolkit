@@ -55,8 +55,9 @@ directory* below.
 
 Every step below has its own section. The value of this skill is not skipping one.
 
-0. **Tooling** — check `kraken` is installed, and install it if not. Nothing else works
-   without it, and in a project opened for the first time it will not be there.
+0. **Tooling** — check `kraken` is installed, and install it if not. In a project opened
+   for the first time it will not be there, and quotes, the practice account and every
+   order need it (the price check, the sizer and both gates do not — see the table).
 1. **Mode** — read it from memory, ask only if absent.
 2. **Working directory** — read it from memory, agree it only once.
 3. **Read the record** — the risk profile, and prior trades on this pair.

@@ -24,7 +24,7 @@
 
 1. **CI solo en el commit de release**, vía `[skip ci]` en los commits de trabajo (D-070) — decidido el 2026-08-26, sin construir.
 2. **Telemetría de tiempos de sesión y agentes**, mostrada en el arranque siguiente (D-069, issue #84) — decidido el 2026-08-26, sin construir.
-3. **Conectar el freno por pérdidas de `unmassk-trading` a la cuenta de práctica** (D-077, issue #85) — decidido el 2026-08-27 por el Consejo, sin construir. Es lo que abre la fase 2 del plugin: hoy el freno lee un almacén que nadie escribe y contesta «puedes operar» sobre cero datos.
+3. **Conectar el freno por pérdidas de `unmassk-trading` a la cuenta de práctica** (D-077, **issue #86**) — decidido el 2026-08-27 por el Consejo, aparcado a propósito por el propietario: primero aprender con dinero de mentira. Es lo que abre la fase 2 del plugin. Hoy el freno lee un almacén **que nada rellena todavía**: sus comandos de ciclo de vida existen y el freno lee lo que escriben, pero la pieza que *crea* una ficha no se levantó, así que contesta «puedes operar» sobre cero datos.
 
 **`unmassk-trading` publicó su fase 1 el 2026-08-27** `[2026-08-27]`: precio en vivo contrastado contra dos mercados, capa de enseñanza para principiante, cuenta de práctica sin llave y tamaño de posición desde el riesgo. La ejecución de órdenes reales está escrita pero sin ejercitar, y es fase 2. Su capa de disciplina está levantada byte a byte de un repositorio MIT ajeno — no se toca, y `unmassk-trading/CREDITS.md` explica por qué. La issue #85 sigue abierta.
 
