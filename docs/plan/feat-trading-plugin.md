@@ -1,9 +1,8 @@
 # unmassk-trading — Planteamiento y plan
 
 **Issue:** #85 · **Repo:** trunk (`main`) · **Creado:** 2026-08-27
-**Estado:** PLANTEAMIENTO — nada construido. El borrador improvisado del 2026-08-27 está
-apartado fuera del repositorio (`scratchpad/draft-cero/`) y no cuenta como trabajo hecho:
-entra, como mucho, como material de comparación.
+**Estado:** EN CONSTRUCCIÓN. T1 cerrada (código traído, 371 tests en verde, commit
+`136fa49`). T2 con el contrato en rojo escrito (62 tests) e implementación en curso.
 
 ---
 
@@ -71,8 +70,15 @@ pasar de dinero de mentira a dinero de verdad.
 3. **El registro y sus estadísticas** — qué funcionó, qué no, y contradecirle con su
    propio historial.
 
-Fuera de todas ellas por ahora: acciones y ETFs (el dato en vivo cuesta dinero),
-backtesting, y la idea del juego.
+Fuera de todas ellas por ahora: backtesting y la idea del juego.
+
+**Acciones, y en concreto el sector de la IA — fase 2.** Es lo que al propietario le
+interesa mirar (2026-08-27), y tiene una ventaja real ahí: trabaja en esto y entiende qué
+hace cada empresa. Dos hechos que lo colocan en la fase 2 y no en la 1: el dato en vivo de
+acciones cuesta unos 99 $/mes mientras que con 15 minutos de retraso es gratis —
+suficiente para comprar y mantener, inútil para el minuto—, y **Kraken no lista acciones
+tokenizadas** en su catálogo de pares (comprobado el 2026-08-27 contra `AssetPairs`: 1437
+pares, ninguno de acciones), así que esa puerta no existe hoy.
 
 ---
 
@@ -100,11 +106,16 @@ investigación → plan → planteamiento
 
 ## 3 · Tareas
 
-### T1 · Traer el código (Ultron + Dante) — sin dependencias
-- [ ] Copiar `position_sizer.py` y sus tests, con cabecera de atribución MIT
-- [ ] Copiar `check_circuit_breaker.py` y `check_pre_trade_discipline.py` con sus tests
-- [ ] Adaptar: euros, cripto 24/7 (no hay "próximo día hábil"), y las comisiones de Kraken
-- [ ] Verificación: la suite copiada pasa **antes** de tocar nada, y sigue pasando después
+### T1 · Traer el código (Ultron + Dante) — **HECHA**
+- [x] `position_sizer.py`, `check_circuit_breaker.py`, `check_pre_trade_discipline.py`,
+      `thesis_store.py` y `schemas/thesis.schema.json`, byte a byte, con atribución MIT
+- [x] Sus tests enteros: **371, todos en verde**, sin tocar una sola comprobación
+- [x] Los cinco documentos de esas piezas, también copiados, en `references/lifted/`
+- [x] Una única línea de lógica cambiada en todo el traslado (la ruta del módulo hermano),
+      declarada en `CREDITS.md`
+- [x] Línea trazada: no se sigue tirando del hilo de dependencias (`thesis_review` fuera)
+- [ ] **Pendiente de la pasada de adaptación:** etiquetas en dólares y "shares", calendario
+      de mercado estadounidense, y rutas de salida relativas al directorio actual
 
 ### T2 · El comprobador de precio (Dante contrato → Ultron)
 
