@@ -18,6 +18,26 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un gate que consume el veredicto de otro POR RUTA, sin frescura ni calidad
+- Cuando la pieza B decide leyendo un artefacto JSON que produce la pieza A, atacar SIEMPRE tres cosas antes que la lógica: (1) pasarle un artefacto viejo de A, (2) pasarle uno que A generó sobre datos vacíos/erróneos, (3) NO pasárselo (si la bandera es opcional).
+- La prueba se monta en 4 comandos: correr A antes del hecho (artefacto benigno), provocar el hecho, correr A otra vez (artefacto que refuta), y correr B con cada uno. Si B da el mismo veredicto o uno indistinguible, está roto.
+- El agravante que convierte esto en T1 no está en el código sino en la prosa: buscar la frase del doc que enseña a leer "faltan artefactos" como "no encontró nada malo". Ahí el bypass deja de ser un fallo y pasa a ser la instrucción.
+- Segundo agravante a comprobar siempre: si el código de salida no distingue los casos (p.ej. una bandera `--fail-on-*` que devuelve lo mismo para "refusal" y para "input que no producimos") y stdout imprime solo el veredicto sin las razones, entonces NADA de lo que el doc manda leer separa los dos.
+
+### El bloque de comando copiable manda sobre el párrafo que lo corrige
+- Una skill puede decir en prosa "sin esta bandera el halt no bloquea nada" y, tres líneas antes o en otro fichero, imprimir el bloque `bash` sin esa bandera. Lo que se ejecuta es el bloque.
+- Ataque: extraer TODOS los bloques de comando de la skill y sus referencias, ejecutarlos literalmente, y comparar el resultado con lo que la prosa promete. Contar cuántos sitios muestran el comando y en cuántos falta la bandera crítica.
+
+### Calendario ajeno: reloj del mercado equivocado sobre datos 24/7
+- Cuando código levantado de otro dominio agrega por "día" con un huso fijo (`America/New_York`, semanas de lunes) y el proyecto lo usa sobre un mercado 24/7, el fallo no es de frontera: es un número falso. Probar el MISMO hecho a dos horas del mismo día natural del usuario y comparar el veredicto.
+- La ventana peligrosa es [00:00, |offset|) UTC: ahí el hecho se contabiliza al día anterior, el agregado del día sale 0.00 y la calidad del dato sigue diciendo OK.
+- Comprobar si la suite de tests ya CODIFICA ese comportamiento: si hay un test que lo afirma como correcto, el hallazgo sigue siendo real pero hay que decir que está bendecido, no descubierto.
+
+### Colisión de nombre de artefacto con marca de tiempo de segundos
+- Cualquier `salida_%Y-%m-%d_%H%M%S.ext` escrita con truncado pierde artefactos sin concurrencia ninguna: dos ejecuciones seguidas en el mismo segundo bastan.
+- Prueba barata y demoledora: N ejecuciones con veredictos distintos -> contar ficheros. Si el que sobrevive es el permisivo, es un hallazgo de dinero, no de higiene.
+- Señal delatora en el registro: varias entradas de auditoría idénticas apuntando todas al mismo fichero.
+
 ### Re-running the ORIGINAL reproducing command verbatim after a claimed fix
 - When a prior round left a live PoC (e.g. "delay function X via monkeypatch, race an external writer in during the delay"), re-run that EXACT command against the new code before trusting a docstring that says "closes this window"
 - A fix can legitimately close a related-but-narrower window (e.g. between two internal reads) while leaving the original command's exact target (the gap right before the final write call) unchanged — the fix reads as if it closed "the" race but only closed one shape of it

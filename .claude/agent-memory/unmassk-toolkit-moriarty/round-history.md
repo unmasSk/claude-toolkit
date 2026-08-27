@@ -5,6 +5,91 @@ metadata:
   type: project
 ---
 
+## unmassk-trading plugin (SKILL.md + 5 refs + 5 scripts + 645 tests -- 2026-08-27)
+Target: the whole `unmassk-trading/` plugin. Everything runnable was run
+(645 tests green, real network to Kraken/Binance, real producer->consumer
+round trips); the live-order path was read only (`kraken` binary absent
+by design of the task). Verdict: FALLA.
+
+BREAK 1 (T1, the win condition) -- the documented gate invocation cannot
+see the circuit breaker's HALT. `SKILL.md` ("The gates, before the
+order") and `references/risk-and-sizing.md` both print a
+`check_pre_trade_discipline.py` command block WITHOUT
+`--circuit-breaker-decision`; that flag is optional and is the only way
+the breaker's verdict reaches the gate. Run as printed, with the breaker
+saying HALTED on the same state dir, the gate answers REVIEW_REQUIRED
+and its complete reason list is exactly
+`['market_regime artifact not provided', 'circuit_breaker artifact not
+provided']` -- and `references/gate-input.md` instructs the reader that
+"the honest reading of a run whose only reasons are the missing
+artifacts is 'the gate found nothing wrong with this trade'". The prose
+converts a halted account into an approval.
+
+BREAK 2 (T1) -- `check_pre_trade_discipline.py::_artifact_decision`
+reads only `recommendation`/`decision`/`status` from the breaker's JSON.
+No freshness check (`generated_at`/`as_of_date` ignored), no
+`data_quality` check. A breaker report from before the loss, or one
+produced against a mistyped state dir (`TRADING_ALLOWED` +
+`EMPTY_STATE`), is accepted as circuit_breaker OK. Proven side by side:
+fresh artifact -> NO_GO; stale artifact -> REVIEW_REQUIRED with only the
+benign market_regime reason. `--fail-on-non-go` exits 2 in BOTH cases
+(GO is unreachable as shipped), and stdout prints only the decision --
+never the reasons -- so nothing the docs tell you to read distinguishes
+them.
+
+BREAK 3 (T1, silent wrong number) -- the breaker books P&L on
+`America/New_York` calendar days. A 24/7 crypto close stamped
+`2026-08-27T01:00:00+00:00` (same UTC and Madrid calendar day) lands on
+ET 2026-08-26: `realized_pnl_today: 0.0`, `TRADING_ALLOWED`,
+`data_quality: OK`, zero warnings, for a day the user lost 3 EUR on a
+100 EUR account. The identical trade at 12:00 UTC -> HALTED. Every
+crypto close between 00:00-04:00/05:00 UTC escapes the daily limit.
+`test_realized_pnl_uses_eastern_date_boundaries` codifies this as
+intended, and SKILL.md warns the calendars are US-shaped -- but neither
+says the daily gate stops firing.
+
+BREAK 4 (money) -- `position_sizer.py` never compares position value to
+account size and `--max-position-pct` appears nowhere in SKILL.md or the
+references (only inside a code snippet in a lifted file). Account 500 EUR,
+entry 67517, stop 67010 (a 0.75% crypto stop), risk 1% ->
+"Position: $665.85 / Risk: $5.00 (1.0%)". 133% of the account, exit 0,
+no warning. SKILL.md's mandated three lines report the risk percentage,
+never the cost-vs-account ratio.
+
+BREAK 5 -- artifact filenames are second-granular
+(`..._%Y-%m-%d_%H%M%S.json`) and written with truncating writes. Three
+sequential gate runs left ONE report file and three identical
+`linked_reports` entries in the thesis all pointing at it; six parallel
+breaker runs (3 HALTED, 3 TRADING_ALLOWED) left one file, saying
+TRADING_ALLOWED. All six exited 0.
+
+BREAK 6 (race) -- `thesis_store.link_report` is read-modify-write with
+no lock: 8 concurrent calls on one thesis -> 4 entries recorded, 4 lost,
+every call returned success. `_atomic_write_yaml` makes each write
+atomic, never serialized.
+
+DECEPTIONS -- (a) `references/risk-and-sizing.md`: "There is no trade
+journal file anywhere in this skill, deliberately", while its own
+printed command line writes
+`state/journal/pre-trade-discipline/*.jsonl` into the cwd (gate-input.md
+does document `--journal-dir`; risk-and-sizing.md contradicts it).
+(b) `references/lifted/thesis-lifecycle.md`: "Every lifecycle operation
+is also a thesis_store.py subcommand ... No Python required" -- there is
+no `register` and no `link-report` subcommand, so the store cannot be
+populated from the CLI at all. (c) nothing in the documented workflow
+ever writes `state/theses/` (the record goes to gitmem notes), so for a
+user who follows SKILL.md the breaker reads an empty store forever and
+answers TRADING_ALLOWED over zero data. (d) SKILL.md's claim that
+`BTCUSDT` "splits as BTCU/SDT and the venue refuses it by name" is false:
+split-then-concatenate is a no-op for the URL and both venues answered OK.
+
+HELD: price_check.py (live BTC/EUR OK; zero-venue -> SINGLE_SOURCE with
+an honest reason; exit codes 0/3/4/5/2 exactly as documented), the
+sizer's documented sample output byte-exact, both gates' verdict-vs-exit-
+code contract exactly as documented, fail-loud on malformed/duplicate/
+non-directory state, gates still emit verdicts without `jsonschema`,
+20k-candidate and 5000-deep-nesting inputs.
+
 ## D-065/D-066 issue-customs gate (Q/I "vara de medir", --work/--issue/--quote -- 2026-08-26)
 Target: `lib/memory/{model,vocabulary,format,report_render_note,validator,
 validator_issue}.py` + `bin/memory/note.py`, diff `95df7d3^..HEAD`, all

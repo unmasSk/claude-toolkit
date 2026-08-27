@@ -8,6 +8,22 @@ recordado), sistema v1 retirado al final (borrado entero en `615f5cc`,
 El detalle completo de la era retirada sigue en `round-history.md` y
 `docs/deprecated/`.
 
+## unmassk-trading (plugin nuevo, 2026-08-27) — lo que aguantó
+
+### price_check.py — no encontré nada, y lo intenté por 5 vías
+- Red real contra Kraken y Binance: OK, spread 0.42 bps, edades correctas.
+- Cero venues (par inventado `ZZZ/EUR`): verdict `SINGLE_SOURCE`, salida 5, y el campo `reason` dice literalmente "no venue answered with a usable price" — la trampa que SKILL.md avisa está realmente cubierta.
+- Contrato de códigos de salida 0/3/4/5 (+2 de argparse) exacto; el 2 reservado a argparse a propósito.
+- `spread_bps` sale a precisión completa como string, nunca redondeado a 0; `_spread_bps` devuelve None (no 0) si falta un precio.
+- Única prosa falsa: SKILL.md dice que `BTCUSDT` "se parte como BTCU/SDT y el venue lo rechaza por nombre" — no: partir y volver a concatenar es un no-op para la URL y los dos venues contestaron OK. Error inofensivo en dirección segura.
+
+### Los dos gates — fail-loud donde importa
+- Salida documentada = salida real: breaker sin `--account-size` y gate sin `--answers-file` salen 2 sin comprobar nada; `HALTED` y `NO_GO` salen 0 sin `--fail-on-non-go`. Los tres avisos de SKILL.md son exactos.
+- YAML de tesis corrupto, `thesis_id` duplicado, `--state-dir` que es un fichero -> warnings + `PARTIAL` + `HALTED`. La ausencia NUNCA se convierte en pase en el breaker por esa vía.
+- Sin `jsonschema` instalado (python3 del sistema): ambos gates dan su veredicto normal, y el fallo de enlace con la tesis aparece como razón explícita `Could not load trader-memory-core link_report`.
+- Salida documentada del sizer (`0.00110692 shares / $74.74 / $5.00 (1.0%)`) reproducida byte a byte con la llamada exacta de SKILL.md.
+- Estrés: 20.000 candidatos (7,7 MB) en 0,35 s; YAML anidado 5.000 niveles -> `Error: maximum recursion depth exceeded`, salida 1, sin traza. 645 tests en verde sin dejar ficheros sueltos.
+
 ## Sistema actual — memoria v2 (`lib/memory/*`, `hooks/customs.py`, `hooks/checklist-gate.py`, `hooks/skill-checklist-inject.py`, `bin/memory/*`)
 
 ### lib/memory/ 13-module round (memoria-v2, 2026-08-02) -- what held
