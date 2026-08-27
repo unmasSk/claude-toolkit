@@ -110,5 +110,9 @@
       "tests"
     ],
     "description": "la suite de tests: que entra, que sobra y como se ejecuta"
+  },
+  "trading": {
+    "aliases": [],
+    "description": "la skill de trading: datos de mercado en vivo, explicacion y consejo"
   }
 }

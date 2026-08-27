@@ -1,0 +1,11 @@
+# Third-party dependencies of unmassk-trading's own scripts.
+# The rest of this toolkit is stdlib-only; these two arrive with the lifted
+# discipline layer (see CREDITS.md) and are declared here rather than assumed.
+#
+#   pip install -r unmassk-trading/requirements.txt
+#
+# Not needed to use the skill's knowledge layer, nor to drive kraken-cli.
+# Needed to run this plugin's own test suite and its gate scripts.
+
+PyYAML>=6.0          # check_circuit_breaker.py, check_pre_trade_discipline.py
+jsonschema>=4.25.1   # thesis_store.py — validates every write against schemas/thesis.schema.json
