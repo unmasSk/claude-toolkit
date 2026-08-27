@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-27
+
 ### Fixed
 
 - **Los cuatro comandos de la skill fallaban la primera vez que alguien los usaba**: se invocaban con una ruta relativa (`python3 scripts/…`) y una skill corre con el directorio de trabajo puesto en el proyecto del usuario, no en el plugin, así que el precio, el tamaño de posición y las dos puertas se caían con un error de ruta. Las ocho llamadas y la línea de `pip install` pasan a `${CLAUDE_PLUGIN_ROOT}`, que es lo que ya hacían los otros seis plugins del repositorio (R-018, [#85](../../issues/85)).
