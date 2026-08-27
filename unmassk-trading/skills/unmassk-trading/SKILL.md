@@ -102,9 +102,11 @@ kraken ohlc BTCEUR --interval 60 -o json
 python3 scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
 ```
 
-`price_check.py` takes `--pair`. The slashless form works for three-letter quotes
-(`BTCEUR`, `ETHEUR`); **write the slash for anything else** — `BTCUSDT` splits as
-`BTCU`/`SDT` and the venue refuses it by name. There is no positional argument. **`SINGLE_SOURCE` is also the verdict when *zero* venues answered** —
+`price_check.py` takes `--pair`; there is no positional argument. The slashless form works
+(`BTCEUR`, `BTCUSDT` — both verified live against the two venues). Internally a slashless
+four-letter quote splits oddly, which is invisible because the halves re-concatenate into
+the same URL; **prefer the slash** (`BTC/USDT`) so the Kraken `BTC→XBT` alias resolves the
+way it is meant to. **`SINGLE_SOURCE` is also the verdict when *zero* venues answered** —
 read the `reason` field before repeating the label, or you will tell the user one market
 replied when none did. Exit codes: `0` OK, `3` DISAGREE, `4` STALE, `5` SINGLE_SOURCE, `2`
 argparse usage error. **A caller that only checks the exit code is still protected** —
@@ -143,8 +145,15 @@ a sub-1-unit position collapses to zero. **Pass `--output-dir` too**: the defaul
 JSON and a Markdown report into `reports/` relative to the current directory, which means
 into whatever repository the shell happens to be sitting in.
 
-Three lines are always said out loud, in euros: what it **costs**, what it **loses at the
-stop**, and what **percentage of the account** that is. If the user has not named a stop,
+**The sizer does not check the position against the account, and it will hand you one
+bigger than the account.** Verified: a 500 € account with a 0.75% stop returns a 661 €
+position, exit 0, no warning — the risk is a correct 1%, and the *cost* is 132% of
+everything the user has. Always pass **`--max-position-pct`** (25 is a sane start), and
+say the cost as a share of the account out loud.
+
+Four lines are always said out loud, in euros: what it **costs**, what that cost is **as a
+percentage of the account**, what it **loses at the stop**, and what that loss is as a
+percentage. If the user has not named a stop,
 that is the missing input — ask for it before sizing, not after. Methods (fixed
 fractional, ATR, half-Kelly) in `references/lifted/sizing-methodologies.md`; the account
 number to use, and why it is not the exchange balance, in `references/risk-and-sizing.md`.
@@ -177,13 +186,24 @@ opposite of `price_check.py`, and getting it wrong means reading a refusal as a 
 - `check_circuit_breaker.py` has no equivalent. Its verdict is the `Recommendation:` line,
   full stop.
 
-**And the two gates only see each other if you pipe them.** The discipline gate reads the
-breaker's verdict from `--circuit-breaker-decision <its JSON report>`; without it, the
-breaker's `HALTED` cannot block anything, and the gate answers `REVIEW_REQUIRED` because
-an artifact it expected is missing. It also expects `--market-regime-decision`, and
-**nothing in this plugin produces one** — so `GO` is unreachable as shipped. Treat
-`REVIEW_REQUIRED` with only that reason as what it is (a missing input we do not produce),
-not as a warning about the trade, and say which one it is when reporting to the user.
+**The pipe is not optional.** Run the breaker first and hand its JSON report to the gate
+as `--circuit-breaker-decision`. Without it a `HALTED` account blocks nothing — verified:
+breaker `HALTED`, gate `REVIEW_REQUIRED`, and the only reasons are the two missing
+artifacts. Reporting that as "nothing wrong with this trade" while the account is halted is
+the single worst failure this plugin can produce.
+
+**Before passing a breaker report, check the report itself:** the gate reads only its
+`recommendation` field and never looks at when it was made or whether it checked anything.
+A report from yesterday, or one whose `data_quality` says `EMPTY_STATE`, is accepted as a
+clean bill of health. Pass the run you just made, not `ls | head -1`, and give each run its
+own `--output-dir` — the filenames are second-granular and two runs in the same second
+overwrite each other.
+
+**`--market-regime-decision` has no producer here**, so `GO` is unreachable as shipped.
+When reporting a `REVIEW_REQUIRED`, name which reasons are present: `market_regime` alone
+means "no rule was broken and one input we do not produce is missing"; anything else in
+that list is a real finding, and `circuit_breaker artifact not provided` means **you forgot
+the pipe**, not that the account is fine.
 
 **The two gates do not fail the same way, and the difference matters:**
 
@@ -195,6 +215,19 @@ not as a warning about the trade, and say which one it is when reporting to the 
   `TRADING_ALLOWED` with `EMPTY_STATE` beside it — verified. **Read the data-quality field
   before believing the verdict**, and when it says `EMPTY_STATE`, say so: there is no
   history, so nothing was actually checked.
+
+**Two limits of the breaker that a 24/7 market makes real, both verified:**
+
+- **Its day boundary is New York, not UTC.** A loss closed between roughly 00:00 and 05:00
+  UTC — 02:00 to 06:00 in Madrid — is booked to *yesterday*: `realized_pnl_today` comes
+  back `0.0`, verdict `TRADING_ALLOWED`, `data_quality: OK`, no warning. The daily loss
+  limit has a nightly blind window, and crypto trades through it. Until the calendar is
+  adapted, do the day's arithmetic yourself before trusting a `TRADING_ALLOWED` at night.
+- **It reads a thesis store this plugin never writes.** The trade record kept here goes to
+  git-memory notes; nothing in the documented workflow creates `state/theses/`. So unless
+  the user maintains that store deliberately, the breaker answers `TRADING_ALLOWED` over
+  zero data, forever. `data_quality: EMPTY_STATE` is the tell, and it is the difference
+  between a brake and an ornament.
 
 A `HALTED` or `COOLDOWN` is stated with its number and its reason, and it is not lifted
 because the user asks again in the same session. Thresholds:

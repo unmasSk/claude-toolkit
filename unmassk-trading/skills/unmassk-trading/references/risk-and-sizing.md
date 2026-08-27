@@ -67,11 +67,17 @@ The same numbers as the worked example above — which is the point of checking 
 against the arithmetic instead of trusting either alone. `--fractional`, `--output-dir`
 and the `$`/`shares` labels are covered in `SKILL.md`; they are not repeated here.
 
-Three lines are always said out loud, in euros, before any order:
+Four lines are always said out loud, in euros, before any order:
 
 - what the position **costs**,
+- what that cost is **as a percentage of the account** — the sizer will hand you a position
+  worth more than the whole account if the stop is tight, and it says nothing when it does
+  (verified: 500 € account, 0.75% stop → a 661 € position, exit 0),
 - what it **loses at the stop**,
-- what **percentage of the account** that is.
+- what **percentage of the account** that loss is.
+
+Pass `--max-position-pct` so the tool enforces the first of those instead of leaving it to
+whoever happens to be reading.
 
 If the user has not named a stop, **that is the missing input** — ask for it before
 sizing, not after. A position with no stop cannot be sized, only guessed at.
@@ -143,10 +149,19 @@ What matters here, in the conversation:
 
 ## The record — in memory, never in a second file
 
-Every closed position and every meaningful decision becomes a `gitmem` note. There is no
-trade journal file anywhere in this skill, deliberately: a parallel store is a second
-memory to keep in sync, and this project already has one that survives sessions and
-machines.
+Every closed position and every meaningful decision becomes a `gitmem` note. **The record
+this plugin keeps is the memory, not a file** — a parallel store is a second memory to keep
+in sync, and this project already has one that survives sessions and machines.
+
+Two file-based stores exist anyway, and claiming otherwise was a lie this document told
+until it was caught:
+
+- **The discipline gate appends a journal** of every decision (`--journal-dir`, default
+  `state/journal/…` relative to the working directory). It is the gate's own audit trail;
+  point it somewhere deliberate.
+- **The circuit breaker reads a thesis store** (`--state-dir`) that this plugin's workflow
+  never writes. Unless the user maintains it on purpose, the breaker reads nothing and
+  answers `TRADING_ALLOWED` over zero data — see `SKILL.md`.
 
 Fields worth carrying in the note body:
 

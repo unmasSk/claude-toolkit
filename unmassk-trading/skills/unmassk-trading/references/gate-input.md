@@ -67,8 +67,14 @@ python3 scripts/check_pre_trade_discipline.py \
 With it, anything other than `GO` exits 2.
 
 **`--circuit-breaker-decision` is how the breaker's verdict reaches this gate.** Run the
-breaker first, then hand it its JSON report. Without the pipe, a `HALTED` account cannot
-block a single order here.
+breaker first, then hand it **the report you just made**. Without the pipe, a `HALTED`
+account cannot block a single order here — verified.
+
+And check the report before passing it: the gate reads only its `recommendation` and never
+looks at `generated_at` or `data_quality`. **A stale report, or one that says
+`EMPTY_STATE`, is accepted as a clean bill of health.** Give every run its own
+`--output-dir`; the filenames are second-granular and two runs in the same second
+overwrite each other, leaving one file whose verdict may not be the one you think.
 
 **Always pass the output directories.** The defaults are relative to the current working
 directory (`reports/`, `state/journal/…`), so running from a repository root writes report
@@ -84,11 +90,20 @@ cannot show that the good trades also followed the rules.
 
 **`GO` is unreachable as this plugin ships, and that is not a bug in your answers.** The
 gate also expects `--market-regime-decision`, an artifact produced by a skill that was not
-lifted, and a missing upstream artifact is `REVIEW_REQUIRED` by design. So the honest
-reading of a run whose only reasons are the missing artifacts is *"the gate found nothing
-wrong with this trade and is waiting on an input we do not produce"* — say exactly that,
-and never dress it up as approval. A real rule violation shows up as its own reason next
-to them, and that one is a refusal.
+lifted, and a missing upstream artifact is `REVIEW_REQUIRED` by design.
+
+**Read the reasons one by one before saying anything. They are not interchangeable:**
+
+| Reason | What it means |
+|---|---|
+| `market_regime artifact not provided` | The input nobody produces here. No rule was broken by this. |
+| `circuit_breaker artifact not provided` | **You forgot the pipe.** The account may be halted right now and this gate cannot see it. Never report this as "nothing wrong" — go and run the breaker. |
+| anything else | A real finding. That one is a refusal. |
+
+Only when `market_regime` is the **sole** reason may you say the gate found no rule
+violation — and even then, say that the breaker was checked separately and what it said.
+The reasons are written to the JSON report and are **not** printed on stdout, so read the
+file; the `Decision:` line alone does not tell you which of the three rows you are in.
 
 The seven blocking rules themselves: `references/lifted/discipline-gate-framework.md`.
 

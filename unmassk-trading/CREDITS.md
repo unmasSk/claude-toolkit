@@ -20,7 +20,15 @@ From **[tradermonty/claude-trading-skills](https://github.com/tradermonty/claude
 | `skills/unmassk-trading/scripts/tests/*` | the matching `scripts/tests/` of each skill above | ~5000 |
 
 Each Python file carries an attribution header; the JSON schema cannot carry a comment,
-which is why its provenance is recorded here. **The bodies are byte-identical to source**,
+which is why its provenance is recorded here.
+
+**The five lifted reference documents describe the upstream toolkit, not this plugin.**
+They are kept verbatim on purpose — editing them would break the "byte-identical" claim —
+but they mention commands and workflows that were not lifted. `thesis-lifecycle.md`, for
+instance, says every lifecycle operation is a `thesis_store.py` subcommand "no Python
+required"; here there is no `register` and no `link-report` subcommand. Read them for the
+reasoning and the thresholds, never as this plugin's command surface. The command surface
+is `SKILL.md`. **The bodies are byte-identical to source**,
 verified by stripping the header and diffing.
 
 **The one line of logic changed on the way in:** `check_pre_trade_discipline.py` loaded
