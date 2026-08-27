@@ -78,12 +78,22 @@ a number gates a decision it is checked against a second venue:
 ```bash
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
-python3 scripts/price_check.py BTCEUR        # two venues, ages, spread, verdict
+python3 scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
 ```
 
-`price_check.py` exits non-zero on `DISAGREE`, `STALE` or `SINGLE_SOURCE`, so a caller
-cannot ignore a bad quote. **Two disagreeing prices are reported, never averaged.** Full
-command surface, the paper simulator's honest limits, and the MCP wiring:
+`price_check.py` takes `--pair` (the slashless form `BTCEUR` also works); there is no
+positional argument. Exit codes: `0` OK, `3` DISAGREE, `4` STALE, `5` SINGLE_SOURCE, `2`
+argparse usage error. **A caller that only checks the exit code is still protected** —
+that is the point of them being distinct. Two disagreeing prices are reported, never
+averaged.
+
+**Read the JSON, then speak plainly.** `spread_bps` is emitted at full precision on
+purpose (rounding it would hide a real difference between two prices that a float would
+flatten to zero). Never read that number out. Say "los dos mercados coinciden" — or, when
+they do not, "difieren un 0,4%, así que este precio no vale para decidir". The
+machine-readable field stays exact; what reaches the user is one sentence.
+
+Full command surface, the paper simulator's honest limits, and the MCP wiring:
 `references/kraken-cli.md`.
 
 ## Sizing — before any order, always

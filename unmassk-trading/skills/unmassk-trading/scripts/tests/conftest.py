@@ -37,3 +37,15 @@ if str(scripts_dir) not in sys.path:
 tests_dir = Path(__file__).resolve().parent
 if str(tests_dir) not in sys.path:
     sys.path.insert(0, str(tests_dir))
+
+
+# PRICE_CHECK (Dante, contract pass 2026-08-27): registers the one marker used
+# by test_price_check.py's live round-trip tests, which hit the real Kraken and
+# Binance public endpoints. A marker cannot be registered from inside a test
+# module, and this repo's pyproject.toml declares no [markers], so it belongs
+# here. Deselect the live pair with:  pytest -m "not live"
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live: hits a real public venue endpoint over the network (deselect with -m 'not live')",
+    )
