@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Los cuatro comandos de la skill fallaban la primera vez que alguien los usaba**: se invocaban con una ruta relativa (`python3 scripts/…`) y una skill corre con el directorio de trabajo puesto en el proyecto del usuario, no en el plugin, así que el precio, el tamaño de posición y las dos puertas se caían con un error de ruta. Las ocho llamadas y la línea de `pip install` pasan a `${CLAUDE_PLUGIN_ROOT}`, que es lo que ya hacían los otros seis plugins del repositorio (R-018, [#85](../../issues/85)).
+- **El directorio de trabajo ya tiene nombre, propuesta (`~/trading/`) y sitio en la memoria**: estaba escrito como `<dir>` y no se definía en ninguna parte, así que cada sesión podía elegir otro y el freno por pérdidas acabaría leyendo un almacén vacío para siempre ([#85](../../issues/85)).
+- **Las instrucciones de la puerta previa a la orden se contradecían**: obligaban a pasar `--fail-on-non-go` mientras `GO` es inalcanzable, con lo que el código de salida era un 2 permanente y no significaba nada, y mandaban nombrar unas razones que no se imprimen por stdout. Ahora se lee el informe JSON, y esa bandera solo se usa cuando `GO` sea alcanzable ([#85](../../issues/85)).
+- **El tope por posición recortaba el tamaño en silencio**: `--max-position-pct` puede mostrar un 0,25% a quien pidió arriesgar el 1%, y el campo que dice por qué encogió (`binding_constraint`) solo aparece en el informe JSON. Ahora se lee y se da la razón en voz alta ([#85](../../issues/85)).
+- **El CI de los plugins maker llevaba tres semanas sin ejecutarse y en verde aparente**: fijaba Python 3.10 mientras dos de sus propias dependencias exigen 3.11+, así que no podía ni instalarse, y el filtro por rutas del workflow lo mantenía dormido en vez de rojo. Ahora 3.12, con los dos trabajos pasando (M-133).
+
+### Added
+
+- **Una secuencia de doce pasos al principio de la skill**: la tubería existía solo repartida entre cinco secciones y dos ficheros de referencia, y el valor entero de esta skill es no saltarse un paso ([#85](../../issues/85)).
+- **Sección de lectura de la cuenta**: la descripción se dispara con "cómo va mi cartera" y no había procedimiento para responderlo, siendo lo que `honest-advice.md` señala como su salida más valiosa — aritmética sobre los números del propio usuario en vez de una apuesta sobre el futuro ([#85](../../issues/85)).
+- **Se consulta la memoria (`gitmem search`) antes de calcular el tamaño**: contradecir al usuario con su propio historial es la capacidad que la skill declara como su mejor baza, y ningún paso la disparaba ([#85](../../issues/85)).
+- **Aviso cuando `gitmem` no está**: la skill sigue cotizando, calculando y filtrando, pero el registro de operaciones no tiene dónde ir, y eso el usuario lo merece saber antes de operar y no después ([#85](../../issues/85)).
+
+### Changed
+
+- **Disparadores afinados y alcance declarado**: las frases ambiguas quedan cualificadas (`"he perdido"` → `"he perdido dinero"`), las peticiones de autonomía que la skill existe para rechazar ("invierte por mí", "opera mientras duermo") entran como disparadores para que la negativa llegue con sus razones en vez de improvisarse, y se dice en claro que esto es cripto al contado en Kraken y nada más ([#85](../../issues/85)).
+- **Unas sesenta líneas de mecánica de las puertas salen de `SKILL.md`**: duplicaban `gate-input.md`, que es el fichero al que la propia skill manda leer, y dos copias de los mismos números terminan divergiendo ([#85](../../issues/85)).
+
 ## [1.0.0] - 2026-08-27
 
 ### Added
