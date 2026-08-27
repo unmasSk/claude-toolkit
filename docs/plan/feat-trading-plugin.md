@@ -169,10 +169,15 @@ escribió.
 - [ ] **Lo que el Consejo deja abierto:** el wrapper que conecta freno y cuenta de práctica
       —y el límite del día en UTC— no está construido. Es la fase 2
 
-### T7 · Documentación y cierre — depende de T6
-- [ ] Alexandria: tres superficies + CHANGELOG
-- [ ] Suite entera en verde, commit y push en `main`
-- [ ] #85 sigue abierta: esto cierra la fase 1, no la issue
+### T7 · Documentación y cierre — **HECHA**
+- [x] Alexandria: tres superficies + CHANGELOG (dos entradas, 1.0.0 y 1.0.1)
+- [x] Suites en verde: 689 del plugin, 1.285 del toolkit; CI verde en los dos trabajos
+- [x] Validadores de plugin-dev pasados: cazaron que **ninguno de los comandos habría
+      funcionado instalado** (rutas relativas, R-018) y el punto muerto de la puerta
+- [x] Publicado v1.0.0 y, con los arreglos, v1.0.1
+- [x] #85 sigue abierta: esto cierra la fase 1, no la issue
+
+**Status: COMPLETED** (fase 1; la fase 2 es la #86)
 
 ## 4 · Lo que estaba sin decidir — **[2026-08-27] las tres decididas**
 
