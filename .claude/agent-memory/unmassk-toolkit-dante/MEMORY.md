@@ -78,6 +78,7 @@
 - [note-issue-gate-work-quote-contract-notes.md](note-issue-gate-work-quote-contract-notes.md) — D-065/D-066 note.py Q/I issue-gate RED contract (4 rounds merged): 2 CLI gaps, 19-test harness repair, Moriarty's 4-point break (customs-hook bypass, \r-in-quote round-trip loss, --issue none regression, --issue+--work no contradiction)
 - [trading-suite-lift-tradermonty-notes.md](trading-suite-lift-tradermonty-notes.md) — tradermonty test-suite lift: conftest merge, thesis_store blocker, US-Eastern calendar list
 - [price-check-red-contract-notes.md](price-check-red-contract-notes.md) — price_check.py contract + hardening: real venue shapes, checked_at-after-fetch flaw, entry-point coverage gap
+- [position-sizer-independent-crosscheck-notes.md](position-sizer-independent-crosscheck-notes.md) — position_sizer.py hand-computed cross-check: Fraction-first, two-mutant proof, float money display
 
 ## Retired (different stack or superseded, kept on disk unlinked)
 

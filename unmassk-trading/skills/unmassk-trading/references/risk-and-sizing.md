@@ -47,7 +47,13 @@ amount at risk — is the single idea a beginner has to internalise, and showing
 numbers every single time is how it lands.
 
 **And it is not computed by hand — the script does it**, with `Decimal` and rounding down,
-so a rounding error can never enlarge a position:
+so a rounding error can never enlarge a position. **The arithmetic is independently
+verified**: fourteen cases were computed by hand from the definition above, with exact
+rational arithmetic, before the script was run — all fourteen agree, and mutating the
+rounding to nearest kills seventeen tests. The one thing that number does *not* cover: the
+euro amounts are formatted through binary floats, so about one result in a thousand shows a
+cent that could have gone either way on an exact half-cent tie. The **size** — the only
+figure acted on — is `Decimal` end to end and is never affected.
 
 ```bash
 python3 scripts/position_sizer.py \
@@ -72,7 +78,8 @@ Four lines are always said out loud, in euros, before any order:
 - what the position **costs**,
 - what that cost is **as a percentage of the account** — the sizer will hand you a position
   worth more than the whole account if the stop is tight, and it says nothing when it does
-  (verified: 500 € account, 0.75% stop → a 661 € position, exit 0),
+  (verified: 500 € account, entry 67517, stop 67010 — a 0.75% stop — → `Position: $665.85`,
+  exit 0; the full recipe is in `SKILL.md`),
 - what it **loses at the stop**,
 - what **percentage of the account** that loss is.
 
@@ -141,8 +148,10 @@ What matters here, in the conversation:
 - **Both calendars are US-market** (`America/New_York`, Monday weeks), lifted as-is. Crypto
   trades 24/7, so do not lean on their day and week boundaries until the adaptation pass
   lands; the loss arithmetic itself is sound.
-- **They need `PyYAML` and `jsonschema`** (`requirements.txt`). If an import fails, say so:
-  a gate that could not run has not passed.
+- **They need `PyYAML`.** `jsonschema` is also declared (`requirements.txt`) but reaches
+  these two only through the thesis store, and only when a candidate carries a `thesis_id`
+  — verified: both gates run and return their normal verdicts without it. If an import does
+  fail, say so: a gate that could not run has not passed.
 - **Both carry a required flag** — `--account-size` for the breaker, `--answers-file` for
   the gate — and the invocations, plus the difference in how each one fails, are in
   `SKILL.md`. The answers file itself: `references/gate-input.md`.
