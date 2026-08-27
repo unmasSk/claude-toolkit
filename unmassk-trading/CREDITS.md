@@ -10,7 +10,7 @@ plumbing that ties the pieces to this toolkit's memory.
 From **[tradermonty/claude-trading-skills](https://github.com/tradermonty/claude-trading-skills)**
 — MIT, Copyright (c) 2026 TraderMonty — lifted on 2026-08-27:
 
-| File here | Source in that repo | Lines |
+| File here | Source in that repo | Lines *(at source; each file here is 5 lines longer, the attribution header)* |
 |---|---|---|
 | `skills/unmassk-trading/scripts/position_sizer.py` | `skills/position-sizer/scripts/position_sizer.py` | 535 |
 | `skills/unmassk-trading/scripts/check_circuit_breaker.py` | `skills/drawdown-circuit-breaker/scripts/check_circuit_breaker.py` | 840 |

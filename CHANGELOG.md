@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- **Nuevo plugin `unmassk-trading`**: trading conversacional sobre Kraken para alguien que empieza de cero — precio en vivo contrastado contra dos mercados independientes y sellado con su edad, una capa que evalúa lo que el usuario sabe y se lo enseña en el orden en que le hace falta (con primera semana y puerta de promoción medible), cuenta de práctica local sin llave, y tamaño de posición calculado desde el riesgo. Las órdenes las da siempre el usuario: la skill no opera sola ni sostiene una llave que pueda retirar fondos (D-071/D-073/D-075/D-076, [#85](../../issues/85)).
+- **`price_check.py`, escrito aquí y test-first**: contrasta un par contra Kraken y Binance, sella cada cotización con la hora en que llegó y da un veredicto propio —`OK`, `DISAGREE`, `STALE`, `SINGLE_SOURCE`— con un código de salida distinto para cada uno, porque dos precios que discrepan se reportan y jamás se promedian. De las 291 skills de trading barridas ninguna contrasta una fuente contra otra ni fecha el dato, que es por lo que esta pieza no se pudo copiar (M-129/M-131).
+- **La capa de disciplina llega levantada byte a byte de `tradermonty/claude-trading-skills` (MIT) con sus tests**: calculadora de tamaño, freno por pérdidas, puerta previa a la orden y almacén de tesis, con una sola línea de lógica cambiada y declarada. Por qué se copia en vez de escribirse, y qué se dejó fuera a propósito, en `unmassk-trading/CREDITS.md` (M-131).
+
+### Known
+- **El freno por pérdidas todavía no protege nada, y se publica sabiéndolo**: lee un almacén de tesis (`--state-dir`) que ningún paso del flujo documentado escribe, así que contesta `TRADING_ALLOWED` sobre cero datos —`data_quality: EMPTY_STATE` al lado es la única señal— y encima su día empieza a medianoche de Nueva York, lo que abre un hueco ciego nocturno en un mercado que opera 24/7. Conectarlo a la cuenta de práctica es la condición que abre la fase 2, no una tarea suelta (D-077).
+- **El veredicto `GO` de la puerta previa es inalcanzable tal como se publica**: espera un artefacto de régimen de mercado que aquí no produce nadie, y un artefacto que falta es `REVIEW_REQUIRED` por diseño. Hay que leer la lista de razones para distinguir eso de una infracción real, porque el veredicto solo no lo dice.
+- **La ejecución de órdenes reales está escrita pero sin ejercitar contra una cuenta viva**: es fase 2, y en modo principiante queda detrás de la puerta de promoción.
+
 ## [1.42.0] - 2026-08-26
 
 ### Fixed

@@ -1,9 +1,11 @@
 # unmassk-trading — Planteamiento y plan
 
 **Issue:** #85 · **Repo:** trunk (`main`) · **Creado:** 2026-08-27
-**Estado:** T1 a T5 cerradas. Comparación línea por línea hecha; Cerberus, Argus, Dante,
+**Estado:** T1 a T6 cerradas. Comparación línea por línea hecha; Cerberus, Argus, Dante,
 Moriarty y Yoda pasados y todos sus hallazgos corregidos. **Yoda: 87/110, aprobado con tres
-condiciones, las tres aplicadas.** Quedan el Consejo (T6) y el cierre (T7).
+condiciones, las tres aplicadas.** **[2026-08-27] Consejo celebrado** (cinco asesores y
+cinco revisores): se publica la fase 1 y el freno se conecta a la cuenta de práctica en vez
+de borrarse — D-077, con X-086/X-087/X-088 descartadas. Queda el cierre (T7).
 
 ---
 
@@ -157,20 +159,30 @@ escribió.
 - [x] Cerberus (7 issues) ∥ Argus (10 hallazgos) → arreglos → Dante (645 tests, 100% de
       cobertura medida) → Moriarty (FALLA: 6 roturas, 5 engaños) → arreglos → Yoda: 87/110
 
-### T6 · Consejo — depende de T5
-- [ ] `unmassk-council` sobre el plugin terminado: cinco asesores, y lo que salga se aplica
+### T6 · Consejo — **HECHA**
+- [x] `unmassk-council` sobre el plugin terminado. Los cinco asesores coincidieron en
+      publicar quitando el freno roto; los cinco revisores, por separado, encontraron el
+      mismo agujero en esa unanimidad y la presidencia la rechazó: **se publica la fase 1 y
+      el freno se conecta a la cuenta de práctica, que ES el dato de pérdidas** (D-077).
+      Descartadas: borrarlo y dejar un aviso impreso (X-086), retener la publicación hasta
+      que funcione (X-087), y dejarlo tal cual recogiendo datos (X-088)
+- [ ] **Lo que el Consejo deja abierto:** el wrapper que conecta freno y cuenta de práctica
+      —y el límite del día en UTC— no está construido. Es la fase 2
 
 ### T7 · Documentación y cierre — depende de T6
 - [ ] Alexandria: tres superficies + CHANGELOG
 - [ ] Suite entera en verde, commit y push en `main`
 - [ ] #85 sigue abierta: esto cierra la fase 1, no la issue
 
-## 4 · Lo que está sin decidir — lo decide el orquestador ahora, y el consejo lo revisa al final
+## 4 · Lo que estaba sin decidir — **[2026-08-27] las tres decididas**
 
 1. **¿`kraken-cli` como base, o REST directo?** El binario da gratis el simulacro, el
    `--validate` y el apagado automático; a cambio, una dependencia en Rust y un contrato
-   ajeno que se mueve.
+   ajeno que se mueve. → **`kraken-cli`** (D-076).
 2. **¿Qué es "en directo"?** Precio fresco al preguntar (barato, suficiente) o una cinta
-   grabada en continuo (más piezas, más que puede fallar en silencio).
+   grabada en continuo (más piezas, más que puede fallar en silencio). → **fresco al
+   preguntar, sin demonio propio** (D-076): un demonio nuestro escribiendo a un fichero es
+   justo la pieza que falla en silencio cuando nadie mira.
 3. **¿El modo se pregunta o se deduce?** Preguntarlo es honesto; deducirlo de lo que sabe
-   contestar evita una pregunta de burocracia el primer día.
+   contestar evita una pregunta de burocracia el primer día. → **se pregunta una vez y se
+   guarda** (D-075).

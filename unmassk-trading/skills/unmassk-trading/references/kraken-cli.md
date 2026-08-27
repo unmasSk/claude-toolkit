@@ -168,8 +168,9 @@ only numbers in this plugin a user is likely to want to tune:
 | `--max-age-seconds` | `60` | Older than this on either side and the verdict is `STALE` |
 
 Both are strict comparisons: exactly 50 bps and exactly 60 s still read `OK`. **50 bps is
-calibrated for a liquid pair** — measured live on BTC/EUR, Kraken and Binance sat about
-1 bps apart. A thin pair can legitimately differ by more than that, so a `DISAGREE` on an
+calibrated for a liquid pair** — measured live on BTC/EUR on 2026-08-27, Kraken and Binance
+sat between 1 and 4 bps apart across the day. Treat that as an order of magnitude, not a
+constant: it moves with volatility and with the hour. A thin pair can legitimately differ by more than that, so a `DISAGREE` on an
 illiquid market is information about liquidity, not necessarily about a broken feed. Say
 which it looks like rather than treating every alarm as a fault.
 

@@ -115,6 +115,7 @@ Several domain skills build on prior open-source work instead of reinventing it.
 - **unmassk-marketing** — `marketingskills` by coreyhaines31 (MIT)
 - **unmassk-seo** — `claude-seo` by AgriciDaniel (MIT)
 - **unmassk-pentesting** — techniques from `communitytools` by Transilience AI (MIT)
+- **unmassk-trading** — the discipline layer (position sizer, drawdown circuit breaker, pre-trade gate, thesis store) lifted verbatim with its tests from `claude-trading-skills` by tradermonty (MIT); execution runs on `kraken-cli`, Kraken's own CLI (MIT). Details in [`unmassk-trading/CREDITS.md`](unmassk-trading/CREDITS.md)
 - **unmassk-humanizer** — a fusion of `humanizer` by blader (MIT), `humanize-writing` by lguz (MIT), and `anti-slop` by kjmagnan1s (MIT, itself building on `avoid-ai-writing` by Conor Bronsdon (MIT) and `stop-slop` by Hardik Pandya (MIT)); its content-pattern catalog traces back to Wikipedia's "Signs of AI writing" (CC BY-SA 4.0)
 
 A few skills are written from official product documentation rather than from someone else's skill — MongoDB's own docs behind `db-mongodb`, the OWASP Top 10 and ASVS behind `compliance-owasp-privacy`. Those are cited inside each skill; they are not listed above because there is no third-party author to credit.

@@ -229,8 +229,9 @@ the pipe**, not that the account is fine.
 
 **Two limits of the breaker that a 24/7 market makes real, both verified:**
 
-- **Its day boundary is New York, not UTC.** A loss closed between roughly 00:00 and 05:00
-  UTC — 02:00 to 06:00 in Madrid — is booked to *yesterday*: `realized_pnl_today` comes
+- **Its day boundary is New York, not UTC.** A loss closed in the window between midnight
+  UTC and the New York midnight — 04:00 UTC in summer, 05:00 in winter, i.e. the early
+  hours in Madrid either way — is booked to *yesterday*: `realized_pnl_today` comes
   back `0.0`, verdict `TRADING_ALLOWED`, `data_quality: OK`, no warning. The daily loss
   limit has a nightly blind window, and crypto trades through it. Until the calendar is
   adapted, do the day's arithmetic yourself before trusting a `TRADING_ALLOWED` at night.
