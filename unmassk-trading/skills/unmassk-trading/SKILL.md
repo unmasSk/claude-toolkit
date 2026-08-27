@@ -1,19 +1,22 @@
 ---
 name: unmassk-trading
-version: 1.0.0
 description: >
-  Use when the user asks to "compra bitcoin", "vende ETH", "cuánto vale el bitcoin",
-  "cómo va el mercado", "buy bitcoin", "sell", "what is BTC at", "check my portfolio",
-  "quiero empezar a invertir", "enséñame a invertir", "teach me trading",
-  "paper trading", "modo simulacro", "practicar sin dinero", "cuánto pongo",
-  "how much should I buy", "position size", "cuánto puedo perder", "dónde pongo el stop",
-  "abre una cuenta de práctica", "cómo va mi cartera", "qué he ganado", "he perdido",
-  or wants to look at a live market price, practise trading with fake money, size a
-  position, place an order on Kraken, or be taught how any of this works starting from
-  zero. Two modes, asked once and remembered: BEGINNER (assess what the user knows, teach
-  at that level, paper account first) and ADVANCED (straight to execution). The user gives
-  every order — this skill never trades on its own, and never holds a key that can
-  withdraw. NOT for backtesting research or tax accounting.
+  Use when the user asks to "compra bitcoin", "vende mis ETH", "cuánto vale el bitcoin",
+  "cómo va el mercado", "cómo va mi cartera", "cuánto he ganado", "he perdido dinero",
+  "cierra la posición", "buy bitcoin", "sell my ETH", "what is BTC at", "check my
+  portfolio", "quiero empezar a invertir", "enséñame a invertir", "teach me trading",
+  "paper trading", "modo simulacro", "practicar sin dinero", "cuánto pongo en esta
+  operación", "how much should I buy", "position size", "cuánto puedo perder", "dónde
+  pongo el stop", "stop loss", "orden límite", "abre una cuenta de práctica", or mentions
+  Kraken, cripto/crypto, or an exchange order. Also use when the user asks the skill to
+  trade for them — "invierte por mí", "opera mientras duermo", "trade for me
+  automatically", "hazlo tú solo" — so the refusal is given with its reasons rather than
+  improvised. Two modes, asked once and remembered: BEGINNER (assess what the user knows,
+  teach at that level, paper account first) and ADVANCED (straight to execution). The user
+  gives every order — this skill never trades on its own, and never holds a key that can
+  withdraw. Crypto spot on Kraken only. NOT for stocks or other brokers, NOT for
+  backtesting research, NOT for tax accounting.
+version: 1.0.0
 ---
 
 # unmassk-trading
@@ -21,14 +24,33 @@ description: >
 Conversational trading on Kraken. The user speaks, the skill quotes, sizes, validates and
 — only on an explicit order — executes.
 
-**Paths.** The scripts are invoked through `${CLAUDE_PLUGIN_ROOT}` because a skill runs
-with the working directory set to the **user's** project, not to the plugin. A bare
-`scripts/…` resolves against their repository and fails. The same applies to any output
-directory: pass one explicitly, or the lifted scripts write their reports into whatever
-repository the shell happens to be sitting in.
-
 **Read `references/honest-advice.md` before giving any opinion.** It is the shortest file
 here and the one that decides whether this skill is useful or dangerous.
+
+**Paths.** Scripts are invoked through `${CLAUDE_PLUGIN_ROOT}`, because a skill runs with
+the working directory set to the **user's** project, not to the plugin: a bare `scripts/…`
+resolves against their repository and fails. Output directories are always passed
+explicitly, for the same reason — see *The working directory* below.
+
+## The sequence
+
+Every step below has its own section. The value of this skill is not skipping one.
+
+1. **Mode** — read it from memory, ask only if absent.
+2. **Working directory** — read it from memory, agree it only once.
+3. **Read the record** — the risk profile, and prior trades on this pair.
+4. **Quote** — cross-checked against a second venue, with its age.
+5. **Stop** — the user names it *before* the size is computed.
+6. **Size** — from the script, never by hand; read `binding_constraint`.
+7. **Write the answers file** — the gate's input, built from steps 5 and 6.
+8. **Circuit breaker** — run it, keep its JSON report.
+9. **Discipline gate** — run it *with* the breaker's report piped in.
+10. **Validate** — `--validate` against the real venue; nothing is sent.
+11. **Confirm** — show the validated order and wait for an explicit yes.
+12. **Execute, read back, record** — never report a fill from the send's own output.
+
+Steps 8-11 belong to live orders. On the practice account the loop is 1-7 and 12, and that
+is deliberate: the arithmetic and the record are what transfer.
 
 ## The three rules that never bend
 
@@ -44,23 +66,17 @@ here and the one that decides whether this skill is useful or dangerous.
 
 ## Step 0 — which mode
 
-Check memory first, do not re-ask:
-
 ```bash
 gitmem search "trading mode"
 ```
 
-(The stored headline is `trading mode: <beginner|advanced>`. `gitmem search` matches
-literal text, so searching `trading-mode` with a hyphen finds nothing and the fork
-re-asks every session.)
+The stored headline is `trading mode: <beginner|advanced>`. `gitmem search` matches literal
+text, so searching `trading-mode` with a hyphen finds nothing and the fork re-asks every
+session.
 
 - A note answers it → use that mode, say one line ("sigo en modo principiante").
-- Nothing → ask the fork once:
-  - **Principiante** — never traded, or barely. The skill assesses, explains at that
-    level, and works on a practice account until the promotion gate is passed.
-  - **Avanzado** — knows what a limit order and a stop are, wants no explanations.
-
-Then save it, so it is asked once and never again:
+- Nothing → ask the fork once: **principiante** (never traded, or barely) or **avanzado**
+  (knows what a limit order and a stop are, wants no explanations). Then save it:
 
 ```bash
 gitmem zones list                      # the zones belong to the project this runs in
@@ -68,22 +84,44 @@ gitmem note M --zones <zone1> <zone2> "trading mode: <beginner|advanced>" \
   --description "<what the user said, or what the assessment showed>" --stops no
 ```
 
-A beginner who asks for something advanced gets it — the mode governs how much is
-explained and whether real money is reachable, never what may be asked.
+**Never hardcode the zone pair.** This skill travels to whatever project it is run in, and
+a note whose zone does not exist there is rejected — the note goes unwritten and the
+failure reads as "the command is broken".
+
+**If `gitmem` is not found**, say so once, plainly: the mode will be asked again next
+session, and **the trade record has nowhere to go**. The second half matters more, and the
+user deserves it before trading rather than after. `gitmem` ships with the
+`unmassk-toolkit` plugin; without it this skill still quotes, sizes and gates — it just
+forgets.
+
+## The working directory
+
+The scripts read and write state: the thesis store the circuit breaker looks at, the
+reports, the gate's journal, the answers file. **They must all live in one directory that
+survives sessions**, or the breaker reads an empty store forever and answers
+`TRADING_ALLOWED` over nothing.
+
+Agree it once and store it:
+
+```bash
+gitmem search "trading workspace"
+gitmem note M --zones <zone1> <zone2> "trading workspace: <absolute path>" \
+  --description "State, reports and journal for the trading skill live here." --stops no
+```
+
+Propose `~/trading/` — outside any repository, because these scripts default to writing
+into the current working directory. Everywhere below, `<dir>` is that path.
 
 ## Beginner mode
 
-Procedure in `references/beginner-mode.md`. The shape: **assess** (what they know, and
-separately what they can afford to lose), **teach only what the next step needs**,
-**practice account from minute one**, and **a measurable promotion gate** before a euro
-moves. The affordability half runs on the lifted instrument in
-`references/lifted/risk-profile-questionnaire.md` — capacity, tolerance and requirement
-scored separately, with the rule that matters most: *never exceed emotional risk
-tolerance*.
+Procedure in `references/beginner-mode.md`: **assess** (what they know, and separately what
+they can afford to lose), **teach only what the next step needs**, **practice account from
+minute one**, and **a measurable promotion gate** before a euro moves. The affordability
+half runs on the lifted instrument in `references/lifted/risk-profile-questionnaire.md`.
 
 ## Advanced mode
 
-**What it actually changes** — everything not on this list is identical in both modes:
+**What it changes** — everything not on this list is identical in both modes:
 
 | | Beginner | Advanced |
 |---|---|---|
@@ -92,58 +130,87 @@ tolerance*.
 | The affordability questionnaire | Run it | Ask for the two numbers directly: playable account, risk per trade |
 | The practice account | Mandatory from minute one | Optional |
 | The promotion gate | Blocks live money until passed | Does not apply |
-| The five order steps, both gates, the price check | Apply | **Apply, unchanged** |
+| The sequence, both gates, the price check | Apply | **Apply, unchanged** |
 
 The gates are not training wheels. They are what stops a typo from becoming a loss, and
 they survive the mode.
 
 ## Reading the market
 
-A price is never stated bare. Every quote carries **its source and its age**, and before
-a number gates a decision it is checked against a second venue.
-
-**Only `price_check.py` stamps an age.** `kraken ticker` and `kraken ohlc` return no
-timestamp, so the only honest age for their output is "I ran this just now". A quote from
-an earlier turn is **re-fetched, never re-quoted** — there is no way to tell afterwards how
-old it was.
+A price is never stated bare. Every quote carries **its source and its age**, and before a
+number gates a decision it is checked against a second venue:
 
 ```bash
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/price_check.py --pair BTC/EUR
 ```
 
-`price_check.py` takes `--pair`; there is no positional argument. The slashless form works
-(`BTCEUR`, `BTCUSDT` — both verified live against the two venues). Internally a slashless
-four-letter quote splits oddly, which is invisible because the halves re-concatenate into
-the same URL; **prefer the slash** (`BTC/USDT`) so the Kraken `BTC→XBT` alias resolves the
-way it is meant to. **`SINGLE_SOURCE` is also the verdict when *zero* venues answered** —
-read the `reason` field before repeating the label, or you will tell the user one market
-replied when none did. Exit codes: `0` OK, `3` DISAGREE, `4` STALE, `5` SINGLE_SOURCE, `2`
-argparse usage error. **A caller that only checks the exit code is still protected** —
-that is the point of them being distinct. Two disagreeing prices are reported, never
-averaged.
+**Only `price_check.py` stamps an age.** `kraken ticker` and `kraken ohlc` return no
+timestamp, so the only honest age for their output is "I ran this just now". A quote from
+an earlier turn is **re-fetched, never re-quoted**.
 
-**Read the JSON, then speak plainly.** `spread_bps` is emitted at full precision on
-purpose (rounding it would hide a real difference between two prices that a float would
-flatten to zero). Never read that number out. Say "los dos mercados coinciden" — or, when
-they do not, "difieren un 0,4%, así que este precio no vale para decidir". The
-machine-readable field stays exact; what reaches the user is one sentence.
+Exit codes: `0` OK, `3` DISAGREE, `4` STALE, `5` SINGLE_SOURCE, `2` argparse usage error. A
+caller that only checks the exit code is still protected — that is why they are distinct.
 
-Full command surface, the paper simulator's honest limits, and the MCP wiring:
-`references/kraken-cli.md`.
+**`SINGLE_SOURCE` is also the verdict when *zero* venues answered.** Read the `reason`
+field before repeating the label, or you will tell the user one market replied when none
+did.
+
+`--pair` takes `BTC/EUR` and `BTCEUR` alike; prefer the slash, so Kraken's `BTC→XBT` alias
+resolves as intended. Two disagreeing prices are **reported, never averaged**, and
+`spread_bps` is emitted at full precision on purpose — never read it out. Say "los dos
+mercados coinciden", or "difieren un 0,4%, así que este precio no vale para decidir".
+
+## Reading the account
+
+The question the user actually asks — *"¿cómo voy?"* — and per `references/honest-advice.md`
+the highest-value thing this skill produces, because it is arithmetic on their own numbers
+rather than a guess about the future.
+
+```bash
+kraken paper balance -o json     # practice account
+kraken balance -o json           # real account
+```
+
+**Say which account it is, every single time.** A practice result read later as a real one
+is the most damaging thing this skill could do.
+
+Then compute against the record, not from memory:
+
+```bash
+gitmem search <pair>             # the entries, with their stops and their theses
+```
+
+Per open position, in euros: what was paid, what it is worth now (at a quote checked as
+above), the difference, **and whether that difference is realised or not** — down 20% is
+not a loss until sold, and that distinction is the most valuable thing a beginner can
+learn. Then the fees paid, and the total across positions as a percentage of the playable
+account. **Never report a P&L figure from a quote whose age you cannot state.**
 
 ## Sizing — before any order, always
 
-Never quote a position in euros without saying what it loses if the stop is hit.
+**Read the record first.** The account to size against is what the user said they could
+lose, not the exchange balance:
+
+```bash
+gitmem search "risk profile"     # the playable amount, and the ceiling per position
+gitmem search <pair>             # what happened the last times, if anything
+```
+
+If the record contradicts what the user is about to do, say so and quote the note. That is
+the one edge this skill genuinely has.
+
+**The user names the stop before the size is computed.** If they have not, that is the
+missing input — ask for that one thing.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/position_sizer.py \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
-  --fractional --share-precision 8
+  --fractional --share-precision 8 --max-position-pct 25 --output-dir <dir>/reports
 ```
 
-Real output of that exact call, run on 2026-08-27 (two report-path lines first, then):
+Real output of that call without the cap (two report-path lines first, then):
 
 ```
 Final: 0.00110692 shares @ $67517.0
@@ -151,195 +218,143 @@ Position: $74.74
 Risk: $5.00 (1.0%)
 ```
 
-**`--fractional` is mandatory for crypto** — without it the sizer rounds to whole units and
-a sub-1-unit position collapses to zero. **Pass `--output-dir` too**: the default writes a
-JSON and a Markdown report into `reports/` relative to the current directory, which means
-into whatever repository the shell happens to be sitting in.
+Four things this tool does quietly, all verified:
 
-**The sizer does not check the position against the account, and it will hand you one
-bigger than the account.** Verified with the exact recipe above, only the stop moved to
-67010 (a 0.75% stop, ordinary in crypto): `0.00986193 shares` → **`Position: $665.85`** on
-a 500 € account, exit 0, no warning. The risk is a correct 1%; the *cost* is 133% of
-everything the user has. Always pass **`--max-position-pct`** (25 is a sane start), and say
-the cost as a share of the account out loud.
-
-**And the failure without `--fractional` is a plausible-looking zero, not an error:**
-`Final: 0 shares` / `Position: $0.00` / `Risk: $0.00 (0.0%)`, exit 0 — verified. A report
-saying the trade risks nothing is the most quotable wrong number in this plugin. A zero
-there means the flag is missing, never that the position is safe.
+- **Without `--fractional` it returns a plausible zero**: `Final: 0 shares`,
+  `Risk: $0.00 (0.0%)`, exit 0. A zero there means the flag is missing, never that the
+  position is safe.
+- **Without `--max-position-pct` it hands you a position bigger than the account.** The
+  same recipe with the stop at 67010 (0.75%, ordinary in crypto) returns
+  `Position: $665.85` on a 500 € account, exit 0, no warning.
+- **With the cap, the cap binds silently.** stdout prints only `Final / Position / Risk`;
+  the field that says *why* the number shrank is **`binding_constraint`, in the JSON report
+  only**. Read it. A user who asked to risk 1% and is shown `Risk: $1.25 (0.25%)` is owed
+  the reason: the stop is too tight for the account, so the position was capped.
+- **It prints `$` and `shares`, and its calendar logic is US-market.** The arithmetic is
+  currency-neutral and independently verified — fourteen cases computed by hand from the
+  definition, all fourteen agree — but restate the numbers in euros and units.
 
 Four lines are always said out loud, in euros: what it **costs**, what that cost is **as a
-percentage of the account**, what it **loses at the stop**, and what that loss is as a
-percentage. If the user has not named a stop,
-that is the missing input — ask for it before sizing, not after. Methods (fixed
-fractional, ATR, half-Kelly) in `references/lifted/sizing-methodologies.md`; the account
-number to use, and why it is not the exchange balance, in `references/risk-and-sizing.md`.
+percentage of the account**, what it **loses at the stop**, and what percentage that loss
+is. Methods: `references/lifted/sizing-methodologies.md`. The account number and the
+arithmetic: `references/risk-and-sizing.md`.
 
-**Two known mismatches until the adaptation pass:** the lifted scripts print `$` and
-`shares`, and their calendar logic is US-market (`America/New_York`, Monday weeks). The
-arithmetic is currency-neutral and correct; **restate the numbers in euros and units when
-showing them to the user**, and do not rely on the day/week boundaries for a 24/7 market.
-
-## The gates, before the order
+## The gates
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_circuit_breaker.py \
-  --account-size 500 --state-dir <dir> --output-dir <dir>/reports
+  --account-size 500 --state-dir <dir>/theses --output-dir <dir>/reports
 
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py \
-  --answers-file <file>.json --state-dir <dir> --output-dir <dir>/reports
+  --answers-file <dir>/answers.json --state-dir <dir>/theses \
+  --output-dir <dir>/reports --journal-dir <dir>/journal \
+  --circuit-breaker-decision <dir>/reports/<the report just produced>.json
 ```
 
 **Both required flags are required** — `--account-size` and `--answers-file`. Omit either
-and the script exits 2 having checked nothing. How to build the answers file, and where
-every field comes from: `references/gate-input.md`.
+and the script exits 2 having checked nothing. How to build the answers file, what each
+reason means, and why the pipe is not optional: **`references/gate-input.md`**. Read it
+before running the gate — it is what decides whether the answer means anything.
 
-**Read the verdict from stdout, NEVER from the exit code.** Verified: a `NO_GO` from the
-discipline gate and a `HALTED` from the circuit breaker both exit **0**. This is the
-opposite of `price_check.py`, and getting it wrong means reading a refusal as a pass.
+**The verdict is never in the exit code, and the two gates fail differently:**
 
-- `check_pre_trade_discipline.py` accepts **`--fail-on-non-go`**, which makes anything
-  other than `GO` exit 2. **Always pass it.**
-- `check_circuit_breaker.py` has no equivalent. Its verdict is the `Recommendation:` line,
-  full stop.
-
-**The pipe is not optional.** Run the breaker first and hand its JSON report to the gate
-as `--circuit-breaker-decision`. Without it a `HALTED` account blocks nothing — verified:
-breaker `HALTED`, gate `REVIEW_REQUIRED`, and the only reasons are the two missing
-artifacts. Reporting that as "nothing wrong with this trade" while the account is halted is
-the single worst failure this plugin can produce.
-
-**Before passing a breaker report, check the report itself:** the gate reads only its
-`recommendation` field and never looks at when it was made or whether it checked anything.
-A report from yesterday, or one whose `data_quality` says `EMPTY_STATE`, is accepted as a
-clean bill of health. Pass the run you just made, not `ls | head -1`, and give each run its
-own `--output-dir` — the filenames are second-granular and two runs in the same second
-overwrite each other.
-
-**`--market-regime-decision` has no producer here**, so `GO` is unreachable as shipped.
-When reporting a `REVIEW_REQUIRED`, name which reasons are present: `market_regime` alone
-means "no rule was broken and one input we do not produce is missing"; anything else in
-that list is a real finding, and `circuit_breaker artifact not provided` means **you forgot
-the pipe**, not that the account is fine.
-
-**The two gates do not fail the same way, and the difference matters:**
-
-- **The discipline gate fails loud.** A missing value, an unparseable number, an absent
-  upstream artifact → `REVIEW_REQUIRED`. It never turns absence into a pass.
-- **The circuit breaker does not use that vocabulary at all.** Its verdicts are
-  `TRADING_ALLOWED` / `COOLDOWN` / `HALTED`, and data quality is a **separate field**
-  (`OK` / `PARTIAL` / `EMPTY_STATE`). Run against an empty state directory it returns
-  `TRADING_ALLOWED` with `EMPTY_STATE` beside it — verified. **Read the data-quality field
-  before believing the verdict**, and when it says `EMPTY_STATE`, say so: there is no
-  history, so nothing was actually checked.
+- **The breaker prints its verdict to stdout** — `Recommendation:` and `Data quality:` —
+  and exits 0 whatever it says, `HALTED` included.
+- **The gate prints only `Decision:` and a generic rationale; the reasons live in the JSON
+  report.** Open the report. `--fail-on-non-go` makes a non-`GO` exit 2 — but `GO` is
+  unreachable while `--market-regime-decision` has no producer here, so that flag currently
+  means "always 2" and carries no information. **Use it only once `GO` is reachable**;
+  until then the JSON is the only channel that separates a refusal from a missing input.
 
 **Two limits of the breaker that a 24/7 market makes real, both verified:**
 
-- **Its day boundary is New York, not UTC.** A loss closed in the window between midnight
-  UTC and the New York midnight — 04:00 UTC in summer, 05:00 in winter, i.e. the early
-  hours in Madrid either way — is booked to *yesterday*: `realized_pnl_today` comes
-  back `0.0`, verdict `TRADING_ALLOWED`, `data_quality: OK`, no warning. The daily loss
-  limit has a nightly blind window, and crypto trades through it. Until the calendar is
-  adapted, do the day's arithmetic yourself before trusting a `TRADING_ALLOWED` at night.
-- **It reads a thesis store this plugin never writes.** The trade record kept here goes to
-  git-memory notes; nothing in the documented workflow creates `state/theses/`. So unless
-  the user maintains that store deliberately, the breaker answers `TRADING_ALLOWED` over
-  zero data, forever. `data_quality: EMPTY_STATE` is the tell, and it is the difference
-  between a brake and an ornament.
+- **Its day boundary is New York.** A loss closed between midnight UTC and the New York
+  midnight — the early hours in Madrid — books to *yesterday*: `realized_pnl_today` comes
+  back `0.0`, verdict `TRADING_ALLOWED`, `data_quality: OK`, no warning.
+- **It reads a thesis store this plugin's workflow never writes.** Unless the user keeps
+  that store deliberately, the breaker answers `TRADING_ALLOWED` over zero data forever.
+  `data_quality: EMPTY_STATE` and `theses_scanned: 0` are the tell, and they are the
+  difference between a brake and an ornament. Say which one you are looking at.
 
 A `HALTED` or `COOLDOWN` is stated with its number and its reason, and it is not lifted
-because the user asks again in the same session. Thresholds:
-`references/lifted/circuit-breaker-framework.md`. The seven blocking checks:
-`references/lifted/discipline-gate-framework.md`.
+because the user asks again in the same session.
 
-These scripts need `PyYAML`. They also declare `jsonschema` (`requirements.txt`), but that
-one is imported lazily and only when a candidate carries a `thesis_id` — verified: both
-gates run and return their normal verdicts on an interpreter without it. What genuinely
-breaks without `jsonschema` is the **test suite**, which cannot even be collected.
+These scripts need `PyYAML`; `jsonschema` is imported lazily and only matters for the test
+suite and for candidates carrying a `thesis_id`. If an import fails:
 
-If an import does fail, say so: **a gate that could not run has not passed** — never
-"all clear".
+```bash
+pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+```
+
+**A gate that could not run has not passed** — say that, never "all clear".
 
 ## Placing an order
 
-### Paper orders — this is what beginner mode uses
+### Paper orders — what beginner mode uses
+
+The workspace must exist first (`kraken workspace create …`, then
+`export KRAKEN_WORKSPACE=…` — `references/kraken-cli.md`). In advanced mode nobody has
+necessarily done it.
 
 ```bash
-kraken paper buy BTCEUR 0.001        # practice account, no key, no money
+kraken paper buy BTCEUR 0.001
 kraken paper sell BTCEUR 0.001
 kraken paper balance -o json
 ```
 
-**Paper accepts only `market` and `limit` order types** — verified in the CLI's own
-source. There are no stop orders on the practice account.
+**Paper accepts only `market` and `limit`** — verified in the CLI's own source. There are
+no stop orders on the practice account: the stop is a number the user commits to and this
+skill holds them to.
 
 ### Live orders — everything below is REAL money
 
-**Status: written, not yet exercised against a live account.** This plugin ships phase 1 —
-read, practise, size. Every command in this section touches the real exchange; none of them
-is the paper procedure. Before any live order the promotion gate in
-`references/beginner-mode.md` applies, and the key is created without withdrawal
-permission.
-
-Five steps, every time. Detail in `references/kraken-cli.md`.
-
-1. **Dead man's switch, once per session** — `kraken order cancel-after 300 -o json`
-2. **Validate** — `kraken order buy BTCEUR 0.001 --type limit --price 60000 --validate -o json`
-   (real endpoint, real key, real payload, trades nothing)
-3. **Show the validated order and wait** for an explicit yes
-4. **Execute** — the same command without `--validate`
-5. **Read it back** — `kraken open-orders -o json` and `kraken balance -o json`. Never
-   report a fill from step 4's own output; if the read-back disagrees, say so immediately
-   and do nothing else until it is resolved.
-
-**If step 4 errors, the order may or may not have reached the exchange. Never retry it
-blind** — that is how one order becomes two:
+**Status: written, not yet exercised against a live account.** This plugin ships phase 1.
+Before any live order the promotion gate in `references/beginner-mode.md` applies, and the
+key is created without withdrawal permission.
 
 ```bash
-kraken open-orders -o json      # is it sitting there?
-kraken trades-history -o json   # did it already fill?
+kraken order cancel-after 300 -o json                                          # 1. dead man's switch
+kraken order buy BTCEUR 0.001 --type limit --price 60000 --validate -o json    # 2. validate
+#                                                                              # 3. show it, wait for a yes
+kraken order buy BTCEUR 0.001 --type limit --price 60000 -o json               # 4. execute
+kraken open-orders -o json && kraken balance -o json                           # 5. read it back
 ```
 
-Resubmit only if it is absent from **both**. Tag orders with `--cl-ord-id <id>` so the
-question has a cheap answer: query by the tag instead of guessing from timestamps.
+Never report a fill from step 4's own output. If the read-back disagrees, say so
+immediately and do nothing else until it is resolved.
 
-Before executing, check the command against the CLI's own `agents/tool-catalog.json`
-`dangerous` field (it ships inside the `kraken` installation; locate it rather than
-guessing, and **if it cannot be read, treat the command as dangerous** — an unresolvable
-check must never resolve to "proceed"). Never keep a hand-written copy of that list here:
-it would drift.
+**If step 4 errors, the order may or may not have reached the exchange. Never retry
+blind** — check `kraken open-orders` and `kraken trades-history`, and resubmit only if it
+is absent from both. Tag orders with `--cl-ord-id <id>` so the question has a cheap answer.
 
-**`paper_safe` is NOT a "does not spend money" flag.** Verified against the shipped
-catalogue: only four commands carry it — `order-buy`, `order-sell`, `order-cancel`,
-`order-cancel-all` — and it means only that the danger gate relaxes **while the workspace
-is in paper mode**. Reading `order-buy: paper_safe: true` as "this does not spend" is
-exactly backwards on the live path.
+Before executing, check the command's `dangerous` field in the CLI's own catalogue:
 
-One caveat that stands on its own: `order-cancel-after` is marked dangerous and it is step
-1 here. Setting the dead man's switch cancels orders, it never places one, so do not stop
-to ask permission for it. **What the plugin does not know is its expiry semantics** — which
-resting orders it reaches, and whether it must be refreshed. Until that is verified against
-the real CLI, do not leave a protective stop resting behind an unrefreshed timer, and say
-so when a user asks.
+```bash
+find "$(dirname "$(command -v kraken)")/.." -name tool-catalog.json 2>/dev/null | head -1
+```
+
+**If it cannot be read, treat the command as dangerous.** An unresolvable check must never
+resolve to "proceed". `paper_safe` is **not** a "does not spend money" flag: only four
+commands carry it, and it means the danger gate relaxes *while the workspace is in paper
+mode*. `order-cancel-after` is marked dangerous and is step 1 here — it cancels orders and
+never places one, so do not stop to ask permission for it; but its expiry semantics are
+unverified, so never leave a protective order resting behind an unrefreshed timer.
+
+The first live order is the smallest the venue allows — and `--validate` is how that
+minimum is discovered: it rejects an undersized order by name, at no cost.
 
 ## After a trade
 
 The record goes in the project's memory, never in a second journal file:
 
 ```bash
-gitmem zones list                      # ALWAYS first — the zones differ per project
+gitmem zones list
 gitmem note M --zones <zone1> <zone2> "<pair> <side> <amount> @ <price> (<paper|real>)" \
   --description "Tesis en una frase. Stop, riesgo en euros, y qué lo invalidaría." --stops no
 ```
 
-**Never hardcode the zone pair.** This skill travels to whatever project the user runs it
-in, and a note whose zone does not exist there is rejected — the trade goes unrecorded and
-the failure reads as "the command is broken". List the zones, pick two that exist, and
-create one (`gitmem zones add trading --description "..."`) only if nothing fits.
-
-The fields worth carrying — thesis, kill criteria, stop, what would prove it wrong — are
-in `references/lifted/thesis-lifecycle.md`. **The mode (paper or real) is never omitted:**
-a practice result read later as a real one is the most damaging thing this record could do.
+**The mode — paper or real — is never omitted.** The fields worth carrying:
+`references/risk-and-sizing.md`.
 
 ## What this skill refuses
 
@@ -349,27 +364,29 @@ a practice result read later as a real one is the most damaging thing this recor
 - To give a direction call, a price target, or a sentiment score.
 - To advise on a quote whose age it cannot establish.
 - To promote a beginner to live money before the gate in `references/beginner-mode.md`.
+- Anything outside Kraken spot crypto: no stocks, no other broker, no futures, no leverage.
 
 Each refusal names what is missing. "No puedo" without the reason is a bug in the answer.
 
 ## Reference files
 
-Original to this plugin:
+Written for this plugin:
 
-- **`references/beginner-mode.md`** — assessment, teaching order, first week, promotion gate.
-- **`references/kraken-cli.md`** — install, paper mode, `--validate`, `cancel-after`, key
-  permissions, streaming, MCP wiring, and what the simulator does not simulate.
-- **`references/risk-and-sizing.md`** — the account number to use, the euro arithmetic,
-  and what a trade note carries.
 - **`references/honest-advice.md`** — what can be said, and what is a guess with a decimal
-  point.
-- **`references/gate-input.md`** — the answers file the discipline gate requires, field by
-  field, and where each value comes from.
+  point. Read first.
+- **`references/beginner-mode.md`** — assessment, teaching order, first week, promotion gate.
+- **`references/gate-input.md`** — the answers file, the reason table, the pipe.
+- **`references/kraken-cli.md`** — install, keys, paper mode, `--validate`, `cancel-after`,
+  streaming, MCP wiring, and what the simulator does not simulate.
+- **`references/risk-and-sizing.md`** — the account number, the euro arithmetic, the record.
 
-Lifted verbatim with the code they document (MIT — see `CREDITS.md`):
-
-- **`references/lifted/sizing-methodologies.md`** — fixed fractional, ATR, Kelly.
-- **`references/lifted/circuit-breaker-framework.md`** — the halt thresholds.
-- **`references/lifted/discipline-gate-framework.md`** — the seven blocking checks.
-- **`references/lifted/thesis-lifecycle.md`** — thesis fields and their state machine.
-- **`references/lifted/risk-profile-questionnaire.md`** — the affordability instrument.
+Under `references/lifted/` — **five documents kept byte-identical to their upstream source
+(MIT, see `CREDITS.md`). They describe the upstream toolkit, not this plugin: read them for
+the reasoning and the thresholds, never as this plugin's command surface.** That warning
+applies hardest to `references/lifted/thesis-lifecycle.md`, which documents subcommands
+that do not exist here — take the thesis fields from `references/risk-and-sizing.md`, which
+states them in this plugin's own terms. The other four:
+`references/lifted/sizing-methodologies.md` (the three sizing methods),
+`references/lifted/circuit-breaker-framework.md` (the halt thresholds),
+`references/lifted/discipline-gate-framework.md` (the seven blocking rules), and
+`references/lifted/risk-profile-questionnaire.md` (the affordability instrument).
