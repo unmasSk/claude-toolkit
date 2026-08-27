@@ -66,3 +66,4 @@
 [D-073][architecture][trading] the skill sends the order when he says so, dry-run first, never on its own
 [D-075][skills][trading] the trading skill has two modes and asks which one at the start
 [D-076][architecture][trading] kraken-cli is the substrate; live means fresh-on-ask, no daemon of ours
+[D-077][architecture][trading] council: connect the brake to the paper account, do not delete it; wrapper now
