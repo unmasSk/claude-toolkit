@@ -259,10 +259,12 @@ Four things this tool does quietly, all verified:
 - **Without `--max-position-pct` it hands you a position bigger than the account.** The
   same recipe with the stop at 67010 (0.75%, ordinary in crypto) returns
   `Position: $665.85` on a 500 € account, exit 0, no warning.
-- **With the cap, the cap binds silently.** stdout prints only `Final / Position / Risk`;
-  the field that says *why* the number shrank is **`binding_constraint`, in the JSON report
-  only**. Read it. A user who asked to risk 1% and is shown `Risk: $1.25 (0.25%)` is owed
-  the reason: the stop is too tight for the account, so the position was capped.
+- **With the cap, the cap binds silently.** Verified: the same 0.75%-stop recipe with
+  `--max-position-pct 25` on a 500 € account returns `Position: $125.00` and
+  `Risk: $0.94 (0.19%)` — the user asked to risk 1% and is shown 0.19%, with nothing on
+  stdout saying why. The field that explains it is **`binding_constraint`, in the JSON
+  report only** (here: `max_position_pct`). Read it, and say it out loud: the stop is too
+  tight for this account, so the position was capped.
 - **It prints `$` and `shares`, and its calendar logic is US-market.** The arithmetic is
   currency-neutral and independently verified — fourteen cases computed by hand from the
   definition, all fourteen agree — but restate the numbers in euros and units.
@@ -294,7 +296,9 @@ before running the gate — it is what decides whether the answer means anything
 - **The breaker prints its verdict to stdout** — `Recommendation:` and `Data quality:` —
   and exits 0 whatever it says, `HALTED` included.
 - **The gate prints only `Decision:` and a generic rationale; the reasons live in the JSON
-  report.** Open the report. `--fail-on-non-go` makes a non-`GO` exit 2 — but `GO` is
+  report, at `candidate_results[].reasons`** — one list per candidate, and that exact path
+  is verified. Open the report and read that field; nothing on stdout distinguishes a
+  refusal from a missing input. `--fail-on-non-go` makes a non-`GO` exit 2 — but `GO` is
   unreachable while `--market-regime-decision` has no producer here, so that flag currently
   means "always 2" and carries no information. **Use it only once `GO` is reachable**;
   until then the JSON is the only channel that separates a refusal from a missing input.

@@ -102,8 +102,13 @@ lifted, and a missing upstream artifact is `REVIEW_REQUIRED` by design.
 
 Only when `market_regime` is the **sole** reason may you say the gate found no rule
 violation — and even then, say that the breaker was checked separately and what it said.
-The reasons are written to the JSON report and are **not** printed on stdout, so read the
-file; the `Decision:` line alone does not tell you which of the three rows you are in.
+The reasons are written to the JSON report at **`candidate_results[].reasons`** — verified
+path, one list per candidate — and are **not** printed on stdout. Read that field; the
+`Decision:` line alone does not tell you which of the three rows you are in.
+
+A run with the breaker's report correctly piped in, on a clean candidate, comes back with
+exactly one reason: `market_regime artifact not provided`. That is the shape to expect —
+and if `circuit_breaker artifact not provided` is in that list, the pipe is missing.
 
 The seven blocking rules themselves: `references/lifted/discipline-gate-framework.md`.
 
