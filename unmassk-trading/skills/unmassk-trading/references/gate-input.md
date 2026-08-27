@@ -54,9 +54,9 @@ belongs, a non-numeric string, `NaN`, an infinity or a negative all produce
 ## Running it
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py \
+python3 "$SKILL_DIR/scripts/check_pre_trade_discipline.py" \
   --answers-file <file>.json \
-  --state-dir <dir> \
+  --state-dir <dir>/theses \
   --output-dir <dir>/reports \
   --journal-dir <dir>/journal \
   --circuit-breaker-decision <dir>/reports/<breaker report>.json \

@@ -7,6 +7,10 @@ decide for themselves, having lost nothing while learning.
 **Nothing in this file places a live order.** Live money is unreachable in beginner mode
 until the promotion gate at the bottom is passed.
 
+**The two gates apply on the practice account too**, from day 5 of the first week. They
+cost nothing there and the habit is the whole point: someone who has never had a trade
+refused will not accept the first refusal that matters.
+
 ## 1. Assess — two different questions, both asked
 
 Ask them **one at a time**, in the user's language, conversationally. Never as a form.
@@ -129,7 +133,12 @@ waiting is part of what is being taught.
    accepts only `market` and `limit`. So the stop is a number the user commits to and this
    skill holds them to, not an order the exchange holds. Save it with the position note.
    The exercise is the commitment, and it is the one that transfers to real money.
-5. **Day 5** — sell half. Show the realised result and the fee, in euros.
+5. **Day 5** — sell half. Show the realised result and the fee, in euros. Then **rehearse
+   the gates for the first time**: write the answers file for that trade after the fact
+   (`references/gate-input.md`), run the breaker and the gate as `SKILL.md` prescribes, and
+   read the verdict together. Nothing is at stake — that is exactly why it is the right day
+   to learn what a refusal looks like. From here on, every practice entry goes through them
+   before it is placed.
 6. **Day 6** — read the week: what was bought, what it cost, what it is worth, what the
    fees ate.
 7. **Day 7** — write the rules the user wants to hold themselves to, in their own words,

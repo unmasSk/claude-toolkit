@@ -16,7 +16,7 @@ description: >
   gives every order — this skill never trades on its own, and never holds a key that can
   withdraw. Crypto spot on Kraken only. NOT for stocks or other brokers, NOT for
   backtesting research, NOT for tax accounting.
-version: 1.0.0
+version: 1.0.2
 ---
 
 # unmassk-trading
@@ -27,10 +27,22 @@ Conversational trading on Kraken. The user speaks, the skill quotes, sizes, vali
 **Read `references/honest-advice.md` before giving any opinion.** It is the shortest file
 here and the one that decides whether this skill is useful or dangerous.
 
-**Paths.** Scripts are invoked through `${CLAUDE_PLUGIN_ROOT}`, because a skill runs with
-the working directory set to the **user's** project, not to the plugin: a bare `scripts/…`
-resolves against their repository and fails. Output directories are always passed
-explicitly, for the same reason — see *The working directory* below.
+**Paths.** A skill runs with the working directory set to the **user's** project, not to
+the plugin, so a bare `scripts/…` resolves against their repository and fails. **And
+`${CLAUDE_PLUGIN_ROOT}` is empty in the shell** — verified: it is substituted in
+`hooks.json` entries, never exported to the Bash tool. What does arrive is the line
+`Base directory for this skill: <absolute path>`, printed when this skill loads. Use that.
+Set it once per session and use it everywhere below:
+
+```bash
+SKILL_DIR="<the Base directory this skill printed when it loaded>"
+# if that line is not to hand, discover it:
+SKILL_DIR=$(ls -d ~/.claude/plugins/cache/*/unmassk-trading/*/skills/unmassk-trading 2>/dev/null | sort -V | tail -1)
+ls "$SKILL_DIR/scripts/price_check.py"      # prove it before using it
+```
+
+Output directories are always passed explicitly, for the same reason — see *The working
+directory* below.
 
 ## The sequence
 
@@ -51,39 +63,57 @@ Every step below has its own section. The value of this skill is not skipping on
 11. **Confirm** — show the validated order and wait for an explicit yes.
 12. **Execute, read back, record** — never report a fill from the send's own output.
 
-Steps 8-11 belong to live orders. On the practice account the loop is 1-7 and 12, and that
-is deliberate: the arithmetic and the record are what transfer.
+Steps 10-11 (`--validate` and the confirmation) belong to live orders only — there is
+nothing to validate on a simulated fill. **Steps 8-9, the two gates, apply to the practice
+account too**, and that is the point: the habit of refusing your own trade is what
+transfers, and rehearsing it costs nothing while the money is fake. The first week in
+`references/beginner-mode.md` introduces them once a stop and a size exist (day 4 onward),
+not on day one.
 
 ## Step 0 — is the tooling there
 
-**Run this first, in any project where this skill has not been used before.** Every quote,
-every practice order and every gate goes through the `kraken` binary; without it the fourth
-step of the sequence dies with `command not found` and there is nothing to improvise.
+**Run this first, in any project where this skill has not been used before.**
 
 ```bash
 command -v kraken >/dev/null && kraken status -o json || echo "kraken NOT installed"
 ```
 
+**What needs the binary and what does not** — this matters, because it decides whether a
+session can start at all:
+
+| Works without `kraken` | Needs `kraken` |
+|---|---|
+| `price_check.py` (it calls the public endpoints itself), the position sizer, both gates | Quotes through `kraken ticker`/`ohlc`, the practice account, `--validate`, the dead man's switch, every order |
+
+So a user with no binary can still be taught, quoted and sized — say that rather than
+stopping. What they cannot do is practise or order, and **`price_check.py` is the only
+sanctioned direct call**: never hand-roll another REST call to replace a `kraken` command,
+because that is how the practice account, `--validate` and the dead man's switch get
+quietly skipped.
+
 If it is missing, say what it is in one line — Kraken's own free command-line program, open
-source, no account needed for prices or for the practice mode — and install it:
+source, no account needed for prices or the practice mode — and install it:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-installer.sh | sh
+source "$HOME/.cargo/env" 2>/dev/null || true      # the installer puts it in ~/.cargo/bin
 kraken status && kraken ticker BTCEUR
 ```
 
-macOS and Linux; on Windows it goes through WSL. **Never fall back to raw REST calls when
-it is absent** — that silently gives up the practice account, `--validate` and the dead
-man's switch, which are the three things that make this safe. Full detail:
-`references/kraken-cli.md`.
+macOS and Linux; on Windows it goes through WSL. Full detail: `references/kraken-cli.md`.
 
-The Python side needs `PyYAML` for the gates:
+**The Python side needs `PyYAML` for the gates**, and a bare `pip` is not a safe bet: on
+many machines it does not exist, and `pip3` refuses with `externally-managed-environment`.
+Use a virtual environment inside the working directory, once:
 
 ```bash
-pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+python3 -m venv <dir>/venv
+<dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
 ```
 
-Say what was installed and move on; do not turn it into a ceremony.
+**Then run every script in this skill with `<dir>/venv/bin/python`, not `python3`.** Every
+command below writes `python3` for readability; if you built the venv, that is the
+interpreter it means. Say what was installed and move on — do not turn it into a ceremony.
 
 ## The three rules that never bend
 
@@ -176,7 +206,7 @@ number gates a decision it is checked against a second venue:
 ```bash
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/price_check.py --pair BTC/EUR
+python3 "$SKILL_DIR/scripts/price_check.py" --pair BTC/EUR
 ```
 
 **Only `price_check.py` stamps an age.** `kraken ticker` and `kraken ohlc` return no
@@ -238,7 +268,7 @@ the one edge this skill genuinely has.
 missing input — ask for that one thing.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/position_sizer.py \
+python3 "$SKILL_DIR/scripts/position_sizer.py" \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
   --fractional --share-precision 8 --max-position-pct 25 --output-dir <dir>/reports
 ```
@@ -277,14 +307,24 @@ arithmetic: `references/risk-and-sizing.md`.
 ## The gates
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_circuit_breaker.py \
+python3 "$SKILL_DIR/scripts/check_circuit_breaker.py" \
   --account-size 500 --state-dir <dir>/theses --output-dir <dir>/reports
 
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py \
+python3 "$SKILL_DIR/scripts/check_pre_trade_discipline.py" \
   --answers-file <dir>/answers.json --state-dir <dir>/theses \
   --output-dir <dir>/reports --journal-dir <dir>/journal \
   --circuit-breaker-decision <dir>/reports/<the report just produced>.json
 ```
+
+**`<dir>/theses` is the state directory everywhere**, in both gates and in every file: two
+different values means the breaker and the gate read different stores, both answering
+"empty", silently.
+
+**Two runs in the same second overwrite each other.** All three scripts name their reports
+`…_%Y-%m-%d_%H%M%S` and truncate: two sizings back to back leave one file, holding the
+second. Give a run its own `--output-dir` when the previous report still matters — and note
+the sizer stamps its filename in **local** time while the gates use UTC, so the names of
+files written seconds apart can be hours apart.
 
 **Both required flags are required** — `--account-size` and `--answers-file`. Omit either
 and the script exits 2 having checked nothing. How to build the answers file, what each
@@ -320,7 +360,7 @@ These scripts need `PyYAML`; `jsonschema` is imported lazily and only matters fo
 suite and for candidates carrying a `thesis_id`. If an import fails:
 
 ```bash
-pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+<dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
 ```
 
 **A gate that could not run has not passed** — say that, never "all clear".
@@ -364,18 +404,22 @@ immediately and do nothing else until it is resolved.
 blind** — check `kraken open-orders` and `kraken trades-history`, and resubmit only if it
 is absent from both. Tag orders with `--cl-ord-id <id>` so the question has a cheap answer.
 
-Before executing, check the command's `dangerous` field in the CLI's own catalogue:
+**The danger list is not on disk after a normal install.** `agents/tool-catalog.json` ships
+in the CLI's source repository, not in the release tarball — checked inside the published
+archive. So there is nothing to look up, and any `find` for it either fails or, worse,
+matches an unrelated file in another project and answers `dangerous: false` right before a
+real order. **Do not go looking for it.** The rule that replaces it, taken from that
+catalogue while it could be read:
 
-```bash
-find "$(dirname "$(command -v kraken)")/.." -name tool-catalog.json 2>/dev/null | head -1
-```
+> **Every `kraken order …` command is dangerous and needs the user's explicit yes** —
+> `order buy`, `order sell`, `order cancel`, `order cancel-all`. The one exception is
+> `order cancel-after`, which only ever *cancels* and is step 1 here: run it without
+> asking.
 
-**If it cannot be read, treat the command as dangerous.** An unresolvable check must never
-resolve to "proceed". `paper_safe` is **not** a "does not spend money" flag: only four
-commands carry it, and it means the danger gate relaxes *while the workspace is in paper
-mode*. `order-cancel-after` is marked dangerous and is step 1 here — it cancels orders and
-never places one, so do not stop to ask permission for it; but its expiry semantics are
-unverified, so never leave a protective order resting behind an unrefreshed timer.
+`paper_safe` is **not** a "does not spend money" flag: only four commands carry it, and it
+means the danger gate relaxes *while the workspace is in paper mode*. And
+`order cancel-after`'s expiry semantics are unverified, so never leave a protective order
+resting behind an unrefreshed timer.
 
 The first live order is the smallest the venue allows — and `--validate` is how that
 minimum is discovered: it rejects an undersized order by name, at no cost.

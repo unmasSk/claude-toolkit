@@ -56,9 +56,9 @@ cent that could have gone either way on an exact half-cent tie. The **size** —
 figure acted on — is `Decimal` end to end and is never affected.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/position_sizer.py \
+python3 "$SKILL_DIR/scripts/position_sizer.py" \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
-  --fractional --share-precision 8
+  --fractional --share-precision 8 --max-position-pct 25 --output-dir <dir>/reports
 ```
 
 Real output of that call (after two report-path lines):
@@ -114,8 +114,10 @@ position. Do not introduce it before the plain version is understood.
 Both are lifted scripts, and both are run — not paraphrased:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_circuit_breaker.py --account-size <n> --state-dir <dir> --output-dir <dir>/reports
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py --answers-file <f>.json --state-dir <dir> --output-dir <dir>/reports
+python3 "$SKILL_DIR/scripts/check_circuit_breaker.py" --account-size <n> --state-dir <dir>/theses --output-dir <dir>/reports
+python3 "$SKILL_DIR/scripts/check_pre_trade_discipline.py" --answers-file <dir>/answers.json \
+  --state-dir <dir>/theses --output-dir <dir>/reports --journal-dir <dir>/journal \
+  --circuit-breaker-decision <dir>/reports/<the breaker report just produced>.json
 ```
 
 The circuit breaker halts after a bad day, a bad week, a bad month, or two losses in a

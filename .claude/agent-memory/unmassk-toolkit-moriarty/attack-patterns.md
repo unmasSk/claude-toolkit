@@ -24,6 +24,17 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 - El agravante que convierte esto en T1 no está en el código sino en la prosa: buscar la frase del doc que enseña a leer "faltan artefactos" como "no encontró nada malo". Ahí el bypass deja de ser un fallo y pasa a ser la instrucción.
 - Segundo agravante a comprobar siempre: si el código de salida no distingue los casos (p.ej. una bandera `--fail-on-*` que devuelve lo mismo para "refusal" y para "input que no producimos") y stdout imprime solo el veredicto sin las razones, entonces NADA de lo que el doc manda leer separa los dos.
 
+### Recorrer una skill como un Claude recién llegado, en un proyecto vacío
+- El ataque más productivo contra una skill NO es leerla: es ejecutarla en orden en un scratch sin memoria, sin config y sin los binarios que da por instalados, y parar en la primera línea que no corre. Ronda `unmassk-trading` 2026-08-28: los 5 scripts aguantaron todo, y aun así el veredicto fue FALLA, entero por la capa de prosa ejecutable.
+- Comprobaciones fijas, en este orden:
+  1. **`${CLAUDE_PLUGIN_ROOT}` en un bloque `bash` siempre está vacío** en la shell de la Bash tool (verificado 2026-08-03 por Ultron y re-verificado 2026-08-28). `python3 ${CLAUDE_PLUGIN_ROOT}/skills/.../x.py` corre como `/skills/.../x.py`. Claude Code sí inyecta "Base directory for this skill: <ruta>" al cargar la skill, así que el modelo *puede* sustituir a mano — pero si la skill no se lo dice, es improvisación.
+  2. **El instalador de terceros**: bajar el tarball de release y `tar tzf` para ver qué ficheros existen de verdad. Un doc que dice "el CLI trae `agents/x.json`" suele estar mirando el repo de fuentes, no el artefacto instalado.
+  3. **`pip install` sin más** falla en macOS con Homebrew por partida doble: `pip` no está en PATH (sí `pip3`) y `pip3` responde `externally-managed-environment`.
+  4. **Toda línea `find "$(dirname "$(command -v <bin>)")/.."`**: sin el binario, `dirname ''` -> `.`, o sea `find ./..` = el padre del proyecto del usuario; con el binario en `~/.cargo/bin`, `find $HOME`. Montar un fichero homónimo en un directorio hermano y demostrar que el chequeo de seguridad lee el del proyecto ajeno. La regla "si no se puede leer, trátalo como peligroso" no salta: sí se leyó, otro fichero.
+  5. **Cada bloque de comando sin `--output-dir`/`--state-dir` explícito** escribe en el cwd, que es el repositorio del usuario. Correrlo y `ls` el scratch.
+  6. **Contradicción entre la secuencia numerada y la tabla de modos**: la secuencia suele excluir pasos ("los pasos 8-11 son de órdenes reales") que la tabla declara aplicables en todos los modos. Rastrear si el fichero del modo afectado invoca alguna vez esos scripts — si no lo hace, la tabla miente.
+  7. **El mismo flag con dos valores distintos en dos ficheros** que el modelo lee en la misma sesión (`--state-dir <dir>` vs `<dir>/theses`) es divergencia silenciosa: cada script mira un almacén distinto y ambos contestan "vacío".
+
 ### El bloque de comando copiable manda sobre el párrafo que lo corrige
 - Una skill puede decir en prosa "sin esta bandera el halt no bloquea nada" y, tres líneas antes o en otro fichero, imprimir el bloque `bash` sin esa bandera. Lo que se ejecuta es el bloque.
 - Ataque: extraer TODOS los bloques de comando de la skill y sus referencias, ejecutarlos literalmente, y comparar el resultado con lo que la prosa promete. Contar cuántos sitios muestran el comando y en cuántos falta la bandera crítica.

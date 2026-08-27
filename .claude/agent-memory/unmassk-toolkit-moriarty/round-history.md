@@ -5,6 +5,93 @@ metadata:
   type: project
 ---
 
+## unmassk-trading, SEGUNDA ronda: recorrido de la skill como Claude nuevo (2026-08-28)
+Target: `unmassk-trading/skills/unmassk-trading/` leida y EJECUTADA en orden
+en un directorio de scratch sin memoria, sin estado, sin config y sin binario
+`kraken`. Se corrio todo bloque bash que no exigiera el binario; lo que si lo
+exigia se verifico contra el artefacto real de la release (tarball descargado)
+y contra el codigo del instalador. Veredicto: FALLA. Los scripts aguantaron
+TODO; lo que rompe es la capa de prosa ejecutable.
+
+BREAK 1 (T1, primera linea que falla) -- `${CLAUDE_PLUGIN_ROOT}` esta VACIO en
+la shell de la Bash tool (re-confirmado en vivo aqui; Ultron ya lo tenia en
+`agent-prompts-gitmem-zone-memory.md` desde 2026-08-03). Las 12 lineas del
+plugin que lo usan se ejecutan como `/skills/...` -> `can't open file
+'/skills/unmassk-trading/scripts/price_check.py'`. R-018 en la memoria del
+proyecto prescribe justamente esa forma, y el parrafo "Paths." de SKILL.md
+afirma que funciona. Claude Code inyecta "Base directory for this skill:
+<ruta>" al cargar la skill, asi que un modelo cuidadoso PUEDE sustituir a
+mano -- pero ningun texto del plugin se lo dice.
+
+BREAK 2 (T1, chequeo de seguridad que lee el fichero equivocado) --
+`SKILL.md` (seccion "Placing an order"): `find "$(dirname "$(command -v
+kraken)")/.." -name tool-catalog.json | head -1`. Sin kraken en PATH,
+`dirname ''` -> `.`, o sea `find ./..`: barre el PADRE del proyecto del
+usuario. Demostrado: devolvio `./../other-project/tool-catalog.json` de un
+proyecto ajeno con `"dangerous": false`. La regla del propio SKILL.md ("si no
+se puede leer, trata el comando como peligroso") NUNCA salta porque SI se
+leyo -- otro fichero. Con kraken instalado por el instalador documentado el
+comando es `find $HOME` (7s aqui) y puede casar cualquier tool-catalog.json
+del home.
+
+BREAK 3 (T1, el fichero no existe) -- el tarball de release
+(`kraken-cli-aarch64-apple-darwin.tar.gz`, descargado y listado) contiene solo
+`kraken`, README, CHANGELOG, LICENSE. `agents/tool-catalog.json` existe SOLO
+en el arbol de fuentes de GitHub. `kraken-cli.md:118` ("The CLI ships
+`agents/tool-catalog.json`") es falso para lo que instala el metodo
+documentado, asi que el chequeo de peligrosidad nunca puede resolverse bien.
+
+BREAK 4 -- el paso 0 falla entero en la maquina del propietario: `pip` no
+existe (solo `pip3`), y `pip3 install -r ...` -> `externally-managed-
+environment`. Sumado a BREAK 1 son tres fallos en una sola linea. La skill no
+da ni venv ni `--break-system-packages` ni `python3 -m pip`.
+
+BREAK 5 (premisa falsa que deja a Claude atascado) -- SKILL.md:59-61 "Every
+quote, every practice order and every gate goes through the `kraken` binary".
+Falso: `price_check.py` (que es REST puro a api.kraken.com + binance, sin
+subprocess en NINGUN script) y los dos gates corrieron sin binario. Como
+ademas dice "Never fall back to raw REST calls when it is absent" y no ofrece
+camino degradado (si lo ofrece para gitmem), un Claude que no consiga instalar
+concluye que no hay nada que hacer.
+
+BREAK 6 (escritura en el sitio equivocado) -- el bloque del sizer en
+`references/risk-and-sizing.md:59-62` no lleva `--output-dir`: creo
+`reports/` dentro del proyecto del usuario. Contradice "Output directories are
+always passed explicitly" (SKILL.md) y "Always pass the output directories"
+(gate-input.md).
+
+REGRESION -- `risk-and-sizing.md:118` sigue imprimiendo el gate SIN
+`--circuit-breaker-decision` (ni `--journal-dir`). Es el BREAK 1 de la ronda
+anterior: SKILL.md se arreglo, este fichero no.
+
+DECEPCION -- SKILL.md:54 "On the practice account the loop is 1-7 and 12"
+(sin gates) contra SKILL.md:166/168 (tabla: "both gates ... Apply, unchanged"
++ "the gates are not training wheels ... they survive the mode"), y
+`beginner-mode.md` entero (7 dias) no invoca ninguno de los dos scripts. El
+paso 7 (escribir el answers file) se queda en el bucle de papel sin consumidor.
+
+MENORES -- `--state-dir` es `<dir>/theses` en SKILL.md y `<dir>` en
+gate-input.md y risk-and-sizing.md (divergencia silenciosa: breaker sobre cero
+datos); dos sizings en el mismo segundo con el `--output-dir` unico que
+imprime SKILL.md dejan UN fichero y dos rutas identicas en stdout (gate-input
+documenta esto solo para el gate); `position_sizer.py:505` usa
+`datetime.now()` local y los gates UTC -> nombres con 2h de diferencia en la
+misma carpeta; frontmatter `version: 1.0.0` vs `plugin.json` 1.0.1; el
+instalador deja el binario en `~/.cargo/bin` y pide `source ~/.cargo/env`
+mientras SKILL.md verifica con `kraken status` en la MISMA shell (aqui pasa
+porque el propietario ya tiene cargo en PATH; en maquina limpia no).
+
+AGUANTO (todo lo ejecutable): el contrato del gate entero -- NaN, Infinity,
+negativo, string, campo ausente, nombres de campo en euros, riesgo real >
+planificado, candidates vacio: 8/8 con la razon exacta que promete
+gate-input.md; `order_intent` en minusculas y con guion se normaliza, y uno
+desconocido da REVIEW_REQUIRED con razon explicita; 8 gates concurrentes sobre
+un solo journal -> 8 lineas JSONL integras; gitmem con 0 zonas da instrucciones
+accionables el mismo, y el round-trip nota->search funciona; el claim
+"byte-identical" de los lifted es cierto (diff contra upstream: solo la
+cabecera de atribucion); `.mcp.json` existe y esta vacio como dice; sin PyYAML
+ambos gates mueren con traceback (fail-loud); price_check en vivo OK.
+
 ## unmassk-trading plugin (SKILL.md + 5 refs + 5 scripts + 645 tests -- 2026-08-27)
 Target: the whole `unmassk-trading/` plugin. Everything runnable was run
 (645 tests green, real network to Kraken/Binance, real producer->consumer
