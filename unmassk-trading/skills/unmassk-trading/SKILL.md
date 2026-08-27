@@ -102,8 +102,9 @@ kraken ohlc BTCEUR --interval 60 -o json
 python3 scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
 ```
 
-`price_check.py` takes `--pair` (the slashless form `BTCEUR` also works); there is no
-positional argument. **`SINGLE_SOURCE` is also the verdict when *zero* venues answered** —
+`price_check.py` takes `--pair`. The slashless form works for three-letter quotes
+(`BTCEUR`, `ETHEUR`); **write the slash for anything else** — `BTCUSDT` splits as
+`BTCU`/`SDT` and the venue refuses it by name. There is no positional argument. **`SINGLE_SOURCE` is also the verdict when *zero* venues answered** —
 read the `reason` field before repeating the label, or you will tell the user one market
 replied when none did. Exit codes: `0` OK, `3` DISAGREE, `4` STALE, `5` SINGLE_SOURCE, `2`
 argparse usage error. **A caller that only checks the exit code is still protected** —

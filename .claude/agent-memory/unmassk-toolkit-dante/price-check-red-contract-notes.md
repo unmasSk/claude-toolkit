@@ -1,6 +1,6 @@
 ---
 name: price-check-red-contract-notes
-description: RED contract for unmassk-trading's price_check.py — the two venues' real response shapes, the checked_at-after-fetch flaw the live round-trip caught, and the per-test-import technique that keeps a RED contract failing instead of erroring at collection
+description: RED contract AND hardening sweep for unmassk-trading's price_check.py — the two venues' real response shapes, the checked_at-after-fetch flaw the live round-trip caught, the per-test-import RED technique, and why the __main__ line needs a real process to be covered
 metadata:
   type: project
 ---
@@ -87,3 +87,64 @@ Registered by a `pytest_configure` appended to the shared `conftest.py` — a ma
 registered from inside a test module and the repo's `pyproject.toml` declares no `[markers]`.
 Deselect with `-m "not live"`. Note `pyproject.toml` sets `testpaths = ["unmassk-toolkit/tests"]`,
 so this plugin's suite only runs when given its path explicitly.
+
+---
+
+# Update — hardening pass (2026-08-27, same day)
+
+Second entry, after Ultron implemented and the review round closed. New file
+`tests/test_price_check_hardening.py` (212 tests) alongside the untouched 62-test contract.
+Whole plugin suite **433 → 645 passed** (3 consecutive identical runs).
+
+## Measured coverage, not asserted coverage
+
+`coverage run --branch --include="*/price_check.py"` over the whole tests directory:
+**202 statements, 54 branches, 0 missed, 0 partial — 100.0%**, and an AST cross-check confirms
+**20/20 functions** and **19/19 raise sites** executed. Do not assert a coverage floor inside a
+test: measure it and report the number, the way the coordinator asked.
+
+**The one line pytest can never see is `sys.exit(main())` under `if __name__ == "__main__"`.**
+In-process coverage reported 99.2% with exactly that line missing. Fix that is honest rather than
+cosmetic: `coverage run --append --branch --include=... <script> --help` — a REAL process running
+the real entry point, appended to the same data file. That is also the only way the shebang path
+gets exercised at all, and it is the path a person actually enters by.
+
+## Behaviours pinned as they ARE, on purpose
+
+- **A frozen quote delivered instantly reads as fresh.** `age_seconds` is measured from RECEIPT,
+  not from when the venue last moved the price, and neither venue's ticker carries a price
+  timestamp. The STALE guard catches a caller-supplied quote, a clock jump, and an unreadable
+  timestamp — not this. Written as a long-named test explaining what it does and does not cover,
+  so wiring a venue timestamp later means deliberately rewriting a test instead of silently
+  changing behaviour. **A limit named in a test is a limit; a limit named in a doc is a rumour.**
+- **Zero venues answering is `SINGLE_SOURCE`, not a fifth verdict.** Recommended KEEPING the
+  four-verdict vocabulary: the caller's contract is the exit code plus the reason, both already
+  correct, and for the caller "one venue" and "no venue" mean the same thing — nothing
+  cross-checks this, do not trade. A fifth code would change every consumer's switch to fix a
+  cosmetic reading of one field. Instead the reason is now pinned by test: it must contain
+  "no venue answered" and must NOT contain "only price left".
+
+## Real finding: the slashless form skips the XBT alias on a 4-letter quote
+
+`_split_pair` splits a slashless pair as `base[:-3] / base[-3:]`, so `BTCUSDT` becomes
+`BTCU`/`SDT` and the `BTC→XBT` alias never fires — Kraken is asked for `BTCUSDT`. Base+quote
+re-concatenates identically, so the URL is not corrupted and the venue refuses it by name; it
+fails loudly, never quotes the wrong asset. `BTC/USDT` with the slash resolves correctly to
+`XBTUSDT`. Pinned by test as a known limit. `BTCEUR` and every 3-letter-quote pair are unaffected.
+
+## Two assertions of MINE that were wrong, caught by running
+
+- `json.loads(b'{"a":1}')` **succeeds** — json accepts bytes. My "bytes body is malformed" case was
+  wrong, and the transport decodes to `str` before this point anyway, so it was also a lab case.
+  Dropped rather than argued.
+- Nothing else. The other 211 passed first time, which is what reading the implementation before
+  writing assertions buys.
+
+## Technique worth repeating: probe the branches in a REPL before asserting on them
+
+Before writing a line of the sweep I ran every edge input through the real functions and printed
+the actual results (`_split_pair` on 7 spellings, `_receipt_age` on 8 deltas including the
+microsecond rounding, both CLI validators on 17 bad values). That is where the facts came from —
+e.g. a half-second-old quote rounds to **1s, older never younger**, and `-300.5s` in the future
+still reports `-300`. Guessing those and asserting the guess is how a hardening pass turns into an
+argument with the implementer.
