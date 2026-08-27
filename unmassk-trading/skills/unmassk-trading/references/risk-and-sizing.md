@@ -22,7 +22,7 @@ Never "how much do I want to buy". Always **"how much am I willing to lose if th
 hits"**, and the size falls out of that.
 
 ```
-risk_amount   = account × risk_per_trade          (1% default, 2% ceiling)
+risk_amount   = account × risk_per_trade          (see the note below on 1% / 2%)
 stop_distance = entry − stop                       (per unit, absolute)
 size_in_units = risk_amount ÷ stop_distance
 cost          = size_in_units × entry
@@ -37,6 +37,11 @@ size = 5,00 / 4.500             = 0,00111 BTC
 cost = 0,00111 × 67.500         = 75,00 €
 ```
 
+**1% and 2% are OUR convention, not the tool's.** `--risk-pct` has no default and no upper
+bound in `position_sizer.py`: it validates only that the number is positive. Pass it
+explicitly every time, keep it at 1% while learning, and treat 2% as the ceiling this skill
+imposes — the script will happily size a 40% risk if asked, and say nothing.
+
 **75 € bought to risk 5 €.** That relationship — the position being much larger than the
 amount at risk — is the single idea a beginner has to internalise, and showing both
 numbers every single time is how it lands.
@@ -50,14 +55,17 @@ python3 scripts/position_sizer.py \
   --fractional --share-precision 8
 ```
 
-Measured output for exactly that call: `0.00110692 units @ 67517 · position 74.74 ·
-risk 5.00 (1.0%)` — the same numbers as the worked example above, which is the point of
-checking it against the arithmetic rather than trusting either alone.
+Real output of that call (after two report-path lines):
 
-**`--fractional` is mandatory here.** Without it the sizer rounds to whole units, and any
-position under one bitcoin collapses to zero. And the script prints `$` and `shares`: the
-arithmetic is currency-neutral and correct, the labels are not ours — restate them in
-euros and units when showing anything to the user.
+```
+Final: 0.00110692 shares @ $67517.0
+Position: $74.74
+Risk: $5.00 (1.0%)
+```
+
+The same numbers as the worked example above — which is the point of checking the tool
+against the arithmetic instead of trusting either alone. `--fractional`, `--output-dir`
+and the `$`/`shares` labels are covered in `SKILL.md`; they are not repeated here.
 
 Three lines are always said out loud, in euros, before any order:
 
@@ -93,8 +101,8 @@ position. Do not introduce it before the plain version is understood.
 Both are lifted scripts, and both are run — not paraphrased:
 
 ```bash
-python3 scripts/check_circuit_breaker.py --state-dir <dir>
-python3 scripts/check_pre_trade_discipline.py --state-dir <dir>
+python3 scripts/check_circuit_breaker.py --account-size <n> --state-dir <dir> --output-dir <dir>/reports
+python3 scripts/check_pre_trade_discipline.py --answers-file <f>.json --state-dir <dir> --output-dir <dir>/reports
 ```
 
 The circuit breaker halts after a bad day, a bad week, a bad month, or two losses in a
@@ -121,6 +129,9 @@ What matters here, in the conversation:
   lands; the loss arithmetic itself is sound.
 - **They need `PyYAML` and `jsonschema`** (`requirements.txt`). If an import fails, say so:
   a gate that could not run has not passed.
+- **Both carry a required flag** — `--account-size` for the breaker, `--answers-file` for
+  the gate — and the invocations, plus the difference in how each one fails, are in
+  `SKILL.md`. The answers file itself: `references/gate-input.md`.
 
 ## The record — in memory, never in a second file
 
@@ -142,7 +153,8 @@ Fields worth carrying in the note body:
   and the second is the more dangerous one.
 
 ```bash
-gitmem note M --zones product trading "BTCEUR buy 0,00111 @ 67.500 (papel)" \
+gitmem zones list        # first, always: the zones are the project's, not this skill's
+gitmem note M --zones <zone1> <zone2> "BTCEUR buy 0,00111 @ 67.500 (papel)" \
   --description "Tesis: <una frase>. Stop 63.000, riesgo 5,00 € (1%). Lo invalidaría: <qué>. Modo: papel." --stops no
 ```
 

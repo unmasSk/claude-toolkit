@@ -62,6 +62,10 @@ kraken workspace status -o json
 kraken workspace reset --yes         # wipes the practice account
 ```
 
+**Add `--allow-pairs` when creating a practice workspace** (comma-separated, or repeat the
+flag): it restricts trading to the pairs named, and a beginner working on one pair has no
+reason to be able to touch ninety others. One flag, free defence in depth.
+
 Paper runs **locally against live market prices**. Kraken has no server-side spot
 sandbox — the only Kraken demo environment is futures-only
 (`demo-futures.kraken.com`), which is not what this skill uses.
@@ -126,6 +130,11 @@ kraken orderbook BTCEUR -o json
 kraken status -o json                 # venue status; a closed or degraded market is a fact worth saying
 ```
 
+**`ticker` answers under Kraken's INTERNAL pair name, not the one you asked for.** Ask for
+`BTCEUR` and the response is keyed `XXBTZEUR`. Reach the fields with `.[]` or `to_entries`
+— a hardcoded key works on the pair you tested and fails on the next one, which is the
+worst kind of bug because it looks like a data problem.
+
 ### Live streaming, when polling is not enough
 
 ```bash
@@ -150,6 +159,20 @@ curl -s "https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCEUR"
 curl -s "https://api.kraken.com/0/public/Ticker?pair=XBTEUR"
 ```
 
+That comparison is what `scripts/price_check.py` automates, and its two thresholds are the
+only numbers in this plugin a user is likely to want to tune:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--max-spread-bps` | `50` (0.5%) | Above this, the two venues `DISAGREE` and the quote gates nothing |
+| `--max-age-seconds` | `60` | Older than this on either side and the verdict is `STALE` |
+
+Both are strict comparisons: exactly 50 bps and exactly 60 s still read `OK`. **50 bps is
+calibrated for a liquid pair** — measured live on BTC/EUR, Kraken and Binance sat about
+1 bps apart. A thin pair can legitimately differ by more than that, so a `DISAGREE` on an
+illiquid market is information about liquidity, not necessarily about a broken feed. Say
+which it looks like rather than treating every alarm as a fault.
+
 A disagreement is **reported, never averaged**. Two prices 2% apart mean one source is
 wrong, and that is the finding.
 
@@ -159,6 +182,19 @@ Kraken's REST layer uses its own asset codes (`XXBTZEUR` for BTC/EUR) while the 
 accepts the friendly form (`BTCEUR`, `BTC/EUR`). Never hand-translate a pair name — pass
 what the user said to the CLI and let `--validate` reject it if it is wrong. A silently
 mistranslated pair is an order on the wrong asset.
+
+## When a command fails — route by category, do not retry blindly
+
+The CLI reports an error category. Each one has exactly one correct response, and getting
+this wrong is how a failed order becomes two orders:
+
+| Category | What to do |
+|---|---|
+| `auth` | Re-authenticate. **Never retry** — the same key will fail the same way. |
+| `rate_limit` | Read the `suggestion` field and wait. Do not tighten the loop. |
+| `network` | Back off exponentially — **and if it happened during an order, check `open-orders` and `trades-history` before resubmitting anything.** |
+| `validation` | Fix the input. Retrying the identical payload is guaranteed to fail again. |
+| `api` | Inspect the message; it is the venue telling you something specific. |
 
 ## Rate limits
 
@@ -188,6 +224,11 @@ uselessly. Wire it only once `kraken status` works, by adding this to the plugin
 
 **Those four service groups are the safe set** — public market data, the paper account,
 workspaces, and read-only account queries. None of them can place a live order.
+
+Two caveats worth knowing before wiring it: the CLI's own default is
+`market,paper,feedback`, and **`account` requires a key**, so during the keyless paper
+phase it adds nothing but a failing group. Start with `market,paper,workspace` and add
+`account` when a read-only key exists.
 
 `trade` (live orders) and `funding` (withdrawals) are **not** in that list on purpose.
 Adding `trade` is a deliberate decision taken with the user when live trading begins;

@@ -66,7 +66,8 @@ each one alone can stop the whole thing:
 Save the conclusion, not the transcript:
 
 ```bash
-gitmem note M --zones product trading "risk profile: <amount> playable, <what they did last drop>" \
+gitmem zones list        # the zones belong to the project this runs in, not to this skill
+gitmem note M --zones <zone1> <zone2> "risk profile: <amount> playable, <what they did last drop>" \
   --description "<the answers that shaped it, and the ceiling per position that follows>" --stops no
 ```
 
@@ -123,7 +124,10 @@ waiting is part of what is being taught.
 2. **Day 2** — read the same position without touching it. Say whether it is up or down,
    in euros, and whether that is realised. *(This is the lesson.)*
 3. **Day 3** — place a limit buy below the market and watch it not fill. Cancel it.
-4. **Day 4** — set a stop on the open position, sized by `risk-and-sizing.md`.
+4. **Day 4** — place a stop on the open position, sized by `risk-and-sizing.md`:
+   `kraken paper sell BTCEUR <size> --type stop-loss --price <stop>`. Check the exact flag
+   with `kraken order --help` before using it; the stop-order surface is the one part of
+   this week that has not been exercised end to end here.
 5. **Day 5** — sell half. Show the realised result and the fee, in euros.
 6. **Day 6** — read the week: what was bought, what it cost, what it is worth, what the
    fees ate.

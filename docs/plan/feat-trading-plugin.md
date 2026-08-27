@@ -119,8 +119,14 @@ investigación → plan → planteamiento
 
 ### T2 · El comprobador de precio (Dante contrato → Ultron)
 
-**No hay nada que copiar: ninguna de las 291 skills contrasta dos fuentes ni sella la edad
-del precio. Esta se escribe, y por eso lleva contrato en rojo antes que implementación.**
+**Corregido el 2026-08-27 tras la comparación línea por línea:** la afirmación original
+—«nada de las 291 contrasta dos fuentes»— era medio falsa. `agiprolabs/ohlcv-processing/
+scripts/merge_sources.py` (491 líneas) sí reconcilia dos fuentes, y su propia
+documentación fija el dato útil: **dos fuentes pueden discrepar legítimamente entre 0,1% y
+2%** en cripto. Lo que no existe en ninguna es **sellar la edad del precio**, y su enfoque
+es el contrario al nuestro: ellos *eligen ganador* (prefieren la fuente con más volumen),
+que es justo lo que `honest-advice.md` prohíbe. El nuestro se escribe igualmente, y se
+escribió.
 - [ ] Contrato en rojo: dos fuentes, edad de cada precio, discrepancia en puntos básicos,
       veredicto `OK` / `DISAGREE` / `STALE` / `SINGLE_SOURCE`, y **salida distinta de cero
       en los tres malos** para que quien lo llame no pueda ignorarlo

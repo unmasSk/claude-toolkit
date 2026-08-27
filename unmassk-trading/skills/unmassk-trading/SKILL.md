@@ -41,8 +41,12 @@ here and the one that decides whether this skill is useful or dangerous.
 Check memory first, do not re-ask:
 
 ```bash
-gitmem search trading-mode
+gitmem search "trading mode"
 ```
+
+(The stored headline is `trading mode: <beginner|advanced>`. `gitmem search` matches
+literal text, so searching `trading-mode` with a hyphen finds nothing and the fork
+re-asks every session.)
 
 - A note answers it → use that mode, say one line ("sigo en modo principiante").
 - Nothing → ask the fork once:
@@ -69,6 +73,22 @@ moves. The affordability half runs on the lifted instrument in
 `references/lifted/risk-profile-questionnaire.md` — capacity, tolerance and requirement
 scored separately, with the rule that matters most: *never exceed emotional risk
 tolerance*.
+
+## Advanced mode
+
+**What it actually changes** — everything not on this list is identical in both modes:
+
+| | Beginner | Advanced |
+|---|---|---|
+| The knowledge assessment | Run it | Skipped |
+| Explaining a concept before using it | Every time, at their level | Only when asked |
+| The affordability questionnaire | Run it | Ask for the two numbers directly: playable account, risk per trade |
+| The practice account | Mandatory from minute one | Optional |
+| The promotion gate | Blocks live money until passed | Does not apply |
+| The five order steps, both gates, the price check | Apply | **Apply, unchanged** |
+
+The gates are not training wheels. They are what stops a typo from becoming a loss, and
+they survive the mode.
 
 ## Reading the market
 
@@ -106,9 +126,18 @@ python3 scripts/position_sizer.py \
   --fractional --share-precision 8
 ```
 
-Verified output for that call: `0.00110692 units @ 67517 · position 74.74 · risk 5.00
-(1.0%)`. **`--fractional` is mandatory for crypto** — without it the sizer rounds to whole
-units and a sub-1-unit position collapses to zero.
+Real output of that exact call, run on 2026-08-27 (two report-path lines first, then):
+
+```
+Final: 0.00110692 shares @ $67517.0
+Position: $74.74
+Risk: $5.00 (1.0%)
+```
+
+**`--fractional` is mandatory for crypto** — without it the sizer rounds to whole units and
+a sub-1-unit position collapses to zero. **Pass `--output-dir` too**: the default writes a
+JSON and a Markdown report into `reports/` relative to the current directory, which means
+into whatever repository the shell happens to be sitting in.
 
 Three lines are always said out loud, in euros: what it **costs**, what it **loses at the
 stop**, and what **percentage of the account** that is. If the user has not named a stop,
@@ -124,20 +153,44 @@ showing them to the user**, and do not rely on the day/week boundaries for a 24/
 ## The gates, before the order
 
 ```bash
-python3 scripts/check_circuit_breaker.py --state-dir <dir>          # halted after a bad day/week/month?
-python3 scripts/check_pre_trade_discipline.py --state-dir <dir>     # plan, stop, size, cooldown
+python3 scripts/check_circuit_breaker.py \
+  --account-size 500 --state-dir <dir> --output-dir <dir>/reports
+
+python3 scripts/check_pre_trade_discipline.py \
+  --answers-file <file>.json --state-dir <dir> --output-dir <dir>/reports
 ```
 
-Both **fail loud**: a missing value, an unparseable number or an absent upstream artifact
-produces `REVIEW_REQUIRED`, never a silent pass. A `HALTED` or `COOLDOWN` verdict is
-stated with its number and its reason, and it is not lifted because the user asks again in
-the same session. Thresholds: `references/lifted/circuit-breaker-framework.md`. The seven
-blocking checks: `references/lifted/discipline-gate-framework.md`.
+**Both required flags are required** — `--account-size` and `--answers-file`. Omit either
+and the script exits 2 having checked nothing. How to build the answers file, and where
+every field comes from: `references/gate-input.md`.
 
-These scripts need `PyYAML` and `jsonschema` (`requirements.txt`). If an import fails, say
-so plainly — a gate that cannot run has not passed.
+**The two gates do not fail the same way, and the difference matters:**
+
+- **The discipline gate fails loud.** A missing value, an unparseable number, an absent
+  upstream artifact → `REVIEW_REQUIRED`. It never turns absence into a pass.
+- **The circuit breaker does not use that vocabulary at all.** Its verdicts are
+  `TRADING_ALLOWED` / `COOLDOWN` / `HALTED`, and data quality is a **separate field**
+  (`OK` / `PARTIAL` / `EMPTY_STATE`). Run against an empty state directory it returns
+  `TRADING_ALLOWED` with `EMPTY_STATE` beside it — verified. **Read the data-quality field
+  before believing the verdict**, and when it says `EMPTY_STATE`, say so: there is no
+  history, so nothing was actually checked.
+
+A `HALTED` or `COOLDOWN` is stated with its number and its reason, and it is not lifted
+because the user asks again in the same session. Thresholds:
+`references/lifted/circuit-breaker-framework.md`. The seven blocking checks:
+`references/lifted/discipline-gate-framework.md`.
+
+These scripts need `PyYAML` and `jsonschema` (`requirements.txt`). Without `jsonschema` the
+test suite cannot even be collected, and the gates raise on import. **A gate that could not
+run has not passed** — say that, never "all clear".
 
 ## Placing an order
+
+**Status: written, not yet exercised against a live account.** This plugin ships phase 1 —
+read, practise, size. These five steps are already the procedure for **paper** orders, and
+they are the procedure live execution will follow. Before any live order the promotion
+gate in `references/beginner-mode.md` applies, and the key is created without withdrawal
+permission.
 
 Five steps, both modes, every time. Detail in `references/kraken-cli.md`.
 
@@ -150,17 +203,38 @@ Five steps, both modes, every time. Detail in `references/kraken-cli.md`.
    report a fill from step 4's own output; if the read-back disagrees, say so immediately
    and do nothing else until it is resolved.
 
+**If step 4 errors, the order may or may not have reached the exchange. Never retry it
+blind** — that is how one order becomes two:
+
+```bash
+kraken open-orders -o json      # is it sitting there?
+kraken trades-history -o json   # did it already fill?
+```
+
+Resubmit only if it is absent from **both**. Tag orders with `--cl-ord-id <id>` so the
+question has a cheap answer: query by the tag instead of guessing from timestamps.
+
 Before executing, check the command against the CLI's own `agents/tool-catalog.json`
-`dangerous` field. Never keep a hand-written copy of that list here — it would drift.
+`dangerous` field. Never keep a hand-written copy of that list here — it would drift. One
+caveat: `order-cancel-after` is itself marked dangerous and it is step 1 of this procedure.
+Setting the dead man's switch is a safety action, not a spend — do not stop to ask
+permission for it. The field that separates "spends money" from "merely lives in the trade
+group" is `paper_safe`.
 
 ## After a trade
 
 The record goes in the project's memory, never in a second journal file:
 
 ```bash
-gitmem note M --zones product trading "<pair> <side> <amount> @ <price> (<paper|real>)" \
+gitmem zones list                      # ALWAYS first — the zones differ per project
+gitmem note M --zones <zone1> <zone2> "<pair> <side> <amount> @ <price> (<paper|real>)" \
   --description "Tesis en una frase. Stop, riesgo en euros, y qué lo invalidaría." --stops no
 ```
+
+**Never hardcode the zone pair.** This skill travels to whatever project the user runs it
+in, and a note whose zone does not exist there is rejected — the trade goes unrecorded and
+the failure reads as "the command is broken". List the zones, pick two that exist, and
+create one (`gitmem zones add trading --description "..."`) only if nothing fits.
 
 The fields worth carrying — thesis, kill criteria, stop, what would prove it wrong — are
 in `references/lifted/thesis-lifecycle.md`. **The mode (paper or real) is never omitted:**
@@ -188,6 +262,8 @@ Original to this plugin:
   and what a trade note carries.
 - **`references/honest-advice.md`** — what can be said, and what is a guess with a decimal
   point.
+- **`references/gate-input.md`** — the answers file the discipline gate requires, field by
+  field, and where each value comes from.
 
 Lifted verbatim with the code they document (MIT — see `CREDITS.md`):
 

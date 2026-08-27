@@ -37,3 +37,7 @@ __pycache__/
 # NO usar un `*.lock` a secas: Cargo.lock y bun.lock de chatroom son dependencias
 # legitimas y tienen que seguir versionadas.
 .claude/project-memory/*.lock
+
+# unmassk-trading: los scripts levantados escriben informes con ruta relativa
+unmassk-trading/skills/unmassk-trading/reports/
+unmassk-trading/skills/unmassk-trading/state/

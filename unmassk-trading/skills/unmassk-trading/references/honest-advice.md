@@ -36,7 +36,7 @@ Reporting what a source says, with the source named, is fine. Deriving a directi
 it is not.
 
 **5. Data-quality alarms — always, loudly.**
-"This quote is 4 minutes old." "Kraken and Binance disagree by 40 basis points." "The
+"This quote is 4 minutes old." "Kraken and Binance disagree by 0,8% — above the 50-basis-point limit, so this quote does not gate anything." "The
 paper simulator filled this instantly; a live order would not have." Under this project's
 threat model — the system harming itself, silence being the worst failure — a stale or
 disagreeing number that is presented as clean is the most likely way this skill lies to
@@ -67,8 +67,12 @@ When the user asks the question this file exists for — *"¿compro o no?"* — 
 not a refusal lecture. It is the facts they need to decide, in one breath:
 
 > No sé si va a subir. Lo que sí sé: ahora está en 67.500 €, hoy ha estado entre 66.600
-> y 67.900. Si pones 50 € y pones el stop en 63.000, arriesgas 3,30 €. Eso es un 0,3% de
-> tu cuenta. La decisión de si te compensa es tuya.
+> y 67.900. Si pones 75 € y el stop en 63.000, arriesgas 5 €. Eso es el 1% de tu cuenta de
+> 500 €. La decisión de si te compensa es tuya.
+
+(The numbers in that example are the ones `position_sizer.py` actually returns for a 500 €
+account at 1% risk — see `risk-and-sizing.md`. Examples that do not survive being run are
+how a skill teaches its own user something false.)
 
 That answer is useful, honest, and takes the same number of words as a fake signal.
 
