@@ -18,6 +18,26 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un subcomando de terceros que un arreglo ACABA de recomendar, se ejecuta con reloj (2026-08-28)
+Cuando la ronda anterior cierra un hallazgo anadiendo "abre una sesion con
+`X sub start`", ese comando entra en el doc sin haberse corrido nunca. Correrlo
+con un tope de tiempo (lanzar en background, `kill -0` en bucle, matar a los
+30 s) separa tres desenlaces que la lectura confunde: sale con error de
+validacion por flags que faltan, devuelve, o **no devuelve nunca porque es un
+grabador en streaming**. El tercero es el caro: en una llamada Bash de agente
+cuelga la sesion, y al matarlo deja estado abortado que contamina los informes
+de la cuenta para siempre. Caso real: `kraken session start` (unmassk-trading,
+ronda 5). Corolario: si el mismo fichero ya dice en otro sitio "una skill no
+puede mantener un socket abierto entre turnos", el arreglo se contradice solo.
+
+### Un exit code medido a traves de una tuberia es un exit code inventado (2026-08-28)
+`cmd | head` devuelve el estado de `head`, no el de `cmd`. Asi entro un "Measured:
+it exits 0" FALSO en un doc — lo medi yo en una ronda anterior y el arreglo lo
+escribio como hecho, sustituyendo el dato correcto que ya estaba. Medir siempre
+`cmd >/dev/null 2>&1; echo $?` sin tuberia, y probar las variantes (con y sin
+`--yes`, con y sin nombre) antes de afirmar un codigo de salida. Caso real:
+`kraken workspace promote` sale 1 en las cuatro variantes; solo la tuberia da 0.
+
 ### El estado del shell NO sobrevive entre llamadas de la herramienta Bash (2026-08-28)
 Verificado en vivo: `export X=valor` en una llamada, `echo "[$X]"` en la
 siguiente devuelve `[]`. Cwd sí persiste; variables de entorno, funciones y

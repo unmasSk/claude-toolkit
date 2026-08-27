@@ -54,7 +54,10 @@ workspace is selected **per command**, inline. Create it once; then prefix every
 command with it:
 
 ```bash
-kraken workspace create practica --capital 1000 --mode paper --currency EUR --slippage-rate 0.001
+# --capital is FIXED at creation; use the playable amount, not a round 1000.
+# --allow-pairs CANNOT be added later: without it the workspace can trade anything, forever.
+kraken workspace create practica --capital <playable> --mode paper --currency EUR \
+  --slippage-rate 0.001 --allow-pairs BTCEUR
 KRAKEN_WORKSPACE=practica kraken workspace status -o json
 
 KRAKEN_WORKSPACE=practica kraken paper buy BTCEUR 0.001
@@ -79,8 +82,13 @@ paper buy of `ETHEUR` is refused by name; without it, the same order fills.
 this trade is recorded on the account but not in any session window` to stderr and stamps
 the fill `"session":"none"`. It is not an error and the fill is real, but
 `kraken workspace report` will then show `sessions: []` and count those fills as outside
-any window. Either open one at the start of a practice run (`kraken session start`), or say
-plainly the first time the warning appears that it is expected and harmless here.
+any window. **Do not try to open one.** `kraken session start` requires `--channels` and `--symbols`
+and then **never returns**: it is a long-running recorder streaming the tape, which is
+precisely the daemon this plugin decided not to run. Killed, it leaves the session
+`aborted` and `workspace report` carries that caveat forever — and the paper fills are
+still stamped `"session":"none"` anyway. Say once, the first time the warning appears, that
+it is expected and harmless here: the fill is real, it is simply not inside a recorded
+window, and this skill does not use those windows.
 
 Paper runs **locally against live market prices**. Kraken has no server-side spot
 sandbox — the only Kraken demo environment is futures-only
@@ -98,10 +106,13 @@ sandbox — the only Kraken demo environment is futures-only
   Market buys fill at `ask × (1 + rate)`, sells at `bid × (1 − rate)`.
 - **No order-book depth, no rejections, no queue position.**
 
-`kraken workspace promote <workspace>` exists as a graded evaluation. Measured: it exits
-**0**, with and without `--yes`, and it grades sealed experiments (`kraken lab new`) and
-passing sessions — none of which the beginner path here ever creates. Its grade is not the
-gate this plugin uses. Use the gate in `beginner-mode.md` and change modes deliberately.
+`kraken workspace promote <workspace>` exists as a graded evaluation and **exits 1** — with
+`--yes`, without it, and with `-o json`. (A measurement of `0` earlier in this plugin's
+history came from piping it into `head`, which returns `head`'s status, not the command's:
+worth remembering the next time a shell "proves" an exit code.) Without `--yes` in a
+non-terminal — which is every agent shell — it refuses to evaluate at all. It grades sealed
+experiments (`kraken lab new`) and passing sessions, none of which the beginner path here
+creates, so its grade is not the gate this plugin uses. Use the gate in `beginner-mode.md` and change modes deliberately.
 
 ## Live orders — the five steps
 
@@ -249,7 +260,7 @@ uselessly. Wire it only once `kraken status` works, by adding this to the plugin
 workspaces, and read-only account queries. None of them can place a live order.
 
 Two caveats worth knowing before wiring it: the CLI's own default is
-`market,paper,feedback`, and **`account` requires a key**, so during the keyless paper
+`market,account,paper,workspace,feedback`, and **`account` requires a key**, so during the keyless paper
 phase it adds nothing but a failing group. Start with `market,paper,workspace` and add
 `account` when a read-only key exists.
 

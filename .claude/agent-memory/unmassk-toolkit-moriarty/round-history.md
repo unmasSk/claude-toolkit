@@ -5,6 +5,59 @@ metadata:
   type: project
 ---
 
+## unmassk-trading, QUINTA ronda: cold walk sobre `6c153f4` (2026-08-28)
+Target: el skill ya con los arreglos de la ronda 4. Mismo metodo: binario
+`kraken` 0.4.1 del tarball + `HOME` falso con el plugin en
+`.claude/plugins/cache/<mkt>/unmassk-trading/1.0.2/`. Veredicto FALLA, y las
+tres cosas rotas son **texto que la ronda anterior escribio**.
+
+**T1 — `kraken session start` no vale como consejo.** `kraken-cli.md:82` (parrafo
+nuevo de la ronda 4) manda "open one at the start of a practice run
+(`kraken session start`)". Literal sale
+`Validation error: at least one --channels entry is required`; con `--channels
+ticker` pide `--symbols`; con los dos **no devuelve nunca** — es un grabador que
+escribe la cinta del mercado por stdout (medido: vivo a los 40 s). Al matarlo la
+sesion queda `status: aborted` y `kraken workspace report` arrastra para siempre
+`caveats: ["1 session(s) carry no numbers"]`. Y la orden de papel SIGUE avisando
+`session: none`: solo un grabador en segundo plano engancha el fill (probado,
+`session: s2`). El propio fichero se desmiente en `kraken-cli.md:171` ("a skill
+cannot hold a socket open across turns").
+
+**T1 — el bloque copiable de crear workspace no recibio el arreglo.**
+`beginner-mode.md:116` se arreglo (`--capital <playable>`, `--allow-pairs`), pero
+`kraken-cli.md:57` sigue con `--capital 1000 ... --slippage-rate 0.001` sin
+`--allow-pairs`, y es el bloque al que apunta `SKILL.md:406` desde la seccion de
+ordenes. Probado: el workspace creado ahi acepta ETHEUR (`workspace show` no
+trae `allowed_pairs`) y el capital "is fixed at create". Cuarta ronda seguida
+que este plugin falla por un arreglo que no viajo a los dos ficheros.
+
+**T2 — un exit code inventado por mi.** `kraken-cli.md:101` dice "Measured: it
+exits **0**, with and without `--yes`". Medido: 1 en las cuatro variantes; solo
+`... | head` da 0. La ronda 4 lo midio con tuberia y el arreglo escribio el dato
+falso encima del correcto ("returns exit 1"). Ademas sin `--yes` ni siquiera
+evalua: `confirmation needed ... stdin is not a terminal`.
+
+**T3:** `kraken-cli.md:251-252` dice que el default de `kraken mcp` es
+`market,paper,feedback`; el real es `market,account,paper,workspace,feedback`.
+
+**Lo que aguanto, ejecutado:** los cinco reasons del gate disparan uno a uno
+(`entry is not confirmed in the written plan`, `stop is not predefined`, `size is
+not confirmed within plan`, `actual risk N exceeds planned risk M`, y por la
+tuberia `circuit_breaker recommendation is HALTED`); `metrics.theses_scanned`
+SI existe en el informe del gate (=0), asi que el arreglo honesto de
+`risk-and-sizing.md` es cierto; el conteo "cuatro de seis" tambien (el breaker
+nunca puede HALTED solo, porque sus reglas leen el store vacio); `--allow-pairs`
+rechaza ETHEUR por nombre; los numeros del sizer del doc se reproducen exactos
+(74.74 / 125.00 / `binding_constraint: max_position_pct`); `gitmem` en un
+proyecto sin zonas falla en alto y dice como arreglarlo; `paper buy BTCEUR 50`
+lo caza el saldo; sin prefijo de workspace falla en alto salvo que exista
+`global` (y entonces el doc ya lo avisa); dos gates seguidos en el mismo segundo
+dejan un fichero con el segundo (documentado); 5000 candidatos en 0,10 s; NaN da
+`planned_risk_dollars is required and must be a finite non-negative number`.
+Round-trip §34: corrompi `recommendation` a HALTED/COOLDOWN y borre el campo en
+copias del informe del breaker — el gate se pone rojo por el canal independiente
+(`candidate_results[].reasons`) en los tres casos.
+
 ## unmassk-trading, CUARTA ronda: cold walk con el binario real (2026-08-28)
 Target: el mismo skill ya con `98be8c0`. Diferencia clave de metodo respecto a
 las tres rondas anteriores: **extraje el binario `kraken` del tarball de release
