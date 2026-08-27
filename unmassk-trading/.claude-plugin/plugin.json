@@ -1,7 +1,7 @@
 {
   "name": "unmassk-trading",
-  "version": "0.9.0",
-  "description": "Conversational trading on Kraken, with two modes. Beginner mode interrogates what the user actually knows, teaches at that level, and starts them on a local paper account before a euro moves. Advanced mode goes straight to execution. The user gives every order; the skill never trades on its own and never holds a withdrawal-capable key. Hard gates: --validate before every live order, dead man's switch per session, two-source price cross-check, and every quote stamped with its age. Advice is arithmetic and facts (position size, risk in euros, levels, contradictions against the user's own record) — never a direction call.",
+  "version": "1.0.0",
+  "description": "Conversational trading on Kraken, with two modes. Beginner mode interrogates what the user actually knows, teaches at that level, and starts them on a local paper account before a euro moves. Advanced mode goes straight to execution. The user gives every order; the skill never trades on its own and never holds a withdrawal-capable key. Hard gates: --validate before every live order, dead man's switch per session, two-source price cross-check, and every quote stamped with its age. Advice is arithmetic and facts (position size, risk in euros, levels, contradictions against the user's own record) \u2014 never a direction call.",
   "author": {
     "name": "unmasSk",
     "url": "https://github.com/unmasSk"

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-27
+
 ### Added
 - **Nuevo plugin `unmassk-trading`**: trading conversacional sobre Kraken para alguien que empieza de cero — precio en vivo contrastado contra dos mercados independientes y sellado con su edad, una capa que evalúa lo que el usuario sabe y se lo enseña en el orden en que le hace falta (con primera semana y puerta de promoción medible), cuenta de práctica local sin llave, y tamaño de posición calculado desde el riesgo. Las órdenes las da siempre el usuario: la skill no opera sola ni sostiene una llave que pueda retirar fondos (D-071/D-073/D-075/D-076, [#85](../../issues/85)).
 - **`price_check.py`, escrito aquí y test-first**: contrasta un par contra Kraken y Binance, sella cada cotización con la hora en que llegó y da un veredicto propio —`OK`, `DISAGREE`, `STALE`, `SINGLE_SOURCE`— con un código de salida distinto para cada uno, porque dos precios que discrepan se reportan y jamás se promedian. De las 291 skills de trading barridas ninguna contrasta una fuente contra otra ni fecha el dato, que es por lo que esta pieza no se pudo copiar (M-129/M-131).
