@@ -2,7 +2,7 @@
 # The rest of this toolkit is stdlib-only; these two arrive with the lifted
 # discipline layer (see CREDITS.md) and are declared here rather than assumed.
 #
-#   pip install -r unmassk-trading/requirements.txt
+#   pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
 #
 # Not needed to use the skill's knowledge layer, nor to drive kraken-cli.
 # Needed to run this plugin's own test suite and its gate scripts.

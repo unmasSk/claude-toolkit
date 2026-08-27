@@ -21,6 +21,12 @@ description: >
 Conversational trading on Kraken. The user speaks, the skill quotes, sizes, validates and
 — only on an explicit order — executes.
 
+**Paths.** The scripts are invoked through `${CLAUDE_PLUGIN_ROOT}` because a skill runs
+with the working directory set to the **user's** project, not to the plugin. A bare
+`scripts/…` resolves against their repository and fails. The same applies to any output
+directory: pass one explicitly, or the lifted scripts write their reports into whatever
+repository the shell happens to be sitting in.
+
 **Read `references/honest-advice.md` before giving any opinion.** It is the shortest file
 here and the one that decides whether this skill is useful or dangerous.
 
@@ -104,7 +110,7 @@ old it was.
 ```bash
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
-python3 scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/price_check.py --pair BTC/EUR    # two venues, ages, spread, verdict
 ```
 
 `price_check.py` takes `--pair`; there is no positional argument. The slashless form works
@@ -132,7 +138,7 @@ Full command surface, the paper simulator's honest limits, and the MCP wiring:
 Never quote a position in euros without saying what it loses if the stop is hit.
 
 ```bash
-python3 scripts/position_sizer.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/position_sizer.py \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
   --fractional --share-precision 8
 ```
@@ -177,10 +183,10 @@ showing them to the user**, and do not rely on the day/week boundaries for a 24/
 ## The gates, before the order
 
 ```bash
-python3 scripts/check_circuit_breaker.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_circuit_breaker.py \
   --account-size 500 --state-dir <dir> --output-dir <dir>/reports
 
-python3 scripts/check_pre_trade_discipline.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py \
   --answers-file <file>.json --state-dir <dir> --output-dir <dir>/reports
 ```
 

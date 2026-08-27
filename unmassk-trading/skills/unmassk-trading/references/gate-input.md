@@ -54,7 +54,7 @@ belongs, a non-numeric string, `NaN`, an infinity or a negative all produce
 ## Running it
 
 ```bash
-python3 scripts/check_pre_trade_discipline.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-trading/scripts/check_pre_trade_discipline.py \
   --answers-file <file>.json \
   --state-dir <dir> \
   --output-dir <dir>/reports \
