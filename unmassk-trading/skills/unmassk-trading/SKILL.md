@@ -31,15 +31,22 @@ here and the one that decides whether this skill is useful or dangerous.
 the plugin, so a bare `scripts/…` resolves against their repository and fails. **And
 `${CLAUDE_PLUGIN_ROOT}` is empty in the shell** — verified: it is substituted in
 `hooks.json` entries, never exported to the Bash tool. What does arrive is the line
-`Base directory for this skill: <absolute path>`, printed when this skill loads. Use that.
-Set it once per session and use it everywhere below:
+`Base directory for this skill: <absolute path>`, printed when this skill loads. That is
+the path to use.
+
+**And a shell variable does not survive from one command to the next** — each Bash call is
+its own shell, so anything set in one call is empty in the next. Every block below is
+therefore **self-contained**: it resolves the directory in the same call that uses it.
+Copy them whole, never line by line.
 
 ```bash
-SKILL_DIR="<the Base directory this skill printed when it loaded>"
-# if that line is not to hand, discover it:
-SKILL_DIR=$(ls -d ~/.claude/plugins/cache/*/unmassk-trading/*/skills/unmassk-trading 2>/dev/null | sort -V | tail -1)
-ls "$SKILL_DIR/scripts/price_check.py"      # prove it before using it
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+ls "$SKILL_DIR/scripts/price_check.py"      # prove it before trusting it
 ```
+
+If that discovery comes back empty (the plugin is running from a checkout rather than an
+install), use the absolute path from the `Base directory` line and write it into the
+commands literally.
 
 Output directories are always passed explicitly, for the same reason — see *The working
 directory* below.
@@ -65,10 +72,15 @@ Every step below has its own section. The value of this skill is not skipping on
 
 Steps 10-11 (`--validate` and the confirmation) belong to live orders only — there is
 nothing to validate on a simulated fill. **Steps 8-9, the two gates, apply to the practice
-account too**, and that is the point: the habit of refusing your own trade is what
-transfers, and rehearsing it costs nothing while the money is fake. The first week in
-`references/beginner-mode.md` introduces them once a stop and a size exist (day 4 onward),
-not on day one.
+account too**, from day 5 of the first week — the habit of refusing your own trade is what
+transfers, and rehearsing it costs nothing while the money is fake.
+
+**But read the reason, not the verdict, or the rehearsal teaches the opposite lesson.**
+`GO` is unreachable as this plugin ships, so *every* practice run comes back
+`REVIEW_REQUIRED`. The rule that makes it a real habit: **`market_regime artifact not
+provided` alone is the expected answer and the trade proceeds; any other reason in that
+list stops the practice trade exactly as it would stop a real one.** A rehearsal where the
+answer is always ignored trains a beginner to ignore the answer.
 
 ## Step 0 — is the tooling there
 
@@ -102,18 +114,11 @@ kraken status && kraken ticker BTCEUR
 
 macOS and Linux; on Windows it goes through WSL. Full detail: `references/kraken-cli.md`.
 
-**The Python side needs `PyYAML` for the gates**, and a bare `pip` is not a safe bet: on
-many machines it does not exist, and `pip3` refuses with `externally-managed-environment`.
-Use a virtual environment inside the working directory, once:
-
-```bash
-python3 -m venv <dir>/venv
-<dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
-```
-
-**Then run every script in this skill with `<dir>/venv/bin/python`, not `python3`.** Every
-command below writes `python3` for readability; if you built the venv, that is the
-interpreter it means. Say what was installed and move on — do not turn it into a ceremony.
+**The gates also need `PyYAML`**, and a bare `pip` is not a safe bet: on many machines it
+does not exist, and `pip3` refuses with `externally-managed-environment`. The fix is a
+virtual environment — but it lives in the working directory, which is agreed in the next
+section, so **that install belongs there and not here**. Nothing in step 0 needs it: the
+price check runs on the standard library alone.
 
 ## The three rules that never bend
 
@@ -175,6 +180,19 @@ gitmem note M --zones <zone1> <zone2> "trading workspace: <absolute path>" \
 Propose `~/trading/` — outside any repository, because these scripts default to writing
 into the current working directory. Everywhere below, `<dir>` is that path.
 
+**With `<dir>` agreed, build the environment the gates need, once:**
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+mkdir -p <dir>/theses <dir>/reports <dir>/journal
+python3 -m venv <dir>/venv
+<dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
+```
+
+**From here on, the two gate scripts run with `<dir>/venv/bin/python`.** The blocks below
+write `python3` for readability; that is the interpreter they mean. `price_check.py` and
+the sizer are standard-library only and run under either.
+
 ## Beginner mode
 
 Procedure in `references/beginner-mode.md`: **assess** (what they know, and separately what
@@ -206,6 +224,8 @@ number gates a decision it is checked against a second venue:
 ```bash
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
+
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/price_check.py" --pair BTC/EUR
 ```
 
@@ -232,7 +252,7 @@ the highest-value thing this skill produces, because it is arithmetic on their o
 rather than a guess about the future.
 
 ```bash
-kraken paper balance -o json     # practice account
+KRAKEN_WORKSPACE=practica kraken paper balance -o json     # practice account
 kraken balance -o json           # real account
 ```
 
@@ -268,6 +288,7 @@ the one edge this skill genuinely has.
 missing input — ask for that one thing.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/position_sizer.py" \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
   --fractional --share-precision 8 --max-position-pct 25 --output-dir <dir>/reports
@@ -307,6 +328,7 @@ arithmetic: `references/risk-and-sizing.md`.
 ## The gates
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/check_circuit_breaker.py" \
   --account-size 500 --state-dir <dir>/theses --output-dir <dir>/reports
 
@@ -348,9 +370,14 @@ before running the gate — it is what decides whether the answer means anything
 - **Its day boundary is New York.** A loss closed between midnight UTC and the New York
   midnight — the early hours in Madrid — books to *yesterday*: `realized_pnl_today` comes
   back `0.0`, verdict `TRADING_ALLOWED`, `data_quality: OK`, no warning.
-- **It reads a thesis store this plugin's workflow never writes.** Unless the user keeps
-  that store deliberately, the breaker answers `TRADING_ALLOWED` over zero data forever.
-  `data_quality: EMPTY_STATE` and `theses_scanned: 0` are the tell, and they are the
+- **It reads a thesis store that nothing here fills in yet.** `thesis_store.py` does ship a
+  CLI that advances a position (`open-position`, `trim`, `close`, `terminate`), and the
+  breaker does read what it writes — verified: a hand-written thesis is scanned and
+  `data_quality` comes back `OK`. What was **not** lifted is the piece that *creates* a
+  thesis in the first place, so there is no documented path from "the user bought
+  something" to "the breaker knows about it". Wiring that is issue #86, and it gates phase
+  2. Until then, **check `theses_scanned` and `data_quality` before believing a
+  `TRADING_ALLOWED`**: `0` and `EMPTY_STATE` mean nothing was examined, and that is the
   difference between a brake and an ornament. Say which one you are looking at.
 
 A `HALTED` or `COOLDOWN` is stated with its number and its reason, and it is not lifted
@@ -360,6 +387,7 @@ These scripts need `PyYAML`; `jsonschema` is imported lazily and only matters fo
 suite and for candidates carrying a `thesis_id`. If an import fails:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
 <dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
 ```
 
@@ -369,14 +397,16 @@ suite and for candidates carrying a `thesis_id`. If an import fails:
 
 ### Paper orders — what beginner mode uses
 
-The workspace must exist first (`kraken workspace create …`, then
-`export KRAKEN_WORKSPACE=…` — `references/kraken-cli.md`). In advanced mode nobody has
-necessarily done it.
+The workspace must exist first (`kraken workspace create …` — `references/kraken-cli.md`),
+and in advanced mode nobody has necessarily created it. **The selection travels with each
+command**, as the prefix below: an `export` is gone by the next call, and a paper order
+without it lands in the default workspace — different capital, no slippage, and the
+promotion gate's evidence written where the gate will not read it.
 
 ```bash
-kraken paper buy BTCEUR 0.001
-kraken paper sell BTCEUR 0.001
-kraken paper balance -o json
+KRAKEN_WORKSPACE=practica kraken paper buy BTCEUR 0.001
+KRAKEN_WORKSPACE=practica kraken paper sell BTCEUR 0.001
+KRAKEN_WORKSPACE=practica kraken paper balance -o json
 ```
 
 **Paper accepts only `market` and `limit`** — verified in the CLI's own source. There are

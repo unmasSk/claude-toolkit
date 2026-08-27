@@ -11,6 +11,13 @@ until the promotion gate at the bottom is passed.
 cost nothing there and the habit is the whole point: someone who has never had a trade
 refused will not accept the first refusal that matters.
 
+**And the rehearsal has one rule, or it teaches the opposite.** `GO` is unreachable as this
+plugin ships, so every practice run answers `REVIEW_REQUIRED`. The expected reason —
+`market_regime artifact not provided` — is the input nobody produces here, and the trade
+proceeds. **Any other reason in that list stops the practice trade exactly as it would stop
+a real one.** A rehearsal whose answer is always overridden trains the beginner to override
+the answer.
+
 ## 1. Assess — two different questions, both asked
 
 Ask them **one at a time**, in the user's language, conversationally. Never as a form.
@@ -105,7 +112,10 @@ Anything the assessment scored *known* is skipped, and skipping it is said out l
 
 ```bash
 kraken workspace create practica --capital 1000 --mode paper --currency EUR --slippage-rate 0.001
-export KRAKEN_WORKSPACE=practica
+KRAKEN_WORKSPACE=practica kraken workspace status -o json   # selección POR COMANDO:
+# un `export` no sobrevive de una llamada a la siguiente, así que cada comando de
+# práctica lleva el prefijo delante o irá al espacio por defecto (otro capital, otro
+# deslizamiento) y la evidencia de la puerta de promoción acabará donde nadie la lee.
 ```
 
 **No API key exists in this mode.** A bug in this skill cannot spend the user's money,

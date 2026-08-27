@@ -54,17 +54,21 @@ belongs, a non-numeric string, `NaN`, an infinity or a negative all produce
 ## Running it
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/check_pre_trade_discipline.py" \
   --answers-file <file>.json \
   --state-dir <dir>/theses \
   --output-dir <dir>/reports \
   --journal-dir <dir>/journal \
-  --circuit-breaker-decision <dir>/reports/<breaker report>.json \
-  --fail-on-non-go
+  --circuit-breaker-decision <dir>/reports/<breaker report>.json
 ```
 
-**`--fail-on-non-go` or the exit code lies.** Without it, a `NO_GO` exits 0 — verified.
-With it, anything other than `GO` exits 2.
+**The exit code carries nothing today, and `--fail-on-non-go` does not fix it.** Without
+that flag a `NO_GO` exits 0; with it, *every* run exits 2, because `GO` is unreachable
+while `market_regime` has no producer — and 2 is also argparse's usage-error code, so a
+refusal becomes indistinguishable from a typo. **Do not pass it yet.** Read the verdict and
+the reasons from the JSON report; `SKILL.md` says the same, and when these two files
+disagree the one you are holding is the copy that gets pasted.
 
 **`--circuit-breaker-decision` is how the breaker's verdict reaches this gate.** Run the
 breaker first, then hand it **the report you just made**. Without the pipe, a `HALTED`
@@ -97,7 +101,7 @@ lifted, and a missing upstream artifact is `REVIEW_REQUIRED` by design.
 | Reason | What it means |
 |---|---|
 | `market_regime artifact not provided` | The input nobody produces here. No rule was broken by this. |
-| `circuit_breaker artifact not provided` | **You forgot the pipe.** The account may be halted right now and this gate cannot see it. Never report this as "nothing wrong" — go and run the breaker. |
+| `circuit_breaker artifact …` — *not provided*, *not found*, *could not be read*, *must be an object*, or *has no recommendation field* | **All five mean the same thing: the breaker's verdict never reached this gate.** The account may be halted right now and the gate cannot see it. Never report any of them as "nothing wrong" — fix the pipe and run it again. (Handing it the sizer's report instead of the breaker's produces the last one.) |
 | anything else | A real finding. That one is a refusal. |
 
 Only when `market_regime` is the **sole** reason may you say the gate found no rule

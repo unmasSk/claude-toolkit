@@ -49,17 +49,23 @@ and `kraken balance`.
 
 A workspace carries its own mode, and it persists between sessions:
 
+**`export` does not survive between commands** — each one runs in its own shell — so the
+workspace is selected **per command**, inline. Create it once; then prefix every paper
+command with it:
+
 ```bash
 kraken workspace create practica --capital 1000 --mode paper --currency EUR --slippage-rate 0.001
-export KRAKEN_WORKSPACE=practica
+KRAKEN_WORKSPACE=practica kraken workspace status -o json
 
-kraken paper buy BTCEUR 0.001
-kraken paper sell BTCEUR 0.001
-kraken paper balance -o json
-kraken paper orders -o json
-kraken paper history -o json
+KRAKEN_WORKSPACE=practica kraken paper buy BTCEUR 0.001
+KRAKEN_WORKSPACE=practica kraken paper sell BTCEUR 0.001
+KRAKEN_WORKSPACE=practica kraken paper balance -o json
+KRAKEN_WORKSPACE=practica kraken paper orders -o json
+KRAKEN_WORKSPACE=practica kraken paper history -o json
 kraken workspace status -o json
-kraken workspace reset --yes         # wipes the practice account
+# DESTRUCTIVE — wipes the practice account, and with it the promotion gate's evidence:
+# every closed position and every timestamped stop. Ask before running it, always.
+KRAKEN_WORKSPACE=practica kraken workspace reset --yes
 ```
 
 **Add `--allow-pairs` when creating a practice workspace** (comma-separated, or repeat the
