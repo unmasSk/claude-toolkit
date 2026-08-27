@@ -83,3 +83,4 @@
 [X-083][skills][trading] que la skill opere sola conectada a una cuenta
 [X-084][skills][trading] empezar por acciones y ETFs
 [X-085][skills][trading] empezar por forex o indices
+[X-086][architecture][trading] borrar el freno de la fase 1 y dejar un aviso impreso
