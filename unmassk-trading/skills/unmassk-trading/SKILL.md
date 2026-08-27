@@ -36,6 +36,8 @@ explicitly, for the same reason — see *The working directory* below.
 
 Every step below has its own section. The value of this skill is not skipping one.
 
+0. **Tooling** — check `kraken` is installed, and install it if not. Nothing else works
+   without it, and in a project opened for the first time it will not be there.
 1. **Mode** — read it from memory, ask only if absent.
 2. **Working directory** — read it from memory, agree it only once.
 3. **Read the record** — the risk profile, and prior trades on this pair.
@@ -52,6 +54,37 @@ Every step below has its own section. The value of this skill is not skipping on
 Steps 8-11 belong to live orders. On the practice account the loop is 1-7 and 12, and that
 is deliberate: the arithmetic and the record are what transfer.
 
+## Step 0 — is the tooling there
+
+**Run this first, in any project where this skill has not been used before.** Every quote,
+every practice order and every gate goes through the `kraken` binary; without it the fourth
+step of the sequence dies with `command not found` and there is nothing to improvise.
+
+```bash
+command -v kraken >/dev/null && kraken status -o json || echo "kraken NOT installed"
+```
+
+If it is missing, say what it is in one line — Kraken's own free command-line program, open
+source, no account needed for prices or for the practice mode — and install it:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-installer.sh | sh
+kraken status && kraken ticker BTCEUR
+```
+
+macOS and Linux; on Windows it goes through WSL. **Never fall back to raw REST calls when
+it is absent** — that silently gives up the practice account, `--validate` and the dead
+man's switch, which are the three things that make this safe. Full detail:
+`references/kraken-cli.md`.
+
+The Python side needs `PyYAML` for the gates:
+
+```bash
+pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+```
+
+Say what was installed and move on; do not turn it into a ceremony.
+
 ## The three rules that never bend
 
 1. **The user decides direction. The skill never does.** No buy call, no price target, no
@@ -64,7 +97,7 @@ is deliberate: the arithmetic and the record are what transfer.
 3. **The key never has withdrawal permission.** Not temporarily, not for convenience. If
    the active key can withdraw, stop and say so before anything else.
 
-## Step 0 — which mode
+## Step 1 — which mode
 
 ```bash
 gitmem search "trading mode"
