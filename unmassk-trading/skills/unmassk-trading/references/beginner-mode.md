@@ -7,7 +7,7 @@ decide for themselves, having lost nothing while learning.
 **Nothing in this file places a live order.** Live money is unreachable in beginner mode
 until the promotion gate at the bottom is passed.
 
-**The two gates apply on the practice account too**, from day 5 of the first week. They
+**The two gates apply on the practice account too**, from day 6 of the first week. They
 cost nothing there and the habit is the whole point: someone who has never had a trade
 refused will not accept the first refusal that matters.
 
@@ -111,7 +111,10 @@ Anything the assessment scored *known* is skipped, and skipping it is said out l
 ## 3. The paper account, from minute one
 
 ```bash
-kraken workspace create practica --capital 1000 --mode paper --currency EUR --slippage-rate 0.001
+# --capital: the playable amount from the affordability assessment, not a fixed 1000.
+# --allow-pairs: CANNOT be added later. Name the pair they will actually practise on.
+kraken workspace create practica --capital <playable> --mode paper --currency EUR \
+  --slippage-rate 0.001 --allow-pairs BTCEUR
 KRAKEN_WORKSPACE=practica kraken workspace status -o json   # selección POR COMANDO:
 # un `export` no sobrevive de una llamada a la siguiente, así que cada comando de
 # práctica lleva el prefijo delante o irá al espacio por defecto (otro capital, otro
@@ -143,15 +146,16 @@ waiting is part of what is being taught.
    accepts only `market` and `limit`. So the stop is a number the user commits to and this
    skill holds them to, not an order the exchange holds. Save it with the position note.
    The exercise is the commitment, and it is the one that transfers to real money.
-5. **Day 5** — sell half. Show the realised result and the fee, in euros. Then **rehearse
-   the gates for the first time**: write the answers file for that trade after the fact
-   (`references/gate-input.md`), run the breaker and the gate as `SKILL.md` prescribes, and
-   read the verdict together. Nothing is at stake — that is exactly why it is the right day
-   to learn what a refusal looks like. From here on, every practice entry goes through them
-   before it is placed.
-6. **Day 6** — read the week: what was bought, what it cost, what it is worth, what the
-   fees ate.
-7. **Day 7** — write the rules the user wants to hold themselves to, in their own words,
+5. **Day 5** — sell half. Show the realised result and the fee, in euros.
+6. **Day 6** — **rehearse the gates, on a new entry.** Size a second small buy, write the
+   answers file for it *before* placing it (`references/gate-input.md`), and run the breaker
+   and the gate as `SKILL.md` prescribes. It must be an entry: the gate only understands
+   entry intents (`ENTRY_READY`, `ACTIONABLE`, `MANUAL_ORDER`) and every field it checks is
+   an entry concept — handing it a sell forces improvisation. Read the verdict together.
+   Nothing is at stake, which is exactly why it is the right moment to learn what a refusal
+   looks like. From here on, every practice entry goes through them before it is placed.
+7. **Day 7** — read the week: what was bought, what it cost, what it is worth, what the
+   fees ate. And write the rules the user wants to hold themselves to, in their own words,
    and save them with `gitmem rule`. These become the contradictions the skill will raise
    later.
 

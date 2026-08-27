@@ -128,6 +128,19 @@ that decided. The gate blocks an order with no written reason, no stop decided b
 entry, a size that does not match the rule, a risk above what was planned, a trade inside
 the revenge-window cooldown, or a breaker that is halted.
 
+**Four of those six can fire today. Two cannot, and pretending otherwise is the lie this
+file is not going to tell:** the revenge-window cooldown and every drawdown rule read the
+thesis store, and nothing in the documented workflow puts a trade there — the piece that
+creates a thesis was not lifted (see `SKILL.md` and issue #86). Verified in both
+directions: with a hand-written thesis carrying a loss two hours old the gate answers
+`NO_GO` with `recent losing exit/trim within 24h`; with the store as this skill leaves it,
+`theses_scanned` is `0` and that rule can never fire.
+
+**So check `metrics.theses_scanned` on the gate as well as on the breaker.** A zero there
+means the only things that were actually checked are the five answers written into the
+answers file minutes earlier — which is the assistant checking its own homework, and worth
+saying out loud rather than reporting as a clean gate.
+
 **The thresholds and the seven checks live where the code that enforces them lives** —
 `references/lifted/circuit-breaker-framework.md` and
 `references/lifted/discipline-gate-framework.md`. Copying the numbers into this file would
@@ -172,9 +185,12 @@ until it was caught:
 - **The discipline gate appends a journal** of every decision (`--journal-dir`, default
   `state/journal/…` relative to the working directory). It is the gate's own audit trail;
   point it somewhere deliberate.
-- **The circuit breaker reads a thesis store** (`--state-dir`) that this plugin's workflow
-  never writes. Unless the user maintains it on purpose, the breaker reads nothing and
-  answers `TRADING_ALLOWED` over zero data — see `SKILL.md`.
+- **The circuit breaker reads a thesis store** (`--state-dir`) that nothing here fills in
+  yet. `thesis_store.py` does ship the lifecycle commands (`open-position`, `trim`,
+  `close`, `terminate`) and the breaker reads what they write; what was not lifted is the
+  piece that *creates* a thesis, so there is no path from a trade to that store. Until
+  issue #86 closes it, the breaker answers `TRADING_ALLOWED` over zero data — see
+  `SKILL.md`.
 
 Fields worth carrying in the note body:
 

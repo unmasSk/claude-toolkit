@@ -70,7 +70,17 @@ KRAKEN_WORKSPACE=practica kraken workspace reset --yes
 
 **Add `--allow-pairs` when creating a practice workspace** (comma-separated, or repeat the
 flag): it restricts trading to the pairs named, and a beginner working on one pair has no
-reason to be able to touch ninety others. One flag, free defence in depth.
+reason to reach ninety others. **It cannot be added afterwards** — there is no
+`workspace edit`, and `workspace reset` does not change it — so a workspace created without
+it forfeits that protection for its whole life. Verified: with `--allow-pairs BTCEUR` a
+paper buy of `ETHEUR` is refused by name; without it, the same order fills.
+
+**Every paper order warns that no session is open.** The CLI writes `no active session;
+this trade is recorded on the account but not in any session window` to stderr and stamps
+the fill `"session":"none"`. It is not an error and the fill is real, but
+`kraken workspace report` will then show `sessions: []` and count those fills as outside
+any window. Either open one at the start of a practice run (`kraken session start`), or say
+plainly the first time the warning appears that it is expected and harmless here.
 
 Paper runs **locally against live market prices**. Kraken has no server-side spot
 sandbox — the only Kraken demo environment is futures-only
@@ -88,9 +98,10 @@ sandbox — the only Kraken demo environment is futures-only
   Market buys fill at `ask × (1 + rate)`, sells at `bid × (1 − rate)`.
 - **No order-book depth, no rejections, no queue position.**
 
-`kraken workspace promote <workspace>` exists as a graded evaluation, and as of the read
-above it **returns exit 1 rather than flipping anything** — the grading is the value, not
-the switch. Use the gate in `beginner-mode.md` and change modes deliberately.
+`kraken workspace promote <workspace>` exists as a graded evaluation. Measured: it exits
+**0**, with and without `--yes`, and it grades sealed experiments (`kraken lab new`) and
+passing sessions — none of which the beginner path here ever creates. Its grade is not the
+gate this plugin uses. Use the gate in `beginner-mode.md` and change modes deliberately.
 
 ## Live orders — the five steps
 
@@ -119,13 +130,18 @@ Other order commands: `kraken order sell`, `kraken order cancel <id>`,
 `kraken order cancel-all`, `kraken order cancel-batch`, `kraken order batch <file>`.
 Order types and their flags: `kraken order --help`.
 
-## The danger list — read it, never copy it
+## The danger list — it is NOT on disk after a normal install
 
-The CLI ships `agents/tool-catalog.json`, a machine-readable catalogue of its commands
-with a `dangerous: true` field (41 of 174 at the time of writing: order placement,
-amendment, cancel-all, withdraw…). **Check that field before executing**, and never
-maintain a hand-written copy of it in this skill — a copy drifts the day the CLI adds a
-command, and drifts silently.
+`agents/tool-catalog.json` lives in the CLI's **source repository**, not in the release
+archive — checked inside the published tarball, which holds only the binary, README,
+CHANGELOG and LICENSE. **Do not go looking for it.** A `find` for that name either fails or
+matches an unrelated file in another project and cheerfully answers `dangerous: false`
+right before a real order.
+
+The rule in `SKILL.md` replaces it and was taken from that catalogue while it could still
+be read: every `kraken order …` needs the user's explicit yes, except `order cancel-after`,
+which only ever cancels. **That hand-written rule is deliberate**, because the install does
+not ship the file it would otherwise check.
 
 ## Reading the market
 

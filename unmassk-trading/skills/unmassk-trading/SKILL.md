@@ -72,15 +72,21 @@ Every step below has its own section. The value of this skill is not skipping on
 
 Steps 10-11 (`--validate` and the confirmation) belong to live orders only — there is
 nothing to validate on a simulated fill. **Steps 8-9, the two gates, apply to the practice
-account too**, from day 5 of the first week — the habit of refusing your own trade is what
+account too**, from day 6 of the first week — the habit of refusing your own trade is what
 transfers, and rehearsing it costs nothing while the money is fake.
 
 **But read the reason, not the verdict, or the rehearsal teaches the opposite lesson.**
 `GO` is unreachable as this plugin ships, so *every* practice run comes back
 `REVIEW_REQUIRED`. The rule that makes it a real habit: **`market_regime artifact not
 provided` alone is the expected answer and the trade proceeds; any other reason in that
-list stops the practice trade exactly as it would stop a real one.** A rehearsal where the
-answer is always ignored trains a beginner to ignore the answer.
+list stops the practice trade exactly as it would stop a real one.** A rehearsal whose
+answer is always overridden trains a beginner to override the answer.
+
+**And be honest about what is actually being checked.** With the thesis store empty — which
+is how this ships — the gate can only test the five answers written into the answers file
+minutes earlier. The rules that would catch revenge trading after a loss read that store
+and cannot fire. `metrics.theses_scanned: 0` in the gate's own report is the tell; say it
+rather than presenting a self-marked exam as a clean gate.
 
 ## Step 0 — is the tooling there
 

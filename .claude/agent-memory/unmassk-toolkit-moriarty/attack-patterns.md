@@ -18,6 +18,37 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### El estado del shell NO sobrevive entre llamadas de la herramienta Bash (2026-08-28)
+Verificado en vivo: `export X=valor` en una llamada, `echo "[$X]"` en la
+siguiente devuelve `[]`. Cwd sí persiste; variables de entorno, funciones y
+`source` NO. Ataque estándar contra cualquier skill o doc que diga "set it once
+per session": extraer todas las variables que un bloque define y comprobar si
+otro bloque las lee en una llamada distinta. Sirve igual para `SKILL_DIR`, para
+`export KRAKEN_WORKSPACE=...` (selección de cuenta → operación correcta contra
+el destino equivocado) y para `source "$HOME/.cargo/env"`. **Corolario para
+revisar arreglos: sustituir una variable vacía por otra variable no arregla
+nada.**
+
+### Orden declarado vs orden de definición (2026-08-28)
+En una skill con pasos numerados, comprobar en qué línea se DEFINE cada
+marcador (`<dir>`, `$VAR`) y en qué línea se USA por primera vez. Un paso 0 que
+usa un valor acordado en el paso 2 obliga al agente a improvisarlo — y lo
+improvisa en el cwd, que suele ser justo el sitio prohibido. `grep -n` del
+marcador ordenado por línea lo enseña en un vistazo.
+
+### Diffear las dos mitades de un arreglo que tocó dos ficheros (2026-08-28)
+Cuando un arreglo edita SKILL.md y un reference a la vez, contrastar sus
+afirmaciones entre sí, no solo cada una contra el código. Caso real: un flag que
+SKILL.md prohíbe y el reference exige, con SKILL.md ordenando leer el reference.
+
+### La limitación autoinfligida vendida como propiedad fija (2026-08-28)
+Cuando un documento declara "esto nunca se rellena / nadie escribe eso", buscar
+en el propio directorio del plugin la pieza que lo rellenaría (`ls scripts/`,
+`--help` de cada script) y luego `grep` de su nombre en toda la documentación.
+Un escritor que existe y no se nombra convierte un freno de seguridad en adorno,
+y la doc lo presenta como si no hubiera alternativa.
+
+
 ### Un gate que consume el veredicto de otro POR RUTA, sin frescura ni calidad
 - Cuando la pieza B decide leyendo un artefacto JSON que produce la pieza A, atacar SIEMPRE tres cosas antes que la lógica: (1) pasarle un artefacto viejo de A, (2) pasarle uno que A generó sobre datos vacíos/erróneos, (3) NO pasárselo (si la bandera es opcional).
 - La prueba se monta en 4 comandos: correr A antes del hecho (artefacto benigno), provocar el hecho, correr A otra vez (artefacto que refuta), y correr B con cada uno. Si B da el mismo veredicto o uno indistinguible, está roto.

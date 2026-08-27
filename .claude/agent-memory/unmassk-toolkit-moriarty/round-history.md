@@ -5,6 +5,141 @@ metadata:
   type: project
 ---
 
+## unmassk-trading, CUARTA ronda: cold walk con el binario real (2026-08-28)
+Target: el mismo skill ya con `98be8c0`. Diferencia clave de metodo respecto a
+las tres rondas anteriores: **extraje el binario `kraken` del tarball de release
+y lo corri de verdad** contra un HOME falso
+(`HOME=$FAKE`, con el plugin copiado a
+`.claude/plugins/cache/<marketplace>/unmassk-trading/<version>/skills/...`, que
+reproduce el layout post-publicacion sin tocar nada real). Eso es lo que abrio
+los hallazgos nuevos: `workspace create/reset/promote/report`, `paper buy`,
+`--allow-pairs` y el aviso de `session start` solo se ven ejecutando el binario.
+**Regla transferible: cuando la skill envuelve una CLI de terceros, consigue la
+CLI. El tarball de release ya estaba en el scratchpad de la ronda anterior.**
+
+**Los arreglos que SI aguantaron, verificados ejecutando:** el `find` en
+`~/.claude/plugins/cache` resuelve y `sort -V | tail -1` coge la version alta
+(probado con 1.0.1/1.0.2/1.0.10); `"$SKILL_DIR/../../requirements.txt"` resuelve
+y el venv instala; `<dir>` ya se define antes de gastarse; `--fail-on-non-go`
+fuera y coherente en los dos ficheros; la tabla de cinco motivos completa; la
+regla del dia 5 es factualmente cierta (candidato limpio + pipe = exactamente
+`market_regime artifact not provided`); `KRAKEN_WORKSPACE=practica` por comando
+es el nombre de variable real (`[env: KRAKEN_WORKSPACE=]` en el `--help`);
+50 en `paper buy BTCEUR 50` lo caza el saldo, no compra 50 BTC; el aviso de
+`workspace reset` acierta donde importa (`paper history` pasa de 3 a 0 aunque
+el `--help` del CLI diga "history survives", porque el journal sobrevive y la
+historia de papel no).
+
+**T1-A — el arreglo de una ronda anterior deshecho por el fichero que no se
+toco.** `SKILL.md:437-448` prohibe buscar `agents/tool-catalog.json` y pone una
+regla escrita a mano en su lugar (mi hallazgo de la ronda 2).
+`references/kraken-cli.md:122-128` sigue diciendo "The CLI ships
+`agents/tool-catalog.json`", "**Check that field before executing**" y, lo peor,
+"**never maintain a hand-written copy of it in this skill**" — que desautoriza
+exactamente la regla que el arreglo instalo. Y `kraken-cli.md:11` dice "when the
+CLI and this file disagree, the CLI is right — probe the tool". Re-verificado que
+el fichero no esta en el tarball. **Cuando un arreglo se aplica en el fichero
+principal, grepear el termino en TODOS los references antes de darlo por cerrado**
+— es la tercera vez seguida que este plugin falla por ahi.
+
+**T1-B — una regla del gate estructuralmente muerta, documentada como viva.**
+`risk-and-sizing.md:127-129` lista "un trade dentro del cooldown de venganza"
+entre lo que la puerta bloquea. `check_pre_trade_discipline.py:518-527` la evalua
+sobre `load_theses(state_dir)`, y no existe camino desde una operacion de papel
+hasta un fichero `th_*.yaml` (`thesis_store.py` tiene `open-position` pero no
+`create`: `ERROR: Thesis not found`). Probado en los dos sentidos: con el
+`--state-dir <dir>/theses` prescrito, `theses_scanned=0` y cero motivos; con una
+tesis escrita a mano con `realized_pnl: -12.5` hace 2h, salta
+`recent losing exit/trim within 24h`. **Consecuencia: el ensayo del dia 5 solo
+puede rechazar lo que el propio Claude escribio en el answers file — se compara
+consigo mismo, que es justo lo que la regla de tests del proyecto prohibe.**
+Tecnica: para saber si una regla esta viva, siembra su precondicion a mano y
+mira si dispara; si dispara pero nadie puede sembrarla, esta muerta.
+
+**T2 nuevos, todos ejecutados:** (1) el bloque copiable de
+`beginner-mode.md:114` crea el workspace sin `--allow-pairs`, y `--allow-pairs`
+no esta en `workspace reset` ni existe `workspace edit` — demostrado que la
+restriccion es real (ETHEUR rechazado en el workspace con flag, aceptado en
+`practica`) y que se pierde para siempre. (2) cada `paper buy` avisa por stderr
+"no active session ... start one with 'kraken session start'"; `kraken session`
+no aparece en ningun fichero de la skill, `workspace report` devuelve
+`sessions: []` y el checklist de `workspace promote` puntua sesiones y
+experimentos (`kraken lab new`) que la skill nunca crea. (3)
+`beginner-mode.md:146-151` manda ensayar la puerta sobre una VENTA de la mitad,
+y `ACTIONABLE_INTENTS` (linea 37) no tiene ningun intent de salida. (4)
+`kraken-cli.md:91-93` dice que `workspace promote` "returns exit 1" — medido
+exit 0.
+
+**Round-trip (§34): AGUANTO otra vez.** Corrompi `recommendation` a `HALTED` en
+una copia y salio `circuit_breaker recommendation is HALTED` en
+`candidate_results[].reasons`, canal independiente del stdout. Race: dos
+breakers en el mismo segundo dejan un fichero con el segundo (documentado).
+Stress: 5000 candidatos en 0,12 s.
+
+## unmassk-trading, TERCERA ronda: re-ataque tras aplicar mis propios arreglos (2026-08-28)
+Target: el mismo `unmassk-trading/skills/unmassk-trading/`, ya con el commit
+`aaad24b` ("the cold walk fixes"). Encargo explicito: mis propios arreglos son
+blanco legitimo. Y ahi estuvo el hallazgo principal.
+
+**LA LECCION DE LA RONDA — un arreglo puede reinstalar el mismo fallo con otro
+nombre.** El bug T1 anterior era `${CLAUDE_PLUGIN_ROOT}` vacio en el shell. El
+arreglo lo sustituyo por `SKILL_DIR="<base dir>"`, con la instruccion literal
+"Set it once per session and use it everywhere below". **El estado del shell no
+sobrevive entre llamadas de la herramienta Bash** — verificado en vivo esta misma
+sesion: `export SKILL_DIR=...` en una llamada, `echo "[$SKILL_DIR]"` en la
+siguiente devuelve `[]`. Once command lines dependen de esa variable. El sintoma
+es identico al que se arreglo. **Regla transferible: antes de arreglar una
+variable vacia con OTRA variable, comprobar que el shell que la lee es el mismo
+que la escribio.** Lo mismo alcanza a `export KRAKEN_WORKSPACE=practica`
+(beginner-mode.md:108, kraken-cli.md:53): la cuenta de practica se crea de verdad
+pero la SELECCION se pierde en la llamada siguiente, y las ordenes de practica
+caen en el workspace por defecto — operacion correcta, destino equivocado.
+
+**Segundo patron nuevo: un arreglo que ordena algo ANTES de definir lo que
+necesita.** El paso 0 (Tooling) manda `python3 -m venv <dir>/venv`, pero `<dir>`
+solo queda definido en el paso 2 ("Everywhere below, `<dir>` is that path",
+SKILL.md:176). El Claude frio improvisa un directorio en el paso 0 — tipicamente
+el repo del usuario, que es justo lo que la seccion del working directory
+prohibe. Al revisar un arreglo, comprobar el ORDEN de la secuencia declarada
+contra el orden de las definiciones, no solo que cada bloque funcione aislado.
+
+**Tercero: el arreglo que corrige el codigo y deja la doc contradiciendose.**
+`--fail-on-non-go` — SKILL.md:342 dice "no lo uses, siempre da 2 y no informa";
+gate-input.md:63 lo lleva DENTRO del bloque copiable y su linea 66 dice
+"`--fail-on-non-go` or the exit code lies". Y SKILL.md manda leer gate-input.md
+antes de correr la puerta. Verificado: candidato limpio + el flag = exit 2.
+Cuando un arreglo toca dos ficheros, diffear las dos afirmaciones entre si.
+
+**Cuarto (deception, el mas caro): la limitacion autoinfligida presentada como
+propiedad fija.** SKILL.md:351-354 dice que el breaker "reads a thesis store this
+plugin's workflow never writes" y que por eso contesta `TRADING_ALLOWED` sobre
+cero datos para siempre. El plugin **envia el escritor**:
+`scripts/thesis_store.py`, un CLI con `open-position`, `close`, `trim`,
+`attach-position` — y no se nombra en NINGUN fichero de la skill (`grep
+thesis_store` en SKILL.md + references: cero). El freno de seguridad esta
+desactivado por documentacion, no por falta de pieza.
+
+**Lo que SI quedo cerrado, verificado ejecutando:** el venv y
+`"$SKILL_DIR/../../requirements.txt"` (el path resuelve a la raiz del plugin y
+`git-subdir` copia el directorio entero, requirements.txt incluido — comprobado
+contra el layout real de `~/.claude/plugins/cache/`); `--state-dir <dir>/theses`
+consistente en los 5 sitios; la salida documentada del sizer coincide byte a byte
+con la real; el `ls "$SKILL_DIR/scripts/price_check.py"` de prueba falla ruidoso
+cuando SKILL_DIR esta vacio; la busqueda del tool-catalog eliminada.
+
+**Sabotaje round-trip (§34) — AGUANTO, no es teatro.** Corrompi el informe del
+breaker en copias (nunca el original) por cuatro vias distintas y las cuatro se
+vieron en el consumidor: `recommendation: HALTED` -> NO_GO; campo
+`recommendation` borrado -> `circuit_breaker artifact has no recommendation
+field`; artefacto equivocado (el informe del sizer) -> mismo aviso; token con
+typo -> `recommendation is unknown: TRADING_ALOWED`. Verificado por canal
+independiente (el JSON `candidate_results[].reasons`, no el stdout).
+Efecto lateral documental: el codigo produce **cinco** motivos distintos de fallo
+del artefacto del breaker (`not provided`, `not found`, `could not be read`,
+`must be an object`, `has no recommendation field`) y la tabla de gate-input.md
+solo documenta uno, mandando los otros cuatro a la fila "anything else -> a real
+finding", que es exactamente lo contrario de lo que significan.
+
 ## unmassk-trading, SEGUNDA ronda: recorrido de la skill como Claude nuevo (2026-08-28)
 Target: `unmassk-trading/skills/unmassk-trading/` leida y EJECUTADA en orden
 en un directorio de scratch sin memoria, sin estado, sin config y sin binario
