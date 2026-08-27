@@ -68,3 +68,4 @@
 [D-076][architecture][trading] kraken-cli is the substrate; live means fresh-on-ask, no daemon of ours
 [D-077][architecture][trading] council: connect the brake to the paper account, do not delete it; wrapper now
 [D-078][architecture][trading] no order-intercepting hook: it would sit in every call of every project
+[D-079][skills][trading] phase 2 is not built yet: learn on the practice account first
