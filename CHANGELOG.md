@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-28
+
+### Fixed
+
+- **Every documented command across the plugin's README and 7 skills was broken.** All of them built the command on `${CLAUDE_PLUGIN_ROOT}`, which is only substituted inside `hooks.json` — in the Bash tool it expands to nothing, so every `python3 .../scripts/…` call, the `playcanvas_starter` `cp -r`, and the reference-table rows in `unmassk-design`'s own core skill died on the first try. The plugin README plus the 7 skills (`design-3d`, `design-animation-formats` and its 7 python generator scripts, `design-flutter`, `design-motion`, `design-scroll`, core `unmassk-design` plus its 4 references) now resolve their own skill directory inline, discarding orphaned cache copies before picking the newest version, and every reference table carries a **Paths.** note showing how to run any row (R-019, R-020).
+
 ## [1.3.1] - 2026-08-28
 
 ### Fixed
@@ -38,12 +44,6 @@
 ### Fixed
 
 - **Both skills' documented commands were broken.** `db-migrations` (4 scripts) and `db-schema-design` (2 scripts) built every path on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every reference-table row died on invocation. Both now resolve their own skill directory inline and discard orphaned cache copies before sorting on version, and each script table carries a **Paths.** note showing how to run any row (R-019, R-020).
-
-## [1.2.2] - 2026-08-28 (unmassk-design)
-
-### Fixed
-
-- **Every documented command across the plugin's README and 7 skills was broken.** All of them built the command on `${CLAUDE_PLUGIN_ROOT}`, which is only substituted inside `hooks.json` — in the Bash tool it expands to nothing, so every `python3 .../scripts/…` call, the `playcanvas_starter` `cp -r`, and the reference-table rows in `unmassk-design`'s own core skill died on the first try. The plugin README plus the 7 skills (`design-3d`, `design-animation-formats` and its 7 python generator scripts, `design-flutter`, `design-motion`, `design-scroll`, core `unmassk-design` plus its 4 references) now resolve their own skill directory inline, discarding orphaned cache copies before picking the newest version, and every reference table carries a **Paths.** note showing how to run any row (R-019, R-020).
 
 ## [1.43.0] - 2026-08-28 (unmassk-toolkit)
 
