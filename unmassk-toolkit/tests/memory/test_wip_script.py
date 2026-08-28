@@ -182,19 +182,45 @@ class TestPrependsWipMarkerAndCommitsViaWriteWork:
             f"que wip.py acaba de comitear: {subject!r}"
         )
 
-    def test_stdout_prints_the_exact_marked_message_it_committed(self, tmp_repo, emojis_mod):
+    def test_stdout_matches_the_full_committed_message_now_that_it_carries_a_skip_ci_line(
+        self, tmp_repo
+    ):
+        """D-070 (2026-08-26, `gitmem search --id D-070`): el commit que
+        `wip.py` crea ahora lleva `[skip ci]` ademas del titular marcado --
+        ver `test_ci_skip_marker.py`. Esta prueba resuelve, por eleccion
+        explicita de este pase, la ambiguedad que eso abre sobre lo que
+        `wip.py` imprime en pantalla: entre "solo el titular" (lo que
+        aseguraba el test anterior) y "el mensaje completo tal cual se
+        comiteo", se fija el mensaje COMPLETO -- la garantia de
+        consistencia que el encargo pide ("lo que se imprime tiene que
+        cuadrar con lo que se comiteo de verdad") es mas fuerte si tambien
+        cubre la linea nueva, no solo el titular que ya cubria el test
+        anterior. Round trip real contra `git log` (unmassk-standards
+        Sec.34): el valor esperado se LEE del commit real que el propio
+        script acaba de crear, nunca se reconstruye a mano en el test.
+
+        Hoy, sin el marcador todavia anadido, esta comparacion ya es
+        cierta por coincidencia (`marked_message` no lleva trailer alguno
+        cuando no hay `--issue`, asi que titular == mensaje completo) --
+        es un GUARDIAN que deja de ser trivial, y pasa a proteger de
+        verdad, en cuanto `wip.py` empiece a anadir la linea de skip-ci:
+        si esa linea se anadiera al mensaje que se comitea pero no a lo
+        que se imprime (o al reves), este test lo detecta.
+        """
         seed_config_json(tmp_repo, repo_type="trunk")
         _write_file(tmp_repo, "fileA.txt")
 
         rc, out, err = run_memory_script(
             "wip.py",
-            ["confirm stdout echoes the marked message", "--path", "fileA.txt"],
+            ["confirm stdout echoes the full committed message", "--path", "fileA.txt"],
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
-        marker = emojis_mod.CHANNEL_EMOJI["wip"]
-        assert out.strip() == f"[WIP] {marker} confirm stdout echoes the marked message", (
-            f"la confirmacion en pantalla tiene que ser el mismo titular que se comiteo: {out!r}"
+
+        committed_message = _git_head_message(tmp_repo)
+        assert out.strip() == committed_message.strip(), (
+            "lo impreso en pantalla tiene que ser EXACTAMENTE el mensaje que "
+            f"de verdad se comiteo -- impreso={out!r} comiteado={committed_message!r}"
         )
 
 

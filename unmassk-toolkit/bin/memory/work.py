@@ -46,6 +46,7 @@ from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 
 force_utf8_streams()
 
+import ci  # noqa: E402
 import config  # noqa: E402
 import notes  # noqa: E402
 import rejection as rejection_  # noqa: E402
@@ -148,7 +149,16 @@ def main(argv):
                 print(rejection_.render_terminal(_issue_rejection(args.message, paths, args.issue)))
                 return 1
 
-    result = notes.write_work(args.message, paths, args.issue, known_content=known_content)
+    # D-070 (`gitmem search --id D-070`): el marcador va en el mensaje
+    # que llega a `write_work()`, NUNCA dentro de esa funcion compartida
+    # -- si aterrizara ahi, `bin/release.py` se lo llevaria de regalo
+    # (ver `ci.py`, docstring). En su propia linea, separada por una
+    # linea en blanco de todo lo demas, para que un `--issue N` que
+    # `write_work()` anada despues como trailer `Issue: #N` quede en su
+    # propia linea tambien -- `health_plans._ISSUE_TRAILER_RE` la ancla
+    # por linea entera.
+    message_with_marker = f"{args.message}\n\n{ci.SKIP_CI_MARKER}"
+    result = notes.write_work(message_with_marker, paths, args.issue, known_content=known_content)
     if not result.ok:
         print(f"git fallo al commitear: {result.git_error}", file=sys.stderr)
         return 1

@@ -2060,3 +2060,46 @@ class TestPromoteChangelogUnit:
         assert "CRLF feature.\r\n" in result, (
             "El contenido con CRLF no fue preservado verbatim bajo la nueva versión."
         )
+
+
+# ── D-070 (2026-08-26, `gitmem search --id D-070`) ──────────────────────────
+#
+# `gitmem work`/`gitmem wip` añaden `[skip ci]` a sus propios commits (ver
+# `unmassk-toolkit/tests/memory/test_ci_skip_marker.py`); `bin/release.py`
+# es el ÚNICO que NO debe hacerlo -- su commit dispara y verifica la CI de
+# todo lo acumulado desde el último release.
+
+
+class TestReleaseCommitNeverCarriesTheSkipCiMarker:
+    """El guardián de silencio de D-070: `_execute_commit_push()`
+    (bin/release.py:192-197) llama a `notes.write_work()` DIRECTAMENTE --
+    la misma pieza compartida que `work.py`/`wip.py` usan por debajo
+    (`lib/memory/notes_commit.py:507`, el punto de ensamblado ÚNICO de los
+    tres) -- nunca al script `bin/memory/work.py`. Si el marcador de
+    skip-ci migrara alguna vez a ese ensamblado COMPARTIDO en vez de
+    quedarse en los DOS SCRIPTS que deben llevarlo, el release se lo
+    llevaría de regalo: dejaría de disparar CI y una publicación sin
+    verificar llegaría a producción sin que nadie se entere -- el fallo
+    silencioso exacto que este test existe para impedir.
+
+    Verde hoy (GUARDIÁN de no-regresión, no ROJO): `bin/release.py` ya
+    existe y ya comitea sin ningún marcador de skip-ci -- nada en el
+    código actual lo añade. Tiene que seguir siendo cierto una vez que
+    Ultron implemente D-070 en `work.py`/`wip.py`.
+    """
+
+    def test_release_commit_message_never_contains_any_skip_ci_variant(self, tmp_path):
+        repo, bare = _setup_release_repo(tmp_path)
+        new_ver = "1.4.0"
+
+        rc, stdout, stderr = _run_release(repo, [PLUGIN_NAME, new_ver])
+        assert rc == 0, f"Expected exit 0, got {rc}.\nstdout: {stdout}\nstderr: {stderr}"
+
+        commit_message = _git(["log", "-1", "--pretty=%B", "HEAD"], repo).stdout
+
+        assert not re.search(r"\[?skip[- ]ci\]?", commit_message, re.IGNORECASE), (
+            "D-070: el commit de bin/release.py es el ÚNICO que tiene que "
+            "disparar CI -- no puede llevar ninguna variante de skip-ci "
+            "(case-insensitive: 'skip ci', 'skip-ci', '[skip ci]'). Mensaje "
+            f"real del commit de release:\n{commit_message!r}"
+        )

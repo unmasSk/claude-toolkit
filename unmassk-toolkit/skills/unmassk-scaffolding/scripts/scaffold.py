@@ -17,9 +17,9 @@ from enum import Enum
 # ── Shared lib — encoding guard (issue #52, T1) ─────────────────────────
 # This file lives at skills/unmassk-scaffolding/scripts/scaffold.py — one
 # level deeper than bin/hooks/scripts, so it needs one more dirname() hop
-# to reach unmassk-toolkit/lib. Always invoked via
-# ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py (see
-# SKILL.md), i.e. always from within the plugin tree — lib/ is always
+# to reach unmassk-toolkit/lib. Invoked relative to this skill's own
+# directory (see SKILL.md — ${CLAUDE_PLUGIN_ROOT} is empty in the Bash
+# tool), i.e. always from within the plugin tree — lib/ is always
 # alongside it, same as every bin/hooks entry point.
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))),

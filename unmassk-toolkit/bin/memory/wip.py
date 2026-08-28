@@ -59,6 +59,7 @@ from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 
 force_utf8_streams()
 
+import ci  # noqa: E402
 import config  # noqa: E402
 import emojis  # noqa: E402
 import notes  # noqa: E402
@@ -119,12 +120,18 @@ def main(argv):
             return 1
 
     marked_message = f"{_WIP_PREFIX} {_WIP_MARKER} {args.message}"
-    result = notes.write_work(marked_message, paths, None, known_content=known_content)
+    # D-070 (`gitmem search --id D-070`): el marcador va aqui, NUNCA
+    # dentro de `write_work()` -- ver `ci.py`, docstring. En su propia
+    # linea, separada por una linea en blanco del titular: un checkpoint
+    # no lleva `--issue` por diseno, asi que aqui no hay trailer con el
+    # que pueda compartir linea.
+    full_message = f"{marked_message}\n\n{ci.SKIP_CI_MARKER}"
+    result = notes.write_work(full_message, paths, None, known_content=known_content)
     if not result.ok:
         print(f"git fallo al commitear: {result.git_error}", file=sys.stderr)
         return 1
 
-    print(marked_message)
+    print(full_message)
     return 0
 
 
