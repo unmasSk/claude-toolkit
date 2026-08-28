@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-08-28
+
+### Fixed
+
+- **The `SKILL_DIR` self-discovery this plugin already had (fixed in 1.0.1) picked a stale copy in silence.** It sorted the plugin cache by version and took the last one, but the cache also holds copies retired by the installer and marked `.orphaned_at` — one of them literally named `unknown`, which `sort -V` places after every real semver, so the discovery block would have run old code with no error at all. All 9 `SKILL_DIR=` blocks across `SKILL.md` (6), `gate-input.md` (1) and `risk-and-sizing.md` (2) now filter out anything marked `.orphaned_at` before sorting (R-020, [#85](../../issues/85)).
+
 ## [1.1.1] - 2026-08-28
 
 ### Fixed
@@ -48,12 +54,6 @@
 ### Added
 
 - **`gitmem work` and `gitmem wip` now append `[skip ci]` on its own line to every commit they write**, so GitHub Actions no longer fires on intermediate work commits — only the release commit does, and it is deliberately the one commit in the chain that never carries the marker, since it is the single run that verifies everything accumulated since the last release (D-070, `gitmem search --id D-070`). The marker lives in the two producers (`bin/memory/work.py`, `bin/memory/wip.py`), never inside the shared commit-assembly point they both call through — a regression test guards that it can never migrate there, because if it did, `bin/release.py`'s own commit would inherit it and silently stop triggering the CI run that verifies a publication. `gitmem wip` also now prints the full committed message (marker included) instead of the message before the marker was appended.
-
-## [1.0.3] - 2026-08-28 (unmassk-trading)
-
-### Fixed
-
-- **The `SKILL_DIR` self-discovery this plugin already had (fixed in 1.0.1) picked a stale copy in silence.** It sorted the plugin cache by version and took the last one, but the cache also holds copies retired by the installer and marked `.orphaned_at` — one of them literally named `unknown`, which `sort -V` places after every real semver, so the discovery block would have run old code with no error at all. All 9 `SKILL_DIR=` blocks across `SKILL.md` (6), `gate-input.md` (1) and `risk-and-sizing.md` (2) now filter out anything marked `.orphaned_at` before sorting (R-020, [#85](../../issues/85)).
 
 ## [1.0.2] - 2026-08-28
 
