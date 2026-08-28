@@ -1,11 +1,7 @@
 # unmassk-trading — Planteamiento y plan
 
 **Issue:** #85 · **Repo:** trunk (`main`) · **Creado:** 2026-08-27
-**Estado:** T1 a T6 cerradas. Comparación línea por línea hecha; Cerberus, Argus, Dante,
-Moriarty y Yoda pasados y todos sus hallazgos corregidos. **Yoda: 87/110, aprobado con tres
-condiciones, las tres aplicadas.** **[2026-08-27] Consejo celebrado** (cinco asesores y
-cinco revisores): se publica la fase 1 y el freno se conecta a la cuenta de práctica en vez
-de borrarse — D-077, con X-086/X-087/X-088 descartadas. Queda el cierre (T7).
+**Estado:** **Fase 1 cerrada y publicada.** T1 a T7 hechas. Comparación línea por línea hecha; Cerberus, Argus, Dante, Moriarty y Yoda pasados y todos sus hallazgos corregidos. **Yoda: 87/110, aprobado con tres condiciones, las tres aplicadas.** **[2026-08-27] Consejo celebrado** (cinco asesores y cinco revisores): se publica la fase 1 y el freno se conecta a la cuenta de práctica en vez de borrarse — D-077, con X-086/X-087/X-088 descartadas. **Publicado v1.0.0 el 2026-08-27 y, tras cuatro paseos en frío, v1.0.1 y v1.0.2 el 2026-08-28.** La fase 2 es la #86; la #85 sigue abierta.
 
 ---
 
@@ -126,8 +122,7 @@ investigación → plan → planteamiento
 - [x] Una única línea de lógica cambiada en todo el traslado (la ruta del módulo hermano),
       declarada en `CREDITS.md`
 - [x] Línea trazada: no se sigue tirando del hilo de dependencias (`thesis_review` fuera)
-- [ ] **Pendiente de la pasada de adaptación:** etiquetas en dólares y "shares", calendario
-      de mercado estadounidense, y rutas de salida relativas al directorio actual
+- [x] **La pasada de adaptación NO se hizo, y esa es la decisión:** el traslado se queda byte a byte, así que las etiquetas en dólares y "shares", el calendario de mercado estadounidense y las rutas de salida relativas al directorio actual **se documentan en vez de tocarse** — `SKILL.md` las declara una por una, los bloques pasan siempre `--output-dir`/`--state-dir` explícitos, y `.gitignore` protege la raíz del repositorio por si alguien los omite. El límite del día en Nueva York es lo único que sigue vivo, y es parte de la puerta de la fase 2 (#86)
 
 ### T2 · El comprobador de precio — **HECHA**
 
@@ -166,15 +161,15 @@ escribió.
       el freno se conecta a la cuenta de práctica, que ES el dato de pérdidas** (D-077).
       Descartadas: borrarlo y dejar un aviso impreso (X-086), retener la publicación hasta
       que funcione (X-087), y dejarlo tal cual recogiendo datos (X-088)
-- [ ] **Lo que el Consejo deja abierto:** el wrapper que conecta freno y cuenta de práctica
-      —y el límite del día en UTC— no está construido. Es la fase 2
+- [ ] **Lo que el Consejo deja abierto:** el wrapper que conecta freno y cuenta de práctica —y el límite del día en UTC— no está construido. Es la fase 2, y desde el 2026-08-27 tiene issue propia: **#86**. Verificado el 2026-08-28 que sigue abierto: `thesis_store.py` publica `open-position`, `trim`, `close` y `terminate`, pero **no un comando que cree una ficha**, así que no hay camino de «el usuario compró algo» a «el freno lo sabe»
 
 ### T7 · Documentación y cierre — **HECHA**
-- [x] Alexandria: tres superficies + CHANGELOG (dos entradas, 1.0.0 y 1.0.1)
-- [x] Suites en verde: 689 del plugin, 1.285 del toolkit; CI verde en los dos trabajos
-- [x] Validadores de plugin-dev pasados: cazaron que **ninguno de los comandos habría
-      funcionado instalado** (rutas relativas, R-018) y el punto muerto de la puerta
-- [x] Publicado v1.0.0 y, con los arreglos, v1.0.1
+- [x] Alexandria: tres superficies + CHANGELOG (tres entradas: 1.0.0, 1.0.1 y 1.0.2)
+- [x] Suites en verde: **689 del plugin y 1.285 del toolkit, vueltas a correr el 2026-08-28**; CI verde en los dos trabajos de `plugin-tests.yml`. `unmassk-trading` estrena trabajo propio para que la dependencia pesada de otro plugin no pueda esconder su resultado, y el trabajo de los plugins maker llevaba roto desde el 2026-08-06 **sin que nadie lo viera**, porque un filtro de rutas impedía que llegara a ejecutarse: fijaba Python 3.10 y dos de sus propias dependencias piden 3.11+ (M-133)
+- [x] Validadores de plugin-dev pasados: cazaron que **ninguno de los comandos habría funcionado instalado** (rutas relativas) y el punto muerto de la puerta
+- [x] **Cuatro paseos en frío** —un Claude leyendo la skill en un proyecto vacío, sin memoria, sin configuración y sin el binario `kraken`, sacando cada bloque y ejecutándolo— encontraron por orden: todas las invocaciones rotas por las rutas, el directorio de práctica apuntando a donde no era, la lista de órdenes peligrosas leyendo el fichero de otro proyecto, las puertas sin usarse nunca en modo principiante, y una instrucción de `session start` que no devuelve el control. Corregidos en 1.0.1 y 1.0.2
+- [x] **R-018 quedó retirada y sustituida por R-019:** el arreglo de la 1.0.1 —invocar los scripts con `${CLAUDE_PLUGIN_ROOT}`— era falso, porque esa variable está vacía en la herramienta Bash y solo se sustituye en las entradas de `hooks.json`. Hoy cada bloque resuelve la ruta de la skill en la misma llamada que la usa, y se copia entero
+- [x] Publicado v1.0.0 el 2026-08-27, y con los arreglos v1.0.1 y v1.0.2 el 2026-08-28
 - [x] #85 sigue abierta: esto cierra la fase 1, no la issue
 
 **Status: COMPLETED** (fase 1; la fase 2 es la #86)

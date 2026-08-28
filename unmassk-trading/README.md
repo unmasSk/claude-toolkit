@@ -14,8 +14,7 @@ exchange.
 know — and, separately, what you can actually afford to lose — then explains each idea at
 the moment it matters, not as a course up front. Everything happens on a **local practice
 account with fake money and no API key at all**, so a bug cannot spend a euro. Real money
-becomes reachable only after a measurable gate: two weeks, ten closed positions, a stop
-set before every entry, and your own written rules unbroken.
+becomes reachable only after a measurable gate: two weeks, ten closed positions, a stop set before every entry, your own written rules unbroken, and a real-money amount at or below what you said you could afford to lose. The full list, with what counts as evidence for each, is in the skill's `references/beginner-mode.md`.
 
 **Advanced.** No explanations, same gates. `--validate` before every order, an explicit
 confirmation, a read-back afterwards, and a dead man's switch per session are not
@@ -42,8 +41,7 @@ again.
 - **Position sizing from risk, not from appetite** — you say what you are willing to lose
   if the stop hits, and the size falls out of that. Cost, loss-at-stop and percentage of
   account are stated in euros, every time.
-- **A circuit breaker** that halts trading after a bad day, a bad week, or two losses in
-  a row, and says which threshold you hit.
+- **A circuit breaker** that halts trading after a bad day, a bad week, a bad month, or two losses in a row, and says every threshold you hit, not only the one that decided.
 - **A record in git-memory, not in a second journal file** — so next session can be asked
   what you decided and why, and so the skill can tell you when you are about to break
   your own rule.

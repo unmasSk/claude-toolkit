@@ -162,9 +162,7 @@ What matters here, in the conversation:
 - **A halt is stated with its number and its reason**, and it is not lifted because the
   user asks again in the same session. The clock lifts it, or the user deliberately changes
   their own rule — which is saved as a rule change, not as an exception.
-- **Both calendars are US-market** (`America/New_York`, Monday weeks), lifted as-is. Crypto
-  trades 24/7, so do not lean on their day and week boundaries until the adaptation pass
-  lands; the loss arithmetic itself is sound.
+- **Both calendars are US-market** (`America/New_York`, Monday weeks), lifted as-is and staying that way — the lift is byte-identical on purpose (`CREDITS.md`). Crypto trades 24/7, so do not lean on their day and week boundaries: the day boundary is one of the two things issue **#86** has to settle before real money moves. The loss arithmetic itself is sound.
 - **They need `PyYAML`.** `jsonschema` is also declared (`requirements.txt`) but reaches
   these two only through the thesis store, and only when a candidate carries a `thesis_id`
   — verified: both gates run and return their normal verdicts without it. If an import does

@@ -22,6 +22,16 @@ root `marketplace.json` entry. Fix every critical issue before `bin/release.py`.
 plugin, also confirm the plugin is **registered** in the root `.claude-plugin/marketplace.json`
 and listed in the root `README.md` install block + plugin table.
 
+## Precondition: if the plugin ships scripts, three things the validator does not check
+
+Learned the expensive way with `unmassk-trading` (two patch releases in one night, four cold walks of the skill by a Claude with an empty project). A `SKILL.md` whose bash blocks look right can still fail on every command the first time a real user runs it.
+
+- **`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool** — it is only substituted in `hooks.json` entries (R-019, which retired R-018 for prescribing exactly this). A bare relative path is just as broken: a skill runs with the working directory set to the *user's* project. What does arrive is the `Base directory for this skill:` line printed when the skill loads, so each block must resolve the skill directory itself.
+- **A shell variable does not survive from one Bash call to the next** — every call is its own shell. Each block has to be self-contained: resolve the path in the same call that uses it, and say so, or someone will copy it line by line.
+- **Scripts that default their output to the current directory will write into whatever repository the user is standing in.** Pass `--output-dir`/`--state-dir` explicitly in every documented block, and add the default names to the root `.gitignore` as a backstop.
+
+And give the plugin **its own CI job** if its test suite has dependencies of its own: sharing a job means one plugin's broken pin hides another plugin's result. The `maker-plugins` job sat broken and unnoticed for three weeks that way, because a path filter also kept it from ever running (M-133).
+
 ## Step 1 — dry run
 
 Always run `--dry-run` first. It prints the full plan without touching any file:
