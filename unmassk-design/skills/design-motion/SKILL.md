@@ -41,6 +41,10 @@ snippets. **Do not re-derive that here and do not duplicate it** — load it
 first for the baseline, then load this family's references for judgment,
 physics, library depth, and review rigor.
 
+**Paths.** Every `scripts/…` path in this file is relative to this skill's own directory —
+the absolute path printed as `Base directory for this skill:` when the skill loads.
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 This skill exists for the questions the core doesn't answer: *should this
 animate at all? does it feel alive when interrupted? which spring model and
 which library? is this actually good, or does it just run?*
@@ -77,11 +81,11 @@ their logic manually.
 
 | Script | Purpose | Usage |
 |---|---|---|
-| `scripts/motion-framer/animation_generator.py` | Generate Motion/Framer Motion component boilerplate for 11 animation types (hover, tap, drag, exit, layout, scroll, spring, stagger, gesture, variant, custom) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-framer/animation_generator.py --type <type> --name <Component> [--output file.jsx] [--typescript] [--constraints] [--shared-id <id>] [--spring]` |
-| `scripts/motion-framer/variant_builder.py` | Build Motion/Framer Motion variant configurations from 7 presets (fade, slide, scale, rotate, stagger, modal, page) or interactively | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-framer/variant_builder.py [--preset <name>] [--output variants.js] [--typescript] [--interactive]` |
-| `scripts/react-spring-physics/physics_calculator.py` | Calculate damping ratio, critical friction, and settle time for React Spring `{ mass, tension, friction }` configs; classify under/critical/over-damped | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/react-spring-physics/physics_calculator.py [--feel <preset>\|--tension N --friction N\|--critical --tension N]` |
-| `scripts/react-spring-physics/spring_generator.py` | Generate React Spring boilerplate for 7 patterns (click, scroll, trail, transition, inview, chain, gesture) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/react-spring-physics/spring_generator.py --type <type> [--output file.jsx]` |
-| `scripts/motion-dev/validate_motion_config.py` | Validate a Motion.dev animation config JSON against `schema/motion-config.schema.json`; warns on missing accessibility/performance fields | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-motion/scripts/motion-dev/validate_motion_config.py <config.json>` or `--all <directory>`. **Requires** `pip install jsonschema` (see `scripts/requirements.txt`) |
+| `scripts/motion-framer/animation_generator.py` | Generate Motion/Framer Motion component boilerplate for 11 animation types (hover, tap, drag, exit, layout, scroll, spring, stagger, gesture, variant, custom) | `python3 scripts/motion-framer/animation_generator.py --type <type> --name <Component> [--output file.jsx] [--typescript] [--constraints] [--shared-id <id>] [--spring]` |
+| `scripts/motion-framer/variant_builder.py` | Build Motion/Framer Motion variant configurations from 7 presets (fade, slide, scale, rotate, stagger, modal, page) or interactively | `python3 scripts/motion-framer/variant_builder.py [--preset <name>] [--output variants.js] [--typescript] [--interactive]` |
+| `scripts/react-spring-physics/physics_calculator.py` | Calculate damping ratio, critical friction, and settle time for React Spring `{ mass, tension, friction }` configs; classify under/critical/over-damped | `python3 scripts/react-spring-physics/physics_calculator.py [--feel <preset>\|--tension N --friction N\|--critical --tension N]` |
+| `scripts/react-spring-physics/spring_generator.py` | Generate React Spring boilerplate for 7 patterns (click, scroll, trail, transition, inview, chain, gesture) | `python3 scripts/react-spring-physics/spring_generator.py --type <type> [--output file.jsx]` |
+| `scripts/motion-dev/validate_motion_config.py` | Validate a Motion.dev animation config JSON against `schema/motion-config.schema.json`; warns on missing accessibility/performance fields | `python3 scripts/motion-dev/validate_motion_config.py <config.json>` or `--all <directory>`. **Requires** `pip install jsonschema` (see `scripts/requirements.txt`) |
 
 ### Assets (`scripts/<tool>/assets/`)
 

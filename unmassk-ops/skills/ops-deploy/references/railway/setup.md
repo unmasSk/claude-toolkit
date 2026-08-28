@@ -46,7 +46,8 @@ railway init --name <project-name> --workspace <workspace-id-or-name>
 Settings like project name, PR deploys, and visibility aren't exposed through the CLI. Use the GraphQL API helper (see [request.md](request.md)):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/railway-api.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | sort -V | tail -1)
+"$SKILL_DIR/scripts/railway-api.sh" \
   'mutation updateProject($id: String!, $input: ProjectUpdateInput!) {
     projectUpdate(id: $id, input: $input) { id name isPublic prDeploys }
   }' \

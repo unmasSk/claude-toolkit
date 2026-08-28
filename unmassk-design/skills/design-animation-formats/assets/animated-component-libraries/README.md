@@ -2,6 +2,10 @@
 
 This directory contains starter templates and example code for Magic UI and React Bits components.
 
+**Paths.** This file is not a skill — no `Base directory for this skill` line is printed for
+it. The script paths below are relative to the plugin's own directory (`unmassk-design/`).
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Quick Start Templates
 
 ### Magic UI + shadcn/ui Starter
@@ -350,10 +354,10 @@ Use the provided scripts to assist with component implementation:
 
 ```bash
 # Import component with instructions
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py
+python3 skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py
 
 # Generate component props
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py
+python3 skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py
 ```
 
 ## Notes

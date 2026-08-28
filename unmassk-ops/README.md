@@ -29,7 +29,7 @@ Requires the **unmassk-toolkit** plugin (core). Install it from the marketplace 
 
 ## Scripts
 
-All scripts use `${CLAUDE_PLUGIN_ROOT}` paths and run with `set -euo pipefail`. Scripts call real tools (terraform, tflint, checkov, ansible-lint, hadolint, kubeconform, actionlint, act, shellcheck, promtool) with graceful fallback when tools are missing.
+All scripts run with `set -euo pipefail`. Scripts call real tools (terraform, tflint, checkov, ansible-lint, hadolint, kubeconform, actionlint, act, shellcheck, promtool) with graceful fallback when tools are missing. Paths below are relative to the plugin directory (`skills/<skill>/scripts/<script>`) — `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool and must never be pasted into a command.
 
 ## Skill routing
 

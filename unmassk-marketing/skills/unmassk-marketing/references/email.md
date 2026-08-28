@@ -489,26 +489,28 @@ All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment va
 SMB email marketing, list management, and campaigns.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export MAILCHIMP_API_KEY=xxx-us1
 
 # List audiences
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js lists list
+node "$SKILL_DIR/scripts/mailchimp.js" lists list
 
 # Get audience details
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js lists get list_abc123
+node "$SKILL_DIR/scripts/mailchimp.js" lists get list_abc123
 
 # List members of an audience
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js members list --list-id list_abc123 --count 50
+node "$SKILL_DIR/scripts/mailchimp.js" members list --list-id list_abc123 --count 50
 
 # Add member
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js members add --list-id list_abc123 --email user@example.com --status subscribed
+node "$SKILL_DIR/scripts/mailchimp.js" members add --list-id list_abc123 --email user@example.com --status subscribed
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js campaigns list
+node "$SKILL_DIR/scripts/mailchimp.js" campaigns list
 
 # Get campaign details
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js campaigns get camp_abc123
+node "$SKILL_DIR/scripts/mailchimp.js" campaigns get camp_abc123
 ```
 
 ### customer-io.js
@@ -516,6 +518,8 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mailchimp.js campaig
 Behavior-based automation, trigger emails, and event tracking.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment (Track API)
 export CUSTOMERIO_SITE_ID=xxx
 export CUSTOMERIO_API_KEY=xxx
@@ -523,19 +527,19 @@ export CUSTOMERIO_API_KEY=xxx
 export CUSTOMERIO_APP_KEY=xxx
 
 # Identify/update customer
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers identify user_123 --email user@example.com --plan pro
+node "$SKILL_DIR/scripts/customer-io.js" customers identify user_123 --email user@example.com --plan pro
 
 # Track event (triggers automated emails)
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers track-event user_123 --name signed_up --data '{"plan": "free"}'
+node "$SKILL_DIR/scripts/customer-io.js" customers track-event user_123 --name signed_up --data '{"plan": "free"}'
 
 # List segments
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments list
+node "$SKILL_DIR/scripts/customer-io.js" segments list
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns list
+node "$SKILL_DIR/scripts/customer-io.js" campaigns list
 
 # Send transactional message
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
+node "$SKILL_DIR/scripts/customer-io.js" messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
 ```
 
 ### sendgrid.js
@@ -543,23 +547,25 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messa
 Transactional email at scale with template support.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export SENDGRID_API_KEY=SG.xxx
 
 # Send email
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node "$SKILL_DIR/scripts/sendgrid.js" send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with template
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js send --from sender@example.com --to recipient@example.com --subject "Welcome" --template-id d-xxx --template-data '{"name": "John"}'
+node "$SKILL_DIR/scripts/sendgrid.js" send --from sender@example.com --to recipient@example.com --subject "Welcome" --template-id d-xxx --template-data '{"name": "John"}'
 
 # List contacts
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js contacts list
+node "$SKILL_DIR/scripts/sendgrid.js" contacts list
 
 # Add contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js contacts add --email user@example.com --first-name John --last-name Doe
+node "$SKILL_DIR/scripts/sendgrid.js" contacts add --email user@example.com --first-name John --last-name Doe
 
 # List contact lists
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js lists list
+node "$SKILL_DIR/scripts/sendgrid.js" lists list
 ```
 
 ### kit.js (ConvertKit)
@@ -567,33 +573,35 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js lists li
 Creator and newsletter-focused email.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export KIT_API_KEY=xxx
 export KIT_API_SECRET=xxx
 
 # List subscribers
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers list
+node "$SKILL_DIR/scripts/kit.js" subscribers list
 
 # Get subscriber
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers get 12345
+node "$SKILL_DIR/scripts/kit.js" subscribers get 12345
 
 # Update subscriber
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers update 12345 --first-name John --fields '{"company": "Acme"}'
+node "$SKILL_DIR/scripts/kit.js" subscribers update 12345 --first-name John --fields '{"company": "Acme"}'
 
 # Unsubscribe
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js subscribers unsubscribe --email user@example.com
+node "$SKILL_DIR/scripts/kit.js" subscribers unsubscribe --email user@example.com
 
 # List sequences
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js sequences list
+node "$SKILL_DIR/scripts/kit.js" sequences list
 
 # Add subscriber to sequence
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js sequences subscribe 12345 --email user@example.com
+node "$SKILL_DIR/scripts/kit.js" sequences subscribe 12345 --email user@example.com
 
 # List tags
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js tags list
+node "$SKILL_DIR/scripts/kit.js" tags list
 
 # Tag subscriber
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js tags tag 12345 --email user@example.com
+node "$SKILL_DIR/scripts/kit.js" tags tag 12345 --email user@example.com
 ```
 
 ### resend.js
@@ -601,23 +609,25 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js tags tag 1234
 Developer-friendly transactional email.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export RESEND_API_KEY=re_xxx
 
 # Send email
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js send --from onboarding@example.com --to user@example.com --subject "Welcome" --html "<p>Hello</p>"
+node "$SKILL_DIR/scripts/resend.js" send --from onboarding@example.com --to user@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with scheduling
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js send --from sender@example.com --to user@example.com --subject "Reminder" --text "Don't forget!" --scheduled-at "2024-12-01T10:00:00Z"
+node "$SKILL_DIR/scripts/resend.js" send --from sender@example.com --to user@example.com --subject "Reminder" --text "Don't forget!" --scheduled-at "2024-12-01T10:00:00Z"
 
 # List sent emails
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js emails list
+node "$SKILL_DIR/scripts/resend.js" emails list
 
 # Get email details
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js emails get email_abc123
+node "$SKILL_DIR/scripts/resend.js" emails get email_abc123
 
 # List domains
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js domains list
+node "$SKILL_DIR/scripts/resend.js" domains list
 ```
 
 ### postmark.js
@@ -625,26 +635,28 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js domains li
 Deliverability-focused transactional email.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export POSTMARK_API_KEY=xxx
 
 # Send email
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node "$SKILL_DIR/scripts/postmark.js" email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send with template
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js email send-template --template-id 12345 --from sender@example.com --to recipient@example.com --data '{"name": "John"}'
+node "$SKILL_DIR/scripts/postmark.js" email send-template --template-id 12345 --from sender@example.com --to recipient@example.com --data '{"name": "John"}'
 
 # List templates
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js templates list
+node "$SKILL_DIR/scripts/postmark.js" templates list
 
 # Get delivery stats
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js stats delivery
+node "$SKILL_DIR/scripts/postmark.js" stats delivery
 
 # Get bounce stats
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js stats bounces
+node "$SKILL_DIR/scripts/postmark.js" stats bounces
 
 # List message streams
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js streams list
+node "$SKILL_DIR/scripts/postmark.js" streams list
 ```
 
 ### brevo.js
@@ -652,26 +664,28 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js streams 
 Email and SMS with strong EU presence.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export BREVO_API_KEY=xkeysib-xxx
 
 # Get account info
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js account get
+node "$SKILL_DIR/scripts/brevo.js" account get
 
 # List contacts
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js contacts list
+node "$SKILL_DIR/scripts/brevo.js" contacts list
 
 # Add contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js contacts add --email user@example.com --attributes '{"FIRSTNAME": "John"}'
+node "$SKILL_DIR/scripts/brevo.js" contacts add --email user@example.com --attributes '{"FIRSTNAME": "John"}'
 
 # List email campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js campaigns list
+node "$SKILL_DIR/scripts/brevo.js" campaigns list
 
 # Send transactional email
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
+node "$SKILL_DIR/scripts/brevo.js" email send --from sender@example.com --to recipient@example.com --subject "Welcome" --html "<p>Hello</p>"
 
 # Send SMS
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js sms send --to "+1234567890" --content "Your code is 1234" --sender "MyApp"
+node "$SKILL_DIR/scripts/brevo.js" sms send --to "+1234567890" --content "Your code is 1234" --sender "MyApp"
 ```
 
 ---

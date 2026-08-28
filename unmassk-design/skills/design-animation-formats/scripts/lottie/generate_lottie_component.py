@@ -5,9 +5,11 @@ Lottie Component Generator
 Generates React, Vue, or Svelte Lottie component boilerplate with common patterns.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/generate_lottie_component.py                          # Interactive mode
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/generate_lottie_component.py --framework react --type basic
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/generate_lottie_component.py --framework vue --type interactive
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/lottie/generate_lottie_component.py                          # Interactive mode
+    python3 scripts/lottie/generate_lottie_component.py --framework react --type basic
+    python3 scripts/lottie/generate_lottie_component.py --framework vue --type interactive
 """
 
 import argparse

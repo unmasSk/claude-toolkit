@@ -70,15 +70,18 @@ Read the reference(s) that match the task before doing anything else.
 1. **Generate** — Read `docker-language-guides.md` and `docker-multistage-builds.md`. Write Dockerfile.
 2. **Setup tools** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/dockerfile-test-validate.sh --check-tools
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/dockerfile-test-validate.sh" --check-tools
    ```
 3. **Lint** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/dockerfile-validate.sh <Dockerfile>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/dockerfile-validate.sh" <Dockerfile>
    ```
 4. **Generate .dockerignore** (if missing) — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_dockerignore.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/generate_dockerignore.sh" <dir>
    ```
 5. Fix all findings. Report: tool used, findings count, severity, actions taken.
 
@@ -87,37 +90,44 @@ Read the reference(s) that match the task before doing anything else.
 Generate Dockerfile for specific language runtime:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_nodejs.sh <dir>
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_python.sh <dir>
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_golang.sh <dir>
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_java.sh <dir>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/generate_nodejs.sh" <dir>
+bash "$SKILL_DIR/scripts/generate_python.sh" <dir>
+bash "$SKILL_DIR/scripts/generate_golang.sh" <dir>
+bash "$SKILL_DIR/scripts/generate_java.sh" <dir>
 ```
 
 ### Helm: scaffold → generate helpers → validate → report
 
 1. **Scaffold chart structure** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_chart_structure.sh <chart-name> <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/generate_chart_structure.sh" <chart-name> <dir>
    ```
 2. **Generate standard helpers** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_standard_helpers.sh <chart-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/generate_standard_helpers.sh" <chart-dir>
    ```
 3. **Generate Helm helpers** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/helm-generate-helpers.sh <chart-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/helm-generate-helpers.sh" <chart-dir>
    ```
 4. **Validate chart structure** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/validate_chart_structure.sh <chart-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_chart_structure.sh" <chart-dir>
    ```
 5. **Detect CRDs** (if chart uses CRDs) — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/helm-detect-crd-wrapper.sh <chart-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/helm-detect-crd-wrapper.sh" <chart-dir>
    ```
 6. **Setup Helm tools** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/helm-setup-tools.sh
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/helm-setup-tools.sh"
    ```
 7. Fix all findings. Report: issues found, actions taken.
 
@@ -126,15 +136,18 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_java.sh <dir>
 1. **Generate** — Read `k8s-resource-patterns.md` and `k8s-security-patterns.md`. Write YAML.
 2. **Count documents** — Run:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/count_yaml_documents.py <file.yaml>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   python3 "$SKILL_DIR/scripts/count_yaml_documents.py" <file.yaml>
    ```
 3. **Setup tools** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/k8s-setup-tools.sh
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/k8s-setup-tools.sh"
    ```
 4. **Detect CRDs** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/k8s-detect-crd-wrapper.sh <file.yaml>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/k8s-detect-crd-wrapper.sh" <file.yaml>
    ```
 5. **Validate with kubeconform** — Run as documented in `k8s-validation-workflow.md`.
 6. **Dry-run** (if cluster available):
@@ -148,15 +161,18 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_java.sh <dir>
 1. Read `k8s-debug-troubleshooting.md` to select the matching workflow.
 2. Collect diagnostics — Run:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/pod_diagnostics.py <namespace> <pod-name>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   python3 "$SKILL_DIR/scripts/pod_diagnostics.py" <namespace> <pod-name>
    ```
 3. For network issues — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/network_debug.sh <namespace>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/network_debug.sh" <namespace>
    ```
 4. For cluster health — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/cluster_health.sh
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/cluster_health.sh"
    ```
 5. Apply fix and verify. Report: root cause, fix applied, verification result.
 
@@ -164,7 +180,9 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/generate_java.sh <dir>
 
 ## Script reference
 
-All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/`. Use them — do not skip them to report a result manually.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
+All scripts are in `scripts/`. Use them — do not skip them to report a result manually.
 
 | Script | Purpose |
 |--------|---------|

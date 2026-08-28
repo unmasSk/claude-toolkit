@@ -120,17 +120,21 @@ domains. Examples:
 ## Scripts
 
 When a reference calls for platform data, use the CLI scripts at
-`${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/`. Each script is a
-zero-dependency Node.js CLI that calls the platform API. Run:
+`scripts/` — this skill's own directory (the absolute path printed as
+`Base directory for this skill:` when the skill loads). Each script is a
+zero-dependency Node.js CLI that calls the platform API.
 
-```
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<platform>.js <command> [args]
+`${CLAUDE_PLUGIN_ROOT}` is never exported to the shell, so it expands to
+nothing in the Bash tool. Resolve the directory first, then run:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
+node "$SKILL_DIR/scripts/<platform>.js" <command> [args]
 ```
 
 Scripts require API keys set as environment variables. Each script prints
 usage instructions when invoked with no arguments.
-
-`${CLAUDE_PLUGIN_ROOT}` is automatically resolved by Claude Code to the plugin's installation directory. Do not hardcode paths — always use this variable.
 
 ### Script Categories
 
@@ -384,13 +388,15 @@ Structure deliverables consistently based on task type.
 
 ## Validation (Evals)
 
-176 test cases at `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/evals.json` validate reference quality. Each eval has a prompt, expected output, and assertions. Covers all 9 domain references, 4 integration references, and PII redaction compliance.
+176 test cases at `evals/evals.json` (relative to this skill's own directory, same as `scripts/` above) validate reference quality. Each eval has a prompt, expected output, and assertions. Covers all 9 domain references, 4 integration references, and PII redaction compliance.
 
 Search evals with:
-```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --reference copy.md
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --keyword pricing
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/evals/search-evals.py --random
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
+python3 "$SKILL_DIR/evals/search-evals.py" --reference copy.md
+python3 "$SKILL_DIR/evals/search-evals.py" --keyword pricing
+python3 "$SKILL_DIR/evals/search-evals.py" --random
 ```
 
 Use evals to verify output quality after completing a marketing task. Compare agent output against the expected output and assertions for the relevant reference.

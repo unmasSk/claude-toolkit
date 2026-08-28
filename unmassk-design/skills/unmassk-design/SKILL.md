@@ -38,6 +38,13 @@ on-demand and the search script to generate design systems programmatically.
 Based on Impeccable by Paul Bakaus (Apache 2.0), UI/UX Pro Max by
 nextlevelbuilder (MIT), and plugins by bencium.io (MIT).
 
+**Paths.** `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — it is substituted only
+inside `hooks.json` entries, never exported to the shell. What arrives instead is the line
+`Base directory for this skill: <absolute path>`, printed when this skill loads. Every
+`scripts/…` path in a table below is relative to that directory. A shell variable also does
+not survive from one Bash call to the next, so every runnable command block below resolves
+the directory itself, in the same call that uses it.
+
 ## Purpose
 
 This skill combines five expert sources into one coherent workflow:
@@ -62,8 +69,9 @@ the right references and let them inform each other.
 
 Before any design work, generate a design system. Run:
 
-```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py '<product description>' --design-system -p '<project name>'
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" '<product description>' --design-system -p '<project name>'
 ```
 
 This returns: recommended visual pattern, style direction, color palette
@@ -127,7 +135,7 @@ their logic manually.
 
 | Script | Purpose | Usage |
 |---|---|---|
-| `search.py` | Query the design reference corpus for patterns, tokens, or a full design system | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py '<query>' [--design-system] [--domain <domain>] [-p '<project>']` |
+| `search.py` | Query the design reference corpus for patterns, tokens, or a full design system | `python3 scripts/search.py '<query>' [--design-system] [--domain <domain>] [-p '<project>']` |
 | `core.py` | Internal library used by search.py — BM25 search engine, CSV config, domain routing. Do not invoke directly. Do not delete. | _(imported by search.py)_ |
 | `design_system.py` | Internal library used by search.py — design system generation from search results. Do not invoke directly. Do not delete. | _(imported by search.py)_ |
 
@@ -150,12 +158,10 @@ their logic manually.
 
 Install dependencies before first run:
 
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+pip install -r "$SKILL_DIR/scripts/requirements.txt"
 ```
-pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/requirements.txt
-```
-
-Note that `${CLAUDE_PLUGIN_ROOT}` is auto-resolved by Claude Code. Use it
-as written in all script invocations.
 
 ## The AI Slop Test
 

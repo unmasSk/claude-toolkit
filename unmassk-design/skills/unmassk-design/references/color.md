@@ -1,5 +1,11 @@
 # Color
 
+**Paths.** This is a reference of the `unmassk-design` skill. The fenced command below
+resolves the skill's own directory itself, self-contained per call; the inline examples
+after it are relative to that same directory (the absolute path printed as `Base directory
+for this skill:` when the skill loads). `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool;
+never paste it into a command.
+
 ## The OKLCH Color System
 
 Stop using HSL. Use OKLCH (or LCH) instead.
@@ -643,10 +649,11 @@ Before finalizing any palette:
 To find color-related reference content in the knowledge base:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "<query>" --domain color
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" "<query>" --domain color
 ```
 
 Examples:
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "oklch dark mode surfaces" --domain color`
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "contrast ratio accessibility" --domain color`
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "palette generation brand hue" --domain color`
+- `python3 scripts/search.py "oklch dark mode surfaces" --domain color`
+- `python3 scripts/search.py "contrast ratio accessibility" --domain color`
+- `python3 scripts/search.py "palette generation brand hue" --domain color`

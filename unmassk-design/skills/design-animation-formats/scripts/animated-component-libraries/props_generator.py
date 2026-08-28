@@ -6,9 +6,11 @@ Generates component prop configurations for Magic UI and React Bits components.
 Outputs TypeScript/JSX code with customizable prop values.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py                                    # Interactive mode
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py --component shimmer-button --format typescript
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py --component blur-text --format jsx
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/animated-component-libraries/props_generator.py                                    # Interactive mode
+    python3 scripts/animated-component-libraries/props_generator.py --component shimmer-button --format typescript
+    python3 scripts/animated-component-libraries/props_generator.py --component blur-text --format jsx
 """
 
 import sys

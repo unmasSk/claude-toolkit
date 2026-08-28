@@ -1,5 +1,10 @@
 # Design Principles
 
+**Paths.** This is a reference of the `unmassk-design` skill — its `scripts/search.py`
+mention below is relative to that skill's own directory, the absolute path printed as
+`Base directory for this skill:` when it loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the
+Bash tool; never paste it into a command.
+
 ## Anti-AI-Slop Doctrine
 
 The single most important quality check: if you showed this interface to someone and said "AI made this," would they believe you immediately? If yes, start over.
@@ -83,7 +88,7 @@ A design system has three tiers:
 
 **Adaptable (context-dependent)** — Component variants for different screen sizes, dark/light mode overrides, density modes (compact vs comfortable).
 
-Use `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py '<description>' --design-system -p '<project>'` to generate a design system scaffold.
+Use `python3 scripts/search.py '<description>' --design-system -p '<project>'` to generate a design system scaffold.
 
 Generate design tokens as CSS custom properties before writing any component CSS:
 

@@ -471,15 +471,17 @@ Generate a `GEO-ANALYSIS.md` report with this structure:
 
 Use the fetch and parse scripts to retrieve page content for GEO analysis.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <url>
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/parse_html.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <url>
+python3 "$SKILL_DIR/scripts/parse_html.py" <file>
 ```
 
 After fetching and parsing, check robots.txt manually:
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <domain>/robots.txt
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <domain>/robots.txt
 ```
 
 Inspect the raw HTML output for SSR verification -- content must be present in

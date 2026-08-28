@@ -2,6 +2,8 @@
 
 Consolidated reference for CRM platforms, lead enrichment tools, and customer data systems. Use these integrations to manage contacts, deals, companies, and prospect data.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## HubSpot
 
 **What it does:** Full CRM platform for marketing, sales, and customer service. Manage contacts, companies, deals, tickets, forms, and marketing emails through a unified API.
@@ -105,7 +107,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** API Key. Pass `Api-Token: {api_token}` header. Base URL is account-specific: `https://{yourAccountName}.api-us1.com/api/3`. Find key at Settings > Developer.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/activecampaign.js`
+**CLI script:** `scripts/activecampaign.js`
 
 **Composio MCP toolkit:** `ACTIVECAMPAIGN` (API Key, Medium coverage). Actions: get contacts, list automations, add contacts to lists, get campaign stats.
 
@@ -143,7 +145,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** API Key. Pass `x-api-key: {api_key}` or `Authorization: Bearer {token}`. Generate at Settings > Integrations > API.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/apollo.js`
+**CLI script:** `scripts/apollo.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -177,7 +179,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** Bearer Token or Basic Auth with API key as username. Pass `Authorization: Bearer {api_key}`. Get key at https://dashboard.clearbit.com/api.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/clearbit.js`
+**CLI script:** `scripts/clearbit.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -210,7 +212,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** Basic Auth. Pass `Authorization: Basic {base64(api_key + ':')}`. Generate keys at Settings > API Keys.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/close.js`
+**CLI script:** `scripts/close.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -247,7 +249,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** Bearer Token or OAuth 2.0. Pass `Authorization: Bearer {token}` and `Intercom-Version: 2.11`. Get credentials at Developer Hub.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js`
+**CLI script:** `scripts/intercom.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -298,7 +300,7 @@ sf data create record --sobject Account --values "Name='New Account'"
 
 **Auth method:** JWT Token. POST to `/authenticate` with username + password to receive JWT. Pass `Authorization: Bearer {jwt_token}`. Tokens expire after ~12 hours. Env vars: `ZOOMINFO_USERNAME` + `ZOOMINFO_PRIVATE_KEY` or `ZOOMINFO_ACCESS_TOKEN`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/zoominfo.js`
+**CLI script:** `scripts/zoominfo.js`
 
 **Composio MCP toolkit:** Not available. ZoomInfo has a native MCP connector.
 

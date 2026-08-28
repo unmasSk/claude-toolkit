@@ -785,24 +785,26 @@ curl https://api.stripe.com/v1/invoices -u "$STRIPE_API_KEY:"
 Subscription management with built-in tax handling.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export PADDLE_API_KEY=pdl_xxx
 export PADDLE_SANDBOX=true  # optional, for sandbox environment
 
 # List subscriptions
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js subscriptions list
+node "$SKILL_DIR/scripts/paddle.js" subscriptions list
 
 # Get subscription
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js subscriptions get --id sub_xxx
+node "$SKILL_DIR/scripts/paddle.js" subscriptions get --id sub_xxx
 
 # List products
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js products list
+node "$SKILL_DIR/scripts/paddle.js" products list
 
 # Create product
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js products create --name "Pro Plan" --tax-category saas
+node "$SKILL_DIR/scripts/paddle.js" products create --name "Pro Plan" --tax-category saas
 
 # List transactions
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js transactions list
+node "$SKILL_DIR/scripts/paddle.js" transactions list
 ```
 
 ### customer-io.js
@@ -810,6 +812,8 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/paddle.js transactio
 Dunning email sequences, retention campaigns, and behavior-based messaging.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment (Track API)
 export CUSTOMERIO_SITE_ID=xxx
 export CUSTOMERIO_API_KEY=xxx
@@ -817,27 +821,27 @@ export CUSTOMERIO_API_KEY=xxx
 export CUSTOMERIO_APP_KEY=xxx
 
 # Identify/update a customer
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers identify user_123 --email user@example.com --plan pro
+node "$SKILL_DIR/scripts/customer-io.js" customers identify user_123 --email user@example.com --plan pro
 
 # Get customer attributes
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers get user_123
+node "$SKILL_DIR/scripts/customer-io.js" customers get user_123
 
 # Track a custom event (e.g., payment_failed, subscription_cancelled)
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers track-event user_123 --name payment_failed --data '{"amount": 29, "reason": "card_declined"}'
+node "$SKILL_DIR/scripts/customer-io.js" customers track-event user_123 --name payment_failed --data '{"amount": 29, "reason": "card_declined"}'
 
 # Delete a customer
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js customers delete user_123
+node "$SKILL_DIR/scripts/customer-io.js" customers delete user_123
 
 # Manage segments
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments list
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js segments get 5
+node "$SKILL_DIR/scripts/customer-io.js" segments list
+node "$SKILL_DIR/scripts/customer-io.js" segments get 5
 
 # Manage campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns list
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js campaigns get 12
+node "$SKILL_DIR/scripts/customer-io.js" campaigns list
+node "$SKILL_DIR/scripts/customer-io.js" campaigns get 12
 
 # Send transactional message
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
+node "$SKILL_DIR/scripts/customer-io.js" messages send --transactional-message-id 5 --to user@example.com --data '{"name": "John"}'
 ```
 
 ### intercom.js
@@ -845,29 +849,31 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js messa
 In-app messaging, proactive support, and product tours for retention.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export INTERCOM_API_KEY=xxx
 
 # List contacts
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts list
+node "$SKILL_DIR/scripts/intercom.js" contacts list
 
 # Get contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts get --id xxx
+node "$SKILL_DIR/scripts/intercom.js" contacts get --id xxx
 
 # Create contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts create --email user@example.com --name "John Doe"
+node "$SKILL_DIR/scripts/intercom.js" contacts create --email user@example.com --name "John Doe"
 
 # Update contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js contacts update --id xxx --name "Jane Doe"
+node "$SKILL_DIR/scripts/intercom.js" contacts update --id xxx --name "Jane Doe"
 
 # List conversations
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js conversations list
+node "$SKILL_DIR/scripts/intercom.js" conversations list
 
 # Create a message (for proactive outreach)
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js messages create --from admin_id --to user_id --body "Need help with anything?"
+node "$SKILL_DIR/scripts/intercom.js" messages create --from admin_id --to user_id --body "Need help with anything?"
 
 # Tag a contact
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/intercom.js tags create --name "at-risk"
+node "$SKILL_DIR/scripts/intercom.js" tags create --name "at-risk"
 ```
 
 ---

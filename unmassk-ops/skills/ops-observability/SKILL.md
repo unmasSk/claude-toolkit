@@ -48,9 +48,9 @@ version: 1.0.0
 
 ## Scripts
 
-All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/`.
+All scripts are in `scripts/` (relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads).
 
-**Always use the `${CLAUDE_PLUGIN_ROOT}` variable prefix when running scripts. Never use relative paths.**
+**`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — never paste it into a command. Resolve the skill's absolute directory with `find` (see below) before running scripts.**
 
 ### Script Reference Table
 
@@ -72,20 +72,22 @@ All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/`.
 Before delivering any generated query or config, run the relevant validator:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-observability' 2>/dev/null | sort -V | tail -1)
+
 # Validate PromQL syntax
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/promql-validate-syntax.py "<query>"
+python3 "$SKILL_DIR/scripts/promql-validate-syntax.py" "<query>"
 
 # Check PromQL best practices
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/promql-check-best-practices.py "<query>"
+python3 "$SKILL_DIR/scripts/promql-check-best-practices.py" "<query>"
 
 # Generate Loki config
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/loki-generate-config.py
+python3 "$SKILL_DIR/scripts/loki-generate-config.py"
 
 # Validate Fluent Bit config
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/fluentbit-validate-config.py "<config_path>"
+python3 "$SKILL_DIR/scripts/fluentbit-validate-config.py" "<config_path>"
 
 # Run LogQL regression checks
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-observability/scripts/logql-regression-checks.sh
+bash "$SKILL_DIR/scripts/logql-regression-checks.sh"
 ```
 
 ## Mandatory Rules

@@ -19,6 +19,8 @@ version: 1.0.0
 
 Professional-grade project scaffolding comparable to WebStorm/PyCharm project wizards. Creates fully configured projects with SDK setup, framework options, database configuration, linting, and CI/CD.
 
+> **Paths.** Every path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Wizard Workflow
 
 When a user requests a new project, follow this interactive workflow:
@@ -83,7 +85,7 @@ Load `references/wizard-options.md` for detailed configuration options based on 
 
 ### Step 5: Generate Project
 
-Use `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py` or native CLI tools to create the project structure.
+Use `scripts/scaffold.py` (relative to this skill's own directory) or native CLI tools to create the project structure.
 
 ## CLI Integration
 
@@ -265,7 +267,7 @@ Load reference files based on what you need:
 | `references/wizard-options.md` | During Step 3 (gathering user preferences) | INDEX ONLY (~1 page). Read it, then load ONLY the category file it points at under `references/wizard/` for the chosen category — never every category |
 | `references/frameworks.md` | When generating code | INDEX ONLY (~1 page). Load ONLY the per-framework file under `references/frameworks/` for the chosen stack, plus `cross-cutting.md` |
 | `references/best-practices.md` | For architecture decisions | Directory organization, naming conventions, patterns |
-| `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-scaffolding/scripts/scaffold.py` | For custom scaffolding | Python engine when CLI tools aren't suitable |
+| `scripts/scaffold.py` | For custom scaffolding | Python engine when CLI tools aren't suitable |
 
 **Workflow:**
 1. Read the `wizard-options.md` index and load ONLY the chosen category's file under `references/wizard/` to gather user preferences

@@ -6,9 +6,11 @@ Assists with importing and customizing components from Magic UI and React Bits.
 Generates installation commands and boilerplate code for selected components.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py                      # Interactive mode
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py --library magicui --component grid-pattern
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py --library reactbits --component blur-text
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/animated-component-libraries/component_importer.py                      # Interactive mode
+    python3 scripts/animated-component-libraries/component_importer.py --library magicui --component grid-pattern
+    python3 scripts/animated-component-libraries/component_importer.py --library reactbits --component blur-text
 """
 
 import sys

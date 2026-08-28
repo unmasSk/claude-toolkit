@@ -9,7 +9,8 @@ actionlint is a static checker for GitHub Actions workflow files.
 bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
 # Or via skill script
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gha-install-tools.sh
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/gha-install-tools.sh"
 ```
 
 ## Core Usage

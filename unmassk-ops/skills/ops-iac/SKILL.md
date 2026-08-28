@@ -78,23 +78,28 @@ Read the reference(s) that match the task before doing anything else.
 1. **Generate** — Read `terraform-best-practices.md` and `terraform-common-patterns.md`. Write HCL.
 2. **Format** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/terraform-ci-checks.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/terraform-ci-checks.sh" <dir>
    ```
 3. **Extract info** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/extract_tf_info_wrapper.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/extract_tf_info_wrapper.sh" <dir>
    ```
 4. **Security scan** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/run_checkov.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/run_checkov.sh" <dir>
    ```
 5. **Secret scan** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/scan_secrets.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/scan_secrets.sh" <dir>
    ```
 6. **Version consistency** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/check_feature_version_consistency.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/check_feature_version_consistency.sh" <dir>
    ```
 7. Fix all findings. Report: findings count, severity breakdown, actions taken.
 
@@ -103,7 +108,8 @@ Read the reference(s) that match the task before doing anything else.
 1. **Scaffold** — Read `terragrunt-best-practices.md` and `terragrunt-common-patterns.md`. Write HCL.
 2. **Validate** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_terragrunt.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_terragrunt.sh" <dir>
    ```
 3. Fix all findings. Report: issues found, actions taken.
 
@@ -112,31 +118,38 @@ Read the reference(s) that match the task before doing anything else.
 1. **Generate** — Read `ansible-best-practices.md` and `ansible-module-patterns.md`. Write YAML.
 2. **Check FQCN** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/check_fqcn.sh <playbook-or-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/check_fqcn.sh" <playbook-or-dir>
    ```
 3. **Validate playbook** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_playbook.sh <playbook>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_playbook.sh" <playbook>
    ```
    Or for a role:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_role.sh <role-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_role.sh" <role-dir>
    ```
 4. **Validate inventory** (if applicable) — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_inventory.sh <inventory>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_inventory.sh" <inventory>
    ```
 5. **Security scan** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_playbook_security.sh <playbook>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_playbook_security.sh" <playbook>
    ```
    Or for a role:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/validate_role_security.sh <role-dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/validate_role_security.sh" <role-dir>
    ```
 6. **Extract info** — Run:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/extract_ansible_info_wrapper.sh <dir>
+   SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+   bash "$SKILL_DIR/scripts/extract_ansible_info_wrapper.sh" <dir>
    ```
 7. Fix all findings. Report: findings count, severity breakdown, actions taken.
 
@@ -147,25 +160,30 @@ Read the reference(s) that match the task before doing anything else.
 If a required tool (checkov, ansible-lint, tflint, etc.) is not installed:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/install_checkov.sh
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/ansible-setup-tools.sh
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/install_checkov.sh"
+bash "$SKILL_DIR/scripts/ansible-setup-tools.sh"
 ```
 
 For Ansible role testing with Molecule:
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/test_role.sh <role-dir>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/test_role.sh" <role-dir>
 ```
 
 To detect custom Ansible resources:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/detect_custom_resources.py <dir>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-iac' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/detect_custom_resources.py" <dir>
 ```
 
 ---
 
 ## Script reference
 
-All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-iac/scripts/`. Use them — do not skip them to report a result manually.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
+All scripts are in `scripts/`. Use them — do not skip them to report a result manually.
 
 | Script | Purpose |
 |--------|---------|

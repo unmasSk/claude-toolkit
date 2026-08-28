@@ -60,8 +60,10 @@ Four integration references cover platform-specific setup, authentication, and d
 
 61 zero-dependency Node.js scripts that call platform APIs directly. Each script prints usage instructions when invoked with no arguments. Scripts require API keys set as environment variables.
 
+Paths below are relative to this plugin's own directory (this README describes the plugin, not a skill, so no `Base directory for this skill:` line is printed for it — `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool either way):
+
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<platform>.js <command> [args]
+node skills/unmassk-marketing/scripts/<platform>.js <command> [args]
 ```
 
 ### Platforms by category

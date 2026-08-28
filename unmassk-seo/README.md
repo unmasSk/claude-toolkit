@@ -49,10 +49,10 @@ Four Python scripts handle data retrieval and analysis. They are mandatory tools
 
 ### Dependencies
 
-Install before first use:
+Install before first use. Paths below are relative to this plugin's own directory (`unmassk-seo/`) — `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool, so it never belongs in a command.
 
 ```
-pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/requirements.txt
+pip install -r skills/unmassk-seo/scripts/requirements.txt
 ```
 
 Requires: `requests`, `beautifulsoup4`, `lxml`, `playwright`.

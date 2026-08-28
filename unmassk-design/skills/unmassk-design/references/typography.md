@@ -1,5 +1,11 @@
 # Typography
 
+**Paths.** This is a reference of the `unmassk-design` skill. The fenced command below
+resolves the skill's own directory itself, self-contained per call; the inline examples
+after it are relative to that same directory (the absolute path printed as `Base directory
+for this skill:` when the skill loads). `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool;
+never paste it into a command.
+
 ## Core Principles
 
 Set body text before anything else. Four decisions determine everything else in the layout: font, point size, line spacing, line length. All other elements calibrate against these four.
@@ -683,10 +689,11 @@ Never name tokens `--font-size-16` or `--font-weight-700`. Always name by semant
 To find typography-related reference content in the knowledge base:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "<query>" --domain typography
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" "<query>" --domain typography
 ```
 
 Examples:
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "fluid type scale clamp" --domain typography`
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "curly quotes JSX" --domain typography`
-- `python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py "font pairing serif sans" --domain typography`
+- `python3 scripts/search.py "fluid type scale clamp" --domain typography`
+- `python3 scripts/search.py "curly quotes JSX" --domain typography`
+- `python3 scripts/search.py "font pairing serif sans" --domain typography`

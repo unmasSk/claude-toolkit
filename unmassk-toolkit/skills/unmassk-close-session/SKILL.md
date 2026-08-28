@@ -8,6 +8,8 @@ description: Use when the user says "let's wrap up", "close the session", "we're
 
 Write down what this session knew before the window shuts. The commits are kept; the conversation is not.
 
+> **Paths.** Every path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## When it runs
 
 Only when the user asks. Not on compaction, not at the end of a turn, not because the session looks finished. Offer it in one line; do not start it.
@@ -41,7 +43,7 @@ Expect back: what she corrected, where a document and the code contradict each o
 
 **After Alexandria, never alongside her.** She commits; the close lists every commit of the session, and a list taken while she is still working is a list missing her work.
 
-A `general-purpose` agent, handed the prompt at `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-close-session/references/close-agent-prompt.md` verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline, the context as the body, and every commit since the last close underneath.
+A `general-purpose` agent, handed the prompt at `references/close-agent-prompt.md` (relative to this skill's own directory) verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline, the context as the body, and every commit since the last close underneath.
 
 Then read the result out of git, not out of the agent's report: `git log -1` — the subject starts with `[NEXT]`, the body carries the prose, and it ends with the commit list. Each close replaces the previous one.
 

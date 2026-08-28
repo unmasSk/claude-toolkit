@@ -2,13 +2,15 @@
 
 Consolidated reference for analytics, tracking, experimentation, and user behavior platforms. Use these integrations to track events, run reports, analyze funnels, measure retention, and manage A/B tests.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Google Analytics 4 (GA4)
 
 **What it does:** Web analytics for tracking user behavior, conversions, and marketing performance. Run reports via the Data API, configure properties via the Admin API, send server-side events via the Measurement Protocol, and track client-side with gtag.js.
 
 **Auth method:** OAuth 2.0 or Service Account. Scopes: `analytics.readonly` (read), `analytics.edit` (write). Create credentials in Google Cloud Console.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/ga4.js`
+**CLI script:** `scripts/ga4.js`
 
 **Composio MCP toolkit:** `GOOGLEANALYTICS` (OAuth 2.0, Medium coverage). Actions: run reports, get real-time data, list properties. GA4 also has a native MCP server with deeper coverage -- prefer the native MCP server when available.
 
@@ -61,7 +63,7 @@ gtag('event', 'signup_completed', { 'method': 'email', 'plan': 'free' });
 
 **Auth method:** HTTP API uses API Key (public, for event ingestion). Export/Dashboard API uses API Key + Secret Key with Basic Auth: `Authorization: Basic {base64(api_key:secret_key)}`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/amplitude.js`
+**CLI script:** `scripts/amplitude.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -114,7 +116,7 @@ amplitude.identify(identify);
 
 **Auth method:** Ingestion API uses Project Token (public). Query API uses Service Account with Basic Auth. Export uses API Secret.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/mixpanel.js`
+**CLI script:** `scripts/mixpanel.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -173,7 +175,7 @@ mixpanel.track('Feature Used', { 'feature_name': 'export' });
 
 **Auth method:** OAuth 2.0 Client Credentials. POST to `https://api.hotjar.io/v1/oauth/token` with `grant_type=client_credentials&client_id={id}&client_secret={secret}`. Tokens expire after 3600 seconds. Pass `Authorization: Bearer {access_token}`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/hotjar.js`
+**CLI script:** `scripts/hotjar.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -210,7 +212,7 @@ mixpanel.track('Feature Used', { 'feature_name': 'export' });
 
 **Auth method:** Tracking API uses Write Key (per source) with Basic Auth: `Authorization: Basic {base64(write_key:)}`. Profile API uses Access Token (OAuth 2.0).
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/segment.js`
+**CLI script:** `scripts/segment.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -274,7 +276,7 @@ analytics.page('Pricing');
 
 **Auth method:** Bearer Token. Pass `Authorization: Bearer {api_key}`. Generate at https://plausible.io/settings > API Keys.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/plausible.js`
+**CLI script:** `scripts/plausible.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -323,7 +325,7 @@ analytics.page('Pricing');
 
 **Auth method:** OAuth 2.0 (Service Account JWT). Create integration in Adobe Developer Console. Pass `Authorization: Bearer {access_token}` and `x-api-key: {client_id}`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/adobe-analytics.js`
+**CLI script:** `scripts/adobe-analytics.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -371,7 +373,7 @@ analytics.page('Pricing');
 
 **Auth method:** Bearer Token (Personal Access Token or OAuth 2.0). Pass `Authorization: Bearer {token}`. Generate at https://app.optimizely.com/v2/profile/api.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/optimizely.js`
+**CLI script:** `scripts/optimizely.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 

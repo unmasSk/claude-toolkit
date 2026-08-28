@@ -2,6 +2,8 @@
 
 Complete reference for launch strategy, lead magnets, free tool strategy, and referral programs. Covers the full growth playbook from product launch through viral loops.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ---
 
 ## Launch Strategy
@@ -684,7 +686,7 @@ They get [their reward] too.
 
 ## CLI Script Reference (Growth Tools)
 
-All CLI tools are zero-dependency Node.js scripts. Run with `node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
+All CLI tools are zero-dependency Node.js scripts. Run with `node scripts/<name>.js` (see the Paths note above). Run without arguments for usage. Use `--dry-run` to preview requests.
 
 ### dub.js (Link Tracking and Attribution)
 

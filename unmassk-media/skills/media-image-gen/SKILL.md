@@ -47,7 +47,8 @@ Invoke immediately when:
 Run the bundled CLI script via bash:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/media-image-gen/mcp-server/build/cli.bundle.js" \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-gen' 2>/dev/null | sort -V | tail -1)
+node "$SKILL_DIR/mcp-server/build/cli.bundle.js" \
   --prompt "Your detailed image description" \
   --output "./path/to/output.png" \
   --aspect-ratio "16:9"

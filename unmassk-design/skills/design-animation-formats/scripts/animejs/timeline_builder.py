@@ -5,9 +5,11 @@ Anime.js Timeline Builder
 Build complex Anime.js timeline sequences with interactive configuration.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/timeline_builder.py                      # Interactive mode
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/timeline_builder.py --preset hero        # Use preset configuration
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/timeline_builder.py --preset modal       # Modal animation sequence
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/animejs/timeline_builder.py                      # Interactive mode
+    python3 scripts/animejs/timeline_builder.py --preset hero        # Use preset configuration
+    python3 scripts/animejs/timeline_builder.py --preset modal       # Modal animation sequence
 
 Timeline Presets:
     hero        - Hero section entrance animation

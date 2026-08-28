@@ -5,9 +5,11 @@ Anime.js Animation Generator
 Generates Anime.js animation boilerplate code for common animation patterns.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/animation_generator.py                    # Interactive mode
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/animation_generator.py --type stagger     # Generate stagger animation
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/animation_generator.py --type timeline    # Generate timeline sequence
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/animejs/animation_generator.py                    # Interactive mode
+    python3 scripts/animejs/animation_generator.py --type stagger     # Generate stagger animation
+    python3 scripts/animejs/animation_generator.py --type timeline    # Generate timeline sequence
 
 Animation Types:
     basic           - Simple translateX/Y, opacity animation

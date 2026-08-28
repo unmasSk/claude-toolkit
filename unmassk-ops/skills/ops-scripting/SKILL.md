@@ -47,26 +47,28 @@ This skill covers standalone bash scripts and Makefiles as authoring tools. It d
 
 ## Script Commands
 
-All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/`.
+All scripts are in `scripts/` (relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads; `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool and must never be pasted into a command).
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-scripting' 2>/dev/null | sort -V | tail -1)
+
 # Generate a bash script template
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/generate_script_template.sh [OPTIONS] [SCRIPT_NAME]
+bash "$SKILL_DIR/scripts/generate_script_template.sh" [OPTIONS] [SCRIPT_NAME]
 
 # Generate a Makefile template
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/generate_makefile_template.sh [OPTIONS] [PROJECT_TYPE] [PROJECT_NAME] [OUTPUT_FILE]
+bash "$SKILL_DIR/scripts/generate_makefile_template.sh" [OPTIONS] [PROJECT_TYPE] [PROJECT_NAME] [OUTPUT_FILE]
 
 # Add standard targets to an existing Makefile
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/add_standard_targets.sh [MAKEFILE]
+bash "$SKILL_DIR/scripts/add_standard_targets.sh" [MAKEFILE]
 
 # Validate a bash script
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/bash-validate.sh [SCRIPT]
+bash "$SKILL_DIR/scripts/bash-validate.sh" [SCRIPT]
 
 # Run ShellCheck on a script
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/shellcheck_wrapper.sh [SCRIPT]
+bash "$SKILL_DIR/scripts/shellcheck_wrapper.sh" [SCRIPT]
 
 # Validate a Makefile
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-scripting/scripts/validate_makefile.sh [MAKEFILE]
+bash "$SKILL_DIR/scripts/validate_makefile.sh" [MAKEFILE]
 ```
 
 ## Script Reference

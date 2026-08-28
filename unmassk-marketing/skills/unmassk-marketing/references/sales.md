@@ -2,6 +2,8 @@
 
 Complete reference for sales enablement collateral, demo scripts, objection handling, proposal templates, sales playbooks, buyer personas, lead lifecycle management, lead scoring, routing, pipeline stages, CRM automation, and RevOps metrics.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ---
 
 ## Sales Enablement
@@ -738,7 +740,7 @@ Track all exceptions. If everyone requests the same exception, make it standard.
 
 ## CLI Script Reference (Sales Tools)
 
-All CLI tools are zero-dependency Node.js scripts. Run with `node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/<name>.js`. Run without arguments for usage. Use `--dry-run` to preview requests.
+All CLI tools are zero-dependency Node.js scripts. Run with `node scripts/<name>.js` (see the Paths note above). Run without arguments for usage. Use `--dry-run` to preview requests.
 
 ### apollo.js (Contact Data and Enrichment)
 

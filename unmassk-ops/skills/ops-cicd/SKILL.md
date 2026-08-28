@@ -48,57 +48,63 @@ This skill covers CI/CD pipelines across four platforms: GitHub Actions, GitLab 
 
 ## MANDATORY Script Commands
 
-All paths use `${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/`.
+All paths are in `scripts/`, relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ### GitHub Actions
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+
 # 1. Install tools (actionlint + act) -- run once per environment
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gha-install-tools.sh
+bash "$SKILL_DIR/scripts/gha-install-tools.sh"
 
 # 2. Validate a workflow file
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gha-validate-workflow.sh .github/workflows/ci.yml
+bash "$SKILL_DIR/scripts/gha-validate-workflow.sh" .github/workflows/ci.yml
 
 # 3. Generate test scaffolding
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gha-test-generator.sh .github/workflows/ci.yml
+bash "$SKILL_DIR/scripts/gha-test-generator.sh" .github/workflows/ci.yml
 ```
 
 ### GitLab CI
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+
 # 1. Install tools
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gitlab-install-tools.sh
+bash "$SKILL_DIR/scripts/gitlab-install-tools.sh"
 
 # 2. Validate pipeline
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gitlab-validate-ci.sh .gitlab-ci.yml
+bash "$SKILL_DIR/scripts/gitlab-validate-ci.sh" .gitlab-ci.yml
 
 # 3. Validate syntax only
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gitlab-validate-syntax.py .gitlab-ci.yml
+python3 "$SKILL_DIR/scripts/gitlab-validate-syntax.py" .gitlab-ci.yml
 
 # 4. Check security
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gitlab-check-security.py .gitlab-ci.yml
+python3 "$SKILL_DIR/scripts/gitlab-check-security.py" .gitlab-ci.yml
 
 # 5. Check best practices
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/gitlab-check-best-practices.py .gitlab-ci.yml
+python3 "$SKILL_DIR/scripts/gitlab-check-best-practices.py" .gitlab-ci.yml
 ```
 
 ### Azure Pipelines
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+
 # 1. Validate pipeline
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-validate-pipelines.sh azure-pipelines.yml
+bash "$SKILL_DIR/scripts/azure-validate-pipelines.sh" azure-pipelines.yml
 
 # 2. Validate syntax
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-validate-syntax.py azure-pipelines.yml
+python3 "$SKILL_DIR/scripts/azure-validate-syntax.py" azure-pipelines.yml
 
 # 3. Check security
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-check-security.py azure-pipelines.yml
+python3 "$SKILL_DIR/scripts/azure-check-security.py" azure-pipelines.yml
 
 # 4. Check best practices
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-check-best-practices.py azure-pipelines.yml
+python3 "$SKILL_DIR/scripts/azure-check-best-practices.py" azure-pipelines.yml
 
 # 5. YAML lint
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-yamllint-check.sh azure-pipelines.yml
+bash "$SKILL_DIR/scripts/azure-yamllint-check.sh" azure-pipelines.yml
 ```
 
 ### Azure Pipelines — advanced traversal
@@ -108,33 +114,36 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-yamllint-check.sh azure
 `azure-test-regressions.py` is the regression suite for the step-walker traversal coverage. Run it when editing any of the three azure scripts or after encountering an unexpected scan miss on conditional/deployment blocks:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
 # Run Azure traversal regression suite
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/azure-test-regressions.py
+python3 "$SKILL_DIR/scripts/azure-test-regressions.py"
 ```
 
 ### Jenkins
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+
 # 1. Validate Jenkinsfile
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-validate-jenkinsfile.sh Jenkinsfile
+bash "$SKILL_DIR/scripts/jenkins-validate-jenkinsfile.sh" Jenkinsfile
 
 # 2. Validate declarative pipeline
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-validate-declarative.sh Jenkinsfile
+bash "$SKILL_DIR/scripts/jenkins-validate-declarative.sh" Jenkinsfile
 
 # 3. Validate scripted pipeline
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-validate-scripted.sh Jenkinsfile
+bash "$SKILL_DIR/scripts/jenkins-validate-scripted.sh" Jenkinsfile
 
 # 4. Validate shared library
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-validate-shared-library.sh
+bash "$SKILL_DIR/scripts/jenkins-validate-shared-library.sh"
 
 # 5. Generate declarative Jenkinsfile
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-generate-declarative.py
+python3 "$SKILL_DIR/scripts/jenkins-generate-declarative.py"
 
 # 6. Generate scripted Jenkinsfile
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-generate-scripted.py
+python3 "$SKILL_DIR/scripts/jenkins-generate-scripted.py"
 
 # 7. Generate shared library
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-cicd/scripts/jenkins-generate-shared-library.py
+python3 "$SKILL_DIR/scripts/jenkins-generate-shared-library.py"
 ```
 
 ---

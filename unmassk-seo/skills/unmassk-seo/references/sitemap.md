@@ -457,16 +457,18 @@ Produce:
 
 Use the fetch script to retrieve existing sitemaps for analysis.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <sitemap-url>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <sitemap-url>
 ```
 
 For sitemap generation, use the fetch and parse scripts to crawl key pages and
 identify internal link structure.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <url>
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/parse_html.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <url>
+python3 "$SKILL_DIR/scripts/parse_html.py" <file>
 ```
 
 The parse script extracts internal links from each page, which can be used to

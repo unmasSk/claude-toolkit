@@ -22,6 +22,8 @@ version: 1.0.0
 
 # Schema Design -- Database Modeling and Optimization
 
+**Paths.** Every `scripts/…` and `references/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## References
 
 | File | Topic |
@@ -36,8 +38,8 @@ version: 1.0.0
 
 | Script | What it does |
 |--------|-------------|
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-schema-design/scripts/schema_analyzer.py` | Analyzes DDL for normalization compliance, constraint validation, naming conventions, produces ERD |
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-schema-design/scripts/index_optimizer.py` | Analyzes schema + query patterns, detects missing/redundant indexes, outputs CREATE INDEX statements |
+| `scripts/schema_analyzer.py` | Analyzes DDL for normalization compliance, constraint validation, naming conventions, produces ERD |
+| `scripts/index_optimizer.py` | Analyzes schema + query patterns, detects missing/redundant indexes, outputs CREATE INDEX statements |
 
 ## Routing
 

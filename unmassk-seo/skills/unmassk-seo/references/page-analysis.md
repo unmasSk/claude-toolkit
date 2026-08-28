@@ -6,6 +6,8 @@ and above-fold visual analysis. Use this reference when the user says
 "analyze this page", "check page SEO", "page audit", or provides a single
 URL for review.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ---
 
 ## Audit Pipeline
@@ -15,8 +17,9 @@ steps or attempt to replicate script logic manually.
 
 ### Step 1 -- Fetch HTML
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <url>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <url>
 ```
 
 Retrieve the target page HTML. The script handles redirects, sets proper
@@ -25,8 +28,9 @@ fails, report the HTTP status and stop.
 
 ### Step 2 -- Parse SEO Elements
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/parse_html.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/parse_html.py" <file>
 ```
 
 Extract structured SEO data: title tag, meta description, heading hierarchy,
@@ -36,8 +40,9 @@ inventory, and word count.
 
 ### Step 3 -- Capture Screenshots
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/capture_screenshot.py <url>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/capture_screenshot.py" <url>
 ```
 
 Capture desktop (1440px) and mobile (375px) viewport screenshots. Required
@@ -48,12 +53,12 @@ resource.
 
 ### Step 4 -- Visual Analysis
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/analyze_visual.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/analyze_visual.py" <file>
 ```
 
-Run the visual analysis script at
-`${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/analyze_visual.py`
+Run the visual analysis script at `scripts/analyze_visual.py`
 against captured screenshots. Evaluate above-fold content density, CTA
 visibility and placement, mobile rendering quality, layout shift indicators,
 font readability, and touch target spacing.

@@ -75,10 +75,12 @@ Load `references/screenshot-types.md` to set the correct viewport for the chosen
 mkdir -p screenshots
 ```
 
-Copy `${CLAUDE_PLUGIN_ROOT}/skills/media-screenshots/scripts/screenshot-script.mjs` to
-the project root, configure `BASE_URL`, `AUTH`, and `SCREENSHOTS`, then run:
+Copy the bundled script to the project root, configure `BASE_URL`, `AUTH`, and
+`SCREENSHOTS`, then run it:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-screenshots' 2>/dev/null | sort -V | tail -1)
+cp "$SKILL_DIR/scripts/screenshot-script.mjs" .
 node screenshot-script.mjs
 ```
 

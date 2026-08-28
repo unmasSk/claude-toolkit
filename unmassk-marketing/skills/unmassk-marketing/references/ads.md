@@ -462,20 +462,22 @@ Pull performance data -> Identify winning patterns -> Generate new variations ->
 Use CLI scripts to pull ad performance data:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Google Ads -- campaign performance last 30 days
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns performance --days 30
+node "$SKILL_DIR/scripts/google-ads.js" campaigns performance --days 30
 
 # Google Ads -- ad-level performance
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js reports get --type ad_performance --date-range last_30_days
+node "$SKILL_DIR/scripts/google-ads.js" reports get --type ad_performance --date-range last_30_days
 
 # Meta Ads -- campaign insights
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
+node "$SKILL_DIR/scripts/meta-ads.js" campaigns insights --id camp_xxx --date-preset last_30d
 
 # LinkedIn Ads -- campaign analytics
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
+node "$SKILL_DIR/scripts/linkedin-ads.js" analytics get --campaign-id xxx --date-range last_30_days
 
 # TikTok Ads -- campaign reports
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js reports get --advertiser-id xxx --date-range last_30_days
+node "$SKILL_DIR/scripts/tiktok-ads.js" reports get --advertiser-id xxx --date-range last_30_days
 ```
 
 ### Analyzing Results
@@ -658,34 +660,36 @@ All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment va
 Campaign management, performance reporting, and optimization.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export GOOGLE_ADS_TOKEN=xxx
 export GOOGLE_ADS_DEVELOPER_TOKEN=xxx
 export GOOGLE_ADS_CUSTOMER_ID=xxx
 
 # Get account info
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js account info
+node "$SKILL_DIR/scripts/google-ads.js" account info
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns list
+node "$SKILL_DIR/scripts/google-ads.js" campaigns list
 
 # Get campaign performance (last 30 days)
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns performance --days 30
+node "$SKILL_DIR/scripts/google-ads.js" campaigns performance --days 30
 
 # Pause a campaign
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns pause --id 12345
+node "$SKILL_DIR/scripts/google-ads.js" campaigns pause --id 12345
 
 # Get ad group performance
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js adgroups performance --days 30
+node "$SKILL_DIR/scripts/google-ads.js" adgroups performance --days 30
 
 # Get keyword performance
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js keywords performance --days 30
+node "$SKILL_DIR/scripts/google-ads.js" keywords performance --days 30
 
 # Pull ad-level reports
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js reports get --type ad_performance --date-range last_30_days
+node "$SKILL_DIR/scripts/google-ads.js" reports get --type ad_performance --date-range last_30_days
 
 # Preview without making changes
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campaigns list --dry-run
+node "$SKILL_DIR/scripts/google-ads.js" campaigns list --dry-run
 ```
 
 ### meta-ads.js
@@ -693,30 +697,32 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js campai
 Meta (Facebook/Instagram) campaign management and insights.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export META_ACCESS_TOKEN=xxx
 export META_AD_ACCOUNT_ID=act_xxx
 
 # List ad accounts
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js accounts list
+node "$SKILL_DIR/scripts/meta-ads.js" accounts list
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns list
+node "$SKILL_DIR/scripts/meta-ads.js" campaigns list
 
 # Get campaign insights
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns insights --id camp_xxx --date-preset last_30d
+node "$SKILL_DIR/scripts/meta-ads.js" campaigns insights --id camp_xxx --date-preset last_30d
 
 # Create campaign
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js campaigns create --name "Q1 Trial Campaign" --objective CONVERSIONS
+node "$SKILL_DIR/scripts/meta-ads.js" campaigns create --name "Q1 Trial Campaign" --objective CONVERSIONS
 
 # List ad sets
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js adsets list --campaign-id camp_xxx
+node "$SKILL_DIR/scripts/meta-ads.js" adsets list --campaign-id camp_xxx
 
 # Get ad set insights
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js adsets insights --id adset_xxx
+node "$SKILL_DIR/scripts/meta-ads.js" adsets insights --id adset_xxx
 
 # List ads
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js ads list --adset-id adset_xxx
+node "$SKILL_DIR/scripts/meta-ads.js" ads list --adset-id adset_xxx
 ```
 
 ### linkedin-ads.js
@@ -724,23 +730,25 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js ads list
 B2B advertising with job title and company targeting.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export LINKEDIN_ACCESS_TOKEN=xxx
 
 # List ad accounts
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js accounts list
+node "$SKILL_DIR/scripts/linkedin-ads.js" accounts list
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js campaigns list --account-id 12345
+node "$SKILL_DIR/scripts/linkedin-ads.js" campaigns list --account-id 12345
 
 # Create campaign
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js campaigns create --account-id 12345 --name "CMO Targeting" --campaign-group-id 67890 --cost-type CPC --unit-cost 10.00
+node "$SKILL_DIR/scripts/linkedin-ads.js" campaigns create --account-id 12345 --name "CMO Targeting" --campaign-group-id 67890 --cost-type CPC --unit-cost 10.00
 
 # Get campaign analytics
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js analytics get --campaign-id xxx --date-range last_30_days
+node "$SKILL_DIR/scripts/linkedin-ads.js" analytics get --campaign-id xxx --date-range last_30_days
 
 # List creatives
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js creatives list --campaign-id xxx
+node "$SKILL_DIR/scripts/linkedin-ads.js" creatives list --campaign-id xxx
 ```
 
 ### tiktok-ads.js
@@ -748,27 +756,29 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js crea
 Short-form video advertising for younger demographics.
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+
 # Environment
 export TIKTOK_ACCESS_TOKEN=xxx
 export TIKTOK_ADVERTISER_ID=xxx
 
 # Get advertiser info
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js advertiser info
+node "$SKILL_DIR/scripts/tiktok-ads.js" advertiser info
 
 # List campaigns
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns list
+node "$SKILL_DIR/scripts/tiktok-ads.js" campaigns list
 
 # Create campaign
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns create --name "App Install Q1" --objective APP_INSTALL --budget-mode BUDGET_MODE_DAY --budget 100
+node "$SKILL_DIR/scripts/tiktok-ads.js" campaigns create --name "App Install Q1" --objective APP_INSTALL --budget-mode BUDGET_MODE_DAY --budget 100
 
 # List ad groups
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js adgroups list
+node "$SKILL_DIR/scripts/tiktok-ads.js" adgroups list
 
 # Get reports
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js reports get --date-range last_30_days
+node "$SKILL_DIR/scripts/tiktok-ads.js" reports get --date-range last_30_days
 
 # Preview without sending
-node ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js campaigns list --dry-run
+node "$SKILL_DIR/scripts/tiktok-ads.js" campaigns list --dry-run
 ```
 
 ---

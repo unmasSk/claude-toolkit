@@ -21,6 +21,8 @@ version: 1.0.0
 
 # Migrations -- Zero-Downtime Database Migration Toolkit
 
+**Paths.** Every `scripts/…` and `references/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## References
 
 | File | Topic |
@@ -34,10 +36,10 @@ version: 1.0.0
 
 | Script | What it does |
 |--------|-------------|
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-migrations/scripts/migration_planner.py` | Generates phased migration plan with validation gates from config |
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-migrations/scripts/rollback_generator.py` | Generates rollback procedures for each migration phase |
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-migrations/scripts/compatibility_checker.py` | Validates schema compatibility between old and new versions |
-| `${CLAUDE_PLUGIN_ROOT}/skills/db-migrations/scripts/migration_generator.py` | Generates migration SQL/code from schema diff |
+| `scripts/migration_planner.py` | Generates phased migration plan with validation gates from config |
+| `scripts/rollback_generator.py` | Generates rollback procedures for each migration phase |
+| `scripts/compatibility_checker.py` | Validates schema compatibility between old and new versions |
+| `scripts/migration_generator.py` | Generates migration SQL/code from schema diff |
 
 ## Routing
 

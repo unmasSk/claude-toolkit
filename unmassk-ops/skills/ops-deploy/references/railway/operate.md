@@ -65,7 +65,8 @@ railway logs --service <service> --environment <env> --lines 200 --json
 Resource usage metrics (CPU, memory, network, disk) are only available through the GraphQL API:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/railway-api.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | sort -V | tail -1)
+"$SKILL_DIR/scripts/railway-api.sh" \
   'query metrics($environmentId: String!, $serviceId: String, $startDate: DateTime!, $groupBy: [MetricTag!], $measurements: [MetricMeasurement!]!) {
     metrics(environmentId: $environmentId, serviceId: $serviceId, startDate: $startDate, groupBy: $groupBy, measurements: $measurements) {
       measurement tags { serviceId deploymentId region } values { ts value }

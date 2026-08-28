@@ -36,6 +36,10 @@ Based on the community skill pack **claudedesignskills** by freshtechbro
 `barba-js`, and `scroll-reveal-libraries` skills. Content here is condensed
 and rewritten from those sources, not copied verbatim.
 
+**Paths.** Every `scripts/…` path in this file is relative to this skill's own directory —
+the absolute path printed as `Base directory for this skill:` when the skill loads.
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Decision Table -- which library for which case
 
 | The ask | Library | Why | Reference |
@@ -98,14 +102,14 @@ required) and organized one subfolder per library under `scripts/`.
 
 | Script | What It Does | Usage |
 |---|---|---|
-| `scripts/barba-js/project_setup.py` | Scaffold a complete Barba.js + GSAP starter project (pages, CSS, Vite config, optional `npm install`) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/barba-js/project_setup.py --name my-project --transition fade` (omit `--name` for interactive mode) |
-| `scripts/barba-js/transition_generator.py` | Generate a single Barba.js transition block (fade, crossfade, slide, slide-vertical, scale, stagger, curtain, custom) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/barba-js/transition_generator.py --type slide --sync --duration 0.6` (omit `--type` for interactive mode) |
-| `scripts/gsap-scrolltrigger/generate_animation.py` | Generate boilerplate ScrollTrigger code (fade-in, pin, horizontal-scroll, timeline, image-sequence, and more) for vanilla/React/Vue | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/gsap-scrolltrigger/generate_animation.py --type fade-in --trigger ".box" --output code.js` |
-| `scripts/gsap-scrolltrigger/timeline_builder.py` | Interactively build a multi-step GSAP timeline sequence, or load one from JSON | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/gsap-scrolltrigger/timeline_builder.py --output timeline.js` |
-| `scripts/locomotive-scroll/generate_config.py` | Generate a Locomotive Scroll configuration from a named preset (basic, smooth, horizontal, performance, ...) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/locomotive-scroll/generate_config.py --preset performance` (no args for interactive mode) |
-| `scripts/locomotive-scroll/integration_helper.py` | Generate Locomotive Scroll + GSAP ScrollTrigger integration code (`scrollerProxy` wiring) for vanilla/React/Vue | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/locomotive-scroll/integration_helper.py --pattern fade-in --framework react` |
-| `scripts/scroll-reveal-libraries/aos_generator.py` | Generate a ready-to-use HTML file with AOS scroll-reveal markup from a named template (hero, landing, ...) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/scroll-reveal-libraries/aos_generator.py --template landing --output landing.html` |
-| `scripts/scroll-reveal-libraries/config_builder.py` | Build an `AOS.init()` configuration from a preset or explicit flags (duration, once, offset, easing, ...) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-scroll/scripts/scroll-reveal-libraries/config_builder.py --preset marketing` |
+| `scripts/barba-js/project_setup.py` | Scaffold a complete Barba.js + GSAP starter project (pages, CSS, Vite config, optional `npm install`) | `python3 scripts/barba-js/project_setup.py --name my-project --transition fade` (omit `--name` for interactive mode) |
+| `scripts/barba-js/transition_generator.py` | Generate a single Barba.js transition block (fade, crossfade, slide, slide-vertical, scale, stagger, curtain, custom) | `python3 scripts/barba-js/transition_generator.py --type slide --sync --duration 0.6` (omit `--type` for interactive mode) |
+| `scripts/gsap-scrolltrigger/generate_animation.py` | Generate boilerplate ScrollTrigger code (fade-in, pin, horizontal-scroll, timeline, image-sequence, and more) for vanilla/React/Vue | `python3 scripts/gsap-scrolltrigger/generate_animation.py --type fade-in --trigger ".box" --output code.js` |
+| `scripts/gsap-scrolltrigger/timeline_builder.py` | Interactively build a multi-step GSAP timeline sequence, or load one from JSON | `python3 scripts/gsap-scrolltrigger/timeline_builder.py --output timeline.js` |
+| `scripts/locomotive-scroll/generate_config.py` | Generate a Locomotive Scroll configuration from a named preset (basic, smooth, horizontal, performance, ...) | `python3 scripts/locomotive-scroll/generate_config.py --preset performance` (no args for interactive mode) |
+| `scripts/locomotive-scroll/integration_helper.py` | Generate Locomotive Scroll + GSAP ScrollTrigger integration code (`scrollerProxy` wiring) for vanilla/React/Vue | `python3 scripts/locomotive-scroll/integration_helper.py --pattern fade-in --framework react` |
+| `scripts/scroll-reveal-libraries/aos_generator.py` | Generate a ready-to-use HTML file with AOS scroll-reveal markup from a named template (hero, landing, ...) | `python3 scripts/scroll-reveal-libraries/aos_generator.py --template landing --output landing.html` |
+| `scripts/scroll-reveal-libraries/config_builder.py` | Build an `AOS.init()` configuration from a preset or explicit flags (duration, once, offset, easing, ...) | `python3 scripts/scroll-reveal-libraries/config_builder.py --preset marketing` |
 
 No dependency installation is required for any script above -- all use only
 the Python 3 standard library. This differs from the core skill's

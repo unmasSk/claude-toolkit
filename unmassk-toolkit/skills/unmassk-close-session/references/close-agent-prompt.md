@@ -2,11 +2,13 @@
 
 Hand this to a `general-purpose` agent, verbatim. Replace every `<PLACEHOLDER>` with a resolved absolute path first: the agent's shell does not expand `${CLAUDE_PLUGIN_ROOT}`.
 
+> **Paths.** Every path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 | | |
 |---|---|
-| `<SCRIPT>` | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-close-session/scripts/session_transcript.py`, resolved |
+| `<SCRIPT>` | `scripts/session_transcript.py`, resolved against this skill's own directory |
 | `<REPO>` | Absolute path to the project |
-| `<GITMEM>` | `${CLAUDE_PLUGIN_ROOT}/bin/gitmem`, resolved |
+| `<GITMEM>` | `../../bin/gitmem`, resolved against this skill's own directory |
 
 Do not summarise the session inside the prompt: the agent reads the session itself.
 

@@ -2,6 +2,8 @@
 
 Consolidated reference for email marketing, transactional email, and newsletter platforms. Use these integrations to send campaigns, manage subscribers, set up automations, and track email performance.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Mailchimp
 
 **What it does:** Email marketing platform for campaigns, automation, and audience management. Create and send campaigns, manage audiences (lists) and subscribers, set up automation workflows, and pull campaign performance reports.
@@ -60,7 +62,7 @@ Consolidated reference for email marketing, transactional email, and newsletter 
 
 **Auth method:** Track API uses Basic Auth with Site ID + API Key: `Authorization: Basic {base64(site_id:api_key)}`. App API uses Bearer Token: `Authorization: Bearer {app_api_key}`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/customer-io.js`
+**CLI script:** `scripts/customer-io.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -127,7 +129,7 @@ _cio.page();
 
 **Auth method:** API Key. Pass `Authorization: Bearer {api_key}`. Generate at Settings > API Keys in SendGrid dashboard.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/sendgrid.js`
+**CLI script:** `scripts/sendgrid.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -190,7 +192,7 @@ await sgMail.send({ to: 'user@example.com', from: 'hello@example.com', subject: 
 
 **Auth method:** API Key or API Secret. Pass as query/body parameter: `api_key={key}` or `api_secret={secret}`. Get at Settings > Advanced in Kit dashboard.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/kit.js`
+**CLI script:** `scripts/kit.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -247,7 +249,7 @@ await sgMail.send({ to: 'user@example.com', from: 'hello@example.com', subject: 
 
 **Auth method:** API Key. Pass `Authorization: Bearer {api_key}`. Get at API Keys section in Resend dashboard.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/resend.js`
+**CLI script:** `scripts/resend.js`
 
 **Composio MCP toolkit:** Not available. Resend has a native MCP server.
 
@@ -290,7 +292,7 @@ await resend.emails.send({ from: 'hello@example.com', to: 'user@example.com', su
 
 **Auth method:** Server Token or Account Token. Pass `X-Postmark-Server-Token: {server_token}` (server-level) or `X-Postmark-Account-Token: {account_token}` (account-level). Server tokens are per-server.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/postmark.js`
+**CLI script:** `scripts/postmark.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -368,7 +370,7 @@ await resend.emails.send({ from: 'hello@example.com', to: 'user@example.com', su
 
 **Auth method:** API Key. Pass `api-key: {api_key}` header. Generate at SMTP & API settings in Brevo dashboard. Key shown only once on creation.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/brevo.js`
+**CLI script:** `scripts/brevo.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 
@@ -443,7 +445,7 @@ await resend.emails.send({ from: 'hello@example.com', to: 'user@example.com', su
 
 **Auth method:** Private API Key. Pass `Authorization: Klaviyo-API-Key {private_api_key}` and `revision: 2024-10-15` (required on every request). Private keys prefixed with `pk_`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/klaviyo.js`
+**CLI script:** `scripts/klaviyo.js`
 
 **Composio MCP toolkit:** `KLAVIYO` (API Key, Medium coverage). Actions: get profiles, list segments, get campaign metrics, add to lists.
 
@@ -508,7 +510,7 @@ await resend.emails.send({ from: 'hello@example.com', to: 'user@example.com', su
 
 **Auth method:** Bearer Token. Pass `Authorization: Bearer {api_key}`. Generate at Settings > API under Workspace Settings. Key shown only once.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/beehiiv.js`
+**CLI script:** `scripts/beehiiv.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 

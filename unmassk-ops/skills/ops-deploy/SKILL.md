@@ -61,7 +61,9 @@ Read the reference(s) that match the task before doing anything else.
 
 ## Script reference
 
-All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/`. Use them — do not skip them.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
+All scripts are in `scripts/`. Use them — do not skip them.
 
 | Script | Purpose |
 |--------|---------|
@@ -71,20 +73,22 @@ All scripts are in `${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/`. Use them 
 **vercel-deploy.sh usage:**
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | sort -V | tail -1)
 # Deploy current directory
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/vercel-deploy.sh
+bash "$SKILL_DIR/scripts/vercel-deploy.sh"
 
 # Deploy specific path
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/vercel-deploy.sh /path/to/project
+bash "$SKILL_DIR/scripts/vercel-deploy.sh" /path/to/project
 
 # Deploy existing tarball
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/vercel-deploy.sh /path/to/project.tgz
+bash "$SKILL_DIR/scripts/vercel-deploy.sh" /path/to/project.tgz
 ```
 
 **railway-api.sh usage:**
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-deploy/scripts/railway-api.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/railway-api.sh" \
   'query { me { name } }' \
   '{}'
 ```

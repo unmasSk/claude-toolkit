@@ -5,8 +5,10 @@ Lottie JSON Optimizer
 Optimizes Lottie JSON files by removing whitespace, rounding numbers, and removing unnecessary data.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/optimize_lottie.py animation.json                 # Output to stdout
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/optimize_lottie.py animation.json -o optimized.json
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/lottie/optimize_lottie.py animation.json                 # Output to stdout
+    python3 scripts/lottie/optimize_lottie.py animation.json -o optimized.json
 """
 
 import json

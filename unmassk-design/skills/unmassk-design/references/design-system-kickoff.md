@@ -4,6 +4,11 @@ Reference for starting a new design system. Covers the trifurcation framework,
 design token structure, component extraction, project questionnaire, and how to
 generate a design system with `search.py`.
 
+**Paths.** `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — it is substituted only
+inside `hooks.json` entries, never exported to the shell. Every `search.py` command below
+resolves the `unmassk-design` skill's own directory itself, self-contained per call, since a
+shell variable does not survive from one Bash call to the next.
+
 ---
 
 ## The Trifurcation Framework
@@ -304,7 +309,8 @@ contrast (still well above AA) reduces eye strain.
 Run this before any design work on a new project:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
   -p '<project name>'
@@ -317,7 +323,8 @@ radii), and anti-patterns to avoid for this product category.
 To persist to a file (Master + Overrides pattern):
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
   -p '<project name>' \
@@ -334,7 +341,8 @@ design-system/<project-slug>/pages/<page>.md # Page-specific overrides (optional
 To create a page-level override alongside the master:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
   -p '<project name>' \
@@ -349,12 +357,14 @@ If it exists, its rules override `MASTER.md`. Otherwise, use `MASTER.md` alone.
 Domain-specific searches:
 
 ```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+
 # Color only
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py \
+python3 "$SKILL_DIR/scripts/search.py" \
   'fintech dark mode' --domain color
 
 # Typography only
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py \
+python3 "$SKILL_DIR/scripts/search.py" \
   'editorial serif pairing' --domain typography
 ```
 

@@ -187,7 +187,8 @@ Do **not** use these types — they lack structural argument capability or are t
 
 **How to render:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-mermaid/references/render_mermaid.sh <path.mmd> [output.png]
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-mermaid' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/references/render_mermaid.sh" <path.mmd> [output.png]
 ```
 First run downloads mmdc via npx — may take ~30s.
 

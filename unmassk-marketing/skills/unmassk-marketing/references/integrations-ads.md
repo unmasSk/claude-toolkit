@@ -2,13 +2,15 @@
 
 Consolidated reference for paid advertising platforms. Use these integrations to manage campaigns, configure audience targeting, pull performance reports, and adjust budgets across search, social, and video channels.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Google Ads
 
 **What it does:** Pay-per-click advertising across search, display, shopping, video (YouTube), Performance Max, and Demand Gen campaigns. Query performance data with GAQL (Google Ads Query Language), manage campaigns, adjust budgets, and analyze keyword performance.
 
 **Auth method:** OAuth 2.0. Scope: `https://www.googleapis.com/auth/adwords`. Create credentials in Google Cloud Console and link to Google Ads account. Required headers: `developer-token`, `login-customer-id` (for MCC accounts).
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/google-ads.js`
+**CLI script:** `scripts/google-ads.js`
 
 **Composio MCP toolkit:** `GOOGLEADS` (OAuth 2.0, Medium coverage). Actions: get campaign performance, list ad groups, keyword stats. Google Ads also has a native MCP server with deeper coverage -- prefer the native MCP server when available.
 
@@ -90,7 +92,7 @@ ORDER BY metrics.conversions DESC LIMIT 10
 
 **Auth method:** OAuth 2.0 Access Token passed as query parameter `access_token={token}`. Create app in Meta Business Suite and generate a System User token for server-to-server access.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/meta-ads.js`
+**CLI script:** `scripts/meta-ads.js`
 
 **Composio MCP toolkit:** `FACEBOOKADS` (OAuth 2.0, Medium coverage). Actions: get campaign insights, list ad sets, get ad performance, read audience data. Use Composio for MCP access.
 
@@ -170,7 +172,7 @@ ORDER BY metrics.conversions DESC LIMIT 10
 
 **Auth method:** OAuth 2.0. Pass `Authorization: Bearer {access_token}`. Scopes: `r_ads`, `r_ads_reporting`, `rw_ads`.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/linkedin-ads.js`
+**CLI script:** `scripts/linkedin-ads.js`
 
 **Composio MCP toolkit:** `LINKEDIN` (OAuth 2.0, Medium coverage). Actions: get campaign analytics, list campaigns, get company page stats. Use Composio for MCP access.
 
@@ -259,7 +261,7 @@ ORDER BY metrics.conversions DESC LIMIT 10
 
 **Auth method:** Access Token. Pass `Access-Token: {access_token}` header. Create app in TikTok for Business to get token.
 
-**CLI script:** `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-marketing/scripts/tiktok-ads.js`
+**CLI script:** `scripts/tiktok-ads.js`
 
 **Composio MCP toolkit:** Not available. Use CLI script or direct API.
 

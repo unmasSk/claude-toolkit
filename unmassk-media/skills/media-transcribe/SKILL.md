@@ -17,6 +17,8 @@ version: 1.0.0
 Transcribe audio or video content and produce a structured critical analysis.
 Priority order for transcription source: existing subtitles → auto-subtitles → whisper.
 
+**Paths.** Every `references/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Request Routing
 
 | Input Type | Action | Reference |
@@ -44,8 +46,9 @@ For URLs, check `references/platforms.md` for platform-specific notes and subtit
 
 Run the transcription script (only if no subtitles are available):
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/media-transcribe/scripts/transcribe.sh "<url>"
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-transcribe' 2>/dev/null | sort -V | tail -1)
+"$SKILL_DIR/scripts/transcribe.sh" "<url>"
 ```
 
 The script downloads audio via yt-dlp and produces a `.vtt` file in the current directory. Find the most recently created `.vtt` file.
@@ -54,15 +57,16 @@ The script downloads audio via yt-dlp and produces a `.vtt` file in the current 
 
 Run the transcription script:
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/media-transcribe/scripts/transcribe.sh "<audio-file>"
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-transcribe' 2>/dev/null | sort -V | tail -1)
+"$SKILL_DIR/scripts/transcribe.sh" "<audio-file>"
 ```
 
 The script converts the file to MP3 via ffmpeg and produces a `.vtt` file with the same base name.
 
 ### Step 3 -- Analyze Transcript
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/skills/media-transcribe/references/analysis-prompt.md`.
+1. Read `references/analysis-prompt.md` (relative to this skill's own directory — see note below).
 2. Infer a human-readable title from the `.vtt` filename.
 3. Replace `[TITLE]` with the inferred title and `[SOURCE]` with the original `$ARGUMENTS` value.
 4. Read the **entire** `.vtt` file before writing a single word of analysis. Use `offset` and `limit` parameters for large files.
@@ -87,7 +91,7 @@ Model path is resolved via the `WHISPER_MODEL` environment variable. If not set,
 ## Mandatory Rules
 
 - NEVER begin analysis before reading the full `.vtt` file.
-- NEVER hardcode paths — all paths use `${CLAUDE_PLUGIN_ROOT}` or PATH lookup.
+- NEVER hardcode paths — scripts resolve the skill directory via the `find` discovery block shown in each step, references are read relative to this skill's own directory (see the note near the top), and external binaries (`whisper-cli`, `yt-dlp`, `ffmpeg`) rely on PATH lookup. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — never paste it into a command.
 - Timestamps in analysis: `[HH:MM:SS]` for points, `[HH:MM:SS--HH:MM:SS]` for ranges (double hyphen, not en-dash).
 - Maintain neutral, descriptive tone — do not endorse or criticize speaker views.
 - Output `.md` file goes in the same directory as the `.vtt` file.

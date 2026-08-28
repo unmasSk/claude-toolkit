@@ -14,6 +14,11 @@ Complete design system generation, aesthetic direction, color and typography, ac
 
 Run `/plugin` in Claude Code and install `unmassk-design` from the marketplace.
 
+**Paths.** This file is the plugin's own README, not a skill — no `Base directory for this
+skill` line is printed for it. Every script path below is relative to the plugin's own
+directory (`unmassk-design/`), e.g. `skills/unmassk-design/scripts/search.py`.
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## The 7 skills
 
 | Skill | Covers | Source |
@@ -58,7 +63,7 @@ Before any design work, the skill generates a complete design system from a plai
 Example command:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/search.py 'SaaS dashboard analytics' --design-system -p 'ExampleApp'
+python3 skills/unmassk-design/scripts/search.py 'SaaS dashboard analytics' --design-system -p 'ExampleApp'
 ```
 
 Example output:
@@ -121,10 +126,8 @@ Eleven reference files provide the knowledge base. The skill loads them on-deman
 Install dependencies before first run:
 
 ```
-pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-design/scripts/requirements.txt
+pip install -r skills/unmassk-design/scripts/requirements.txt
 ```
-
-`${CLAUDE_PLUGIN_ROOT}` is auto-resolved by Claude Code. Use it as written in all script invocations.
 
 ## User interaction workflow
 

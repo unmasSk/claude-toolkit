@@ -2,7 +2,9 @@
 
 Five-stage pipeline for validating Kubernetes manifests. Run stages in order; do not skip stages without documenting the reason.
 
-Script paths: `${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/`
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
+Script paths: `scripts/`
 
 ---
 
@@ -11,7 +13,8 @@ Script paths: `${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/`
 Count non-empty YAML documents before running validators. Record the count to verify validators process every document.
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/count_yaml_documents.py <file.yaml>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/count_yaml_documents.py" <file.yaml>
 ```
 
 Fallback when Python is unavailable:
@@ -27,7 +30,8 @@ awk 'BEGIN{d=0;seen=0} /^[[:space:]]*---[[:space:]]*$/ {if(seen){d++;seen=0}; ne
 Determine which validation stages are available in the current environment.
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/setup_tools.sh
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/setup_tools.sh"
 ```
 
 If required tools are missing, continue with available tools and mark skipped stages in the report.
@@ -39,7 +43,8 @@ If required tools are missing, continue with available tools and mark skipped st
 Catch YAML syntax errors before Kubernetes-specific validation.
 
 ```bash
-yamllint -c ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/assets/.yamllint <file.yaml>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+yamllint -c "$SKILL_DIR/assets/.yamllint" <file.yaml>
 ```
 
 Detects: indentation errors (tabs vs spaces), trailing spaces, duplicate keys, syntax errors, line length violations.
@@ -51,7 +56,8 @@ Detects: indentation errors (tabs vs spaces), trailing spaces, duplicate keys, s
 Identify non-standard resource types so their schemas can be loaded for Stage 4.
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/ops-containers/scripts/detect_crd_wrapper.sh <file.yaml>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/detect_crd_wrapper.sh" <file.yaml>
 ```
 
 Example output:

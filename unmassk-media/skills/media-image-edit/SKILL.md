@@ -41,7 +41,8 @@ Collect from the user before running:
 ### Step 2 -- Run edit script
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-image-edit/scripts/edit-image.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "<url>" \
   --prompt "<edit description>" \
   --operation <style|remove|background|inpaint> \

@@ -15,7 +15,8 @@ Apply an artistic style or visual transformation to an image.
 
 **Example:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-image-edit/scripts/edit-image.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --prompt "Convert to anime style" \
   --operation style \
@@ -39,7 +40,8 @@ Erase an object from the image. Can work without a mask for clearly described ob
 
 **Example:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-image-edit/scripts/edit-image.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --prompt "Remove the person on the left" \
   --operation remove
@@ -62,7 +64,8 @@ Replace or change the background while preserving the subject.
 
 **Example:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-image-edit/scripts/edit-image.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/portrait.jpg" \
   --prompt "Place in a tropical beach setting" \
   --operation background
@@ -86,7 +89,8 @@ Fill or replace a masked area of the image with generated content.
 
 **Example:**
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/media-image-edit/scripts/edit-image.sh \
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --mask-url "https://example.com/mask.png" \
   --prompt "Fill with flowers" \

@@ -38,6 +38,8 @@ scripts and on-demand reference files.
 
 Based on claude-seo by AgriciDaniel (MIT License).
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## Request Routing
 
 Map user intent to the correct reference file and workflow.
@@ -113,8 +115,9 @@ skip any step or attempt to replicate script logic manually.
 
 Run the fetch script to retrieve the target page.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <url>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/fetch_page.py" <url>
 ```
 
 This produces a local HTML file for subsequent analysis. The script handles
@@ -129,8 +132,9 @@ For full site audits, fetch the homepage first, then fetch key interior pages
 
 Run the parse script against the fetched HTML file.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/parse_html.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/parse_html.py" <file>
 ```
 
 This extracts structured SEO data including: title tag, meta description,
@@ -145,8 +149,9 @@ Review the parsed output before proceeding. Flag immediately visible issues
 
 Run the screenshot script for visual analysis.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/capture_screenshot.py <url>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/capture_screenshot.py" <url>
 ```
 
 Captures desktop (1440px) and mobile (375px) viewport screenshots. These
@@ -160,8 +165,9 @@ resource.
 
 Run the visual analysis script against the captured screenshots.
 
-```
-${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/analyze_visual.py <file>
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/analyze_visual.py" <file>
 ```
 
 Evaluates above-fold content density, CTA visibility and placement, mobile
@@ -219,15 +225,16 @@ replicate their logic manually.
 
 | Script | Purpose | Usage |
 |---|---|---|
-| `fetch_page.py` | Retrieve page HTML with proper headers and redirect handling | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/fetch_page.py <url>` |
-| `parse_html.py` | Extract all SEO elements from HTML into structured data | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/parse_html.py <file>` |
-| `capture_screenshot.py` | Capture desktop and mobile viewport screenshots | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/capture_screenshot.py <url>` |
-| `analyze_visual.py` | Analyze screenshots for above-fold content and mobile rendering | `${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/analyze_visual.py <file>` |
+| `fetch_page.py` | Retrieve page HTML with proper headers and redirect handling | `scripts/fetch_page.py <url>` |
+| `parse_html.py` | Extract all SEO elements from HTML into structured data | `scripts/parse_html.py <file>` |
+| `capture_screenshot.py` | Capture desktop and mobile viewport screenshots | `scripts/capture_screenshot.py <url>` |
+| `analyze_visual.py` | Analyze screenshots for above-fold content and mobile rendering | `scripts/analyze_visual.py <file>` |
 
 Install dependencies before first run:
 
-```
-pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/unmassk-seo/scripts/requirements.txt
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-seo/*/skills/unmassk-seo' 2>/dev/null | sort -V | tail -1)
+pip install -r "$SKILL_DIR/scripts/requirements.txt"
 ```
 
 ## MCP Integration (Optional)

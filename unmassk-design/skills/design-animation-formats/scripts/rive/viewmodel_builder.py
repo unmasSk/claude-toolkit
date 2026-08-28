@@ -5,7 +5,9 @@ Rive ViewModel Builder
 Generate ViewModel property binding code.
 
 Usage:
-    python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/rive/viewmodel_builder.py  # Interactive mode
+    (paths below are relative to the design-animation-formats skill directory --
+    the absolute path is printed as "Base directory for this skill:" when the skill loads)
+    python3 scripts/rive/viewmodel_builder.py  # Interactive mode
 """
 
 print("""

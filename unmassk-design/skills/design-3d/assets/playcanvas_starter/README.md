@@ -2,6 +2,10 @@
 
 Production-ready PlayCanvas starter project with best practices, utilities, and interactive demo.
 
+**Paths.** This file is not a skill — no `Base directory for this skill` line is printed for
+it. The path below is relative to the plugin's own directory (`unmassk-design/`).
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ---
 
 ## Features
@@ -40,7 +44,7 @@ Production-ready PlayCanvas starter project with best practices, utilities, and 
 
 ```bash
 # Copy starter template to your project
-cp -r ${CLAUDE_PLUGIN_ROOT}/skills/design-3d/assets/playcanvas_starter ./my-playcanvas-project
+cp -r skills/design-3d/assets/playcanvas_starter ./my-playcanvas-project
 cd my-playcanvas-project
 ```
 

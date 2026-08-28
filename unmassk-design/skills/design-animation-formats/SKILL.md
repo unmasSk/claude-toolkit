@@ -38,6 +38,10 @@ snippets that matter, and the pitfalls everyone hits.
 
 Based on claudedesignskills by freshtechbro (Apache 2.0).
 
+**Paths.** Every `scripts/…` path in this file is relative to this skill's own directory —
+the absolute path printed as `Base directory for this skill:` when the skill loads.
+`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## First Decision: What Kind of Animation Is This?
 
 Answer in order:
@@ -92,17 +96,14 @@ library, organized by library under `scripts/<library>/`.
 
 | Script | Qué hace | Uso |
 |---|---|---|
-| `component_importer.py` | Imprime pasos de instalación (install command, deps, CSS keyframes si aplica) y un snippet de uso para un componente Magic UI o React Bits del catálogo interno del script | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/component_importer.py [--library magicui\|reactbits --component <key>]` (sin flags -> modo interactivo) |
-| `props_generator.py` | Genera código TSX/JSX de un componente Magic UI/React Bits con sus props por defecto o sobreescritas vía `--props '{"key":val}'` | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animated-component-libraries/props_generator.py --component <key> [--format tsx\|jsx] [--props '<json>'] [--list]` |
-| `animation_generator.py` | Imprime boilerplate Anime.js para un tipo de animación (`basic`, `stagger`, `grid-stagger`, `svg-line`, `svg-morph`, `timeline`, `keyframe`, `scroll`) | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/animation_generator.py --type <tipo>` (`--list` lista tipos; sin flags -> interactivo) |
-| `timeline_builder.py` | Imprime un preset de timeline Anime.js (`hero`, `modal`, `cards`, `loader`, `page`, `toast`, `menu`) o construye uno custom con N pasos en modo interactivo | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/animejs/timeline_builder.py --preset <nombre>` (`--list` lista presets; sin flags -> interactivo, incluye opción `custom`) |
-| `generate_lottie_component.py` | Genera boilerplate de componente Lottie (React básico/interactivo con controles play/pause/stop, Vue, o Svelte) parametrizado por nombre, src, alto y ancho | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/generate_lottie_component.py --framework react\|vue\|svelte [--type basic\|interactive] [--name <Nombre>] [--src <ruta>] [--height <px>] [--width <px>] [--output <archivo>]` (sin `--framework` -> interactivo) |
-| `optimize_lottie.py` | Reduce el tamaño de un JSON de Lottie: redondea todos los números flotantes a la precisión dada y elimina espacios/whitespace innecesario; reporta la reducción de bytes | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/lottie/optimize_lottie.py <archivo.json> [-o <salida.json>] [-p <precision>]` |
-| `component_generator.py` | Imprime la plantilla base de un componente Rive en React con `useRive` + `useStateMachineInput` | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/rive/component_generator.py` |
-| `viewmodel_builder.py` | Imprime la plantilla de binding de ViewModel de Rive (`useViewModel`, `useViewModelInstance`, setters string/number) para animaciones con datos en vivo | `python3 ${CLAUDE_PLUGIN_ROOT}/skills/design-animation-formats/scripts/rive/viewmodel_builder.py` |
-
-Note that `${CLAUDE_PLUGIN_ROOT}` is auto-resolved by Claude Code. Use it as
-written in all script invocations.
+| `component_importer.py` | Imprime pasos de instalación (install command, deps, CSS keyframes si aplica) y un snippet de uso para un componente Magic UI o React Bits del catálogo interno del script | `python3 scripts/animated-component-libraries/component_importer.py [--library magicui\|reactbits --component <key>]` (sin flags -> modo interactivo) |
+| `props_generator.py` | Genera código TSX/JSX de un componente Magic UI/React Bits con sus props por defecto o sobreescritas vía `--props '{"key":val}'` | `python3 scripts/animated-component-libraries/props_generator.py --component <key> [--format tsx\|jsx] [--props '<json>'] [--list]` |
+| `animation_generator.py` | Imprime boilerplate Anime.js para un tipo de animación (`basic`, `stagger`, `grid-stagger`, `svg-line`, `svg-morph`, `timeline`, `keyframe`, `scroll`) | `python3 scripts/animejs/animation_generator.py --type <tipo>` (`--list` lista tipos; sin flags -> interactivo) |
+| `timeline_builder.py` | Imprime un preset de timeline Anime.js (`hero`, `modal`, `cards`, `loader`, `page`, `toast`, `menu`) o construye uno custom con N pasos en modo interactivo | `python3 scripts/animejs/timeline_builder.py --preset <nombre>` (`--list` lista presets; sin flags -> interactivo, incluye opción `custom`) |
+| `generate_lottie_component.py` | Genera boilerplate de componente Lottie (React básico/interactivo con controles play/pause/stop, Vue, o Svelte) parametrizado por nombre, src, alto y ancho | `python3 scripts/lottie/generate_lottie_component.py --framework react\|vue\|svelte [--type basic\|interactive] [--name <Nombre>] [--src <ruta>] [--height <px>] [--width <px>] [--output <archivo>]` (sin `--framework` -> interactivo) |
+| `optimize_lottie.py` | Reduce el tamaño de un JSON de Lottie: redondea todos los números flotantes a la precisión dada y elimina espacios/whitespace innecesario; reporta la reducción de bytes | `python3 scripts/lottie/optimize_lottie.py <archivo.json> [-o <salida.json>] [-p <precision>]` |
+| `component_generator.py` | Imprime la plantilla base de un componente Rive en React con `useRive` + `useStateMachineInput` | `python3 scripts/rive/component_generator.py` |
+| `viewmodel_builder.py` | Imprime la plantilla de binding de ViewModel de Rive (`useViewModel`, `useViewModelInstance`, setters string/number) para animaciones con datos en vivo | `python3 scripts/rive/viewmodel_builder.py` |
 
 ## Cross-Cutting Rules
 
