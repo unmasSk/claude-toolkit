@@ -22,9 +22,10 @@
 
 **Lo que queda por hacer, y en este orden:**
 
-1. **CI solo en el commit de release**, vía `[skip ci]` en los commits de trabajo (D-070) — decidido el 2026-08-26, sin construir.
-2. **Telemetría de tiempos de sesión y agentes**, mostrada en el arranque siguiente (D-069, issue #84) — decidido el 2026-08-26, sin construir.
-3. **Conectar el freno por pérdidas de `unmassk-trading` a la cuenta de práctica** (D-077, **issue #86**) — decidido el 2026-08-27 por el Consejo, aparcado a propósito por el propietario: primero aprender con dinero de mentira. Es lo que abre la fase 2 del plugin. Hoy el freno lee un almacén **que nada rellena todavía**: sus comandos de ciclo de vida existen y el freno lee lo que escriben, pero la pieza que *crea* una ficha no se levantó, así que contesta «puedes operar» sobre cero datos.
+1. **Telemetría de tiempos de sesión y agentes**, mostrada en el arranque siguiente (D-069, issue #84) — decidido el 2026-08-26, sin construir.
+2. **Conectar el freno por pérdidas de `unmassk-trading` a la cuenta de práctica** (D-077, **issue #86**) — decidido el 2026-08-27 por el Consejo, aparcado a propósito por el propietario: primero aprender con dinero de mentira. Es lo que abre la fase 2 del plugin. Hoy el freno lee un almacén **que nada rellena todavía**: sus comandos de ciclo de vida existen y el freno lee lo que escriben, pero la pieza que *crea* una ficha no se levantó, así que contesta «puedes operar» sobre cero datos.
+
+**CI solo en el commit de release ya está construido** (D-070, 2026-08-26/28): `gitmem work` y `gitmem wip` añaden `[skip ci]` en su propia línea a cada commit de trabajo; `bin/release.py` nunca lo añade, así que su commit es el único que dispara la CI. El marcador vive en `unmassk-toolkit/lib/memory/ci.py`, con un test de regresión que impide que migre al ensamblado compartido de commits.
 
 **`unmassk-trading` publicó su fase 1 el 2026-08-27** `[2026-08-27]`: precio en vivo contrastado contra dos mercados, capa de enseñanza para principiante, cuenta de práctica sin llave y tamaño de posición desde el riesgo. La ejecución de órdenes reales está escrita pero sin ejercitar, y es fase 2. Su capa de disciplina está levantada byte a byte de un repositorio MIT ajeno — no se toca, y `unmassk-trading/CREDITS.md` explica por qué. La issue #85 sigue abierta.
 

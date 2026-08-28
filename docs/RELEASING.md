@@ -95,6 +95,14 @@ python3 bin/release.py <plugin> <new-version>
    shortcut — `write_work()` exists specifically so publishing can commit a handful of
    files without dragging in unrelated half-finished changes elsewhere in the tree.
 
+   > **This is the one commit in the whole session that is allowed to trigger CI**
+   > (D-070, 2026-08-26). `gitmem work` and `gitmem wip` add `[skip ci]` on its own
+   > line to every commit they create — GitHub Actions honors that marker natively —
+   > so intermediate work never fires a run. This release commit never carries it,
+   > by design: the release is the one point that verifies everything accumulated
+   > since the last one. The marker lives in `unmassk-toolkit/lib/memory/ci.py`, with
+   > a regression test guarding that it can never migrate into `write_work()` itself.
+
    > **The release commit carries no business trailers.** Its message is just the
    > headline (`release <plugin> v<version>`) — no `Why:`, `Description:`, `Keys:`,
    > or `Co-Authored-By:`. If you ever hand-write a *memory note* commit elsewhere in
