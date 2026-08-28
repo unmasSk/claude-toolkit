@@ -45,3 +45,4 @@
 2026-08-26  [D-065][memory][architecture] 🧭 customs on note write: Q/I answer the work question, issue proposed to owner  →  replaced by D-066
 2026-08-26  [D-074][skills][trading] 🧭 the practice mode is a game: fake wallet, score, lessons, real money unlocks  →  closed: era una idea suelta en mitad de una charla, no una decision suya; la guarde de mas
 2026-08-27  [R-018][skills][install] ⚠️ a skill's scripts are invoked via CLAUDE_PLUGIN_ROOT, never a bare relative path  →  replaced by R-019
+2026-08-28  [M-134][install][docs] 📌 the retired R-018 still stands in 58 files, 18 of them as commands  →  closed: hecho: los 58 ficheros barridos el 2026-08-28, 164 bloques resuelven su propia ruta y 261 rutas documentadas apuntan a ficheros que existen
