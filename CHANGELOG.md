@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-28
+
+### Fixed
+
+- **Every documented command in the plugin was broken.** The README, the core skill, and all 5 references (`geo`, `hreflang`, `images`, `page-analysis`, `sitemap`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
+
 ## [1.2.1] - 2026-08-28
 
 ### Fixed
@@ -42,12 +48,6 @@
 ### Added
 
 - **`gitmem work` and `gitmem wip` now append `[skip ci]` on its own line to every commit they write**, so GitHub Actions no longer fires on intermediate work commits — only the release commit does, and it is deliberately the one commit in the chain that never carries the marker, since it is the single run that verifies everything accumulated since the last release (D-070, `gitmem search --id D-070`). The marker lives in the two producers (`bin/memory/work.py`, `bin/memory/wip.py`), never inside the shared commit-assembly point they both call through — a regression test guards that it can never migrate there, because if it did, `bin/release.py`'s own commit would inherit it and silently stop triggering the CI run that verifies a publication. `gitmem wip` also now prints the full committed message (marker included) instead of the message before the marker was appended.
-
-## [1.1.1] - 2026-08-28 (unmassk-seo)
-
-### Fixed
-
-- **Every documented command in the plugin was broken.** The README, the core skill, and all 5 references (`geo`, `hreflang`, `images`, `page-analysis`, `sitemap`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
 
 ## [1.0.3] - 2026-08-28 (unmassk-trading)
 
