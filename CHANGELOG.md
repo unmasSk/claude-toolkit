@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-08-28
+
+### Fixed
+
+- **The gravest instance of the repo-wide `${CLAUDE_PLUGIN_ROOT}` bug lived in `unmassk-memory`'s own recovery path**: the command offered when `gitmem` is not found — precisely the moment the user has no other way out — was `python3 ${CLAUDE_PLUGIN_ROOT}/bin/git-memory-install.py --auto`, which runs as `python3 /bin/git-memory-install.py --auto` and fails. It now discovers its own skill directory fresh in the same command, discarding orphaned cache copies before sorting on version, instead of a pasted path that would also have gone stale on the next upgrade. `unmassk-close-session`'s `SKILL.md` and `close-agent-prompt.md`, and `unmassk-scaffolding`'s `SKILL.md`, had the same broken pattern and are fixed the same way; a stale comment in `scaffold.py` was corrected in the same pass (R-019, R-020).
+
+### Added
+
+- **`gitmem work` and `gitmem wip` now append `[skip ci]` on its own line to every commit they write**, so GitHub Actions no longer fires on intermediate work commits — only the release commit does, and it is deliberately the one commit in the chain that never carries the marker, since it is the single run that verifies everything accumulated since the last release (D-070, `gitmem search --id D-070`). The marker lives in the two producers (`bin/memory/work.py`, `bin/memory/wip.py`), never inside the shared commit-assembly point they both call through — a regression test guards that it can never migrate there, because if it did, `bin/release.py`'s own commit would inherit it and silently stop triggering the CI run that verifies a publication. `gitmem wip` also now prints the full committed message (marker included) instead of the message before the marker was appended.
+
 ## [1.2.2] - 2026-08-28
 
 ### Fixed
@@ -44,16 +54,6 @@
 ### Fixed
 
 - **Both skills' documented commands were broken.** `db-migrations` (4 scripts) and `db-schema-design` (2 scripts) built every path on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every reference-table row died on invocation. Both now resolve their own skill directory inline and discard orphaned cache copies before sorting on version, and each script table carries a **Paths.** note showing how to run any row (R-019, R-020).
-
-## [1.43.0] - 2026-08-28 (unmassk-toolkit)
-
-### Fixed
-
-- **The gravest instance of the repo-wide `${CLAUDE_PLUGIN_ROOT}` bug lived in `unmassk-memory`'s own recovery path**: the command offered when `gitmem` is not found — precisely the moment the user has no other way out — was `python3 ${CLAUDE_PLUGIN_ROOT}/bin/git-memory-install.py --auto`, which runs as `python3 /bin/git-memory-install.py --auto` and fails. It now discovers its own skill directory fresh in the same command, discarding orphaned cache copies before sorting on version, instead of a pasted path that would also have gone stale on the next upgrade. `unmassk-close-session`'s `SKILL.md` and `close-agent-prompt.md`, and `unmassk-scaffolding`'s `SKILL.md`, had the same broken pattern and are fixed the same way; a stale comment in `scaffold.py` was corrected in the same pass (R-019, R-020).
-
-### Added
-
-- **`gitmem work` and `gitmem wip` now append `[skip ci]` on its own line to every commit they write**, so GitHub Actions no longer fires on intermediate work commits — only the release commit does, and it is deliberately the one commit in the chain that never carries the marker, since it is the single run that verifies everything accumulated since the last release (D-070, `gitmem search --id D-070`). The marker lives in the two producers (`bin/memory/work.py`, `bin/memory/wip.py`), never inside the shared commit-assembly point they both call through — a regression test guards that it can never migrate there, because if it did, `bin/release.py`'s own commit would inherit it and silently stop triggering the CI run that verifies a publication. `gitmem wip` also now prints the full committed message (marker included) instead of the message before the marker was appended.
 
 ## [1.0.2] - 2026-08-28
 
