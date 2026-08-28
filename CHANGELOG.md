@@ -6,6 +6,12 @@
 
 ### Fixed
 
+- **Every documented command across the plugin's 5 skills was broken** (`media-image-edit` and its `operations` reference, `media-image-gen`, `media-mermaid`, `media-screenshots`, `media-transcribe`): all built on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version (R-019, R-020).
+
+## [1.2.1] - 2026-08-28
+
+### Fixed
+
 - **Both skills' documented commands were broken.** `db-migrations` (4 scripts) and `db-schema-design` (2 scripts) built every path on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every reference-table row died on invocation. Both now resolve their own skill directory inline and discard orphaned cache copies before sorting on version, and each script table carries a **Paths.** note showing how to run any row (R-019, R-020).
 
 ## [1.2.2] - 2026-08-28 (unmassk-design)
@@ -42,12 +48,6 @@
 ### Fixed
 
 - **Every documented command in the plugin was broken.** The README, the core skill, and all 5 references (`geo`, `hreflang`, `images`, `page-analysis`, `sitemap`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
-
-## [1.2.1] - 2026-08-28 (unmassk-media)
-
-### Fixed
-
-- **Every documented command across the plugin's 5 skills was broken** (`media-image-edit` and its `operations` reference, `media-image-gen`, `media-mermaid`, `media-screenshots`, `media-transcribe`): all built on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version (R-019, R-020).
 
 ## [1.0.3] - 2026-08-28 (unmassk-trading)
 
