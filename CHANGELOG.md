@@ -2,6 +2,59 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-28
+
+### Fixed
+
+- **Both skills' documented commands were broken.** `db-migrations` (4 scripts) and `db-schema-design` (2 scripts) built every path on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every reference-table row died on invocation. Both now resolve their own skill directory inline and discard orphaned cache copies before sorting on version, and each script table carries a **Paths.** note showing how to run any row (R-019, R-020).
+
+## [1.2.2] - 2026-08-28 (unmassk-design)
+
+### Fixed
+
+- **Every documented command across the plugin's README and 7 skills was broken.** All of them built the command on `${CLAUDE_PLUGIN_ROOT}`, which is only substituted inside `hooks.json` — in the Bash tool it expands to nothing, so every `python3 .../scripts/…` call, the `playcanvas_starter` `cp -r`, and the reference-table rows in `unmassk-design`'s own core skill died on the first try. The plugin README plus the 7 skills (`design-3d`, `design-animation-formats` and its 7 python generator scripts, `design-flutter`, `design-motion`, `design-scroll`, core `unmassk-design` plus its 4 references) now resolve their own skill directory inline, discarding orphaned cache copies before picking the newest version, and every reference table carries a **Paths.** note showing how to run any row (R-019, R-020).
+
+## [1.3.1] - 2026-08-28 (unmassk-ops)
+
+### Fixed
+
+- **Every documented command in the plugin's README and 6 of its 7 skills was broken the same way**: `${CLAUDE_PLUGIN_ROOT}` resolves to nothing in the Bash tool, so the README plus `ops-cicd` (incl. its 2 GitHub Actions references), `ops-containers`, `ops-deploy` (incl. its 3 Railway references), `ops-iac`, `ops-observability` and `ops-scripting` all shipped commands that died on invocation (`ops-error-tracking` was already clean). Each now resolves its own skill directory in the same call and discards orphaned cache copies before sorting on version (R-019, R-020).
+- **`ops-containers/references/k8s-validation-workflow.md` named three scripts that don't exist on disk.** `scripts/setup_tools.sh` → `scripts/k8s-setup-tools.sh`, `scripts/detect_crd_wrapper.sh` → `scripts/k8s-detect-crd-wrapper.sh`, and a `yamllint -c "$SKILL_DIR/assets/.yamllint"` pointing at a config this skill never ships — the flag is dropped and yamllint's own defaults apply. Prompted a full sweep: all 261 documented script paths in the repository were checked against the real tree, and every one now resolves.
+
+## [1.1.2] - 2026-08-28 (unmassk-marketing)
+
+### Fixed
+
+- **Every documented command in the plugin was broken.** The README, the core skill, and all 10 references (`ads`, `analytics`, `email`, `growth`, `integrations-ads`, `integrations-analytics`, `integrations-crm`, `integrations-email`, `retention`, `sales`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
+
+## [1.43.0] - 2026-08-28 (unmassk-toolkit)
+
+### Fixed
+
+- **The gravest instance of the repo-wide `${CLAUDE_PLUGIN_ROOT}` bug lived in `unmassk-memory`'s own recovery path**: the command offered when `gitmem` is not found — precisely the moment the user has no other way out — was `python3 ${CLAUDE_PLUGIN_ROOT}/bin/git-memory-install.py --auto`, which runs as `python3 /bin/git-memory-install.py --auto` and fails. It now discovers its own skill directory fresh in the same command, discarding orphaned cache copies before sorting on version, instead of a pasted path that would also have gone stale on the next upgrade. `unmassk-close-session`'s `SKILL.md` and `close-agent-prompt.md`, and `unmassk-scaffolding`'s `SKILL.md`, had the same broken pattern and are fixed the same way; a stale comment in `scaffold.py` was corrected in the same pass (R-019, R-020).
+
+### Added
+
+- **`gitmem work` and `gitmem wip` now append `[skip ci]` on its own line to every commit they write**, so GitHub Actions no longer fires on intermediate work commits — only the release commit does, and it is deliberately the one commit in the chain that never carries the marker, since it is the single run that verifies everything accumulated since the last release (D-070, `gitmem search --id D-070`). The marker lives in the two producers (`bin/memory/work.py`, `bin/memory/wip.py`), never inside the shared commit-assembly point they both call through — a regression test guards that it can never migrate there, because if it did, `bin/release.py`'s own commit would inherit it and silently stop triggering the CI run that verifies a publication. `gitmem wip` also now prints the full committed message (marker included) instead of the message before the marker was appended.
+
+## [1.1.1] - 2026-08-28 (unmassk-seo)
+
+### Fixed
+
+- **Every documented command in the plugin was broken.** The README, the core skill, and all 5 references (`geo`, `hreflang`, `images`, `page-analysis`, `sitemap`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
+
+## [1.2.1] - 2026-08-28 (unmassk-media)
+
+### Fixed
+
+- **Every documented command across the plugin's 5 skills was broken** (`media-image-edit` and its `operations` reference, `media-image-gen`, `media-mermaid`, `media-screenshots`, `media-transcribe`): all built on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version (R-019, R-020).
+
+## [1.0.3] - 2026-08-28 (unmassk-trading)
+
+### Fixed
+
+- **The `SKILL_DIR` self-discovery this plugin already had (fixed in 1.0.1) picked a stale copy in silence.** It sorted the plugin cache by version and took the last one, but the cache also holds copies retired by the installer and marked `.orphaned_at` — one of them literally named `unknown`, which `sort -V` places after every real semver, so the discovery block would have run old code with no error at all. All 9 `SKILL_DIR=` blocks across `SKILL.md` (6), `gate-input.md` (1) and `risk-and-sizing.md` (2) now filter out anything marked `.orphaned_at` before sorting (R-020, [#85](../../issues/85)).
+
 ## [1.0.2] - 2026-08-28
 
 ### Fixed

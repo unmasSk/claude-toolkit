@@ -76,7 +76,7 @@
     },
     {
       "name": "unmassk-db",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Database \u2014 PostgreSQL, MySQL, MongoDB, Redis, migrations (zero-downtime), vector/RAG (pgvector), schema design",
       "source": {
         "source": "git-subdir",
