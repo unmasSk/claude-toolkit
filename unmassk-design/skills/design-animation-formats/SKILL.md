@@ -38,9 +38,14 @@ snippets that matter, and the pitfalls everyone hits.
 
 Based on claudedesignskills by freshtechbro (Apache 2.0).
 
-**Paths.** Every `scripts/…` path in this file is relative to this skill's own directory —
-the absolute path printed as `Base directory for this skill:` when the skill loads.
-`${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+> **Paths.** Every `scripts/…` and `references/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/design-animation-formats' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ## First Decision: What Kind of Animation Is This?
 

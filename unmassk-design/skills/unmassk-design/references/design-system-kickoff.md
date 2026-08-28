@@ -4,10 +4,14 @@ Reference for starting a new design system. Covers the trifurcation framework,
 design token structure, component extraction, project questionnaire, and how to
 generate a design system with `search.py`.
 
-**Paths.** `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — it is substituted only
-inside `hooks.json` entries, never exported to the shell. Every `search.py` command below
-resolves the `unmassk-design` skill's own directory itself, self-contained per call, since a
-shell variable does not survive from one Bash call to the next.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ---
 
@@ -309,7 +313,7 @@ contrast (still well above AA) reduces eye strain.
 Run this before any design work on a new project:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
@@ -323,7 +327,7 @@ radii), and anti-patterns to avoid for this product category.
 To persist to a file (Master + Overrides pattern):
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
@@ -341,7 +345,7 @@ design-system/<project-slug>/pages/<page>.md # Page-specific overrides (optional
 To create a page-level override alongside the master:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/search.py" \
   '<product description>' \
   --design-system \
@@ -357,7 +361,7 @@ If it exists, its rules override `MASTER.md`. Otherwise, use `MASTER.md` alone.
 Domain-specific searches:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Color only
 python3 "$SKILL_DIR/scripts/search.py" \

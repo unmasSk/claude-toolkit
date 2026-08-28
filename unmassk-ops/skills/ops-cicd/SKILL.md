@@ -48,12 +48,19 @@ This skill covers CI/CD pipelines across four platforms: GitHub Actions, GitLab 
 
 ## MANDATORY Script Commands
 
-All paths are in `scripts/`, relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/gha-install-tools.sh"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ### GitHub Actions
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # 1. Install tools (actionlint + act) -- run once per environment
 bash "$SKILL_DIR/scripts/gha-install-tools.sh"
@@ -68,7 +75,7 @@ bash "$SKILL_DIR/scripts/gha-test-generator.sh" .github/workflows/ci.yml
 ### GitLab CI
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # 1. Install tools
 bash "$SKILL_DIR/scripts/gitlab-install-tools.sh"
@@ -89,7 +96,7 @@ python3 "$SKILL_DIR/scripts/gitlab-check-best-practices.py" .gitlab-ci.yml
 ### Azure Pipelines
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # 1. Validate pipeline
 bash "$SKILL_DIR/scripts/azure-validate-pipelines.sh" azure-pipelines.yml
@@ -114,7 +121,7 @@ bash "$SKILL_DIR/scripts/azure-yamllint-check.sh" azure-pipelines.yml
 `azure-test-regressions.py` is the regression suite for the step-walker traversal coverage. Run it when editing any of the three azure scripts or after encountering an unexpected scan miss on conditional/deployment blocks:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 # Run Azure traversal regression suite
 python3 "$SKILL_DIR/scripts/azure-test-regressions.py"
 ```
@@ -122,7 +129,7 @@ python3 "$SKILL_DIR/scripts/azure-test-regressions.py"
 ### Jenkins
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-cicd' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # 1. Validate Jenkinsfile
 bash "$SKILL_DIR/scripts/jenkins-validate-jenkinsfile.sh" Jenkinsfile

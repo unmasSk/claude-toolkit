@@ -780,12 +780,21 @@ curl -X POST https://api.stripe.com/v1/subscriptions -u "$STRIPE_API_KEY:" -d cu
 curl https://api.stripe.com/v1/invoices -u "$STRIPE_API_KEY:"
 ```
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/scripts/paddle.js"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ### paddle.js
 
 Subscription management with built-in tax handling.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export PADDLE_API_KEY=pdl_xxx
@@ -812,7 +821,7 @@ node "$SKILL_DIR/scripts/paddle.js" transactions list
 Dunning email sequences, retention campaigns, and behavior-based messaging.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment (Track API)
 export CUSTOMERIO_SITE_ID=xxx
@@ -849,7 +858,7 @@ node "$SKILL_DIR/scripts/customer-io.js" messages send --transactional-message-i
 In-app messaging, proactive support, and product tours for retention.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export INTERCOM_API_KEY=xxx

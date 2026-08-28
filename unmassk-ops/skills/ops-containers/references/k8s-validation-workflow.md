@@ -2,7 +2,14 @@
 
 Five-stage pipeline for validating Kubernetes manifests. Run stages in order; do not skip stages without documenting the reason.
 
-> **Paths.** Every `scripts/…` path below is relative to this skill's own directory — the absolute path printed as `Base directory for this skill:` when the skill loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/count_yaml_documents.py"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 Script paths: `scripts/`
 
@@ -13,7 +20,7 @@ Script paths: `scripts/`
 Count non-empty YAML documents before running validators. Record the count to verify validators process every document.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/count_yaml_documents.py" <file.yaml>
 ```
 
@@ -30,8 +37,8 @@ awk 'BEGIN{d=0;seen=0} /^[[:space:]]*---[[:space:]]*$/ {if(seen){d++;seen=0}; ne
 Determine which validation stages are available in the current environment.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
-bash "$SKILL_DIR/scripts/setup_tools.sh"
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/k8s-setup-tools.sh"
 ```
 
 If required tools are missing, continue with available tools and mark skipped stages in the report.
@@ -43,9 +50,10 @@ If required tools are missing, continue with available tools and mark skipped st
 Catch YAML syntax errors before Kubernetes-specific validation.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
-yamllint -c "$SKILL_DIR/assets/.yamllint" <file.yaml>
+yamllint <file.yaml>
 ```
+
+This skill ships no yamllint config, so the tool's own defaults apply.
 
 Detects: indentation errors (tabs vs spaces), trailing spaces, duplicate keys, syntax errors, line length violations.
 
@@ -56,8 +64,8 @@ Detects: indentation errors (tabs vs spaces), trailing spaces, duplicate keys, s
 Identify non-standard resource types so their schemas can be loaded for Stage 4.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | sort -V | tail -1)
-bash "$SKILL_DIR/scripts/detect_crd_wrapper.sh" <file.yaml>
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-containers' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/k8s-detect-crd-wrapper.sh" <file.yaml>
 ```
 
 Example output:
@@ -189,7 +197,7 @@ Stage 6: Generate validation report
 
 | Condition | Action |
 |---|---|
-| Tool not found | Run `setup_tools.sh`, skip that stage, mark as skipped in report |
+| Tool not found | Run `scripts/k8s-setup-tools.sh`, skip that stage, mark as skipped in report |
 | No cluster access | Skip server-side dry-run, attempt client-side, document gap |
 | CRD docs not found | Proceed with kubeconform CRD catalog; note unverified spec fields |
 | Multiple resources in one file | Validate each resource separately; track file:line for each issue |

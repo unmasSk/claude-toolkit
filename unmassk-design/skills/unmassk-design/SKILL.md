@@ -38,12 +38,14 @@ on-demand and the search script to generate design systems programmatically.
 Based on Impeccable by Paul Bakaus (Apache 2.0), UI/UX Pro Max by
 nextlevelbuilder (MIT), and plugins by bencium.io (MIT).
 
-**Paths.** `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool — it is substituted only
-inside `hooks.json` entries, never exported to the shell. What arrives instead is the line
-`Base directory for this skill: <absolute path>`, printed when this skill loads. Every
-`scripts/…` path in a table below is relative to that directory. A shell variable also does
-not survive from one Bash call to the next, so every runnable command block below resolves
-the directory itself, in the same call that uses it.
+> **Paths.** Every `scripts/…` and `references/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ## Purpose
 
@@ -70,7 +72,7 @@ the right references and let them inform each other.
 Before any design work, generate a design system. Run:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/search.py" '<product description>' --design-system -p '<project name>'
 ```
 
@@ -159,7 +161,7 @@ their logic manually.
 Install dependencies before first run:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 pip install -r "$SKILL_DIR/scripts/requirements.txt"
 ```
 

@@ -21,6 +21,15 @@ version: 1.0.0
 
 Generate professional AI images using Google Gemini via the bundled CLI script.
 
+> **Paths.** Every `mcp-server/…` and `references/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-gen' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/mcp-server/<the file you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## When to Invoke This Skill
 
 Invoke immediately when:
@@ -47,7 +56,7 @@ Invoke immediately when:
 Run the bundled CLI script via bash:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-gen' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-gen' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 node "$SKILL_DIR/mcp-server/build/cli.bundle.js" \
   --prompt "Your detailed image description" \
   --output "./path/to/output.png" \

@@ -1,9 +1,13 @@
 # Design Principles
 
-**Paths.** This is a reference of the `unmassk-design` skill — its `scripts/search.py`
-mention below is relative to that skill's own directory, the absolute path printed as
-`Base directory for this skill:` when it loads. `${CLAUDE_PLUGIN_ROOT}` is empty in the
-Bash tool; never paste it into a command.
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-design/*/skills/unmassk-design' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+python3 "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
 
 ## Anti-AI-Slop Doctrine
 

@@ -18,6 +18,28 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un fix de doc committeado en el repo se contrasta contra el cache que de verdad se carga (2026-08-28)
+Un commit puede arreglar `SKILL.md` en el checkout de git y no tocar nunca la
+copia que Claude Code carga en la sesion real: `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`.
+`diff` el fichero del repo contra el de la version mas alta en cache (`sort -V`)
+detecta esto en un segundo. Caso real: commit `1c89325` "retire R-018" arreglo
+67 ficheros en 7 plugins y NINGUNO se publico -- las 7 plugins seguian sirviendo
+el `${CLAUDE_PLUGIN_ROOT}` roto que el commit decia haber retirado. Aplica a
+cualquier commit de doc/skill en este repo: el commit no es el producto, el
+cache lo es.
+
+### Un directorio de version "unknown"/huerfano ya existe en este cache real -- no hace falta fabricarlo (2026-08-28)
+`~/.claude/plugins/cache/claude-plugins-official/{context7,plugin-dev}/unknown/`
+con `.orphaned_at` es un estado real que el propio mecanismo de cache de Claude
+Code produce en esta maquina, hoy. Cualquier patron `find ... | sort -V | tail -1`
+que descubra la version de una skill es vulnerable a elegirlo: `sort -V` pone
+`unknown` DESPUES de cualquier semver. Reproducido con datos sembrados en
+`scratchpad/fake-cache2`: una copia huerfana con `.orphaned_at` gana a la
+version real y el script equivocado corre sin ningun error visible -- silent
+wrong-target, no crash. Antes de aceptar un patron `sort -V | tail -1` para
+resolver la version de un plugin, sembrar un directorio `unknown` junto a la
+version real y repetir la busqueda.
+
 ### Un subcomando de terceros que un arreglo ACABA de recomendar, se ejecuta con reloj (2026-08-28)
 Cuando la ronda anterior cierra un hallazgo anadiendo "abre una sesion con
 `X sub start`", ese comando entra en el doc sin haberse corrido nunca. Correrlo

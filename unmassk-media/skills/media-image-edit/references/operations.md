@@ -2,6 +2,15 @@
 
 Four supported operations. Each maps to a hardcoded fal.ai model.
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## style — Style Transfer
 
 Apply an artistic style or visual transformation to an image.
@@ -15,7 +24,7 @@ Apply an artistic style or visual transformation to an image.
 
 **Example:**
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --prompt "Convert to anime style" \
@@ -40,7 +49,7 @@ Erase an object from the image. Can work without a mask for clearly described ob
 
 **Example:**
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --prompt "Remove the person on the left" \
@@ -64,7 +73,7 @@ Replace or change the background while preserving the subject.
 
 **Example:**
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/portrait.jpg" \
   --prompt "Place in a tropical beach setting" \
@@ -89,7 +98,7 @@ Fill or replace a masked area of the image with generated content.
 
 **Example:**
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-image-edit' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 bash "$SKILL_DIR/scripts/edit-image.sh" \
   --image-url "https://example.com/photo.jpg" \
   --mask-url "https://example.com/mask.png" \

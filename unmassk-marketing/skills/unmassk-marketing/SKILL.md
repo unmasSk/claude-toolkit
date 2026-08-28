@@ -119,16 +119,17 @@ domains. Examples:
 
 ## Scripts
 
-When a reference calls for platform data, use the CLI scripts at
-`scripts/` — this skill's own directory (the absolute path printed as
-`Base directory for this skill:` when the skill loads). Each script is a
-zero-dependency Node.js CLI that calls the platform API.
-
-`${CLAUDE_PLUGIN_ROOT}` is never exported to the shell, so it expands to
-nothing in the Bash tool. Resolve the directory first, then run:
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/scripts/<platform>.js"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 node "$SKILL_DIR/scripts/<platform>.js" <command> [args]
 ```
@@ -392,7 +393,7 @@ Structure deliverables consistently based on task type.
 
 Search evals with:
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 python3 "$SKILL_DIR/evals/search-evals.py" --reference copy.md
 python3 "$SKILL_DIR/evals/search-evals.py" --keyword pricing

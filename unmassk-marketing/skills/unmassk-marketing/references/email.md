@@ -480,6 +480,15 @@ If you send a breakup email, honor it. Do not contact the prospect again.
 
 ---
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/scripts/mailchimp.js"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ## CLI Scripts for Email Platforms
 
 All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment variables for auth and run directly.
@@ -489,7 +498,7 @@ All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment va
 SMB email marketing, list management, and campaigns.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export MAILCHIMP_API_KEY=xxx-us1
@@ -518,7 +527,7 @@ node "$SKILL_DIR/scripts/mailchimp.js" campaigns get camp_abc123
 Behavior-based automation, trigger emails, and event tracking.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment (Track API)
 export CUSTOMERIO_SITE_ID=xxx
@@ -547,7 +556,7 @@ node "$SKILL_DIR/scripts/customer-io.js" messages send --transactional-message-i
 Transactional email at scale with template support.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export SENDGRID_API_KEY=SG.xxx
@@ -573,7 +582,7 @@ node "$SKILL_DIR/scripts/sendgrid.js" lists list
 Creator and newsletter-focused email.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export KIT_API_KEY=xxx
@@ -609,7 +618,7 @@ node "$SKILL_DIR/scripts/kit.js" tags tag 12345 --email user@example.com
 Developer-friendly transactional email.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export RESEND_API_KEY=re_xxx
@@ -635,7 +644,7 @@ node "$SKILL_DIR/scripts/resend.js" domains list
 Deliverability-focused transactional email.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export POSTMARK_API_KEY=xxx
@@ -664,7 +673,7 @@ node "$SKILL_DIR/scripts/postmark.js" streams list
 Email and SMS with strong EU presence.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export BREVO_API_KEY=xkeysib-xxx

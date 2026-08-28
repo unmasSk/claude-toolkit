@@ -457,12 +457,21 @@ Start with the most restrictive format and expand:
 Pull performance data -> Identify winning patterns -> Generate new variations -> Validate specs -> Deliver
 ```
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/scripts/google-ads.js"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 ### Pulling Performance Data
 
 Use CLI scripts to pull ad performance data:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Google Ads -- campaign performance last 30 days
 node "$SKILL_DIR/scripts/google-ads.js" campaigns performance --days 30
@@ -660,7 +669,7 @@ All CLI tools are zero-dependency Node.js scripts (Node 18+). Set environment va
 Campaign management, performance reporting, and optimization.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export GOOGLE_ADS_TOKEN=xxx
@@ -697,7 +706,7 @@ node "$SKILL_DIR/scripts/google-ads.js" campaigns list --dry-run
 Meta (Facebook/Instagram) campaign management and insights.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export META_ACCESS_TOKEN=xxx
@@ -730,7 +739,7 @@ node "$SKILL_DIR/scripts/meta-ads.js" ads list --adset-id adset_xxx
 B2B advertising with job title and company targeting.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export LINKEDIN_ACCESS_TOKEN=xxx
@@ -756,7 +765,7 @@ node "$SKILL_DIR/scripts/linkedin-ads.js" creatives list --campaign-id xxx
 Short-form video advertising for younger demographics.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-marketing/*/skills/unmassk-marketing' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 
 # Environment
 export TIKTOK_ACCESS_TOKEN=xxx

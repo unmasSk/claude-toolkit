@@ -79,6 +79,7 @@
 - [trading-suite-lift-tradermonty-notes.md](trading-suite-lift-tradermonty-notes.md) — tradermonty test-suite lift: conftest merge, thesis_store blocker, US-Eastern calendar list
 - [price-check-red-contract-notes.md](price-check-red-contract-notes.md) — price_check.py contract + hardening: real venue shapes, checked_at-after-fetch flaw, entry-point coverage gap
 - [position-sizer-independent-crosscheck-notes.md](position-sizer-independent-crosscheck-notes.md) — position_sizer.py hand-computed cross-check: Fraction-first, two-mutant proof, float money display
+- [d070-skip-ci-marker-contract-notes.md](d070-skip-ci-marker-contract-notes.md) — D-070 skip-ci RED contract: line-anchor regression risk, 3/6 points RED, 2 pre-existing tests needed zero changes
 
 ## Retired (different stack or superseded, kept on disk unlinked)
 

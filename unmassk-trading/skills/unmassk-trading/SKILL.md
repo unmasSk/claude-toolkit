@@ -40,7 +40,7 @@ therefore **self-contained**: it resolves the directory in the same call that us
 Copy them whole, never line by line.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 ls "$SKILL_DIR/scripts/price_check.py"      # prove it before trusting it
 ```
 
@@ -190,7 +190,7 @@ into the current working directory. Everywhere below, `<dir>` is that path.
 **With `<dir>` agreed, build the environment the gates need, once:**
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 mkdir -p <dir>/theses <dir>/reports <dir>/journal
 python3 -m venv <dir>/venv
 <dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
@@ -232,7 +232,7 @@ number gates a decision it is checked against a second venue:
 kraken ticker BTCEUR -o json
 kraken ohlc BTCEUR --interval 60 -o json
 
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/price_check.py" --pair BTC/EUR
 ```
 
@@ -295,7 +295,7 @@ the one edge this skill genuinely has.
 missing input — ask for that one thing.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/position_sizer.py" \
   --account-size 500 --entry 67517 --stop 63000 --risk-pct 1.0 \
   --fractional --share-precision 8 --max-position-pct 25 --output-dir <dir>/reports
@@ -335,7 +335,7 @@ arithmetic: `references/risk-and-sizing.md`.
 ## The gates
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/check_circuit_breaker.py" \
   --account-size 500 --state-dir <dir>/theses --output-dir <dir>/reports
 
@@ -394,7 +394,7 @@ These scripts need `PyYAML`; `jsonschema` is imported lazily and only matters fo
 suite and for candidates carrying a `thesis_id`. If an import fails:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 <dir>/venv/bin/pip install -q -r "$SKILL_DIR/../../requirements.txt"
 ```
 

@@ -358,7 +358,7 @@ gitmem rule
 **If the bare command is not found, that is not a reason to reach for a long path — it is the signal that this project was never set up.** Run the installer once — discovered fresh in the same breath it runs, never a path pasted once and kept, since a kept path carries a version number and goes stale the day the toolkit updates:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-toolkit/*/skills/unmassk-memory' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-toolkit/*/skills/unmassk-memory' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/../../bin/git-memory-install.py" --auto
 ```
 

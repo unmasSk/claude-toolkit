@@ -62,10 +62,19 @@ railway logs --service <service> --environment <env> --lines 200 --json
 
 ## Metrics
 
+> **Paths.** Every `scripts/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+bash "$SKILL_DIR/scripts/railway-api.sh"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 Resource usage metrics (CPU, memory, network, disk) are only available through the GraphQL API:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-ops/*/skills/ops-deploy' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 "$SKILL_DIR/scripts/railway-api.sh" \
   'query metrics($environmentId: String!, $serviceId: String, $startDate: DateTime!, $groupBy: [MetricTag!], $measurements: [MetricMeasurement!]!) {
     metrics(environmentId: $environmentId, serviceId: $serviceId, startDate: $startDate, groupBy: $groupBy, measurements: $measurements) {

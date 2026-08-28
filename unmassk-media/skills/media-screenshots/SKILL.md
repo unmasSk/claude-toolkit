@@ -20,6 +20,15 @@ version: 1.0.0
 Capture HiDPI marketing screenshots of any web app using Playwright.
 All screenshots use `deviceScaleFactor: 2` (true retina, 2880x1800 at default viewport).
 
+> **Paths.** Every `scripts/…` and `references/…` path below is relative to this skill's own directory. To actually run one, resolve that directory in the same command — a shell variable does not survive from one call to the next:
+
+```bash
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-screenshots' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
+node "$SKILL_DIR/scripts/<the script you want>"
+```
+
+> If `$SKILL_DIR` comes back empty, the plugin is running from a checkout rather than an install: use the absolute path from the `Base directory for this skill:` line printed when this skill loaded. `${CLAUDE_PLUGIN_ROOT}` is empty in the Bash tool; never paste it into a command.
+
 Based on claude-screenshots by Shpigford (MIT License).
 
 ## Request Routing
@@ -79,7 +88,7 @@ Copy the bundled script to the project root, configure `BASE_URL`, `AUTH`, and
 `SCREENSHOTS`, then run it:
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-screenshots' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-media/*/skills/media-screenshots' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 cp "$SKILL_DIR/scripts/screenshot-script.mjs" .
 node screenshot-script.mjs
 ```

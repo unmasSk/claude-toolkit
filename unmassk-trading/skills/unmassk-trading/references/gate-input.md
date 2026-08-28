@@ -54,7 +54,7 @@ belongs, a non-numeric string, `NaN`, an infinity or a negative all produce
 ## Running it
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | sort -V | tail -1)
+SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-trading/*/skills/unmassk-trading' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
 python3 "$SKILL_DIR/scripts/check_pre_trade_discipline.py" \
   --answers-file <file>.json \
   --state-dir <dir>/theses \

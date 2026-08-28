@@ -5,6 +5,55 @@ metadata:
   type: project
 ---
 
+## claude-toolkit blind review: commit `1c89325` "retire R-018" (2026-08-28)
+Target: 67 ficheros que reemplazan `${CLAUDE_PLUGIN_ROOT}` (roto en el Bash tool,
+R-018 retirado por R-019) por dos patrones distintos. Veredicto FALLA. El
+hallazgo mas grande no esta en el diff sino en lo que el diff no toca: **el fix
+nunca se publico**. `diff unmassk-toolkit/skills/unmassk-memory/SKILL.md
+.claude/plugins/cache/unmassk-claude-toolkit/unmassk-toolkit/1.42.0/skills/unmassk-memory/SKILL.md`
+(1.42.0 es la version mas alta cacheada, la que de verdad se carga) muestra que
+el cache sigue con el `${CLAUDE_PLUGIN_ROOT}` viejo -- confirmado igual en las
+otras 6 plugins (`unmassk-db/design/marketing/media/ops/seo`, un `diff` por
+cada una contra su unica version cacheada, las 6 DIFIEREN). Cualquier sesion
+real hoy sigue recibiendo el comando roto que este commit dice haber retirado.
+
+Segundo hallazgo, mas sutil: de los 15 ficheros que adoptaron el patron
+`SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 ... | sort -V | tail -1)`,
+**solo uno** (`unmassk-memory/SKILL.md`, el caso "mas consecuente" que pedia la
+tarea) escribe que hacer si `SKILL_DIR` sale vacio. Los otros 14 no dicen nada,
+y ese mismo mecanismo de descubrimiento **no funciona en absoluto corriendo
+desde un git checkout** (el escenario que la propia tarea pedia probar) --
+`~/.claude/plugins/cache` simplemente no tiene nada que buscar.
+
+Tercero, demostrado con datos reales de esta maquina, no fabricado: el cache
+real de `claude-plugins-official` ya tiene hoy directorios de version
+literales `unknown` con `.orphaned_at` (`plugin-dev/unknown`, `context7/unknown`)
+coexistiendo con versiones reales -- es un estado que el propio mecanismo de
+cache de Claude Code produce. `sort -V` ordena `unknown` DESPUES de cualquier
+semver (`printf '1.35.1\n1.42.0\nunknown\n' | sort -V` -> `unknown` al final),
+así que si ese mismo estado le pasa alguna vez a un plugin unmassk-*, las 15
+skills con este patron eligen en silencio la copia huerfana en vez de la
+version real -- reproducido en `/private/tmp/.../scratchpad/fake-cache2`: un
+`unmassk-marketing/unknown/skills/.../mailchimp.js` con `.orphaned_at` gana a
+`unmassk-marketing/1.1.1/...` y el script equivocado corre sin ningun error.
+
+Cuarto: el otro patron usado en el mismo commit (`design-3d`, `design-animation-formats`,
+`db-migrations`, `db-schema-design`, etc.) no usa `find` en absoluto -- pela el
+prefijo `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/` de cada celda de una tabla y deja
+la ruta relativa desnuda (`python3 scripts/threejs/setup_scene.py ...`), apoyada
+solo en un parrafo de prosa que dice "relativo al directorio de esta skill".
+Ejecutado literal (`python3 scripts/threejs/setup_scene.py --renderer basic`
+desde un Bash fresco) -> `No such file or directory`, porque nada en el bloque
+hace `cd` ni resuelve el directorio. Falla visible, no silenciosa, pero no
+"corre de punta a punta pegado en un Bash fresco" como pide el contrato.
+
+Quinto, menor pero real: dos rutas que el commit reescribio con el patron nuevo
+y "mas correcto" sin notar que ya estaban rotas antes -- `scripts/setup_tools.sh`
+citado en `unmassk-ops/skills/ops-containers/references/k8s-validation-workflow.md`
+y `assets/.yamllint` en el mismo fichero. Ninguno de los dos existe en el repo
+(`find` vacio); el script de verdad se llama `k8s-setup-tools.sh` y esta un
+nivel de fichero mas arriba, en `SKILL.md`.
+
 ## unmassk-trading, QUINTA ronda: cold walk sobre `6c153f4` (2026-08-28)
 Target: el skill ya con los arreglos de la ronda 4. Mismo metodo: binario
 `kraken` 0.4.1 del tarball + `HOME` falso con el plugin en
