@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-28
+
+### Fixed
+
+- **Every documented command in the plugin was broken.** The README, the core skill, and all 10 references (`ads`, `analytics`, `email`, `growth`, `integrations-ads`, `integrations-analytics`, `integrations-crm`, `integrations-email`, `retention`, `sales`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
+
 ## [1.0.3] - 2026-08-28
 
 ### Fixed
@@ -38,12 +44,6 @@
 
 - **Every documented command in the plugin's README and 6 of its 7 skills was broken the same way**: `${CLAUDE_PLUGIN_ROOT}` resolves to nothing in the Bash tool, so the README plus `ops-cicd` (incl. its 2 GitHub Actions references), `ops-containers`, `ops-deploy` (incl. its 3 Railway references), `ops-iac`, `ops-observability` and `ops-scripting` all shipped commands that died on invocation (`ops-error-tracking` was already clean). Each now resolves its own skill directory in the same call and discards orphaned cache copies before sorting on version (R-019, R-020).
 - **`ops-containers/references/k8s-validation-workflow.md` named three scripts that don't exist on disk.** `scripts/setup_tools.sh` → `scripts/k8s-setup-tools.sh`, `scripts/detect_crd_wrapper.sh` → `scripts/k8s-detect-crd-wrapper.sh`, and a `yamllint -c "$SKILL_DIR/assets/.yamllint"` pointing at a config this skill never ships — the flag is dropped and yamllint's own defaults apply. Prompted a full sweep: all 261 documented script paths in the repository were checked against the real tree, and every one now resolves.
-
-## [1.1.2] - 2026-08-28 (unmassk-marketing)
-
-### Fixed
-
-- **Every documented command in the plugin was broken.** The README, the core skill, and all 10 references (`ads`, `analytics`, `email`, `growth`, `integrations-ads`, `integrations-analytics`, `integrations-crm`, `integrations-email`, `retention`, `sales`) built their commands on `${CLAUDE_PLUGIN_ROOT}`, empty in the Bash tool, so every documented invocation died before running. Each file now resolves its own skill directory inline and discards orphaned cache copies before sorting on version, and reference tables carry a **Paths.** note showing how to run any row (R-019, R-020).
 
 ## [1.43.0] - 2026-08-28 (unmassk-toolkit)
 
