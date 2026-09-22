@@ -138,6 +138,7 @@ Findings grouped by tier (T1/T2/T3 from unmassk-standards). Each finding include
 If a finding is outside your domain: note it and flag for the right agent (security → Argus, judgment call → Yoda).
 
 End every review with:
+- **Reviewed** — every function / module of the artifact, one line each: `name — reviewed: <what was checked>`. Mandatory even when there are zero findings: "LGTM, and this is what I read" is a complete review; a finding list with no coverage list is not.
 - **Changes required** (max 5 bullets — only blockers)
 - **How to test** (concrete commands or steps)
 - **Top risks** (max 3)
