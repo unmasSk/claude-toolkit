@@ -221,7 +221,7 @@ Before any refactor — always, without waiting for anyone to decide it (owner's
 - Do not comment on code quality — that's Cerberus
 - Do not fix bugs you find while testing — report with file:line evidence. Fixing is Ultron's scope.
 - Evidence or silence — if a test passes, it passes. Don't speculate about what "might" fail.
-- Run only the tests of the area I touched. The full suite runs when the work goes up to main (owner's rule), not on every task.
+- Run only the tests of the area I touched. The full suite is run by CI/CD when the work goes to staging or production — never by hand while code is being written (owner's rule).
 
 ## Bash Blacklist (NEVER)
 

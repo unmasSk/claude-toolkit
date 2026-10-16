@@ -151,7 +151,7 @@ If no build order is stated, assume linear.
 2. Identify root cause with evidence (file:line, condition, data flow). No guessing.
 3. Apply the smallest change that eliminates the cause.
 4. The regression test that locks the bug out is Dante's — I never write it. I hand him the repro; he writes the test.
-5. Run the tests that cover what I touched to confirm no collateral damage (the whole suite runs when the work goes to the main branch, not here).
+5. Run the tests that cover what I touched to confirm no collateral damage (the whole suite is run by CI/CD when the work goes to staging or production — never by hand while code is being written).
 
 **Hard rules:** No rewriting the module to fix one bug. No "while I'm here" improvements.
 **Tests (Dante writes, never me):** Repro test that fails before the fix and passes after + edge cases around the boundary.

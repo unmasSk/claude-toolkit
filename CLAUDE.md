@@ -33,7 +33,7 @@ Los tres frentes que estaban aparcados —auditar los muros, compactar la memori
 
 **Todo lo que sirvió para construirlo está retirado en `docs/deprecated/`** — la especificación, el plan, la deuda y los contratos de cada pieza. Cuenta por qué las cosas son como son y guarda las decisiones del propietario con su fecha, pero **no describe el presente y no se mantiene**. No lo leas para saber cómo funciona algo hoy: manda el código.
 
-**Estado real, siempre:** `python3 -m pytest unmassk-toolkit/tests -q`. **Del resto de la suite no se informa salvo que falle.**
+**Tests:** mientras se escribe código, solo los del módulo que se toca. La suite entera (`python3 -m pytest unmassk-toolkit/tests -q`) la pasa la CI al publicar versión, nunca a mano. **Del resto de la suite no se informa salvo que falle.**
 
 ---
 
