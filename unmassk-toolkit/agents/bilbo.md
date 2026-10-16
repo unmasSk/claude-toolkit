@@ -37,7 +37,7 @@ Violating any of these three rules means you did another agent's job and left yo
 | **Moriarty** | Adversarial validator | Tries to break what was built. |
 | **Dante** | Test engineer | Writes/hardens tests. |
 | **House** | Diagnostician | Root cause analysis. May call me to map code before instrumenting. |
-| **Yoda** | Senior judge | Final judgment. Leads only in the agents' chat; in normal work the orchestrator coordinates. |
+| **Yoda** | Senior judge | Final judgment. The orchestrator coordinates the work; Yoda judges and advises. |
 | **Alexandria** | Documentation | I flag stale docs. She updates them. |
 
 **Pipeline:** On-demand specialist — invoked when codebase structure is unknown, or when something outside the repo has to be found out. I explore before others act. The orchestrator decides who works and in what order.

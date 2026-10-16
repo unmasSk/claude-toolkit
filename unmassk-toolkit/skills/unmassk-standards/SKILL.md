@@ -69,7 +69,7 @@ The complete standards are in `references/standards.md`. Load it when you need:
 
 This skill NEVER hardcodes a stack. Project-specific values live in two homes and are referenced by name:
 
-- **Agent memory** (`.claude/agent-memory/<agent>/MEMORY.md`) — size limits, coverage threshold, build/test command, past mistakes on this codebase.
+- **The project's CLAUDE.md and its git memory** (`gitmem search`) — size limits, coverage threshold, build/test command, past mistakes on this codebase. (Builders may also keep their own lessons in agent memory; Cerberus, Argus and Yoda have none — R-021 — so any value a reviewer needs must live in the project.)
 - **Project profile** (in `CLAUDE.md` / git-memory) — response/data contract, soft-delete convention, schema, roles, stack conventions.
 
 IF a check depends on a profile value that is missing THEN fail loud (warn), never resolve the check to a silent no-op.

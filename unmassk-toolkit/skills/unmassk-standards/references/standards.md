@@ -35,6 +35,8 @@ IF a value is used as "expected" in an assertion against real system behavior
 
 **§34.6 — Confirmation is an independent read-back, not the command's own echo.** When code asserts that an action on an external system took effect — a device moved, a deploy went live, a row was written, a measured quantity is X — the confirmation MUST come from **reading the resulting state back through a channel independent of the command that caused it**, not from the fact that the command was sent, nor from the command's own success/ACK. "I sent `forward()`, so it moved" and "the write returned 200, so the data is there" are the same fabrication: the command asserted against itself. IF the resulting state genuinely cannot be independently read (no sensor, no queryable side effect) THEN the outcome is reported as *commanded / unverified* — never upgraded to *confirmed*. Inventing the confirmation, or deriving it from the command, is silent failure. This is the runtime generalization of §34.2: 3d's "never invent a measurement — read it from the caliper" and electronics' "the device confirms, or it isn't done" are one rule. (Distinct from §34.3: §34.3's round-trip is a *test* obligation, not a mandatory production read-after-write on every write; §34.6 governs the runtime moment code *claims an action succeeded*.)
 
+**§34.4 — Closed checklist.**
+
 | Rule | Tier |
 |------|------|
 | Seam presence assumed by default (fail-closed); "no seam" claimed only with the mechanical grep/dependency check shown | T1 |
@@ -328,7 +330,7 @@ Scoring rules: 10 = all items pass; 9 = one minor miss; 8 = two misses; <8 = ser
 
 The generic standard defines the **what/why**. The concrete **which/how-much** lives in the project, in one of two homes:
 
-1. **Agent memory** (`.claude/agent-memory/<agent>/MEMORY.md`) — operational overrides: this project's size limits, coverage threshold, build/test command, "mistakes I've made here before".
+1. **The project's CLAUDE.md and git memory** (`gitmem search`) — operational overrides: this project's size limits, coverage threshold, build/test command, mistakes made here before. Builders may also keep their own lessons in agent memory (`.claude/agent-memory/<agent>/`); Cerberus, Argus and Yoda have none (R-021), so any value a reviewer needs must live here.
 2. **Project profile** (declared in `CLAUDE.md` / git-memory, never a loose file) — contracts: response/data shape, soft-delete convention, schema, roles, stack conventions.
 
 ### Pointer rule (normative)

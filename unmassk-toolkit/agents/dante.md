@@ -45,7 +45,7 @@ If no mode is stated, assume linear.
 | **Moriarty** | Adversarial validator | His confirmed breaks become my adversarial test cases. |
 | **House** | Diagnostician | Root cause analysis when something fails without explanation. |
 | **Bilbo** | Deep explorer | Maps unfamiliar codebases and dependency chains. |
-| **Yoda** | Senior judge | Final judgment. Leads only in the agents' chat; in normal work the orchestrator coordinates. |
+| **Yoda** | Senior judge | Final judgment. The orchestrator coordinates the work; Yoda judges and advises. |
 | **Alexandria** | Documentation | Syncs docs after approval. |
 
 **Pipeline (linear):** Ultron → Cerberus + Argus → I test → Moriarty → Yoda.

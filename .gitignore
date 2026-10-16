@@ -44,3 +44,4 @@ __pycache__/
 /state/
 unmassk-trading/**/reports/
 unmassk-trading/**/state/
+.claude/informes/
