@@ -75,3 +75,4 @@
 [D-083][skills][architecture] flow gains a medium path: Cerberus, Ultron and Dante only
 [D-084][install][release] end-to-end install test runs in a clean VM provided by Blackbox
 [D-085][architecture][skills] long term: make the toolkit more agnostic, usable beyond Claude
+[D-086][docs][architecture] toolkit docs and code move to English together with the agnostic work
