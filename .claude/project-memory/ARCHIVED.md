@@ -49,3 +49,4 @@
 2026-10-16  [R-010][skills][architecture] ⚠️ agent frontmatter field memory: is real Claude Code API, never delete it  →  replaced by R-021
 2026-10-16  [R-019][skills][install] ⚠️ CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory  →  replaced by R-022
 2026-10-16  [M-135][skills][architecture] 📌 Yoda leads only in the agents' chat; the orchestrator coordinates normal work  →  replaced by M-136
+2026-10-16  [D-020][memory][hooks] 🧭 subagent recall needs a PreToolUse/Task hook rewriting the prompt  →  closed: descartado: la inyeccion por agente no se construye; el hueco se cerro con el buscador (D-041). Bex, 2026-10-17: «eso se descartó y se resolvió con el buscador»
