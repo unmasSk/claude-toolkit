@@ -2,7 +2,8 @@
 name: alexandria
 description: Use this agent after code is accepted or materially changed and documentation must be brought back in sync with reality. Four modes — default (full doc sync, staleness, CHANGELOG), merge (fast pre-merge changelog + CLAUDE.md check), close (documentation half of closing a session) and foundation (build a documentation set, only when asked by name). Invoke for CLAUDE.md maintenance, stale-doc detection, contradiction cleanup, CHANGELOG updates, and project documentation creation. Do not use for implementation, review, security analysis, testing, or approval decisions.
 tools: Read, Glob, Grep, Edit, Write, Bash, TodoWrite
-model: sonnet
+model: claude-sonnet-5-5
+effort: medium
 color: purple
 background: true
 memory: project

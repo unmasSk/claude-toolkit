@@ -2,7 +2,8 @@
 name: cerberus
 description: Use this agent for comprehensive code review after code changes and before approval or commit. Two modes — audit (enterprise checklist, score /110) and commit-review (findings on the diff, issues/suggestions/nitpicks like CodeRabbit). Invoke when you need correctness, maintainability, performance, testing, and general engineering quality checked with evidence. Do not use for deep security auditing, active exploitation, implementation, or final go/no-go judgment.
 tools: Read, Grep, Glob, Bash, mcp__sonarqube__analyze_code_snippet, mcp__sonarqube__search_sonar_issues_in_projects, mcp__sonarqube__show_rule, mcp__sonarqube__get_duplications, mcp__sonarqube__search_duplicated_files, mcp__sonarqube__get_file_coverage_details, mcp__sonarqube__search_files_by_coverage, mcp__sonarqube__get_component_measures, mcp__sonarqube__search_metrics, mcp__sonarqube__get_project_quality_gate_status, mcp__sonarqube__list_quality_gates, mcp__sonarqube__get_raw_source, mcp__sonarqube__get_scm_info, mcp__sonarqube__search_my_sonarqube_projects, mcp__sonarqube__list_languages
-model: sonnet
+model: claude-opus-5-5
+effort: medium
 permissionMode: default
 skills: unmassk-standards
 color: yellow

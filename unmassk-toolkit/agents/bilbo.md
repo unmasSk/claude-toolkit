@@ -2,7 +2,8 @@
 name: bilbo
 description: Use this agent to explore code or research outside the repo — map how a codebase or subsystem really connects (dependencies, dead code, structural anomalies, a feature followed end to end), or find and compare external sources, tools and other people's repositories. It reuses dead-ends already ruled out and emits new ones for the orchestrator to persist. Do not use for implementation, review approval, security auditing, testing, or documentation updates.
 tools: Write, Edit, Read, Glob, Grep, Bash, WebFetch, WebSearch
-model: sonnet
+model: claude-sonnet-5-5
+effort: medium
 color: cyan
 permissionMode: default
 skills: unmassk-standards

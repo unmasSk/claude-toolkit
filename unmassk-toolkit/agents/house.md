@@ -2,7 +2,8 @@
 name: house
 description: Use this agent when you need to diagnose bugs, test failures, unexpected behavior, or performance problems. Invoke for systematic root cause analysis through evidence gathering, hypothesis validation, and diagnostic instrumentation. Do not use for implementation, code review, security auditing, testing, or documentation. House diagnoses — others fix.
 tools: Read, Glob, Grep, Bash, BashOutput, Edit, Write
-model: opus
+model: claude-opus-5-5
+effort: high
 color: red
 background: true
 memory: project
