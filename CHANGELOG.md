@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The installer no longer wipes the owner's own hooks.** When it saw any hook command that looked stale it deleted the whole `hooks` key of a project's `settings.json`, which would have silently erased custom hooks; it now removes only the toolkit's own old commands (I-004).
+- **Boot no longer tries the memory auto-install outside a git repository.** It now skips it silently instead of failing in a folder where there is no memory to install ([#88](../../issues/88)).
+
+### Added
+
+- **`reviewer-prompt-gate.py`, a new hook that denies Cerberus, Argus and Yoda launches whose prompt asks them to find or report problems, or lacks the `ASK:` line.** A reviewer asked for findings always brings findings, so the blind-review template is now enforced instead of remembered ([#91](../../issues/91)).
+- **`gitmem --help`, `-h`, `help` and bare `gitmem` now list every subcommand with a one-line description.** All CLI messages are now in English.
+- **SonarQube MCP tools and a mandatory "SonarQube first" section in Cerberus and Argus**: the mechanical sweep is done by SonarQube when the MCP is available, and each issue is a candidate the reviewer confirms at its line, never reported as clean if the tool is unavailable.
+- **`docs/plan/2026-10-16-arnes-v2.md` (the harness v2 redesign plan) and `docs/RECOMENDACIONES.md` (comparison with Gentle-AI) are now in the repo** ([#91](../../issues/91), [#88](../../issues/88)).
+
+### Changed
+
+- **`unmassk-flow` Verify now runs in two phases.** Cerberus and Argus review each task as it is built; Moriarty, Yoda and Alexandria run once at the end, Yoda blind (artifact, contract and reference id only), and Close runs only the tests of the touched area instead of the whole suite; `flow.json` matches ([#88](../../issues/88)).
+- **Reviews are a single pass and never ask for findings.** The review template gained the `ASK:` line (finding nothing is a valid answer), and what Cerberus and Argus flag is fixed once without sending them over the fix again.
+- **Cerberus, Argus and Yoda keep no memory of their own**, so past reviews cannot steer a blind one; the memory stays on the six builders (R-021).
+- **Agent cards rewritten**: House, Argus, Alexandria, Cerberus, Ultron and Moriarty (plus an index-line rule in Dante). Ultron reports bugs outside his task instead of fixing them and may no longer use `git stash`/`checkout`/`restore`; Moriarty's attempt budget wins over the coverage gate; Alexandria gets four modes and reads a project's own changelog rules from its memory.
+- **The `unmassk-memory` skill is shorter**: setup, rejection answers and the three situations moved to `references/`, with a pointer from the skill to each.
+
 ## [1.43.0] - 2026-08-28
 
 ### Fixed
