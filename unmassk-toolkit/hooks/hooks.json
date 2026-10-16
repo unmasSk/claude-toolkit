@@ -51,6 +51,16 @@
           }
         ],
         "matcher": "Bash"
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/reviewer-prompt-gate.py",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
