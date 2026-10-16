@@ -92,3 +92,4 @@
 [X-092][skills][docs] deepen the thin domain skills with steps, a done criterion and a check script
 [X-093][skills][docs] molde solo para las skills nuevas
 [X-094][skills][architecture] mantener solo dos vías (pequeño y estándar)
+[X-095][install][release] prueba en contenedor o CI de GitHub
