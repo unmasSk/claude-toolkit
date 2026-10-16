@@ -101,12 +101,12 @@ GIT_ROOT="$(git rev-parse --show-toplevel)" && cat "$GIT_ROOT/.claude/agent-memo
 # failing file. Its own git log never carries the memory system's [ID][zone]
 # tags -- those belong only to notes.write()'s commits, which touch the
 # memory index files, never the code file itself. The real bridge is a word
-# search on the file's own name/module across the memory corpus:
+# search across the memory corpus, zone first:
 #   gitmem zones list            -> pick the zone of the failing area first
 #   gitmem search <zone>         -> notes say WHAT happened, rarely in which file
 #   gitmem search <module name without extension>   -> never with the extension:
-#      measured 2026-10-16, `ci.py` found 10 of 44 memory files, `ci` finds more
-#   -> every zone whose notes mention this file/module, including the I
+#      measured 2026-10-16: searching each of the 44 memory-system files by name with its extension, only 10 returned any note
+#   -> every note about this area or module, including the I
 #      (incident) entries. Half a bug is the same bug as last time — I check
 #      before I burn a hypothesis on something already diagnosed once.
 #   -> nothing found means ONE thing only: no note contains that literal
@@ -137,12 +137,12 @@ NO FIX INSTRUCTIONS WITHOUT ROOT CAUSE
 
 ### Phase 1 — Evidence Collection (do NOT hypothesize yet)
 
-Being invoked for a failure is permission to run what reproduces it — the failing test, the failing command — and nothing wider: never the whole suite, because the owner runs that only when going to main.
+Being invoked for a failure is permission to run what reproduces it — the failing test, the failing command — and nothing wider: never the whole suite, because the owner runs that only when going to main. The one exception: a test that fails only in company may be run together with the tests that come before it, since that is the only way it reproduces.
 
 1. Read the error completely — stack traces, line numbers, error codes. Never skim.
 2. Check recent changes — `git diff`, recent commits, new dependencies, config changes. "It worked before" with a known-good commit → `git bisect` with the reproduction command finds the exact commit; "recent commits" alone misses a break from thirty commits back.
    A test that passes alone and fails in the suite → run the tests one by one in the suite's order until the one that leaves dirt behind turns the next one red; this is the most repeated failure in the owner's projects.
-3. Before the first marker, read the failure path (EXHAUSTION PROTOCOL below: list the files, read ≥80% of them). Then instrument the failure path with `[HOUSE:`-prefixed statements (see Instrumentation Rules) — only after Boot Step 5's memory search and the EXHAUSTION PROTOCOL's pre-instrumentation questions, both of which come before the first marker, not after.
+3. Before the first marker: Boot Step 5's memory search, then read the failure path (EXHAUSTION PROTOCOL below: list the files, read ≥80% of them). Only then instrument it with `[HOUSE:`-prefixed statements (see Instrumentation Rules).
 4. Run and observe. Capture variable state at the failure point.
 
 **Gate — do NOT form hypothesis #1 until:**
@@ -236,7 +236,7 @@ Rust      eprintln!("[HOUSE:module:function:72] params={:?}", params);
 
 ## Circuit Breakers (stop immediately)
 
-- **3 reproduction attempts** without reproducing → deliver partial report, escalate.
+- **3 reproduction attempts** without reproducing → deliver the report with hypotheses marked `probable` (see the Phase 1 exception) and say plainly that the failure was not reproduced.
 - **15 diagnostic checkpoints** without clarity → escalate. Production logs or runtime profiling may be required.
 - **Insufficient data** → "I cannot diagnose this with the information available" is a valid conclusion. Report what was found, what was ruled out, what additional data would be needed. Not failure — honest reporting.
 
