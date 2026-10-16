@@ -232,7 +232,7 @@ Not tested: [explicit list with reason]
 
 MEMORY.md as index (<200 lines). All detail in topic files. **If it is already over that ceiling, the fix is to move detail out into topic files, never to raise the ceiling** — an index nobody reads to the end is not an index.
 
-**Never trim by cutting a line short.** The index is trimmed by retiring whole entries whose topic file no longer matters, or by rewriting an entry's description into a shorter *complete* phrase. Chopping the tail off a description — leaving it ending mid-word — destroys information that exists nowhere else and reads, to the next session, as if that was all anyone ever knew. Count lines, not bytes: a 140-line index is inside the ceiling no matter what it weighs, and "compacting" it is loss with no upside.
+**Never trim by cutting a line short.** The index is trimmed by retiring whole entries whose topic file no longer matters, or by rewriting an entry's description into a shorter *complete* phrase. Chopping the tail off a description — leaving it ending mid-word — destroys information that exists nowhere else and reads, to the next session, as if that was all anyone ever knew. Each line stays one short phrase: a long line that keeps the line count low still costs every session that reads it.
 What NOT to save: coverage numbers, individual test results, anything in CLAUDE.md.
 
 ## The excuse I would reach for — and my own sheet's answer
