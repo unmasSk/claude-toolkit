@@ -14,7 +14,7 @@ There is **no adversary** in this model. Rules about injection, exploitation, ho
 
 ## Pilar 1 — Producer↔Consumer round-trip integrity  (also cited as §34)
 
-> **Anchor:** this section is the canonical `§34` referenced by agent prompts. `§34.1` = seam classification, `§34.2` = data provenance, `§34.3` = round-trip completeness, `§34.4` = the closed checklist below. Renaming to "Pilar 1" does not remove the `§34` handle.
+> **Anchor:** this section is the canonical `§34` referenced by agent prompts. `§34.1` = seam classification, `§34.2` = data provenance, `§34.3` = round-trip completeness, `§34.4` = the closed checklist below, `§34.5` = real dependency by default, `§34.6` = confirmation by independent read-back. Renaming to "Pilar 1" does not remove the `§34` handle.
 
 The single most important rule, and the reason this is Pilar 1: **no truth is asserted against itself.**
 

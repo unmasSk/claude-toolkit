@@ -52,7 +52,7 @@ The complete standards are in `references/standards.md`. Load it when you need:
 
 ## Sections covered
 
-- **Pilar 1** — Producer↔Consumer round-trip integrity (`§34`, `§34.1`–`§34.4`)
+- **Pilar 1** — Producer↔Consumer round-trip integrity (`§34`, `§34.1`–`§34.6`)
 - **§1** — Tier system + generic finding classification + execution priority
 - **§2** — Design principles (SOLID/DRY/KISS/YAGNI) + size-limit & extraction decision trees + dead-code/cast policy
 - **§3** — Memory / persistence integrity
