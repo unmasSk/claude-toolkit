@@ -1,263 +1,392 @@
 ---
-name: mock-patterns
-description: Working mock patterns for Bun test suites (bun:test, ESM, SQLite, WebSocket)
-type: project
+name: rescued-python-test-techniques-notes
+description: live pytest/git/Windows test techniques rescued 2026-10-16 from the retired catch-alls conventions.md, edge-cases.md, mock-patterns.md
+metadata:
+  type: project
 ---
 
-## Database Mock (Bun ESM-safe, chatroom/backend)
+# Rescued test techniques (still live)
 
-Pattern: mock `connection.js` BEFORE imports. Use a persistent in-memory DB for the entire file.
+Rescued 2026-10-16. The three catch-all files were marked retired as "chatroom/v1 material", but these sections are generic techniques for unmassk-toolkit/tests that still apply (helpers checked on disk: tests/_git_intercept.py, tests/conftest.py, lib/git_helpers.py run_git, hooks/pre-merge-gate.py). Copied verbatim; chatroom, omawa, v1-module (recall.py, boot_memory.py…) and attacker-model sections were left out. Some overlap with [[unmassk-toolkit-python-test-conventions]] is possible.
 
-```ts
-import { mock } from 'bun:test';
-import { Database } from 'bun:sqlite';
+# From conventions.md
 
-const _testDb = new Database(':memory:');
-_testDb.exec(`CREATE TABLE IF NOT EXISTS rooms (...); INSERT OR IGNORE INTO rooms ...`);
+## Python Pytest (unmassk-toolkit/tests/)
 
-// MUST be before any import that transitively loads queries.ts
-mock.module('./connection.js', () => ({
-  getDb: () => _testDb,
-}));
+Framework: `pytest` (standard). No bun, no Vitest.
+Run: `python -m pytest unmassk-toolkit/tests/<file> -q` from git root.
+CWD for subprocess calls: always a `tmp_path`-based temp git repo (NOT the project repo).
 
-// Then import the real query functions
-import { insertMessage, getRecentMessages } from './queries.js';
-```
+Patterns used:
+- Class-per-scenario (e.g. `TestSubagentTypeAbsentOrEmpty`) with one assert per method.
+- `_make_repo(tmp_path)` + `_commit(repo, subject, trailers)` for fixture setup.
+- `_run_hook(repo, tool_name, tool_input_dict)` → `(rc, parsed, stdout, stderr)`.
+- `_run_hook_raw(repo, payload_str)` for testing malformed inputs.
+- `_hook_specific(parsed)` → `parsed["hookSpecificOutput"]`.
+- Import `run_cmd` from `conftest` for raw subprocess invocations.
+- No `@pytest.fixture` used in hook tests — all setup is inline per test.
 
-Rotate DB per test: use `let currentDb: Database` and replace it in `beforeEach(() => { currentDb = makeDb(); })`. The closure in the mock factory references `currentDb` lazily.
+Importing internal functions from hooks/bin (no main() side effects):
+- Use `importlib.util.spec_from_file_location("unique_mod_name", SCRIPT_PATH)` + `spec.loader.exec_module(mod)`
+- Prepend LIB_DIR to sys.path BEFORE exec_module so hook's own lib imports resolve
+- Use a unique module name per test class to avoid importlib cache collisions
+- Pattern validated for: session-start-boot._sanitize_trailer_value, git-memory-gc.find_stale_items
 
-## App Singleton Mock (message-bus.ts broadcast)
+Regression test labeling convention (auditoría round 2):
+- [ROJO]: test que DEBE fallar con el código actual (documenta el bug)
+- [GUARDA]: test que DEBE pasar antes y después del fix (invariante de no regresión)
 
-`broadcast()` dynamically imports `../index.js` to get the Elysia app. Mock the deep dependency:
+## Branch-aware hook testing (pre-merge-gate.py style, session 2026-07-01)
 
-```ts
-mock.module('../index.js', () => ({
-  app: {
-    server: {
-      publish(topic: string, data: string) { /* capture or no-op */ },
-    },
-  },
-}));
-```
+When a hook needs to shell out to git to learn current-branch / upstream
+identity (not just regex over the command string), build a REAL git fixture
+rather than mocking git plumbing:
 
-DO NOT mock `./message-bus.js` if another test file imports the real `broadcast` function — that will contaminate it.
+- `git branch -m <name>` after the initial commit to force a deterministic
+  branch name — never rely on `git init -b` / `init.defaultBranch`, it
+  varies across git versions/configs.
+- For upstream-tracking scenarios (`@{u}`, `refs/remotes/origin/<branch>`),
+  create a real local bare repo (`git init --bare` in a sibling tmp_path
+  dir) as `origin`, then `git push -u origin <branch>` from the working
+  repo. Push auto-populates the local remote-tracking ref — no fetch needed,
+  no network.
+- Invoke the hook the same way test_security_regression.py does: subprocess
+  + JSON stdin payload, `cwd=repo`. Do not import-and-call for hooks that
+  shell out — the whole point is exercising the real subprocess/cwd path.
 
-## Node:fs Mock (agent-registry.ts file-reading path)
+This confirmed a mixed RED/GUARD result is normal and expected within a
+single contract-pass file: scenarios that require NEW logic are RED (fail
+against the unmodified hook), scenarios documented as "already implemented"
+are GUARD (pass now, must keep passing). Don't force all tests in a
+test-first contract file to be RED — report the true split honestly (see
+`test_pre_merge_gate.py`).
 
-```ts
-mock.module('node:fs', () => {
-  const realFs = require('node:fs');
-  return {
-    ...realFs,
-    existsSync(p: string) { return p === FAKE_DIR ? true : realFs.existsSync(p); },
-    readdirSync(p: string) { return p === FAKE_DIR ? fakeFileList : realFs.readdirSync(p); },
-    readFileSync(p: string, enc?: string) {
-      if (p.startsWith(FAKE_DIR)) return fakeFiles[basename(p)];
-      return realFs.readFileSync(p, enc);
-    },
-  };
-});
-```
 
-## Config Mock (override env-evaluated constants)
+# From edge-cases.md
 
-For constants evaluated at import time (like AGENT_DIR), mock the config module or set env before import:
+## Windows git bare repo — clone default branch mismatch
 
-```ts
-// Option A: env var before import (works if module reads process.env lazily)
-process.env.DB_PATH = '/tmp/test.db';
-const { getDb } = await import('./connection.js');
+`git init --bare` on Windows defaults HEAD to `master`. If the source repo uses `main`,
+cloning the bare repo produces "warning: remote HEAD refers to nonexistent ref" and the
+clone has no checked-out branch — causing `git push origin main` from the clone to fail
+with "src refspec main does not match any".
 
-// Option B: mock.module
-mock.module('../config.js', () => ({
-  ...require('../config.js'),
-  AGENT_DIR: '/fake/agents',
-}));
-```
+Fix: always pass `-b main` to `git init --bare` when the source uses `main`.
 
-## Partial Mock of agent-invoker.js (facade module)
+Affected: any test that creates a bare remote and then clones from it to simulate a
+second contributor pushing ahead (e.g. the "local behind remote" preflight scenario).
 
-When a test file must mock `agent-invoker.js` (because the module under test imports from it),
-but other test files rely on the real sanitizePromptContent / pause / resume state:
-- Use `require()` inside the mock factory to get real implementations from the split modules.
-- Only stub `invokeAgents` / `invokeAgent` (subprocess-spawning paths).
+## "Not truncated" assertions — longest-contiguous-run technique
 
-```ts
-mock.module('../../src/services/agent-invoker.js', () => {
-  const { sanitizePromptContent } = require('../../src/services/agent-prompt.js');
-  const sched = require('../../src/services/agent-scheduler.js');
-  return {
-    invokeAgents: () => {},          // stub — no real subprocess
-    invokeAgent: () => {},           // stub — no real subprocess
-    pauseInvocations: sched.pauseInvocations,   // real state
-    resumeInvocations: sched.resumeInvocations, // real state
-    isPaused: sched.isPaused,                   // real state
-    clearQueue: sched.clearQueue,               // real state
-    sanitizePromptContent,                      // real sanitizer
-    scheduleInvocation: sched.scheduleInvocation,
-    drainActiveInvocations: sched.drainActiveInvocations,
-    drainQueue: sched.drainQueue,
-    inFlight: sched.inFlight,
-    activeInvocations: sched.activeInvocations,
-  };
-});
-```
+When a contract requires proving a long payload was copied verbatim (not cut
+short) into some larger blob of text, don't hand-type the expected full
+string and compare equality (fragile — any unrelated formatting change
+breaks it) and don't just do a substring `in` check on the whole marker
+(works, but doesn't measure length precisely at the boundary). Instead:
+seed the payload with a repeated single character not otherwise common in
+the output (e.g. `"Q" * 2200`, `"Z" * 2100` — pick a different char per
+field so multiple long fields in the same blob can't be confused with each
+other), then scan the output for the longest contiguous run of that
+character and assert `run_length == len(payload)`. Natural text (headers,
+words, punctuation) essentially never repeats one character thousands of
+times in a row, so this is robust to any other content differences and
+precisely catches partial truncation (run shorter than expected) without
+requiring exact string reproduction.
 
-NEVER use a simple stub `{ sanitizePromptContent: (s) => s, isPaused: () => false, ... }`
-— that replaces the real sanitizer and makes sanitizePromptContent tests fail in the full suite.
+Used in `unmassk-toolkit/tests/test_boot_output.py` (`_longest_char_run`)
+for the session-start-boot.py stdout-truncation-fix contract: a synthetic
+context() commit with 2000+ char subject and Next/Decision/Memo/Remember
+trailers (each a distinct repeated character) must appear fully intact in
+the new fixed-path boot-log file, never in truncated form.
 
-## Cross-File Mock Contamination Rule
+## unmassk-toolkit runtime files — fixed-path convention
 
-Bun `mock.module()` persists across test files in the same run. Two rules:
-1. If file A mocks `./foo.js`, file B's import of `./foo.js` gets the mock.
-2. To avoid contamination: mock the DEEPEST dependency (index.js, not message-bus.js).
+Any new generated/runtime file for the plugin belongs under
+`.claude/.unmassk/` (see `git_helpers._GENERATED_JSONS` — the whole
+directory is already gitignored via `ensure_gitignore()`, so a new file
+placed there needs no new `.gitignore` entry). Confirmed for the
+boot-log-latest.txt fixed-path file added in the stdout-truncation-fix
+contract (session 2026-07-04).
 
-## WebSocket Testing (Elysia + bun:test)
+## Importing a hyphenated bin/ script to read its own constants (not just call it)
 
-```ts
-// Spin up real server on port 0
-const app = new Elysia().ws('/ws/:roomId', { ... });
-await app.listen(0);
-const url = `ws://localhost:${app.server!.port}/ws/default`;
+When a test needs to build an input that exactly matches a script's own
+internal format string (e.g. a commit subject assembled as
+`f"{EMOJIS[type_]} {type_}({scope}): {message}"` in
+`bin/git-memory-commit.py`), don't hardcode the emoji or prefix as a string
+literal in the test — that duplicates a source of truth Ultron could change
+independently. Instead use the same `importlib.util.spec_from_file_location`
+pattern already documented in
+[unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md)
+to import the hyphenated script as a module and read its real dict/constant
+(e.g. `EMOJIS = _mod.EMOJIS`) directly, then use it to compute boundary-case
+lengths. Confirmed safe: `git-memory-commit.py`'s module-level code (EMOJIS
+dict, CO_AUTHOR resolution) has no side effects outside `if __name__ ==
+"__main__": main()`, so exec_module() is safe to call from a test.
 
-// Wait for room_state before doing anything
-function openWsReady(url: string, timeoutMs = 2000): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    const t = setTimeout(() => reject(new Error('timeout')), timeoutMs);
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'room_state') { clearTimeout(t); resolve(ws); }
-    };
-    ws.onerror = (err) => { clearTimeout(t); reject(err); };
-  });
-}
+## Reproducing a write-failure (permissions/disk-full) fallback bug — chmod ordering matters
 
-// Rate limit key: use ws.id (Bun built-in), NOT upgrade() return data
-// upgrade() return value ({ data: { connId } }) does NOT merge into ws.data
-```
+When a hook's "write a file, fall back on failure" logic has the bug that
+the fallback-trigger variable is set to a truthy path *before* the
+try/except confirms the write succeeded (so the except branch still leaves
+a "we wrote it" signal even though nothing was written), reproduce with:
+`os.chmod(parent_dir, 0o500)` (read+execute, no write) applied to the parent
+directory **before** the target subdirectory exists — this makes
+`os.makedirs(target_subdir, exist_ok=True)` itself raise `PermissionError`
+(a subclass of `OSError`), which is what the hook's `except OSError: pass`
+catches. Do NOT chmod a directory that already has the target subdirectory
+created inside it (e.g. by an installer that already ran) — if the child
+directory already exists and is itself still writable, a read-only parent
+does not block writes into that already-existing child (Unix write
+permission is per-directory, not inherited from ancestors). Always restore
+permissions (`os.chmod(dir, 0o700)`) in a `try/finally` around the
+subprocess call, before any `tmp_path` teardown tries to remove the tree.
+Confirmed in `unmassk-toolkit/tests/test_boot_output.py`
+(`TestBootLogWriteFailureFallback`, session 2026-07-04) — needed a
+`_no_install` variant of the giant-commit repo builder specifically so
+`.claude/.unmassk` did not pre-exist.
 
-## Bun spawn subprocess testing
+## Git branch name length limits — per-component ceiling from the `.lock` file, not NAME_MAX
 
-`Bun.spawn` in agent-invoker.ts spawns real `claude -p` processes. These lines (267-479) are NOT unit-testable. Accept the coverage gap — mark in report as "requires real claude binary".
+A single-path-component branch name (no `/`) fails `git checkout -b` once
+it exceeds roughly 250 bytes on APFS (NAME_MAX=255), because git briefly
+creates a `<name>.lock` file in `.git/refs/heads/` during the ref update —
+the lock suffix (`.lock`, 5 bytes) counts against the same 255-byte
+filesystem limit, so the real usable ceiling for a single segment is
+`NAME_MAX - 5`, not `NAME_MAX`. To construct a long branch name well beyond
+what "usually short" code assumes (for testing byte-budget assumptions),
+use a two-segment name with a `/` separator, e.g. `("a"*245) + "/" +
+("b"*245)` — each segment stays under the per-component ceiling so
+`checkout -b` succeeds, while the total branch name (~491 chars here) is
+long enough to expose any code path that embeds the branch name into a
+size-bounded string without capping it. Confirmed in
+`test_boot_output.py::TestBannerByteBudgetWithLongBranchName` (session
+2026-07-04): this pushed a banner from a baseline ~666 bytes to ~1207 bytes,
+comfortably proving the >1000-byte budget isn't guaranteed by construction.
 
-## Rate Limit Isolation for Route Tests
+## Reproducing sys.modules stub contamination across stably-named lib/ modules
 
-When testing rate-limited routes (e.g. /invite), do NOT import the real `apiRoutes` — it shares module-level `apiBuckets` state with api.test.ts. Instead, spin up an inline Elysia handler with a local `checkRateLimit` function and a local `Map`. Add a `exhaustBucket(key)` helper that sets `tokens: 0` directly, so 429 tests don't need to fire 20+ real requests.
+When a test file stubs `sys.modules["git_helpers"]`/`["parsing"]`/`["version"]`
+before `exec_module()`-ing a hyphenated hook (the pattern in
+`test_migrate_statusline.py::_load_migrate_fn`) and restores them in a
+`finally`, that restore does NOT protect any *other* stably-named module
+(e.g. `lib/boot_memory.py`, `lib/boot_render.py`, `lib/boot_migrations.py`)
+that does a MODULE-LEVEL `from git_helpers import run_git` and gets
+first-ever-imported while the stub is installed — Python caches that module
+in `sys.modules['boot_memory']` with `run_git` bound to the stub's function
+object forever; rebinding `sys.modules['git_helpers']` afterwards doesn't
+touch names already bound in `boot_memory`'s own namespace.
 
-## Isolated Rate Limit Test Pattern
+Reproduce by running the *existing* stub-and-restore helper (don't reinvent
+it) in a **fresh subprocess** — process isolation matters here because the
+bug only bites on a module's first-ever import in a process, so the result
+must not depend on whether some other test file in the same pytest session
+already did a real `import boot_memory` first. Pattern: build a `python3 -c`
+snippet that (1) adds `LIB_DIR` and the test file's own directory to
+`sys.path`, (2) loads the test file itself via
+`importlib.util.spec_from_file_location` under a throwaway name (so its own
+`_load_migrate_fn` helper is reachable), (3) calls that helper and the
+returned migration function (triggers the contamination), (4) `os.chdir()`
+into a real temp repo, (5) does a plain `import boot_memory` (already
+cached from step 3) and calls a REAL function that depends on `run_git`
+(e.g. `extract_memory()`, `boot_render.get_timeline()`,
+`boot_migrations._migrate_untrack_generated_jsons()`).
 
-```ts
-const _buckets = new Map<string, { tokens: number; lastRefill: number }>();
-function checkRateLimit(key: string): boolean { /* mirror prod logic */ }
-function exhaustBucket(key: string): void {
-  _buckets.set(key, { tokens: 0, lastRefill: Date.now() });
-}
-```
+**Assert on BEHAVIOR, never on `module.run_git is real_run_git` identity.**
+The eventual fix (deferring the import into each function body, mirroring
+the `parsing` pattern documented at the top of `boot_memory.py`) may remove
+`run_git` as a module-level attribute entirely rather than merely rebind
+it — an identity-based assertion would then error (AttributeError) instead
+of transitioning to green. Test the observable output instead: seed a real
+commit with a unique marker (Decision trailer text, commit subject, or a
+tracked file matching `git_helpers._GENERATED_JSONS`), then assert the
+real function reports that marker. Contaminated (stub `run_git` always
+returns `(1, "")`) → the function sees "no commits"/"not tracked" and the
+marker never appears; real `run_git` → marker appears (or, for
+`_migrate_untrack_generated_jsons()`, the previously-tracked fixture file
+becomes untracked — check this ONE assertion back in the *outer*,
+uncontaminated test process via a plain `git ls-files`, not inside the
+probe subprocess). Confirmed in
+`test_migrate_statusline.py::TestSysModulesContaminationRegression`
+(session 2026-07-05) — RED against the current (unfixed) module-level
+imports, 0 regressions in the file's 5 pre-existing tests.
 
-## Windows-safe fs Mock (agent-registry-fs.test.ts)
+## os.path.islink() calls os.lstat() internally on Windows — spy on the right layer
 
-When mocking `node:fs` and checking paths against a fake dir, normalize separators:
+When spying on `os.lstat`/`os.fstat` to prove `_open_no_follow_symlink_windows()`
+(`lib/git_helpers.py`, twin `lib/_symlink_safe_open.py`) skips the identity
+check for a brand-new path (no `os.path.exists()` match, the F5/O_CREAT
+case), a naive spy that patches `os.lstat` and then calls the real
+`os.path.islink(path)` will see ONE spurious call — confirmed empirically
+(Windows, Python 3.11): `ntpath.islink()`'s own implementation calls
+`os.lstat()` under the hood. A strict `assert lstat_calls == []` fails for
+the wrong reason (it's islink's internal plumbing, not the guard's own
+explicit `if os.path.exists(path): prior_identity = os.lstat(path)` line).
+Fix: `monkeypatch.setattr(os.path, "islink", lambda p: False)` FIRST, so the
+spy only ever observes the guard's own call. A loose truthy check
+(`assert lstat_calls`, no exact-emptiness assertion) doesn't need this fix
+since one extra call doesn't change truthiness — only exact-count/exact-empty
+assertions are exposed to this gotcha. Confirmed in
+`test_crossplatform_symlink_guard_hardening.py::TestNewFileOCreatSkipsIdentityCheck`
+(hardening pass, session 2026-07-06).
 
-```ts
-existsSync(p: string): boolean {
-  if (p.replace(/\\/g, '/') === FAKE_AGENT_DIR.replace(/\\/g, '/')) return true;
-  return realFs.existsSync(p);
-},
-readFileSync(p: string, enc?: string): string | Buffer {
-  const normalP = p.replace(/\\/g, '/');
-  const normalDir = FAKE_AGENT_DIR.replace(/\\/g, '/');
-  const filename = normalP.replace(normalDir + '/', '');
-  if (normalP.startsWith(normalDir) && fakeFiles[filename] !== undefined) {
-    return fakeFiles[filename];
-  }
-  return realFs.readFileSync(p, enc);
-},
-```
+## Moriarty T1 theater fix: in-process round-trip tests of `run_git()`'s `encoding="utf-8"` kwarg are false-green under ambient PYTHONUTF8=1 — force PYTHONUTF8=0 in a child process
 
-## Fake-Agent Pattern for Fire-and-Forget Tests
+`test_run_git_round_trips_utf8_accents_and_emoji_through_real_git`
+(`test_crossplatform_symlink_guard_hardening.py`) originally ran `git
+commit` + `git_helpers.run_git(["log", ...])` in-process and compared to
+the literal `subject` used to create the commit — a genuine round-trip
+(§34-compliant, no fixture), but Moriarty proved it doesn't actually pin
+`run_git()`'s explicit `encoding="utf-8"` kwarg: this dev machine's ambient
+`PYTHONUTF8=1` silently forces UTF-8 decoding process-wide, so the test
+stayed green even with the kwarg deleted from `subprocess.run(...)`. Same
+root cause already documented for `open_no_follow_symlink()` in
+`TestEncodingIndependentOfPythonUtf8Env`
+(`test_crossplatform_symlink_guard.py:422`) — same fix applies to
+`run_git()`.
 
-When testing `invokeAgents` / `invokeAgent` public API shape, use a name that does NOT
-exist in any real agent registry (e.g. `'golden-nonexistent-agent'`). This causes
-`doInvoke` to exit immediately via the "Unknown agent" guard without spawning a real
-`claude` subprocess. Using a real agent name (like `'bilbo'`) triggers a real subprocess
-and can cause `drainActiveInvocations` tests to time out (5s Bun default).
+**Fix:** run the real round-trip (real `git commit`, real `git log` via
+`run_git()`) inside a **child subprocess** with `PYTHONUTF8=0` forced and
+`PYTHONLEGACYWINDOWSFSENCODING` popped from env, so a missing `encoding=`
+kwarg falls back to the locale's ANSI codepage (cp1252) instead of being
+masked. The child imports the REAL `lib/git_helpers.py` (via
+`sys.path.insert(0, LIB_DIR)`), calls `run_git()`, and prints the result as
+`json.dumps({...})` with the default `ensure_ascii=True` — this keeps the
+parent↔child pipe pure ASCII (all non-ASCII \uXXXX-escaped) so a mangled
+*console* codepage in the test harness itself can never masquerade as a
+mangled *file*-decode round-trip. Keep the accented/emoji `subject` OUT of
+the child's `-c` argv entirely (only ASCII paths like `tmp_repo`/`LIB_DIR`
+are embedded) — it stays in the parent process and is only compared
+against the child's decoded-back JSON at the end.
 
-Downstream tests that call `drainActiveInvocations` after invokeAgents: add a
-`await tick(80)` before drain to flush any async cleanup from fake-agent early exits.
+**Verified as Moriarty would**: built a scratch copy of `git_helpers.py`
+with the `encoding="utf-8"` kwarg deleted, pointed a throwaway duplicate
+script's child subprocess at that scratch copy — confirmed RED with the
+exact mojibake Moriarty predicted
+(`'ðŸ”§ ... corazÃ³n, seÃ±al, aÃ±o ...'`). With the real, unmodified
+`lib/git_helpers.py` (kwarg present): GREEN. Scratch copy discarded after
+verification, never committed.
 
-## Fake ReadableStream for agent-stream.ts tests
+## Test-input text that echoes back into output can make a keyword assertion pass vacuously — audit marker names against every regex they're near
 
-To test `readAgentStream` without spawning a real subprocess, build a fake `proc` object:
+When a test writes a commit message / file / marker string that a script
+under test PRINTS BACK VERBATIM (confirmation lines like
+`bin/git-memory-commit.py`'s `_print_commit_result()` echo the commit
+`message` argument), and the same test then does `re.search(r"<keyword>",
+combined_output)` to prove some NEW feature added that keyword to the
+output, the assertion can pass today — before the feature exists — purely
+because the test's OWN input text happened to contain the keyword. Caught
+live in `test_boot_freshness.py`'s write-path warn-only test (Task 1 test
+8): the commit message was `"proceed despite being behind"`, and the
+regex checking for a new "behind" warning matched the echoed message
+itself, making a RED-should-be test pass GREEN for the wrong reason before
+any warning logic existed. Same root cause hit a second time in the same
+file: `INCIDENT_NEXT_MARKER = "INCIDENT-REMOTE-NEXT-..."` and
+`b_remote_marker = "B-REMOTE-NEXT-MARKER"` both contained the substring
+"REMOTE", which a `re.search(r"remot", line, re.IGNORECASE)` check (meant
+to prove a NEW remote-provenance LABEL was added next to the marker) would
+match on the marker's own name alone, regardless of whether the label
+existed.
 
-```ts
-// Stdout: empty (signals done immediately)
-const emptyStream = new ReadableStream<Uint8Array>({ pull(c) { c.close(); } });
+**Fix / prevention**: before writing an assertion `re.search(r"<kw>",
+text)`, grep every string LITERAL the test itself writes into that same
+commit/file/env (commit messages, trailer values, marker constants,
+filenames) for that keyword (case-insensitive) and rename any collision.
+Prefer marker names built from a scope name + a short random-looking
+suffix (e.g. `"B-NEXT-MARKER-77c2"`) that avoids every word the test's own
+regexes search for. This is a variant of the codebase's existing "make the
+PoC real" / anti-fixture-fabrication family of gotchas — the bug isn't in
+what's asserted, it's in the test's own input data secretly satisfying the
+assertion. Always run the new test once against UNMODIFIED (pre-fix)
+production code and confirm every physical test method is genuinely RED,
+not just the file as a whole — running with `-x` can hide a vacuously
+green test sitting after a real failure.
 
-// Stderr: throws on first read (exercises the catch path in readStderr())
-const throwingStream = new ReadableStream<Uint8Array>({ pull() { throw new Error('io error'); } });
+## Windows fake-`git` process-tree kill test — CreateProcess ignores Popen's `env=` for executable SEARCH; must mutate the real process PATH instead
 
-const proc = {
-  stdout: emptyStream,
-  stderr: throwingStream,
-  exited: Promise.resolve(0),
-  pid: 99999,
-};
-const handle = setTimeout(() => {}, 30_000); // real handle — readAgentStream clears it
-const result = await readAgentStream(proc, 'agent', 'roomId', handle);
-// result.stderrOutput === '' — readStderr catches and swallows the error
-```
+Closing the two Windows-only gaps in `test_boot_freshness_regression.py`
+(`_win32_kill_tree`/taskkill, and `_ASKPASS_FAILFAST == "cmd /c exit 1"`)
+that were previously documented as "no Windows machine available" —
+session 2026-07-07, first real Windows box for this suite.
 
-Key: `readStderr()` catches any thrown value (Error or non-Error) and sets `stderrOutput = ''`.
-The outer `readAgentStream` does NOT propagate the exception — it always returns an AgentStreamResult.
+**Platform quirk confirmed empirically (not in any doc, easy to get
+wrong)**: on POSIX, `execvpe`/`subprocess.Popen(["cmd"], env={"PATH":
+fake_dir, ...})` resolves the executable using the `env` dict passed in —
+this is exactly what the existing POSIX fake-git-on-PATH pattern relies
+on. On Windows, `CreateProcess` (which is what `Popen(["git"]+args,
+shell=False)` compiles down to when no `executable=` is given) resolves
+the bare command name using the CALLING process's OWN live PATH
+environment block — the `env=` kwarg only populates the CHILD's
+environment AFTER the executable has already been found and started. So
+`git_helpers.run_git(["fetch"], env={"PATH": fake_bin + ...})` is a
+silent no-op for redirecting which "git" runs on Windows: the real
+system git still executes, and a naive test assuming POSIX semantics
+gets a fast, wrong-looking pass/fail (confirmed: got `rc=128` "unable to
+access... getaddrinfo() thread failed to start" from the REAL git,
+looking like a plausible network failure, not "wrong git ran").
 
-## E2E WS chain test — real wsRoutes + real auth tokens
+**Fix for Windows tests that need a fake `git` on PATH**: use
+`monkeypatch.setenv("PATH", fake_bin + os.pathsep + os.environ.get("PATH",
+""))` (or plain `os.environ["PATH"] = ...` with manual restore) on the
+TEST process itself before calling the function under test — this
+mutates the real live env block `CreateProcess`'s search consults. The
+`env=` kwarg passed to `run_git`/`Popen` is still useful (and still
+production-faithful) for populating the CHILD's own environment (e.g.
+`PYTHONPATH` below), just not for the executable search itself.
 
-To test the full upgrade → message → broadcast → invokeAgents chain:
+**Second problem, specific to needing a fake "git" that does real work
+on Windows**: `CreateProcess`'s implicit search only auto-appends `.exe`
+— it does NOT consider `.bat`/`.cmd` the way `cmd.exe`'s own PATHEXT
+-driven resolution does. A `git.bat` dropped on the prepended PATH dir is
+silently skipped in favor of the real `git.exe` found later in the
+search — confirmed by direct experiment (a `git.bat` printing a sentinel
+and exiting 7 was never invoked; real git ran instead). So the fake must
+be a genuine PE executable, not a script with a shebang-like batch file.
 
-1. mock `db/connection.js` (in-memory SQLite)
-2. mock `index.js` (stub `server.publish` for message-bus.broadcast)
-3. mock `agent-invoker.js` with partial stub (capture `invokeAgents` calls, real state functions)
-4. Spin up `new Elysia().use(wsRoutes)` on port 0 — do NOT import `index.ts` (starts real server)
-5. Call `issueToken(name)` to get a real auth token, append `?token=...` to WS URL
-6. Bun WS client sends no Origin header → `''` matches WS_ALLOWED_ORIGINS in test mode (NODE_ENV=test adds `''`)
+**Working technique**: copy a REAL python interpreter binary to
+`fake_dir/git.exe` — but NOT `sys.executable` directly if the test
+process might be running under a venv/poetry env (its `python.exe` is
+often a small launcher stub that locates the real interpreter via a
+`pyvenv.cfg` file relative to ITS OWN path; copied elsewhere with no
+`pyvenv.cfg` alongside it, the stub fails to start). Use
+`os.path.join(sys.base_exec_prefix, "python.exe")` instead — always the
+base, non-venv install regardless of what venv is active, safe to copy
+and relocate. Then set `PYTHONPATH` (via the real `env=` kwarg, which DOES
+work for child-env population) to a directory containing a
+`sitecustomize.py` that does the real fake-git logic (spawn a real
+grandchild via `subprocess.Popen([sys.executable, "-S", "-c", "import
+time; time.sleep(60)"])`, write its pid to a file, `time.sleep(60)`
+itself). This works because Python's `site` module imports
+`sitecustomize.py` during interpreter STARTUP — before it ever attempts
+to open `argv[1]` ("fetch", the git subcommand) as a script file — so
+the hijack fires unconditionally, with no valid python script needing to
+exist on disk at all. The `-S` flag on the grandchild's own invocation is
+required to stop it from ALSO importing the same `sitecustomize.py` and
+recursively spawning further "grandchildren."
 
-**user_list_update timing**: `registerConnection()` broadcasts `user_list_update` BEFORE
-`sendInitialState()` sends `room_state`. Skip `user_list_update` in message collectors.
+**Third gotcha — `tasklist` output encoding**: `subprocess.run(["tasklist",
+"/FI", f"PID eq {pid}"], text=True)` with the DEFAULT (UTF-8) encoding
+raises `UnicodeDecodeError` on a non-English Windows locale (confirmed:
+Spanish Windows, byte `0xe0`) — `tasklist`'s console output uses the
+OEM/ANSI codepage, not UTF-8. Fix: `encoding="oem", errors="replace"` on
+the `subprocess.run` call. This is a liveness probe, not a content
+assertion, so `errors="replace"` is safe — never let an unrelated
+locale-encoding mismatch fail a process-liveness check.
 
-**invokeAgents signature**: `invokeAgents(roomId, mentions: Set<string>, triggerContent, Map, boolean)` —
-the stub receives mentions as a Set but can be spread: `_invokeAgentsCalls.push({ mentions: [...mentions] })`.
+Verified end-to-end manually (outside pytest) before writing the actual
+test: fake git.exe hangs, `run_git(timeout=1)` returns `(1, "")` in
+~1.2s, grandchild pid written, and dies (confirmed via `tasklist`) within
+the 5s polling deadline after `run_git` returns — proving
+`_win32_kill_tree()`'s real `taskkill /F /T /PID` genuinely kills the
+whole tree, not just the direct "git.exe" child. Classes:
+`TestWin32ProcessTreeKillOnTimeout`,
+`TestWin32AskpassFailfastResolvesAndExitsNonzero` (the latter needed no
+new technique — just `subprocess.run(_ASKPASS_FAILFAST + " " + prompt,
+shell=True)`, faithfully reproducing how git invokes a multi-token
+GIT_ASKPASS command line on Windows).
 
-## Stop Hook — Freno Duro (decision:block) Pattern
 
-Para Stop hooks que BLOQUEAN (a diferencia de los advisory que solo usan stderr):
-
-```python
-# Bloquear: JSON a stdout + exit 0
-json.dump({"decision": "block", "reason": "..."}, sys.stdout)
-sys.stdout.flush()
-sys.exit(0)  # siempre 0 — el bloqueo se comunica vía JSON, no vía exit code
-
-# Permitir: sin output a stdout + exit 0 (o stdout vacío)
-sys.exit(0)
-```
-
-Invariante de freno duro FAIL-OPEN (contrasta con pre-merge-gate que falla CERRADO):
-- Bug del hook → deja pasar (fail-open). Nunca atrapar al usuario sin poder cerrar sesión.
-- Config ilegible, binario no encontrado, timeout → todos fail-open.
-- Solo bloquea en el camino feliz explícito: config presente + test_command + tests fallidos.
-
-Test de metacaracteres (shell=False vs shell=True):
-- Crear fichero centinela que solo existiría si se expande subshell.
-- Verificar que el fichero NO existe después de correr el hook.
-- Si existe → el hook usa shell=True → inyección confirmada.
-
-```python
-sentinel = os.path.join(workdir, "injected.txt")
-_write_config(workdir, {"test_command": f"python3 -c pass $(python3 -c \"open('{sentinel}','w').close()\")"})
-_run_hook(workdir)
-assert not os.path.exists(sentinel), "shell=True detectado — vulnerabilidad de inyección"
-```
+# From mock-patterns.md
 
 ## Python Pytest — Hook Subprocess Testing Pattern
 
@@ -312,156 +441,6 @@ monkeypatch.setattr(hook, "PLUGIN_VERSION", "1.10.0", raising=False)
 ```
 
 `raising=False` is required when the attribute does not yet exist (pre-implementation, RED tests).
-
-## UserPromptSubmit Hook — "Installed Repo" Fixture Pattern
-
-The `user-prompt-memory-check.py` hook checks `needs_install(root)` and `needs_upgrade(root)`
-before reaching the [memory-check] / recall-injection path. Bare `tmp_path` repos fail at
-`needs_install` (no CLAUDE.md) and produce `[git-memory-bootstrap]` output instead of
-`[memory-check]`. Fix: use `_make_installed_repo()` in tests that need the normal path.
-
-```python
-def _make_installed_repo(tmp_path, name="repo"):
-    repo = _make_repo(tmp_path, name)
-    # 1. CLAUDE.md with both required markers
-    with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
-        f.write("<!-- BEGIN unmassk-toolkit -->\nContext Checkpoint Commits\n<!-- END unmassk-toolkit -->\n")
-    # 2. manifest.json with version == PLUGIN_VERSION (prevents needs_upgrade)
-    unmassk_dir = os.path.join(repo, ".claude", ".unmassk")
-    os.makedirs(unmassk_dir, exist_ok=True)
-    with open(os.path.join(unmassk_dir, "manifest.json"), "w") as f:
-        json.dump({"version": _PLUGIN_VERSION}, f)
-    # 3. .session-booted flag (already-booted path → [git-memory] root output)
-    open(os.path.join(unmassk_dir, ".session-booted"), "w").close()
-    return repo
-```
-
-`_PLUGIN_VERSION` comes from reading `SOURCE_ROOT/.claude-plugin/plugin.json["version"]`.
-
-Required markers:
-- `needs_install`: `"BEGIN unmassk-toolkit"` in CLAUDE.md
-- `needs_upgrade` check 1: `"Context Checkpoint Commits"` in managed block, no `"python3 bin/"` 
-- `needs_upgrade` check 2: manifest.version == PLUGIN_VERSION → tuple comparison returns False
-
-## UserPromptSubmit Hook — fail-open upgrade monkeypatch pattern
-
-When testing the `try/except` around `subprocess.run` in the upgrade branch, use
-`monkeypatch.setattr("subprocess.run", ...)` (module-level, not hook-module-level)
-BEFORE calling `hook.main()`. The hook imports `subprocess` lazily inside the try block,
-so patching at module level is sufficient.
-
-```python
-def _raise_timeout(*args, **kwargs):
-    raise subprocess.TimeoutExpired(cmd=args[0], timeout=15)
-
-monkeypatch.setattr("subprocess.run", _raise_timeout)
-```
-
-To capture `main()` output for in-process tests, monkeypatch `builtins.print`:
-
-```python
-captured = []
-monkeypatch.setattr("builtins.print", lambda *a, **kw: captured.append(" ".join(str(x) for x in a)))
-try:
-    hook.main()
-except SystemExit as exc:
-    assert exc.code == 0
-output = "\n".join(captured)
-assert "[memory-check]" in output
-```
-
-Always assert both: (1) no exception propagated, (2) `[memory-check]` present in output.
-A regression (removing the try/except) would fail condition (1). A regression (wrong output)
-would fail condition (2).
-
-## UserPromptSubmit Hook — "needs upgrade" repo fixture
-
-To force `needs_upgrade()` to return True (for testing the upgrade branch), write a CLAUDE.md
-with the OLD-STYLE marker `python3 bin/` inside the managed block — this triggers check 1
-regardless of manifest version:
-
-```python
-with open(os.path.join(repo, "CLAUDE.md"), "w") as f:
-    f.write(
-        "<!-- BEGIN unmassk-toolkit -->\n"
-        "python3 bin/git-memory-install.py\n"
-        "<!-- END unmassk-toolkit -->\n"
-    )
-```
-
-Keep the manifest.json present and version-equal so only check 1 triggers (not check 2).
-This isolates the upgrade path from the install path.
-
-## Boot Tombstone Test — Glossary-Path Fixture Pattern
-
-To test that a tombstoned note does NOT reappear via the glossary merge in
-`session-start-boot.py`, the fixture must push the original note BEYOND `SCAN_DEPTH=30`
-so `extract_memory()` cannot see it, then add the tombstone within the window.
-
-```python
-FILLER_COUNT = 35  # > SCAN_DEPTH=30
-
-def _make_installed_repo(tmp_path, name="repo"):
-    repo = str(tmp_path / name)
-    os.makedirs(repo)
-    git_cmd(["init"], repo)
-    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
-    run_script(INSTALL, repo, ["--auto"])
-    return repo
-
-def _add_filler_commits(repo, count=FILLER_COUNT):
-    for i in range(count):
-        git_cmd(["commit", "--allow-empty", "-m", f"chore(pad): filler commit {i}"], repo)
-
-# 1. Add the note
-git_cmd(["commit", "--allow-empty", "-m", f"🧠 remember(user): ...\n\nRemember: {note_text}"], repo)
-# 2. Push beyond SCAN_DEPTH
-_add_filler_commits(repo)
-# 3. Add tombstone (inside window — extract_memory() sees it)
-git_cmd(["commit", "--allow-empty", "-m", f"♻️ chore(gc): gc\n\nResolved-Remember: {note_text}"], repo)
-```
-
-The note_text in both commits must be IDENTICAL so normalize() produces the same key.
-Use a unique token (e.g. `xyzretired`) to detect reappearance unambiguously.
-
-**Variant: tombstone also outside window (Bug A T1)**  
-To test the stricter case where BOTH note AND tombstone are pushed beyond SCAN_DEPTH=30,
-add TWO filler batches: one after the note, one after the tombstone.
-
-```python
-# 1. note
-# 2. _add_filler_commits (35+)  → note exits window
-# 3. tombstone
-# 4. _add_filler_commits (35+)  → tombstone exits window
-```
-
-Both are still within the 500-commit glossary range. extract_memory() sees neither;
-the tombstone must still suppress the glossary entry. Test file:
-`unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugA).
-
-## Precompact Snapshot — has_content guard
-
-`precompact-snapshot.py` only prints the snapshot when `has_content=True`:
-`pending OR blockers OR decisions OR memos OR last_context`.  
-`remembers` alone do NOT trigger `has_content`.  
-When testing Remember behaviour in precompact, add a Decision commit as anchor
-to ensure the snapshot is emitted:
-
-```python
-git_cmd(["commit", "--allow-empty",
-         "-m", "🧭 decision(api): use REST\n\nDecision: REST over GraphQL xyzanchor"], repo)
-# Then add remember + tombstone commits
-# Verify anchor in output first (setup assertion)
-assert "xyzanchor" in output, "Test setup error: snapshot not emitted"
-```
-
-Without the anchor, the snapshot is silently skipped and the test passes vacuously.
-
-Test file: `unmassk-toolkit/tests/test_regression_memory_correctness.py` (TestBugB).
-
-## Cross-File DB Contamination — historyLimit pattern
-
-Tests that insert rows into `_invokerDb` and assert their presence via `buildPrompt` FAIL in the full test suite run because Bun's `mock.module()` persists: another file's `mock.module('../db/connection.js')` overwrites the closure, so `getDb()` returns a different (empty) DB. Safe workaround: assert only structural envelope (markers, trigger content) — never row content — from tests that don't control the DB mock lifecycle end-to-end.
 
 ## SessionStart hook — subprocess invocation (no stdin)
 
@@ -524,84 +503,6 @@ fixture that attempts a real `os.symlink()` in `tmp_path` and calls
 `pytest.skip(...)` if it raises `OSError` (confirmed: `[WinError 1314]` on a
 Windows box without Developer Mode / SeCreateSymbolicLinkPrivilege) — never
 fake kernel symlink-following behavior with a mock and call it equivalent.
-
-## Fake `git` executable on PATH — SUPERSEDED (issue #60 close-out round 2, session 2026-07-10)
-
-**This whole PATH-shimming technique (the POSIX shim below AND the
-`git.cmd`/`fake_git.py` Windows variant that used to follow it) is
-retired for `lib/git_helpers.py:run_git()`'s exact call shape,
-`subprocess.Popen(["git"] + args, shell=False)`.** House confirmed: on
-Windows, CreateProcess's PATH search for an extensionless name like "git"
-only ever tries appending ".exe" — PATHEXT-based fallback (.COM/.BAT/
-.CMD/...) is a cmd.exe behavior, never consulted by CreateProcess
-directly. So NEITHER a bare `git` file NOR a `git.cmd` wrapper is ever
-found this way; the real git.exe elsewhere on PATH silently wins instead
-(confirmed root cause of two separate real Windows CI failures: run
-29110579481 for the bare-file shim, then run 29122808531 for the
-git.cmd attempt). Replaced by directly patching `subprocess.Popen` itself
-(`unmassk-toolkit/tests/_git_intercept.py`, see the new entry below this
-one) — invocation-path-independent, no PATH/PATHEXT resolution involved
-at all, one shared implementation for both a real boot subprocess AND an
-in-process direct call. Kept below for historical context only — do not
-copy this pattern for any NEW `subprocess.Popen(["git", ...])`
-interception need; use `_git_intercept.make_intercepted_popen()` instead.
-
-To contract-test that a hook's `subprocess.run(["git", ...])` call passes a
-specific hardened `env` (e.g. `GIT_TERMINAL_PROMPT=0`, `GIT_SSH_COMMAND` with
-`BatchMode=yes`) or respects a short timeout, don't rely on real network
-behavior (dead ports, unreachable hosts) — sandboxed test environments may
-not allow arbitrary outbound sockets, and real-network timing is inherently
-flaky. Instead, write a fake `git` executable (a `#!/usr/bin/env python3`
-script literally named `git`, `chmod 0o755`) into a scratch dir, prepend that
-dir to `PATH` for the subprocess call under test. The fake script:
-1. Logs every invocation (`sys.argv[1:]` + `dict(os.environ)`) to a JSONL
-   file — this captures the EXACT env the real subprocess call received,
-   which is otherwise unobservable from the test process.
-2. Passes through to the REAL git binary (resolved via `shutil.which("git")`
-   *before* prepending the fake dir, then baked into the fake script as a
-   literal string) for every subcommand except the one under test — so the
-   rest of the pipeline (rev-parse, log, branch, status, a doctor subprocess
-   that itself calls git) keeps working unmodified.
-3. Optionally hangs (`time.sleep(N)`) only for the intercepted subcommand,
-   to exercise a timeout deterministically without any real network hang.
-
-To prove an env override actually happened (not just "the value looks
-right by accident"), POISON the ambient environment before the call with a
-value the hardened code must override (e.g. set `GIT_TERMINAL_PROMPT=1` in
-the env passed to the subprocess), then assert the fake git's recorded env
-shows the hardened value instead. Without poisoning, a test can pass
-vacuously if the hardened code never actually sets the var at all (both
-"unset" and "already correct by luck" would go unnoticed).
-
-Windows: a bare extensionless `git` file is NOT resolved as an executable
-via PATH lookup the way `subprocess.run(["git", ...])` needs (Windows only
-searches PATH for entries with a PATHEXT extension — .COM/.EXE/.BAT/.CMD/
-...) — a `subprocess.Popen(["git", ...])` on Windows silently skips the
-fake and falls through to the real git.exe elsewhere on PATH. This is NOT
-a crash/skip signal — it is a silent OBSERVATION blind spot: the boot
-under test behaves correctly against the real git, but the fake's JSONL
-call log stays empty, so any assertion on that log (`assert fetch_calls`)
-fails for the wrong reason, and any assertion of the OPPOSITE shape
-(`assert not fetch_calls`) passes VACUOUSLY (confirmed root cause of a
-real Windows CI failure, issue #60 close-out, run 29110579481 — 5 tests
-failed on `assert fetch_calls` against an empty log, 2 more were
-vacuously green on `assert not fetch_calls`). Portable fix (no
-`skipif(win32)` needed): on `sys.platform == "win32"`, write the SAME
-Python logging/pass-through body to a `fake_git.py` sidecar file, then
-write a `git.cmd` wrapper (`.cmd` IS PATHEXT-resolved) whose one line is
-`@"{sys.executable}" "{fake_git_py_path}" %*` — always `sys.executable`
-(never a bare `"python"`, which may not exist or resolve to the wrong
-interpreter on a given machine), both paths double-quoted (either can
-contain spaces). On POSIX, behavior is byte-identical to before (shebang
-+ chmod 0o755, no `.cmd`/sidecar).
-
-Confirmed in `unmassk-toolkit/tests/test_boot_freshness.py`
-(`_make_fake_git`, feat-boot-freshness contract, session 2026-07-06; made
-cross-platform in the issue #60 close-out round, session 2026-07-10) for
-the hardened-fetch-env test, the fetch-gate test, and the rate-limit
-tests. `tests/test_boot_freshness_hardening.py` imports `_make_fake_git`/
-`WINDOWS` from this same module — fix once, both files benefit. See
-[feat-boot-freshness-contract-notes](feat-boot-freshness-contract-notes.md).
 
 ## Fake `git` that spawns a real grandchild — testing process-group kill without mocking os.killpg
 
