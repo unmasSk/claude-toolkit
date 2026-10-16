@@ -1,10 +1,10 @@
-"""Contrato ROJO: `gitmem --help` / `-h` / `help` / sin argumentos imprimen
-cada subcomando con UNA linea de descripcion y salen con 0.
+"""RED contract: `gitmem --help` / `-h` / `help` / no arguments print
+every subcommand with ONE description line and exit with 0.
 
-La lista esperada NO se teclea: se lee del propio `SUBCOMMANDS` de
-`bin/gitmem` (AST, sin ejecutar el modulo). Un subcomando nuevo sin linea
-de ayuda pone este test en rojo. Se ejecuta el punto de entrada del repo
-como proceso, con HOME aislado.
+The expected list is NOT hand-typed: it is read from `bin/gitmem`'s own
+`SUBCOMMANDS` (AST, without executing the module). A new subcommand without
+a help line turns this test red. The repo's entry point is run as a
+process, with an isolated HOME.
 """
 
 import ast

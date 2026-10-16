@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
-"""hooks/boot_launcher.py -- SessionStart: lanza bin/memory/boot.py.
+"""hooks/boot_launcher.py -- SessionStart: launches bin/memory/boot.py.
 
-Contrato: docs/memoria-v2/PIEZAS.md Sec.11, fila `boot_launcher.py`:
-"~20 lineas sin logica: llama a bin/memory/boot.py". Se escribe una vez
-y no se itera jamas -- corre desde la copia instalada del plugin, y
-toda decision real (que se enseña, en que orden, que pasa en un
-proyecto recien instalado o en una rama sin un solo commit) vive en
-bin/memory/boot.py / lib/memory/boot.py, nunca aqui.
+No logic of its own: every real decision (what is shown, in what order,
+what happens in a freshly installed project or on a branch with no
+commits) lives in bin/memory/boot.py / lib/memory/boot.py.
 
-Resuelve el repositorio con `payload["cwd"]` si esta presente -- mismo
-patron que ya usa hooks/pre-merge-gate.py ("prefer an explicit cwd in
-the hook payload... fall back to the hook process's own working
-directory") -- y con el cwd heredado del proceso en caso contrario.
-Ningun documento fija cual de los dos manda; las dos son plausibles, y
-un test entra solo si compara dos cosas escritas por separado -- afirmar
-una de las dos aqui seria fijar una decision que no es de este fichero.
+The repository is resolved from `payload["cwd"]` when present (same
+pattern as hooks/pre-merge-gate.py), otherwise from the process's
+inherited cwd.
 
-Un fallo de arranque nunca bloquea la sesion -- la memoria ayuda, nunca
-bloquea (mismo principio que ya declara hooks/session-start-boot.py:
-"Exit codes: 0: Always (never blocks session start)"). Toda excepcion
--- boot.py falla, el directorio no existe, stdin viene vacio o mal
-formado -- se traga en silencio; la sesion arranca igual.
+A boot failure never blocks the session: memory helps, it never blocks
+(same principle as hooks/session-start-boot.py, "Exit codes: 0: Always").
+Every exception -- boot.py fails, the directory does not exist, stdin is
+empty or malformed -- is swallowed silently; the session starts anyway.
 """
 
 import json
@@ -34,7 +26,7 @@ _LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
 if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
-from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
+from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 
 force_utf8_streams()
 
@@ -49,31 +41,31 @@ try:
 
     cwd = payload.get("cwd") or os.getcwd()
 
-    # Si este proyecto no ha pasado nunca por el instalador, se instala
-    # AQUI, solo, antes de leer memoria [decision del propietario,
-    # 2026-08-06: "yo solo tengo que entrar, decir buenos dias y que el me
-    # diga lo que hay que hacer"].
+    # If this project has never been through the installer, install it
+    # HERE, on its own, before reading memory [owner's decision,
+    # 2026-08-06: "I just have to walk in, say good morning and have it
+    # tell me what to do"].
     #
-    # Por que aqui y no esperando a que alguien lo pida: sin instalador el
-    # proyecto se queda a medias para siempre y NADA lo saca de ahi. Sin
-    # `config.json` el sistema da por protegida la rama principal y rechaza
-    # el primer commit de trabajo del dia -- medido sobre los 14
-    # repositorios del propietario, 11 chocarian el primer dia. Sin los
-    # ocho indices, sin `.gitignore` y sin el lanzador en el PATH, cada
-    # sesion nueva vuelve a empezar de cero. El instalador es idempotente
-    # (probado lanzandolo dos veces seguidas: mismo resultado, no duplica
-    # nada) y nunca pisa una clave que ya exista.
+    # Why here and not waiting for someone to ask: without the installer
+    # the project stays half-set-up forever and NOTHING pulls it out. With
+    # no `config.json` the system assumes the main branch is protected and
+    # rejects the first work commit of the day -- measured over the
+    # owner's 14 repositories, 11 would hit it on day one. Without the
+    # eight indexes, the `.gitignore` and the launcher on the PATH, every
+    # new session starts from zero. The installer is idempotent (run twice
+    # in a row: same result, nothing duplicated) and never overwrites a key
+    # that already exists.
     #
-    # Se traga cualquier fallo, igual que todo lo demas de este fichero: la
-    # memoria ayuda, nunca bloquea. Si la instalacion no sale, el arranque
-    # sigue y el informe se escribe igual -- el hueco lo canta despues el
-    # propio informe, que ya sabe decir que la memoria no esta montada.
+    # Any failure is swallowed, like everything else in this file: memory
+    # helps, it never blocks. If the install fails, boot goes on and the
+    # report is written anyway -- the gap is then called out by the report
+    # itself, which already knows how to say memory is not mounted.
     _INSTALLER = os.path.join(_TOOLKIT_ROOT, "bin", "git-memory-install.py")
     manifest = os.path.join(cwd, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest) and os.path.isfile(_INSTALLER):
         try:
-            # Fuera de un repositorio git no hay nada que instalar: en
-            # silencio, sin aviso de fallo.
+            # Outside a git repository there is nothing to install:
+            # silent, no failure notice.
             inside = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
                 cwd=cwd,
@@ -81,14 +73,14 @@ try:
                 timeout=10,
             )
             if inside.returncode != 0:
-                raise RuntimeError("no es un repositorio git")
-            # encoding="utf-8", errors="replace": sin `encoding=`,
-            # `text=True` decodifica con el codec de la consola (cp1252 en
-            # Windows), y el instalador imprime emojis que no existen en
-            # ese codec -- la decodificacion revienta en un hilo lector
-            # aparte, fuera del alcance de este try/except [House,
-            # 2026-08-08]. `errors="replace"` no es opcional: la salida del
-            # instalador no la controlamos.
+                raise RuntimeError("not a git repository")
+            # encoding="utf-8", errors="replace": without `encoding=`,
+            # `text=True` decodes with the console codec (cp1252 on
+            # Windows), and the installer prints emojis that do not exist
+            # in that codec -- decoding blows up in a separate reader
+            # thread, outside this try/except [House, 2026-08-08].
+            # `errors="replace"` is not optional: the installer's output
+            # is not ours to control.
             done = subprocess.run(
                 [sys.executable, _INSTALLER, "--auto"],
                 cwd=cwd,
@@ -100,26 +92,26 @@ try:
             )
             if done.returncode == 0:
                 print(
-                    "[memory] este proyecto no estaba instalado y se acaba de "
-                    "instalar solo: gitmem en el PATH, los ocho indices y la "
-                    "configuracion del repositorio."
+                    "[memory] this project was not installed and has just "
+                    "been installed automatically: gitmem on the PATH, the "
+                    "eight indexes and the repository configuration."
                 )
             else:
                 print(
-                    "[memory] este proyecto NO esta instalado y la instalacion "
-                    "automatica ha fallado. Lanzala a mano:\n"
+                    "[memory] this project is NOT installed and the "
+                    "automatic install failed. Run it by hand:\n"
                     f"  python3 {_INSTALLER} --auto"
                 )
         except Exception:
             pass
 
-    # `flush` antes de ceder la salida al subproceso, y no es cosmetico:
-    # `bin/memory/boot.py` escribe directo al descriptor real, mientras que
-    # lo impreso aqui se queda en el buffer de Python hasta que el proceso
-    # muere. Sin esto, el aviso de "se acaba de instalar solo" aterrizaba
-    # DESPUES del informe entero -- justo la linea que explica por que ha
-    # cambiado el proyecto, leida al final y fuera de contexto
-    # [comprobado ejecutandolo, 2026-08-06].
+    # `flush` before handing the output to the subprocess, and it is not
+    # cosmetic: `bin/memory/boot.py` writes straight to the real
+    # descriptor, while what is printed here stays in Python's buffer
+    # until the process dies. Without this, the "just installed itself"
+    # notice landed AFTER the whole report -- the very line that explains
+    # why the project changed, read last and out of context [verified by
+    # running it, 2026-08-06].
     sys.stdout.flush()
 
     subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd)

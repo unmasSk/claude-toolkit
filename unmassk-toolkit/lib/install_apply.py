@@ -101,18 +101,18 @@ def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
     return errors
 
 
-# Ficheros que la instalacion crea y que TIENEN que viajar en git. No es
-# una lista de "por si acaso": cada uno se pierde en un clon si no esta
-# aqui, y su ausencia rompe algo concreto. Los ocho indices y `config.json`
-# son la memoria del proyecto; `.gitignore` es lo que impide que el informe
-# del arranque -- reescrito en cada sesion -- acabe commiteado; `CLAUDE.md`
-# es lo que le dice a Claude que cargue las skills.
+# Files the install creates that MUST travel in git. Not a "just in case"
+# list: each one is lost in a clone if it is not here, and its absence
+# breaks something concrete. The eight indexes and `config.json` are the
+# project's memory; `.gitignore` keeps the boot report -- rewritten every
+# session -- from being committed; `CLAUDE.md` tells Claude to load the
+# skills.
 #
-# `manifest.json` NO esta y es deliberado: vive bajo `.claude/.unmassk/`,
-# que el propio `.gitignore` ignora, porque dice que version hay instalada
-# EN ESTA MAQUINA. Versionarlo haria que un clon heredara la version de
-# otro ordenador.
-_LO_QUE_CREA_LA_INSTALACION = (
+# `manifest.json` is NOT here, deliberately: it lives under
+# `.claude/.unmassk/`, which `.gitignore` ignores, because it records which
+# version is installed ON THIS MACHINE. Versioning it would make a clone
+# inherit another computer's version.
+_INSTALL_CREATES = (
     ".gitignore",
     "CLAUDE.md",
     ".claude/project-memory/config.json",
@@ -128,85 +128,80 @@ _LO_QUE_CREA_LA_INSTALACION = (
 
 
 def _commit_what_the_install_created(target: str) -> None:
-    """Guarda en git lo que la instalacion acaba de crear.
+    """Commit what the install has just created.
 
-    Sin esto, un proyecto recien instalado termina el dia con DIEZ ficheros
-    sin guardar [medido 2026-08-06, simulacion de un dia entero de punta a
-    punta]. Tres consecuencias, y ninguna es cosmetica:
+    Without this, a freshly installed project ends the day with TEN
+    uncommitted files [measured 2026-08-06, full-day simulation]. Three
+    consequences, none cosmetic:
 
-    1. **Ruido permanente en `git status`.** Diez lineas que no son trabajo
-       del usuario y que no desaparecen nunca por si solas.
-    2. **Publicar se bloquea.** `bin/release.py` se niega a correr con el
-       arbol sucio, asi que instalar la memoria impedia publicar.
-    3. **Al clonar en otra maquina no hay ni configuracion ni indices.** Es
-       el mismo agujero que ya se cerro en `rules.py` (el fichero de reglas
-       se quedaba fuera de git) y en `zones.py` (las zonas se perdian
-       enteras al clonar) -- este era el tercer sitio, y el mas grande.
+    1. **Permanent noise in `git status`.** Ten lines that are not the
+       user's work and never go away on their own.
+    2. **Publishing is blocked.** `bin/release.py` refuses to run with a
+       dirty tree, so installing memory prevented publishing.
+    3. **Cloning on another machine yields no config or indexes.** Same
+       hole already closed in `rules.py` (the rules file stayed outside
+       git) and in `zones.py` (zones were lost on clone) -- this was the
+       third place, and the biggest.
 
-    Pathspec EXPLICITO, nunca `git add -A`: el usuario puede tener trabajo
-    suyo a medias en el indice cuando esto corre, y arrastrarlo dentro de un
-    commit de instalacion seria robarle su commit. Mismo contrato que
-    `gitcmd.commit()` ya cumple para la publicacion del toolkit.
+    EXPLICIT pathspec, never `git add -A`: the user may have work in
+    progress in the index when this runs, and dragging it into an install
+    commit would steal their commit. Same contract `gitcmd.commit()`
+    already meets for the toolkit's publication.
 
-    Falla en silencio a proposito: un repositorio sin un solo commit
-    todavia, un `user.email` sin configurar o un `pre-commit` ajeno que
-    rechaza son casos normales, y **ninguno justifica reventar una
-    instalacion que por lo demas ha ido bien**. Lo que queda entonces son
-    unos ficheros sin commitear, que es exactamente el estado de antes de
-    este arreglo -- nunca algo peor.
+    Fails silently on purpose: a repository with no commit yet, an unset
+    `user.email` or a foreign `pre-commit` that rejects are normal cases,
+    and **none justifies blowing up an install that otherwise went
+    well**. What remains then is some uncommitted files, exactly the state
+    before this fix -- never anything worse.
     """
-    existentes = [
-        rel for rel in _LO_QUE_CREA_LA_INSTALACION
+    existing = [
+        rel for rel in _INSTALL_CREATES
         if os.path.isfile(os.path.join(target, rel))
     ]
-    if not existentes:
+    if not existing:
         return
     try:
-        # encoding="utf-8", errors="replace" en los tres subprocess.run de
-        # aqui abajo: sin `encoding=`, `text=True` decodifica con el
-        # codec de la consola -- cp1252 en Windows -- y una salida de git
-        # con un caracter fuera de ese codec (p.ej. el emoji que ya
-        # imprime install_apply.py mas arriba en la misma ejecucion)
-        # revienta la decodificacion en un hilo lector separado; el
-        # llamante nunca ve la excepcion, solo recibe `stdout = None`
-        # [House, diagnosticado 2026-08-08, 8 tests rojos en el CI de
-        # Windows]. `errors="replace"` no es opcional: la salida de `git`
-        # no la controlamos, y sin el la decodificacion simplemente falla
-        # en otro punto en vez de desaparecer.
+        # encoding="utf-8", errors="replace" in the three subprocess.run
+        # calls below: without `encoding=`, `text=True` decodes with the
+        # console codec -- cp1252 on Windows -- and git output with a
+        # character outside that codec (e.g. the emoji install_apply.py
+        # already prints earlier in the same run) blows up decoding in a
+        # separate reader thread; the caller never sees the exception, it
+        # just gets `stdout = None` [House, diagnosed 2026-08-08, 8 red
+        # tests on Windows CI]. `errors="replace"` is not optional: git's
+        # output is not ours to control, and without it decoding just
+        # fails at another point instead of going away.
         add = subprocess.run(
-            ["git", "add", "--"] + existentes,
+            ["git", "add", "--"] + existing,
             cwd=target, capture_output=True, text=True, timeout=15,
             encoding="utf-8", errors="replace",
         )
         if add.returncode != 0:
             return
         staged = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--"] + existentes,
+            ["git", "diff", "--cached", "--name-only", "--"] + existing,
             cwd=target, capture_output=True, text=True, timeout=15,
             encoding="utf-8", errors="replace",
         )
-        # Nada que guardar: la instalacion no cambio ninguno de estos
-        # ficheros (segunda pasada sobre un proyecto ya instalado). Sin esta
-        # comprobacion, `git commit` fallaria por "nothing to commit" y
-        # dejaria un error donde no hay ninguno.
+        # Nothing to commit: the install changed none of these files
+        # (second pass over an already installed project). Without this
+        # check, the commit would fail with "nothing to commit" and
+        # leave an error where there is none.
         #
-        # `staged.stdout is not None` es a proposito, y no un simple `or
-        # ""`: con `encoding=`/`errors=` fijados arriba `stdout` ya nunca
-        # deberia ser `None`, pero si algun dia lo fuera por otra causa,
-        # tratarlo como "no hay nada preparado" perderia en silencio
-        # justo el commit que esta funcion existe para proteger -- este
-        # es el UNICO de los nueve sitios que pierde trabajo sin decirlo
-        # (el commit de instalacion se saltaba entero). Si no se puede
-        # leer la salida, se sigue adelante y se intenta el commit en vez
-        # de rendirse.
+        # `staged.stdout is not None` is deliberate, not a plain `or ""`:
+        # with `encoding=`/`errors=` set above `stdout` should never be
+        # `None`, but if it ever were for another reason, treating it as
+        # "nothing staged" would silently lose exactly the commit this
+        # function exists to protect. If the output cannot be read, go on
+        # and attempt the commit instead of giving up.
         if staged.returncode != 0:
             return
         if staged.stdout is not None and not staged.stdout.strip():
             return
         subprocess.run(
             ["git", "commit", "-m",
-             "install: memoria del proyecto (indices, config y gitignore)",
-             "--"] + existentes,
+             "install: project memory (indexes, config and gitignore)",
+             "--"] + existing,
             cwd=target, capture_output=True, text=True, timeout=30,
             encoding="utf-8", errors="replace",
         )
@@ -489,9 +484,9 @@ def _gitmem_launcher_cache_content() -> str:
     cache version on EVERY run, so the launcher survives a plugin
     upgrade without being reinstalled.
 
-    Does not reimplement the semver-picking algorithm [encargo: "la
-    pieza que ya sabe encontrarla existe y se reutiliza, no se
-    reescribe: lib/boot_health.py::_latest_version_dir() y
+    Does not reimplement the semver-picking algorithm [task: "the piece
+    that already knows how to find it exists and is reused, not
+    rewritten: lib/boot_health.py::_latest_version_dir() and
     CACHE_BASE_DIR"] — it bootstraps into whichever cache version it
     finds first purely to import the real function/constant, then asks
     THAT function for the true latest version and dispatches there. The
@@ -521,8 +516,8 @@ def _gitmem_launcher_cache_content() -> str:
 
 
 def _install_gitmem_launcher(source: str, target: str) -> dict[str, Any]:
-    """Install/replace the ~/.local/bin/gitmem launcher [encargo: "gitmem
-    en el PATH -- y que sobreviva a las actualizaciones"]. A direct
+    """Install/replace the ~/.local/bin/gitmem launcher [task: "gitmem
+    on the PATH -- and surviving updates"]. A direct
     symlink to the cache's version-numbered gitmem would go dead on the
     next plugin upgrade; this launcher re-resolves the version on every
     invocation instead (self-install case excepted, see
@@ -535,8 +530,8 @@ def _install_gitmem_launcher(source: str, target: str) -> dict[str, Any]:
     Not project-scoped (~/.local/bin lives outside `target`), so
     verify_path_within_project doesn't apply here — that guard exists for
     attacker-planted symlinks inside a hostile repo, and this project's
-    threat model has no external attacker [CLAUDE.md, "que security y
-    tests son para"]. The atomic temp-file + os.replace() write is kept
+    threat model has no external attacker [CLAUDE.md, "what security and
+    tests are for"]. The atomic temp-file + os.replace() write is kept
     anyway: it protects against THIS process crashing mid-write, which is
     the real, in-scope risk (system harming itself), not against a
     hostile third party.
@@ -573,16 +568,16 @@ def _install_gitmem_launcher(source: str, target: str) -> dict[str, Any]:
 
 def _seed_project_memory(target: str, source: str) -> None:
     """Seed `.claude/project-memory/`'s eight index files with their
-    headers [encargo: "no inventes el sembrado: la funcion existe y es
-    lib/memory/indexes.py::seed(pm). Llamala."]. Reuses the real seeding
+    headers [task: "don't invent the seeding: the function exists and is
+    lib/memory/indexes.py::seed(pm). Call it."]. Reuses the real seeding
     function the rest of the memory system already writes through —
     idempotent by construction (seed() only creates a file that is
     missing, never touches one that already has notes).
 
     `install_apply.py` lives outside the zone `tests/memory/
     test_boundary.py` protects, so it cannot `import indexes` directly
-    (Puerta 3, fila 1: "ningun fichero del toolkit fuera de lib/memory/,
-    bin/memory/, bin/gitmem... importa nada de lib/memory/"). Instead it
+    (Gate 3, row 1: "no toolkit file outside lib/memory/, bin/memory/,
+    bin/gitmem... imports anything from lib/memory/"). Instead it
     shells out to `bin/gitmem rezones` — a real, already-authorized
     channel: `bin/memory/rezones.py::_rebuild()` calls `indexes.seed(pm)`
     as its very first step, unconditionally, before computing anything
@@ -594,8 +589,8 @@ def _seed_project_memory(target: str, source: str) -> None:
     one place.
 
     `gitmem` resolves its own subcommands BY PATH relative to itself
-    (bin/gitmem's own docstring: "cada subcomando llega a su script real,
-    por ruta -- nunca importado"), so `source` (the plugin/source root,
+    (bin/gitmem's own docstring: "each subcommand reaches its real
+    script, by path -- never imported"), so `source` (the plugin/source root,
     already the same root `_install_gitmem_launcher` uses to compute
     `bin/gitmem`'s path) is what locates it here -- never a second,
     independent guess at where the toolkit lives.
@@ -616,32 +611,32 @@ def _seed_project_memory(target: str, source: str) -> None:
     verify_path_within_project(pm_dir, target)
 
     gitmem_path = os.path.join(source, "bin", "gitmem")
-    # encoding="utf-8", errors="replace": mismo motivo que los tres
-    # subprocess.run de _commit_what_the_install_created -- sin esto,
-    # `stdout`/`stderr` pueden llegar como `None` en Windows y el `.strip()`
-    # de la rama de error de abajo revienta con un AttributeError pelado en
-    # vez de contar lo que de verdad fallo.
+    # encoding="utf-8", errors="replace": same reason as the three
+    # subprocess.run calls in _commit_what_the_install_created -- without
+    # it, `stdout`/`stderr` can arrive as `None` on Windows and the
+    # `.strip()` in the error branch below blows up with a bare
+    # AttributeError instead of reporting what really failed.
     result = subprocess.run(
         [sys.executable, gitmem_path, "rezones"],
         cwd=target, capture_output=True, text=True, timeout=30,
         encoding="utf-8", errors="replace",
     )
     if result.returncode != 0:
-        # (result.stderr or "") / (result.stdout or ""): defensa igual,
-        # por si `stdout`/`stderr` llegaran `None` por otra causa --
-        # esta rama de error es la que de verdad importa reportar, no
-        # tragar en un AttributeError.
+        # (result.stderr or "") / (result.stdout or ""): same defense, in
+        # case `stdout`/`stderr` arrive as `None` for another reason --
+        # this error branch is the one that really matters to report, not
+        # to swallow in an AttributeError.
         detail = (result.stderr or "").strip() or (result.stdout or "").strip() or f"exit code {result.returncode}"
-        raise RuntimeError(f"gitmem rezones fallo sembrando project-memory: {detail}")
+        raise RuntimeError(f"gitmem rezones failed seeding project-memory: {detail}")
 
 
 # ── config.json: deduced repo_type ───────────────────────────────────────
 
 def _write_config_json(target: str, deduced_repo_type: str) -> str:
     """Write or merge `.claude/project-memory/config.json` with the
-    deduced repo_type [encargo: "Nunca sobrescribas un config.json que ya
-    exista, ni una clave que ya tenga... Si ya existe con repo_type, se
-    respeta y se anuncia como respetado"]. config.py's own Config
+    deduced repo_type [task: "Never overwrite a config.json that already
+    exists, nor a key it already has... If it already exists with
+    repo_type, it is respected and announced as respected"]. config.py's own Config
     dataclass models exactly three keys (customs_enabled, repo_type,
     test_command) — those are the only keys this file can ever hold, so
     merging means: keep every key already present untouched, add
@@ -649,8 +644,8 @@ def _write_config_json(target: str, deduced_repo_type: str) -> str:
 
     A corrupt existing file is never silently treated as empty and
     overwritten — same fail-loud contract as config.py::load()'s own
-    docstring ("un fichero corrupto FALLA EN ALTO, nunca devuelve los
-    valores por defecto en silencio"): overwriting a corrupt file here
+    docstring ("a corrupt file FAILS LOUDLY, never silently returns the
+    default values"): overwriting a corrupt file here
     would risk discarding a repo_type a human already set that just
     happens to sit next to a JSON syntax error. Raises ValueError, caught
     by apply_plan()'s existing per-action try/except and reported as an
@@ -670,21 +665,21 @@ def _write_config_json(target: str, deduced_repo_type: str) -> str:
                 raw = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             raise ValueError(
-                f"install_apply.py: {config_path} existe y esta corrupto -- "
-                f"no se toca sin saber que clave conserva: {exc}"
+                f"install_apply.py: {config_path} exists and is corrupt -- "
+                f"not touched without knowing which key it holds: {exc}"
             ) from exc
         if not isinstance(raw, dict):
             raise ValueError(
-                f"install_apply.py: {config_path} existe pero no es un "
-                f"objeto JSON (diccionario) -- no se toca"
+                f"install_apply.py: {config_path} exists but is not a "
+                f"JSON object (dictionary) -- not touched"
             )
         data = raw
 
     if "repo_type" in data:
-        return f"config.json: repo_type={data['repo_type']!r} ya existente, respetado ({config_path})"
+        return f"config.json: repo_type={data['repo_type']!r} already present, respected ({config_path})"
 
     data["repo_type"] = deduced_repo_type
     with open_no_follow_symlink(config_path, "w", atomic=True) as f:
         json.dump(data, f, indent=2)
         f.write("\n")
-    return f"config.json: repo_type={deduced_repo_type!r} deducido y escrito ({config_path})"
+    return f"config.json: repo_type={deduced_repo_type!r} deduced and written ({config_path})"

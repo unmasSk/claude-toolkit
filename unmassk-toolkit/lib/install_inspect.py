@@ -97,7 +97,7 @@ OLD_SKILL_DIRS = [
 
 def _deduce_repo_type(target: str) -> str:
     """Deduce config.json's repo_type from `target`'s branches alone —
-    fixed rule [encargo: "config.json, deducido y escrito"], not to be
+    fixed rule [task: "config.json, deduced and written"], not to be
     changed here:
 
     - a single branch total -> "trunk" (nothing to protect: every commit
@@ -217,15 +217,10 @@ def inspect(target: str) -> dict[str, Any]:
         except (json.JSONDecodeError, OSError):
             pass
 
-    # config.json's repo_type, deduced from branches alone [decision
-    # fijada por el encargo, no se cambia aqui]:
-    #   - una sola rama -> "trunk" (todo el historial vive en ella).
-    #   - dos o mas ramas Y una se llama literalmente "dev" o "develop"
-    #     -> "gitflow".
-    #   - cualquier otro caso (incluido "no se pudieron listar ramas") ->
-    #     "trunk", mismo lado fail-open que el caso de una sola rama; la
-    #     fase 5 dice en alto que se dedujo y como cambiarlo, para que un
-    #     acierto equivocado nunca sea silencioso.
+    # config.json's repo_type, deduced from branches alone (rule fixed by
+    # the task, not changed here; see _deduce_repo_type). Phase 5 reports
+    # what was deduced and how to override it, so a wrong guess is never
+    # silent.
     report["deduced_repo_type"] = _deduce_repo_type(target)
 
     # Detect stale hook entries in project .claude/settings.json

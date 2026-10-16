@@ -1,38 +1,19 @@
 #!/usr/bin/env python3
-"""gitmem -- fachada del sistema de memoria v2.
+"""gitmem -- facade of the memory system.
 
-Vive DENTRO de unmassk-toolkit/, no en un plugin aparte (ARQUITECTURA.md
-SS1). Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `bin/gitmem`):
-"despacha al script del subcomando"; imprime "lo que devuelva el script;
-con --version, la version del toolkit".
+Lives INSIDE unmassk-toolkit/, not in a separate plugin. Prints what the
+subcommand script returns; with --version, the toolkit version.
 
-**El sistema queda en NUEVE subcomandos** [decision del propietario,
-2026-08-03, COLA.md Sec.4]: `close`->`remove`, `context`->`next`,
-`reindex`->`rezones` (renombrados -- "cerrar" no dice que retira una
-nota; el comando escribe el cierre de sesion y lo que importa es el
-Next); `bench` se borra entero ("no lo he autorizado en la vida");
-`boot` deja de ser subcomando -- "ese comando no quiero que se use,
-tiene que ser automatico, como se hacia antes" (la pieza que genera el
-documento del arranque sigue existiendo -- `bin/memory/boot.py`,
-`lib/memory/boot.py` -- ya no se invoca via `gitmem boot`: el disparo
-automatico, hook de SessionStart, es trabajo de otra tarea); y **`wip`
-se anade** -- el checkpoint sin preguntas, agujero real destapado
-verificando: `validator.is_wip()` sabia reconocer y eximir el marcador
-pero ningun comando lo escribia.
+Nine subcommands (see SUBCOMMANDS). Each one reaches its real script
+(`bin/memory/<subcommand>.py`) BY PATH, never imported, so this facade
+cannot reimplement anything and the two paths cannot diverge: a rejection
+from `gitmem note` must be byte-for-byte identical to `note.py` run
+directly (tests/memory/test_gitmem_facade.py, `TestAddsNoLogicOfItsOwn`).
+Dispatch is a `subprocess.run` with inherited streams (never captured or
+reprinted here), so stdout/stderr/returncode arrive intact.
 
-Regla propia de esta pieza: cada subcomando llega a su script real
-(`bin/memory/<subcomando>.py`), por RUTA -- nunca importado, para que no
-pueda reimplementar nada de lo que ese script hace y los dos caminos
-diverjan (verificado por `TestAddsNoLogicOfItsOwn` en
-tests/memory/test_gitmem_facade.py: un rechazo real de `gitmem note`
-tiene que ser BYTE A BYTE identico al de `note.py` invocado directo). El
-despacho es un `subprocess.run` con los flujos heredados (nunca
-capturados ni reimpresos aqui) para que stdout/stderr/returncode del
-subcomando lleguen intactos -- "no anade logica propia, solo reparte"
-[encargo de esta tarea].
-
-Un subcomando desconocido falla (codigo de retorno distinto de cero)
-nombrando los nueve que existen de verdad -- nunca una lista inventada.
+An unknown subcommand fails (non-zero return code) and names the nine
+that really exist.
 """
 
 import json
@@ -43,9 +24,8 @@ import sys
 _BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR = os.path.dirname(_BIN_DIR)
 _BIN_MEMORY_DIR = os.path.join(_BIN_DIR, "memory")
-# Los modulos del sistema de memoria viven en lib/memory/, no en lib/
-# directamente -- subcarpeta a proposito para no chocar con el
-# lib/colors.py del toolkit que sobrevive (ARQUITECTURA.md SS1).
+# The memory system modules live in lib/memory/, not directly in lib/,
+# so they do not clash with the toolkit's surviving lib/colors.py.
 _LIB_DIR = os.path.join(_ROOT_DIR, "lib", "memory")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
@@ -54,13 +34,9 @@ from utf8 import force_utf8_streams  # noqa: E402
 
 force_utf8_streams()
 
-# Subcomandos reales -- uno por script en bin/memory/ (ARQUITECTURA.md
-# SS1, PIEZAS.md Sec.10). El nombre del subcomando ES el nombre del
-# fichero sin ".py" -- una sola tabla, nunca dos listas que puedan
-# desincronizarse. Nueve [decision del propietario, 2026-08-03]:
-# "close"/"context"/"reindex" renombrados a "remove"/"next"/"rezones";
-# "bench" borrado entero; "boot" deja de ser subcomando (se dispara
-# solo); "wip" se anade (el checkpoint sin preguntas).
+# Real subcommands -- one per script in bin/memory/. The subcommand name
+# IS the file name without ".py": a single table, never two lists that can
+# drift apart.
 SUBCOMMANDS = (
     "note",
     "work",
@@ -73,8 +49,8 @@ SUBCOMMANDS = (
     "rule",
 )
 
-# Una linea por subcomando, junto a SUBCOMMANDS. El chequeo de abajo falla
-# fuerte al importar si un subcomando queda sin descripcion (o sobra una).
+# One line per subcommand, next to SUBCOMMANDS. The check below fails loudly
+# on import if a subcommand has no description (or one is left over).
 DESCRIPTIONS = {
     "note": "Save a memory note (D/M/R/Q/X/I/B) as its own commit",
     "work": "Commit code changes for the given paths only",
@@ -95,10 +71,7 @@ if set(DESCRIPTIONS) != set(SUBCOMMANDS):
 
 
 def _read_version() -> str:
-    """Lee la version desde el manifiesto del toolkit -- una sola fuente
-    de verdad, nunca un literal duplicado aqui. No hay plugin.json propio
-    del sistema de memoria: vive dentro de unmassk-toolkit/ y hereda su
-    version (ARQUITECTURA.md SS1)."""
+    """Read the version from the toolkit manifest (single source of truth)."""
     manifest_path = os.path.join(_ROOT_DIR, ".claude-plugin", "plugin.json")
     with open(manifest_path, "r", encoding="utf-8") as fh:
         return json.load(fh)["version"]
@@ -113,18 +86,17 @@ def _print_usage():
 
 
 def _print_unknown_subcommand(subcommand):
-    print(f"gitmem: subcomando desconocido: {subcommand!r}", file=sys.stderr)
-    print("Subcomandos disponibles:", file=sys.stderr)
+    print(f"gitmem: unknown subcommand: {subcommand!r}", file=sys.stderr)
+    print("Available subcommands:", file=sys.stderr)
     for name in SUBCOMMANDS:
         print(f"  gitmem {name}", file=sys.stderr)
 
 
 def _dispatch(subcommand, rest_argv):
-    """Ejecuta `bin/memory/<subcommand>.py` como proceso separado, con
-    los mismos argumentos, mismo interprete y flujos heredados -- para
-    que su salida sea indistinguible de invocarlo directo. No captura
-    stdout/stderr (serian solo reimpresos, una capa que puede divergir
-    del original); el returncode del hijo se propaga tal cual.
+    """Run `bin/memory/<subcommand>.py` as a separate process with the same
+    arguments, same interpreter and inherited streams, so its output is
+    indistinguishable from running it directly. The child's returncode is
+    propagated as is.
     """
     script_path = os.path.join(_BIN_MEMORY_DIR, f"{subcommand}.py")
     result = subprocess.run([sys.executable, script_path, *rest_argv])
@@ -151,6 +123,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as exc:  # nunca una traza de pila -- PIEZAS.md Sec.10
+    except Exception as exc:  # never a stack trace
         print(f"gitmem: {exc}", file=sys.stderr)
         sys.exit(1)

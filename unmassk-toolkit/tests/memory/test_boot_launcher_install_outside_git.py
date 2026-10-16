@@ -1,26 +1,59 @@
-"""Regresion: el arranque no instala fuera de un repositorio git.
+"""Regression: session start does not install outside a git repository.
 
-Comportamiento: con el cwd de la sesion FUERA de un arbol de trabajo git y
-sin `.claude/.unmassk/manifest.json`, `hooks/boot_launcher.py` no lanza el
-instalador, no imprime nada sobre instalacion y no crea nada en esa
-carpeta. Contra-caso: un `git init` recien hecho, sin manifiesto, SI se
-instala (el manifiesto aparece).
+Behavior: with the session cwd OUTSIDE a git working tree and without
+`.claude/.unmassk/manifest.json`, `hooks/boot_launcher.py` does not launch
+the installer, prints nothing about installation and creates nothing in that
+folder. Counter-case: a freshly made `git init`, without a manifest, DOES
+install (the manifest appears).
 
-Se conduce como lo hace el arranque real: proceso aparte, payload JSON de
-SessionStart por stdin con `cwd`. HOME/USERPROFILE van a un directorio
-temporal: el instalador deja un lanzador en `~/.local/bin` y el test nunca
-debe tocar el del usuario.
+It is driven the way the real session start does it: a separate process,
+SessionStart JSON payload on stdin with `cwd`. HOME/USERPROFILE point to a
+temporary directory: the installer leaves a launcher in `~/.local/bin` and
+the test must never touch the user's.
 """
 
+import ast
 import os
 
 from .conftest import (
+    HOOKS_DIR,
     make_session_start_payload,
     run_git,
     run_hook_with_payload,
 )
 
 HOOK_NAME = "boot_launcher.py"
+
+
+def _install_notice_first_lines():
+    """First line of every install notice the hook can print, read from the
+    hook's own source (AST of its `print(...)` calls), not hand-typed.
+
+    A print argument is either a plain string or an f-string; the static
+    text of its first line is what the hook emits verbatim in both cases.
+    """
+    with open(os.path.join(HOOKS_DIR, HOOK_NAME), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    lines = []
+    for node in ast.walk(tree):
+        is_print = (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "print"
+            and node.args
+        )
+        if not is_print:
+            continue
+        arg = node.args[0]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            text = arg.value
+        elif isinstance(arg, ast.JoinedStr) and isinstance(arg.values[0], ast.Constant):
+            text = arg.values[0].value
+        else:
+            continue
+        if text.startswith("[memory]"):
+            lines.append(text.split("\n")[0].lower())
+    return lines
 
 
 def _isolated_home_env(tmp_path):
@@ -44,11 +77,14 @@ def test_should_not_install_nor_print_nor_create_when_cwd_is_outside_git(tmp_pat
 
     assert rc == 0, f"stdout={out!r} stderr={err!r}"
     both = (out + err).lower()
-    assert "instalaci" not in both, both
-    assert "ha fallado" not in both, both
+    notices = _install_notice_first_lines()
+    # anti-vacuity: both notices (installed OK / install failed) were found
+    assert len(notices) == 2, notices
+    for notice in notices:
+        assert notice not in both, both
     assert not os.path.exists(_manifest(folder))
     assert os.listdir(str(folder)) == []
-    # ni el lanzador PATH en el HOME aislado
+    # nor the PATH launcher in the isolated HOME
     assert not (home / ".local").exists()
 
 

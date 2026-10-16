@@ -514,36 +514,34 @@ def test_relaunch_command_flags_and_required_args_match_real_argparse(
 def test_close_command_at_validator_py_line_409_dispatches_via_real_gitmem_facade(
     tmp_path,
 ):
-    """Prueba de extremo a extremo (subproceso real, `bin/gitmem` tal
-    cual lo invoca un usuario) del comando que `validator.py:409` ofrece
-    LITERAL -- extraido del AST real, no retecleado aqui --, para que el
-    fallo se vea con la salida real de la fachada, no solo con la
-    comprobacion estatica de arriba.
+    """End-to-end test (real subprocess, `bin/gitmem` exactly as a user
+    invokes it) of the command that `validator.py:409` offers LITERALLY --
+    extracted from the real AST, not retyped here -- so the failure shows
+    with the facade's real output, not only with the static check above.
 
-    Hoy `gitmem close ...` rebota con "subcomando desconocido: 'close'"
-    (`bin/gitmem::_print_unknown_subcommand`) -- este test afirma que
-    DEBERIA despachar (returncode de un subcomando real, nunca el de
-    "subcomando desconocido"), y falla mostrando el stderr real de la
-    fachada.
+    Today `gitmem close ...` bounces with "unknown subcommand: 'close'"
+    (`bin/gitmem::_print_unknown_subcommand`) -- this test asserts it
+    SHOULD dispatch (the return code of a real subcommand, never the
+    "unknown subcommand" one), and fails showing the facade's real stderr.
     """
     from .conftest import run_gitmem_script
 
-    # Se busca por CONTENIDO, no por numero de linea: clavarlo a la 409
-    # hacia que cualquier linea anadida mas arriba de `validator.py`
-    # tumbara este test sin que nada del rechazo hubiera cambiado
-    # [2026-08-05, tras corregirlo el prefijo `[WIP]`]. Lo que este test
-    # vigila es que el rechazo del solapamiento ofrezca un subcomando que
-    # exista, no en que renglon vive.
+    # Searched by CONTENT, not by line number: pinning it to line 409 meant
+    # any line added above it in `validator.py` would break this test
+    # without anything about the rejection having changed [2026-08-05,
+    # after the `[WIP]` prefix fixed it]. What this test guards is that the
+    # overlap rejection offers a subcommand that exists, not which line it
+    # lives on.
     matches = [
         (relpath, lineno, command)
         for relpath, lineno, command in ALL_COMMANDS
         if relpath.endswith("validator.py") and "--restriction" in command
     ]
     assert matches, (
-        "no se extrajo de validator.py ningun comando de cierre de nota -- "
-        "el extractor cambio de comportamiento o el rechazo del "
-        "solapamiento dejo de ofrecer salida; este test depende de "
-        "encontrarlo ahi de verdad, no de un texto fijo"
+        "no note-closing command was extracted from validator.py -- "
+        "either the extractor changed behavior or the overlap rejection "
+        "stopped offering an exit; this test depends on really finding "
+        "it there, not on fixed text"
     )
     relpath, lineno, command = matches[0]
     tokens = _tokenize(command)
@@ -551,10 +549,10 @@ def test_close_command_at_validator_py_line_409_dispatches_via_real_gitmem_facad
 
     returncode, stdout, stderr = run_gitmem_script(tokens[1:], cwd=tmp_path)
 
-    assert "subcomando desconocido" not in stderr, (
-        f"validator.py:409 sigue ofreciendo un subcomando muerto: "
-        f"`{command}` -- bin/gitmem lo rechaza con {stderr.strip()!r} "
-        f"(subcomando extraido: {subcommand!r}, no esta en SUBCOMMANDS)"
+    assert "unknown subcommand" not in stderr, (
+        f"validator.py:409 still offers a dead subcommand: "
+        f"`{command}` -- bin/gitmem rejects it with {stderr.strip()!r} "
+        f"(extracted subcommand: {subcommand!r}, not in SUBCOMMANDS)"
     )
 
 
