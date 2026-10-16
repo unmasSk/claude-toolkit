@@ -21,3 +21,8 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 ## Memory system (`lib/memory/`)
 - `gitmem search --file <path>` can't find notes about a source file (notes never touch it). Search by the file's name as a word.
 - `managed_blocks.py` BLOCKS[0]: the short restore body is intended; the longer one in git history is not the right one.
+
+## chatroom/
+- Bun `mock.module()` leaks across test files: assert on DB state, or use a `_setXForTesting()` setter.
+- Elysia `publishToSelf` does nothing: deliver to self by hand. The WS `upgrade()` hook ignores return values.
+- React StrictMode runs effects twice: a second `connect()` kills the socket that is still CONNECTING.
