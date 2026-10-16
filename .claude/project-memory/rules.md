@@ -59,3 +59,4 @@
 [remember][user] 🧠 tests: Dante ejecuta solo los del modulo que esta haciendo; la suite entera se pasa al subir a main — «si Dante está haciendo test, solo tiene que ejecutar los test del módulo que esté haciendo, no tiene que ejecutar todo el esto, todo el esto se hace cuando se sube a Main»
 [remember][user] 🧠 al cambiar fichas, skills o prompts: se guardan en ingles, pero a Bex se le ensena en castellano y sobre todo el diff, que ha cambiado — «si en ingles como siempre, pero a mi me los das en castellano, pero siobretodo lo que necesito es el diff ver en que ha cambiado eso es lo que mas necesito»
 [remember][user] 🧠 silencio total mientras se trabaja; solo se le escribe para preguntar, siempre con emojis; sin aviso de voz — «apaga tu audio ya que me raya»
+[remember][user] 🧠 cuando Bex pide ideas, ejemplos o preguntas, se le dan a el y nada mas: nunca se ejecutan ni se mandan a agentes o sesiones — «o cosas asi QUE SE LO PREGUNTO YO HOSTIAS!»
