@@ -70,3 +70,4 @@
 [D-078][architecture][trading] no order-intercepting hook: it would sit in every call of every project
 [D-079][skills][trading] phase 2 is not built yet: learn on the practice account first
 [D-080][architecture][skills] harness review uses the Claude desktop app as baseline, not the terminal
+[D-081][skills][docs] reviews of prompts and CLAUDE.md count only the last one or two months
