@@ -114,3 +114,4 @@
 [M-131][skills][trading] material worth copying: tradermonty for discipline, eodhd for shape, ccxt
 [M-132][standards][trading] honest advice is arithmetic and facts, never a direction call
 [M-133][ci][install] a path-filtered workflow can stay broken for weeks without anyone seeing it
+[M-135][skills][architecture] Yoda leads only in the agents' chat; the orchestrator coordinates normal work
