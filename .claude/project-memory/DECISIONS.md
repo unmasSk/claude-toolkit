@@ -77,3 +77,4 @@
 [D-085][architecture][skills] long term: make the toolkit more agnostic, usable beyond Claude
 [D-086][docs][architecture] toolkit docs and code move to English together with the agnostic work
 [D-087][boot][memory] boot loads the owner's rules whole each session, after a review of them
+[D-088][skills][memory] each agent repairs its own notebook in every project, after the toolkit redesign
