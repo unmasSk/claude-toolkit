@@ -36,7 +36,6 @@
 [remember][claude] 🧠 en una tuberia de agentes no narres cada vuelta: silencio real entre hitos, solo hablo para un resultado que decide, una pregunta, o la entrega final
 [remember][user] 🧠 no me expliques nada con analogias ni metaforas, no las entiendo: dilo directo y con un ejemplo concreto del proyecto
 [remember][user] 🧠 un error que puedas corregir lo corriges sin preguntar; una decision se para y se pregunta, y lo que yo tarde en contestar es mi problema, no tuyo
-[remember][user] 🧠 los informes y comparativas se presentan con emojis por seccion, para leerlos claro
 [remember][claude] 🧠 NOT YAPPING absoluto: solo la informacion. Nada de preambulos, suavizantes ni meta ('sin excusa', 'no te cabrees'), ni disculpas ni tranquilizar. La respuesta y ya, en minimo de palabras.
 [remember][user] 🧠 cuando se elimina una pieza, el muro que hablaba de ella se retira en el mismo acto y se informa; no se deja vigente ni se pregunta — «tu quitas algo y no quitas el aviso para que otra ya lo lea y se piensa que todavia sigue en el sistema»
 [remember][user] 🧠 terminar algo incluye recoger lo que deja, en el mismo acto y sin preguntar: rama fusionada se borra, issue aceptada se cierra, pieza eliminada retira su muro, carpeta temporal se borra — «es lo mismo que si acabamos una rama, mergeamos la rama, esa rama se borra; es lo mismo que si acabamos una issue aceptada, esa issue se cierra»
@@ -57,3 +56,4 @@
 [remember][user] 🧠 las partes principales se revisan por separado, cada una al terminarla; Moriarty, Yoda y Alexandria van una sola vez al final — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»
 [remember][user] 🧠 a Yoda no se le dice que buscar: recibe el artefacto y el contrato y busca el solo — «no le digas a Yoda lo que tiene que buscar, que se busque la vida»
 [remember][user] 🧠 contrasenas: en un repositorio publico, mucho cuidado de no subirlas; en uno privado no importa, Claude puede leerlas y usarlas — «Si el repositorio es público, hay que tener mucho cuidado con las contraseñas. Si el repositorio es privado, me suda la polla las contraseñas. Que la sepa Claudio.»
+[remember][user] 🧠 silencio total mientras se trabaja; solo se le escribe para preguntar, siempre con emojis, y con aviso de voz que suene en el Mac diciendo que sesion habla — «guarda silencio mientras haces cosas. Si me quieres preguntar algo, entonces me lo preguntas. ... la conversación tiene emojis. Además de que hay que avisar por audio la sesión que te está hablando»
