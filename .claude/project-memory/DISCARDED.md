@@ -94,3 +94,4 @@
 [X-094][skills][architecture] mantener solo dos vías (pequeño y estándar)
 [X-095][install][release] prueba en contenedor o CI de GitHub
 [X-096][architecture][skills] quedarse solo con Claude para siempre
+[X-097][docs][architecture] pasar al inglés ya
