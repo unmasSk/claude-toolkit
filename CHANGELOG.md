@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`reviewer-prompt-gate.py` no longer fails silently.** If the gate itself breaks (bad input, a bug) the launch still goes through, but a `systemMessage` now names the gate and the exception so an unchecked reviewer launch is visible; it also survives a closed output pipe.
+
+### Added
+
+- **Cerberus and Argus write their report to `.claude/informes/`** (now git-ignored) instead of the chat, so the orchestrator relays a short answer and the full report stays on file.
+- **Bilbo also researches outside the repo** (web, official docs, other people's repositories), has a new mode for following a feature end to end, and the orchestrator saves his `DEAD-ENDS` block as an `M` note keyed `deadend`.
+
+### Changed
+
+- **Model and effort are now set in all nine agent cards**: Ultron, Cerberus and Dante on Opus 5.5 medium; Moriarty, Yoda and House on Opus 5.5 high; Argus on Sonnet 5.5 high; Bilbo and Alexandria on Sonnet 5.5 medium.
+- **Yoda judges blind from Moriarty's raw run log.** His card was rewritten (no leader role, one T1/T2/T3 scale, 110 is perfection and any lower score owes the path to it, module-scoped runs only); without the log in the artifact he answers CANNOT JUDGE.
+- **Bilbo and Dante cards rewritten after each agent's own review.** Dante's quality gate is breaking what matters on purpose (mutants on a project copy), expected values never read from the code under test, and he stops without a git root; both notebooks were cleaned down to what is live (old task histories and retired attacker defenses remain in git).
+- **Verification tags (`EXECUTED` / `READ` / `UNVERIFIED`) apply to claims about the code**; figures from outside the repo carry their source and the date read.
+- **While writing code only the touched module's tests run; the whole suite is CI's job at release.** Root `CLAUDE.md`, Dante, Ultron and `unmassk-flow` are aligned to it.
+- **Cerberus no longer carries a hardcoded-secrets checklist line** (secrets are Argus's), and the `unmassk-standards` index now reads project values from `CLAUDE.md` and git memory (not agent memory) and lists §34.1–§34.6.
+
 ## [1.44.0] - 2026-10-16
 
 ### Fixed
