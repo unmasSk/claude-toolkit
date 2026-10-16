@@ -73,3 +73,4 @@
 [D-081][skills][docs] reviews of prompts and CLAUDE.md count only the last one or two months
 [D-082][skills][docs] every SKILL.md moves to one common template, later
 [D-083][skills][architecture] flow gains a medium path: Cerberus, Ultron and Dante only
+[D-084][install][release] end-to-end install test runs in a clean VM provided by Blackbox
