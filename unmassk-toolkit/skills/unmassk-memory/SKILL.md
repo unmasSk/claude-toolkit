@@ -145,19 +145,7 @@ A **D that defers future building** (a feature decided for later) also carries a
 
 ## Which of the three situations you are in
 
-Check this once, at the start, before writing anything. The three look alike from the outside and behave very differently.
-
-| | How you tell | What it means |
-|---|---|---|
-| **New project** | No memory yet: nothing to read at boot, and no zone list | Nothing to recover. The first note creates the memory. **Zones do not exist yet**: the first ones get created as they are needed |
-| **Project already running** | Memory reads back, zones are there | Ordinary work: read before building, save when the signal fires |
-| **Project carrying memory from a previous or different system** | The history holds memory, but none of it reads back through these commands | **Nothing is lost and nothing is migrated.** That memory is distilled once, additively — the earlier commits are never touched. Until that pass runs, the past is only reachable by reading the raw history |
-
-**Each agent's own memory is a fourth thing entirely** — what it learned about this codebase, kept apart from the project's. Nobody checks whether it is still true, and it rots the same way: `references/agent-memory-compaction.md` is the pass that fixes it, one agent at a time, each compacting only its own.
-
-**The third one is not ordinary work and does not happen on its own.** It is a deliberate pass: harvest the zones first and get them approved, then distil oldest to newest, each round reading what the previous ones produced. The protocol is in `references/distill.md` — read it when that pass is what you are doing, not before.
-
-**Never mix them up.** Treating the third as if it were the first leaves years of decisions unreachable while the memory looks perfectly healthy — the worst of the three, because nothing warns you.
+Check once, at the start: a **new project** (no memory, no zones yet — the first note creates them), a **project already running** (memory reads back — ordinary work), or a **project carrying memory from a previous system** (history holds memory that does not read back — it is distilled once, additively, never migrated). Never treat the third as the first: years of decisions become unreachable while the memory looks healthy. How to tell them apart, and each agent's own memory as a fourth thing, is in `references/situations.md`; the distill pass is in `references/distill.md`.
 
 ## The two zones
 
@@ -238,16 +226,7 @@ The zone command will create all six anyway: the guard is at the note, so creati
 
 ## When you get rejected
 
-A rejection is the system asking, with the options and the exact relaunch inside. Read it whole — if it shows candidate notes, look at them — then answer as an argument.
-
-| The rejection says | You answer |
-|---|---|
-| This overlaps something already written | `--replaces <ID>`, or `--replaces none` if both stand |
-| The cost question is unanswered | `--stops yes` or `--stops no` |
-| This rule is nearly the one already saved | Keep one. Don't reword and re-save |
-| A wall with incidents in its zone | `--origin <incident-ID>`, or `--origin none` |
-| That zone does not exist | Search for an equivalent; create it; relaunch |
-| Working on the protected branch | Branch off, or declare the project's type as the rejection shows. **The test for declaring it:** does a commit to the main branch, by itself, publish to users? Yes → protected. Unsure → protected |
+A rejection is the system asking, with the options and the exact relaunch inside. Read it whole — if it shows candidate notes, look at them — then answer as an argument. The usual answers (`--replaces`, `--stops`, `--origin`, a missing zone, the protected branch) are in `references/rejections.md`.
 
 ## Opening and closing
 
@@ -345,30 +324,17 @@ gitmem rule "<new text>" --replaces "<old text>" --kind <user|claude> --quote "<
 gitmem rule
 ```
 
-**The memory doctor — the CONTENT check, not the structure one.** `gitmem rezones --verify` proves the indexes match git; it says nothing about whether the notes still make sense. To review the content for rot — a live note a decision already killed, two notes saying the same thing in different words, a reference pointing at nothing, a board that lies about the code — invoke the **`unmassk-memory-doctor`** skill: an AI reads the memory (and each agent's own memory) and lists candidates, read-only. Retiring any of them stays the owner's call. Not to be confused with `git-memory-doctor`, which only checks the install.
+**The memory doctor is the content check** (`gitmem rezones --verify` only proves the indexes match git): for rot — a note a decision already killed, two notes saying the same thing, a reference pointing at nothing — invoke the **`unmassk-memory-doctor`** skill. It only lists; retiring stays the owner's call.
 
 **Every rule is saved with the literal words of whoever said it, via `--quote` — without them it bounces, for either `--kind`.** Claude's own paraphrase is not a substitute; that gap is how a rule the owner never said got saved on 2026-08-20, and how a real owner correction was later saved as `--kind claude` just to dodge the quote. The only way to save without a real quote is the explicit `--quote none` — Claude leaving itself a note, the owner said nothing.
 
-**A word search that finds nothing shows the project's zone catalog, not a blank header.** `gitmem search <word>` is literal-text matching: zero results means that string isn't written anywhere, not that there's no memory of it. When a word search comes back empty, the output now lists the project's zones with their description and aliases — the words this project actually uses — so retry with one of those before concluding there's nothing. This only fires for a plain word search with zero matches; `--id`, `--file`, and a search that resolves to a zone name are unaffected. A project with no zones yet says so instead of showing an empty list.
+**A word search that finds nothing lists the project's zones** — `gitmem search` matches literal text, so zero results means that string is written nowhere, not that there is no memory of it. Retry with one of the zones it shows before concluding there's nothing.
 
 **The user's own door into the rules is `/remember`** — the one slash command this toolkit ships, and it **only reads**: it delivers the whole rules file into your context, and you treat every line as binding from that moment. It takes no arguments and never saves. **Saving a rule is yours, always** — the moment the user says how they want to be worked with, you run `gitmem rule` there and then. A user who has to invoke a command to store their own correction is a user whose correction gets lost.
 
 **`gitmem` is on the PATH — type it bare.** The installer puts a launcher at `~/.local/bin/gitmem` that resolves the newest installed version on every run, so it keeps working across upgrades. Write `gitmem note ...`, never a long path into the plugin cache: a pasted cache path carries a version number in it and goes stale the day the toolkit updates.
 
-**If the bare command is not found, that is not a reason to reach for a long path — it is the signal that this project was never set up.** Run the installer once — discovered fresh in the same breath it runs, never a path pasted once and kept, since a kept path carries a version number and goes stale the day the toolkit updates:
-
-```bash
-SKILL_DIR=$(find ~/.claude/plugins/cache -maxdepth 5 -type d -path '*/unmassk-toolkit/*/skills/unmassk-memory' 2>/dev/null | while read -r d; do [ -e "${d%/skills/*}/.orphaned_at" ] || echo "$d"; done | sort -V | tail -1)
-python3 "$SKILL_DIR/../../bin/git-memory-install.py" --auto
-```
-
-If that discovery comes back empty, the toolkit is running from a checkout rather than an
-install: use the absolute path from the `Base directory for this skill:` line printed when this
-skill loaded, and write it into the command literally.
-
-Then use `gitmem`. It puts the launcher on the PATH and, in the same pass, seeds the eight indexes and writes the project's config — the things whose absence makes the first note bounce.
-
-Reaching for the cache path instead leaves the project half-set-up forever: the command appears to work, so nobody notices there is no config and no indexes, and the next session pays for it again.
+**If the bare command is not found, the project was never set up** — run the installer once, discovered fresh, never through a pasted cache path; the exact commands are in `references/install.md`.
 
 **And never report "no memory" when what happened is that the command wasn't found.** Those are opposite claims: one says the project has nothing saved, the other says you couldn't ask.
 

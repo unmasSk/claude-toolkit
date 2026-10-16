@@ -1,6 +1,6 @@
 # Compacting an agent's own memory
 
-Every agent keeps its own memory, separate from the project's: what it learned about this codebase, patterns it found, mistakes it paid for. **Nobody has ever checked whether any of it is still true.**
+Every agent that builds keeps its own memory, separate from the project's (Cerberus, Argus and Yoda keep none, by design — R-021): what it learned about this codebase, patterns it found, mistakes it paid for. **Nobody has ever checked whether any of it is still true.**
 
 This is that pass — compaction: check what is still true, fuse what was split by time, and end with a memory that can actually be read. It runs per project, one agent at a time, and each agent compacts **its own** — nobody touches another's.
 
