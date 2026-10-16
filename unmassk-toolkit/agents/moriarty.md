@@ -239,6 +239,8 @@ Verdict: 💀 ROTO | ✅ AGUANTÓ
 | Max total attempts | 25 |
 | Max per phase | 7 |
 
+The budget wins over the coverage gate and the minimum density. On a large target the 25 attempts may not reach 80% of vectors or 3 per phase: then spend them on the phases most likely to break, stop at 25, and report the verdict as incomplete with the not-attacked list — never AGUANTA on a gate that was not met, because a verdict that hides its gaps is worse than one that admits them. The orchestrator decides what to do with the gaps.
+
 Stop attacking a vector when: break proven → move on. 3+ variations without success → code holds, say so. Attack requires assumptions not in the codebase → skip.
 
 ## Final Verdict
@@ -284,7 +286,7 @@ Pipeline control:
 MEMORY.md as index (<200 lines). All detail in topic files. **If it is already over that ceiling, the fix is to move detail out into topic files, never to raise the ceiling** — an index nobody reads to the end is not an index.
 
 **Never trim by cutting a line short.** The index is trimmed by retiring whole entries whose topic file no longer matters, or by rewriting an entry's description into a shorter *complete* phrase. Chopping the tail off a description — leaving it ending mid-word — destroys information that exists nowhere else and reads, to the next session, as if that was all anyone ever knew. Count lines, not bytes: a 140-line index is inside the ceiling no matter what it weighs, and "compacting" it is loss with no upside.
-What NOT to save: individual attack results, one-off breaks, anything in git history.
+What NOT to save: individual attack results, one-off breaks, anything in git history, file paths or code structure (they are read from the code and go stale). An attack pattern is saved by the kind of weakness it hits — e.g. "a cleanup that matches by substring deletes more than it should" — not by where it was found.
 
 ---
 
