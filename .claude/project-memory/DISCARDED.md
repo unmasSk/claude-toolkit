@@ -91,3 +91,4 @@
 [X-091][install][hooks] back up CLAUDE.md and settings before the toolkit writes them
 [X-092][skills][docs] deepen the thin domain skills with steps, a done criterion and a check script
 [X-093][skills][docs] molde solo para las skills nuevas
+[X-094][skills][architecture] mantener solo dos vías (pequeño y estándar)
