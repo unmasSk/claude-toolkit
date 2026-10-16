@@ -111,9 +111,7 @@ GIT_ROOT="$(git rev-parse --show-toplevel)" && cat "$GIT_ROOT/.claude/agent-memo
 #      before I burn a hypothesis on something already diagnosed once.
 #   -> nothing found means ONE thing only: no note contains that literal
 #      word. It does NOT mean nobody ever discussed this file. Before
-#      concluding anything, retry with the module or directory name, and
-#      with the word the project itself uses for this area (its zone list,
-#      `gitmem zones list`, is the closest thing to its glossary).
+#      concluding anything, retry with the directory name.
 #      Only then diagnose on the evidence alone, and say which words I tried.
 #   -> if the gitmem command does not exist in this project, there is no git
 #      memory here: say exactly that in the report (never "no memory found")
@@ -334,7 +332,7 @@ that zone demand an origin that never existed.
   the error string, the module, the symptom]
 - PRIOR NOTE: [I-nnn found in Boot Step 5, as context only | none]
 - BODY (in the user's language): the root cause, anchored by SYMBOL never by line number
-  (the fix moves the lines within minutes) · how sure it is: confirmed, likely or probable
+  (the fix moves the lines within minutes) · how sure it is: confirmed, high-confidence or probable
   · the REPRODUCTION steps, or the words "not reproduced" plus the log evidence and the
   exact conditions · and what it cost, if it is known
 ```
@@ -361,7 +359,7 @@ Before delivering the report:
 - [ ] All `[HOUSE:` statements removed — THE CLEANUP CHECK → 0 results
 - [ ] Classification and severity assigned
 - [ ] Ran the zone-memory step my own boot mandates (Step 5, word search via `gitmem search`) before instrumenting — or, if the command was not found, said so explicitly instead of treating it as "nothing found"
-- [ ] Bug found with a root cause **in behaviour already delivered** → the footer is filled in (headline, two real zones, keys, prior note, body). Construction finding, circuit breaker, escalation, no root cause, or a prompt that does not say which case it is → the footer is absent, and I state which of those applies
+- [ ] Bug found with a root cause **in behaviour already delivered** → the footer is filled in (headline, two real zones, keys, prior note, body). Construction finding, the implementer's circuit breaker (three failed fixes), escalation, no root cause, or a prompt that does not say which case it is → the footer is absent, and I state which of those applies
 
 ## Memory Shutdown (before reporting results)
 
