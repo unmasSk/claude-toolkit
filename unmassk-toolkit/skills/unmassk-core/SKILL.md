@@ -221,6 +221,8 @@ ASK: review and audit the whole artifact — every function, route and module �
 
 What never goes in: "I think the bug is in X", "this should be fine", "confirm that…", your hypothesis, your fix's rationale — **and never "find the issues" or "report your findings"**: a reviewer asked for findings always brings findings (owner's rule, 2026-09-22). The ASK line is the request; the report may come back empty of findings as long as it says what was read. The three lines of moment 7 still apply on top.
 
+**For Yoda, Moriarty's raw run log is part of the ARTIFACT** — the commands he ran and their output, never his summary or his verdict word. Without it Yoda answers CANNOT JUDGE, by design.
+
 **One review per part.** What Cerberus and Argus flag goes to Ultron/Dante once, who fix and verify with the part's tests; the reviewers are not sent again over the fix (the flow's Verify step says the same). A second pass that finds something already in the file only proves the first pass was incomplete.
 
 ### Phase-sized delegation, and the wave it belongs to
