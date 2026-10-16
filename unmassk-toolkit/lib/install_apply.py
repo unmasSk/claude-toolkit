@@ -40,7 +40,7 @@ from git_helpers import claude_md_lock_path, ensure_gitignore, file_lock, open_n
 from managed_blocks import BLOCKS, upsert_managed_blocks
 from version import VERSION
 
-from install_inspect import OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS
+from install_inspect import OLD_BIN_FILES, OLD_HOOK_FILES, OLD_LIB_FILES, OLD_SKILL_DIRS, strip_old_toolkit_hooks
 
 
 def apply_plan(plan: dict[str, Any], source: str, target: str) -> list[str]:
@@ -322,8 +322,8 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
 
     When migrating from old-style installs, the project settings may contain
     hook commands that reference local paths (e.g. python3 hooks/...) instead
-    of using ${CLAUDE_PLUGIN_ROOT}. Since the plugin now provides hooks via
-    hooks.json, these entries are stale and should be removed.
+    of using ${CLAUDE_PLUGIN_ROOT}. Only the toolkit's own old commands are
+    removed; the owner's hooks are kept and the file is untouched otherwise.
     """
     settings_path = os.path.join(target, ".claude", "settings.json")
 
@@ -348,10 +348,17 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
     except (json.JSONDecodeError, OSError):
         return
 
-    if "hooks" not in settings:
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return
+    kept, removed = strip_old_toolkit_hooks(hooks)
+    if not removed:
         return
 
-    del settings["hooks"]
+    if kept:
+        settings["hooks"] = kept
+    else:
+        del settings["hooks"]
 
     with open_no_follow_symlink(settings_path, "w") as f:
         json.dump(settings, f, indent=2)

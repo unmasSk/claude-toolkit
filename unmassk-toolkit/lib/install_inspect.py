@@ -39,6 +39,49 @@ OLD_HOOK_FILES = [
     "hooks/hooks.json",
 ]
 
+_OLD_HOOK_COMMANDS = {
+    f"python3 {prefix}{os.path.basename(f)}"
+    for f in OLD_HOOK_FILES if f.endswith(".py")
+    for prefix in ("hooks/", ".claude/hooks/")
+}
+
+
+def is_old_toolkit_hook_command(cmd: Any) -> bool:
+    """True only for the toolkit's own old local-install hook command."""
+    return (isinstance(cmd, str) and "${CLAUDE_PLUGIN_ROOT}" not in cmd
+            and cmd.strip() in _OLD_HOOK_COMMANDS)
+
+
+def strip_old_toolkit_hooks(hooks: dict) -> tuple[dict, int]:
+    """Return (hooks without the toolkit's old entries, number removed).
+
+    Groups and events left empty are dropped; everything else is untouched.
+    """
+    removed = 0
+    kept: dict = {}
+    for event, groups in hooks.items():
+        if not isinstance(groups, list):
+            kept[event] = groups
+            continue
+        new_groups = []
+        for group in groups:
+            inner = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(inner, list):
+                new_groups.append(group)
+                continue
+            left = [h for h in inner
+                    if not (isinstance(h, dict) and is_old_toolkit_hook_command(h.get("command")))]
+            if len(left) == len(inner):
+                new_groups.append(group)
+                continue
+            removed += len(inner) - len(left)
+            if left:
+                new_groups.append({**group, "hooks": left})
+        if new_groups:
+            kept[event] = new_groups
+    return kept, removed
+
+
 OLD_LIB_FILES = [
     "lib/__init__.py", "lib/constants.py", "lib/git_helpers.py",
     "lib/parsing.py", "lib/colors.py",
@@ -194,18 +237,8 @@ def inspect(target: str) -> dict[str, Any]:
                 project_settings = json.load(f)
             hooks_data = project_settings.get("hooks", {})
             if hooks_data and isinstance(hooks_data, dict):
-                for event_hooks in hooks_data.values():
-                    if not isinstance(event_hooks, list):
-                        continue
-                    for hook_group in event_hooks:
-                        hook_list = hook_group.get("hooks", []) if isinstance(hook_group, dict) else []
-                        for hook in hook_list:
-                            cmd = hook.get("command", "") if isinstance(hook, dict) else ""
-                            if cmd and "${CLAUDE_PLUGIN_ROOT}" not in cmd and (
-                                "hooks/" in cmd or "bin/" in cmd
-                            ):
-                                report["has_stale_hooks"] = True
-                                break
+                if strip_old_toolkit_hooks(hooks_data)[1]:
+                    report["has_stale_hooks"] = True
         except (json.JSONDecodeError, OSError):
             pass
 
