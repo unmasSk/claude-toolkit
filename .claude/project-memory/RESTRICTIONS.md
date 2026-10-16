@@ -10,6 +10,6 @@
 [R-015][memory][release] main branch protection reads repo_type from .claude/project-memory/config.json
 [R-016][memory][install] a memory note travels in its own commit; a zone add writes zones.json only
 [R-017][hooks][skills] agents never run git stash/reset/checkout/restore, no pathspec exception
-[R-019][skills][install] CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory
 [R-020][skills][install] skill discovery must filter .orphaned_at before sort -V
 [R-021][skills][architecture] agent memory: stays on the six builders; Cerberus, Argus, Yoda judge without it
+[R-022][skills][install] CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory

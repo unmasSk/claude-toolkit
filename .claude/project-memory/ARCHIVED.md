@@ -47,3 +47,4 @@
 2026-08-27  [R-018][skills][install] ⚠️ a skill's scripts are invoked via CLAUDE_PLUGIN_ROOT, never a bare relative path  →  replaced by R-019
 2026-08-28  [M-134][install][docs] 📌 the retired R-018 still stands in 58 files, 18 of them as commands  →  closed: hecho: los 58 ficheros barridos el 2026-08-28, 164 bloques resuelven su propia ruta y 261 rutas documentadas apuntan a ficheros que existen
 2026-10-16  [R-010][skills][architecture] ⚠️ agent frontmatter field memory: is real Claude Code API, never delete it  →  replaced by R-021
+2026-10-16  [R-019][skills][install] ⚠️ CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory  →  replaced by R-022
