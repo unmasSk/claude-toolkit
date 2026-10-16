@@ -24,7 +24,8 @@ Pinned decisions (not stated by the task):
   * A banned phrase inside quotation marks (' " or typographic) is a
     mention, not a request, and is ignored; unquoted it is denied.
   * Matching is case-insensitive and accent-insensitive.
-  * Reviewer launch with no/non-string prompt -> allow (missing field).
+  * Reviewer launch with no/non-string prompt -> allow silently (early return).
+  * Internal error -> allow (exit 0) + top-level `systemMessage` warning.
 """
 
 import json
@@ -226,26 +227,68 @@ class TestDeny:
 
 
 # ── Fail-open ───────────────────────────────────────────────────────────────
+# Owner's decision: a broken gate must not block work (exit 0, no
+# permissionDecision) but must say so out loud: one JSON object with a
+# top-level `systemMessage` naming the gate and the exception. Early returns
+# (non-reviewer, prompt not a string) stay silent.
+
+def _assert_warned(stdin_text, exc_name, detail=None):
+    rc, out, err = _run_raw(stdin_text)
+    assert rc == 0, err
+    body = json.loads(out)
+    assert set(body) == {"systemMessage"}
+    msg = body["systemMessage"]
+    assert "reviewer-prompt-gate" in msg
+    assert exc_name in msg
+    assert "NOT checked" in msg
+    if detail:
+        assert detail in msg
+
+
+def _tool(tool_input):
+    return json.dumps({"tool_name": "Agent", "tool_input": tool_input})
+
 
 class TestFailOpen:
-    @pytest.mark.parametrize("raw", [
-        "", "   ", "not json", "{", "[]", "null", "42", '"str"',
-        json.dumps({}),
-        json.dumps({"tool_name": "Agent"}),
-        json.dumps({"tool_name": "Agent", "tool_input": None}),
-        json.dumps({"tool_name": "Agent", "tool_input": "cerberus"}),
-        json.dumps({"tool_name": "Agent", "tool_input": {}}),
-        json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": None}}),
-        json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": 7, "prompt": "find bugs"}}),
-        json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": "cerberus"}}),
-        json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": "cerberus", "prompt": None}}),
-        json.dumps({"tool_name": "Agent", "tool_input": {"subagent_type": "cerberus", "prompt": ["find bugs"]}}),
+    @pytest.mark.parametrize("raw,exc,detail", [
+        ("", "JSONDecodeError", None),
+        ("   ", "JSONDecodeError", None),
+        ("not json", "JSONDecodeError", None),
+        ("{", "JSONDecodeError", None),
+        ("[]", "TypeError", None),
+        ("null", "TypeError", None),
+        ("42", "TypeError", None),
+        ('"str"', "TypeError", None),
+        (json.dumps({}), "KeyError", "tool_input"),
+        (json.dumps({"tool_name": "Agent"}), "KeyError", "tool_input"),
+        (json.dumps({"tool_name": "Agent", "tool_input": None}), "TypeError", None),
+        (json.dumps({"tool_name": "Agent", "tool_input": "cerberus"}), "TypeError", None),
+        (json.dumps({"tool_name": "Agent", "tool_input": {}}), "KeyError", "subagent_type"),
     ])
-    def test_should_allow_silently_on_malformed_or_missing_fields(self, raw):
+    def test_should_allow_but_warn_when_the_gate_itself_errors(self, raw, exc, detail):
+        _assert_warned(raw, exc, detail)
+
+    @pytest.mark.parametrize("raw", [
+        _tool({"subagent_type": None}),
+        _tool({"subagent_type": 7, "prompt": "find bugs"}),
+        _tool({"subagent_type": "cerberus"}),
+        _tool({"subagent_type": "cerberus", "prompt": None}),
+        _tool({"subagent_type": "cerberus", "prompt": ["find bugs"]}),
+    ])
+    def test_should_stay_silent_on_early_returns(self, raw):
         _assert_allowed(raw)
 
-    def test_should_allow_on_invalid_utf8_stdin(self):
+    def test_should_warn_but_allow_on_invalid_utf8_stdin(self):
         p = subprocess.run([sys.executable, HOOK], input=b"\xff\xfe{\x80",
                            capture_output=True, timeout=30)
         assert p.returncode == 0
-        assert p.stdout.strip() == b""
+        body = json.loads(p.stdout.decode("utf-8"))
+        assert set(body) == {"systemMessage"}
+        assert "reviewer-prompt-gate" in body["systemMessage"]
+        assert "NOT checked" in body["systemMessage"]
+
+    def test_should_never_carry_a_permission_decision_when_warning(self):
+        rc, out, _ = _run_raw("not json")
+        assert rc == 0
+        assert "permissionDecision" not in out
+        assert "hookSpecificOutput" not in out

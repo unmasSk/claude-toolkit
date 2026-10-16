@@ -3,10 +3,12 @@
 
 Denies a launch whose prompt asks the reviewer to find/report problems, or
 that lacks a line starting with `ASK:` (template in skills/unmassk-core/SKILL.md).
-Any malformed input or internal error allows silently.
+Fail-open: an internal error (bad JSON, missing key, regex bug) lets the launch
+through but warns via `systemMessage`. A non-reviewer or non-string prompt stays silent.
 """
 
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -55,6 +57,14 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        pass
+    except Exception as exc:
+        # No permissionDecision on purpose: normal permission flow continues.
+        try:
+            sys.stdout.write(json.dumps({"systemMessage": (
+                f"reviewer-prompt-gate failed ({type(exc).__name__}: {exc}); "
+                "the launch was NOT checked")}))
+            sys.stdout.flush()
+        except OSError:
+            # Broken pipe: the buffered text would fail again at exit (rc 120).
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
     sys.exit(0)
