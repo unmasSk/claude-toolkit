@@ -89,3 +89,4 @@
 [X-089][architecture][skills] tomar Claude Code en terminal como referencia
 [X-090][hooks][install] block agents from opening .env, .ssh and credential files
 [X-091][install][hooks] back up CLAUDE.md and settings before the toolkit writes them
+[X-092][skills][docs] deepen the thin domain skills with steps, a done criterion and a check script
