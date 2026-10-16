@@ -69,3 +69,4 @@
 [D-077][architecture][trading] council: connect the brake to the paper account, do not delete it; wrapper now
 [D-078][architecture][trading] no order-intercepting hook: it would sit in every call of every project
 [D-079][skills][trading] phase 2 is not built yet: learn on the practice account first
+[D-080][architecture][skills] harness review uses the Claude desktop app as baseline, not the terminal
