@@ -115,7 +115,6 @@ Apply unconditionally on every review — it always fires, regardless of which d
 - No off-by-one errors, wrong comparisons, inverted conditions
 
 **Security** (surface level — deep analysis is Argus's job)
-- No hardcoded secrets, tokens, or credentials
 - Input validated at system boundaries
 - No obvious injection vectors (SQL, command, prompt)
 - Sensitive data not logged
