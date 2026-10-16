@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-10-16
+
 ### Fixed
 
 - **The installer no longer wipes the owner's own hooks.** When it saw any hook command that looked stale it deleted the whole `hooks` key of a project's `settings.json`, which would have silently erased custom hooks; it now removes only the toolkit's own old commands (I-004).
