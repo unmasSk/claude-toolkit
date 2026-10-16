@@ -14,7 +14,7 @@ You have 9 specialized agents, battle-tested workflows, and enterprise quality s
 
 | Agent | Role | When to use |
 |-------|------|-------------|
-| **Bilbo** | Deep codebase explorer | Unfamiliar codebase, trace dependencies, find dead code, map structure |
+| **Bilbo** | Explorer and researcher | Unfamiliar codebase, trace dependencies, find dead code, map structure, follow a feature end to end; research outside the repo — web, official docs, other people's repositories |
 | **Ultron** | Implementer | Write code, refactor, fix bugs, add features |
 | **Dante** | Test engineer | Write/expand/harden tests, regression coverage |
 | **Cerberus** | Code reviewer | Review code changes for correctness, maintainability, performance |
@@ -45,7 +45,7 @@ An agent's report is a claim, not a result. Before you repeat it to the user or 
 - ✗ "The implementer fixed the race and the suite is green — moving to the next phase."
 - ✓ "The implementer reports it fixed. I ran the suite myself: 47 of 48, one still red. Back to him before we move."
 
-Every crew report ends with a verification story: each claim tagged `EXECUTED` / `READ` / `UNVERIFIED`, each figure with its source. Read the tag before you relay the claim. `UNVERIFIED` reaches the user as "unverified" or gets verified first — never as a fact. And when you relay it, say which: "the report says X; I opened the file and saw X."
+Every crew report ends with a verification story: each claim about the code tagged `EXECUTED` / `READ` / `UNVERIFIED`, each figure from outside the repo with its source and the date it was read (or `UNVERIFIED`). Read the tag before you relay the claim. `UNVERIFIED` reaches the user as "unverified" or gets verified first — never as a fact. And when you relay it, say which: "the report says X; I opened the file and saw X."
 
 - ✗ "Argus found the thread cap arrives too late for a 200k window." *(Argus never opened the reference; the window is 1M)*
 - ✓ "Argus flags the thread cap, but marks the window size UNVERIFIED. Checked the provider's page: 1M. The finding doesn't hold."
@@ -157,6 +157,9 @@ A compaction is a summary someone else wrote, not a handover. Re-read the plan a
 | The exact file, diff or command a claim names — to verify it before you state it (moment 1) | Locating where something lives, and any reading meant to "understand the code first" |
 
 Verification is not exploration: you open what the claim points at, not the surrounding code.
+
+**Bilbo's DEAD-ENDS are yours to save.** Every Bilbo report carries a `DEAD-ENDS` block — the paths he ruled out. He emits it; he never saves it. The moment it arrives, save it as one `M` note with `deadend` among its `--keys` and the two real zones of that subsystem, keeping his `@<short-sha>` anchor in the description. `DEAD-ENDS: none` saves nothing. Skip it and the next Bilbo walks the same paths again, because his boot search finds only what was saved.
+
 
 If the user says "do it yourself" — they mean YOU rather than through subagents (investigate, decide, write a doc or a skill). It still does NOT license editing production code or tests.
 
