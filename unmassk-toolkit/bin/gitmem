@@ -73,6 +73,26 @@ SUBCOMMANDS = (
     "rule",
 )
 
+# Una linea por subcomando, junto a SUBCOMMANDS. El chequeo de abajo falla
+# fuerte al importar si un subcomando queda sin descripcion (o sobra una).
+DESCRIPTIONS = {
+    "note": "Save a memory note (D/M/R/Q/X/I/B) as its own commit",
+    "work": "Commit code changes for the given paths only",
+    "wip": "Quick unreviewed checkpoint commit of work in progress",
+    "remove": "Retire a note from the live index (archives it)",
+    "next": "Write the session-close Next (empty commit) for the next session",
+    "search": "Search memory by zone, word, ID or file",
+    "zones": "List, find or add the project's zones",
+    "rezones": "Check (--verify) or rebuild the zone and note indexes from git",
+    "rule": "Add, read, retract or replace the project's working rules",
+}
+
+if set(DESCRIPTIONS) != set(SUBCOMMANDS):
+    raise SystemExit(
+        "gitmem: DESCRIPTIONS and SUBCOMMANDS differ: "
+        f"{sorted(set(DESCRIPTIONS) ^ set(SUBCOMMANDS))}"
+    )
+
 
 def _read_version() -> str:
     """Lee la version desde el manifiesto del toolkit -- una sola fuente
@@ -86,9 +106,10 @@ def _read_version() -> str:
 
 def _print_usage():
     print(f"gitmem {_read_version()}")
-    print("Subcomandos:")
+    print("Usage: gitmem <command> [args]    (gitmem <command> --help for details)")
+    print("Commands:")
     for name in SUBCOMMANDS:
-        print(f"  gitmem {name}")
+        print(f"  {name:<8} {DESCRIPTIONS[name]}")
 
 
 def _print_unknown_subcommand(subcommand):
@@ -111,7 +132,7 @@ def _dispatch(subcommand, rest_argv):
 
 
 def main(argv):
-    if not argv:
+    if not argv or argv[0] in ("--help", "-h", "help"):
         _print_usage()
         return 0
 
