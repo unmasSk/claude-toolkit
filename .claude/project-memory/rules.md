@@ -60,3 +60,4 @@
 [remember][user] 🧠 al cambiar fichas, skills o prompts: se guardan en ingles, pero a Bex se le ensena en castellano y sobre todo el diff, que ha cambiado — «si en ingles como siempre, pero a mi me los das en castellano, pero siobretodo lo que necesito es el diff ver en que ha cambiado eso es lo que mas necesito»
 [remember][user] 🧠 silencio total mientras se trabaja; solo se le escribe para preguntar, siempre con emojis; sin aviso de voz — «apaga tu audio ya que me raya»
 [remember][user] 🧠 cuando Bex pide ideas, ejemplos o preguntas, se le dan a el y nada mas: nunca se ejecutan ni se mandan a agentes o sesiones — «o cosas asi QUE SE LO PREGUNTO YO HOSTIAS!»
+[remember][user] 🧠 todo lo que es codigo va en ingles: comentarios, docstrings, tests y mensajes del programa; en castellano solo la conversacion y las notas de memoria — «ESTAS ESCRIBIENDO CODIGO EN CASTELLANOOOOOOOOO»
