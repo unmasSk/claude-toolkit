@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-10-17
+
 ### Fixed
 
 - **`reviewer-prompt-gate.py` no longer fails silently.** If the gate itself breaks (bad input, a bug) the launch still goes through, but a `systemMessage` now names the gate and the exception so an unchecked reviewer launch is visible; it also survives a closed output pipe.
