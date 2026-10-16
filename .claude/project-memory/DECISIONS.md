@@ -74,3 +74,4 @@
 [D-082][skills][docs] every SKILL.md moves to one common template, later
 [D-083][skills][architecture] flow gains a medium path: Cerberus, Ultron and Dante only
 [D-084][install][release] end-to-end install test runs in a clean VM provided by Blackbox
+[D-085][architecture][skills] long term: make the toolkit more agnostic, usable beyond Claude
