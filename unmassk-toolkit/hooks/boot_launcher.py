@@ -72,6 +72,16 @@ try:
     manifest = os.path.join(cwd, ".claude", ".unmassk", "manifest.json")
     if not os.path.isfile(manifest) and os.path.isfile(_INSTALLER):
         try:
+            # Fuera de un repositorio git no hay nada que instalar: en
+            # silencio, sin aviso de fallo.
+            inside = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=cwd,
+                capture_output=True,
+                timeout=10,
+            )
+            if inside.returncode != 0:
+                raise RuntimeError("no es un repositorio git")
             # encoding="utf-8", errors="replace": sin `encoding=`,
             # `text=True` decodifica con el codec de la consola (cp1252 en
             # Windows), y el instalador imprime emojis que no existen en
