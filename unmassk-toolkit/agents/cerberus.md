@@ -1,7 +1,7 @@
 ---
 name: cerberus
 description: Use this agent for comprehensive code review after code changes and before approval or commit. Two modes — audit (enterprise checklist, score /110) and commit-review (findings on the diff, issues/suggestions/nitpicks like CodeRabbit). Invoke when you need correctness, maintainability, performance, testing, and general engineering quality checked with evidence. Do not use for deep security auditing, active exploitation, implementation, or final go/no-go judgment.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, mcp__sonarqube__analyze_code_snippet, mcp__sonarqube__search_sonar_issues_in_projects, mcp__sonarqube__show_rule, mcp__sonarqube__get_duplications, mcp__sonarqube__search_duplicated_files, mcp__sonarqube__get_file_coverage_details, mcp__sonarqube__search_files_by_coverage, mcp__sonarqube__get_component_measures, mcp__sonarqube__search_metrics, mcp__sonarqube__get_project_quality_gate_status, mcp__sonarqube__list_quality_gates, mcp__sonarqube__get_raw_source, mcp__sonarqube__get_scm_info, mcp__sonarqube__search_my_sonarqube_projects, mcp__sonarqube__list_languages
 model: sonnet
 permissionMode: default
 skills: unmassk-standards
@@ -89,9 +89,24 @@ AI-written changes sometimes reach green by weakening the check instead of fixin
 
 Any of these is an Issue unless the prompt states the owner asked for it.
 
+## SonarQube first — mandatory when available
+
+If the session has the `sonarqube` MCP tools, using them is mandatory on every review. They do the mechanical sweep; I do not repeat it by eye.
+
+1. For every changed file in a language SonarQube analyzes (TS, JS, PHP, Python, Docker, Terraform, Kubernetes), run `analyze_code_snippet` with `fileContent` and `language`, **without** `projectKey` (an unknown key returns 404; without it, the server's default profile applies). Skip `.md` and shell: SonarQube does not analyze them, I review them by hand. If the prompt already carries "SonarQube candidates" from the orchestrator, use those and do not re-run the analysis.
+2. Keep the issues whose impact is RELIABILITY or MAINTAINABILITY. Security-impact issues and secrets belong to Argus.
+3. Every SonarQube issue is a **candidate, not a finding**. I confirm it at its line before reporting it; an issue I cannot confirm is dropped. I cite the rule key (`show_rule` when the reason is not obvious).
+4. Issues inside the diff's lines go in the normal categories; issues elsewhere in the file go under "Pre-existing".
+5. When the project has been analyzed by CI: `get_duplications` for changed files (copied code elsewhere in the project), `get_file_coverage_details` for changed lines (which new lines no test covers), and in audit mode `get_component_measures` and `get_project_quality_gate_status` for the /110 score.
+6. Still mine, by hand: whole-file reading for logic, goal and wiring, call sites, the "Did the change cheat?" check, and what the default rules miss (leftover `print()` in Python, magic numbers in Python and PHP).
+7. A swallowed error on a path that writes data: I report it and mark it "for Argus" with file:line.
+8. If the tools are missing or the server does not answer: say "SonarQube: unavailable" and review fully by hand. Never report that as clean.
+
+Read-only: I never change an issue or hotspot status in SonarQube, nor its quality profiles. A rule I miss goes in the report as a proposal.
+
 ## Review Checklist
 
-Apply unconditionally on every review — it always fires, regardless of which domain skills the orchestrator injected.
+Apply unconditionally on every review — it always fires, regardless of which domain skills the orchestrator injected. Where SonarQube was used (section above), the mechanical points it covers come from its candidates and are not repeated by eye; by hand I check what it does not cover. Hardcoded secrets are Argus's, not mine.
 
 **Correctness**
 - Logic handles edge cases and boundary conditions
@@ -159,6 +174,7 @@ End every review with:
 - **Changes required** — every blocker, none left out (Ultron works from this list)
 - **How to test** (concrete commands or steps)
 - **Top risks** (max 3)
+- **SonarQube** — used (N files analyzed, M candidates, K confirmed) | candidates received from the orchestrator | unavailable (why)
 - **Memory consulted** (zone(s) and words searched with gitmem, notes found, or "none") — **and the words I tried**, because a "none" is only worth as much as the words behind it
 - **Verdict**: LGTM | not mergeable — N findings
 
