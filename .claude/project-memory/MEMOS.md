@@ -116,3 +116,4 @@
 [M-133][ci][install] a path-filtered workflow can stay broken for weeks without anyone seeing it
 [M-136][skills][architecture] orchestrator coordinates the agents; Yoda judges and advises; chat retired
 [M-137][boot][hooks] mods can show D-069 timings live; a SubagentStop hook is enough for boot
+[M-138][skills][architecture] the ADHD skill diverges into many ideas; council decides between known ones
