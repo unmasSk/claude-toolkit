@@ -78,3 +78,4 @@
 [D-087][boot][memory] boot loads the owner's rules whole each session, after a review of them
 [D-088][skills][memory] each agent repairs its own notebook in every project, after the toolkit redesign
 [D-089][skills][standards] Yoda: 110 is perfection; any lower score owes the path to 110, or why not
+[D-090][boot][hooks] live panel mod for agent and session timings, apart from #84
