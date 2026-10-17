@@ -13,3 +13,4 @@
 [R-020][skills][install] skill discovery must filter .orphaned_at before sort -V
 [R-021][skills][architecture] agent memory: stays on the six builders; Cerberus, Argus, Yoda judge without it
 [R-022][skills][install] CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory
+[R-023][install][hooks] installer removes only its own exact old hooks, never the whole hooks key
