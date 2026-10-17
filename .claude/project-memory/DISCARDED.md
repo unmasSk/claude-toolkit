@@ -98,3 +98,4 @@
 [X-098][boot][memory] seguir solo con /remember
 [X-099][skills][memory] limpiar ya las libretas de todos los proyectos
 [X-100][skills][standards] aprobar desde 80 sobre 110
+[X-101][boot][hooks] barra de estado clasica
