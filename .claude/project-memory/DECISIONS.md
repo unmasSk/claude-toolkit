@@ -94,3 +94,4 @@
 [D-120][hooks][release] staging gate: Cerberus+Argus on the whole batch, Alexandria, Bex's yes
 [D-121][skills][hooks] flow checklist by procedure: Trivial none, Short its own boxes, Full all
 [D-122][skills][standards] audit runs one pass: every reviewer once, every fix once, no loops
+[D-123][skills][testing] Dante enters once: tests first, then only the fix passes; no hardening pass
