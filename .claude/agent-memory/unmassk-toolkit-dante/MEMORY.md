@@ -82,3 +82,4 @@
 - [d070-skip-ci-marker-contract-notes.md](d070-skip-ci-marker-contract-notes.md) — D-070 skip-ci RED contract: line-anchor regression risk, 3/6 points RED, 2 pre-existing tests needed zero changes
 - [rescued-python-test-techniques-notes.md](rescued-python-test-techniques-notes.md) — live pytest/git/Windows techniques rescued from the old catch-alls
 - [pre-merge-gate-target-branch-contract-notes.md](pre-merge-gate-target-branch-contract-notes.md) — D-119/D-120 gate target contract: switch-then-merge trap
+- [checklist-by-procedure-d121-contract-notes.md](checklist-by-procedure-d121-contract-notes.md) — D-121 procedures schema I fixed + green-by-design guards
