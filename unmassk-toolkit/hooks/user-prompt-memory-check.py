@@ -50,12 +50,14 @@ try:
     from skill_router import (
         match_skills as _match_skills,
         match_reminders as _match_reminders,
+        is_agent_notice as _is_agent_notice,
         SKILL_TRIGGER_PHRASES,
     )
 except Exception as e:
     print(f"[git-memory] skill_router import fail-open: {e!r}", file=sys.stderr)
     _match_skills = None  # type: ignore[assignment]
     _match_reminders = None  # type: ignore[assignment]
+    _is_agent_notice = None  # type: ignore[assignment]
     SKILL_TRIGGER_PHRASES = {}  # type: ignore[assignment]
 
 # Plugin root — derived from this script's location in the cache.
@@ -235,9 +237,14 @@ def main() -> None:
     # ── Per-message protocol-skill router — runs on EVERY message, not
     # gated by session_booted, so it coexists with the first-message
     # forcing block above. Purely informational nudge; never blocks.
-    if prompt_text and _match_skills is not None:
+    # An agent notice delivered as a user turn is not the owner speaking:
+    # neither skill routing nor owner orders read it.
+    route_text = prompt_text
+    if prompt_text and _is_agent_notice is not None and _is_agent_notice(prompt_text):
+        route_text = None
+    if route_text and _match_skills is not None:
         try:
-            matched_skills = _match_skills(prompt_text)
+            matched_skills = _match_skills(route_text)
             if matched_skills:
                 lines.append(f"[skill-router] Possibly relevant skill(s): {', '.join(matched_skills)}")
         except Exception as e:
@@ -248,9 +255,9 @@ def main() -> None:
     # router above: runs on every message, purely informational, never
     # blocks. One "[orden]" line per matched reminder (a message can match
     # more than one).
-    if prompt_text and _match_reminders is not None:
+    if route_text and _match_reminders is not None:
         try:
-            matched_reminders = _match_reminders(prompt_text)
+            matched_reminders = _match_reminders(route_text)
             for _key, text in matched_reminders:
                 lines.append(f"[orden] {text}")
         except Exception as e:

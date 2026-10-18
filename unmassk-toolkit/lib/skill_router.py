@@ -11,6 +11,7 @@ never blocks, never denies.
 Public interface:
     match_skills(prompt_text) -> list[str]
     match_reminders(prompt_text) -> list[tuple[str, str]]
+    is_agent_notice(prompt_text) -> bool
 
 Every phrase in SKILL_TRIGGER_PHRASES is sourced from the matching skill's
 own SKILL.md frontmatter `description` field (see skills/<name>/SKILL.md).
@@ -167,14 +168,35 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
         ],
         "text": (
             "modo automatico: ejecuta todo el tablero, decide por el (la "
-            "opcion mas enterprise); mientras trabajas, ni parrafadas ni "
-            "silencio: una linea numerada por cada agente o paso que termina, "
-            "tachandolo en la lista, con emojis, sin aviso de voz; y al acabar "
-            "UN informe: bien / probado / decisiones tomadas por el / errores "
+            "opcion mas enterprise); al trabajar: una linea numerada por "
+            "agente o paso que acaba, solo «nombre, terminado»; si cambia "
+            "el orden (revisores hallan algo y vuelven Ultron y Dante), se "
+            "dice; el resto, al final, en UN informe: bien / probado / "
+            "decisiones tomadas por el / errores "
             "(unmassk-core, seccion Modo automatico)"
         ),
     },
 }
+
+
+# Openings Claude Code uses when it delivers an agent's message as a user
+# turn. Such a turn is not the owner speaking: its words (an agent quoting
+# "modo automatico", "implementa", ...) must not fire owner orders or skill
+# routing. Only the OPENING counts -- an owner prompt that mentions one of
+# these strings mid-text is still the owner.
+AGENT_NOTICE_PREFIXES: tuple[str, ...] = (
+    "<task-notification>",
+    "Another Claude session sent a message:",
+    "<agent-message",
+)
+
+
+def is_agent_notice(prompt_text: str) -> bool:
+    """True when prompt_text, after leading whitespace, opens with one of
+    AGENT_NOTICE_PREFIXES. Never raises; non-str/empty input yields False."""
+    if not isinstance(prompt_text, str):
+        return False
+    return prompt_text.lstrip().startswith(AGENT_NOTICE_PREFIXES)
 
 
 def match_reminders(prompt_text: str) -> list[tuple[str, str]]:
