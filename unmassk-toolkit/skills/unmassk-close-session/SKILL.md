@@ -40,7 +40,7 @@ Closing an issue or deleting a branch: what you can mechanically verify as finis
 
 If the session shipped something, she also brings the CHANGELOG `[Unreleased]` up to date (owner's rule: «eso lo hace Alexandria en el closed session»).
 
-Expect back: what she corrected, where a document and the code contradict each other, and anything shipped with no home in the documentation. If the project has no documentation set she says so and stops — building one is her `foundation` mode, which the user asks for by name.
+Expect back three lines and a report file: read its index — what she corrected (the files changed, which you commit), where a document and the code contradict each other, and anything shipped with no home in the documentation. If the project has no documentation set she says so and stops — building one is her `foundation` mode, which the user asks for by name.
 
 ## 4. The close itself
 

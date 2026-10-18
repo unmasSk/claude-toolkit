@@ -147,7 +147,7 @@ Orchestrator chooses depth based on the procedure (Short = quick research, a lar
 ### Process
 
 1. Launch Bilbo agent with the depth chosen from the table above (Quick / Standard / Deep) and the decisions from Step 1
-2. Info stays in conversation context — no RESEARCH.md file
+2. Bilbo's report file (`.claude/informes/`) is the record — no RESEARCH.md; read its index and the sections you need, and save its DEAD-ENDS section
 3. If Bilbo finds something permanent — a pattern, a constraint, something waiting on someone — save it as a memo, a decision or a blocker
 4. If research reveals infeasibility → close issue with rationale, STOP
 
@@ -299,10 +299,10 @@ If Ultron fails the same step 3 times:
 
 **PART B — once, when every phase of the issue and its checklist are done:**
 
-4. **Moriarty** attacks what was already fixed: the code and the tests. One per part, or one for all.
+4. **Moriarty** attacks what was already fixed: the code and the tests. One per part, or one for all. In test-first he also runs the mutation check on the important behaviours (on a copy) and reports the mutants that survive; Dante writes those tests in the next fix pass.
 5. **What he breaks is fixed, once:** Ultron or Dante, whoever owns it; in parallel when the fixes don't collide.
-6. **Yoda — once.** He gets the ARTIFACT (including Moriarty's raw run log: commands and output, never his summary; without it he answers CANNOT JUDGE), the CONTRACT and the reference id, and finds his own evidence in the code, tests and memory. He is given no narrative and no conclusion («no le digas a Yoda lo que tiene que buscar, que se busque la vida»). **110 is perfection:** with any lower score he says what to fix to reach 110 and, if 110 cannot be reached, why (e.g. no E2E tests planned).
-7. **What Yoda names is fixed, once:** Ultron or Dante, whoever owns it. Reaching 110 is taken as given, and those fixes are checked by the scoped tests at Close (Step 7). Yoda does not run again.
+6. **Yoda — once.** He gets the ARTIFACT (including the path of Moriarty's separate raw-log file: commands and output, never his summary or verdict; without it he answers CANNOT JUDGE), the CONTRACT and the reference id, and finds his own evidence in the code, tests and memory. He is given no narrative and no conclusion («no le digas a Yoda lo que tiene que buscar, que se busque la vida»). **110 is perfection:** with any lower score he says what to fix to reach 110 and, if 110 cannot be reached, why (e.g. no E2E tests planned).
+7. **What Yoda names is fixed, once:** Ultron or Dante, whoever owns it. Reaching 110 is taken as given, and those fixes are checked by the scoped tests at Close (Step 7). Yoda does not run again. **REJECTED** blocks the merge until every T1/T2 he named is fixed and its test is green; **APPROVED WITH CONDITIONS** merges, and the conditions become tracked work.
 8. **Alexandria** documents what changed (Step 6).
 
 ### Prompting the reviewers in Verify
@@ -329,7 +329,7 @@ There is no "repeat until clean" loop — that is the failure mode this sequence
 
 Separate from closure — documentation deserves its own step.
 
-1. Launch Alexandria agent
+1. Launch Alexandria agent; read her report file's index (files changed, contradictions, gaps)
 2. Read all WIP commits and changes from the feature
 3. **Document the new capability for ALL THREE audiences** (deliberate duplication — see `unmassk-core` "Documentation discipline"): humans (`README.md` / `docs/`), us (roadmap + git-memory), and Claude at load (the relevant `SKILL.md` / `CLAUDE.md`). A feature documented in only one surface is half-shipped.
 4. Update module CLAUDE.md if patterns changed

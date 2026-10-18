@@ -47,7 +47,7 @@ Bex's own rules for working with him. They hold in every project and override an
 
 ### Know and check
 28. Before you state, doubt or ask: search memory, docs, issues and the machine. If Bex already said it, apply it.
-29. To consult, read the section you need. Read whole every file you edit, review or declare fixed. A grep never replaces reading. Agents read the files of their task whole; the orchestrator gets the parts from Bilbo.
+29. To consult, read the section you need. Read whole every file you edit, review or declare fixed. A grep never replaces reading. Agents read the files of their task whole; the orchestrator gets the parts from Bilbo, and of every agent's report file reads the index and the sections it needs.
 30. Never invent or assume figures, facts or services. Before advising a purchase or decision, check what the industry does and cite the source.
 31. Test against a real, disposable instance. Use a double only when real is impossible or costly, and say why.
 32. Tests never touch the staging or production database unless the project says so. If they do, they never delete data.
@@ -145,7 +145,7 @@ Group independent work into one wave and send it in a single message. Serialisin
 - ✗ step 1 → wait → step 2 → wait → step 3, none of them touching the same files
 - ✓ steps 1, 2 and 3 in one message; step 4 queued behind 1 because they share a file
 
-### 7 · You write a delegation prompt → three lines are always in it
+### 7 · You write a delegation prompt → three closing orders are always in it
 
 Every prompt to an agent carries these, including the small ones:
 
@@ -153,7 +153,7 @@ Every prompt to an agent carries these, including the small ones:
 2. **Never end your turn waiting on background work** — read the result and deliver the report.
 3. **If the task grows past its point**, finish the coherent part, report, and wait for the next step.
 
-- ✗ "Fix the typo in the parser and report back." *(three lines missing — the agent spawns two of its own, and none of them ever reports)*
+- ✗ "Fix the typo in the parser and report back." *(three closing orders missing — the agent spawns two of its own, and none of them ever reports)*
 - ✓ "Fix the typo in the parser and report back. You may not spawn agents of your own. Never end your turn waiting on background work — read the result and deliver the report. If the task grows past its point, finish the coherent part, report, and wait."
 
 ### 8 · The owner warns that the context is running out → finish what is in flight; live work is not yours to kill
@@ -210,7 +210,7 @@ A compaction is a summary someone else wrote, not a handover. Re-read the plan a
 
 Verification is not exploration: you open what the claim points at, not the surrounding code.
 
-**Bilbo's DEAD-ENDS are yours to save.** Every Bilbo report carries a `DEAD-ENDS` block — the paths he ruled out. He emits it; he never saves it. The moment it arrives, save it as one `M` note with `deadend` among its `--keys` and the two real zones of that subsystem, keeping his `@<short-sha>` anchor in the description. `DEAD-ENDS: none` saves nothing. Skip it and the next Bilbo walks the same paths again, because his boot search finds only what was saved.
+**Bilbo's DEAD-ENDS are yours to save.** Every Bilbo report file has a `DEAD-ENDS` section — the paths he ruled out — and his line 2 says `DEAD-ENDS: yes|none`. He emits it; he never saves it. The moment it arrives, save it as one `M` note with `deadend` among its `--keys` and the two real zones of that subsystem, keeping his `@<short-sha>` anchor in the description. `DEAD-ENDS: none` saves nothing. Skip it and the next Bilbo walks the same paths again, because his boot search finds only what was saved.
 
 
 If the user says "do it yourself" — they mean YOU rather than through subagents (investigate, decide, write a doc or a skill). It still does NOT license editing production code or tests outside flow's Trivial procedure.
@@ -252,7 +252,7 @@ CROSS-CHECK: this KNOWN block is a starting point, not a substitute. If the task
 LIMITS: the exact files you may touch; the hard rules (no git stash/reset/checkout,
   no commits, nothing outside your files)
 VERIFY: the command that proves the work, and the report tagged EXECUTED/READ/UNVERIFIED
-+ the three fixed lines (moment 7)
++ the three closing orders (moment 7)
 ```
 
 **The CROSS-CHECK line is not decoration, and it travels whenever KNOWN is non-empty.** Proven live (2026-08-23): with a chewed diagnosis in the prompt, the agent skipped its own memory and the project's — the exact moment a documented mistake gets repeated; asked cold, its protocol fired and it nailed the answer. Handing an implementer the diagnosis is correct; handing it as an exemption is the bug.
@@ -271,11 +271,15 @@ SCOPE: <what is in and out of this review>
 ASK: review and audit the whole artifact — every function, route and module — and return, for each one, "reviewed" and what you checked. Finding nothing is a valid answer; a report without that coverage list is not.
 ```
 
-What never goes in: "I think the bug is in X", "this should be fine", "confirm that…", your hypothesis, your fix's rationale — **and never "find the issues" or "report your findings"**: a reviewer asked for findings always brings findings (owner's rule, 2026-09-22). The ASK line is the request; the report may come back empty of findings as long as it says what was read. The three lines of moment 7 still apply on top.
+What never goes in: "I think the bug is in X", "this should be fine", "confirm that…", your hypothesis, your fix's rationale — **and never "find the issues" or "report your findings"**: a reviewer asked for findings always brings findings (owner's rule, 2026-09-22). The ASK line is the request; the report may come back empty of findings as long as it says what was read. The three closing orders of moment 7 still apply on top.
 
-**For Yoda, Moriarty's raw run log is part of the ARTIFACT** — the commands he ran and their output, never his summary or his verdict word. Without it Yoda answers CANNOT JUDGE, by design.
+**For Yoda, Moriarty's raw run log is part of the ARTIFACT** — the separate raw-log file Moriarty writes (commands and output), passed by path, never his summary or his verdict word. Without it Yoda answers CANNOT JUDGE, by design.
 
 **One review per part.** What Cerberus and Argus flag goes to Ultron/Dante once, who fix and verify with the part's tests; the reviewers are not sent again over the fix (the flow's Verify step says the same). A second pass that finds something already in the file only proves the first pass was incomplete.
+
+### Agent reports — on file, read by index
+
+Every agent writes its report to one file in `<project>/.claude/informes/` (index of section titles first) and answers in three lines: status, the one thing to act on, the path. Read the index and only the sections you need. If `git check-ignore -q .claude/informes/x` fails in the project, add `.claude/informes/` to `.git/info/exclude` once — that is yours, never the agent's.
 
 ### Step-sized delegation, and the wave it belongs to
 

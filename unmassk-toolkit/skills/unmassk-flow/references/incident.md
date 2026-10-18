@@ -18,7 +18,7 @@ The answer may be no. What may not happen is closing it without asking.
 
 ## 1. Investigate
 
-Three ways in. **Start with the first**; the others are for what it cannot give:
+Three ways in. **Start with the first**; the others are for what it cannot give. Tell the diagnostician it is an incident — something already delivered that broke — so his report carries the incident note:
 
 | Route | Use it when | Ends in |
 |---|---|---|
