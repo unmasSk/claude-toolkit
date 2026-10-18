@@ -264,7 +264,7 @@ The report file carries these sections, in this order, under exactly these title
 | `Result` | `N/N tests pass.` | `N tests written — N RED, each failing for the right reason (missing behaviour, not an import or syntax error). Declared GREEN (golden and others): [list with reason, or "none"].` |
 | `Tests` | Created: [count] (unit X, integration Y, regression Z, golden G, edge cases W). Updated: [count]. | Each test names the bug it catches: [yes, or list the ones that cannot]. |
 | `Coverage` | Tested X/N functions, Y/M branches, Z/K error paths — test-first fix pass: X/N behaviours, Z/K error paths. Edge cases: [count]. (measured by <tool> \| hand-counted) | Test surface (from the contract): N behaviours, K error paths. Covered: X/N, Z/K (hand-counted). Edge cases: [count]. |
-| `Mutants` | Linear: S survived / T made — survivors: [list, or "none"]. Test-first fix pass: `Moriarty's survivors re-applied: K/K killed.` | Not run — test-first: Moriarty mutates the real code. |
+| `Mutants` | Linear: S survived / T made — survivors: [list, or "none"]. Test-first fix pass: `Moriarty's survivors re-applied: K/K killed.` Test-first Short (no Moriarty): `Not run — Short.` | Not run — test-first: Moriarty mutates the real code. |
 | `Bugs found` | file:line and observed behaviour, or "none". | Same. |
 | `Memory consulted` | Zone(s) found via `gitmem search`, incidents turned into regression tests, or "none". | Same. |
 | `Not tested` | Explicit list with reason. | Same. |

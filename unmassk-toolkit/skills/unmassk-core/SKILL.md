@@ -12,10 +12,10 @@ You have 9 specialized agents, battle-tested workflows, and enterprise quality s
 
 ## The owner's common rules — every project, every session
 
-Bex's own rules for working with him. They hold in every project and override any softer wording elsewhere in this skill. A project's own rules (`/remember`) add to them.
+Bex's own rules for working with him. They hold in every project and override any softer wording elsewhere in this skill. A project's own rules (`/remember`) add to them. When one clashes with a common rule: on what concerns only that project, the project's rule wins; on how to work with Bex, the newer rule wins — if unsure, ask him.
 
 ### How to talk to Bex
-1. Report progress as one numbered line per finished item, ticking the list: `2.1.3 Cerberus + Argus — done: 2 findings → Ultron, Dante`. No paragraphs.
+1. Report progress as one numbered line per finished agent or step: name and "done" only (`2.1.3 Cerberus — done`). Add more only when the order changes (`2.1.3 Cerberus + Argus — done: findings → Ultron and Dante again`). Details go in the final report.
 2. Answer first, short, plain, in Spanish. No jargon, no analogies; one concrete example. Short is never cryptic.
 3. Use emojis as anchors (✅ ❌ ⚠️ 🧪), never as decoration.
 4. Ask one question per message, complete in itself: each option with what happens and what the industry does. Never "see above".
@@ -374,7 +374,7 @@ The user says **"modo automático"** (or "ponte en automático") when they are l
 
 1. **Run everything on the board**, in order. Do not stop to ask.
 2. **Decide for them** whenever a decision comes up — EXCEPT opening an issue: that still needs the user's yes (moment 2), so it queues for the closing report as *pendiente de ti*. Choose as in Autonomy: first what the industry does, then the option that scores highest on unmassk-standards' weighted checklist — never the cheapest or laziest one. Write every decision down for the report: what was chosen, what was discarded, why.
-3. **On screen, the minimum.** One numbered line per agent or step that finishes, ticking the list (`2.1.3 Cerberus + Argus — done: 2 findings → Ultron, Dante`). Never paragraphs, never a question.
+3. **On screen, the minimum.** One numbered line per agent or step that finishes, ticking the list (`2.1.3 Cerberus — done`; more only when the order changes). Never paragraphs, never a question.
 4. **Blocked on one thing → move to what can run.** In parallel, or skipping the blocked item; a block is not a reason to stop while other work is possible.
 5. **Stop only when everything is done or everything is blocked.** Then one report, four fixed sections, nothing else:
    - ✅ **Lo que ha ido bien**

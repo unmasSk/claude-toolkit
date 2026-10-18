@@ -257,8 +257,8 @@ def _preflight_check_tree_clean(repo_root: str, allow_dirty: bool) -> None:
         status_result = _git(["status", "--porcelain"], repo_root)
         if status_result.stdout.strip():
             _die(
-                "Working tree sucio. Haz commit o stash de los cambios antes de hacer release, "
-                "o usa --allow-dirty."
+                "Working tree sucio. Haz commit de los cambios o saca del repositorio los ficheros sueltos "
+                "antes de hacer release (nunca stash), o usa --allow-dirty."
             )
 
 
