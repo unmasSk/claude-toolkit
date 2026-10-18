@@ -106,3 +106,4 @@
 [X-106][skills][install] un apartado dentro de unmassk-core
 [X-107][hooks][install] aviso de voz con say
 [X-108][release][memory] preguntar antes de pasar a dev
+[X-109][skills][architecture] retomar al mismo agente si el arreglo llega a los pocos minutos
