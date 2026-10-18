@@ -59,3 +59,4 @@
 2026-10-18  [D-103][release][memory] 🧭 finished, tested work goes to dev without asking; staging and production ask  →  replaced by D-104
 2026-10-18  [D-032][skills][architecture] 🧭 Flow's agent sequence is fixed to a canonical, loop-free order  →  replaced by D-105
 2026-10-18  [D-105][skills][architecture] 🧭 test-first flow: Dante red, Ultron green, Cerberus+Argus, Moriarty, fix, Yoda  →  replaced by D-106
+2026-10-18  [D-107][skills][architecture] 🧭 work hierarchy is task, phase, step (1, 1.1, 1.1.1); owner hears only numbers  →  replaced by D-108
