@@ -87,4 +87,4 @@
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
 [D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
-[D-105][skills][architecture] test-first flow: Dante red, Ultron green, Cerberus+Argus, Moriarty, fix, Yoda
+[D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110
