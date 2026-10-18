@@ -2,19 +2,20 @@
   "skill": "unmassk-flow",
   "boxes": [
     "Gate: sin feature de Flow abierto antes de arrancar uno nuevo",
-    "Triaje: tamaño decidido (Trivial/Standard/Big) y seam declarada en el context commit",
+    "Triaje: procedimiento decidido (Trivial/Corto/Completo) y seam declarada",
     "Brainstorm: gray areas resueltas y modo de build (test-first/linear) decidido",
     "Research: si Bilbo encontró algo permanente, guardado como memo/decisión/bloqueo antes de escribir el plan",
     "Plan: docs/plan/*.md escrito y Plan Checker pasado",
-    "Execute: todas las tareas del wave map verificadas",
-    "Verify fase A — Cerberus y Argus revisaron cada tarea al terminarla",
-    "Verify fase A — Ultron corrigió en un solo pase lo que señalaron",
-    "Verify fase A — Dante entregó los tests, cobertura ≥ barra del perfil",
+    "Execute: todos los pasos del wave map verificados",
+    "Verify fase A — Dante entregó los tests de lo construido, antes de los revisores, cobertura ≥ barra del perfil",
+    "Verify fase A — Cerberus y Argus revisaron el código y los tests de cada fase al terminarla",
+    "Verify fase A — se corrigió en un solo pase lo que señalaron (código, Ultron; tests, Dante)",
     "Verify fase B — con todo terminado, Moriarty entregó veredicto sobre código y tests",
     "Verify fase B — Ultron y Dante repararon lo que Moriarty rompió",
-    "Verify fase B — Yoda, a ciegas, dio su único veredicto, ≥ barra del usuario",
+    "Verify fase B — Yoda, a ciegas, dio su único veredicto y el camino al 110",
+    "Verify fase B — se arregló una sola vez lo que Yoda nombró",
     "Document — Alexandria actualizó las tres superficies y el CHANGELOG",
     "Close — las pruebas de lo tocado en verde",
-    "Close — merge/push hecho, rama borrada, issue cerrada, plan COMPLETED"
+    "Close — merge/push hecho, rama borrada, issue cerrada, plan COMPLETED, y se preguntó si seguir con la siguiente tarea"
   ]
 }
