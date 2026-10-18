@@ -157,7 +157,7 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Ending a session:**
 
-- Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)
+- Wrapping up / handoff → Skill `unmassk-close-session` (clean up, branches and issues, docs, write the Next)
 
 All protocol output persists to **memory**, never to `.md` files.
 <!-- END unmassk-protocols -->
@@ -166,7 +166,7 @@ All protocol output persists to **memory**, never to `.md` files.
 ## Communication
 
 - **Concise and plain.** No internal jargon (hook names, made-up terms); task, phase and step numbers are fine (`#101, 1.2`). Long or overly technical responses lose the user.
-- **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter.
+- **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter. While work runs: one numbered line per agent or step that finishes, name and "done" only.
 - **Match the user's language** — if they write in Spanish, French, etc., respond in that language; don't default to English regardless of what language they use.
 - **Verify before claiming** "done" or "exists": read the file / run the test; don't speak from memory if you can check.
 - **Confirm before structural changes** (CLAUDE.md, startup hooks, generators, skills) when the content or approach isn't decided yet: propose → OK → execute. Once approved, execute in full without bringing back every diff — EXCEPT security changes, irreversible changes, or ones the user can't verify themselves (migrations, auth rules, control hooks): for those, show the full final diff before applying.
