@@ -5,6 +5,19 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: toolkit SIN publicar tras D-129, en proyecto gitflow de scratch (2026-10-18)
+Veredicto FALLA. (1) El mecanismo de casillas no se arma en sesiones reales: el
+Skill llega como `unmassk-toolkit:unmassk-flow` y el inject busca
+`checklists/toolkit:unmassk-flow.json` -- silencio total, un Corto sin casillas pasa.
+(2) Cuando se arma (nombre pelado), Claude Code vacia el tablero al completarse
+todo y el Stop bloquea 2 veces un Trivial terminado con las 16 casillas.
+(3) El backstop del gate de fusiones manda al gate pesado cualquier comando cuyo
+texto mencione la fusion o el pull (commit, gitmem wip, grep) -- antes ligero.
+(4) Redireccion en el switch (`2>&1`) -> pesado. (5) El router dispara "modo
+automatico" con el texto de un informe de agente, y su texto es una version de la
+regla 65 ya sustituida dos veces. Aguantaron: cd/-C al propio repo, todo lo que
+entra en staging/main pesado, gitmem wip/work con [skip ci] y main protegido.
+
 ## claude-toolkit blind review: commit `1c89325` "retire R-018" (2026-08-28)
 Target: 67 ficheros que reemplazan `${CLAUDE_PLUGIN_ROOT}` (roto en el Bash tool,
 R-018 retirado por R-019) por dos patrones distintos. Veredicto FALLA. El

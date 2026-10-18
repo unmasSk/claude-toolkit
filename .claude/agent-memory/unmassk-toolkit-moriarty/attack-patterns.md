@@ -18,6 +18,31 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un hook que compara un campo del payload contra un nombre fijo: saca el valor REAL de los transcripts (2026-10-18)
+Los tests alimentan el valor que el autor imagina (`"skill": "unmassk-flow"`);
+Claude Code manda otro (`"unmassk-toolkit:unmassk-flow"`, 33 de 35 cargas reales).
+`grep -o '"name":"<Tool>","input":{...}' ~/.claude/projects/*/*.jsonl | sort | uniq -c`
+da la distribucion real en un segundo. Si el hook no casa el valor real, el
+mecanismo entero esta apagado en silencio aunque todos sus tests esten en verde.
+
+### Un gate que lee un almacen de la aplicacion anfitriona: reconstruye el ciclo de vida real de ese almacen (2026-10-18)
+Claude Code borra todos los `N.json` del tablero de tareas ~5 s despues de que la
+ultima pase a `completed` (deja solo `.lock` y `.highwatermark`), ANTES del Stop.
+Se prueba cruzando el mtime del directorio `~/.claude/tasks/<sid>/` con la hora
+del ultimo TaskUpdate del transcript. Un gate que exige "casilla presente y
+completada" bloquea justo el caso todo-terminado. Pregunta general: ¿quien mas
+escribe o borra lo que este gate lee, y cuando?
+
+### UserPromptSubmit tambien recibe los avisos de fin de agente (2026-10-18)
+Los `<task-notification>` de agentes en segundo plano pasan por el hook de prompt
+(569 casos reales con salida del router). Un router por frases que inyecta
+"ordenes del propietario" las dispara con texto que escribio un agente.
+
+### Un backstop por regex sobre el texto crudo del comando bloquea mensajes y busquedas (2026-10-18)
+Probar siempre el gate con comandos que solo MENCIONAN la operacion: un mensaje de
+commit, un `grep`, una nota de memoria. En esta ronda el gate de fusiones bloqueo
+cuatro comandos mios de solo lectura/escritura de memoria.
+
 ### Un fix de doc committeado en el repo se contrasta contra el cache que de verdad se carga (2026-08-28)
 Un commit puede arreglar `SKILL.md` en el checkout de git y no tocar nunca la
 copia que Claude Code carga en la sesion real: `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`.
