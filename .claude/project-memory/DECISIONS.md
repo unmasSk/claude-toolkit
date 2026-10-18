@@ -89,3 +89,4 @@
 [D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
 [D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110
 [D-108][skills][architecture] work hierarchy: milestone, task (= issue), phase, step
+[D-109][skills][architecture] three flow paths: Direct, Short, Full; when in doubt, the bigger one
