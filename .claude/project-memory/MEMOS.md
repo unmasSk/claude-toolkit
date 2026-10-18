@@ -123,3 +123,4 @@
 [M-142][memory][release] owner now works on one machine only, with remote control on
 [M-144][skills][architecture] resumed subagent rereads its whole context; fresh is 5-8x cheaper later
 [M-146][memory][architecture] git-bug, DiffMem, Beads vs ours: they survive squash, no ID clashes
+[M-147][memory][architecture] moria already runs local semantic search; its lost months came from rewriting
