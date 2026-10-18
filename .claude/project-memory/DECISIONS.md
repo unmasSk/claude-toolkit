@@ -80,7 +80,6 @@
 [D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
 [D-094][boot][skills] boot slimming: nothing leaves without a pointer to its full version
 [D-095][skills][boot] boot slimming is verified by inventory, blind check, branch and a fresh session
-[D-099][skills][install] plugin review is its own skill, run once per project after a toolkit bump
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
 [D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110

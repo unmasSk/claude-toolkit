@@ -69,3 +69,4 @@
 2026-10-18  [D-057][memory][release] 🧭 code commits: commit and push at every step, never squash-and-push at the close  →  closed: superseded: D-096 replaced it (the replace did not archive it), then D-097 and D-115 — WIPs per step, the step commit is pushed
 2026-10-18  [D-104][release][memory] 🧭 finished step: squash WIPs to dev, drop branch, then ask to go on  →  replaced by D-117
 2026-10-18  [D-115][memory][release] 🧭 commit protocol: one commit per step from squashed WIPs, merge commit sums up  →  replaced by D-118
+2026-10-18  [D-099][skills][install] 🧭 plugin review is its own skill, run once per project after a toolkit bump  →  closed: superseded by D-100: the plugin review became part of the project-cleanup skill (D-100 pointed at D-098 by mistake)
