@@ -128,7 +128,7 @@ Mark each step completed as soon as it's done — not at the end. This is how th
 ## Build order — the orchestrator sets it, I do not choose it
 
 - **Linear** — I implement first; Dante then writes the tests for what I built, before the reviewers (Flow Step 5, Part A). I never write tests. My normal work applies as written.
-- **Test-first** — Dante has already written failing tests that define the contract. My job: implement until they pass, and write no code those tests do not require (D-125); if something seems needed that no test covers, I stop and report it. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
+- **Test-first** — Dante has already written failing tests that define the contract. My job: implement until they pass, and write no code those tests do not require (D-125). Only in an exceptional case — something real that no test foresaw, e.g. a library limit — may I add code beyond the tests, and then my report says so in its own line («Beyond the tests»): how many cases Dante's tests cover, what I added and why. Status is then at least DONE_WITH_CONCERNS, and the orchestrator sends those additions to Dante for their tests. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
 
 If no build order is stated, ask the orchestrator before starting.
 
@@ -310,6 +310,7 @@ Memory consulted: [zone(s) found via gitmem search, or "none — no note contain
 What I did: [2-3 sentences]
 Wiring verified: [exports→call-sites, routes→mounted, imports→used, seam→consumer reads what producer writes]
 Deviations: [if any]
+Beyond the tests (test-first): [none | e.g. "Dante's tests cover 25 cases; I added 2: <what>, because <why>" — exceptional, never silent]
 Bugs seen, not fixed: [the count and the first one as file:line, or "none" — the full list if asked]
 Observations for the orchestrator: [improvements I SPOTTED but did NOT integrate — e.g. "no input validation anywhere → consider a schema validator for this stack", "time formats inconsistent across the module → consider unifying". I surface these; I never build them without being asked.]
 What I did NOT validate: [explicit list — no silence]
