@@ -59,13 +59,12 @@ hermanos de `lib/memory/` [PIEZAS.md Sec.13], importados PLANOS
 """
 
 import json
-import math
-import os
 import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
 
+import boot_common
 import query
 import timefmt
 
@@ -129,11 +128,7 @@ def _gh_deadline() -> float:
     `UNMASSK_GH_DEADLINE_SECONDS` en cada llamada; un valor que no es un
     numero positivo y finito vuelve al defecto, nunca revienta el arranque
     por una errata."""
-    try:
-        value = float(os.environ.get(_GH_DEADLINE_ENV, ""))
-    except ValueError:
-        return _GH_DEADLINE_DEFAULT
-    return value if math.isfinite(value) and value > 0 else _GH_DEADLINE_DEFAULT
+    return boot_common.env_seconds(_GH_DEADLINE_ENV, _GH_DEADLINE_DEFAULT)
 
 
 def _gh_graphql(issue_numbers: list[int]) -> tuple[int, str, str]:

@@ -37,14 +37,9 @@ from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 force_utf8_streams()
 
 import boot as boot_lib  # noqa: E402
+import boot_common  # noqa: E402
 import gitcmd  # noqa: E402
 import notes  # noqa: E402
-
-
-# Donde se deja el informe. La carpeta esta ignorada por git en todos
-# los proyectos del toolkit: es estado de la sesion, no memoria.
-_REPORT_DIR = (".claude", ".unmassk")
-_REPORT_NAME = "boot-latest.txt"
 
 
 def main(argv):
@@ -60,10 +55,8 @@ def main(argv):
     """
     report = boot_lib.render(boot_lib.build())
 
-    root = notes.repo_root()
-    folder = root.joinpath(*_REPORT_DIR)
-    folder.mkdir(parents=True, exist_ok=True)
-    destination = folder / _REPORT_NAME
+    destination = boot_common.report_path(notes.repo_root())
+    destination.parent.mkdir(parents=True, exist_ok=True)
 
     # `gitcmd.atomic_write()`, no un temporal a mano: un arranque
     # interrumpido a mitad no puede dejar medio informe que el siguiente
@@ -99,15 +92,10 @@ def _leave_a_failure_marker(exc: Exception) -> None:
     [Argus, 2026-08-05].
     """
     try:
-        from datetime import datetime, timezone
-
-        root = notes.repo_root()
-        folder = root.joinpath(*_REPORT_DIR)
-        folder.mkdir(parents=True, exist_ok=True)
-        stamp = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"
-        gitcmd.atomic_write(
-            folder / _REPORT_NAME,
-            f"⚠️  EL ARRANQUE FALLÓ — {stamp}\n\n{exc}\n\n"
+        boot_common.write_failure_marker(
+            notes.repo_root(),
+            "EL ARRANQUE FALLÓ",
+            f"{exc}\n\n"
             "No hay informe de esta sesión. Lo que había aquí antes era de\n"
             "una sesión anterior y se ha sustituido por este aviso para que\n"
             "nadie lo lea como si fuera de hoy.\n",

@@ -18,7 +18,6 @@ running past the launcher's own deadline, which is reported loudly (D-130).
 """
 
 import json
-import math
 import os
 import subprocess
 import sys
@@ -31,6 +30,7 @@ if _LIB_MEMORY_DIR not in sys.path:
     sys.path.insert(0, _LIB_MEMORY_DIR)
 
 from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
+import boot_common  # noqa: E402
 
 force_utf8_streams()
 
@@ -47,16 +47,6 @@ _HOOK_TIMEOUT = 30.0
 _EXIT_MARGIN = 2.0
 
 
-def _boot_deadline():
-    """Read at run time; anything that is not a positive finite number
-    falls back to the default instead of aborting the boot."""
-    try:
-        value = float(os.environ.get(_BOOT_DEADLINE_ENV, ""))
-    except ValueError:
-        return _BOOT_DEADLINE_DEFAULT
-    return value if math.isfinite(value) and value > 0 else _BOOT_DEADLINE_DEFAULT
-
-
 def _report_overrun(cwd, deadline, elapsed):
     """The installer or boot.py was killed: say so loudly FIRST, then try
     to replace the previous session's report with a failure marker (so
@@ -68,12 +58,8 @@ def _report_overrun(cwd, deadline, elapsed):
         f"python3 {_BOOT_SCRIPT} by hand.",
         flush=True,
     )
-    destination = os.path.join(cwd, ".claude", ".unmassk", "boot-latest.txt")
+    destination = boot_common.report_path(cwd)
     try:
-        import gitcmd
-        from datetime import datetime, timezone
-        from pathlib import Path
-
         budget = _HOOK_TIMEOUT - _EXIT_MARGIN - elapsed()
         if budget <= 0:
             raise TimeoutError("no time left under the hook timeout")
@@ -88,13 +74,11 @@ def _report_overrun(cwd, deadline, elapsed):
         )
         if found.returncode != 0:
             raise RuntimeError("not a git repository")
-        folder = Path(found.stdout.strip()) / ".claude" / ".unmassk"
-        destination = folder / "boot-latest.txt"
-        folder.mkdir(parents=True, exist_ok=True)
-        stamp = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"
-        gitcmd.atomic_write(
-            destination,
-            f"⚠️  THE BOOT DID NOT FINISH — {stamp}\n\n"
+        root = found.stdout.strip()
+        destination = boot_common.report_path(root)
+        boot_common.write_failure_marker(
+            root,
+            "THE BOOT DID NOT FINISH",
             f"The boot (installer + bin/memory/boot.py) was stopped after {deadline:g} s.\n"
             "There is no report for this session. What was here before belonged\n"
             "to an earlier session and has been replaced by this notice so that\n"
@@ -117,7 +101,7 @@ try:
         payload = {}
 
     cwd = payload.get("cwd") or os.getcwd()
-    deadline = _boot_deadline()
+    deadline = boot_common.env_seconds(_BOOT_DEADLINE_ENV, _BOOT_DEADLINE_DEFAULT)
     started = time.monotonic()
     overrun = False
 
