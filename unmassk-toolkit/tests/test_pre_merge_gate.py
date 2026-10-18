@@ -1015,5 +1015,159 @@ class TestCdSubfolderAndCdPlusC:
         _assert_heavy_gate_message(parsed, context)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Pre-release drill fixes (2026-10-18). Expected values come from this
+# contract (orchestrator's task, from the drill's raw log), never the hook:
+#   (1) a command that PARSES and holds no git merge/pull call is approved,
+#       whatever its text mentions; the text backstop only blocks when the
+#       command cannot be parsed, and then with the LIGHT message.
+#   (2) redirections (`2>&1`, `>/dev/null`, `2>/dev/null`) are not command
+#       separators: the switch before them still sets the target.
+#   (3) a heredoc / `-F -` message with an apostrophe in its body does not
+#       change the target.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _assert_light_gate_message(parsed, context):
+    """The light gate: Cerberus + Alexandria, and NOT the staging gate's
+    Argus / owner's-yes asks."""
+    reason = parsed.get("reason", "").lower()
+    assert "cerberus" in reason and "alexandria" in reason, (
+        f"{context}: the light gate must ask for Cerberus and Alexandria; "
+        f"got {parsed!r}"
+    )
+    assert "argus" not in reason, (
+        f"{context}: an unparseable command gets the LIGHT message, not the "
+        f"staging gate; got {parsed!r}"
+    )
+
+
+def _assert_names_target(parsed, target, context):
+    assert f"'{target}'" in parsed.get("reason", ""), (
+        f"{context}: the target is readable, the message should name "
+        f"'{target}'; got {parsed.get('reason')!r}"
+    )
+
+
+class TestTextMentionWithoutMergeCallIsApproved:
+    """(1) The drill: the published hook blocked commit messages, memory
+    notes and searches only because their text held the words."""
+
+    @pytest.mark.parametrize("command", [
+        'git commit -m "docs: explain when git merge is gated"',
+        'gitmem wip "docs: say when git merge is gated" --path x',
+        'gitmem wip "sync: git pull before starting" --path x',
+        'grep -rn "git merge" docs/',
+        "rg 'git merge --no-ff' skills/",
+        'git commit -m "$(cat <<\'EOF\'\nfix: it\'s what git merge did\nEOF\n)"',
+    ])
+    @pytest.mark.parametrize("current", ["staging", "main"])
+    def test_should_approve_when_parsed_command_has_no_merge_call(
+            self, tmp_path, command, current):
+        repo = _make_repo_on(tmp_path, current)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} on {current} — no merge/pull call in it")
+
+    @pytest.mark.parametrize("command", [
+        'git merge --no-ff feat/x -m "unterminated',
+        "git pull origin feat/x 'unterminated",
+    ])
+    def test_should_block_with_light_gate_when_command_cannot_be_parsed(
+            self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — unbalanced quote, cannot be parsed"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_light_gate_message(parsed, context)
+
+
+_REDIRECTIONS = ["2>&1", ">/dev/null", "2>/dev/null"]
+
+
+class TestRedirectionIsNotASeparator:
+    """(2) `git switch dev 2>&1 && git merge ...` still lands on dev."""
+
+    @pytest.mark.parametrize("redir", _REDIRECTIONS)
+    def test_should_approve_when_redirected_switch_lands_on_dev(self, tmp_path, redir):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+        command = f"git switch dev {redir} && git merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — target dev (D-119)")
+
+    @pytest.mark.parametrize("redir", _REDIRECTIONS)
+    def test_should_block_with_heavy_gate_when_redirected_switch_lands_on_staging(
+            self, tmp_path, redir):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["staging", "feat/x"])
+        command = f"git switch staging {redir} && git merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — target staging (D-120)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+        _assert_names_target(parsed, "staging", context)
+
+    @pytest.mark.parametrize("redir", _REDIRECTIONS)
+    def test_should_approve_when_merge_itself_is_redirected_on_dev(self, tmp_path, redir):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        command = f"git merge --no-ff feat/x {redir}"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} with HEAD on dev")
+
+
+class TestHeredocMessageDoesNotChangeTarget:
+    """(3) A `-F -` heredoc whose body carries an apostrophe."""
+
+    _HEREDOCS = [
+        "git switch {target} && git merge --no-ff feat/x -F - <<'EOF'\n"
+        "Merge feat/x: it's the parser fix\nEOF",
+        "git switch {target} && git merge --no-ff feat/x -F - <<EOF\n"
+        "Merge feat/x: it's the parser fix\nEOF",
+    ]
+
+    @pytest.mark.parametrize("command_tpl", _HEREDOCS)
+    def test_should_approve_when_heredoc_merge_lands_on_dev(self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+        command = command_tpl.format(target="dev")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — target dev (D-119)")
+
+    @pytest.mark.parametrize("command_tpl", _HEREDOCS)
+    def test_should_block_with_heavy_gate_when_heredoc_merge_lands_on_staging(
+            self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["staging", "feat/x"])
+        command = command_tpl.format(target="staging")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — target staging (D-120)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+        _assert_names_target(parsed, "staging", context)
+
+    def test_should_approve_when_heredoc_commit_mentions_merge(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "main")
+        command = ("git commit -F - <<'EOF'\n"
+                   "docs: it's when git merge is gated\nEOF")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — a commit, no merge/pull call")
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

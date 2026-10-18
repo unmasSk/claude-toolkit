@@ -20,4 +20,6 @@ D-119/D-120 (#101, 2026-10-18): merge/pull INTO dev = no gate; target above dev 
 
 - D-129 fix pass: `pushd ../other && popd` never tests popd (pushd outside the session already fails closed); use bare `popd &&`. `cd <session> && git -C ../other` never tests the cd+-C join (cd = cwd); use `cd sub && git -C ..` (approve). Edits with Bash heredocs mentioning merges are blocked by the live hook — use Edit.
 
+- Drill round (2026-10-18): the text backstop must only fire when tokenize() fails (then LIGHT message, assert "argus" absent); shlex punctuation_chars splits `2>&1` into `2`,`>&`,`1`, so a redirect reads as a separator; a bare `-F - <<EOF` body with an apostrophe makes shlex fail (the `$(cat <<'EOF')` inside double quotes does not). Redirect AFTER the merge on HEAD=dev was already green.
+
 **How to apply:** any later round on this hook — keep the third-branch fixture and the dev->staging switch test.
