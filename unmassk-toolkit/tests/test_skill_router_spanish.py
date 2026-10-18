@@ -49,6 +49,8 @@ Ultron implements (Flow Verify / Step 5), run against the real
 implementation, not against imagined shape.
 """
 
+import re
+
 import pytest
 
 from conftest import SOURCE_ROOT, HOOKS_DIR, git_cmd, run_cmd  # noqa: F401  (kept for parity with sibling file / future hook tests)
@@ -163,14 +165,19 @@ def _import_match_reminders():
 
 
 class TestMatchReminders:
+    # The owner retired the silence rule on 2026-10-18. His new rule:
+    # «mientras se trabaja, ni parrafadas ni silencio: una linea numerada por
+    # cada agente o paso que termina, tachandolo en la lista, con emojis; sin
+    # aviso de voz». So the old silence prompts must no longer inject any
+    # "silencio" reminder, nor the old "silencio literal" text under any key.
     @pytest.mark.parametrize("prompt", SILENCIO_PROMPTS)
-    def test_silencio_prompts_trigger_silencio_key(self, prompt):
+    def test_should_not_emit_silencio_reminder_when_prompt_asks_for_silence(self, prompt):
         match_reminders = _import_match_reminders()
         reminders = match_reminders(prompt)
         keys = [k for k, _ in reminders]
-        assert "silencio" in keys, f"{prompt!r} -> {reminders!r}"
-        texts = [t for k, t in reminders if k == "silencio"]
-        assert any("si escribes, es una pregunta" in t for t in texts), texts
+        assert "silencio" not in keys, f"{prompt!r} -> {reminders!r}"
+        texts = [t for _, t in reminders]
+        assert not any("silencio literal" in t for t in texts), texts
 
     @pytest.mark.parametrize("prompt", RESPUESTA_PRIMERO_PROMPTS)
     def test_respuesta_prompts_trigger_respuesta_primero_key(self, prompt):
@@ -245,6 +252,21 @@ class TestMatchRemindersAutomatico:
         assert any("modo automatico" in t for t in texts), texts
         assert any("informe" in t for t in texts), texts
 
+    def test_should_describe_numbered_line_per_finished_step_when_automatico_fires(self):
+        # Expected wording comes from the owner's rule of 2026-10-18, not from
+        # the code: «una linea numerada por cada agente o paso que termina».
+        # The old text allowed only 'silencio' or 'agente N de M' on screen;
+        # that restriction must be gone.
+        match_reminders = _import_match_reminders()
+        reminders = match_reminders("modo automatico")
+        texts = [t.lower() for k, t in reminders if k == "automatico"]
+        assert texts, reminders
+        text = texts[0]
+        assert not re.search(r"solo\W+silencio", text), text
+        assert "agente n de m" not in text, text
+        assert "linea numerada" in text, text
+        assert "agente" in text and "paso" in text, text
+
     def test_automaticamente_alone_does_not_trigger_automatico(self):
         match_reminders = _import_match_reminders()
         reminders = match_reminders("automaticamente")
@@ -257,13 +279,12 @@ class TestMatchRemindersAutomatico:
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestHookEmitsSpanishRoutingAndReminders:
-    def test_silencio_total_prompt_emits_orden_marker_with_reminder_text(self, tmp_path):
+    def test_should_print_no_silencio_literal_line_when_prompt_is_silencio_total(self, tmp_path):
+        # Silence rule retired by the owner on 2026-10-18 (see TestMatchReminders).
         repo = _make_installed_repo(tmp_path)
         rc, stdout, stderr = _run_hook(repo, "silencio total, hostias")
         assert rc == 0, (rc, stdout, stderr)
-        orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
-        assert orden_lines, f"Expected a line starting with {REMINDER_MARKER!r}; got stdout: {stdout!r}"
-        assert any("si escribes, es una pregunta" in line for line in orden_lines), orden_lines
+        assert not any("silencio literal" in line for line in stdout.splitlines()), stdout
 
     def test_arregla_los_tres_de_argus_prompt_routes_to_flow(self, tmp_path):
         repo = _make_installed_repo(tmp_path)
