@@ -87,4 +87,4 @@
 [D-099][skills][install] plugin review is its own skill, run once per project after a toolkit bump
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
-[D-103][release][memory] finished, tested work goes to dev without asking; staging and production ask
+[D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
