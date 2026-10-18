@@ -59,7 +59,7 @@ _MAX_BLOCKS_PER_SESSION = 2
 _SATISFIED_STATUS = "completed"
 
 
-def _procedure_boxes(entry: dict, tasks: dict[str, list[str]]) -> list:
+def _procedure_boxes(entry: dict, tasks: dict[str, list[str]]) -> list[str]:
     """D-121: the boxes one registry entry expects, given the board. An
     entry without a valid "procedures" key expects its full "boxes" list,
     exactly as before D-121. With it, every procedure whose selector task
@@ -230,8 +230,8 @@ def _apply_gate(cwd: str, session_id: str, registry: dict) -> None:
     """Everything from 'is there anything to check' through emitting a
     block. Exits the process directly at every terminal point, same
     control-flow style as main()."""
-    expected = _expected_boxes(registry)
-    if not expected:
+    declared_any = _expected_boxes(registry)  # board-free: only "was any box declared?"
+    if not declared_any:
         sys.exit(0)  # silence: no process skill loaded this session
 
     board_dir = _board_dir(cwd, session_id)

@@ -132,6 +132,12 @@ def _build_context_message(skill_name: str, entry: dict, enforced: bool) -> str:
             f"{_numbered(boxes)}\n"
         )
     if enforced:
+        if checklist_state.is_valid_procedures(procedures):
+            return header + (
+                "The Stop hook (checklist-gate.py) will block closing this session if any "
+                "box of the procedure you selected is missing from the board or left "
+                "pending/in_progress."
+            )
         return header + (
             "The Stop hook (checklist-gate.py) will block closing this session if any "
             "of these is missing from the board or left pending/in_progress."
