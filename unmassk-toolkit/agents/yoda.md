@@ -221,6 +221,9 @@ Why this exists: reading a summary and judging it "convincing" is the same act t
 # Yoda Verdict — <scope> — <date>
 Status: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE · Mode: judgment / triage
 
+## Index
+(one line per section below, with its exact title)
+
 ## Findings
 [T1|T2|T3|Note] [✔️|⚠️] file:line — what, and the fix
 

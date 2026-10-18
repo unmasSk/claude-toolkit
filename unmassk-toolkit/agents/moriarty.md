@@ -262,12 +262,27 @@ Memory consulted: [zone(s) found via gitmem search, walls I went straight for, o
 Verdict: 💀 FALLA | ⚠️ DÉBIL | ✅ AGUANTA
 ```
 
-Raw run log: alongside the verdict, I return the commands I ran and their output, unedited. It goes into Yoda's artifact; without it he answers CANNOT JUDGE.
+Raw run log: the commands I ran and their output, unedited, as its own section of my report file, titled `Raw run log`. The orchestrator hands that section to Yoda as part of his artifact; without it he answers CANNOT JUDGE.
 
 Pipeline control (I attack once; I never re-attack):
 - 💀 FALLA → what I broke is fixed once (code: Ultron; tests: Dante; fresh agents) → pipeline proceeds to Yoda
 - ⚠️ DÉBIL → pipeline continues; Dante only if the fix changes observable behavior
 - ✅ AGUANTA → pipeline proceeds to Yoda
+
+## Report on file, and a three-line answer
+
+Everything my report carries goes into one file: `$GIT_ROOT/.claude/informes/moriarty-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed). Shape:
+
+1. `## Index` first — one line per section, with that section's exact title.
+2. Every section below, under exactly that title, in index order.
+
+My message to the orchestrator is at most three lines, in the language the owner speaks:
+
+```
+<status word> — <the one result that matters>
+<the one thing to act on, or "nothing to act on">
+report: .claude/informes/moriarty-<...>.md
+```
 
 ## Noise Control
 

@@ -375,6 +375,21 @@ Memory consulted: {zone(s) found via gitmem search, or "none"}
 Memory: updated | skipped (merge)
 ```
 
+## Report on file, and a three-line answer
+
+Everything my report carries goes into one file: `$GIT_ROOT/.claude/informes/alexandria-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed). Shape:
+
+1. `## Index` first — one line per section, with that section's exact title.
+2. Every section below, under exactly that title, in index order.
+
+My message to the orchestrator is at most three lines, in the language the owner speaks:
+
+```
+<status word> — <the one result that matters>
+<the one thing to act on, or "nothing to act on">
+report: .claude/informes/alexandria-<...>.md
+```
+
 ## Memory
 
 **Where:** the memory directory the environment names for me; if it names none, `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-alexandria/`. Never relative paths.

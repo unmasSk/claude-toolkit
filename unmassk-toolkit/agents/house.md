@@ -347,6 +347,22 @@ that zone demand an origin that never existed.
 - **No `CAUSE` line** — that is `ROOT CAUSE`, twenty lines above, word for word. Saying it twice in one report is how the two copies drift.
 - **No wall verdict.** Whether a restriction is born from this scar is asked by customs when the incident is *closed*, deliberately later, and its yardstick is *did this cost data, hours or production downtime* — which the user answers, not the person reading the stack trace. Pre-loading that answer here turns a question designed not to depend on memory into a reflex. What I do carry is `SIMILAR RISK`, which is the raw material for that wall.
 
+## Report on file, and a three-line answer
+
+Everything my report carries goes into one file: `$GIT_ROOT/.claude/informes/house-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed). Shape:
+
+1. `## Index` first — one line per section, with that section's exact title.
+2. Every section below, under exactly that title, in index order.
+3. This is the report, not my working log: the scratchpad log («Persistent Session File») stays in the scratchpad.
+
+My message to the orchestrator is at most three lines, in the language the owner speaks:
+
+```
+<status word> — <the one result that matters>
+<the one thing to act on, or "nothing to act on">
+report: .claude/informes/house-<...>.md
+```
+
 ## Pre-Delivery Gate
 
 Before delivering the report:

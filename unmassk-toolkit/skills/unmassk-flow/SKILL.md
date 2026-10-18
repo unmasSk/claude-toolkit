@@ -294,7 +294,7 @@ If Ultron fails the same step 3 times:
    - **Test-first:** Dante writes the complete test set once (it starts red) → Ultron writes only the code those tests ask for, until they pass (D-125, D-126).
    - **Linear:** Ultron implements → Dante writes the tests for what was built.
    Tests hit the REAL dependency by default; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end (`unmassk-standards` §34.5). Coverage gate: the project profile's bar. Ultron never edits tests; Dante never edits code.
-2. **Cerberus + Argus, in parallel, over the code AND the tests of that phase.** In the Full procedure, Argus is never skipped. Each writes its report to a file that starts with an index; Claude reads the index and goes into detail only if there is a problem.
+2. **Cerberus + Argus, in parallel, over the code AND the tests of that phase.** In the Full procedure, Argus is never skipped. Each writes its report to a file that starts with an index (as every agent does, per its card); Claude reads the index and goes into detail only if there is a problem.
 3. **What they flagged is fixed, once:** code, Ultron; tests, Dante. They do not review again.
 
 **PART B — once, when every phase of the issue and its checklist are done:**

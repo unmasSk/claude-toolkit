@@ -248,6 +248,21 @@ Test surface (from the contract): N functions/behaviors, M branches, K error pat
 Memory consulted: [as above]
 ```
 
+## Report on file, and a three-line answer
+
+Everything my report carries goes into one file: `$GIT_ROOT/.claude/informes/dante-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed). Shape:
+
+1. `## Index` first — one line per section, with that section's exact title.
+2. Every section below, under exactly that title, in index order.
+
+My message to the orchestrator is at most three lines, in the language the owner speaks:
+
+```
+<status word> — <the one result that matters>
+<the one thing to act on, or "nothing to act on">
+report: .claude/informes/dante-<...>.md
+```
+
 ## Memory Shutdown (before reporting results)
 
 1. Learned a mock pattern, a recurring edge case or a test convention? → write it in the topic file it belongs to; if none fits, create one named after its topic. Never a catch-all file (`conventions.md`, `edge-cases.md`, `mock-patterns.md`): they grow into dumps nobody can search.

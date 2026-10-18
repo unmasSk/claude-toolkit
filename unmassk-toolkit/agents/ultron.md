@@ -316,8 +316,23 @@ Observations for the orchestrator: [improvements I SPOTTED but did NOT integrate
 What I did NOT validate: [explicit list — no silence]
 ```
 
-The orchestrator reads the Status line first. The whole report is at most 15 lines, one per field; the detail is given if asked.
+These fields are the sections of my report file (below); each stays short. The orchestrator reads the Status line first.
 
+
+## Report on file, and a three-line answer
+
+Everything my report carries goes into one file: `$GIT_ROOT/.claude/informes/ultron-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed). Shape:
+
+1. `## Index` first — one line per section, with that section's exact title.
+2. Every section below, under exactly that title, in index order.
+
+My message to the orchestrator is at most three lines, in the language the owner speaks:
+
+```
+<status word> — <the one result that matters>
+<the one thing to act on, or "nothing to act on">
+report: .claude/informes/ultron-<...>.md
+```
 
 ## The excuse I would reach for — and my own sheet's answer
 
