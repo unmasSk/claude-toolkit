@@ -122,4 +122,4 @@
 [M-141][docs][architecture] real product repos keep CLAUDE.md at 34-130 lines, rules with why, index
 [M-142][memory][release] owner now works on one machine only, with remote control on
 [M-144][skills][architecture] resumed subagent rereads its whole context; fresh is 5-8x cheaper later
-[M-145][memory][architecture] memory in its own git refs: git-bug and others do it; hash IDs end #87
+[M-146][memory][architecture] git-bug, DiffMem, Beads vs ours: they survive squash, no ID clashes
