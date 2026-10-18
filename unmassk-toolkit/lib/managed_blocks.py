@@ -25,7 +25,7 @@ import re
 
 
 # ── Block definitions ─────────────────────────────────────────────────────
-# Each block is reproduced EXACTLY from !new_skills/to_add_CLAUDE.md.
+# These bodies are the source: CLAUDE.md copies are rewritten from them.
 # Do NOT reformat; any whitespace change will trigger "block outdated" in upgrade.
 
 BLOCKS: list[dict[str, str]] = [
@@ -43,9 +43,10 @@ The owner's rules below bind from the first message:
 @.claude/project-memory/rules.md
 
 **On every session start**, you MUST:
-1. Read the `[memory]` lines of the session start: the last Next, every
-   blocker, every restriction, the counts and the checks. If none arrived,
-   the boot failed: tell the user so in your first line
+1. Read the boot report whose path the `[memory]` lines of the session
+   start give you: the last Next, every blocker, every restriction, the
+   counts and the checks. If no such line or no report arrived, the boot
+   failed: tell the user so in your first line
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
 3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
 4. Tell the user the menu of the day, then respond
