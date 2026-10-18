@@ -33,13 +33,15 @@ escritos aqui a mano) y de manifiestos/registros que ESTE fichero escribe
 `make_manifest` de conftest.py, el mismo patron que
 test_skill_checklist_inject.py); `checklists/flow.json` real solo se LEE.
 
-Clasificacion (ver informe): las clases `TestGolden*` son el
-comportamiento de hoy que tiene que sobrevivir (VERDE ya); las
-`TestContract*` son D-121 (ROJO hasta que Ultron lo implemente).
+Clasificacion: las clases `TestGolden*` son el comportamiento anterior a
+D-121 que tiene que sobrevivir; las `TestContract*` son el contrato D-121,
+ya implementado (VERDE desde la pasada de Ultron, 2026-10-18).
 """
 
 import json
 import uuid
+
+import pytest
 
 from .conftest import (
     CHECKLISTS_DIR,
@@ -162,9 +164,9 @@ def _gate(fake_home, project_dir, session_id):
     return parsed, stdout, stderr
 
 
-def _assert_silent(parsed, stdout, stderr):
+def _assert_silent(stdout):
     assert stdout.strip() == "", (
-        f"el gate tenia que dejar cerrar en silencio; stdout={stdout!r} stderr={stderr!r}"
+        f"el gate tenia que dejar cerrar en silencio; stdout={stdout!r}"
     )
 
 
@@ -177,6 +179,25 @@ def _assert_blocks(parsed, stdout):
 
 def _session():
     return f"sess-{uuid.uuid4().hex[:8]}"
+
+
+def _inject_real_flow(fake_home, project_dir, sid):
+    """Skill(unmassk-flow) por el inject real con el flow.json real, y
+    prueba de que el registro quedo escrito con `procedures`: sin esto, un
+    inject que no registra nada dejaria pasar al gate en silencio y los
+    tests de extremo a extremo saldrian verdes por la razon equivocada."""
+    rc, parsed, stdout, stderr = run_hook(
+        INJECT_HOOK,
+        make_skill_payload(project_dir, sid, "unmassk-flow"),
+        cwd=project_dir,
+        env=fake_home_env(fake_home),
+    )
+    assert rc == 0, f"rc={rc} stdout={stdout!r} stderr={stderr!r}"
+    path = registry_path(project_dir, sid)
+    assert path.exists(), f"el inject no escribio registro; stderr={stderr!r}"
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    assert len(registry["skills"]) == 1, registry
+    assert "procedures" in registry["skills"][0], registry
 
 
 # ═════════════════════════════ GOLDEN (verde hoy) ═══════════════════════
@@ -201,7 +222,7 @@ class TestGoldenEntriesWithoutProceduresUnaffected:
         _seed_entries(project_dir, sid, [_plain_entry("unmassk-audit", AUDIT_BOXES)])
         _write_board(fake_home, sid, _done(AUDIT_BOXES))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
 
 class TestGoldenOldRegistryEntryWithoutProceduresKey:
@@ -242,7 +263,7 @@ class TestGoldenNoSelectorMeansFullList:
         _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
         _write_board(fake_home, sid, _done(SYN_FULL))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
     def test_should_match_full_list_ignoring_case_and_accents(self, fake_home, project_dir):
         """Casefold + sin tildes sigue valiendo para la lista entera."""
@@ -259,7 +280,7 @@ class TestGoldenNoSelectorMeansFullList:
         ]
         _write_board(fake_home, sid, _done(typed))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
 
 class TestGoldenFullFlowManifestKeepsItsFullList:
@@ -272,7 +293,7 @@ class TestGoldenFullFlowManifestKeepsItsFullList:
             assert box in data["boxes"], f"{box!r} ya no esta en flow.json boxes"
 
 
-# ═════════════════════════════ CONTRATO D-121 (rojo hoy) ════════════════
+# ═════════════════════════════ CONTRATO D-121 ═══════════════════════════
 
 class TestContractRealFlowManifestDeclaresProcedures:
     """Bug: flow.json sin la clave, o con la lista Corto mal copiada (una
@@ -340,6 +361,37 @@ class TestContractInjectStoresProceduresAndPrintsThreeLists:
             assert text in context, f"el mensaje no nombra {text!r}: {context!r}"
 
 
+class TestContractInjectRefusesMalformedProcedures:
+    """Bug: un `procedures` mal escrito (selector vacio) registrado igual:
+    el gate no podria casarlo nunca. Contrato: no se registra nada, se
+    avisa por stderr y la llamada a la skill no se rompe (exit 0)."""
+
+    @pytest.mark.parametrize("bad_selector", ["", "   "])
+    def test_should_warn_and_register_nothing_when_a_selector_is_blank(
+        self, fake_home, project_dir, make_manifest, bad_selector
+    ):
+        skill = unique_skill_name()
+        path = make_manifest(skill, SYN_FULL)
+        entry = _flow_like_entry(skill)
+        entry["procedures"]["Corto"]["selector"] = bad_selector
+        path.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
+        sid = _session()
+
+        rc, parsed, stdout, stderr = run_hook(
+            INJECT_HOOK,
+            make_skill_payload(project_dir, sid, skill),
+            cwd=project_dir,
+            env=fake_home_env(fake_home),
+        )
+
+        assert rc == 0, f"rc={rc} stdout={stdout!r} stderr={stderr!r}"
+        assert stderr.strip() != "", "el manifiesto malo tiene que avisar por stderr"
+        assert "Traceback" not in stdout and "Traceback" not in stderr
+        assert not registry_path(project_dir, sid).exists(), (
+            "un manifiesto con 'procedures' mal formado no debe registrar nada"
+        )
+
+
 class TestContractGateFiltersByProcedure:
     def test_should_pass_when_corto_selector_and_corto_list_completed(
         self, fake_home, project_dir
@@ -349,7 +401,7 @@ class TestContractGateFiltersByProcedure:
         _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
         _write_board(fake_home, sid, _done([SEL_CORTO] + SYN_CORTO))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
     def test_should_block_on_corto_box_only_when_corto_selected(self, fake_home, project_dir):
         """Bug: con Corto elegido, el gate pide casillas que no son de Corto
@@ -388,7 +440,40 @@ class TestContractGateFiltersByProcedure:
         _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
         _write_board(fake_home, sid, _done([SEL_TRIVIAL]))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
+
+    @pytest.mark.parametrize("status", ["pending", "in_progress"])
+    def test_should_never_block_when_trivial_selector_is_left_open(
+        self, fake_home, project_dir, status
+    ):
+        """D-121: Trivial = ninguna casilla, ni siquiera su selector. Bug:
+        el selector Trivial exigido como casilla (bloquearia el cambio
+        de un boton por no tachar 'Procedimiento: Trivial')."""
+        sid = _session()
+        _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
+        _write_board(fake_home, sid, [(SEL_TRIVIAL, status)])
+
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
+
+    def test_should_take_corto_when_trivial_and_corto_both_present(
+        self, fake_home, project_dir
+    ):
+        """En la duda, la mayor: Trivial no puede ganar a Corto. Bug:
+        Trivial elegido -> pase en silencio con una casilla Corto pendiente;
+        o Completo elegido -> pide plan/Moriarty/Yoda."""
+        sid = _session()
+        _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
+        _write_board(
+            fake_home,
+            sid,
+            _done([SEL_TRIVIAL, SEL_CORTO] + SYN_CORTO[:-1]) + [(SYN_CORTO[-1], "pending")],
+        )
+
+        reason = _assert_blocks(*_gate(fake_home, project_dir, sid)[:2])
+
+        assert SYN_CORTO[-1] in reason, reason
+        for box in SYN_FULL_ONLY:
+            assert box not in reason, f"Corto no debe pedir {box!r}: {reason!r}"
 
     def test_should_expect_full_list_when_completo_selected(self, fake_home, project_dir):
         """Bug: Completo tratado como Corto (o como Trivial)."""
@@ -410,7 +495,7 @@ class TestContractGateFiltersByProcedure:
         _seed_entries(project_dir, sid, [_flow_like_entry("unmassk-flow")])
         _write_board(fake_home, sid, _done([SEL_COMPLETO] + SYN_FULL))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
     def test_should_take_the_bigger_list_when_corto_and_completo_both_present(
         self, fake_home, project_dir
@@ -441,7 +526,7 @@ class TestContractGateFiltersByProcedure:
         ]
         _write_board(fake_home, sid, _done(typed))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
 
 class TestContractFlowAndAuditInOneSession:
@@ -488,7 +573,7 @@ class TestContractFlowAndAuditInOneSession:
         )
         _write_board(fake_home, sid, _done([SEL_CORTO] + SYN_CORTO + AUDIT_BOXES))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
 
 class TestContractEndToEndThroughRealFlowSkill:
@@ -500,27 +585,16 @@ class TestContractEndToEndThroughRealFlowSkill:
         self, fake_home, project_dir
     ):
         sid = _session()
-        rc, parsed, stdout, stderr = run_hook(
-            INJECT_HOOK,
-            make_skill_payload(project_dir, sid, "unmassk-flow"),
-            cwd=project_dir,
-            env=fake_home_env(fake_home),
-        )
-        assert rc == 0, stderr
+        _inject_real_flow(fake_home, project_dir, sid)
         _write_board(fake_home, sid, _done([SEL_CORTO] + FLOW_CORTO_BOXES))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
 
     def test_should_close_a_trivial_session_with_only_the_selector(
         self, fake_home, project_dir
     ):
         sid = _session()
-        run_hook(
-            INJECT_HOOK,
-            make_skill_payload(project_dir, sid, "unmassk-flow"),
-            cwd=project_dir,
-            env=fake_home_env(fake_home),
-        )
+        _inject_real_flow(fake_home, project_dir, sid)
         _write_board(fake_home, sid, _done([SEL_TRIVIAL]))
 
-        _assert_silent(*_gate(fake_home, project_dir, sid))
+        _assert_silent(_gate(fake_home, project_dir, sid)[1])
