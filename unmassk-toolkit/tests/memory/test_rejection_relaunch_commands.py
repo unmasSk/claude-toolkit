@@ -134,8 +134,9 @@ def _render_string_node(node):
 
 def _isolate_and_normalize(raw_text):
     """A partir de una cadena que CONTIENE `"gitmem "`, devuelve solo el
-    comando desde ahi en adelante (algunos rechazos son compuestos, p.ej.
-    `hooks/customs.py`: "git merge --squash <rama> && gitmem work ..."),
+    comando desde ahi en adelante (un rechazo puede ser compuesto, con
+    otro comando delante y `&& gitmem ...` detras; hoy no hay ninguno,
+    pero recortar desde `"gitmem "` lo cubre si vuelve a aparecer),
     retira la notacion documental `[--flag opcional ...]` (no es sintaxis
     de shell, es una marca de "esto se puede repetir") y colapsa el
     espacio interno de un marcador `<...>` a un solo token (el UNICO caso

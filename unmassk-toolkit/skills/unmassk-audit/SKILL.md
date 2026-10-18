@@ -254,7 +254,7 @@ Scoring dimensions, weights (Integrity x3, Silent-failure/Error handling x3, Str
 
 | Step | Agent | Parallel? | Gate |
 |------|-------|-----------|------|
-| 0 | ORCHESTRATOR (Claude + User) | - | Branch |
+| 0 | ORCHESTRATOR (Claude + User) | - | Opening note saved; branch (gitflow only) |
 | 1 | Bilbo | No | Summary table |
 | 2 | Ultron | No | Tests pass (if needed) |
 | 3 | Dante | Yes | 97%+ coverage, tests pass x2 (audit gate — supersedes merge override) |

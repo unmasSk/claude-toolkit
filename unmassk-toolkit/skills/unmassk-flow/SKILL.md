@@ -260,13 +260,13 @@ All deviations, however small, are listed in the report. "No permission needed" 
 
 ### Plan Amendment Protocol
 
-If a deviation invalidates a FUTURE task in the plan:
+If a deviation invalidates a LATER step in the plan:
 
 1. Ultron STOPS and reports to orchestrator
 2. Orchestrator amends the plan file in `docs/plan/`
-3. Execution resumes from the amended task
+3. Execution resumes from the amended step
 
-The plan file is always the truth. Ultron does not improvise future tasks.
+The plan file is always the truth. Ultron does not improvise later steps.
 
 ### House Circuit Breaker
 
@@ -321,7 +321,7 @@ Triggered by the Step 0 seam declaration — a seam always makes the work Full. 
 - **Cerberus** confirms no expected value in the round-trip test is a hand-typed literal.
 - **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — as part of his one verdict.
 
-IF a seam is discovered during Execute that Triage did not flag THEN amend the plan (Plan Amendment Protocol) to add the round-trip task before Verify proceeds.
+IF a seam is discovered during Execute that Triage did not flag THEN amend the plan (Plan Amendment Protocol) to add the round-trip step before Verify proceeds.
 
 ### No verify loop (by design)
 

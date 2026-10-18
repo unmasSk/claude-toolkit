@@ -39,7 +39,7 @@ Keep it in your session scratchpad, never as a file committed into the project (
 ### Prior state
 Debug session file: your scratchpad log from the previous House run, if this session still has it; otherwise the previous House report, pasted here by the orchestrator: [PREVIOUS HOUSE REPORT].
 
-Read it. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from `next_action`.
+Read it. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from where that log or report says the investigation stopped.
 
 ### Verification
 1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
@@ -66,7 +66,7 @@ Read it. It contains: current focus, symptoms, eliminated hypotheses, and eviden
 - Errors: [new or persisting error messages]
 
 ### Debug session file
-Continue your scratchpad log (append to existing evidence), never a file in the project.
+Continue your scratchpad log (append to existing evidence), never a file in the project. If this session no longer has it, start a new one from the previous House report the orchestrator pastes here: [PREVIOUS HOUSE REPORT].
 
 ### Verification
 1. `[TEST_CMD]` scoped to `[MODULE_PATH]`

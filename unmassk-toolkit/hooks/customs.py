@@ -86,7 +86,7 @@ deliberado, se anota, no se rellena con criterio propio):
    de los diez de `TEXTOS.md` Sec.1** -- TEXTOS.md no cubre "reescribir
    historia", solo notas. Se construyen con `rejection.build()`, mismo
    contrato de tres partes que los diez [Sec.7.4], con redaccion propia
-   citando P1/Sec.10.4 -- igual que ya hace
+   citando P1/D-118 -- igual que ya hace
    `bin/memory/work.py::_protected_branch_rejection` para su propio
    rechazo sin plantilla en TEXTOS.md [visto en produccion antes de
    escribir esto]. Mismo trato para el rechazo de "commit corriente sin
@@ -520,7 +520,7 @@ def _history_rewrite_rejection(subcommand):
         what = "esto reescribe historia en lote: `git rebase`"
         relaunch = (
             "git merge --no-ff <rama>"
-            "  # al terminar la tarea: conserva el commit de cada paso",
+            "  # al terminar la tarea",
         )
 
     options = (

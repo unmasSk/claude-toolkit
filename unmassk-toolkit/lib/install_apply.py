@@ -363,7 +363,7 @@ def _cleanup_stale_settings_hooks(target: str) -> None:
 
 
 def _update_claude_md(target: str) -> None:
-    """Add or update all 5 managed blocks in CLAUDE.md."""
+    """Add or update all 4 managed blocks in CLAUDE.md."""
     claude_md = os.path.join(target, "CLAUDE.md")
 
     # file_lock (issue: lost-update race, memo eae0880): shared by install,
