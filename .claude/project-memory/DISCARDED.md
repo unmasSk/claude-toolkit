@@ -110,3 +110,4 @@
 [X-110][testing][skills] un candado con un hook sobre el comando de tests
 [X-111][memory][architecture] base de datos Dolt como en Beads
 [X-112][memory][architecture] una línea de memoria por tipo de nota
+[X-113][hooks][release] change the gate to let only flow's closing merge through
