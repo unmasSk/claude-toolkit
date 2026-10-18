@@ -14,7 +14,6 @@
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
 [remember][user] 🧠 pedir confirmacion antes de cada commit rutinario es friccion innecesaria -- solo pausar a pedir permiso cuando el cambio es de alto riesgo
 [remember][user] 🧠 nada se construye que no este en el roadmap, y nada entra al roadmap sin que el usuario lo firme -- una idea a media tarea se anota como candidata al final, no se abre ahi mismo
-[remember][user] 🧠 cuando vuelve un agente: UNA linea con el resultado, nada mas; el detalle solo si lo pido
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
 [remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
