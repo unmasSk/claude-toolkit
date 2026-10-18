@@ -102,3 +102,4 @@
 [X-102][skills][architecture] instalar la skill adhd tal cual
 [X-103][hooks][skills] dejar R-017 solo como texto
 [X-104][memory][release] seguir con commit y push a cada paso
+[X-105][memory][hooks] que un hook o el comando busque solo por palabras
