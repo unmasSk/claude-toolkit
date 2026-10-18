@@ -115,3 +115,4 @@
 [X-115][hooks][release] remove the gate entirely
 [X-116][skills][hooks] Trivial skips loading flow, Short keeps all 16 boxes
 [X-117][skills][standards] audit keeps its second review as the stricter exception
+[X-118][skills][testing] a fixed hardening slot for Dante after Cerberus and Argus, before Moriarty
