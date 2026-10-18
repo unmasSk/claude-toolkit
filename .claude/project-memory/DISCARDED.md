@@ -121,3 +121,4 @@
 [X-121][boot][hooks] raise the hook timeout
 [X-122][boot][hooks] parallel per-issue calls
 [X-123][boot][hooks] drop the unreflected-plan check
+[X-124][boot][memory] print the rules from the boot hook
