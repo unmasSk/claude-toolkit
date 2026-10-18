@@ -105,3 +105,4 @@
 [X-105][memory][hooks] que un hook o el comando busque solo por palabras
 [X-106][skills][install] un apartado dentro de unmassk-core
 [X-107][hooks][install] aviso de voz con say
+[X-108][release][memory] preguntar antes de pasar a dev
