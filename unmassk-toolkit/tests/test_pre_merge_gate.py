@@ -52,6 +52,7 @@ EXHAUSTION PROTOCOL surface once Ultron's real branch-detection code exists.
 
 import json
 import os
+import re
 import sys
 
 import pytest
@@ -337,6 +338,265 @@ class TestInnocuousCommandNeverBlocked:
         assert parsed.get("decision") == "approve", (
             f"innocuous command must never be blocked; got {parsed!r}"
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# D-119 / D-120 — the gate moves from "any foreign merge" to "into dev: no
+# gate; above dev: the heavy staging gate". (Issue #101, owner 2026-10-18.)
+#
+# Expected values below come from the owner's decisions D-119 and D-120,
+# never from the hook's code:
+#   D-119: a merge/pull whose TARGET is `dev` -> no gate at all (flow already
+#          ran Cerberus, Argus and Alexandria on that work).
+#   D-120: a merge/pull whose target is above dev (staging, main, master,
+#          production) -> blocked; the gate asks for Cerberus + Argus on the
+#          whole incoming diff, Alexandria checking CHANGELOG + version
+#          against it, and Bex's (the owner's) yes; the full suite is left
+#          to CI on push.
+#
+# The TARGET is the branch that receives the merge: HEAD when the command
+# runs, or the branch the command switches to first (`git switch dev &&
+# git merge ...`, `git checkout dev && git merge ...`).
+#
+# Two groups:
+#   GOLDEN  — today's behaviour that must survive the change. Green now.
+#   CONTRACT — new behaviour. RED now where behaviour changes.
+# ══════════════════════════════════════════════════════════════════════════
+
+ABOVE_DEV_BRANCHES = ["staging", "main", "master", "production"]
+
+
+def _make_repo_on(tmp_path, current, also=()):
+    """Temporary repo checked out on `current`, with the extra local
+    branches in `also` created at the same commit (so a `git switch <b>`
+    inside the command refers to a branch that really exists)."""
+    repo = _make_repo(tmp_path, branch=current)
+    for name in also:
+        rc, out, err = git_cmd(["branch", name], repo)
+        assert rc == 0, f"fixture setup failed creating branch {name}: {err}"
+    return repo
+
+
+def _assert_decision(parsed, stdout, rc, stderr, expected, context):
+    assert rc == 0, f"hook process failed: rc={rc}, stderr={stderr}"
+    assert parsed is not None, f"stdout not valid JSON: {stdout!r}"
+    assert parsed.get("decision") == expected, (
+        f"{context}: expected decision {expected!r}; got {parsed!r}"
+    )
+
+
+def _assert_heavy_gate_message(parsed, context):
+    """D-120's four asks, pinned by key items, not by wording."""
+    reason = parsed.get("reason", "")
+    lower = reason.lower()
+    missing = []
+    if "cerberus" not in lower:
+        missing.append("Cerberus")
+    if "argus" not in lower:
+        missing.append("Argus")
+    if "diff" not in lower:
+        missing.append("the incoming diff")
+    if "alexandria" not in lower:
+        missing.append("Alexandria")
+    if "changelog" not in lower:
+        missing.append("CHANGELOG")
+    if "version" not in lower:
+        missing.append("version")
+    if "bex" not in lower and "owner" not in lower:
+        missing.append("Bex's / the owner's yes")
+    if "suite" not in lower:
+        missing.append("the full suite")
+    if re.search(r"\bCI\b", reason) is None:
+        missing.append("CI (suite left to CI on push)")
+    assert not missing, (
+        f"{context}: the staging gate message must name {missing}; "
+        f"got reason={reason!r}"
+    )
+
+
+# ── GOLDEN: today's behaviour that must survive ─────────────────────────────
+
+class TestGoldenExemptionsAboveDev:
+    """GOLDEN (point 3): --abort / --continue / --rebase / # merge-reviewed
+    keep passing even when the target is a branch above dev, where the
+    heavy gate would otherwise apply."""
+
+    @pytest.mark.parametrize("command", [
+        "git merge --abort",
+        "git merge --continue",
+        "git pull --rebase origin dev",
+        "git merge dev # merge-reviewed",
+        "git pull origin dev # merge-reviewed",
+    ])
+    def test_should_approve_when_exempt_command_on_staging(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "staging", also=["dev"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"`{command}` on `staging`")
+
+
+class TestGoldenIndirectionStaysBlocked:
+    """GOLDEN (point 3): eval / bash -c / sh -c wrapping git keeps being
+    blocked with the indirection message — also on `dev`, where a direct
+    merge will become free. The hook cannot see the real target through
+    the wrapper, so D-119's exemption must not leak into it."""
+
+    @pytest.mark.parametrize("command", [
+        'eval "git merge feat/x"',
+        'bash -c "git merge feat/x"',
+        'sh -c "git pull origin feat/x"',
+    ])
+    @pytest.mark.parametrize("current", ["dev", "staging"])
+    def test_should_block_indirection_when_wrapping_git(self, tmp_path, current, command):
+        repo = _make_repo_on(tmp_path, current)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "block",
+                         f"`{command}` on `{current}`")
+        assert "indirection" in parsed.get("reason", "").lower(), (
+            f"indirection must keep its own message; got {parsed!r}"
+        )
+
+
+class TestGoldenOtherTargets:
+    """GOLDEN (point 4): targets that are neither dev nor above dev — e.g. a
+    feature branch receiving another feature branch. EXECUTED against the
+    hook of 2026-10-18: blocked, with a message naming Cerberus and
+    Alexandria. Pinned as is."""
+
+    def test_should_block_when_feature_merges_another_feature(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "feat/a", also=["feat/b"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge feat/b")
+
+        _assert_decision(parsed, stdout, rc, stderr, "block",
+                         "`git merge feat/b` on `feat/a`")
+        reason = parsed.get("reason", "").lower()
+        assert "cerberus" in reason and "alexandria" in reason, (
+            f"feature-into-feature block must still ask for review; got {parsed!r}"
+        )
+
+    def test_should_block_when_feature_pulls_another_feature(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "feat/a")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git pull origin feat/b")
+
+        _assert_decision(parsed, stdout, rc, stderr, "block",
+                         "`git pull origin feat/b` on `feat/a`")
+
+    def test_should_approve_when_feature_syncs_its_own_remote(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "feat/a")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git pull origin feat/a")
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         "same-branch sync `git pull origin feat/a` on `feat/a`")
+
+
+class TestGoldenUnknownTargetFailsClosed:
+    """GOLDEN: when the receiving branch cannot be known (detached HEAD),
+    the merge is never treated as "into dev" — it stays blocked. Without
+    this, a target-detection bug would silently open the gate."""
+
+    def test_should_block_merge_when_head_is_detached(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "dev")
+        rc, out, err = git_cmd(["checkout", "--detach"], repo)
+        assert rc == 0, f"fixture setup failed detaching HEAD: {err}"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge feat/x")
+
+        _assert_decision(parsed, stdout, rc, stderr, "block",
+                         "`git merge feat/x` on a detached HEAD")
+
+
+# ── CONTRACT: D-119 — merges INTO dev pass with no gate ─────────────────────
+
+class TestMergeIntoDevIsFree:
+    """CONTRACT (point 1, D-119): the target is `dev` -> approve, no gate.
+    RED today: the hook blocks every merge of a different branch."""
+
+    @pytest.mark.parametrize("command", [
+        "git merge feat/x",
+        "git merge --no-ff feat/x",
+        "git merge --no-ff -m 'merge feat/x' feat/x",
+        "git pull origin feat/x",
+    ])
+    def test_should_approve_when_head_is_dev(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"`{command}` with HEAD on `dev` (D-119: no gate into dev)")
+
+    @pytest.mark.parametrize("command", [
+        "git switch dev && git merge --no-ff feat/x",
+        "git checkout dev && git merge --no-ff feat/x",
+        "git switch dev && git pull origin feat/x",
+    ])
+    def test_should_approve_when_command_switches_to_dev_first(self, tmp_path, command):
+        # Start on a THIRD branch: starting on feat/x would make
+        # `git pull origin feat/x` look like a same-branch sync and pass
+        # today for the wrong reason.
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"`{command}` from `feat/other` (target is dev, D-119)")
+
+    def test_should_approve_when_dev_syncs_its_own_remote(self, tmp_path):
+        """Already approved today (same-branch sync) and still approved."""
+        repo = _make_repo_on(tmp_path, "dev")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git pull origin dev")
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         "`git pull origin dev` on `dev`")
+
+
+# ── CONTRACT: D-120 — merges above dev hit the heavy gate ───────────────────
+
+class TestMergeAboveDevHitsHeavyGate:
+    """CONTRACT (point 2, D-120): target above dev -> block, and the message
+    names the four asks. Decision already `block` today; the message is RED
+    (today it names neither Argus, CHANGELOG/version, Bex nor CI)."""
+
+    @pytest.mark.parametrize("target", ABOVE_DEV_BRANCHES)
+    def test_should_block_with_heavy_gate_when_head_merges_dev(self, tmp_path, target):
+        repo = _make_repo_on(tmp_path, target, also=["dev"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge --no-ff dev")
+
+        context = f"`git merge --no-ff dev` on `{target}`"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    @pytest.mark.parametrize("target", ABOVE_DEV_BRANCHES)
+    def test_should_block_with_heavy_gate_when_head_pulls_dev(self, tmp_path, target):
+        repo = _make_repo_on(tmp_path, target)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git pull origin dev")
+
+        context = f"`git pull origin dev` on `{target}`"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    @pytest.mark.parametrize("switch", ["switch", "checkout"])
+    def test_should_block_when_on_dev_but_command_switches_to_staging(self, tmp_path, switch):
+        """HEAD is dev, but the merge lands on staging. Reading only HEAD
+        would wrongly open the gate — the target is what counts."""
+        repo = _make_repo_on(tmp_path, "dev", also=["staging"])
+        command = f"git {switch} staging && git merge --no-ff dev"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "block",
+                         f"`{command}` from `dev` (target is staging)")
+        _assert_heavy_gate_message(parsed, f"`{command}` from `dev`")
 
 
 if __name__ == "__main__":
