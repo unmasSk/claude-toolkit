@@ -282,7 +282,7 @@ If Ultron fails the same task 3 times:
 
 ### Progress Tracking
 
-- WIP commit after each completed step (on a work branch they may be pushed; on `main` they stay local until squashed)
+- Every agent that changes files leaves a WIP, kept local (Cerberus, Argus and Yoda change no code and leave none). When a step is done, its WIPs are squashed into one commit for that step, **keeping memory-note commits out of the squash**, and that step commit is pushed. Until the squash is built and tested (issue #87), nothing is squashed: the WIPs are pushed as they are.
 - The visible list (section «The visible list»), updated as steps complete
 - Each step marked done only after its verification passes
 
@@ -346,7 +346,7 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 
 Check the project's `repo_type` (`.claude/project-memory/config.json`; when it is not declared, the main branch counts as protected) — this step branches on it, and **runs without asking**:
 
-1. Squash the work's WIPs into one commit per step, **keeping memory-note commits out of the squash**. Until that is built and tested (issue #87), nothing is squashed: merge as is.
+1. Every step is already one commit (see «Progress Tracking»); squash any step still pending the same way. Until the squash is built and tested (issue #87), nothing is squashed: merge as is.
 2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
 3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
