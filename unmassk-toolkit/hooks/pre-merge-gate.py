@@ -22,14 +22,19 @@ before it (`git switch dev && git merge ...`), or else the current branch.
   - any other target (feature branches)   -> block, Cerberus + Alexandria.
   - target unknown (no repo, detached
     HEAD, unreadable switch, `cd` or
-    `git -C` before it, hook failure)     -> block with the staging gate: it
+    `git -C` to another repo or worktree,
+    hook failure)                         -> block with the staging gate: it
                                              may be staging (fail closed).
+
+A `cd` / `git -C` that resolves to the session repo's own top-level (any
+spelling, or a subfolder of it) is read as if it were not there (D-129).
 
 `# merge-reviewed` in the command approves after the reviews ran. eval /
 bash -c / sh -c wrapping git or merge is always blocked: the target cannot be
 read through the wrapper.
 """
 
+import functools
 import json
 import os
 import re
@@ -91,7 +96,8 @@ def _normalize(command: str) -> str:
 _SHELL_PUNCTUATION = "();<>|&\n"
 
 # `cd` / `pushd` / `popd` before a merge: it may run in another repository or
-# worktree, whose branch this hook does not read.
+# worktree, whose branch this hook does not read — unless it resolves to the
+# session repo's own top-level (D-129).
 _DIR_CHANGERS = frozenset({"cd", "pushd", "popd"})
 
 # git global options that point the call at another repository, and the ones
@@ -132,21 +138,76 @@ def _is_git(tok: str) -> bool:
 
 
 def _git_calls(tokens):
-    """(subcommand index, subcommand, other_repo) for every git call. other_repo
-    is True when `-C` / `--git-dir` / `--work-tree` point it elsewhere."""
+    """(subcommand index, subcommand, paths) for every git call. paths is the
+    tuple of its `-C` values in order (empty when it has none), or None when
+    `--git-dir` / `--work-tree` or an unreadable `-C` point it elsewhere."""
     calls = []
     for i, tok in enumerate(tokens):
         if not _is_git(tok):
             continue
-        j, other_repo = i + 1, False
+        j, paths = i + 1, []
         while j < len(tokens) and tokens[j].startswith("-") and not _is_separator(tokens[j]):
             option = tokens[j].split("=", 1)[0]
-            other_repo = other_repo or option in _GIT_REPO_OPTIONS
             takes_next = option in _GIT_VALUE_OPTIONS and "=" not in tokens[j]
+            if option == "-C" and takes_next and j + 1 < len(tokens) and paths is not None:
+                paths.append(tokens[j + 1])
+            elif option in _GIT_REPO_OPTIONS:
+                paths = None
             j += 2 if takes_next else 1
         if j < len(tokens) and not _is_separator(tokens[j]):
-            calls.append((j, tokens[j].lower(), other_repo))
+            calls.append((j, tokens[j].lower(), None if paths is None else tuple(paths)))
     return calls
+
+
+@functools.lru_cache(maxsize=None)
+def _toplevel(path):
+    """Resolved top-level directory of the repository or worktree at path, or
+    None when it cannot be read (not a repo, missing directory, git error)."""
+    rc, out = run_git(["rev-parse", "--show-toplevel"], cwd=path)
+    if rc != 0 or not out:
+        return None
+    return os.path.normcase(os.path.realpath(out))
+
+
+def _join_path(base, path):
+    """base joined with a literal path, or None when it cannot be read: no
+    base, an option (`cd -`, `cd -P`), or anything the shell would rewrite
+    (`~`, `$VAR`, backticks, globs)."""
+    if base is None or not path or path.startswith("-") or any(c in path for c in "~$`*?["):
+        return None
+    return os.path.join(base, path)
+
+
+def _shell_dir(tokens, index, cwd, session_top):
+    """The directory the shell is in at token index, after every `cd` /
+    `pushd` before it. None when one of them is unreadable (`popd`, no or
+    several arguments) or lands outside the session repo's top-level."""
+    here = cwd
+    for i, tok in enumerate(tokens[:index]):
+        if tok not in _DIR_CHANGERS:
+            continue
+        args = _args_after(tokens, i)
+        if tok == "popd" or len(args) != 1:
+            return None
+        here = _join_path(here, args[0])
+        if here is None or _toplevel(here) != session_top:
+            return None
+    return here
+
+
+def _runs_elsewhere(tokens, sub, paths, cwd, session_top):
+    """True unless the git call whose subcommand is at index sub runs in the
+    session repo's own top-level (D-129): every `cd` before it and its `-C`
+    paths resolve there. Another repo, another worktree of the same repo, or
+    anything unreadable counts as elsewhere (fail closed)."""
+    if paths is None or session_top is None:
+        return True
+    here = _shell_dir(tokens, sub, cwd, session_top)
+    for path in paths:
+        here = _join_path(here, path)
+    if here is None:
+        return True
+    return bool(paths) and _toplevel(here) != session_top
 
 
 def _args_after(tokens, sub):
@@ -229,9 +290,7 @@ def _target_branch(tokens, calls, op, cwd):
 
     A switch counts only when every separator between it and the merge is
     `&&` — with `;`, `||` or a newline the merge may run on the original HEAD.
-    A `cd` anywhere before the merge makes the repository unknown."""
-    if any(tok in _DIR_CHANGERS for tok in tokens[:op]):
-        return None
+    A switch or merge run outside the session repo (other_repo) is unknown."""
     switches = [c for c in calls if c[0] < op and c[1] in ("switch", "checkout")]
     if not switches:
         return _current_branch(cwd)
@@ -286,13 +345,17 @@ def _gate_decision(normalized: str, cwd: str, command: str):
     target -> block with the staging gate."""
     try:
         tokens = _tokenize(normalized)
-        calls = _git_calls(tokens) if tokens else []
-        ops = [c for c in calls if c[1] in ("merge", "pull")]
+        raw_calls = _git_calls(tokens) if tokens else []
+        ops = [c for c in raw_calls if c[1] in ("merge", "pull")]
         if not ops:
             backstop = (_GIT_MERGE_RE.search(normalized)
                         and not _GIT_MERGE_EXEMPT_RE.search(normalized)) \
                 or _GIT_PULL_RE.search(normalized)
             return ("block", _heavy_reason(command, None)) if backstop else ("approve", None)
+        session_top = _toplevel(cwd)
+        calls = [(sub, name, _runs_elsewhere(tokens, sub, paths, cwd, session_top))
+                 for sub, name, paths in raw_calls]
+        ops = [c for c in calls if c[1] in ("merge", "pull")]
         remotes = _remotes(cwd)
         worst, worst_target = "approve", None
         for call in ops:
