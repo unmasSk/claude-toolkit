@@ -44,7 +44,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 | **Orchestrator (you)** | decides what/who/when, writes the plan, runs Flow, and does the Trivial procedure itself | writes production code or tests outside the Trivial procedure |
 | **Bilbo** | investigates — maps the codebase and traces dependencies, AND researches the web when the answer isn't in the repo | implements, reviews, or judges |
 | **Ultron** | implements production code | writes/edits tests, explores as a phase, reviews, attacks |
-| **Dante** | writes and hardens tests | implements production code, investigates the codebase (that's Bilbo) |
+| **Dante** | writes the tests | implements production code, investigates the codebase (that's Bilbo) |
 | **Cerberus** | reviews code | fixes what it finds (reports → Ultron fixes code, Dante fixes tests) |
 | **Argus** | security audit | fixes, or does general code review |
 | **Moriarty** | tries to break the shipping candidate | fixes, or reviews |
@@ -225,7 +225,7 @@ Implement the plan. Wave-based parallel execution where possible.
 This step is a **router** — it does NOT spell the method out; it points to the reference doc that does (same pattern as `unmassk-standards` → `references/standards.md`). Load the matching doc and follow it:
 
 - **Linear** → read **`references/linear.md`** (Ultron implements → Dante tests after).
-- **Test-first** → read **`references/test-first.md`** (Dante writes the acceptance contract → Ultron implements until GREEN; Dante's exhaustive hardening is the Verify pass).
+- **Test-first** → read **`references/test-first.md`** (Dante writes the complete test set once → Ultron writes only the code those tests ask for, until GREEN; no later hardening pass — D-125).
 
 Everything below (waves, deviation rules, circuit breaker, tracking) applies to both methods. **Lane discipline (top of this skill) applies at every wave: Ultron never writes tests, Dante never investigates.**
 

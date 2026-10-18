@@ -18,21 +18,14 @@ This is "tests first, then code" — and at the acceptance level that is **the m
 
 - **BDD** — the user/orchestrator describes behavior in plain language (Given / When / Then). The entry point for non-developers: describe *what should happen*, the agent translates it down.
 - **ATDD** — those behaviors become the acceptance tests Dante writes: the contract Ultron must satisfy for the work to be accepted.
-- **Granularity guard (critical)** — Dante's upfront tests are **acceptance/behavior contracts, NOT the exhaustive unit suite.** Front-loading every unit and branch test before any code exists reintroduces the "imagined behavior" trap even inside ATDD. Keep the upfront set to the behaviors that define done; exhaustive unit/branch coverage comes from the intra-agent loop or post-implementation hardening.
+- **One complete contract (D-125)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers.
+- **Ultron writes only what the tests ask** — no code a test does not require, no "while I'm here" extras. If something seems needed that no test covers, Ultron stops and reports it; the test is added by Dante, never improvised in code.
 
-### Intra-agent (inside one implementing agent's task) = TDD — vertical
+### Inside Ultron's task — one red test at a time
 
-When a single agent (Ultron) builds its slice within one context, it MAY run the classic micro-loop on its own code — no spawn cost, all in one head. Here the vertical rule applies in full:
+Ultron never writes tests (lane discipline). He works through Dante's contract vertically: pick one red test → the minimal code that turns it green → next. Refactor only when everything is green, applying standards.md (file size, typed errors, no duplication 3+), and re-run the tests after each step.
 
-> **Never write all tests first then all code.** That's horizontal slicing and it produces tests of imagined behavior. Go vertical: one test → one implementation → repeat.
-
-1. **Tracer bullet** — write ONE test for ONE behavior. It must fail first (RED), for the right reason. Then minimal code to pass (GREEN). Proves the path end to end.
-2. **Incremental loop** — for each remaining behavior, RED → GREEN, one at a time. Only enough code to pass the current test. Don't anticipate future tests.
-3. **Refactor** — only once GREEN, never while RED. Apply standards.md (file size, typed errors, no duplication 3+). Run tests after each step.
-
-**Reality check — this level is best-effort, not a gate.** Ultron is a subagent that receives a contract and fulfils it; whether it runs its own red-green micro-loop inside its task is desirable but not forceable or verifiable from outside. Treat vertical TDD here as the ideal an implementing agent SHOULD reach for, not a checkable guarantee. Expect most of what actually happens in practice to be the inter-agent ATDD level above; this lower level is "do it if you can", not a promise.
-
-**The rule in one line:** the inter-agent contract is ATDD (horizontal, correct); "go vertical" governs the TDD an agent does inside its own task — as an aspiration, not an enforced gate.
+**The rule in one line:** Dante writes all the tests once; Ultron turns them green one by one and writes nothing they don't ask for.
 
 ## What to test
 
