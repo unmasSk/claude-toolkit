@@ -104,3 +104,4 @@
 [X-104][memory][release] seguir con commit y push a cada paso
 [X-105][memory][hooks] que un hook o el comando busque solo por palabras
 [X-106][skills][install] un apartado dentro de unmassk-core
+[X-107][hooks][install] aviso de voz con say
