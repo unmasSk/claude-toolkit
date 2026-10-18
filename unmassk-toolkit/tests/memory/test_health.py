@@ -561,16 +561,21 @@ def _patch_gh(monkeypatch, response_for_call):
     return calls
 
 
-def _gh_completed(cmd, comments_created_at=(), created_at=None):
-    """`CompletedProcess` con la misma forma que `gh issue view <n>
-    --json comments,createdAt` devuelve de verdad -- `health.py` solo
-    lee `comments`/`createdAt` del JSON (ver `_last_activity_at`), asi
-    que es la unica forma que hace falta reproducir.
+def _gh_list_completed(cmd, issues):
+    """`CompletedProcess` con la forma que `gh issue list --json
+    number,createdAt,comments` devuelve de verdad: una LISTA, un objeto
+    por issue. Desde D-130 [#95] `plans_unreflected()` pregunta por todas
+    las issues en UNA sola consulta, asi que la respuesta trae tambien
+    issues que nadie cito -- `issues` es `{numero: createdAt}` y el orden
+    de la lista es el de ese dict.
+
+    Solo `number`/`comments`/`createdAt`: son los campos que la ultima
+    actividad lee (ultimo comentario, o la creacion si no hay ninguno).
     """
-    payload = {
-        "comments": [{"createdAt": c} for c in comments_created_at],
-        "createdAt": created_at,
-    }
+    payload = [
+        {"number": number, "createdAt": created_at, "comments": []}
+        for number, created_at in issues.items()
+    ]
     return subprocess.CompletedProcess(
         args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
     )
@@ -604,9 +609,17 @@ def test_work_commit_after_last_issue_activity_is_reported_as_unreflected_with_i
     # Fecha de actividad de la issue deliberadamente muy en el pasado --
     # ver supuesto 6 del docstring del modulo: cualquier commit real de
     # "ahora" queda despues, sin importar cuando corra esta suite.
+    # La issue 46 nadie la cita y su actividad es FUTURA: va primero en la
+    # respuesta a proposito. Si el codigo tomara la primera issue de la
+    # lista en vez de buscar la #47 por su numero, la daria por reflejada.
+    future = (datetime.now(timezone.utc) + timedelta(days=365)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+        lambda cmd: _gh_list_completed(
+            cmd, {46: future, issue_number: "2020-01-01T00:00:00Z"}
+        ),
     )
 
     with _cwd(root):
@@ -618,13 +631,9 @@ def test_work_commit_after_last_issue_activity_is_reported_as_unreflected_with_i
         f"devolver exactamente (({issue_number}, 2),) -- salio {result!r}"
     )
     assert len(calls) == 1, (
-        f"deberia consultarse gh UNA vez por issue (consulta simple, spec "
-        f"Sec.10.4), no una por commit -- se observaron {len(calls)} "
+        f"deberia consultarse gh UNA sola vez en total (D-130), no una por "
+        f"commit ni una por issue -- se observaron {len(calls)} "
         f"llamadas: {calls!r}"
-    )
-    assert str(issue_number) in calls[0], (
-        f"la llamada a gh no menciona la issue #{issue_number} en sus "
-        f"argumentos: {calls[0]!r}"
     )
 
 
@@ -654,8 +663,14 @@ def test_work_commit_before_last_issue_activity_is_not_reported(
     future = (datetime.now(timezone.utc) + timedelta(days=365)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
+    # La issue 49 nadie la cita y su actividad es ANTIGUA: va primero a
+    # proposito. Tomar la primera de la lista en vez de la #48 por su
+    # numero haria saltar un aviso falso.
     calls = _patch_gh(
-        monkeypatch, lambda cmd: _gh_completed(cmd, created_at=future)
+        monkeypatch,
+        lambda cmd: _gh_list_completed(
+            cmd, {49: "2020-01-01T00:00:00Z", issue_number: future}
+        ),
     )
 
     with _cwd(root):
@@ -667,8 +682,8 @@ def test_work_commit_before_last_issue_activity_is_not_reported(
         f"salio {result!r}"
     )
     assert len(calls) == 1, (
-        f"deberia consultarse gh exactamente una vez para la issue "
-        f"#{issue_number} -- se observaron {len(calls)} llamadas: {calls!r}"
+        f"deberia consultarse gh exactamente una vez en total (D-130) -- "
+        f"se observaron {len(calls)} llamadas: {calls!r}"
     )
 
 
@@ -698,7 +713,7 @@ def test_no_commit_citing_an_issue_returns_empty_without_calling_gh(
 
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+        lambda cmd: _gh_list_completed(cmd, {1: "2020-01-01T00:00:00Z"}),
     )
 
     with _cwd(root):
@@ -769,7 +784,9 @@ def test_zero_offset_work_commit_does_not_crash_the_coherence_check(
 
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_completed(cmd, created_at="2020-01-01T00:00:00Z"),
+        lambda cmd: _gh_list_completed(
+            cmd, {issue_number: "2020-01-01T00:00:00Z"}
+        ),
     )
 
     # Hoy, en Python < 3.11, esto no devuelve un resultado incompleto ni
@@ -784,8 +801,8 @@ def test_zero_offset_work_commit_does_not_crash_the_coherence_check(
         f"deberia devolver (({issue_number}, 1),) -- salio {result!r}"
     )
     assert len(calls) == 1, (
-        f"deberia consultarse gh UNA vez por issue, igual que con un commit "
-        f"de fecha normal -- se observaron {len(calls)} llamadas: {calls!r}"
+        f"deberia consultarse gh UNA vez en total (D-130), igual que con un "
+        f"commit de fecha normal -- se observaron {len(calls)} llamadas: {calls!r}"
     )
 
 

@@ -723,3 +723,94 @@ class TestLauncherFailsLoudOnOverrun:
 
         _assert_full_briefing(run)
         assert _plan_lines(run.report()) == {3: 1}, run.report()
+
+
+# ==========================================================================
+# 4. The deadline counts the WHOLE hook, the first-boot install included
+# ==========================================================================
+#
+# On a project's first boot (no `.claude/.unmassk/manifest.json`)
+# `boot_launcher.py` runs `bin/git-memory-install.py --auto` BEFORE boot.py,
+# inside the same 30 s hook, with its own `timeout=60`. A deadline that
+# only wraps boot.py leaves that step outside it: a slow install, and
+# Claude Code kills the hook in silence -- the very failure of I-005.
+#
+# HOW THE INSTALL IS SLOWED without touching production code: a
+# `sitecustomize.py` on the hook's PYTHONPATH. Python imports it at start-up
+# in every interpreter of the hook; it sleeps only when the script being run
+# is the installer (`sys.argv[0]`), and leaves a marker file first so the
+# test can prove the slow step really was the installer, inside this hook.
+# The installer then carries on and works normally.
+
+_SLOW_INSTALL_SITECUSTOMIZE = r'''
+import os, sys, time
+if os.path.basename(sys.argv[0] if sys.argv else "") == "git-memory-install.py":
+    with open(os.environ["SLOW_INSTALL_MARKER"], "a", encoding="utf-8") as fh:
+        fh.write("installer started\n")
+    time.sleep(float(os.environ["SLOW_INSTALL_SECONDS"]))
+'''
+
+
+def _slow_install_env(tmp_path, seconds):
+    site_dir = tmp_path / "slow-install-site"
+    site_dir.mkdir()
+    (site_dir / "sitecustomize.py").write_text(
+        _SLOW_INSTALL_SITECUSTOMIZE, encoding="utf-8"
+    )
+    marker = tmp_path / "slow-install-started.txt"
+    previous = os.environ.get("PYTHONPATH")
+    pythonpath = str(site_dir) + (os.pathsep + previous if previous else "")
+    env = {
+        "PYTHONPATH": pythonpath,
+        "SLOW_INSTALL_MARKER": str(marker),
+        "SLOW_INSTALL_SECONDS": str(seconds),
+    }
+    return env, marker
+
+
+class TestDeadlineCountsTheInstallStep:
+    def test_should_print_memory_notice_within_deadline_when_first_boot_install_is_slow(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught: the launcher's deadline wraps only boot.py; the
+        # first-boot installer (timeout=60) runs before it, uncounted, so a
+        # slow install still overruns the 30 s hook and the session gets
+        # nothing (Ultron, boot_launcher.py:84-92, #95).
+        _seed_citations(tmp_repo, {3: 1})
+        gh_stub.configure(issues=_all_unreflected([3]))
+        assert not Path(tmp_repo, ".claude", ".unmassk", "manifest.json").exists(), (
+            "setup invalid: the repo already has a manifest, the installer "
+            "would not run"
+        )
+        deadline = 2.0
+        install_seconds = 20.0
+        slow_env, marker = _slow_install_env(tmp_path, install_seconds)
+        _command, hook_timeout = _boot_hook_entry()
+
+        run = _run_boot_hook(
+            tmp_repo,
+            tmp_path,
+            gh_stub,
+            kill_after=hook_timeout + 5,
+            extra_env={**slow_env, _BOOT_KNOB: str(deadline)},
+        )
+
+        assert marker.is_file(), (
+            "setup invalid: the slowed installer never ran inside the hook\n"
+            + run.describe()
+        )
+        assert not run.killed and run.elapsed < deadline + _STARTUP_MARGIN_S, (
+            f"with {_BOOT_KNOB}={deadline} and an install that takes "
+            f"{install_seconds:g}s, the hook took {run.elapsed:.1f}s: the "
+            "deadline does not count the install step\n" + run.describe()
+        )
+        assert run.rc == 0, run.describe()
+        notices = [line for line in run.memory_lines() if "boot-latest.txt" in line]
+        assert notices, (
+            "no [memory] line naming boot-latest.txt after the install ate "
+            "the deadline\n" + run.describe()
+        )
+        assert run.report_path().is_file() and run.report().strip(), (
+            "the notice names boot-latest.txt but there is no failure marker "
+            "in it\n" + run.describe()
+        )
