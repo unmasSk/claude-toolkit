@@ -26,7 +26,7 @@ Try to state in one sentence exactly what is on the table — if you cannot with
 - **Found a relevant decision** → surface it. Don't re-litigate what's settled.
 - **Nothing found** → ask the user: do we start a brainstorming pass, or do you already know what you want? Route accordingly (council/brainstorm vs. straight grill).
 
-This skill is invoked two ways — **direct** (the user explicitly asks: "grill me", "stress-test this", or a decision with obvious stakes comes up in conversation) and **pipeline-invoked** (called automatically by `unmassk-project-lifecycle`'s START branch, or `unmassk-flow`'s Triage for a Standard/Big feature). The mode changes one thing — see "Bounded mode" below — nothing else.
+This skill is invoked two ways — **direct** (the user explicitly asks: "grill me", "stress-test this", or a decision with obvious stakes comes up in conversation) and **pipeline-invoked** (called automatically by `unmassk-project-lifecycle`'s START branch, or `unmassk-flow`'s Triage for a Short or Full change). The mode changes one thing — see "Bounded mode" below — nothing else.
 
 ## Vagueness preamble (run before the interview starts)
 

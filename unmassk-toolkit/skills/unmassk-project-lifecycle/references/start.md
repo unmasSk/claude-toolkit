@@ -18,7 +18,7 @@ START is **not one rail for everything.** Classify the project first, the same w
 |---|---|---|
 | **Trivial** | A throwaway script, a one-off, a spike. Correctness self-evident, nobody else maintains it. | Skip A–D. Scaffold minimally (E) and go. No PRD, no walkthroughs, no catalog. |
 | **Small** | A single-surface tool or a small app with no real domain complexity. | A (light) → C (only if it has UI) → E. Skip walkthroughs (B) and the full foundations catalog; offer only the Mandatory foundations. |
-| **Standard / Big** | A real product with domain logic, multiple roles/surfaces, data that matters. | All six phases, full. |
+| **Full** | A real product with domain logic, multiple roles/surfaces, data that matters. | All six phases, full. |
 
 State the detected size to the user in one line and confirm it before proceeding. When in doubt, size up — but never drag a script through the whole rail.
 
@@ -32,17 +32,17 @@ Interrogate until the project is actually understood.
 2. **Save each answer the moment it is given**, as its own note — never batched into a summary at the end. A deferred decision is a lost decision.
 3. **The PRD is derived from what was saved, not kept alongside it.** The memory is the source of truth; the PRD reflects what it already holds and is re-synced after each round of decisions — never the reverse.
 
-**Done when:** every thematic block has been walked and its open questions are either answered (as decisions) or explicitly logged as still-open; the PRD reflects them. Close with a `context(start): phase A done` bookmark. **Stop and confirm** the PRD's scope with the user before starting B.
+**Done when:** every thematic block has been walked and its open questions are either answered (as decisions) or explicitly logged as still-open; the PRD reflects them. Close by committing the phase's documents with `gitmem work "start: phase A done" --path <file> ...`. **Stop and confirm** the PRD's scope with the user before starting B.
 
 ---
 
-## Phase B — Design the behavior *(Standard/Big only)*
+## Phase B — Design the behavior *(Full only)*
 
 1. **High-level flow diagrams first.** Draw the flows (areas × steps) before dropping to detail — drawing detects gaps conversation alone never surfaces. Track every gap in a list and close them one by one.
 2. **Three-layer walkthroughs.** Apply the protocol in **`references/walkthroughs.md`**: each action in three layers (sees / does / DB) across four viewpoints, every exit including errors, decided in conversation, artifact carries only the decided flow, each action **approved by the user before the next**.
 3. **Cross-check the data model against every walkthrough** — at least two passes; stop when a full pass finds no new discrepancy. The model must serve every screen; reconcile any discrepancy before the model is called done.
 
-**Done when:** every action on the agenda has an approved walkthrough artifact and the data model survives a clean cross-check pass. Close with `context(start): phase B done`.
+**Done when:** every action on the agenda has an approved walkthrough artifact and the data model survives a clean cross-check pass. Close by committing the phase's documents with `gitmem work "start: phase B done" --path <file> ...`.
 
 ---
 
@@ -54,7 +54,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 
 **Relationship to phase B (no duplication):** the wireframes from B are the *behavior contract* — schematic, they capture every option and every error branch. Phase C mockups are the *visual direction* — the real look and feel, built on top of the approved wireframes for the key surfaces (not every screen). B says what the screen must do; C says how it looks. C starts from B's approved wireframes; it never re-decides behavior.
 
-**Done when:** the key surfaces have approved mockups and they don't contradict the walkthroughs. Close with `context(start): phase C done`. **Stop and get the user's approval** on each mockup before moving on.
+**Done when:** the key surfaces have approved mockups and they don't contradict the walkthroughs. Close by committing the phase's documents with `gitmem work "start: phase C done" --path <file> ...`. **Stop and get the user's approval** on each mockup before moving on.
 
 ---
 
@@ -63,7 +63,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 1. **Write `ARCHITECTURE` and `STANDARDS` as two separate, binding documents**, each with a table of the alternatives considered and *why* they were rejected — not just the final choice.
 2. **Offer the enterprise foundations catalog** in **`references/foundations.md`** — following its "How to run this in phase D" (don't ask 60 questions one by one: auto-accept the Mandatory set with a single "anything to drop?", prune the Conditionals that don't apply to this project's stack/shape, and ask one-by-one only the Conditionals where the project's shape from phases A–D does not clearly settle yes or no). Record every accepted and declined foundation as a decision/a memo so a "no" is a recorded choice, not a silent gap. List by name — the concrete tool per stack is chosen at build time, not here.
 
-**Done when:** ARCHITECTURE and STANDARDS are written, and every catalog foundation is marked accepted or declined in memory. Close with `context(start): phase D done`. **Stop and confirm** the accepted foundation set with the user before building.
+**Done when:** ARCHITECTURE and STANDARDS are written, and every catalog foundation is marked accepted or declined in memory. Close by committing the phase's documents with `gitmem work "start: phase D done" --path <file> ...`. **Stop and confirm** the accepted foundation set with the user before building.
 
 ---
 
@@ -76,7 +76,7 @@ For every visual surface, follow the cycle and **use the Skill tool with `skill=
 
 Record the resolved test command in `.claude/project-memory/config.json` under `test_command`, where a machine reads it instead of somebody remembering it. A missing quality floor is captured as a a decision ("deferred: no test runner yet"), never left silent.
 
-**Done when:** the project builds and runs, the accepted foundations are wired, the Phase-1 plan exists, and CI is green. Close with `context(start): phase E done — base stands`.
+**Done when:** the project builds and runs, the accepted foundations are wired, the Phase-1 plan exists, and CI is green. Close by committing the phase's documents with `gitmem work "start: phase E done — base stands" --path <file> ...`.
 
 ---
 

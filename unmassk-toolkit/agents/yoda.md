@@ -99,7 +99,7 @@ Full production-readiness evaluation after the pipeline has run.
 
 ### Mode: triage
 
-Quick evaluation when full pipeline isn't warranted. Used for:
+Only when the orchestrator calls it by hand: in flow, Trivial uses no agents and Short has no Yoda, so no procedure reaches this mode on its own. Quick evaluation when full pipeline isn't warranted. Used for:
 - Trivial changes (typo fixes, comment updates, config tweaks)
 - Emergency hotfixes where speed matters
 - Changes that only touch tests or docs

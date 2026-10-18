@@ -153,14 +153,14 @@ Prompt template: see `prompts/cerberus.md` (Template 2: Re-Audit)
 
 ### Step 11 -- Senior Review (Yoda)
 
-1. Read ALL source files (not tests); state the file count read in the senior evaluation output.
+1. Read ALL source files and their tests; state the file count read in the senior evaluation output.
 2. Run tests TWICE.
 3. Write prose evaluation per dimension (2-4 sentences each).
 4. Provide honest professional sentiment (one paragraph, no bullets).
 5. Score on weighted table out of 110.
 6. Verdict: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE. 110 is perfection: for any lower score, Yoda says what to fix to reach it, or why it cannot be reached.
 
-If REJECTED, return to step 5 with Yoda's concerns. If Moriarty gave FAIL verdict, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
+If REJECTED, return to step 5 with Yoda's concerns. If Moriarty's verdict was FALLA, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
 
 Prompt template: see `prompts/yoda.md`
 
@@ -254,7 +254,7 @@ Scoring dimensions, weights (Integrity x3, Silent-failure/Error handling x3, Str
 
 | Step | Agent | Parallel? | Gate |
 |------|-------|-----------|------|
-| 0 | ORCHESTRATOR (Claude + User) | - | Branch + context commit |
+| 0 | ORCHESTRATOR (Claude + User) | - | Branch |
 | 1 | Bilbo | No | Summary table |
 | 2 | Ultron | No | Tests pass (if needed) |
 | 3 | Dante | Yes | 97%+ coverage, tests pass x2 (audit gate — supersedes merge override) |

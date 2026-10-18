@@ -87,7 +87,7 @@ The owner speaks Spanish: Trivial / Short / Full are *procedimiento trivial / co
 
 Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
 
-**Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam always makes the work Full, which pulls Moriarty + Yoda into Verify and applies Step 5's seam subsection. Record the declaration in the context commit at the end of this step.
+**Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam always makes the work Full, which pulls Moriarty + Yoda into Verify and applies Step 5's seam subsection. Record the declaration together with the start in memory (end of this step).
 
 **If Short or Full:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip it for Trivial.
 
@@ -157,7 +157,7 @@ Orchestrator chooses depth based on the procedure (Short = quick research, a lar
 
 Write the plan. This is the SINGLE source of truth for the feature.
 
-**This is the execution plan of one feature: the tasks and the order they run in.** When the work also carries a plan of its own — one that spans sessions, with an issue and a checklist the user follows — read **`references/plan.md`** and follow it: the document, the issue and the record that ties them to the decision. That file governs the plan; this step only plans the execution.
+**This is the execution plan of one feature: its steps and the order they run in.** When the work also carries a plan of its own — one that spans sessions, with an issue and a checklist the user follows — read **`references/plan.md`** and follow it: the document, the issue and the record that ties them to the decision. That file governs the plan; this step only plans the execution.
 
 ### Location
 
@@ -205,9 +205,9 @@ Write the plan. This is the SINGLE source of truth for the feature.
 
 Before execution, verify the plan achieves the goal:
 
-1. Does every decision from Step 1 have a corresponding task?
-2. Does every task have clear verification steps?
-3. Are dependencies between tasks explicit?
+1. Does every decision from Step 1 have a corresponding step?
+2. Does every step have a clear way to verify it?
+3. Are dependencies between steps explicit?
 4. If any gap → amend plan before executing
 
 ### The visible list
@@ -270,7 +270,7 @@ The plan file is always the truth. Ultron does not improvise future tasks.
 
 ### House Circuit Breaker
 
-If Ultron fails the same task 3 times:
+If Ultron fails the same step 3 times:
 
 1. STOP execution
 2. Launch House agent to diagnose root cause
@@ -282,7 +282,7 @@ If Ultron fails the same task 3 times:
 
 ### Progress Tracking
 
-- After every agent that changes files, the orchestrator saves a WIP (`gitmem wip`), kept local; agents never commit (Cerberus, Argus and Yoda change no code, so they leave none). When a step is done, its WIPs are squashed into one commit for that step, **keeping memory-note commits out of the squash**, and that step commit is pushed. Until the squash is built and tested (issue #87), nothing is squashed: the WIPs are pushed as they are.
+- After every agent that changes files, the orchestrator saves a WIP (`gitmem wip`); agents never commit (Cerberus, Argus and Yoda change no code, so they leave none). When a step is done, its WIPs are squashed into one commit for that step, **keeping memory-note commits out of the squash**, and that step commit is pushed. Until the squash is built and tested (issue #87), nothing is squashed: the WIPs are pushed as they are.
 - The visible list (section «The visible list»), updated as steps complete
 - Each step marked done only after its verification passes
 
@@ -350,7 +350,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
 3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
-5. Context commit: `context(<scope>): issue #N CLOSED`
+5. Nothing else to record: the issue's closing comment and the step/merge commits are the record — there is no separate "context" commit (a bare commit is bounced by the commit gate).
 6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
 7. **Ask the owner whether to go on with the next task.** One branch per task: it is deleted the moment it is merged to dev (the session close only sweeps forgotten ones). Moving from dev to staging or production is always asked first.
 
@@ -371,7 +371,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | 1 | ORCHESTRATOR + User | No | Gray areas resolved + build mode decided |
 | 2 | Bilbo | No | Research complete |
 | 3 | ORCHESTRATOR | No | Plan written + checked |
-| 4 | Ultron (+ Dante), forked by build mode | Waves | All tasks complete |
+| 4 | Ultron (+ Dante), forked by build mode | Waves | All steps complete |
 | 5 | Cerberus (+ Argus, Moriarty, Yoda) | Depends | VERIFY passes |
 | 6 | Alexandria | No | Docs updated |
 | 7 | ORCHESTRATOR | - | Scoped tests green + merged + closed |
@@ -384,11 +384,11 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | RESEARCH: approach does not work | Pivot or close issue |
 | PLAN: checker finds gaps | Amend plan before executing |
 | EXECUTE: Ultron stuck (3 fails) | House diagnoses, amend plan |
-| EXECUTE: deviation invalidates future task | Ultron STOPS, orchestrator amends plan |
+| EXECUTE: deviation invalidates a later step | Ultron STOPS, orchestrator amends plan |
 | EXECUTE: Ultron needs a test change for GREEN | Ultron STOPS, orchestrator routes the change to Dante (never lets Ultron touch the test) |
-| EXECUTE: user abandons mid-feature | WIP commit current state, context commit with Next trailer for future session |
+| EXECUTE: user abandons mid-feature | `gitmem wip` of the current state, then `gitmem next` with where it stopped, for the next session |
 | VERIFY: Cerberus/Argus/Moriarty findings | Check they are real. Ultron fixes code, Dante fixes tests, once each, always fresh agents. No re-review. |
 | VERIFY: Yoda scores below 110 | Ultron or Dante fix Yoda's points, once; 110 is taken as given and the Close tests check the fixes. If 110 cannot be reached, Yoda said why. Yoda does NOT re-run. |
 | CLOSE: no test command found | STOP, ask the user — do not skip the pre-merge gate |
-| CLOSE: merge conflict | Resolve or escalate; after resolution re-run only the test suite (not the whole Verify sequence) |
+| CLOSE: merge conflict | Resolve or escalate; after resolution re-run only the scoped tests (not the whole Verify sequence) |
 | CLOSE: merge fails completely | Do NOT force push, escalate to user |

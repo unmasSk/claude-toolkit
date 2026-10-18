@@ -57,9 +57,9 @@ One agent gets the question, de-anonymized responses, and all reviews. Produces:
 - **The recommendation** (a real answer, not "it depends"; may side with a strong dissenter over the majority)
 - **The one thing to do first** (single concrete step)
 
-### 5. Present + persist
+### 5. Present, wait, then persist
 
-Present the verdict in chat (markdown, scannable). Then save it:
+Present the verdict in chat (markdown, scannable), and stop. The verdict is the council's proposal, not the user's decision: save it only once the user confirms it — explicitly, or by acting on it. If they pick another option, the decision saved is theirs, with the council's pick among the discards. Then save it:
 
 ```
 gitmem note D --zones <zone1> <zone2> "<the recommendation, in English>" \

@@ -1,5 +1,5 @@
 ---
-description: Put this project's rules file on screen
+description: Load this project's rules into context (reads them; never prints them)
 allowed-tools: Read
 disable-model-invocation: true
 ---

@@ -22,7 +22,7 @@
 - Timeline: [when it started, what changed recently]
 
 ### Debug session file
-Create: `docs/debugging/DIAG-[MODULE]-[SLUG].md`
+Keep it in your session scratchpad, never as a file committed into the project (your card, «Persistent Session File»).
 
 ### Verification
 1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
@@ -37,9 +37,9 @@ Create: `docs/debugging/DIAG-[MODULE]-[SLUG].md`
 ## Task: Continue diagnosing [SLUG]
 
 ### Prior state
-Debug session file: `docs/debugging/DIAG-[MODULE]-[SLUG].md`
+Debug session file: your scratchpad log from the previous House run, if this session still has it; otherwise the previous House report, pasted here by the orchestrator: [PREVIOUS HOUSE REPORT].
 
-Read the file. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from `next_action`.
+Read it. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from `next_action`.
 
 ### Verification
 1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
@@ -66,7 +66,7 @@ Read the file. It contains: current focus, symptoms, eliminated hypotheses, and 
 - Errors: [new or persisting error messages]
 
 ### Debug session file
-Continue: `docs/debugging/DIAG-[MODULE]-[SLUG].md` (append to existing evidence)
+Continue your scratchpad log (append to existing evidence), never a file in the project.
 
 ### Verification
 1. `[TEST_CMD]` scoped to `[MODULE_PATH]`

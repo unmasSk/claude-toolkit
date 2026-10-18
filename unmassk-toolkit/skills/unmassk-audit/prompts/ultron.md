@@ -8,7 +8,7 @@
 ### Context
 - Module: `[MODULE_PATH]`
 - Issue: #[N]
-- Branch: `chore/audit-[MODULE]-[N]`
+- Branch: `chore/audit-[MODULE]`
 
 ### Findings to fix
 

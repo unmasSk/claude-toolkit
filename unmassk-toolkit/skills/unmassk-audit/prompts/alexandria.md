@@ -8,7 +8,7 @@
 ### Context
 - Module: `[MODULE_PATH]`
 - Issue: #[N]
-- Branch: `chore/audit-[MODULE]-[N]`
+- Branch: `chore/audit-[MODULE]`
 - Audit complete — Yoda approved with [XX/110]
 
 ### Changes made during the audit
@@ -26,7 +26,7 @@ to know what to document]
 [LIST of files created, renamed, or deleted during the audit]
 
 ### Final score
-- Yoda: [XX/110] — [APPROVED / APPROVED WITH RESERVATIONS]
+- Yoda: [XX/110] — [APPROVED / APPROVED WITH CONDITIONS]
 - Tests: [N] passing
 - Coverage: [X]%
 ```

@@ -16,7 +16,7 @@
 3. List existing tests (detect the test directory convention: `__tests__/`, `tests/`, `*_test.*`, `*.test.*`)
 4. Map imports/exports and inter-module dependencies
 5. Run existing tests: `[TEST_CMD]` scoped to `[MODULE_PATH]` (resolve from the project profile — see SKILL.md "Prompt Templates")
-6. Flag: files >500 LOC, missing tests, visible anti-patterns, broken tests
+6. Flag: files over 300 LOC (or the project profile's limit), missing tests, visible anti-patterns, broken tests
 
 ### Output expected
 
@@ -27,7 +27,7 @@ Summary table:
 
 Plus:
 - Broken tests (if any) with error output
-- Files needing split (>500 LOC)
+- Files needing split (over 300 LOC, or the profile's limit)
 - Inter-module dependencies (what other modules does this one touch)
 - Risk assessment for the audit
 ```

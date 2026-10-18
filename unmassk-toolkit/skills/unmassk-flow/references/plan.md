@@ -11,7 +11,7 @@ This file governs the plan that **spans sessions** — the one with an issue and
 ## The Iron Law
 
 ```
-A PLAN IS OPENED BY THE USER, NEVER BY YOU
+A PLAN IS A DECISION. YOU PROPOSE IT; WITH THE USER'S YES, YOU OPEN IT
 ```
 
 Offer it in one line when work stretches past a session or spans several zones. Then stop. A plan carries a document, an issue and a record — that is ceremony, and the ceremony is the owner's call.
@@ -31,7 +31,7 @@ Offer it in one line when work stretches past a session or spans several zones. 
 ## Opening one
 
 ```
-1. The user says to open it. Not before.
+1. You propose it in one line; the user says yes. Not before.
 2. Write the document: goal, order of work, and what is NOT included.
 3. Create the issue by hand, linking the document. The checklist lives here.
 4. Save the record: the decision it comes from, and the issue number.
@@ -42,7 +42,7 @@ The issue is created with the tracker's own command, by you, in front of the use
 ## While it runs
 
 - **Every work commit carries the issue number.** That is what lets the system tell, later, that work happened.
-- **At session close the issue gets caught up:** tick what is genuinely done and leave a one-line summary of where it stands. This is what keeps the boot quiet for the right reason.
+- **Keep the checklist honest as you go:** tick what is genuinely done, when it is done, with a one-line summary of where it stands. A checklist updated only at the end lied all week; this is what keeps the boot quiet for the right reason.
 - **The boot warns when an issue has commits it never reflected.** That warning means the checklist is lying, not that the work is late — fix the checklist.
 
 ## When the decision changes

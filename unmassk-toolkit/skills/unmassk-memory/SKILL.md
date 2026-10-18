@@ -48,7 +48,7 @@ Skipping this is deciding something for the second time
 5. what you infer from the code
 ```
 
-Never resolve a conflict silently. Name the two sources, say which one wins and why, and if the memory is the one losing, retire it — **by asking, never on your own judgement**.
+Never resolve a conflict silently. Name the two sources, say which one wins and why, and if the memory is the one losing, retire it — **by asking, never on your own judgement** — unless what it describes no longer exists anywhere (checked, not just moved or renamed): then it is retired in the same act, and said.
 
 ## The Write Gate
 
