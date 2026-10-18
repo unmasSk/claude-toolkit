@@ -84,3 +84,4 @@
 [D-094][boot][skills] boot slimming: nothing leaves without a pointer to its full version
 [D-095][skills][boot] boot slimming is verified by inventory, blind check, branch and a fresh session
 [D-097][memory][release] WIPs record every step and are squashed into one at close, notes kept
+[D-098][memory][hooks] a two-question checklist every message, plus a search check before any save
