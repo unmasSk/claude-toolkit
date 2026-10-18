@@ -17,7 +17,6 @@
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
 [remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
-[remember][user] 🧠 no me expliques nada con analogias ni metaforas, no las entiendo: dilo directo y con un ejemplo concreto del proyecto
 [remember][user] 🧠 un error que puedas corregir lo corriges sin preguntar; una decision se para y se pregunta, y lo que yo tarde en contestar es mi problema, no tuyo
 [remember][claude] 🧠 NOT YAPPING absoluto: solo la informacion. Nada de preambulos, suavizantes ni meta ('sin excusa', 'no te cabrees'), ni disculpas ni tranquilizar. La respuesta y ya, en minimo de palabras.
 [remember][user] 🧠 cuando se elimina una pieza, el muro que hablaba de ella se retira en el mismo acto y se informa; no se deja vigente ni se pregunta — «tu quitas algo y no quitas el aviso para que otra ya lo lea y se piensa que todavia sigue en el sistema»
