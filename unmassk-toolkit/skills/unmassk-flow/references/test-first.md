@@ -10,15 +10,15 @@ The code produced MUST meet the toolkit's quality bar in `unmassk-standards/refe
 
 "Test-first" means different things at two scales, and collapsing them into one is the classic mistake (it's what makes people think the crew pipeline "violates TDD"). The toolkit runs both, and each has its own rule.
 
-### Inter-agent (the crew pipeline) = ATDD / BDD — horizontal, and correct
+### Inter-agent (the crew pipeline) — the complete test set first, and correct
 
-Across isolated subagents, **Dante writes the failing tests that define the contract first → Ultron implements until they pass.** Tests precede code, as a batch. This is **acceptance-test-driven**, not unit-TDD: the tests encode what *"done"* means from the outside (behavior, acceptance criteria), not every internal unit.
+Across isolated subagents, **Dante writes the failing tests that define the contract first → Ultron implements until they pass.** Tests precede code, as one complete batch: every behavior, error path and edge the change must honor, observed from outside. Internal structure (how Ultron splits the code into helpers) gets no tests of its own — the behavior tests cover it.
 
-This is "tests first, then code" — and at the acceptance level that is **the method, not an antipattern.** Two isolated agents cannot ping-pong a per-unit loop without spawning dozens of times, so the tests go first as one complete batch. Contract-first handoff is the right shape for the multi-agent layer.
+This is "tests first, then code" — and across agents that is **the method, not an antipattern.** Two isolated agents cannot ping-pong a per-unit loop without spawning dozens of times, so the tests go first as one complete batch. Contract-first handoff is the right shape for the multi-agent layer.
 
 - **BDD** — the user/orchestrator describes behavior in plain language (Given / When / Then). The entry point for non-developers: describe *what should happen*, the agent translates it down.
-- **ATDD** — those behaviors become the acceptance tests Dante writes: the contract Ultron must satisfy for the work to be accepted.
-- **One complete contract (D-125, D-126)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers.
+- **The contract** — those behaviors, with every error path and edge, become the tests Dante writes: what Ultron must satisfy for the work to be accepted.
+- **One complete contract (D-125, D-126)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers (a contract test Ultron reports as wrong is the one case Dante is called before the reviewers: a fresh Dante corrects that test at once, since nothing can go green around it).
 - **Ultron writes only what the tests ask** — no code a test does not require, no "while I'm here" extras. Exception, and a big one: something real that no test foresaw (e.g. a library limit). Then Ultron may add it, but his report must say so on its own line — how many cases Dante's tests cover, what he added and why — and Dante writes its tests in the fix pass. Never silent.
 
 ### Inside Ultron's task — one red test at a time

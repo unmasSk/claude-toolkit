@@ -6,7 +6,7 @@ Linear changes the ORDER of code vs tests; it does not lower the bar. The code s
 
 ## Order — code first, then tests, then review
 
-1. **Ultron implements** the plan phases (wave execution), in normal Implementation/Fix mode.
+1. **Ultron implements** — the plan phases in Full (wave execution), the change itself in Short — in normal Implementation/Fix mode.
 2. **Dante writes the tests for what was built, before the review**: covers what changed — happy path, error paths, edge cases — full EXHAUSTION PROTOCOL + the project profile's coverage gate, against the real code. **Tests hit the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5).
 
 The full sequence after building (Cerberus + Argus over code and tests → one fix pass → Moriarty → one fix pass → Yoda → one fix pass → Alexandria) lives in Flow's Step 5 and is the same for linear and test-first.

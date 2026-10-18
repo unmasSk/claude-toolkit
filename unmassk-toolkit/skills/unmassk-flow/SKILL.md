@@ -51,7 +51,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 | **Yoda** | final production-readiness verdict | fixes, re-reviews, or attacks |
 | **Alexandria** | syncs docs to reality | implements or tests |
 
-**The two failures this table forbids, by name:** sending **Dante to investigate** the codebase (that is Bilbo's lane) and sending **Ultron to write tests** (that is Dante's lane). Both are the exact cross-assignments that break the pipeline. There is no "small enough" exception. If GREEN needs a test change, Ultron STOPS and reports; the orchestrator routes it to Dante.
+**The two failures this table forbids, by name:** sending **Dante to investigate** the codebase (that is Bilbo's lane) and sending **Ultron to write tests** (that is Dante's lane). Both are the exact cross-assignments that break the pipeline. There is no "small enough" exception. If GREEN needs a test change, Ultron STOPS and reports; the orchestrator routes it to a fresh Dante at once — the one case Dante is called before the reviewers (D-126).
 
 ## One feature in flight — close before you open (GATE)
 
@@ -78,7 +78,7 @@ Classify the work BEFORE anything else. Decide together with the user. (First ru
 | Procedure | What it covers | Who |
 | --------- | -------------- | --- |
 | **Trivial** | Quick, isolated and checkable at a glance, and NONE of: logic change, data, security, a seam, new behavior, or anything other modules depend on. Examples: widening a button, a typo, a config value. If on inspection several things have to be redone, it is no longer trivial. | **Claude does it, with no agents, no plan, no branch and no list**: one finished-work commit (`gitmem work`), not a WIP, since there is nothing to squash later. If a work branch is already open, it goes on that branch; otherwise on `main` (trunk) or directly on `dev` (gitflow; `gitmem` only protects `main`). If the repo has tests, run once the ones covering the touched file. |
-| **Short** | A change with logic but bounded: 1 to 3 files, one part of the project, and touching no data, memory, security or money (a producer↔consumer seam counts as data: it goes to Full). Examples: fixing a known bug in a function, adding a field to a form. | Ultron implements → Dante adds the test for the change if the project has tests (if it has none, they are not set up here) → Cerberus reviews → one fix pass (code: Ultron; tests: Dante). No Argus, Moriarty, Yoda or Alexandria. |
+| **Short** | A change with logic but bounded: 1 to 3 files, one part of the project, and touching no data, memory, security or money (a producer↔consumer seam counts as data: it goes to Full). Examples: fixing a known bug in a function, adding a field to a form. | In the build mode chosen: linear, Ultron implements → Dante adds the test for the change; test-first, Dante writes the test first → Ultron makes it pass (if the project has no tests, they are not set up here) → Cerberus reviews → one fix pass (code: Ultron; tests: Dante). No Argus, Moriarty, Yoda or Alexandria. |
 | **Full** | Anything touching data, memory, security or money, a new feature, or several parts of the project at once. | The whole Step 5 pipeline. If it is large (3+ new files or 5+ modified), Execute in several Ultron rounds and deeper Research. |
 
 The owner speaks Spanish: Trivial / Short / Full are *procedimiento trivial / corto / completo*.
@@ -128,7 +128,7 @@ Analyze the feature domain and generate specific gray areas (not generic categor
 
 ### Decide the Build Mode (here, not at Triage)
 
-Now that the gray areas are resolved you finally know the feature's shape — clear contract vs fuzzy exploration. Decide the build mode and record it in the plan (Step 3). Triage's tentative guess does not bind this.
+Now that the gray areas are resolved you finally know the feature's shape — clear contract vs fuzzy exploration. Decide the build mode and record it: in Full, in the plan (Step 3); in Short, in the one-line start statement. Short follows the mode too — test-first puts Dante's test before Ultron (e.g. the failing repro test of a bug fix). Triage's tentative guess does not bind this.
 
 - Clear, testable behavior + costly if wrong → **test-first** (method: `references/test-first.md`).
 - Exploratory / throwaway / shape still unclear → **linear** (method: `references/linear.md`).
@@ -170,7 +170,7 @@ Orchestrator chooses depth based on the procedure (Short = quick research, a lar
 ```markdown
 # <Name> Plan (task = issue #N)
 
-**Issue:** #N
+**Issue:** #N (only if the work crosses sessions)
 **Branch:** feat/<name> | fix/<name> | refactor/<name>
 **Procedure:** Full
 **Build mode:** test-first | linear
@@ -220,7 +220,7 @@ One line per phase and per step of the plan, with its number («#101 · 1.2»), 
 
 Implement the plan. Wave-based parallel execution where possible.
 
-### Build Mode Router (read the plan's Build mode, then load the matching method)
+### Build Mode Router (read the build mode — the plan's in Full, the start statement's in Short — then load the matching method)
 
 This step is a **router** — it does NOT spell the method out; it points to the reference doc that does (same pattern as `unmassk-standards` → `references/standards.md`). Load the matching doc and follow it:
 
@@ -249,7 +249,7 @@ MANDATORY (Full): Read the plan file before any implementation. Verify the plan 
 
 Ultron may, without stopping to ask, do ONLY what the assigned task requires to be correct:
 
-- Fix a bug it hits **inside the code it is already changing**.
+- Fix a bug it hits **inside the code it is already changing**. In test-first, a fix no test asks for is code beyond the tests: declared exception, on its own report line, and Dante tests it in the fix pass (D-126).
 - Add the error handling / input validation the change itself needs to be safe. In test-first that is code no test asks for: allowed only as the declared exception — its own line in his report, with why, and Dante writes its tests in the fix pass (D-126).
 
 Everything else is scope creep and is FORBIDDEN mid-task:
@@ -268,7 +268,7 @@ If a deviation invalidates a LATER step in the plan:
 2. Orchestrator amends the plan file in `docs/plan/`
 3. Execution resumes from the amended step
 
-The plan file is always the truth. Ultron does not improvise later steps.
+In Full, the plan file is always the truth. Ultron does not improvise later steps.
 
 ### House Circuit Breaker
 
@@ -350,10 +350,10 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 
 1. Every step is already one commit (see «Progress Tracking»); squash any step still pending the same way. Until the squash is built and tested (issue #87), nothing is squashed: merge as is.
 2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). No merge gate stops a merge into dev: the work already went through its reviewers here (D-119). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
-3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
+3. If the work has an issue (only when it crossed sessions), close it: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
 5. Nothing else to record: the issue's closing comment and the step/merge commits are the record — there is no separate "context" commit (a bare commit is bounced by the commit gate).
-6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
+6. Full only: mark the plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
 7. **Ask the owner whether to go on with the next task.** One branch per task: it is deleted the moment it is merged to dev (the session close only sweeps forgotten ones). Moving from dev to staging or production is always asked first, and that merge goes through the heavy gate: Cerberus and Argus on the whole incoming batch, Alexandria checking CHANGELOG and version, the owner's yes; the full suite runs in CI on push (D-120).
 
 ### If Merge Fails

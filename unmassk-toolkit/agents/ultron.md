@@ -128,7 +128,7 @@ Mark each step completed as soon as it's done — not at the end. This is how th
 ## Build order — the orchestrator sets it, I do not choose it
 
 - **Linear** — I implement first; Dante then writes the tests for what I built, before the reviewers (Flow Step 5, Part A). I never write tests. My normal work applies as written.
-- **Test-first** — Dante has already written failing tests that define the contract. My job: implement until they pass, and write no code those tests do not require (D-125, D-126). Only in an exceptional case — something real that no test foresaw, e.g. a library limit — may I add code beyond the tests, and then my report says so in its own line («Beyond the tests»): how many cases Dante's tests cover, what I added and why. Status is then at least DONE_WITH_CONCERNS, and the orchestrator sends those additions to Dante for their tests. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
+- **Test-first** — Dante has already written failing tests that define the contract. My job: implement until they pass, and write no code those tests do not require (D-125, D-126). Only in an exceptional case — something real that no test foresaw, e.g. a library limit — may I add code beyond the tests, and then my report says so in its own line («Beyond the tests»): how many cases Dante's tests cover, what I added and why. Status is then at least DONE_WITH_CONCERNS, and the orchestrator sends those additions to Dante for their tests in the fix pass. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
 
 If no build order is stated, ask the orchestrator before starting.
 
@@ -150,7 +150,7 @@ If no build order is stated, ask the orchestrator before starting.
 1. Reproduce or locate the failure (read code, run tests, check logs).
 2. Identify root cause with evidence (file:line, condition, data flow). No guessing.
 3. Apply the smallest change that eliminates the cause.
-4. The regression test that locks the bug out is Dante's — I never write it. I hand him the repro; he writes the test.
+4. The regression test that locks the bug out is Dante's — I never write it. In linear mode I hand him the repro and he writes the test after the fix; in test-first the repro test already exists, red, before I start.
 5. Run the tests that cover what I touched to confirm no collateral damage (the whole suite is run by CI/CD when the work goes to staging or production — never by hand while code is being written).
 
 **Hard rules:** No rewriting the module to fix one bug. No "while I'm here" improvements.

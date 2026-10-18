@@ -234,7 +234,7 @@ What never goes in: "I think the bug is in X", "this should be fine", "confirm t
 - Send a wave → agents report → checkpoint → send the next wave. The next step and every fix go to a fresh agent of the right type, with the reviewer's report and the exact files — never a resumed one, unless the owner names the same agent: a resumed agent rereads its whole context on every turn and costs several times more.
 - If a task turns out bigger than it looked, the agent finishes the current coherent point, reports, and waits.
 
-**Lane discipline is absolute in every step: Ultron NEVER touches tests** — no edits, no "mechanical re-bases", no exceptions. If GREEN requires a test change, Ultron stops and reports; you send that change to Dante. Granting a test exception "with justification" is the forbidden loophole, not a judgment call.
+**Lane discipline is absolute in every step: Ultron NEVER touches tests** — no edits, no "mechanical re-bases", no exceptions. If GREEN requires a test change, Ultron stops and reports; you send that change to a fresh Dante at once (the one case Dante is called before the reviewers). Granting a test exception "with justification" is the forbidden loophole, not a judgment call.
 
 ### What you handle directly (everything else delegates)
 
