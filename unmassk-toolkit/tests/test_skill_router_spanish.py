@@ -19,7 +19,8 @@ dictated by voice — accents may or may not survive dictation. Two gaps:
 
   B) A handful of owner orders are NOT skill invocations — they are direct
      behavioural corrections already written into CLAUDE.md's "broncas"
-     section (silence, answer-first, delegate-to-Bilbo, literal-stop). These
+     section (answer-first, delegate-to-Bilbo, literal-stop, automatic-mode;
+     the silence reminder was retired by the owner on 2026-10-18). These
      need a NEW public function `match_reminders(prompt_text) ->
      list[tuple[str, str]]` (key, Spanish reminder text) so the hook can
      nudge Claude to follow them, the same way `match_skills()` nudges
@@ -169,15 +170,13 @@ class TestMatchReminders:
     # «mientras se trabaja, ni parrafadas ni silencio: una linea numerada por
     # cada agente o paso que termina, tachandolo en la lista, con emojis; sin
     # aviso de voz». So the old silence prompts must no longer inject any
-    # "silencio" reminder, nor the old "silencio literal" text under any key.
+    # reminder at all: none of these prompts carries any other order, so the
+    # contract is "nothing fires" -- not merely "the old key/wording is gone"
+    # (a silence order back under another key or other words must go red).
     @pytest.mark.parametrize("prompt", SILENCIO_PROMPTS)
-    def test_should_not_emit_silencio_reminder_when_prompt_asks_for_silence(self, prompt):
+    def test_should_emit_no_reminder_when_prompt_asks_for_silence(self, prompt):
         match_reminders = _import_match_reminders()
-        reminders = match_reminders(prompt)
-        keys = [k for k, _ in reminders]
-        assert "silencio" not in keys, f"{prompt!r} -> {reminders!r}"
-        texts = [t for _, t in reminders]
-        assert not any("silencio literal" in t for t in texts), texts
+        assert match_reminders(prompt) == [], prompt
 
     @pytest.mark.parametrize("prompt", RESPUESTA_PRIMERO_PROMPTS)
     def test_respuesta_prompts_trigger_respuesta_primero_key(self, prompt):
@@ -267,6 +266,20 @@ class TestMatchRemindersAutomatico:
         assert "linea numerada" in text, text
         assert "agente" in text and "paso" in text, text
 
+    def test_should_carry_the_rest_of_the_owner_rule_when_automatico_fires(self):
+        # Source: the owner's rule of 2026-10-18, word for word -- «mientras
+        # se trabaja, ni parrafadas ni silencio: una linea numerada por cada
+        # agente o paso que termina, tachandolo en la lista, con emojis; sin
+        # aviso de voz». The reminder must say the whole rule, not half of it.
+        match_reminders = _import_match_reminders()
+        reminders = match_reminders("modo automatico")
+        texts = [t.lower() for k, t in reminders if k == "automatico"]
+        assert texts, reminders
+        text = texts[0]
+        assert "tachandolo" in text, text
+        assert "emojis" in text, text
+        assert "sin aviso de voz" in text, text
+
     def test_automaticamente_alone_does_not_trigger_automatico(self):
         match_reminders = _import_match_reminders()
         reminders = match_reminders("automaticamente")
@@ -279,12 +292,14 @@ class TestMatchRemindersAutomatico:
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestHookEmitsSpanishRoutingAndReminders:
-    def test_should_print_no_silencio_literal_line_when_prompt_is_silencio_total(self, tmp_path):
-        # Silence rule retired by the owner on 2026-10-18 (see TestMatchReminders).
+    def test_should_print_no_orden_line_when_prompt_is_silencio_total(self, tmp_path):
+        # Silence rule retired by the owner on 2026-10-18 (see TestMatchReminders):
+        # through the real hook, no reminder line of any kind may appear.
         repo = _make_installed_repo(tmp_path)
         rc, stdout, stderr = _run_hook(repo, "silencio total, hostias")
         assert rc == 0, (rc, stdout, stderr)
-        assert not any("silencio literal" in line for line in stdout.splitlines()), stdout
+        orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
+        assert not orden_lines, stdout
 
     def test_arregla_los_tres_de_argus_prompt_routes_to_flow(self, tmp_path):
         repo = _make_installed_repo(tmp_path)
