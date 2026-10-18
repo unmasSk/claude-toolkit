@@ -38,3 +38,8 @@ All read 2026-10-16 unless stated. Re-read before quoting any figure from them.
   "Constitution Check gate" is a prose placeholder the AI fills in (`plan-template.md`); the only real
   automated gate step is `workflows/steps/gate/__init__.py`, a human approve/reject pause. Use it to tell
   deterministic code gates from instructions-as-gates.
+
+## CLAUDE.md for real products (read 2026-10-18)
+
+- Official: https://code.claude.com/docs/en/memory (target <200 lines; @imports load at launch, no saving; path rules in `.claude/rules/` with `paths:` load on file touch; root CLAUDE.md survives /compact) and https://code.claude.com/docs/en/best-practices (include/exclude table; "would removing this cause mistakes?").
+- Big products moved to AGENTS.md with a 1-line CLAUDE.md (`@AGENTS.md`): sentry, supabase, n8n, grafana, trigger.dev, formbricks, posthog. Fetch raw `.../AGENTS.md` for the real text. Good real ones: twentyhq/twenty (CLAUDE.md, 60 lines), openstatusHQ/openstatus (AGENTS.md 102), getsentry/sentry (129), supabase (75).
