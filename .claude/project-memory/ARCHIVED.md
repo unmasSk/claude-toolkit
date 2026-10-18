@@ -52,3 +52,4 @@
 2026-10-16  [D-020][memory][hooks] 🧭 subagent recall needs a PreToolUse/Task hook rewriting the prompt  →  closed: descartado: la inyeccion por agente no se construye; el hueco se cerro con el buscador (D-041). Bex, 2026-10-17: «eso se descartó y se resolvió con el buscador»
 2026-10-17  [I-004][install][hooks] 🔥 installer wiped every hook in a project's settings.json when one looked stale  →  closed: arreglado el 2026-10-16: la limpieza solo quita los seis comandos exactos de la instalacion vieja; test de contrato de Dante y revision de Cerberus LGTM
 2026-10-18  [D-093][boot][skills] 🧭 boot slimming: what leaves a boot-read file never enters another one  →  replaced by D-094
+2026-10-18  [D-096][memory][release] 🧭 back to local WIPs squashed at close, with memory notes preserved  →  replaced by D-097

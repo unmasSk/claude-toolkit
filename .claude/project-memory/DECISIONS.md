@@ -83,4 +83,4 @@
 [D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
 [D-094][boot][skills] boot slimming: nothing leaves without a pointer to its full version
 [D-095][skills][boot] boot slimming is verified by inventory, blind check, branch and a fresh session
-[D-096][memory][release] back to local WIPs squashed at close, with memory notes preserved
+[D-097][memory][release] WIPs record every step and are squashed into one at close, notes kept
