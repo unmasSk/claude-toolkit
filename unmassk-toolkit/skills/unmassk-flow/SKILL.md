@@ -2,19 +2,15 @@
 name: unmassk-flow
 version: 1.2.0
 description: >
-  Use when the user asks to "build a feature", "implement", "add functionality", "fix a
-  non-trivial bug", "refactor", or any task that is not trivial and requires writing
-  code. Also use when the user mentions Flow by name. Also use for anything to do with a
-  plan — "let's make a plan", "open a plan", "plan this", "what's the plan", "what's
-  left", "how is the plan going", "update the plan", "the checklist", "the issue", when
-  work is tracked across sessions, or when a plan's scope changes. Also use when
-  something that was already working breaks: "it's broken", "this used to work", "it
-  crashed in production", "the client reports", "it failed again". NOT for open-ended
-  idea exploration with no build committed yet, or for picking between known options —
-  those are `unmassk-council`; NOT for undefined requirements — that's `unmassk-grill`.
-  This is the creative pipeline — from idea to shipped code; its own internal Step 1
-  (Brainstorm) resolves gray areas once a build is already underway, it does not trigger
-  Flow from the outside.
+  Use when the user asks to build a feature, implement, add functionality, fix a
+  non-trivial bug or refactor — any task that requires writing code — or names Flow. Also use to
+  open or change a plan for work that spans sessions ("let's make a plan", "plan this",
+  "update the plan"), and when something that already worked breaks ("it's broken",
+  "this used to work", "it crashed in production"). NOT for a question about how the
+  plan or an issue is going (answer it from the plan and the issue, without loading
+  this), NOT for open-ended ideas or picking between known options (unmassk-council),
+  NOT for undefined requirements (unmassk-grill), NOT for audits (unmassk-audit). Its
+  own Step 1 (Brainstorm) resolves gray areas once a build is underway.
 ---
 
 # Flow — Creative Pipeline
@@ -27,13 +23,13 @@ description: >
 
 - **`unmassk-memory`** — every decision, memo and close in this pipeline is saved through it
 - **Claude Code subagents** — bundled agents: Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria (use `subagent_type` by name)
-- **The app's task list** (TodoWrite or its equivalent) — task tracking visible to the user
+- **The visible list** — the phases and steps the owner follows live. Today: the task list the app shows under the conversation. Planned: a live panel (a Claude Code mod) that shows the plan the way PLAN-SESION.md does (#98).
 
 ## When to Use
 
 For any work that writes code. The first thing is choosing the procedure (Step 0): **Trivial**, **Short** or **Full**. Trivial is done by Claude directly, without agents.
 
-Use `unmassk-audit` for enterprise audits.
+Not for: a question about how a plan or an issue is going (read the plan and the issue and answer); ideas or choosing between known options (`unmassk-council`); requirements still undefined (`unmassk-grill`); enterprise audits (`unmassk-audit`).
 
 ## Lane discipline — who does what, and what each NEVER does (ABSOLUTE)
 
@@ -65,7 +61,7 @@ Flow is stack-agnostic; the project supplies its own commands. The **project pro
 
 1. **Read the profile** — the commands the project declares, in its `CLAUDE.md` or in a saved note (`gitmem search test command`).
 2. **If not declared, detect from the repo** — the command the project actually uses: `package.json` scripts (npm/pnpm/yarn/bun), `pyproject.toml`/`pytest`, `go test ./...`, `cargo test`, a `Makefile` target, etc. Never impose a runner the repo doesn't use.
-3. **Record the test command where the MACHINE reads it.** Write the resolved test command into `.claude/project-memory/config.json` under `test_command` (the same file that holds `repo_type`), and save it as a memo so a person can find it without opening a config file. [2026-08-23] The Stop-time test gate was retired by the owner: it re-ran the suite at every stop and multiplied side effects across his other projects. Nothing runs `test_command` automatically any more — the tests run when the pipeline's Verify step runs them, and at session close.
+3. **Record the test command where the MACHINE reads it.** Write the resolved test command into `.claude/project-memory/config.json` under `test_command` (the same file that holds `repo_type`), and save it as a memo so a person can find it without opening a config file. [2026-08-23] The Stop-time test gate was retired by the owner: it re-ran the suite at every stop and multiplied side effects across his other projects. Nothing runs `test_command` automatically any more — the tests run when the pipeline runs them: Execute, Verify and the scoped run at Close (Step 7).
 
 The right place to establish `test_command` once is project start (`unmassk-project-lifecycle`), so Flow rarely has to detect it. If you still cannot resolve a test command, STOP at the Step 7 gate and ask the user — do not skip the gate and do not guess a runner.
 
@@ -114,7 +110,7 @@ Analyze the feature domain and generate specific gray areas (not generic categor
 ### Process
 
 1. State the domain boundary — what this feature delivers
-2. Check git-memory for prior decisions that apply (`git log --grep="Decision:"`)
+2. Check memory for prior decisions that apply: `gitmem search <zone or word>` (and `--id D-xxx` for one)
 3. Present gray areas as specific questions, one at a time
 4. For each gray area: propose 2-3 approaches with trade-offs, recommend one
 5. Save each decision the moment it is made — with its why and every option it beat
