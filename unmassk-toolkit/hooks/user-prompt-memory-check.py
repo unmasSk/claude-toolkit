@@ -5,6 +5,7 @@ UserPromptSubmit hook -- bootstrap + first-message skill routing.
 Fires on every user message. Responsibilities:
 1. If git-memory is not configured: tell Claude to install it
 2. If configured: remind Claude to boot (if not done) + route to relevant skills
+3. Every message: the D-124 checklist of questions to ask before replying
 
 Exit codes:
     0: Always (never blocks user input).
@@ -143,7 +144,7 @@ def _read_prompt_text() -> str | None:
 
 # D-124 (restates D-098): asked on every user message, one line per question.
 D124_CHECKLIST = (
-    "[checklist] Before replying:\n"
+    "[each-message] Before replying:\n"
     "  1. Do I keep every rule loaded at start, one by one, in this message?\n"
     "  2. Do I know what we are doing without assuming? If not, search memory first.\n"
     "  3. If I just gave a result or got a decision, have I ticked or written it in its plan or checklist?\n"
