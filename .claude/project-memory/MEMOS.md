@@ -125,3 +125,4 @@
 [M-146][memory][architecture] git-bug, DiffMem, Beads vs ours: they survive squash, no ID clashes
 [M-147][memory][architecture] moria already runs local semantic search; its lost months came from rewriting
 [M-148][skills][hooks] 38-point #101 sweep re-checked: C16 not real, plan.md:73 wrong cite
+[M-149][skills][hooks] checklist hooks: boxes match on whole text, registry keeps first load
