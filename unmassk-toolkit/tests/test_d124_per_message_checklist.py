@@ -44,7 +44,6 @@ characters measured 2026-10-19 before the change).
 import json
 import os
 import subprocess
-import sys
 import unicodedata
 
 import pytest
@@ -288,16 +287,10 @@ class TestChecklistOnEveryMessage:
 
 class TestOutputSize:
 
-    def test_should_stay_far_under_cap_when_worst_case_message(self, fresh_repo):
-        # Green today (~1.2k); turns red if the checklist (or anything added
-        # with it) pushes the worst case past half the 10,000-char cap.
-        repo, home = fresh_repo
-        rc, out, err = _run(repo, home, WORST_CASE)
-        assert rc == 0, err
-        assert len(out) <= FAR_UNDER_LIMIT, f"{len(out)} chars > {FAR_UNDER_LIMIT}"
-
     def test_should_stay_far_under_cap_with_checklist_present(self, fresh_repo):
-        # The size bound only means something once the checklist is in.
+        # Turns red if the checklist (or anything added with it) pushes the
+        # worst case past half the 10,000-char cap. The checklist is asserted
+        # too: the size bound only means something once the checklist is in.
         repo, home = fresh_repo
         rc, out, err = _run(repo, home, WORST_CASE)
         assert rc == 0, err
