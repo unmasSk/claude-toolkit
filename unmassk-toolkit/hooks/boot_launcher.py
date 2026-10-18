@@ -13,8 +13,8 @@ A boot failure never blocks the session: memory helps, it never blocks
 (same principle as hooks/session-start-boot.py, "Exit codes: 0: Always").
 Every exception -- boot.py fails, the directory does not exist, stdin is
 empty or malformed -- is swallowed silently; the session starts anyway.
-The one exception to the silence: boot.py running past the launcher's
-own deadline, which is reported loudly (D-130).
+The one exception to the silence: the hook (installer + boot.py)
+running past the launcher's own deadline, which is reported loudly (D-130).
 """
 
 import json
@@ -22,6 +22,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 
 _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 _TOOLKIT_ROOT = os.path.dirname(_HOOKS_DIR)
@@ -35,9 +36,9 @@ force_utf8_streams()
 
 _BOOT_SCRIPT = os.path.join(_TOOLKIT_ROOT, "bin", "memory", "boot.py")
 
-# The launcher's own deadline for boot.py [D-130, I-005]: below the 30 s
-# SessionStart timeout in hooks.json, because a hook Claude Code kills
-# prints nothing at all.
+# The launcher's own deadline for the whole hook -- first-boot installer
+# included -- [D-130, I-005]: below the 30 s SessionStart timeout in
+# hooks.json, because a hook Claude Code kills prints nothing at all.
 _BOOT_DEADLINE_ENV = "UNMASSK_BOOT_DEADLINE_SECONDS"
 _BOOT_DEADLINE_DEFAULT = 25.0
 
@@ -53,7 +54,7 @@ def _boot_deadline():
 
 
 def _report_overrun(cwd, deadline):
-    """boot.py was killed: replace the previous session's report with a
+    """The installer or boot.py was killed: replace the previous session's report with a
     failure marker (so nobody reads it as today's) and say so loudly."""
     destination = os.path.join(".claude", ".unmassk", "boot-latest.txt")
     try:
@@ -68,7 +69,7 @@ def _report_overrun(cwd, deadline):
         gitcmd.atomic_write(
             destination,
             f"⚠️  THE BOOT DID NOT FINISH — {stamp}\n\n"
-            f"bin/memory/boot.py was stopped after {deadline:g} s.\n"
+            f"The boot (installer + bin/memory/boot.py) was stopped after {deadline:g} s.\n"
             "There is no report for this session. What was here before belonged\n"
             "to an earlier session and has been replaced by this notice so that\n"
             "nobody reads it as today's.\n",
@@ -90,6 +91,12 @@ try:
         payload = {}
 
     cwd = payload.get("cwd") or os.getcwd()
+    deadline = _boot_deadline()
+    started = time.monotonic()
+    overrun = False
+
+    def _remaining():
+        return deadline - (time.monotonic() - started)
 
     # If this project has never been through the installer, install it
     # HERE, on its own, before reading memory [owner's decision,
@@ -120,7 +127,7 @@ try:
                 ["git", "rev-parse", "--show-toplevel"],
                 cwd=cwd,
                 capture_output=True,
-                timeout=10,
+                timeout=max(0.01, min(10, _remaining())),
             )
             if inside.returncode != 0:
                 raise RuntimeError("not a git repository")
@@ -136,7 +143,7 @@ try:
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=max(0.01, _remaining()),
                 encoding="utf-8",
                 errors="replace",
             )
@@ -152,6 +159,10 @@ try:
                     "automatic install failed. Run it by hand:\n"
                     f"  python3 {_INSTALLER} --auto"
                 )
+        except subprocess.TimeoutExpired:
+            # Only the deadline running out is an overrun; git's own 10 s
+            # cap expiring early stays silent, as before.
+            overrun = _remaining() <= 0
         except Exception:
             pass
 
@@ -164,10 +175,16 @@ try:
     # running it, 2026-08-06].
     sys.stdout.flush()
 
-    deadline = _boot_deadline()
-    try:
-        subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd, timeout=deadline)
-    except subprocess.TimeoutExpired:
+    if not overrun and _remaining() > 0:
+        try:
+            subprocess.run(
+                [sys.executable, _BOOT_SCRIPT], cwd=cwd, timeout=_remaining()
+            )
+        except subprocess.TimeoutExpired:
+            overrun = True
+    else:
+        overrun = True
+    if overrun:
         _report_overrun(cwd, deadline)
 except Exception:
     pass
