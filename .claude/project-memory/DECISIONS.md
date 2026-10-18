@@ -102,3 +102,4 @@
 [D-129][hooks][skills] council on publishing today's changes: fix four things first, then release
 [D-130][boot][hooks] boot asks GitHub once for all issues, under a total deadline that fails loud
 [D-131][boot][memory] owner's rules reach every session through a CLAUDE.md import, not hook output
+[D-132][hooks][install] Morse cue fires on Claude Code's Notification event: permission or idle prompt
