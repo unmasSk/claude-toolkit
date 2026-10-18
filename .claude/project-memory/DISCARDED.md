@@ -114,3 +114,4 @@
 [X-114][hooks][release] flow tags its merge as already reviewed
 [X-115][hooks][release] remove the gate entirely
 [X-116][skills][hooks] Trivial skips loading flow, Short keeps all 16 boxes
+[X-117][skills][standards] audit keeps its second review as the stricter exception
