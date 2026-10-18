@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-10-18
+
 ### Added
 
 - **`unmassk-memory` has an `issues.md` reference** covering how issues are handled with the memory.
