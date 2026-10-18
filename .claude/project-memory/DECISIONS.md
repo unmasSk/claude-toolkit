@@ -89,3 +89,4 @@
 [D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110
 [D-108][skills][architecture] work hierarchy: milestone, task (= issue), phase, step
 [D-112][skills][architecture] flow procedures: Trivial, Short (Corto), Full (Completo)
+[D-113][skills][architecture] fixes always go to a fresh agent unless Bex names the same one
