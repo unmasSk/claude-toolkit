@@ -19,7 +19,7 @@ This is "tests first, then code" — and across agents that is **the method, not
 - **BDD** — the user/orchestrator describes behavior in plain language (Given / When / Then). The entry point for non-developers: describe *what should happen*, the agent translates it down.
 - **The contract** — those behaviors, with every error path and edge, become the tests Dante writes: what Ultron must satisfy for the work to be accepted.
 - **One complete contract (D-125, D-126)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers (a contract test Ultron reports as wrong is the one case Dante is called before the reviewers: a fresh Dante corrects that test at once, since nothing can go green around it).
-- **Ultron writes only what the tests ask** — no code a test does not require, no "while I'm here" extras. Exception, and a big one: something real that no test foresaw (e.g. a library limit). Then Ultron may add it, but his report must say so on its own line — how many cases Dante's tests cover, what he added and why — and Dante writes its tests in the fix pass. Never silent.
+- **Ultron writes only what the tests ask** — no code a test does not require, no "while I'm here" extras. Exception, and a big one: something real that no test foresaw (e.g. a library limit). Then Ultron may add it, but his report must say so on its own line — what he added, why, and which behaviour has no test yet — and Dante writes its tests in the fix pass. Never silent.
 
 ### Inside Ultron's task — one red test at a time
 

@@ -286,7 +286,7 @@ If Ultron fails the same step 3 times:
 
 ## Step 5 — Verify (TWO PHASES: review per plan phase while building, then one final break-and-judge)
 
-**Every agent runs once and every fix is done once.** Nobody runs again: not Cerberus and Argus, not Moriarty, not Yoda. Fixes always go to a fresh agent of the same type, with the report and the exact files, unless the owner asks for the same one. **Before fixing a finding, check that it is real** and happens in real use; if not, note it and leave it. A regression from a fix is caught by the scoped tests at Close (Step 7), never by another round of reviewers.
+**Every agent runs once and every fix is done once.** Nobody runs again: not Cerberus and Argus, not Moriarty, not Yoda (except Yoda after CANNOT JUDGE, once what he lacked is supplied). Fixes always go to a fresh agent of the same type, with the report and the exact files, unless the owner asks for the same one. **Before fixing a finding, check that it is real** and happens in real use; if not, note it and leave it. A regression from a fix is caught by the scoped tests at Close (Step 7), never by another round of reviewers.
 
 **PART A — per independent plan phase, as it is built (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»):**
 
@@ -302,7 +302,7 @@ If Ultron fails the same step 3 times:
 4. **Moriarty** attacks what was already fixed: the code and the tests. One per part, or one for all. In test-first he also runs the mutation check on the important behaviours (on a copy) and reports the mutants that survive; Dante writes those tests in the next fix pass.
 5. **What he breaks is fixed, once:** Ultron or Dante, whoever owns it; in parallel when the fixes don't collide.
 6. **Yoda — once.** He gets the ARTIFACT (including the path of Moriarty's separate raw-log file: commands and output, never his summary or verdict; without it he answers CANNOT JUDGE; and the output of the Step 0 no-seam check when there is no seam), the CONTRACT and the reference id, and finds his own evidence in the code, tests and memory. He is given no narrative and no conclusion («no le digas a Yoda lo que tiene que buscar, que se busque la vida»). **110 is perfection:** with any lower score he says what to fix to reach 110 and, if 110 cannot be reached, why (e.g. no E2E tests planned).
-7. **What Yoda names is fixed, once:** Ultron or Dante, whoever owns it. Reaching 110 is taken as given, and those fixes are checked by the scoped tests at Close (Step 7). Yoda does not run again. **REJECTED** blocks the merge until every T1/T2 he named is fixed and its test is green; **APPROVED WITH CONDITIONS** merges, and the conditions become tracked work.
+7. **What Yoda names is fixed, once:** Ultron or Dante, whoever owns it. Reaching 110 is taken as given, and those fixes are checked by the scoped tests at Close (Step 7). Yoda does not run again. **REJECTED** blocks the merge until every T1/T2 he named is fixed and its test is green; with **APPROVED WITH CONDITIONS** the T3 points are fixed in that same single pass, nitpicks included, and it merges. The only case Yoda is sent again: after CANNOT JUDGE, once what he lacked is supplied.
 8. **Alexandria** documents what changed (Step 6).
 
 ### Prompting the reviewers in Verify
@@ -329,7 +329,7 @@ There is no "repeat until clean" loop — that is the failure mode this sequence
 
 Separate from closure — documentation deserves its own step.
 
-1. Launch Alexandria agent; read her report file's index (files changed, contradictions, gaps)
+1. Launch Alexandria agent; read her report file's index (Files changed, Contradictions, Shipped with no home)
 2. Read all WIP commits and changes from the feature
 3. **Document the new capability for ALL THREE audiences** (deliberate duplication — see `unmassk-core` "Documentation discipline"): humans (`README.md` / `docs/`), us (roadmap + git-memory), and Claude at load (the relevant `SKILL.md` / `CLAUDE.md`). A feature documented in only one surface is half-shipped.
 4. Update module CLAUDE.md if patterns changed
