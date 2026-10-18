@@ -27,16 +27,13 @@ description: >
 
 - **`unmassk-memory`** — every decision, memo and close in this pipeline is saved through it
 - **Claude Code subagents** — bundled agents: Bilbo, Ultron, Dante, Cerberus, Argus, Moriarty, Yoda, House, Alexandria (use `subagent_type` by name)
-- **TodoWrite tool** — native Claude Code tool for task tracking visible to the user
+- **The app's task list** (TodoWrite or its equivalent) — task tracking visible to the user
 
 ## When to Use
 
-- Building new features
-- Non-trivial bug fixes (trivial = 1 file, obvious cause)
-- Refactors that touch 3+ files
-- Any task where "just do it" could go wrong
+For any work that writes code. The first thing is choosing the procedure (Step 0): **Trivial**, **Short** or **Full**. Trivial is done by Claude directly, without agents.
 
-Use `unmassk-audit` for enterprise audits. Apply trivial 1-file fixes, documentation-only changes and config tweaks directly, without running Flow.
+Use `unmassk-audit` for enterprise audits.
 
 ## Lane discipline — who does what, and what each NEVER does (ABSOLUTE)
 
@@ -44,7 +41,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 
 | Agent | DOES | NEVER does |
 | ----- | ---- | ---------- |
-| **Orchestrator (you)** | decides what/who/when, writes the plan, runs Flow | writes production code or tests — not even one line |
+| **Orchestrator (you)** | decides what/who/when, writes the plan, runs Flow, and does the Trivial procedure itself | writes production code or tests outside the Trivial procedure |
 | **Bilbo** | investigates — maps the codebase and traces dependencies, AND researches the web when the answer isn't in the repo | implements, reviews, or judges |
 | **Ultron** | implements production code | writes/edits tests, explores as a phase, reviews, attacks |
 | **Dante** | writes and hardens tests | implements production code, investigates the codebase (that's Bilbo) |
@@ -78,19 +75,21 @@ Classify the work BEFORE anything else. Decide together with the user. (First ru
 
 **The go is explicit or it is not a go.** A user's question ("what's next?", "is this ready?") never starts a build; "ok" / "looks fine" does not either. Before creating a branch or launching the first agent, you need an unambiguous yes to "do I start?" — if the last thing the user wrote was a question or a shrug, ask and stop. [2026-08-20: "¿ahora qué toca?" was read as "go" — plan opened, three agents launched, a skeleton committed, all unasked.]
 
-| Size | Criteria | Pipeline |
-| ---- | -------- | -------- |
-| Trivial | Mechanical, 1 file / a few lines, and NONE of: logic change, security surface, a producer↔consumer seam, new behavior, or a shape other modules depend on. The classic case: editing text/copy in a doc, a typo, a rename, a constant value, a comment, a config/format tweak, a one-liner whose cause and correctness are self-evident. | **Not a Flow run — send Ultron directly and you're done.** No reviewers, no Dante, no branch/plan ceremony. If the repo has tests, run the ones covering the touched file once afterward to catch a fat-finger; nothing else. |
-| Standard | Anything that changes behavior, or touches logic / data / security / a producer↔consumer seam | Full pipeline — Execute (linear or test-first) then Step 5 in its two phases: Cerberus+Argus per task, Moriarty+Yoda once at the end |
-| Big | 3+ new files, 5+ modified, or touches auth/data/permissions | Same full pipeline; Execute in several Ultron rounds + deeper Research |
+| Procedure | What it covers | Who |
+| --------- | -------------- | --- |
+| **Trivial** | Quick, isolated and checkable at a glance, and NONE of: logic change, data, security, a seam, new behavior, or anything other modules depend on. Examples: widening a button, a typo, a config value. If on inspection several things have to be redone, it is no longer trivial. | **Claude does it, with no agents, no plan, no branch and no list**: one finished-work commit (`gitmem work`), not a WIP, since there is nothing to squash later. On trunk it lands on `main`; on gitflow, directly on `dev` (`gitmem` only protects `main`). If the repo has tests, run once the ones covering the touched file. |
+| **Short** | A change with logic but bounded: 1 to 3 files, one part of the project, and touching no data, memory, security or money (a producer↔consumer seam counts as data: it goes to Full). Examples: fixing a known bug in a function, adding a field to a form. | Ultron implements → Dante adds the test for the change if the project has tests (if it has none, they are not set up here) → Cerberus reviews → one fix pass (code: Ultron; tests: Dante). No Argus, Moriarty, Yoda or Alexandria. |
+| **Full** | Anything touching data, memory, security or money, a new feature, or several parts of the project at once. | The whole Step 5 pipeline. If it is large (3+ new files or 5+ modified), Execute in several Ultron rounds and deeper Research. |
 
-**The boundary — when in doubt, it is NOT trivial.** A change that *looks* small but touches logic, a seam, security, or anything another module relies on runs the full pipeline. Trivial is only for changes whose correctness you can see at a glance and that can't silently break something elsewhere.
+The owner speaks Spanish: Trivial / Short / Full are *procedimiento trivial / corto / completo*.
+
+**Before starting, Claude states the procedure in one line. When in doubt, the bigger one**; a Trivial that grows on inspection becomes Short.
 
 Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
 
-**Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam pulls Moriarty + Yoda into Verify regardless of size — a Quick or Standard feature with a seam is NOT exempt from Step 5's seam subsection. Record the declaration in the context commit at the end of this step.
+**Seam declaration (mandatory, independent of size):** state whether this feature touches a producer↔consumer seam (network call, DB read/write, file written and reread — see `unmassk-standards` §34.1). "No seam" requires the mechanical check from §34.1, not a guess. A seam always makes the work Full, which pulls Moriarty + Yoda into Verify and applies Step 5's seam subsection. Record the declaration in the context commit at the end of this step.
 
-**If Standard or Big:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip for Quick — a 1-2 file obvious fix doesn't carry that risk.
+**If Short or Full:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip it for Trivial.
 
 Create the branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch). **The issue is a plan, and a plan is opened by the user, never by you** — offer it in one line and wait; if they open one, follow `references/plan.md` for what it holds and how it is kept up to date. Then record the start in memory.
 
@@ -145,7 +144,7 @@ Investigate how to implement, guided by decisions from Step 1. **Research is Bil
 | Standard | Explore codebase, map dependencies, compare approaches | Choosing between options, new integration |
 | Deep | Full dependency trace, integration map, risk assessment | Architectural decisions, novel problems |
 
-Orchestrator chooses depth based on triage (Quick task = quick research, Big task = deep research).
+Orchestrator chooses depth based on the procedure (Short = quick research, a large Full = deep research).
 
 ### Process
 
@@ -167,11 +166,11 @@ Write the plan. This is the SINGLE source of truth for the feature.
 ### Format
 
 ```markdown
-# <Feature Name> Implementation Plan
+# <Name> Plan (task = issue #N)
 
 **Issue:** #N
 **Branch:** feat/<name> | fix/<name> | refactor/<name>
-**Triage:** Quick | Standard | Big
+**Procedure:** Trivial | Short | Full
 **Build mode:** test-first | linear
 **Created:** YYYY-MM-DD
 
@@ -179,27 +178,27 @@ Write the plan. This is the SINGLE source of truth for the feature.
 [One sentence — what this delivers]
 
 ## Decisions
-[Reference decision commits or summarize key decisions from Step 1]
+[Reference the memory decisions or summarize those from Step 1]
 
-## Tasks
+## Phases
 
-### Task 1: [Name]
+### Phase 1: [Name]
 **Files:** create/modify/test
 **Steps:**
-- [ ] Step 1: [specific action]
-- [ ] Step 2: [specific action]
-- [ ] Step 3: [verify — command + expected output]
-- [ ] Step 4: [commit]
+- [ ] 1.1: [specific action]
+- [ ] 1.2: [specific action]
+- [ ] 1.3: [verify — command + expected output]
+- [ ] 1.4: [WIP]
 
-### Task 2: [Name]
-**Depends on:** Task 1
+### Phase 2: [Name]
+**Depends on:** Phase 1
 **Files:** ...
-**Steps:** ...
+**Steps:** 2.1, 2.2…
 
 ## Wave Map
-[Which tasks can run in parallel]
-- Wave 1: Task 1, Task 2 (independent)
-- Wave 2: Task 3 (depends on Task 1)
+[Which phases can run in parallel]
+- Wave 1: Phase 1, Phase 2 (independent)
+- Wave 2: Phase 3 (depends on Phase 1)
 ```
 
 ### Plan Checker
@@ -211,9 +210,9 @@ Before execution, verify the plan achieves the goal:
 3. Are dependencies between tasks explicit?
 4. If any gap → amend plan before executing
 
-### Create TodoWrite
+### The visible list
 
-One item per task in the plan. Update status as execution progresses.
+One line per phase and per step of the plan, with its number («#101 · 1.2»), in the app's task list. Update it at every step: the owner must always see where we are and what comes next.
 
 ## Step 4 — Execute (Ultron + Dante)
 
@@ -235,10 +234,14 @@ MANDATORY: Read the plan file before any implementation. Verify the plan exists 
 ### Wave Execution
 
 1. Read wave map from plan
-2. Launch Ultron agents for Wave 1 tasks in parallel (1 agent per task, no overlap on same file)
+2. Launch Ultron agents for Wave 1 phases in parallel (1 agent per phase, no overlap on same file)
 3. Wait for Wave 1 to complete
-4. Launch Wave 2 tasks
+4. Launch Wave 2 phases
 5. Repeat until all waves done
+
+- **Tests in parallel:** every agent that runs tests uses its own test database (the project-cleanup skill sets it up). If the project does not have that yet, its tests are not run in parallel.
+- **Before refactoring:** Dante writes and checks the golden tests of what is affected; never refactor without that net.
+- **Silence:** while agents work, nothing is reported to the owner; when the last one finishes, one single cross report.
 
 ### Deviation Rules (in the Ultron agent prompt) — bounded, not a blank cheque
 
@@ -273,41 +276,47 @@ If Ultron fails the same task 3 times:
 2. Launch House agent to diagnose root cause
 3. House delivers diagnostic report with root cause and fix strategy
 4. Orchestrator amends plan if needed
-5. Ultron resumes with diagnosis context
+5. A fresh Ultron fixes it with House's diagnosis (the previous one is never resumed, unless the owner asks)
 
 **This is not an incident.** A defect found while the thing is still being built is ordinary work — House diagnoses, Ultron fixes, the pipeline carries on, and nothing is recorded as a scar. **An incident is something that had already been signed off and then broke**, and it has its own protocol in `references/incident.md`: what to record, when, and how it closes.
 
 ### Progress Tracking
 
-- WIP commit after each completed task
-- TodoWrite updated as tasks complete — user sees progress in real time
-- Each task marked `completed` only after its verification step passes
+- WIP commit after each completed step (on a work branch they may be pushed; on `main` they stay local until squashed)
+- The visible list (section «The visible list»), updated as steps complete
+- Each step marked done only after its verification passes
 
-## Step 5 — Verify (TWO PHASES: per-task review WHILE building, then ONE final break-and-judge)
+## Step 5 — Verify (TWO PHASES: review per plan phase while building, then one final break-and-judge)
 
-**Batching model (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»).** Verify has TWO phases. **Phase A runs PER INDEPENDENT TASK, as each is built:** Ultron+Dante build it (either order per build mode) → Cerberus+Argus review THAT task → Ultron/Dante fix in one pass if they found something. It repeats for every task/functionality of the module — Cerberus and Argus live in this per-task loop, they do NOT wait for the end. **Phase B runs ONCE, only when every task of the issue/question and its whole checklist are done:** Moriarty breaks the whole thing → Ultron/Dante repair → Yoda judges → Alexandria documents. No agent re-runs within a phase; no «repeat until clean» loop. A regression from a fix is caught by the scoped test run at Close (Step 7) — the tests of the changed area, not the whole suite.
+**Every agent runs once and every fix is done once.** Nobody runs again: not Cerberus and Argus, not Moriarty, not Yoda. Fixes always go to a fresh agent of the same type, with the report and the exact files, unless the owner asks for the same one. **Before fixing a finding, check that it is real** and happens in real use; if not, note it and leave it. A regression from a fix is caught by the scoped tests at Close (Step 7), never by another round of reviewers.
 
-**PHASE A — per task (repeat for EACH independent task; identical for linear and test-first, only the Execute arrival differs — linear: Ultron first; test-first: Dante's contract first):**
+**PHASE A — per independent plan phase, as it is built (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»):**
 
-1. **Cerberus + Argus — in parallel, ALWAYS, over the code of THE TASK just built** (per task, not once at the end). Cerberus: quality/Enterprise review (goal-backward — does it deliver the task's goal). Argus: security audit. **Argus is never skipped.**
-2. **Ultron fixes everything Cerberus and Argus surfaced — in one pass.** They do NOT re-review.
-3. **Dante — writes/hardens the tests** when there is testable behavior (business logic, a contract, a seam). In linear this is his single pass; in test-first it is his second entry (exhaustive hardening on top of the acceptance contract he wrote before Execute). Coverage gate: the project profile's bar (default ≥90% functions / ≥80% error paths) on the real code. **Tests hit the REAL dependency by default** — real DB, real seam, real files; mock ONLY what genuinely cannot run in the test environment, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5). If a test exposes bad code → **Ultron** fixes it (Ultron never edits tests; Dante never edits code).
-**PHASE B — ONCE, only when EVERY task of the issue/question and its whole checklist are done (never per piece edited):**
+1. **Build, per build mode:**
+   - **Test-first:** Dante writes the acceptance tests (they start red) → Ultron implements until they pass.
+   - **Linear:** Ultron implements → Dante writes the tests for what was built.
+   Tests hit the REAL dependency by default; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end (`unmassk-standards` §34.5). Coverage gate: the project profile's bar. Ultron never edits tests; Dante never edits code.
+2. **Cerberus + Argus, in parallel, over the code AND the tests of that phase.** In the Full procedure, Argus is never skipped. Each writes its report to a file that starts with an index; Claude reads the index and goes into detail only if there is a problem.
+3. **What they flagged is fixed, once:** code, Ultron; tests, Dante. They do not review again.
 
-4. **Moriarty — one per part, or one for all** (all the built code reviewed + audited + tested). He tries to break **both the code and the tests**.
-5. **Ultron repairs code + Dante repairs tests** — in parallel when the fixes don't collide — for whatever Moriarty broke.
-6. **Yoda — once, and only once.** He gets the ARTIFACT, the CONTRACT/spec and the reference id (the Q/I/D/issue under evaluation) — and finds his OWN evidence in the code, tests and memory. He is NOT handed a narrative of what was found or fixed, nor Moriarty's result, nor what to conclude: that biases the verdict (owner rule, 2026-09-18 — «no le digas a Yoda lo que tiene que buscar, que se busque la vida»). Same blind principle as the reviewers above. He renders a score. Below the user's bar (default **≥109/110**) → **Ultron** repairs exactly the points Yoda named. **Yoda does NOT run again** — no second verdict, no return to earlier reviewers. The fixes to Yoda's points are the last thing before Document.
+**PHASE B — once, when every phase of the issue and its checklist are done:**
 
-### Prompting the crew in Verify (calibrated per agent — NOT one size)
+4. **Moriarty** attacks what was already fixed: the code and the tests. One per part, or one for all.
+5. **What he breaks is fixed, once:** Ultron or Dante, whoever owns it; in parallel when the fixes don't collide.
+6. **Yoda — once.** He gets the ARTIFACT (including Moriarty's raw run log: commands and output, never his summary; without it he answers CANNOT JUDGE), the CONTRACT and the reference id, and finds his own evidence in the code, tests and memory. He is given no narrative and no conclusion («no le digas a Yoda lo que tiene que buscar, que se busque la vida»). **110 is perfection:** with any lower score he says what to fix to reach 110 and, if 110 cannot be reached, why (e.g. no E2E tests planned).
+7. **What Yoda names is fixed, once:** Ultron or Dante, whoever owns it. Reaching 110 is taken as given, and those fixes are checked by the scoped tests at Close (Step 7). Yoda does not run again.
+8. **Alexandria** documents what changed (Step 6).
 
-- **Cerberus / Argus**: detailed, spelled-out prompts help — name the files, the foci, the specific concerns. They are cartographers; more surface area given = more mapped.
+### Prompting the reviewers in Verify
+
+- **Cerberus, Argus and Yoda: blind.** They get the artifact, the contract and the reference, using the blind review template in `unmassk-core`. Never your conclusion or what to look for, and never «find the issues»: ask them to review and audit everything and say what they reviewed.
 - **Moriarty**: SHORT prompt (≈1 line) — name the target and the win condition, hand him NO vector list. A long prompt that pre-chews the attack vectors collapses his break rate and robs him of the only thing he's for — finding the break you didn't think of. Never lead the executioner.
 
 ### If producer↔consumer seam exists (network call, DB read/write, file written and reread)
 
-Triggered by the Step 0 seam declaration, regardless of size — this applies to a Quick or Standard feature exactly as it applies to a Big one. Apply `unmassk-standards` §34 (Producer↔Consumer Data Integrity). Not a new pipeline step — it runs inside this one:
+Triggered by the Step 0 seam declaration — a seam always makes the work Full. Apply `unmassk-standards` §34 (Producer↔Consumer Data Integrity). Not a new pipeline step — it runs inside this one:
 
-- **Dante** owns the round-trip check, never Ultron (the implementer does not verify his own write path). Add it as its own TodoWrite item in the Step 3 plan so it cannot be silently dropped from tracking.
+- **Dante** owns the round-trip check, never Ultron (the implementer does not verify his own write path). Add it as its own step in the Step 3 plan and the visible list so it cannot be silently dropped from tracking.
 - **Moriarty** runs his Round-Trip Sabotage mandate against the real dependency before declaring the feature holds up (AGUANTA).
 - **Cerberus** confirms no expected value in the round-trip test is a hand-typed literal.
 - **Yoda** applies his Round-Trip Evidence Rule — mechanical pass/fail on the artifact, no discretion — as part of his one verdict.
@@ -335,14 +344,15 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 
 **MANDATORY pre-merge gate — run ONLY the tests covering what you changed, NOT the whole suite.** [2026-09-18, owner rule — Bex] Run the tests of the modified area (a `-k`/path filter on the touched modules and their tests), never the full suite: it burns time and tokens for no added signal on a small change. Resolve the test command from the project profile (see "Project profile" above); if none is declared, detect it from the repo (`pytest`, `package.json` test script, `go test ./...`, `cargo test`, a `Makefile` target, …) and scope it to the change. The WHOLE suite is run by CI/CD when the work goes to staging or production; by hand ONLY if the owner explicitly asks. If a scoped test that passed before now fails, the change introduced a regression — fix before merging. **Never skip this gate; if you cannot find a test command, stop and ask the user.**
 
-Check the project's `repo_type` (`.claude/project-memory/config.json`; when it is not declared, the main branch counts as protected) — this step branches on it:
+Check the project's `repo_type` (`.claude/project-memory/config.json`; when it is not declared, the main branch counts as protected) — this step branches on it, and **runs without asking**:
 
-1. The orchestrator squashes the checkpoints accumulated by the pipeline into one real commit
-2. **Gitflow:** merge to dev (`git checkout dev && git merge --no-ff <branch>`) → push (`git push origin dev`). **Trunk:** squash lands directly on `main` → push `main` — no branch/merge step, `main` is the working branch.
+1. Squash the work's WIPs into one commit per step, **keeping memory-note commits out of the squash**. Until that is built and tested (issue #87), nothing is squashed: merge as is.
+2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
 3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
 5. Context commit: `context(<scope>): issue #N CLOSED`
 6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
+7. **Ask the owner whether to go on with the next step.** Moving from dev to staging or production is always asked first.
 
 ### If Merge Fails
 
@@ -357,7 +367,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | Step | Agent | Parallel? | Gate |
 | ---- | ----- | --------- | ---- |
 | — | ORCHESTRATOR | - | One feature in flight: previous closed before this starts |
-| 0 | ORCHESTRATOR | - | Triage classification + seam declaration |
+| 0 | ORCHESTRATOR | - | Procedure (Trivial / Short / Full) + seam declaration |
 | 1 | ORCHESTRATOR + User | No | Gray areas resolved + build mode decided |
 | 2 | Bilbo | No | Research complete |
 | 3 | ORCHESTRATOR | No | Plan written + checked |
@@ -377,8 +387,8 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | EXECUTE: deviation invalidates future task | Ultron STOPS, orchestrator amends plan |
 | EXECUTE: Ultron needs a test change for GREEN | Ultron STOPS, orchestrator routes the change to Dante (never lets Ultron touch the test) |
 | EXECUTE: user abandons mid-feature | WIP commit current state, context commit with Next trailer for future session |
-| VERIFY: Cerberus/Argus/Moriarty findings | Handled in-sequence — Ultron fixes code, Dante fixes tests, once each. No return to Execute, no re-review. |
-| VERIFY: Yoda scores below the bar | Ultron repairs exactly the points Yoda named. Yoda does NOT re-run — no second verdict. |
+| VERIFY: Cerberus/Argus/Moriarty findings | Check they are real. Ultron fixes code, Dante fixes tests, once each, always fresh agents. No re-review. |
+| VERIFY: Yoda scores below 110 | Ultron or Dante fix Yoda's points, once; 110 is taken as given and the Close tests check the fixes. If 110 cannot be reached, Yoda said why. Yoda does NOT re-run. |
 | CLOSE: no test command found | STOP, ask the user — do not skip the pre-merge gate |
 | CLOSE: merge conflict | Resolve or escalate; after resolution re-run only the test suite (not the whole Verify sequence) |
 | CLOSE: merge fails completely | Do NOT force push, escalate to user |

@@ -4,12 +4,12 @@ The *method* Flow's Execute step follows when the build mode is **linear** — t
 
 Linear changes the ORDER of code vs tests; it does not lower the bar. The code still MUST meet the toolkit's quality bar in `unmassk-standards/references/standards.md` (tiers T1/T2/T3).
 
-## Order — code first, tests after
+## Order — code first, then tests, then review
 
-1. **Ultron implements** the plan tasks (wave execution), in normal Implementation/Fix mode.
-2. **Dante tests after**, in Verify (Step 5, which owns the full agent sequence): covers what changed — happy path, error paths, edge cases — full EXHAUSTION PROTOCOL + coverage gate (≥90% functions / ≥80% error paths) against the real code. **Tests hit the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5).
+1. **Ultron implements** the plan phases (wave execution), in normal Implementation/Fix mode.
+2. **Dante writes the tests for what was built, before the review**: covers what changed — happy path, error paths, edge cases — full EXHAUSTION PROTOCOL + the project profile's coverage gate, against the real code. **Tests hit the real dependency by default** — real DB / seam / files; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end to reality (`unmassk-standards` §34.5).
 
-The full post-implementation sequence (Cerberus + Argus → Ultron fixes → Dante → Moriarty → Ultron+Dante repair → Yoda once) lives in Flow's Step 5 and is the same for linear and test-first.
+The full sequence after building (Cerberus + Argus over code and tests → one fix pass → Moriarty → one fix pass → Yoda → one fix pass → Alexandria) lives in Flow's Step 5 and is the same for linear and test-first.
 
 ## When to pick linear over test-first
 

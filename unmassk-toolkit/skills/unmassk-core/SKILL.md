@@ -138,11 +138,11 @@ A compaction is a summary someone else wrote, not a handover. Re-read the plan a
 
 ### You orchestrate, you don't code — or explore
 
-**Any change to production code or tests goes to the crew — there is no "trivial enough" exception.** That loophole is exactly how the orchestrator ends up editing tests it has no business touching. You decide WHAT and in which order; the sequence itself belongs to the pipeline skill, not here.
+**Any change to production code or tests goes to the crew, except flow's Trivial procedure**: quick, isolated, checkable at a glance, and with no logic, data, security, seam or new behavior. That one Claude does itself. If on inspection several things have to be redone, it is no longer trivial and goes to the crew. You decide WHAT and in which order; the sequence itself belongs to the pipeline skill, not here.
 
 | The change | Size that counts | Whose lane |
 |---|---|---|
-| Production code — app/library source, hooks, scripts | any — a semicolon counts | **Ultron** |
+| Production code — app/library source, hooks, scripts | any outside the Trivial procedure | **Ultron** |
 | Tests | any — a semicolon counts | **Dante** |
 | Review of either | any | **Cerberus / Argus / Moriarty / Yoda** — their own lanes |
 
@@ -161,7 +161,7 @@ Verification is not exploration: you open what the claim points at, not the surr
 **Bilbo's DEAD-ENDS are yours to save.** Every Bilbo report carries a `DEAD-ENDS` block — the paths he ruled out. He emits it; he never saves it. The moment it arrives, save it as one `M` note with `deadend` among its `--keys` and the two real zones of that subsystem, keeping his `@<short-sha>` anchor in the description. `DEAD-ENDS: none` saves nothing. Skip it and the next Bilbo walks the same paths again, because his boot search finds only what was saved.
 
 
-If the user says "do it yourself" — they mean YOU rather than through subagents (investigate, decide, write a doc or a skill). It still does NOT license editing production code or tests.
+If the user says "do it yourself" — they mean YOU rather than through subagents (investigate, decide, write a doc or a skill). It still does NOT license editing production code or tests outside flow's Trivial procedure.
 
 ### How to prompt agents — and inject the right skill
 
@@ -239,7 +239,7 @@ What never goes in: "I think the bug is in X", "this should be fine", "confirm t
 ### What you handle directly (everything else delegates)
 
 - **Conversation** — questions the user is asking YOU. Don't delegate talking.
-- **Code always delegates** — even a one-line fix, a semicolon, a typo goes to Ultron (production) or Dante (tests).
+- **Flow's Trivial procedure** — anything else, even one line, goes to Ultron (production) or Dante (tests).
 - **Simple git operations** — status, log, a commit you already know how to make.
 - **Your own orchestration files** — a skill, an agent definition, the instruction file, docs.
 
@@ -353,7 +353,7 @@ The router re-injects the `[orden]` reminder for this mode on every message whil
 | "I'll mention it in the next message" | An announced action that does not happen in the same turn does not exist (moment 3). |
 | "It's roughly N, that's close enough" | If the real number is one command away, measure it (moment 5). |
 | "I'll send this phase now and the other when it finishes" | If two phases don't touch the same file, they leave in the same message (moment 6). |
-| "It's an obvious change, I'll do it myself" | All code, down to a semicolon, goes to the crew (Delegation). |
+| "It's an obvious change, I'll do it myself" | Only if it is flow's Trivial procedure; anything more goes to the crew (Delegation). |
 | "The user said 'you decide', but I'll confirm before executing" | That is bouncing back a decision that is already yours (Autonomy). |
 | "The user asked what's next, so I'll start" | A question is never a go (Autonomy). |
 | "I'll save this rule, it's important" | List the existing rules first. Saving without listing is how four identical rules pile up. |
