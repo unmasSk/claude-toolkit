@@ -83,7 +83,9 @@ Classify the work BEFORE anything else. Decide together with the user. (First ru
 
 The owner speaks Spanish: Trivial / Short / Full are *procedimiento trivial / corto / completo*.
 
-**Before starting, Claude states the procedure in one line. When in doubt, the bigger one**; a Trivial that grows on inspection becomes Short.
+**Before starting, Claude states the procedure in one line. When in doubt, the bigger one**; a Trivial that grows on inspection becomes Short. Then create the task-list box of the procedure chosen — `Procedimiento: Trivial`, `Procedimiento: Corto` or `Procedimiento: Completo` — and only that procedure's boxes, as the loaded checklist lists them: the closing check reads that box to know which list applies (no box = the whole list).
+
+**A plan file belongs to Full only.** Trivial and Short carry no written plan (Steps 3 and 4's plan gate apply to Full); the issue with its checklist is opened only when the work crosses sessions.
 
 Triage settles **size** (knowable early: files touched, whether it hits auth/data/permissions). It may also **propose** a tentative build mode (test-first vs linear), but the mode is NOT locked here — the feature isn't understood yet. The firm build-mode decision happens at the end of Brainstorm (Step 1), once the gray areas are resolved.
 
@@ -229,7 +231,7 @@ Everything below (waves, deviation rules, circuit breaker, tracking) applies to 
 
 ### Pre-execution Gate
 
-MANDATORY: Read the plan file before any implementation. Verify the plan exists and is checked. If no plan file exists, STOP — do not implement from memory or conversation context alone.
+MANDATORY (Full): Read the plan file before any implementation. Verify the plan exists and is checked. If a Full change has no plan file, STOP — do not implement from memory or conversation context alone.
 
 ### Wave Execution
 
@@ -347,12 +349,12 @@ Merge ceremony. Only after VERIFY passes and DOCUMENT completes.
 Check the project's `repo_type` (`.claude/project-memory/config.json`; when it is not declared, the main branch counts as protected) — this step branches on it, and **runs without asking**:
 
 1. Every step is already one commit (see «Progress Tracking»); squash any step still pending the same way. Until the squash is built and tested (issue #87), nothing is squashed: merge as is.
-2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
+2. **Gitflow:** merge to dev (`git switch dev && git merge --no-ff <branch>`; the merge commit carries the summary listing the step commits) → push (`git push origin dev`). No merge gate stops a merge into dev: the work already went through its reviewers here (D-119). **Trunk:** the commits land on `main` → push `main` — no branch/merge step, `main` is the working branch.
 3. Close issue: `gh issue close N --comment "Feature complete — [summary]"`
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
 5. Nothing else to record: the issue's closing comment and the step/merge commits are the record — there is no separate "context" commit (a bare commit is bounced by the commit gate).
 6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
-7. **Ask the owner whether to go on with the next task.** One branch per task: it is deleted the moment it is merged to dev (the session close only sweeps forgotten ones). Moving from dev to staging or production is always asked first.
+7. **Ask the owner whether to go on with the next task.** One branch per task: it is deleted the moment it is merged to dev (the session close only sweeps forgotten ones). Moving from dev to staging or production is always asked first, and that merge goes through the heavy gate: Cerberus and Argus on the whole incoming batch, Alexandria checking CHANGELOG and version, the owner's yes; the full suite runs in CI on push (D-120).
 
 ### If Merge Fails
 

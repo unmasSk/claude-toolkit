@@ -84,7 +84,7 @@ A block with no skill (block 4, and any gap noted during design) is documented i
 | Integration tests | Verify real components collaborate correctly | — | Mandatory |
 | End-to-end tests | Verify the full flow from the public entry point | — | Conditional — if there's a UI or a critical multi-service flow |
 | Contract tests | Producer and consumer of an API honor the same contract without co-deploying | — | Conditional — if two or more services talk over an API |
-| Coverage threshold | CI gate that blocks merge below a number | ~90% functions / ~80% error paths | Mandatory |
+| Coverage figure | Coverage reported in CI as a figure; the minimum, if any, is set by the project, not by the toolkit | ~90% functions / ~80% error paths as a reference | Conditional — the project decides whether a minimum blocks |
 | Real-dependency tests (no infra mocks) | The feature's core seam runs at least once against a real, disposable dependency | — | Mandatory |
 | Factories / fixtures | Reusable test-data builders instead of hardcoded objects | — | Mandatory |
 | Production guard | A technical guard (not a convention) that aborts the suite if it points at production | — | Mandatory |
@@ -172,7 +172,7 @@ A block with no skill (block 4, and any gap noted during design) is documented i
 |---|---|---|
 | README + 3-audience docs | Every capability documented for repo visitors, the team, and the loading AI, in the same change | Mandatory |
 | CHANGELOG | Versioned record of notable changes, human-written, not raw commit dumps | Mandatory |
-| Branching / repo type | Explicit, persisted decision: trunk (main is the working branch) vs gitflow (main protected, PR) | Mandatory |
+| Branching / repo type | Explicit, persisted decision: trunk (main is the working branch) vs gitflow (work branches merge into dev with no gate; dev to staging and production goes through the heavy gate and the owner's yes) | Mandatory |
 | TODO-with-issue | A `TODO` in code is only valid if it references a tracked issue | Mandatory |
 
 ## Block 12 — Engineering principles (the discipline that governs how all code is written)
