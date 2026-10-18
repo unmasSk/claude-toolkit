@@ -33,11 +33,11 @@ never sees it. match_skills() checks both tables together.
 
 REMINDER_TRIGGERS / match_reminders() is a second, unrelated table for
 owner orders that are NOT skill invocations -- direct behavioural
-corrections already written into CLAUDE.md's "broncas" section (silence,
-answer-first, delegate-research-to-Bilbo, literal-stop). Same matching
-discipline (normalized substring, never raises), separate result shape:
-a list of (key, Spanish reminder text) pairs, since more than one order
-can legitimately fire on the same message.
+corrections already written into CLAUDE.md's "broncas" section
+(answer-first, delegate-research-to-Bilbo, literal-stop, automatic-mode).
+Same matching discipline (normalized substring, never raises), separate
+result shape: a list of (key, Spanish reminder text) pairs, since more
+than one order can legitimately fire on the same message.
 """
 
 import unicodedata
@@ -143,13 +143,6 @@ def match_skills(prompt_text: str) -> list[str]:
 # does not misfire (verified against the test file's explicit negative
 # cases).
 REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
-    "silencio": {
-        "phrases": ["silencio", "no digas nada", "callate"],
-        "text": (
-            "silencio literal: ni progreso ni vigias; si escribes, es una "
-            "pregunta y te paras"
-        ),
-    },
     "respuesta-primero": {
         "phrases": ["si o no", "contestame"],
         "text": (
@@ -174,9 +167,11 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
         ],
         "text": (
             "modo automatico: ejecuta todo el tablero, decide por el (la "
-            "opcion mas enterprise), en pantalla solo 'silencio' o 'agente N "
-            "de M', y al acabar UN informe: bien / probado / decisiones "
-            "tomadas por el / errores (unmassk-core, seccion Modo automatico)"
+            "opcion mas enterprise); mientras trabajas, ni parrafadas ni "
+            "silencio: una linea numerada por cada agente o paso que termina, "
+            "tachandolo en la lista, con emojis, sin aviso de voz; y al acabar "
+            "UN informe: bien / probado / decisiones tomadas por el / errores "
+            "(unmassk-core, seccion Modo automatico)"
         ),
     },
 }
