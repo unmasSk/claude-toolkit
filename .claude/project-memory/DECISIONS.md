@@ -91,3 +91,4 @@
 [D-117][release][memory] a task's branch lives until the task ends; merged to dev, it is deleted at once
 [D-118][memory][release] commit protocol: orchestrator saves a WIP per agent, one commit per step
 [D-119][hooks][release] merge gate: nothing on merges into dev; the heavy gate only from dev to staging
+[D-120][hooks][release] staging gate: Cerberus+Argus on the whole batch, Alexandria, Bex's yes
