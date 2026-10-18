@@ -81,3 +81,4 @@
 [D-090][boot][hooks] live panel mod for agent and session timings, apart from #84
 [D-091][skills][architecture] council gains an ideation round when no options exist yet, adhd-style
 [D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
+[D-093][boot][skills] boot slimming: what leaves a boot-read file never enters another one
