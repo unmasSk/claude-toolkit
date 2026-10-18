@@ -6,7 +6,6 @@
 [remember][user] 🧠 no se habla nunca de chatroom: ni el subproyecto, ni sus issues, ni nada relacionado — parado y callado hasta que yo lo saque
 [remember][user] 🧠 haz exactamente lo pedido y nada mas: si no lo he pedido, no lo montes — preguntame antes de anadir nada
 [remember][user] 🧠 pon un tick verde delante de la frase cuando me hables a mi directamente; sin tick cuando solo informas de agentes o de estado
-[remember][user] 🧠 contrato y revision solo cuando un fallo pierde datos en silencio; plan solo cuando el trabajo cruza sesiones
 [remember][user] 🧠 cuando digas una hora, di siempre si es UTC o espanola; nunca sueltes una hora a secas
 [remember][user] 🧠 los prompts a los agentes deben ser cortos: solo el QUE, nunca el COMO -- el agente ya tiene sus instrucciones en su propia definicion
 [remember][user] 🧠 nunca proponer cerrar la sesion ni aplazar trabajo -- el usuario decide cuando parar
@@ -65,3 +64,4 @@
 [remember][user] 🧠 al hablar de tareas, fases y pasos, referenciarlos a Bex solo por su numero: «vamos por el 1.1.2», «pasamos al 1.3» — «tú a mí me vas a referenciar eso con 1-1, 1-2, 2-1, 2-3»
 [remember][user] 🧠 al decidir, lo primero es lo que hace el sector (plataformas grandes, seniors): si lo hace el 80-90%, se decide sin preguntar; solo si esta al 50/50 se pregunta a Bex, con una opcion recomendada — «lo primero es qué haría el sector. Luego si es un 50%, 50%, entonces sí pregunto con una opción recomendada. Pero si el sector es un 80%, un 90% que lo hacen siempre, pues es evidente»
 [remember][user] 🧠 cada paso queda registrado en un WIP; al terminar el paso, sus WIPs se juntan en un commit que se sube; lo trivial es un commit normal — «Me da igual que no se pushee. Mientras se quede registrado cada paso en un WIP y luego se condensa todos en uno.»
+[remember][user] 🧠 plan de ejecucion escrito solo en el procedimiento Completo; la issue con lista solo cuando el trabajo cruza sesiones; el Corto no lleva plan — «uno corto lleva plan? no creo es corto es por ejemplo crea unos gtest»
