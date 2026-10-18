@@ -26,7 +26,8 @@ FORMATO DEL COMMIT:
     [remember][user] 🧠 <texto>
     [remember][claude] 🧠 <texto>
 
-Solo titular, en espanol, sin cuerpo, tope de 200 caracteres.
+Titular en espanol, tope de 200 caracteres. Cuerpo: solo
+`Searched: <lo buscado>` cuando se da (D-098); nunca entra en `rules.md`.
 
 `add()` (I-003) comitea de verdad: escribe la linea en el fichero
 (`gitcmd.atomic_write()`, atomico) y la comitea con
@@ -84,7 +85,15 @@ from rules_validate import (
 )
 
 
-def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN) -> WriteResult:
+def _with_searched(subject: str, searched: str | None) -> str:
+    """El commit lleva `--searched` en su cuerpo [D-098]; `rules.md` solo
+    recibe el titular, asi que lo buscado nunca entra en el fichero."""
+    if searched is None:
+        return subject
+    return f"{subject}\n\nSearched: {searched}"
+
+
+def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None) -> WriteResult:
     """Anade una regla: una linea mas en el fichero de reglas, escrita de
     forma atomica, seguida de un commit real. `ok=True` implica que el
     commit existe de verdad, nunca solo que el fichero se escribio.
@@ -159,7 +168,8 @@ def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN) -> WriteResult:
         # `file_existed_before` viaja para que, si el commit falla en el
         # primer remember del proyecto, se borre el fichero entero en vez
         # de restaurarlo a una cabecera huerfana.
-        git_error = commit_or_restore(path, previous_content, subject, root, file_existed_before)
+        message = _with_searched(subject, searched)
+        git_error = commit_or_restore(path, previous_content, message, root, file_existed_before)
         if git_error is not None:
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_error)
 
@@ -226,7 +236,9 @@ def retract(text: str, kind: str) -> WriteResult:
         return WriteResult(ok=True, note_id=None, rejections=(), git_error=None)
 
 
-def replace(old_text: str, new_text: str, kind: str, quote=QUOTE_NOT_GIVEN) -> WriteResult:
+def replace(
+    old_text: str, new_text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
+) -> WriteResult:
     """Sustituye una regla: quita la linea `[kind]` cuyo texto BASE case
     exacto con `old_text` y anade `new_text` en su lugar, en UN SOLO
     `atomic_write()` seguido de UN SOLO `commit_or_restore()` -- nunca
@@ -282,7 +294,7 @@ def replace(old_text: str, new_text: str, kind: str, quote=QUOTE_NOT_GIVEN) -> W
             new_subject += f" — «{quote}»"
 
         new_content = content_without_old + new_subject + "\n"
-        message = f"[remember][replace][{kind}] {emoji} {old_text} -> {new_text}"
+        message = _with_searched(f"[remember][replace][{kind}] {emoji} {old_text} -> {new_text}", searched)
 
         gitcmd.atomic_write(path, new_content)
 

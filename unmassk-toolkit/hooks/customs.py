@@ -330,6 +330,69 @@ def _find_commit_creating_statement(command):
     return None
 
 
+# ── D-098/D-124: antes de `gitmem note`/`gitmem rule` que guarda, la
+# pregunta "¿lo busqué...?" -- el mismo rechazo que da el comando
+# (`validator.validate_searched`), aqui antes de que corra. ──────────────
+
+_GITMEM_PROGRAM_TOKEN_RE = re.compile(r"(?:^|/)gitmem$")
+_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# Los flags de `bin/memory/rule.py`, todos con un valor detras.
+_RULE_VALUE_FLAGS = frozenset({"--kind", "--quote", "--retract", "--replaces", "--searched"})
+# Mismas dos palabras que `rule.py::_LEEN_EN_VEZ_DE_ESCRIBIR`: leen, no guardan.
+_RULE_READ_WORDS = ("list", "ls")
+
+
+def _flag_value(tokens, flag):
+    """El valor de `flag` en `tokens` (`--flag X` o `--flag=X`), o `None`."""
+    for i, tok in enumerate(tokens):
+        if tok == flag:
+            return tokens[i + 1] if i + 1 < len(tokens) else None
+        if tok.startswith(flag + "="):
+            return tok[len(flag) + 1:]
+    return None
+
+
+def _rule_saves(rest):
+    """`gitmem rule ...` guarda (alta o `--replaces`) -- leer, `list`/`ls`
+    y `--retract` no."""
+    flags = {tok.split("=", 1)[0] for tok in rest if tok.startswith("--")}
+    if "--retract" in flags:
+        return False
+    if "--replaces" in flags:
+        return True
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok in _RULE_VALUE_FLAGS:
+            i += 2
+            continue
+        if not tok.startswith("--"):
+            return tok.strip().lower() not in _RULE_READ_WORDS
+        i += 1
+    return False
+
+
+def _find_unanswered_gitmem_save(command):
+    """`(stmt_index, tokens)` de la primera sentencia que ES un `gitmem
+    note`/`gitmem rule` que guarda sin `--searched` con contenido, o
+    `None`. Solo cuenta `gitmem` en posicion de programa: un `grep
+    "gitmem note"` o un `echo gitmem note` solo lo mencionan."""
+    statements = _shell_statements(command)
+    if statements is None:
+        return None
+    for stmt_index, statement in enumerate(statements):
+        tokens = list(statement)
+        while tokens and _ENV_ASSIGNMENT_RE.match(tokens[0]):
+            tokens.pop(0)
+        if len(tokens) < 2 or not _GITMEM_PROGRAM_TOKEN_RE.search(tokens[0]):
+            continue
+        sub, rest = tokens[1], tokens[2:]
+        saves = sub == "note" or (sub == "rule" and _rule_saves(rest))
+        if saves and not validator.searched_given(_flag_value(rest, "--searched")):
+            return stmt_index, tokens
+    return None
+
+
 _GIT_BASH_DRIVE_RE = re.compile(r"^/([A-Za-z])(/.*)?$")
 
 
@@ -777,6 +840,10 @@ def _decide(hook_input):
     if not command:
         return {"decision": "approve"}
 
+    blocked = _decide_gitmem_save(command, hook_input)
+    if blocked is not None:
+        return blocked
+
     found = _find_commit_creating_statement(command)
     if found is None:
         return {"decision": "approve"}
@@ -800,6 +867,18 @@ def _decide(hook_input):
     # -- ese es el directorio a donde bash se movio TRAS commitear, ya
     # sin relacion con el commit que se acaba de crear [fase 2, hallazgo
     # Cerberus 2026-08-06].
+    pm, cfg, early = _active_customs(command, hook_input, stmt_index)
+    if early is not None:
+        return early
+
+    return _decide_commit_creating(subcommand, rest_tokens, pm, cfg)
+
+
+def _active_customs(command, hook_input, stmt_index):
+    """`(pm, cfg, None)` con la aduana encendida para el proyecto donde
+    corre la sentencia `stmt_index`, o `(None, None, decision)` si la
+    decision ya esta tomada (sin repo / aduana apagada: aprueba;
+    config.json corrupto: bloquea)."""
     session_cwd = hook_input.get("cwd") or os.getcwd()
     cwd = _resolve_effective_cwd(command, session_cwd, limit_index=stmt_index)
 
@@ -809,19 +888,33 @@ def _decide(hook_input):
         # No hay repositorio git de verdad en `cwd` -- git mismo va a
         # rechazar el comando por su cuenta; no es responsabilidad de
         # esta pieza suplir ese diagnostico.
-        return {"decision": "approve"}
+        return None, None, {"decision": "approve"}
 
     pm = root / ".claude" / "project-memory"
     try:
         cfg = config.load(pm / "config.json")
     except Exception as exc:
         reason = rejection_.render_hook_block(_corrupt_file_rejection("config.json", exc))
-        return {"decision": "block", "reason": reason}
+        return None, None, {"decision": "block", "reason": reason}
 
     if not _customs_active(cfg, pm):
-        return {"decision": "approve"}
+        return None, None, {"decision": "approve"}
+    return pm, cfg, None
 
-    return _decide_commit_creating(subcommand, rest_tokens, pm, cfg)
+
+def _decide_gitmem_save(command, hook_input):
+    """D-098: bloquea un `gitmem note`/`gitmem rule` que guarda sin
+    `--searched`, con la aduana encendida. `None` si no hay nada que
+    bloquear aqui -- el resto de `_decide` sigue su camino."""
+    found = _find_unanswered_gitmem_save(command)
+    if found is None:
+        return None
+    stmt_index, tokens = found
+    _, _, early = _active_customs(command, hook_input, stmt_index)
+    if early is not None:
+        return early if early["decision"] == "block" else None
+    reason = rejection_.render_hook_block(validator.validate_searched(None, tokens))
+    return {"decision": "block", "reason": reason}
 
 
 def main():

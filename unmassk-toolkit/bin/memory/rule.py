@@ -15,11 +15,15 @@ test_rule_script.py, que la fija por simetria con como argparse ya trata
 un posicional opcional en el resto del sistema, antes de que este
 fichero existiera]:
 
-    rule.py "<texto>" [--kind <user|claude>] [--quote "<cita literal>"]
+    rule.py "<texto>" [--kind <user|claude>] [--quote "<cita literal>"] \\
+            --searched "<lo buscado>: <lo encontrado>"
     rule.py                                       # imprime rules.md entero
     rule.py --retract "<texto exacto>" --kind <user|claude>
     rule.py "<texto nuevo>" --replaces "<texto viejo>" \\
-            --kind <user|claude> [--quote "<cita>"|none]
+            --kind <user|claude> [--quote "<cita>"|none] --searched "..."
+
+`--searched` [D-098/D-124]: alta y `--replaces` lo exigen; leer y
+`--retract`, no.
 
 `--retract`/`--replaces` [contrato fijado por
 test_rule_retract_replace_contract.py, test-first]: `--kind` es
@@ -65,6 +69,7 @@ force_utf8_streams()
 
 import rejection as rejection_  # noqa: E402
 import rules as rules_lib  # noqa: E402
+import validator  # noqa: E402
 from emojis import CHANNEL_EMOJI  # noqa: E402
 
 _DEFAULT_KIND = "user"
@@ -92,6 +97,9 @@ def _parse_args(argv):
     parser.add_argument("--quote", default=None)
     parser.add_argument("--retract", default=None)
     parser.add_argument("--replaces", default=None)
+    # D-098: obligatorio al guardar; lo exige `main()` con la pregunta,
+    # nunca argparse (su `usage:` no es la pregunta).
+    parser.add_argument("--searched", default=None)
     return parser.parse_args(argv)
 
 
@@ -137,7 +145,23 @@ def _render_similar_rejection(candidates, kind, text):
     return "\n".join(lines)
 
 
-def _cmd_add(text, kind, quote):
+def _print_rejection(one_rejection, searched):
+    """El rechazo arrastra el `--searched` ya contestado en sus
+    relanzamientos [D-098, ver `validator.carry_searched`]."""
+    print(rejection_.render_terminal(validator.carry_searched(one_rejection, searched, "gitmem rule ")))
+
+
+def _searched_rejection(args, argv):
+    """D-098: alta y `--replaces` exigen `--searched`; imprime la pregunta
+    con el relanzamiento exacto. `True` si rebota."""
+    rejection = validator.validate_searched(args.searched, ["gitmem", "rule", *argv])
+    if rejection is None:
+        return False
+    print(rejection_.render_terminal(rejection))
+    return True
+
+
+def _cmd_add(text, kind, quote, searched):
     similar = rules_lib.similar_existing(text)
     # El rechazo solo dispara si la casi-duplicada es del MISMO dueno --
     # `rules.similar_existing()` (docstring, endurecimiento 2026-08-04):
@@ -151,11 +175,11 @@ def _cmd_add(text, kind, quote):
         print(_render_similar_rejection(similar, kind, text))
         return 1
 
-    result = rules_lib.add(text, kind, quote=quote)
+    result = rules_lib.add(text, kind, quote=quote, searched=searched)
     if not result.ok:
         if result.rejections:
             for one_rejection in result.rejections:
-                print(rejection_.render_terminal(one_rejection))
+                _print_rejection(one_rejection, searched)
             return 1
         # Texto de respaldo (nitpick de Cerberus/Argus, 2026-08-23): un
         # `git_error` vacio o `None` (git fallo sin escribir nada en
@@ -203,7 +227,7 @@ def _cmd_retract(text, kind):
     return 0
 
 
-def _cmd_replace(new_text, old_text, kind, quote):
+def _cmd_replace(new_text, old_text, kind, quote, searched):
     if new_text is None:
         print(_NEW_TEXT_REQUIRED_MSG, file=sys.stderr)
         return 1
@@ -211,11 +235,11 @@ def _cmd_replace(new_text, old_text, kind, quote):
         print(_KIND_REQUIRED_MSG.format(flag="--replaces"), file=sys.stderr)
         return 1
 
-    result = rules_lib.replace(old_text, new_text, kind, quote=quote)
+    result = rules_lib.replace(old_text, new_text, kind, quote=quote, searched=searched)
     if not result.ok:
         if result.rejections:
             for one_rejection in result.rejections:
-                print(rejection_.render_terminal(one_rejection))
+                _print_rejection(one_rejection, searched)
             return 1
         detalle = result.git_error or "git no dio detalle"
         print(f"git fallo al sustituir la regla: {detalle}", file=sys.stderr)
@@ -231,7 +255,9 @@ def main(argv):
     if args.retract is not None:
         return _cmd_retract(args.retract, args.kind)
     if args.replaces is not None:
-        return _cmd_replace(args.text, args.replaces, args.kind, args.quote)
+        if _searched_rejection(args, argv):
+            return 1
+        return _cmd_replace(args.text, args.replaces, args.kind, args.quote, args.searched)
     if args.text is not None:
         palabra = args.text.strip().lower()
         if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:
@@ -245,8 +271,10 @@ def main(argv):
             "   Para guardar una nueva:    gitmem rule \"<la regla entera, en una frase>\""
         )
         return 1
+    if _searched_rejection(args, argv):
+        return 1
     kind = args.kind or _DEFAULT_KIND
-    return _cmd_add(args.text, kind, args.quote)
+    return _cmd_add(args.text, kind, args.quote, args.searched)
 
 
 if __name__ == "__main__":

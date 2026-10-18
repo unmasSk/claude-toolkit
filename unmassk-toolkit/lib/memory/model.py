@@ -71,6 +71,7 @@ class Note:
     awaits: str | None = None      # solo en B
     issue: int | None = None       # opcional en los siete tipos; apunta a la issue del trabajo que la nota reclama
     quote: str | None = None       # solo Q/I; el "no" literal del dueño cuando --issue none (D-065/D-066)
+    searched: str | None = None    # lo buscado y lo encontrado antes de guardar (D-098, --searched)
 
 
 @dataclass(frozen=True)

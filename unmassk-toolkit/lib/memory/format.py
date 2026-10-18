@@ -241,7 +241,7 @@ def parse_subject(text: str) -> _SubjectParts | None:
 # Message: subject + linea en blanco + campos del cuerpo (TEXTOS Sec.5)
 # ---------------------------------------------------------------------------
 
-_BODY_FIELD_ORDER = ("Why", "Awaits", "Keys", "Description", "Replaces", "Origin", "Issue", "Quote")
+_BODY_FIELD_ORDER = ("Why", "Awaits", "Keys", "Description", "Replaces", "Origin", "Issue", "Quote", "Searched")
 _BODY_FIELD_RE = re.compile(
     r"^(" + "|".join(_BODY_FIELD_ORDER) + r"):[ ]?(.*)$"
 )
@@ -270,6 +270,8 @@ def _body_field_line(label: str, note: Note) -> str | None:
         return f"Issue: #{note.issue}" if note.issue is not None else None
     if label == "Quote":
         return _fold("Quote", note.quote) if note.quote is not None else None
+    if label == "Searched":
+        return _fold("Searched", note.searched) if note.searched is not None else None
     raise ValueError(f"format.py: campo de cuerpo desconocido {label!r}")  # pragma: no cover
 
 
@@ -361,6 +363,7 @@ def parse_message(text: str) -> Note | None:
             awaits=fields.get("Awaits"),
             issue=issue,
             quote=fields.get("Quote"),
+            searched=fields.get("Searched"),
         )
     except Exception:
         return None

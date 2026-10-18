@@ -29,7 +29,7 @@ gramatica antes de que este fichero existiera]:
         [--replaces <ID>|none] [--awaits "..."] [--issue N|none] \\
         [--work no] [--quote "..."] \\
         [--discard "<titular alternativa>" "<porque>" ...] \\
-        [--promotes <ID de una Q>]
+        [--promotes <ID de una Q>] --searched "<lo buscado>: <lo encontrado>"
 
 `--work`/`--quote` [D-065/D-066, 2026-08-26]: la aduana de issues,
 exclusiva de Q/I -- sin `--issue` ni `--work`, rebota pidiendo que se
@@ -137,6 +137,9 @@ def _parse_args(argv):
     parser.add_argument("--work", choices=("no",), default=None)
     parser.add_argument("--quote", default=None)
     parser.add_argument("--promotes", default=None)  # 2026-08-05: asciende una Q
+    # D-098: obligatorio, pero lo exige `main()` con la pregunta -- un
+    # `required=True` daria el `usage:` de argparse en vez de la pregunta.
+    parser.add_argument("--searched", default=None)
     parser.add_argument(
         "--discard", action="append", nargs=2, metavar=("HEADLINE", "WHY"), default=None
     )
@@ -273,6 +276,7 @@ def _build_candidate(args, normalized_keys, zone1, zone2):
         awaits=args.awaits,
         issue=issue,
         quote=args.quote,
+        searched=args.searched,
     )
 
 
@@ -329,6 +333,13 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
     print("\n".join(lines))
 
 
+def _print_rejection(one_rejection, args):
+    """Todo rechazo de este script arrastra el `--searched` ya contestado
+    en sus relanzamientos [D-098, ver `validator.carry_searched`]."""
+    carried = validator.carry_searched(one_rejection, args.searched, "gitmem note ")
+    print(rejection_.render_terminal(carried))
+
+
 def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
     """Rama `--discard`: `notes.discard_alternatives()` escribe la
     decision y cada alternativa, cada una en su propio commit [PIEZAS.md
@@ -343,7 +354,7 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
     if not decision_result.ok:
         if decision_result.rejections:
             for one_rejection in decision_result.rejections:
-                print(rejection_.render_terminal(one_rejection))
+                _print_rejection(one_rejection, args)
             return 1
         print(f"git fallo al guardar la nota: {decision_result.git_error}", file=sys.stderr)
         return 1
@@ -354,7 +365,7 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
         for result in failed:
             if result.rejections:
                 for one_rejection in result.rejections:
-                    print(rejection_.render_terminal(one_rejection))
+                    _print_rejection(one_rejection, args)
             else:
                 print(f"git fallo al guardar un descarte: {result.git_error}", file=sys.stderr)
         return 1
@@ -388,7 +399,7 @@ def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
     if not result.ok:
         if result.rejections:
             for one_rejection in result.rejections:
-                print(rejection_.render_terminal(one_rejection))
+                _print_rejection(one_rejection, args)
             return 1
         print(f"git fallo al guardar la nota: {result.git_error}", file=sys.stderr)
         return 1
@@ -400,6 +411,11 @@ def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
 def main(argv):
     args = _parse_args(argv)
 
+    searched_rejection = validator.validate_searched(args.searched, ["gitmem", "note", *argv])
+    if searched_rejection is not None:
+        print(rejection_.render_terminal(searched_rejection))
+        return 1
+
     root = notes.repo_root()
     pm = notes.pm_root(root)
     ctx, zone1, zone2 = _build_context(pm, args.zones[0], args.zones[1])
@@ -409,7 +425,7 @@ def main(argv):
 
     pain_rejection = validator.validate_pain_question(candidate, args.stops)
     if pain_rejection is not None:
-        print(rejection_.render_terminal(pain_rejection))
+        _print_rejection(pain_rejection, args)
         return 1
 
     # La aduana de issues [D-065/D-066, 2026-08-26]: la vara de medir
@@ -418,7 +434,7 @@ def main(argv):
     # "none explicito" [ver docstring de `_build_candidate`].
     gate_rejection = validator.validate_issue_gate(candidate, args.issue, args.work)
     if gate_rejection is not None:
-        print(rejection_.render_terminal(gate_rejection))
+        _print_rejection(gate_rejection, args)
         return 1
 
     try:
@@ -427,7 +443,7 @@ def main(argv):
         print(f"no se pudo comprobar la issue #{candidate.issue}: {exc}", file=sys.stderr)
         return 1
     if issue_rejection is not None:
-        print(rejection_.render_terminal(issue_rejection))
+        _print_rejection(issue_rejection, args)
         return 1
 
     # `--discard` es su propio flujo: la nota se escribe via

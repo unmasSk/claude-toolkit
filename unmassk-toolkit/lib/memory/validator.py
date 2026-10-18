@@ -114,7 +114,9 @@ arriba) porque solo ``bin/memory/note.py`` conoce la diferencia entre
 entra: solo puede invocarse antes de que la ``Note`` este terminada.
 """
 
+import dataclasses
 import re
+import shlex
 from dataclasses import dataclass
 
 from config import Config
@@ -517,3 +519,71 @@ def is_wip(subject: str) -> bool:
     reconocerlos los sometería a preguntas que en su dia no tuvieron.
     """
     return subject.startswith((f"{_WIP_PREFIX} {_WIP_MARKER}", _WIP_MARKER))
+
+
+# D-098/D-124: la pregunta antes de guardar, en palabras del propietario.
+SEARCHED_QUESTION = "¿lo busqué y no está ya escrito ni es sentido común?"
+_SEARCHED_FLAG = "--searched"
+_SEARCHED_PLACEHOLDER = "<lo que busqué>: <lo que encontré>"
+
+
+def searched_given(value: str | None) -> bool:
+    """`--searched` contestado: cualquier texto no vacio vale [X-105:
+    nadie comprueba QUE se busco]."""
+    return value is not None and bool(value.strip())
+
+
+def _without_searched(tokens: list[str]) -> list[str]:
+    """`tokens` sin ninguna aparicion de `--searched` (forma `--searched X`
+    o `--searched=X`) -- para que el relanzamiento no lleve dos."""
+    out = []
+    skip_next = False
+    for token in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == _SEARCHED_FLAG:
+            skip_next = True
+            continue
+        if token.startswith(_SEARCHED_FLAG + "="):
+            continue
+        out.append(token)
+    return out
+
+
+def validate_searched(searched: str | None, command_tokens: list[str]) -> Rejection | None:
+    """D-098: `gitmem note`/`gitmem rule` que guarda sin `--searched` con
+    contenido rebota con la pregunta. `command_tokens` es el comando tal
+    cual se tecleo (`["gitmem", "note", ...]`): el relanzamiento es ese
+    mismo comando, cada valor intacto, mas `--searched`."""
+    if searched_given(searched):
+        return None
+    relaunch = shlex.join(_without_searched(list(command_tokens)) + [_SEARCHED_FLAG, _SEARCHED_PLACEHOLDER])
+    options = (
+        "Antes de guardar, contesta:",
+        "",
+        f"  {SEARCHED_QUESTION}",
+        "",
+        f"Busca en la memoria y di con {_SEARCHED_FLAG} lo que buscaste y lo que encontraste,",
+        'p. ej. --searched \'busqué "squash": encontré D-057\'.',
+    )
+    return rejection_.build(
+        kind="missing_searched",
+        what=f"falta {_SEARCHED_FLAG}: no consta que lo buscaras antes de guardarlo",
+        options=options,
+        command=(relaunch,),
+    )
+
+
+def carry_searched(r: Rejection, searched: str | None, prefix: str) -> Rejection:
+    """Otro rechazo, ya contestado `--searched`: sus relanzamientos que
+    empiezan por `prefix` lo arrastran, o obedecerlos rebota otra vez en
+    D-098 y la respuesta se pierde."""
+    if not searched_given(searched):
+        return r
+    suffix = f" {_SEARCHED_FLAG} {shlex.quote(searched)}"
+    relaunch = tuple(
+        command + suffix if command.startswith(prefix) and _SEARCHED_FLAG not in command else command
+        for command in r.relaunch
+    )
+    return dataclasses.replace(r, relaunch=relaunch)
