@@ -43,18 +43,22 @@ Before step 0, create the app's task list (TodoWrite or its equivalent) with one
 3. List existing tests (detect test directory convention: `__tests__/`, `tests/`, `*_test.*`, `*.test.*`).
 4. Map imports/exports and inter-module dependencies.
 5. Run existing tests using the project's test runner (e.g., `npx vitest run`, `pytest`, `go test ./...` — detect from project config).
-6. Produce summary table: file | LOC | existing tests | visible problems.
+6. Produce summary table: file | LOC | existing tests | imports from | consumed by | visible problems.
 7. Flag large files, missing tests, or visible anti-patterns.
+8. Classify each failing test: broken test, or source blocker (step 2 routes on it).
 
 Prompt template: see `prompts/bilbo.md`
 
-### Step 2 -- Fix Critical Blockers (Ultron)
+### Step 2 -- Fix Critical Blockers (Dante / Ultron)
 
 Only if step 1 reported broken tests or critical blockers preventing further work.
 
-1. Fix broken tests BEFORE touching source code.
-2. Run tests twice to confirm stability.
-3. If nothing is broken, skip to step 3.
+1. Send broken tests to Dante first.
+2. Send source blockers to Ultron, after Dante: the blockers Bilbo reported and the ones Dante reports back.
+3. Run tests twice to confirm stability.
+4. If nothing is broken, skip to step 3.
+
+Prompt templates: see `prompts/dante.md` (Template 3: Broken Tests) and `prompts/ultron.md`
 
 ### Step 3 -- Golden Tests (Dante -- parallel)
 
@@ -88,7 +92,7 @@ Run in parallel with step 3 (independent work). Cerberus and Argus run simultane
 
 ORCHESTRATOR (Claude + User) compiles findings from both Cerberus and Argus into a single findings table.
 
-Prompt templates: see `prompts/cerberus.md` (Template 1) and `prompts/argus.md`
+Prompt templates: see `prompts/cerberus.md` and `prompts/argus.md`
 
 ### Step 5 -- Tier Fixes (Ultron)
 
@@ -127,7 +131,7 @@ Gate: coverage maintained at 97%+. Same explicit audit exception as step 3 — t
 
 1. Moriarty attacks the full module across all attack phases.
 2. Document each break with tier classification; hand every confirmed break to step 9 (Dante's regression test, Ultron's fix — once).
-3. Output: attack report with confirmed breaks and per-phase summary.
+3. Output: two files — the attack report, and the raw run log in its own `moriarty-<…>-rawlog.md`. Step 10 gets only the raw-log path.
 
 Prompt template: see `prompts/moriarty.md`
 
@@ -139,24 +143,29 @@ Prompt template: see `prompts/moriarty.md`
 
 Gate: 0 T1 bugs, 0 T2 bugs unresolved: every confirmed T1/T2 break gets its regression test here and its code fix from Ultron in this same step — once.
 
-Prompt template: see `prompts/dante.md` (Template 2: Adversarial Tests)
+Prompt templates: see `prompts/dante.md` (Template 2: Adversarial Tests) and `prompts/ultron.md`
 
 ### Step 10 -- Senior Review (Yoda)
 
 1. Read ALL source files and their tests; state the file count read in the senior evaluation output.
 2. Run tests TWICE.
-3. Write prose evaluation per dimension (2-4 sentences each).
-4. Provide honest professional sentiment (one paragraph, no bullets).
-5. Score on weighted table out of 110.
-6. Verdict: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE. 110 is perfection: for any lower score, Yoda says what to fix to reach it, or why it cannot be reached.
+3. Write prose evaluation per dimension.
+4. Score on weighted table out of 110.
+5. Verdict: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE. 110 is perfection: for any lower score, Yoda says what to fix to reach it, or why it cannot be reached.
 
-Yoda judges once and is not sent again. Whatever the verdict, what Yoda names is fixed once in step 11. If Moriarty's verdict was FALLA, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
+Yoda judges once. He is sent again only after CANNOT JUDGE, with what was missing. Whatever the verdict, what Yoda names is fixed once in step 11.
+
+FALLA rule: Yoda never gets Moriarty's verdict word; the rule rests on what the raw log shows.
+- A confirmed break, or a round-trip check that stayed green under sabotage, makes plain APPROVED unavailable.
+- Each such break without a test Yoda re-ran green on the fixed code is an open T1.
+- A raw log whose coverage facts show the attack budget spent before the coverage gate also makes plain APPROVED unavailable; the not-attacked list goes in his conditions.
 
 Prompt template: see `prompts/yoda.md`
 
 ### Step 11 -- Yoda's Fixes (Ultron / Dante, once)
 
-1. Fix exactly what Yoda named: code goes to Ultron, tests to Dante, each a fresh agent.
+1. Fix exactly what Yoda named, T3 and nitpicks included: code goes to Ultron, tests to Dante, each a fresh agent.
+   REJECTED blocks the merge until every T1/T2 he named is fixed and its test is green.
 2. Run the module's tests TWICE.
 3. No new verdict: if every named point is fixed, the path to 110 Yoda gave is taken as walked (D-089). What cannot be fixed is written in the closing note with Yoda's reason.
 
@@ -185,12 +194,13 @@ Prompt template: see `prompts/alexandria.md`
 
 ## No Loops
 
-Every agent runs once and every fix runs once (D-122). Nothing returns to step 5:
+Every agent runs once and every fix runs once (D-122), except Yoda after CANNOT JUDGE. Nothing returns to step 5:
 
 | Trigger | Action |
 |---------|--------|
 | Step 8 finds T1/T2 bugs | Step 9: Dante writes their regression tests, Ultron fixes the code — once |
-| Step 10 gives any verdict | Step 11 fixes what Yoda named — once — then step 12 |
+| Step 10 answers CANNOT JUDGE | Supply what was missing; send Yoda again |
+| Step 10 gives any other verdict | Step 11 fixes what Yoda named — once — then step 12 |
 
 ## Commit Policy
 
@@ -210,14 +220,17 @@ Every agent runs once and every fix runs once (D-122). Nothing returns to step 5
 
 ## Agent Dispatch Rules
 
-Each agent receives ONLY context and data, NOT instructions on how to work (agent system prompts handle that). Provide:
+Each agent receives ONLY context and data, NOT instructions on how to work (agent system prompts handle that).
 
-- Module path and file list
-- Relevant findings or reports from previous steps
-- Reference to `unmassk-standards` skill for quality criteria (agents load it on boot via the `skills: unmassk-standards` frontmatter declaration)
-- Verification block (test commands, run twice)
+- Build Bilbo, Ultron, Dante, House, Moriarty and Alexandria prompts from core's task template: TASK, KNOWN, CROSS-CHECK, LIMITS, VERIFY.
+- Build Cerberus, Argus and Yoda prompts from core's blind template: ARTIFACT, CONTRACT, SCOPE, ASK. Never a KNOWN block, never your conclusion.
+- End every prompt with core's three closing orders.
+- Pass earlier reports to non-reviewers by path, never pasted. Reviewers get none; Yoda gets only Moriarty's raw-log path.
+- Give module path and file list, and the verification command (run twice).
+- Point to `unmassk-standards` for quality criteria; agents load it on boot (`skills: unmassk-standards` in their frontmatter).
+- Tell Ultron the build order: audit-fix. Dante's prompts need no build mode.
 
-Assign each file to exactly one agent at a time; queue other work on that file until the first agent finishes.
+Every agent writes its report file and answers in three lines. Read the report's index and the sections you need.
 
 ## Findings Report Format
 
@@ -251,14 +264,14 @@ Scoring dimensions, weights (Integrity x3, Silent-failure/Error handling x3, Str
 |------|-------|-----------|------|
 | 0 | ORCHESTRATOR (Claude + User) | - | Opening note saved; branch (gitflow only) |
 | 1 | Bilbo | No | Summary table |
-| 2 | Ultron | No | Tests pass (if needed) |
+| 2 | Dante / Ultron | No | Tests pass (if needed) |
 | 3 | Dante | Yes | 97%+ coverage, tests pass x2 (audit gate — supersedes merge override) |
-| 4 | Cerberus + Argus | Yes | Score + security findings |
+| 4 | Cerberus + Argus | Yes | Score + integrity findings |
 | 5 | Ultron | Depends | Tests pass after each fix |
 | 6 | ORCHESTRATOR | No | Every finding mapped to a fix, tests x2 |
 | 7 | Dante | No | Tests pass x2 |
-| 8 | Moriarty | No | Breaks documented |
-| 9 | Dante | No | Adversarial tests pass x2 |
+| 8 | Moriarty | No | Report + raw log on file |
+| 9 | Dante / Ultron | No | Adversarial tests pass x2, breaks fixed once |
 | 10 | Yoda | No | Verdict + path to 110 |
 | 11 | Ultron / Dante | Depends | What Yoda named, fixed once |
 | 12 | Alexandria | No | Docs updated |
@@ -275,9 +288,9 @@ The enterprise quality standards (tiers, scoring, checklists, anti-patterns — 
 Every template below is stack-agnostic: `[MODULE_PATH]` stands for the module's real path in the audited project (not a fixed layout), and `[TEST_CMD]` / `[FORMAT_CMD]` / `[LINT_CMD]` stand for that project's own commands. Resolve them the same way `unmassk-flow` resolves its stack-specific values (`unmassk-flow/SKILL.md` §"Project profile"): read the project's `CLAUDE.md`/git-memory profile first; if not declared, detect from the repo (`package.json` scripts, `pyproject.toml`, `Makefile`, `go.mod`, etc.) and record what you found. Never assume a fixed path like `backend/src/`, a fixed runner like `npx vitest`/`npx prettier`, or a specific validation library like Zod — those are project-specific, not universal defaults.
 
 - **`prompts/bilbo.md`** -- Module scan prompt template
-- **`prompts/ultron.md`** -- Fix findings prompt template
+- **`prompts/ultron.md`** -- Fix findings prompt template (build order audit-fix)
 - **`prompts/house.md`** -- Diagnostic prompt templates (new investigation, continue, re-diagnose)
-- **`prompts/dante.md`** -- Golden tests + adversarial tests prompt templates
+- **`prompts/dante.md`** -- Golden tests, adversarial tests and broken tests prompt templates
 - **`prompts/cerberus.md`** -- Enterprise audit prompt template (one pass, no re-audit)
 - **`prompts/argus.md`** -- Deep integrity audit prompt template
 - **`prompts/moriarty.md`** -- Adversarial validation prompt template

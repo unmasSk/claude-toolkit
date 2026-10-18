@@ -1,6 +1,6 @@
-# Prompt Templates — House (Diagnostic)
+# Prompt Templates — House (Diagnostic, Step 5 circuit breaker)
 
-> Templates for the orchestrator.
+> Templates for the orchestrator. Fill in the fields in brackets.
 
 ---
 
@@ -9,24 +9,21 @@
 ```markdown
 ## Task: Diagnose [ISSUE_SUMMARY]
 
-### Context
-- Module: `[MODULE_PATH]`
-- Issue: #[N] (if applicable)
-
-### Symptoms
-
+TASK: find the root cause of [ISSUE_SUMMARY] in `[MODULE_PATH]` (issue #[N], if applicable). Diagnose only — never fix.
+KNOWN:
+- [From the step 5 circuit breaker: "This is a stuck fix, not a failure in delivered behaviour."]
 - Expected: [what should happen]
 - Actual: [what actually happens]
-- Errors: [error messages, stack traces — paste verbatim]
+- Errors: [error messages, stack traces — verbatim]
 - Reproduction: [exact steps to trigger]
 - Timeline: [when it started, what changed recently]
+CROSS-CHECK: this KNOWN block is a starting point, not a substitute. If the task touches anything present in your memory index or in the project's memory, verify it in pairs before acting: your own memory, the real code, and `gitmem search` — even if KNOWN already tells you the answer.
+LIMITS: keep your Working log in the session scratchpad, never in the project (your card, «Working log»). Remove every marker you add. No commits; no git stash/reset/checkout/restore.
+VERIFY: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run TWICE. Tag claims EXECUTED/READ/UNVERIFIED.
 
-### Debug session file
-Keep it in your session scratchpad, never as a file committed into the project (your card, «Persistent Session File»).
+Write your report file. Answer in three lines: status, what to act on, report path.
 
-### Verification
-1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
-2. Run TWICE
+Do the task yourself or report back — never spawn agents of your own. Never end your turn waiting on background work — read the result and deliver the report. If the task grows past its point, finish the coherent part, report, and wait.
 ```
 
 ---
@@ -36,39 +33,40 @@ Keep it in your session scratchpad, never as a file committed into the project (
 ```markdown
 ## Task: Continue diagnosing [SLUG]
 
-### Prior state
-Debug session file: your scratchpad log from the previous House run, if this session still has it; otherwise the previous House report, pasted here by the orchestrator: [PREVIOUS HOUSE REPORT].
+TASK: resume the diagnosis of [SLUG] in `[MODULE_PATH]` from where it stopped. Diagnose only — never fix.
+KNOWN:
+- Previous House report: [PREVIOUS_HOUSE_REPORT_PATH] — symptoms, evidence collected, eliminated hypotheses, where it stopped.
+- Your Working log from that run, if this session still has it: [WORKING_LOG_PATH or "gone"].
+CROSS-CHECK: this KNOWN block is a starting point, not a substitute. If the task touches anything present in your memory index or in the project's memory, verify it in pairs before acting: your own memory, the real code, and `gitmem search` — even if KNOWN already tells you the answer.
+LIMITS: keep your Working log in the session scratchpad, never in the project (your card, «Working log»). Remove every marker you add. No commits; no git stash/reset/checkout/restore.
+VERIFY: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run TWICE. Tag claims EXECUTED/READ/UNVERIFIED.
 
-Read it. It contains: current focus, symptoms, eliminated hypotheses, and evidence collected so far. Resume from where that log or report says the investigation stopped.
+Write your report file. Answer in three lines: status, what to act on, report path.
 
-### Verification
-1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
-2. Run TWICE
+Do the task yourself or report back — never spawn agents of your own. Never end your turn waiting on background work — read the result and deliver the report. If the task grows past its point, finish the coherent part, report, and wait.
 ```
 
 ---
 
-## Template 3: Re-diagnose (after Ultron fix failed)
+## Template 3: Re-diagnose (after Ultron's fix failed)
 
 ```markdown
-## Task: Re-diagnose [ISSUE_SUMMARY] — previous fix by Ultron did not resolve the issue
+## Task: Re-diagnose [ISSUE_SUMMARY] — Ultron's fix did not resolve it
 
-### Context
-- Module: `[MODULE_PATH]`
-- Previous diagnosis: [PASTE ROOT CAUSE from previous House report]
-- Fix applied: [PASTE what Ultron changed]
+TASK: find why the fix for [ISSUE_SUMMARY] in `[MODULE_PATH]` did not work, and the real root cause. Diagnose only — never fix.
+KNOWN:
+- [From the step 5 circuit breaker: "This is a stuck fix, not a failure in delivered behaviour."]
+- Previous House report: [PREVIOUS_HOUSE_REPORT_PATH] — read `Root cause`.
+- Ultron's report on the fix: [ULTRON_REPORT_PATH].
 - Result: [still failing / new error / partial fix]
+- Expected after the fix: [what it should have achieved]
+- Actual after the fix: [what happened]
+- Errors: [new or persisting error messages — verbatim]
+CROSS-CHECK: this KNOWN block is a starting point, not a substitute. If the task touches anything present in your memory index or in the project's memory, verify it in pairs before acting: your own memory, the real code, and `gitmem search` — even if KNOWN already tells you the answer.
+LIMITS: continue your Working log in the session scratchpad if this session still has it; otherwise start a new one from the previous report. Never in the project (your card, «Working log»). Remove every marker you add. No commits; no git stash/reset/checkout/restore.
+VERIFY: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run TWICE. Tag claims EXECUTED/READ/UNVERIFIED.
 
-### New symptoms after fix
+Write your report file. Answer in three lines: status, what to act on, report path.
 
-- Expected: [what the fix should have achieved]
-- Actual: [what actually happened after the fix]
-- Errors: [new or persisting error messages]
-
-### Debug session file
-Continue your scratchpad log (append to existing evidence), never a file in the project. If this session no longer has it, start a new one from the previous House report the orchestrator pastes here: [PREVIOUS HOUSE REPORT].
-
-### Verification
-1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
-2. Run TWICE
+Do the task yourself or report back — never spawn agents of your own. Never end your turn waiting on background work — read the result and deliver the report. If the task grows past its point, finish the coherent part, report, and wait.
 ```
