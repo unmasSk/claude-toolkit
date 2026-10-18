@@ -244,6 +244,8 @@ def _apply_gate(cwd: str, session_id: str, registry: dict) -> None:
         sys.exit(0)
 
     tasks, broken = _read_board_tasks(board_dir)
+    if not tasks and not broken and os.path.isfile(os.path.join(board_dir, ".highwatermark")):
+        sys.exit(0)  # Claude Code wipes the task files ~5 s after the last one completes
     if broken:
         sys.stderr.write(
             f"checklist-gate: {len(broken)} task file(s) on the board were "
@@ -277,7 +279,7 @@ def main() -> None:
         sys.exit(0)
 
     session_id = hook_input.get("session_id")
-    cwd = hook_input.get("cwd") or os.getcwd()
+    cwd = checklist_state.resolve_project_root(hook_input.get("cwd") or os.getcwd())
 
     try:
         registry, corrupt = checklist_state.load_registry(cwd, session_id)

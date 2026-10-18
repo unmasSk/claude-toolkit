@@ -11,6 +11,7 @@ of checklist-gate.py). Neither hook imports the other; this module is
 the only contract between them.
 
 File: <project_root>/.claude/.unmassk/session-checklists/<session_id>.json
+(project_root = resolve_project_root(payload cwd): the git top-level)
     {
         "session_id": "...",
         "skills": [{"skill": "unmassk-flow", "boxes": ["...", ...],
@@ -110,6 +111,28 @@ def is_valid_procedures(value) -> bool:
             if not isinstance(boxes, list) or not all(isinstance(b, str) for b in boxes):
                 return False
     return True
+
+
+def resolve_project_root(cwd: str) -> str:
+    """The git top-level containing `cwd` (the nearest ancestor holding a
+    `.git` directory or worktree/submodule file), or `cwd` unchanged
+    outside git. Both hooks key the registry on this, so a Skill loaded
+    from the repo root and a Stop fired from `src/` share ONE registry
+    (and one block counter), and a load from `src/` never seeds a
+    `src/.claude/`. A filesystem walk, not `git rev-parse`: the Stop gate
+    never launches a process (checklist-gate.py, protection 3). Never
+    raises -- any failure falls back to `cwd`, as before this existed."""
+    try:
+        current = os.path.realpath(cwd)
+        while True:
+            if os.path.exists(os.path.join(current, ".git")):
+                return current
+            parent = os.path.dirname(current)
+            if parent == current:
+                return cwd
+            current = parent
+    except Exception:
+        return cwd
 
 
 def _default_registry(session_id: str) -> dict:

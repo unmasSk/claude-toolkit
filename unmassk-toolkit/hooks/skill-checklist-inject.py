@@ -222,6 +222,10 @@ def main() -> None:
 
         tool_input = hook_input.get("tool_input") or {}
         skill_name = tool_input.get("skill")
+        if isinstance(skill_name, str):
+            # Plugin skills arrive prefixed ("unmassk-toolkit:unmassk-flow");
+            # manifests and the registry use the bare name.
+            skill_name = skill_name.rpartition(":")[2]
 
         entry, error = _load_manifest(skill_name)
         if error is not None:
@@ -234,7 +238,7 @@ def main() -> None:
             sys.exit(0)  # silence: no manifest for this skill
 
         session_id = hook_input.get("session_id")
-        project_root = hook_input.get("cwd") or os.getcwd()
+        project_root = checklist_state.resolve_project_root(hook_input.get("cwd") or os.getcwd())
 
         enforced, effective_entry = _record_skill_load(project_root, session_id, entry)
         _emit_checklist_order(skill_name, effective_entry, enforced)
