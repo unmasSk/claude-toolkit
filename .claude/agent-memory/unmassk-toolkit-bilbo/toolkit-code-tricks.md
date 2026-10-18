@@ -45,3 +45,16 @@ Task histories do NOT live here (they are project memory, in `gitmem`).
   Write/Edit from touching project files. From a worktree it also blocks writing another checkout's
   notebook (EXECUTED 2026-10-16: it blocked this very cleanup). Read from the repo copy; the installed
   copy was not compared.
+
+## Texts that encode the pipeline (verified @7d23875e, 2026-10-18)
+
+- **`unmassk-toolkit/checklists/{flow,audit,close-session,council}.json` are not in the skill dirs but
+  encode them.** `hooks/skill-checklist-inject.py` forces those boxes verbatim when the skill loads and
+  `hooks/checklist-gate.py` blocks Stop on them. A skill sweep that skips `checklists/` leaves them stale
+  (flow.json still said Trivial/Standard/Big and "context commit" after the 10-18 sweep).
+- **`lib/managed_blocks.py` has 4 blocks** (EXECUTED); `hooks/session-start-crew.py` docstring says 5.
+  The block text in CLAUDE.md lives there, not in the skills. The CLAUDE.md injected at session start can
+  be older than the file on disk: read the disk.
+- **`hooks/pre-merge-gate.py` blocks every `git merge`/`git pull` and demands Cerberus + Alexandria
+  (`# merge-reviewed` token)**; `hooks/customs.py` lets merge pass. Two hooks, opposite stance on merge.
+- **`lib/skill_router.py`** holds the skill-trigger and `[orden]` reminder tables for the per-message hook.
