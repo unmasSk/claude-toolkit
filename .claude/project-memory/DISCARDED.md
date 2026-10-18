@@ -117,3 +117,4 @@
 [X-117][skills][standards] audit keeps its second review as the stricter exception
 [X-118][skills][testing] a fixed hardening slot for Dante after Cerberus and Argus, before Moriarty
 [X-119][skills][testing] acceptance tests first, the rest after Ultron (two Dante entries)
+[X-120][hooks][skills] publish as is
