@@ -41,13 +41,14 @@ como un unico "esto no es una nota, rebota a `gitmem work`". Esa lectura
 era erronea: **"la aduana los ve pasar" no es "la aduana los bloquea
 todos"** -- los ve y decide, y la decision parte en dos segun P1
 ("Nada se borra ni se reescribe jamas. Toda correccion es un commit
-nuevo") y §10.4 (squash al fusionar):
+nuevo") y D-118 (la rama se fusiona con `merge --no-ff`, que conserva
+el commit de cada paso):
 
 | Comando | Decision | Por que |
 |---|---|---|
 | `git commit --amend` | **RECHAZA** | Reescribe un commit ya existente -- viola P1 |
-| `git rebase` (salvo `--abort`/`--continue`/`--skip`) | **RECHAZA** | Reescribe historia en lote -- viola P1; su uso legitimo (limpiar la rama) ya tiene mecanismo: el squash al merge [spec Sec.10.4]. `--continue`/`--skip` PASAN [DEUDA.md B19 punto 3]: bloquear un rebase ya empezado deja al usuario atascado sin salida |
-| `git merge` | **PASA** | Añade a la historia, no la reescribe; git ya lo registra por existir, y en el flujo con squash el commit final entra por la aduana como commit de trabajo normal |
+| `git rebase` (salvo `--abort`/`--continue`/`--skip`) | **RECHAZA** | Reescribe historia en lote -- viola P1; su uso legitimo (limpiar la rama) no hace falta: los commits se dejan como estan y la rama se fusiona con `git merge --no-ff`, que conserva el commit de cada paso [D-118]. `--continue`/`--skip` PASAN [DEUDA.md B19 punto 3]: bloquear un rebase ya empezado deja al usuario atascado sin salida |
+| `git merge` | **PASA** | Añade a la historia, no la reescribe; git ya lo registra por existir, y con `--no-ff` los commits de cada paso se conservan tal cual, sin reescribir nada [D-118] |
 | `git cherry-pick` | **PASA, a secas** | Añade, sin confirmacion -- seria friccion en una operacion rara. Su unico riesgo real, duplicar el identificador de una nota, ya tiene su alarma: el chequeo de IDs duplicados del arranque [spec Sec.3.1, alarma pasiva] |
 
 **El razonamiento de fondo** [textual del propietario]: la regla no es
@@ -518,8 +519,8 @@ def _history_rewrite_rejection(subcommand):
     else:
         what = "esto reescribe historia en lote: `git rebase`"
         relaunch = (
-            'git merge --squash <rama> && gitmem work "<mensaje>" '
-            "--path <ruta1> [--path <ruta2> ...]",
+            "git merge --no-ff <rama>"
+            "  # al terminar la tarea: conserva el commit de cada paso",
         )
 
     options = (
@@ -527,9 +528,9 @@ def _history_rewrite_rejection(subcommand):
         "commit nuevo (sustitucion, cierre, alta) -- nunca una reescritura",
         "de lo que ya esta en la historia.",
         "",
-        "Si el motivo es limpiar la rama antes de mostrarla, ese uso ya",
-        "tiene mecanismo propio: el squash al fusionar [spec Sec.10.4].",
-        "Deja los commits como estan y haz squash al hacer merge.",
+        "Si el motivo es limpiar la rama antes de mostrarla, no hace falta:",
+        "deja los commits como estan. Al terminar la tarea la rama se fusiona",
+        "con `git merge --no-ff <rama>`, que conserva el commit de cada paso.",
     )
     return rejection_.build(
         kind="history_rewrite", what=what, options=options, command=relaunch

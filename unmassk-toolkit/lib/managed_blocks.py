@@ -90,7 +90,7 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Ending a session:**
 
-- Wrapping up / handoff → Skill `unmassk-close-session` (write the Next, update the plan, prune walls, register blockers)
+- Wrapping up / handoff → Skill `unmassk-close-session` (clean up, branches and issues, docs, write the Next)
 
 All protocol output persists to **memory**, never to `.md` files.""",
     },

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SessionStart hook for unmassk-toolkit crew.
-Ensures all 5 managed blocks exist in CLAUDE.md.
+Ensures all 4 managed blocks exist in CLAUDE.md.
 """
 import subprocess
 import sys
@@ -92,7 +92,7 @@ def _print_plugin_sync_check(git_root: Path) -> None:
     else:
         print(
             f"[crew] PLUGIN: {count} ficheros desincronizados (repo vs cache) "
-            "-> publica version y ejecuta 'claude plugin update'"
+            "-> publica version y actualiza desde /plugin > marketplace"
         )
 
 
