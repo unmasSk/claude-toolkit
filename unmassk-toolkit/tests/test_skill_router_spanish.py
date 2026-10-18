@@ -252,8 +252,8 @@ class TestMatchRemindersAutomatico:
         assert any("informe" in t for t in texts), texts
 
     def test_should_describe_numbered_line_per_finished_step_when_automatico_fires(self):
-        # Expected wording comes from the owner's rule of 2026-10-18, not from
-        # the code: «una linea numerada por cada agente o paso que termina».
+        # Expected wording comes from the owner's current rule, not from the
+        # code: «una linea numerada por agente o paso que acaba».
         # The old text allowed only 'silencio' or 'agente N de M' on screen;
         # that restriction must be gone.
         match_reminders = _import_match_reminders()
@@ -266,19 +266,30 @@ class TestMatchRemindersAutomatico:
         assert "linea numerada" in text, text
         assert "agente" in text and "paso" in text, text
 
-    def test_should_carry_the_rest_of_the_owner_rule_when_automatico_fires(self):
-        # Source: the owner's rule of 2026-10-18, word for word -- «mientras
-        # se trabaja, ni parrafadas ni silencio: una linea numerada por cada
-        # agente o paso que termina, tachandolo en la lista, con emojis; sin
-        # aviso de voz». The reminder must say the whole rule, not half of it.
+    def test_should_carry_the_current_owner_rule_when_automatico_fires(self):
+        # Source: the owner's CURRENT rule (`gitmem rule`, rules.md), which
+        # replaced the 2026-10-18 wording -- «al trabajar: una linea numerada
+        # por agente o paso que acaba, solo «nombre, terminado»; si cambia el
+        # orden (revisores hallan algo y vuelven Ultron y Dante), se dice; el
+        # resto, al final». The reminder must say: name-only "terminado"
+        # lines, and that an order change IS stated.
         match_reminders = _import_match_reminders()
         reminders = match_reminders("modo automatico")
         texts = [t.lower() for k, t in reminders if k == "automatico"]
         assert texts, reminders
         text = texts[0]
-        assert "tachandolo" in text, text
-        assert "emojis" in text, text
-        assert "sin aviso de voz" in text, text
+        assert "terminado" in text, text
+        assert "nombre" in text, text
+        assert re.search(r"cambia\w*\s+el\s+orden", text), text
+
+    def test_should_no_longer_say_cross_it_off_the_list_when_automatico_fires(self):
+        # The old rule's «tachandolo en la lista» is not in the owner's
+        # current rule; a reminder still carrying it orders the old behaviour.
+        match_reminders = _import_match_reminders()
+        reminders = match_reminders("modo automatico")
+        texts = [t.lower() for k, t in reminders if k == "automatico"]
+        assert texts, reminders
+        assert "tachando" not in texts[0], texts[0]
 
     def test_automaticamente_alone_does_not_trigger_automatico(self):
         match_reminders = _import_match_reminders()
@@ -315,6 +326,80 @@ class TestHookEmitsSpanishRoutingAndReminders:
         orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
         assert orden_lines, f"Expected a line starting with {REMINDER_MARKER!r}; got stdout: {stdout!r}"
         assert any("modo automatico" in line for line in orden_lines), orden_lines
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# C2) Agent completion notices are not owner prompts
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Claude Code delivers a finished background agent, and a message from another
+# Claude session, as a UserPromptSubmit prompt. Drill evidence (raw log of the
+# pre-release drill): 569 such notices went through the router; 527 fired
+# [skill-router], 76 an "[orden] silencio" line, 34 "[orden] investigacion" --
+# a Moriarty report that merely QUOTED "modo automatico" injected the
+# automatic-mode order. Contract: a prompt that IS one of these notices gets
+# no "[orden]" line and no "[skill-router]" line, whatever words it carries.
+# The owner's own prompts keep firing (see the modo-automatico hook test above
+# and the control below).
+
+# Text an agent report realistically quotes: every reminder/skill trigger the
+# owner's orders use.
+_NOTICE_BODY = (
+    "Moriarty: el router inyecta el recordatorio de modo automatico en cada "
+    "informe; manda a bilbo, investiga; silencio; arregla eso e implementa. "
+    "Verdict: FALLA"
+)
+
+AGENT_NOTICE_PROMPTS = {
+    "task-notification": (
+        "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n"
+        f"<result>{_NOTICE_BODY}</result>\n</task-notification>"
+    ),
+    "another-session": (
+        "Another Claude session sent a message:\n" + _NOTICE_BODY
+    ),
+    "agent-message": (
+        '<agent-message from="dante">\n' + _NOTICE_BODY + "\n</agent-message>"
+    ),
+}
+
+
+class TestHookIgnoresAgentNotices:
+    def test_notice_body_alone_fires_both_lines_when_owner_types_it(self, tmp_path):
+        # Control: the SAME words typed by the owner do fire, so the notice
+        # tests below go red for the wrapper, not because the words are inert.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, _NOTICE_BODY)
+        assert rc == 0, (rc, stdout, stderr)
+        assert any(l.startswith(REMINDER_MARKER) for l in stdout.splitlines()), stdout
+        assert SKILL_ROUTER_MARKER in stdout, stdout
+
+    @pytest.mark.parametrize("kind", sorted(AGENT_NOTICE_PROMPTS))
+    def test_should_emit_no_orden_line_when_prompt_is_agent_notice(self, tmp_path, kind):
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, AGENT_NOTICE_PROMPTS[kind])
+        assert rc == 0, (rc, stdout, stderr)
+        orden_lines = [l for l in stdout.splitlines() if l.startswith(REMINDER_MARKER)]
+        assert not orden_lines, stdout
+
+    @pytest.mark.parametrize("kind", sorted(AGENT_NOTICE_PROMPTS))
+    def test_should_emit_no_skill_routing_when_prompt_is_agent_notice(self, tmp_path, kind):
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, AGENT_NOTICE_PROMPTS[kind])
+        assert rc == 0, (rc, stdout, stderr)
+        assert SKILL_ROUTER_MARKER not in stdout, stdout
+
+    def test_should_still_route_owner_prompt_that_mentions_task_notification(self, tmp_path):
+        # The owner talking ABOUT notices is still the owner: only a prompt
+        # that IS a notice is skipped, not one that names the tag mid-text.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(
+            repo, "modo automático y arregla el <task-notification> del router"
+        )
+        assert rc == 0, (rc, stdout, stderr)
+        orden_lines = [l for l in stdout.splitlines() if l.startswith(REMINDER_MARKER)]
+        assert any("modo automatico" in l for l in orden_lines), stdout
+        assert "unmassk-flow" in stdout, stdout
 
 
 # ══════════════════════════════════════════════════════════════════════════

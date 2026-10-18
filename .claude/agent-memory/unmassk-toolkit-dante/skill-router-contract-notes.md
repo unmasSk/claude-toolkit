@@ -236,3 +236,11 @@ new test pins the "automatico" text against the owner's new rule: no
 "agente", "paso". Gotcha: the owner's new rule itself says "ni parrafadas ni
 silencio", so a blanket `"silencio" not in text` would be wrong — assert on
 the "only allowed output" phrasing instead.
+
+**Agent notices pass through UserPromptSubmit.** `<task-notification>` blocks and
+other-session hand-backs ("Another Claude session sent a message:", `<agent-message`)
+arrive as prompts; a report that quotes a trigger word injects owner orders. Contract
+in test_skill_router_spanish.py::TestHookIgnoresAgentNotices: notice => no [orden],
+no [skill-router]; a control test types the same body as the owner (must fire), and
+an owner prompt that names the tag mid-text must still route. Reminder wording is
+pinned to `gitmem rule` text (rules.md), which changes: re-read it before asserting.
