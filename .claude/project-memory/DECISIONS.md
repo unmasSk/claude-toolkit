@@ -82,3 +82,4 @@
 [D-091][skills][architecture] council gains an ideation round when no options exist yet, adhd-style
 [D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
 [D-094][boot][skills] boot slimming: nothing leaves without a pointer to its full version
+[D-095][skills][boot] boot slimming is verified by inventory, blind check, branch and a fresh session
