@@ -11,7 +11,7 @@ hooks/session-start-crew.py::_print_plugin_sync_check(), confirmed live by
 reading that function (prints exactly one of the same 3 outcome shapes:
 "no verificable (<ExceptionType>)", "no verificable (sin repo fuente junto
 a la cache)", "sincronizado (0 ficheros)", or "N ficheros desincronizados
-... -> publica version y ejecuta 'claude plugin update'") and by running
+... -> publica version y actualiza desde /plugin > marketplace") and by running
 the real hook end to end below.
 
 Unlike the old boot_render._render_plugin_sync_line(), the crew hook's
@@ -96,7 +96,7 @@ class TestRealDriftReachesTheOutput:
 
         assert (
             "[crew] PLUGIN: 1 ficheros desincronizados (repo vs cache) "
-            "-> publica version y ejecuta 'claude plugin update'"
+            "-> publica version y actualiza desde /plugin > marketplace"
         ) in stdout, stdout
 
 
