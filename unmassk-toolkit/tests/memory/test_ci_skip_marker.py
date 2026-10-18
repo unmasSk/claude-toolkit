@@ -59,7 +59,6 @@ variante (`skip-ci` sin corchetes, etc.) que ningun documento del
 proyecto pide.
 """
 
-import json
 import os
 import re
 import subprocess
@@ -74,6 +73,7 @@ from .conftest import (
     run_memory_script,
     seed_config_json,
 )
+from .gh_graphql_fake import answer as gh_graphql_answer
 
 # Mismo incidente de CI (2026-08-22) que ya documenta
 # `test_work_issue_field.py` -- en Windows, `subprocess.run(["gh", ...])`
@@ -262,8 +262,15 @@ class TestBootSafetyNetStillCountsAWorkCommitCarryingSkipCi:
             cmd = args[0] if args else kwargs.get("args", [])
             if cmd and cmd[0] == "gh":
                 gh_calls.append(list(cmd))
-                payload = json.dumps({"comments": [], "createdAt": "2020-01-01T00:00:00Z"})
-                return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=payload, stderr="")
+                # La forma real de `gh api graphql` desde D-130 [#95]:
+                # misma doble que test_health.py y el hook de arranque.
+                returncode, stdout, stderr = gh_graphql_answer(
+                    cmd[1:],
+                    {issue_number: {"createdAt": "2020-01-01T00:00:00Z", "comments": []}},
+                )
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=returncode, stdout=stdout, stderr=stderr
+                )
             return real_run(*args, **kwargs)
 
         monkeypatch.setattr(subprocess, "run", _fake_run)
@@ -281,7 +288,7 @@ class TestBootSafetyNetStillCountsAWorkCommitCarryingSkipCi:
             f"'sin reflejar' -- plans_unreflected() devolvio {result!r}"
         )
         assert len(gh_calls) == 1, (
-            f"se esperaba UNA consulta a gh (una por issue) -- se observaron "
+            f"se esperaba UNA consulta a gh en total (D-130) -- se observaron "
             f"{len(gh_calls)}: {gh_calls!r}"
         )
 

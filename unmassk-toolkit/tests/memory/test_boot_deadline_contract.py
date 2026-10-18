@@ -23,12 +23,16 @@ the measurement.
 THE `gh` STUB. A real executable named `gh`, first on the hook's PATH; any
 directory holding a real `gh` is removed from that PATH
 (`path_without_real_gh`), so no test ever reaches GitHub. It logs every
-invocation and answers like the real tool for the two read commands the
-check can use:
-  - `gh issue view N --json <fields>`  (today's per-issue call)
-  - `gh issue list [--state open|closed|all] [--limit N] --json <fields>`
-    with the REAL defaults of gh: `--state open`, `--limit 30`.
-Anything else (`gh api graphql`, `--jq`, `--search`...) exits 2 with
+invocation and answers like the real tool for:
+  - `gh api graphql -F/-f key=value ... -f query=...` -- the one request
+    the check makes since the fix pass (Cerberus F1): one alias per cited
+    issue. Answered by `gh_graphql_fake.py` (same double as the
+    in-process tests): only the aliases asked come back, `comments(last:
+    K)` vs `first: K` honoured, a missing issue comes back `null` with
+    exit 1 and gh's own stderr line.
+  - `gh issue view N --json <fields>` (the old per-issue call), kept so a
+    regression to N+1 calls fails on TIME, not on an unsupported command.
+Anything else (`issue list`, `--jq`, `--search`...) exits 2 with
 "unsupported invocation" -- if the implementation needs another command,
 the stub is extended by a fresh Dante, never guessed at here.
 Every issue's `updatedAt` is a year in the future on purpose: "last
@@ -52,9 +56,11 @@ test in this suite (`subprocess.run(["gh", ...])` never resolves a file
 without `.exe` there).
 """
 
+import ast
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -64,6 +70,7 @@ from pathlib import Path
 
 import pytest
 
+from . import gh_graphql_fake
 from .conftest import (
     HOOKS_DIR,
     import_lib_memory_module,
@@ -71,6 +78,7 @@ from .conftest import (
     path_without_real_gh,
     run_git,
 )
+from .test_boot_launcher_install_outside_git import _memory_notice_first_lines
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32",
@@ -82,6 +90,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 _TOOLKIT_ROOT = os.path.dirname(HOOKS_DIR)
+_BOOT_SCRIPT = os.path.join(_TOOLKIT_ROOT, "bin", "memory", "boot.py")
 _HOOKS_JSON = os.path.join(HOOKS_DIR, "hooks.json")
 
 _GH_KNOB = "UNMASSK_GH_DEADLINE_SECONDS"
@@ -112,7 +121,7 @@ def _future_iso():
 
 _GH_STUB_SOURCE = r'''#!/usr/bin/env python3
 """Fake gh -- Dante, issue #95 test double. Mimics the real tool's
-answers for `issue view` and `issue list`; never contacts GitHub."""
+answers for `api graphql` and `issue view`; never contacts GitHub."""
 import json
 import os
 import sys
@@ -197,30 +206,14 @@ if args[:2] == ["issue", "view"] and len(args) >= 3:
     sys.stdout.write(json.dumps(project(number, flags["json"].split(","))))
     sys.exit(0)
 
-if args[:2] == ["issue", "list"]:
-    flags = parse_flags(
-        args[2:],
-        {
-            "--json": "json",
-            "--state": "state",
-            "-s": "state",
-            "--limit": "limit",
-            "-L": "limit",
-            "--repo": "repo",
-            "-R": "repo",
-        },
-    )
-    if "json" not in flags:
-        unsupported()
-    state = flags.get("state", "open").lower()
-    limit = int(flags.get("limit", "30"))
-    chosen = [
-        n for n in sorted(issues, reverse=True)
-        if state == "all" or issues[n]["state"].lower() == state
-    ][:limit]
-    fields = flags["json"].split(",")
-    sys.stdout.write(json.dumps([project(n, fields) for n in chosen]))
-    sys.exit(0)
+if args[:2] == ["api", "graphql"]:
+    sys.path.insert(0, cfg["helper_dir"])
+    import gh_graphql_fake
+
+    rc, out, err = gh_graphql_fake.answer(args, issues)
+    sys.stdout.write(out)
+    sys.stderr.write(err)
+    sys.exit(rc)
 
 unsupported()
 '''
@@ -244,6 +237,7 @@ class GhStub:
             json.dumps(
                 {
                     "log": str(self.log_path),
+                    "helper_dir": str(Path(__file__).parent),
                     "mode": mode,
                     "latency": latency,
                     "hang_seconds": hang_seconds,
@@ -351,6 +345,12 @@ class HookRun:
     def report(self):
         return self.report_path().read_text(encoding="utf-8")
 
+    def report_path_lines(self):
+        """`[memory]` lines naming the report by its ABSOLUTE path (git
+        resolves the root to its real path, hence `realpath`)."""
+        absolute = os.path.realpath(self.report_path())
+        return [line for line in self.memory_lines() if absolute in line]
+
     def describe(self):
         return (
             f"rc={self.rc} elapsed={self.elapsed:.2f}s killed={self.killed}\n"
@@ -358,7 +358,7 @@ class HookRun:
         )
 
 
-def _run_boot_hook(repo, tmp_path, gh_stub, *, kill_after, extra_env=None):
+def _run_boot_hook(repo, tmp_path, gh_stub, *, kill_after, extra_env=None, session_cwd=None):
     """Run the registered SessionStart command through a shell, payload on
     stdin, and time it until the hook process exits. If it is still
     running after `kill_after` seconds, its whole process group is killed
@@ -368,21 +368,23 @@ def _run_boot_hook(repo, tmp_path, gh_stub, *, kill_after, extra_env=None):
     command, hook_timeout = _boot_hook_entry()
     env = {k: v for k, v in os.environ.items() if k not in (_GH_KNOB, _BOOT_KNOB)}
     home = tmp_path / "home"
-    home.mkdir(exist_ok=True)
+    home.mkdir(parents=True, exist_ok=True)
     env.update(gh_stub.env())
     env["CLAUDE_PLUGIN_ROOT"] = _TOOLKIT_ROOT
     env["HOME"] = str(home)  # the installer writes ~/.local/bin/gitmem
     env.update(extra_env or {})
 
+    tmp_path.mkdir(parents=True, exist_ok=True)
     out_path = tmp_path / "hook.stdout"
     err_path = tmp_path / "hook.stderr"
-    payload = json.dumps(make_session_start_payload(repo))
+    session_cwd = session_cwd or repo
+    payload = json.dumps(make_session_start_payload(session_cwd))
     with open(out_path, "wb") as out, open(err_path, "wb") as err:
         start = time.monotonic()
         proc = subprocess.Popen(
             command,
             shell=True,
-            cwd=repo,
+            cwd=session_cwd,
             env=env,
             stdin=subprocess.PIPE,
             stdout=out,
@@ -425,6 +427,38 @@ def _assert_full_briefing(run):
     assert run.memory_lines(), "no [memory] line on stdout\n" + run.describe()
     assert run.report_path().is_file(), "boot-latest.txt not written\n" + run.describe()
     assert "CHECKS" in run.report(), run.report()
+
+
+def _boot_py_pointer_prefixes():
+    """First static text of every `[memory]` line `bin/memory/boot.py`
+    prints on a NORMAL boot, read from its AST (never hand-typed)."""
+    with open(_BOOT_SCRIPT, encoding="utf-8") as fh:
+        prefixes = _memory_notice_first_lines(ast.parse(fh.read()))
+    assert prefixes, "setup invalid: no [memory] print found in bin/memory/boot.py"
+    return prefixes
+
+
+def _assert_overrun_notice(run, deadline):
+    """Cerberus F4: what the hook printed is an overrun notice, not a
+    normal briefing -- a `[memory]` line names the deadline this test set,
+    and none of boot.py's normal pointer lines is there."""
+    lines = run.memory_lines()
+    assert any(f"{deadline:g}" in line for line in lines), (
+        f"no [memory] line names the {deadline:g} s deadline\n" + run.describe()
+    )
+    prefixes = _boot_py_pointer_prefixes()
+    normal = [line for line in lines if line.lower().startswith(tuple(prefixes))]
+    assert normal == [], (
+        "an overrun printed boot.py's normal pointer line\n" + run.describe()
+    )
+
+
+def _assert_failure_marker(run):
+    """Cerberus F4: the report file is a failure marker, not a report."""
+    assert run.report_path().is_file(), "no boot-latest.txt\n" + run.describe()
+    marker = run.report()
+    assert marker.strip(), "report emptied instead of marked"
+    assert "CHECKS" not in marker, "the marker carries a briefing's CHECKS block:\n" + marker
 
 
 # ==========================================================================
@@ -482,14 +516,36 @@ class TestBootTimeDoesNotGrowWithCitedIssues:
             "says one GitHub query for every issue"
         )
 
+    def test_should_ask_github_only_for_the_cited_issues_when_the_repo_has_many_more(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught (Cerberus F1): a query that reads every issue of the
+        # repository, or a numeric range up to the highest cited number,
+        # so its cost grows with the repository's whole history instead
+        # of with what the commits cite.
+        cited = {5: 1, 17: 2, 42: 1, 99: 1}
+        _seed_citations(tmp_repo, cited)
+        gh_stub.configure(issues=_all_unreflected(range(1, 121)))
+
+        run = _run_boot_hook(tmp_repo, tmp_path, gh_stub, kill_after=60)
+
+        _assert_full_briefing(run)
+        calls = gh_stub.calls()
+        assert len(calls) == 1, calls
+        asked = gh_graphql_fake.requested_issue_numbers(calls[0])
+        assert sorted(asked) == sorted(cited), (
+            f"GitHub was asked for {sorted(asked)}; the commits cite only "
+            f"{sorted(cited)}"
+        )
+        assert _plan_lines(run.report()) == cited, run.report()
+
     def test_should_report_exact_unreflected_counts_when_over_30_issues_and_half_closed(
         self, tmp_repo, tmp_path, gh_stub
     ):
-        # Bugs caught: `gh issue list` without `--state all` (closed issues
-        # vanish) or without a `--limit` above 30 (the real default cuts
-        # the answer); reading `updatedAt` instead of the last comment;
-        # ignoring comments and using `createdAt` only; counting commits
-        # wrong for an issue cited twice.
+        # Bugs caught: closed issues dropped; reading `updatedAt` instead
+        # of the last comment; asking `comments(first: 1)` (the OLDEST
+        # comment) instead of the last; ignoring comments and using
+        # `createdAt` only; counting commits wrong for an issue cited twice.
         issues = {}
         citations = {}
         expected = {}
@@ -576,6 +632,11 @@ class TestGithubFailureIsReportedNotInvented:
         report = run.report()
         assert _PLANS_ERROR_TEXT in report, report
         assert _plan_lines(report) == {}, report
+        # Cerberus F2 removed the cited list from a GENERAL gh failure; a
+        # cited issue GitHub does not return is still named, so the owner
+        # knows which trailer points at nothing.
+        error_lines = [line for line in report.splitlines() if _PLANS_ERROR_TEXT in line]
+        assert any("#7" in line for line in error_lines), error_lines
 
     def test_should_give_up_within_the_bound_when_gh_hangs(
         self, tmp_repo, tmp_path, gh_stub
@@ -667,7 +728,7 @@ class TestLauncherFailsLoudOnOverrun:
         # Code kills it at 30 s and the session gets nothing (I-005).
         _seed_citations(tmp_repo, {3: 1})
         gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=25)
-        deadline = 2.0
+        deadline = 2.5
 
         run = _run_boot_hook(
             tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=_overrun_env(deadline)
@@ -678,9 +739,9 @@ class TestLauncherFailsLoudOnOverrun:
             + run.describe()
         )
         assert run.rc == 0, run.describe()
-        notices = [line for line in run.memory_lines() if "boot-latest.txt" in line]
-        assert notices, (
-            "no [memory] line naming boot-latest.txt after an overrun\n"
+        _assert_overrun_notice(run, deadline)
+        assert len(run.report_path_lines()) == 1, (
+            "no [memory] line naming the report by its absolute path\n"
             + run.describe()
         )
 
@@ -696,7 +757,7 @@ class TestLauncherFailsLoudOnOverrun:
         stale = "BLOQUEANTES -- stale report from a previous session, Dante #95\n"
         (report_dir / "boot-latest.txt").write_text(stale, encoding="utf-8")
         gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=25)
-        deadline = 2.0
+        deadline = 2.5
 
         run = _run_boot_hook(
             tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=_overrun_env(deadline)
@@ -707,7 +768,7 @@ class TestLauncherFailsLoudOnOverrun:
         )
         current = run.report()
         assert current != stale, "previous session's report left as if current"
-        assert current.strip(), "report emptied instead of marked"
+        _assert_failure_marker(run)
 
     def test_should_complete_normally_when_boot_knob_is_not_a_number(
         self, tmp_repo, tmp_path, gh_stub
@@ -782,7 +843,7 @@ class TestDeadlineCountsTheInstallStep:
             "setup invalid: the repo already has a manifest, the installer "
             "would not run"
         )
-        deadline = 2.0
+        deadline = 2.5
         install_seconds = 20.0
         slow_env, marker = _slow_install_env(tmp_path, install_seconds)
         _command, hook_timeout = _boot_hook_entry()
@@ -805,12 +866,282 @@ class TestDeadlineCountsTheInstallStep:
             "deadline does not count the install step\n" + run.describe()
         )
         assert run.rc == 0, run.describe()
-        notices = [line for line in run.memory_lines() if "boot-latest.txt" in line]
-        assert notices, (
-            "no [memory] line naming boot-latest.txt after the install ate "
-            "the deadline\n" + run.describe()
+        _assert_overrun_notice(run, deadline)
+        assert len(run.report_path_lines()) == 1, run.describe()
+        _assert_failure_marker(run)
+        # Ultron's declared wording (D-130: the deadline covers the whole
+        # hook): the marker says the installer was part of what got
+        # stopped, and after how long -- a marker that blamed boot.py alone
+        # sends the owner to the wrong script when the install was slow.
+        marker = run.report()
+        assert "install" in marker.lower() and "boot.py" in marker, marker
+        assert f"{deadline:g}" in marker, marker
+
+
+# ==========================================================================
+# 5. After the cut: the notice comes first, the marker step stays bounded,
+#    and what the hook says about the marker is true (fix pass, #95)
+# ==========================================================================
+#
+# HOW GIT IS SLOWED without touching production code: a `git` wrapper
+# first on the hook's PATH. It execs the real git for everything, except
+# `git rev-parse --show-toplevel` when its trigger holds:
+#   - "after_gh": the gh stub has been called (its log exists). boot.py is
+#     then blocked on the hanging gh, so the only `rev-parse` left is the
+#     launcher's marker step, after the cut (Argus SEC-MED-001).
+#   - "first_call": the very first `rev-parse --show-toplevel` of the
+#     hook, which is the launcher's install-step check when the repo has no
+#     manifest (Ultron's declared bound, min(10, time left)).
+# The wrapper is Python and sleeps in-process (no child `sleep`), so a
+# `subprocess.run(timeout=...)` that kills it really frees the hook. It
+# leaves a marker file first: setup proof that the slow step happened.
+
+_SLOW_GIT_SOURCE = r'''#!/usr/bin/env python3
+import os, sys, time
+REAL_GIT = %r
+args = sys.argv[1:]
+if args[:2] == ["rev-parse", "--show-toplevel"]:
+    when = os.environ["SLOW_GIT_WHEN"]
+    seen = os.environ["SLOW_GIT_SEEN"]
+    trigger = (
+        os.path.exists(os.environ["SLOW_GIT_AFTER_FILE"])
+        if when == "after_gh"
+        else not os.path.exists(seen)
+    )
+    with open(seen, "a", encoding="utf-8") as fh:
+        fh.write("rev-parse\n")
+    if trigger:
+        with open(os.environ["SLOW_GIT_MARKER"], "a", encoding="utf-8") as fh:
+            fh.write("slow rev-parse started\n")
+        time.sleep(float(os.environ["SLOW_GIT_SECONDS"]))
+os.execv(REAL_GIT, [REAL_GIT] + args)
+'''
+
+
+def _slow_git_env(tmp_path, gh_stub, *, when, seconds=60.0):
+    real_git = shutil.which("git")
+    assert real_git, "setup invalid: no real git on PATH"
+    wrapper_dir = tmp_path / "slow-git-bin"
+    wrapper_dir.mkdir()
+    wrapper = wrapper_dir / "git"
+    wrapper.write_text(_SLOW_GIT_SOURCE % os.path.realpath(real_git), encoding="utf-8")
+    wrapper.chmod(0o755)
+    marker = tmp_path / "slow-git-started.txt"
+    env = {
+        "PATH": str(wrapper_dir) + os.pathsep + gh_stub.env()["PATH"],
+        "SLOW_GIT_WHEN": when,
+        "SLOW_GIT_SEEN": str(tmp_path / "slow-git-seen.txt"),
+        "SLOW_GIT_AFTER_FILE": str(gh_stub.log_path),
+        "SLOW_GIT_MARKER": str(marker),
+        "SLOW_GIT_SECONDS": str(seconds),
+    }
+    return env, marker
+
+
+def _seed_stale_report(repo):
+    report_dir = Path(repo, ".claude", ".unmassk")
+    report_dir.mkdir(parents=True, exist_ok=True)
+    stale = "BLOQUEANTES -- stale report from a previous session, Dante #95\n"
+    (report_dir / "boot-latest.txt").write_text(stale, encoding="utf-8")
+    return stale
+
+
+class TestOverrunNoticeIsNotHeldHostageByGit:
+    def test_should_have_printed_the_notice_before_the_marker_step_when_git_is_slow(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught (Argus SEC-MED-001): the notice printed AFTER the
+        # marker step's `git rev-parse` (or not flushed), so a slow git
+        # pushes it past the moment Claude Code kills the hook and the
+        # session gets nothing. The hook is killed here while git sleeps:
+        # whatever was not on stdout by then never will be.
+        _seed_citations(tmp_repo, {3: 1})
+        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
+        deadline = 2.5
+        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_gh")
+
+        run = _run_boot_hook(
+            tmp_repo,
+            tmp_path,
+            gh_stub,
+            kill_after=deadline + _STARTUP_MARGIN_S,
+            extra_env={**_overrun_env(deadline), **git_env},
         )
-        assert run.report_path().is_file() and run.report().strip(), (
-            "the notice names boot-latest.txt but there is no failure marker "
-            "in it\n" + run.describe()
+
+        assert slow_git_started.is_file(), (
+            "setup invalid: the marker step's git rev-parse was never slowed\n"
+            + run.describe()
+        )
+        _assert_overrun_notice(run, deadline)
+
+    def test_should_end_inside_the_hook_timeout_with_default_deadline_when_git_is_slow(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bugs caught (Argus SEC-MED-001 and his "defaults below 30 s"
+        # gap): the marker step's git call bounded by git's own 10 s cap
+        # instead of the time left under the hook timeout (25 + 10 > 30),
+        # or a default deadline that does not leave room under the 30 s
+        # of hooks.json. Runs with the DEFAULT deadline, so it takes about
+        # as long as the hook timeout.
+        stale = _seed_stale_report(tmp_repo)
+        _seed_citations(tmp_repo, {3: 1})
+        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
+        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_gh")
+        _command, hook_timeout = _boot_hook_entry()
+
+        run = _run_boot_hook(
+            tmp_repo,
+            tmp_path,
+            gh_stub,
+            kill_after=hook_timeout + 5,
+            extra_env={_GH_KNOB: "60", **git_env},
+        )
+
+        assert slow_git_started.is_file(), "setup invalid\n" + run.describe()
+        assert not run.killed and run.elapsed < hook_timeout, (
+            f"the hook took {run.elapsed:.1f}s with a slow git after the cut; "
+            f"Claude Code kills it at {hook_timeout:g}s\n" + run.describe()
+        )
+        assert run.rc == 0, run.describe()
+        assert len(run.report_path_lines()) == 1, run.describe()
+        assert run.report() == stale, (
+            "setup invalid: the marker was written although git never answered"
+        )
+
+    def test_should_cut_the_install_step_git_check_at_the_deadline_when_git_is_slow(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught (Ultron's declared bound, untested until now): the
+        # first-boot `git rev-parse` before the installer bounded by a
+        # fixed 10 s instead of min(10, time left), so a slow git eats the
+        # deadline and the hook overruns it.
+        assert not Path(tmp_repo, ".claude", ".unmassk", "manifest.json").exists(), (
+            "setup invalid: the install step would not run"
+        )
+        _seed_citations(tmp_repo, {3: 1})
+        gh_stub.configure(issues=_all_unreflected([3]))
+        deadline = 2.5
+        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="first_call")
+
+        run = _run_boot_hook(
+            tmp_repo,
+            tmp_path,
+            gh_stub,
+            kill_after=30,
+            extra_env={_BOOT_KNOB: str(deadline), **git_env},
+        )
+
+        assert slow_git_started.is_file(), "setup invalid\n" + run.describe()
+        assert not run.killed and run.elapsed < deadline + _STARTUP_MARGIN_S, (
+            f"with {_BOOT_KNOB}={deadline} and a slow git before the "
+            f"installer, the hook took {run.elapsed:.1f}s\n" + run.describe()
+        )
+        assert run.rc == 0, run.describe()
+        _assert_overrun_notice(run, deadline)
+        _assert_failure_marker(run)
+
+
+class TestOverrunSaysWhatHappenedToTheMarker:
+    def test_should_not_claim_the_marker_replaced_the_report_when_the_write_fails(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught (Argus SEC-LOW-001): the hook says the report "holds
+        # only this failure" while the write failed and yesterday's report
+        # is still there, to be read as today's. Three runs on one repo:
+        # a normal boot (the previous session's report), an overrun with
+        # the report folder read-only, and an overrun with it writable
+        # again. The line about the report must differ between the two
+        # overruns.
+        _seed_citations(tmp_repo, {3: 1})
+        gh_stub.configure(issues=_all_unreflected([3]))
+        normal = _run_boot_hook(tmp_repo, tmp_path / "normal", gh_stub, kill_after=60)
+        _assert_full_briefing(normal)
+        previous = normal.report()
+
+        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
+        deadline = 2.5
+        report_dir = normal.report_path().parent
+        report_dir.chmod(0o555)
+        try:
+            failed = _run_boot_hook(
+                tmp_repo,
+                tmp_path / "read-only",
+                gh_stub,
+                kill_after=25,
+                extra_env=_overrun_env(deadline),
+            )
+        finally:
+            report_dir.chmod(0o755)
+        after_failed_write = failed.report()
+        replaced = _run_boot_hook(
+            tmp_repo,
+            tmp_path / "writable",
+            gh_stub,
+            kill_after=25,
+            extra_env=_overrun_env(deadline),
+        )
+
+        assert after_failed_write == previous, (
+            "setup invalid: the read-only folder did not stop the marker write"
+        )
+        _assert_overrun_notice(failed, deadline)
+        failed_lines = failed.report_path_lines()
+        assert len(failed_lines) == 1, (
+            "after a failed marker write, no [memory] line names the report "
+            "that is still there\n" + failed.describe()
+        )
+        _assert_failure_marker(replaced)
+        replaced_lines = replaced.report_path_lines()
+        assert len(replaced_lines) == 1, replaced.describe()
+        assert failed_lines != replaced_lines, (
+            "the hook says the same thing whether or not the old report was "
+            f"replaced: {failed_lines[0]!r}"
+        )
+
+
+class TestBothWritersShareOneReportPath:
+    def test_should_mark_the_same_file_boot_py_points_to_when_cwd_is_a_subfolder(
+        self, tmp_repo, tmp_path, gh_stub
+    ):
+        # Bug caught (Cerberus F3): the launcher's overrun marker and
+        # boot.py's report written to different places (e.g. the launcher
+        # using the session cwd instead of the repository root), so the
+        # stale-report protection marks a file nobody reads. The session
+        # starts in a subfolder, where the two can drift apart.
+        _seed_citations(tmp_repo, {3: 1})
+        subfolder = Path(tmp_repo, "src", "deep")
+        subfolder.mkdir(parents=True)
+        gh_stub.configure(issues=_all_unreflected([3]))
+        normal = _run_boot_hook(
+            tmp_repo, tmp_path / "normal", gh_stub, kill_after=60,
+            session_cwd=str(subfolder),
+        )
+        _assert_full_briefing(normal)
+        pointed = normal.report_path_lines()
+        assert len(pointed) == 1, (
+            "boot.py, started from a subfolder, did not point to the report "
+            "at the repository root\n" + normal.describe()
+        )
+        assert pointed[0].lower().startswith(tuple(_boot_py_pointer_prefixes())), pointed
+
+        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
+        deadline = 2.5
+        overrun = _run_boot_hook(
+            tmp_repo,
+            tmp_path / "overrun",
+            gh_stub,
+            kill_after=25,
+            extra_env=_overrun_env(deadline),
+            session_cwd=str(subfolder),
+        )
+
+        _assert_overrun_notice(overrun, deadline)
+        named = overrun.report_path_lines()
+        assert len(named) == 1, (
+            f"boot.py points to the report at the root ({pointed[0]!r}); the "
+            f"overrun does not name that file\n" + overrun.describe()
+        )
+        _assert_failure_marker(overrun)
+        assert not Path(subfolder, ".claude").exists(), (
+            "the overrun wrote a report under the session's subfolder"
         )

@@ -208,6 +208,8 @@ from pathlib import Path
 import pytest
 
 from .conftest import import_lib_memory_module
+from .gh_graphql_fake import answer as gh_graphql_answer
+from .gh_graphql_fake import real_gh_failure_line
 
 _BASE_NOTE_FIELDS = dict(
     type="M",
@@ -561,23 +563,22 @@ def _patch_gh(monkeypatch, response_for_call):
     return calls
 
 
-def _gh_list_completed(cmd, issues):
-    """`CompletedProcess` con la forma que `gh issue list --json
-    number,createdAt,comments` devuelve de verdad: una LISTA, un objeto
-    por issue. Desde D-130 [#95] `plans_unreflected()` pregunta por todas
-    las issues en UNA sola consulta, asi que la respuesta trae tambien
-    issues que nadie cito -- `issues` es `{numero: createdAt}` y el orden
-    de la lista es el de ese dict.
-
-    Solo `number`/`comments`/`createdAt`: son los campos que la ultima
-    actividad lee (ultimo comentario, o la creacion si no hay ninguno).
+def _gh_graphql_completed(cmd, issues):
+    """`CompletedProcess` con lo que `gh api graphql` devuelve de verdad
+    para la consulta que `cmd` lleva: desde D-130 [#95, Cerberus F1]
+    `plans_unreflected()` hace UNA sola peticion que nombra solo las
+    issues citadas, y GitHub contesta solo esos alias
+    (`tests/memory/gh_graphql_fake.py`, la misma doble que usa el hook).
+    `issues` es `{numero: createdAt}`, sin comentarios: la ultima
+    actividad es entonces la creacion.
     """
-    payload = [
-        {"number": number, "createdAt": created_at, "comments": []}
+    configured = {
+        number: {"createdAt": created_at, "comments": []}
         for number, created_at in issues.items()
-    ]
+    }
+    returncode, stdout, stderr = gh_graphql_answer(cmd[1:], configured)
     return subprocess.CompletedProcess(
-        args=cmd, returncode=0, stdout=json.dumps(payload), stderr=""
+        args=cmd, returncode=returncode, stdout=stdout, stderr=stderr
     )
 
 
@@ -609,15 +610,15 @@ def test_work_commit_after_last_issue_activity_is_reported_as_unreflected_with_i
     # Fecha de actividad de la issue deliberadamente muy en el pasado --
     # ver supuesto 6 del docstring del modulo: cualquier commit real de
     # "ahora" queda despues, sin importar cuando corra esta suite.
-    # La issue 46 nadie la cita y su actividad es FUTURA: va primero en la
-    # respuesta a proposito. Si el codigo tomara la primera issue de la
-    # lista en vez de buscar la #47 por su numero, la daria por reflejada.
+    # La issue 46 nadie la cita y su actividad es FUTURA: si el codigo la
+    # pidiera y leyera su alias en lugar del de la #47, la daria por
+    # reflejada.
     future = (datetime.now(timezone.utc) + timedelta(days=365)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_list_completed(
+        lambda cmd: _gh_graphql_completed(
             cmd, {46: future, issue_number: "2020-01-01T00:00:00Z"}
         ),
     )
@@ -663,12 +664,11 @@ def test_work_commit_before_last_issue_activity_is_not_reported(
     future = (datetime.now(timezone.utc) + timedelta(days=365)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
-    # La issue 49 nadie la cita y su actividad es ANTIGUA: va primero a
-    # proposito. Tomar la primera de la lista en vez de la #48 por su
-    # numero haria saltar un aviso falso.
+    # La issue 49 nadie la cita y su actividad es ANTIGUA: leer su alias
+    # en lugar del de la #48 haria saltar un aviso falso.
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_list_completed(
+        lambda cmd: _gh_graphql_completed(
             cmd, {49: "2020-01-01T00:00:00Z", issue_number: future}
         ),
     )
@@ -713,7 +713,7 @@ def test_no_commit_citing_an_issue_returns_empty_without_calling_gh(
 
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_list_completed(cmd, {1: "2020-01-01T00:00:00Z"}),
+        lambda cmd: _gh_graphql_completed(cmd, {1: "2020-01-01T00:00:00Z"}),
     )
 
     with _cwd(root):
@@ -784,7 +784,7 @@ def test_zero_offset_work_commit_does_not_crash_the_coherence_check(
 
     calls = _patch_gh(
         monkeypatch,
-        lambda cmd: _gh_list_completed(
+        lambda cmd: _gh_graphql_completed(
             cmd, {issue_number: "2020-01-01T00:00:00Z"}
         ),
     )
@@ -916,9 +916,9 @@ def test_gh_failure_raises_instead_of_reporting_all_clear(health, notes, tmp_rep
     decir que un plan esta al dia porque no se pudo mirar.
 
     Sin ningun mock: `tmp_repo` es un repo git real recien creado, sin
-    remoto de GitHub -- `gh issue view` contra el falla YA, de verdad,
-    sin red (verificado en vivo antes de escribir este test:
-    `returncode=1`, `stderr='no git remotes found\\n'`). Es la unica de
+    remoto de GitHub -- `gh api graphql` contra el falla YA, de verdad,
+    sin red (sin sesion de gh: "To get started with GitHub CLI..."; con
+    sesion: "no git remotes found"). Es la unica de
     las cuatro filas que no necesita fingir el limite externo -- basta
     con dejar que el fallo real ocurra.
     """
@@ -933,9 +933,19 @@ def test_gh_failure_raises_instead_of_reporting_all_clear(health, notes, tmp_rep
         with pytest.raises(RuntimeError) as exc_info:
             health.plans_unreflected()
 
-    assert str(issue_number) in str(exc_info.value), (
-        f"RuntimeError deberia nombrar la issue #{issue_number} que no se "
-        f"pudo verificar -- salio: {exc_info.value!r}"
+    # La causa real es la de `gh`, leida aqui de `gh` mismo, nunca un
+    # texto inventado. Desde Cerberus F2 [#95, decidido 2026-10-19] un
+    # fallo general de `gh` ya NO lista las issues citadas: con 37 citadas
+    # la linea de aviso se volvia ilegible. Solo una issue concreta que
+    # GitHub no devuelve se nombra (ver test_boot_deadline_contract.py).
+    gh_cause = real_gh_failure_line(root)
+    assert gh_cause in str(exc_info.value), (
+        f"RuntimeError deberia llevar la causa real de gh ({gh_cause!r}) -- "
+        f"salio: {exc_info.value!r}"
+    )
+    assert f"#{issue_number}" not in str(exc_info.value), (
+        "un fallo general de gh no lista las issues citadas (Cerberus F2) -- "
+        f"salio: {exc_info.value!r}"
     )
 
 

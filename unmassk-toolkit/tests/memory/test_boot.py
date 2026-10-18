@@ -105,6 +105,7 @@ import os
 import pytest
 
 from .conftest import import_lib_memory_module, run_git
+from .gh_graphql_fake import real_gh_failure_line
 
 _BASE_NOTE_FIELDS = dict(
     type="M",
@@ -1137,7 +1138,7 @@ def test_boot_survives_a_real_gh_failure_and_shows_it_as_a_warning_line(
     mentira exacta que este sistema existe para impedir.
 
     Sin mock: `tmp_repo` es un repo git real recien creado sin remoto de
-    GitHub -- `gh issue view` contra el falla YA, de verdad (mismo hecho
+    GitHub -- `gh api graphql` contra el falla YA, de verdad (mismo hecho
     verificado en vivo que `test_health.py::
     test_gh_failure_raises_instead_of_reporting_all_clear`).
     """
@@ -1171,8 +1172,12 @@ def test_boot_survives_a_real_gh_failure_and_shows_it_as_a_warning_line(
         "plans_unreflected_error -- salio None, indistinguible de 'no habia "
         "nada que consultar'"
     )
-    assert str(issue_number) in summary.health.plans_unreflected_error, (
-        f"el motivo real deberia nombrar la issue #{issue_number} -- salio "
+    # El motivo es el de `gh` mismo, leido aqui de `gh`, nunca inventado.
+    # Desde Cerberus F2 [#95, decidido 2026-10-19] un fallo general de gh
+    # ya no lista las issues citadas.
+    gh_cause = real_gh_failure_line(root)
+    assert gh_cause in summary.health.plans_unreflected_error, (
+        f"el motivo deberia ser la causa real de gh ({gh_cause!r}) -- salio "
         f"{summary.health.plans_unreflected_error!r}"
     )
 
@@ -1183,8 +1188,8 @@ def test_boot_survives_a_real_gh_failure_and_shows_it_as_a_warning_line(
         f"el fallo de gh deberia salir como una linea de aviso explicita, "
         f"nunca en silencio:\n{avisos_block}"
     )
-    assert str(issue_number) in avisos_block, (
-        f"la linea de aviso deberia nombrar la issue real #{issue_number}:\n"
+    assert gh_cause in avisos_block, (
+        f"la linea de aviso deberia llevar la causa real de gh ({gh_cause!r}):\n"
         f"{avisos_block}"
     )
     # El resto del informe de salud sigue siendo real -- el fallo de gh no
