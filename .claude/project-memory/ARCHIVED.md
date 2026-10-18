@@ -68,3 +68,4 @@
 2026-10-18  [M-145][memory][architecture] 📌 memory in its own git refs: git-bug and others do it; hash IDs end #87  →  replaced by M-146
 2026-10-18  [D-057][memory][release] 🧭 code commits: commit and push at every step, never squash-and-push at the close  →  closed: superseded: D-096 replaced it (the replace did not archive it), then D-097 and D-115 — WIPs per step, the step commit is pushed
 2026-10-18  [D-104][release][memory] 🧭 finished step: squash WIPs to dev, drop branch, then ask to go on  →  replaced by D-117
+2026-10-18  [D-115][memory][release] 🧭 commit protocol: one commit per step from squashed WIPs, merge commit sums up  →  replaced by D-118
