@@ -124,3 +124,4 @@
 [X-124][boot][memory] print the rules from the boot hook
 [X-125][boot][memory] a dedicated SessionStart hook per rules file
 [X-126][hooks][install] a Stop hook
+[X-127][hooks][install] a PreToolUse hook on AskUserQuestion
