@@ -15,8 +15,9 @@ project's CLAUDE.md by the REAL writers (never by calling
   - a sentence, next to that import, saying those rules bind from the
     first message;
   - a step 1 that no longer claims the briefing is "already in your
-    context": it names the `[memory]` lines of the session start, and says
-    that if none arrived the boot failed and the user is told first.
+    context": it sends Claude to the boot report whose path the `[memory]`
+    lines of the session start give, and says that if no such line or no
+    report arrived the boot failed and the user is told first.
 Existing projects get it on their next session start: the old block is
 upgraded in place, the user's own text around it untouched.
 
@@ -37,10 +38,13 @@ code spans or code blocks; relative paths resolve against the file that
 holds the import. `_expandable_imports()` below is that rule, written
 separately from the code under test.
 
+Every test here runs with a disposable HOME (autouse fixture below): the
+installer, run directly or by boot_launcher.py on an uninstalled project,
+overwrites ~/.local/bin/gitmem, and must never touch the owner's.
+
 NO production code is touched by this file.
 """
 
-import json
 import os
 import re
 import subprocess
@@ -99,6 +103,18 @@ USER_HEAD = "# My project\n\nOwner notes written by hand, above the blocks.\n\n"
 USER_TAIL = "\n\n## My own section\n\nkeep me exactly as I am -- `@not/an/import.md`\n"
 
 
+@pytest.fixture(autouse=True)
+def _disposable_home(tmp_path, monkeypatch):
+    """Every subprocess of this file inherits a throwaway HOME: the
+    installer writes the gitmem launcher under ~/.local/bin, and a test
+    must never rewrite the owner's real one (Argus SEC-MED-001)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return str(home)
+
+
 # ── Writers (the real doors) ─────────────────────────────────────────────
 
 
@@ -136,6 +152,20 @@ def _claude_md(repo):
 def _written_claude_md(repo, writer):
     WRITERS[writer](repo)
     return _claude_md(repo)
+
+
+def test_should_write_the_gitmem_launcher_under_the_disposable_home_when_the_installer_runs(
+    tmp_repo, _disposable_home
+):
+    """Guard of this file's own isolation. Bug caught: the HOME override
+    is dropped or bypassed, so the installer run by these tests rewrites
+    the owner's real ~/.local/bin/gitmem (it happened, SEC-MED-001)."""
+    _run_installer(tmp_repo)
+    launcher = os.path.join(_disposable_home, ".local", "bin", "gitmem")
+    assert os.path.isfile(launcher), (
+        f"the installer did not write its launcher under the disposable HOME "
+        f"({launcher}); it went somewhere else -- maybe the real one"
+    )
 
 
 # ── Independent readers ──────────────────────────────────────────────────
@@ -302,37 +332,60 @@ def test_should_name_the_memory_lines_and_the_failed_boot_rule_in_step_one_when_
 ):
     """Bug caught: step 1 does not tell Claude what to look for, nor what
     to do when it is missing -- so a dead boot is met with silence instead
-    of the user being told first."""
+    of the user being told first. Also caught: step 1 says the `[memory]`
+    lines themselves carry the Next and blockers (they only point to the
+    boot report, bin/memory/boot.py), so Claude reads a pointer as the
+    briefing and never opens the report (Argus SEC-LOW-001)."""
     step1 = _step_one(_toolkit_block_text(_written_claude_md(tmp_repo, writer)))
     low = step1.lower()
-    missing = [w for w in ("[memory]", "boot", "fail", "first", "user") if w not in low]
+    missing = [w for w in ("[memory]", "boot report", "path", "fail", "first", "user")
+               if w not in low]
     assert not missing, (
-        f"{writer}: step 1 must name the `[memory]` lines of the session start "
-        f"and say that if none arrived the boot failed and the user is told "
-        f"first. Missing {missing} in:\n{step1}"
+        f"{writer}: step 1 must send Claude to the boot report whose path the "
+        f"`[memory]` lines give, and say that if none arrived the boot failed "
+        f"and the user is told first. Missing {missing} in:\n{step1}"
     )
 
 
-def test_should_name_in_step_one_a_line_prefix_the_real_boot_actually_prints(tmp_repo):
-    """Cross-seam: the prefix step 1 tells Claude to look for must be one
-    the real SessionStart boot (hooks/boot_launcher.py) prints at the start
-    of a line. Both hooks run in the order hooks.json lists them.
-    Bug caught: the block names a prefix the boot never prints (or stops
-    printing), so Claude reports a healthy boot as failed every session."""
-    rc, boot_out, err = run_hook_with_payload(
-        "boot_launcher.py", make_session_start_payload(tmp_repo), cwd=tmp_repo
+def test_should_name_in_step_one_the_prefix_of_the_line_that_carries_the_boot_report_path(
+    tmp_repo,
+):
+    """Cross-seam, on the everyday path: an INSTALLED project's session
+    start. The prefix step 1 tells Claude to look for must open a line,
+    printed by the real SessionStart boot (hooks/boot_launcher.py), that
+    carries the path of a boot report that really exists on disk.
+    The first boot_launcher run installs the project; only the second run
+    is checked, so the installer's own `[memory] ... installed` notice
+    cannot satisfy the test (Cerberus F2).
+    Bug caught: the block names a prefix the boot never puts on the report
+    line (or the boot stops printing it), so on every session after the
+    first Claude finds no report and tells the owner the boot failed."""
+    payload = make_session_start_payload(tmp_repo)
+    rc, _first, err = run_hook_with_payload("boot_launcher.py", payload, cwd=tmp_repo)
+    assert rc == 0, f"first boot_launcher rc={rc} stderr={err}"
+    manifest = os.path.join(tmp_repo, ".claude", ".unmassk", "manifest.json")
+    assert os.path.isfile(manifest), (
+        "the first session start did not install the project, so the second "
+        "run would not be the everyday path of an installed project"
     )
-    assert rc == 0, f"boot_launcher rc={rc} stderr={err}"
     _run_session_start_crew(tmp_repo)
+
+    rc, boot_out, err = run_hook_with_payload("boot_launcher.py", payload, cwd=tmp_repo)
+    assert rc == 0, f"second boot_launcher rc={rc} stderr={err}"
 
     step1 = _step_one(_toolkit_block_text(_claude_md(tmp_repo)))
     named = set(re.findall(r"\[[a-z]+\]", step1))
     assert named, f"step 1 names no `[prefix]` of the session start:\n{step1}"
-    printed = {l.split("]", 1)[0] + "]" for l in boot_out.splitlines()
-               if re.match(r"\[[a-z]+\]", l)}
-    assert named <= printed, (
-        f"step 1 names {sorted(named)}, the real boot printed line prefixes "
-        f"{sorted(printed)}"
+
+    def _existing_paths(line):
+        return [t for t in line.split() if os.path.isabs(t) and os.path.isfile(t)]
+
+    report_lines = [l for l in boot_out.splitlines()
+                    if any(l.startswith(p) for p in named) and _existing_paths(l)]
+    assert report_lines, (
+        f"step 1 names {sorted(named)}, but no line of an installed project's "
+        f"boot starts with it and carries the path of an existing boot report. "
+        f"Boot output:\n{boot_out}"
     )
 
 
