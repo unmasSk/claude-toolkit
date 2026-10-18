@@ -21,28 +21,3 @@ Before counting something as a gap (a missing guard, a missing check), verify wh
 
 Verification: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run twice.
 ```
-
----
-
-## Template 2: Re-Audit (Step 10)
-
-> Scope: COMPLETE module post-fixes. Compare score before/after.
-
-```markdown
-## Task: Re-audit module [MODULE] post-fixes
-
-ARTIFACT: the complete module `[MODULE_PATH]` after the fixes (not a diff). Issue #[N].
-CONTRACT: every item in this table had to be fixed; the standards are the same as in step 4. Previous score: [XX/110].
-
-| ID | Tier | Description |
-|----|------|-------------|
-| F1 | T1   | ...         |
-
-SCOPE: the module only. Report only — never fix.
-ASK: review and audit the whole artifact — every file, function and module in scope — and return, for each one, "reviewed" and what you checked. Finding nothing is a valid answer; a report without that coverage list is not.
-
-Before counting something as a gap, verify whether it is already handled upstream (shared wrapper, caller-level guard, config default).
-
-Verification: `[TEST_CMD]`, `[FORMAT_CMD]` and `[LINT_CMD]` scoped to `[MODULE_PATH]`; tests run twice.
-Expected output: items closed X/Y, anything new with its tier, score before → after, prose per dimension (2-3 sentences each).
-```

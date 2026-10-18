@@ -106,16 +106,14 @@ House circuit breaker: if Ultron fails the same fix 3 times, launch House (agent
 
 Prompt templates: see `prompts/ultron.md` and `prompts/house.md`
 
-### Step 6 -- Review Fixes (Cerberus)
+### Step 6 -- Verify Fixes (ORCHESTRATOR)
 
-1. Re-read ALL module files (not just touched ones); state the file count reviewed in the findings table.
-2. Verify each original finding: closed? Root cause resolved?
-3. Check for NEW findings introduced by fixes.
-4. Verify no anti-patterns from standards.
-5. Compare score before/after.
-6. Run tests TWICE.
+No second review: every reviewer runs once and every fix runs once (D-122). The orchestrator checks the fix pass itself:
 
-Verdict: APPROVED or REQUIRES ANOTHER ROUND. If another round needed, return to step 5.
+1. Every T1/T2/T3 finding from step 4 maps to a change in the diff, or to a written reason why it was not a real finding.
+2. Run the module's tests TWICE.
+
+Gate: every finding accounted for and tests green. A finding with no change and no reason goes back to Ultron once, as part of this same fix pass.
 
 ### Step 7 -- Test Fixed Code (Dante)
 
@@ -128,7 +126,7 @@ Gate: coverage maintained at 97%+. Same explicit audit exception as step 3 — t
 ### Step 8 -- Adversarial Validation (Moriarty)
 
 1. Moriarty attacks the full module across all attack phases.
-2. Document each break with tier classification; hand every confirmed break to Ultron (step 5/9) for the fix.
+2. Document each break with tier classification; hand every confirmed break to step 9 (Dante's regression test, Ultron's fix — once).
 3. Output: attack report with confirmed breaks and per-phase summary.
 
 Prompt template: see `prompts/moriarty.md`
@@ -139,19 +137,11 @@ Prompt template: see `prompts/moriarty.md`
 2. Write confirmation tests for attacks the module withstood.
 3. Create `<module>.adversarial.test.*` (extension per project stack).
 
-Gate: 0 T1 bugs, 0 T2 bugs unresolved. If T1/T2 bugs found, return to step 5.
+Gate: 0 T1 bugs, 0 T2 bugs unresolved: every confirmed T1/T2 break gets its regression test here and its code fix from Ultron in this same step — once.
 
 Prompt template: see `prompts/dante.md` (Template 2: Adversarial Tests)
 
-### Step 10 -- Re-Audit (Cerberus)
-
-Full re-audit using the same closed checklist. Same process as step 6.
-
-If score decreased or new T1/T2 findings exist, return to step 5. Repeat until APPROVED.
-
-Prompt template: see `prompts/cerberus.md` (Template 2: Re-Audit)
-
-### Step 11 -- Senior Review (Yoda)
+### Step 10 -- Senior Review (Yoda)
 
 1. Read ALL source files and their tests; state the file count read in the senior evaluation output.
 2. Run tests TWICE.
@@ -160,9 +150,15 @@ Prompt template: see `prompts/cerberus.md` (Template 2: Re-Audit)
 5. Score on weighted table out of 110.
 6. Verdict: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE. 110 is perfection: for any lower score, Yoda says what to fix to reach it, or why it cannot be reached.
 
-If REJECTED, return to step 5 with Yoda's concerns. If Moriarty's verdict was FALLA, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
+Yoda judges once and is not sent again. Whatever the verdict, what Yoda names is fixed once in step 11. If Moriarty's verdict was FALLA, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
 
 Prompt template: see `prompts/yoda.md`
+
+### Step 11 -- Yoda's Fixes (Ultron / Dante, once)
+
+1. Fix exactly what Yoda named: code goes to Ultron, tests to Dante, each a fresh agent.
+2. Run the module's tests TWICE.
+3. No new verdict: if every named point is fixed, the path to 110 Yoda gave is taken as walked (D-089). What cannot be fixed is written in the closing note with Yoda's reason.
 
 ### Step 12 -- Documentation (Alexandria)
 
@@ -187,14 +183,14 @@ Prompt template: see `prompts/alexandria.md`
 7. Save the closing note, with the score and what it cost:
    `gitmem note M --zones codeaudit <module-zone> "<module> audited: YY/110" --description "..." --stops no --issue N`
 
-## Loop Conditions
+## No Loops
+
+Every agent runs once and every fix runs once (D-122). Nothing returns to step 5:
 
 | Trigger | Action |
 |---------|--------|
-| Steps 8-9 find T1/T2 bugs | Return to step 5 |
-| Step 6 or 10 gives REQUIRES ANOTHER ROUND | Return to step 5 |
-| Step 11 gives REJECTED | Return to step 5 |
-| Step 11 gives APPROVED or APPROVED WITH CONDITIONS | Continue to step 12 |
+| Step 8 finds T1/T2 bugs | Step 9: Dante writes their regression tests, Ultron fixes the code — once |
+| Step 10 gives any verdict | Step 11 fixes what Yoda named — once — then step 12 |
 
 ## Commit Policy
 
@@ -207,7 +203,6 @@ Prompt template: see `prompts/alexandria.md`
 ## ORCHESTRATOR (Claude + User) Rules
 
 - Never edit code directly -- everything through agents.
-- Require at least a second re-audit round whenever step 5 touched more files than the original findings table listed. Historical data: one module required 6 re-audit rounds.
 - Always verify agent claims independently (run tests, check LOC).
 - Reject an "all clean" report unless it cites, per checklist item, the file:line or command output checked. Agents tend to report "clean" without verifying all tiers.
 - Assign each file to exactly one agent at a time; queue other work on that file until the first agent finishes.
@@ -260,12 +255,12 @@ Scoring dimensions, weights (Integrity x3, Silent-failure/Error handling x3, Str
 | 3 | Dante | Yes | 97%+ coverage, tests pass x2 (audit gate — supersedes merge override) |
 | 4 | Cerberus + Argus | Yes | Score + security findings |
 | 5 | Ultron | Depends | Tests pass after each fix |
-| 6 | Cerberus | No | APPROVED or loop |
+| 6 | ORCHESTRATOR | No | Every finding mapped to a fix, tests x2 |
 | 7 | Dante | No | Tests pass x2 |
 | 8 | Moriarty | No | Breaks documented |
 | 9 | Dante | No | Adversarial tests pass x2 |
-| 10 | Cerberus | No | APPROVED or loop |
-| 11 | Yoda | No | Verdict |
+| 10 | Yoda | No | Verdict + path to 110 |
+| 11 | Ultron / Dante | Depends | What Yoda named, fixed once |
 | 12 | Alexandria | No | Docs updated |
 | 13 | ORCHESTRATOR (Claude + User) | - | Merged (per repo_type) + closed |
 
@@ -283,7 +278,7 @@ Every template below is stack-agnostic: `[MODULE_PATH]` stands for the module's 
 - **`prompts/ultron.md`** -- Fix findings prompt template
 - **`prompts/house.md`** -- Diagnostic prompt templates (new investigation, continue, re-diagnose)
 - **`prompts/dante.md`** -- Golden tests + adversarial tests prompt templates
-- **`prompts/cerberus.md`** -- Enterprise audit + re-audit prompt templates
+- **`prompts/cerberus.md`** -- Enterprise audit prompt template (one pass, no re-audit)
 - **`prompts/argus.md`** -- Deep integrity audit prompt template
 - **`prompts/moriarty.md`** -- Adversarial validation prompt template
 - **`prompts/yoda.md`** -- Senior review prompt template
