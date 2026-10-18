@@ -80,3 +80,4 @@
 [D-089][skills][standards] Yoda: 110 is perfection; any lower score owes the path to 110, or why not
 [D-090][boot][hooks] live panel mod for agent and session timings, apart from #84
 [D-091][skills][architecture] council gains an ideation round when no options exist yet, adhd-style
+[D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
