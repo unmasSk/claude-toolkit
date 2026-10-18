@@ -13,4 +13,7 @@ D-119/D-120 (#101, 2026-10-18): merge/pull INTO dev = no gate; target above dev 
 - The live hook blocks any Bash text containing "git merge" — even a heredoc writing a memory note. Write such files with the Write tool.
 - Open owner question at contract time: same-branch sync on main (`git pull origin main` on main) is approved today but D-120 literally says target main = block.
 
+- Fix round (Cerberus, 2026-10-18): every merge/pull in a chained command must be judged (`&&`, newline), `cd`/`pushd`/`git -C` before a merge = unknown target, and unknown target gets the HEAVY message, not the light one. `git merge X || git merge --abort` must not be exempted by the fallback; `feat/main` on main is not a sync (only a real remote prefix is).
+- The hook's internal-failure branch cannot be forced from outside: run_git swallows every error and returns (1, ""). Report it UNVERIFIED rather than monkeypatching.
+
 **How to apply:** any later round on this hook — keep the third-branch fixture and the dev->staging switch test.
