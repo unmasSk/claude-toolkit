@@ -96,4 +96,4 @@
 [D-122][skills][standards] audit runs one pass: every reviewer once, every fix once, no loops
 [D-123][skills][testing] Dante enters once: tests first, then only the fix passes; no hardening pass
 [D-124][memory][hooks] per-message checklist gains a 4th check: a result given is ticked in its plan
-[D-125][skills][testing] test-first: Dante writes every test once; Ultron codes only what the tests ask
+[D-126][skills][testing] test-first: Ultron adds code beyond the tests only as a declared exception
