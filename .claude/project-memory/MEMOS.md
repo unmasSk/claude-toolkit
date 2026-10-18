@@ -128,3 +128,4 @@
 [M-149][skills][hooks] checklist hooks: boxes match on whole text, registry keeps first load
 [M-150][docs][skills] writing guide for model-read texts: sources read, and what they do not say
 [M-151][skills][docs] flow sweep: what is already consistent, so nobody re-checks it
+[M-152][hooks][boot] rules file and D-124 checklist are wired nowhere at session start @cbac68de
