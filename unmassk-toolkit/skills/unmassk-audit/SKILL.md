@@ -14,7 +14,7 @@ Structured 14-step workflow for auditing any module against enterprise quality s
 
 - User requests auditing any module (backend, frontend, library, service)
 - User says "audit", "enterprise review", "launch audit"
-- Resuming an in-progress audit (check TodoWrite for current step)
+- Resuming an in-progress audit (check the app's task list for the current step)
 
 Use this skill for structured audits of a complete module; a one-off review or a quick lint check is out of scope.
 
@@ -24,13 +24,13 @@ Use this skill for structured audits of a complete module; a one-off review or a
 
 ### Initialization
 
-Before step 0, create a TodoWrite with one item per step (steps 0-13). Update status after completing each step. Issue a WIP commit after every step. Only two real commits: step 0 (context) and step 13 (closure).
+Before step 0, create the app's task list (TodoWrite or its equivalent) with one item per step (steps 0-13), numbered, and update it after each step. After every agent that changes files, the orchestrator saves a WIP (`gitmem wip`); agents never commit. When an audit step is done, its WIPs are squashed into one commit for that step, keeping memory-note commits out (until issue #87 is built, nothing is squashed). Memory notes open (step 0) and close (step 13) the audit.
 
 ### Step 0 -- Preparation (ORCHESTRATOR (Claude + User))
 
 1. Point the audit at an issue. If one already covers the target, use it. If none does, **propose it in one line and wait — you never open one on your own judgement** (the protocol, the labels and the template are in the memory skill's `references/issues.md`). If the user declines, the audit still runs; the opening note simply carries no issue number.
 2. Create the audit branch -- branch strategy depends on the project's `repo_type` (declared in `.claude/project-memory/config.json`; read it, do not redefine it here):
-   - **gitflow** → `git checkout -b chore/audit-<module> dev`
+   - **gitflow** → `git switch -c chore/audit-<module> dev`
    - **trunk** → work directly on `main`; no separate audit branch needed
 3. Save the opening note:
    `gitmem note M --zones codeaudit <module-zone> "enterprise audit of <module> starts" --description "..." --stops no --issue N`
@@ -63,7 +63,7 @@ Characterization testing -- capture current behavior BEFORE any code changes. Ru
 1. One Dante agent per source file (no overlap).
 2. Target: 97%+ coverage with REAL assertions (no tautologies).
 3. Include unit tests and integration tests appropriate for the stack (e.g., supertest for Express, httpx for FastAPI, net/http/httptest for Go).
-4. Each agent runs tests twice for stability.
+4. Each agent runs tests twice for stability. Parallel Dantes need one test database each; if the project does not have that yet, their tests run one after another.
 
 Gate: all golden tests pass at 97%+ coverage before proceeding past step 4. **Coverage exception:** the general "coverage is not a merge gate" override does NOT apply here. In an audit, 97%+ is a hard gate — an audit is more stringent than a normal merge, and this is a conscious, explicit decision to supersede that override.
 
@@ -158,9 +158,9 @@ Prompt template: see `prompts/cerberus.md` (Template 2: Re-Audit)
 3. Write prose evaluation per dimension (2-4 sentences each).
 4. Provide honest professional sentiment (one paragraph, no bullets).
 5. Score on weighted table out of 110.
-6. Verdict: APPROVED / APPROVED WITH RESERVATIONS / NOT READY.
+6. Verdict: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE. 110 is perfection: for any lower score, Yoda says what to fix to reach it, or why it cannot be reached.
 
-If NOT READY, return to step 5 with Yoda's concerns. If Moriarty gave FAIL verdict, Yoda cannot give APPROVED (only RESERVATIONS if orchestrator accepted the risk).
+If REJECTED, return to step 5 with Yoda's concerns. If Moriarty gave FAIL verdict, Yoda cannot give APPROVED (only APPROVED WITH CONDITIONS if the orchestrator accepted the risk).
 
 Prompt template: see `prompts/yoda.md`
 
@@ -177,10 +177,10 @@ Prompt template: see `prompts/alexandria.md`
 ### Step 13 -- Closure (ORCHESTRATOR (Claude + User))
 
 1. Delete temporary files (`AUDIT-<module>.tmp.md`).
-2. **MANDATORY: Run FULL test suite** (detect and use the project's test command — e.g., `npx vitest run`, `pytest`, `go test ./...`) — not just the module tests. If any test fails that was passing before the audit started, the audit introduced a regression. Fix before merging.
+2. **MANDATORY: run the module's tests and those of everything that depends on it** (detect the project's test command) — never the whole suite by hand: CI runs it when the work goes to staging or production. If any test fails that was passing before the audit started, the audit introduced a regression. Fix before merging.
 3. Final commit with score and closed findings.
 4. Merge and push — strategy depends on the same `repo_type` read in step 0:
-   - **gitflow** → `git checkout dev && git merge --no-ff chore/audit-<module>` then `git push origin dev`
+   - **gitflow** → `git switch dev && git merge --no-ff chore/audit-<module>` then `git push origin dev`
    - **trunk** → changes already committed to `main`; push directly. No branch merge needed.
 5. Close issue: `gh issue close N --comment "Enterprise audit complete -- YY/110"`
 6. Delete branch (local and remote) if a branch was created (gitflow only).
@@ -193,15 +193,15 @@ Prompt template: see `prompts/alexandria.md`
 |---------|--------|
 | Steps 8-9 find T1/T2 bugs | Return to step 5 |
 | Step 6 or 10 gives REQUIRES ANOTHER ROUND | Return to step 5 |
-| Step 11 gives NOT READY | Return to step 5 |
-| Step 11 gives APPROVED or APPROVED WITH RESERVATIONS | Continue to step 12 |
+| Step 11 gives REJECTED | Return to step 5 |
+| Step 11 gives APPROVED or APPROVED WITH CONDITIONS | Continue to step 12 |
 
 ## Commit Policy
 
 | When | Commit type |
 |------|-------------|
 | Step 0 | a memo saying the audit starts -- real note |
-| Steps 1-12 | checkpoints only (`gitmem wip "..."`) |
+| Steps 1-12 | a WIP after every agent that changes files (`gitmem wip`, by the orchestrator), squashed into one commit per step |
 | Step 13 | `gitmem work "<module>: enterprise audit complete"` + the closing memo |
 
 ## ORCHESTRATOR (Claude + User) Rules

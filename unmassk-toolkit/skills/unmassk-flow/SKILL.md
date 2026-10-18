@@ -45,7 +45,7 @@ This is the rule the whole pipeline exists to protect. When Flow is carried to a
 | **Bilbo** | investigates — maps the codebase and traces dependencies, AND researches the web when the answer isn't in the repo | implements, reviews, or judges |
 | **Ultron** | implements production code | writes/edits tests, explores as a phase, reviews, attacks |
 | **Dante** | writes and hardens tests | implements production code, investigates the codebase (that's Bilbo) |
-| **Cerberus** | reviews code | fixes what it finds (reports → Ultron fixes) |
+| **Cerberus** | reviews code | fixes what it finds (reports → Ultron fixes code, Dante fixes tests) |
 | **Argus** | security audit | fixes, or does general code review |
 | **Moriarty** | tries to break the shipping candidate | fixes, or reviews |
 | **Yoda** | final production-readiness verdict | fixes, re-reviews, or attacks |
@@ -77,7 +77,7 @@ Classify the work BEFORE anything else. Decide together with the user. (First ru
 
 | Procedure | What it covers | Who |
 | --------- | -------------- | --- |
-| **Trivial** | Quick, isolated and checkable at a glance, and NONE of: logic change, data, security, a seam, new behavior, or anything other modules depend on. Examples: widening a button, a typo, a config value. If on inspection several things have to be redone, it is no longer trivial. | **Claude does it, with no agents, no plan, no branch and no list**: one finished-work commit (`gitmem work`), not a WIP, since there is nothing to squash later. On trunk it lands on `main`; on gitflow, directly on `dev` (`gitmem` only protects `main`). If the repo has tests, run once the ones covering the touched file. |
+| **Trivial** | Quick, isolated and checkable at a glance, and NONE of: logic change, data, security, a seam, new behavior, or anything other modules depend on. Examples: widening a button, a typo, a config value. If on inspection several things have to be redone, it is no longer trivial. | **Claude does it, with no agents, no plan, no branch and no list**: one finished-work commit (`gitmem work`), not a WIP, since there is nothing to squash later. If a work branch is already open, it goes on that branch; otherwise on `main` (trunk) or directly on `dev` (gitflow; `gitmem` only protects `main`). If the repo has tests, run once the ones covering the touched file. |
 | **Short** | A change with logic but bounded: 1 to 3 files, one part of the project, and touching no data, memory, security or money (a producer↔consumer seam counts as data: it goes to Full). Examples: fixing a known bug in a function, adding a field to a form. | Ultron implements → Dante adds the test for the change if the project has tests (if it has none, they are not set up here) → Cerberus reviews → one fix pass (code: Ultron; tests: Dante). No Argus, Moriarty, Yoda or Alexandria. |
 | **Full** | Anything touching data, memory, security or money, a new feature, or several parts of the project at once. | The whole Step 5 pipeline. If it is large (3+ new files or 5+ modified), Execute in several Ultron rounds and deeper Research. |
 
@@ -91,7 +91,7 @@ Triage settles **size** (knowable early: files touched, whether it hits auth/dat
 
 **If Short or Full:** use the Skill tool with `skill="unmassk-grill"` now (pipeline-invoked mode — 5-question cap) to catch vague wording and bundled scope in the request before Brainstorm starts. Skip it for Trivial.
 
-Create the branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch). **The issue is a plan, and a plan is opened by the user, never by you** — offer it in one line and wait; if they open one, follow `references/plan.md` for what it holds and how it is kept up to date. Then record the start in memory.
+Create the branch after triage (in a gitflow repo; in a trunk repo `main` is the working branch) — one branch per task, never for a Trivial. **The issue is a plan, and a plan is never opened on your own judgement** — offer it in one line and wait; with the user's yes you open it, and then follow `references/plan.md` for what it holds and how it is kept up to date. Then record the start in memory.
 
 ## Step 1 — Brainstorm (ORCHESTRATOR + User)
 
@@ -239,7 +239,7 @@ MANDATORY: Read the plan file before any implementation. Verify the plan exists 
 4. Launch Wave 2 phases
 5. Repeat until all waves done
 
-- **Tests in parallel:** every agent that runs tests uses its own test database (the project-cleanup skill sets it up). If the project does not have that yet, its tests are not run in parallel.
+- **Tests in parallel:** every agent that runs tests uses its own test database (the project-cleanup skill will set it up — D-100, not built yet). If the project does not have that yet, its tests are not run in parallel.
 - **Before refactoring:** Dante writes and checks the golden tests of what is affected; never refactor without that net.
 - **Silence:** while agents work, nothing is reported to the owner; when the last one finishes, one single cross report.
 
@@ -282,7 +282,7 @@ If Ultron fails the same task 3 times:
 
 ### Progress Tracking
 
-- Every agent that changes files leaves a WIP, kept local (Cerberus, Argus and Yoda change no code and leave none). When a step is done, its WIPs are squashed into one commit for that step, **keeping memory-note commits out of the squash**, and that step commit is pushed. Until the squash is built and tested (issue #87), nothing is squashed: the WIPs are pushed as they are.
+- After every agent that changes files, the orchestrator saves a WIP (`gitmem wip`), kept local; agents never commit (Cerberus, Argus and Yoda change no code, so they leave none). When a step is done, its WIPs are squashed into one commit for that step, **keeping memory-note commits out of the squash**, and that step commit is pushed. Until the squash is built and tested (issue #87), nothing is squashed: the WIPs are pushed as they are.
 - The visible list (section «The visible list»), updated as steps complete
 - Each step marked done only after its verification passes
 
@@ -290,7 +290,7 @@ If Ultron fails the same task 3 times:
 
 **Every agent runs once and every fix is done once.** Nobody runs again: not Cerberus and Argus, not Moriarty, not Yoda. Fixes always go to a fresh agent of the same type, with the report and the exact files, unless the owner asks for the same one. **Before fixing a finding, check that it is real** and happens in real use; if not, note it and leave it. A regression from a fix is caught by the scoped tests at Close (Step 7), never by another round of reviewers.
 
-**PHASE A — per independent plan phase, as it is built (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»):**
+**PART A — per independent plan phase, as it is built (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»):**
 
 1. **Build, per build mode:**
    - **Test-first:** Dante writes the acceptance tests (they start red) → Ultron implements until they pass.
@@ -299,7 +299,7 @@ If Ultron fails the same task 3 times:
 2. **Cerberus + Argus, in parallel, over the code AND the tests of that phase.** In the Full procedure, Argus is never skipped. Each writes its report to a file that starts with an index; Claude reads the index and goes into detail only if there is a problem.
 3. **What they flagged is fixed, once:** code, Ultron; tests, Dante. They do not review again.
 
-**PHASE B — once, when every phase of the issue and its checklist are done:**
+**PART B — once, when every phase of the issue and its checklist are done:**
 
 4. **Moriarty** attacks what was already fixed: the code and the tests. One per part, or one for all.
 5. **What he breaks is fixed, once:** Ultron or Dante, whoever owns it; in parallel when the fixes don't collide.
@@ -352,7 +352,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 4. Delete branch, gitflow only (local + remote) — trunk repos have none to delete
 5. Context commit: `context(<scope>): issue #N CLOSED`
 6. Mark plan as completed in `docs/plan/` (add `**Status: COMPLETED**` to header)
-7. **Ask the owner whether to go on with the next step.** Moving from dev to staging or production is always asked first.
+7. **Ask the owner whether to go on with the next task.** One branch per task: it is deleted the moment it is merged to dev (the session close only sweeps forgotten ones). Moving from dev to staging or production is always asked first.
 
 ### If Merge Fails
 
@@ -360,7 +360,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 2. Identify conflicting files
 3. If simple conflict → resolve and commit normally
 4. If complex conflict → escalate to user before proceeding
-5. Re-run VERIFY after conflict resolution to confirm no regressions
+5. After resolving the conflict, re-run the scoped tests of the touched area (never the whole Verify sequence)
 
 ## Quick Reference
 
@@ -374,7 +374,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | 4 | Ultron (+ Dante), forked by build mode | Waves | All tasks complete |
 | 5 | Cerberus (+ Argus, Moriarty, Yoda) | Depends | VERIFY passes |
 | 6 | Alexandria | No | Docs updated |
-| 7 | ORCHESTRATOR | - | Project's own suite green + merged + closed |
+| 7 | ORCHESTRATOR | - | Scoped tests green + merged + closed |
 
 ## Recovery Paths
 

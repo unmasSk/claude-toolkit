@@ -71,7 +71,7 @@ Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que h
 
 ## Cómo se trabaja aquí — y por qué, que es lo que se olvida
 
-Estas cinco salieron de fallos reales, no de teoría.
+Estas seis salieron de fallos reales, no de teoría.
 
 **1. Solo hay tres fuentes, y no existe una cuarta.** La documentación · el código y el diff, leídos o ejecutados, nunca recordados · preguntarle a él. Lo que no salga de ahí **no se rellena con criterio propio**, por evidente que parezca: **un hueco puede ser deliberado.**
 
@@ -81,7 +81,7 @@ Estas cinco salieron de fallos reales, no de teoría.
 
 **4. Se prueba ejecutando, no leyendo.** Todos los fallos graves de esta obra salieron de correr comandos; ninguno de revisar código. Y **un arreglo se mide por el camino por el que entra el usuario, nunca por dentro**: un «0 de 60» medido llamando a la función por dentro salió «16 de 30» medido como lo usa una persona.
 
-**5. La secuencia de revisión no se abrevia.** Cerberus y Argus en paralelo, y **Moriarty el último, siempre**. Cuatro veces ha encontrado algo que los dos primeros dieron por bueno — entre ellas, pérdida silenciosa de notas con todos los tests en verde, y un arranque que inyectaba el Next de otro proyecto.
+**5. La secuencia de revisión no se abrevia, y nadie se repite.** Cerberus y Argus en paralelo; después, **Moriarty ataca lo ya arreglado**, antes de Yoda. Cuatro veces ha encontrado algo que los dos primeros dieron por bueno — entre ellas, pérdida silenciosa de notas con todos los tests en verde, y un arranque que inyectaba el Next de otro proyecto.
 
 **6. Una ficha de agente o una skill se repasa palabra por palabra, y se le consulta al propio agente.** No es ceremonia: el 2026-08-06 se revisaron las nueve y cada agente encontró en la suya algo que quien la escribió no vio. House rechazó **tres** versiones seguidas de un mismo comando escrito por el orquestador —el primero no casaba ni una línea de las que buscaba, el segundo ignoraba los ficheros sin guardar en git, el tercero se rompía en silencio desde una subcarpeta—. Y al darle a Moriarty permiso de escritura se le quitó sin querer la barrera que le impedía tocar código: la regla se sostenía en que no tenía la herramienta, no en estar escrita.
 
@@ -89,7 +89,7 @@ Estas cinco salieron de fallos reales, no de teoría.
 
 ## Reglas vivas
 
-- **El trabajo rutinario se commitea y se pushea a cada paso** (D-057); solo se para a pedir permiso cuando el cambio es de alto riesgo: irreversible, de seguridad, o que él no pueda verificar por su cuenta. La memoria se guarda sola.
+- **Cada paso queda en un WIP y, al terminarlo, sus WIPs se juntan en un commit que se sube** (D-118); lo trivial es un commit normal. Solo se para a pedir permiso cuando el cambio es de alto riesgo: irreversible, de seguridad, o que él no pueda verificar por su cuenta. La memoria se guarda sola.
 - **Nadie usa `git stash`, `reset`, `checkout` ni `restore`** sobre trabajo sin guardar: se perdería todo.
 - **Permiso de escritura solo en este repositorio.** En cualquier otro del propietario, lectura y nada más.
 - **No hay atacante externo** en el modelo de amenaza. La única amenaza es el sistema rompiéndose a sí mismo: memoria perdida o corrompida, escritura en el sitio equivocado, fallo que pasa callado. Un hallazgo sobre entrada hostil aquí sobra.

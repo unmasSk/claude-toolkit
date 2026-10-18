@@ -66,7 +66,7 @@ It leaves the live index and lands in the archive with its reason. **Closing and
 
 The wall's yardstick is the one memory uses everywhere. **You answer it; ask the user when what it cost is theirs to know** — you can see what broke, not what it was worth.
 
-Then the ordinary closing of any work: squash the branch, and close the plan's issue if one was opened.
+Then the ordinary closing of any work: merge the branch (its step commits stay; the merge commit lists them), delete it, and close the plan's issue if one was opened.
 
 **A closed incident is history.** If the same thing breaks again it is a new incident, not a reopening — including when it means the first fix was wrong. That is information, not an error.
 

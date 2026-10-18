@@ -12,7 +12,7 @@ Write down what this session knew before the window shuts. The commits are kept;
 
 ## When it runs
 
-Only when the user asks. Not on compaction, not at the end of a turn, not because the session looks finished. Offer it in one line; do not start it.
+Only when the user asks. Not on compaction, not at the end of a turn, not because the session looks finished. Never offer it: the close is the owner's call.
 
 ## 1. Clean up
 
@@ -28,8 +28,9 @@ Write the answer into the conversation — step 4 sends an agent to read it.
 - Issues opened, advanced or finished, by number.
 - What merged, and what is waiting to.
 - Anything still uncommitted, by name. It appears in no commit list and no boot.
+- WIPs not yet squashed into their step commit: until the squash is built (issue #87), they are pushed as they are.
 
-Closing an issue or deleting a branch: act only on what you can mechanically verify as done or merged, show the exact list first, and wait for the user. Never bulk-close, never force a delete git refused. On doubt, leave it and write it down.
+Closing an issue or deleting a branch: what you can mechanically verify as finished — a branch already merged, an issue whose work was accepted — is closed or deleted in the same act, without asking, and said in one line (this is the net for anything Flow forgot). Anything you cannot verify mechanically: show the exact list and wait for the user. Never bulk-close the unverified, never force a delete git refused. On doubt, leave it and write it down.
 
 **The issue sweep is a fixed step of every close — never skipped, never merged into another.** Search the live notes and put in front of the user, one line each with the priority you would give it: every **Q or I saved with `--work no`** (did any mature into real work?), every note that passed with **`--issue none`** (does the refusal still stand?), and every **D that defers future building** without an issue behind it (the long-term checklist the customs cannot detect). Let the user decide each one. **You never open one on your own judgement — but with his yes, you create it (`gh issue create`) and link the note's work to it.** The protocol, the labels and the template are in the memory skill's `references/issues.md`.
 
@@ -37,11 +38,13 @@ Closing an issue or deleting a branch: act only on what you can mechanically ver
 
 `subagent_type: unmassk-toolkit-alexandria`. Her profile holds the protocol; give her only what she cannot read from the repository — one line per thing the session shipped that is new or changed.
 
+If the session shipped something, she also brings the CHANGELOG `[Unreleased]` up to date (owner's rule: «eso lo hace Alexandria en el closed session»).
+
 Expect back: what she corrected, where a document and the code contradict each other, and anything shipped with no home in the documentation. If the project has no documentation set she says so and stops — building one is her `foundation` mode, which the user asks for by name.
 
 ## 4. The close itself
 
-**After Alexandria, never alongside her.** She commits; the close lists every commit of the session, and a list taken while she is still working is a list missing her work.
+**After Alexandria, never alongside her.** She changes files and the orchestrator commits them; the close lists every commit of the session, and a list taken while she is still working is a list missing her work.
 
 A `general-purpose` agent, handed the prompt at `references/close-agent-prompt.md` (relative to this skill's own directory) verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline, the context as the body, and every commit since the last close underneath.
 
@@ -55,7 +58,7 @@ Then read the result out of git, not out of the agent's report: `git log -1` —
 | Registering work blocked on someone | When it stopped |
 | Retiring a rule that stopped being true | When it stopped being true |
 | Consolidating memory | Its own pass |
-| Updating the CHANGELOG | Alexandria, in Flow's Document step — never the orchestrator, and never at close |
+| Updating the CHANGELOG by the orchestrator | Never: Alexandria writes it, in Flow's Document step or in her `close` mode (step 3) |
 | A handoff document | The Next is the handoff |
 | Releasing a version | The user's call, in the project's own instructions |
 

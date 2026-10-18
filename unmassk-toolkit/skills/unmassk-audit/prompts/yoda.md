@@ -1,31 +1,14 @@
 # Prompt Template — Yoda (Audit)
 
-> Template for the orchestrator.
+> Template for the orchestrator. Blind: no narrative of what was found or fixed, no conclusion. Moriarty's raw run log goes in the artifact — never his summary or verdict word; without it Yoda answers CANNOT JUDGE.
 
 ```markdown
 ## Task: Final senior evaluation of module [MODULE]
 
-### Context
-- Module: `[MODULE_PATH]`
-- Issue: #[N]
-- Full enterprise audit complete (steps 1-10 executed)
+ARTIFACT: the source of `[MODULE_PATH]`, its tests and the coverage result ([PASTE % lines, % branches]); Moriarty's raw run log ([PASTE the commands he ran and their output, unedited]); reference: issue #[N].
+CONTRACT: `unmassk-standards` (tiers T1/T2/T3, weighted score /110). 110 is perfection: for any lower score, say what to fix to reach 110 and, if it cannot be reached, why. Verdict vocabulary: APPROVED / APPROVED WITH CONDITIONS / REJECTED / CANNOT JUDGE.
+SCOPE: the module only. Optional reference: a previously approved module `[REFERENCE_MODULE_PATH]` ([XX/110]).
+ASK: review and audit the whole artifact — every file, function and module in scope — and return, for each one, "reviewed" and what you checked. Finding nothing is a valid answer; a report without that coverage list is not.
 
-### Input from other agents
-
-**Audit findings (Cerberus):**
-[PASTE original findings + which ones were closed]
-
-**Adversarial report:**
-[PASTE summary — phases executed, breaks, verdict]
-
-**Test coverage:**
-[PASTE coverage result — % lines, % branches]
-
-### Reference module (optional)
-- Previously approved module: `[REFERENCE_MODULE_PATH]`
-- Previous score: [XX/110]
-
-### Verification
-1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
-2. Run TWICE
+Verification: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run twice.
 ```

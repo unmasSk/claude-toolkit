@@ -36,7 +36,7 @@ Violating any of these three rules means you did another agent's job and left yo
 | **Argus** | Security auditor | I flag security-relevant paths to him. He audits depth. |
 | **Moriarty** | Adversarial validator | Tries to break what was built. |
 | **Dante** | Test engineer | Writes/hardens tests. |
-| **House** | Diagnostician | Root cause analysis. May call me to map code before instrumenting. |
+| **House** | Diagnostician | Root cause analysis. Cannot call me himself; asks the orchestrator to send me to map code before instrumenting. |
 | **Yoda** | Senior judge | Final judgment. The orchestrator coordinates the work; Yoda judges and advises. |
 | **Alexandria** | Documentation | I flag stale docs. She updates them. |
 

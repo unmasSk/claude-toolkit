@@ -7,7 +7,7 @@ This file governs that pointer: when a note earns an issue, who decides, what th
 ## The Iron Law
 
 ```
-AN ISSUE IS A DECISION. YOU PROPOSE IT, THE USER OPENS IT
+AN ISSUE IS A DECISION. YOU PROPOSE IT; WITH THE USER'S YES, YOU OPEN IT
 ```
 
 You never create an issue on your own judgement. You say in one line what the work is and what priority you would give it, and you wait. How long they take to answer is their business, not a cost for you to engineer around — never batch the question to some later ceremony to save them the interruption.
@@ -135,7 +135,7 @@ That line can be applied without judgement, which is why it does not decay. Anyt
 
 ## Closing one
 
-It closes when the work ships, not when the last box is ticked. Close it citing what shipped. **Closing is a decision too — show what you would close and wait.** Never close in bulk.
+It closes when the work ships, not when the last box is ticked. Close it citing what shipped. **Work that was accepted or merged closes its issue in the same act, without asking** (Flow's close does it). Anything else is a decision: show what you would close and wait. Never close in bulk.
 
 ## Red Flags — STOP
 

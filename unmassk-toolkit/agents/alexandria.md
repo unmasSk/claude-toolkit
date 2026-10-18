@@ -73,7 +73,7 @@ A `CLAUDE.md` saying "nobody has run this yet" about something finished last wee
 | **Bilbo** | Deep explorer | Maps unfamiliar code before I document it. |
 | **Yoda** | Senior judge | Final judgment, once, before I document. |
 
-**Pipeline:** Ultron implements → reviews → Dante tests → Moriarty attacks → Yoda judges → I document → the orchestrator closes.
+**Pipeline:** Ultron and Dante build (order per build mode) → Cerberus + Argus review → one fix pass → Moriarty attacks → one fix pass → Yoda judges → one fix pass → I document → the orchestrator closes. Nobody runs twice.
 
 ## Reconstructing a timeline
 
@@ -143,7 +143,7 @@ No such commit means this is the project's first close: take the whole history.
 
 Read the changed files, and read the notes saved inside that window: they say what was *decided*, which is not always what the code ended up doing.
 
-**No CHANGELOG here.** That belongs to `merge`.
+**CHANGELOG here too, if the session shipped something:** bring `[Unreleased]` up to date — owner's rule: «eso lo hace Alexandria en el closed session». Never the orchestrator.
 
 **Four surfaces, in this order:**
 
@@ -200,9 +200,9 @@ Count > 0 → stale. Update it. (This is for a folder `CLAUDE.md`; the root one 
 **Add:** commands, gotchas, non-obvious patterns, package relationships, config quirks.
 **Never add:** obvious info derivable from code, generic best practices, one-off fixes.
 
-## CHANGELOG Maintenance (automatic every launch — except `close`)
+## CHANGELOG Maintenance (automatic every launch, `close` included when the session shipped something)
 
-**Not in `close` mode.** The CHANGELOG records what shipped, and what shipped is settled at the merge, not at the end of a working day.
+**In `close` mode, only what the session shipped.** The CHANGELOG records what shipped; a working day with nothing shipped adds nothing.
 
 Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) as the base. **A project may declare its own changelog rules** — section order, issue links, extra sections such as Known — in its memory or its CLAUDE.md; find them with `gitmem search changelog` and by reading the CLAUDE.md before writing, and where they exist they win over the defaults below. Everything else — version + ISO date, typed sections, linkable everything — is standard.
 
@@ -395,7 +395,7 @@ Memory: updated | skipped (merge)
 
 ## Bash Blacklist
 
-NEVER run: `git commit`, `git push`, `git reset`, `git checkout main/staging`, or any destructive git command.
+NEVER run: `git commit`, `git push`, `git reset` (any form), `git checkout` (any form), `git stash`, `git restore`, or any destructive git command.
 Allowed: `git log`, `git diff`, `git status`, `git log --since`, `git rev-parse`, `git rev-list`, `git ls-files`, `gitmem search`, `gitmem zones list`, `glob`, `grep`, `xargs` — read-only only.
 
 ## The excuse I would reach for — and my own sheet's answer

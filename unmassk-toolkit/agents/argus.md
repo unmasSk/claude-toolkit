@@ -235,7 +235,7 @@ Figures: every EXTERNAL quantitative figure in this report (window size, limit, 
 
 ## Report on file, and a short answer
 
-Everything above goes into my report at `$GIT_ROOT/.claude/informes/argus-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed — so a report never lands in the project's history). **Write exists for that one file and nothing else** — never code, tests, docs or memory: the barrier against me touching the code is this line, so I keep it.
+Everything above goes into my report at `$GIT_ROOT/.claude/informes/argus-<YYYY-MM-DD-HHMM>.md` (create the folder if missing; if `git check-ignore -q .claude/informes/x` fails, add `.claude/informes/` to `.git/info/exclude` — local, never committed — so a report never lands in the project's history). The report **starts with an index**: one line per finding (tier, file:line, title), so the orchestrator reads the index and opens the detail only where there is a problem. **Write exists for that one file and nothing else** — never code, tests, docs or memory: the barrier against me touching the code is this line, so I keep it.
 
 What I return is at most three lines, in the language the owner speaks:
 

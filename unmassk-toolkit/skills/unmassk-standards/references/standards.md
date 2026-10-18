@@ -56,7 +56,7 @@ Origin: a real incident where independent review passes unanimously approved cod
 |------|-------|--------------|--------|
 | T1 | Data/memory integrity, crashes, silent failure of a load-bearing path | Yes, always | Immediate fix |
 | T2 | Error handling, core testing, structure | Yes, unless a `Waiver:` line documents the justification (waiver mechanics below) | Fix before merge |
-| T3 | Naming, cosmetics, extra coverage | No | Fix when convenient |
+| T3 | Naming, cosmetics, extra coverage | No | Fixed in the same fix pass as the rest (nitpicks included) |
 
 IF uncertain about tier THEN assign T2.
 
@@ -308,7 +308,7 @@ Platform robustness (§5) is scored as **checklist items inside Integrity and St
 
 Scoring rules: 10 = all items pass; 9 = one minor miss; 8 = two misses; <8 = serious. Do NOT invent criteria outside the checklist. IF something works and violates no checklist item THEN it is NOT a finding.
 
-**The score and the merge gate are separate machines — the number never overrides a tier.** The merge/stop gate = **full score AND zero open T1 AND zero un-waivered T2**. 110/110 is *necessary, never sufficient*: a single open T1 blocks merge even at a perfect score. The closed checklists are not exhaustive of all T1s (e.g. a denylist env-guard §4, a format-migration corruption §3 may be found outside the listed items); any T1 found anywhere in this document blocks, whether or not it maps to a checklist row. An autonomous loop must not stop at 110/110 while a T1 is open.
+**The score and the merge gate are separate machines — the number never overrides a tier.** The merge/stop gate = **zero open T1 AND zero un-waivered T2**. The score is information: 110/110 is the target, and every point below it owes its path back to 110 (or why it cannot be reached). A single open T1 blocks merge even at a perfect score. The closed checklists are not exhaustive of all T1s (e.g. a denylist env-guard §4, a format-migration corruption §3 may be found outside the listed items); any T1 found anywhere in this document blocks, whether or not it maps to a checklist row. An autonomous loop must not stop at 110/110 while a T1 is open.
 
 ### Closed checklist per dimension (score 0-10 on these only)
 

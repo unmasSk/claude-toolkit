@@ -1,23 +1,12 @@
 # Prompt Template — Moriarty (Audit)
 
-> Template for the orchestrator.
+> Template for the orchestrator. Short prompt: name the target and the win condition, never a list of vectors or of what was fixed.
 
 ```markdown
 ## Task: Adversarial validation of module [MODULE] post-fixes
 
-### Context
-- Module: `[MODULE_PATH]`
-- Issue: #[N]
+Target: `[MODULE_PATH]` (source and tests), issue #[N]. Base for the regression diff: `[BASE_COMMIT]`.
+Win condition: break it — the code or the tests — and prove it with a reproduction. Return your raw run log (commands and output) with your verdict.
 
-### Module files
-
-[LIST of all source files in the module — source code + tests]
-
-### Previous audit findings
-
-[PASTE SUMMARY of findings that were fixed — so REGRESSION has context]
-
-### Verification
-1. `[TEST_CMD]` scoped to `[MODULE_PATH]`
-2. Run TWICE
+Verification: `[TEST_CMD]` scoped to `[MODULE_PATH]`, run twice.
 ```

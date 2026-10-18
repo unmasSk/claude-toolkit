@@ -251,7 +251,7 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 ## Code, and the state of the indexes
 
-**Code is committed through the memory too** — `work` for finished work, `wip` for a checkpoint, never a bare commit. `work` carries the files it touched and the plan it belongs to; `wip` is asked nothing, so there is never a reason not to save one. Both need a file that **actually changed**, and both **refuse to run on the main branch** unless the project has declared itself one that commits there directly.
+**Code is committed through the memory too** — `work` for finished work, `wip` for a checkpoint, never a bare commit. In Flow, the orchestrator saves a `wip` after every agent that changed files and squashes a step's WIPs into one commit when the step is done, keeping memory-note commits out of the squash (until issue #87 is built, nothing is squashed). A trivial change is one `work`. `work` carries the files it touched and the plan it belongs to; `wip` is asked nothing, so there is never a reason not to save one. Both need a file that **actually changed**, and both **refuse to run on the main branch** unless the project has declared itself one that commits there directly.
 
 **When the boot reports the indexes and git disagreeing, rebuild them.** Verifying says whether they match; rebuilding takes git as the truth and rewrites them from it.
 
@@ -285,7 +285,7 @@ gitmem note M --zones api billing "Stripe sends webhooks in UTC" \
   --description "Confirmed against their dashboard while debugging a 2h offset." --stops no
 
 # a note that points at work carries its issue number — any of the seven types.
-# The issue must already exist: the user opens it, you never do. See references/issues.md
+# The issue must already exist: you propose it, and only with the user's yes you create it. See references/issues.md
 gitmem note Q --zones api billing "unknown whether the export holds at 1000 users" \
   --description "Nobody has measured it. Investigating means a load run, not an answer." \
   --keys load capacity export --issue 91
