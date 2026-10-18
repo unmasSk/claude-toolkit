@@ -115,6 +115,8 @@ Usually static: memo, restriction, discarded, and a decision (deciding something
 
 Sending a field a type doesn't accept is rejected exactly like omitting a required one.
 
+**All seven types, and every rule you add or replace, also require `--searched "<what I searched>: <what I found>"`** — e.g. `--searched 'searched "squash": found D-057'`. Without it the save bounces with the question it stands for: *did I search, and is it not already written, or common sense?* The search is yours, by meaning, not a word match the command could do for you; if what you find already says it, or it is common sense, nothing is saved.
+
 | | Required | Also accepted |
 |---|---|---|
 | **D** | `--description` `--why` | `--keys` `--replaces` `--origin` `--discard` `--issue` |
@@ -279,22 +281,26 @@ git diff --name-only main
 gitmem note D --zones product auth "login with JWT + Google OAuth" \
   --why "server sessions don't scale multi-tenant" \
   --description "Sessions, a home-grown login and JWT were weighed." \
-  --keys token oauth sso --discard "server-side sessions" "don't survive multi-tenant"
+  --keys token oauth sso --discard "server-side sessions" "don't survive multi-tenant" \
+  --searched 'searched "auth", "session": nothing decided'
 
 gitmem note M --zones api billing "Stripe sends webhooks in UTC" \
-  --description "Confirmed against their dashboard while debugging a 2h offset." --stops no
+  --description "Confirmed against their dashboard while debugging a 2h offset." --stops no \
+  --searched 'searched "webhook", "utc": nothing'
 
 # a note that points at work carries its issue number — any of the seven types.
 # The issue must already exist: you propose it, and only with the user's yes you create it. See references/issues.md
 gitmem note Q --zones api billing "unknown whether the export holds at 1000 users" \
   --description "Nobody has measured it. Investigating means a load run, not an answer." \
-  --keys load capacity export --issue 91
+  --keys load capacity export --issue 91 --searched 'searched "export": nothing measured'
 
 gitmem note R --zones testing database "never point the test suite at production" \
-  --description "A seed run wiped the users table." --stops yes --origin I-014
+  --description "A seed run wiped the users table." --stops yes --origin I-014 \
+  --searched 'searched zone testing: I-014 only'
 
 gitmem note B --zones deploy billing "staging domain not purchased yet" \
-  --description "Blocks the staging deploy." --awaits "the client"
+  --description "Blocks the staging deploy." --awaits "the client" \
+  --searched 'searched "staging": nothing'
 
 # work / wip — message positional, one --path per file
 gitmem work "add rate limiting to the login endpoint" \
@@ -317,10 +323,11 @@ gitmem rezones
 
 # rule — how to work, not what the project is. Defaults to the user's;
 # --kind claude marks a rule about your own behaviour. No argument: prints them all
-gitmem rule "be brief: never repeat back what I just said" --quote "be brief, don't repeat back what I just said"
-gitmem rule "always read the existing patterns first" --kind claude --quote none
+gitmem rule "be brief: never repeat back what I just said" --quote "be brief, don't repeat back what I just said" \
+  --searched 'read the rules: none on repeating back'
+gitmem rule "always read the existing patterns first" --kind claude --quote none --searched 'read the rules: nothing on patterns'
 gitmem rule --retract "<exact text>" --kind <user|claude>            # retire a rule that stopped holding
-gitmem rule "<new text>" --replaces "<old text>" --kind <user|claude> --quote "<literal>"  # replace one rule with another, atomically
+gitmem rule "<new text>" --replaces "<old text>" --kind <user|claude> --quote "<literal>" --searched "<searched>: <found>"  # replace one rule with another, atomically
 gitmem rule
 ```
 
@@ -330,7 +337,7 @@ gitmem rule
 
 **A word search that finds nothing lists the project's zones** — `gitmem search` matches literal text, so zero results means that string is written nowhere, not that there is no memory of it. Retry with one of the zones it shows before concluding there's nothing.
 
-**The user's own door into the rules is `/remember`** — the one slash command this toolkit ships, and it **only reads**: it delivers the whole rules file into your context, and you treat every line as binding from that moment. It takes no arguments and never saves. **Saving a rule is yours, always** — the moment the user says how they want to be worked with, you run `gitmem rule` there and then. A user who has to invoke a command to store their own correction is a user whose correction gets lost.
+**The rules arrive whole at every session start**: the project's CLAUDE.md block imports `.claude/project-memory/rules.md`, so Claude Code loads it with the instructions, before the first message — every line binds from there. **`/remember` re-reads the same file on demand** — the one slash command this toolkit ships, and it **only reads**: it delivers the whole rules file into your context again. It takes no arguments and never saves. **Saving a rule is yours, always** — the moment the user says how they want to be worked with, you run `gitmem rule` there and then. A user who has to invoke a command to store their own correction is a user whose correction gets lost.
 
 **`gitmem` is on the PATH — type it bare.** The installer puts a launcher at `~/.local/bin/gitmem` that resolves the newest installed version on every run, so it keeps working across upgrades. Write `gitmem note ...`, never a long path into the plugin cache: a pasted cache path carries a version number in it and goes stale the day the toolkit updates.
 

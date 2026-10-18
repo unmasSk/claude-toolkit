@@ -66,14 +66,16 @@ Every branch that resolves is a real decision, and it is saved the moment it res
 gitmem note D --zones <zone1> <zone2> "<what was decided, in English>" \
   --why "<why this and not the closest alternative>" \
   --description "<what was on the table>" \
-  --discard "<the option that lost>" "<why it lost>"
+  --discard "<the option that lost>" "<why it lost>" \
+  --searched "<what I searched>: <what I found>"
 ```
 
 **A branch that stays open after the interview is a question, not a gap** — save it as one, so the next session knows it is still owed an answer:
 
 ```
 gitmem note Q --zones <zone1> <zone2> "<what is still undecided>" \
-  --description "<what it blocks, and what has to happen to close it>"
+  --description "<what it blocks, and what has to happen to close it>" \
+  --searched "<what I searched>: <what I found>"
 ```
 
 ## Boundary

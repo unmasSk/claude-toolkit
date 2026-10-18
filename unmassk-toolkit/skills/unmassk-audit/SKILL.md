@@ -33,7 +33,7 @@ Before step 0, create the app's task list (TodoWrite or its equivalent) with one
    - **gitflow** → `git switch -c chore/audit-<module> dev`
    - **trunk** → work directly on `main`; no separate audit branch needed
 3. Save the opening note:
-   `gitmem note M --zones codeaudit <module-zone> "enterprise audit of <module> starts" --description "..." --stops no --issue N`
+   `gitmem note M --zones codeaudit <module-zone> "enterprise audit of <module> starts" --description "..." --stops no --issue N --searched "<searched>: <found>"`
 4. Load `unmassk-standards` skill for quality criteria + read any project-level CLAUDE.md — record both (skill version + path read) in the opening note
 
 ### Step 1 -- Scan (Bilbo Agent)
@@ -190,7 +190,7 @@ Prompt template: see `prompts/alexandria.md`
 5. Close issue: `gh issue close N --comment "Enterprise audit complete -- YY/110"`
 6. Delete branch (local and remote) if a branch was created (gitflow only).
 7. Save the closing note, with the score and what it cost:
-   `gitmem note M --zones codeaudit <module-zone> "<module> audited: YY/110" --description "..." --stops no --issue N`
+   `gitmem note M --zones codeaudit <module-zone> "<module> audited: YY/110" --description "..." --stops no --issue N --searched "<searched>: <found>"`
 
 ## No Loops
 

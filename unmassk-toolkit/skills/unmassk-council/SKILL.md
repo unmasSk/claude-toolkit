@@ -65,7 +65,8 @@ Present the verdict in chat (markdown, scannable), and stop. The verdict is the 
 gitmem note D --zones <zone1> <zone2> "<the recommendation, in English>" \
   --why "<why it beat the closest alternative>" \
   --description "<where the council agreed, where it clashed>" \
-  --discard "<each option that lost>" "<why it lost>"
+  --discard "<each option that lost>" "<why it lost>" \
+  --searched "<what I searched>: <what I found>"
 ```
 
 The verdict already has the shape of a decision: the recommendation is the headline, the clash is the why, and every option the council rejected is a discard — one per option, not just the runner-up. Losing those is how the same idea comes back in six months.
