@@ -2,7 +2,7 @@
 Tests for pre-merge-gate.py — the merge/pull gate, decided by the branch that
 RECEIVES the merge (the target).
 
-Contract (owner's decisions D-119 / D-120, issue #101; the expected values in
+Contract (owner's decisions D-119 / D-120 / D-129, issue #101; the expected values in
 this file come from those decisions and from Cerberus's review of
 2026-10-18, never from the hook's code):
 
@@ -23,8 +23,12 @@ this file come from those decisions and from Cerberus's review of
       master, production) — including the second or later merge of a chained
       command (`&&`, `;`, newline).
     - target unknown: no repo, detached HEAD, a switch that cannot be read
-      (`;`, `--track`), a `cd`/`pushd` before the merge, `git -C <path>`.
-      Unknown never means "into dev", and never gets the lighter message.
+      (`;`, `--track`), a `cd`/`pushd`/`git -C` to another repo or
+      worktree (a worktree nested inside the session repo included), or one
+      that cannot be read (`$VAR`, `~`, `cd -`, `popd`). A `cd`/`git -C` to
+      the session repo itself or a subfolder of it is read like no path
+      (D-129). Unknown never means "into dev", and never gets the lighter
+      message.
 
   BLOCK with the light gate (Cerberus + Alexandria): any other target
   (a feature branch receiving another branch).
@@ -910,6 +914,103 @@ class TestOtherRepoOrWorktreeStaysUnknown:
         # Even with ../other on dev: another repo is not the session repo,
         # and D-129 only opens the session repo.
         context = f"{command!r} — another repo by absolute path"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+class TestNestedWorktreeStaysUnknown:
+    """CONTRACT (D-129, Cerberus 2026-10-18 #1): Claude Code puts agent
+    worktrees INSIDE the repo (`.claude/worktrees/<name>`). Physically a
+    subfolder, but another worktree: its branch is not the session's. With
+    the session on dev and that worktree on main, a merge there lands on
+    main -> unknown -> heavy gate. Catches a same-repo check simplified to
+    a path prefix."""
+
+    @pytest.mark.parametrize("command_tpl", [
+        "cd {rel} && git merge --no-ff dev",
+        "git -C {rel} merge --no-ff dev",
+        "git -C {abs} merge --no-ff dev",
+    ])
+    def test_should_block_when_path_is_a_worktree_nested_in_session_repo(
+            self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "dev", also=["main"])
+        rel = os.path.join(".claude", "worktrees", "w")
+        wt = os.path.join(repo, rel)
+        rc, out, err = git_cmd(["worktree", "add", wt, "main"], repo)
+        assert rc == 0, f"fixture setup failed adding nested worktree: {err}"
+        command = command_tpl.format(rel=rel, abs=wt)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — worktree nested in the session repo, on main; session on dev"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+class TestUnreadableCdStaysUnknown:
+    """CONTRACT (D-129, Cerberus 2026-10-18 #2): a `cd` whose destination
+    cannot be read from the text stays unknown -> heavy gate, even with the
+    session repo on dev and `dev` as the incoming branch (reading the
+    session branch would wrongly approve it as a same-branch sync). Catches
+    an unreadable path being skipped instead of failing closed."""
+
+    @pytest.mark.parametrize("command", [
+        "cd $OTHER && git merge dev",
+        "cd ${OTHER} && git merge dev",
+        "cd ~ && git merge dev",
+        "cd ~/other && git merge dev",
+        "cd - && git merge dev",
+        # The directory stack can carry a pushd from an earlier command
+        # (another repo), so a popd's destination cannot be read.
+        "popd && git merge dev",
+    ])
+    def test_should_block_when_cd_destination_cannot_be_read(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        _make_repo(tmp_path, name="other", branch="main")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — unreadable cd, session repo on dev"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+class TestCdSubfolderAndCdPlusC:
+    """CONTRACT (D-129, Cerberus 2026-10-18 #3): `cd` into a subfolder of
+    the session repo is the session repo (the `cd` path, separate from the
+    `-C` one); and `-C` after a `cd` resolves against the `cd` result, as
+    git does — `cd <session> && git -C ../other` is another repo."""
+
+    def test_should_approve_when_cd_subfolder_of_session_repo_on_dev(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        os.makedirs(os.path.join(repo, "sub"))
+        command = "cd sub && git merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — subfolder of the session repo on dev (D-129)")
+
+    def test_should_approve_when_git_C_resolves_from_cd_back_to_session_repo(self, tmp_path):
+        """`-C ..` from `sub` is the session repo; from the session's cwd it
+        would be tmp_path (no repo). Pins that -C joins onto the cd result."""
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        os.makedirs(os.path.join(repo, "sub"))
+        command = "cd sub && git -C .. merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — -C .. from sub is the session repo on dev (D-129)")
+
+    def test_should_block_when_cd_session_then_git_C_other_repo(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        _make_repo(tmp_path, name="other", branch="main")
+        command = f"cd {repo} && git -C ../other merge dev"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — -C ../other from the session repo, other on main"
         _assert_decision(parsed, stdout, rc, stderr, "block", context)
         _assert_heavy_gate_message(parsed, context)
 
