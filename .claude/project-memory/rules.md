@@ -6,7 +6,6 @@
 [remember][user] 🧠 no se habla nunca de chatroom: ni el subproyecto, ni sus issues, ni nada relacionado — parado y callado hasta que yo lo saque
 [remember][user] 🧠 haz exactamente lo pedido y nada mas: si no lo he pedido, no lo montes — preguntame antes de anadir nada
 [remember][user] 🧠 pon un tick verde delante de la frase cuando me hables a mi directamente; sin tick cuando solo informas de agentes o de estado
-[remember][user] 🧠 mide el trabajo antes de montar nada: una linea o texto lo hago yo y lo compruebo al momento
 [remember][user] 🧠 contrato y revision solo cuando un fallo pierde datos en silencio; plan solo cuando el trabajo cruza sesiones
 [remember][user] 🧠 cuando digas una hora, di siempre si es UTC o espanola; nunca sueltes una hora a secas
 [remember][user] 🧠 los prompts a los agentes deben ser cortos: solo el QUE, nunca el COMO -- el agente ya tiene sus instrucciones en su propia definicion
