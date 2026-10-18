@@ -13,9 +13,12 @@ A boot failure never blocks the session: memory helps, it never blocks
 (same principle as hooks/session-start-boot.py, "Exit codes: 0: Always").
 Every exception -- boot.py fails, the directory does not exist, stdin is
 empty or malformed -- is swallowed silently; the session starts anyway.
+The one exception to the silence: boot.py running past the launcher's
+own deadline, which is reported loudly (D-130).
 """
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -31,6 +34,53 @@ from utf8 import force_utf8_streams  # noqa: E402  (import after sys.path)
 force_utf8_streams()
 
 _BOOT_SCRIPT = os.path.join(_TOOLKIT_ROOT, "bin", "memory", "boot.py")
+
+# The launcher's own deadline for boot.py [D-130, I-005]: below the 30 s
+# SessionStart timeout in hooks.json, because a hook Claude Code kills
+# prints nothing at all.
+_BOOT_DEADLINE_ENV = "UNMASSK_BOOT_DEADLINE_SECONDS"
+_BOOT_DEADLINE_DEFAULT = 25.0
+
+
+def _boot_deadline():
+    """Read at run time; anything that is not a positive finite number
+    falls back to the default instead of aborting the boot."""
+    try:
+        value = float(os.environ.get(_BOOT_DEADLINE_ENV, ""))
+    except ValueError:
+        return _BOOT_DEADLINE_DEFAULT
+    return value if math.isfinite(value) and value > 0 else _BOOT_DEADLINE_DEFAULT
+
+
+def _report_overrun(cwd, deadline):
+    """boot.py was killed: replace the previous session's report with a
+    failure marker (so nobody reads it as today's) and say so loudly."""
+    destination = os.path.join(".claude", ".unmassk", "boot-latest.txt")
+    try:
+        import gitcmd
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        folder = gitcmd.repo_root(Path(cwd)) / ".claude" / ".unmassk"
+        folder.mkdir(parents=True, exist_ok=True)
+        destination = folder / "boot-latest.txt"
+        stamp = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"
+        gitcmd.atomic_write(
+            destination,
+            f"⚠️  THE BOOT DID NOT FINISH — {stamp}\n\n"
+            f"bin/memory/boot.py was stopped after {deadline:g} s.\n"
+            "There is no report for this session. What was here before belonged\n"
+            "to an earlier session and has been replaced by this notice so that\n"
+            "nobody reads it as today's.\n",
+        )
+    except Exception:
+        pass
+    print(
+        f"[memory] THE BOOT DID NOT FINISH within {deadline:g} s: there is no "
+        f"briefing for this session ({destination} holds only this failure). "
+        "Tell the user in your first line, then run "
+        f"python3 {_BOOT_SCRIPT} by hand."
+    )
 
 try:
     raw = sys.stdin.read()
@@ -114,7 +164,11 @@ try:
     # running it, 2026-08-06].
     sys.stdout.flush()
 
-    subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd)
+    deadline = _boot_deadline()
+    try:
+        subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd, timeout=deadline)
+    except subprocess.TimeoutExpired:
+        _report_overrun(cwd, deadline)
 except Exception:
     pass
 
