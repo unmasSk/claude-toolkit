@@ -118,3 +118,4 @@
 [X-118][skills][testing] a fixed hardening slot for Dante after Cerberus and Argus, before Moriarty
 [X-119][skills][testing] acceptance tests first, the rest after Ultron (two Dante entries)
 [X-120][hooks][skills] publish as is
+[X-121][boot][hooks] raise the hook timeout
