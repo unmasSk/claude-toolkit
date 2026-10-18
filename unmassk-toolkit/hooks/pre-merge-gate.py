@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """PreToolUse hook: gate git merge / git pull by the branch that RECEIVES it.
 
-Intercepts Bash tool calls that contain a `git merge` or `git pull` command
-(excluding `git merge --abort`, `git merge --continue`, and `git pull --rebase`,
-which do not create a merge commit). The target is the current branch, or the
-branch the same command switches to first (`git switch dev && git merge ...`,
-`git checkout staging && git merge ...`).
+Intercepts Bash tool calls that contain `git merge` or `git pull` (also
+`git -C <path> ...`). `git merge --abort`, `git merge --continue` and
+`git pull --rebase` are left alone: they create no merge commit. EVERY other
+merge/pull in the command is judged on its own, and the command is blocked if
+any of them is. The target of each one is the branch the command switched to
+before it (`git switch dev && git merge ...`), or else the current branch.
 
   - target is `dev`                       -> approve, no gate (D-119: flow
                                              already reviewed that work).
   - target syncs its own remote copy      -> approve (`git pull origin main`
-                                             on main, `git merge origin/main`).
+                                             on main, `git merge origin/main`;
+                                             only a configured remote counts).
   - target above dev (staging, main,
     master, production)                   -> block with the staging gate
                                              (D-120): Cerberus + Argus on the
@@ -19,7 +21,9 @@ branch the same command switches to first (`git switch dev && git merge ...`,
                                              the full suite is left to CI.
   - any other target (feature branches)   -> block, Cerberus + Alexandria.
   - target unknown (no repo, detached
-    HEAD, unreadable switch)              -> block (fail closed).
+    HEAD, unreadable switch, `cd` or
+    `git -C` before it, hook failure)     -> block with the staging gate: it
+                                             may be staging (fail closed).
 
 `# merge-reviewed` in the command approves after the reviews ran. eval /
 bash -c / sh -c wrapping git or merge is always blocked: the target cannot be
@@ -46,21 +50,18 @@ from git_helpers import run_git  # noqa: E402  (import after sys.path mutation)
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
-# Matches `git merge` (with optional .exe, case-insensitive).
-# Exempt check is done separately — see _GIT_MERGE_EXEMPT_RE below.
+# Backstop only: merge/pull words the tokenizer could not place as a git call
+# (unbalanced quotes, `git merge` inside a quoted string) still block.
 _GIT_MERGE_RE = re.compile(
     r'\bgit(\.exe)?\s+merge\b',
     re.IGNORECASE,
 )
 
-# Exempt: --abort or --continue anywhere after `git merge` in the command.
 _GIT_MERGE_EXEMPT_RE = re.compile(
     r'\bgit(\.exe)?\s+merge\b.*?\s--(abort|continue)\b',
     re.IGNORECASE,
 )
 
-# Matches `git pull` without --rebase (pull triggers an implicit merge).
-# Negative lookahead for --rebase so `git pull --rebase` is allowed through.
 _GIT_PULL_RE = re.compile(
     r'\bgit(\.exe)?\s+pull\b(?!.*--rebase\b)',
     re.IGNORECASE,
@@ -82,70 +83,90 @@ def _normalize(command: str) -> str:
     return _CONTROL_CHARS_RE.sub('', command)
 
 
-# ── Branch-awareness (same-branch sync exemption) ───────────────────────────
+# ── Reading the command: git calls, switches, targets ───────────────────────
 #
-# The review gate exists to catch integration of a DIFFERENT branch's new
-# work (e.g. `git merge feature/x`), not a plain same-branch catch-up sync
-# (e.g. `git pull origin main` while sitting on `main`). Everything below is
-# fail-closed: any ambiguity or subprocess error means "not exempt" — the
-# existing block-and-require-review behavior always applies.
+# Everything below is fail-closed: any ambiguity or subprocess error leaves
+# the target unknown, and an unknown target gets the staging gate.
 
-def _strip_remote_prefix(ref: str) -> str:
-    """Strip a leading remote-name path segment, e.g. 'origin/main' -> 'main'."""
-    if "/" in ref:
-        return ref.split("/", 1)[1]
-    return ref
+_SHELL_PUNCTUATION = "();<>|&\n"
 
+# `cd` / `pushd` / `popd` before a merge: it may run in another repository or
+# worktree, whose branch this hook does not read.
+_DIR_CHANGERS = frozenset({"cd", "pushd", "popd"})
 
-_SHELL_PUNCTUATION = set("();<>|&")
-
-
-def _tokenize(normalized: str):
-    """Split the command into shell words, with `&&`, `;`, `|`... as their own
-    tokens even when glued to a word (`dev&&git`). Returns None on any
-    tokenization failure (unbalanced quotes, etc.) — callers fail closed."""
-    try:
-        lexer = shlex.shlex(normalized, posix=True, punctuation_chars=True)
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        return list(lexer)
-    except ValueError:
-        return None
+# git global options that point the call at another repository, and the ones
+# that take a separate value; both appear between `git` and the subcommand.
+_GIT_REPO_OPTIONS = ("-C", "--git-dir", "--work-tree")
+_GIT_VALUE_OPTIONS = _GIT_REPO_OPTIONS + ("-c", "--namespace", "--config-env")
 
 
 def _is_separator(tok: str) -> bool:
     return bool(tok) and all(ch in _SHELL_PUNCTUATION for ch in tok)
 
 
-def _find_git_subcommands(tokens, keywords):
-    """Indexes i where tokens[i] is `git` and tokens[i + 1] is in keywords."""
-    return [
-        i for i in range(len(tokens) - 1)
-        if tokens[i].lower() in ("git", "git.exe") and tokens[i + 1].lower() in keywords
-    ]
+def _clean_separator(tok: str) -> str:
+    """An unquoted newline ends a command like `;`. Glued to another operator
+    (`&&` at the end of a line) it is only the line break: keep the operator."""
+    if "\n" in tok and _is_separator(tok):
+        return tok.replace("\n", "") or "\n"
+    return tok
 
 
-def _args_after(tokens, i):
-    """All tokens after `git <sub>` at index i, up to the next separator."""
+def _tokenize(normalized: str):
+    """Split the command into shell words, with `&&`, `;`, `|`, newline... as
+    their own tokens even when glued to a word (`dev&&git`). Returns None on
+    any tokenization failure (unbalanced quotes, etc.) — callers fail closed."""
+    try:
+        lexer = shlex.shlex(normalized, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
+        lexer.whitespace = " \t\r"
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        return [_clean_separator(tok) for tok in lexer]
+    except ValueError:
+        return None
+
+
+def _is_git(tok: str) -> bool:
+    name = tok.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return name in ("git", "git.exe")
+
+
+def _git_calls(tokens):
+    """(subcommand index, subcommand, other_repo) for every git call. other_repo
+    is True when `-C` / `--git-dir` / `--work-tree` point it elsewhere."""
+    calls = []
+    for i, tok in enumerate(tokens):
+        if not _is_git(tok):
+            continue
+        j, other_repo = i + 1, False
+        while j < len(tokens) and tokens[j].startswith("-") and not _is_separator(tokens[j]):
+            option = tokens[j].split("=", 1)[0]
+            other_repo = other_repo or option in _GIT_REPO_OPTIONS
+            takes_next = option in _GIT_VALUE_OPTIONS and "=" not in tokens[j]
+            j += 2 if takes_next else 1
+        if j < len(tokens) and not _is_separator(tokens[j]):
+            calls.append((j, tokens[j].lower(), other_repo))
+    return calls
+
+
+def _args_after(tokens, sub):
+    """All tokens after the subcommand at index sub, up to the next separator."""
     args = []
-    for tok in tokens[i + 2:]:
+    for tok in tokens[sub + 1:]:
         if _is_separator(tok):
             break
         args.append(tok)
     return args
 
 
-def _extract_positional_args(normalized: str, keyword: str):
-    """Return non-flag tokens following the first `git <keyword>` in the
-    command, stopping at shell separators. Returns [] on any tokenization
-    failure — caller treats that as "no target found", which fails closed."""
-    tokens = _tokenize(normalized)
-    if not tokens:
-        return []
-    found = _find_git_subcommands(tokens, (keyword,))
-    if not found:
-        return []
-    return [tok for tok in _args_after(tokens, found[0]) if not tok.startswith("-")]
+def _is_exempt(sub: str, args) -> bool:
+    """`git merge --abort/--continue` and `git pull --rebase` make no merge."""
+    if sub == "merge":
+        return any(a in ("--abort", "--continue") for a in args)
+    return any(
+        a == "--rebase" or (a.startswith("--rebase=") and a != "--rebase=false")
+        for a in args
+    )
 
 
 def _current_branch(cwd):
@@ -157,7 +178,24 @@ def _current_branch(cwd):
     return out
 
 
-def _upstream_branch(cwd, branch=""):
+def _remotes(cwd):
+    """Names of the configured remotes; empty when they cannot be read."""
+    rc, out = run_git(["remote"], cwd=cwd)
+    if rc != 0:
+        return frozenset()
+    return frozenset(line.strip() for line in out.splitlines() if line.strip())
+
+
+def _strip_remote_prefix(ref: str, remotes) -> str:
+    """'origin/main' -> 'main' when `origin` is a configured remote. A local
+    branch with a slash (`feat/main`) is left whole."""
+    for remote in sorted(remotes, key=len, reverse=True):
+        if ref.startswith(remote + "/"):
+            return ref[len(remote) + 1:]
+    return ref
+
+
+def _upstream_branch(cwd, branch, remotes):
     """Return the upstream branch name of `branch` (the current branch when
     empty), remote prefix stripped, or None if there is no tracked upstream."""
     rc, out = run_git(
@@ -166,7 +204,7 @@ def _upstream_branch(cwd, branch=""):
     )
     if rc != 0 or not out:
         return None
-    return _strip_remote_prefix(out)
+    return _strip_remote_prefix(out, remotes)
 
 
 # Branches that receive work only after it has passed through dev (D-120).
@@ -176,68 +214,107 @@ _ABOVE_DEV_BRANCHES = frozenset({"staging", "main", "master", "production"})
 
 def _switch_destination(args):
     """The branch a `git switch` / `git checkout` lands on, or None when it
-    cannot be read with certainty (detach, path checkout, `-`, start point)."""
-    if any(a in ("--", "--detach", "-d") for a in args):
+    cannot be read with certainty (detach, path checkout, `-`, start point,
+    `--track origin/x`, which names the remote ref, not the local branch)."""
+    if any(a in ("--", "--detach", "-d", "-t") or a.startswith("--track") for a in args):
         return None
     positional = [a for a in args if not a.startswith("-")]
     return positional[0] if len(positional) == 1 else None
 
 
-def _target_branch(kind: str, normalized: str, cwd: str):
-    """The branch that RECEIVES this merge/pull: the branch the command
-    switches to before it, or else the current branch. None when unknown.
+def _target_branch(tokens, calls, op, cwd):
+    """The branch that RECEIVES the merge/pull whose subcommand is at index
+    op: the branch the command last switched to before it, or else the
+    current branch. None when unknown.
 
     A switch counts only when every separator between it and the merge is
-    `&&` — with `;` or `||` the merge may run on the original HEAD."""
-    tokens = _tokenize(normalized)
-    if not tokens:
+    `&&` — with `;`, `||` or a newline the merge may run on the original HEAD.
+    A `cd` anywhere before the merge makes the repository unknown."""
+    if any(tok in _DIR_CHANGERS for tok in tokens[:op]):
         return None
-    ops = _find_git_subcommands(tokens, (kind,))
-    if not ops:
-        return None
-    op = ops[0]
-    switches = [i for i in _find_git_subcommands(tokens, ("switch", "checkout")) if i < op]
+    switches = [c for c in calls if c[0] < op and c[1] in ("switch", "checkout")]
     if not switches:
         return _current_branch(cwd)
-    sw = switches[-1]
-    if any(_is_separator(t) and t != "&&" for t in tokens[sw:op]):
+    sw, _, other_repo = switches[-1]
+    if other_repo or any(_is_separator(t) and t != "&&" for t in tokens[sw:op]):
         return None
     return _switch_destination(_args_after(tokens, sw))
 
 
-def _incoming_branch(kind: str, normalized: str, cwd: str, target: str):
+def _incoming_branch(sub, args, cwd, target, remotes):
     """The branch being merged in, or None when it cannot be read."""
-    if kind == "pull":
-        args = _extract_positional_args(normalized, "pull")
+    if sub == "pull":
         if len(args) >= 2:
             return args[1]
-        return _upstream_branch(cwd, target)
-    args = _extract_positional_args(normalized, "merge")
+        return _upstream_branch(cwd, target, remotes)
     if not args:
         return None
-    return _strip_remote_prefix(args[0])
+    return _strip_remote_prefix(args[0], remotes)
 
 
-def _gate_decision(kind: str, normalized: str, cwd: str, command: str):
-    """(decision, reason) for a merge/pull. Fails closed: any error or
-    unknown target -> block with the review message."""
+def _judge(tokens, calls, call, cwd, remotes):
+    """('approve' | 'light' | 'heavy', target) for one merge/pull call."""
+    op, sub, other_repo = call
+    target = None if other_repo else _target_branch(tokens, calls, op, cwd)
+    if not target:
+        return "heavy", None
+    args = [a for a in _args_after(tokens, op) if not a.startswith("-")]
+    if _incoming_branch(sub, args, cwd, target, remotes) == target:
+        return "approve", target
+    if target == _DEV_BRANCH:
+        return "approve", target
+    if target in _ABOVE_DEV_BRANCHES:
+        return "heavy", target
+    return "light", target
+
+
+_RANK = {"approve": 0, "light": 1, "heavy": 2}
+_UNKNOWN_TARGET = (
+    "its target branch could not be read (another directory or repository, "
+    "an unreadable switch, or no branch checked out), so it may be above dev"
+)
+
+
+def _heavy_reason(command: str, target):
+    where = f"this lands on '{target}', above dev" if target else _UNKNOWN_TARGET
+    return STAGING_GATE_MESSAGE.format(cmd=command, where=where)
+
+
+def _gate_decision(normalized: str, cwd: str, command: str):
+    """(decision, reason) for the whole command: every merge/pull in it is
+    judged, and the strictest verdict wins. Fails closed: any error or unknown
+    target -> block with the staging gate."""
     try:
-        target = _target_branch(kind, normalized, cwd)
-        if not target:
-            return "block", MERGE_GATE_MESSAGE.format(cmd=command)
-        if _incoming_branch(kind, normalized, cwd, target) == target:
-            return "approve", None
-        if target == _DEV_BRANCH:
-            return "approve", None
-        if target in _ABOVE_DEV_BRANCHES:
-            return "block", STAGING_GATE_MESSAGE.format(cmd=command, target=target)
-    except Exception:
-        pass
-    return "block", MERGE_GATE_MESSAGE.format(cmd=command)
+        tokens = _tokenize(normalized)
+        calls = _git_calls(tokens) if tokens else []
+        ops = [c for c in calls if c[1] in ("merge", "pull")]
+        if not ops:
+            backstop = (_GIT_MERGE_RE.search(normalized)
+                        and not _GIT_MERGE_EXEMPT_RE.search(normalized)) \
+                or _GIT_PULL_RE.search(normalized)
+            return ("block", _heavy_reason(command, None)) if backstop else ("approve", None)
+        remotes = _remotes(cwd)
+        worst, worst_target = "approve", None
+        for call in ops:
+            if _is_exempt(call[1], _args_after(tokens, call[0])):
+                continue
+            verdict, target = _judge(tokens, calls, call, cwd, remotes)
+            if _RANK[verdict] > _RANK[worst]:
+                worst, worst_target = verdict, target
+    except Exception as exc:
+        return "block", (
+            f"pre-merge-gate failed internally ({type(exc).__name__}: {exc}); "
+            "the target is treated as unknown. " + _heavy_reason(command, None)
+        )
+    if worst == "heavy":
+        return "block", _heavy_reason(command, worst_target)
+    if worst == "light":
+        return "block", MERGE_GATE_MESSAGE.format(cmd=command)
+    return "approve", None
 
 
 STAGING_GATE_MESSAGE = (
-    "MERGE GATE (blocked command: {cmd!r}): this lands on '{target}', above dev. "
+    "MERGE GATE (blocked command: {cmd!r}): {where}. "
     "Before merging, launch in parallel: "
     "(1) Cerberus and (2) Argus on the whole incoming diff, "
     "(3) Alexandria in merge mode checking CHANGELOG and version against that diff. "
@@ -292,12 +369,12 @@ def main():
         normalized = _normalize(command)
 
         # POLICY CONTROL (not a security guarantee): '# merge-reviewed' is a
-        # convention token that the orchestrator appends after running Cerberus
-        # and Alexandria. It is intentionally forgeable — its purpose is to
-        # enforce workflow discipline, not to provide a cryptographic proof that
-        # review occurred. A malicious or mistaken actor can bypass it by adding
-        # the token manually; that risk is accepted by design.
-        # Bypass: orchestrator has already run reviews and signals approval.
+        # convention token that the orchestrator appends after the reviews the
+        # block message asked for (Cerberus + Alexandria; above dev also Argus
+        # and the owner's yes). It is intentionally forgeable — its purpose is
+        # to enforce workflow discipline, not to prove that review occurred.
+        # A mistaken actor can bypass it by adding the token manually; that
+        # risk is accepted by design.
         if '# merge-reviewed' in command:
             json.dump({
                 "decision": "approve",
@@ -317,23 +394,12 @@ def main():
                 sys.stdout.flush()
                 return
 
-        # git merge (exempt: --abort / --continue anywhere in the command) and
-        # git pull without --rebase (implicit merge): decided by the target.
-        kind = None
-        if _GIT_MERGE_RE.search(normalized) and not _GIT_MERGE_EXEMPT_RE.search(normalized):
-            kind = "merge"
-        elif _GIT_PULL_RE.search(normalized):
-            kind = "pull"
-        if kind:
-            decision, reason = _gate_decision(kind, normalized, cwd, command)
-            result = {"decision": decision}
-            if reason:
-                result["reason"] = reason
-            json.dump(result, sys.stdout)
-            sys.stdout.flush()
-            return
-
-        json.dump({"decision": "approve"}, sys.stdout)
+        # Every git merge / git pull in the command, judged by its target.
+        decision, reason = _gate_decision(normalized, cwd, command)
+        result = {"decision": decision}
+        if reason:
+            result["reason"] = reason
+        json.dump(result, sys.stdout)
         sys.stdout.flush()
 
     except Exception as exc:

@@ -5,6 +5,7 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 ## The shared tree
 - Other sessions work in the same tree and commit on their own (D-057): my uncommitted edit can land inside someone else's commit. Read `git log` before saying "not committed".
 - The hook `customs.py` blocks any Bash command whose TEXT contains `git commit`, even in a throwaway repo or a heredoc. To commit in a scratch repo, put the call in a .py file.
+- The live `pre-merge-gate` blocks any Bash text with git merge/pull words, heredocs included: write probe inputs with the Write tool.
 
 ## Running what I built
 - `gitmem` on the PATH runs the plugin CACHE, not this repo's source. To test my change: `python3 unmassk-toolkit/bin/gitmem ...`.
