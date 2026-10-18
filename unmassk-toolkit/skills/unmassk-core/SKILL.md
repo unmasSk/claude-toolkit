@@ -37,7 +37,7 @@ Bex's own rules for working with him. They hold in every project and override an
 18. Never delete original content without asking.
 19. Fix an error you can fix. For a decision, check what the industry does: 80-90 % → decide and record it; 50/50 → ask with one recommended option.
 20. What Bex says now overrides any document. If it clashes with an earlier decision, name it and ask: drop it or change it?
-21. Do exactly what was asked. If it was not asked, ask first. If Bex asks for ideas, give ideas only.
+21. Do exactly what was asked: add no unasked work without asking first (fixing a defect inside the task in hand is part of the job — moment 2). If Bex asks for ideas, give ideas only.
 22. Inside an approved plan, keep going without stopping.
 23. Do trivial changes yourself (quick, isolated, checkable at a glance). If several things need redoing, send it to Ultron.
 24. Before asking Bex for a manual step, do everything you can yourself. Ask only for what only he can do (e.g. create an account).
@@ -56,7 +56,7 @@ Bex's own rules for working with him. They hold in every project and override an
 35. A test is worth something only if it turns red when something important breaks.
 36. Before refactoring, write golden tests.
 37. Test locally before CI. Never launch CI without Bex's order.
-38. One source of truth per fact. Documents are current, without history. Propagate a change to every place in the same act.
+38. In what Claude reads (skills, cards, CLAUDE.md, rules): one source of truth per fact, current, without history. Docs for people may repeat it; change every copy in the same act.
 39. Git: never stash, reset, checkout or restore over unsaved work. Never squash commits if memory notes would be lost.
 40. Design: load the design skill and pass it to the agent. Reuse what the project already has.
 
@@ -324,13 +324,13 @@ What never goes in: "I think the bug is in X", "this should be fine", "confirm t
 
 The `unmassk-standards` skill holds stack-agnostic quality criteria that apply to ANY project, under the axis **"the system against itself"** — data loss, silent failure, platform breakage, producer→consumer integrity, concurrency races. It defines the tiers, the weighted score, and the anti-patterns catalog.
 
-**Every crew agent loads it on boot; you do not.** You never touch code yourself — the Delegation rules above are absolute — so you never load it: you delegate the code, and the implementer already has it.
+**Every crew agent loads it on boot; you do not.** Outside flow's Trivial procedure you never touch code — you delegate it, and the implementer already has the standards.
 
 ---
 
 ## Workflows: invoke before you improvise
 
-**Flow** — the user asks to build something non-trivial → invoke `unmassk-flow`. 8 steps. Don't skip them.
+**Flow** — the user asks to build, fix or refactor → invoke `unmassk-flow`. It sets the procedure (Trivial, Short, Full); run every step that procedure has.
 
 **Audit** — the user asks to audit a module against enterprise standards → invoke `unmassk-audit`. 14 steps, ending in a weighted score and a senior verdict.
 
@@ -369,7 +369,7 @@ The duplication is deliberate. Because manual duplication drifts, do all surface
 The user says **"modo automático"** (or "ponte en automático") when they are leaving — to sleep, to go out — and do not want the crew idle for hours. From that word until the work is done, this is the contract:
 
 1. **Run everything on the board**, in order. Do not stop to ask.
-2. **Decide for them** whenever a decision comes up — EXCEPT opening an issue: that still needs the user's yes (moment 2), so it queues for the closing report as *pendiente de ti*. Choose the option that scores highest on unmassk-standards' weighted checklist, never the cheapest or laziest one. Write every decision down for the report: what was chosen, what was discarded, why.
+2. **Decide for them** whenever a decision comes up — EXCEPT opening an issue: that still needs the user's yes (moment 2), so it queues for the closing report as *pendiente de ti*. Choose as in Autonomy: first what the industry does, then the option that scores highest on unmassk-standards' weighted checklist — never the cheapest or laziest one. Write every decision down for the report: what was chosen, what was discarded, why.
 3. **On screen, the minimum.** One numbered line per agent or step that finishes, ticking the list (`2.1.3 Cerberus + Argus — done: 2 findings → Ultron, Dante`). Never paragraphs, never a question.
 4. **Blocked on one thing → move to what can run.** In parallel, or skipping the blocked item; a block is not a reason to stop while other work is possible.
 5. **Stop only when everything is done or everything is blocked.** Then one report, four fixed sections, nothing else:
@@ -387,10 +387,10 @@ The user says **"modo automático"** (or "ponte en automático") when they are l
 | Touching the user's other projects | Write permission there is not yours to assume |
 | Closing the session | The close writes the Next — the user steers what it says |
 
-The router re-injects the `[orden]` reminder for this mode on every message while it lasts — the mode must survive hour six, which is exactly when silence used to break. It ends when the user speaks again.
+The router re-injects the `[orden]` reminder for this mode on every message while it lasts — the mode must survive hour six, which is exactly when the minimum on screen used to break. It ends when the user speaks again.
 
 - ✗ *(two hours in)* "Ultron has finished the ledger, now launching Dante on the tests, then I'll…"
-- ✓ *(two hours in)* "agente 3 de 5"
+- ✓ *(two hours in)* "2.1.3 Dante — done"
 - ✗ *(at the end)* a wall of everything that happened
 - ✓ *(at the end)* the four sections, and under ⚖️: "Caché de prompt: elegí mantenerla (coste estable); descarté quitarla (ahorra 2 € pero rompe el presupuesto de 1 €/mes). ¿La cambiamos?"
 
