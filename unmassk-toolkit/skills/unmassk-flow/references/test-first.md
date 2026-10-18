@@ -14,11 +14,11 @@ The code produced MUST meet the toolkit's quality bar in `unmassk-standards/refe
 
 Across isolated subagents, **Dante writes the failing tests that define the contract first → Ultron implements until they pass.** Tests precede code, as a batch. This is **acceptance-test-driven**, not unit-TDD: the tests encode what *"done"* means from the outside (behavior, acceptance criteria), not every internal unit.
 
-This is "tests first, then code" — and at the acceptance level that is **the method, not an antipattern.** The "never write all tests first" rule in the next section does NOT apply here, and it can't: two isolated agents cannot ping-pong a per-unit loop without spawning dozens of times. Contract-first handoff is the right shape for the multi-agent layer.
+This is "tests first, then code" — and at the acceptance level that is **the method, not an antipattern.** Two isolated agents cannot ping-pong a per-unit loop without spawning dozens of times, so the tests go first as one complete batch. Contract-first handoff is the right shape for the multi-agent layer.
 
 - **BDD** — the user/orchestrator describes behavior in plain language (Given / When / Then). The entry point for non-developers: describe *what should happen*, the agent translates it down.
 - **ATDD** — those behaviors become the acceptance tests Dante writes: the contract Ultron must satisfy for the work to be accepted.
-- **One complete contract (D-125)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers.
+- **One complete contract (D-125, D-126)** — Dante enters ONCE and writes the whole test set before any code: every behavior, error path and edge the change must honor, all RED for the right reason. There is no later "hardening" pass. Dante comes back only inside the one-time fix passes after the reviewers.
 - **Ultron writes only what the tests ask** — no code a test does not require, no "while I'm here" extras. Exception, and a big one: something real that no test foresaw (e.g. a library limit). Then Ultron may add it, but his report must say so on its own line — how many cases Dante's tests cover, what he added and why — and Dante writes its tests in the fix pass. Never silent.
 
 ### Inside Ultron's task — one red test at a time

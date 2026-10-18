@@ -19,7 +19,7 @@ description: >
 
 # Flow — Creative Pipeline
 
-8-step workflow for building features, fixes, and refactors from idea to shipped code. Combines gray-area brainstorming, bite-sized planning, and evidence-first agent execution. All decisions persist in git-memory. The plan file is the single source of truth.
+8-step workflow for building features, fixes, and refactors from idea to shipped code. Combines gray-area brainstorming, bite-sized planning, and evidence-first agent execution. All decisions persist in git-memory. In the Full procedure, the plan file is the single source of truth.
 
 **This skill runs in ANY project, any stack.** Nothing here hardcodes a language, framework, test runner, or directory layout. Every stack-specific value (test command, lint command, build command, plan directory, coverage bar) comes from the **project profile** — never from this skill. If a value you need isn't in the profile, detect it from the project (see "Project profile" below) and record it; do not assume a default like `npm`/`vitest`/`pytest`.
 
@@ -157,7 +157,7 @@ Orchestrator chooses depth based on the procedure (Short = quick research, a lar
 
 ## Step 3 — Plan (ORCHESTRATOR)
 
-Write the plan. This is the SINGLE source of truth for the feature.
+**Full only** — Trivial and Short skip this step and carry no plan file. Write the plan. This is the SINGLE source of truth for the feature.
 
 **This is the execution plan of one feature: its steps and the order they run in.** When the work also carries a plan of its own — one that spans sessions, with an issue and a checklist the user follows — read **`references/plan.md`** and follow it: the document, the issue and the record that ties them to the decision. That file governs the plan; this step only plans the execution.
 
@@ -172,7 +172,7 @@ Write the plan. This is the SINGLE source of truth for the feature.
 
 **Issue:** #N
 **Branch:** feat/<name> | fix/<name> | refactor/<name>
-**Procedure:** Trivial | Short | Full
+**Procedure:** Full
 **Build mode:** test-first | linear
 **Created:** YYYY-MM-DD
 
@@ -225,7 +225,7 @@ Implement the plan. Wave-based parallel execution where possible.
 This step is a **router** — it does NOT spell the method out; it points to the reference doc that does (same pattern as `unmassk-standards` → `references/standards.md`). Load the matching doc and follow it:
 
 - **Linear** → read **`references/linear.md`** (Ultron implements → Dante tests after).
-- **Test-first** → read **`references/test-first.md`** (Dante writes the complete test set once → Ultron writes only the code those tests ask for, until GREEN; no later hardening pass — D-125).
+- **Test-first** → read **`references/test-first.md`** (Dante writes the complete test set once → Ultron writes only the code those tests ask for, until GREEN; no later hardening pass — D-125. Code Ultron adds beyond the tests is an exception he declares in his report — D-126).
 
 Everything below (waves, deviation rules, circuit breaker, tracking) applies to both methods. **Lane discipline (top of this skill) applies at every wave: Ultron never writes tests, Dante never investigates.**
 
@@ -236,7 +236,7 @@ MANDATORY (Full): Read the plan file before any implementation. Verify the plan 
 ### Wave Execution
 
 1. Read wave map from plan
-2. Launch Ultron agents for Wave 1 phases in parallel (1 agent per phase, no overlap on same file)
+2. Launch Ultron agents for Wave 1 phases in parallel (1 agent per phase, no overlap on same file) — in test-first, Dante's tests for that phase come first
 3. Wait for Wave 1 to complete
 4. Launch Wave 2 phases
 5. Repeat until all waves done
@@ -250,7 +250,7 @@ MANDATORY (Full): Read the plan file before any implementation. Verify the plan 
 Ultron may, without stopping to ask, do ONLY what the assigned task requires to be correct:
 
 - Fix a bug it hits **inside the code it is already changing**.
-- Add the error handling / input validation the change itself needs to be safe.
+- Add the error handling / input validation the change itself needs to be safe. In test-first that is code no test asks for: allowed only as the declared exception — its own line in his report, with why, and Dante writes its tests in the fix pass (D-126).
 
 Everything else is scope creep and is FORBIDDEN mid-task:
 
@@ -295,7 +295,7 @@ If Ultron fails the same step 3 times:
 **PART A — per independent plan phase, as it is built (owner rule, 2026-09-18 — «las partes principales se hacen separadas; las partes finales son Moriarty, Yoda y Alexandria»):**
 
 1. **Build, per build mode:**
-   - **Test-first:** Dante writes the acceptance tests (they start red) → Ultron implements until they pass.
+   - **Test-first:** Dante writes the complete test set once (it starts red) → Ultron writes only the code those tests ask for, until they pass (D-125, D-126).
    - **Linear:** Ultron implements → Dante writes the tests for what was built.
    Tests hit the REAL dependency by default; mock only what genuinely cannot run, and at least one test wires the core seam end-to-end (`unmassk-standards` §34.5). Coverage gate: the project profile's bar. Ultron never edits tests; Dante never edits code.
 2. **Cerberus + Argus, in parallel, over the code AND the tests of that phase.** In the Full procedure, Argus is never skipped. Each writes its report to a file that starts with an index; Claude reads the index and goes into detail only if there is a problem.
@@ -372,7 +372,7 @@ Check the project's `repo_type` (`.claude/project-memory/config.json`; when it i
 | 0 | ORCHESTRATOR | - | Procedure (Trivial / Short / Full) + seam declaration |
 | 1 | ORCHESTRATOR + User | No | Gray areas resolved + build mode decided |
 | 2 | Bilbo | No | Research complete |
-| 3 | ORCHESTRATOR | No | Plan written + checked |
+| 3 | ORCHESTRATOR | No | Plan written + checked (Full only) |
 | 4 | Ultron (+ Dante), forked by build mode | Waves | All steps complete |
 | 5 | Cerberus (+ Argus, Moriarty, Yoda) | Depends | VERIFY passes |
 | 6 | Alexandria | No | Docs updated |
