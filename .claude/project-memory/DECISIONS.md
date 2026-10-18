@@ -50,7 +50,6 @@
 [D-054][skills][architecture] checklist box matching strips accents too, not only casefold/dash/whitespace
 [D-055][memory][architecture] two concurrent work-writes to one file are not both required to succeed
 [D-056][memory][architecture] memory legibility and integrity batch scoped and ordered from Moria review
-[D-057][memory][release] code commits: commit and push at every step, never squash-and-push at the close
 [D-059][skills][architecture] repetition-scout skill: Protocolo Dia de la Marmota, file unmassk-groundhog
 [D-060][boot][memory] walls leave the opening menu: Claude-only seatbelt, pretty table on demand
 [D-064][boot][memory] opening table: eight fixed sections, branch, issues and health always visible
