@@ -21,7 +21,9 @@ Contract:
 - Manifest found: append it to this session's registry (once per skill,
   idempotent -- reloading the same skill twice does not duplicate the
   expectation) and emit `hookSpecificOutput.additionalContext` ordering
-  Claude to create those exact boxes on the board, now, verbatim.
+  Claude to create those exact boxes on the board, now, verbatim. A
+  manifest with "procedures" (D-121) is recorded whole and the order
+  lists every procedure: its selector task plus its own boxes.
 - Any error (corrupt manifest, unreadable registry, etc.): warn on
   stderr, still exit 0 -- a broken hook must never block a Skill call
   that already ran.
@@ -56,7 +58,9 @@ CHECKLISTS_DIR = os.path.join(PLUGIN_ROOT, "checklists")
 
 
 def _load_manifest(skill_name: str):
-    """Return (boxes, error). error is None on a clean miss (no manifest
+    """Return (entry, error). `entry` is the registry entry to record:
+    {"skill", "boxes"} plus "procedures" when the manifest declares it
+    (D-121). error is None on a clean miss (no manifest
     for this skill -- the normal, silent case) or on a clean read. It is
     an Exception only when the manifest file EXISTS but could not be
     parsed as the expected shape -- the one case that must warn instead
@@ -82,19 +86,51 @@ def _load_manifest(skill_name: str):
         boxes = data["boxes"]
         if not isinstance(boxes, list) or not all(isinstance(b, str) for b in boxes):
             raise ValueError("checklist manifest 'boxes' must be a list of strings")
-        return boxes, None
+        entry = {"skill": skill_name, "boxes": boxes}
+        if "procedures" in data:
+            if not checklist_state.is_valid_procedures(data["procedures"]):
+                raise ValueError("checklist manifest 'procedures' has the wrong shape")
+            entry["procedures"] = data["procedures"]
+        return entry, None
     except Exception as e:
         return None, e
 
 
-def _build_context_message(skill_name: str, boxes: list[str], enforced: bool) -> str:
-    numbered = "\n".join(f"{i}. {box}" for i, box in enumerate(boxes, start=1))
-    header = (
-        f'[checklist] Skill "{skill_name}" declares {len(boxes)} checklist box(es) '
-        "for this session's task board. Create these tasks on the board NOW, "
-        "verbatim, one per box -- do not paraphrase, merge, or skip any of them:\n"
-        f"{numbered}\n"
+def _numbered(boxes: list[str]) -> str:
+    return "\n".join(f"{i}. {box}" for i, box in enumerate(boxes, start=1))
+
+
+def _procedures_header(skill_name: str, boxes: list[str], procedures: dict) -> str:
+    """D-121: the boxes depend on the procedure. One block per procedure,
+    in manifest order, each naming its selector task and its own list (a
+    procedure without "boxes" uses the full top-level list)."""
+    blocks = []
+    for name, spec in procedures.items():
+        own = spec.get("boxes", boxes)
+        listing = _numbered(own) if own else "(no boxes -- the selector alone)"
+        blocks.append(f'{name} -- selector task "{spec["selector"]}":\n{listing}')
+    return (
+        f'[checklist] Skill "{skill_name}" declares a checklist that depends on the '
+        "procedure. Create on the board NOW, verbatim, the selector task of the "
+        "procedure you are following plus every box of that procedure -- do not "
+        "paraphrase, merge, or skip any of them -- and mark the selector completed:\n"
+        + "\n".join(blocks)
+        + "\n"
     )
+
+
+def _build_context_message(skill_name: str, entry: dict, enforced: bool) -> str:
+    boxes = entry.get("boxes", [])
+    procedures = entry.get("procedures")
+    if checklist_state.is_valid_procedures(procedures):
+        header = _procedures_header(skill_name, boxes, procedures)
+    else:
+        header = (
+            f'[checklist] Skill "{skill_name}" declares {len(boxes)} checklist box(es) '
+            "for this session's task board. Create these tasks on the board NOW, "
+            "verbatim, one per box -- do not paraphrase, merge, or skip any of them:\n"
+            f"{_numbered(boxes)}\n"
+        )
     if enforced:
         return header + (
             "The Stop hook (checklist-gate.py) will block closing this session if any "
@@ -112,23 +148,24 @@ def _build_context_message(skill_name: str, boxes: list[str], enforced: bool) ->
 
 
 def _record_skill_load(
-    project_root: str, session_id: str, skill_name: str, boxes: list[str]
-) -> tuple[bool, list[str]]:
-    """Append this skill's boxes to the session registry, once (idempotent
+    project_root: str, session_id: str, entry: dict
+) -> tuple[bool, dict]:
+    """Append this skill's manifest entry (boxes, and procedures when
+    declared) to the session registry, once (idempotent
     across repeated loads of the same skill in one session). The whole
     load-mutate-save cycle runs inside checklist_state.locked() -- without
     it, two concurrent Skill loads race on the same file and one silently
     loses its entry (Cerberus/Argus, 2026-08-24: reproduced with flow+audit
     loading at the same time, only one survived).
 
-    Returns (enforced, effective_boxes). `enforced` is True only when
+    Returns (enforced, effective_entry). `enforced` is True only when
     these boxes are durably known to be in the registry (either just
     saved successfully, or already there from an earlier successful load
     THIS session) -- callers use it to decide whether they may promise
-    enforcement (Moriarty finding 3). `effective_boxes` is what the
+    enforcement (Moriarty finding 3). `effective_entry` is what the
     registry actually holds for this skill -- if it was already declared
-    earlier this session, that is the OLD list from that earlier load,
-    NOT a fresh re-read of `boxes` (Moriarty finding 4: if the manifest
+    earlier this session, that is the OLD entry from that earlier load,
+    NOT a fresh re-read of the manifest (Moriarty finding 4: if the manifest
     file changes on disk between two loads of the same skill in one
     session, the registry still enforces the FIRST version -- the
     message must name what will actually be enforced)."""
@@ -140,23 +177,23 @@ def _record_skill_load(
                 "starting a fresh one for this session\n"
             )
 
-        for entry in registry["skills"]:
-            if entry.get("skill") == skill_name:
-                return True, entry.get("boxes", boxes)
+        for existing in registry["skills"]:
+            if existing.get("skill") == entry["skill"]:
+                return True, existing
 
-        registry["skills"].append({"skill": skill_name, "boxes": boxes})
+        registry["skills"].append(entry)
         if not checklist_state.save_registry(project_root, session_id, registry):
             sys.stderr.write(
                 "skill-checklist-inject: could not persist the checklist registry "
                 "(fail-open -- the board order below is still given this turn, "
                 "unenforced)\n"
             )
-            return False, boxes
-        return True, boxes
+            return False, entry
+        return True, entry
 
 
-def _emit_checklist_order(skill_name: str, boxes: list[str], enforced: bool) -> None:
-    message = _build_context_message(skill_name, boxes, enforced)
+def _emit_checklist_order(skill_name: str, entry: dict, enforced: bool) -> None:
+    message = _build_context_message(skill_name, entry, enforced)
     json.dump(
         {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": message}},
         sys.stdout,
@@ -180,21 +217,21 @@ def main() -> None:
         tool_input = hook_input.get("tool_input") or {}
         skill_name = tool_input.get("skill")
 
-        boxes, error = _load_manifest(skill_name)
+        entry, error = _load_manifest(skill_name)
         if error is not None:
             sys.stderr.write(
                 f"skill-checklist-inject: manifest for '{skill_name}' is broken, "
                 f"skipping this session's checklist for it ({error!r})\n"
             )
             sys.exit(0)
-        if boxes is None:
+        if entry is None:
             sys.exit(0)  # silence: no manifest for this skill
 
         session_id = hook_input.get("session_id")
         project_root = hook_input.get("cwd") or os.getcwd()
 
-        enforced, effective_boxes = _record_skill_load(project_root, session_id, skill_name, boxes)
-        _emit_checklist_order(skill_name, effective_boxes, enforced)
+        enforced, effective_entry = _record_skill_load(project_root, session_id, entry)
+        _emit_checklist_order(skill_name, effective_entry, enforced)
 
     except Exception as e:
         sys.stderr.write(f"skill-checklist-inject: unexpected error, fail-open ({e!r})\n")

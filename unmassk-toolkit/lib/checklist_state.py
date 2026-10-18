@@ -13,7 +13,8 @@ the only contract between them.
 File: <project_root>/.claude/.unmassk/session-checklists/<session_id>.json
     {
         "session_id": "...",
-        "skills": [{"skill": "unmassk-flow", "boxes": ["...", ...]}, ...],
+        "skills": [{"skill": "unmassk-flow", "boxes": ["...", ...],
+                    "procedures": {...}}, ...],   # procedures: optional (D-121)
         "block_count": 0
     }
 
@@ -85,6 +86,30 @@ def normalize_box_text(value) -> str:
     folded_case = without_accents.casefold()
     folded_dashes = folded_case.translate(_DASH_TRANSLATION)
     return _WHITESPACE_RE.sub(" ", folded_dashes).strip()
+
+
+def is_valid_procedures(value) -> bool:
+    """True when `value` has the shape a checklist manifest's optional
+    `procedures` key must have (D-121): a non-empty dict of procedure name
+    -> {"selector": non-empty str, optional "boxes": list of str}. A
+    procedure WITHOUT "boxes" means "the manifest's top-level boxes" (the
+    full list); an empty "boxes" list means "nothing to expect". The one
+    shape check both hooks share: the inject refuses a manifest that fails
+    it, the gate falls back to the full list for a registry entry that
+    fails it."""
+    if not isinstance(value, dict) or not value:
+        return False
+    for name, spec in value.items():
+        if not isinstance(name, str) or not isinstance(spec, dict):
+            return False
+        selector = spec.get("selector")
+        if not isinstance(selector, str) or not selector.strip():
+            return False
+        if "boxes" in spec:
+            boxes = spec["boxes"]
+            if not isinstance(boxes, list) or not all(isinstance(b, str) for b in boxes):
+                return False
+    return True
 
 
 def _default_registry(session_id: str) -> dict:

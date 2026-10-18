@@ -59,14 +59,44 @@ _MAX_BLOCKS_PER_SESSION = 2
 _SATISFIED_STATUS = "completed"
 
 
-def _expected_boxes(registry: dict) -> list[str]:
+def _procedure_boxes(entry: dict, tasks: dict[str, list[str]]) -> list:
+    """D-121: the boxes one registry entry expects, given the board. An
+    entry without a valid "procedures" key expects its full "boxes" list,
+    exactly as before D-121. With it, every procedure whose selector task
+    is on the board (any status, normalized text) is a candidate: own
+    "boxes" -> those plus its selector; empty "boxes" -> nothing (a
+    pending Trivial selector never blocks); no "boxes" -> the full list.
+    No selector on the board -> the full list. Several -> the biggest,
+    so a shorter procedure can never win over a longer one by accident."""
+    full = entry.get("boxes", [])
+    procedures = entry.get("procedures")
+    if not checklist_state.is_valid_procedures(procedures):
+        return full
+    candidates = []
+    for spec in procedures.values():
+        selector = spec["selector"]
+        if not tasks.get(checklist_state.normalize_box_text(selector)):
+            continue
+        if "boxes" not in spec:
+            candidates.append(full)
+        elif spec["boxes"]:
+            candidates.append(spec["boxes"] + [selector])
+        else:
+            candidates.append([])
+    return max(candidates, key=len) if candidates else full
+
+
+def _expected_boxes(registry: dict, tasks: dict[str, list[str]] | None = None) -> list[str]:
     """Flatten every declared skill's boxes into one ordered, deduplicated
     list -- a session can load more than one process skill (e.g. Flow,
-    then close-session), and both sets of boxes must hold."""
+    then close-session), and both sets of boxes must hold. With `tasks`
+    (the board), an entry declaring procedures expects only its
+    procedure's boxes (_procedure_boxes); without it, its full list."""
     seen: set[str] = set()
     ordered: list[str] = []
     for entry in registry.get("skills", []):
-        for box in entry.get("boxes", []):
+        boxes = entry.get("boxes", []) if tasks is None else _procedure_boxes(entry, tasks)
+        for box in boxes:
             if isinstance(box, str) and box not in seen:
                 seen.add(box)
                 ordered.append(box)
@@ -220,7 +250,7 @@ def _apply_gate(cwd: str, session_id: str, registry: dict) -> None:
             f"unreadable and skipped ({', '.join(broken)}); the rest were still checked\n"
         )
 
-    missing, open_items = _violations(expected, tasks)
+    missing, open_items = _violations(_expected_boxes(registry, tasks), tasks)
     if not missing and not open_items:
         sys.exit(0)  # clean pass, nothing to say
 

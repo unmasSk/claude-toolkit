@@ -17,5 +17,28 @@
     "Document — Alexandria actualizó las tres superficies y el CHANGELOG",
     "Close — las pruebas de lo tocado en verde",
     "Close — merge/push hecho, rama borrada, issue cerrada, plan COMPLETED, y se preguntó si seguir con la siguiente tarea"
-  ]
+  ],
+  "procedures": {
+    "Trivial": {
+      "selector": "Procedimiento: Trivial",
+      "boxes": []
+    },
+    "Corto": {
+      "selector": "Procedimiento: Corto",
+      "boxes": [
+        "Gate: sin feature de Flow abierto antes de arrancar uno nuevo",
+        "Triaje: procedimiento decidido (Trivial/Corto/Completo) y seam declarada",
+        "Brainstorm: gray areas resueltas y modo de build (test-first/linear) decidido",
+        "Corto — Ultron hizo el cambio",
+        "Corto — Dante entregó el test del cambio (si el proyecto tiene tests)",
+        "Corto — Cerberus revisó el código y el test",
+        "Corto — se corrigió una sola vez lo que señaló (código, Ultron; tests, Dante)",
+        "Close — las pruebas de lo tocado en verde",
+        "Corto — commit y push hechos, rama fusionada y borrada si la hubo, issue cerrada si la hay, y se preguntó si seguir"
+      ]
+    },
+    "Completo": {
+      "selector": "Procedimiento: Completo"
+    }
+  }
 }
