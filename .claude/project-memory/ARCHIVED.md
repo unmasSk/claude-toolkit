@@ -63,3 +63,4 @@
 2026-10-18  [D-083][skills][architecture] 🧭 flow gains a medium path: Cerberus, Ultron and Dante only  →  closed: sustituida por D-109, que define el camino Corto (antes intermedio) dentro de los tres caminos
 2026-10-18  [D-109][skills][architecture] 🧭 three flow paths: Direct, Short, Full; when in doubt, the bigger one  →  replaced by D-110
 2026-10-18  [D-110][skills][architecture] 🧭 three flow paths renamed: Trivial, Normal, Full (Completo)  →  replaced by D-111
+2026-10-18  [D-111][skills][architecture] 🧭 three flow paths named Trivial, Short (Corto) and Full (Completo)  →  replaced by D-112
