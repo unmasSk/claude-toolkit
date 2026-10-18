@@ -93,3 +93,4 @@
 [D-119][hooks][release] merge gate: nothing on merges into dev; the heavy gate only from dev to staging
 [D-120][hooks][release] staging gate: Cerberus+Argus on the whole batch, Alexandria, Bex's yes
 [D-121][skills][hooks] flow checklist by procedure: Trivial none, Short its own boxes, Full all
+[D-122][skills][standards] audit runs one pass: every reviewer once, every fix once, no loops
