@@ -121,4 +121,3 @@
 [M-140][boot][skills] after compaction a skill keeps its first 5k tokens; CLAUDE.md returns whole
 [M-141][docs][architecture] real product repos keep CLAUDE.md at 34-130 lines, rules with why, index
 [M-142][memory][release] owner now works on one machine only, with remote control on
-[M-143][release][testing] gitflow projects: work branch to dev; dev to staging runs the full CI/CD
