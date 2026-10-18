@@ -86,4 +86,4 @@
 [D-097][memory][release] WIPs record every step and are squashed into one at close, notes kept
 [D-099][skills][install] plugin review is its own skill, run once per project after a toolkit bump
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
-[D-101][hooks][install] a sub-second beep only when the owner is needed, in every project, no voice
+[D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed

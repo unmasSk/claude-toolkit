@@ -55,3 +55,4 @@
 2026-10-18  [D-096][memory][release] 🧭 back to local WIPs squashed at close, with memory notes preserved  →  replaced by D-097
 2026-10-18  [M-143][release][testing] 📌 gitflow projects: work branch to dev; dev to staging runs the full CI/CD  →  closed: no era un hecho nuevo: flow ya dice que la rama va a dev; fue un error de lectura del orquestador
 2026-10-18  [D-098][memory][hooks] 🧭 a two-question checklist every message, plus a search check before any save  →  replaced by D-100
+2026-10-18  [D-101][hooks][install] 🧭 a sub-second beep only when the owner is needed, in every project, no voice  →  replaced by D-102
