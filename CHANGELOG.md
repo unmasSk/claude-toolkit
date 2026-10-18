@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`unmassk-core` opens with the owner's 40 common rules**, loaded in every project; autonomy decides by what the industry does first and names any earlier decision it clashes with (#95).
+- **Every agent writes one report file** with an index of its section titles and answers in three lines; Moriarty's raw run log is a separate section that Yoda receives, and the orchestrator reads reports by index and keeps `.claude/informes` out of git.
+- **Checklist by procedure** (D-121): the flow's procedure box picks the Trivial, Short or Full list, and plugin-prefixed skill names load their list too.
+
+### Changed
+
+- **Test-first writes the whole test set once** (D-125): Dante writes it, Ultron codes only what the tests ask, the hardening pass is gone, and code beyond the tests is a declared exception with its own report line (D-126).
+- **`unmassk-audit` runs in one pass** (D-122): step 6 is the orchestrator's fix check, step 10 is Yoda, step 11 fixes what Yoda named once; the re-audit template and loops are gone.
+- **The pre-merge gate is free into dev and heavy above it** (D-119, D-120): it reads the target from `switch`/`checkout`, judges every merge in a chain, treats `cd` or `git -C` to the session's own repo like no path (D-129), and sends other repos, worktrees and unknown targets to the heavy gate; command parsing moved to `lib/merge_gate_target.py`.
+- **Progress while work runs is one numbered line per finished agent or step**, replacing the silence order; the automatic-mode reminder and the managed communication block carry the same rule.
+- **The router ignores agent notices**: they get no owner orders and no routing.
+- **Skill and card fixes after the council and the agents' own review (D-129)**: Trivial keeps one procedure box, flow goes on inside an approved plan, Yoda REJECTED blocks the merge, Moriarty INCOMPLETO is a status, and the release message never suggests stash.
+- **Hooks point to the right commands**: plugin-sync points to `/plugin` > marketplace and a rebase rejection points to `merge --no-ff`.
+
+### Fixed
+
+- **A wiped checklist board after completion now closes**, and the registry at the repo top level is found by walking up to `.git`, so the gate never launches a process.
+- **The merge gate approves commands that only mention merges**; redirects are no longer read as separators and heredoc apostrophes no longer confuse it.
+
 ## [1.46.0] - 2026-10-18
 
 ### Added
