@@ -88,3 +88,4 @@
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
 [D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
 [D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110
+[D-107][skills][architecture] work hierarchy is task, phase, step (1, 1.1, 1.1.1); owner hears only numbers
