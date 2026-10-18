@@ -11,7 +11,6 @@
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
 [remember][user] 🧠 el usuario se llama Jose, alias Bex (handle de git bextia, email jatomillo@gmail.com) -- no se llama Raul
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
-[remember][user] 🧠 nunca tratar datos de ejemplo o placeholders de la documentacion como hechos reales del usuario o del proyecto -- los hechos reales vienen del usuario, el codigo o la memoria
 [remember][user] 🧠 reparar todos los hallazgos de una revision, incluidos los nitpicks, no solo los bloqueantes -- el objetivo es la puntuacion maxima, nunca conformarse
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
 [remember][user] 🧠 en modo brainstorm nunca delegar codigo a Ultron -- brainstorm es analizar, proponer y discutir, no implementar
