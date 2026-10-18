@@ -38,9 +38,14 @@ BLOCKS: list[dict[str, str]] = [
 This project uses the **unmassk toolkit**. Its memory lives in git, and it is
 what you know about this project -- not a log you may consult.
 
+The owner's rules below bind from the first message:
+
+@.claude/project-memory/rules.md
+
 **On every session start**, you MUST:
-1. Read the session-start briefing already in your context: the last Next,
-   every blocker, every restriction, the counts and the checks
+1. Read the `[memory]` lines of the session start: the last Next, every
+   blocker, every restriction, the counts and the checks. If none arrived,
+   the boot failed: tell the user so in your first line
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
 3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
 4. Tell the user the menu of the day, then respond
