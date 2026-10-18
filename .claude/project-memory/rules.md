@@ -17,7 +17,6 @@
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
 [remember][user] 🧠 cuando hay un plan con pasos definidos, ejecutar todos los pasos sin preguntar si se para a mitad -- solo se para si el usuario lo pide
 [remember][user] 🧠 el usuario se llama Jose, alias Bex (handle de git bextia, email jatomillo@gmail.com) -- no se llama Raul
-[remember][user] 🧠 cada commit se sigue de un push inmediato al remoto -- nunca acumular commits locales ni esperar al cierre de sesion
 [remember][user] 🧠 antes de que Ultron refactorice, Dante escribe y verifica los golden tests que cubren el codigo afectado -- nunca refactorizar sin esa red debajo
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
 [remember][user] 🧠 ejecutar EXACTAMENTE el comando que pide el usuario, sin añadir nohup, &, redirecciones ni flags extra que no pidio
@@ -66,3 +65,4 @@
 [remember][user] 🧠 el cierre de sesion lo pide Bex; cuando Bex avisa de que el contexto va por el 80-90%, Claude va acabando el trabajo en curso (sin cerrar la sesion), porque Bex no aguanta las compactaciones — «No, el que te avisa del 80-90% del contexto soy yo. Tú no puedes mirar el contexto.»
 [remember][user] 🧠 al hablar de tareas, fases y pasos, referenciarlos a Bex solo por su numero: «vamos por el 1.1.2», «pasamos al 1.3» — «tú a mí me vas a referenciar eso con 1-1, 1-2, 2-1, 2-3»
 [remember][user] 🧠 al decidir, lo primero es lo que hace el sector (plataformas grandes, seniors): si lo hace el 80-90%, se decide sin preguntar; solo si esta al 50/50 se pregunta a Bex, con una opcion recomendada — «lo primero es qué haría el sector. Luego si es un 50%, 50%, entonces sí pregunto con una opción recomendada. Pero si el sector es un 80%, un 90% que lo hacen siempre, pues es evidente»
+[remember][user] 🧠 cada paso queda registrado en un WIP; al terminar el paso, sus WIPs se juntan en un commit que se sube; lo trivial es un commit normal — «Me da igual que no se pushee. Mientras se quede registrado cada paso en un WIP y luego se condensa todos en uno.»
