@@ -98,3 +98,4 @@
 [D-124][memory][hooks] per-message checklist gains a 4th check: a result given is ticked in its plan
 [D-126][skills][testing] test-first: Ultron adds code beyond the tests only as a declared exception
 [D-127][skills][testing] wrong contract test goes to a fresh Dante at once; Short follows the build mode
+[D-128][skills][docs] flow written to a standard now: titled sections, reading order, no filler
