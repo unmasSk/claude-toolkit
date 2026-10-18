@@ -107,3 +107,4 @@
 [X-107][hooks][install] aviso de voz con say
 [X-108][release][memory] preguntar antes de pasar a dev
 [X-109][skills][architecture] retomar al mismo agente si el arreglo llega a los pocos minutos
+[X-110][testing][skills] un candado con un hook sobre el comando de tests
