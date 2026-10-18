@@ -5,7 +5,6 @@
 [remember][user] 🧠 no se habla nunca de chatroom: ni el subproyecto, ni sus issues, ni nada relacionado — parado y callado hasta que yo lo saque
 [remember][user] 🧠 pon un tick verde delante de la frase cuando me hables a mi directamente; sin tick cuando solo informas de agentes o de estado
 [remember][user] 🧠 los prompts a los agentes deben ser cortos: solo el QUE, nunca el COMO -- el agente ya tiene sus instrucciones en su propia definicion
-[remember][user] 🧠 nunca proponer cerrar la sesion ni aplazar trabajo -- el usuario decide cuando parar
 [remember][user] 🧠 no seguir ciegamente los hallazgos de un revisor (Yoda u otro): usar juicio propio, y nunca borrar contenido original sin preguntar antes
 [remember][user] 🧠 los agentes no escriben memoria ni ficheros propios dentro de directorios de solo lectura que estan explorando (p.ej. .ref-repos) -- contamina la fuente
 [remember][user] 🧠 para explorar una codebase desconocida se usa el agente Bilbo; Explore es solo para busquedas simples
