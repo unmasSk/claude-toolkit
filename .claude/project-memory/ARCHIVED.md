@@ -54,3 +54,4 @@
 2026-10-18  [D-093][boot][skills] 🧭 boot slimming: what leaves a boot-read file never enters another one  →  replaced by D-094
 2026-10-18  [D-096][memory][release] 🧭 back to local WIPs squashed at close, with memory notes preserved  →  replaced by D-097
 2026-10-18  [M-143][release][testing] 📌 gitflow projects: work branch to dev; dev to staging runs the full CI/CD  →  closed: no era un hecho nuevo: flow ya dice que la rama va a dev; fue un error de lectura del orquestador
+2026-10-18  [D-098][memory][hooks] 🧭 a two-question checklist every message, plus a search check before any save  →  replaced by D-100
