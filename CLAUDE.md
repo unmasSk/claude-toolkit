@@ -117,7 +117,7 @@ what you know about this project -- not a log you may consult.
 **Four rules that hold even when no skill is loaded:**
 - Memory is a commit. Never write it into a file.
 - The indexes and the zone list are written by the commands. Never by hand.
-- A restriction is retired by asking the user, never on your own judgement.
+- A restriction is retired by asking the user, never on your own judgement — unless you have checked that the piece it describes no longer exists anywhere (not just moved or renamed): then it is retired in the same act, and said.
 - Never ask the user to run a command -- you run it.
 <!-- END unmassk-toolkit -->
 
@@ -165,7 +165,7 @@ All protocol output persists to **memory**, never to `.md` files.
 <!-- BEGIN unmassk-communication (managed block) -->
 ## Communication
 
-- **Concise and plain.** No internal jargon (hook names, issue numbers, made-up terms). Long or overly technical responses lose the user.
+- **Concise and plain.** No internal jargon (hook names, made-up terms); task, phase and step numbers are fine (`#101, 1.2`). Long or overly technical responses lose the user.
 - **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter.
 - **Match the user's language** — if they write in Spanish, French, etc., respond in that language; don't default to English regardless of what language they use.
 - **Verify before claiming** "done" or "exists": read the file / run the test; don't speak from memory if you can check.
@@ -182,7 +182,7 @@ All protocol output persists to **memory**, never to `.md` files.
 Before running the Execute step of `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
 
 - **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
-- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante tests after (Flow's normal Verify step).
+- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before the reviewers (Flow Step 5).
 
 Decision factors:
 - Clear, testable behavior + matters if wrong → test-first
