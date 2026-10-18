@@ -745,5 +745,174 @@ class TestOnlyARealRemoteCountsAsOwnCopy:
                          "`git merge origin/main` on `main` with a real `origin` remote")
 
 
+# ── CONTRACT: D-129 — -C / cd pointing at the SESSION repo is not "elsewhere" ──
+#
+# D-129 (council, 2026-10-18, owner: «Arréglalos todos»): the fail-closed on
+# cd / -C protected other worktrees but sent every everyday merge into dev
+# written as `git -C <session repo> ...` or `cd <session repo> && ...` to the
+# staging gate. Fix: when the path resolves to the SAME top-level directory
+# the session is in (absolute or relative, trailing slash or not, or a
+# subdirectory of it), the target is read exactly as with no -C / cd. A
+# different repo, or a different worktree of the same repo (its own
+# top-level), stays unknown -> heavy gate.
+
+def _same_repo_spellings(tmp_path, repo):
+    """Ways of writing the session repo's own path from cwd = repo.
+    `tmp_path/repo` is where `_make_repo` puts it, so the relative form
+    `../repo` is derived from the fixture, not from the hook."""
+    assert os.path.basename(repo) == "repo"
+    return {
+        "absolute": repo,
+        "absolute-trailing-slash": repo + "/",
+        "dot": ".",
+        "relative-via-parent": "../repo",
+        "relative-via-parent-trailing-slash": "../repo/",
+    }
+
+
+_SAME_REPO_FORMS = [
+    "absolute",
+    "absolute-trailing-slash",
+    "dot",
+    "relative-via-parent",
+    "relative-via-parent-trailing-slash",
+]
+
+
+class TestSessionRepoPathIsReadLikeNoPath:
+    """CONTRACT (D-129): `git -C <session repo>` and `cd <session repo> &&`
+    read the session repo's branch, as if no path had been given."""
+
+    @pytest.mark.parametrize("form", _SAME_REPO_FORMS)
+    def test_should_approve_when_git_C_session_repo_switches_to_dev(self, tmp_path, form):
+        # Third branch, so the pull/merge cannot pass as a same-branch sync.
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+        path = _same_repo_spellings(tmp_path, repo)[form]
+        command = f"git -C {path} switch dev && git -C {path} merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — -C is the session repo ({form}), target dev (D-129)")
+
+    @pytest.mark.parametrize("form", _SAME_REPO_FORMS)
+    def test_should_approve_when_cd_session_repo_then_switches_to_dev(self, tmp_path, form):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+        path = _same_repo_spellings(tmp_path, repo)[form]
+        command = f"cd {path} && git switch dev && git merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — cd into the session repo ({form}), target dev (D-129)")
+
+    @pytest.mark.parametrize("command_tpl", [
+        "git -C {path} merge --no-ff feat/x",
+        "git -C {path} pull origin feat/x",
+        "cd {path} && git merge --no-ff feat/x",
+    ])
+    def test_should_approve_when_head_is_dev_and_path_is_session_repo(self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        command = command_tpl.format(path=repo)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} with HEAD on dev (D-129: same as no path)")
+
+    def test_should_approve_when_path_is_a_subdirectory_of_session_repo(self, tmp_path):
+        """Same top-level once resolved: a subfolder of the session repo is
+        the session repo."""
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
+        sub = os.path.join(repo, "sub")
+        os.makedirs(sub)
+        command = f"git -C {sub} switch dev && git -C {sub} merge --no-ff feat/x"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} — subfolder of the session repo, target dev")
+
+    @pytest.mark.parametrize("target", ["staging", "main"])
+    @pytest.mark.parametrize("command_tpl", [
+        "git -C {path} switch {target} && git -C {path} merge --no-ff dev",
+        "cd {path} && git switch {target} && git merge --no-ff dev",
+    ])
+    def test_should_block_with_heavy_gate_when_session_repo_path_switches_above_dev(
+            self, tmp_path, command_tpl, target):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "staging", "main"])
+        command = command_tpl.format(path=repo, target=target)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — session repo, target {target} (D-120)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+        # Read like no path: the message names the real target, not "unknown".
+        assert f"'{target}'" in parsed.get("reason", ""), (
+            f"{context}: target is readable, the message should name '{target}'; "
+            f"got {parsed.get('reason')!r}"
+        )
+
+    @pytest.mark.parametrize("command_tpl", [
+        "git -C {path} merge --no-ff dev",
+        "cd {path} && git merge --no-ff dev",
+    ])
+    def test_should_block_with_heavy_gate_when_head_is_main_and_path_is_session_repo(
+            self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "main", also=["dev"])
+        command = command_tpl.format(path=repo)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} with HEAD on main"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+class TestOtherRepoOrWorktreeStaysUnknown:
+    """CONTRACT (D-129, the part that must NOT change): a path that resolves
+    to another top-level — another repo, or another worktree of the session
+    repo — keeps the target unknown -> heavy gate, even when the session
+    repo sits on dev."""
+
+    @pytest.mark.parametrize("command_tpl", [
+        "git -C {path} merge --no-ff dev",
+        "git -C {path} switch dev && git -C {path} merge --no-ff feat/x",
+        "cd {path} && git merge --no-ff dev",
+        "cd {path} && git switch dev && git merge --no-ff feat/x",
+    ])
+    def test_should_block_when_path_is_another_worktree_of_session_repo(
+            self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x", "main"])
+        wt = str(tmp_path / "wt")
+        rc, out, err = git_cmd(["worktree", "add", wt, "main"], repo)
+        assert rc == 0, f"fixture setup failed adding worktree: {err}"
+        command = command_tpl.format(path=wt)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} — second worktree on main, session repo on dev"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    @pytest.mark.parametrize("command_tpl", [
+        "git -C {path} merge --no-ff dev",
+        "cd {path} && git merge --no-ff dev",
+    ])
+    def test_should_block_when_absolute_path_is_another_repo(self, tmp_path, command_tpl):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        other = _make_repo(tmp_path, name="other", branch="dev")
+        command = command_tpl.format(path=other)
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        # Even with ../other on dev: another repo is not the session repo,
+        # and D-129 only opens the session repo.
+        context = f"{command!r} — another repo by absolute path"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
