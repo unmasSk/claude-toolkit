@@ -64,6 +64,7 @@ from datetime import datetime, timezone
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     pm_path,
@@ -138,7 +139,7 @@ def _seed_i(repo, zone1, zone2, headline_suffix, *, keys=_SHARED_KEYS):
     """
     return run_memory_script(
         "note.py",
-        [
+        with_searched([
             "I", "--zones", zone1, zone2,
             f"incident report about {headline_suffix}",
             "--description", f"a real, distinct incident description for {headline_suffix}",
@@ -148,7 +149,7 @@ def _seed_i(repo, zone1, zone2, headline_suffix, *, keys=_SHARED_KEYS):
             # claves+zona que este fichero prueba -- --work no declara
             # "solo respuesta", ajeno al escenario bajo prueba aqui.
             "--work", "no",
-        ],
+        ]),
         cwd=repo,
     )
 

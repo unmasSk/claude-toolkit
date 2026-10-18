@@ -547,6 +547,24 @@ def extract_note_id(stdout):
     return match.group(1)
 
 
+# D-098/D-124 [#95 2c, 2026-10-19]: `gitmem note` y `gitmem rule` (alta y
+# `--replaces`) no guardan sin `--searched`. Un test cuya siembra o
+# escritura NO trata de esa pregunta la contesta con este valor, visible
+# en su propia llamada (`*SEARCHED_ARGS` o `with_searched(args)`), nunca
+# inyectado a escondidas por `run_memory_script`/`run_gitmem_script`: un
+# test que quiera ejercitar el rebote D-098 simplemente no lo pasa
+# (`test_presave_searched_contract.py`). Cualquier texto no vacio vale
+# (X-105: nadie comprueba QUE se busco).
+SEARCHED_ANSWER = 'busqué "este tema" en la memoria: no hay nada escrito'
+SEARCHED_ARGS = ("--searched", SEARCHED_ANSWER)
+
+
+def with_searched(args):
+    """`args` de un alta de `note.py`/`rule.py` (o de `gitmem note|rule`)
+    con la respuesta D-098 anadida al final -- ver `SEARCHED_ANSWER`."""
+    return [*args, *SEARCHED_ARGS]
+
+
 def seed_note_via_script(
     repo,
     note_type,
@@ -564,6 +582,7 @@ def seed_note_via_script(
     issue=None,
     work=None,
     quote=None,
+    searched=SEARCHED_ANSWER,
 ):
     """Da de alta una nota REAL invocando `bin/memory/note.py` como
     PROCESO -- no `notes.write()` en proceso. `note.py` ya existe y su
@@ -592,6 +611,12 @@ def seed_note_via_script(
     este helper no decide por su cuenta un `--work no` por defecto, eso
     debilitaria cualquier test que SI quiera ejercitar el rechazo de la
     aduana a proposito.
+
+    `searched` [2026-10-19, D-098, #95 2c]: a diferencia de `work`/`quote`,
+    SI trae valor por defecto (`SEARCHED_ANSWER`) -- toda siembra de este
+    helper es una nota que el test necesita guardada, y sin `--searched`
+    `note.py` rebota antes de mirar nada mas. `searched=None` la omite
+    para reproducir "no se busco".
     """
     args = [note_type, "--zones", zone1, zone2, headline]
     if why is not None:
@@ -614,6 +639,8 @@ def seed_note_via_script(
         args += ["--work", work]
     if quote is not None:
         args += ["--quote", quote]
+    if searched is not None:
+        args += ["--searched", searched]
     return run_memory_script("note.py", args, cwd=repo)
 
 

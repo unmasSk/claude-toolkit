@@ -101,6 +101,7 @@ texto de rechazo tecleado a mano ni un id inventado.
 """
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     pm_path,
@@ -169,7 +170,7 @@ def _write_note(repo, note_type, zone1, zone2, headline, description, *, keys=()
         args += ["--replaces", replaces]
     if work is not None:
         args += ["--work", work]
-    return run_gitmem_script(args, cwd=repo)
+    return run_gitmem_script(with_searched(args), cwd=repo)
 
 
 class TestSameKeysSameZoneDistinctHeadlinesBounces:

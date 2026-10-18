@@ -83,6 +83,7 @@ import sys
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     path_without_real_gh,
     run_git,
@@ -234,7 +235,7 @@ def _seed_with_issue(repo, note_type, headline, description, issue, extra_flags,
         "--issue", str(issue),
         *extra_flags,
     ]
-    return run_memory_script("note.py", args, cwd=repo, env=env)
+    return run_memory_script("note.py", with_searched(args), cwd=repo, env=env)
 
 
 @_skip_on_windows
@@ -415,7 +416,7 @@ class TestOpeningIssueDidNotLoosenOtherTypeGatedFields:
         seed_zones_json(tmp_repo, [_ZONE1, _ZONE2])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", _ZONE1, _ZONE2,
                 "switch the on-call rotation tool from PagerDuty to Opsgenie",
@@ -425,7 +426,7 @@ class TestOpeningIssueDidNotLoosenOtherTypeGatedFields:
                                   "Opsgenie is already paid for via the "
                                   "Atlassian bundle.",
                 "--awaits", "legal -- contract sign-off",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc != 0, (
@@ -444,7 +445,7 @@ class TestOpeningIssueDidNotLoosenOtherTypeGatedFields:
         headline = "dropped the idea of auto-archiving stale draft notes"
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "X",
                 "--zones", _ZONE1, _ZONE2,
                 headline,
@@ -452,7 +453,7 @@ class TestOpeningIssueDidNotLoosenOtherTypeGatedFields:
                                   "ninety days of no activity; too easy to "
                                   "silently lose an open question.",
                 "--stops", "yes",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, (

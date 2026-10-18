@@ -54,6 +54,7 @@ import os
 import pytest
 
 from .conftest import (
+    with_searched,
     import_lib_memory_module,
     run_git,
     run_memory_script,
@@ -101,13 +102,13 @@ class TestAcceptsAllFlagsWithoutBouncing:
         # quiere probar (que text+--kind se aceptan juntos sin reventar).
         rc, out, err = run_memory_script(
             "rule.py",
-            [
+            with_searched([
                 "never mock the database in integration tests",
                 "--kind",
                 "user",
                 "--quote",
                 "no mockees la base de datos en los tests de integracion",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -160,26 +161,26 @@ class TestReadingModeShowsTheWholeFileForReal:
     def test_no_positional_argument_prints_the_real_rules_file_entirely(self, tmp_repo):
         rc_add1, out_add1, err_add1 = run_memory_script(
             "rule.py",
-            [
+            with_searched([
                 "never mock the database in integration tests",
                 "--kind",
                 "user",
                 "--quote",
                 "no mockees la base de datos en los tests de integracion",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_add1 == 0, f"siembra fallo: stdout={out_add1!r} stderr={err_add1!r}"
 
         rc_add2, out_add2, err_add2 = run_memory_script(
             "rule.py",
-            [
+            with_searched([
                 "stop summarizing what you just did at the end",
                 "--kind",
                 "claude",
                 "--quote",
                 "none",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_add2 == 0, f"siembra fallo: stdout={out_add2!r} stderr={err_add2!r}"
@@ -198,7 +199,7 @@ class TestFailureExitsNonzeroWithRealTextNoTraceback:
         too_long = "x" * 201
         before = _git_commit_count(tmp_repo)
 
-        rc, out, err = run_memory_script("rule.py", [too_long, "--kind", "user"], cwd=tmp_repo)
+        rc, out, err = run_memory_script("rule.py", with_searched([too_long, "--kind", "user"]), cwd=tmp_repo)
         assert rc != 0, f"una regla de 201 caracteres tiene que rebotar: stdout={out!r}"
         combined = out + err
         assert "Traceback" not in combined
@@ -266,7 +267,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         existing_text = "never mock the database in integration tests"
         rc_seed, out_seed, err_seed = run_memory_script(
             "rule.py",
-            [existing_text, "--kind", "user", "--quote", "no mockees la base de datos"],
+            with_searched([existing_text, "--kind", "user", "--quote", "no mockees la base de datos"]),
             cwd=tmp_repo,
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
@@ -292,7 +293,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         # este test quiere ver (casi-duplicado) nunca se dispararia.
         rc, out, err = run_memory_script(
             "rule.py",
-            [candidate_text, "--kind", "user", "--quote", "otra cita, la del candidato"],
+            with_searched([candidate_text, "--kind", "user", "--quote", "otra cita, la del candidato"]),
             cwd=tmp_repo,
         )
         combined = out + err
@@ -338,7 +339,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
 
         rc_seed_user, out_seed_user, err_seed_user = run_memory_script(
             "rule.py",
-            [user_text, "--kind", "user", "--quote", "cita real del propietario"],
+            with_searched([user_text, "--kind", "user", "--quote", "cita real del propietario"]),
             cwd=tmp_repo,
         )
         assert rc_seed_user == 0, (
@@ -346,7 +347,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         )
 
         rc_seed_claude, out_seed_claude, err_seed_claude = run_memory_script(
-            "rule.py", [claude_text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
+            "rule.py", with_searched([claude_text, "--kind", "claude", "--quote", "none"]), cwd=tmp_repo
         )
         assert rc_seed_claude == 0, (
             f"siembra [claude] fallo: stdout={out_seed_claude!r} stderr={err_seed_claude!r}"
@@ -368,7 +369,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         # chequeo de parecido que este test verifica.
         rc, out, err = run_memory_script(
             "rule.py",
-            [candidate_text, "--kind", "user", "--quote", "cita del candidato mezclado"],
+            with_searched([candidate_text, "--kind", "user", "--quote", "cita del candidato mezclado"]),
             cwd=tmp_repo,
         )
         combined = out + err
@@ -393,7 +394,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
         unrelated_existing = "never mock the database in integration tests"
         rc_seed, out_seed, err_seed = run_memory_script(
             "rule.py",
-            [unrelated_existing, "--kind", "user", "--quote", "no mockees la base de datos"],
+            with_searched([unrelated_existing, "--kind", "user", "--quote", "no mockees la base de datos"]),
             cwd=tmp_repo,
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
@@ -409,7 +410,7 @@ class TestSimilarExistingRuleIsWarnedBeforeAdding:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [candidate_text, "--kind", "user", "--quote", "deja de resumir, ya lo he visto"],
+            with_searched([candidate_text, "--kind", "user", "--quote", "deja de resumir, ya lo he visto"]),
             cwd=tmp_repo,
         )
         combined = out + err
@@ -424,13 +425,13 @@ class TestForceUtf8StreamsFirstStatement:
     def test_accented_rule_survives_a_restricted_console_encoding(self, tmp_repo):
         rc, out, err = run_memory_script(
             "rule.py",
-            [
+            with_searched([
                 "nunca commitear sin revisar el diff primero, cuesta caro",
                 "--kind",
                 "claude",
                 "--quote",
                 "none",
-            ],
+            ]),
             cwd=tmp_repo,
             env={"PYTHONIOENCODING": "cp1252", "LANG": "C", "LC_ALL": "C"},
         )

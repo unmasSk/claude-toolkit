@@ -67,7 +67,7 @@ import sys
 
 import pytest
 
-from .conftest import path_without_real_gh, run_git, run_memory_script, seed_zones_json
+from .conftest import with_searched, path_without_real_gh, run_git, run_memory_script, seed_zones_json
 
 _ZONE1 = "issuenoneothertypeszone"
 _ZONE2 = "issuenoneothertypeszonetwo"
@@ -205,7 +205,7 @@ class TestIssueNoneIsRejectedOutsideQAndI:
 
         rc, out, err = run_memory_script(
             "note.py",
-            _note_args(note_type, headline, description, extra_flags),
+            with_searched(_note_args(note_type, headline, description, extra_flags)),
             cwd=tmp_repo,
         )
 
@@ -252,7 +252,7 @@ class TestIssueNIsStillAcceptedOutsideQAndI:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D", "--zones", _ZONE1, _ZONE2,
                 "retire the nightly backup script in favor of managed snapshots",
                 "--description", "control case: a real issue number must "
@@ -260,7 +260,7 @@ class TestIssueNIsStillAcceptedOutsideQAndI:
                 "--why", "confirms the fix does not overtighten --issue "
                          "itself, only the none sentinel",
                 "--issue", str(issue_number),
-            ],
+            ]),
             cwd=tmp_repo,
             env=env,
         )

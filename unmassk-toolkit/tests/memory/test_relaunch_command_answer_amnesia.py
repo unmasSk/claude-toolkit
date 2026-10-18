@@ -52,6 +52,7 @@ import shlex
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     pm_path,
     run_gitmem_script,
@@ -201,8 +202,8 @@ def test_overlap_rejection_command_drops_the_already_answered_stops_flag(tmp_rep
     # Paso 1: intento real, sin `--stops` -- exactamente la reproduccion
     # del encargo.
     rc1, out1, err1 = run_gitmem_script(
-        ["note", "M", "--zones", ZONE1, ZONE2, HEADLINE,
-         "--description", DESCRIPTION_PLACEHOLDER],
+        with_searched(["note", "M", "--zones", ZONE1, ZONE2, HEADLINE,
+         "--description", DESCRIPTION_PLACEHOLDER]),
         cwd=tmp_repo,
     )
     assert rc1 != 0, (
@@ -288,10 +289,14 @@ def test_pain_question_and_overlap_rejection_cycle_converges(tmp_repo):
     _seed_existing_similar_note(tmp_repo)
 
     given_answers = {}
-    current_args = [
+    # `--searched` [D-098, #95 2c]: una respuesta mas ya dada desde el
+    # paso 0 -- `given_answers` la acumula como las demas, asi que este
+    # ciclo comprueba tambien que ningun rechazo intermedio (dolor,
+    # solapamiento) la pierde por el camino.
+    current_args = with_searched([
         "note", "M", "--zones", ZONE1, ZONE2, HEADLINE,
         "--description", DESCRIPTION_PLACEHOLDER,
-    ]
+    ])
     transcript = []
 
     for step in range(MAX_STEPS):

@@ -77,6 +77,7 @@ from pathlib import Path
 import pytest
 
 from .conftest import (
+    with_searched,
     import_lib_memory_module,
     run_git,
     run_memory_script,
@@ -187,7 +188,7 @@ class TestGoodRuleEndsUpCommittedForReal:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [text, "--kind", "user", "--quote", "no mockees la base de datos, nunca"],
+            with_searched([text, "--kind", "user", "--quote", "no mockees la base de datos, nunca"]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -219,7 +220,7 @@ class TestGoodRuleEndsUpCommittedForReal:
         before = _commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
-            "rule.py", [text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
+            "rule.py", with_searched([text, "--kind", "claude", "--quote", "none"]), cwd=tmp_repo
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
         assert "guardada" in out
@@ -250,7 +251,7 @@ class TestGoodRuleEndsUpCommittedForReal:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [text, "--kind", kind, "--quote", "no mockees la base de datos"],
+            with_searched([text, "--kind", kind, "--quote", "no mockees la base de datos"]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -295,7 +296,7 @@ class TestFailedCommitNeverClaimsSuccess:
         with _forced_git_index_lock(tmp_repo):
             rc, out, err = run_memory_script(
                 "rule.py",
-                [text, "--kind", "user", "--quote", "no mockees la base de datos"],
+                with_searched([text, "--kind", "user", "--quote", "no mockees la base de datos"]),
                 cwd=tmp_repo,
             )
 
@@ -321,7 +322,7 @@ class TestFailedCommitNeverClaimsSuccess:
         with _forced_git_index_lock(tmp_repo):
             run_memory_script(
                 "rule.py",
-                [text, "--kind", "user", "--quote", "no mockees la base de datos"],
+                with_searched([text, "--kind", "user", "--quote", "no mockees la base de datos"]),
                 cwd=tmp_repo,
             )
 
@@ -348,7 +349,7 @@ class TestNearDuplicateNeverCommitsEitherRuleTwice:
 
         rc_seed, out_seed, err_seed = run_memory_script(
             "rule.py",
-            [existing_text, "--kind", "user", "--quote", "no mockees la base de datos"],
+            with_searched([existing_text, "--kind", "user", "--quote", "no mockees la base de datos"]),
             cwd=tmp_repo,
         )
         assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
@@ -369,7 +370,7 @@ class TestNearDuplicateNeverCommitsEitherRuleTwice:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [candidate_text, "--kind", "user", "--quote", "otra cita, la del candidato"],
+            with_searched([candidate_text, "--kind", "user", "--quote", "otra cita, la del candidato"]),
             cwd=tmp_repo,
         )
         combined = out + err
@@ -411,7 +412,7 @@ class TestNearDuplicateNeverCommitsEitherRuleTwice:
         before = _commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
-            "rule.py", [text, "--kind", "user"], cwd=tmp_repo
+            "rule.py", with_searched([text, "--kind", "user"]), cwd=tmp_repo
         )
         combined = out + err
         assert "Traceback" not in combined

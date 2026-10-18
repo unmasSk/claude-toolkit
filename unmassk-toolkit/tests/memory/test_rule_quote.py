@@ -88,7 +88,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import import_lib_memory_module, run_git, run_memory_script
+from .conftest import with_searched, import_lib_memory_module, run_git, run_memory_script
 
 
 @contextlib.contextmanager
@@ -139,7 +139,7 @@ class TestUserRuleWithoutQuoteIsRejected:
     ):
         before = _git_commit_count(tmp_repo)
 
-        rc, out, err = run_memory_script("rule.py", ["ser breve"], cwd=tmp_repo)
+        rc, out, err = run_memory_script("rule.py", with_searched(["ser breve"]), cwd=tmp_repo)
         combined = out + err
 
         assert rc != 0, (
@@ -188,7 +188,7 @@ class TestUserRuleWithQuoteIsSavedWithBothTexts:
         quote = "no te enrolles, tio"
 
         rc, out, err = run_memory_script(
-            "rule.py", [text, "--quote", quote], cwd=tmp_repo
+            "rule.py", with_searched([text, "--quote", quote]), cwd=tmp_repo
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
         assert "Traceback" not in (out + err)
@@ -260,7 +260,7 @@ class TestClaudeRuleWithoutQuoteIsNowRejectedToo:
         before = _git_commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
-            "rule.py", ["leer los patrones antes", "--kind", "claude"], cwd=tmp_repo
+            "rule.py", with_searched(["leer los patrones antes", "--kind", "claude"]), cwd=tmp_repo
         )
         combined = out + err
 
@@ -297,7 +297,7 @@ def test_claude_rule_with_quote_none_is_accepted_without_a_quote_part(tmp_repo, 
     text = "leer los patrones antes"
 
     rc, out, err = run_memory_script(
-        "rule.py", [text, "--kind", "claude", "--quote", "none"], cwd=tmp_repo
+        "rule.py", with_searched([text, "--kind", "claude", "--quote", "none"]), cwd=tmp_repo
     )
     assert rc == 0, f"stdout={out!r} stderr={err!r}"
     assert "Traceback" not in (out + err)
@@ -328,7 +328,7 @@ def test_user_rule_with_quote_none_is_also_accepted_explicitly(tmp_repo, rules_l
     text = "ser breve"
 
     rc, out, err = run_memory_script(
-        "rule.py", [text, "--quote", "none"], cwd=tmp_repo
+        "rule.py", with_searched([text, "--quote", "none"]), cwd=tmp_repo
     )
     assert rc == 0, f"stdout={out!r} stderr={err!r}"
     assert "Traceback" not in (out + err)
@@ -354,7 +354,7 @@ def test_user_rule_with_quote_none_is_also_accepted_explicitly(tmp_repo, rules_l
 
 def test_claude_rule_with_quote_carries_the_quote_too(tmp_repo, rules_lib):
     rc, out, err = run_memory_script(
-        "rule.py", ["x", "--kind", "claude", "--quote", "y"], cwd=tmp_repo
+        "rule.py", with_searched(["x", "--kind", "claude", "--quote", "y"]), cwd=tmp_repo
     )
     assert rc == 0, f"stdout={out!r} stderr={err!r}"
     assert "Traceback" not in (out + err)
@@ -393,7 +393,7 @@ def test_reading_back_shows_old_format_and_new_quoted_lines_together(
     new_text = "regla nueva con cita"
     new_quote = "cita literal de verdad"
     rc_add, out_add, err_add = run_memory_script(
-        "rule.py", [new_text, "--quote", new_quote], cwd=tmp_repo
+        "rule.py", with_searched([new_text, "--quote", new_quote]), cwd=tmp_repo
     )
     assert rc_add == 0, f"stdout={out_add!r} stderr={err_add!r}"
 
@@ -434,7 +434,7 @@ class TestBlankQuoteIsRejectedLikeMissing:
         before = _git_commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
-            "rule.py", ["ser breve", "--quote", blank_quote], cwd=tmp_repo
+            "rule.py", with_searched(["ser breve", "--quote", blank_quote]), cwd=tmp_repo
         )
         combined = out + err
 
@@ -490,7 +490,7 @@ def test_near_duplicate_rejection_fires_even_with_different_quotes(tmp_repo, rul
     existing_text = "never mock the database in integration tests"
     rc_seed, out_seed, err_seed = run_memory_script(
         "rule.py",
-        [existing_text, "--quote", "no mockees la base de datos en tests"],
+        with_searched([existing_text, "--quote", "no mockees la base de datos en tests"]),
         cwd=tmp_repo,
     )
     assert rc_seed == 0, f"siembra fallo: stdout={out_seed!r} stderr={err_seed!r}"
@@ -508,7 +508,7 @@ def test_near_duplicate_rejection_fires_even_with_different_quotes(tmp_repo, rul
 
     rc, out, err = run_memory_script(
         "rule.py",
-        [candidate_text, "--quote", candidate_quote],
+        with_searched([candidate_text, "--quote", candidate_quote]),
         cwd=tmp_repo,
     )
     combined = out + err

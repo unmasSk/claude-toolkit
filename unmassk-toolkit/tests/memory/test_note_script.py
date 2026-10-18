@@ -73,13 +73,17 @@ file ... No such file or directory" -- ni las aserciones de contenido
 Traceback" pueden pasar por accidente contra ese mensaje.
 """
 
+import dataclasses
 import json
 import os
+import shlex
 from datetime import datetime, timezone
 
 import pytest
 
 from .conftest import (
+    SEARCHED_ANSWER,
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     pm_path,
@@ -184,7 +188,7 @@ class TestAcceptsAllFlagsWithoutBouncing:
         seed_zones_json(tmp_repo, ["product", "auth"])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with JWT + Google OAuth",
@@ -192,7 +196,7 @@ class TestAcceptsAllFlagsWithoutBouncing:
                 "--description", "Brainstorm on login. Server sessions, own password login, "
                                   "and JWT + Google OAuth were weighed.",
                 "--keys", "token", "oauth", "sso",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -212,7 +216,7 @@ class TestAcceptsAllFlagsWithoutBouncing:
         seed_zones_json(tmp_repo, ["product", "auth"])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "B",
                 "--zones", "product", "auth",
                 "google workspace admin consent still pending",
@@ -220,7 +224,7 @@ class TestAcceptsAllFlagsWithoutBouncing:
                                   "approved by a Workspace admin.",
                 "--awaits", "the client -- Marta, IT at Omawa",
                 "--keys", "consent", "admin", "workspace",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -246,13 +250,13 @@ class TestFailureExitsNonzeroWithRealTextNoTraceback:
         seed_zones_json(tmp_repo, ["product", "auth"])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "billing", "auth",
                 "webhooks arrive out of order",
                 "--description", "Stripe retries for up to three days without ordering guarantees.",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc != 0, f"una zona inexistente tiene que rebotar: stdout={out!r}"
@@ -289,13 +293,13 @@ class TestFailureExitsNonzeroWithRealTextNoTraceback:
         seed_zones_json(tmp_repo, ["database", "backups"])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "database", "backups",
                 "webhooks arrive out of order",
                 "--description", "Stripe retries for up to three days without ordering guarantees.",
                 # --stops omitido a proposito: TEXTOS.md Sec.1.5.
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc != 0, f"falta --stops, tiene que rebotar: stdout={out!r}"
@@ -309,7 +313,23 @@ class TestFailureExitsNonzeroWithRealTextNoTraceback:
         )
         expected_rejection = validator.validate_pain_question(note, None)
         assert expected_rejection is not None, "precondicion del test: sin --stops tiene que rebotar"
-        expected_text = rejection_mod.render_terminal(expected_rejection)
+        # D-098 [#95 2c]: la llamada ya contesto `--searched`, asi que cada
+        # relanzamiento `gitmem note ...` del rechazo tiene que arrastrar
+        # ESE valor (si no, obedecerlo rebota otra vez en la pregunta y la
+        # respuesta se pierde). El sufijo se construye aqui a mano desde
+        # el valor que este test paso, nunca con `validator.carry_searched`.
+        carried_suffix = f" --searched {shlex.quote(SEARCHED_ANSWER)}"
+        carried = tuple(
+            command + carried_suffix if command.startswith("gitmem note ") else command
+            for command in expected_rejection.relaunch
+        )
+        assert carried != expected_rejection.relaunch, (
+            "precondicion del test: el rechazo del dolor ofrece al menos un "
+            f"relanzamiento 'gitmem note ...': {expected_rejection.relaunch!r}"
+        )
+        expected_text = rejection_mod.render_terminal(
+            dataclasses.replace(expected_rejection, relaunch=carried)
+        )
         combined = out + err
         assert expected_text in combined, (
             f"el texto real de 'falta una respuesta' no aparece en la salida.\n"
@@ -423,13 +443,13 @@ class TestCreatesAllSevenNoteTypesForReal:
         for type_letter, headline, description, extra_flags in cases:
             rc, out, err = run_memory_script(
                 "note.py",
-                [
+                with_searched([
                     type_letter,
                     "--zones", "product", "seventypes",
                     headline,
                     "--description", description,
                     *extra_flags,
-                ],
+                ]),
                 cwd=tmp_repo,
             )
             assert rc == 0, f"tipo {type_letter} no se pudo crear: stdout={out!r} stderr={err!r}"
@@ -466,7 +486,7 @@ class TestForceUtf8StreamsFirstStatement:
         seed_zones_json(tmp_repo, ["product", "auth"])
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 # Zona inexistente a proposito: dispara un rechazo real,
                 # que SIEMPRE lleva el emoji `⛔` por delante del titular
@@ -475,7 +495,7 @@ class TestForceUtf8StreamsFirstStatement:
                 "webhooks arrive out of order",
                 "--description", "MARK description",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
             env={"PYTHONIOENCODING": "cp1252", "LANG": "C", "LC_ALL": "C"},
         )
@@ -520,13 +540,13 @@ class TestRepoResolvedByProcessCwd:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "product", "nestedcwd",
                 "note written from a nested cwd",
                 "--description", "MARK description",
                 "--stops", "no",
-            ],
+            ]),
             cwd=nested,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -580,13 +600,13 @@ class TestZoneAliasIsResolvedToCanonicalNameOnWrite:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "prod", "checkout",
                 "latency issue on checkout",
                 "--description", "MARK description for the alias-in-first-slot case",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"el alta con el alias tiene que guardarse: stdout={out!r} stderr={err!r}"
@@ -639,13 +659,13 @@ class TestZoneAliasIsResolvedToCanonicalNameOnWrite:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "checkout", "facturacion",
                 "payment retries duplicate the charge",
                 "--description", "MARK description for the alias-in-second-slot case",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"el alta con el alias tiene que guardarse: stdout={out!r} stderr={err!r}"
@@ -743,13 +763,13 @@ class TestZoneNameCaseIsNormalizedToLowercaseEverywhere:
         # porque existe en minuscula, y la nota se guarda en minuscula.
         rc_note, out_note, err_note = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "product", "BOOT",
                 "boot sequence prints the wrong session id",
                 "--description", "MARK description for the zone-case round trip",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_note == 0, f"stdout={out_note!r} stderr={err_note!r}"
@@ -798,13 +818,13 @@ class TestControlWithCanonicalNamesStillWorksAsBaseline:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "M",
                 "--zones", "product", "checkout",
                 "cart abandonment spikes on mobile",
                 "--description", "MARK description for the canonical-names control case",
                 "--stops", "no",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -872,13 +892,13 @@ class TestReplacesArchivesTheOldNoteInTheSameCommit:
 
         rc_old, out_old, err_old = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with sessions",
                 "--why", "simplest thing that could work at the time",
                 "--description", "MARK description for the original decision",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_old == 0, f"stdout={out_old!r} stderr={err_old!r}"
@@ -888,14 +908,14 @@ class TestReplacesArchivesTheOldNoteInTheSameCommit:
         before = _git_commit_count(tmp_repo)
         rc_new, out_new, err_new = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with JWT",
                 "--why", "sessions do not scale across multiple app servers",
                 "--description", "MARK description for the replacement decision",
                 "--replaces", old_id,
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_new == 0, f"stdout={out_new!r} stderr={err_new!r}"
@@ -953,13 +973,13 @@ class TestReplacesNoneSentinelStillLetsBothNotesCoexist:
 
         rc_first, out_first, err_first = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with sessions",
                 "--why", "simplest thing that could work at the time",
                 "--description", "MARK description for the first coexisting decision",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_first == 0, f"stdout={out_first!r} stderr={err_first!r}"
@@ -967,14 +987,14 @@ class TestReplacesNoneSentinelStillLetsBothNotesCoexist:
 
         rc_second, out_second, err_second = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with JWT",
                 "--why", "sessions do not scale across multiple app servers",
                 "--description", "MARK description for the second coexisting decision",
                 "--replaces", "none",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_second == 0, f"stdout={out_second!r} stderr={err_second!r}"
@@ -1067,7 +1087,7 @@ class TestDiscardFlagWiresIntoNotesDiscardAlternatives:
         for headline, why in discard_pairs:
             args += ["--discard", headline, why]
 
-        rc, out, err = run_memory_script("note.py", args, cwd=tmp_repo)
+        rc, out, err = run_memory_script("note.py", with_searched(args), cwd=tmp_repo)
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
         assert "Traceback" not in out and "Traceback" not in err
         decision_id = extract_note_id(out)
@@ -1157,13 +1177,13 @@ class TestDiscardFlagAbsentStillWritesAPlainDecisionInOneCommit:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "D",
                 "--zones", "product", "auth",
                 "login with JWT + Google OAuth, no alternatives recorded",
                 "--why", "sessions do not scale multi-tenant; Google avoids owning passwords",
                 "--description", "MARK description for the no-discard control case.",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"

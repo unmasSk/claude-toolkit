@@ -53,6 +53,7 @@ import sys
 import pytest
 
 from .conftest import (
+    with_searched,
     _TOOLKIT_ROOT,
     make_session_start_payload,
     run_hook_with_payload,
@@ -268,7 +269,7 @@ def test_should_resolve_the_import_to_the_file_gitmem_rule_writes_when_a_rule_is
     seed_config_json(tmp_repo, repo_type="trunk")
     rule_text = "answer in the owner's language, every single message"
     rc, out, err = run_memory_script(
-        "rule.py", [rule_text, "--kind", "user", "--quote", "habla en mi idioma"],
+        "rule.py", with_searched([rule_text, "--kind", "user", "--quote", "habla en mi idioma"]),
         cwd=tmp_repo,
     )
     assert rc == 0, f"gitmem rule failed: stdout={out!r} stderr={err!r}"

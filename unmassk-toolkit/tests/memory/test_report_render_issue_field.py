@@ -79,6 +79,7 @@ import sys
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     path_without_real_gh,
     run_memory_script,
@@ -174,7 +175,7 @@ def _seed_with_issue(repo, note_type, headline, description, issue, extra_flags,
         "--issue", str(issue),
         *extra_flags,
     ]
-    return run_memory_script("note.py", args, cwd=repo, env=env)
+    return run_memory_script("note.py", with_searched(args), cwd=repo, env=env)
 
 
 def _seed_without_issue(repo, note_type, headline, description, extra_flags):
@@ -185,7 +186,7 @@ def _seed_without_issue(repo, note_type, headline, description, extra_flags):
         "--description", description,
         *extra_flags,
     ]
-    return run_memory_script("note.py", args, cwd=repo, env=None)
+    return run_memory_script("note.py", with_searched(args), cwd=repo, env=None)
 
 
 # (tipo, titular, descripcion, flags extra obligatorios) -- un

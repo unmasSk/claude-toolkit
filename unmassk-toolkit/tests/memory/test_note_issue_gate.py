@@ -75,7 +75,7 @@ import sys
 
 import pytest
 
-from .conftest import extract_note_id, path_without_real_gh, run_git, run_memory_script, seed_zones_json
+from .conftest import SEARCHED_ARGS, extract_note_id, path_without_real_gh, run_git, run_memory_script, seed_zones_json
 
 # CI incident 2026-08-22 (conftest.py::path_without_real_gh): en Windows,
 # `subprocess.run(["gh", ...])` sin `shell=True` (produccion, no tocada
@@ -235,6 +235,7 @@ def _note_args(note_type, headline, description, *extra_flags):
         headline,
         "--description", description,
         *extra_flags,
+        *SEARCHED_ARGS,
     ]
 
 

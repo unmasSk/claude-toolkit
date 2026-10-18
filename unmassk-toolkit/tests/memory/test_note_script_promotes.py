@@ -85,6 +85,7 @@ texto de `ARCHIVED.md` tecleado a mano.
 """
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     pm_path,
@@ -117,10 +118,10 @@ def _seed_question(repo, zone1, zone2, headline, description):
     este fichero prueba -- ajeno al escenario bajo prueba aqui.
     """
     rc, out, err = run_gitmem_script(
-        [
+        with_searched([
             "note", "Q", "--zones", zone1, zone2, headline, "--description", description,
             "--work", "no",
-        ],
+        ]),
         cwd=repo,
     )
     assert rc == 0, f"la siembra de la pregunta fallo: stdout={out!r} stderr={err!r}"
@@ -140,7 +141,7 @@ def _promote_args(note_type, zone1, zone2, headline, promotes_id, *, description
     if stops is not None:
         args += ["--stops", stops]
     args += ["--promotes", promotes_id]
-    return args
+    return with_searched(args)
 
 
 def _combined_has_a_real_rejection(out, err):
@@ -303,12 +304,12 @@ class TestPromotesOnlyAcceptsAQuestion:
     ):
         seed_zones_json(tmp_repo, ["product", "auth"])
         rc_d, out_d, err_d = run_gitmem_script(
-            [
+            with_searched([
                 "note", "D", "--zones", "product", "auth",
                 "keep using the existing session store for now",
                 "--why", "no budget this quarter for a migration",
                 "--description", "MARK description for the decision used as a bad --promotes target.",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc_d == 0, f"stdout={out_d!r} stderr={err_d!r}"

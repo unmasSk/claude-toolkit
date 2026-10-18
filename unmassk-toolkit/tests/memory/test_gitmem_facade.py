@@ -47,6 +47,7 @@ import os
 import pytest
 
 from .conftest import (
+    with_searched,
     _TOOLKIT_ROOT,
     import_lib_memory_module,
     run_git,
@@ -246,8 +247,8 @@ class TestAddsNoLogicOfItsOwn:
             "--why", "old flow did not scale",
         ]  # sin --description: falta un campo obligatorio de D
 
-        rc_direct, out_direct, err_direct = run_memory_script("note.py", args, cwd=tmp_repo)
-        rc_facade, out_facade, err_facade = run_gitmem_script(["note", *args], cwd=tmp_repo)
+        rc_direct, out_direct, err_direct = run_memory_script("note.py", with_searched(args), cwd=tmp_repo)
+        rc_facade, out_facade, err_facade = run_gitmem_script(with_searched(["note", *args]), cwd=tmp_repo)
 
         assert rc_direct != 0, f"la llamada directa deberia rebotar: {out_direct!r}"
         assert rc_facade == rc_direct

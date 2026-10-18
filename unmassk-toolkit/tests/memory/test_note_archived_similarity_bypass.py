@@ -67,6 +67,7 @@ REALES leidos con el lector real (`indexes.read`/`indexes.read_archive`)
 """
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     pm_path,
@@ -102,7 +103,7 @@ def _write_m(repo, zone1, zone2, *, replaces=None):
     ]
     if replaces is not None:
         args += ["--replaces", replaces]
-    return run_gitmem_script(args, cwd=repo)
+    return run_gitmem_script(with_searched(args), cwd=repo)
 
 
 def _write_i(repo, zone1, zone2):
@@ -118,7 +119,7 @@ def _write_i(repo, zone1, zone2):
         "--description", _SHARED_DESCRIPTION,
         "--work", "no",
     ]
-    return run_gitmem_script(args, cwd=repo)
+    return run_gitmem_script(with_searched(args), cwd=repo)
 
 
 class TestClosedNoteDoesNotBlockASimilarNewNote:

@@ -80,6 +80,7 @@ from contextlib import contextmanager
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     run_git,
@@ -130,7 +131,7 @@ def _seed_and_read_back(tmp_repo, query_mod, note_type, headline, description, q
     """
     seed_zones_json(tmp_repo, [_ZONE1, _ZONE2])
     rc, out, err = run_memory_script(
-        "note.py", _note_args(note_type, headline, description, quote), cwd=tmp_repo,
+        "note.py", with_searched(_note_args(note_type, headline, description, quote)), cwd=tmp_repo,
     )
     assert rc == 0, (
         f"la siembra real deberia guardarse sin rebotar -- stdout={out!r} "

@@ -76,6 +76,7 @@ from pathlib import Path
 import pytest
 
 from .conftest import (
+    with_searched,
     BIN_MEMORY_DIR,
     import_lib_memory_module,
     run_git,
@@ -141,7 +142,7 @@ def _forced_git_index_lock(repo):
 
 def _seed_rule(tmp_repo, text, kind="user", quote="none"):
     rc, out, err = run_memory_script(
-        "rule.py", [text, "--kind", kind, "--quote", quote], cwd=tmp_repo
+        "rule.py", with_searched([text, "--kind", kind, "--quote", quote]), cwd=tmp_repo
     )
     assert rc == 0, f"siembra fallo: stdout={out!r} stderr={err!r}"
     return out
@@ -329,7 +330,7 @@ class TestReplaceSwapsBothRulesAtomically:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [new_text, "--replaces", old_text, "--kind", "user", "--quote", "none"],
+            with_searched([new_text, "--replaces", old_text, "--kind", "user", "--quote", "none"]),
             cwd=tmp_repo,
         )
         assert rc == 0, f"stdout={out!r} stderr={err!r}"
@@ -545,7 +546,7 @@ class TestReplaceWithoutNewTextBouncesCleanlyInsteadOfCrashing:
         before = _commit_count(tmp_repo)
 
         rc, out, err = run_memory_script(
-            "rule.py", ["--replaces", old_text, "--kind", "user"], cwd=tmp_repo
+            "rule.py", with_searched(["--replaces", old_text, "--kind", "user"]), cwd=tmp_repo
         )
         combined = out + err
 
@@ -634,11 +635,11 @@ class TestKindRequiredGuardBouncesCleanlyOnBothFlags:
 
         rc, out, err = run_memory_script(
             "rule.py",
-            [
+            with_searched([
                 "never mock the database, not even in tests",
                 "--replaces",
                 "never mock the database in integration tests",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         combined = out + err

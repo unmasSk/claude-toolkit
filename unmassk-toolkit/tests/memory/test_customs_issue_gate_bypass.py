@@ -68,6 +68,7 @@ from datetime import datetime, timezone
 import pytest
 
 from .conftest import (
+    with_searched,
     extract_note_id,
     import_lib_memory_module,
     run_memory_script,
@@ -251,12 +252,12 @@ class TestNotePyParityControlAlreadyBlocksTheSameScenario:
 
         rc, out, err = run_memory_script(
             "note.py",
-            [
+            with_searched([
                 "I", "--zones", _ZONE1, _ZONE2,
                 "checkout gateway silently retried a charge twice",
                 "--description", "a stray retry loop double-charged a real "
                                   "customer during the outage last night",
-            ],
+            ]),
             cwd=tmp_repo,
         )
         assert rc != 0, (
