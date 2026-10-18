@@ -16,7 +16,6 @@
 [remember][user] 🧠 para explorar una codebase desconocida se usa el agente Bilbo; Explore es solo para busquedas simples
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
 [remember][user] 🧠 cuando hay un plan con pasos definidos, ejecutar todos los pasos sin preguntar si se para a mitad -- solo se para si el usuario lo pide
-[remember][user] 🧠 nunca tocar codigo directamente: delegar siempre a Ultron con el fix exacto, sin excepciones salvo peticion explicita del usuario
 [remember][user] 🧠 el usuario se llama Jose, alias Bex (handle de git bextia, email jatomillo@gmail.com) -- no se llama Raul
 [remember][user] 🧠 cada commit se sigue de un push inmediato al remoto -- nunca acumular commits locales ni esperar al cierre de sesion
 [remember][user] 🧠 nunca mencionar el porcentaje de contexto restante ni sugerir cerrar la sesion por eso -- ante avisos de contexto, checkpoint en silencio y seguir
@@ -64,3 +63,4 @@
 [remember][user] 🧠 no disenar en torno a la compactacion ni usar la palabra para otra cosa: Bex nunca compacta; recortar el arranque se dice rebajar — «¿Otra vez hablando de compactación?»
 [remember][user] 🧠 cero fallos: antes de entregar, releer entero lo que haga falta y cruzarlo con todo lo que debe coincidir; un fallo es critico, aunque sea mucha informacion — «Tío, no te puedes equivocar, no te puedes equivocar en nada. Tienes que, aunque sea mucha información, la vuelves a leer o lo que haga falta, pero no te puedes equivocar en nada. Un fallo es crítico.»
 [remember][user] 🧠 las decisiones no son fijas: cuando cambian las circunstancias se vuelven a revisar y reestructurar, sin tratarlas como algo cerrado — «No es que sean decisiones, es que los tiempos cambian y a lo mejor esas decisiones se tienen que volver a reestructurar y volver a revisar.»
+[remember][user] 🧠 lo trivial lo hace Claude: un cambio rapido y aislado que se comprueba a la vista (p. ej. ensanchar un boton); si al mirarlo hay que rehacer varias cosas, deja de ser trivial y va a Ultron — «si cuando lo vas a examinar ves que está en medio de un div o alguna cosa que hay que rehacer varias cosas, entonces dices: «Vale, no es trivial»»
