@@ -27,7 +27,6 @@
 [D-029][boot][memory] freshness stamp: own success-stamp only, real remote+branch identity
 [D-030][boot][memory] boot fetches every branch and shows a global summary, never switches locally
 [D-031][skills][architecture] START stays a prose checklist, deliberately without a mechanical gate
-[D-032][skills][architecture] Flow's agent sequence is fixed to a canonical, loop-free order
 [D-033][memory][boot] CLAUDE.md managed-block writes became atomic
 [D-034][memory][testing] memory readers retry and warn loud instead of returning empty
 [D-035][install][architecture] MCPs install on-demand per skill, at user scope, none wired by default
@@ -88,3 +87,4 @@
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
 [D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
+[D-105][skills][architecture] test-first flow: Dante red, Ultron green, Cerberus+Argus, Moriarty, fix, Yoda

@@ -57,3 +57,4 @@
 2026-10-18  [D-098][memory][hooks] 🧭 a two-question checklist every message, plus a search check before any save  →  replaced by D-100
 2026-10-18  [D-101][hooks][install] 🧭 a sub-second beep only when the owner is needed, in every project, no voice  →  replaced by D-102
 2026-10-18  [D-103][release][memory] 🧭 finished, tested work goes to dev without asking; staging and production ask  →  replaced by D-104
+2026-10-18  [D-032][skills][architecture] 🧭 Flow's agent sequence is fixed to a canonical, loop-free order  →  replaced by D-105
