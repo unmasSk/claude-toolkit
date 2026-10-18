@@ -90,3 +90,4 @@
 [D-108][skills][architecture] work hierarchy: milestone, task (= issue), phase, step
 [D-112][skills][architecture] flow procedures: Trivial, Short (Corto), Full (Completo)
 [D-113][skills][architecture] fixes always go to a fresh agent unless Bex names the same one
+[D-114][testing][skills] each agent running tests gets its own test database, as the sector does
