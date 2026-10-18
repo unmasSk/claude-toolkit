@@ -120,3 +120,4 @@
 [X-120][hooks][skills] publish as is
 [X-121][boot][hooks] raise the hook timeout
 [X-122][boot][hooks] parallel per-issue calls
+[X-123][boot][hooks] drop the unreflected-plan check
