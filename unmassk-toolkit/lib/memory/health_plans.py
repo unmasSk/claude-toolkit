@@ -35,12 +35,14 @@ pasos:
    multilinea de `git log --grep` del binario instalado, aplicada aqui a
    un texto que `query.py` no sabe leer (no es una nota).
 2. **Preguntar a GitHub por la actividad real de esas issues**, en UNA
-   sola llamada `gh issue list --state all` bajo un tope total [D-130,
-   I-005: una llamada por issue paso de los 30 s del hook]. De cada issue
-   se lee la fecha del ultimo comentario, o -- si no tiene comentarios
-   todavia -- su fecha de creacion: sin comentarios, cualquier commit que la cite queda "sin
-   reflejar" por definicion, no hay fecha mas temprana valida contra la
-   que compararlo.
+   sola consulta GraphQL (`gh api graphql`) que pide SOLO las citadas,
+   bajo un tope total [D-130, I-005: una llamada por issue paso de los
+   30 s del hook; listar todas las del repositorio crece con su historia
+   entera]. De cada issue se lee la fecha del ultimo comentario, o -- si
+   no tiene comentarios todavia -- su fecha de creacion: sin
+   comentarios, cualquier commit que la cite queda "sin reflejar" por
+   definicion, no hay fecha mas temprana valida contra la que
+   compararlo.
 
 **Si `gh` falla o no esta instalado, `plans_unreflected()` NUNCA
 devuelve un resultado inventado.** Lanza `RuntimeError` con la causa
@@ -70,11 +72,15 @@ import timefmt
 _FIELD_SEP = "\x1f"
 _ISSUE_TRAILER_RE = re.compile(r"^Issue: #(\d+)$", re.MULTILINE)
 _GH_DEADLINE_ENV = "UNMASSK_GH_DEADLINE_SECONDS"
-# Por debajo del tope del lanzador (boot_launcher.py, 25 s) y del hook
-# (30 s): 101 issues medidas el 2026-10-19 en 3,6 s.
+# Por debajo del tope del lanzador (boot_launcher.py, 25 s) y del hook (30 s).
 _GH_DEADLINE_DEFAULT = 15.0
-# Una issue citada mas alla de este limite sale como error, nunca callada.
-_GH_LIST_LIMIT = 1000
+# Un alias por issue citada; `{owner}`/`{repo}` los rellena `gh` desde el
+# repositorio del directorio actual.
+_GH_QUERY = (
+    "query($owner: String!, $name: String!) {"
+    " repository(owner: $owner, name: $name) {%s} }"
+)
+_GH_ISSUE_FIELD = "i%d: issue(number: %d) { createdAt comments(last: 1) { nodes { createdAt } } }"
 
 
 def _issue_commit_dates() -> dict[int, tuple[datetime, ...]]:
@@ -130,16 +136,17 @@ def _gh_deadline() -> float:
     return value if math.isfinite(value) and value > 0 else _GH_DEADLINE_DEFAULT
 
 
-def _gh_issue_list(cited: str) -> str:
-    """Salida cruda de UNA sola llamada `gh issue list` para todas las
-    issues del repositorio [D-130: nada de una llamada por issue, I-005].
+def _gh_graphql(issue_numbers: list[int]) -> tuple[int, str, str]:
+    """`(returncode, stdout, stderr)` de UNA sola consulta GraphQL que pide
+    solo las issues citadas [D-130: nada de una llamada por issue, I-005].
 
-    `--state all`: el defecto real de `gh` es `open`, y una issue cerrada
-    citada desapareceria de la respuesta. `--limit`: el defecto real es
-    30. Lanza `RuntimeError` con la causa real si `gh` falla, no esta
-    instalado o pasa del tope total.
+    Lanza `RuntimeError` con la causa real si `gh` no esta instalado o
+    pasa del tope total. Un `returncode` distinto de cero NO se lanza
+    aqui: `gh` sale con 1 cuando una issue citada no existe y aun asi
+    devuelve el resto en `stdout`.
     """
     deadline = _gh_deadline()
+    fields = " ".join(_GH_ISSUE_FIELD % (n, n) for n in issue_numbers)
     try:
         # encoding="utf-8", errors="replace": sin `encoding=`, `text=True`
         # decodifica con el codec de la consola (cp1252 en Windows) y un
@@ -147,8 +154,9 @@ def _gh_issue_list(cited: str) -> str:
         # llamante recibe `stdout = None` sin excepcion [House, 2026-08-08].
         proc = subprocess.run(
             [
-                "gh", "issue", "list", "--state", "all",
-                "--limit", str(_GH_LIST_LIMIT), "--json", "number,createdAt,comments",
+                "gh", "api", "graphql",
+                "-F", "owner={owner}", "-F", "name={repo}",
+                "-f", f"query={_GH_QUERY % fields}",
             ],
             cwd=Path.cwd(),
             capture_output=True,
@@ -158,21 +166,12 @@ def _gh_issue_list(cited: str) -> str:
             errors="replace",
         )
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"gh issue list ({cited}) no termino dentro de {deadline:g}s"
-        ) from exc
+        raise RuntimeError(f"gh api graphql no termino dentro de {deadline:g}s") from exc
     except OSError as exc:
         raise RuntimeError(
-            f"no se pudo ejecutar 'gh' para consultar {cited} "
-            f"(no esta instalado, o no es ejecutable): {exc}"
+            f"no se pudo ejecutar 'gh' (no esta instalado, o no es ejecutable): {exc}"
         ) from exc
-
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"gh issue list ({cited}) fallo: "
-            f"{(proc.stderr or '').strip() or (proc.stdout or '').strip()}"
-        )
-    return proc.stdout
+    return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 
 def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
@@ -181,37 +180,43 @@ def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
     comentarios, cualquier commit que la cite queda "sin reflejar" por
     definicion).
 
-    Nunca inventa un resultado: una respuesta con forma inesperada, o en
-    la que FALTA una issue citada (borrada, transferida, cortada por el
-    limite), lanza `RuntimeError`. Darla por "reflejada" ocultaria un
-    commit sin reflejar de verdad.
+    Nunca inventa un resultado: un fallo de `gh`, una respuesta con forma
+    inesperada, o una issue citada que no vuelve (borrada, transferida,
+    un numero que es una PR) lanza `RuntimeError`. Darla por "reflejada"
+    ocultaria un commit sin reflejar de verdad.
     """
-    cited = ", ".join(f"#{n}" for n in issue_numbers)
-    raw_stdout = _gh_issue_list(cited)
-    wanted = set(issue_numbers)
+    returncode, stdout, stderr = _gh_graphql(issue_numbers)
+    try:
+        repository = json.loads(stdout)["data"]["repository"]
+    except (KeyError, TypeError, ValueError):
+        repository = None
+    if not isinstance(repository, dict):
+        if returncode != 0:
+            raise RuntimeError(f"gh api graphql fallo: {stderr.strip() or stdout.strip()}")
+        raise RuntimeError(
+            f"respuesta de 'gh api graphql' con forma inesperada: {stdout.strip()[:200]}"
+        )
+
     activity: dict[int, datetime] = {}
     try:
-        data = json.loads(raw_stdout)
-        if not isinstance(data, list):
-            raise TypeError(f"se esperaba una lista, llego {type(data).__name__}")
-        for item in data:
-            number = int(item["number"])
-            if number not in wanted:
+        for number in issue_numbers:
+            issue = repository.get(f"i{number}")
+            if issue is None:
                 continue
-            dates = [c["createdAt"] for c in item.get("comments") or []]
-            raw = max(dates) if dates else item["createdAt"]
+            dates = [c["createdAt"] for c in issue["comments"]["nodes"]]
+            raw = max(dates) if dates else issue["createdAt"]
             activity[number] = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError) as exc:
-        raise RuntimeError(
-            f"respuesta de 'gh issue list' ({cited}) con forma inesperada: {exc}"
-        ) from exc
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise RuntimeError(f"respuesta de 'gh api graphql' con forma inesperada: {exc}") from exc
 
     missing = [n for n in issue_numbers if n not in activity]
     if missing:
+        cause = stderr.strip()
         raise RuntimeError(
-            "gh issue list no devolvio "
+            "gh no devolvio "
             + ", ".join(f"#{n}" for n in missing)
-            + f" (citadas en commits; limite {_GH_LIST_LIMIT})"
+            + " (citadas en commits)"
+            + (f": {cause}" if cause else "")
         )
     return activity
 

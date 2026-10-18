@@ -41,6 +41,10 @@ _BOOT_SCRIPT = os.path.join(_TOOLKIT_ROOT, "bin", "memory", "boot.py")
 # hooks.json, because a hook Claude Code kills prints nothing at all.
 _BOOT_DEADLINE_ENV = "UNMASSK_BOOT_DEADLINE_SECONDS"
 _BOOT_DEADLINE_DEFAULT = 25.0
+# The SessionStart `timeout` in hooks.json, and the time kept back under
+# it for printing and exiting once the overrun marker step is done.
+_HOOK_TIMEOUT = 30.0
+_EXIT_MARGIN = 2.0
 
 
 def _boot_deadline():
@@ -53,18 +57,40 @@ def _boot_deadline():
     return value if math.isfinite(value) and value > 0 else _BOOT_DEADLINE_DEFAULT
 
 
-def _report_overrun(cwd, deadline):
-    """The installer or boot.py was killed: replace the previous session's report with a
-    failure marker (so nobody reads it as today's) and say so loudly."""
-    destination = os.path.join(".claude", ".unmassk", "boot-latest.txt")
+def _report_overrun(cwd, deadline, elapsed):
+    """The installer or boot.py was killed: say so loudly FIRST, then try
+    to replace the previous session's report with a failure marker (so
+    nobody reads it as today's), within what is left under the hook
+    timeout, and say whether that worked."""
+    print(
+        f"[memory] THE BOOT DID NOT FINISH within {deadline:g} s: there is no "
+        "briefing for this session. Tell the user in your first line, then run "
+        f"python3 {_BOOT_SCRIPT} by hand.",
+        flush=True,
+    )
+    destination = os.path.join(cwd, ".claude", ".unmassk", "boot-latest.txt")
     try:
         import gitcmd
         from datetime import datetime, timezone
         from pathlib import Path
 
-        folder = gitcmd.repo_root(Path(cwd)) / ".claude" / ".unmassk"
-        folder.mkdir(parents=True, exist_ok=True)
+        budget = _HOOK_TIMEOUT - _EXIT_MARGIN - elapsed()
+        if budget <= 0:
+            raise TimeoutError("no time left under the hook timeout")
+        found = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=budget,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if found.returncode != 0:
+            raise RuntimeError("not a git repository")
+        folder = Path(found.stdout.strip()) / ".claude" / ".unmassk"
         destination = folder / "boot-latest.txt"
+        folder.mkdir(parents=True, exist_ok=True)
         stamp = f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC"
         gitcmd.atomic_write(
             destination,
@@ -75,13 +101,13 @@ def _report_overrun(cwd, deadline):
             "nobody reads it as today's.\n",
         )
     except Exception:
-        pass
-    print(
-        f"[memory] THE BOOT DID NOT FINISH within {deadline:g} s: there is no "
-        f"briefing for this session ({destination} holds only this failure). "
-        "Tell the user in your first line, then run "
-        f"python3 {_BOOT_SCRIPT} by hand."
-    )
+        print(
+            f"[memory] {destination} could NOT be replaced: whatever it holds "
+            "is from an earlier session. Do not read it as today's."
+        )
+        return
+    print(f"[memory] {destination} now holds only this failure notice.")
+
 
 try:
     raw = sys.stdin.read()
@@ -185,7 +211,7 @@ try:
     else:
         overrun = True
     if overrun:
-        _report_overrun(cwd, deadline)
+        _report_overrun(cwd, deadline, lambda: time.monotonic() - started)
 except Exception:
     pass
 
