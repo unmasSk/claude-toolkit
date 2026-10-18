@@ -1,53 +1,38 @@
 """
-Tests for pre-merge-gate.py — same-branch sync exemption (ACCEPTANCE CONTRACT).
+Tests for pre-merge-gate.py — the merge/pull gate, decided by the branch that
+RECEIVES the merge (the target).
 
-Bug: today the hook blocks EVERY `git merge` / `git pull` (without --rebase)
-unconditionally, demanding a Cerberus + Alexandria review before retrying.
-That review is meant for integrating a DIFFERENT branch's new work (e.g.
-`git merge feature/x`, or pulling a feature/fix branch) — not for a plain
-catch-up sync where the local branch pulls/merges its OWN same-named remote
-counterpart (e.g. `git pull origin main` while on `main`). That kind of sync
-isn't "merging foreign work" and should be exempt from the review gate.
+Contract (owner's decisions D-119 / D-120, issue #101; the expected values in
+this file come from those decisions and from Cerberus's review of
+2026-10-18, never from the hook's code):
 
-This is the test-first CONTRACT PASS, written before Ultron implements the
-fix. Per Dante's EXHAUSTION PROTOCOL rules, the contract pass stays at
-ACCEPTANCE granularity (these 10 scenarios) — it does not enumerate every
-branch/edge case. That exhaustive hardening pass happens after Ultron
-implements, against the real code.
+  APPROVE, no gate:
+    - target is `dev` (D-119) — HEAD on dev, or a leading
+      `git switch dev &&` / `git checkout dev &&`; several merges in one
+      command are free only if EVERY one of them lands on dev.
+    - a branch syncing its own remote copy (`git pull origin main` on main,
+      bare `git pull` with a same-named upstream, `git merge origin/main`
+      where `origin` is a real remote). A local branch whose name merely ends
+      in the target (`feat/main`) is NOT a sync.
+    - --abort / --continue / --rebase, and the `# merge-reviewed` token.
+    - any non-git command.
 
-Expected state against the CURRENT (unmodified) hook:
-  [ROJO]  — new branch-awareness does not exist yet → MUST currently FAIL.
-            Items 1, 2, 3 (the new exemptions).
-  [GUARDA] — behavior that already works today by virtue of the existing
-            (branch-blind) implementation → currently PASSES, and MUST keep
-            passing after the fix so a naive rewrite doesn't regress it.
-            Items 4, 5, 6, 7, 8, 9, 10.
+  BLOCK with the heavy staging gate (D-120: Cerberus + Argus on the whole
+  diff, Alexandria on CHANGELOG + version, the owner's yes, suite left to CI):
+    - any merge/pull in the command whose target is above dev (staging, main,
+      master, production) — including the second or later merge of a chained
+      command (`&&`, `;`, newline).
+    - target unknown: no repo, detached HEAD, a switch that cannot be read
+      (`;`, `--track`), a `cd`/`pushd` before the merge, `git -C <path>`.
+      Unknown never means "into dev", and never gets the lighter message.
 
-Contract:
-  EXEMPT (decision: approve), no review required:
-    1. `git pull origin main` while on `main` (same branch name as target)
-    2. Bare `git pull` while current branch's upstream tracks the same
-       branch name (e.g. origin/main while on main)
-    3. `git merge origin/main` while on `main` (own remote-tracking
-       counterpart, same name after stripping the remote prefix)
-    4. Existing exemptions still hold: --abort / --continue / --rebase
-    5. `# merge-reviewed` bypass still works regardless of branch
+  BLOCK with the light gate (Cerberus + Alexandria): any other target
+  (a feature branch receiving another branch).
 
-  BLOCK (decision: block), review required:
-    6. `git merge feature/some-branch` while on `main` (different branch —
-       integrating foreign work)
-    7. `git pull origin feature/some-branch` while on `main`
-    8. `git pull origin dev` while on `main`
-    9. Failure-closed: hook cannot determine current branch (not a git
-       repo) → never silently exempt on error determining branch identity
-   10. Innocuous non-git command (`echo hello`) is never blocked
+  BLOCK with the indirection message: eval / bash -c / sh -c wrapping git.
 
-Test surface: 10 acceptance scenarios, 13 test methods (some scenarios
-expanded into multiple assertions for the sibling commands they cover).
-Not tested (out of scope for the contract pass — hardening pass territory):
-detached HEAD, upstream tracking a differently-named branch, malformed
-`origin/<branch>` refs, multiple remotes. Those become the hardening-pass
-EXHAUSTION PROTOCOL surface once Ultron's real branch-detection code exists.
+Every test runs the real hook as a subprocess (JSON on stdin, cwd = a
+temporary git repo), the way Claude Code calls it.
 """
 
 import json
@@ -123,11 +108,11 @@ def _run_hook(cwd, command):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# EXEMPT — same-branch sync, no review required  [ROJO: fails on current hook]
+# EXEMPT — same-branch sync, no review required
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestSameBranchPullIsExempt:
-    """Contract item 1 [ROJO]: `git pull origin main` while on `main` is a
+    """Contract item 1: `git pull origin main` while on `main` is a
     plain catch-up sync with your own branch, not foreign work — approve."""
 
     def test_pull_origin_same_branch_name_is_approved(self, tmp_path):
@@ -144,7 +129,7 @@ class TestSameBranchPullIsExempt:
 
 
 class TestBarePullWithMatchingUpstreamIsExempt:
-    """Contract item 2 [ROJO]: bare `git pull` when the current branch's
+    """Contract item 2: bare `git pull` when the current branch's
     upstream tracks a branch of the same name (origin/main <- main) — approve."""
 
     def test_bare_pull_matching_tracked_upstream_is_approved(self, tmp_path):
@@ -161,7 +146,7 @@ class TestBarePullWithMatchingUpstreamIsExempt:
 
 
 class TestMergeOwnRemoteCounterpartIsExempt:
-    """Contract item 3 [ROJO]: `git merge origin/main` while on `main` merges
+    """Contract item 3: `git merge origin/main` while on `main` merges
     your own remote-tracking counterpart (same name after stripping the
     remote prefix) — not foreign work — approve."""
 
@@ -179,12 +164,12 @@ class TestMergeOwnRemoteCounterpartIsExempt:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# EXEMPT — pre-existing behavior, must not regress  [GUARDA: passes today]
+# EXEMPT — --abort / --continue / --rebase / # merge-reviewed
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestExistingExemptionsStillHold:
-    """Contract item 4 [GUARDA]: regression coverage — a branch-aware fix
-    must not break the exemptions that already work today (--abort,
+    """Contract item 4: regression coverage — a branch-aware fix
+    must not break the long-standing exemptions (--abort,
     --continue, --rebase)."""
 
     def test_merge_abort_is_approved(self, tmp_path):
@@ -222,7 +207,7 @@ class TestExistingExemptionsStillHold:
 
 
 class TestMergeReviewedBypassStillWorks:
-    """Contract item 5 [GUARDA]: `# merge-reviewed` must keep bypassing the
+    """Contract item 5: `# merge-reviewed` must keep bypassing the
     gate regardless of branch, even for what would otherwise be a blocked
     foreign-branch merge."""
 
@@ -242,11 +227,11 @@ class TestMergeReviewedBypassStillWorks:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# BLOCK — foreign-branch integration, review required  [GUARDA: passes today]
+# BLOCK — foreign-branch integration, review required
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestForeignBranchMergeIsBlocked:
-    """Contract item 6 [GUARDA]: merging a differently-named branch is
+    """Contract item 6: merging a differently-named branch is
     integrating foreign work — still requires review."""
 
     def test_merge_different_branch_is_blocked(self, tmp_path):
@@ -263,7 +248,7 @@ class TestForeignBranchMergeIsBlocked:
 
 
 class TestForeignBranchPullIsBlocked:
-    """Contract items 7-8 [GUARDA]: pulling a differently-named branch is
+    """Contract items 7-8: pulling a differently-named branch is
     integrating foreign work — still requires review."""
 
     def test_pull_different_named_branch_is_blocked(self, tmp_path):
@@ -294,11 +279,11 @@ class TestForeignBranchPullIsBlocked:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# FAIL-CLOSED — branch identity cannot be determined  [GUARDA: passes today]
+# FAIL-CLOSED — branch identity cannot be determined
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestFailsClosedWhenBranchUndetermined:
-    """Contract item 9 [GUARDA]: if the hook cannot determine the current
+    """Contract item 9: if the hook cannot determine the current
     branch, it must never silently exempt the command — fail closed
     (block), preserving the hook's existing fail-closed-on-exception
     behavior."""
@@ -321,11 +306,11 @@ class TestFailsClosedWhenBranchUndetermined:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# REGRESSION — innocuous commands are never blocked  [GUARDA: passes today]
+# REGRESSION — innocuous commands are never blocked
 # ══════════════════════════════════════════════════════════════════════════
 
 class TestInnocuousCommandNeverBlocked:
-    """Contract item 10 [GUARDA]: a plain non-git command must never be
+    """Contract item 10: a plain non-git command must never be
     blocked by this hook, branch-aware or not."""
 
     def test_echo_command_is_approved(self, tmp_path):
@@ -359,8 +344,8 @@ class TestInnocuousCommandNeverBlocked:
 # git merge ...`, `git checkout dev && git merge ...`).
 #
 # Two groups:
-#   GOLDEN  — today's behaviour that must survive the change. Green now.
-#   CONTRACT — new behaviour. RED now where behaviour changes.
+#   GOLDEN  — behaviour from before D-119/D-120 that had to survive it.
+#   CONTRACT — the D-119/D-120 behaviour itself.
 # ══════════════════════════════════════════════════════════════════════════
 
 ABOVE_DEV_BRANCHES = ["staging", "main", "master", "production"]
@@ -414,7 +399,7 @@ def _assert_heavy_gate_message(parsed, context):
     )
 
 
-# ── GOLDEN: today's behaviour that must survive ─────────────────────────────
+# ── GOLDEN: behaviour that had to survive D-119/D-120 ─────────────────────────────
 
 class TestGoldenExemptionsAboveDev:
     """GOLDEN (point 3): --abort / --continue / --rebase / # merge-reviewed
@@ -515,8 +500,7 @@ class TestGoldenUnknownTargetFailsClosed:
 # ── CONTRACT: D-119 — merges INTO dev pass with no gate ─────────────────────
 
 class TestMergeIntoDevIsFree:
-    """CONTRACT (point 1, D-119): the target is `dev` -> approve, no gate.
-    RED today: the hook blocks every merge of a different branch."""
+    """CONTRACT (point 1, D-119): the target is `dev` -> approve, no gate."""
 
     @pytest.mark.parametrize("command", [
         "git merge feat/x",
@@ -540,7 +524,7 @@ class TestMergeIntoDevIsFree:
     def test_should_approve_when_command_switches_to_dev_first(self, tmp_path, command):
         # Start on a THIRD branch: starting on feat/x would make
         # `git pull origin feat/x` look like a same-branch sync and pass
-        # today for the wrong reason.
+        # for the wrong reason.
         repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
@@ -549,7 +533,7 @@ class TestMergeIntoDevIsFree:
                          f"`{command}` from `feat/other` (target is dev, D-119)")
 
     def test_should_approve_when_dev_syncs_its_own_remote(self, tmp_path):
-        """Already approved today (same-branch sync) and still approved."""
+        """Same-branch sync on dev: approved."""
         repo = _make_repo_on(tmp_path, "dev")
 
         rc, parsed, stdout, stderr = _run_hook(repo, "git pull origin dev")
@@ -562,8 +546,7 @@ class TestMergeIntoDevIsFree:
 
 class TestMergeAboveDevHitsHeavyGate:
     """CONTRACT (point 2, D-120): target above dev -> block, and the message
-    names the four asks. Decision already `block` today; the message is RED
-    (today it names neither Argus, CHANGELOG/version, Bex nor CI)."""
+    names the four asks."""
 
     @pytest.mark.parametrize("target", ABOVE_DEV_BRANCHES)
     def test_should_block_with_heavy_gate_when_head_merges_dev(self, tmp_path, target):
@@ -597,6 +580,169 @@ class TestMergeAboveDevHitsHeavyGate:
         _assert_decision(parsed, stdout, rc, stderr, "block",
                          f"`{command}` from `dev` (target is staging)")
         _assert_heavy_gate_message(parsed, f"`{command}` from `dev`")
+
+
+# ── CONTRACT: every merge in a chained command is judged (Cerberus #1) ──────
+
+class TestChainedMergesAreAllJudged:
+    """One Bash call can close a task into dev and then promote dev above it.
+    The second merge lands on staging/main and must hit the heavy gate even
+    though the first one, into dev, is free. Judging only the first merge
+    lets work reach staging/main with no review at all."""
+
+    @pytest.mark.parametrize("command", [
+        "git switch dev && git merge --no-ff feat/x && git switch staging && git merge --no-ff dev",
+        "git merge --no-ff feat/x && git switch main && git merge --no-ff dev",
+        "git merge --no-ff feat/x && git switch main && git merge dev",
+        "git merge feat/x && git checkout main && git pull origin dev",
+        "git merge --no-ff feat/x\ngit switch staging\ngit merge --no-ff dev",
+        "git merge --no-ff feat/x\ngit checkout main\ngit pull origin dev",
+    ])
+    def test_should_block_with_heavy_gate_when_a_later_merge_lands_above_dev(
+            self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x", "staging", "main"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} from `dev` (second merge lands above dev)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    @pytest.mark.parametrize("command", [
+        "git merge --no-ff feat/x && git merge --no-ff feat/y",
+        "git merge --no-ff feat/x\ngit pull origin feat/y",
+    ])
+    def test_should_approve_when_every_chained_merge_lands_on_dev(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x", "feat/y"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} on `dev` (both merges into dev, D-119)")
+
+    def test_should_approve_when_switching_to_dev_then_merging_twice(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x", "feat/y"])
+        command = "git switch dev && git merge --no-ff feat/x && git merge --no-ff feat/y"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         f"{command!r} from `feat/other` (both merges into dev)")
+
+
+# ── CONTRACT: the merge runs somewhere else (Cerberus #2, pre-existing -C) ──
+
+class TestMergeInAnotherDirectoryIsUnknown:
+    """The session repo sits on dev, but the merge runs in another repo or
+    worktree that may be on main. Reading the session repo's branch would
+    open the gate for a merge into main. The target is unknown -> block,
+    with the heavy gate."""
+
+    @pytest.mark.parametrize("command", [
+        "cd ../other && git merge dev",
+        "cd ../other && git merge --no-ff feat/x",
+        "pushd ../other && git merge dev",
+        "cd ../other\ngit merge dev",
+        "git -C ../other merge dev",
+        "git -C ../other merge --no-ff feat/x",
+        "git -C ../other pull origin dev",
+    ])
+    def test_should_block_when_merge_runs_in_another_directory(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
+        _make_repo(tmp_path, name="other", branch="main")
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} with the session repo on `dev`, ../other on `main`"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+# ── CONTRACT: unknown target gets the HEAVY gate (Cerberus #3) ──────────────
+
+class TestUnknownTargetGetsHeavyGate:
+    """When the receiving branch cannot be read, it may well be staging or
+    main. The block must ask for the stricter review (Argus and the owner's
+    yes), never the light Cerberus + Alexandria one — following the light
+    message and adding the token would merge into staging under-reviewed."""
+
+    @pytest.mark.parametrize("command", [
+        "git checkout staging; git merge dev",
+        "git switch staging; git merge --no-ff dev",
+        "git switch --track origin/staging && git merge dev",
+    ])
+    def test_should_block_with_heavy_gate_when_switch_is_unreadable(self, tmp_path, command):
+        repo = _make_repo_on(tmp_path, "dev", also=["staging"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} from `dev` (switch cannot be read)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    def test_should_block_with_heavy_gate_when_head_is_detached(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "dev")
+        rc, out, err = git_cmd(["checkout", "--detach"], repo)
+        assert rc == 0, f"fixture setup failed detaching HEAD: {err}"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge feat/x")
+
+        context = "`git merge feat/x` on a detached HEAD"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    def test_should_block_with_heavy_gate_when_not_a_repo(self, tmp_path):
+        non_git_dir = str(tmp_path / "not-a-repo")
+        os.makedirs(non_git_dir)
+
+        rc, parsed, stdout, stderr = _run_hook(non_git_dir, "git merge dev")
+
+        context = "`git merge dev` outside any git repo"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+# ── CONTRACT: pre-existing holes Cerberus found (EXECUTED approve before) ───
+
+class TestAbortFallbackDoesNotExemptTheMerge:
+    """`git merge X || git merge --abort` is the common "try, abort on
+    conflict" form. The --abort is only the fallback; the merge itself still
+    lands on main and must be gated."""
+
+    def test_should_block_when_merge_has_abort_fallback_on_main(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "main", also=["dev"])
+        command = "git merge dev || git merge --abort"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, command)
+
+        context = f"{command!r} on `main`"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+
+class TestOnlyARealRemoteCountsAsOwnCopy:
+    """`git merge origin/main` on main syncs main's own remote copy (origin
+    is a configured remote). `git merge feat/main` on main merges a local
+    feature branch that merely ends in `main` — foreign work into main."""
+
+    def test_should_block_when_local_branch_name_ends_in_target(self, tmp_path):
+        repo = _make_repo_on(tmp_path, "main", also=["feat/main"])
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge feat/main")
+
+        context = "`git merge feat/main` on `main` (feat is not a remote)"
+        _assert_decision(parsed, stdout, rc, stderr, "block", context)
+        _assert_heavy_gate_message(parsed, context)
+
+    def test_should_approve_when_merging_real_remote_copy(self, tmp_path):
+        repo = _make_repo_with_tracked_upstream(tmp_path, branch="main")
+        rc, out, err = git_cmd(["branch", "feat/main"], repo)
+        assert rc == 0, f"fixture setup failed creating feat/main: {err}"
+
+        rc, parsed, stdout, stderr = _run_hook(repo, "git merge origin/main")
+
+        _assert_decision(parsed, stdout, rc, stderr, "approve",
+                         "`git merge origin/main` on `main` with a real `origin` remote")
 
 
 if __name__ == "__main__":
