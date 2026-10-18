@@ -141,6 +141,16 @@ def _read_prompt_text() -> str | None:
         return None
 
 
+# D-124 (restates D-098): asked on every user message, one line per question.
+D124_CHECKLIST = (
+    "[checklist] Before replying:\n"
+    "  1. Do I keep every rule loaded at start, one by one, in this message?\n"
+    "  2. Do I know what we are doing without assuming? If not, search memory first.\n"
+    "  3. If I just gave a result or got a decision, have I ticked or written it in its plan or checklist?\n"
+    "  4. Only when proposing options or deciding: did I start from what the sector does?"
+)
+
+
 def main() -> None:
     """Print hook output for Claude to process."""
     # ── Toolkit incidents — printed before any early exit
@@ -272,6 +282,10 @@ def main() -> None:
     # nothing to report, so its own execution is provable every message.
     if not lines:
         lines.append("[memory-check] No skill match this turn — nothing to report.")
+
+    # D-124: the per-message checklist rides on every message, after the
+    # fallback above so it never suppresses the [memory-check] line.
+    lines.append(D124_CHECKLIST)
 
     print("\n".join(lines))
     sys.exit(0)
