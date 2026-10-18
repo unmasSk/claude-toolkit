@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`unmassk-memory` has an `issues.md` reference** covering how issues are handled with the memory.
+
+### Changed
+
+- **`unmassk-flow` is rewritten around three procedures: Trivial, Short and Full** (D-112). Step 5 runs one pass in both build modes (test-first: Dante red, Ultron green; linear: Ultron, then Dante tests), then Cerberus and Argus on code and tests, one fix, Moriarty, one fix, Yoda (110 is perfection, any lower score owes the path to it), one fix, Alexandria.
+- **Reviewers are blind and fixes always go to a fresh agent** (D-113), never a resumed one; each agent running tests gets its own test database (D-114).
+- **Commit and branch protocol in the flow**: the orchestrator saves a WIP per agent and squashes them into one commit per step (D-118), not squashed until #87 lands; each task gets a branch that is deleted as soon as it merges to dev (D-117), then the next task is asked for; `git switch` replaces `git checkout`.
+- **`unmassk-core` gains a Trivial exception to "all code goes to the crew"**, uses fresh agents instead of resuming them, adds moment 8 (the owner warns at 80-90% context), and the delegation unit is now called "step" (D-108).
+- **Contradiction sweep across the skills**: `unmassk-close-session` never offers the close, closes merged branches and accepted issues without asking, and has Alexandria write the CHANGELOG at close; `unmassk-audit` and its reviewer prompt templates are rewritten blind with `ASK:` lines; `unmassk-standards` reads the gate as tiers and fixes T3 in the same pass.
+- **The nine agent cards are aligned**: no re-attack, Yoda judges once, the orchestrator coordinates, reports carry an index, and Moriarty leaves a raw run log.
+- **The managed `CLAUDE.md` block (`lib/managed_blocks.py`) lets walls retire with their piece once checked gone (not moved), allows task, phase and step numbers, and puts linear-mode Dante before the reviewers.**
+
 ## [1.45.0] - 2026-10-17
 
 ### Fixed
