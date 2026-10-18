@@ -119,3 +119,4 @@
 [M-138][skills][architecture] the ADHD skill diverges into many ideas; council decides between known ones
 [M-139][boot][architecture] boot report length is set by the close prompt, not the renderer
 [M-140][boot][skills] after compaction a skill keeps its first 5k tokens; CLAUDE.md returns whole
+[M-141][docs][architecture] real product repos keep CLAUDE.md at 34-130 lines, rules with why, index
