@@ -81,3 +81,4 @@
 - [position-sizer-independent-crosscheck-notes.md](position-sizer-independent-crosscheck-notes.md) — position_sizer.py hand-computed cross-check: Fraction-first, two-mutant proof, float money display
 - [d070-skip-ci-marker-contract-notes.md](d070-skip-ci-marker-contract-notes.md) — D-070 skip-ci RED contract: line-anchor regression risk, 3/6 points RED, 2 pre-existing tests needed zero changes
 - [rescued-python-test-techniques-notes.md](rescued-python-test-techniques-notes.md) — live pytest/git/Windows techniques rescued from the old catch-alls
+- [pre-merge-gate-target-branch-contract-notes.md](pre-merge-gate-target-branch-contract-notes.md) — D-119/D-120 gate target contract: switch-then-merge trap

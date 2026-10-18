@@ -58,3 +58,12 @@ Task histories do NOT live here (they are project memory, in `gitmem`).
 - **`hooks/pre-merge-gate.py` blocks every `git merge`/`git pull` and demands Cerberus + Alexandria
   (`# merge-reviewed` token)**; `hooks/customs.py` lets merge pass. Two hooks, opposite stance on merge.
 - **`lib/skill_router.py`** holds the skill-trigger and `[orden]` reminder tables for the per-message hook.
+
+## Checklist hooks (verified @ed307f0d, 2026-10-18)
+
+- Boxes are NOT written to the app task board by any hook. Inject writes a registry file
+  `<cwd>/.claude/.unmassk/session-checklists/<session_id>.json` (`lib/checklist_state.py`) and tells the model
+  (additionalContext) to create the tasks; the Stop gate reads the model-made tasks from
+  `~/.claude/tasks/<id>/N.json` and compares by normalized text (`normalize_box_text`). A box text must match
+  exactly after normalization, so a box cannot carry a variable word (e.g. the chosen procedure).
+- Manifest `checklists/*.json` only needs `boxes: [str]`; `flow.json` box [0] is read by a casefold test.
