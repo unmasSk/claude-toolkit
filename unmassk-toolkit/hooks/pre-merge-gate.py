@@ -53,13 +53,14 @@ force_utf8_streams()
 
 from merge_gate_target import (  # noqa: E402  (import after sys.path mutation)
     args_after, git_calls, incoming_branch, remotes, runs_elsewhere,
-    target_branch, tokenize, toplevel,
+    strip_heredoc_bodies, target_branch, tokenize, toplevel,
 )
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB
 
-# Backstop only: merge/pull words the tokenizer could not place as a git call
-# (unbalanced quotes, `git merge` inside a quoted string) still block.
+# Backstop only, for a command the tokenizer cannot parse (unbalanced quotes):
+# its merge/pull words block with the light gate. A command that parses and
+# holds no merge/pull call is approved, whatever its text mentions.
 _GIT_MERGE_RE = re.compile(
     r'\bgit(\.exe)?\s+merge\b',
     re.IGNORECASE,
@@ -147,13 +148,15 @@ def _gate_decision(normalized: str, cwd: str, command: str):
     target -> block with the staging gate."""
     try:
         tokens = tokenize(normalized)
-        raw_calls = git_calls(tokens) if tokens else []
-        ops = [c for c in raw_calls if c[1] in ("merge", "pull")]
-        if not ops:
+        if tokens is None:
             backstop = (_GIT_MERGE_RE.search(normalized)
                         and not _GIT_MERGE_EXEMPT_RE.search(normalized)) \
                 or _GIT_PULL_RE.search(normalized)
-            return ("block", _heavy_reason(command, None)) if backstop else ("approve", None)
+            return ("block", MERGE_GATE_MESSAGE.format(cmd=command)) if backstop \
+                else ("approve", None)
+        raw_calls = git_calls(tokens)
+        if not any(c[1] in ("merge", "pull") for c in raw_calls):
+            return "approve", None
         session_top = toplevel(cwd)
         calls = [(sub, name, runs_elsewhere(tokens, sub, paths, cwd, session_top))
                  for sub, name, paths in raw_calls]
@@ -231,7 +234,8 @@ def main():
         # own working directory otherwise.
         cwd = hook_input.get("cwd") or os.getcwd()
 
-        normalized = _normalize(command)
+        # A heredoc body is data: it is never read for git calls or wrappers.
+        normalized = strip_heredoc_bodies(_normalize(command))
 
         # POLICY CONTROL (not a security guarantee): '# merge-reviewed' is a
         # convention token that the orchestrator appends after the reviews the

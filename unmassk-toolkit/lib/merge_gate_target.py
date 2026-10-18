@@ -9,6 +9,7 @@ unknown target the staging gate.
 
 import functools
 import os
+import re
 import shlex
 
 from git_helpers import run_git
@@ -42,16 +43,80 @@ def _clean_separator(tok: str) -> str:
 
 def tokenize(normalized: str):
     """Split the command into shell words, with `&&`, `;`, `|`, newline... as
-    their own tokens even when glued to a word (`dev&&git`). Returns None on
+    their own tokens even when glued to a word (`dev&&git`). Redirections
+    (`2>&1`, `>/dev/null`, `<<'EOF'`) are dropped with their target: they
+    belong to the command they follow, they do not end it. Returns None on
     any tokenization failure (unbalanced quotes, etc.) — callers fail closed."""
     try:
-        lexer = shlex.shlex(normalized, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
+        text = _FD_BEFORE_REDIRECT_RE.sub(r"\1", normalized)
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=_SHELL_PUNCTUATION)
         lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         lexer.commenters = ""
-        return [_clean_separator(tok) for tok in lexer]
+        return _drop_redirections([_clean_separator(tok) for tok in lexer])
     except ValueError:
         return None
+
+
+# A file-descriptor number glued in front of a redirection (`2>`, `2>&1`).
+_FD_BEFORE_REDIRECT_RE = re.compile(r"(^|[\s;&|()])\d+(?=[<>])")
+
+# Redirection operators as the lexer groups them; each takes the next word as
+# its target (a file, an fd, a heredoc delimiter, a here-string).
+_REDIRECTIONS = frozenset({">", ">>", ">|", ">&", "&>", "&>>", "<", "<>", "<&", "<<", "<<<"})
+
+
+def _drop_redirections(tokens):
+    """tokens without redirection operators and their targets. An operator
+    glued to `;`, `&&`, `(`... is not in the set and stays a separator."""
+    kept, skip_target = [], False
+    for tok in tokens:
+        if skip_target:
+            skip_target = False
+            if not _is_separator(tok):
+                continue
+        if tok in _REDIRECTIONS:
+            skip_target = True
+            continue
+        kept.append(tok)
+    return kept
+
+
+# ── Heredocs ────────────────────────────────────────────────────────────────
+
+# `<<EOF`, `<<'EOF'`, `<<"EOF"`, `<<\EOF`, `<<-EOF`; not the here-string `<<<`.
+_HEREDOC_RE = re.compile(
+    r"(?<!<)<<(?!<)(-?)[ \t]*(?:'([^'\n]*)'|\"([^\"\n]*)\"|\\?([\w.\-]+))"
+)
+
+
+def _heredoc_end(lines, start, delimiter, strip_tabs):
+    """Index of the line that closes the heredoc body starting at start, or
+    None when no line closes it."""
+    for j in range(start, len(lines)):
+        line = lines[j].rstrip("\r")
+        if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+            return j
+    return None
+
+
+def strip_heredoc_bodies(text: str) -> str:
+    """text without the body and closing line of every heredoc: the body is
+    data, never a command. The line that opens it stays. When a delimiter is
+    never closed, text is returned unchanged (fail closed: nothing hidden)."""
+    lines = text.split("\n")
+    kept, i = [], 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        i += 1
+        for match in _HEREDOC_RE.finditer(line):
+            delimiter = next(g for g in match.group(2, 3, 4) if g is not None)
+            end = _heredoc_end(lines, i, delimiter, bool(match.group(1)))
+            if end is None:
+                return text
+            i = end + 1
+    return "\n".join(kept)
 
 
 def args_after(tokens, sub):
