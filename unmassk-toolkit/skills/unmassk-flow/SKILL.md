@@ -239,7 +239,7 @@ MANDATORY (Full): Read the plan file before any implementation. Verify the plan 
 
 - **Tests in parallel:** every agent that runs tests uses its own test database (the project-cleanup skill will set it up — D-100, not built yet). If the project does not have that yet, its tests are not run in parallel.
 - **Before refactoring:** Dante writes and checks the golden tests of what is affected; never refactor without that net.
-- **Silence:** while agents work, nothing is reported to the owner; when the last one finishes, one single cross report.
+- **Progress:** as `unmassk-core` says (How you talk) — one numbered line per agent or step that finishes, ticking the visible list.
 
 ### Deviation Rules (in the Ultron agent prompt) — bounded, not a blank cheque
 

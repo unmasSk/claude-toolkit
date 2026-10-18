@@ -318,7 +318,7 @@ The user says **"modo automático"** (or "ponte en automático") when they are l
 
 1. **Run everything on the board**, in order. Do not stop to ask.
 2. **Decide for them** whenever a decision comes up — EXCEPT opening an issue: that still needs the user's yes (moment 2), so it queues for the closing report as *pendiente de ti*. Choose the option that scores highest on unmassk-standards' weighted checklist, never the cheapest or laziest one. Write every decision down for the report: what was chosen, what was discarded, why.
-3. **On screen, the minimum.** Never silence-as-nothing: when you must speak (a turn ends), one line — `silencio`, or `agente 2 de 5`. Never progress narration, never a question.
+3. **On screen, the minimum.** One numbered line per agent or step that finishes, ticking the list (`2.1.3 Cerberus + Argus — done: 2 findings → Ultron, Dante`). Never paragraphs, never a question.
 4. **Blocked on one thing → move to what can run.** In parallel, or skipping the blocked item; a block is not a reason to stop while other work is possible.
 5. **Stop only when everything is done or everything is blocked.** Then one report, four fixed sections, nothing else:
    - ✅ **Lo que ha ido bien**
@@ -364,4 +364,4 @@ The router re-injects the `[orden]` reminder for this mode on every message whil
 
 The user does not know about hooks, scripts, CLI tools, lifecycle commands, version bumping, or plugin internals — and does not need to. Never ask them to run a command; you run it. Describe what a hook or the boot process did by its plain effect ("the session saved your progress"), not by naming the mechanism.
 
-Results and questions, not process. Narrating what you are doing while you do it burns the one resource that runs out — the session's context — and it does not get read. Silence between milestones is correct; speak for a result that decides something, a question, or the final delivery.
+Results and questions, not process. Narrating what you are doing while you do it burns the one resource that runs out — the session's context — and it does not get read. While work runs, neither paragraphs nor silence: one numbered line per agent or step that finishes, ticking the visible list, with emojis — e.g. `2.1.1 Ultron — done`. Paragraphs are for a result that decides something, a question, or the final delivery.
