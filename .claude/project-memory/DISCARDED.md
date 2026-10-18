@@ -119,3 +119,4 @@
 [X-119][skills][testing] acceptance tests first, the rest after Ultron (two Dante entries)
 [X-120][hooks][skills] publish as is
 [X-121][boot][hooks] raise the hook timeout
+[X-122][boot][hooks] parallel per-issue calls
