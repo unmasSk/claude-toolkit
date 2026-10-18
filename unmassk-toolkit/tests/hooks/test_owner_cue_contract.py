@@ -346,6 +346,28 @@ class TestNeverBlocks:
         assert "Traceback" not in run.stderr
         assert run.elapsed < _RETURN_BOUND_S
 
+    def test_should_exit_zero_and_say_why_when_afplay_cannot_start(self, tmp_path):
+        # Bug caught: afplay is on PATH (shutil.which finds it) but exec fails
+        # -- broken install, interpreter gone -- and the OSError from Popen
+        # escapes as a traceback + exit 1, failing the notification (D-132:
+        # "never fails the notification"). Also caught: the failure swallowed
+        # in silence, so nobody learns why the cue never sounds.
+        bin_dir, _ = make_bin(tmp_path, with_afplay=False)
+        broken = bin_dir / "afplay"
+        # Executable bit set, so PATH lookup finds it; the interpreter in the
+        # shebang does not exist, so exec raises OSError. No sound possible.
+        broken.write_text("#!/nonexistent/owner-cue-test-interpreter\n",
+                          encoding="utf-8")
+        broken.chmod(0o755)
+        payload = json.dumps(make_payload("permission_prompt", str(tmp_path)))
+
+        run = run_hook(tmp_path, bin_dir, payload)
+
+        assert run.rc == 0, run.stderr
+        assert "Traceback" not in run.stderr, run.stderr
+        assert run.elapsed < _RETURN_BOUND_S, f"hook took {run.elapsed:.2f}s"
+        assert "afplay" in run.stderr, f"stderr does not say why: {run.stderr!r}"
+
     @pytest.mark.parametrize("stdin_text", ["", "{not json", "[]"],
                              ids=["empty", "garbage", "not-an-object"])
     def test_should_exit_zero_on_unreadable_stdin(self, tmp_path, reap, stdin_text):
