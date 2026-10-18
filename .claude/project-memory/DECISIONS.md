@@ -97,3 +97,4 @@
 [D-123][skills][testing] Dante enters once: tests first, then only the fix passes; no hardening pass
 [D-124][memory][hooks] per-message checklist gains a 4th check: a result given is ticked in its plan
 [D-126][skills][testing] test-first: Ultron adds code beyond the tests only as a declared exception
+[D-127][skills][testing] wrong contract test goes to a fresh Dante at once; Short follows the build mode
