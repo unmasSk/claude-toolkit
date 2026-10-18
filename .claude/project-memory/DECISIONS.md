@@ -91,3 +91,4 @@
 [D-113][skills][architecture] fixes always go to a fresh agent unless Bex names the same one
 [D-114][testing][skills] each agent running tests gets its own test database, as the sector does
 [D-115][memory][release] commit protocol: one commit per step from squashed WIPs, merge commit sums up
+[D-116][memory][architecture] memory moves to its own git refs with hash-based note IDs
