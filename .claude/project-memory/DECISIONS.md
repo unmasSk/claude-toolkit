@@ -101,3 +101,4 @@
 [D-128][skills][docs] flow written to a standard now: titled sections, reading order, no filler
 [D-129][hooks][skills] council on publishing today's changes: fix four things first, then release
 [D-130][boot][hooks] boot asks GitHub once for all issues, under a total deadline that fails loud
+[D-131][boot][memory] owner's rules reach every session through a CLAUDE.md import, not hook output
