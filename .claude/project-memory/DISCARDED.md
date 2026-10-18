@@ -100,3 +100,4 @@
 [X-100][skills][standards] aprobar desde 80 sobre 110
 [X-101][boot][hooks] barra de estado clasica
 [X-102][skills][architecture] instalar la skill adhd tal cual
+[X-103][hooks][skills] dejar R-017 solo como texto
