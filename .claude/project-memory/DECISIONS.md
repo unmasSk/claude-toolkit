@@ -81,7 +81,6 @@
 [D-092][hooks][skills] a hook blocks git stash, reset, checkout and restore, not just R-017's text
 [D-094][boot][skills] boot slimming: nothing leaves without a pointer to its full version
 [D-095][skills][boot] boot slimming is verified by inventory, blind check, branch and a fresh session
-[D-097][memory][release] WIPs record every step and are squashed into one at close, notes kept
 [D-099][skills][install] plugin review is its own skill, run once per project after a toolkit bump
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
@@ -91,3 +90,4 @@
 [D-112][skills][architecture] flow procedures: Trivial, Short (Corto), Full (Completo)
 [D-113][skills][architecture] fixes always go to a fresh agent unless Bex names the same one
 [D-114][testing][skills] each agent running tests gets its own test database, as the sector does
+[D-115][memory][release] commit protocol: one commit per step from squashed WIPs, merge commit sums up
