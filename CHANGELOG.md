@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.47.0] - 2026-10-18
+
 ### Added
 
 - **`unmassk-core` opens with the owner's 40 common rules**, loaded in every project; autonomy decides by what the industry does first and names any earlier decision it clashes with (#95).
