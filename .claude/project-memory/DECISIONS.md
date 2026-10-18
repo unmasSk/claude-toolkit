@@ -83,7 +83,6 @@
 [D-099][skills][install] plugin review is its own skill, run once per project after a toolkit bump
 [D-100][skills][install] project cleanup skill (CLAUDE.md, plugins, memory), once per project
 [D-102][hooks][install] owner cue: Morse three times, 0.3 s apart, only when he is needed
-[D-104][release][memory] finished step: squash WIPs to dev, drop branch, then ask to go on
 [D-106][skills][architecture] flow order in both modes, every fix once, Yoda last with path to 110
 [D-108][skills][architecture] work hierarchy: milestone, task (= issue), phase, step
 [D-112][skills][architecture] flow procedures: Trivial, Short (Corto), Full (Completo)
@@ -91,3 +90,4 @@
 [D-114][testing][skills] each agent running tests gets its own test database, as the sector does
 [D-115][memory][release] commit protocol: one commit per step from squashed WIPs, merge commit sums up
 [D-116][memory][architecture] memory moves to its own git refs with hash-based note IDs
+[D-117][release][memory] a task's branch lives until the task ends; merged to dev, it is deleted at once
