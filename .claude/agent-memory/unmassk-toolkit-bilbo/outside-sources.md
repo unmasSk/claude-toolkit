@@ -43,3 +43,9 @@ All read 2026-10-16 unless stated. Re-read before quoting any figure from them.
 
 - Official: https://code.claude.com/docs/en/memory (target <200 lines; @imports load at launch, no saving; path rules in `.claude/rules/` with `paths:` load on file touch; root CLAUDE.md survives /compact) and https://code.claude.com/docs/en/best-practices (include/exclude table; "would removing this cause mistakes?").
 - Big products moved to AGENTS.md with a 1-line CLAUDE.md (`@AGENTS.md`): sentry, supabase, n8n, grafana, trigger.dev, formbricks, posthog. Fetch raw `.../AGENTS.md` for the real text. Good real ones: twentyhq/twenty (CLAUDE.md, 60 lines), openstatusHQ/openstatus (AGENTS.md 102), getsentry/sentry (129), supabase (75).
+
+## Writing for models (read 2026-10-18)
+
+- Official, trusted: https://code.claude.com/docs/en/memory ("Write effective instructions": concrete, <200 lines, headers+bullets, no contradictions), https://code.claude.com/docs/en/best-practices (include/exclude table; emphasis on ONE skipped line), https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices (description what+when, <1,024 chars, SKILL.md <500 lines, one level of references, consistent terms), https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices (positive form, reason in a clause, dial back CRITICAL/MUST).
+- Real repos: openstatus AGENTS.md is the best verbatim model (whole file read). WebFetch refuses to quote Twenty/Sentry/Supabase whole: only summaries.
+- Guide written: .claude/informes/guia-escritura-para-modelos-2026-10-18.md

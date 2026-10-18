@@ -225,3 +225,14 @@ the `"automatico"` entry to `REMINDER_TRIGGERS` with text containing both
 "modo automatico" and "informe" (exact wording is his).
 
 See also: [unmassk-toolkit-python-test-conventions](unmassk-toolkit-python-test-conventions.md).
+
+## Silence rule retired (2026-10-18) — inverted tests, automatico text contract
+
+Owner retired the "silencio" reminder. The 2 silencio tests in
+`test_skill_router_spanish.py` were inverted (no "silencio" key, no
+"silencio literal" text under any key, hook stdout has no such line), and a
+new test pins the "automatico" text against the owner's new rule: no
+`solo\W+silencio`, no "agente n de m", must contain "linea numerada",
+"agente", "paso". Gotcha: the owner's new rule itself says "ni parrafadas ni
+silencio", so a blanket `"silencio" not in text` would be wrong — assert on
+the "only allowed output" phrasing instead.
