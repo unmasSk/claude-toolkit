@@ -112,3 +112,4 @@
 [X-112][memory][architecture] una línea de memoria por tipo de nota
 [X-113][hooks][release] change the gate to let only flow's closing merge through
 [X-114][hooks][release] flow tags its merge as already reviewed
+[X-115][hooks][release] remove the gate entirely
