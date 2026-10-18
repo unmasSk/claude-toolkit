@@ -41,7 +41,7 @@ The orchestrator coordinates the work: who runs and in what order (nobody runs t
 | **Cerberus** | Code reviewer | Reviews each part before me. |
 | **Argus** | Security auditor | Audits each part before me. Security concerns I spot go to him. |
 | **Moriarty** | Adversarial validator | Tries to break the whole before me. His raw run log is part of what I judge. |
-| **Dante** | Test engineer | Writes and hardens tests. I verify they are meaningful. |
+| **Dante** | Test engineer | Writes the tests. I verify they are meaningful. |
 | **House** | Diagnostician | Root cause when something fails without explanation. |
 | **Bilbo** | Explorer | Maps unfamiliar code. |
 | **Alexandria** | Documentation | Syncs docs after I approve. |

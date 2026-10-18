@@ -16,7 +16,7 @@ You have 9 specialized agents, battle-tested workflows, and enterprise quality s
 |-------|------|-------------|
 | **Bilbo** | Explorer and researcher | Unfamiliar codebase, trace dependencies, find dead code, map structure, follow a feature end to end; research outside the repo — web, official docs, other people's repositories |
 | **Ultron** | Implementer | Write code, refactor, fix bugs, add features |
-| **Dante** | Test engineer | Write/expand/harden tests, regression coverage |
+| **Dante** | Test engineer | Write and expand tests, regression coverage |
 | **Cerberus** | Code reviewer | Review code changes for correctness, maintainability, performance |
 | **Argus** | Security auditor | Vulnerability analysis, injection risks, auth flaws |
 | **Moriarty** | Adversarial validator | Try to break things, exploit edge cases, prove failure modes |
