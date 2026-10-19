@@ -5,6 +5,15 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: #95 paso 2 (plazo del arranque, reglas por import, --searched, Morse) (2026-10-19)
+Veredicto DEBIL. T2: con la red colgada (fetch 10 s + gh 15 s = plazo del
+lanzador 25 s) el arranque se mata y no hay informe, aunque cada fallo por
+separado da informe con aviso. T3: aduana pregunta "lo buscaste" ante
+`gitmem note --help`/`gitmem rule help`; el pie del informe de un proyecto
+nuevo ensena `gitmem note` sin --searched; el primer mensaje sigue diciendo
+"resumen del SessionStart"; dos arranques a la vez: el aviso de uno pisa el
+informe bueno del otro. Aguanto todo lo de --searched y 12/12 mutantes.
+
 ## claude-toolkit: toolkit SIN publicar tras D-129, en proyecto gitflow de scratch (2026-10-18)
 Veredicto FALLA. (1) El mecanismo de casillas no se arma en sesiones reales: el
 Skill llega como `unmassk-toolkit:unmassk-flow` y el inject busca

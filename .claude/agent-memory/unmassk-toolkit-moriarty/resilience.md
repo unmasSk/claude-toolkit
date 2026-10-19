@@ -26,6 +26,12 @@ El detalle completo de la era retirada sigue en `round-history.md` y
 
 ## Sistema actual — memoria v2 (`lib/memory/*`, `hooks/customs.py`, `hooks/checklist-gate.py`, `hooks/skill-checklist-inject.py`, `bin/memory/*`)
 
+### --searched en un Description previo (D-133, #95, 2026-10-19)
+Aguanto: lineas en blanco dentro de lo buscado, descripcion real que empieza
+por "Searched: ", continuacion con "Description: ", 100 KB, 4 guardados a la
+vez. Los lectores cacheados 1.43-1.47 leen la nota entera (descripcion real).
+12 mutantes sobre el campo, la aduana, el plazo y el aviso: los 12 muertos.
+
 ### lib/memory/ 13-module round (memoria-v2, 2026-08-02) -- what held
 - indexes.py: concurrent insert()-vs-insert() (20 real parallel OS processes, append-mode,
   no locking) -- 0 losses, 0 corrupted lines, POSIX O_APPEND small-write atomicity holds.

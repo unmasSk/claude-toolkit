@@ -84,3 +84,9 @@
 - [pre-merge-gate-target-branch-contract-notes.md](pre-merge-gate-target-branch-contract-notes.md) — D-119/D-120 gate target contract: switch-then-merge trap
 - [checklist-by-procedure-d121-contract-notes.md](checklist-by-procedure-d121-contract-notes.md) — D-121 procedures schema I fixed + green-by-design guards
 - [checklist-hooks-real-world-shape-notes.md](checklist-hooks-real-world-shape-notes.md) — real shapes: prefixed skill names, wiped boards, subfolder cwd
+- [boot-deadline-hook-timing-contract-notes.md](boot-deadline-hook-timing-contract-notes.md) — #95 boot-under-30s: hook timing, gh double, slow git log overrun, stalled remote, crash injection
+- [d124-per-message-checklist-contract-notes.md](d124-per-message-checklist-contract-notes.md) — #95 2b D-124 checklist RED: per-line concept anchors, [memory-check] fallback trap
+- [rules-import-claude-md-contract-notes.md](rules-import-claude-md-contract-notes.md) — #95 2a rules.md @import + read-now hint on the start that adds it; disposable HOME
+- [presave-searched-flag-contract-notes.md](presave-searched-flag-contract-notes.md) — #95 2c --searched RED + fix pass: exact-relaunch, frozen-1.47.0-reader skew technique
+- [owner-cue-notification-hook-contract-notes.md](owner-cue-notification-hook-contract-notes.md) — #95 2d sound hook RED: Perl fake afplay + warm-up, never on speakers
+- [test-file-split-by-concern-technique-notes.md](test-file-split-by-concern-technique-notes.md) — split >500-LOC test files losslessly; #95 step 2 layout; fence-relaunch commit-msg trick

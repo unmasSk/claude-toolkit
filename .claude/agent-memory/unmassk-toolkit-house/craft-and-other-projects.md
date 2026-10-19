@@ -96,6 +96,19 @@ em-dash unless `ensure_ascii=False`. And a green test asserting the hook *emits*
 end-to-end gap no subprocess-level unit test closes.
 (The hook of that round, `hooks/pre-task-recall.py`, has since been deleted; the method stands.)
 
+## "The hook printed nothing": the transcript records the timeout, read it first
+
+CONFIRMED 2026-10-18. Every hook run is an `attachment` record in the session `.jsonl`, in the
+first lines: `hook_success` with `stdout`/`durationMs`, or `hook_cancelled` with
+`timedOut: true, timeoutMs`. A timed-out hook delivers nothing and leaves no line in context, and
+the children it spawned die with it, so even its fallback file is not written. **Tabulate
+`durationMs` for that hook across every session**: a slow creep toward the limit shows up as a
+curve, and it disproves "it broke with version X" when the curve crossed the limit a session
+earlier. Owner and orchestrator memories of "it worked last time" can be a session the
+orchestrator rebuilt by hand. To falsify a "network calls are the cost" hypothesis, put a fake
+failing binary ahead of the real one on PATH. Never remove a whole PATH dir: on this machine
+`/opt/homebrew/bin` also holds `python3`, and `sys.executable` drops to the system 3.9.
+
 ## A signal handed down by another agent is a photograph with a date on it
 
 CONFIRMED 2026-07-19: two "integrity bug" signals sourced from an earlier mapping both described

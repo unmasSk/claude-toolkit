@@ -18,6 +18,21 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Plazos anidados cuyos topes internos suman el tope externo (2026-10-19)
+Si dos pasos internos tienen cada uno su timeout (fetch 10 s, gh 15 s) y el
+lanzador mata todo a los 25 s, la misma causa (red colgada) agota los dos a la
+vez y el externo mata el proceso antes de que salga el resultado degradado
+pero util ("fetch fallo", "gh fallo"). Probar: cada paso lento por separado
+(sale informe con aviso) y los dos juntos (no sale nada). Red colgada sin
+internet real: un socket local que acepta y nunca responde como remoto http,
+mas un `gh` falso en PATH que duerme. Medir tambien el EOF de la tuberia del
+hook, no solo la salida del proceso.
+
+### Un fichero compartido entre sesiones del mismo repo lo pisa el aviso de fallo de otra (2026-10-19)
+Un marcador "el arranque fallo" escrito sobre la misma ruta que el informe
+bueno de una sesion concurrente le dice a esa otra sesion que fallo. Lanzar
+dos arranques a la vez, uno forzado a pasarse del plazo.
+
 ### Un hook que compara un campo del payload contra un nombre fijo: saca el valor REAL de los transcripts (2026-10-18)
 Los tests alimentan el valor que el autor imagina (`"skill": "unmassk-flow"`);
 Claude Code manda otro (`"unmassk-toolkit:unmassk-flow"`, 33 de 35 cargas reales).
