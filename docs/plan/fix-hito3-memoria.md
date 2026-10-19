@@ -6,6 +6,7 @@
 **Build mode:** test-first
 **Base:** 69898f54
 **Created:** 2026-10-19
+**Status: COMPLETED** — 2026-10-20; tests 982 passed (memory, lifecycle, fake HOME)
 
 ## Goal
 `gitmem remove`, `note --discard`, replace and promote never lose or leave a note half-retired, and the test suite never writes the owner's real `~/.local/bin/gitmem`.
