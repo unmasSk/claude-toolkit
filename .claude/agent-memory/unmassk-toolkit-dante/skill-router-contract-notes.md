@@ -254,3 +254,9 @@ the hook [orden] line carrying it. "Pasted owner text must not fire" had NO
 definition anywhere (plan, Alexandria, memory): UserPromptSubmit gets the paste
 already expanded; only ~/.claude/history.jsonl keeps `pastedContents`. Left
 untested and asked, rather than inventing a detector.
+**Resolved same day:** the session transcript (projects/<slug>/<id>.jsonl,
+user `content`) shows the real wrapper: `<pasted_content id="f4e1">\n…\n
+</pasted_content id="f4e1">` (id repeated on the closing tag). Contract in
+`TestPastedContentDoesNotFireAutomatico`: paste-only => no automatico; owner
+words before / after / between two pastes => fires (guards drop-to-end and
+greedy-strip implementations). Search the transcript, not history.jsonl.

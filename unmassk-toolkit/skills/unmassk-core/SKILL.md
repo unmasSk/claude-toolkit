@@ -340,79 +340,27 @@ The `unmassk-standards` skill holds stack-agnostic quality criteria that apply t
 
 Read the skill FIRST. Improvising a review and reading the skill afterwards means missing steps that were written down precisely because they get missed.
 
-### Protocol skills (detect the situation, load the skill)
+### Protocol skills
 
-| Situation | Skill |
-| --------- | ----- |
-| New / continuing / external project (lifecycle) | `unmassk-project-lifecycle` |
-| Scaffolding a new project's stack — normally reached through lifecycle, but go straight here if the user's own words are already scaffold-specific | `unmassk-scaffolding` |
-| Ambiguous request or a decision with stakes → interrogate first | `unmassk-grill` |
-| A real choice between options / "help me decide" | `unmassk-council` |
-| Reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references | `unmassk-memory-doctor` |
-| Hunting repetition — what the project does every session that no skill covers yet, and turning it into one ("protocolo marmota") | `unmassk-groundhog` |
-| Wrapping up / handoff | `unmassk-close-session` |
-
-The project instruction file carries the same menu — duplicated on purpose.
+The project instruction file lists the protocol skills (its managed protocols block): pick from there. One more, not on that list: reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references → `unmassk-memory-doctor`.
 
 ---
 
-## Documentation discipline: every new thing goes in THREE places
+## Documentation discipline
 
-When you ship anything new — a feature, a script, a flag, a convention, a hook, a decision — document it for all three audiences (a capability nobody can discover is dead weight):
-
-1. **Humans visiting the repo** → the README (and deeper docs for walkthroughs).
-2. **Us, working** → the roadmap / working docs.
-3. **Claude at load** → the relevant skill and/or instruction file, so a future session knows it exists.
-
-The duplication is deliberate. Because manual duplication drifts, do all surfaces **in the same commit**, and never leave a new capability documented in only one place. When in doubt, hand the sync to **Alexandria** and tell her: all three audiences.
+Every new thing — a feature, a script, a flag, a convention, a hook, a decision — is documented for three audiences in the same commit. Before shipping one, read `references/documentation.md`; when in doubt, hand the sync to Alexandria and tell her: all three audiences.
 
 ---
 
-## Modo automático — unattended work, one report at the end
+## Modo automático
 
-The user says **"modo automático"** (or "ponte en automático") when they are leaving — to sleep, to go out — and do not want the crew idle for hours. From that word until the work is done, this is the contract:
-
-1. **Run everything on the board**, in order. Do not stop to ask.
-2. **Decide for them** whenever a decision comes up — EXCEPT opening an issue: that still needs the user's yes (moment 2), so it queues for the closing report as *pendiente de ti*. Choose as in Autonomy: first what the industry does, then the option that scores highest on unmassk-standards' weighted checklist — never the cheapest or laziest one. Write every decision down for the report: what was chosen, what was discarded, why.
-3. **On screen, the minimum.** One numbered line per agent or step that finishes, ticking the list (`2.1.3 Cerberus — done`; more only when the order changes). Never paragraphs, never a question.
-4. **Blocked on one thing → move to what can run.** In parallel, or skipping the blocked item; a block is not a reason to stop while other work is possible.
-5. **Stop only when everything is done or everything is blocked.** Then one report, four fixed sections, nothing else:
-   - ✅ **Lo que ha ido bien**
-   - 🧪 **Lo que se ha probado, y cómo** (commands run, numbers)
-   - ⚖️ **Decisiones tomadas por ti** — one line each: chosen · discarded · "¿la cambiamos?"
-   - ❌ **Errores que han pasado, y qué se hizo con ellos**
-
-**These wait for the user in automatic mode**, even if the board says so — each goes into the report as *pendiente de ti*:
-
-| Action that waits | Why it waits |
-|---|---|
-| Publishing a version | It reaches users, and there is no unpublish |
-| Irreversible deletions | Nothing brings the data back if the call was wrong |
-| Touching the user's other projects | Write permission there is not yours to assume |
-| Closing the session | The close writes the Next — the user steers what it says |
-
-The router re-injects the `[orden]` reminder for this mode on every message while it lasts — the mode must survive hour six, which is exactly when the minimum on screen used to break. It ends when the user speaks again.
-
-- ✗ *(two hours in)* "Ultron has finished the ledger, now launching Dante on the tests, then I'll…"
-- ✓ *(two hours in)* "2.1.3 Dante — done"
-- ✗ *(at the end)* a wall of everything that happened
-- ✓ *(at the end)* the four sections, and under ⚖️: "Caché de prompt: elegí mantenerla (coste estable); descarté quitarla (ahorra 2 € pero rompe el presupuesto de 1 €/mes). ¿La cambiamos?"
+When the owner says **"modo automático"** (or "ponte en automático"), read `references/automatic-mode.md` before the next step: it holds the contract for unattended work, the four-section closing report, and what still waits for him.
 
 ---
 
-## Red Flags — these thoughts mean STOP
+## Red Flags
 
-| The thought | The reality |
-|---|---|
-| "The agent's report sounds solid, no need to open the file" | A report is a claim, not a result, until you open what it names (moment 1). |
-| "This is small, I'll note it for later" | If it is inside the file or task you already have open, it gets fixed now (moment 2). |
-| "I'll mention it in the next message" | An announced action that does not happen in the same turn does not exist (moment 3). |
-| "It's roughly N, that's close enough" | If the real number is one command away, measure it (moment 5). |
-| "I'll send this step now and the other when it finishes" | If two steps don't touch the same file, they leave in the same message (moment 6). |
-| "It's an obvious change, I'll do it myself" | Only if it is flow's Trivial procedure; anything more goes to the crew (Delegation). |
-| "The user said 'you decide', but I'll confirm before executing" | That is bouncing back a decision that is already yours (Autonomy). |
-| "The user asked what's next, so I'll start" | A question is never a go (Autonomy). |
-| "I'll save this rule, it's important" | List the existing rules first. Saving without listing is how four identical rules pile up. |
+The thoughts that mean STOP, each tied to its moment: `references/red-flags.md`.
 
 ---
 
