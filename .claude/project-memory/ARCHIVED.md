@@ -73,3 +73,4 @@
 2026-10-18  [D-125][skills][testing] 🧭 test-first: Dante writes every test once; Ultron codes only what the tests ask  →  replaced by D-126
 2026-10-19  [I-006][release][hooks] 🔥 1.47.0 published with its release CI red on Windows (merge gate paths)  →  closed: cause misread: House found the gate right and the tests wrong; replaced by a corrected incident
 2026-10-19  [I-007][release][testing] 🔥 1.47.0 shipped with red release CI: merge-gate tests not Windows-portable  →  closed: tests made Windows-portable and Git Bash paths read by the merge gate; release 1.48.0 CI green on ubuntu and windows (run 39202656178)
+2026-10-19  [D-134][skills][docs] 🧭 flow v2: eleven open points of the draft decided by sector rule  →  replaced by D-136
