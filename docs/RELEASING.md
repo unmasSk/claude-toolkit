@@ -2,6 +2,8 @@
 
 This guide walks through publishing a new version of a plugin in this marketplace repo
 using `bin/release.py`.
+In this repository the procedure is also a project skill, `.claude/skills/release/SKILL.md`, used at the session close; this page is the reference for the script itself.
+
 
 ## Precondition: fill the CHANGELOG
 
@@ -115,7 +117,7 @@ python3 bin/release.py <plugin> <new-version>
    - The local commit is on `origin/<branch>` (push succeeded)
    - `marketplace.json` and `plugin.json` both show the new version and agree with each other
 
-   On success: `Release verificado. '/plugin update' verá ahora <plugin> v<version> en origin/<branch>.`
+   On success: `Release verificado. el marketplace ya ofrece <plugin> v<version> en origin/<branch>.`
 
 ## Flags
 

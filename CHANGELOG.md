@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **The session start is slimmer** (#89): the repo `CLAUDE.md` own part drops from 22.7 KB to 8.4 KB and is now in English, the `unmassk-core` skill from 36.7 KB to 32.2 KB and `unmassk-memory` from 28.1 KB to 22.8 KB, and the boot report from 18.5 KB to 10.9 KB; the Next shrinks further from the next close.
+- **The managed `CLAUDE.md` block every project gets is shorter** (protocols menu and communication), and the old build-mode block is retired from each project's `CLAUDE.md` on its next start.
+- **Occasional sections of `unmassk-core` and `unmassk-memory` moved to `references/`** (automatic mode, documentation, red flags; fields, hooks, rationalizations, signal examples, zones), each left with a pointer in the skill.
+- **The boot report prints restrictions by headline and one line per open issue**, and the Next is about 25 lines without the commit list, opening with the owner's corrections in his own words; the close skill and its agent prompt say so.
+- **The release procedure is a project skill of this repository** (`.claude/skills/release/SKILL.md`) instead of text in `CLAUDE.md`, and the ban on writing in `lib/memory/` outside one's own file is a path rule (`.claude/rules/memory.md`) that loads only when that folder is touched.
+
 ### Fixed
 
 - **The close extractor reads every session since the last close, not only the newest transcript** (D-144): sessions that ended without a close or with `/clear` were dropped while their commits were still listed, so the Next lost whole days of conversation without warning. Turns are labelled by session and subagent sidechains stay out.
