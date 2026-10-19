@@ -205,3 +205,165 @@ def test_should_keep_committing_files_given_one_by_one(dir_repo):
         _git(repo, "show", "--name-only", "--pretty=format:", "HEAD").split()
     )
     assert committed == _EXPECTED_LISTED
+
+
+# ---------------------------------------------------------------------------
+# Ronda de arreglo de #104.3 (Cerberus F1/F2 + los casos que Ultron declaro
+# «Beyond the tests»). Mismo metodo: puerta del usuario, relanzamiento
+# extraido de la salida real y ejecutado, commit comparado contra lo que el
+# test cambio en disco.
+# ---------------------------------------------------------------------------
+
+
+def _reject_and_relaunch(repo, env, args, cwd=None):
+    """Lanza `gitmem wip` con `args`, exige el rechazo, ejecuta el
+    relanzamiento propuesto desde la MISMA carpeta y devuelve
+    (salida del rechazo, argv del relanzamiento, `--name-status` del commit).
+    """
+    where = cwd or repo
+    rc, out, err = run_gitmem_script(["wip", _MESSAGE, *args], cwd=where, env=env)
+    assert rc != 0, f"stdout={out!r} stderr={err!r}"
+    argv = _relaunch_argv(out + err)
+    head_before = _git(repo, "rev-parse", "HEAD")
+    rc2, out2, err2 = run_gitmem_script(argv[1:], cwd=where, env=env)
+    assert rc2 == 0, f"el relanzamiento propuesto falla: {out2!r} {err2!r}"
+    assert _git(repo, "rev-parse", "HEAD~1") == head_before
+    status = _git(repo, "show", "--name-status", "--pretty=format:", "HEAD")
+    return out + err, argv, sorted(status.splitlines())
+
+
+class TestListedPathsArePosixStyle:
+    """Cerberus #104.3 F1 (T2): en Windows `os.path.relpath` da `src\\a.txt`
+    y el listado y el relanzamiento salen con barra invertida, mezclada con
+    las barras normales que ensena git en todo lo demas. Contrato: barras
+    normales en todas las plataformas. Rojo solo en Windows (la CI corre en
+    windows-latest); en macOS/Linux no hay forma fiel de simularlo, porque
+    el arreglo correcto (`Path(...).as_posix()`) depende del tipo de ruta
+    del sistema que lo ejecuta."""
+
+    def test_should_list_and_relaunch_with_forward_slashes_only(self, dir_repo):
+        repo, env = dir_repo
+        rc, out, err = run_gitmem_script(
+            ["wip", _MESSAGE, "--path", "src"], cwd=repo, env=env
+        )
+        combined = out + err
+        assert rc != 0
+        assert _CHANGED_UNTRACKED_NESTED in combined, combined
+        assert "\\" not in combined, f"barra invertida en: {combined!r}"
+        assert _paths_of(_relaunch_argv(combined)) == _EXPECTED_LISTED
+
+    def test_should_keep_a_given_file_with_forward_slashes_next_to_a_folder(
+        self, dir_repo
+    ):
+        """El fichero dado a mano tambien vuelve con `/`: en Windows
+        `str(Path("src/a.txt"))` es `src\\a.txt`."""
+        repo, env = dir_repo
+        _write(repo, "docs/notes/n.txt", "new\n")
+        rc, out, err = run_gitmem_script(
+            ["wip", _MESSAGE, "--path", "docs/notes/n.txt", "--path", "src"],
+            cwd=repo,
+            env=env,
+        )
+        assert rc != 0
+        paths = _paths_of(_relaunch_argv(out + err))
+        assert paths == sorted(["docs/notes/n.txt", *_EXPECTED_LISTED]), paths
+
+
+class TestFolderMixedWithFiles:
+    def test_should_keep_given_files_and_add_the_folder_files_when_mixed(
+        self, dir_repo
+    ):
+        repo, env = dir_repo
+        _out, argv, status = _reject_and_relaunch(
+            repo, env, ["--path", _CHANGED_OUTSIDE, "--path", "src"]
+        )
+        expected = sorted([_CHANGED_OUTSIDE, *_EXPECTED_LISTED])
+        assert _paths_of(argv) == expected, argv
+        assert status == sorted(
+            [f"M\t{_CHANGED_OUTSIDE}", f"M\t{_CHANGED_TRACKED}",
+             f"A\t{_CHANGED_UNTRACKED_NESTED}"]
+        ), status
+
+    def test_should_not_duplicate_a_file_given_both_alone_and_inside_its_folder(
+        self, dir_repo
+    ):
+        repo, env = dir_repo
+        rc, out, err = run_gitmem_script(
+            ["wip", _MESSAGE, "--path", _CHANGED_TRACKED, "--path", "src"],
+            cwd=repo,
+            env=env,
+        )
+        assert rc != 0
+        argv = _relaunch_argv(out + err)
+        assert _paths_of(argv) == _EXPECTED_LISTED, argv
+        assert argv.count("--path") == len(_EXPECTED_LISTED), argv
+
+
+def test_should_say_there_is_nothing_and_offer_no_relaunch_when_folder_is_clean(
+    dir_repo,
+):
+    repo, env = dir_repo
+    _write(repo, "clean/kept.txt", "committed\n")
+    _git(repo, "add", "clean/kept.txt")
+    _git(repo, "commit", "-m", "clean folder")
+    head_before = _git(repo, "rev-parse", "HEAD")
+
+    rc, out, err = run_gitmem_script(
+        ["wip", _MESSAGE, "--path", "clean"], cwd=repo, env=env
+    )
+    combined = out + err
+
+    assert rc != 0, combined
+    assert _git(repo, "rev-parse", "HEAD") == head_before
+    assert "clean" in combined, combined
+    assert "clean/kept.txt" not in combined, combined
+    assert _relaunch_lines(combined) == [], combined
+    leaked = [word for word in _JARGON if word in combined]
+    assert leaked == [], combined
+
+
+def test_should_list_only_the_new_name_of_a_renamed_file(dir_repo):
+    """Renombrado preparado (`git mv`): con `-z` git trae detras la ruta de
+    origen; si se tomara como otra entrada saldria basura (`c/untouched.txt`)
+    o el nombre viejo, que ya no existe y haria fallar el relanzamiento."""
+    repo, env = dir_repo
+    _git(repo, "mv", _UNCHANGED_TRACKED, "src/moved.txt")
+
+    rc, out, err = run_gitmem_script(
+        ["wip", _MESSAGE, "--path", "src"], cwd=repo, env=env
+    )
+    combined = out + err
+
+    assert rc != 0
+    paths = _paths_of(_relaunch_argv(combined))
+    assert paths == sorted([*_EXPECTED_LISTED, "src/moved.txt"]), paths
+    assert _UNCHANGED_TRACKED not in combined, combined
+    assert "c/untouched.txt" not in combined, combined
+
+
+def test_should_relaunch_relative_to_the_subfolder_it_was_run_from(dir_repo):
+    """Cerberus #104.3 F2.1: lanzado desde `src/`, las rutas salen relativas
+    a `src/` y el relanzamiento, ejecutado desde ahi mismo, comitea justo
+    `src/sub/new.txt`."""
+    repo, env = dir_repo
+    out, argv, status = _reject_and_relaunch(
+        repo, env, ["--path", "sub"], cwd=os.path.join(repo, "src")
+    )
+    assert _paths_of(argv) == ["sub/new.txt"], argv
+    assert status == [f"A\t{_CHANGED_UNTRACKED_NESTED}"], status
+
+
+def test_should_list_and_commit_a_deleted_file_inside_the_folder(dir_repo):
+    """Cerberus #104.3 F2.2: un fichero seguido borrado dentro de la carpeta
+    entra en el listado y el relanzamiento deja el borrado en el commit."""
+    repo, env = dir_repo
+    os.remove(os.path.join(repo, _UNCHANGED_TRACKED))
+
+    out, argv, status = _reject_and_relaunch(repo, env, ["--path", "src"])
+
+    assert _UNCHANGED_TRACKED in out, out
+    assert _paths_of(argv) == sorted([*_EXPECTED_LISTED, _UNCHANGED_TRACKED])
+    assert status == sorted(
+        [f"M\t{_CHANGED_TRACKED}", f"A\t{_CHANGED_UNTRACKED_NESTED}",
+         f"D\t{_UNCHANGED_TRACKED}"]
+    ), status
