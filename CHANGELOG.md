@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.50.0] - 2026-10-19
+
 ### Changed
 
 - **The session start is slimmer** (#89): the repo `CLAUDE.md` drops from 22.7 KB to 8.4 KB and is now in English, the `unmassk-core` skill from 36.7 KB to 32.2 KB and `unmassk-memory` from 28.1 KB to 22.8 KB, and the boot report from 18.5 KB to 10.9 KB; the Next shrinks further from the next close.
