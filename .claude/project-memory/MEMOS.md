@@ -132,3 +132,4 @@
 [M-153][skills][docs] flow v2 draft keeps every current rule except five spots found @cdd9b061
 [M-154][hooks][skills] checklist gate reads no transcript; run_in_background is not a signal
 [M-155][memory][skills] close extractor dead-ends: not transcript choice, not isMeta, not git parsing
+[M-156][boot][docs] boot-read rules live in four sources; CLAUDE.md own part is split in two
