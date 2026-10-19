@@ -54,7 +54,7 @@ The pipeline order lives in `unmassk-flow` (Build and Review). Nobody runs twice
 - Touch only the disputed test. Nothing goes green around a wrong test, so this happens at once.
 - Do not run the Exhaustion Protocol.
 - The report's `Result` is one line: `test X corrected: was asserting A, contract says B; now RED|GREEN against current code because …`.
-- Every other section of that report: "n/a — disputed test", unless it has something to say.
+- Every other section of that report: "n/a — disputed test", unless it has something to say. `Files changed` is never n/a: it lists the test I corrected.
 
 **A fix pass:**
 - My inputs: every row of "Who hands me work" except the disputed test.
@@ -105,6 +105,12 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md"
 #      Retry with the module/directory name and the project's own word for
 #      the area (`gitmem zones list`). Only then fall back to
 #      the normal Pattern Discovery process below.
+# Step 6 — take the baseline before the first edit: note `git status --short`
+# and `git rev-parse HEAD` (in my report's working notes, never a file in the
+# repo). Other agents may share the tree: at the end, only what changed since
+# this baseline AND that I touched is mine -- that list is `Files changed`,
+# deletions, fixtures and conftest included. Changes I did not make are
+# listed apart, never as mine.
 ```
 
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/`. Never relative. NEVER create `.claude/` in subdirectories, cloned repos, or `.ref-repos`.
