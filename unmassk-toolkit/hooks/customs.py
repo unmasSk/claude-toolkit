@@ -152,6 +152,7 @@ import gitcmd  # noqa: E402
 import indexes  # noqa: E402
 import query  # noqa: E402
 import rejection as rejection_  # noqa: E402
+import save_command  # noqa: E402
 import validator  # noqa: E402
 import vocabulary  # noqa: E402
 import zones as zones_lib  # noqa: E402
@@ -327,78 +328,6 @@ def _find_commit_creating_statement(command):
             if sub not in _COMMIT_CREATING_SUBCOMMANDS:
                 continue
             return sub, statement[j + 1:], stmt_index
-    return None
-
-
-# ── D-098/D-124: antes de `gitmem note`/`gitmem rule` que guarda, la
-# pregunta "¿lo busqué...?" -- el mismo rechazo que da el comando
-# (`validator.validate_searched`), aqui antes de que corra. ──────────────
-
-_GITMEM_PROGRAM_TOKEN_RE = re.compile(r"(?:^|/)gitmem$")
-_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-# Los flags de `bin/memory/rule.py`, todos con un valor detras.
-_RULE_VALUE_FLAGS = frozenset({"--kind", "--quote", "--retract", "--replaces", "--searched"})
-# Mismas dos palabras que `rule.py::_LEEN_EN_VEZ_DE_ESCRIBIR`: leen, no guardan.
-_RULE_READ_WORDS = ("list", "ls")
-# Mismas palabras que `rule.py::_NO_SON_UNA_REGLA`: rule.py las rebota sin guardar.
-_RULE_NOT_A_RULE_WORDS = ("add", "find", "show", "read", "verify", "rebuild", "help")
-# Pedir la ayuda de argparse no guarda nada [Moriarty ABUSE, 2026-10-19].
-_HELP_FLAGS = ("-h", "--help")
-
-
-def _flag_value(tokens, flag):
-    """El valor de `flag` en `tokens` (`--flag X` o `--flag=X`), o `None`."""
-    for i, tok in enumerate(tokens):
-        if tok == flag:
-            return tokens[i + 1] if i + 1 < len(tokens) else None
-        if tok.startswith(flag + "="):
-            return tok[len(flag) + 1:]
-    return None
-
-
-def _rule_saves(rest):
-    """`gitmem rule ...` guarda (alta o `--replaces`) -- leer, `list`/`ls`,
-    una palabra suelta que rule.py rebota y `--retract` no."""
-    flags = {tok.split("=", 1)[0] for tok in rest if tok.startswith("--")}
-    if "--retract" in flags:
-        return False
-    if "--replaces" in flags:
-        return True
-    i = 0
-    while i < len(rest):
-        tok = rest[i]
-        if tok in _RULE_VALUE_FLAGS:
-            i += 2
-            continue
-        if not tok.startswith("--"):
-            word = tok.strip().lower()
-            return word not in _RULE_READ_WORDS and word not in _RULE_NOT_A_RULE_WORDS
-        i += 1
-    return False
-
-
-def _find_unanswered_gitmem_save(command):
-    """`(stmt_index, tokens)` de la primera sentencia que ES un `gitmem
-    note`/`gitmem rule` que guarda sin `--searched` con contenido, o
-    `None`. Solo cuenta `gitmem` en posicion de programa: un `grep
-    "gitmem note"` o un `echo gitmem note` solo lo mencionan."""
-    statements = _shell_statements(command)
-    if statements is None:
-        return None
-    for stmt_index, statement in enumerate(statements):
-        # `\<salto>` (continuacion de linea) sale de shlex como un token
-        # "\n" suelto: fuera, o el relanzamiento lleva un argumento que es
-        # un salto de linea y obedecerlo rebota.
-        tokens = [tok for tok in statement if tok != "\n"]
-        while tokens and _ENV_ASSIGNMENT_RE.match(tokens[0]):
-            tokens.pop(0)
-        if len(tokens) < 2 or not _GITMEM_PROGRAM_TOKEN_RE.search(tokens[0]):
-            continue
-        sub, rest = tokens[1], tokens[2:]
-        asks_help = any(tok in _HELP_FLAGS for tok in rest)
-        saves = not asks_help and (sub == "note" or (sub == "rule" and _rule_saves(rest)))
-        if saves and not validator.searched_given(_flag_value(rest, "--searched")):
-            return stmt_index, tokens
     return None
 
 
@@ -914,9 +843,11 @@ def _active_customs(command, hook_input, stmt_index):
 
 def _decide_gitmem_save(command, hook_input):
     """D-098: bloquea un `gitmem note`/`gitmem rule` que guarda sin
-    `--searched`, con la aduana encendida. `None` si no hay nada que
-    bloquear aqui -- el resto de `_decide` sigue su camino."""
-    found = _find_unanswered_gitmem_save(command)
+    `--searched`, con la aduana encendida -- el mismo rechazo que da el
+    comando, antes de que corra; que linea guarda lo decide
+    `save_command.py`. `None` si no hay nada que bloquear aqui -- el
+    resto de `_decide` sigue su camino."""
+    found = save_command.find_unanswered_save(_shell_statements(command))
     if found is None:
         return None
     stmt_index, tokens = found

@@ -193,7 +193,8 @@ def _fence_retry_command(args, incident):
     [`vocabulary.TYPES["R"].required_fields`] -- lleva el MISMO texto que
     `_create_fence()` usa de verdad al escribir el muro
     (`description=args.restriction_text`), asi que no hay ningun hueco
-    que rellenar: el dato ya esta disponible aqui.
+    que rellenar: el dato ya esta disponible aqui. `--searched` lleva el
+    hueco a rellenar, como el resto de relanzamientos [D-098].
     """
     command = (
         f'gitmem note R --zones {incident.zone1} {incident.zone2} '
@@ -203,6 +204,7 @@ def _fence_retry_command(args, incident):
         command += f' --why "{args.why}"'
     command += f' --description "{args.restriction_text}" --stops yes'
     command += f" --origin {args.id}"
+    command += validator.searched_suffix(validator.SEARCHED_PLACEHOLDER)
     return command
 
 

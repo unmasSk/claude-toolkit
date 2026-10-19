@@ -96,6 +96,23 @@ def _with_searched(subject: str, searched: str | None) -> str:
     return f"{subject}\n\nSearched: {folded}"
 
 
+def _check_new_rule(text: str, kind: str, quote, replaces: str | None = None):
+    """`(quote_has_content, None)` si `kind`/`text`/`quote` de una regla
+    nueva valen, o `(False, WriteResult)` con el rechazo -- las mismas
+    validaciones, en el mismo orden, para `add()` y `replace()`."""
+    if "\n" in kind or not kind.strip():
+        rejection = reject_invalid_kind(kind)
+    elif "\n" in text or not text.strip():
+        rejection = reject_invalid_text(text)
+    elif len(text) > TEXT_MAX_CHARS:
+        rejection = reject_too_long(text)
+    else:
+        quote_has_content, rejection = validate_quote(quote, text, kind, replaces=replaces)
+        if rejection is None:
+            return quote_has_content, None
+    return False, WriteResult(ok=False, note_id=None, rejections=(rejection,), git_error=None)
+
+
 def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None) -> WriteResult:
     """Anade una regla: una linea mas en el fichero de reglas, escrita de
     forma atomica, seguida de un commit real. `ok=True` implica que el
@@ -133,22 +150,9 @@ def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
     excepcion. Solo una edicion manual que ignore la cabecera del
     fichero ("no editar") podria caer justo en esa rendija.
     """
-    if "\n" in kind or not kind.strip():
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_invalid_kind(kind),), git_error=None
-        )
-    if "\n" in text or not text.strip():
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_invalid_text(text),), git_error=None
-        )
-    if len(text) > TEXT_MAX_CHARS:
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_too_long(text),), git_error=None
-        )
-
-    quote_has_content, quote_rejection = validate_quote(quote, text, kind)
-    if quote_rejection is not None:
-        return WriteResult(ok=False, note_id=None, rejections=(quote_rejection,), git_error=None)
+    quote_has_content, rejected = _check_new_rule(text, kind, quote)
+    if rejected is not None:
+        return rejected
 
     root = repo_root()
     with gitcmd.file_lock(lock_resource(root)):
@@ -256,22 +260,9 @@ def replace(
     `retract()` -- un `kind` equivocado para una regla que si existe
     cae en el mismo rechazo.
     """
-    if "\n" in kind or not kind.strip():
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_invalid_kind(kind),), git_error=None
-        )
-    if "\n" in new_text or not new_text.strip():
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_invalid_text(new_text),), git_error=None
-        )
-    if len(new_text) > TEXT_MAX_CHARS:
-        return WriteResult(
-            ok=False, note_id=None, rejections=(reject_too_long(new_text),), git_error=None
-        )
-
-    quote_has_content, quote_rejection = validate_quote(quote, new_text, kind, replaces=old_text)
-    if quote_rejection is not None:
-        return WriteResult(ok=False, note_id=None, rejections=(quote_rejection,), git_error=None)
+    quote_has_content, rejected = _check_new_rule(new_text, kind, quote, replaces=old_text)
+    if rejected is not None:
+        return rejected
 
     root = repo_root()
     with gitcmd.file_lock(lock_resource(root)):

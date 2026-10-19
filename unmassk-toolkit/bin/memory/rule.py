@@ -72,23 +72,11 @@ import rejection as rejection_  # noqa: E402
 import rules as rules_lib  # noqa: E402
 import validator  # noqa: E402
 from emojis import CHANNEL_EMOJI  # noqa: E402
+# `list`/`ls` leen; las palabras sueltas de otras familias rebotan sin
+# guardar. Una sola copia, la que tambien lee la aduana [D-098].
+from save_command import RULE_NOT_A_RULE_WORDS, RULE_READ_WORDS  # noqa: E402
 
 _DEFAULT_KIND = "user"
-
-
-# Palabras que NADIE quiere guardar como regla: son subcomandos de otras
-# familias del sistema (`gitmem zones list`, `gitmem rezones --verify`)
-# y teclearlas aqui es la equivocacion natural, no un capricho
-# [2026-08-05, House: `gitmem rule list` guardaba una regla cuyo texto era
-# literalmente "list" Y DEJABA SU COMMIT en el historial del proyecto para
-# siempre. Como este comando lee con `rule` a secas y escribe con
-# `rule "<texto>"`, la forma equivocada era indistinguible de la buena].
-#
-# `list`/`ls` se tratan como la lectura, que es lo que el usuario queria.
-# El resto rebota en vez de guardarse: una regla de una sola palabra suelta
-# no es una regla, y aqui lo barato es preguntar.
-_LEEN_EN_VEZ_DE_ESCRIBIR = ("list", "ls")
-_NO_SON_UNA_REGLA = ("add", "find", "show", "read", "verify", "rebuild", "help")
 
 
 def _parse_args(argv):
@@ -266,11 +254,11 @@ def main(argv):
         return _cmd_replace(args.text, args.replaces, args.kind, args.quote, args.searched)
     if args.text is not None:
         palabra = args.text.strip().lower()
-        if palabra in _LEEN_EN_VEZ_DE_ESCRIBIR:
+        if palabra in RULE_READ_WORDS:
             args.text = None
     if args.text is None:
         return _cmd_read()
-    if args.text.strip().lower() in _NO_SON_UNA_REGLA:
+    if args.text.strip().lower() in RULE_NOT_A_RULE_WORDS:
         print(
             f"❌ \"{args.text}\" no se ha guardado: es una palabra suelta, no una regla.\n"
             "   Para LEER tus reglas:      gitmem rule\n"
