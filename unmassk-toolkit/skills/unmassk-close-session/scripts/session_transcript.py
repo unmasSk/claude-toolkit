@@ -213,10 +213,12 @@ def _from_git_seconds(raw):
 def _last_close(repo, session_start=None):
     """The boundary of "this session" is the last close, because git has
     no idea what a session is and that mark is the only thing a close
-    leaves behind. Returns (sha, iso_utc, subject) or three Nones.
+    leaves behind. Returns (sha, iso_utc, subject, skipped) — the first
+    three None when none is found.
 
     A close written at or after `session_start` is this session's own
-    earlier close and is skipped: a redo covers the whole session (D-143).
+    earlier close and is skipped, newest first in `skipped` as
+    (sha, subject): a redo covers the whole session (D-143).
 
     The match is on the SUBJECT and nowhere else. Asking git to search
     would also search the body, so a note that merely *mentions* the
@@ -231,6 +233,7 @@ def _last_close(repo, session_start=None):
     # [decision del propietario, 2026-08-08 -- ver `_from_git_seconds`
     # arriba para el porque esta conversion vive aqui duplicada en vez de
     # importada de `lib/memory/timefmt.from_git_seconds`].
+    skipped = []
     for line in _git_log(["--format=%H%x00%at%x00%s"], repo).split("\n"):
         if line.count("\0") != 2:
             continue
@@ -239,9 +242,10 @@ def _last_close(repo, session_start=None):
             continue
         stamp = _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S")
         if session_start and stamp >= session_start:
+            skipped.append((sha, subject))
             continue
-        return sha, stamp, subject
-    return None, None, None
+        return sha, stamp, subject, skipped
+    return None, None, None, skipped
 
 
 def _commits(repo, since_sha, since_iso=None):
@@ -269,8 +273,11 @@ def _commits(repo, since_sha, since_iso=None):
 
 def _said(entry):
     """What a person or Claude actually said in this entry, if anything."""
-    message = entry.get("message") or {}
-    content = message.get("content")
+    return _text_blocks((entry.get("message") or {}).get("content"))
+
+
+def _text_blocks(content):
+    """The cleaned text of a content value: a string or a list of blocks."""
     if isinstance(content, str):
         content = [{"type": "text", "text": content}]
     if not isinstance(content, list):
@@ -311,9 +318,7 @@ def _typed_mid_turn(entry):
         return []
     if (attachment.get("origin") or {}).get("kind") != "human":
         return []
-    prompt = attachment.get("prompt")
-    text = _clean(prompt) if isinstance(prompt, str) else ""
-    return [text] if text else []
+    return _text_blocks(attachment.get("prompt"))
 
 
 def _transcript_start(transcript):
@@ -326,6 +331,26 @@ def _transcript_start(transcript):
                 continue
             if isinstance(stamp, str) and stamp:
                 return stamp[:19]
+    return None
+
+
+def _turn(entry):
+    """(who, said) for an entry of this conversation, or None."""
+    # A subagent's own conversation is not this conversation.
+    if entry.get("isSidechain"):
+        return None
+    # The harness flags everything it injects. Measured on a real
+    # session: 47 such entries carried no tag at all -- whole skill
+    # files, hook feedback -- and went in looking like something the
+    # user had typed, 365k characters of it. The flag catches them
+    # all; the tag names in `_INJECTED` catch only the ones that announce
+    # themselves.
+    if entry.get("isMeta"):
+        return None
+    if entry.get("type") == "attachment":
+        return "user", _typed_mid_turn(entry)
+    if entry.get("type") in ("user", "assistant"):
+        return (entry.get("message") or {}).get("role", entry["type"]), _said(entry)
     return None
 
 
@@ -343,27 +368,12 @@ def _conversation(transcript, since_iso):
                 entry = json.loads(line)
             except ValueError:
                 continue
-            # A subagent's own conversation is not this conversation.
-            if entry.get("isSidechain"):
-                continue
-            # The harness flags everything it injects. Measured on a real
-            # session: 47 such entries carried no tag at all -- whole skill
-            # files, hook feedback -- and went in looking like something the
-            # user had typed, 365k characters of it. The flag catches them
-            # all; the tag names below catch only the ones that announce
-            # themselves.
-            if entry.get("isMeta"):
+            if not isinstance(entry, dict):
                 continue
             stamp = entry.get("timestamp") or ""
             if since_iso and stamp and stamp < since_iso:
                 continue
-            if entry.get("type") == "attachment":
-                who, said = "user", _typed_mid_turn(entry)
-            elif entry.get("type") in ("user", "assistant"):
-                who = (entry.get("message") or {}).get("role", entry["type"])
-                said = _said(entry)
-            else:
-                continue
+            who, said = _turn(entry) or (None, None)
             if not said:
                 continue
             if not stamp:
@@ -414,7 +424,13 @@ def main(argv):
     if warning:
         header.append(f"warning:    {warning}")
 
-    sha, since, subject = _last_close(repo, _transcript_start(transcript))
+    sha, since, subject, skipped = _last_close(repo, _transcript_start(transcript))
+    if skipped:
+        header.append(
+            "skipped:    this session's own earlier close(s), newest first: "
+            + "; ".join(f"{close_sha[:12]} {close_subject}"
+                        for close_sha, close_subject in skipped)
+        )
     if args.since:
         since = args.since
         header.append(f"boundary:   {since} (given with --since)")
@@ -422,6 +438,12 @@ def main(argv):
         # The SHA is printed as well as the date: it is what anyone else
         # needs to ask git the same question about the same window.
         header.append(f"boundary:   {since} — last close: {sha[:12]} {subject}")
+    elif skipped:
+        header.append(
+            "boundary:   none before this session — every close in this "
+            "history is this session's own (skipped above), so everything "
+            "below is the whole history and the whole transcript."
+        )
     else:
         header.append(
             "boundary:   NONE FOUND — no close is recorded in this history, so "
@@ -434,7 +456,7 @@ def main(argv):
 
     if not commits:
         header.append(
-            "warning:    NOT ONE COMMIT SINCE THE BOUNDARY. Either nothing was "
+            "note:       not one commit since the boundary. Either nothing was "
             "saved this session or the boundary is wrong — say so in the close."
         )
     if undated:
