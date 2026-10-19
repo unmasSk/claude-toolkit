@@ -127,3 +127,4 @@
 [X-127][hooks][install] a PreToolUse hook on AskUserQuestion
 [X-128][memory][boot] a plain Searched: line now
 [X-129][skills][docs] 'stage' / 'etapa' as a fifth work word
+[X-130][skills][docs] flow's eight parts as the task's phases
