@@ -104,3 +104,4 @@
 [D-131][boot][memory] owner's rules reach every session through a CLAUDE.md import, not hook output
 [D-132][hooks][install] Morse cue fires on Claude Code's Notification event: permission or idle prompt
 [D-133][memory][boot] searched text rides in a leading Description so 1.47.0 reads new notes
+[D-134][skills][docs] flow v2: eleven open points of the draft decided by sector rule
