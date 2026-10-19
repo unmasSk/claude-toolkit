@@ -9,8 +9,7 @@ both retired outright with the rest of the v1 memory system. The BEHAVIOR
 this line protects did not go away: it moved to
 hooks/session-start-crew.py::_print_plugin_sync_check(), confirmed live by
 reading that function (prints exactly one of the same 3 outcome shapes:
-"no verificable (<ExceptionType>)", "no verificable (sin repo fuente junto
-a la cache)", "sincronizado (0 ficheros)", or "N ficheros desincronizados
+"no verificable (<ExceptionType>)", "sincronizado (0 ficheros)", or "N ficheros desincronizados
 ... -> publica version y actualiza desde /plugin > marketplace") and by running
 the real hook end to end below.
 
@@ -121,18 +120,12 @@ class TestZeroDriftIsExplicitNeverSilent:
         assert "[crew] PLUGIN: sincronizado (0 ficheros)" in stdout, stdout
 
 
-class TestOrdinaryProjectIsNotVerifiable:
-    def test_ordinary_project_without_toolkit_source_is_not_verifiable(self, tmp_path):
-        """The most common real case: any project that is not the toolkit
-        repo itself. No unmassk-toolkit/ tree, no HOME override needed --
-        this is what the vast majority of session starts against this hook
-        look like, and it must never claim "sincronizado"."""
-        repo = _make_repo(tmp_path)
-
-        rc, stdout, stderr = run_script(CREW_HOOK, repo)
-        assert rc == 0, f"session-start-crew.py must exit 0. stderr={stderr!r}"
-
-        assert "[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)" in stdout, stdout
+# TestOrdinaryProjectIsNotVerifiable lived here: it pinned
+# "[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)" for a
+# project without the toolkit's source (and read the real machine's HOME).
+# Issue #104.2 reversed that contract -- that case now prints NO plugin line.
+# The new contract, with a throwaway HOME, is in
+# test_crew_plugin_sync_line_absent_without_source.py.
 
 
 if __name__ == "__main__":
