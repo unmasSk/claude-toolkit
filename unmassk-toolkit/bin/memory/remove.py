@@ -185,7 +185,7 @@ def _guard_restriction_new(args):
                 one_rejection = _overlap_rejection_for_remove(args, one_rejection, candidate, ctx)
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)
         return None
-    target_problem = _replaces_target_problem(args.replaces, pm)
+    target_problem = _replaces_target_problem(args.replaces, args.id, pm)
     if target_problem is not None:
         print(target_problem, file=sys.stderr)
         return None
@@ -195,15 +195,30 @@ def _guard_restriction_new(args):
 
 def _incident_note(args):
     """La nota de `args.id`; con `--commit`, la de ese commit (un id
-    repetido puede tener cada nota en otras zonas). `None` si no hay una sola.
+    repetido puede tener cada nota en otras zonas). Sin `--commit`, la de
+    la unica linea vigente, no la de una gemela ya archivada. `None` si no
+    hay una sola.
     """
     if args.commit is None:
-        return query.by_id(args.id)
+        return _live_incident_note(args.id) or query.by_id(args.id)
     found = [
         note for sha, note in query.commits_by_id(args.id)
         if notes_duplicate.sha_matches(sha, args.commit)
     ]
     return found[0] if len(found) == 1 else None
+
+
+def _live_incident_note(note_id):
+    """La nota del commit de la unica linea vigente de `note_id`, o `None`."""
+    pm = notes.pm_root(notes.repo_root())
+    index_name = TYPE_INDEX_FILES.get(note_id.split("-", 1)[0])
+    live = [line for line in indexes.read(index_name, pm) if line.id == note_id] if index_name else []
+    if len(live) != 1:
+        return None
+    return next(
+        (note for _sha, note in query.commits_by_id(note_id) if notes_duplicate.same_note(note, live[0])),
+        None,
+    )
 
 
 def _incident_label(args):
@@ -212,13 +227,19 @@ def _incident_label(args):
     return f"{args.id!r} con --commit {args.commit}"
 
 
-def _replaces_target_problem(replaces, pm):
-    """El motivo por el que `--replaces` no apunta a una sola nota vigente,
-    o `None` si si -- se mira antes de cerrar nada, para no dejar la
-    incidencia cerrada y el muro sin nacer.
+def _replaces_target_problem(replaces, incident_id, pm):
+    """El motivo por el que `--replaces` no apunta a una sola nota vigente
+    distinta de la incidencia que se cierra, o `None` si si -- se mira
+    antes de cerrar nada, para no dejar la incidencia cerrada y el muro sin
+    nacer.
     """
     if replaces is None or replaces == "none":
         return None
+    if replaces.lower() == incident_id.lower():
+        return (
+            f"remove.py: --replaces {replaces!r} es la incidencia que se cierra -- el muro "
+            "nace de ella (Origin:), no la sustituye; no se ha tocado nada"
+        )
     index_name = TYPE_INDEX_FILES.get(replaces.split("-", 1)[0])
     lines = indexes.read(index_name, pm) if index_name else ()
     line, duplicate = notes_duplicate.pick(
@@ -244,15 +265,11 @@ def _headline_rejection_for_remove(args, rejection):
     El motivo y el porque van con `shlex.quote` -- corregido 2026-10-19,
     hallazgo real (Cerberus F1): entre comillas dobles crudas, un acento
     grave, un `$` o una `"` del texto los altera el shell al pegar el
-    comando, y la nota guarda otra cosa de lo que se escribio.
+    comando, y la nota guarda otra cosa de lo que se escribio. Lleva todos
+    los flags que se dieron (`--replaces`, `--commit`).
     """
-    command = (
-        f"gitmem remove {args.id} {shlex.quote(args.reason)} --restriction new "
-        f'--restriction-text "<titular de hasta {validator.HEADLINE_MAX} caracteres>"'
-    )
-    if args.why:
-        command += f" --why {shlex.quote(args.why)}"
-    return dataclasses.replace(rejection, relaunch=(command,))
+    placeholder = f"<titular de hasta {validator.HEADLINE_MAX} caracteres>"
+    return dataclasses.replace(rejection, relaunch=(_remove_command(args, text=placeholder),))
 
 
 def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
@@ -264,12 +281,12 @@ def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
     return dataclasses.replace(rejection, relaunch=(_remove_command(args, replaces=first.id),))
 
 
-def _remove_command(args, replaces=None, commit=None):
+def _remove_command(args, replaces=None, commit=None, text=None):
     """`gitmem remove` con todos los flags que se dieron, listo para pegar."""
     words = ["gitmem", "remove", args.id, args.reason]
     for flag, value in (
         ("--restriction", args.restriction),
-        ("--restriction-text", args.restriction_text),
+        ("--restriction-text", text or args.restriction_text),
         ("--why", args.why),
         ("--replaces", replaces or args.replaces),
         ("--commit", commit or args.commit),

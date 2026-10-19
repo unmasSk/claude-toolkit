@@ -12,7 +12,7 @@ from collections.abc import Callable
 
 import query
 import rejection as rejection_
-from model import IndexLine, Rejection
+from model import IndexLine, Note, Rejection
 
 SHORT_SHA = 10
 _MIN_PREFIX = 4  # el minimo que git acepta como prefijo de un sha
@@ -26,19 +26,27 @@ def sha_matches(sha: str | None, commit: str) -> bool:
     return bool(sha) and len(prefix) >= _MIN_PREFIX and sha.lower().startswith(prefix)
 
 
+def same_note(note: Note, line: IndexLine) -> bool:
+    """`True` si `line` es la linea de indice de `note`: titular y zonas."""
+    return (note.headline, note.zone1, note.zone2) == (line.headline, line.zone1, line.zone2)
+
+
 def _with_commits(note_id: str, lines: list[IndexLine]) -> list[tuple[IndexLine, str | None]]:
-    """Cada linea con el sha del commit de su nota (mismo id y titular), o
-    `None` si ninguno casa. Un commit se asigna a una sola linea, asi dos
-    lineas con el mismo titular reciben dos commits distintos.
+    """Cada linea con el sha del commit de su nota, o `None` si ninguno casa.
+    Primero casan titular y zonas; lo que quede, solo por titular. Un commit
+    se asigna a una sola linea, asi dos lineas iguales reciben dos commits.
     """
     unused = list(query.commits_by_id(note_id))
-    paired: list[tuple[IndexLine, str | None]] = []
-    for line in lines:
-        match = next((pair for pair in unused if pair[1].headline == line.headline), None)
-        if match is not None:
-            unused.remove(match)
-        paired.append((line, match[0] if match else None))
-    return paired
+    shas: list[str | None] = [None] * len(lines)
+    for matches in (same_note, lambda note, line: note.headline == line.headline):
+        for i, line in enumerate(lines):
+            if shas[i] is not None:
+                continue
+            match = next((pair for pair in unused if matches(pair[1], line)), None)
+            if match is not None:
+                unused.remove(match)
+                shas[i] = match[0]
+    return list(zip(lines, shas))
 
 
 def _rejection(
