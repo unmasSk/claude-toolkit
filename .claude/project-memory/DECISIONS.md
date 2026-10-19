@@ -112,3 +112,4 @@
 [D-141][hooks][skills] checklist gate stays quiet while background work runs (Stop background_tasks)
 [D-142][hooks][skills] checklist gate waits only on in-flight subagents and workflows, and says so
 [D-143][memory][skills] a redo close covers the whole session: skip this session's own earlier close
+[D-144][memory][skills] close extractor reads every transcript since the last close, not only newest
