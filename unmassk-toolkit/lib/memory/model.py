@@ -150,17 +150,10 @@ class ZoneReport:
     memos: tuple[Note, ...]
     incidents: tuple[Note, ...]
     questions: tuple[Note, ...]
-    # Cuales de las notas de arriba estan archivadas ahora mismo -- anadido
-    # D-056 (2026-08-25): antes solo `Cluster.archived_ids` sabia distinguir
-    # una nota archivada de una vigente; para el resto de tuplas planas
-    # (restrictions/blockers/memos/incidents/questions) no habia campo
-    # (hueco declarado en su dia, ver docstring de test_report.py, supuesto
-    # 4). `report_render.py` lo usa para marcar `archivada` en el listado
-    # sin tener que leer `indexes.py` por su cuenta [Sec.9.2, "que NO
-    # hace"]. Mismo conjunto GLOBAL de ids archivados que ya calculaba
-    # `build_zone` (no solo los de esta zona): comprobar pertenencia no
-    # necesita que el conjunto este recortado.
-    archived_ids: frozenset[str] = frozenset()
+    # Cuales de las notas de arriba estan archivadas ahora mismo, para que
+    # `report_render.py` marque `archivada` sin leer `indexes.py` [D-056].
+    # Por nota, no por id: con un id repetido un gemelo sigue vivo [D-145].
+    archived_notes: frozenset[Note] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -169,11 +162,9 @@ class WordChunk:                   # un trozo de la busqueda por palabra: una pa
     zone2: str
     notes: tuple[Note, ...]
     matched_ids: frozenset[str]    # cuales llevan el marcador ›
-    # mismo campo y mismo motivo que `ZoneReport.archived_ids` (D-056) --
-    # aqui tambien el mismo conjunto GLOBAL, repetido por trozo porque
-    # `report_render.py` pinta un trozo a la vez y no recibe el informe
-    # entero.
-    archived_ids: frozenset[str] = frozenset()
+    # mismo campo y mismo motivo que `ZoneReport.archived_notes`, por trozo
+    # porque `report_render.py` pinta un trozo a la vez.
+    archived_notes: frozenset[Note] = frozenset()
 
 
 @dataclass(frozen=True)

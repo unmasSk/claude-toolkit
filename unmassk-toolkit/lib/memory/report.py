@@ -81,6 +81,7 @@ from pathlib import Path
 
 import clusters
 import gitcmd
+import health
 import indexes
 import notes
 import query
@@ -138,18 +139,34 @@ def _notes_touching_zone(zone: str) -> tuple[Note, ...]:
     borra un commit) cuyo ``zone1`` o ``zone2`` es ``zone``. Ver el
     supuesto del eje en el docstring del modulo.
     """
-    seen: dict[str, Note] = {}
-    for note in query.by_zone(zone, None) + query.by_zone(None, zone):
-        seen[note.id] = note
-    return tuple(seen.values())
+    return tuple(dict.fromkeys(query.by_zone(zone, None) + query.by_zone(None, zone)))
+
+
+def _archived_state(root: Path) -> tuple[frozenset[str], frozenset[tuple[str, str]]]:
+    """Ids en ``ARCHIVED.md`` y ``(id, titular)`` de cada linea viva."""
+    archived_ids = indexes.archived_ids(notes.pm_root(root))
+    live_keys = frozenset((line.id, line.headline) for line in health.current_index_lines(root))
+    return archived_ids, live_keys
+
+
+def _archived_among(
+    notes: tuple[Note, ...], state: tuple[frozenset[str], frozenset[tuple[str, str]]]
+) -> frozenset[Note]:
+    """Las notas de ``notes`` archivadas hoy. Un id archivado que sigue vivo
+    en su indice es un id repetido [D-145]: ahi decide el titular.
+    """
+    archived_ids, live_keys = state
+    return frozenset(
+        n for n in notes if n.id in archived_ids and (n.id, n.headline) not in live_keys
+    )
 
 
 def _filter_archived(
-    notes: tuple[Note, ...], archived_ids: frozenset[str], include_archived: bool
+    notes: tuple[Note, ...], archived_notes: frozenset[Note], include_archived: bool
 ) -> tuple[Note, ...]:
     if include_archived:
         return notes
-    return tuple(n for n in notes if n.id not in archived_ids)
+    return tuple(n for n in notes if n not in archived_notes)
 
 
 def _by_type(notes: tuple[Note, ...], types: frozenset[str]) -> tuple[Note, ...]:
@@ -163,13 +180,15 @@ def build_zone(zone: str, include_archived: bool) -> ZoneReport:
     root = _repo_root()
     pm_root = notes.pm_root(root)
     zone_obj = _load_zone(zone, pm_root)
-    archived_ids = indexes.archived_ids(pm_root)
+    state = _archived_state(root)
+    archived_ids = state[0]
 
     all_notes = _notes_touching_zone(zone)
-    live_count = sum(1 for n in all_notes if n.id not in archived_ids)
-    archived_count = sum(1 for n in all_notes if n.id in archived_ids)
+    archived_notes = _archived_among(all_notes, state)
+    archived_count = len(archived_notes)
+    live_count = len(all_notes) - archived_count
 
-    visible = _filter_archived(all_notes, archived_ids, include_archived)
+    visible = _filter_archived(all_notes, archived_notes, include_archived)
     decisions = clusters.group(_by_type(visible, _DECISION_TYPES), archived_ids)
 
     return ZoneReport(
@@ -183,7 +202,7 @@ def build_zone(zone: str, include_archived: bool) -> ZoneReport:
         memos=_by_type(visible, _MEMO_TYPES),
         incidents=_by_type(visible, _INCIDENT_TYPES),
         questions=_by_type(visible, _QUESTION_TYPES),
-        archived_ids=archived_ids,
+        archived_notes=archived_notes,
     )
 
 
@@ -205,9 +224,7 @@ def build_word(word: str, include_archived: bool) -> WordReport:
     ORIGINAL -- eso no cambia, solo la palabra buscada que se repite en
     la cabecera y en el pie del informe.
     """
-    root = _repo_root()
-    pm_root = notes.pm_root(root)
-    archived_ids = indexes.archived_ids(pm_root)
+    state = _archived_state(_repo_root())
 
     matched_ids_by_pair: dict[tuple[str, str], set[str]] = {}
     for note, _matched_lines in query.by_word(word):
@@ -215,9 +232,9 @@ def build_word(word: str, include_archived: bool) -> WordReport:
 
     chunks = []
     for (zone1, zone2), matched_ids_here in matched_ids_by_pair.items():
-        pair_notes = _filter_archived(
-            query.by_zone(zone1, zone2), archived_ids, include_archived
-        )
+        pair_all = query.by_zone(zone1, zone2)
+        archived_notes = _archived_among(pair_all, state)
+        pair_notes = _filter_archived(pair_all, archived_notes, include_archived)
         matched_ids = frozenset(n.id for n in pair_notes if n.id in matched_ids_here)
         chunks.append(
             WordChunk(
@@ -225,7 +242,7 @@ def build_word(word: str, include_archived: bool) -> WordReport:
                 zone2=zone2,
                 notes=pair_notes,
                 matched_ids=matched_ids,
-                archived_ids=archived_ids,
+                archived_notes=archived_notes,
             )
         )
     chunks.sort(key=lambda c: (c.zone1, c.zone2))
@@ -272,8 +289,11 @@ def build_note(note_id: str) -> NoteReport | None:
         return None
 
     root = _repo_root()
-    pm_root = notes.pm_root(root)
-    archived_ids = indexes.archived_ids(pm_root)
+    state = _archived_state(root)
+    archived_ids = state[0]
+    twins = tuple(n for _sha, n in query.commits_by_id(note.id)) or (note,)
+    archived_twins = _archived_among(twins, state)
+    note = next((n for n in twins if n not in archived_twins), note)
 
     related: dict[str, Note] = {}
     for zone in {note.zone1, note.zone2}:
@@ -301,7 +321,7 @@ def build_note(note_id: str) -> NoteReport | None:
     return NoteReport(
         note=note,
         generated_at=_now(),
-        archived=note_id in archived_ids,
+        archived=note in archived_twins,
         cluster=cluster,
     )
 

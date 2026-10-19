@@ -119,6 +119,10 @@ def _current_index_lines(root: Path) -> tuple[IndexLine, ...]:
     return tuple(lines)
 
 
+# Alias publico: `report.py` lo usa para saber que gemelo de un id repetido sigue vivo.
+current_index_lines = _current_index_lines
+
+
 def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
     """Cruza los siete indices vigentes contra el historial real de git.
 

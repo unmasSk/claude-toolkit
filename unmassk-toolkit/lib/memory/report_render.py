@@ -187,23 +187,23 @@ def _section(
     notes: list[Note],
     block_fn,
     marker_fn,
-    archived_ids: frozenset[str],
+    archived_notes: frozenset[Note],
     compact: bool = False,
 ) -> None:
     """Aniade una seccion (titulo + un bloque por nota) a ``lines`` si
     ``notes`` no esta vacio -- una zona/trozo sin ninguna nota de ese
     tipo no imprime una seccion vacia. ``compact`` deja una sola linea
     en blanco al final en vez de una por nota (los memos, de una linea
-    cada uno [TEXTOS Sec.2.1]). ``archived_ids`` es lo que le dice a
+    cada uno [TEXTOS Sec.2.1]). ``archived_notes`` es lo que le dice a
     cada ``block_fn`` si SU nota va marcada ``archivada`` [D-056] --
-    mismo conjunto que ``ZoneReport.archived_ids``/``WordChunk.archived_ids``.
+    mismo conjunto que ``ZoneReport.archived_notes``/``WordChunk.archived_notes``.
     """
     if not notes:
         return
     lines.append(title)
     lines.append("")
     for note in notes:
-        lines.extend(block_fn(note, marker_fn(note), note.id in archived_ids))
+        lines.extend(block_fn(note, marker_fn(note), note in archived_notes))
         if not compact:
             lines.append("")
     if compact:
@@ -236,7 +236,7 @@ def _render_zone_sections(r: ZoneReport) -> list[str]:
         (f"{SECTION_EMOJI['bloqueantes']} BLOCKERS ({len(r.blockers)})", r.blockers, blocker_block, False),
     )
     for title, notes, block_fn, compact in before_decisions:
-        _section(lines, title, notes, block_fn, _no_marker, r.archived_ids, compact)
+        _section(lines, title, notes, block_fn, _no_marker, r.archived_notes, compact)
 
     _cluster_section(
         lines, f"{SECTION_EMOJI['decisiones']} DECISIONS ({len(r.decisions)} racimos)", r.decisions
@@ -253,7 +253,7 @@ def _render_zone_sections(r: ZoneReport) -> list[str]:
         ),
     )
     for title, notes, block_fn, compact in after_decisions:
-        _section(lines, title, notes, block_fn, _no_marker, r.archived_ids, compact)
+        _section(lines, title, notes, block_fn, _no_marker, r.archived_notes, compact)
     return lines
 
 
@@ -366,7 +366,7 @@ def _chunk_sections(chunk: WordChunk, by_type: _TypeSplit) -> list[str]:
         ),
     )
     for title, notes, block_fn, compact in specs:
-        _section(lines, title, notes, block_fn, marker_for, chunk.archived_ids, compact)
+        _section(lines, title, notes, block_fn, marker_for, chunk.archived_notes, compact)
     return lines
 
 
@@ -376,7 +376,7 @@ def _chunk_body(
     """El cuerpo de un trozo de la busqueda por palabra -- todo menos
     las preguntas, que ``render_word`` agrega una sola vez al final
     [TEXTOS Sec.2.3]. Cada pregunta pendiente guarda tambien si esta
-    archivada [D-056] -- el propio trozo ya lo sabe (``chunk.archived_ids``),
+    archivada [D-056] -- el propio trozo ya lo sabe (``chunk.archived_notes``),
     y ``render_word`` no tiene ningun ``WordChunk`` a mano cuando pinta
     el bloque agregado al final."""
     lines = [_chunk_header(chunk), ""]
@@ -384,7 +384,7 @@ def _chunk_body(
     lines.extend(_chunk_sections(chunk, by_type))
     for note in by_type.questions:
         pending_questions.append(
-            (note, note.id in chunk.matched_ids, note.id in chunk.archived_ids)
+            (note, note.id in chunk.matched_ids, note in chunk.archived_notes)
         )
     return lines
 
