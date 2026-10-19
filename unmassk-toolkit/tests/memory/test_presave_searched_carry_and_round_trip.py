@@ -30,6 +30,7 @@ repository (`tmp_repo`).
 import json
 import os
 import shlex
+import sys
 from contextlib import contextmanager
 
 import pytest
@@ -188,15 +189,30 @@ _NOTE_REJECTIONS = [
 ]
 
 
+# The missing-issue case puts an extensionless fake `gh` on PATH. On Windows
+# subprocess.run(["gh", ...]) only finds gh.exe, so the product answers "gh
+# not installed" and never reaches the rejection under test (I-007). Same
+# skip as every sibling with a fake gh (test_note_issue_none_regression_other_types.py).
+_FAKE_GH_POSIX_ONLY = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="fake gh on PATH: on Windows subprocess.run(['gh', ...]) never resolves a file without .exe",
+)
+_NEEDS_FAKE_GH = {"missing-issue"}
+
+
+def _note_rejection_params():
+    return [
+        pytest.param(b, m, id=name, marks=[_FAKE_GH_POSIX_ONLY] if name in _NEEDS_FAKE_GH else [])
+        for name, b, m in _NOTE_REJECTIONS
+    ]
+
+
 class TestNoteRejectionsCarrySearched:
     """Bug caught: the carry applied only to the two rejections the
     contract pins (pain question, issue gate) -- every other rejection's
     relaunch drops the answer, and obeying it bounces on D-098 again."""
 
-    @pytest.mark.parametrize(
-        "build,marker", [(b, m) for _, b, m in _NOTE_REJECTIONS],
-        ids=[name for name, _, _ in _NOTE_REJECTIONS],
-    )
+    @pytest.mark.parametrize("build,marker", _note_rejection_params())
     def test_should_carry_the_given_searched_verbatim_in_every_note_relaunch(
         self, tmp_repo, tmp_path, build, marker
     ):

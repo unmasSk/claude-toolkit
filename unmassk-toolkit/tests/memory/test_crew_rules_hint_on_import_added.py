@@ -290,7 +290,11 @@ def test_should_leave_the_owner_text_and_other_blocks_untouched_when_the_hint_fi
     out = _start(tmp_repo)
     hint = _hint_lines(out)
     assert hint, f"precondition: no hint fired:\n{out}"
-    text = _read(tmp_repo, "CLAUDE.md")
+    # On Windows the hook rewrites CLAUDE.md in text mode, so every line ends
+    # in CRLF -- a uniform, correct Windows file. The LF literals below are
+    # about the owner's words, not line endings: normalize before comparing,
+    # as test_issue63_orphaned_end_preserves_user_content.py does (I-007).
+    text = _read(tmp_repo, "CLAUDE.md").replace("\r\n", "\n")
 
     assert text.startswith(USER_HEAD), f"text above the blocks changed:\n{text[:300]}"
     assert text.endswith(USER_TAIL), f"text below the blocks changed:\n{text[-300:]}"

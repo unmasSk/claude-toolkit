@@ -15,7 +15,10 @@ import os
 import sys
 
 from conftest import SOURCE_ROOT
-from test_d124_per_message_checklist import NEUTRAL, _make_installed_repo, _run
+from test_d124_per_message_checklist import NEUTRAL, POSIX_SHELL_ONLY, _make_installed_repo, _run
+
+# _run goes through d124's shell=True harness; its skip is not inherited by import.
+pytestmark = POSIX_SHELL_ONLY
 
 sys.path.insert(0, os.path.join(SOURCE_ROOT, "lib"))
 import managed_blocks  # noqa: E402

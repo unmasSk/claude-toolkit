@@ -42,13 +42,31 @@ temporary git repo), the way Claude Code calls it.
 import json
 import os
 import re
+import shlex
 import sys
+from pathlib import Path
 
 import pytest
 
 from conftest import HOOKS_DIR, run_cmd, git_cmd
 
 HOOK_PATH = os.path.join(HOOKS_DIR, "pre-merge-gate.py")
+
+
+def _sh(path):
+    """path as one bash word that survives on every OS: forward slashes.
+
+    The hook splits a command the way bash does, and bash drops every
+    unquoted backslash, so a native Windows path written raw into the
+    command (`C:\\Users\\...\\repo`, from str(tmp_path)) reaches the hook as
+    `C:Users...repo` -- another directory. Release CI 1.47.0 went red on
+    windows-latest for exactly that (I-007); the block-expecting tests
+    passed there only because the mangled path is "unknown" too. Same fix
+    as test_customs_hook.py: Path.as_posix(). The assert keeps a path with
+    a space or a quote from slipping in as several words."""
+    word = Path(path).as_posix()
+    assert shlex.split(word) == [word], f"test path is not one shell word: {word!r}"
+    return word
 
 
 # ── Repo helpers ─────────────────────────────────────────────────────────────
@@ -766,8 +784,8 @@ def _same_repo_spellings(tmp_path, repo):
     `../repo` is derived from the fixture, not from the hook."""
     assert os.path.basename(repo) == "repo"
     return {
-        "absolute": repo,
-        "absolute-trailing-slash": repo + "/",
+        "absolute": _sh(repo),
+        "absolute-trailing-slash": _sh(repo) + "/",
         "dot": ".",
         "relative-via-parent": "../repo",
         "relative-via-parent-trailing-slash": "../repo/",
@@ -817,7 +835,7 @@ class TestSessionRepoPathIsReadLikeNoPath:
     ])
     def test_should_approve_when_head_is_dev_and_path_is_session_repo(self, tmp_path, command_tpl):
         repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
-        command = command_tpl.format(path=repo)
+        command = command_tpl.format(path=_sh(repo))
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -830,7 +848,7 @@ class TestSessionRepoPathIsReadLikeNoPath:
         repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "feat/x"])
         sub = os.path.join(repo, "sub")
         os.makedirs(sub)
-        command = f"git -C {sub} switch dev && git -C {sub} merge --no-ff feat/x"
+        command = f"git -C {_sh(sub)} switch dev && git -C {_sh(sub)} merge --no-ff feat/x"
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -845,7 +863,7 @@ class TestSessionRepoPathIsReadLikeNoPath:
     def test_should_block_with_heavy_gate_when_session_repo_path_switches_above_dev(
             self, tmp_path, command_tpl, target):
         repo = _make_repo_on(tmp_path, "feat/other", also=["dev", "staging", "main"])
-        command = command_tpl.format(path=repo, target=target)
+        command = command_tpl.format(path=_sh(repo), target=target)
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -865,13 +883,16 @@ class TestSessionRepoPathIsReadLikeNoPath:
     def test_should_block_with_heavy_gate_when_head_is_main_and_path_is_session_repo(
             self, tmp_path, command_tpl):
         repo = _make_repo_on(tmp_path, "main", also=["dev"])
-        command = command_tpl.format(path=repo)
+        command = command_tpl.format(path=_sh(repo))
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
         context = f"{command!r} with HEAD on main"
         _assert_decision(parsed, stdout, rc, stderr, "block", context)
         _assert_heavy_gate_message(parsed, context)
+        # Read like no path: "unknown" would also block heavy, so only the
+        # named target proves the session repo was recognised (I-007).
+        _assert_names_target(parsed, "main", context)
 
 
 class TestOtherRepoOrWorktreeStaysUnknown:
@@ -892,7 +913,7 @@ class TestOtherRepoOrWorktreeStaysUnknown:
         wt = str(tmp_path / "wt")
         rc, out, err = git_cmd(["worktree", "add", wt, "main"], repo)
         assert rc == 0, f"fixture setup failed adding worktree: {err}"
-        command = command_tpl.format(path=wt)
+        command = command_tpl.format(path=_sh(wt))
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -907,7 +928,7 @@ class TestOtherRepoOrWorktreeStaysUnknown:
     def test_should_block_when_absolute_path_is_another_repo(self, tmp_path, command_tpl):
         repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
         other = _make_repo(tmp_path, name="other", branch="dev")
-        command = command_tpl.format(path=other)
+        command = command_tpl.format(path=_sh(other))
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -938,7 +959,7 @@ class TestNestedWorktreeStaysUnknown:
         wt = os.path.join(repo, rel)
         rc, out, err = git_cmd(["worktree", "add", wt, "main"], repo)
         assert rc == 0, f"fixture setup failed adding nested worktree: {err}"
-        command = command_tpl.format(rel=rel, abs=wt)
+        command = command_tpl.format(rel=_sh(rel), abs=_sh(wt))
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 
@@ -1006,7 +1027,7 @@ class TestCdSubfolderAndCdPlusC:
     def test_should_block_when_cd_session_then_git_C_other_repo(self, tmp_path):
         repo = _make_repo_on(tmp_path, "dev", also=["feat/x"])
         _make_repo(tmp_path, name="other", branch="main")
-        command = f"cd {repo} && git -C ../other merge dev"
+        command = f"cd {_sh(repo)} && git -C ../other merge dev"
 
         rc, parsed, stdout, stderr = _run_hook(repo, command)
 

@@ -44,11 +44,23 @@ characters measured 2026-10-19 before the change).
 import json
 import os
 import subprocess
+import sys
 import unicodedata
 
 import pytest
 
 from conftest import SOURCE_ROOT, HOOKS_DIR, git_cmd
+
+# The hook runs as hooks.json writes it, through shell=True. On Windows that
+# shell is cmd.exe, which does not expand ${CLAUDE_PLUGIN_ROOT} (its syntax
+# is %VAR%): python3 gets a literal path and exits 2 before the hook runs
+# (I-007). Same skip as the siblings that run hooks this way
+# (memory/boot_hook_harness.POSIX_ONLY, hooks/test_owner_cue_contract.py).
+POSIX_SHELL_ONLY = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="hooks.json command run with shell=True: cmd.exe does not expand ${CLAUDE_PLUGIN_ROOT}",
+)
+pytestmark = POSIX_SHELL_ONLY
 
 HOOKS_JSON = os.path.join(HOOKS_DIR, "hooks.json")
 HOOK_FILE = "user-prompt-memory-check.py"
