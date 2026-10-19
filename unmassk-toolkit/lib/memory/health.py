@@ -17,7 +17,7 @@ Ocho funciones: `coherence`, `coherence_rules`, `duplicates`,
 `plans_unreflected`, `build`, `rebuild_plan`, `possible_unconverted_legacy`,
 `memory_mounted`. `plans_unreflected` es el unico lector real del campo
 `issue`. `build` compone `coherence`/`coherence_rules`/`duplicates`/
-`plans_unreflected` en el `HealthReport` que el arranque pinta.
+`issues_checked` en el `HealthReport` que el arranque pinta.
 `rebuild_plan` es el mismo cruce que `coherence()` vuelto un plan de
 reparacion, para `reindex.py`. `possible_unconverted_legacy` y
 `memory_mounted` cierran dos fallos reales: un proyecto con memoria del
@@ -71,7 +71,7 @@ import notes
 import query
 import rules
 import zones
-from health_plans import plans_unreflected
+from health_plans import issues_checked, plans_unreflected
 from model import HealthReport, IndexLine, Note
 from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
 
@@ -366,20 +366,17 @@ def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[
 def build() -> HealthReport:
     """Compone el `HealthReport` que `boot.build()` pinta -- junta lo que
     ya existe, sin volver a calcular nada: `coherence`, `coherence_rules`,
-    `duplicates`, `plans_unreflected`.
+    `duplicates`, `issues_checked`.
 
     `root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas: si
     el proceso arrancara desde una subcarpeta anidada, `Path.cwd()`
     apuntaria al sitio equivocado para `notes.pm_root(root)`.
 
-    Si `plans_unreflected()` o `coherence_rules()` revientan (falla `gh`;
+    Si `issues_checked()` o `coherence_rules()` revientan (falla `gh`;
     un git corrupto), eso no tumba `build()` entero: se captura aqui, el
     resultado queda vacio y el motivo real va a su propio campo `_error`
     -- nunca tumba el resto del informe (indices, IDs), que sigue siendo
     real.
-
-    `bench.py` (banco adversarial) se retiro entero -- decision del
-    propietario, "no lo he autorizado en la vida"; sin campo huerfano.
 
     `archived_notes`: cuantas de las `git_notes` que ya calculo
     `coherence()` estan archivadas, para el desglose "N live + K archived
@@ -394,10 +391,10 @@ def build() -> HealthReport:
         rule_head_lines, rule_file_lines, rule_discrepancies = 0, 0, ()
         rule_discrepancies_error = str(exc)
     try:
-        unreflected = plans_unreflected()
+        unreflected, issue_states, issues_unanswered = issues_checked()
         unreflected_error = None
     except RuntimeError as exc:
-        unreflected = ()
+        unreflected, issue_states, issues_unanswered = (), (), ()
         unreflected_error = str(exc)
 
     archived_notes = len(indexes.archived_ids(notes.pm_root(root)))
@@ -412,6 +409,8 @@ def build() -> HealthReport:
         index_discrepancies=index_discrepancies,
         plans_unreflected=unreflected,
         plans_unreflected_error=unreflected_error,
+        issue_states=issue_states,
+        issues_unanswered=issues_unanswered,
         archived_notes=archived_notes,
         legacy_commits_suspected=legacy_commits_suspected,
         memory_setup_missing=memory_setup_missing,

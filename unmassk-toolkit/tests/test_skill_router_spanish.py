@@ -50,6 +50,7 @@ Ultron implements (Flow Verify / Step 5), run against the real
 implementation, not against imagined shape.
 """
 
+import os
 import re
 
 import pytest
@@ -326,6 +327,163 @@ class TestHookEmitsSpanishRoutingAndReminders:
         orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
         assert orden_lines, f"Expected a line starting with {REMINDER_MARKER!r}; got stdout: {stdout!r}"
         assert any("modo automatico" in line for line in orden_lines), orden_lines
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# C1b) #89 step 5.2 -- the automatic-mode reminder points to its reference
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The "Modo automatico" section leaves the boot-read core SKILL.md for a
+# reference loaded on demand (D-094: nothing leaves without a pointer). The
+# reminder must name that file, and the file it names must exist.
+
+# Named by skill, not by a repo path: the plugin is installed under the
+# plugin cache, so "unmassk-toolkit/skills/..." exists only in claude-toolkit
+# (Cerberus F1). The skill name plus the path inside the skill resolves from
+# the skill's own base directory in every project.
+AUTOMATIC_MODE_SKILL = "unmassk-core"
+AUTOMATIC_MODE_REF = "references/automatic-mode.md"
+REPO_ONLY_PREFIX = "unmassk-toolkit/skills/"
+
+
+class TestAutomaticoPointsToReference:
+    def _text(self):
+        match_reminders = _import_match_reminders()
+        texts = [t for k, t in match_reminders("modo automatico") if k == "automatico"]
+        assert texts, "automatico did not fire"
+        return texts[0]
+
+    def test_should_name_the_automatic_mode_reference_when_automatico_fires(self):
+        # Bug caught: the reminder still sends Claude to the old core section.
+        text = self._text()
+        assert AUTOMATIC_MODE_REF in text, text
+        assert AUTOMATIC_MODE_SKILL in text, text
+
+    def test_should_not_name_a_repo_only_path_when_automatico_fires(self):
+        # Bug caught: the pointer only opens inside claude-toolkit; in any
+        # other project the first Read fails.
+        assert REPO_ONLY_PREFIX not in self._text()
+
+    def test_should_no_longer_point_to_core_section_when_automatico_fires(self):
+        # Bug caught: two pointers, one to a section that no longer exists.
+        assert not re.search(r"secci[oó]n\s+modo\s+autom[aá]tico", self._text().lower())
+
+    def test_named_reference_exists_in_the_shipped_plugin(self):
+        # Bug caught: a pointer to a file nobody created.
+        path = os.path.join(SOURCE_ROOT, "skills", AUTOMATIC_MODE_SKILL, AUTOMATIC_MODE_REF)
+        assert os.path.isfile(path), path
+
+    def test_hook_orden_line_carries_the_reference_for_owner_prompt(self, tmp_path):
+        # Same through the user's door: the [orden] line the owner's own
+        # words produce names the reference.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, "ponte en modo automático, me voy a dormir")
+        assert rc == 0, (rc, stdout, stderr)
+        orden = [l for l in stdout.splitlines() if l.startswith(REMINDER_MARKER)]
+        assert any(
+            AUTOMATIC_MODE_REF in l and AUTOMATIC_MODE_SKILL in l
+            and REPO_ONLY_PREFIX not in l
+            for l in orden
+        ), stdout
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# C1c) #89 step 5.2 -- pasted text does not fire the automatic-mode order
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Text the owner pastes arrives inside the prompt wrapped as
+#   <pasted_content id="xxxx">\n...\n</pasted_content id="xxxx">
+# (same id on both tags; real shape from a session transcript, 2026-10-18).
+# Words inside the block were written by someone else: "modo automático"
+# there is not an order. The same words typed outside the block still are.
+# Texts below are invented and neutral.
+
+
+def _pasted(body, block_id="9b3d"):
+    return f'<pasted_content id="{block_id}">\n{body}\n</pasted_content id="{block_id}">'
+
+
+_PASTE_WITH_ORDER = "Otra herramienta propone: pasar a modo automático por la noche."
+_PASTE_NEUTRAL = "Otra herramienta propone: revisar las cifras del informe."
+
+PASTED_ONLY_PROMPT = "mira lo que dice esto:\n\n" + _pasted(_PASTE_WITH_ORDER) + "\n\nque te parece?"
+TYPED_BEFORE_PASTE_PROMPT = "ponte en modo automático y lee esto:\n\n" + _pasted(_PASTE_NEUTRAL)
+TYPED_AFTER_PASTE_PROMPT = _pasted(_PASTE_NEUTRAL) + "\n\nponte en modo automático, me voy"
+TYPED_BETWEEN_PASTES_PROMPT = (
+    _pasted(_PASTE_NEUTRAL, "a1f0") + "\n\nponte en modo automático\n\n" + _pasted(_PASTE_NEUTRAL, "c7e2")
+)
+
+# Two pastes can carry the same id (not seen in transcripts; Moriarty
+# left it unverified), which is where a greedy strip bites.
+TYPED_BETWEEN_SAME_ID_PASTES_PROMPT = (
+    _pasted(_PASTE_NEUTRAL, "d4d4") + "\n\nponte en modo automático\n\n" + _pasted(_PASTE_NEUTRAL, "d4d4")
+)
+
+
+def _automatico_keys(prompt):
+    return [k for k, _ in _import_match_reminders()(prompt) if k == "automatico"]
+
+
+def _automatico_orden_lines(stdout):
+    return [
+        l for l in stdout.splitlines()
+        if l.startswith(REMINDER_MARKER) and "modo automatico" in l
+    ]
+
+
+class TestPastedContentDoesNotFireAutomatico:
+    def test_should_not_fire_automatico_when_words_are_only_inside_pasted_block(self):
+        # Bug caught: the matcher reads the pasted block as the owner's order.
+        assert _automatico_keys(PASTED_ONLY_PROMPT) == []
+
+    def test_should_fire_automatico_when_owner_types_it_before_a_pasted_block(self):
+        # Bug caught: a paste anywhere silences the whole prompt.
+        assert _automatico_keys(TYPED_BEFORE_PASTE_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_after_a_pasted_block(self):
+        # Bug caught: everything from the opening tag to the end is dropped.
+        assert _automatico_keys(TYPED_AFTER_PASTE_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_between_two_pasted_blocks(self):
+        # Bug caught: a greedy strip from the first opening tag to the last
+        # closing tag swallows the owner's words between two pastes.
+        assert _automatico_keys(TYPED_BETWEEN_PASTES_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_between_two_pastes_with_the_same_id(self):
+        # Bug caught: a greedy strip runs from the first opening tag to the
+        # LAST matching closing tag, so with both pastes under one id the
+        # owner's words between them are dropped and the order stays silent.
+        assert _automatico_keys(TYPED_BETWEEN_SAME_ID_PASTES_PROMPT) == ["automatico"]
+
+    def test_should_not_fire_automatico_when_order_is_only_in_second_same_id_paste(self):
+        # Control for the strip: both blocks still go, only the owner's
+        # neutral words between them remain.
+        prompt = (
+            _pasted(_PASTE_NEUTRAL, "d4d4") + "\n\nlee los dos\n\n"
+            + _pasted(_PASTE_WITH_ORDER, "d4d4")
+        )
+        assert _automatico_keys(prompt) == []
+
+    def test_hook_emits_automatico_line_when_owner_types_it_between_same_id_pastes(self, tmp_path):
+        # Through the user's door: the real hook, fed the same-id two-paste prompt.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, TYPED_BETWEEN_SAME_ID_PASTES_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert len(_automatico_orden_lines(stdout)) == 1, stdout
+
+    def test_hook_emits_no_automatico_line_when_words_are_only_pasted(self, tmp_path):
+        # Through the user's door: the real hook, fed the paste-only prompt.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, PASTED_ONLY_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert _automatico_orden_lines(stdout) == [], stdout
+
+    def test_hook_emits_automatico_line_when_owner_types_it_next_to_a_paste(self, tmp_path):
+        # Control through the hook: same paste wrapper, owner's own words outside.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, TYPED_BEFORE_PASTE_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert len(_automatico_orden_lines(stdout)) == 1, stdout
 
 
 # ══════════════════════════════════════════════════════════════════════════

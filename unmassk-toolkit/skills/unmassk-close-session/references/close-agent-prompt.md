@@ -41,15 +41,15 @@ session; say so in the close. Read the `note:` lines too: no commits since
 the boundary, or lines the script could not read, are said there — carry
 them into the close.
 
-STEP 2 — write the three parts.
+STEP 2 — write the two parts.
 
 THE HEADLINE: what is to be done in the next session. Plain text, around
 70 characters. Do NOT write "[NEXT]" or an emoji into it — the command
 adds both, and writing them yourself produces them twice.
 
-THE BODY: prose, in the user's language, around fifty lines, summarising
-the conversation. Not what was built — the commits are listed after it.
-What goes in:
+THE BODY: prose, in the user's language, around twenty-five lines,
+summarising the conversation. Not what was built — git already lists the
+commits, so none is copied here. What goes in:
 
   - what was discussed and how it was settled
   - what was decided, and what it replaced
@@ -61,24 +61,29 @@ What goes in:
 
 Quote the user where the words carry the point. Do not transcribe.
 
-THE TAIL: every line from the file's commit section, copied verbatim, one
-per line, in order. All of them, whatever kind each one is.
+Open the body with one block the next session reads before anything
+else:
+
+    🧠 CORRECCIONES DE LA ÚLTIMA SESIÓN (aplícalas desde ya)
+       - <what to do differently, one line> — «<the user's literal words>»
+
+One line per correction or complaint of the session, every one of them,
+each with the user's own words copied from the file, never paraphrased.
+None in the session: write the block with a single line «ninguna».
 
 STEP 3 — save it.
 
-Write the BODY and the TAIL into one file in a temp directory, in that
-order, then:
+Write the BODY into one file in a temp directory, then:
 
     python3 "<GITMEM>" next "<the headline>" --context "$(cat <that file>)"
 
-Both parts go in that one file: `--context` is the only free-text field
-there is, so a tail left outside it never reaches the commit.
+`--context` is the only free-text field there is.
 
-Fifty lines of prose typed inline into a command is where quoting breaks,
+Twenty-five lines of prose typed inline into a command is where quoting breaks,
 and a mangled body is saved without complaint.
 
 STEP 4 — report back, in four lines: the headline you wrote, how many
-commits the tail had, anything left open you could not place, and
+corrections the block holds, anything left open you could not place, and
 anything in the conversation that contradicts something saved in it.
 
 DO NOT: run any other memory command · save notes for signals you spot

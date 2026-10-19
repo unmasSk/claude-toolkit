@@ -573,7 +573,12 @@ def _gh_graphql_completed(cmd, issues):
     actividad es entonces la creacion.
     """
     configured = {
-        number: {"createdAt": created_at, "comments": []}
+        number: {
+            "state": "OPEN",
+            "title": f"fake issue {number}",
+            "createdAt": created_at,
+            "comments": [],
+        }
         for number, created_at in issues.items()
     }
     returncode, stdout, stderr = gh_graphql_answer(cmd[1:], configured)

@@ -183,7 +183,14 @@ class TestRealContentMatchesTheRealProducerRoundTrip:
         assert "Traceback" not in out and "Traceback" not in err
 
         expected = _build_expected(tmp_repo, boot_lib)
-        assert _normalize_timestamps(_report_of(tmp_repo).rstrip("\n")) == _normalize_timestamps(expected)
+        report = _report_of(tmp_repo)
+        assert _normalize_timestamps(report.rstrip("\n")) == _normalize_timestamps(expected)
+
+        # #89, paso 4.1: por la puerta real, la restriccion sale con su
+        # titular y sin su porque, bajo una linea que dice donde leerlo.
+        assert "no auth deploy on Friday without a tested rollback" in report, report
+        assert "viernes sin vuelta atras ensayada" not in report, report
+        assert report.count("gitmem search --id R-") == 1, report
 
 
 class TestForceUtf8StreamsFirstStatement:

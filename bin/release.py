@@ -274,7 +274,7 @@ def _verify(plugin: str, new_ver: str, repo_root: str,
     _verify_remote_has_commit(repo_root, current_branch)
     _verify_versions_match(plugin, new_ver, plugin_json_path, marketplace_path)
     print(
-        f"Release verificado. '/plugin update' verá ahora "
+        f"Release verificado: el marketplace ya ofrece "
         f"{plugin} v{new_ver} en origin/{current_branch}."
     )
 

@@ -28,22 +28,11 @@ Los tres recuentos sin fuente fijada en el contrato (`open_questions`,
 - `open_questions`/`open_incidents`: cuenta de notas Q/I vigentes (Q
   asciende a M o cae a X, I se cierra -- las dos mueven la nota a
   ARCHIVED.md por el mismo mecanismo que D/M/R).
-- `open_issues`: cuenta de numeros de issue DISTINTOS que llevan notas
-  vigentes con `Note.issue` puesto (el campo es opcional en los siete
-  tipos, no solo en el acta de plan). Se descarta a proposito una
-  segunda llamada a `gh` -- `health.py` ya paga una por boot dentro de
-  `plans_unreflected()`, y este modulo no calcula salud.
-
-  La etiqueta que se pinta dice "issues with a live note", nunca "issues
-  abiertas": el numero nunca pregunta a GitHub, solo cuenta notas
-  locales sin archivar, y puede contradecir la linea de
-  `plans_unreflected` (que SI consulta `gh`) en la misma pantalla.
-
-  `BootSummary.issues` lleva las notas enteras detras de ese contador
-  (mismas notas, sin deduplicar por numero de issue) -- el contador solo
-  decia CUANTAS, nunca CUALES, y la fila "Issues" del menu que Claude
-  pinta [D-060/D-064] necesita listarlas una por linea con su numero de
-  issue y el titular de su nota.
+- `open_issues`: numeros de issue DISTINTOS con notas vigentes de
+  trabajo (cualquier tipo salvo X) que GitHub no da por cerradas. El
+  abierto/cerrado sale de la UNICA consulta a `gh` que ya hace
+  `health.build()` (R-025: nunca una llamada por issue); si esa consulta
+  fallo, las issues salen sin comprobar y COUNTS lo dice.
 
 `lib/memory/` no importa nada del toolkit fuera de la biblioteca estandar
 de Python. Import plano entre hermanos.
@@ -153,9 +142,14 @@ def build() -> BootSummary:
     incidents = tuple(sorted((n for n in live_notes if n.type == "I"), key=lambda n: n.id))
     open_questions = len(questions)
     open_incidents = len(incidents)
+    health_report = health.build()
+    closed = {n for n, state, _title in health_report.issue_states if state == "CLOSED"}
     issues = tuple(
         sorted(
-            (n for n in live_notes if n.issue is not None),
+            (
+                n for n in live_notes
+                if n.issue is not None and n.type != "X" and n.issue not in closed
+            ),
             key=lambda n: (n.issue, n.id),
         )
     )
@@ -174,7 +168,7 @@ def build() -> BootSummary:
         open_incidents=open_incidents,
         questions=questions,
         incidents=incidents,
-        health=health.build(),
+        health=health_report,
         issues=issues,
     )
 
@@ -272,15 +266,9 @@ def _next_block(ctx: ContextNote | None) -> list[str]:
         f"{_NEXT_LABEL}{emojis.CHANNEL_EMOJI['next']} {ctx.headline}",
         f"{_NEXT_INDENT}Context (cerrado {timefmt.utc_label(ctx.timestamp)}):",
     ]
-    # Prosa corrida, no una lista de puntos [decision del propietario,
-    # 2026-08-03]. Se pliega al ancho de la caja: son unas cincuenta
-    # lineas de texto y sin plegar salen como un parrafo unico que se
-    # desborda por la derecha -- ilegible justo en lo que mas importa
-    # leer del arranque.
-    #
-    # La lista de commits que el cierre deja al final del cuerpo NO se
-    # pliega: cada linea es un titular con su tipo y sus zonas delante, y
-    # partirla por la mitad rompe la unica columna que la hace ojeable.
+    # Prosa corrida plegada al ancho de la caja (unas veinticinco lineas).
+    # Los Next anteriores al #89 terminan con la lista de commits: esas
+    # lineas no se pliegan, para que sigan siendo una columna ojeable.
     for paragraph in ctx.context.split("\n"):
         if not paragraph.strip():
             lines.append("")
@@ -311,36 +299,40 @@ def _blockers_section(blockers) -> list[str]:
 def _restrictions_block(restrictions) -> list[str]:
     if not restrictions:
         return list(_ZERO_RESTRICTIONS)
-    lines = [f"⚠️ RESTRICTIONS ({len(restrictions)})", ""]
+    # Solo el titular; el porque entero, a una busqueda (D-094).
+    lines = [
+        f"⚠️ RESTRICTIONS ({len(restrictions)})",
+        "   the full why of each: gitmem search --id R-NNN",
+        "",
+    ]
     for note in restrictions:
         lines.append(f"   {note.id}  [{note.zone1}][{note.zone2}]     {note.headline}")
-        if note.why:
-            lines.append(f"          {note.why}")
     return lines
 
 
 def _recuentos_block(summary: BootSummary) -> list[str]:
-    # "issues with a live note", no "issues abiertas" [correccion
-    # 2026-08-02, hallazgo de Argus] ni "plans with a record" [hallazgo
-    # de Cerberus, 2026-08-22, D-044/D-045]: ver el docstring del modulo,
-    # parrafo de `open_issues`, para el porque -- este numero nunca
-    # pregunta a GitHub (invariante de Argus, sigue intacta), y desde que
-    # `issue` es opcional en los siete tipos ya no cuenta solo actas de
-    # plan, asi que "plans" dejo de describir lo que mide.
-    # Etiquetas estructurales en ingles [decision del propietario,
-    # 2026-08-03]: RECUENTOS->COUNTS, el resto de cada fila igual.
-    lines = [
-        "COUNTS",
-        f"   issues with a live note .  {summary.open_issues}",
-    ]
-    # El contador de arriba solo dice CUANTAS issues distintas hay, nunca
-    # CUALES [D-060/D-064, la fila "Issues" del menu que Claude pinta:
-    # "the issues carrying a live note, one per line"] -- cada nota vigente
-    # con `issue` puesto sale debajo, una por linea, con su numero de issue
-    # y el titular de su propia nota. Sin notas con issue, esto no anade
-    # ninguna linea: el contador en cero se queda igual que siempre.
+    # Una linea por issue (D-060/D-064), con su titulo de GitHub; sin
+    # respuesta de GitHub, el titular de su primera nota y el aviso.
+    report = summary.health
+    lines = ["COUNTS"]
+    if summary.issues and report.plans_unreflected_error is not None:
+        lines.append(
+            "   ⚠️  GitHub could not be asked: open/closed below is NOT checked"
+        )
+    listed_numbers = {note.issue for note in summary.issues}
+    unchecked = [n for n in report.issues_unanswered if n in listed_numbers]
+    if unchecked:
+        lines.append(
+            f"   ⚠️  GitHub did not return {_issue_refs(unchecked)}: "
+            "its open/closed below is NOT checked"
+        )
+    lines.append(f"   open issues with live work .  {summary.open_issues}")
+    titles = {n: title for n, _state, title in report.issue_states}
+    listed = set()
     for note in summary.issues:
-        lines.append(f"      - issue #{note.issue}: {note.headline}")
+        if note.issue not in listed:
+            listed.add(note.issue)
+            lines.append(f"      - #{note.issue}: {titles.get(note.issue) or note.headline}")
     # Una pregunta sin resolver y una incidencia abierta salen POR SU
     # NOMBRE, nunca como una cifra: un "3" no dice cual de las tres te
     # para hoy, y esa era justamente la queja -- "con seis preguntas
@@ -349,6 +341,10 @@ def _recuentos_block(summary: BootSummary) -> list[str]:
     lines.extend(_named_block("❓ OPEN QUESTIONS", summary.questions))
     lines.extend(_named_block("🔥 OPEN INCIDENTS", summary.incidents))
     return lines
+
+
+def _issue_refs(numbers) -> str:
+    return ", ".join(f"#{n}" for n in numbers)
 
 
 def _named_block(title: str, notes_seen) -> list[str]:
@@ -416,6 +412,11 @@ def _avisos_block(summary: BootSummary) -> list[str]:
             f"{report.plans_unreflected_error}"
         )
     else:
+        if report.issues_unanswered:
+            lines.append(
+                f"   ⚠️  GitHub no devolvio {_issue_refs(report.issues_unanswered)} "
+                "(citadas en commits): sus planes no se comprobaron"
+            )
         for issue_number, unreflected in report.plans_unreflected:
             plural = "" if unreflected == 1 else "s"
             lines.append(

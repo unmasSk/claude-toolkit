@@ -11,14 +11,16 @@ alrededor de `issue` en este proyecto vive en su propio fichero
 `test_*_issue(s)_field.py`, nunca mezclada dentro del contrato original
 del modulo que ya cubria.
 
-Los tres items del contrato, uno por clase:
+Los tres items del contrato, uno por clase. Actualizados por #89 paso
+4.1 [aprobado por el propietario]: una linea por issue ABIERTA con notas
+vivas, nunca una por nota; abierto/cerrado sale de la unica llamada a
+GitHub del arranque, que aqui es la doble `boot_issue_state_support`.
 
-  1. Varias notas con issue, incluidas dos con el MISMO numero -> cada
-     una en su propia linea de COUNTS, ORDENADAS por (issue, id), y el
-     contador de arriba cuenta issues DISTINTAS, nunca notas.
-  2. Cero notas con issue -> COUNTS sale IDENTICO a como salia antes de
-     este campo: cabecera, contador en 0, y nada mas antes de OPEN
-     QUESTIONS -- ni una linea "      - issue #..." de mas.
+  1. Varias notas con issue, incluidas dos con el MISMO numero -> una
+     linea por issue en COUNTS, en orden de numero, y el contador cuenta
+     issues DISTINTAS, nunca notas.
+  2. Cero notas con issue -> COUNTS sale como antes: cabecera, contador
+     en 0, y nada mas antes de OPEN QUESTIONS.
   3. Una nota archivada con issue no aparece -- mismo filtro de vigentes
      (`indexes.archived_ids`) que ya usa el resto de `BootSummary`.
 
@@ -38,11 +40,19 @@ produjeron de verdad: dos cosas escritas por separado.
 
 import contextlib
 import os
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from .boot_issue_state_support import (
+    counts_section,
+    issue_numbers_in,
+    issue_record,
+    lines_naming_issue,
+    patch_gh,
+)
 from .conftest import import_lib_memory_module
 
 _BASE_NOTE_FIELDS = dict(
@@ -130,33 +140,24 @@ def _cwd(path):
         os.chdir(previous)
 
 
-def _issue_lines(rendered):
-    """Solo las lineas de issue del bloque COUNTS -- ningun otro bloque
-    de `boot.render()` usa este prefijo literal."""
-    return [line for line in rendered.splitlines() if line.startswith("      - issue #")]
-
-
 class TestSeveralIssuesIncludingASharedNumberSortByIssueThenId:
     """Item (1) del contrato."""
 
-    def test_issues_field_and_render_sort_by_issue_then_id_with_a_shared_number(
-        self, boot, model, notes, tmp_repo, make_note, make_context
+    def test_one_line_per_issue_in_number_order_with_a_shared_number(
+        self, boot, model, notes, tmp_repo, make_note, make_context, monkeypatch
     ):
         root = Path(tmp_repo)
         zone = "bootissuesorderzone"
         ctx = make_context(zone_names=(zone,))
 
-        # Orden de ESCRITURA elegido a proposito para que NO coincida con
-        # el orden esperado tras ordenar por (issue, id) -- si el test
-        # pasara conservando el orden de siembra, no distinguiria "ordena
-        # de verdad" de "casualidad, el orden de escritura ya servia".
+        # Orden de ESCRITURA distinto del orden esperado: si el render
+        # conservara el orden de siembra, el test lo distingue.
         seed_plan = (
             ("MARK_BOOTISSUES ninety written first", 90),
             ("MARK_BOOTISSUES three written second", 3),
             ("MARK_BOOTISSUES fortytwo a written third", 42),
             ("MARK_BOOTISSUES fortytwo b written fourth", 42),
         )
-        seeded = []
         for headline, issue in seed_plan:
             note = make_note(
                 type="M", zone1=zone, zone2=zone, headline=headline, issue=issue
@@ -167,54 +168,23 @@ class TestSeveralIssuesIncludingASharedNumberSortByIssueThenId:
                 f"seed de {headline!r} fallo: "
                 f"{write_result.git_error or write_result.rejections}"
             )
-            seeded.append((issue, write_result.note_id, headline))
+        patch_gh(
+            monkeypatch,
+            {n: issue_record("OPEN", f"issue {n}") for n in (3, 42, 90)},
+        )
 
         with _cwd(root):
             summary = boot.build()
             rendered = boot.render(summary)
+        section = counts_section(rendered)
 
-        # El orden esperado se calcula EN PYTHON, a partir de los
-        # note_id REALES devueltos por notes.write() -- nunca tecleado.
-        expected_order = sorted(seeded, key=lambda item: (item[0], item[1]))
-
-        assert [
-            (note.issue, note.id, note.headline) for note in summary.issues
-        ] == expected_order, (
-            f"BootSummary.issues no sale ordenada por (issue, id): "
-            f"{summary.issues!r}, esperado {expected_order!r}"
-        )
-
-        distinct_issues = {issue for issue, _id, _headline in seeded}
-        assert len(distinct_issues) == 3, (
-            "comprobacion previa del propio escenario: 4 notas, 3 numeros "
-            f"de issue distintos -- salio {distinct_issues!r}"
-        )
+        # 4 notas, 3 issues: el orden esperado se escribe aqui, a mano.
+        assert issue_numbers_in(section) == [3, 42, 90], "\n".join(section)
+        assert len(lines_naming_issue(section, 42)) == 1, "\n".join(section)
         assert summary.open_issues == 3, (
             f"el contador debe contar issues DISTINTAS (3), no notas (4): "
             f"salio {summary.open_issues!r}"
         )
-
-        expected_lines = [
-            f"      - issue #{issue}: {headline}"
-            for issue, _id, headline in expected_order
-        ]
-        assert _issue_lines(rendered) == expected_lines, (
-            f"el render de COUNTS no lista las issues en el orden/formato "
-            f"esperado:\n{rendered}"
-        )
-
-        # El contador de arriba, y el bloque de issues justo debajo, en
-        # ese orden -- nunca despues de OPEN QUESTIONS/OPEN INCIDENTS.
-        rendered_lines = rendered.splitlines()
-        counts_index = rendered_lines.index("COUNTS")
-        counter_index = rendered_lines.index(
-            "   issues with a live note .  3"
-        )
-        first_issue_line_index = rendered_lines.index(expected_lines[0])
-        questions_index = next(
-            i for i, line in enumerate(rendered_lines) if line.startswith("❓ OPEN QUESTIONS")
-        )
-        assert counts_index < counter_index < first_issue_line_index < questions_index
 
 
 class TestZeroIssuesRendersLikeBeforeTheField:
@@ -255,7 +225,10 @@ class TestZeroIssuesRendersLikeBeforeTheField:
         rendered_lines = rendered.splitlines()
         counts_index = rendered_lines.index("COUNTS")
         counter_line = rendered_lines[counts_index + 1]
-        assert counter_line == "   issues with a live note .  0"
+        # La etiqueta la cambia #89 (no fijada por el contrato): solo el 0.
+        assert re.search(r"(?<!\d)0(?!\d)", counter_line), (
+            f"la linea del contador deberia decir 0:\n{rendered}"
+        )
         # `_named_block()` antepone SIEMPRE una linea en blanco antes de
         # cada titulo con nombre propio (existia ya antes de este campo,
         # ver `lib/memory/boot.py::_named_block`) -- lo que este item del
@@ -273,7 +246,7 @@ class TestZeroIssuesRendersLikeBeforeTheField:
             f"separacion habitual y de ahi a OPEN QUESTIONS, sin ninguna "
             f"linea de issue de mas -- salio {next_line!r} en su lugar:\n{rendered}"
         )
-        assert _issue_lines(rendered) == [], (
+        assert issue_numbers_in(counts_section(rendered)) == [], (
             f"no deberia haber ninguna linea de issue con el contador en "
             f"cero:\n{rendered}"
         )
@@ -282,8 +255,8 @@ class TestZeroIssuesRendersLikeBeforeTheField:
 class TestArchivedNoteWithIssueIsExcluded:
     """Item (3) del contrato."""
 
-    def test_archived_note_with_issue_disappears_from_field_and_render(
-        self, boot, model, indexes, notes, tmp_repo, make_note, make_context
+    def test_archived_note_with_issue_disappears_from_count_and_render(
+        self, boot, model, indexes, notes, tmp_repo, make_note, make_context, monkeypatch
     ):
         root = Path(tmp_repo)
         zone = "bootissuesarchivedzone"
@@ -302,16 +275,17 @@ class TestArchivedNoteWithIssueIsExcluded:
             f"seed fallo: {write_result.git_error or write_result.rejections}"
         )
         note_id = write_result.note_id
+        patch_gh(monkeypatch, {77: issue_record("OPEN", "issue seventy-seven")})
 
         with _cwd(root):
             summary_before = boot.build()
+            rendered_before = boot.render(summary_before)
         assert summary_before.open_issues == 1, (
-            "comprobacion previa: la nota vigente con issue debe contar "
-            f"como 1 antes de archivar -- salio {summary_before.open_issues!r}"
+            "comprobacion previa: la issue abierta con nota viva cuenta 1 "
+            f"antes de archivar -- salio {summary_before.open_issues!r}"
         )
-        assert [n.id for n in summary_before.issues] == [note_id], (
-            "comprobacion previa: la nota debe aparecer en `issues` antes "
-            f"de archivar -- salio {summary_before.issues!r}"
+        assert len(lines_naming_issue(counts_section(rendered_before), 77)) == 1, (
+            f"comprobacion previa: #77 sale una vez antes de archivar:\n{rendered_before}"
         )
 
         with _cwd(root):
@@ -334,18 +308,11 @@ class TestArchivedNoteWithIssueIsExcluded:
             summary_after = boot.build()
             rendered_after = boot.render(summary_after)
 
-        assert summary_after.issues == (), (
-            "la nota archivada con issue no deberia seguir en `issues` -- "
-            f"mismo filtro de vigentes que `questions`/`incidents`: "
-            f"{summary_after.issues!r}"
-        )
         assert summary_after.open_issues == 0, (
             "el contador debe bajar a 0 tras archivar -- salio "
             f"{summary_after.open_issues!r}"
         )
-        assert not any(
-            line.startswith("      - issue #77") for line in rendered_after.splitlines()
-        ), (
+        assert lines_naming_issue(counts_section(rendered_after), 77) == [], (
             "la issue de la nota archivada no deberia aparecer en el "
             f"render:\n{rendered_after}"
         )

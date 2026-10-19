@@ -5,6 +5,7 @@
 - [unmassk-toolkit-python-test-conventions.md](unmassk-toolkit-python-test-conventions.md) — pytest conventions: importlib for hyphenated hooks, sys.path fix
 - [crown-retraction-design-notes.md](crown-retraction-design-notes.md) — multi-crown edge case: retraction resurfaces superseded crowns
 - [skill-router-contract-notes.md](skill-router-contract-notes.md) — per-message skill-router marker contract
+- [hooks-doc-generated-table-contract-notes.md](hooks-doc-generated-table-contract-notes.md) — hooks_doc_sync tests via --plugin-root; table to references/hooks.md
 - [encoding-contract-notes.md](encoding-contract-notes.md) — #52 cp1252 + #54 surrogate-escape gotchas
 - [issue-55-date-parsing-contract-notes.md](issue-55-date-parsing-contract-notes.md) — %aI/fromisoformat fragile-date contract
 - [issue-61-ci-flake-hardening-notes.md](issue-61-ci-flake-hardening-notes.md) — CI flake fix: rc-verification vs anti-vacuity retry
@@ -91,3 +92,5 @@
 - [owner-cue-notification-hook-contract-notes.md](owner-cue-notification-hook-contract-notes.md) — #95 2d sound hook RED: Perl fake afplay + warm-up, never on speakers
 - [test-file-split-by-concern-technique-notes.md](test-file-split-by-concern-technique-notes.md) — split >500-LOC test files losslessly; #95 step 2 layout; fence-relaunch commit-msg trick
 - [session-transcript-extractor-contract-notes.md](session-transcript-extractor-contract-notes.md) — close extractor: real record shapes, real gitmem next producer in fixtures, D-143/D-144
+- [managed-block-slimming-89-contract-notes.md](managed-block-slimming-89-contract-notes.md) — #89 3.1 managed-block slimming: property tests, wrapped phrases, retire-a-block
+- [boot-slim-report-89-contract-notes.md](boot-slim-report-89-contract-notes.md) — #89 4.1 boot slimming RED: headline-only walls, one line per open issue, GitHub double field gotcha

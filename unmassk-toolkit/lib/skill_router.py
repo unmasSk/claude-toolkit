@@ -34,13 +34,14 @@ never sees it. match_skills() checks both tables together.
 
 REMINDER_TRIGGERS / match_reminders() is a second, unrelated table for
 owner orders that are NOT skill invocations -- direct behavioural
-corrections already written into CLAUDE.md's "broncas" section
+corrections from the owner's rules
 (answer-first, delegate-research-to-Bilbo, literal-stop, automatic-mode).
 Same matching discipline (normalized substring, never raises), separate
 result shape: a list of (key, Spanish reminder text) pairs, since more
 than one order can legitimately fire on the same message.
 """
 
+import re
 import unicodedata
 
 
@@ -137,7 +138,7 @@ def match_skills(prompt_text: str) -> list[str]:
 # ── Owner orders that are not skill invocations ────────────────────────────
 #
 # Each key maps to the trigger phrases (Spanish, owner's own wording) and
-# the reminder text to surface (Spanish, matches CLAUDE.md's "broncas"
+# the reminder text to surface (Spanish, in the owner's own
 # wording). Every phrase below is chosen to match ONLY the owner's actual
 # phrasing -- e.g. "orden-literal" uses "para ya"/"no sigas", never bare
 # "para"/"parar", so an unrelated "para que funcione" or a lone "parar"
@@ -173,10 +174,21 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
             "el orden (revisores hallan algo y vuelven Ultron y Dante), se "
             "dice; el resto, al final, en UN informe: bien / probado / "
             "decisiones tomadas por el / errores "
-            "(unmassk-core, seccion Modo automatico)"
+            "(references/automatic-mode.md de la skill unmassk-core)"
         ),
+        "ignore_pasted": True,
     },
 }
+
+# A block the owner pasted: `<pasted_content id="x">...</pasted_content id="x">`.
+# Non-greedy and tied to its own id, so owner words between two blocks survive.
+_PASTED_BLOCK_RE = re.compile(
+    r'<pasted_content id="([^"]*)">.*?</pasted_content id="\1">', re.DOTALL)
+
+
+def _strip_pasted(text: str) -> str:
+    """Drop every pasted block: its words were written by someone else."""
+    return _PASTED_BLOCK_RE.sub(" ", text)
 
 
 # Openings Claude Code uses when it delivers an agent's message as a user
@@ -205,18 +217,21 @@ def match_reminders(prompt_text: str) -> list[tuple[str, str]]:
 
     Same normalized-substring discipline as match_skills(): accent- and
     case-insensitive, never raises, empty/None input yields an empty list.
-    More than one reminder can fire on the same message.
+    More than one reminder can fire on the same message. An entry with
+    "ignore_pasted" matches only the owner's own words, outside pasted blocks.
     """
     if not prompt_text:
         return []
     try:
         haystack = _normalize(prompt_text)
+        owner_haystack = _normalize(_strip_pasted(prompt_text))
     except Exception:
         return []
     matched: list[tuple[str, str]] = []
     for key, entry in REMINDER_TRIGGERS.items():
+        text = owner_haystack if entry.get("ignore_pasted") else haystack
         for phrase in entry["phrases"]:
-            if _normalize(phrase) in haystack:
+            if _normalize(phrase) in text:
                 matched.append((key, entry["text"]))
                 break
     return matched

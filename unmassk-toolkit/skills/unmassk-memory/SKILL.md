@@ -129,19 +129,11 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 
 **`--issue` is accepted by all seven** — a note that points at work can be of any type. The number must belong to an issue that already exists; the system checks it once, when the note is saved, and rejects the note if it doesn't. If the issue is opened *after* the note was saved, the note is not rewritten: the issue cites the note instead.
 
-**Q and I pass through the issue customs — the gate asks THE work question.** Saving either without `--issue` and without `--work` is rejected, with the yardstick in the rejection: *does closing this note require sitting down to work (code, measuring, building) — or just an answer or a decision in conversation?* The relaunch paths, and each is a recorded answer:
-
-- **Just an answer** → `--work no`. The note passes with no issue; the session close puts these in front of the owner in case one matured into work.
-- **Work, and the owner said yes** → you STOP and propose the issue to the owner in one line first; with his yes YOU create it (`gh issue create`) and relaunch with `--issue N`.
-- **Work, and the owner said no** → `--issue none --quote "<his exact words>"`. The refusal only passes with the owner's literal phrase — same mechanic as rules; there is no `--quote none` here, because the no is always his.
-
-A **D that defers future building** (a feature decided for later) also carries an issue — it is the owner's long-term checklist. The gate cannot detect that mechanically, so it is on you at save time, and the session-close sweep is the net that catches it.
+**Q and I pass through the issue customs:** each needs `--issue N` or `--work no`, and an owner's no needs his literal words. Before saving either, and for a D that defers future building, read `references/fields.md`. A restriction carries the scar it was born from (`--origin`); `--stops` is asked of memos and restrictions only — same file.
 
 **Headline and keys in English; the body in the user's language.** The headline is ≤80 characters and says what happened, not what was fixed. Keys are up to five search words **not already in the headline** — without them a correct note is unfindable.
 
 **A decision buries its alternatives in the same act:** one `--discard` per option that lost, with why it lost — every one of them, not just the runner-up.
-
-**A restriction carries the scar it was born from:** `--origin <incident-ID>`, or `--origin none` if it was born of nothing. It is only demanded once that zone pair already holds an incident, and then it is demanded hard — a wall whose scar is one zone away and unlinked is a wall nobody can date. **`--stops` is asked of memos and restrictions only;** on any other type it changes nothing.
 
 **The test for a why, and it is the whole difference between memory and noise:** could someone reading only this note, six months from now, understand why *this* was chosen over the closest alternative? If not, rewrite it before saving. "Because it's better" fails. "Because sessions don't survive multi-tenant" passes.
 
@@ -153,23 +145,12 @@ Check once, at the start: a **new project** (no memory, no zones yet — the fir
 
 Every note carries two, both real, no catch-alls.
 
-**A zone is a judgment call, never a script's default.** Naming the zones a project speaks about means reading its history and distilling what it is really about — which is why an installer leaves the zone list empty on purpose and never guesses one for you. You create the first zone after reading the commits; in a project carrying old memory, that is the *harvest* step of the distill pass (the third situation above).
-
 - **Zone 1 — the kind of work you speak from:** `product`, `testing`, `codeaudit`, `docs`, `deploy`, `database`, `api`, `ui`, `auth`. Not pre-installed: a fresh project has none.
 - **Zone 2 — the part of the product you speak about:** different in every project.
 
-**The two-second rule:** if the word can modify another one — "the *testing* OF X" — it's zone 1. If it can only be the object, it's zone 2.
-
 **Zones are always lowercase** — on creation, on lookup, and on a note's own zone fields. `Billing` and `billing` are the same zone; write them however, the system normalizes them. `gitmem search` is case-insensitive the same way, and echoes the searched word back in lowercase.
 
-**List before guessing, search before creating.** Adding one that already exists, or that is another's alias, bounces and touches nothing.
-
-| Word a note may never use | Why it is banned |
-|---|---|
-| `claude`, `user`, `session`, `project`, `workflow` | They describe how you work — that is a rule, not memory |
-| `audit` | Ambiguous: the kind of work and a module name collide |
-
-The zone command will create all six anyway: the guard is at the note, so creating one buys a zone nothing can use. **And needing one of them is the signal, not the obstacle:** if a note keeps reaching for `workflow` or `project` to get a second zone, the note is not missing a word — it is a rule trying to come in through the wrong door.
+The zones of a project are a judgment call made after reading its history; the two-second rule, the banned words and the rest are in `references/zones.md`. **List before guessing, search before creating.**
 
 ## The signals
 
@@ -192,12 +173,7 @@ The zone command will create all six anyway: the guard is at the note, so creati
 
 ### Four calls, worked
 
-| The situation | Saved? | Why |
-|---|---|---|
-| Three options compared, one picked without drama; from then on the user talks about it as settled | **Yes — a decision**, with its why and the losers discarded | Quiet agreement is agreement; drama is not a requirement |
-| You lay out three approaches, argue for one; the user says "let me think about it" | **No** | A proposal you like is not a decision; filing it as one puts words in their mouth that come back as fact months later |
-| You notice which port the service listens on, or where a module lives | **No** | The next session reads it off the code in seconds; that noise buries the notes that matter |
-| The user corrects you mid-task, you fix it and keep going | **Yes — and it is the one that gets lost** | Applied today, forgotten tomorrow, made again. About how the project is → memo or restriction; about how you must work → rule |
+Which signals are saved and which are not, with the reason: `references/signals-examples.md`.
 
 ## Red Flags — STOP
 
@@ -211,20 +187,7 @@ The zone command will create all six anyway: the guard is at the note, so creati
 
 ## Rationalizations
 
-| Excuse | Reality |
-|---|---|
-| "I'll save it when I finish this" | The signal is gone by then. Save now. |
-| "I told them I'd save it, that's the same" | It is not saved until the command ran. |
-| "I proposed it and nobody objected" | Silence is not confirmation. Yours is a proposal. |
-| "It's in the conversation, we both know it" | The conversation ends tonight. |
-| "The boot didn't mention it, so it doesn't exist" | The boot is a sample. Search. |
-| "No zone fits, I'll invent a general one" | A note with no zone is a misfiled note. |
-| "The user contradicts a wall, so the wall must be stale" | Show them the wall and let them decide. |
-| "It's a small correction" | Small corrections repeated are what costs hours. |
-| "I'll write it into a file so it's visible" | If it isn't a commit, nothing reaches next session. |
-| "This option is obviously right, searching would just confirm it" | The search takes ten seconds; skipping it is how a discarded option gets proposed again. |
-| "I already know this project well enough" | Confidence is not memory. Search anyway — that is exactly the moment a discarded option resurfaces. |
-| "It's just a suggestion, not a final decision" | The Read Gate applies to proposing, not just deciding. A suggestion built on unsearched ground is how memory starts lying. |
+The excuses that skip a save or a search, each with its answer: `references/rationalizations.md`.
 
 ## When you get rejected
 
@@ -236,13 +199,13 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 | | |
 |---|---|
-| 🧭 **Today** | the Next — one line per task it names |
-| 📦 **Last session** | what the session that wrote the Next left done — one line per thing |
+| 🧭 **Today** | the Next — one line per task it names; the corrections block that opens its context is not a row: apply it from your first message |
+| 📦 **Last session** | what the session that wrote the Next left done or half-done, taken from its context — one line per thing |
 | ⛔ **Blockers** | one per line, each with who it waits on |
 | ❓ **Questions** | one per line, the ones that block work under way, by name — never a bare number |
 | 🔥 **Incidents** | one per line: open incidents, and plans with commits they never reflected |
 | 🌿 **Branch** | the branch you are on; an extra line if it differs from the last worked one, another if there are unpushed commits |
-| 📋 **Issues** | the issues carrying a live note, one per line |
+| 📋 **Issues** | the open issues with live work notes, one per line (closed ones and discards are left out) |
 | ⚙️ **Health** | the boot coherence checks: one line saying all green, or each failure on its own line — failures never softened, always first |
 
 **Every section is always present** — a dash (—) when empty, never omitted. **One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
@@ -349,21 +312,4 @@ gitmem rule
 
 ## The hooks that are live
 
-Generated from `hooks/hooks.json`, never by hand: a hook documented here but not registered is this skill telling the user something untrue.
-
-<!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->
-**10 hook invocations declared** in `hooks/hooks.json`. Event, matcher and timeout are read from that file; file presence is checked on disk; transient measurement probes are excluded. This table is generated — regenerate with `bin/hooks_doc_sync.py --write`, never by editing it here.
-
-| Event | Matcher | Hook file | Timeout |
-|---|---|---|---|
-| `SessionStart` | — | `boot_launcher.py` | 30s |
-| `SessionStart` | — | `session-start-crew.py` | 10s |
-| `PreToolUse` | `Bash` | `customs.py` | 15s |
-| `PreToolUse` | `Write\|Edit` | `validate-memory-path.py` | 5s |
-| `PreToolUse` | `Bash` | `pre-merge-gate.py` | 10s |
-| `PreToolUse` | `Agent\|Task` | `reviewer-prompt-gate.py` | 5s |
-| `UserPromptSubmit` | — | `user-prompt-memory-check.py` | 10s |
-| `PostToolUse` | `Skill` | `skill-checklist-inject.py` | 5s |
-| `Notification` | `permission_prompt\|idle_prompt` | `owner-cue.py` | 5s |
-| `Stop` | — | `checklist-gate.py` | 5s |
-<!-- END unmassk-active-hooks -->
+Generated from `hooks/hooks.json`, never by hand: the table is in `references/hooks.md`.

@@ -61,44 +61,18 @@ The owner's rules below bind from the first message:
         "begin": "<!-- BEGIN unmassk-protocols (managed block) -->",
         "end": "<!-- END unmassk-protocols -->",
         "body": """\
-## Protocols
+## Protocols — pick the skill by the situation (TOOL CALL)
 
-These protocols exist as skills. Detect the situation and load the matching skill (TOOL CALL). The list is always visible here so you never need to "remember" a protocol exists — pick from this menu.
+- Start, continue or scan a project → `unmassk-project-lifecycle` (state the situation in one line before acting)
+- Choose a stack or scaffold a new project → `unmassk-scaffolding`
+- Ambiguous request, or a decision with stakes → `unmassk-grill`
+- Choose between options, or brainstorm and prototype → `unmassk-council`
+- Build, fix a non-trivial bug or refactor → `unmassk-flow` (before delegating you decide the build mode: the skill says how)
+- Audit existing code against standards → `unmassk-audit`
+- What repeats every session with no skill ("protocolo marmota") → `unmassk-groundhog` (a skill is created only with the owner's approval)
+- Close the session → `unmassk-close-session`
 
-**Project lifecycle** — detect by checking two facts: does this project have memory? is there existing code?
-
-- memory + code → continuing our project → Skill `unmassk-project-lifecycle`
-- code, no memory → external repo → Skill `unmassk-project-lifecycle`
-- nothing → new project → Skill `unmassk-project-lifecycle`
-
-(One skill handles all three; it routes internally. State the detected situation in one line before acting.)
-
-**Starting a brand new project (scaffolding, tech stack, boilerplate):**
-
-- Scaffold, initialize, or create a new project / decide the tech stack → Skill `unmassk-scaffolding` (IDE-grade scaffolding wizard, 70+ project types)
-
-**Before building something significant:**
-
-- Ambiguous request, or a decision with stakes → Skill `unmassk-grill` (interrogate until the decision tree is resolved, before writing code)
-- A real choice between options, or "help me decide / I'm torn" → Skill `unmassk-council` (5-advisor pressure-test; also covers brainstorming and prototyping)
-
-**Building a feature, fixing a non-trivial bug, or refactoring:**
-
-- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (eight parts, Triage to Close, idea to merged code)
-
-**Auditing existing code against enterprise standards:**
-
-- Audit a module or an enterprise review request → Skill `unmassk-audit` (14-step structured audit, weighted score out of 110)
-
-**Hunting repetition (Groundhog Protocol):**
-
-- What the project does or needs repeatedly, every session, that no skill covers yet — "protocolo marmota" → Skill `unmassk-groundhog` (inventory the repetition, check coverage, propose at most 1-3 skill candidates with cited evidence; a skill is created only after the owner approves)
-
-**Ending a session:**
-
-- Wrapping up / handoff → Skill `unmassk-close-session` (clean up, branches and issues, docs, write the Next)
-
-All protocol output persists to **memory**, never to `.md` files.""",
+All protocol output goes to **memory**, never to `.md` files.""",
     },
     {
         "begin": "<!-- BEGIN unmassk-communication (managed block) -->",
@@ -106,33 +80,11 @@ All protocol output persists to **memory**, never to `.md` files.""",
         "body": """\
 ## Communication
 
-- **Concise and plain.** No internal jargon (hook names, made-up terms); task, phase and step numbers are fine (`#101, 1.2`). Long or overly technical responses lose the user.
-- **Results, not process** — except when there's a failure, a risk, or a decision to make: then the "why" does matter. While work runs: one numbered line per agent or step that finishes, name and "done" only.
-- **Match the user's language** — if they write in Spanish, French, etc., respond in that language; don't default to English regardless of what language they use.
-- **Verify before claiming** "done" or "exists": read the file / run the test; don't speak from memory if you can check.
-- **Confirm before structural changes** (CLAUDE.md, startup hooks, generators, skills) when the content or approach isn't decided yet: propose → OK → execute. Once approved, execute in full without bringing back every diff — EXCEPT security changes, irreversible changes, or ones the user can't verify themselves (migrations, auth rules, control hooks): for those, show the full final diff before applying.
-- **One thing at a time.** Don't open new work without closing the current one. A mid-task idea → candidate, not built. Nothing "NEW" without the user's approval.
-- **Surface contradictions and gaps** honestly, even mid-task.
-- **NOT YAPPING.** Zero filler. Don't repeat back what the user just said, don't re-justify, don't re-list points already accepted. When something is corrected, fix it and move on. Answer the minimum that resolves it, then act — one sentence is usually enough.
-- **Don't assume.** If you haven't read it, don't state it. Verify against the file, the code, or memory — or say you don't know and go check. Never fill a gap with a guess dressed as fact.""",
-    },
-    {
-        "begin": "<!-- BEGIN unmassk-build-mode (managed block) -->",
-        "end": "<!-- END unmassk-build-mode -->",
-        "body": """\
-## Build mode (you decide, before delegating)
-
-At the end of Ideas in `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
-
-- **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
-- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before that phase's review.
-
-Decision factors:
-- Clear, testable behavior + matters if wrong → test-first
-- Exploratory / "let me see it first" / disposable → linear
-- Uncertain → test-first (the safer default for real code)
-
-State the chosen mode in one line before delegating, and pass it to Ultron/Dante in their task prompt.""",
+- **Concise and plain.** Match the user's language. No internal jargon (hook names, made-up terms) or filler; task, phase and step numbers are fine (`#101, 1.2`): results, not process (except for a failure, a risk or a decision). Answer the minimum that resolves it; one sentence is usually enough. Don't repeat back what the user said, don't re-justify or re-list what was already accepted; when something is corrected, fix it and move on.
+- **Verify before claiming** "done" or "exists": read the file or run the test. Don't assume: if you haven't read it, say you don't know and go check.
+- **Structural changes** (CLAUDE.md, startup hooks, generators, skills) not yet decided: propose → OK → execute in full. Security changes, irreversible ones, or ones the user can't verify: show the full final diff before applying.
+- **One thing at a time:** don't open new work without closing the current one; a mid-task idea is a candidate, not built; nothing new without the user's approval.
+- **Surface contradictions and gaps**, even mid-task.""",
     },
 ]
 
@@ -147,6 +99,7 @@ _LEGACY_PATTERNS: list[tuple[str, str]] = [
     (r"<!-- BEGIN unmassk-crew.*?<!-- END unmassk-crew -->", "unmassk-crew"),
     (r"<!-- BEGIN claude-git-memory.*?<!-- END claude-git-memory -->", "claude-git-memory"),
     (r"<!-- BEGIN unmassk-caveman.*?<!-- END unmassk-caveman -->", "unmassk-caveman"),
+    (r"<!-- BEGIN unmassk-build-mode.*?<!-- END unmassk-build-mode -->", "unmassk-build-mode"),
 ]
 
 
@@ -155,6 +108,32 @@ _LEGACY_PATTERNS: list[tuple[str, str]] = [
 def _render_block(block: dict[str, str]) -> str:
     """Render a full block string including markers."""
     return f"{block['begin']}\n{block['body']}\n{block['end']}"
+
+
+def _remove_legacy_blocks(content: str, log: list[str]) -> str:
+    """Cut every legacy block, touching only the blank lines at each cut.
+
+    The removed text is logged verbatim so a hand edit inside it stays
+    recoverable, as the update path does for an active block.
+    """
+    for pattern_str, name in _LEGACY_PATTERNS:
+        pattern = re.compile(pattern_str, re.DOTALL)
+        match = pattern.search(content)
+        while match:
+            before = content[:match.start()].rstrip("\n")
+            after = content[match.end():].lstrip("\n")
+            if before and after:
+                content = before + "\n\n" + after
+            elif before:
+                content = before + "\n"
+            else:
+                content = after
+            log.append(
+                f"removed legacy {name} block -- its content was deleted, "
+                f"recovered verbatim here: {match.group(0)}"
+            )
+            match = pattern.search(content)
+    return content
 
 
 def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
@@ -169,14 +148,7 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
     log: list[str] = []
 
     # 1. Remove legacy blocks first
-    for pattern_str, name in _LEGACY_PATTERNS:
-        pattern = re.compile(pattern_str, re.DOTALL)
-        if pattern.search(content):
-            content = pattern.sub("", content)
-            content = re.sub(r"\n{3,}", "\n\n", content).strip()
-            if content:
-                content += "\n"
-            log.append(f"removed legacy {name} block")
+    content = _remove_legacy_blocks(content, log)
 
     # 2. For each block: replace if present, collect missing ones
     missing_blocks: list[dict[str, str]] = []

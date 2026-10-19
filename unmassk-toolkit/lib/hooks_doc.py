@@ -1,11 +1,14 @@
 """
-hooks_doc.py -- the "Active Hooks" table of unmassk-memory/SKILL.md,
-derived from hooks/hooks.json instead of written by hand.
+hooks_doc.py -- the "Active Hooks" table of
+unmassk-memory/references/hooks.md, derived from hooks/hooks.json instead of
+written by hand. The table lives in that reference, loaded on demand; the
+boot-read SKILL.md only points to it.
 
 Why this module exists
 ----------------------
-`skills/unmassk-memory/SKILL.md` is loaded on every session start, so any
-falsehood in it is a falsehood Claude states to the user with full confidence.
+Claude reads `skills/unmassk-memory/references/hooks.md` whenever it needs the
+hook list, so any falsehood in it is a falsehood Claude states to the user with
+full confidence.
 Its hook list was hand-written prose and drifted: it described a per-message
 memory-injection hook retired months earlier, named the wrong number of managed
 CLAUDE.md blocks, and got the recall whitelist backwards. Correcting the prose
@@ -71,8 +74,13 @@ TRANSIENT_HOOKS: set[str] = set()
 # "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start-crew.py".
 HOOK_COMMAND_RE = re.compile(r"hooks/([^/\s]+\.py)")
 
-# The documented skill, relative to the plugin root.
+# The file carrying the generated block, and the skill that points to it,
+# relative to the plugin root.
+DOC_REL_PATH = ("skills", "unmassk-memory", "references", "hooks.md")
 SKILL_REL_PATH = ("skills", "unmassk-memory", "SKILL.md")
+
+# How messages name the documented file.
+DOC_LABEL = "references/hooks.md"
 
 BEGIN_MARKER = "<!-- BEGIN unmassk-active-hooks (generated from hooks/hooks.json — do not edit by hand) -->"
 END_MARKER = "<!-- END unmassk-active-hooks -->"
@@ -246,9 +254,9 @@ def render_hooks_block(plugin_root: str, records: list[dict[str, str]]) -> str:
 
 # ── Block surgery (markers must already exist) ────────────────────────────
 
-def skill_doc_path(plugin_root: str) -> str:
-    """Absolute path of the SKILL.md carrying the generated block."""
-    return os.path.join(plugin_root, *SKILL_REL_PATH)
+def hooks_doc_path(plugin_root: str) -> str:
+    """Absolute path of the reference carrying the generated block."""
+    return os.path.join(plugin_root, *DOC_REL_PATH)
 
 
 def _markers_ok(content: str) -> bool:
@@ -315,8 +323,8 @@ def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, s
     same failure:
 
     - **A hook documented that hooks.json no longer declares -> error.** This
-      is the one that makes Claude assert a falsehood: it reads the section
-      every session and tells the user a behaviour exists that nothing will
+      is the one that makes Claude assert a falsehood: it reads the table
+      and tells the user a behaviour exists that nothing will
       ever produce. It is also unreachable by any legitimate half-finished
       state -- removing a hook and leaving its row behind is precisely what
       must be blocked.
@@ -329,7 +337,7 @@ def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, s
       smaller blast radius than a hook that does not exist at all.
 
     Args:
-        current: The block body as it currently stands in SKILL.md.
+        current: The block body as it currently stands in the reference.
         records: What hooks.json declares right now.
 
     Returns:
@@ -340,21 +348,21 @@ def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, s
     phantom = sorted(documented - declared)
     if phantom:
         return ("error",
-                f"SKILL.md documents {len(phantom)} hook(s) hooks.json no longer "
+                f"{DOC_LABEL} documents {len(phantom)} hook(s) hooks.json no longer "
                 f"declares: {', '.join(phantom)} — Claude states this as fact "
-                f"every session ({REGEN_HINT})")
+                f"when it reads the table ({REGEN_HINT})")
     absent = sorted(declared - documented)
     if absent:
         return ("warn",
-                f"SKILL.md does not document {len(absent)} declared hook(s): "
+                f"{DOC_LABEL} does not document {len(absent)} declared hook(s): "
                 f"{', '.join(absent)} ({REGEN_HINT})")
     return ("warn",
-            "SKILL.md hook table is stale — same hooks, but event, matcher, "
+            f"{DOC_LABEL} hook table is stale — same hooks, but event, matcher, "
             f"timeout or file presence differs from hooks.json ({REGEN_HINT})")
 
 
 def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
-    """Compare the generated block in SKILL.md against hooks.json right now.
+    """Compare the generated block in references/hooks.md against hooks.json.
 
     Fail-open by construction: every branch that cannot establish a fact says
     so, and none of them invents a verdict about content it never read. See
@@ -363,35 +371,38 @@ def compare_hooks_doc(plugin_root: str) -> tuple[str, str] | None:
     Returns:
         (level, message) with level in {"ok", "warn", "error"}, or None when
         the check does not apply -- hooks.json underivable (the doctor's Hooks
-        check already reports that, and saying it twice is noise) or SKILL.md
-        absent (its Skills check owns that).
+        check already reports that, and saying it twice is noise) or the
+        skill's SKILL.md absent (its Skills check owns that). A skill present
+        without its reference is a warning, never a silent skip.
     """
     records = parse_hook_declarations(plugin_root)
     if not records:
         return None
-
-    path = skill_doc_path(plugin_root)
-    if not os.path.isfile(path):
+    if not os.path.isfile(os.path.join(plugin_root, *SKILL_REL_PATH)):
         return None
+
+    path = hooks_doc_path(plugin_root)
+    if not os.path.isfile(path):
+        return ("warn", f"cannot verify — {DOC_LABEL} is absent ({REGEN_HINT})")
     try:
         with open(path, encoding="utf-8") as f:
             content = f.read()
     except (OSError, UnicodeDecodeError):
         # Fail open: unreadable is not a verdict about the content.
-        return ("warn", "cannot verify — SKILL.md could not be read")
+        return ("warn", f"cannot verify — {DOC_LABEL} could not be read")
 
     current = extract_block(content)
     if current is None:
         return ("warn",
-                f"cannot verify — generated block markers missing from SKILL.md ({REGEN_HINT})")
+                f"cannot verify — generated block markers missing from {DOC_LABEL} ({REGEN_HINT})")
 
     if current == render_hooks_block(plugin_root, records).strip():
-        return ("ok", f"SKILL.md documents the {len(records)} declared hook invocations")
+        return ("ok", f"{DOC_LABEL} documents the {len(records)} declared hook invocations")
     return _classify_drift(current, records)
 
 
 def write_hooks_block(plugin_root: str) -> tuple[str, str]:
-    """Regenerate the block in SKILL.md from hooks.json.
+    """Regenerate the block in references/hooks.md from hooks.json.
 
     Returns:
         (status, message) with status in {"written", "unchanged", "failed"}.
@@ -404,7 +415,7 @@ def write_hooks_block(plugin_root: str) -> tuple[str, str]:
     if not records:
         return ("failed", "hooks/hooks.json declares no hooks")
 
-    path = skill_doc_path(plugin_root)
+    path = hooks_doc_path(plugin_root)
     try:
         with open(path, encoding="utf-8") as f:
             content = f.read()
@@ -428,7 +439,7 @@ def write_hooks_block(plugin_root: str) -> tuple[str, str]:
     from git_helpers import open_no_follow_symlink
 
     # atomic=True: a full-content rewrite with a bare "w" truncates on the
-    # spot, so a crash mid-write would leave SKILL.md empty or half-written --
+    # spot, so a crash mid-write would leave the reference empty or half-written --
     # the same reason CLAUDE.md's managed-block writers use it.
     with open_no_follow_symlink(path, "w", atomic=True) as f:
         f.write(updated)

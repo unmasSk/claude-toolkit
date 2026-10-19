@@ -18,6 +18,43 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un router por frases: reproduce las ordenes REALES del propietario desde ~/.claude/history.jsonl (2026-10-19)
+`history.jsonl` guarda lo que el propietario tecleo (`display`, con
+`[Pasted text #N]` en lugar de lo pegado, y `pastedContents` aparte). Filtrar
+por la palabra clave y pasar cada linea por el matcher da la tasa real de
+silencios: en el #89, 8 de ~28 ordenes de modo automatico reales no disparaban
+("te dejo en automatico", "sigue en automatico"). Los transcripts sirven para el
+formato exacto que llega al hook (`<pasted_content id="x">...</pasted_content id="x">`),
+pero se borran a los ~30 dias; history.jsonl llega mucho mas atras. Contar
+tambien los mensajes con varias pegadas y texto propio ENTRE ellas: ahi muere
+un strip voraz.
+
+### Un test que se llama "in sync" y compara solo dos columnas de cuatro (2026-10-19)
+Si el test de deriva de un documento generado parsea su propia version de la
+tabla, mirar QUE columnas compara. Cambiar en una copia el campo que no compara
+(timeout, matcher) y correr el test y el verificador real: test verde,
+verificador rojo = la deriva solo se ve si alguien corre el verificador a mano.
+
+### Una suite de tests con HOME real escribe fuera del repo (2026-10-19)
+Correr cada fichero de test con `HOME=<scratch vacio>` y mirar que aparece
+dentro: en el #89, test_boot_launcher.py crea `$HOME/.local/bin/gitmem`, asi
+que la orden de tests acotada de cada fase reescribe el lanzador real del
+propietario. Y antes de correr un lanzador de arranque en un repo de usar y
+tirar: o el repo ya tiene manifest, o HOME apunta al scratch — si no, su
+instalador escribe en el HOME real (me paso a mi en esta ronda).
+
+### Un recorte de texto que dice "sin perder ninguna regla" (2026-10-19)
+Tres agujeros que salen siempre al comparar un inventario de reglas contra el
+texto recortado: (1) la regla quitada "por duplicada" sobrevive solo en una
+copia de alcance más estrecho (p. ej. la tabla de un modo concreto), así que
+fuera de ese modo ya no existe; mira el ALCANCE de la copia que queda, no solo
+que exista. (2) Al traducir o resumir, la conclusión se invierte y la anécdota
+que la justifica se queda: lee la conclusión contra su propio ejemplo. (3) Un
+conflicto que el inventario marcó como "no lo elijas en silencio" se resuelve
+borrando uno de los dos; busca cada CONFLICT del inventario en el texto nuevo.
+Comprueba también los borradores intermedios (la propuesta, el commit de cada
+paso): dicen en qué paso cayó la regla.
+
 ### Un límite sacado de una fuente (git) y un contenido leído de otra (un solo fichero) (2026-10-19)
 Cuando un lector toma el límite de "la sesión" de una marca en git (el último
 cierre) pero lee el contenido de UN solo fichero de transcript, todo lo que pasó
