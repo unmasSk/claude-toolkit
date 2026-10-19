@@ -6,7 +6,6 @@
 [remember][user] 🧠 los agentes no escriben memoria ni ficheros propios dentro de directorios de solo lectura que estan explorando (p.ej. .ref-repos) -- contamina la fuente
 [remember][user] 🧠 para explorar una codebase desconocida se usa el agente Bilbo; Explore es solo para busquedas simples
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
-[remember][user] 🧠 el usuario se llama Jose, alias Bex (handle de git bextia, email jatomillo@gmail.com) -- no se llama Raul
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
 [remember][user] 🧠 pedir confirmacion antes de cada commit rutinario es friccion innecesaria -- solo pausar a pedir permiso cuando el cambio es de alto riesgo
@@ -38,3 +37,4 @@
 [remember][user] 🧠 - Do not announce an action before doing it. Do it, then give the result.
 [remember][user] 🧠 - Put ✅ before a sentence addressed to Bex. Put no tick on agent or status lines.
 [remember][user] 🧠 - Judge a reviewer's findings yourself before acting on them, Yoda's included.
+[remember][user] 🧠 - Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
