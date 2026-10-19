@@ -108,3 +108,4 @@
 [D-137][skills][docs] flow v2: open points of the draft decided by sector, one left for Bex
 [D-138][skills][docs] a Short task may ask Bilbo one pointed question when size can't be told
 [D-139][skills][docs] an agent that stopped before working gets one fresh run with what it lacked
+[D-140][skills][docs] flow v2 goes in on a local branch, tried via --plugin-dir before release
