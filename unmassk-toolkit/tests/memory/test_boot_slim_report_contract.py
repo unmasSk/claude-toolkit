@@ -29,6 +29,7 @@ from pathlib import Path
 import pytest
 
 from .boot_hook_gh_stub import gh_stub  # noqa: F401  (a fixture)
+from .boot_hook_harness import POSIX_ONLY
 from .boot_issue_state_support import (
     counts_section,
     issue_numbers_in,
@@ -285,6 +286,7 @@ def test_should_say_so_in_the_issues_section_when_github_cannot_be_asked(
     assert any("GitHub" in line or "gh" in line.split() for line in warnings), warnings
 
 
+@POSIX_ONLY
 def test_boot_script_lists_only_open_issues_with_live_work_notes(
     notes, make_note, ctx, tmp_repo, gh_stub  # noqa: F811
 ):

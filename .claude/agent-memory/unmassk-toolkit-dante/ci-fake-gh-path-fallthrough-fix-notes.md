@@ -211,3 +211,15 @@ no-regression check for the already-green platforms): new file green ×3
 `test_report_render_issue_field.py` (50/50). `conftest.py` untouched
 (`git status` empty throughout) -- the whole fix lives in the test file,
 per this round's declared limits.
+
+## Round 5 (2026-10-19, I-009): a new process-level gh_stub test shipped without the gate
+
+`test_boot_slim_report_contract.py::test_boot_script_lists_only_open_issues_with_live_work_notes`
+ran `bin/memory/boot.py` with `GhStub` (extensionless `gh`) and no win32 skip:
+on windows-latest `calls() == []`, rc 0 (health_plans turns the OSError into
+a warning, so it fails on the call count, not the exit code). Not a
+production bug: real Windows has `gh.exe`. Fix: `@POSIX_ONLY` from
+`boot_hook_harness.py:43`. Rule: ANY test that runs a real process against
+`GhStub` needs POSIX_ONLY; in-process `patch_gh` tests run everywhere.
+Simulating win32 to check the mark: `import shutil` BEFORE setting
+`sys.platform='win32'`, else shutil imports `_winapi` and dies.
