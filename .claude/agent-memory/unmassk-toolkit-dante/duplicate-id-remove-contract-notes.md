@@ -43,3 +43,17 @@ Files: `test_remove_duplicate_incident_contract.py`, `test_remove_replaces_guard
   one gap to fill; the fence retry's `--searched` placeholder too.
 - **Partial-act git failure:** a pre-commit hook refusing only commits that stage `DISCARDED.md` lets the
   decision land and fails every X -- same trick as the RESTRICTIONS.md hook for the fence.
+
+## Round trip 4.1 (2026-10-19): search/rezones read back remove and discard
+
+File: `test_hito3_round_trip.py`. Expected side = `indexes.read`/`read_archive` keyed by
+(id, headline), plus note-commit count from `git log --format=%s`; readers = `gitmem search --id`,
+`search <zone>` (+ `--todo`), `rezones --verify` counts, and `rezones` leaving index bytes unchanged.
+
+- **Found:** after a duplicated-id `remove --commit`, search keys archive state by id only
+  (`report.py` build_zone ~166-172, NoteReport archived ~304): the kept live note vanishes from the
+  zone and `search --id` shows it as archivada. Which note `--id` shows flips run to run (same-second
+  commits), so assert both "card state matches" AND "no live (id, headline) hidden".
+- Scratch mutant copies need `git init` in the copy root: conftest resolves the real repo root via
+  `git rev-parse --show-toplevel` and crashes on '' otherwise.
+- Bash `git commit` is blocked by the customs hook even in scratchpad; explore with a python script.

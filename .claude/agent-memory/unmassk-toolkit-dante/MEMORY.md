@@ -95,4 +95,4 @@
 - [managed-block-slimming-89-contract-notes.md](managed-block-slimming-89-contract-notes.md) — #89 3.1 managed-block slimming: property tests, wrapped phrases, retire-a-block
 - [boot-slim-report-89-contract-notes.md](boot-slim-report-89-contract-notes.md) — #89 4.1 boot slimming RED: headline-only walls, one line per open issue, GitHub double field gotcha
 - [fake-home-session-isolation-notes.md](fake-home-session-isolation-notes.md) — R.2 session fake HOME: why session scope, mtime not checksum, sentinel proof
-- [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145: real duplicate id, forged sha-prefix collision, pasted-relaunch runs
+- [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145: real duplicate id, sha-prefix collision, pasted relaunches, 4.1 search round trip
