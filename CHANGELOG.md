@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.50.1] - 2026-10-19
+
 ### Fixed
 
 - **The 1.50.0 release CI no longer fails on Windows**: the new boot-script test that needs a fake `gh` on PATH could not run there, so it now runs on POSIX only, like its sibling tests; the code itself was never at fault (I-009).
