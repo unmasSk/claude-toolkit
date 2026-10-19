@@ -137,3 +137,4 @@
 [X-137][memory][skills] warn when the span is not covered, keep reading one file
 [X-138][memory][testing] archive every note sharing the id
 [X-139][memory][testing] renumber the duplicate on remove
+[X-140][hooks][skills] force TaskCreate for flow boxes
