@@ -43,8 +43,8 @@ Everything Claude reads at session start gets shorter without losing a single ru
 
 ### Phase 4: boot report
 **Files:** `unmassk-toolkit/bin/memory/boot.py` and its tests; `unmassk-close-session` prompt and SKILL (orchestrator)
-- [ ] 4.1 Dante: red tests — restrictions headline-only with one pointer line; issues one line per OPEN issue with live work notes, through the boot's single bounded GitHub call (R-025); discards and closed issues out.
-- [ ] 4.2 Ultron: make 4.1 green.
+- [x] 4.1 Dante: red tests — restrictions headline-only with one pointer line; issues one line per OPEN issue with live work notes, through the boot's single bounded GitHub call (R-025); discards and closed issues out.
+- [x] 4.2 Ultron: make 4.1 green.
 - [x] 4.3 Orchestrator: close prompt — Next about 25 lines, no commit tail, and a corrections block with the owner's literal words.
 
 ### Phase 5: core and memory
