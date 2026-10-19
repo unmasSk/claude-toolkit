@@ -67,3 +67,10 @@ Task histories do NOT live here (they are project memory, in `gitmem`).
   `~/.claude/tasks/<id>/N.json` and compares by normalized text (`normalize_box_text`). A box text must match
   exactly after normalization, so a box cannot carry a variable word (e.g. the chosen procedure).
 - Manifest `checklists/*.json` only needs `boxes: [str]`; `flow.json` box [0] is read by a casefold test.
+
+## Close-session extractor (added @a188a718, 2026-10-19)
+
+- `skills/unmassk-close-session/scripts/session_transcript.py` has NO test file (grep "session_transcript" in `tests/` = 0 hits;
+  hits for "close-session" in tests are the skill name only). It only reads `user`/`assistant` records: mid-turn owner messages live in
+  `queue-operation` and `attachment`(`queued_command`, `origin.kind=human`) records, and the close command is a `user` string made only of
+  `<command-*>` tags, so `_INLINE_TAGS` empties it. `--since` moves only the conversation cut, never the commit range (`_commits(repo, sha)`).
