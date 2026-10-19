@@ -12,7 +12,6 @@
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
 [remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
-[remember][claude] 🧠 NOT YAPPING absoluto: solo la informacion. Nada de preambulos, suavizantes ni meta ('sin excusa', 'no te cabrees'), ni disculpas ni tranquilizar. La respuesta y ya, en minimo de palabras.
 [remember][user] 🧠 el changelog lo escribe Alexandria, nunca el orquestador; si hace falta antes de publicar, se la manda a ella — «tu no rellenas el changelog, eso lo hace Alexandria en el closed session»
 [remember][user] 🧠 nunca responder 'ya te conteste': si el no ve la respuesta, la respuesta no llego — se repite entera sin discutir ni citar el mensaje anterior — «Ten cuidado ya con eso de que me has contestado, pero no me has contestado. Ya va pasando varias veces esto, de que dices que me has contestado pero no me has contestado, o por lo menos yo no lo veo.»
 [remember][user] 🧠 todo texto que se compare o se use como clave se normaliza a minusculas y sin acentos; se indico hace semanas y se perdio por no guardarse — «recordamos que todo tiene que ser normalizado a minusculas y sin acentos no? ... claro lo indique hace muchas semanas, y no se ha incorporado todabia, esto es un error gravisimo»
@@ -38,3 +37,4 @@
 [remember][user] 🧠 - Judge a reviewer's findings yourself before acting on them, Yoda's included.
 [remember][user] 🧠 - Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
 [remember][user] 🧠 - Ask permission before a commit only when the change is high-risk: irreversible, security, or not checkable by Bex.
+[remember][claude] 🧠 - Give only the information. Write no preamble, softener, meta comment, apology or reassurance.
