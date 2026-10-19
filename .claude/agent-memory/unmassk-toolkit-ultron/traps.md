@@ -14,6 +14,7 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - A hook copied out alone prints `UPGRADE: no verificable (RuntimeError)`: to compare two hook versions, copy the whole plugin dir for each side.
 - `CLAUDE_PLUGIN_ROOT` does not exist in the Bash tool's shell. The Claude Code env var is `CLAUDECODE` (no underscore).
 - zsh aborts the whole command on a glob with no match (`ls -d foo*`). Use `find -path`.
+- zsh does not word-split `$T`: `pytest $T` with several paths in T runs "no tests ran". Write the paths out.
 
 ## Tests
 - Rewriting a test file twice with same-length content inside one mtime tick can make the next subprocess run reuse a stale `__pycache__`.

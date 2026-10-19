@@ -12,73 +12,37 @@ It writes ONE file with three parts, in this order:
                        found. Never silent: if the boundary could not be
                        established, it says so in capitals.
     2. COMMITS      -- the first line of EVERY commit since that
-                       boundary, in order, whatever kind it is: a note, a
-                       checkpoint, saved code, anything. Taken from git
-                       verbatim, because git is exact and the
+                       boundary, in order, whatever kind it is. Taken from
+                       git verbatim, because git is exact and the
                        conversation is not.
     3. CONVERSATION -- what the user and Claude said to each other, and
-                       nothing else.
+                       nothing else, from every session of this project
+                       since the boundary (D-144).
 
-What comes out of the transcript, and this is the whole rule: **the
-conversation, and only the conversation**. No tool calls, no tool output,
-no diffs, no subagent reports, no injected reminders. The close is a
-summary of what was said; everything else is already in the commits, and
-on a real session the machinery is most of the file.
+No tool calls, no tool output, no diffs, no subagent reports, no injected
+reminders: everything else is already in the commits.
 
 Usage:
     python3 session_transcript.py [--repo PATH] [--transcript PATH]
                                   [--since ISO-UTC] [--out PATH]
 
-Every argument is optional; the defaults are the ordinary case. Works the
-same on macOS, Linux and Windows: no path is ever assembled by hand.
+Every argument is optional; the defaults are the ordinary case. With
+--transcript only that file is read. Works the same on macOS, Linux and
+Windows: no path is ever assembled by hand.
 """
 
 import argparse
-import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
-import time
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import session_records  # noqa: E402  (sibling module, path set just above)
 
 # A close is the only mark git carries for "a session ended here".
 _NEXT_MARK = "[NEXT]"
-
-# How recently another transcript must have been touched for a second
-# open session to be worth naming.
-_RECENT_SECONDS = 1800
-
-# Machinery the harness injects: reminders, subagent reports,
-# slash-command echoes. Only WELL-FORMED spans of these are removed, and
-# nothing is ever dropped for merely starting with one of the names: in a
-# project whose subject is its own machinery, a real message can open
-# with "<system-reminder> why does this fire on every message". Whole
-# entries the harness injected are caught upstream by their own flag.
-_INJECTED = (
-    "system-reminder",
-    "task-notification",
-    "local-command-caveat",
-    "local-command-stdout",
-    "local-command-stderr",
-    "command-name",
-    "command-message",
-    "user-prompt-submit-hook",
-    "bash-input",
-    "bash-stdout",
-    "bash-stderr",
-)
-
-# The same machinery also arrives glued to the end of a real message.
-_INLINE_TAGS = re.compile(
-    r"<(" + "|".join(_INJECTED) + r")\b.*?</\1>",
-    re.DOTALL,
-)
-
-# The arguments of a slash command are what the owner typed: only the tags go.
-_COMMAND_ARGS_TAGS = re.compile(r"</?command-args>")
-
 
 # git says this, and only this, when a repository has no commits yet.
 # Every other failure is a failure and must not be read as "nothing here".
@@ -93,13 +57,8 @@ def _run(args, cwd):
 
 
 def _git_log(args, cwd):
-    """`git log` output, or "" for a repository with no commits.
-
-    Anything else that git refuses is raised, never turned into an empty
-    answer: "git could not tell me" and "there is nothing" look the same
-    downstream, and reporting the second when the first happened writes a
-    close that lies about the whole session.
-    """
+    """`git log` output, or "" for a repository with no commits. Any other
+    refusal is raised: "git could not tell me" is not "there is nothing"."""
     code, out, err = _run(["git", "log"] + args, cwd)
     if code == 0:
         return out
@@ -108,131 +67,28 @@ def _git_log(args, cwd):
     raise RuntimeError(f"git log failed in {cwd}: {err or 'no reason given'}")
 
 
-def _projects_root():
-    """Claude Code keeps its transcripts under the user's home folder.
-    `expanduser` resolves that on Windows, macOS and Linux alike -- the
-    separators come from `os.path.join`, never typed in.
-    """
-    return os.path.join(os.path.expanduser("~"), ".claude", "projects")
-
-
-def _slug(path):
-    """One folder per project, named after its full path with every
-    character that is not a letter or a digit turned into a dash. That
-    covers `/` on macOS and Linux and both `\\` and the drive colon on
-    Windows, without a branch per platform.
-    """
-    return re.sub(r"[^A-Za-z0-9]", "-", os.path.abspath(path))
-
-
-def _newest_transcript(repo):
-    """Returns (path, note). The note is never empty when something is
-    off: a wrong guess here silently closes the wrong session.
-    """
-    root = _projects_root()
-    if not os.path.isdir(root):
-        return None, f"{root} does not exist — is this Claude Code?"
-
-    wanted = _slug(repo)
-    folder = os.path.join(root, wanted)
-    if not os.path.isdir(folder):
-        others = sorted(os.listdir(root))
-        return None, (
-            f"no transcript folder for this project (expected {wanted} "
-            f"inside {root}, which holds {len(others)} others such as "
-            f"{others[:3]})"
-        )
-
-    files = [
-        os.path.join(folder, name)
-        for name in os.listdir(folder)
-        if name.endswith(".jsonl")
-    ]
-    if not files:
-        return None, f"{folder} holds no .jsonl transcript"
-
-    files.sort(key=os.path.getmtime, reverse=True)
-    newest = files[0]
-
-    # Two windows open on the same project is ordinary, and this cannot
-    # tell which one is asking: it only knows which file was written to
-    # last. A session that spent a quarter of an hour thinking loses the
-    # race to a busier window, and the close comes out about somebody
-    # else's day with nothing saying so [Moriarty, 2026-08-05].
-    #
-    # So the comparison is against NOW, not against the winner: any other
-    # transcript with recent activity is named, and so is the age of the
-    # one chosen. A reader can then see it picked a file that has been
-    # cold for twenty minutes.
-    now = time.time()
-    age = now - os.path.getmtime(newest)
-    rivals = [
-        other for other in files[1:] if now - os.path.getmtime(other) < _RECENT_SECONDS
-    ]
-    if rivals:
-        return newest, (
-            "MORE THAN ONE SESSION IS OPEN ON THIS PROJECT — "
-            f"the one chosen was last written to {int(age // 60)} min ago; "
-            f"{len(rivals)} other(s) active within the last "
-            f"{_RECENT_SECONDS // 60} min: "
-            + ", ".join(os.path.basename(r) for r in rivals)
-            + ". Confirm this is the session being closed."
-        )
-    return newest, ""
-
-
 def _from_git_seconds(raw):
     """The UTC `datetime` of a git epoch-seconds field (`%at`).
 
-    This is a DELIBERATE, in-file copy of
-    `lib/memory/timefmt.from_git_seconds` -- not a fifth chance to forget
-    it exists. That function is the real owner of "how this toolkit reads
-    a git date"; this script cannot import it because it lives outside
-    `lib/memory/`, and `lib/memory/` is a declared zone with a boundary
-    the toolkit enforces on purpose: the memory system has to be
-    deletable whole without breaking anything else that depends on it,
-    and a skill importing its internals would break that. The test that
-    would catch an import here (and did, once) is
-    `tests/memory/test_boundary.py::test_no_file_outside_the_allowed_zone_imports_lib_memory`.
-
-    Do NOT "clean this up" by importing `timefmt` instead -- that crosses
-    the boundary right back. If the conversion ever needs to change, change
-    it in `timefmt.py` first (it is the source of truth) and mirror the
-    change here by hand; the two are intentionally decoupled, not
-    accidentally duplicated.
-
-    Raises `ValueError` as-is if `raw` is not a number, same as
-    `timefmt.from_git_seconds`: a date that cannot be read must not come
-    back as `None` or silently "as if nothing happened" -- that is
-    indistinguishable from "no activity", the exact silence this exists to
-    avoid.
+    A deliberate copy of `lib/memory/timefmt.from_git_seconds`: importing it
+    would cross the `lib/memory/` boundary (tests/memory/test_boundary.py).
+    Change `timefmt.py` first and mirror it here. A non-number raises.
     """
     return datetime.fromtimestamp(int(raw), tz=timezone.utc)
 
 
-def _last_close(repo, session_start=None):
-    """The boundary of "this session" is the last close, because git has
-    no idea what a session is and that mark is the only thing a close
-    leaves behind. Returns (sha, iso_utc, subject, skipped) — the first
-    three None when none is found.
+def _last_close(repo, held=()):
+    """The newest close in history that this session does not hold itself.
 
-    A close written at or after `session_start` is this session's own
-    earlier close and is skipped, newest first in `skipped` as
-    (sha, subject): a redo covers the whole session (D-143).
+    Returns (sha, iso_utc, subject, skipped) — the first three None when
+    none is found. A close whose sha starts with one in `held` is this
+    session's own earlier close and is skipped, newest first in `skipped`
+    as (sha, subject): a redo covers the whole session (D-143). A close
+    another window wrote is a boundary like any other (D-144).
 
-    The match is on the SUBJECT and nowhere else. Asking git to search
-    would also search the body, so a note that merely *mentions* the
-    close would pass itself off as one and cut the session in the wrong
-    place -- silently.
-
-    A session that died without closing leaves no mark, so the next close
-    picks up both and nothing is lost. That is intended, not a bug.
+    The match is on the SUBJECT only: a note that merely mentions a close
+    in its body is not one.
     """
-    # `%at` (segundos-epoch), no `%aI` (ISO-8601 con sufijo `Z` en huso
-    # cero, que `datetime.fromisoformat` de Python 3.10 no sabe leer)
-    # [decision del propietario, 2026-08-08 -- ver `_from_git_seconds`
-    # arriba para el porque esta conversion vive aqui duplicada en vez de
-    # importada de `lib/memory/timefmt.from_git_seconds`].
     skipped = []
     for line in _git_log(["--format=%H%x00%at%x00%s"], repo).split("\n"):
         if line.count("\0") != 2:
@@ -240,10 +96,10 @@ def _last_close(repo, session_start=None):
         sha, raw_epoch, subject = line.split("\0")
         if not subject.startswith(_NEXT_MARK):
             continue
-        stamp = _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S")
-        if session_start and stamp >= session_start:
+        if any(sha.startswith(prefix) for prefix in held):
             skipped.append((sha, subject))
             continue
+        stamp = _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S")
         return sha, stamp, subject, skipped
     return None, None, None, skipped
 
@@ -252,9 +108,7 @@ def _commits(repo, since_sha, since_iso=None):
     """The first line of every commit since the boundary, oldest first.
 
     With `since_iso` (from --since) the window is that time, not the sha.
-    No filtering by kind on purpose: a checkpoint, saved code and a note
-    all count. If checkpoints were squashed, git only has the squash and
-    that is what shows up -- which is the right answer, not a loss.
+    No filtering by kind: a checkpoint, saved code and a note all count.
     """
     if since_iso:
         out = _git_log(["--format=%at%x00%s", "--reverse", "HEAD"], repo)
@@ -271,116 +125,80 @@ def _commits(repo, since_sha, since_iso=None):
     return out.split("\n") if out else []
 
 
-def _said(entry):
-    """What a person or Claude actually said in this entry, if anything."""
-    return _text_blocks((entry.get("message") or {}).get("content"))
+def _transcripts(args, repo):
+    """Returns (session being closed, every transcript to read, warning), or
+    exits non-zero. A wrong path handed over and nothing found where we
+    looked are two different failures, and say so."""
+    if args.transcript:
+        if not os.path.exists(args.transcript):
+            sys.exit(f"session_transcript.py: --transcript {args.transcript} does not exist.")
+        return args.transcript, [args.transcript], ""
+    files, warning = session_records.project_transcripts(repo)
+    if not files:
+        sys.exit(f"session_transcript.py: {warning}. "
+                 "Pass --transcript with the path to the session's .jsonl.")
+    return files[-1], files, warning
 
 
-def _text_blocks(content):
-    """The cleaned text of a content value: a string or a list of blocks."""
-    if isinstance(content, str):
-        content = [{"type": "text", "text": content}]
-    if not isinstance(content, list):
-        return []
-
-    out = []
-    for chunk in content:
-        # thinking, tool_use and tool_result all fall out here.
-        if not isinstance(chunk, dict) or chunk.get("type") != "text":
-            continue
-        # Only well-formed injected spans are removed. Nothing is dropped
-        # for merely *starting* with one of those names: in a project that
-        # talks about its own machinery, a real message opening with
-        # "<system-reminder> why does this fire on every message" is
-        # ordinary prose, and dropping it deleted the user's complaint
-        # whole [Moriarty, 2026-08-05]. Injected entries are already
-        # caught upstream by their own flag; leaking a stray tag is noise
-        # a reader can see, while deleting a message is loss nobody can.
-        text = _clean(chunk.get("text") or "")
-        if text:
-            out.append(text)
-    return out
-
-
-def _clean(text):
-    return _COMMAND_ARGS_TAGS.sub("", _INLINE_TAGS.sub("", text)).strip()
+def _boundary_lines(args, sha, since, subject, skipped):
+    lines = []
+    if skipped:
+        lines.append(
+            "skipped:    this session's own earlier close(s), newest first: "
+            + "; ".join(f"{close_sha[:12]} {close_subject}" for close_sha, close_subject in skipped)
+        )
+    if args.since:
+        lines.append(f"boundary:   {args.since} (given with --since)")
+    elif since:
+        # The SHA is what anyone else needs to ask git about the same window.
+        lines.append(f"boundary:   {since} — last close: {sha[:12]} {subject}")
+    elif skipped:
+        lines.append(
+            "boundary:   none before this session — every close in this "
+            "history is this session's own (skipped above), so everything "
+            "below is the whole history and the whole transcript."
+        )
+    else:
+        lines.append(
+            "boundary:   NONE FOUND — no close is recorded in this history, so "
+            "everything below is the whole history and the whole transcript. "
+            "Say so in the context: it may cover more than one session."
+        )
+    return lines
 
 
-def _typed_mid_turn(entry):
-    """The owner's message typed while Claude was working, if this is one.
-
-    It arrives only as a `queued_command` attachment; the queue operations
-    repeat its text and are ignored. Peers and task notifications are not
-    the owner.
-    """
-    attachment = entry.get("attachment")
-    if not isinstance(attachment, dict) or attachment.get("type") != "queued_command":
-        return []
-    if (attachment.get("origin") or {}).get("kind") != "human":
-        return []
-    return _text_blocks(attachment.get("prompt"))
-
-
-def _transcript_start(transcript):
-    """The first timestamp in the transcript, cut to whole seconds, or None."""
-    with open(transcript, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            try:
-                stamp = json.loads(line).get("timestamp")
-            except (ValueError, AttributeError):
-                continue
-            if isinstance(stamp, str) and stamp:
-                return stamp[:19]
-    return None
+def _notes(commits, conversation, undated, sessions, closing):
+    lines = []
+    if sessions and sessions != [session_records.session_id(closing)]:
+        lines.append(f"sessions:   {len(sessions)} spoke since the boundary, turns labelled "
+                     "by session: " + ", ".join(sessions))
+    if not commits:
+        lines.append("note:       not one commit since the boundary. Either nothing was "
+                     "saved this session or the boundary is wrong — say so in the close.")
+    if undated:
+        lines.append(f"note:       {undated} entries carried no timestamp and were "
+                     "kept regardless — they may predate the boundary")
+    if not conversation:
+        lines.append("warning:    NOT ONE TURN OF CONVERSATION CAME OUT. Either the "
+                     "boundary is wrong or this is the wrong transcript. Do not write "
+                     "a close from memory — report this instead.")
+    return lines
 
 
-def _turn(entry):
-    """(who, said) for an entry of this conversation, or None."""
-    # A subagent's own conversation is not this conversation.
-    if entry.get("isSidechain"):
-        return None
-    # The harness flags everything it injects. Measured on a real
-    # session: 47 such entries carried no tag at all -- whole skill
-    # files, hook feedback -- and went in looking like something the
-    # user had typed, 365k characters of it. The flag catches them
-    # all; the tag names in `_INJECTED` catch only the ones that announce
-    # themselves.
-    if entry.get("isMeta"):
-        return None
-    if entry.get("type") == "attachment":
-        return "user", _typed_mid_turn(entry)
-    if entry.get("type") in ("user", "assistant"):
-        return (entry.get("message") or {}).get("role", entry["type"]), _said(entry)
-    return None
-
-
-def _conversation(transcript, since_iso):
-    """Returns (turns, undated) — the second is how many entries carried no
-    timestamp. They are kept: an empty timestamp sorts below every
-    boundary, so dropping them by comparison would delete real words from
-    a session that has no way of noticing.
-    """
-    out = []
-    undated = 0
-    with open(transcript, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            try:
-                entry = json.loads(line)
-            except ValueError:
-                continue
-            if not isinstance(entry, dict):
-                continue
-            stamp = entry.get("timestamp") or ""
-            if since_iso and stamp and stamp < since_iso:
-                continue
-            who, said = _turn(entry) or (None, None)
-            if not said:
-                continue
-            if not stamp:
-                undated += 1
-                stamp = "(no timestamp)"
-            out.append(f"=== {who} {stamp}\n" + "\n".join(said))
-    return out, undated
+def _render(header, commits, conversation):
+    parts = ["\n".join(header), ""]
+    parts.append(f"# COMMITS SINCE THE BOUNDARY — {len(commits)}, oldest first")
+    parts.append(
+        "# One line each, copied verbatim into the close, below the context. "
+        "These come from git and are exact; nothing retyped from the "
+        "conversation is."
+    )
+    parts.extend(commits or ["(none)"])
+    parts.append("")
+    parts.append(f"# CONVERSATION — {len(conversation)} turn(s), nothing but what was said")
+    parts.append("")
+    parts.append("\n\n".join(conversation))
+    return "\n".join(parts)
 
 
 def main(argv):
@@ -392,112 +210,30 @@ def main(argv):
     args = parser.parse_args(argv)
 
     repo = os.path.abspath(args.repo)
-
-    # Two different failures, and they must not share one message: a path
-    # that was handed over and is wrong is not the same as nothing found
-    # where we looked. Blaming the wrong cause sends people hunting in
-    # the wrong place.
-    warning = ""
-    if args.transcript:
-        transcript = args.transcript
-        if not os.path.exists(transcript):
-            print(
-                f"session_transcript.py: --transcript {transcript} does not exist.",
-                file=sys.stderr,
-            )
-            return 1
-    else:
-        transcript, warning = _newest_transcript(repo)
-        if not transcript:
-            print(
-                f"session_transcript.py: {warning}. "
-                "Pass --transcript with the path to the session's .jsonl.",
-                file=sys.stderr,
-            )
-            return 1
-
+    closing, transcripts, warning = _transcripts(args, repo)
     header = [
         "# CLOSE-SESSION INPUT",
         f"repo:       {repo}",
-        f"transcript: {transcript} ({os.path.getsize(transcript):,} bytes raw)",
+        f"transcript: {closing} ({os.path.getsize(closing):,} bytes raw)",
     ]
     if warning:
         header.append(f"warning:    {warning}")
 
-    sha, since, subject, skipped = _last_close(repo, _transcript_start(transcript))
-    if skipped:
-        header.append(
-            "skipped:    this session's own earlier close(s), newest first: "
-            + "; ".join(f"{close_sha[:12]} {close_subject}"
-                        for close_sha, close_subject in skipped)
-        )
-    if args.since:
-        since = args.since
-        header.append(f"boundary:   {since} (given with --since)")
-    elif since:
-        # The SHA is printed as well as the date: it is what anyone else
-        # needs to ask git the same question about the same window.
-        header.append(f"boundary:   {since} — last close: {sha[:12]} {subject}")
-    elif skipped:
-        header.append(
-            "boundary:   none before this session — every close in this "
-            "history is this session's own (skipped above), so everything "
-            "below is the whole history and the whole transcript."
-        )
-    else:
-        header.append(
-            "boundary:   NONE FOUND — no close is recorded in this history, so "
-            "everything below is the whole history and the whole transcript. "
-            "Say so in the context: it may cover more than one session."
-        )
-
+    sha, since, subject, skipped = _last_close(repo, session_records.held_closes(closing))
+    header += _boundary_lines(args, sha, since, subject, skipped)
     commits = _commits(repo, sha, args.since)
-    conversation, undated = _conversation(transcript, since)
+    conversation, undated, sessions = session_records.conversation(
+        transcripts, args.since or since)
+    header += _notes(commits, conversation, undated, sessions, closing)
 
-    if not commits:
-        header.append(
-            "note:       not one commit since the boundary. Either nothing was "
-            "saved this session or the boundary is wrong — say so in the close."
-        )
-    if undated:
-        header.append(
-            f"note:       {undated} entries carried no timestamp and were "
-            "kept regardless — they may predate the boundary"
-        )
-    if not conversation:
-        header.append(
-            "warning:    NOT ONE TURN OF CONVERSATION CAME OUT. Either the "
-            "boundary is wrong or this is the wrong transcript. Do not write "
-            "a close from memory — report this instead."
-        )
-
-    parts = ["\n".join(header), ""]
-
-    parts.append(f"# COMMITS SINCE THE BOUNDARY — {len(commits)}, oldest first")
-    parts.append(
-        "# One line each, copied verbatim into the close, below the context. "
-        "These come from git and are exact; nothing retyped from the "
-        "conversation is."
-    )
-    parts.extend(commits or ["(none)"])
-    parts.append("")
-
-    parts.append(f"# CONVERSATION — {len(conversation)} turn(s), nothing but what was said")
-    parts.append("")
-    parts.append("\n\n".join(conversation))
-
-    # El nombre lleva el pid: con un destino fijo, dos pasadas a la vez
-    # escribian sobre el mismo fichero y lo dejaban con las dos sesiones
-    # entremezcladas, sin error por ninguna parte -- 10 de 15 veces
-    # [Moriarty, 2026-08-05].
+    # The pid in the name: two runs at once on a fixed path interleaved
+    # both sessions in one file with no error [Moriarty, 2026-08-05].
     destination = args.out or os.path.join(
         tempfile.gettempdir(),
-        "close-session-"
-        + os.path.basename(transcript).replace(".jsonl", "")
-        + f"-{os.getpid()}.txt",
+        f"close-session-{session_records.session_id(closing)}-{os.getpid()}.txt",
     )
     with open(destination, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(parts))
+        handle.write(_render(header, commits, conversation))
 
     print(destination)
     print(
