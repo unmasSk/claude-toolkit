@@ -34,7 +34,7 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 **Depends on:** Phase 1 (shares `notes.py`)
 **Files:** modify `unmassk-toolkit/bin/memory/note.py`, `unmassk-toolkit/lib/memory/notes.py` (discard_alternatives) · test `unmassk-toolkit/tests/memory/`
 **Steps:**
-- [ ] 2.1 Dante: red tests — `--discard` with `--replaces` archives the old note; with `--promotes` promotes; an invalid discard writes nothing at all
+- [x] 2.1 Dante: red tests — `--discard` with `--replaces` archives the old note; with `--promotes` promotes; an invalid discard writes nothing at all
 - [ ] 2.2 Ultron: code until 2.1 is green
 - [ ] 2.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q -k "discard or note"`
 

@@ -587,6 +587,13 @@ Pattern: an output-ORDER contract takes its expected ids from the indexes the ru
 helper reads the same stdout under test. `_NOTE_ID_FROM_SUCCESS_RE` is anchored on ✅, not on
 position, so reordering the success lines does not break the older discard tests.
 
+## Round 9 (2026-10-19) — #Hito3 2.1 D-145: --discard with --replaces/--promotes, all-or-nothing
+File `test_note_discard_combined_contract.py` (5 RED, 1 green guard). "Nothing written" check =
+snapshot of HEAD sha + `git status --porcelain --untracked-files=all` + raw bytes of every `pm/*.md`,
+equal before/after — catches a commit, a stray staged file and a rolled-back-but-dirty index at once.
+Invalid discard = headline >80 chars (HEADLINE_MAX), deterministic. Conflict to watch: the older
+`test_note_script.py` asserts THREE commits for D+2 discards; an atomic one-commit fix turns it red.
+
 ## #104.4 corrected keys + --discard (2026-10-19)
 - Gotcha: `validator.normalize_keys` drops a key already present in the headline (e.g. `oauth` with "Google OAuth" in it) — pick keys absent from the headline or the canonical-keys assertion goes red for a test reason.
 - Corrected-key shape on screen: `  <raw>  →  <canonical>` lines before the final `✅ <D> guardada — con N keys corregidas, con N alternativas descartadas`.
