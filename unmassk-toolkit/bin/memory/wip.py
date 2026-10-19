@@ -105,7 +105,8 @@ def _changed_files_under(directory, root, cwd):
         # Con -z, un renombrado o copia trae detras su ruta de origen.
         if entry[0] in "RC":
             i += 1
-        changed.append(os.path.relpath(root / entry[3:], cwd))
+        # Con `/` en todo sistema, como `notes_commit._relpath_posix`.
+        changed.append(Path(os.path.relpath(root / entry[3:], cwd)).as_posix())
     return sorted(changed)
 
 
@@ -118,10 +119,11 @@ def _directory_rejection(message, paths, root):
     lines = []
     for path in paths:
         if not path.is_dir():
-            files.append(str(path))
+            # Con `/`, para deduplicar contra las rutas de la carpeta.
+            files.append(path.as_posix())
             continue
         under = _changed_files_under(path, root, cwd)
-        lines.append(f"\n«{path}» es una carpeta, y --path solo admite ficheros.")
+        lines.append(f"\n«{path.as_posix()}» es una carpeta, y --path solo admite ficheros.")
         if under:
             lines.append("Ficheros cambiados dentro:")
             lines.extend(f"  {name}" for name in under)
