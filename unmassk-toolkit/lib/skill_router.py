@@ -174,7 +174,7 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
             "el orden (revisores hallan algo y vuelven Ultron y Dante), se "
             "dice; el resto, al final, en UN informe: bien / probado / "
             "decisiones tomadas por el / errores "
-            "(unmassk-toolkit/skills/unmassk-core/references/automatic-mode.md)"
+            "(references/automatic-mode.md de la skill unmassk-core)"
         ),
         "ignore_pasted": True,
     },

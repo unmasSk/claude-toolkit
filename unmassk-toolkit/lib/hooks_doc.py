@@ -6,8 +6,9 @@ boot-read SKILL.md only points to it.
 
 Why this module exists
 ----------------------
-`skills/unmassk-memory/SKILL.md` is loaded on every session start, so any
-falsehood in it is a falsehood Claude states to the user with full confidence.
+Claude reads `skills/unmassk-memory/references/hooks.md` whenever it needs the
+hook list, so any falsehood in it is a falsehood Claude states to the user with
+full confidence.
 Its hook list was hand-written prose and drifted: it described a per-message
 memory-injection hook retired months earlier, named the wrong number of managed
 CLAUDE.md blocks, and got the recall whitelist backwards. Correcting the prose
@@ -322,8 +323,8 @@ def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, s
     same failure:
 
     - **A hook documented that hooks.json no longer declares -> error.** This
-      is the one that makes Claude assert a falsehood: it reads the section
-      every session and tells the user a behaviour exists that nothing will
+      is the one that makes Claude assert a falsehood: it reads the table
+      and tells the user a behaviour exists that nothing will
       ever produce. It is also unreachable by any legitimate half-finished
       state -- removing a hook and leaving its row behind is precisely what
       must be blocked.
@@ -349,7 +350,7 @@ def _classify_drift(current: str, records: list[dict[str, str]]) -> tuple[str, s
         return ("error",
                 f"{DOC_LABEL} documents {len(phantom)} hook(s) hooks.json no longer "
                 f"declares: {', '.join(phantom)} — Claude states this as fact "
-                f"every session ({REGEN_HINT})")
+                f"when it reads the table ({REGEN_HINT})")
     absent = sorted(declared - documented)
     if absent:
         return ("warn",
