@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-10-19
+
 ### Added
 
 - **The owner's rules reach every session whole, through a `CLAUDE.md` import** (D-131): the toolkit block imports `@.claude/project-memory/rules.md`, which Claude Code loads at launch; the first session that adds the import prints `READ NOW` so the rules bind that same session (#95).
