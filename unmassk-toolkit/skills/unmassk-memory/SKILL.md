@@ -205,7 +205,7 @@ A rejection is the system asking, with the options and the exact relaunch inside
 | ❓ **Questions** | one per line, the ones that block work under way, by name — never a bare number |
 | 🔥 **Incidents** | one per line: open incidents, and plans with commits they never reflected |
 | 🌿 **Branch** | the branch you are on; an extra line if it differs from the last worked one, another if there are unpushed commits |
-| 📋 **Issues** | the issues carrying a live note, one per line |
+| 📋 **Issues** | the open issues with live work notes, one per line (closed ones and discards are left out) |
 | ⚙️ **Health** | the boot coherence checks: one line saying all green, or each failure on its own line — failures never softened, always first |
 
 **Every section is always present** — a dash (—) when empty, never omitted. **One item per line, always.** A cell never packs two things with "+" or "·": when a section holds several items, each gets its own continuation row with the label cell left empty. Close with one line offering where to start. **The user picks the direction**; the boot lays out the map.
