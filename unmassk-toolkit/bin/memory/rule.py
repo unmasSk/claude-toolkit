@@ -55,6 +55,7 @@ arqueologia.
 
 import argparse
 import os
+import shlex
 import sys
 
 _BIN_MEMORY_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -108,7 +109,7 @@ def _cmd_read():
     return 0
 
 
-def _render_similar_rejection(candidates, kind, text):
+def _render_similar_rejection(candidates, kind, text, quote, searched):
     """El rechazo literal de TEXTOS.md Sec.1.11b, con las candidatas reales
     de `rules.similar_existing()` y la regla que se iba a guardar. No pasa
     por `rejection.build()`/`render_terminal()`: esa tuberia siempre
@@ -118,9 +119,14 @@ def _render_similar_rejection(candidates, kind, text):
     alias). Cada candidata sale con SU dueno real (`kind` del propio
     `_RuleMatch`), nunca el de la regla nueva -- lo que
     `test_the_script_never_swaps_the_owner_of_two_near_duplicate_rules`
-    verifica.
+    verifica. El relanzamiento lleva `--kind`, `--quote` y `--searched` ya
+    dados: sin ellos, obedecerlo rebota otra vez o cambia el dueno.
     """
     emoji = CHANNEL_EMOJI["rule"]
+    relaunch = f'gitmem rule "..." --kind {kind}'
+    if quote is not None:
+        relaunch += f" --quote {shlex.quote(quote)}"
+    relaunch += validator.searched_suffix(searched)
     lines = ["❌ REGLA NO GUARDADA — ya tienes una que dice casi lo mismo", ""]
     for existing_kind, existing_text in candidates:
         lines.append(f"  {emoji} [{existing_kind}] {existing_text}")
@@ -139,7 +145,7 @@ def _render_similar_rejection(candidates, kind, text):
             "",
             "  no hagas nada     la que ya tenías sigue vigente y vale",
             "  reescríbela       si de verdad dicen cosas distintas, que se note:",
-            '                    gitmem rule "..."',
+            f"                    {relaunch}",
         ]
     )
     return "\n".join(lines)
@@ -172,7 +178,7 @@ def _cmd_add(text, kind, quote, searched):
     # Sec.1.6): ver las dos juntas es lo que permite juzgar si de verdad
     # dicen cosas distintas.
     if any(existing_kind == kind for existing_kind, _ in similar):
-        print(_render_similar_rejection(similar, kind, text))
+        print(_render_similar_rejection(similar, kind, text, quote, searched))
         return 1
 
     result = rules_lib.add(text, kind, quote=quote, searched=searched)

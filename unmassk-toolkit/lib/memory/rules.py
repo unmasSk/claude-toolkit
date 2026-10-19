@@ -87,10 +87,13 @@ from rules_validate import (
 
 def _with_searched(subject: str, searched: str | None) -> str:
     """El commit lleva `--searched` en su cuerpo [D-098]; `rules.md` solo
-    recibe el titular, asi que lo buscado nunca entra en el fichero."""
+    recibe el titular, asi que lo buscado nunca entra en el fichero.
+    Plegado como un campo de nota (`format._fold`): cada salto, seguido de
+    un espacio de continuacion."""
     if searched is None:
         return subject
-    return f"{subject}\n\nSearched: {searched}"
+    folded = searched.replace("\n", "\n ")
+    return f"{subject}\n\nSearched: {folded}"
 
 
 def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None) -> WriteResult:
@@ -143,7 +146,7 @@ def add(text: str, kind: str, quote=QUOTE_NOT_GIVEN, searched: str | None = None
             ok=False, note_id=None, rejections=(reject_too_long(text),), git_error=None
         )
 
-    quote_has_content, quote_rejection = validate_quote(quote, text)
+    quote_has_content, quote_rejection = validate_quote(quote, text, kind)
     if quote_rejection is not None:
         return WriteResult(ok=False, note_id=None, rejections=(quote_rejection,), git_error=None)
 
@@ -266,7 +269,7 @@ def replace(
             ok=False, note_id=None, rejections=(reject_too_long(new_text),), git_error=None
         )
 
-    quote_has_content, quote_rejection = validate_quote(quote, new_text)
+    quote_has_content, quote_rejection = validate_quote(quote, new_text, kind, replaces=old_text)
     if quote_rejection is not None:
         return WriteResult(ok=False, note_id=None, rejections=(quote_rejection,), git_error=None)
 

@@ -280,10 +280,10 @@ def _build_candidate(args, normalized_keys, zone1, zone2):
     )
 
 
-def _build_discard_candidates(discard_pairs, zone1, zone2):
+def _build_discard_candidates(discard_pairs, zone1, zone2, searched):
     """Una nota `X` por pareja `(titular, porque)` de `--discard`, en la
-    MISMA zona que la decision que las origina. `origin` se deja vacio a
-    proposito -- ver cabecera del modulo."""
+    MISMA zona que la decision que las origina, con su mismo `--searched`
+    [D-098]. `origin` se deja vacio a proposito -- ver cabecera del modulo."""
     return tuple(
         Note(
             type="X",
@@ -293,6 +293,7 @@ def _build_discard_candidates(discard_pairs, zone1, zone2):
             headline=headline,
             description=why,
             timestamp=datetime.now(timezone.utc),
+            searched=searched,
         )
         for headline, why in discard_pairs
     )
@@ -347,7 +348,7 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
     alternativa rebota tras la decision, el resto sigue intentandose --
     este script solo reporta cada rechazo real, nunca inventa uno propio.
     """
-    alternatives = _build_discard_candidates(args.discard, zone1, zone2)
+    alternatives = _build_discard_candidates(args.discard, zone1, zone2, args.searched)
     results = notes.discard_alternatives(candidate, alternatives, ctx)
     decision_result = results[0]
 

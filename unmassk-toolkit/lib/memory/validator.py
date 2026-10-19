@@ -278,9 +278,14 @@ def validate_fields(note: Note) -> Rejection | None:
             f"{', '.join(not_allowed)}"
         )
     what = f"el campo no encaja con el tipo {note.type}"
+    # Un hueco por cada obligatorio del tipo: sin `--why` en una D, el
+    # relanzamiento obedecido rebota otra vez por lo mismo.
+    required = "".join(
+        f' --{field} "..."' for field in sorted(type_spec.required_fields - {"description"})
+    )
     command = (
         f'gitmem note {note.type} --zones {note.zone1} {note.zone2} '
-        f'"{note.headline}" --description "..."',
+        f'"{note.headline}"{required} --description "..."',
     )
     return rejection_.build(
         kind="field_not_allowed", what=what, options=tuple(lines), command=command
@@ -524,7 +529,7 @@ def is_wip(subject: str) -> bool:
 # D-098/D-124: la pregunta antes de guardar, en palabras del propietario.
 SEARCHED_QUESTION = "¿lo busqué y no está ya escrito ni es sentido común?"
 _SEARCHED_FLAG = "--searched"
-_SEARCHED_PLACEHOLDER = "<lo que busqué>: <lo que encontré>"
+SEARCHED_PLACEHOLDER = "<lo que busqué>: <lo que encontré>"
 
 
 def searched_given(value: str | None) -> bool:
@@ -558,7 +563,7 @@ def validate_searched(searched: str | None, command_tokens: list[str]) -> Reject
     mismo comando, cada valor intacto, mas `--searched`."""
     if searched_given(searched):
         return None
-    relaunch = shlex.join(_without_searched(list(command_tokens)) + [_SEARCHED_FLAG, _SEARCHED_PLACEHOLDER])
+    relaunch = shlex.join(_without_searched(list(command_tokens)) + [_SEARCHED_FLAG, SEARCHED_PLACEHOLDER])
     options = (
         "Antes de guardar, contesta:",
         "",
@@ -575,13 +580,21 @@ def validate_searched(searched: str | None, command_tokens: list[str]) -> Reject
     )
 
 
+def searched_suffix(searched: str | None) -> str:
+    """` --searched '<respuesta>'` para pegar a un relanzamiento, o `""`
+    si no se contesto."""
+    if not searched_given(searched):
+        return ""
+    return f" {_SEARCHED_FLAG} {shlex.quote(searched)}"
+
+
 def carry_searched(r: Rejection, searched: str | None, prefix: str) -> Rejection:
     """Otro rechazo, ya contestado `--searched`: sus relanzamientos que
     empiezan por `prefix` lo arrastran, o obedecerlos rebota otra vez en
     D-098 y la respuesta se pierde."""
-    if not searched_given(searched):
+    suffix = searched_suffix(searched)
+    if not suffix:
         return r
-    suffix = f" {_SEARCHED_FLAG} {shlex.quote(searched)}"
     relaunch = tuple(
         command + suffix if command.startswith(prefix) and _SEARCHED_FLAG not in command else command
         for command in r.relaunch

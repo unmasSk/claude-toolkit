@@ -71,7 +71,7 @@ QUOTE_NOT_GIVEN = object()
 _QUOTE_NONE_LITERAL = "none"
 
 
-def _reject_missing_quote(text: str) -> Rejection:
+def _reject_missing_quote(text: str, kind: str | None, replaces: str | None) -> Rejection:
     """Rebota ANTES de tocar git o el fichero. Exige cita para AMBOS
     `kind` por igual -- `--quote none` explicito es la unica salida sin
     cita real (Claude se deja una nota a si mismo, el propietario no dijo
@@ -88,9 +88,16 @@ def _reject_missing_quote(text: str) -> Rejection:
         "propietario no dijo nada -- asi se colo una correccion real del",
         'propietario guardada como [claude] solo para saltarse la cita.',
     )
+    # El relanzamiento lleva el `--replaces`/`--kind` ya dados: sin ellos,
+    # obedecerlo guarda un alta suelta, o una regla de Claude como [user].
+    base = f'gitmem rule "{text}"'
+    if replaces is not None:
+        base += f' --replaces "{replaces}"'
+    if kind is not None:
+        base += f" --kind {kind}"
     command = (
-        f'gitmem rule "{text}" --quote "<sus palabras literales>"',
-        f'gitmem rule "{text}" --quote none',
+        f'{base} --quote "<sus palabras literales>"',
+        f"{base} --quote none",
     )
     return rejection.build(
         kind="rule_missing_quote", what=what, options=options, command=command
@@ -193,7 +200,9 @@ def reject_rule_not_found(text: str, kind: str) -> Rejection:
     )
 
 
-def validate_quote(quote, text: str) -> tuple[bool, Rejection | None]:
+def validate_quote(
+    quote, text: str, kind: str | None = None, replaces: str | None = None
+) -> tuple[bool, Rejection | None]:
     """Toda la logica de `quote` que `add()` necesita antes de tocar git
     o el fichero. Devuelve `(quote_has_content, rejection)` -- `rejection`
     es `None` si la cita pasa (ausente, `--quote none` explicito, o una
@@ -210,7 +219,7 @@ def validate_quote(quote, text: str) -> tuple[bool, Rejection | None]:
         quote_mentioned and not quote_blank and quote.strip().lower() == _QUOTE_NONE_LITERAL
     )
     if quote_mentioned and quote_blank and not quote_is_explicit_none:
-        return False, _reject_missing_quote(text)
+        return False, _reject_missing_quote(text, kind, replaces)
 
     quote_has_content = quote_mentioned and not quote_blank and not quote_is_explicit_none
     if quote_has_content and "\n" in quote:

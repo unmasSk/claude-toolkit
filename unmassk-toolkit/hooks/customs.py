@@ -381,7 +381,10 @@ def _find_unanswered_gitmem_save(command):
     if statements is None:
         return None
     for stmt_index, statement in enumerate(statements):
-        tokens = list(statement)
+        # `\<salto>` (continuacion de linea) sale de shlex como un token
+        # "\n" suelto: fuera, o el relanzamiento lleva un argumento que es
+        # un salto de linea y obedecerlo rebota.
+        tokens = [tok for tok in statement if tok != "\n"]
         while tokens and _ENV_ASSIGNMENT_RE.match(tokens[0]):
             tokens.pop(0)
         if len(tokens) < 2 or not _GITMEM_PROGRAM_TOKEN_RE.search(tokens[0]):
@@ -575,7 +578,8 @@ def _history_rewrite_rejection(subcommand):
         what = "esto reescribe un commit ya existente: `git commit --amend`"
         relaunch = (
             'gitmem note <TIPO> --zones <zona1> <zona2> "..." --replaces <ID>'
-            "  # si es una nota que hay que corregir",
+            + validator.searched_suffix(validator.SEARCHED_PLACEHOLDER)
+            + "  # si es una nota que hay que corregir",
             'gitmem work "<mensaje>" --path <ruta1> [--path <ruta2> ...]'
             "  # si es codigo: arreglalo en un commit nuevo",
         )

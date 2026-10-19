@@ -241,10 +241,23 @@ def parse_subject(text: str) -> _SubjectParts | None:
 # Message: subject + linea en blanco + campos del cuerpo (TEXTOS Sec.5)
 # ---------------------------------------------------------------------------
 
-_BODY_FIELD_ORDER = ("Why", "Awaits", "Keys", "Description", "Replaces", "Origin", "Issue", "Quote", "Searched")
+_BODY_FIELD_ORDER = ("Why", "Awaits", "Keys", "Description", "Replaces", "Origin", "Issue", "Quote")
 _BODY_FIELD_RE = re.compile(
     r"^(" + "|".join(_BODY_FIELD_ORDER) + r"):[ ]?(.*)$"
 )
+# Cualquier `Etiqueta: ...` en columna 0: un campo que este lector no
+# conoce (de una version mas nueva) se salta con sus continuaciones, en
+# vez de tirar la nota entera.
+_ANY_FIELD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:(?: |$)")
+
+# `Searched` (D-098) viaja como un PRIMER `Description:` cuyo valor empieza
+# por esta marca, justo antes del `Description:` real. El lector 1.47.0
+# solo conoce ocho etiquetas y tira la nota entera ante cualquier otra;
+# ante un `Description:` repetido se queda con el ultimo, asi que lee la
+# nota completa e ignora lo buscado. Este lector lo separa en
+# `_take_searched`.
+_SEARCHED_MARK = "Searched: "
+_DESCRIPTION_HEAD = "Description: "
 
 
 def _body_field_line(label: str, note: Note) -> str | None:
@@ -261,7 +274,10 @@ def _body_field_line(label: str, note: Note) -> str | None:
     if label == "Keys":
         return _fold("Keys", _encode_list(note.keys)) if note.keys else None
     if label == "Description":
-        return _fold("Description", note.description)
+        line = _fold("Description", note.description)
+        if note.searched is None:
+            return line
+        return _fold("Description", _SEARCHED_MARK + note.searched) + "\n" + line
     if label == "Replaces":
         return _fold("Replaces", note.replaces) if note.replaces is not None else None
     if label == "Origin":
@@ -270,15 +286,14 @@ def _body_field_line(label: str, note: Note) -> str | None:
         return f"Issue: #{note.issue}" if note.issue is not None else None
     if label == "Quote":
         return _fold("Quote", note.quote) if note.quote is not None else None
-    if label == "Searched":
-        return _fold("Searched", note.searched) if note.searched is not None else None
     raise ValueError(f"format.py: campo de cuerpo desconocido {label!r}")  # pragma: no cover
 
 
 def _parse_fields(body_lines: list[str], field_re: re.Pattern) -> dict[str, str] | None:
     """Agrupa las lineas del cuerpo en `{Label: valor}`, reconstruyendo los
-    valores multilinea. `None` si alguna linea no es ni el arranque de un
-    campo conocido de `field_re` ni una continuacion (empieza por un
+    valores multilinea. Un campo que `field_re` no conoce (`_ANY_FIELD_RE`)
+    se salta entero, con sus continuaciones. `None` si alguna linea no es
+    ni el arranque de un campo ni una continuacion (empieza por un
     espacio) de uno. Generica sobre el vocabulario de campos: la comparten
     `parse_message` (via `_parse_body_fields`, `_BODY_FIELD_RE`) y
     `parse_context_message` (`_CONTEXT_BODY_FIELD_RE`) para no duplicar la
@@ -287,15 +302,17 @@ def _parse_fields(body_lines: list[str], field_re: re.Pattern) -> dict[str, str]
     fields: dict[str, str] = {}
     current_label: str | None = None
     current_parts: list[str] = []
+    skipping = False
 
     for line in body_lines:
         match = field_re.match(line)
-        if match is not None:
+        if match is not None or _ANY_FIELD_RE.match(line):
             if current_label is not None:
                 fields[current_label] = "\n".join(current_parts)
-            current_label = match.group(1)
-            current_parts = [match.group(2)]
-        elif line.startswith(" ") and current_label is not None:
+            current_label = match.group(1) if match is not None else None
+            current_parts = [match.group(2)] if match is not None else []
+            skipping = match is None
+        elif line.startswith(" ") and (current_label is not None or skipping):
             current_parts.append(line[1:])
         else:
             return None
@@ -310,6 +327,23 @@ def _parse_fields(body_lines: list[str], field_re: re.Pattern) -> dict[str, str]
 
 def _parse_body_fields(body_lines: list[str]) -> dict[str, str] | None:
     return _parse_fields(body_lines, _BODY_FIELD_RE)
+
+
+def _take_searched(body_lines: list[str]) -> tuple[str | None, list[str]]:
+    """`(searched, resto)`: separa el `Description:` marcado que escribe
+    `_body_field_line` -- solo si va seguido de otro `Description:`, asi
+    que una descripcion real que empiece por la marca sigue siendo la
+    descripcion."""
+    starts = [i for i, line in enumerate(body_lines) if line.startswith(_DESCRIPTION_HEAD)]
+    head = _DESCRIPTION_HEAD + _SEARCHED_MARK
+    if len(starts) < 2 or not body_lines[starts[0]].startswith(head):
+        return None, body_lines
+    first = starts[0]
+    end = first + 1
+    while end < len(body_lines) and body_lines[end].startswith(" "):
+        end += 1
+    parts = [body_lines[first][len(head):]] + [line[1:] for line in body_lines[first + 1:end]]
+    return "\n".join(parts), body_lines[:first] + body_lines[end:]
 
 
 def build_message(note: Note) -> str:
@@ -340,7 +374,8 @@ def parse_message(text: str) -> Note | None:
         if subject is None:
             return None
 
-        fields = _parse_body_fields(lines[idx + 1:])
+        searched, body_lines = _take_searched(lines[idx + 1:])
+        fields = _parse_body_fields(body_lines)
         if fields is None or "Description" not in fields:
             return None
 
@@ -363,7 +398,7 @@ def parse_message(text: str) -> Note | None:
             awaits=fields.get("Awaits"),
             issue=issue,
             quote=fields.get("Quote"),
-            searched=fields.get("Searched"),
+            searched=searched,
         )
     except Exception:
         return None
