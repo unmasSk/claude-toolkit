@@ -20,7 +20,7 @@ This repository is the one that publishes. The session close of this repository 
 3. Find the release's CI run by its commit: `gh run list --commit <release sha>`, then `gh run view <id>` until it finishes.
    - Toolkit CI runs on Ubuntu and Windows when the release touches `unmassk-toolkit/`, `bin/` or `pyproject.toml`; Plugin Tests runs on Ubuntu for `unmassk-3d`, `unmassk-electronics` and `unmassk-trading`.
    - No run for that commit means the release touched no tested path: say so, never read an older run as this release's verdict.
-4. Only with the run green, install it yourself — never ask the owner to run anything:
+4. Only with the run green, install it yourself — never ask the owner to run anything. The `/plugin update` slash command never worked; these CLI commands go through the marketplace, as the owner's own way does:
    - `claude plugin marketplace update unmassk-claude-toolkit`
    - `claude plugin update <plugin>@unmassk-claude-toolkit`
    - Check that `~/.claude/plugins/cache/unmassk-claude-toolkit/<plugin>/<version>/` exists. The new version applies from the next session.

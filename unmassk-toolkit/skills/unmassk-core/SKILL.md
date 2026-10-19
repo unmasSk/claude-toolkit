@@ -354,7 +354,7 @@ Every new thing — a feature, a script, a flag, a convention, a hook, a decisio
 
 ## Modo automático
 
-When the owner says **"modo automático"** (or "ponte en automático"), read `references/automatic-mode.md` before the next step: it holds the contract for unattended work, the four-section closing report, and what still waits for him.
+When the owner says **"modo automático"** (or "ponte en automático", or otherwise leaves you to work unattended while he is away), read `references/automatic-mode.md` before the next step: it holds the contract for unattended work, the four-section closing report, and what still waits for him.
 
 ---
 

@@ -34,7 +34,7 @@ never sees it. match_skills() checks both tables together.
 
 REMINDER_TRIGGERS / match_reminders() is a second, unrelated table for
 owner orders that are NOT skill invocations -- direct behavioural
-corrections already written into CLAUDE.md's "broncas" section
+corrections from the owner's rules
 (answer-first, delegate-research-to-Bilbo, literal-stop, automatic-mode).
 Same matching discipline (normalized substring, never raises), separate
 result shape: a list of (key, Spanish reminder text) pairs, since more
@@ -138,7 +138,7 @@ def match_skills(prompt_text: str) -> list[str]:
 # ── Owner orders that are not skill invocations ────────────────────────────
 #
 # Each key maps to the trigger phrases (Spanish, owner's own wording) and
-# the reminder text to surface (Spanish, matches CLAUDE.md's "broncas"
+# the reminder text to surface (Spanish, in the owner's own
 # wording). Every phrase below is chosen to match ONLY the owner's actual
 # phrasing -- e.g. "orden-literal" uses "para ya"/"no sigas", never bare
 # "para"/"parar", so an unrelated "para que funcione" or a lone "parar"

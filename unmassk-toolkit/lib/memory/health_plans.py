@@ -230,7 +230,8 @@ def plans_unreflected() -> tuple[tuple[int, int], ...]:
     nunca una entrada con `0` (mismo principio que `health.coherence`: lo
     que no diverge no genera texto). Si ningun commit del historial cita
     una issue, devuelve `()` sin llamar a `gh` -- no hay nada que
-    verificar.
+    verificar. Solo la primera parte de `issues_checked()`: el estado de
+    cada issue y los numeros sin respuesta los usa `health.build()`.
     """
     return issues_checked()[0]
 
