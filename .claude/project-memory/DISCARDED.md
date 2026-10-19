@@ -139,3 +139,4 @@
 [X-139][memory][testing] renumber the duplicate on remove
 [X-140][hooks][skills] force TaskCreate for flow boxes
 [X-141][hooks][skills] leave it as is
+[X-142][memory][architecture] teach the 24 readers to handle twins
