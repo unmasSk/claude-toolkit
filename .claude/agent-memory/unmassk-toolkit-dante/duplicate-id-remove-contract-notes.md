@@ -98,5 +98,16 @@ Files: `test_hito3_fixpass_promotes_relaunch.py` (new), plus additions to `test_
   `indexes.insert`, then `git commit -am` in the tmp repo.
 - Probe file star-importing a test module re-collects its tests; import only helpers.
 
+## Fix pass after Yoda, D-148 (2026-10-19): alarm only while >=2 copies live
+
+- D-148 flips D-147: one-live-one-archived and both-archived twins must be SILENT (✓ line,
+  no "gitmem remove" anywhere in the report). Three copies (two clones off one base) guard
+  the "any archived copy => resolved" shortcut.
+- Run the printed fix: fill `<id>`/`<sha>` (short sha the boot listed), any other `<...>` and
+  a `"..."` word, paste through sh. Today's template has no reason slot -> argparse rc 2.
+- boot.py live_notes filters by archived id only, so a live I/R twin vanishes from its boot
+  section. Satisfiability check: sketch fix in a scratch copy (live-only duplicates, (id,
+  headline) live filter, reason placeholder) turned all 16 green.
+
 - Probe a setup without adding a kept test: a temp `test_zz_*_tmp.py` importing the test file's
   helpers, run with -s, deleted after.

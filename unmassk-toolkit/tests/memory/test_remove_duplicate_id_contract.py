@@ -202,14 +202,19 @@ class TestRemoveSaysHowManyItArchived:
             ["--description", "seeded memo for the count contract", "--stops", "no"],
         )
 
+        archive_before = len(indexes.read_archive(pm_path(tmp_repo)))
+
         rc, out, _err, combined = _gitmem(["remove", note_id, REASON], tmp_repo, fake_home)
 
         assert rc == 0, combined
-        archived = [a for a in indexes.read_archive(pm_path(tmp_repo)) if a.id == note_id]
-        assert len(archived) == 1
-        # The count stands alone: not a digit of the id or of a date.
-        assert re.search(r"(?<![\w-])1(?![\w-])", out), (
-            f"a successful remove must say how many notes it archived (1): {out!r}"
+        archive_after = indexes.read_archive(pm_path(tmp_repo))
+        assert [a.id for a in archive_after[archive_before:]] == [note_id], (
+            f"setup: remove must add exactly one ARCHIVED.md line for {note_id}"
+        )
+        said = re.search(r"notas archivadas: (\d+)", out)
+        assert said, f"a successful remove must say how many notes it archived: {out!r}"
+        assert int(said.group(1)) == len(archive_after) - archive_before, (
+            f"remove said {said.group(1)}, ARCHIVED.md grew by {len(archive_after) - archive_before}: {out!r}"
         )
 
 

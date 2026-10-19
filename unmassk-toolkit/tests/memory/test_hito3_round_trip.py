@@ -1,9 +1,9 @@
 """Round trip, #105 step 4.1 (D-145): what remove and note --discard write
 is what `gitmem search` and `gitmem rezones` read back.
 
-Three writers, each run through `bin/gitmem` on a throwaway repo:
+Four writers, each run through `bin/gitmem` on a throwaway repo:
 a duplicated-id `remove --commit`, `remove --restriction new --replaces`,
-and `note D --discard --replaces`. The expected state is never typed: it
+`note D --discard --replaces` and `note D --promotes --replaces --discard`. The expected state is never typed: it
 is the index files the writer just left (read with `indexes.read` and
 `indexes.read_archive`) and the note commits in git. The readers under
 test are the commands a person runs.
@@ -376,5 +376,71 @@ class TestDiscardReplacesReadsBack:
 
     def test_should_find_index_coherent_and_nothing_to_rebuild_when_rezones_after_discard_replaces(
         self, tmp_repo, fake_home, after_discard, indexes
+    ):
+        _assert_rezones_agrees(tmp_repo, fake_home, indexes)
+
+
+# -- writer 4: note D --promotes Q --replaces D --discard ---------------------
+
+PROMOTED_QUESTION = "should invoices render as soon as they are approved"
+PROMOTING_DECISION = "invoices render on approval through a queue worker"
+PROMOTING_ALTERNATIVE = ("render invoices twice a day by cron", "still a twelve hour gap")
+
+
+class TestPromotesReplacesDiscardReadsBack:
+    """notes_promote.promote with also_replaces: two archive lines in one act."""
+
+    @pytest.fixture
+    def after_promote(self, tmp_repo, fake_home, indexes):
+        seed_zones_json(tmp_repo, DEC_ZONES)
+        old_id = _seed(tmp_repo, fake_home, _decision(
+            OLD_DECISION, "the batch window was free", "Nightly cron renders each invoice.",
+            OLD_ALTERNATIVE,
+        ))
+        q_id = _seed(tmp_repo, fake_home, [
+            "Q", "--zones", *DEC_ZONES, PROMOTED_QUESTION,
+            "--description", "finance asked about approval-time invoices", "--work", "no",
+        ])
+        new_id = _seed(tmp_repo, fake_home, _decision(
+            PROMOTING_DECISION, "customers wait a whole day", "A queue worker renders on approval.",
+            PROMOTING_ALTERNATIVE, "--promotes", q_id, "--replaces", old_id,
+        ))
+        state = _written_state(tmp_repo, indexes)
+        assert state[(old_id, OLD_DECISION)][1] == "archived", f"setup: {state!r}"
+        assert state[(q_id, PROMOTED_QUESTION)][1] == "archived", f"setup: {state!r}"
+        assert state[(new_id, PROMOTING_DECISION)][1] == "live", f"setup: {state!r}"
+        discard = [i for (i, h) in state if h == PROMOTING_ALTERNATIVE[0]]
+        assert len(discard) == 1, f"setup: one X for the new decision expected: {state!r}"
+        return old_id, q_id, new_id, state
+
+    @pytest.mark.parametrize("which", ("old", "question", "new"))
+    def test_should_match_the_index_state_when_search_by_id_after_promotes_replaces(
+        self, tmp_repo, fake_home, after_promote, which
+    ):
+        old_id, q_id, new_id, state = after_promote
+        note_id = {"old": old_id, "question": q_id, "new": new_id}[which]
+        _assert_id_search_matches(tmp_repo, fake_home, state, note_id)
+
+    def test_should_name_the_replaced_decision_and_the_alternative_when_search_new_by_id(
+        self, tmp_repo, fake_home, after_promote
+    ):
+        old_id, _q_id, new_id, state = after_promote
+        out = _assert_id_search_matches(tmp_repo, fake_home, state, new_id)
+        assert re.search(rf"(?<![\w-]){re.escape(old_id)}(?![\w-])", out), (
+            f"search --id {new_id} must name the decision it replaced ({old_id}):\n{out}"
+        )
+        assert PROMOTING_ALTERNATIVE[0] in out, (
+            f"search --id {new_id} must show the alternative it discarded:\n{out}"
+        )
+
+    @pytest.mark.parametrize("zone", DEC_ZONES)
+    def test_should_count_live_and_archived_from_the_index_when_search_zone_after_promotes_replaces(
+        self, tmp_repo, fake_home, after_promote, zone
+    ):
+        *_ids, state = after_promote
+        _assert_zone_search_matches(tmp_repo, fake_home, state, zone)
+
+    def test_should_find_index_coherent_and_nothing_to_rebuild_when_rezones_after_promotes_replaces(
+        self, tmp_repo, fake_home, after_promote, indexes
     ):
         _assert_rezones_agrees(tmp_repo, fake_home, indexes)

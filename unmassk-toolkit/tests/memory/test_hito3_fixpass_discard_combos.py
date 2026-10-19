@@ -1,12 +1,12 @@
 """#105 fix pass after Moriarty (2026-10-19): `gitmem note D ... --discard`
 combined with `--replaces`, `--promotes` and the overlap rejection.
 
-- `--promotes Q --replaces D` (with or without `--discard`) must end in one
-  consistent state: the old decision is archived exactly when a note says
-  it replaces it.
+- `--promotes Q --replaces D` (with or without `--discard`) does both:
+  the new D is live, Q is archived as promoted and the old D as replaced.
 - The overlap rejection's relaunch keeps `--discard`, `--keys` and
   `--promotes`; pasted, it writes the alternative and the keys.
-- The same `--discard` pair given twice never writes two identical X.
+- The same `--discard` pair given twice is refused with nothing written,
+  and its relaunch carries the pair once.
 
 Driven through `bin/gitmem` on a throwaway repo; read back from the index
 files and the note commits.
@@ -16,6 +16,7 @@ import pytest
 
 from .conftest import SEARCHED_ANSWER, import_lib_memory_module, pm_path, seed_zones_json
 from .hito3_twins_support import (
+    SAVED_ID_RE,
     flag_value,
     git_ok,
     gitmem,
@@ -73,28 +74,31 @@ def decision_and_question(tmp_repo, fake_home):
 
 class TestPromotesWithReplaces:
     @pytest.mark.parametrize("discard", ([], ["--discard", *ALTERNATIVE]), ids=("plain", "with-discard"))
-    def test_should_archive_the_old_decision_exactly_when_a_note_claims_to_replace_it(
+    def test_should_write_the_decision_and_archive_both_when_promotes_and_replaces_are_given(
         self, tmp_repo, fake_home, indexes, decision_and_question, discard
     ):
+        """G3: `--promotes Q --replaces D` does both, in one act."""
         old_id, q_id = decision_and_question
 
-        rc, _out, combined = gitmem(
+        rc, out, combined = gitmem(
             [*_decision(NEW_DECISION, "--promotes", q_id, "--replaces", old_id, *discard),
              "--searched", SEARCHED_ANSWER],
             tmp_repo, fake_home,
         )
 
-        old_live = old_id in _ids(indexes, tmp_repo, "DECISIONS.md")
-        claimed = any(f"Replaces: {old_id}" in body for body in _bodies(tmp_repo))
-        assert old_live != claimed, (
-            f"rc={rc}: {old_id} live={old_live} while a note claims to replace it={claimed}; "
-            f"either both happen or neither:\n{combined}"
+        assert rc == 0, f"--promotes with --replaces must write: {combined}"
+        saved = SAVED_ID_RE.search(out)
+        assert saved, f"no saved id in the output: {out!r}"
+        new_id = saved.group(1)
+        live = {(line.id, line.headline) for line in indexes.read("DECISIONS.md", pm_path(tmp_repo))}
+        assert live == {(new_id, NEW_DECISION)}, (
+            f"only the new decision {new_id} stays live; {old_id} leaves: {live!r}"
         )
-        q_live = q_id in _ids(indexes, tmp_repo, "QUESTIONS.md")
-        new_written = any(line.headline == NEW_DECISION
-                          for line in indexes.read("DECISIONS.md", pm_path(tmp_repo)))
-        assert (rc == 0) == new_written == (not q_live) == claimed, (
-            f"rc={rc} new={new_written} q_live={q_live} replaced={claimed}: one command, one outcome\n{combined}"
+        assert q_id not in _ids(indexes, tmp_repo, "QUESTIONS.md"), f"{q_id} still live"
+        archived = {line.id: (line.destination, line.destination_detail)
+                    for line in indexes.read_archive(pm_path(tmp_repo))}
+        assert archived == {q_id: ("promoted", new_id), old_id: ("replaced", new_id)}, (
+            f"ARCHIVED.md must say {q_id} promoted and {old_id} replaced, both to {new_id}: {archived!r}"
         )
 
 
@@ -138,7 +142,7 @@ class TestOverlapRejectionRelaunch:
 
 
 class TestDuplicateDiscardPair:
-    def test_should_never_write_two_identical_alternatives_when_the_pair_is_given_twice(
+    def test_should_refuse_write_nothing_and_relaunch_the_pair_once_when_the_pair_is_given_twice(
         self, tmp_repo, fake_home, indexes, decision_and_question
     ):
         old_id, _q_id = decision_and_question
@@ -150,8 +154,20 @@ class TestDuplicateDiscardPair:
             tmp_repo, fake_home,
         )
 
-        discarded = [line.headline for line in indexes.read("DISCARDED.md", pm_path(tmp_repo))]
-        assert discarded.count(ALTERNATIVE[0]) <= 1, (
-            f"rc={rc}: the same alternative written {discarded.count(ALTERNATIVE[0])} times:\n{combined}"
+        assert rc == 1, f"the doubled pair must be refused: {combined}"
+        assert snapshot(tmp_repo) == before, f"a refusal must write nothing:\n{combined}"
+        relaunches = [pasted_words(c) for c in relaunch_commands(combined)]
+        relaunches = [w for w in relaunches if w[:3] == ["gitmem", "note", "D"]]
+        assert len(relaunches) == 1, f"one `gitmem note D` relaunch expected:\n{combined}"
+        words = relaunches[0]
+        at = words.index("--discard")
+        assert words.count("--discard") == 1 and words[at + 1:at + 3] == list(ALTERNATIVE), (
+            f"the relaunch must carry the pair once: {words!r}"
         )
-        assert (rc == 0) == (snapshot(tmp_repo) != before), f"rc={rc} must match what was written"
+
+        rc, out, combined = gitmem(words[1:], tmp_repo, fake_home)
+
+        assert rc == 0, f"the pasted relaunch must write: {combined}"
+        discarded = [line.headline for line in indexes.read("DISCARDED.md", pm_path(tmp_repo))]
+        assert discarded == [ALTERNATIVE[0]], f"one X for the pair, written once: {discarded!r}"
+        assert old_id not in _ids(indexes, tmp_repo, "DECISIONS.md"), f"{old_id} must be replaced"
