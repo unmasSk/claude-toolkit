@@ -244,3 +244,13 @@ in test_skill_router_spanish.py::TestHookIgnoresAgentNotices: notice => no [orde
 no [skill-router]; a control test types the same body as the owner (must fire), and
 an owner prompt that names the tag mid-text must still route. Reminder wording is
 pinned to `gitmem rule` text (rules.md), which changes: re-read it before asserting.
+
+## #89 5.2 (2026-10-19) — automatico reminder points to a reference
+
+`TestAutomaticoPointsToReference` (test_skill_router_spanish.py) pins the path
+`unmassk-toolkit/skills/unmassk-core/references/automatic-mode.md` in the
+reminder, the old "seccion Modo automatico" gone, the named file existing, and
+the hook [orden] line carrying it. "Pasted owner text must not fire" had NO
+definition anywhere (plan, Alexandria, memory): UserPromptSubmit gets the paste
+already expanded; only ~/.claude/history.jsonl keeps `pastedContents`. Left
+untested and asked, rather than inventing a detector.

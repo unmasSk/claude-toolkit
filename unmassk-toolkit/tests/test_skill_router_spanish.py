@@ -50,6 +50,7 @@ Ultron implements (Flow Verify / Step 5), run against the real
 implementation, not against imagined shape.
 """
 
+import os
 import re
 
 import pytest
@@ -326,6 +327,47 @@ class TestHookEmitsSpanishRoutingAndReminders:
         orden_lines = [line for line in stdout.splitlines() if line.startswith(REMINDER_MARKER)]
         assert orden_lines, f"Expected a line starting with {REMINDER_MARKER!r}; got stdout: {stdout!r}"
         assert any("modo automatico" in line for line in orden_lines), orden_lines
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# C1b) #89 step 5.2 -- the automatic-mode reminder points to its reference
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The "Modo automatico" section leaves the boot-read core SKILL.md for a
+# reference loaded on demand (D-094: nothing leaves without a pointer). The
+# reminder must name that file, and the file it names must exist.
+
+AUTOMATIC_MODE_REF = "unmassk-toolkit/skills/unmassk-core/references/automatic-mode.md"
+
+
+class TestAutomaticoPointsToReference:
+    def _text(self):
+        match_reminders = _import_match_reminders()
+        texts = [t for k, t in match_reminders("modo automatico") if k == "automatico"]
+        assert texts, "automatico did not fire"
+        return texts[0]
+
+    def test_should_name_the_automatic_mode_reference_when_automatico_fires(self):
+        # Bug caught: the reminder still sends Claude to the old core section.
+        assert AUTOMATIC_MODE_REF in self._text()
+
+    def test_should_no_longer_point_to_core_section_when_automatico_fires(self):
+        # Bug caught: two pointers, one to a section that no longer exists.
+        assert not re.search(r"secci[oó]n\s+modo\s+autom[aá]tico", self._text().lower())
+
+    def test_named_reference_exists_in_the_shipped_plugin(self):
+        # Bug caught: a pointer to a file nobody created.
+        rel = AUTOMATIC_MODE_REF.split("/", 1)[1]
+        assert os.path.isfile(os.path.join(SOURCE_ROOT, rel)), rel
+
+    def test_hook_orden_line_carries_the_reference_for_owner_prompt(self, tmp_path):
+        # Same through the user's door: the [orden] line the owner's own
+        # words produce names the reference.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, "ponte en modo automático, me voy a dormir")
+        assert rc == 0, (rc, stdout, stderr)
+        orden = [l for l in stdout.splitlines() if l.startswith(REMINDER_MARKER)]
+        assert any(AUTOMATIC_MODE_REF in l for l in orden), stdout
 
 
 # ══════════════════════════════════════════════════════════════════════════
