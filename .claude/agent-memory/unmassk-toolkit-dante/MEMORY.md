@@ -90,4 +90,4 @@
 - [presave-searched-flag-contract-notes.md](presave-searched-flag-contract-notes.md) — #95 2c --searched RED + fix pass: exact-relaunch, frozen-1.47.0-reader skew technique
 - [owner-cue-notification-hook-contract-notes.md](owner-cue-notification-hook-contract-notes.md) — #95 2d sound hook RED: Perl fake afplay + warm-up, never on speakers
 - [test-file-split-by-concern-technique-notes.md](test-file-split-by-concern-technique-notes.md) — split >500-LOC test files losslessly; #95 step 2 layout; fence-relaunch commit-msg trick
-- [session-transcript-extractor-contract-notes.md](session-transcript-extractor-contract-notes.md) — close extractor RED: real queued_command/slash shapes, D-143 redo fixtures
+- [session-transcript-extractor-contract-notes.md](session-transcript-extractor-contract-notes.md) — close extractor: real record shapes, D-143 redo, D-144 multi-session discovery + held-close layout

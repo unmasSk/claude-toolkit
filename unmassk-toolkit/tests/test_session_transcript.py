@@ -186,10 +186,60 @@ def skill_body(text, ts):
 
 
 def write_transcript(path, records):
+    os.makedirs(os.path.dirname(str(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     return str(path)
+
+
+def close_agent_prompt():
+    """The prompt the orchestrator hands the close agent, read from the skill."""
+    with open(CLOSE_PROMPT, encoding="utf-8") as handle:
+        found = re.search(r"## THE PROMPT\s*```\n(.*?)\n```", handle.read(), re.DOTALL)
+    assert found, f"no prompt block in {CLOSE_PROMPT}"
+    return found.group(1)
+
+
+def held_close(transcript_path, session_id, sha, subject, launched, done):
+    """What a session that wrote a close holds, as Claude Code lays it out: the
+    close agent launched from the top-level transcript, and that agent's own
+    sidechain file (<session>/subagents/agent-*.jsonl) running `gitmem next`.
+    Writes the sidechain file; returns the top-level records."""
+    agent_id = uuid.uuid4().hex[:17]
+    tool_id = "toolu_" + uuid.uuid4().hex[:24]
+    prompt = close_agent_prompt()
+    launch = assistant("", launched)
+    launch["sessionId"] = session_id
+    launch["message"]["content"] = [{"type": "tool_use", "id": tool_id, "name": "Agent",
+                                     "input": {"description": "Write the session close",
+                                               "subagent_type": "general-purpose",
+                                               "prompt": prompt}}]
+    result = _base("user", done)
+    result.update({"sessionId": session_id, "sourceToolAssistantUUID": launch["uuid"],
+                   "message": {"role": "user", "content": [
+                       {"type": "tool_result", "tool_use_id": tool_id,
+                        "content": [{"type": "text", "text": "Close written."}]}]},
+                   "toolUseResult": {"status": "completed", "prompt": prompt,
+                                     "agentId": agent_id, "agentType": "general-purpose",
+                                     "content": [{"type": "text", "text": "Close written."}]}})
+
+    headline = subject.split(" ", 2)[2]
+    bash_id = "toolu_" + uuid.uuid4().hex[:24]
+    side = [_base("user", launched), _base("assistant", done), _base("user", done)]
+    for record in side:
+        record.update({"isSidechain": True, "agentId": agent_id, "sessionId": session_id})
+    side[0]["message"] = {"role": "user", "content": prompt}
+    side[1]["message"] = {"role": "assistant", "type": "message", "content": [
+        {"type": "tool_use", "id": bash_id, "name": "Bash",
+         "input": {"command": f'python3 "/somewhere/bin/gitmem" next "{headline}"',
+                   "description": "Write the close"}}]}
+    side[2]["message"] = {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": bash_id,
+         "content": f"EXIT=0\n{sha[:8]} {subject}"}]}
+    folder = os.path.join(os.path.dirname(str(transcript_path)), session_id, "subagents")
+    write_transcript(os.path.join(folder, f"agent-{agent_id}.jsonl"), side)
+    return [launch, result]
 
 
 def ts(hhmmss):
@@ -441,14 +491,28 @@ def redo(tmp_path):
     commit(repo, "old work", "06:00:00")
     previous = commit(repo, "[NEXT] 🔜 previous session close", "07:00:00")
     commit(repo, "work before the first close", "08:30:00")
-    first = commit(repo, "[NEXT] 🔜 this session, first close", "09:00:00")
+    first_subject = "[NEXT] 🔜 this session, first close"
+    first = commit(repo, first_subject, "09:00:00")
     commit(repo, "work after the first close", "09:10:00")
+    path = tmp_path / f"{SESSION_ID}.jsonl"
     records = [queue_op("enqueue", ts("08:00:00"), content="hola"),
                human("ANTES-DEL-PRIMER-CIERRE", ts("08:00:01")),
-               assistant("respuesta temprana", ts("08:00:05")),
-               human("DESPUES-DEL-PRIMER-CIERRE", ts("09:05:00"))]
-    transcript = write_transcript(tmp_path / "s.jsonl", records)
+               assistant("respuesta temprana", ts("08:00:05"))]
+    records += held_close(path, SESSION_ID, first, first_subject, ts("08:58:00"), ts("09:00:01"))
+    records += [human("DESPUES-DEL-PRIMER-CIERRE", ts("09:05:00"))]
+    transcript = write_transcript(path, records)
     return repo, transcript, previous, first
+
+
+SECOND_CLOSE = "[NEXT] 🔜 this session, second close"
+
+
+def hold_second_close(transcript, sha):
+    """This session closes again: its transcript gains the second close's records."""
+    with open(transcript, "a", encoding="utf-8") as handle:
+        for record in held_close(transcript, SESSION_ID, sha, SECOND_CLOSE,
+                                 ts("09:18:00"), ts("09:20:01")):
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def test_should_return_whole_session_conversation_when_closing_twice(tmp_path, redo):
@@ -483,7 +547,7 @@ def test_should_name_previous_session_close_as_boundary_when_closing_twice(tmp_p
 def test_should_skip_every_earlier_close_of_this_session_when_closing_a_third_time(tmp_path,
                                                                                     redo):
     repo, transcript, previous, _ = redo
-    commit(repo, "[NEXT] 🔜 this session, second close", "09:20:00")
+    hold_second_close(transcript, commit(repo, SECOND_CLOSE, "09:20:00"))
 
     result = run(tmp_path, repo, transcript)
 
@@ -519,7 +583,8 @@ def test_should_name_the_skipped_close_when_the_newest_close_is_this_sessions_ow
 
 def test_should_name_the_newest_skipped_close_when_closing_a_third_time(tmp_path, redo):
     repo, transcript, _, _ = redo
-    second = commit(repo, "[NEXT] 🔜 this session, second close", "09:20:00")
+    second = commit(repo, SECOND_CLOSE, "09:20:00")
+    hold_second_close(transcript, second)
 
     result = run(tmp_path, repo, transcript)
     naming = [line for line in result.header.split("\n")
@@ -531,9 +596,13 @@ def test_should_name_the_newest_skipped_close_when_closing_a_third_time(tmp_path
 def test_should_not_say_none_found_when_the_only_close_was_skipped(tmp_path):
     repo = make_repo(tmp_path)
     commit(repo, "work before the first close", "08:30:00")
-    first = commit(repo, "[NEXT] 🔜 this session, first close", "09:00:00")
-    transcript = write_transcript(tmp_path / "s.jsonl", [human("hola", ts("08:00:00")),
-                                                         human("otra vez", ts("09:05:00"))])
+    first_subject = "[NEXT] 🔜 this session, first close"
+    first = commit(repo, first_subject, "09:00:00")
+    path = tmp_path / f"{SESSION_ID}.jsonl"
+    transcript = write_transcript(path, [human("hola", ts("08:00:00"))]
+                                  + held_close(path, SESSION_ID, first, first_subject,
+                                               ts("08:58:00"), ts("09:00:01"))
+                                  + [human("otra vez", ts("09:05:00"))])
 
     result = run(tmp_path, repo, transcript)
 
