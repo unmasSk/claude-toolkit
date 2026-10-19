@@ -200,11 +200,13 @@ class TestGithubFailureIsReportedNotInvented:
         assert _plan_lines(report) == {}, report
         assert "duplicate IDs" in report, report  # the rest of CHECKS still ran
 
-    def test_should_report_error_when_a_cited_issue_is_missing_from_the_answer(
+    def test_should_check_the_others_and_name_the_one_missing_from_the_answer(
         self, tmp_repo, tmp_path, gh_stub
     ):
         # Bug caught: a batched answer that lacks a cited issue (deleted,
-        # transferred, cut by a limit) silently read as "reflected".
+        # transferred, a PR number) silently read as "reflected", or --
+        # #89 phase 4 fix pass -- throwing away the answers for every
+        # other issue. #3 and #11 came back: their plans are still counted.
         _seed_citations(tmp_repo, _THREE_CITED)
         issues = _all_unreflected(_THREE_CITED)
         del issues[7]
@@ -214,13 +216,11 @@ class TestGithubFailureIsReportedNotInvented:
 
         _assert_full_briefing(run)
         report = run.report()
-        assert _PLANS_ERROR_TEXT in report, report
-        assert _plan_lines(report) == {}, report
-        # Cerberus F2 removed the cited list from a GENERAL gh failure; a
-        # cited issue GitHub does not return is still named, so the owner
+        assert _plan_lines(report) == {3: 1, 11: 1}, report
+        # The cited issue GitHub does not return is named, so the owner
         # knows which trailer points at nothing.
-        error_lines = [line for line in report.splitlines() if _PLANS_ERROR_TEXT in line]
-        assert any("#7" in line for line in error_lines), error_lines
+        warning_lines = [line for line in report.splitlines() if "⚠" in line]
+        assert any("#7" in line for line in warning_lines), warning_lines
 
     def test_should_give_up_within_the_bound_when_gh_hangs(
         self, tmp_repo, tmp_path, gh_stub
