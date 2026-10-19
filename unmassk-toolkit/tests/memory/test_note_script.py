@@ -1160,6 +1160,58 @@ class TestDiscardFlagWiresIntoNotesDiscardAlternatives:
             f"vs esperado {sorted(expected_child_ids)!r}"
         )
 
+    def test_last_stdout_line_names_the_saved_decision_not_the_last_discard(
+        self, tmp_repo, indexes
+    ):
+        """#104 punto 4: quien lee la ultima linea tiene que ver la D
+        guardada; los descartes van antes, uno por linea con su id."""
+        seed_zones_json(tmp_repo, ["product", "auth"])
+        decision_headline = "login with JWT + Google OAuth, last-line check"
+        discard_pairs = [
+            ("server-side sessions", "sticky routing complicates horizontal scaling"),
+            ("own password login", "maintaining passwords costs us one incident a year"),
+        ]
+        args = [
+            "D",
+            "--zones", "product", "auth",
+            decision_headline,
+            "--why", "sessions do not scale multi-tenant; Google avoids owning passwords",
+            "--description", "Brainstorm on login options for the last-line contract.",
+        ]
+        for headline, why in discard_pairs:
+            args += ["--discard", headline, why]
+
+        rc, out, err = run_memory_script("note.py", with_searched(args), cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        pm = pm_path(tmp_repo)
+        decision_ids = [
+            line.id for line in indexes.read("DECISIONS.md", pm)
+            if line.headline == decision_headline
+        ]
+        assert len(decision_ids) == 1, f"la D no quedo escrita una vez: {decision_ids!r}"
+        decision_id = decision_ids[0]
+        discard_ids = {
+            line.headline: line.id for line in indexes.read("DISCARDED.md", pm)
+        }
+        assert set(discard_ids) == {headline for headline, _ in discard_pairs}
+
+        lines = [line for line in out.splitlines() if line.strip()]
+        last = lines[-1].strip()
+        assert last.startswith(f"✅ {decision_id} guardada"), (
+            f"la ultima linea tiene que nombrar la decision guardada "
+            f"{decision_id}, no un descarte: ultima={last!r} stdout={out!r}"
+        )
+
+        body = lines[:-1]
+        for headline, _why in discard_pairs:
+            x_id = discard_ids[headline]
+            matching = [line for line in body if x_id in line and headline in line]
+            assert len(matching) == 1, (
+                f"cada descarte va en su propia linea, con su id {x_id} y su "
+                f"titular, ANTES de la linea de la D: stdout={out!r}"
+            )
+
 
 class TestDiscardFlagAbsentStillWritesAPlainDecisionInOneCommit:
     """Control explicito, encargo del propietario: comprobar ANTES de
