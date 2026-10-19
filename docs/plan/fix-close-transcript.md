@@ -1,5 +1,6 @@
 # Close transcript extractor Plan
 
+**Status: COMPLETED** (2026-10-19)
 **Procedure:** Full
 **Build mode:** test-first
 **Base:** f6419f58
@@ -27,6 +28,11 @@ The session-close extractor (`unmassk-toolkit/skills/unmassk-close-session/scrip
 - [x] 1.2 Ultron: make 1.1 green (19 green; real transcript copy: both mid-turn messages come out).
 - [x] 1.3 Dante: round-trip check (3 tests on 10 real-shaped records, anonymised; 4/4 mutants killed) on this session's real transcript (copy): both mid-turn messages of 2026-10-19 come out.
 - [x] 1.4 Verify (22 passed): `python3 -m pytest unmassk-toolkit/tests -q -k transcript` green.
+
+## Review
+- Cerberus + Argus: 2 T2 + 1 T1 (list-shaped prompts, zero-commit warning stopped the close) fixed once.
+- Moriarty: a session ended without a close lost its owner's words (D-144); fixed once with 3 surviving mutants killed.
+- Yoda: REJECTED 67/110 (own close matched a sha `gitmem next` never prints; 3 breaks untested; test file too big); every point fixed once. 84 scoped tests green on Python 3.14 and 3.10.
 
 ## Wave map
 - Wave 1: Phase 1
