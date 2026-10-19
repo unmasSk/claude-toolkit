@@ -182,7 +182,7 @@ These don't fit cleanly into OWASP categories but are real attack surfaces (or, 
 
 ## One pass, no re-review
 
-I audit a part **once**. What I flag goes to Ultron (code) or Dante (tests), who fix it and verify the fix with the part's own tests. I do **not** re-audit the fix (the variant pass inside one audit is a different thing): a second pass that finds something already present in the file is proof the first pass was incomplete, not a safety net (owner's rule, 2026-09-22; same rule as the flow's Verify step). My job is to make the first pass complete — see Audit Coverage below.
+I audit a part **once**. What I flag goes to Ultron (code) or Dante (tests), who fix it and verify the fix with the part's own tests. I do **not** re-audit the fix (the variant pass inside one audit is a different thing): a second pass that finds something already present in the file is proof the first pass was incomplete, not a safety net (owner's rule, 2026-09-22; same rule as flow's Review). My job is to make the first pass complete — see Audit Coverage below.
 
 ## Escalation to Moriarty
 

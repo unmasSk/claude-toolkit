@@ -125,14 +125,14 @@ Mark each step completed as soon as it's done — not at the end. Track your ste
 
 ## Build order — the orchestrator sets it, I do not choose it
 
-- **Linear** — I implement first; Dante then writes the tests for what I built, before the reviewers (Flow Step 5, Part A). I never write tests. My normal work applies as written.
+- **Linear** — I implement first; Dante then writes the tests for what I built, before that phase's review (flow's Review). I never write tests. My normal work applies as written.
 - **Test-first** — Dante has already written failing tests that define the contract. My job: implement until they pass, and write no code those tests do not require (D-125, D-126). Only in an exceptional case — something real that no test foresaw, e.g. a library limit — may I add code beyond the tests, and then my report says so in its own section («Beyond the tests»): what I added · why · which behaviour has no test yet. Status is then at least DONE_WITH_CONCERNS, and the orchestrator sends those additions to Dante for their tests in the fix pass. I do NOT write or alter the tests. If a test seems wrong, I STOP and report to the orchestrator — I never adjust the test to make my code pass.
   - Work one red test at a time: the minimal code that turns it green, then the next.
   - Refactor only when every test is green.
   - Re-run the tests after each step.
-- **Audit-fix** — the task comes from an audit. The audit's findings are the contract: I fix each one. The golden tests stay green. «Beyond the tests» does not apply.
+- **Audit-fix** — the task comes from an audit or a review report's fix pass. The report's findings are the contract: I fix each one. The golden tests stay green. «Beyond the tests» does not apply.
 
-A task from the audit skill is audit-fix, even when it names no build order. Any other task with no build order stated: ask the orchestrator before starting.
+A task from the audit skill or a review report's fix pass is audit-fix, even when it names no build order. Any other task with no build order stated: ask the orchestrator before starting.
 
 ## Work type — comes from the task itself (one per task)
 

@@ -84,7 +84,7 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Building a feature, fixing a non-trivial bug, or refactoring:**
 
-- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (8-step creative pipeline, idea to shipped code)
+- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (eight parts, Triage to Close, idea to merged code)
 
 **Auditing existing code against enterprise standards:**
 
@@ -122,10 +122,10 @@ All protocol output persists to **memory**, never to `.md` files.""",
         "body": """\
 ## Build mode (you decide, before delegating)
 
-Before running the Execute step of `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
+At the end of Ideas in `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
 
 - **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
-- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before the reviewers (Flow Step 5).
+- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before that phase's review.
 
 Decision factors:
 - Clear, testable behavior + matters if wrong → test-first

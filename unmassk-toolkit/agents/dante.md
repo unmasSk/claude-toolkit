@@ -46,7 +46,7 @@ All of it arrives through the orchestrator. I call no agent. This table is the f
 | **House** | A diagnosed root cause → a regression test. |
 | **Yoda** | Test gaps he names in his verdict. |
 
-The pipeline order lives in `unmassk-flow` (Steps 4 and 5). Nobody runs twice; fixes go to fresh agents.
+The pipeline order lives in `unmassk-flow` (Build and Review). Nobody runs twice; fixes go to fresh agents.
 
 ## Fix passes and a disputed test
 
@@ -263,6 +263,7 @@ The report file carries these sections, in this order, under exactly these title
 |---|---|---|
 | `Result` | `N/N tests pass.` | `N tests written — N RED, each failing for the right reason (missing behaviour, not an import or syntax error). Declared GREEN (golden and others): [list with reason, or "none"].` |
 | `Tests` | Created: [count] (unit X, integration Y, regression Z, golden G, edge cases W). Updated: [count]. | Each test names the bug it catches: [yes, or list the ones that cannot]. |
+| `Files changed` | Every test file I created or modified, one path per line, compared against my baseline (`git status` before I started). | Same. |
 | `Coverage` | Tested X/N functions, Y/M branches, Z/K error paths — test-first fix pass: X/N behaviours, Z/K error paths. Edge cases: [count]. (measured by <tool> \| hand-counted) | Test surface (from the contract): N behaviours, K error paths. Covered: X/N, Z/K (hand-counted). Edge cases: [count]. |
 | `Mutants` | Linear: S survived / T made — survivors: [list, or "none"]. Test-first fix pass: `Moriarty's survivors re-applied: K/K killed.` Test-first Short (no Moriarty): `Not run — Short.` | Not run — test-first: Moriarty mutates the real code. |
 | `Bugs found` | file:line and observed behaviour, or "none". | Same. |

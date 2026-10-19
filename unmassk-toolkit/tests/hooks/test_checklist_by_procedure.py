@@ -67,21 +67,21 @@ SEL_COMPLETO = "Procedimiento: Completo"
 FLOW_CORTO_BOXES = [
     "Gate: sin feature de Flow abierto antes de arrancar uno nuevo",
     "Triaje: procedimiento decidido (Trivial/Corto/Completo) y seam declarada",
-    "Brainstorm: gray areas resueltas y modo de build (test-first/linear) decidido",
-    "Corto — Ultron hizo el cambio",
+    "Ideas: gray areas resueltas y modo de build (test-first/linear) decidido",
     "Corto — Dante entregó el test del cambio (si el proyecto tiene tests)",
+    "Corto — Ultron hizo el cambio",
     "Corto — Cerberus revisó el código y el test",
     "Corto — se corrigió una sola vez lo que señaló (código, Ultron; tests, Dante)",
     "Close — las pruebas de lo tocado en verde",
-    "Corto — commit y push hechos, rama fusionada y borrada si la hubo, issue cerrada si la hay, y se preguntó si seguir",
+    "Corto — commit y push hechos, rama fusionada y borrada si la hubo, issue cerrada si la hay, y se siguió con la siguiente tarea aprobada (o se preguntó si no había ninguna)",
 ]
 
 # Cajas de Completo que Corto NO lleva (verificadas a mano contra la
 # lista entera de hoy: el plan, Moriarty, Yoda -- lo que motivo D-121).
 FLOW_FULL_ONLY_SAMPLE = [
     "Plan: docs/plan/*.md escrito y Plan Checker pasado",
-    "Verify fase B — con todo terminado, Moriarty entregó veredicto sobre código y tests",
-    "Verify fase B — Yoda, a ciegas, dio su único veredicto y el camino al 110",
+    "Review final — con todo terminado, Moriarty entregó veredicto sobre código y tests",
+    "Review final — Yoda, a ciegas, dio su único veredicto y el camino al 110",
 ]
 
 # Manifiesto sintetico para los tests de gate/inject: independiente de
