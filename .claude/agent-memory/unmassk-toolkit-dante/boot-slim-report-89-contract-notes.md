@@ -23,5 +23,11 @@ metadata:
   of a KeyError deep in the code under test.
 - Seed with in-process `notes.write` BEFORE `patch_gh`: the patched gh
   only answers `api graphql`, an `issue view` would be "unsupported".
+- Phase 4 fix pass (2026-10-19): `test_boot_slim_report_fix_pass.py`.
+  A number the fake does not hold = a PR / transferred issue (null alias,
+  NOT_FOUND, rc 1). Contract changed: one missing number must not sink
+  the batch, so `test_boot_deadline_contract` "missing" test now expects
+  the other plans counted. Pin "only the missing one flagged" without
+  wording: every ⚠ line in COUNTS must name the missing #N.
 - Teardown errors seen once in `test_boot_step2_moriarty_fix_pass.py`
   hang/overrun tests under a batched run; not reproducible alone.

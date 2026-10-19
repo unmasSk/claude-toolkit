@@ -219,7 +219,8 @@ class HealthReport:
     git_notes: int                 #   con git (68 lineas / 68 notas)"
     index_discrepancies: tuple[str, ...]   # que nota diverge, no solo cuantas
     plans_unreflected: tuple[tuple[int, int], ...]   # (issue, commits sin reflejar)
-    # motivo real si la consulta a gh fallo -- None si se pudo comprobar de
+    # motivo real si la consulta a gh fallo -- entonces tampoco se comprobo
+    # abierta/cerrada (issue_states vacio). None si se pudo comprobar de
     # verdad (con o sin plans_unreflected) o si no habia nada que consultar
     plans_unreflected_error: str | None = None
     # rule_commits/rule_lines/rule_discrepancies existieron aqui entre el

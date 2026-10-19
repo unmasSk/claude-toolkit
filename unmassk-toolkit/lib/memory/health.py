@@ -17,7 +17,7 @@ Ocho funciones: `coherence`, `coherence_rules`, `duplicates`,
 `plans_unreflected`, `build`, `rebuild_plan`, `possible_unconverted_legacy`,
 `memory_mounted`. `plans_unreflected` es el unico lector real del campo
 `issue`. `build` compone `coherence`/`coherence_rules`/`duplicates`/
-`plans_unreflected` en el `HealthReport` que el arranque pinta.
+`issues_checked` en el `HealthReport` que el arranque pinta.
 `rebuild_plan` es el mismo cruce que `coherence()` vuelto un plan de
 reparacion, para `reindex.py`. `possible_unconverted_legacy` y
 `memory_mounted` cierran dos fallos reales: un proyecto con memoria del
@@ -366,13 +366,13 @@ def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[
 def build() -> HealthReport:
     """Compone el `HealthReport` que `boot.build()` pinta -- junta lo que
     ya existe, sin volver a calcular nada: `coherence`, `coherence_rules`,
-    `duplicates`, `plans_unreflected`.
+    `duplicates`, `issues_checked`.
 
     `root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas: si
     el proceso arrancara desde una subcarpeta anidada, `Path.cwd()`
     apuntaria al sitio equivocado para `notes.pm_root(root)`.
 
-    Si `plans_unreflected()` o `coherence_rules()` revientan (falla `gh`;
+    Si `issues_checked()` o `coherence_rules()` revientan (falla `gh`;
     un git corrupto), eso no tumba `build()` entero: se captura aqui, el
     resultado queda vacio y el motivo real va a su propio campo `_error`
     -- nunca tumba el resto del informe (indices, IDs), que sigue siendo
