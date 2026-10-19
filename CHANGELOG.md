@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`gitmem remove --commit <sha>` retires one note of a repeated id** (#105, D-145): when several live notes share an id, `remove`, `--replaces` and `--promotes` refuse, list each copy with its commit and headline and write nothing; the sha (or a unique prefix) picks which one, and the output says how many were archived.
+- **`gitmem remove --restriction new --replaces R-x`** (#105): the incident closes, the new wall is born and the old wall `R-x` is archived in the same act, so a replaced wall is no longer left alive beside its successor.
+
+### Changed
+
+- **The session start alarms on a repeated id only while two or more copies are live** (#105, D-148, replaces D-147): once `remove --commit` leaves one live copy the alarm clears, instead of staying on forever because the archived twin remains in git.
+
+### Fixed
+
+- **`gitmem note --discard` honours `--replaces` and `--promotes`** (#105, D-145): the old note is archived and the question promoted as asked, and the discards are validated first, so a refused one no longer leaves a half-written decision.
+- **The test suite no longer overwrites the owner's real `~/.local/bin/gitmem`** (#105, D-145): every test runs under a fake HOME, and `test_doctor_after_install` passes when run alone.
+
 ## [1.50.1] - 2026-10-19
 
 ### Fixed

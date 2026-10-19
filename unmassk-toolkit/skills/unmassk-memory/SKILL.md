@@ -133,7 +133,7 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 
 **Headline and keys in English; the body in the user's language.** The headline is ≤80 characters and says what happened, not what was fixed. Keys are up to five search words **not already in the headline** — without them a correct note is unfindable.
 
-**A decision buries its alternatives in the same act:** one `--discard` per option that lost, with why it lost — every one of them, not just the runner-up.
+**A decision buries its alternatives in the same act:** one `--discard` per option that lost, with why it lost — every one of them, not just the runner-up. `--discard` also works alongside `--replaces` (the old note is archived) and `--promotes` (the question is promoted); every discard is validated first, and if one is refused nothing at all is written.
 
 **The test for a why, and it is the whole difference between memory and noise:** could someone reading only this note, six months from now, understand why *this* was chosen over the closest alternative? If not, rewrite it before saving. "Because it's better" fails. "Because sessions don't survive multi-tenant" passes.
 
@@ -275,6 +275,11 @@ gitmem remove M-041 "the provider dropped that limit"
 gitmem remove I-014 "seeds fixed" --restriction new \
   --restriction-text "never point the test suite at production" \
   --why "a seed run wiped the users table"
+# an incident that closes into a wall replacing an older one: the old wall is archived in the same act
+gitmem remove I-014 "seeds fixed" --restriction new --replaces R-007 \
+  --restriction-text "never point the test suite at production" --why "a seed run wiped the users table"
+# an id carried by several live notes: remove refuses and lists each with its commit; pick one (unique sha prefix, as in git)
+gitmem remove M-041 "superseded" --commit 1a2b3c4d5e
 
 # next — close the session
 gitmem next "finish the rate limiter and wire it to the login endpoint" \
@@ -293,6 +298,8 @@ gitmem rule --retract "<exact text>" --kind <user|claude>            # retire a 
 gitmem rule "<new text>" --replaces "<old text>" --kind <user|claude> --quote "<literal>" --searched "<searched>: <found>"  # replace one rule with another, atomically
 gitmem rule
 ```
+
+**A repeated id** (two live notes with the same number, e.g. from two machines) is never fixed by guessing: `remove`, `--replaces` and `--promotes` refuse and list each copy with its commit and headline, writing nothing. Boot raises the alarm only while two or more copies are live; once `gitmem remove <id> "<reason>" --commit <sha>` archives all but one, it clears (D-148). Ids are never rewritten.
 
 **The memory doctor is the content check** (`gitmem rezones --verify` only proves the indexes match git): for rot — a note a decision already killed, two notes saying the same thing, a reference pointing at nothing — invoke the **`unmassk-memory-doctor`** skill. It only lists; retiring stays the owner's call.
 
