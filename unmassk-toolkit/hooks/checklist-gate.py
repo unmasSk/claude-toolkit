@@ -17,7 +17,9 @@ conditions below, never as an internal error.
 Four protections, all fail-open, none optional (each closes a documented
 real failure -- see the module docstring of casillas-por-programa.md):
 1. `stop_hook_active` is NEVER re-blocked -- issue #55754's loop burned
-   50 minutes of a real session re-triggering its own Stop hook.
+   50 minutes of a real session re-triggering its own Stop hook. Nor is a
+   Stop waiting on in-flight subagent/workflow work (D-142): it passes
+   uncounted, with one stderr line naming the wait (lib/checklist_wait.py).
 2. At most 2 blocks per session (counted in the same per-session
    registry); after that, warn and let the session close.
 3. Read-only, always: no subprocess, no network, no git call of any kind.
@@ -53,6 +55,7 @@ force_utf8_streams()
 
 from git_helpers import open_no_follow_symlink  # noqa: E402  (protection 3: file reads only, no git/subprocess helpers)
 import checklist_state  # noqa: E402
+import checklist_wait  # noqa: E402
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB, same ceiling as this repo's other hooks.
 _MAX_BLOCKS_PER_SESSION = 2
@@ -211,11 +214,8 @@ def _block_or_allow(cwd: str, session_id: str, missing: list[str], open_items: l
 
         fresh_registry["block_count"] = block_count + 1
         if not checklist_state.save_registry(cwd, session_id, fresh_registry):
-            # The anti-loop counter (protection 2) only works if it's
-            # durable -- blocking anyway here, with a counter that never
-            # advances on disk, reproduces issue #55754's exact loop
-            # (every future Stop re-blocks forever). A single skipped
-            # block is the safer failure.
+            # Protection 2 needs a durable counter: blocking with one that never
+            # advances reproduces issue #55754's re-block-forever loop.
             sys.stderr.write(
                 "checklist-gate: could not persist the block counter -- "
                 "allowing close this turn (a blocks-forever loop is worse "
@@ -264,18 +264,18 @@ def main() -> None:
         raw = sys.stdin.read(_STDIN_READ_LIMIT)
         hook_input = json.loads(raw) if raw.strip() else {}
         if not isinstance(hook_input, dict):
-            # Valid JSON but not an object (null, a list, a bare number...)
-            # -- every hook_input.get() below would raise AttributeError
-            # and crash this process with a non-zero exit, violating this
-            # hook's own "exit: always 0" contract (Cerberus/Argus,
-            # 2026-08-24: reproduced with stdin `null`, `[1,2,3]`, `42`).
+            # Valid JSON but not an object (`null`, `[1,2,3]`, `42`): .get() below would
+            # crash with a non-zero exit, breaking "exit: always 0" (Cerberus/Argus, 2026-08-24).
             hook_input = {}
     except Exception as e:
         sys.stderr.write(f"checklist-gate: unreadable stdin, allowing close ({e!r})\n")
         sys.exit(0)
 
-    # Protection 1: never re-block a Stop that blocked itself; nor one that waits on in-flight background_tasks (D-141), uncounted.
-    if hook_input.get("stop_hook_active") is True or (isinstance(bg := hook_input.get("background_tasks"), list) and bg):
+    if hook_input.get("stop_hook_active") is True:  # protection 1: never re-block itself
+        sys.exit(0)
+    wait_line = checklist_wait.agent_wait_line(hook_input)
+    if wait_line:  # protection 1, D-142: a pause for agent work, uncounted
+        sys.stderr.write(wait_line)
         sys.exit(0)
 
     session_id = hook_input.get("session_id")
