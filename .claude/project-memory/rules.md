@@ -8,7 +8,6 @@
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
-[remember][user] 🧠 nada se construye que no este en el roadmap, y nada entra al roadmap sin que el usuario lo firme -- una idea a media tarea se anota como candidata al final, no se abre ahi mismo
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
 [remember][user] 🧠 las fichas de los agentes y las skills son agnosticas: viajan a todos mis proyectos, nunca las juzgues contra el proyecto en el que estas
@@ -38,3 +37,4 @@
 [remember][claude] 🧠 - When Bex asks for speed, skip the full review pipeline unless the change can lose data or corrupt memory. — «te he dicho rapido y no lo estas haciendo rapido... una cosa muy muy sencilla, como ponerle una coma a un documento MD... me parece una falta de respeto cuando te he dicho que tengo prisa»
 [remember][user] 🧠 - Write cards, skills and prompts in English. When you change one, show Bex the diff. — «si en ingles como siempre, pero a mi me los das en castellano, pero siobretodo lo que necesito es el diff ver en que ha cambiado eso es lo que mas necesito»
 [remember][user] 🧠 - When Bex says the context is at 80-90 %, finish the work in progress. Leave the session open. — «No, el que te avisa del 80-90% del contexto soy yo. Tú no puedes mirar el contexto.»
+[remember][user] 🧠 Build only what is on the roadmap. Add to the roadmap only what Bex signs. Note a mid-task idea as a candidate at the end of the report. Do not start it.
