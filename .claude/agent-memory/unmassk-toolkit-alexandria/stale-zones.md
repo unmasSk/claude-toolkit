@@ -7,6 +7,7 @@ type: project
 ## Open, not yet fixed
 
 - **Root `CLAUDE.md` vs core on commits (seen 2026-10-19, #89 check):** CLAUDE.md "Reglas vivas" says WIPs are squashed into one pushed commit per step (D-118); `unmassk-core/SKILL.md` common rule 14 says squash nothing until #87 ships. Owner's call which wording wins; re-check both with `grep -n 'squash\|D-118' CLAUDE.md unmassk-toolkit/skills/unmassk-core/SKILL.md`.
+- **`docs/plan/` status audit (2026-10-19, read-only, owner deciding):** casillas-por-programa and aprender-de-moria are finished (moria item 9 open by its own words); cumplimiento-de-instrucciones done except blocks 1-2, superseded by #95 1b and #89; 2026-10-16-arnes-v2 is an unsigned draft overtaken piecemeal (D-112, D-116, D-131, R-021, #96) and contradicted on the checklist gate (D-121/D-141/D-142 kept it). Re-check `ls docs/plan` and git log on them before repeating.
 - **#89 boot slimming is a moving target:** the proposal artifact (2026-10-18) measured core/memory/CLAUDE.md/boot report before the 40 common rules, D-131 import and flow v2 landed. Re-measure with `wc -l -c` before trusting any estimate in it.
 
 - **`docs/` has no `docs/README.md` index** — four entries (`RELEASING.md`, `plan-activar-memoria.md`, `plan/`, `deprecated/`) and nothing linking them. Not a Diátaxis set, so building one is `foundation` mode, which the owner asks for by name. Flagged 2026-08-28, deliberately not created.

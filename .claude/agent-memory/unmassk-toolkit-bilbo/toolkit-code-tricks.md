@@ -74,3 +74,10 @@ Task histories do NOT live here (they are project memory, in `gitmem`).
   hits for "close-session" in tests are the skill name only). It only reads `user`/`assistant` records: mid-turn owner messages live in
   `queue-operation` and `attachment`(`queued_command`, `origin.kind=human`) records, and the close command is a `user` string made only of
   `<command-*>` tags, so `_INLINE_TAGS` empties it. `--since` moves only the conversation cut, never the commit range (`_commits(repo, sha)`).
+
+## Hito 3 checks (verified @160247ca, 2026-10-19)
+
+- **Desktop sessions have two list tools.** `~/.claude/tasks/<session>/` exists only when the model called `TaskCreate`; long orchestrator sessions use `mcp__ccd_turn__update_plan` (no dir, `checklist-gate` fails open). Count both in `~/.claude/projects/<proj>/<sid>.jsonl` before trusting "the app uses another path".
+- **`note.py` with `--discard` skips `--replaces`/`--promotes`** (`main` -> `_handle_discard`): the note is written with `Replaces:` but the old one stays live. Find silent un-archived replaces with `git show --name-only` on notes whose body has `Replaces:` and no `ARCHIVED.md`.
+- **Tests that write `~/.local/bin/gitmem`**: 14 files, found by running each with a fresh `HOME`; `test_managed_blocks.py` is one. `test_lifecycle.py` tests are order-dependent (module fixture): never run one alone.
+- **Scratch clones**: a `git commit` in a Bash command (even inside a script) is blocked by the memory hook; edit and let `gitmem` do the committing. `timeout` does not exist on this macOS.
