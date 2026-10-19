@@ -5,6 +5,25 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: codigo del #89 (bloques gestionados, router, tabla de hooks, informe del arranque) (2026-10-19)
+DEBIL. Sin T1: 13 CLAUDE.md reales del propietario (copias) conservan su texto,
+el informe lista exactamente las issues abiertas con trabajo vivo (contrastado
+con `gh issue list`), una sola llamada a gh, gh colgado sale avisado a 16 s.
+4 mutantes vivos (segunda copia de bloque legado, parrafos pegados en el corte,
+strip de pegados voraz, aviso de COUNTS por issue no devuelta). T3: el test
+"in sync" de la tabla de hooks solo mira evento+fichero; 8 ordenes reales de
+modo automatico ("te dejo en automatico") no disparan (frases previas al #89).
+Incidente mio: el lanzador con instalador reescribio ~/.local/bin/gitmem (mismos bytes).
+
+## claude-toolkit: recorte del arranque #89, inventario de 316 reglas (2026-10-19)
+FALLA (T1). «Permiso de escritura solo en este repositorio; en los demás, solo
+lectura» desapareció del texto de arranque: solo queda en la tabla del modo
+automático. T2: la lección de la barrera de Moriarty quedó invertida («va en un
+hook o en quitar la herramienta»), se perdió «a un agente solo le llega lo
+escrito», y el conflicto prisa-contra-revisores se resolvió borrando una de las
+dos reglas. Los traslados a references, el generador de bloques y los punteros
+aguantaron.
+
 ## claude-toolkit: extractor del cierre de sesión, fix-close-transcript (2026-10-19)
 FALLA (T1). Una sesión que acaba sin cierre deja su conversación en otro
 fichero: el siguiente cierre lista sus commits y omite sus palabras, sin aviso

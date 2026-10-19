@@ -26,6 +26,15 @@ El detalle completo de la era retirada sigue en `round-history.md` y
 
 ## Sistema actual — memoria v2 (`lib/memory/*`, `hooks/customs.py`, `hooks/checklist-gate.py`, `hooks/skill-checklist-inject.py`, `bin/memory/*`)
 
+### Generador de bloques e informe del arranque tras el #89 (2026-10-19)
+El borrado de bloques legados conserva el texto del propietario en 13
+CLAUDE.md reales (copias), es idempotente, estable ante una sesion con la
+version vieja en medio (nuevo-viejo-nuevo) y aguanta 4 hooks concurrentes. El
+informe lista exactamente las issues abiertas con trabajo vivo (contrastado con
+`gh issue list` como canal independiente), hace una sola llamada a gh y sale
+avisado si gh cuelga, falla, omite un alias o devuelve un campo de menos (shim
+sobre el gh real). No repetir estos ataques sin un cambio en esas piezas.
+
 ### Extractor del cierre: dentro de UN transcript no pierde palabras del dueño (2026-10-19)
 Contrastado contra los 71 transcripts reales (copias), con el texto de cada
 `enqueue` como segundo canal independiente: solo faltan los nombres de los
