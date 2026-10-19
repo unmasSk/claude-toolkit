@@ -23,6 +23,7 @@ Sec.1.10 describe naciendo muro al cerrarse.
 """
 
 import argparse
+import dataclasses
 import os
 import sys
 from datetime import datetime, timezone
@@ -168,11 +169,32 @@ def _guard_restriction_new(args):
     candidate = _build_fence_candidate(args, incident)
     rejections = validator.validate_note(candidate, ctx)
     if rejections:
+        headline = validator.validate_headline(candidate.headline)
         for one_rejection in rejections:
+            if one_rejection == headline:
+                one_rejection = _headline_rejection_for_remove(args, one_rejection)
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)
         return None
 
     return incident
+
+
+def _headline_rejection_for_remove(args, rejection):
+    """El rechazo del titular largo, con el Relanza cambiado a `gitmem
+    remove` -- corregido 2026-10-19, hallazgo real: el de
+    `validator.validate_headline()` propone `gitmem note <TIPO> ...`, que
+    pegado tal cual escribe un muro suelto, sin `Origin:` y sin cerrar la
+    incidencia: justo lo que `_guard_restriction_new()` existe para evitar.
+    Se rehace solo el comando aqui, no en el validador: el camino de
+    `gitmem note` tiene que seguir proponiendo su propio comando.
+    """
+    command = (
+        f'gitmem remove {args.id} "{args.reason}" --restriction new '
+        f'--restriction-text "<titular de hasta {validator.HEADLINE_MAX} caracteres>"'
+    )
+    if args.why:
+        command += f' --why "{args.why}"'
+    return dataclasses.replace(rejection, relaunch=(command,))
 
 
 def _fence_retry_command(args, incident):
