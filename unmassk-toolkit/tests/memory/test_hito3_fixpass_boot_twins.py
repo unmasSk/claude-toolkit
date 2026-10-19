@@ -211,6 +211,21 @@ class TestBootAlarmsWhileTwoCopiesAreLive:
             (shas[0], ZONES_HERE, HEADLINES["M"][0]), (shas[1], ZONES_THERE, HEADLINES["M"][1]),
         ))
 
+    def test_should_leave_the_archived_copy_out_of_the_alarm_when_two_of_three_stay_live(
+        self, tmp_repo, tmp_path, fake_home, gh_stub  # noqa: F811
+    ):
+        """D-148: the alarm lists only the live copies; the archived one is
+        resolved and is never offered as something to remove again."""
+        note_id, shas = _triplets(tmp_repo, tmp_path, fake_home)
+        _remove(tmp_repo, fake_home, "M", note_id, "--commit", shas[2])
+
+        checks = _checks_block(tmp_repo, gh_stub)
+
+        assert HEALTHY not in checks, f"two copies stay live, the alarm must stay on:\n{checks}"
+        assert shas[2][:SHORT_SHA] not in checks and THIRD_HEADLINE not in checks, (
+            f"the archived copy {shas[2][:SHORT_SHA]} ({THIRD_HEADLINE!r}) is listed in the alarm:\n{checks}"
+        )
+
     @pytest.mark.parametrize("archived_is", ("newer", "older"))
     def test_should_stop_telling_anyone_to_remove_anything_when_the_printed_fix_is_run(
         self, tmp_repo, tmp_path, fake_home, gh_stub, indexes, archived_is  # noqa: F811

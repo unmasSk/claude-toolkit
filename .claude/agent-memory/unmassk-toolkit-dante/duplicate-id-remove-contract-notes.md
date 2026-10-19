@@ -111,3 +111,8 @@ Files: `test_hito3_fixpass_promotes_relaunch.py` (new), plus additions to `test_
 
 - Probe a setup without adding a kept test: a temp `test_zz_*_tmp.py` importing the test file's
   helpers, run with -s, deleted after.
+
+- Archived copy left out of the alarm (2026-10-20): triplets + `remove --commit shas[2]`, assert the
+  archived sha[:7] and headline are absent from CHECKS. Mutant "list every commits_by_id" dies.
+- The real-HEAD teardown guard also fires when another agent commits in the real repo mid-run:
+  check `git log` before blaming the test, then rerun.
