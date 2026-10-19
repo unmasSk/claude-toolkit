@@ -113,4 +113,4 @@
 [D-144][memory][skills] close extractor reads every transcript since the last close, not only newest
 [D-145][memory][testing] gitmem remove refuses a duplicated id; --commit picks one note
 [D-146][hooks][skills] checklist gate also reads the desktop app's task list (R.1)
-[D-147][memory][architecture] a duplicated note id is an error to fix, not a state every reader supports
+[D-148][memory][boot] boot alarms a repeated id only while two or more copies are live

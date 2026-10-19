@@ -79,3 +79,4 @@
 2026-10-19  [I-009][release][testing] 🔥 1.50.0 released with its Windows CI red: new boot test's fake gh never runs  →  closed: fixed: the test runs on POSIX only like its siblings; 1.50.1 release CI green on Ubuntu and Windows (run 39296936417); R-024 already covers the lesson
 2026-10-19  [D-141][hooks][skills] 🧭 checklist gate stays quiet while background work runs (Stop background_tasks)  →  closed: replaced by D-142; R.13 (--replaces ignored with --discard) left it live
 2026-10-19  [D-123][skills][testing] 🧭 Dante enters once: tests first, then only the fix passes; no hardening pass  →  closed: replaced by D-125; R.13 (--replaces ignored with --discard) left it live
+2026-10-19  [D-147][memory][architecture] 🧭 a duplicated note id is an error to fix, not a state every reader supports  →  replaced by D-148
