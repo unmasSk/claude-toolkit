@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Windows CI job cap goes from 20 to 40 minutes**: the 1.51.0 release run was cancelled at the cap with no test red (the 1.50.1 run already took 18 min 45 s and the new #105 tests tipped it over), so 1.51.0 was never installed (I-010).
+
 ## [1.51.0] - 2026-10-20
 
 ### Added
