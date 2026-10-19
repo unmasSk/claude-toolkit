@@ -16,7 +16,8 @@ if _LIB_DIR not in sys.path:
 from encoding_guard import force_utf8_streams  # noqa: E402
 force_utf8_streams()
 
-from managed_blocks import BLOCKS, upsert_managed_blocks  # noqa: E402
+from managed_blocks import upsert_managed_blocks  # noqa: E402
+from rules_hint import print_rules_hint  # noqa: E402
 from git_helpers import claude_md_lock_path, file_lock, open_no_follow_symlink, run_git  # noqa: E402
 
 # The except below reports EVERY OSError as "CLAUDE.md is a symlink" — a
@@ -63,25 +64,6 @@ def _read_claude_md(claude_md):
             return f.read(), True
     except (OSError, UnicodeDecodeError):
         return None, None
-
-
-# D-131: the toolkit block's own @import line, so the hint below names
-# exactly what the import loads.
-_RULES_IMPORT = next(
-    (ln.strip() for ln in BLOCKS[0]["body"].splitlines() if ln.startswith("@")), None)
-
-
-def _print_rules_hint(git_root: Path, old_content: str, new_content: str) -> None:
-    """Claude Code reads CLAUDE.md before this hook rewrites it: when this
-    start is the one that adds the import, the rules would only arrive next
-    session -- so tell Claude to read them now. Silent when the import was
-    already there (loaded at launch) or the rules file does not exist."""
-    if not _RULES_IMPORT or _RULES_IMPORT in old_content or _RULES_IMPORT not in new_content:
-        return
-    rules = _RULES_IMPORT[1:]
-    if (git_root / rules).is_file():
-        print(f"[crew] READ NOW, before replying: {rules} whole -- the owner's rules. "
-              "CLAUDE.md's import of it was just added and only loads next session.")
 
 
 def _print_plugin_sync_check(git_root: Path) -> None:
@@ -279,7 +261,7 @@ def _managed_blocks_cycle(git_root: Path) -> None:
                 with open_no_follow_symlink(claude_md, "w", encoding="utf-8", atomic=True) as f:
                     f.write(new_content)
                 print("[crew] Created CLAUDE.md with all managed blocks")
-                _print_rules_hint(git_root, content, new_content)
+                print_rules_hint(git_root, content, new_content)
                 return
 
             if new_content != content:
@@ -287,7 +269,7 @@ def _managed_blocks_cycle(git_root: Path) -> None:
                     f.write(new_content)
                 for line in log:
                     print(f"[crew] {line}")
-                _print_rules_hint(git_root, content, new_content)
+                print_rules_hint(git_root, content, new_content)
             else:
                 print("[crew] All managed blocks up to date")
     except OSError as exc:
