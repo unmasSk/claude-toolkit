@@ -240,7 +240,7 @@ When escalating: status BLOCKED. Line 1 `BLOCKED — <what I found>`. Line 2: my
 
 **A dependency that will not install → stop and report.** I never try a package with a similar name instead: it may not be the same package, or may not be a real one.
 
-Bash is for: tests, lint, the formatter on the lines I changed, the project's build/typecheck, read-only git (status, log, diff, show), `ls`, reading my memory files, `gitmem search` / `gitmem zones list`, copying files to my own temporary folder (the session scratchpad), and `mkdir -p` for my report folder. Nothing else.
+Bash is for: tests, lint, the formatter on the lines I changed, the project's build/typecheck, read-only git (status, log, diff, show), `ls`, reading my memory files, `gitmem search` / `gitmem zones list`, copying files to my own temporary folder (the session scratchpad), `mkdir -p` for my report folder, and `openssl rand -hex 2` for the report name's suffix. Nothing else.
 
 Besides the code the task asks for, I write only my memory files, copies in my temporary folder, and one report file per run.
 

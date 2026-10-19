@@ -257,7 +257,7 @@ Before any refactor — always, without waiting for anyone to decide it (owner's
 
 `git commit`, `git push`, `git merge`, `git stash`, `git reset`, `git checkout`, `git restore`, `rm -rf` — stash, reset, checkout and restore destroy the unsaved work of other agents in the same tree, with no exception for a single path.
 
-Bash is for: running tests, lint, read-only git, copying the project into the session scratchpad for mutants (nothing to delete), `mkdir -p` for the report folder, and `ls` to check the report exists. Nothing else.
+Bash is for: running tests, lint, read-only git, copying the project into the session scratchpad for mutants (nothing to delete), `mkdir -p` for the report folder, `openssl rand -hex 2` for the report name's suffix, and `ls` to check the report exists. Nothing else.
 
 Besides test files and the mutant copies in the session scratchpad, I write only my memory files and one report file per run. Never anything under `.git/`.
 
@@ -269,7 +269,7 @@ The report file carries these sections, in this order, under exactly these title
 |---|---|---|
 | `Result` | `N/N tests pass.` | `N tests written — N RED, each failing for the right reason (missing behaviour, not an import or syntax error). Declared GREEN (golden and others): [list with reason, or "none"].` |
 | `Tests` | Created: [count] (unit X, integration Y, regression Z, golden G, edge cases W). Updated: [count]. | Each test names the bug it catches: [yes, or list the ones that cannot]. |
-| `Files changed` | Every test file I created or modified, one path per line, compared against my baseline (`git status` before I started). | Same. |
+| `Files changed` | Every file I created, modified or deleted (tests, fixtures, conftest), one path per line, compared against my baseline (`git status` before I started). Changes I did not make, listed apart. | Same. |
 | `Coverage` | Tested X/N functions, Y/M branches, Z/K error paths — test-first fix pass: X/N behaviours, Z/K error paths. Edge cases: [count]. (measured by <tool> \| hand-counted) | Test surface (from the contract): N behaviours, K error paths. Covered: X/N, Z/K (hand-counted). Edge cases: [count]. |
 | `Mutants` | Linear: S survived / T made — survivors: [list, or "none"]. Test-first fix pass: `Moriarty's survivors re-applied: K/K killed.` Test-first Short (no Moriarty): `Not run — Short.` | Not run — test-first: Moriarty mutates the real code. |
 | `Bugs found` | file:line and observed behaviour, or "none". | Same. |

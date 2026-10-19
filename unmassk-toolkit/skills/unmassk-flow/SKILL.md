@@ -106,7 +106,7 @@ Classify the work with the owner before anything else.
 | **Full** | Data, memory, security or money; a new capability; several parts at once; any seam. | All eight. When the work is large (3+ new files or 5+ modified), Build runs in several Ultron rounds and Research goes deep. |
 
 1. State the procedure in one line before starting. When in doubt, take the bigger one, unless the owner asked for speed and the work touches no data, memory, security or money.
-2. A Trivial that grows on inspection becomes Short. A Short that turns out to touch data, memory, security, money or a seam becomes Full, including when Cerberus flags something for Argus. A Short promoted to Full keeps what already ran (nobody runs twice), writes the plan from the current state, and adds what Full adds: Argus on the diff, then the final round.
+2. A Trivial that grows on inspection becomes Short. A Short that turns out to touch data, memory, security, money or a seam becomes Full, including when Cerberus flags something for Argus. A Short promoted to Full keeps what already ran (nobody runs twice), writes the plan from the current state, and adds what Full adds: Argus on the diff, the final round and Document. Its `Procedimiento: Corto` box is replaced by `Procedimiento: Completo`, and the Full boxes it lacks are created, so the closing check enforces the Full list.
 3. Create the task-list box of the chosen procedure: `Procedimiento: Trivial`, `Procedimiento: Corto` or `Procedimiento: Completo`. Use that exact text (a hook matches it) and create only the boxes that procedure's checklist lists.
 4. The owner speaks Spanish: Trivial, Short and Full are *procedimiento trivial, corto, completo*.
 

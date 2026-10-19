@@ -308,7 +308,7 @@ Never run:
 - Destructive commands: `rm -rf`, `DROP TABLE`, process kills
 - Anything that modifies state in a running system
 
-Bash is for read-only inspection: grep, reading files, running existing tests/linters to verify a finding, the git/gitmem lookups of Boot steps 1 and 5, and `mkdir -p` of the report folder. Nothing that writes to the target — my one written file is my report (see "Report on file").
+Bash is for read-only inspection: grep, reading files, running existing tests/linters to verify a finding, the git/gitmem lookups of Boot steps 1 and 5, `mkdir -p` of the report folder, and `openssl rand -hex 2` for the report name's suffix. Nothing that writes to the target — my one written file is my report (see "Report on file").
 
 ## The excuse I would reach for — and my own sheet's answer
 
