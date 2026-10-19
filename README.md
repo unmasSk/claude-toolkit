@@ -36,7 +36,7 @@ None of these shipped as bugs users hit. They shipped as regression tests, the d
 
 ## What you get
 
-**Memory that's actually memory.** Decisions, corrections, and rules persist as git commits — readable, diffable, yours. Working across two machines, it fetches and warns you when local is behind before you start (it never pulls on its own; bringing the work over stays your call). One command, `/remember`, puts your own rules file in front of Claude and every line becomes binding from that moment.
+**Memory that's actually memory.** Decisions, corrections, and rules persist as git commits — readable, diffable, yours. Working across two machines, it fetches and warns you when local is behind before you start (it never pulls on its own; bringing the work over stays your call). Your own rules file is loaded whole at every session start (the project's `CLAUDE.md` imports it), so every line binds from the first message; `/remember` re-reads it on demand. Saving a note or a rule asks one question first — did you search, and is it not already written? — through a required `--searched` line.
 
 **A groundhog-day detector.** The Groundhog Protocol (`unmassk-groundhog`) asks one open question of any project: what does this do repeatedly, every session, that no skill already covers? It sweeps the git memory, the agents' own memories, the instruction files and the commit history, and proposes at most 1-3 skill candidates with cited evidence — a skill is only created after the owner approves it.
 

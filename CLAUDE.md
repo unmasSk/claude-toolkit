@@ -18,7 +18,7 @@
 
 **Cómo funciona la memoria hoy se lee en un solo sitio: `unmassk-toolkit/skills/unmassk-memory/`**, que es lo que se carga en cada sesión. No hay un segundo sitio.
 
-**`/remember` es el único comando de barra del toolkit.** Solo lee: pone en contexto el fichero de reglas del proyecto (`.claude/project-memory/rules.md`) y a partir de ahí obligan. **Guardar una regla es trabajo de Claude**, en el momento en que el propietario la dice — nunca algo que él tenga que invocar.
+**Las reglas llegan solas en cada arranque** (D-131, #95): el bloque gestionado de este `CLAUDE.md` importa `@.claude/project-memory/rules.md`, y Claude Code lo carga entero al lanzarse — no pasan por la salida de un hook, que se recorta a 2.000 caracteres por encima de 10.000 y muere con el tiempo del hook (I-005). La primera sesión que añade el import avisa con `READ NOW` de leerlas en ese mismo momento (`lib/rules_hint.py`). **`/remember` es el único comando de barra del toolkit** y las relee a demanda: solo lee, vuelve a poner en contexto el mismo fichero y siguen obligando. **Guardar una regla es trabajo de Claude**, en el momento en que el propietario la dice — nunca algo que él tenga que invocar.
 
 **Lo que queda por hacer, y en este orden:**
 
@@ -41,7 +41,7 @@ Los tres frentes que estaban aparcados —auditar los muros, compactar la memori
 
 Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que hicieron perder horas.**
 
-**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto — se leen enteras con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
+**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto — llegan enteras en cada arranque y se releen con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
 
 **1 · No repitas lo que ya has dicho.** Un hallazgo se cuenta **una vez**. Explicarlo por segunda vez «para que se entienda» es gastar el contexto de la sesión, que es el recurso que se acaba. *«Creo que me lo has dicho ya diez veces, cómo te gusta gastar contexto.»*
 
@@ -90,6 +90,7 @@ Estas seis salieron de fallos reales, no de teoría.
 ## Reglas vivas
 
 - **Cada paso queda en un WIP y, al terminarlo, sus WIPs se juntan en un commit que se sube** (D-118); lo trivial es un commit normal. Solo se para a pedir permiso cuando el cambio es de alto riesgo: irreversible, de seguridad, o que él no pueda verificar por su cuenta. La memoria se guarda sola.
+- **Guardar una nota o una regla exige `--searched "<lo buscado>: <lo encontrado>"`** (D-098, D-124): sin él, el comando —y la aduana antes de que corra— rebota con la pregunta «¿lo busqué y no está ya escrito ni es sentido común?». Viaja en la nota como un primer `Description:` para que el lector 1.47.0 siga leyéndola (D-133). Cada mensaje del propietario lleva además el checklist D-124, y el hook `Notification` toca Morse tres veces cuando Claude espera por él (D-132).
 - **Nadie usa `git stash`, `reset`, `checkout` ni `restore`** sobre trabajo sin guardar: se perdería todo.
 - **Permiso de escritura solo en este repositorio.** En cualquier otro del propietario, lectura y nada más.
 - **No hay atacante externo** en el modelo de amenaza. La única amenaza es el sistema rompiéndose a sí mismo: memoria perdida o corrompida, escritura en el sitio equivocado, fallo que pasa callado. Un hallazgo sobre entrada hostil aquí sobra.

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added
+
+- **The owner's rules reach every session whole, through a `CLAUDE.md` import** (D-131): the toolkit block imports `@.claude/project-memory/rules.md`, which Claude Code loads at launch; the first session that adds the import prints `READ NOW` so the rules bind that same session (#95).
+- **Saving a note or a rule requires `--searched "<searched>: <found>"`** (D-098, D-124): without it `gitmem note`/`gitmem rule` bounce with the question, and the customs hook blocks the command before it runs; relaunch lines carry the answer along. The text is stored as a leading `Description:` so a session still on 1.47.0 keeps reading new notes (D-133).
+- **Every owner message carries the D-124 checklist** (rules kept, no assuming, plan ticked, sector first when proposing options).
+- **Morse cue when Claude is waiting for the owner** (D-102, D-132): a `Notification` hook (`permission_prompt|idle_prompt`) plays it three times, 0.3 s apart; it never blocks and does nothing without `afplay`.
+
+### Changed
+
+- **The boot reads its report instead of "the briefing already in context"**: the managed block and the first-message reminder tell Claude to read the report the `[memory]` lines point to, and to say in the first line if none arrived.
+- **`/remember` re-reads the rules on demand** rather than being how they arrive.
+
+### Fixed
+
+- **A boot that ran past the 30 s hook limit used to vanish without a word** (I-005, D-130): the issue check is now one batched GitHub query, the launcher stops the boot at its own 22 s deadline, shares what is left with the network steps, replaces the previous session's report with a failure notice and says so loudly.
+- **Relaunch lines in rejections now carry the flags already given** (`--kind`, `--quote`, required fields), so obeying them no longer bounces again.
+
 ## [1.47.0] - 2026-10-18
 
 ### Added

@@ -86,7 +86,7 @@ GIT_ROOT="$(git -C "$PWD" rev-parse --show-toplevel)" && echo "$GIT_ROOT" && cat
 #      and diagnose on the evidence alone.
 ```
 
-**The session-start briefing does NOT reach me.** In projects carrying this toolkit, the project's `CLAUDE.md` arrives in my prompt whole and talks about a session-start briefing with the last Next, the blockers and the restrictions. That instruction is for the orchestrator, not for me — no briefing arrives here. What I know about this project is exactly two things: what the orchestrator wrote in my prompt, and what I dig out myself with `gitmem search` in Step 5. If I skip Step 5 because CLAUDE.md made me think I already had the project's memory, I am diagnosing blind.
+**The session-start boot report does NOT reach me.** In projects carrying this toolkit, the project's `CLAUDE.md` arrives in my prompt whole and tells the reader to read the boot report with the last Next, the blockers and the restrictions. That instruction is for the orchestrator, not for me — no boot report arrives here. What I know about this project is exactly two things: what the orchestrator wrote in my prompt, and what I dig out myself with `gitmem search` in Step 5. If I skip Step 5 because CLAUDE.md made me think I already had the project's memory, I am diagnosing blind.
 
 Memory path is ALWAYS `<GIT_ROOT>/.claude/agent-memory/unmassk-toolkit-house/`, written as the literal absolute path Step 1 printed. Never relative. Never re-derived after a `cd`.
 Create `.claude/` only at that root, and only my memory folder and `.claude/informes/` inside it. NEVER in a subdirectory or a nested clone.
