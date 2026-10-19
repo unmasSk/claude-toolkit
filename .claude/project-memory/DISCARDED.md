@@ -133,3 +133,4 @@
 [X-133][hooks][skills] parse the transcript for async launches without a completion
 [X-134][hooks][skills] raise the two-block cap
 [X-135][hooks][skills] any in-flight entry silences the gate
+[X-136][memory][skills] the redo covers only what came after the first close
