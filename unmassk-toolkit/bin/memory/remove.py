@@ -45,10 +45,11 @@ import notes  # noqa: E402
 import notes_duplicate  # noqa: E402
 import query  # noqa: E402
 import rejection as rejection_  # noqa: E402
+import similar  # noqa: E402
 import validator  # noqa: E402
 import zones as zones_lib  # noqa: E402
 from model import Note  # noqa: E402
-from vocabulary import TYPE_INDEX_FILES  # noqa: E402
+from vocabulary import SIMILARITY_THRESHOLD, TYPE_INDEX_FILES  # noqa: E402
 
 
 def _parse_args(argv):
@@ -176,9 +177,12 @@ def _guard_restriction_new(args):
     rejections = validator.validate_note(candidate, ctx)
     if rejections:
         headline = validator.validate_headline(candidate.headline)
+        overlap = validator.validate_replacement(candidate, ctx.existing_in_zone)
         for one_rejection in rejections:
             if one_rejection == headline:
                 one_rejection = _headline_rejection_for_remove(args, one_rejection)
+            elif one_rejection == overlap:
+                one_rejection = _overlap_rejection_for_remove(args, one_rejection, candidate, ctx)
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)
         return None
     target_problem = _replaces_target_problem(args.replaces, pm)
@@ -249,6 +253,30 @@ def _headline_rejection_for_remove(args, rejection):
     if args.why:
         command += f" --why {shlex.quote(args.why)}"
     return dataclasses.replace(rejection, relaunch=(command,))
+
+
+def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
+    """El rechazo del muro parecido, con el Relanza cambiado a `gitmem
+    remove ... --replaces <el parecido>`: el `gitmem note R` del validador
+    escribe un muro suelto y deja la incidencia abierta.
+    """
+    first = similar.find_overlapping(candidate, ctx.existing_in_zone, threshold=SIMILARITY_THRESHOLD)[0]
+    return dataclasses.replace(rejection, relaunch=(_remove_command(args, replaces=first.id),))
+
+
+def _remove_command(args, replaces=None, commit=None):
+    """`gitmem remove` con todos los flags que se dieron, listo para pegar."""
+    words = ["gitmem", "remove", args.id, args.reason]
+    for flag, value in (
+        ("--restriction", args.restriction),
+        ("--restriction-text", args.restriction_text),
+        ("--why", args.why),
+        ("--replaces", replaces or args.replaces),
+        ("--commit", commit or args.commit),
+    ):
+        if value is not None:
+            words += [flag, value]
+    return shlex.join(words)
 
 
 def _fence_retry_command(args, incident):
@@ -358,46 +386,53 @@ def _archived_count(note_id):
     return sum(1 for line in indexes.read_archive(pm) if line.id == note_id)
 
 
+def _refuse_unanswered_incident(args):
+    """Una I cerrada sin `--restriction`: imprime la pregunta del molde
+    [TEXTOS.md Sec.1.10], o el fallo si la incidencia no esta en el
+    historial (nunca se cierra sin preguntar). `True` si se nego.
+    """
+    incident = _incident_note(args)
+    if incident is None:
+        print(
+            f"remove.py: no se encontro {_incident_label(args)} en el "
+            "historial de git -- no se puede saber si de esta incidencia "
+            "nace un muro",
+            file=sys.stderr,
+        )
+        return True
+    question = validator.validate_incident_close_question(incident, args.restriction)
+    if question is None:
+        return False
+    if args.commit is not None:
+        suffix = f" --commit {shlex.quote(args.commit)}"
+        question = dataclasses.replace(question, relaunch=tuple(c + suffix for c in question.relaunch))
+    print(rejection_.render_terminal(question), file=sys.stderr)
+    return True
+
+
 def main(argv):
     args = _parse_args(argv)
 
+    if args.replaces is not None and args.restriction != "new":
+        print(
+            "remove.py: --replaces solo vale con --restriction new (sin muro nuevo "
+            "no hay nada que sustituya a otra nota) -- no se ha tocado nada",
+            file=sys.stderr,
+        )
+        return 1
     incident = None
     if args.restriction == "new":
         incident = _guard_restriction_new(args)
         if incident is None:
             return 1
-    elif args.restriction is None and args.id.startswith("I-"):
-        # Anadido 2026-08-04: antes esta rama no existia -- una I sin
-        # --restriction no llegaba aqui nunca (el flag era required=True,
-        # argparse reventaba antes de que main() corriera). Ahora se
-        # pregunta con el molde real [TEXTOS.md Sec.1.10] antes de cerrar.
-        incident = _incident_note(args)
-        if incident is None:
-            # Corregido 2026-08-04, hallazgo de Cerberus (T1, fallo
-            # callado): si el indice esta desincronizado del historial de
-            # git (p.ej. tras un rebase o una edicion a mano) esta rama
-            # caia directo a notes.close() sin preguntar jamas si de la
-            # incidencia nace un muro -- que es todo el proposito de este
-            # camino [TEXTOS.md Sec.1.10]. Salia "✅ ... archivada" con
-            # codigo 0 sin haber hecho la pregunta ni una vez. Mismo caso
-            # que _guard_restriction_new() (mas arriba en este fichero) ya
-            # cubre con fallo en alto; esta rama nueva no lo habia reusado.
-            print(
-                f"remove.py: no se encontro {_incident_label(args)} en el "
-                "historial de git -- no se puede saber si de esta incidencia "
-                "nace un muro",
-                file=sys.stderr,
-            )
-            return 1
-        question = validator.validate_incident_close_question(
-            incident, args.restriction
-        )
-        if question is not None:
-            print(rejection_.render_terminal(question), file=sys.stderr)
-            return 1
+    elif args.restriction is None and args.id.startswith("I-") and _refuse_unanswered_incident(args):
+        return 1
 
     archived_before = _archived_count(args.id)
-    close_result = notes.close(args.id, args.reason, _empty_context(), commit=args.commit)
+    close_result = notes.close(
+        args.id, args.reason, _empty_context(), commit=args.commit,
+        relaunch_for=lambda sha: _remove_command(args, commit=sha),
+    )
     if not close_result.ok:
         return _report_close_failure(close_result, args.id)
 

@@ -71,7 +71,9 @@ al guardar"].
 """
 
 import argparse
+import dataclasses
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 
@@ -337,7 +339,43 @@ def _print_rejection(one_rejection, args):
     print(rejection_.render_terminal(carried))
 
 
-def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
+def _without_discards(argv, dropped):
+    """`argv` sin las parejas `--discard <titular> <porque>` de `dropped`."""
+    out, i = [], 0
+    while i < len(argv):
+        token = argv[i]
+        is_discard = len(token) >= 4 and "--discard".startswith(token)
+        if is_discard and tuple(argv[i + 1:i + 3]) in dropped:
+            i += 3
+            continue
+        out.append(token)
+        i += 1
+    return out
+
+
+def _print_refused_discards(rejections, alternatives, ctx, argv):
+    """Una alternativa rebotada: no se guardo nada. Sus rechazos salen sin
+    su Relanza (una X suelta perderia la decision) y el unico Relanza es la
+    decision entera sin las parejas rebotadas.
+    """
+    for one_rejection in rejections:
+        print(rejection_.render_terminal(dataclasses.replace(one_rejection, relaunch=())))
+        print()
+    dropped = {
+        (alt.headline, alt.description) for alt in alternatives if validator.validate_note(alt, ctx)
+    }
+    listed = tuple(f"  --discard {shlex.join(pair)}" for pair in sorted(dropped))
+    summary = rejection_.build(
+        kind="discard_refused",
+        what="no se ha guardado nada: ni la decision ni sus descartes",
+        options=("Estas alternativas rebotan:", "", *listed, "",
+                 "Guarda la decision sin ellas:"),
+        command=(shlex.join(["gitmem", "note", *_without_discards(argv, dropped)]),),
+    )
+    print(rejection_.render_terminal(summary))
+
+
+def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
     """Rama `--discard`: `notes.discard_alternatives()` valida todas las
     alternativas, y solo entonces escribe la decision (respetando
     `--replaces`/`--promotes`, via `_write_decision`) y cada alternativa,
@@ -345,13 +383,19 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
     fallido es que no se escribio nada; un fallo posterior es de git.
     """
     alternatives = _build_discard_candidates(args.discard, zone1, zone2, args.searched)
-    results = notes.discard_alternatives(
-        candidate, alternatives, ctx,
-        write_decision=lambda decision, c: _write_decision(decision, args, c),
-    )
+    decision_called = []
+
+    def write_decision(decision, c):
+        decision_called.append(True)
+        return _write_decision(decision, args, c)
+
+    results = notes.discard_alternatives(candidate, alternatives, ctx, write_decision=write_decision)
     decision_result = results[0]
 
     if not decision_result.ok:
+        if decision_result.rejections and not decision_called:
+            _print_refused_discards(decision_result.rejections, alternatives, ctx, argv)
+            return 1
         if decision_result.rejections:
             for one_rejection in decision_result.rejections:
                 _print_rejection(one_rejection, args)
@@ -368,6 +412,12 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
                     _print_rejection(one_rejection, args)
             else:
                 print(f"git fallo al guardar un descarte: {result.git_error}", file=sys.stderr)
+        saved = [decision_result.note_id] + [r.note_id for r in discard_results if r.ok]
+        print(
+            f"⚠️ ya quedaron guardadas: {', '.join(saved)} -- no relances el comando "
+            "entero, o la decision se escribe dos veces; guarda solo los descartes que faltan",
+            file=sys.stderr,
+        )
         return 1
 
     _print_success_with_discards(decision_result, alternatives, discard_results, args, normalized_keys)
@@ -450,7 +500,7 @@ def main(argv):
     # `--discard` es su propio flujo: `notes.discard_alternatives()` valida
     # los descartes y luego escribe la nota via `_write_decision`.
     if args.discard:
-        return _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2)
+        return _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv)
 
     return _handle_write_or_replace(candidate, args, normalized_keys, ctx)
 

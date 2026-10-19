@@ -76,6 +76,7 @@ Imports planos entre hermanos de `lib/memory/`.
 
 import dataclasses
 import shlex
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 import format
@@ -170,7 +171,10 @@ def write(note: Note, ctx: Context) -> WriteResult:
 
 
 def discard_alternatives(
-    decision: Note, alternatives: tuple[Note, ...], ctx: Context, write_decision=write
+    decision: Note,
+    alternatives: tuple[Note, ...],
+    ctx: Context,
+    write_decision: Callable[[Note, Context], WriteResult] = write,
 ) -> tuple[WriteResult, ...]:
     """Escribe `decision` y cada una de `alternatives`, cada una en su
     propio commit -- "un acto, un commit" aplica a nota+indice, no al
@@ -252,7 +256,13 @@ def _reject_close_reason_multiline(note_id: str, reason: str) -> Rejection | Non
     )
 
 
-def close(note_id: str, reason: str, ctx: Context, commit: str | None = None) -> WriteResult:
+def close(
+    note_id: str,
+    reason: str,
+    ctx: Context,
+    commit: str | None = None,
+    relaunch_for: Callable[[str], str] | None = None,
+) -> WriteResult:
     """Cierra `note_id` con `reason` en un solo commit: la linea sale de su
     indice y entra en ARCHIVED.md con destino "closed: <reason>". `ctx`
     se recibe por simetria con `write()`/`replace()` pero no se usa:
@@ -264,6 +274,8 @@ def close(note_id: str, reason: str, ctx: Context, commit: str | None = None) ->
     `reason` se rechaza ANTES de tocar nada si trae un salto de linea
     propio (`_reject_close_reason_multiline`), y tambien si `note_id` lo
     llevan varias lineas vivas y `commit` no elige una (D-145).
+    `relaunch_for(sha)` da el comando de ese rechazo; quien llama lo pasa
+    para que lleve todos sus flags.
     """
     del ctx  # recibido por simetria de Superficie, sin uso
     rejection = _reject_close_reason_multiline(note_id, reason)
@@ -280,10 +292,10 @@ def close(note_id: str, reason: str, ctx: Context, commit: str | None = None) ->
         index_path = pm / index_name
         index_snapshot = index_path.read_text(encoding="utf-8")
         lines = indexes.read(index_name, pm)
-        line, duplicate = notes_duplicate.pick(
-            note_id, lines, commit,
-            lambda sha: f"gitmem remove {note_id} {shlex.quote(reason)} --commit {sha}",
-        )
+        if relaunch_for is None:
+            def relaunch_for(sha: str) -> str:
+                return f"gitmem remove {note_id} {shlex.quote(reason)} --commit {sha}"
+        line, duplicate = notes_duplicate.pick(note_id, lines, commit, relaunch_for)
         if duplicate is not None:
             return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
         indexes.remove(note_id, index_name, pm, only=line)
