@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.51.0] - 2026-10-20
+
 ### Added
 
 - **`gitmem remove --commit <sha>` retires one note of a repeated id** (#105, D-145): when several live notes share an id, `remove`, `--replaces` and `--promotes` refuse, list each copy with its commit and headline and write nothing; the sha (or a unique prefix) picks which one, and the output says how many were archived.
