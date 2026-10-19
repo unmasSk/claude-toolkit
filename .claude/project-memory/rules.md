@@ -1,6 +1,5 @@
 # RULES — reglas de trabajo (remember). Lo escribe el script. No editar. Si diverge, manda git.
 
-[remember][user] 🧠 no me cuentes lo que vas a hacer: hazlo y dime el resultado
 [remember][user] 🧠 chatroom is a reference subproject: never touch it or its files, and it carries no CI in this repo (chatroom-ci.yml is removed)
 [remember][user] 🧠 no se habla nunca de chatroom: ni el subproyecto, ni sus issues, ni nada relacionado — parado y callado hasta que yo lo saque
 [remember][user] 🧠 pon un tick verde delante de la frase cuando me hables a mi directamente; sin tick cuando solo informas de agentes o de estado
@@ -38,3 +37,4 @@
 [remember][user] 🧠 plan de ejecucion escrito solo en el procedimiento Completo; la issue con lista solo cuando el trabajo cruza sesiones; el Corto no lleva plan — «uno corto lleva plan? no creo es corto es por ejemplo crea unos gtest»
 [remember][user] 🧠 every mark in a plan says the current state: once a thing is done or a failure is fixed, its yellow or X mark becomes a tick in the same act; no stale marks — «es un fallo dejar las marcas que ya no significan nada»
 [remember][user] 🧠 checking or comparing documents (skills, cards, plans, drafts) goes to Alexandria, on the strongest model, never to Bilbo — «prefiero que lo compruebe otro que no sea bilbo alguien mas listo, es tema de documentos deberia ser alex»
+[remember][user] 🧠 - Do not announce an action before doing it. Do it, then give the result.
