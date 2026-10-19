@@ -109,7 +109,6 @@
 [D-138][skills][docs] a Short task may ask Bilbo one pointed question when size can't be told
 [D-139][skills][docs] an agent that stopped before working gets one fresh run with what it lacked
 [D-140][skills][docs] flow v2 goes in on a local branch, tried via --plugin-dir before release
-[D-141][hooks][skills] checklist gate stays quiet while background work runs (Stop background_tasks)
 [D-142][hooks][skills] checklist gate waits only on in-flight subagents and workflows, and says so
 [D-143][memory][skills] a redo close covers the whole session: skip this session's own earlier close
 [D-144][memory][skills] close extractor reads every transcript since the last close, not only newest
