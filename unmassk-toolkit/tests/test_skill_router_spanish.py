@@ -371,6 +371,77 @@ class TestAutomaticoPointsToReference:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# C1c) #89 step 5.2 -- pasted text does not fire the automatic-mode order
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Text the owner pastes arrives inside the prompt wrapped as
+#   <pasted_content id="xxxx">\n...\n</pasted_content id="xxxx">
+# (same id on both tags; real shape from a session transcript, 2026-10-18).
+# Words inside the block were written by someone else: "modo automático"
+# there is not an order. The same words typed outside the block still are.
+# Texts below are invented and neutral.
+
+
+def _pasted(body, block_id="9b3d"):
+    return f'<pasted_content id="{block_id}">\n{body}\n</pasted_content id="{block_id}">'
+
+
+_PASTE_WITH_ORDER = "Otra herramienta propone: pasar a modo automático por la noche."
+_PASTE_NEUTRAL = "Otra herramienta propone: revisar las cifras del informe."
+
+PASTED_ONLY_PROMPT = "mira lo que dice esto:\n\n" + _pasted(_PASTE_WITH_ORDER) + "\n\nque te parece?"
+TYPED_BEFORE_PASTE_PROMPT = "ponte en modo automático y lee esto:\n\n" + _pasted(_PASTE_NEUTRAL)
+TYPED_AFTER_PASTE_PROMPT = _pasted(_PASTE_NEUTRAL) + "\n\nponte en modo automático, me voy"
+TYPED_BETWEEN_PASTES_PROMPT = (
+    _pasted(_PASTE_NEUTRAL, "a1f0") + "\n\nponte en modo automático\n\n" + _pasted(_PASTE_NEUTRAL, "c7e2")
+)
+
+
+def _automatico_keys(prompt):
+    return [k for k, _ in _import_match_reminders()(prompt) if k == "automatico"]
+
+
+def _automatico_orden_lines(stdout):
+    return [
+        l for l in stdout.splitlines()
+        if l.startswith(REMINDER_MARKER) and "modo automatico" in l
+    ]
+
+
+class TestPastedContentDoesNotFireAutomatico:
+    def test_should_not_fire_automatico_when_words_are_only_inside_pasted_block(self):
+        # Bug caught: the matcher reads the pasted block as the owner's order.
+        assert _automatico_keys(PASTED_ONLY_PROMPT) == []
+
+    def test_should_fire_automatico_when_owner_types_it_before_a_pasted_block(self):
+        # Bug caught: a paste anywhere silences the whole prompt.
+        assert _automatico_keys(TYPED_BEFORE_PASTE_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_after_a_pasted_block(self):
+        # Bug caught: everything from the opening tag to the end is dropped.
+        assert _automatico_keys(TYPED_AFTER_PASTE_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_between_two_pasted_blocks(self):
+        # Bug caught: a greedy strip from the first opening tag to the last
+        # closing tag swallows the owner's words between two pastes.
+        assert _automatico_keys(TYPED_BETWEEN_PASTES_PROMPT) == ["automatico"]
+
+    def test_hook_emits_no_automatico_line_when_words_are_only_pasted(self, tmp_path):
+        # Through the user's door: the real hook, fed the paste-only prompt.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, PASTED_ONLY_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert _automatico_orden_lines(stdout) == [], stdout
+
+    def test_hook_emits_automatico_line_when_owner_types_it_next_to_a_paste(self, tmp_path):
+        # Control through the hook: same paste wrapper, owner's own words outside.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, TYPED_BEFORE_PASTE_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert len(_automatico_orden_lines(stdout)) == 1, stdout
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # C2) Agent completion notices are not owner prompts
 # ══════════════════════════════════════════════════════════════════════════
 #

@@ -1,106 +1,53 @@
-<!--
-  ESTE BLOQUE VA FUERA DE TODOS LOS MARCADORES `BEGIN`/`END`, Y ES A PROPOSITO.
-  El generador de bloques gestionados reescribe TODO lo que hay entre un BEGIN y
-  su END. La primera version de este texto se escribio DENTRO del bloque
-  `unmassk-toolkit` y el arranque de la sesion siguiente lo borro entero, sin
-  aviso y sin dejar rastro (no estaba commiteado). No lo muevas ahi abajo.
--->
-
 # claude-toolkit
 
-**Esto es la herramienta personal del propietario: el suelo sobre el que corren todos sus proyectos.** No es un producto público. Que alguien más lo descargue da igual; lo único que cuenta es que a él le funcione perfectamente.
+Bex's personal tool: the ground every one of his projects runs on. It is not a public product; the only thing that counts is that it works perfectly for him. Python 3 (standard library only in the core), Claude Code hooks and Markdown skills; several plugins (`unmassk-toolkit`, `unmassk-media`, `unmassk-trading`…) published in its own marketplace.
 
-**El sistema de memoria está publicado, corriendo, y con la memoria vieja ya destilada.** La memoria de un proyecto son commits: nueve comandos bajo `gitmem`, notas con dos zonas, y un arranque y un cierre de sesión que la leen y la escriben. El sistema anterior está borrado del repositorio.
+## What security and tests are for here
 
-**Estado de la memoria de ESTE repositorio `[2026-08-07]`:** el historial entero —del primer commit al 6 de agosto— está destilado en **225 notas** repartidas en **24 zonas**, más las **reglas** del propietario en su propio canal, que crecen con cada corrección (por eso no se cuentan aquí a mano; el número de notas y zonas queda fijado a esa fecha de destilación). Lo único que quedó abierto, la issue #83, se cerró el 2026-08-09: Bex descartó reinstaurar la inyección de memoria por mensaje (X-063) porque el hueco real —el agente subordinado trabajando a ciegas sobre la memoria— ya se había cerrado por otra vía, en el buscador (D-041). No queda nada abierto.
+- **There is no external attacker.** Every defence built for hostile repositories (control-byte injection, booby-trapped links, malicious input, anti-exploit hardening) is dead weight: don't build it, and retire what exists. A finding about hostile input is surplus here.
+- **What matters, and comes first: the system must not harm itself.** Memory lost or corrupted, a write in the wrong place, data lost to an internal failure or across sessions and machines, a failure that passes silently.
+- **A test is justified only if it proves that**, and only if it compares two things written separately. A test that simulates an attacker is cut.
+- **`unmassk-standards` is this project's yardstick**: generic, on the axis "the system against itself". Weights: integrity ×3, silent failure ×3, structure ×2, real verification ×2, maintainability ×1.
+- **`unmassk-audit` is clean too**, with no fixed stack. Its 97 % coverage is a deliberate gate: an audit is stricter than an ordinary merge.
+- **The nine agent cards are agnostic** and travel to every project: never judge them against this one. No attacker here says nothing about whether Argus's OWASP material should exist; the host project sets that.
 
-**Las zonas van siempre en minúsculas**, en los tres puntos — al crear, al buscar y al guardar una nota. Su descripción y cualquier otro texto se guardan tal cual se escribieron.
+## How we work here
 
-**Cómo funciona la memoria hoy se lee en un solo sitio: `unmassk-toolkit/skills/unmassk-memory/`**, que es lo que se carga en cada sesión. No hay un segundo sitio.
+1. **There are three sources and no fourth:** the docs; the code and the diff, read or run, never remembered; and asking Bex. What comes from none of them is not filled in with your own judgement: a gap may be deliberate.
+2. **Delegating is mandatory, and so is verifying.** Without delegating the session runs out mid-work; delegated work arrives unverified, and one agent deleted sixteen files in one pass.
+3. **Test by running, through the door the user comes in by.** A «0 of 60» measured from inside came out «16 of 30» measured the way a person uses it.
+4. **What must really be forbidden goes in a hook or in removing the tool, not in a text.** Moriarty once lost the barrier against touching code: it rested on his not having the tool, not on being written.
+5. **When Bex asks to stop telling him something, it is literal.** No reasonable exception you think of applies; if a case seems worth telling, ask.
+6. **Orchestrate: never make Bex decide the split of agents or the order.** If it is unclear, write it down and run it. «Solo tienes que orquestar, coño.»
+7. **Don't get nervous.** On a minor incident, fix it and go on; no four-message operation over two temporary files.
+8. **An out-of-date document never stops work already done.** If a document says something is open and the code says it is closed, the code wins: fix the document and go on. It once cost a whole session.
 
-**Las reglas llegan solas en cada arranque** (D-131, #95): el bloque gestionado de este `CLAUDE.md` importa `@.claude/project-memory/rules.md`, y Claude Code lo carga entero al lanzarse — no pasan por la salida de un hook, que se recorta a 2.000 caracteres por encima de 10.000 y muere con el tiempo del hook (I-005). La primera sesión que añade el import avisa con `READ NOW` de leerlas en ese mismo momento (`lib/rules_hint.py`). **`/remember` es el único comando de barra del toolkit** y las relee a demanda: solo lee, vuelve a poner en contexto el mismo fichero y siguen obligando. **Guardar una regla es trabajo de Claude**, en el momento en que el propietario la dice — nunca algo que él tenga que invocar.
+## Commands
 
-**Lo que queda por hacer, y en este orden:**
+- Tests while writing code: only the touched module's, by file or folder: `python3 -m pytest unmassk-toolkit/tests/test_managed_blocks.py -q` or `python3 -m pytest unmassk-toolkit/tests/memory -q`. The whole suite runs in CI on release, never by hand; report the rest only when it fails.
 
-1. **Telemetría de tiempos de sesión y agentes**, mostrada en el arranque siguiente (D-069, issue #84) — decidido el 2026-08-26, sin construir.
-2. **Conectar el freno por pérdidas de `unmassk-trading` a la cuenta de práctica** (D-077, **issue #86**) — decidido el 2026-08-27 por el Consejo, aparcado a propósito por el propietario: primero aprender con dinero de mentira. Es lo que abre la fase 2 del plugin. Hoy el freno lee un almacén **que nada rellena todavía**: sus comandos de ciclo de vida existen y el freno lee lo que escriben, pero la pieza que *crea* una ficha no se levantó, así que contesta «puedes operar» sobre cero datos.
+## Where this repo departs from the usual
 
-**CI solo en el commit de release ya está construido** (D-070, 2026-08-26/28): `gitmem work` y `gitmem wip` añaden `[skip ci]` en su propia línea a cada commit de trabajo; `bin/release.py` nunca lo añade, así que su commit es el único que dispara la CI. El marcador vive en `unmassk-toolkit/lib/memory/ci.py`, con un test de regresión que impide que migre al ensamblado compartido de commits.
+- Project memory is commits (`gitmem`), never files. How it works today is read in one place: `unmassk-toolkit/skills/unmassk-memory/`.
+- `gitmem work` and `wip` add `[skip ci]` to every working commit; the release commit is the only one that runs CI.
+- Cards, skills and prompts are written in English; Bex is shown them in Spanish, above all the diff.
 
-**`unmassk-trading` publicó su fase 1 el 2026-08-27** `[2026-08-27]`: precio en vivo contrastado contra dos mercados, capa de enseñanza para principiante, cuenta de práctica sin llave y tamaño de posición desde el riesgo. La ejecución de órdenes reales está escrita pero sin ejercitar, y es fase 2. Su capa de disciplina está levantada byte a byte de un repositorio MIT ajeno — no se toca, y `unmassk-trading/CREDITS.md` explica por qué. La issue #85 sigue abierta.
+## Traps
 
-Los tres frentes que estaban aparcados —auditar los muros, compactar la memoria de los 9 agentes, Yoda con el sistema entero delante— se cerraron el 2026-08-25/26: R-014 a R-017 sustituyen a R-001/R-006/R-007/R-013, los 9 agentes compactaron su propia memoria, y el veredicto de Yoda quedó registrado en M-127.
+- The blocks below, between the `unmassk` markers, are rewritten by the generator at every session start: change them in `unmassk-toolkit/lib/managed_blocks.py`, never by hand here, and never write your own text inside the markers (a first version written there was wiped without trace).
+- The discipline layer of `unmassk-trading` is copied byte for byte from someone else's MIT repository: don't touch it (`unmassk-trading/CREDITS.md` says why).
+- `docs/deprecated/` tells why things are as they are, but does not describe the present and is not maintained: if it clashes with the code, the code wins.
 
-**Todo lo que sirvió para construirlo está retirado en `docs/deprecated/`** — la especificación, el plan, la deuda y los contratos de cada pieza. Cuenta por qué las cosas son como son y guarda las decisiones del propietario con su fecha, pero **no describe el presente y no se mantiene**. No lo leas para saber cómo funciona algo hoy: manda el código.
+## Read it when…
 
-**Tests:** mientras se escribe código, solo los del módulo que se toca. La suite entera (`python3 -m pytest unmassk-toolkit/tests -q`) la pasa la CI al publicar versión, nunca a mano. **Del resto de la suite no se informa salvo que falle.**
+- `unmassk-toolkit/skills/unmassk-memory/` — before changing anything in the memory system.
+- `unmassk-trading/CREDITS.md` — before touching anything in `unmassk-trading`.
+- `docs/deprecated/` — only to learn why something was decided, never how it works today.
 
----
+## Skills by task
 
-## Las broncas — lo que el propietario tuvo que repetir, y algunas varias veces
-
-Escritas por orden de cuánto costó aprenderlas. **No son estilo: son las que hicieron perder horas.**
-
-**Estas doce no son la lista completa.** Las reglas vivas están en el fichero de reglas del proyecto — llegan enteras en cada arranque y se releen con `/remember`, y crecen cada vez que él corrige algo. Estas doce siguen aquí porque son las caras, no porque sean las únicas.
-
-**1 · No repitas lo que ya has dicho.** Un hallazgo se cuenta **una vez**. Explicarlo por segunda vez «para que se entienda» es gastar el contexto de la sesión, que es el recurso que se acaba. *«Creo que me lo has dicho ya diez veces, cómo te gusta gastar contexto.»*
-
-**2 · No informes de lo que estás haciendo.** Eso se ve en los planes y en los ficheros. Solo **resultados** y **preguntas**. *«Lo que estás haciendo lo veo en los planes.»*
-
-**3 · Una pregunta cada vez, y el mensaje ES la pregunta.** No sueltes cuatro dudas al final de un texto largo — no se leen. En llano, con un ejemplo concreto de qué pasaría en cada salida, y esperas la respuesta. *«Es que después de 700 líneas me pones "sigo esperando tu respuesta".»*
-
-**4 · Cuando pide dejar de contarle algo, es literal.** No hay excepción razonable que se te ocurra. Si crees que un caso sí merece contarse, **lo preguntas**.
-
-**5 · Orquesta tú.** No le hagas decidir el reparto de agentes ni el orden. Si no está claro, **escríbelo** y ejecútalo. *«Solo tienes que orquestar, coño.»*
-
-**6 · Delega, y no gastes tu contexto en lo que puede hacer otro.** Un barrido de trece ficheros a mano es contexto tirado.
-
-**7 · En paralelo lo que no se toca; en fila lo que sí.** Ir pieza a pieza cuando cinco son independientes es perder la sesión. Y dos agentes sobre el mismo fichero es un incidente — ya costó uno.
-
-**8 · No te pongas nervioso.** Ante un incidente menor, arreglar y seguir. No montar un operativo de cuatro mensajes por dos ficheros temporales.
-
-**9 · Nada de casos de laboratorio.** Al entregar hallazgos, filtra tú antes: solo lo del día a día, ordenado por frecuencia real. Un listado con ocho puntos donde tres son rebuscados hace que no se lea ninguno de los cinco buenos.
-
-**10 · Habla como a alguien que no programa, y con ejemplos.** Si algo no se entiende, no es que él no sepa: es que está mal explicado.
-
-**11 · Lo que él dice manda sobre cualquier documento**, incluidos los que se presentan como decisiones suyas — buena parte los escribieron IAs bajo su nombre sin preguntarle. Citar un documento vale para avisar de que existe una versión anterior, en una línea. No vale como argumento ni como freno.
-
-**12 · Un documento desactualizado no frena trabajo ya hecho.** Si la deuda dice que algo está abierto y el código dice que está cerrado, manda el código: se corrige el documento y se sigue. Ya costó una sesión entera.
-
----
-
-## Cómo se trabaja aquí — y por qué, que es lo que se olvida
-
-Estas seis salieron de fallos reales, no de teoría.
-
-**1. Solo hay tres fuentes, y no existe una cuarta.** La documentación · el código y el diff, leídos o ejecutados, nunca recordados · preguntarle a él. Lo que no salga de ahí **no se rellena con criterio propio**, por evidente que parezca: **un hueco puede ser deliberado.**
-
-**2. Delegar es obligatorio, verificar también.** Sin delegar, la sesión se agota a media obra. Pero lo delegado llega **sin verificar**: cada informe de agente se contrasta contra el fichero real antes de darlo por bueno. Un agente borró dieciséis ficheros de una pasada; otro dio por buena una fila que su propio documento desmentía.
-
-**3. Corregir una queja no autoriza a saltarse la tubería.** Al pedir más velocidad, se lanzaron parejas de tests e implementación en paralelo **y desaparecieron los revisores** sobre ocho ficheros nuevos.
-
-**4. Se prueba ejecutando, no leyendo.** Todos los fallos graves de esta obra salieron de correr comandos; ninguno de revisar código. Y **un arreglo se mide por el camino por el que entra el usuario, nunca por dentro**: un «0 de 60» medido llamando a la función por dentro salió «16 de 30» medido como lo usa una persona.
-
-**5. La secuencia de revisión no se abrevia, y nadie se repite.** Cerberus y Argus en paralelo; después, **Moriarty ataca lo ya arreglado**, antes de Yoda. Cuatro veces ha encontrado algo que los dos primeros dieron por bueno — entre ellas, pérdida silenciosa de notas con todos los tests en verde, y un arranque que inyectaba el Next de otro proyecto.
-
-**6. Una ficha de agente o una skill se repasa palabra por palabra, y se le consulta al propio agente.** No es ceremonia: el 2026-08-06 se revisaron las nueve y cada agente encontró en la suya algo que quien la escribió no vio. House rechazó **tres** versiones seguidas de un mismo comando escrito por el orquestador —el primero no casaba ni una línea de las que buscaba, el segundo ignoraba los ficheros sin guardar en git, el tercero se rompía en silencio desde una subcarpeta—. Y al darle a Moriarty permiso de escritura se le quitó sin querer la barrera que le impedía tocar código: la regla se sostenía en que no tenía la herramienta, no en estar escrita.
-
----
-
-## Reglas vivas
-
-- **Cada paso queda en un WIP y, al terminarlo, sus WIPs se juntan en un commit que se sube** (D-118); lo trivial es un commit normal. Solo se para a pedir permiso cuando el cambio es de alto riesgo: irreversible, de seguridad, o que él no pueda verificar por su cuenta. La memoria se guarda sola.
-- **Guardar una nota o una regla exige `--searched "<lo buscado>: <lo encontrado>"`** (D-098, D-124): sin él, el comando —y la aduana antes de que corra— rebota con la pregunta «¿lo busqué y no está ya escrito ni es sentido común?». Viaja en la nota como un primer `Description:` para que el lector 1.47.0 siga leyéndola (D-133). Cada mensaje del propietario lleva además el checklist D-124, y el hook `Notification` toca Morse tres veces cuando Claude espera por él (D-132).
-- **Nadie usa `git stash`, `reset`, `checkout` ni `restore`** sobre trabajo sin guardar: se perdería todo.
-- **Permiso de escritura solo en este repositorio.** En cualquier otro del propietario, lectura y nada más.
-- **No hay atacante externo** en el modelo de amenaza. La única amenaza es el sistema rompiéndose a sí mismo: memoria perdida o corrompida, escritura en el sitio equivocado, fallo que pasa callado. Un hallazgo sobre entrada hostil aquí sobra.
-- **Modo test-first:** Dante escribe el contrato en rojo, Ultron implementa hasta el verde. **Un test entra solo si compara dos cosas escritas por separado.** Si solo se mira a sí mismo, sobra.
-- **Ningún agente escribe en `lib/memory/` fuera de su propio fichero**, ni siquiera un temporal. Ya costó un incidente.
-- **A un agente solo le llega lo escrito: en su prompt o en su propia ficha.** La memoria del proyecto NUNCA se inyecta sola: un agente recibe lo que el orquestador le escribe en el prompt, más las skills que le pegue en un bloque `[DOMAIN SKILL]`. Dos excepciones reales, verificadas contra la documentación oficial el 2026-08-23: los campos `skills:` (precarga esa skill al arrancar) y `memory:` (su memoria persistente propia) del frontmatter de su ficha — R-021 (sustituye a R-010: `memory: project` solo en los seis que construyen —Ultron, Dante, Bilbo, House, Alexandria, Moriarty—; Cerberus, Argus y Yoda juzgan sin ella) y R-011. Si una ficha promete recibir la memoria del proyecto por su cuenta, miente — pasó con Bilbo, que por creerlo nunca buscaba lo que le hacía falta.
-- **Aquí, y solo aquí, el cierre de sesión publica versión** `[2026-08-05]`. Este repositorio es el que se publica: `python3 bin/release.py <plugin> <versión>`, con la pasada en seco antes. **No está en la skill de cierre a propósito** — allí sería una orden de publicar en todos sus proyectos.
-- **El CHANGELOG lo escribe Alexandria, nunca el orquestador** `[2026-08-23]`. Si hace falta antes de publicar, se le manda a ella — el orquestador no rellena entradas por su cuenta.
-
----
+- Publishing a version → this repository's `release` skill. Here, and only here, the session close publishes; it is not in the close-session skill on purpose: there it would be an order to publish in every project.
+- The CHANGELOG → always Alexandria, never the orchestrator.
 
 <!-- BEGIN unmassk-toolkit (managed block — do not edit) -->
 ## unmassk-toolkit Active
@@ -198,16 +145,3 @@ Decision factors:
 
 State the chosen mode in one line before delegating, and pass it to Ultron/Dante in their task prompt.
 <!-- END unmassk-build-mode -->
-
-## What security and tests are for in THIS project
-
-This toolkit is the owner's personal tool — the foundation under all his projects. It is not a public product. Whether anyone else downloads it or not is irrelevant; the only thing that counts is that **it works perfectly for him**. With that settled:
-
-- **Security against a malicious attacker → DOES NOT APPLY.** The system has a single owner and nobody is going to attack it. Every defense built for hostile repos (control-byte injection, booby-trapped symlinks/hardlinks, malicious inputs, anti-exploit hardening) is **dead weight**: don't build it, and retire whatever exists. That is not this project's threat.
-- **Robustness against the system breaking itself → THIS matters, and it's the priority.** What must be protected is that the system **does not self-harm**: a bug must not corrupt memory, a script must not write where it shouldn't, data must not be lost to an internal failure, a failure must not pass silently. That is the real threat model: the system against itself, not a person against the system.
-- **Rule for writing or reviewing tests:** a test is justified **only** if it proves the system doesn't break on its own (memory loss or corruption, writing to the wrong place, silent failure, data lost across sessions/machines). A test that simulates a malicious attacker is **surplus** — cut it.
-- **`unmassk-standards` IS this project's yardstick — it was rewritten and now fits.** (This bullet used to say the opposite: that standards was web-app material to be ignored. That was true once and is false now — verified 2026-07-29: no OWASP, React, TypeScript, Zod, PostgreSQL, 97% or role names anywhere in it. Its 400 lines are generic and its declared axis is literally "the system against itself", i.e. exactly the criterion this section demands. Scoring: Integrity ×3, Silent-failure ×3, Structure ×2, Real verification ×2, Maintainability ×1.)
-- **`unmassk-audit` también está limpia** — comprobado línea a línea el 2026-08-05. Sus prompts usan 36 marcadores (`[MODULE_PATH]`, `[TEST_CMD]`, `[FORMAT_CMD]`, `[LINT_CMD]`) y no queda ni un `npx`, ni vitest, ni prettier, ni `backend/src`, ni Zod. Lo único fijo es el 97% de cobertura, y eso no es una suposición de stack: es una puerta que la skill declara a propósito, porque una auditoría es más estricta que una fusión normal.
-- **Las fichas de los nueve agentes son agnósticas** y viajan a todos los proyectos del propietario. **Nunca se juzgan contra el proyecto en el que estás:** que aquí no haya atacante externo no dice nada sobre si el material de OWASP de Argus debe existir — lo pone el proyecto anfitrión. Ese error costó una ronda entera de revisiones el 2026-08-06.
-
-In one line: **less ceremony, zero attacker paranoia, focus on the system not breaking itself.**
