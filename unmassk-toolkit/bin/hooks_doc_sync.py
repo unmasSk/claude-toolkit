@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 hooks_doc_sync -- regenerate (or verify) the generated "Active Hooks" table
-in skills/unmassk-memory/SKILL.md from hooks/hooks.json.
+in skills/unmassk-memory/references/hooks.md from hooks/hooks.json.
 
-That skill is loaded on every session start, so a hook list that has drifted
+That skill points Claude to the reference, so a hook list that has drifted
 does not merely go stale: it makes Claude state a behaviour that does not
 exist. The table between the `unmassk-active-hooks` markers is therefore
 derived, never typed. The hand-written judgment that surrounds it (what a hook
@@ -40,7 +40,7 @@ def default_plugin_root() -> str:
 def main() -> int:
     """Entry point: verify by default, rewrite with --write."""
     parser = argparse.ArgumentParser(
-        description="Keep SKILL.md's Active Hooks table derived from hooks.json.")
+        description="Keep references/hooks.md's Active Hooks table derived from hooks.json.")
     parser.add_argument("--write", action="store_true",
                         help="Regenerate the table in place (default: verify only)")
     parser.add_argument("--plugin-root", default=None,
@@ -56,8 +56,8 @@ def main() -> int:
     verdict = compare_hooks_doc(plugin_root)
     if verdict is None:
         # Nothing to compare: hooks.json declares nothing readable, or the
-        # skill file is absent. Say so instead of reporting a clean bill.
-        print("cannot verify: hooks.json is unreadable/empty, or SKILL.md is absent")
+        # skill is absent. Say so instead of reporting a clean bill.
+        print("cannot verify: hooks.json is unreadable/empty, or the unmassk-memory skill is absent")
         return 1
     level, message = verdict
     print(f"{level}: {message}")

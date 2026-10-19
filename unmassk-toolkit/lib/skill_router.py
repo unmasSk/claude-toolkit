@@ -41,6 +41,7 @@ result shape: a list of (key, Spanish reminder text) pairs, since more
 than one order can legitimately fire on the same message.
 """
 
+import re
 import unicodedata
 
 
@@ -173,10 +174,21 @@ REMINDER_TRIGGERS: dict[str, dict[str, object]] = {
             "el orden (revisores hallan algo y vuelven Ultron y Dante), se "
             "dice; el resto, al final, en UN informe: bien / probado / "
             "decisiones tomadas por el / errores "
-            "(unmassk-core, seccion Modo automatico)"
+            "(unmassk-toolkit/skills/unmassk-core/references/automatic-mode.md)"
         ),
+        "ignore_pasted": True,
     },
 }
+
+# A block the owner pasted: `<pasted_content id="x">...</pasted_content id="x">`.
+# Non-greedy and tied to its own id, so owner words between two blocks survive.
+_PASTED_BLOCK_RE = re.compile(
+    r'<pasted_content id="([^"]*)">.*?</pasted_content id="\1">', re.DOTALL)
+
+
+def _strip_pasted(text: str) -> str:
+    """Drop every pasted block: its words were written by someone else."""
+    return _PASTED_BLOCK_RE.sub(" ", text)
 
 
 # Openings Claude Code uses when it delivers an agent's message as a user
@@ -205,18 +217,21 @@ def match_reminders(prompt_text: str) -> list[tuple[str, str]]:
 
     Same normalized-substring discipline as match_skills(): accent- and
     case-insensitive, never raises, empty/None input yields an empty list.
-    More than one reminder can fire on the same message.
+    More than one reminder can fire on the same message. An entry with
+    "ignore_pasted" matches only the owner's own words, outside pasted blocks.
     """
     if not prompt_text:
         return []
     try:
         haystack = _normalize(prompt_text)
+        owner_haystack = _normalize(_strip_pasted(prompt_text))
     except Exception:
         return []
     matched: list[tuple[str, str]] = []
     for key, entry in REMINDER_TRIGGERS.items():
+        text = owner_haystack if entry.get("ignore_pasted") else haystack
         for phrase in entry["phrases"]:
-            if _normalize(phrase) in haystack:
+            if _normalize(phrase) in text:
                 matched.append((key, entry["text"]))
                 break
     return matched
