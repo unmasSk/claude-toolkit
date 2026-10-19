@@ -170,7 +170,11 @@ def show_file_at_head(relpath: str, root: Path) -> str:
 
 
 def _parse_records(raw_stdout: str) -> tuple[tuple[Note, str], ...]:
-    """Convierte el `stdout` crudo de `_git_log` en pares `(Note, texto)`,
+    return tuple((note, text) for _sha, note, text in _parse_records_with_sha(raw_stdout))
+
+
+def _parse_records_with_sha(raw_stdout: str) -> tuple[tuple[str, Note, str], ...]:
+    """Convierte el `stdout` crudo de `_git_log` en `(sha, Note, texto)`,
     saltando en silencio los registros que `format.parse_message` no
     reconoce como nota (p.ej. el commit inicial `init` del repo, o
     cualquier commit que no sea una nota de memoria) -- `parse_message`
@@ -182,17 +186,17 @@ def _parse_records(raw_stdout: str) -> tuple[tuple[Note, str], ...]:
     de `note.description`/`note.why` por separado perderia el titular y
     cualquier campo no modelado como texto libre.
     """
-    parsed: list[tuple[Note, str]] = []
+    parsed: list[tuple[str, Note, str]] = []
     for record in raw_stdout.split("\0"):
         if not record:
             continue
-        _commit_hash, author_date, raw_message = record.split(_FIELD_SEP, 2)
+        commit_hash, author_date, raw_message = record.split(_FIELD_SEP, 2)
         text = raw_message.rstrip("\n")
         note = format.parse_message(text)
         if note is None:
             continue
         note = dataclasses.replace(note, timestamp=timefmt.from_git_seconds(author_date))
-        parsed.append((note, text))
+        parsed.append((commit_hash, note, text))
     return tuple(parsed)
 
 
@@ -213,6 +217,17 @@ def by_id(note_id: str) -> Note | None:
         if note.id.lower() == target:
             return note
     return None
+
+
+def commits_by_id(note_id: str) -> tuple[tuple[str, Note], ...]:
+    """`(sha, nota)` de cada commit cuya nota lleva exactamente `note_id`,
+    del mas nuevo al mas viejo: un id repetido tiene mas de uno.
+    """
+    return tuple(
+        (sha, note)
+        for sha, note, _text in _parse_records_with_sha(_git_log(()))
+        if note.id == note_id
+    )
 
 
 def by_zone(zone1: str | None, zone2: str | None) -> tuple[Note, ...]:

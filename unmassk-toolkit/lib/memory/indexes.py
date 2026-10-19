@@ -197,10 +197,13 @@ def insert(line: IndexLine, name: str, root: Path) -> None:
         atomic_write(path, new_content)
 
 
-def remove(note_id: str, name: str, root: Path) -> None:
+def remove(note_id: str, name: str, root: Path, only: IndexLine | None = None) -> int:
     """Retira la linea de `note_id` de `name`, conservando el resto en su
-    orden y su cabecera intacta. Falla en alto si `name` no existe todavia
-    o si `note_id` no esta en el.
+    orden y su cabecera intacta, y devuelve cuantas lineas retiro. Falla en
+    alto si `name` no existe todavia o si `note_id` no esta en el.
+
+    Sin `only` retira toda linea con ese id; con `only`, solo la primera
+    linea igual a `only` -- la unica forma segura con un id repetido.
 
     Mismo candado y misma escritura atomica que `insert()` -- ver su
     docstring. Serializados sobre el mismo `path`, un `insert()` y un
@@ -215,11 +218,14 @@ def remove(note_id: str, name: str, root: Path) -> None:
 
         raw_lines = path.read_text(encoding="utf-8").split("\n")
         kept: list[str] = []
-        removed = False
+        removed = 0
         for raw_line in raw_lines:
             parsed = format.parse_index_line(raw_line)
-            if parsed is not None and parsed.id == note_id:
-                removed = True
+            wanted = parsed is not None and parsed.id == note_id
+            if wanted and only is not None:
+                wanted = removed == 0 and parsed == only
+            if wanted:
+                removed += 1
                 continue
             kept.append(raw_line)
 
@@ -230,6 +236,7 @@ def remove(note_id: str, name: str, root: Path) -> None:
         if not text.endswith("\n"):
             text += "\n"
         atomic_write(path, text)
+        return removed
 
 
 def archive(line: ArchiveLine, root: Path) -> None:

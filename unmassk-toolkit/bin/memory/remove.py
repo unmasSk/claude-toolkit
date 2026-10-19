@@ -42,11 +42,13 @@ force_utf8_streams()
 import config  # noqa: E402
 import indexes  # noqa: E402
 import notes  # noqa: E402
+import notes_duplicate  # noqa: E402
 import query  # noqa: E402
 import rejection as rejection_  # noqa: E402
 import validator  # noqa: E402
 import zones as zones_lib  # noqa: E402
 from model import Note  # noqa: E402
+from vocabulary import TYPE_INDEX_FILES  # noqa: E402
 
 
 def _parse_args(argv):
@@ -61,6 +63,8 @@ def _parse_args(argv):
     parser.add_argument("--restriction", choices=("no", "new"), default=None)
     parser.add_argument("--restriction-text", default=None)
     parser.add_argument("--why", default=None)
+    parser.add_argument("--commit", default=None)  # elige una nota de un id repetido (D-145)
+    parser.add_argument("--replaces", default=None)  # el muro nuevo sustituye a este
     return parser.parse_args(argv)
 
 
@@ -120,6 +124,7 @@ def _build_fence_candidate(args, incident):
         timestamp=datetime.now(timezone.utc),
         why=args.why,
         origin=(args.id,),
+        replaces=args.replaces,
     )
 
 
@@ -155,10 +160,10 @@ def _guard_restriction_new(args):
     # historial de git para siempre (cerrar solo retira la linea de
     # indice), pero leerlo aqui deja claro que la zona del muro sale de
     # la incidencia tal como estaba, no de un estado a medio cerrar.
-    incident = query.by_id(args.id)
+    incident = _incident_note(args)
     if incident is None:
         print(
-            f"remove.py: no se encontro {args.id!r} en el historial de git "
+            f"remove.py: no se encontro {_incident_label(args)} en el historial de git "
             "-- no se puede saber en que zona nace el muro",
             file=sys.stderr,
         )
@@ -176,8 +181,51 @@ def _guard_restriction_new(args):
                 one_rejection = _headline_rejection_for_remove(args, one_rejection)
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)
         return None
+    target_problem = _replaces_target_problem(args.replaces, pm)
+    if target_problem is not None:
+        print(target_problem, file=sys.stderr)
+        return None
 
     return incident
+
+
+def _incident_note(args):
+    """La nota de `args.id`; con `--commit`, la de ese commit (un id
+    repetido puede tener cada nota en otras zonas). `None` si no hay una sola.
+    """
+    if args.commit is None:
+        return query.by_id(args.id)
+    found = [
+        note for sha, note in query.commits_by_id(args.id)
+        if notes_duplicate.sha_matches(sha, args.commit)
+    ]
+    return found[0] if len(found) == 1 else None
+
+
+def _incident_label(args):
+    if args.commit is None:
+        return repr(args.id)
+    return f"{args.id!r} con --commit {args.commit}"
+
+
+def _replaces_target_problem(replaces, pm):
+    """El motivo por el que `--replaces` no apunta a una sola nota vigente,
+    o `None` si si -- se mira antes de cerrar nada, para no dejar la
+    incidencia cerrada y el muro sin nacer.
+    """
+    if replaces is None or replaces == "none":
+        return None
+    index_name = TYPE_INDEX_FILES.get(replaces.split("-", 1)[0])
+    lines = indexes.read(index_name, pm) if index_name else ()
+    line, duplicate = notes_duplicate.pick(
+        replaces, lines, None,
+        lambda sha: f'gitmem remove {replaces} "<motivo>" --commit {sha}',
+    )
+    if duplicate is not None:
+        return rejection_.render_terminal(duplicate)
+    if line is None:
+        return f"remove.py: --replaces {replaces!r} no es una nota vigente -- no hay nada que sustituir"
+    return None
 
 
 def _headline_rejection_for_remove(args, rejection):
@@ -235,6 +283,8 @@ def _fence_retry_command(args, incident):
         command += f" --why {shlex.quote(args.why)}"
     command += f" --description {text} --stops yes"
     command += f" --origin {args.id}"
+    if args.replaces is not None:
+        command += f" --replaces {args.replaces}"
     command += validator.searched_suffix(validator.SEARCHED_PLACEHOLDER)
     return command
 
@@ -260,7 +310,10 @@ def _create_fence(args, incident):
     ctx = _build_fence_context(pm, incident.zone1, incident.zone2)
 
     fence = _build_fence_candidate(args, incident)
-    fence_result = notes.write(fence, ctx)
+    if args.replaces not in (None, "none"):
+        fence_result = notes.replace(fence, args.replaces, ctx)
+    else:
+        fence_result = notes.write(fence, ctx)
     if not fence_result.ok:
         print(
             f"⚠️ {args.id} ya quedó cerrada de forma permanente -- el muro "
@@ -295,6 +348,16 @@ def _report_close_failure(close_result, note_id):
     return 1
 
 
+def _archived_count(note_id):
+    """Cuantas lineas de `note_id` tiene ARCHIVED.md ahora -- leido del
+    fichero, no supuesto, para contar lo que el cierre archivo de verdad.
+    """
+    pm = notes.pm_root(notes.repo_root())
+    if not (pm / "ARCHIVED.md").exists():
+        return 0
+    return sum(1 for line in indexes.read_archive(pm) if line.id == note_id)
+
+
 def main(argv):
     args = _parse_args(argv)
 
@@ -308,7 +371,7 @@ def main(argv):
         # --restriction no llegaba aqui nunca (el flag era required=True,
         # argparse reventaba antes de que main() corriera). Ahora se
         # pregunta con el molde real [TEXTOS.md Sec.1.10] antes de cerrar.
-        incident = query.by_id(args.id)
+        incident = _incident_note(args)
         if incident is None:
             # Corregido 2026-08-04, hallazgo de Cerberus (T1, fallo
             # callado): si el indice esta desincronizado del historial de
@@ -320,9 +383,9 @@ def main(argv):
             # que _guard_restriction_new() (mas arriba en este fichero) ya
             # cubre con fallo en alto; esta rama nueva no lo habia reusado.
             print(
-                f"remove.py: no se encontro {args.id!r} en el historial de "
-                "git -- no se puede saber si de esta incidencia nace un "
-                "muro",
+                f"remove.py: no se encontro {_incident_label(args)} en el "
+                "historial de git -- no se puede saber si de esta incidencia "
+                "nace un muro",
                 file=sys.stderr,
             )
             return 1
@@ -333,11 +396,13 @@ def main(argv):
             print(rejection_.render_terminal(question), file=sys.stderr)
             return 1
 
-    close_result = notes.close(args.id, args.reason, _empty_context())
+    archived_before = _archived_count(args.id)
+    close_result = notes.close(args.id, args.reason, _empty_context(), commit=args.commit)
     if not close_result.ok:
         return _report_close_failure(close_result, args.id)
 
-    print(f"✅ {args.id} archivada — closed: {args.reason}")
+    archived = _archived_count(args.id) - archived_before
+    print(f"✅ {args.id} archivada — closed: {args.reason} · notas archivadas: {archived}")
 
     if args.restriction != "new":
         return 0

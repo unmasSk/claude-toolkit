@@ -75,12 +75,14 @@ Imports planos entre hermanos de `lib/memory/`.
 """
 
 import dataclasses
+import shlex
 from datetime import datetime, timezone
 
 import format
 import gitcmd
 import ids
 import indexes
+import notes_duplicate
 import rejection as rejection_
 from model import ArchiveLine, IndexLine, Note, Rejection, WriteResult
 from notes_commit import (
@@ -241,7 +243,7 @@ def _reject_close_reason_multiline(note_id: str, reason: str) -> Rejection | Non
     )
 
 
-def close(note_id: str, reason: str, ctx: Context) -> WriteResult:
+def close(note_id: str, reason: str, ctx: Context, commit: str | None = None) -> WriteResult:
     """Cierra `note_id` con `reason` en un solo commit: la linea sale de su
     indice y entra en ARCHIVED.md con destino "closed: <reason>". `ctx`
     se recibe por simetria con `write()`/`replace()` pero no se usa:
@@ -251,8 +253,8 @@ def close(note_id: str, reason: str, ctx: Context) -> WriteResult:
     `note_id` no esta en su indice, lanza `ValueError` sola.
 
     `reason` se rechaza ANTES de tocar nada si trae un salto de linea
-    propio (`_reject_close_reason_multiline`) -- la unica validacion que
-    `close()` hace.
+    propio (`_reject_close_reason_multiline`), y tambien si `note_id` lo
+    llevan varias lineas vivas y `commit` no elige una (D-145).
     """
     del ctx  # recibido por simetria de Superficie, sin uso
     rejection = _reject_close_reason_multiline(note_id, reason)
@@ -269,8 +271,13 @@ def close(note_id: str, reason: str, ctx: Context) -> WriteResult:
         index_path = pm / index_name
         index_snapshot = index_path.read_text(encoding="utf-8")
         lines = indexes.read(index_name, pm)
-        line = next((entry for entry in lines if entry.id == note_id), None)
-        indexes.remove(note_id, index_name, pm)
+        line, duplicate = notes_duplicate.pick(
+            note_id, lines, commit,
+            lambda sha: f"gitmem remove {note_id} {shlex.quote(reason)} --commit {sha}",
+        )
+        if duplicate is not None:
+            return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
+        indexes.remove(note_id, index_name, pm, only=line)
         if line is None:  # no deberia ocurrir -- ver replace()
             raise RuntimeError(f"inconsistencia interna: {note_id!r} se retiro de {index_name}")
 

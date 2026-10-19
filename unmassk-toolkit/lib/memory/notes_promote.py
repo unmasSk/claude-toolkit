@@ -62,6 +62,7 @@ import format
 import gitcmd
 import ids
 import indexes
+import notes_duplicate
 import rejection as rejection_
 from model import ArchiveLine, IndexLine, Note, Rejection, WriteResult
 from notes_commit import lock_resource, pm_root, repo_root, restore_snapshot_best_effort, stage_and_commit
@@ -130,8 +131,13 @@ def swap_and_archive(
         old_index_path = pm / old_index_name
         old_index_snapshot = old_index_path.read_text(encoding="utf-8")
         old_lines = indexes.read(old_index_name, pm)
-        old_line = next((line for line in old_lines if line.id == old_id), None)
-        indexes.remove(old_id, old_index_name, pm)
+        old_line, duplicate = notes_duplicate.pick(
+            old_id, old_lines, None,
+            lambda sha: f'gitmem remove {old_id} "<motivo>" --commit {sha}',
+        )
+        if duplicate is not None:
+            return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
+        indexes.remove(old_id, old_index_name, pm, only=old_line)
         if old_line is None:  # no deberia ocurrir: mismo candado desde la lectura
             raise RuntimeError(f"inconsistencia interna: {old_id!r} se retiro de {old_index_name}")
 
