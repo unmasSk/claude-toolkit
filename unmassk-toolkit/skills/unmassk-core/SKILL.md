@@ -360,7 +360,7 @@ When the owner says **"modo automático"** (or "ponte en automático", or otherw
 
 ## Red Flags
 
-The thoughts that mean STOP, each tied to its moment: `references/red-flags.md`.
+Before acting on a report, a small task you would do yourself, or the user's "you decide", check the thoughts that mean STOP: `references/red-flags.md`.
 
 ---
 

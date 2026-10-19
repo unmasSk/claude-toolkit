@@ -37,7 +37,7 @@ from version import VERSION
 from cache_sync_check import check_repo_cache_sync
 # TRANSIENT_HOOKS and HOOK_COMMAND_RE are re-exported through this import on
 # purpose: hooks.json is parsed in exactly one place (lib/hooks_doc.py), which
-# both this health check and the SKILL.md generator read, so the doctor and the
+# both this health check and the hooks-table generator read, so the doctor and the
 # documentation can never disagree about what is declared.
 from hooks_doc import TRANSIENT_HOOKS, HOOK_COMMAND_RE, hook_filenames, compare_hooks_doc  # noqa: F401
 
@@ -89,7 +89,7 @@ def expected_hooks(plugin_root: str) -> list[str] | None:
     actually declared. Transient probes (TRANSIENT_HOOKS) are excluded.
 
     The parse itself lives in lib/hooks_doc.py, shared with the generator of
-    SKILL.md's hook table; two parsers of the same file would be two chances
+    the hook table in unmassk-memory's references/hooks.md; two parsers of the same file would be two chances
     to disagree about it.
 
     Returns:
@@ -526,7 +526,7 @@ def run_doctor(silent: bool = False, as_json: bool = False) -> int:
         else:
             results.append(("ok", "Repo vs cache", "hooks/, lib/ and bin/ identical"))
 
-    # 5c. SKILL.md's generated hook table vs hooks.json
+    # 5c. references/hooks.md's generated hook table vs hooks.json
     # unmassk-memory is loaded every session, so a hook it describes that
     # no longer exists is not a stale doc — it is Claude asserting a falsehood
     # to the user. That direction is an error; a hook declared but not yet
