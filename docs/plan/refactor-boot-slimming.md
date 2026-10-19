@@ -26,32 +26,32 @@ Everything Claude reads at session start gets shorter without losing a single ru
 ## Phases
 
 ### Phase 0: inventory
-- [ ] 0.1 Bilbo: numbered list of every rule in core, memory, the managed block and this repo's CLAUDE.md, before anything is touched.
+- [x] 0.1 Bilbo (316 rules: .claude/informes/bilbo-2026-10-19-104858-boot-rule-inventory-63c6.md): numbered list of every rule in core, memory, the managed block and this repo's CLAUDE.md, before anything is touched.
 
 ### Phase 1: release skill
 **Files:** create `.claude/skills/release/SKILL.md`
-- [ ] 1.1 Orchestrator: the release procedure moves from CLAUDE.md to a project skill of this repo.
+- [x] 1.1 Orchestrator: the release procedure moves from CLAUDE.md to a project skill of this repo.
 
 ### Phase 2: this repo's CLAUDE.md
 **Files:** `CLAUDE.md` (own part)
-- [ ] 2.1 Orchestrator: rewrite the own part from `.claude/informes/CLAUDE.propuesto.md`, rebased on today (status paragraphs to memory/issues, broncas only where rules.md or core do not already say them, `lib/memory/` ban to `.claude/rules/`), in English.
+- [x] 2.1 Orchestrator: rewrite the own part from `.claude/informes/CLAUDE.propuesto.md`, rebased on today (status paragraphs to memory/issues, broncas only where rules.md or core do not already say them, `lib/memory/` ban to `.claude/rules/`), in English.
 
 ### Phase 3: managed block
 **Files:** `unmassk-toolkit/lib/managed_blocks.py`, `unmassk-toolkit/tests/test_managed_blocks.py`
-- [ ] 3.1 Dante: red tests for the shorter block (keeps the rules import and the file-based report step; protocols menu short; communication without the progress rule; build-mode block retired as legacy).
-- [ ] 3.2 Ultron: make 3.1 green.
+- [x] 3.1 Dante: red tests for the shorter block (keeps the rules import and the file-based report step; protocols menu short; communication without the progress rule; build-mode block retired as legacy).
+- [x] 3.2 Ultron: make 3.1 green.
 
 ### Phase 4: boot report
 **Files:** `unmassk-toolkit/bin/memory/boot.py` and its tests; `unmassk-close-session` prompt and SKILL (orchestrator)
 - [ ] 4.1 Dante: red tests — restrictions headline-only with one pointer line; issues one line per OPEN issue with live work notes, through the boot's single bounded GitHub call (R-025); discards and closed issues out.
 - [ ] 4.2 Ultron: make 4.1 green.
-- [ ] 4.3 Orchestrator: close prompt — Next about 25 lines, no commit tail, and a corrections block with the owner's literal words.
+- [x] 4.3 Orchestrator: close prompt — Next about 25 lines, no commit tail, and a corrections block with the owner's literal words.
 
 ### Phase 5: core and memory
 **Files:** `unmassk-toolkit/skills/unmassk-core/` and `unmassk-memory/` (orchestrator); `unmassk-toolkit/lib/skill_router.py`, `unmassk-toolkit/lib/hooks_doc.py`, `bin/hooks_doc_sync.py` and tests (Dante, Ultron)
-- [ ] 5.1 Orchestrator: move to references the sections the proposal names (automatic mode, documentation discipline, protocol table, Red Flags; Rationalizations, issue customs, zones, four cases, hooks table), each with its pointer.
-- [ ] 5.2 Dante: red tests — the automatic-mode reminder points to the new reference; the hooks table is generated into `references/hooks.md`.
-- [ ] 5.3 Ultron: make 5.2 green.
+- [x] 5.1 Orchestrator: move to references the sections the proposal names (automatic mode, documentation discipline, protocol table, Red Flags; Rationalizations, issue customs, zones, four cases, hooks table), each with its pointer.
+- [x] 5.2 Dante: red tests — the automatic-mode reminder points to the new reference; the hooks table is generated into `references/hooks.md`.
+- [x] 5.3 Ultron: make 5.2 green.
 
 ### Phase 6: verification
 - [ ] 6.1 Moriarty, blind: every rule of the 0.1 inventory is still in a boot-read file or in a reference a pointer names.
