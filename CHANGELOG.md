@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-10-19
+
 ### Added
 
 - **`gitmem wip --path <folder>` saves nothing and says what to do** (#104.3): it lists the changed files under the folder and prints the exact `gitmem wip` command with one `--path` per file, instead of an unclear failure.
