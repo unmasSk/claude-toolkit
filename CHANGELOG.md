@@ -18,6 +18,8 @@
 
 - **A boot that ran past the 30 s hook limit used to vanish without a word** (I-005, D-130): the issue check is now one batched GitHub query, the launcher stops the boot at its own 22 s deadline, shares what is left with the network steps, replaces the previous session's report with a failure notice and says so loudly.
 - **Relaunch lines in rejections now carry the flags already given** (`--kind`, `--quote`, required fields), so obeying them no longer bounces again.
+- **The merge gate now reads Git Bash drive paths (`/c/Users/x`) of the session's own repo like native ones on Windows** (I-007): `cd /c/...` or `git -C /c/...` to the session repo used to be judged as another directory; customs and the gate share one translation, `lib/git_bash_path.py`, which does nothing off Windows.
+- **Merge-gate and memory tests are portable to Windows** (I-007): 1.47.0 shipped with its release CI red on `windows-latest` because the tests wrote native Windows paths (backslashes) into bash commands, which bash mangles; the tests now write them with forward slashes (`Path(...).as_posix()`), and three other Windows-fragile spots are fixed: a `${CLAUDE_PLUGIN_ROOT}` that `cmd.exe` does not expand under `shell=True`, an extensionless fake `gh` that Windows never resolves, and a byte-exact CLAUDE.md check broken by CRLF line endings.
 
 ## [1.47.0] - 2026-10-18
 
