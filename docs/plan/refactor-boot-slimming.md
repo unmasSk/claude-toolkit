@@ -54,9 +54,9 @@ Everything Claude reads at session start gets shorter without losing a single ru
 - [x] 5.3 Ultron: make 5.2 green.
 
 ### Phase 6: verification
-- [ ] 6.1 Moriarty, blind: every rule of the 0.1 inventory is still in a boot-read file or in a reference a pointer names.
-- [ ] 6.2 Fresh session on the branch (`--plugin-dir`): case questions from the inventory; it answers right and opens the right reference.
-- [ ] 6.3 Measured sizes before and after.
+- [x] 6.1 Moriarty (3 weakened CLAUDE.md rules restored; R-008 holds the write rule), blind: every rule of the 0.1 inventory is still in a boot-read file or in a reference a pointer names.
+- [x] 6.2 Fresh session (4 headless cases on a copy: automatic mode, Q note customs, release, write permission — each answered from the right file; CLAUDE.md not reverted) on the branch (`--plugin-dir`): case questions from the inventory; it answers right and opens the right reference.
+- [x] 6.3 Measured: CLAUDE.md 22,681 → 8,440 B; core 36,662 → 32,170 B; memory 28,068 → 22,762 B; boot report 18,488 → 10,934 B (the Next shrinks further from the next close).
 
 ## Wave map
 - Wave 1: Phase 0
