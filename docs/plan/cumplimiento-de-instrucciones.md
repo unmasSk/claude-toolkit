@@ -1,5 +1,7 @@
 # Plan — que las instrucciones se cumplan
 
+**Status: COMPLETED** — comprobado por Alexandria el 2026-10-19: bloques 3-9 hechos; 1 y 2 sustituidos por #95 y #89.
+
 **Fecha:** 2026-08-23
 **Origen:** Q-002 + investigación de 9 agentes (85 repositorios, canales oficiales, foros, papers)
 **Estado:** APROBADO PARCIALMENTE el 2026-08-23 — D-052 aprueba los bloques 3, 4, 5, 6, 8 y 9b/9c, más las casillas puestas por el programa (bloque 9.1/9.4, ver `docs/plan/casillas-por-programa.md`, ya publicado en 1.39.0). D-053 aprueba el bloque 7 en su variante de partir `wizard-options.md` y `frameworks.md` por categoría, dejando `best-practices.md` entero. Los bloques 1 y 2 quedan aprobados en alcance pero **al final, como limpieza de este repo, no como el arreglo** (D-051: "los arreglos van donde viajan", este repo es solo el que se publica). El bloqueo original del bloque 1 (comando `rule` solo sabe añadir, ver 9.2) ya no aplica: `bin/memory/rule.py` tiene `--retract` y `--replaces` en el árbol.

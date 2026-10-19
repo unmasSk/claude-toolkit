@@ -1,5 +1,7 @@
 # Diseño — las casillas las pone el programa, no Claude
 
+**Status: COMPLETED** — comprobado por Alexandria el 2026-10-19; el diseño posterior lo amplió (D-121, D-142).
+
 **Fecha:** 2026-08-23 · **Origen:** Q-002, aprobado por Bex en sesión (D-052)
 **Estado:** COMPLETADO — implementado, probado en directo el 2026-08-24 (bloquea vacío, deja cerrar completo, re-bloquea una casilla abierta, respeta `stop_hook_active`) y publicado en **1.39.0** (M-125, CHANGELOG). Manifiestos, pieza 2 y pieza 3 existen en el árbol: `unmassk-toolkit/hooks/skill-checklist-inject.py`, `unmassk-toolkit/hooks/checklist-gate.py`, `unmassk-toolkit/checklists/{flow,close-session,audit,council}.json`.
 

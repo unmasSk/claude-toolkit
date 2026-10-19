@@ -1,5 +1,7 @@
 # Plan · aprender de las tres sesiones de Moria (20, 22 y 23 de agosto)
 
+**Status: COMPLETED** — comprobado por Alexandria el 2026-10-19; el punto 9 queda sin mecanismo conocido, no como paso pendiente.
+
 Origen: 137 fallos auditados en `.ref-repos/moria-transcripts/audit-0{1,2,3}.md` (temporal), cruzados por el consejo nº3 con agent-skills y neural-memory. Memo M-116. Se va de uno en uno, con el sí de Bex en cada punto.
 
 ## Bloque 1 · Lo mecánico
