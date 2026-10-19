@@ -1,61 +1,9 @@
-"""Leer y escribir los ocho ficheros de indice -- contrato en
-docs/memoria-v2/PIEZAS.md Sec.7.3.
+"""Leer y escribir los ocho ficheros de indice: la unica pieza que los abre.
 
-Para que: "nadie mas los toca" [Sec.7.3]. Es la unica pieza que abre los
-ocho ficheros de `vocabulary.INDEX_FILES` para leer o escribir sus lineas.
-Cada fichero lleva la cabecera que TEXTOS.md Sec.4 fija como texto de
-salida ("Lo escribe el script. No editar. Si diverge, manda git."), y esa
-cabecera es la razon por la que esta pieza existe: si diverge de lo que
-git guarda en el commit real, manda git, no este fichero.
-
-**No commitea.** Escribe el fichero; quien lo mete en el mismo commit que
-la nota es `notes` (fase 2, no existe todavia), y esa union es la
-transaccion del sistema [Sec.7.3, "Que NO hace"]. Tampoco decide que va a
-que indice: eso lo dice el tipo de la nota, y esa decision es de quien
-llama, no de este modulo.
-
-Construir y parsear la linea de texto exacta es cosa de `format.py`
-(Sec.6.4) -- no se reimplementa el formato aqui, es exactamente el fallo
-del v1 que Sec.6.4 documenta (562 lineas de parseo de historial
-duplicadas en tres ficheros, sincronizadas a mano). `insert`/`read` usan
-`format.build_index_line`/`format.parse_index_line` directamente sobre el
-`IndexLine` que reciben o devuelven (misma forma de campos que `Note`:
-id/zone1/zone2/headline, duck typing intencionado, no una coincidencia).
-`read_archive` usa `format.parse_archive_line`. `archive` necesita
-`format.build_archive_line`, que espera un `Note` con `timestamp:
-datetime` -- pero `ArchiveLine.date` ya es un `datetime.date` sin hora, no
-un `Note`. Se resuelve envolviendo los campos de la `ArchiveLine` en un
-`Note` de usar-y-tirar (con `description=""`, campo que
-`build_archive_line` no lee) y `timestamp` reconstruido con
-`datetime.combine(line.date, time.min, tzinfo=timezone.utc)` -- la vuelta
-exacta de `date` a `datetime` para que `note.timestamp.date()` devuelva el
-mismo `date` de partida. Eso reutiliza la logica de formato entera (emoji,
-espaciado, las tres frases de destino) sin escribirla una segunda vez
-aqui.
-
-Las lineas de cabecera y las lineas en blanco nunca casan con
-`format.parse_index_line`/`format.parse_archive_line` (ambas regex exigen
-que la linea empiece por `[` o por una fecha `AAAA-MM-DD`) -- por eso
-`read`/`read_archive` las descartan solas, sin necesitar saber que es una
-cabecera: cualquier linea que el parser no reconozca simplemente no entra
-en el resultado.
-
-`seed` es idempotente por construccion: solo escribe un fichero que
-`Path.exists()` diga que falta. Nunca trunca ni sobreescribe uno que ya
-tiene notas -- ese es el fallo que el test de esta fila existe para
-atrapar (instalar sobre un proyecto que ya tiene notas y vaciarle los
-indices).
-
-`insert`/`archive`/`remove` fallan en alto (excepcion, nunca crean el
-fichero) si el indice de destino no existe todavia -- `seed()` no corrio,
-o el fichero se perdio. Un indice que se crea solo y vacio en ese momento
-parece "no hay notas" en vez de gritar que algo esta mal [Sec.7.3, fila 4
-de "Sus tests"].
-
-`counts` no guarda nada: cuenta leyendo `read`/`read_archive` en cada
-llamada, siempre. Un numero guardado se separaria de la realidad la
-primera vez que alguien escriba un fichero de indice sin pasar por esta
-pieza (a mano, o desde otro proceso) y nadie lo notaria [Sec.7.3, fila 3].
+No commitea (eso lo hace `notes`) ni decide a que indice va cada nota. El
+formato de cada linea es de `format.py`. `insert`/`archive`/`remove` fallan
+en alto si el fichero no existe: nunca lo crean vacio. `counts` lee cada
+vez, nunca guarda un numero.
 """
 
 from datetime import datetime, time, timezone
@@ -69,11 +17,7 @@ from vocabulary import INDEX_FILES
 
 _ARCHIVE_NAME = "ARCHIVED.md"
 
-# Cabecera literal de TEXTOS.md Sec.4 para los ficheros con texto propio,
-# distinto de la regla comun de los siete indices vigentes. Estas dos
-# constantes SI llevan tildes/em-dash: son texto de salida del sistema
-# (lo que se escribe de verdad en el fichero), no comentarios de codigo --
-# copiadas byte a byte de TEXTOS.md, no reescritas a mano.
+# Cabeceras literales de TEXTOS.md Sec.4, byte a byte (texto de salida).
 _DISCARDED_HEADER = (
     "# Permanente: aquí nada se archiva. Existe para que nadie lo re-proponga.\n"
 )
@@ -84,13 +28,7 @@ _ARCHIVE_HEADER = (
 
 
 def _header_for(name: str) -> str:
-    """La cabecera de `name`, literal donde TEXTOS.md Sec.4 la fija
-    distinta (DISCARDED.md, ARCHIVED.md), y derivada de la "regla comun"
-    para los otros seis -- el mismo patron que DECISIONS.md muestra en
-    Sec.4 ("# DECISIONS -- indice. Lo escribe el script. No editar. Si
-    diverge, manda git."), con el nombre del propio fichero en el lugar
-    de "DECISIONS".
-    """
+    """La cabecera de `name`: literal para DISCARDED.md y ARCHIVED.md, la regla comun para el resto."""
     if name == _ARCHIVE_NAME:
         return _ARCHIVE_HEADER
     if name == "DISCARDED.md":
@@ -108,12 +46,7 @@ def _archive_path(root: Path) -> Path:
 
 
 def _require_index_file(name: str) -> None:
-    """Falla en alto si `name` no es uno de los ocho ficheros de
-    `vocabulary.INDEX_FILES` -- "nadie mas los toca" [Sec.7.3] incluye no
-    escribir en un fichero ajeno del mismo directorio (p.ej. `zones.json`)
-    por un `name` equivocado del llamador. Se llama ANTES de tocar disco,
-    para que un destino invalido nunca llegue a abrir el fichero.
-    """
+    """Falla en alto, antes de tocar disco, si `name` no es uno de los ocho indices."""
     if name not in INDEX_FILES:
         raise ValueError(
             f"{name!r} no es uno de los ocho indices de vocabulary.INDEX_FILES"
@@ -150,11 +83,8 @@ def read(name: str, root: Path) -> tuple[IndexLine, ...]:
 
 
 def read_archive(root: Path) -> tuple[ArchiveLine, ...]:
-    """Las lineas de `ARCHIVED.md`, en el orden del fichero. Reconoce las
-    tres formas de destino (`replaced by` / `closed:` / `promoted to`) via
-    `format.parse_archive_line` -- una linea que no encaje con ninguna
-    (escrita a mano, o de un formato mas viejo) se descarta en silencio en
-    vez de tumbar la lectura entera, mismo contrato que `read`.
+    """Las lineas de `ARCHIVED.md`, en el orden del fichero; una linea que no
+    encaja con ningun destino se descarta, como en `read`.
     """
     path = _archive_path(root)
     if not path.exists():
@@ -170,17 +100,7 @@ def read_archive(root: Path) -> tuple[ArchiveLine, ...]:
 
 def insert(line: IndexLine, name: str, root: Path) -> None:
     """Anade `line` al final de `name`. Falla en alto sin escribir nada si
-    `name` no existe todavia -- nunca lo crea a medias.
-
-    Ciclo leer-modificar-escribir COMPLETO dentro de un unico `file_lock()`
-    (gitcmd.py Sec.7.1), no solo la escritura: `remove()` reescribe el
-    fichero entero leyendo su contenido primero, y sin este candado
-    envolviendo tambien la lectura, un `insert()` que caiga justo entre la
-    lectura y la escritura de un `remove()` concurrente (aunque sea sobre
-    otra nota) desaparece en silencio -- el `remove()` sobreescribe con una
-    version del fichero mas vieja que no lo vio. La escritura en si es
-    atomica (`gitcmd.atomic_write`, temporal + `os.replace()`), para que un
-    proceso muerto a mitad no deje el indice partido.
+    `name` no existe. Lee y escribe bajo un mismo candado, con escritura atomica.
     """
     _require_index_file(name)
     path = _index_path(name, root)
@@ -198,17 +118,11 @@ def insert(line: IndexLine, name: str, root: Path) -> None:
 
 
 def remove(note_id: str, name: str, root: Path, only: IndexLine | None = None) -> int:
-    """Retira la linea de `note_id` de `name`, conservando el resto en su
-    orden y su cabecera intacta, y devuelve cuantas lineas retiro. Falla en
-    alto si `name` no existe todavia o si `note_id` no esta en el.
+    """Retira la linea de `note_id` de `name` y devuelve cuantas retiro. Falla
+    en alto si `name` no existe o `note_id` no esta en el.
 
     Sin `only` retira toda linea con ese id; con `only`, solo la primera
-    linea igual a `only` -- la unica forma segura con un id repetido.
-
-    Mismo candado y misma escritura atomica que `insert()` -- ver su
-    docstring. Serializados sobre el mismo `path`, un `insert()` y un
-    `remove()` concurrentes nunca se intercalan: uno termina su ciclo
-    entero antes de que el otro empiece el suyo.
+    linea igual a `only`. Mismo candado que `insert()`.
     """
     _require_index_file(name)
     path = _index_path(name, root)
@@ -241,13 +155,7 @@ def remove(note_id: str, name: str, root: Path, only: IndexLine | None = None) -
 
 def archive(line: ArchiveLine, root: Path) -> None:
     """Anade `line` al final de `ARCHIVED.md`. Falla en alto sin escribir
-    nada si el fichero no existe todavia.
-
-    Mismo candado y misma escritura atomica que `insert()`/`remove()` --
-    ver sus docstrings. `ARCHIVED.md` es un fichero de indice mas dentro
-    de `INDEX_FILES`, sujeto al mismo riesgo de carrera si algo mas lo
-    toca (hoy solo `archive()` escribe ahi, pero el candado no depende de
-    quien mas exista).
+    nada si el fichero no existe. Mismo candado que `insert()`.
     """
     path = _archive_path(root)
     with file_lock(path):
@@ -271,21 +179,7 @@ def archive(line: ArchiveLine, root: Path) -> None:
 
 
 def archived_ids(root: Path) -> frozenset[str]:
-    """Identificadores ya retirados, segun `ARCHIVED.md` -- fuente unica
-    para "que esta archivado ahora mismo". Antes de esto, `boot.py` y
-    `report.py` calculaban lo mismo cada uno con su propia copia privada
-    (`frozenset(line.id for line in indexes.read_archive(...))`, letra
-    por letra igual); ahora las dos llaman aqui [revision 2026-08-02].
-
-    Un `ARCHIVED.md` que todavia no existe no es un fallo: es el estado
-    real de un proyecto recien instalado, antes de que `seed()` haya
-    corrido ni una vez -- cero archivados es un dato valido, no una
-    excepcion [mismo criterio que `rules.read_all()` ya aplica a la
-    ausencia del fichero de reglas: cadena vacia, nunca una excepcion].
-    Sin este descuento, `boot.build()`
-    revienta con `FileNotFoundError` en la primerisima sesion de
-    cualquier proyecto, antes de que exista una sola nota que mostrar.
-    """
+    """Identificadores que estan en `ARCHIVED.md`; un fichero ausente son cero."""
     root = Path(root)
     if not (root / _ARCHIVE_NAME).exists():
         return frozenset()

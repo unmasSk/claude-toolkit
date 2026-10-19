@@ -26,12 +26,17 @@ def sha_matches(sha: str | None, commit: str) -> bool:
     return bool(sha) and len(prefix) >= _MIN_PREFIX and sha.lower().startswith(prefix)
 
 
+def remove_relaunch(note_id: str, reason: str = '"<motivo>"') -> Callable[[str], str]:
+    """El `gitmem remove <id> <motivo> --commit <sha>` listo para pegar, por sha."""
+    return lambda sha: f"gitmem remove {note_id} {reason} --commit {sha}"
+
+
 def same_note(note: Note, line: IndexLine) -> bool:
     """`True` si `line` es la linea de indice de `note`: titular y zonas."""
     return (note.headline, note.zone1, note.zone2) == (line.headline, line.zone1, line.zone2)
 
 
-def _with_commits(note_id: str, lines: list[IndexLine]) -> list[tuple[IndexLine, str | None]]:
+def with_commits(note_id: str, lines: list[IndexLine]) -> list[tuple[IndexLine, str | None]]:
     """Cada linea con el sha del commit de su nota, o `None` si ninguno casa.
     Primero casan titular y zonas; lo que quede, solo por titular. Un commit
     se asigna a una sola linea, asi dos lineas iguales reciben dos commits.
@@ -86,7 +91,7 @@ def pick(
     matches = [line for line in lines if line.id == note_id]
     if commit is None and len(matches) <= 1:
         return (matches[0] if matches else None), None
-    paired = _with_commits(note_id, matches)
+    paired = with_commits(note_id, matches)
     if commit is None:
         what = f"{note_id} lo llevan {len(matches)} notas vivas a la vez"
         return None, _rejection(what, paired, relaunch_for)

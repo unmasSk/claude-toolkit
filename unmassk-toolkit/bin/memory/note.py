@@ -1,27 +1,10 @@
 #!/usr/bin/env python3
 """bin/memory/note.py -- guarda una nota de memoria (D/M/R/Q/X/I/B).
 
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `note.py`) y Sec.10.1,
-punto 1 (la comprobacion de `--issue`). Recibe argumentos, arma el
-`Context` real (zonas del proyecto, notas de la misma zona, identificadores
-conocidos, configuracion), llama a la funcion de la libreria que toca segun
-`--replaces` (`notes.write` si esta ausente o es el centinela `"none"`,
-`notes.replace` si es un ID real) e imprime lo que devuelve -- toda la
-logica de "esto es valido" vive en `validator.py`/`notes.py`, nunca aqui
-[PIEZAS.md Sec.10, regla comun a los once scripts: "si un script crece, es
-que se le esta colando logica que pertenece a un modulo"; PIEZAS.md
-Sec.10, fila `note.py`: "llama a notes.write · notes.replace ·
-notes.discard_alternatives" -- `discard_alternatives` se enganchó vía
-`--discard` [decision del propietario, 2026-08-04: "hay que engancharlo,
-por supuesto"; forma del flag fijada en el contrato en rojo,
-test_note_script.py::TestDiscardFlagWiresIntoNotesDiscardAlternatives].
-`notes.promote` se engancha via `--promotes` [2026-08-05, pendiente de
-que esa fila de PIEZAS.md se ponga al dia con esta cuarta funcion].
-
-Grammar de CLI [derivada de los comandos de relanzamiento LITERALES que
-TEXTOS.md repite en Sec.1.1/1.5/1.6/1.7/1.9/1.11, todos con la misma
-forma -- ver el docstring de test_note_script.py, que fija esta misma
-gramatica antes de que este fichero existiera]:
+Arma el `Context` real, llama a `notes.write`, `notes.replace` (con un
+`--replaces` real), `notes.promote` (con `--promotes`) o
+`notes.discard_alternatives` (con `--discard`) e imprime lo que devuelve.
+Lo que es valido lo decide `validator.py`/`notes.py`, nunca este script.
 
     note.py <TIPO> --zones <zona1> <zona2> "<titular>" \\
         [--why "..."] [--description "..."] [--keys k1 k2 ...] \\
@@ -31,44 +14,9 @@ gramatica antes de que este fichero existiera]:
         [--discard "<titular alternativa>" "<porque>" ...] \\
         [--promotes <ID de una Q>] --searched "<lo buscado>: <lo encontrado>"
 
-`--work`/`--quote` [D-065/D-066, 2026-08-26]: la aduana de issues,
-exclusiva de Q/I -- sin `--issue` ni `--work`, rebota pidiendo que se
-conteste "¿cerrar esta nota exige trabajo... o solo una
-respuesta/decision?" (`validator.validate_issue_gate`). `--work no`
-deja pasar la nota sin issue; `--issue none` deja pasar el "no" del
-dueño, pero exige `--quote "<sus palabras>"` (sin escape `--quote none`,
-a diferencia de `gitmem rule`: D-066, "el no siempre es del dueño y
-siempre lleva cita"). `--work` no es campo de `Note` -- viaja aparte
-igual que `--stops`; `--quote` SI lo es (`Note.quote`, solo Q/I).
-
-`--promotes <ID>` [2026-08-05, encargo del propietario]: la nota nueva
-asciende la pregunta (Q) `<ID>` -- sube a memo si la respuesta es un
-hecho, cae a descarte si es que no [spec Sec.4]. Llama a
-`notes.promote()` (reexportada de `notes_promote.py`, ver su docstring)
-en vez de `notes.write()`/`notes.replace()`; si llega tambien un
-`--replaces <ID>` real, el mismo commit archiva esa nota como sustituida
--- toda decision de "esto es valido" sigue en
-`validator.py`/`notes_promote.py`.
-
-`--discard` es repetible (una vez por alternativa) y respeta
-`--replaces`/`--promotes` (D-145). El SEGUNDO valor de cada
-pareja llena `Note.description` de la alternativa (tipo `X`), NUNCA
-`Note.why` [`vocabulary.TYPES["X"].required_fields == {"description"}`,
-`why` es opcional para X]. `origin` lo pone `discard_alternatives()` por
-su cuenta -- este script no pasa ningun puntero de origen.
-
-`--stops` (solo aplica a M/R) y `--issue` NO son campos de `Note`: viajan
-aparte hasta `validator.validate_pain_question`/`validate_issue`, las
-DOS unicas funciones del validador que se llaman fuera de
-`validate_note()` [ver "ASUNCIONES DE FIRMA" en validator.py]. Las dos
-se comprueban ANTES de escribir nada -- ninguna abre un commit por su
-cuenta, y las dos usan el rechazo REAL de `validator.py`/`rejection.py`,
-nunca un texto propio de este script.
-
-`--keys` pasa por `validator.normalize_keys` antes de guardarse: el
-generador (esta pieza) es quien aplica la correccion y la enseña al
-guardar -- nunca un rechazo [TEXTOS.md Sec.1.8, "no es rechazo, es aviso
-al guardar"].
+`--stops`, `--issue` y `--work` no son campos de `Note`: se comprueban
+aparte, antes de escribir nada. `--keys` se normaliza y la correccion se
+enseña al guardar, nunca se rechaza.
 """
 
 import argparse
@@ -102,14 +50,8 @@ from vocabulary import MARKER_KEYS  # noqa: E402
 
 
 def _issue_arg(value):
-    """`--issue` acepta un numero real o el centinela literal `"none"`
-    [D-065/D-066, la aduana de issues] -- mismo patron que `--replaces`
-    (cadena libre, distinguida de un id real por quien la usa), pero con
-    forma comprobada aqui: cualquier otra cadena revienta en argparse con
-    un mensaje claro, en vez de propagarse como un `ValueError` sin
-    explicar mas abajo. Devuelve `int` para un numero real, o el string
-    `"none"` tal cual para el centinela -- `main()` resuelve cual de los
-    dos es antes de construir la `Note` candidata.
+    """`--issue`: un numero (`int`) o el centinela literal `"none"`; otra cadena
+    es un error de argparse.
     """
     if value == "none":
         return value
@@ -134,12 +76,10 @@ def _parse_args(argv):
     parser.add_argument("--replaces", default=None)
     parser.add_argument("--awaits", default=None)
     parser.add_argument("--issue", type=_issue_arg, default=None)
-    # `--work`/`--quote` [D-065/D-066, 2026-08-26]: la aduana de issues de
-    # Q/I. `--work` solo acepta "no" -- D-065 no define un "--work yes"
-    # propio, esa respuesta se contesta dando `--issue` directamente.
+    # Aduana de issues de Q/I (D-065/D-066): un "si" se contesta con `--issue`.
     parser.add_argument("--work", choices=("no",), default=None)
     parser.add_argument("--quote", default=None)
-    parser.add_argument("--promotes", default=None)  # 2026-08-05: asciende una Q
+    parser.add_argument("--promotes", default=None)  # asciende una Q
     # D-098: obligatorio, pero lo exige `main()` con la pregunta -- un
     # `required=True` daria el `usage:` de argparse en vez de la pregunta.
     parser.add_argument("--searched", default=None)
@@ -150,17 +90,8 @@ def _parse_args(argv):
 
 
 def _existing_in_zone_pair(zone1, zone2, archived):
-    """Notas VIVAS de la pareja de zonas ``(zone1, zone2)``, EN CUALQUIER
-    ORDEN [Moriarty BREAK 2, 2026-08-25, mismo helper duplicado a proposito
-    en `hooks/customs.py::_decide_note` -- los dos caminos de entrada
-    tienen que tratar la pareja de zonas igual, sin acoplar los dos
-    scripts entre si ni tocar `query.py`].
-
-    Une ``query.by_zone(zone1, zone2)`` y ``query.by_zone(zone2, zone1)``,
-    dedup por ``id`` (conserva el primer orden en que aparece), y filtra
-    contra ``archived`` -- mismo filtro que ya vivia aqui antes de este
-    arreglo, ahora aplicado a la union de las dos consultas en vez de a
-    una sola.
+    """Notas vivas de la pareja de zonas en cualquier orden, sin repetir id
+    ni incluir las de `archived`.
     """
     seen: set[str] = set()
     matches = []
@@ -174,54 +105,12 @@ def _existing_in_zone_pair(zone1, zone2, archived):
 
 
 def _build_context(pm, zone1, zone2):
-    """El `Context` real que `validator.validate_note` necesita -- cada
-    campo, leido de la fuente real que ya existe en produccion, nunca
-    fabricado: `zones.load` (zonas del proyecto), `query.by_zone` (las
-    notas ya escritas en esa pareja de zonas, para `validate_replacement`,
-    y el historial completo para `known_ids`, que `validate_pointers`
-    necesita), `config.load` (fail-closed si no hay fichero).
+    """El `Context` real para `validator.validate_note`, con `zone1`/`zone2`
+    resueltos a su nombre canonico (un alias se guarda con el nombre real).
+    Devuelve `(ctx, zone1, zone2)`.
 
-    `zone1`/`zone2` se resuelven a su nombre CANONICO con `zones.resolve()`
-    contra el mismo mapa que se acaba de cargar, antes de usarlos para
-    nada mas -- `validator_zones._validate_zone_name()` ya acepta un
-    alias como zona valida, pero nadie lo traducia entre "esto es valido"
-    y "esto es lo que se guarda"; una nota dada de alta con un alias
-    quedaba invisible para siempre en la navegacion por zona [hallazgo
-    real de Moriarty, 2026-08-04]. Si `resolve()` no encuentra nada (zona
-    de verdad inexistente) se conserva el nombre tal cual se tecleo, para
-    que `validate_zones` pueda rechazarlo con su texto real. Devuelve el
-    `Context` junto con el `zone1`/`zone2` ya resueltos, para que quien
-    llama construya la nota candidata con el nombre que de verdad se va a
-    guardar -- el mismo que se usa aqui para `existing_in_zone`.
-
-    `existing_in_zone` se filtra contra `indexes.archived_ids(pm)` antes
-    de entrar en `Context` [2026-08-05, encargo del propietario: "si sale
-    una nueva incidencia, es una nueva incidencia; la otra ya se cerro,
-    aunque sea sobre lo mismo"]. `query.by_zone()` no distingue vivo de
-    archivado -- devuelve TODO el historial de esa pareja de zonas a
-    proposito, porque el informe de zona y otras lecturas si necesitan
-    ver lo archivado (Sec.8.2). El filtro va aqui, no dentro de
-    `query.by_zone()` ni dentro de `validate_replacement()`: lo primero
-    rompería al informe de zona y a `health`/`boot`, que leen el
-    historial completo por diseño; lo segundo exigiría que el validador
-    abriera `ARCHIVED.md` por su cuenta, y el contrato de `validator.py`
-    prohibe que ese modulo abra ficheros o llame a git -- todo lo que
-    necesita saber del mundo lo recibe ya resuelto en `Context`. `known_ids`
-    se deja sin filtrar a proposito: un `--replaces`/`--origin` valido
-    puede apuntar a una nota ya archivada (p.ej. el muro de `remove.py`
-    cita con `--origin` la incidencia que el propio cierre acaba de
-    archivar), y `validate_pointers` solo comprueba que el identificador
-    exista alguna vez, no que siga vigente.
-
-    `existing_in_zone` recorre la pareja de zonas en los DOS ordenes
-    (``_existing_in_zone_pair``) [Moriarty BREAK 2, 2026-08-25]: la
-    puerta de duplicados de `similar.py` ya compara `zone1`/`zone2` como
-    CONJUNTO, pero de nada sirve si la nota con las zonas al reves nunca
-    llega a `existing_in_zone` -- `query.by_zone(zone1, zone2)` por si
-    sola es una coincidencia posicional exacta y la deja fuera. No toca
-    `query.by_zone()` ni como se resuelven las zonas en ningun otro
-    camino: solo une sus dos llamadas aqui, en el mismo sitio donde ya
-    vive el filtro de archivadas.
+    `existing_in_zone` lleva solo las notas vivas de la pareja; `known_ids`
+    incluye las archivadas, porque un puntero puede citar una nota archivada.
     """
     zones_map = zones_lib.load(pm / "zones.json")
     zone1 = zones_lib.resolve(zone1, zones_map) or zone1
@@ -240,11 +129,8 @@ def _build_context(pm, zone1, zone2):
 
 
 def _corrected_key_pairs(raw_keys, normalized_keys):
-    """Las parejas (forma escrita, forma canonica) donde una key marcadora
-    [vocabulary.MARKER_KEYS] se corrigio DE VERDAD -- para el aviso de
-    TEXTOS.md Sec.1.8 ("con una key corregida"). No incluye keys que
-    desaparecieron por duplicado o por estar ya en el titular: esas no
-    tienen una forma corregida que enseñar, simplemente no entraron.
+    """Las parejas (forma escrita, forma canonica) de las keys marcadoras que
+    se corrigieron de verdad.
     """
     normalized_set = set(normalized_keys)
     pairs = []
@@ -256,13 +142,7 @@ def _corrected_key_pairs(raw_keys, normalized_keys):
 
 
 def _build_candidate(args, normalized_keys, zone1, zone2):
-    # `args.issue` es `int | "none" | None` [`_issue_arg`] -- `Note.issue`
-    # solo conoce `int | None` (el centinela "none" significa "sin
-    # issue", igual que ausente, para todo lo que lee el campo aguas
-    # abajo: `format.py`, `report_render_note.py`, `health.py`). La
-    # distincion entre "ausente" y "none explicito" solo la necesita la
-    # aduana de issues (`validator.validate_issue_gate`), que recibe
-    # `args.issue` sin resolver por separado -- ver `main()`.
+    # "none" se guarda como sin issue; la aduana recibe `args.issue` sin resolver.
     issue = args.issue if isinstance(args.issue, int) else None
     return Note(
         type=args.type,
@@ -284,9 +164,10 @@ def _build_candidate(args, normalized_keys, zone1, zone2):
 
 
 def _build_discard_candidates(discard_pairs, zone1, zone2, searched):
-    """Una nota `X` por pareja `(titular, porque)` de `--discard`, en la
-    MISMA zona que la decision que las origina, con su mismo `--searched`
-    [D-098]. `origin` se deja vacio a proposito -- ver cabecera del modulo."""
+    """Una nota `X` por pareja `(titular, porque)` de `--discard`, en la zona
+    de la decision y con su mismo `--searched`. `origin` lo pone
+    `discard_alternatives()`.
+    """
     return tuple(
         Note(
             type="X",
@@ -404,10 +285,9 @@ def _print_refused_discards(rejections, alternatives, ctx, argv):
 
 def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
     """Rama `--discard`: `notes.discard_alternatives()` valida todas las
-    alternativas, y solo entonces escribe la decision (respetando
-    `--replaces`/`--promotes`, via `_write_decision`) y cada alternativa,
-    cada una en su propio commit [PIEZAS.md Sec.8.1]. Un primer resultado
-    fallido es que no se escribio nada; un fallo posterior es de git.
+    alternativas y solo entonces escribe la decision (via `_write_decision`)
+    y cada alternativa en su commit. Un primer resultado fallido es que no se
+    escribio nada; un fallo posterior es de git.
     """
     alternatives = _build_discard_candidates(args.discard, zone1, zone2, args.searched)
     decision_called = []
@@ -452,17 +332,9 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
 
 
 def _write_decision(candidate, args, ctx):
-    """`--promotes` [2026-08-05]: si se dio, `notes.promote()` es la unica
-    que se llama (asciende la Q citada y, con un `--replaces` real, archiva
-    tambien la sustituida, ver el docstring del modulo). Si no, `--replaces` distingue
-    tres casos [TEXTOS.md Sec.1.6] -- ausente (nada se sustituye), el
-    centinela literal "none" ("conviven las dos, a proposito" --
-    `validator.validate_replacement`), o un ID real ("la sustituye" -- la
-    vieja tiene que archivarse). Solo el tercero usa `notes.replace()`,
-    la unica funcion que archiva la vieja en el mismo commit [PIEZAS.md
-    Sec.8.1]; los otros dos siguen en `notes.write()` exactamente igual
-    que antes -- `Note.replaces` viaja tal cual (`None` o `"none"`) hasta
-    el commit, sin que `note.py` decida nada mas.
+    """Escribe la nota: `notes.promote()` con `--promotes`; `notes.replace()`
+    con un `--replaces` real; si no, `notes.write()` (con `replaces` en `None`
+    o `"none"` tal cual).
     """
     if args.promotes is not None:
         return notes.promote(candidate, args.promotes, ctx)
@@ -506,10 +378,7 @@ def main(argv):
         _print_rejection(pain_rejection, args)
         return 1
 
-    # La aduana de issues [D-065/D-066, 2026-08-26]: la vara de medir
-    # antes de `validate_issue()` -- recibe `args.issue` SIN resolver
-    # (`int | "none" | None`), la unica forma de distinguir "ausente" de
-    # "none explicito" [ver docstring de `_build_candidate`].
+    # `args.issue` sin resolver: distingue "ausente" de "none" explicito.
     gate_rejection = validator.validate_issue_gate(candidate, args.issue, args.work)
     if gate_rejection is not None:
         _print_rejection(gate_rejection, args)
@@ -524,8 +393,6 @@ def main(argv):
         _print_rejection(issue_rejection, args)
         return 1
 
-    # `--discard` es su propio flujo: `notes.discard_alternatives()` valida
-    # los descartes y luego escribe la nota via `_write_decision`.
     if args.discard:
         return _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv)
 

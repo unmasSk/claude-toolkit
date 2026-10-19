@@ -1,66 +1,15 @@
-"""Comprobar que el sistema no se ha roto solo.
-
-De que salida se deriva: el bloque CHECKS del arranque:
+"""Comprobar que el sistema no se ha roto solo: el bloque CHECKS del arranque.
 
     ⚠️  plan #47: 3 commits sin reflejar en la issue
     ✓  no duplicate IDs (68 notes)
     ✓  indexes match git (68 lines / 68 notes)
 
-Los dos ✓ importan tanto como el ⚠️: un chequeo que solo habla cuando
-falla es indistinguible de uno que no se ejecuta. Por eso `coherence()`
-siempre devuelve los dos numeros reales, gane o pierda la comparacion.
-
-**No repara nada.** Detecta y enseña -- reparar los indices es un
-comando aparte, explicito.
-
-Ocho funciones: `coherence`, `coherence_rules`, `duplicates`,
-`plans_unreflected`, `build`, `rebuild_plan`, `possible_unconverted_legacy`,
-`memory_mounted`. `plans_unreflected` es el unico lector real del campo
-`issue`. `build` compone `coherence`/`coherence_rules`/`duplicates`/
-`issues_checked` en el `HealthReport` que el arranque pinta.
-`rebuild_plan` es el mismo cruce que `coherence()` vuelto un plan de
-reparacion, para `reindex.py`. `possible_unconverted_legacy` y
-`memory_mounted` cierran dos fallos reales: un proyecto con memoria del
-sistema anterior sin destilar se presentaba como vacio de verdad, y un
-proyecto sin la memoria montada recibia el mismo informe en verde que
-uno sano -- con un pie de arranque que invitaba a un comando garantizado
-a fallar. Ver el docstring de cada funcion para el umbral y el mecanismo.
-
-`coherence(root)` cruza dos fuentes, cada una con su propia pieza ya en
-produccion:
-
-- **Lineas de indice**: `indexes.read(name, root)` sobre los siete
-  indices vigentes (sin `ARCHIVED.md` -- una nota archivada ya esta
-  retirada).
-- **Notas reales en git**: `query.by_zone(None, None)`, que sin filtro
-  devuelve exactamente las notas que el historial completo reconoce.
-
-La divergencia sale de comparar los dos conjuntos de IDs: lo que esta en
-git y no en el indice, y lo que esta en el indice y no en git. Cada
-discrepancia nombra el ID afectado.
-
-`coherence_rules(root)` (I-003) compara el `rules.md` COMITEADO en HEAD
-contra el `rules.md` real del arbol de trabajo -- nunca "arqueologia de
-todo el historial" (una version anterior comparaba TODOS los commits de
-regla contra el fichero, y eso gritaba siempre sobre lineas legitimas
-escritas mientras `rules.add()` no comiteaba nada). Solo una linea
-escrita hoy que todavia no llego a NINGUN commit diverge de HEAD.
-`HealthReport` puebla `rule_head_lines`/`rule_file_lines`/
-`rule_discrepancies`.
-
-**Resiliente a un git corrupto, 2026-08-24**: un objeto de
-`.git/objects` corrupto hacia que `coherence_rules()` (via
-`query.show_file_at_head()`) reventara con `RuntimeError` sin capturar,
-tumbando `build()`/`boot.build()` entero. `build()` lo captura: los tres
-numeros quedan en cero y el motivo real va a
-`HealthReport.rule_discrepancies_error` -- nunca tumba el resto del
-informe.
-
-`plans_unreflected()` vive en `health_plans.py` (partida por tamano);
-`health.py` la reexpone bajo el mismo nombre.
-
-`lib/memory/` no importa nada del toolkit fuera de la biblioteca
-estandar de Python. Import plano entre hermanos.
+Cada chequeo devuelve sus numeros reales tambien cuando todo esta bien: un
+chequeo que solo habla al fallar no se distingue de uno que no corre. No
+repara nada. `build()` junta todo en el `HealthReport` que pinta el
+arranque; un fallo de `gh` o un git corrupto van a su campo `_error`, sin
+tumbar el resto. `plans_unreflected()` vive en `health_plans.py` y se
+reexpone aqui.
 """
 
 from pathlib import Path
@@ -68,6 +17,7 @@ from pathlib import Path
 import ids
 import indexes
 import notes
+import notes_duplicate
 import query
 import rules
 import zones
@@ -77,35 +27,13 @@ from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
 
 _ARCHIVE_FILE = "ARCHIVED.md"
 
-# Aviso A -- umbral de "esto puede ser memoria del sistema anterior sin
-# destilar", anadido 2026-08-06. Un proyecto genuinamente recien creado
-# acumula, en la practica, un punado de commits de arranque (scaffold
-# inicial, primer README, primera estructura) antes de que la memoria se
-# instale -- pocos, pero no cero. Fijado en MAS DE OCHO para dejar ese
-# margen real y no gritar en el caso mas comun que existe (un proyecto
-# que de verdad esta vacio de memoria porque acaba de nacer); un
-# historial que ya pasa de ocho commits sin una sola nota reconocida ya
-# no encaja en "recien creado" -- encaja en "hay trabajo real ahi
-# dentro". El umbral no protege del caso donde SI importa acertar:
-# `coherence()` YA distingue "cero notas" de "notas de verdad" para lo
-# suyo; este umbral solo decide cuando vale la pena avisar de que ese
-# cero podria no ser un cero real.
+# Un proyecto recien creado trae unos pocos commits de arranque sin notas.
 _LEGACY_MIN_COMMITS = 8
 
 
 def _current_index_lines(root: Path) -> tuple[IndexLine, ...]:
-    """Las lineas de nota de los SIETE indices VIGENTES (sin
-    `ARCHIVED.md`) -- compartido por `coherence()` y `duplicates()`.
-
-    Lee en `notes.pm_root(root)`, no en `root` a secas -- los ocho
-    indices viven en `.claude/project-memory/`, nunca en la raiz pelada
-    del repositorio.
-
-    Un indice AUSENTE cuenta como CERO lineas para ESE fichero, nunca
-    revienta: un proyecto recien instalado no tiene ninguno de los ocho
-    todavia, y eso es su estado real. Si el proyecto SI tiene notas y
-    falta justo un fichero (corrupcion real), el hueco no queda en
-    silencio: `coherence()` sigue viendo `index_lines != git_notes`.
+    """Las lineas de nota de los siete indices vigentes (sin `ARCHIVED.md`).
+    Un indice ausente cuenta como cero lineas.
     """
     pm = notes.pm_root(root)
     lines: list[IndexLine] = []
@@ -119,29 +47,15 @@ def _current_index_lines(root: Path) -> tuple[IndexLine, ...]:
     return tuple(lines)
 
 
-# Alias publico: `report.py` lo usa para saber que gemelo de un id repetido sigue vivo.
+# Alias publico: `report.py` y `boot.py` lo usan para saber que gemela de un id sigue viva.
 current_index_lines = _current_index_lines
 
 
 def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
     """Cruza los siete indices vigentes contra el historial real de git.
 
-    Devuelve `(lineas, notas, discrepancias)`: cuantas lineas de nota
-    tienen los indices vigentes, cuantas notas reales hay en git, y el
-    texto de cada divergencia en cualquiera de los dos sentidos (vacio si
-    todo coincide).
-
-    Una nota archivada nunca cuenta como "falta en el indice" -- ya salio
-    de los indices vigentes a proposito. Un indice o `ARCHIVED.md`
-    ausentes cuentan como cero, nunca como un fallo que tumbe esta
-    funcion -- una corrupcion real sigue saliendo como
-    `index_lines != git_notes` mas abajo.
-
-    Las archivadas TAMBIEN se cruzan contra git, no solo se restan: un id
-    archivado que no existe en ningun commit real de git es tan
-    discrepancia como las otras dos (una entrada fantasma en
-    `ARCHIVED.md` inflaria "K live + J archived / M notes" sin que nada
-    lo dijera).
+    Devuelve `(lineas, notas, discrepancias)`. Una nota archivada no falta en
+    el indice; un id archivado que no existe en git si es una discrepancia.
     """
     root = Path(root)
     index_lines = _current_index_lines(root)
@@ -166,34 +80,15 @@ def coherence(root: Path) -> tuple[int, int, tuple[str, ...]]:
 
 
 def _head_rules_content(root: Path) -> str:
-    """El contenido de `rules.md` tal como lo tiene comiteado HEAD --
-    nunca el arbol de trabajo. Delega en `query.show_file_at_head()`:
-    `query.py` es el unico lector del historial de git en todo
-    `lib/memory/`.
-    """
+    """El `rules.md` comiteado en HEAD, nunca el del arbol de trabajo."""
     relpath = rules.rules_file_path(root).relative_to(root).as_posix()
     return query.show_file_at_head(relpath, root)
 
 
 def coherence_rules(root: Path) -> tuple[int, int, tuple[str, ...]]:
-    """Cruza el `rules.md` COMITEADO en HEAD contra el `rules.md` real del
-    arbol de trabajo.
-
-    Devuelve `(lineas_head, lineas_fichero, discrepancias)` -- mismo
-    criterio que `coherence()`: los dos numeros reales siempre, gane o
-    pierda la comparacion.
-
-    Una linea en el fichero pero no en HEAD es la ventana de I-003: se
-    escribio pero el commit que la iba a fijar nunca llego. Una linea en
-    HEAD pero ya no en el fichero es la direccion contraria -- alguien
-    borro o revirtio a mano una linea ya comiteada.
-
-    Comparacion ciega a la cita: `rules.strip_quote_suffix()` se aplica
-    antes de comparar -- el contenido que importa es la REGLA, nunca la
-    cita que la acompana.
-
-    Un `rules.md` que todavia no existe no es un fallo: cero reglas es
-    un estado valido, `lineas=0` en los dos lados.
+    """Cruza el `rules.md` comiteado en HEAD contra el del arbol de trabajo,
+    sin mirar la cita de cada regla. Devuelve `(lineas_head, lineas_fichero,
+    discrepancias)`; un `rules.md` ausente son cero reglas.
     """
     root = Path(root)
     head_content = _head_rules_content(root)
@@ -231,41 +126,35 @@ def _archive_lines(root: Path) -> tuple[ArchiveLine, ...]:
 
 
 def duplicates(root: Path) -> tuple[str, ...]:
-    """Identificadores repetidos entre los indices vigentes y `ARCHIVED.md`
-    [D-147: un id repetido, vivo o archivado, es un error]. Alarma pasiva.
-    """
-    root = Path(root)
-    return ids.find_duplicates(_current_index_lines(root) + _archive_lines(root))
+    """Identificadores que llevan dos o mas lineas vivas a la vez [D-148]."""
+    return ids.find_duplicates(_current_index_lines(Path(root)))
 
 
-def _duplicate_notes(duplicate_ids: tuple[str, ...]) -> tuple[tuple[str, Note], ...]:
-    """`(sha, nota)` de cada commit que lleva uno de `duplicate_ids`, para
-    que el arranque liste cada gemela y se corrija con `remove --commit`.
+def _duplicate_notes(duplicate_ids: tuple[str, ...], root: Path) -> tuple[tuple[str, Note], ...]:
+    """`(sha, nota)` de cada copia viva de `duplicate_ids`, con el commit que
+    casa `remove --commit`; una linea sin commit no sale.
     """
-    return tuple(pair for note_id in duplicate_ids for pair in query.commits_by_id(note_id))
+    live = _current_index_lines(root)
+    pairs: list[tuple[str, Note]] = []
+    for note_id in duplicate_ids:
+        by_sha = dict(query.commits_by_id(note_id))
+        lines = [line for line in live if line.id.lower() == note_id.lower()]
+        pairs.extend(
+            (sha, by_sha[sha]) for _line, sha in notes_duplicate.with_commits(note_id, lines) if sha
+        )
+    return tuple(pairs)
 
 
 def _total_commit_count() -> int:
-    """Cuantos commits tiene el historial completo, para
-    `possible_unconverted_legacy`. Pasa por `query.run_git_log()`, el
-    unico punto de entrada a `git log`. Una rama sin ningun commit vale
-    `0`, nunca una excepcion.
-    """
+    """Cuantos commits tiene el historial completo; una rama sin commits vale 0."""
     raw_stdout = query.run_git_log("--pretty=format:%H")
     return sum(1 for record in raw_stdout.split("\0") if record)
 
 
 def _possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | None:
-    """"Esto puede ser memoria del sistema anterior sin destilar" -- la
-    señal es una desproporcion, no un calculo de contenido: muchos
-    commits en el historial y cero notas que `coherence()` sepa
-    reconocer. No lee el contenido de esos commits ni sugiere ningun
-    comando de destilacion.
-
-    Devuelve el numero real de commits cuando la señal dispara
-    (`git_notes == 0` y `total_commits` pasa `_LEGACY_MIN_COMMITS`),
-    `None` en cualquier otro caso -- incluido un proyecto recien creado
-    con dos o tres commits de arranque.
+    """El numero de commits si hay muchos (mas de `_LEGACY_MIN_COMMITS`) y
+    ninguna nota reconocida: puede ser memoria del sistema anterior sin
+    destilar. `None` en cualquier otro caso.
     """
     if git_notes == 0 and total_commits > _LEGACY_MIN_COMMITS:
         return total_commits
@@ -273,16 +162,8 @@ def _possible_unconverted_legacy(total_commits: int, git_notes: int) -> int | No
 
 
 def zones_state(zones_path: Path) -> tuple[str, int]:
-    """Tres estados reales de `zones.json` -- ausente, vacio (incluido un
-    fichero corrupto: `zones.load()` lanza `ValueError`, contado aqui
-    igual que cero zonas utilizables) y poblado (al menos una zona real).
-
-    Reutilizada por `bin/memory/zones.py list` y `git-memory-doctor.py`
-    para que los dos distingan "nunca existio" de "existe vacio" con el
-    mismo criterio.
-
-    Devuelve `(estado, numero_de_zonas)`. `numero_de_zonas` es siempre 0
-    para "absent" y "empty".
+    """Estado de `zones.json`: `("absent", 0)`, `("empty", 0)` (tambien si esta
+    corrupto) o `("populated", numero_de_zonas)`.
     """
     if not zones_path.exists():
         return "absent", 0
@@ -296,16 +177,9 @@ def zones_state(zones_path: Path) -> tuple[str, int]:
 
 
 def _memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
-    """"Este proyecto no tiene la memoria montada" -- comprueba solo lo
-    que de verdad hace falta para que `notes.write()` pueda aceptar una
-    nota real: los ocho indices vigentes, `zones.json` con al menos una
-    zona dada de alta, y `config.json` (solo existencia).
-
-    Devuelve `(montada, faltantes)`. `faltantes` nombra cada pieza
-    ausente por su nombre real -- nunca un booleano suelto, para que el
-    arranque pueda enseñar el orden correcto (zonas primero, nota
-    despues). Un `zones.json` corrupto cuenta aqui igual que si no
-    existiera ninguna zona utilizable.
+    """Si la memoria esta montada: los ocho indices, `zones.json` con al menos
+    una zona y `config.json`. Devuelve `(montada, faltantes)`, cada pieza
+    ausente por su nombre.
     """
     root = Path(root)
     pm = notes.pm_root(root)
@@ -329,25 +203,12 @@ def _memory_mounted(root: Path) -> tuple[bool, tuple[str, ...]]:
 
 
 def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[str, str], ...]]:
-    """El mismo cruce que `coherence()` hace para diagnosticar, aqui
-    vuelto un PLAN de reparacion -- movido desde
-    `bin/memory/reindex.py::_rebuild()`, que reimplementaba esta misma
-    logica.
+    """El cruce de `coherence()` vuelto plan de reparacion para `reindex.py`.
+    No escribe nada.
 
-    NO escribe nada -- solo calcula. Quien aplica el plan
-    (`indexes.insert()`/`indexes.remove()`) sigue siendo `reindex.py`.
-
-    Devuelve `(to_insert, to_remove)`:
-    - `to_insert`: pares `(nota, fichero_destino)` -- una nota real de git
-      que no esta archivada y todavia no aparece en ningun indice vigente.
-    - `to_remove`: pares `(id, fichero)` -- una linea de indice cuya nota
-      ya no existe en git.
-
-    Mismo criterio que `_current_index_lines()` para un indice o
-    `ARCHIVED.md` ausentes: cuentan como vacios, nunca revientan -- un
-    proyecto recien instalado (`seed()` sin correr todavia) es un estado
-    valido, no un fallo. `indexes.seed()` sigue siendo responsabilidad de
-    quien llama, exactamente igual que antes de que esta funcion existiera.
+    Devuelve `(to_insert, to_remove)`: `(nota, fichero)` de cada nota de git
+    no archivada que falta en los indices, y `(id, fichero)` de cada linea
+    cuya nota no existe en git. Un indice ausente cuenta como vacio.
     """
     root = Path(root)
     pm = notes.pm_root(root)
@@ -381,23 +242,8 @@ def rebuild_plan(root: Path) -> tuple[tuple[tuple[Note, str], ...], tuple[tuple[
 
 
 def build() -> HealthReport:
-    """Compone el `HealthReport` que `boot.build()` pinta -- junta lo que
-    ya existe, sin volver a calcular nada: `coherence`, `coherence_rules`,
-    `duplicates`, `issues_checked`.
-
-    `root` sale de `notes.repo_root()`, nunca de `Path.cwd()` a secas: si
-    el proceso arrancara desde una subcarpeta anidada, `Path.cwd()`
-    apuntaria al sitio equivocado para `notes.pm_root(root)`.
-
-    Si `issues_checked()` o `coherence_rules()` revientan (falla `gh`;
-    un git corrupto), eso no tumba `build()` entero: se captura aqui, el
-    resultado queda vacio y el motivo real va a su propio campo `_error`
-    -- nunca tumba el resto del informe (indices, IDs), que sigue siendo
-    real.
-
-    `archived_notes`: cuantas de las `git_notes` que ya calculo
-    `coherence()` estan archivadas, para el desglose "N live + K archived
-    / M notas" que pinta `boot._avisos_block`.
+    """Compone el `HealthReport` que pinta `boot.build()`, sin recalcular nada.
+    Un fallo de `issues_checked()` o `coherence_rules()` va a su campo `_error`.
     """
     root = notes.repo_root()
     index_lines, git_notes, index_discrepancies = coherence(root)
@@ -422,7 +268,7 @@ def build() -> HealthReport:
 
     return HealthReport(
         duplicate_ids=duplicate_ids,
-        duplicate_notes=_duplicate_notes(duplicate_ids),
+        duplicate_notes=_duplicate_notes(duplicate_ids, root),
         index_lines=index_lines,
         git_notes=git_notes,
         index_discrepancies=index_discrepancies,

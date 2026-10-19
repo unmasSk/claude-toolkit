@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
-"""bin/memory/remove.py -- retira una nota (retira su linea del indice
-vigente, la anade a ARCHIVED.md) y, si se pide, hace nacer el muro que
-sale de una incidencia.
-
-Contrato: docs/memoria-v2/PIEZAS.md Sec.10 (fila `remove.py`) y Sec.10.1,
-punto 2. Grammar de CLI [TEXTOS.md Sec.1.10, literal]:
+"""bin/memory/remove.py -- retira una nota (sale de su indice vigente y
+entra en ARCHIVED.md) y, si se pide, hace nacer el muro que sale de una
+incidencia.
 
     remove.py <ID> "<motivo>" --restriction no
     remove.py <ID> "<motivo>" --restriction new \\
         --restriction-text "..." --why "..."
 
-`--restriction new` es DOS actos, DOS commits [Sec.10.1, punto 2, mismo
-patron que `notes.discard_alternatives`: "un acto, un commit" aplica a
-nota+indice, no al acto completo]: primero el cierre de `<ID>`
-(`notes.close`), despues -- solo si el cierre salio bien -- el muro
-nuevo (`notes.write`, tipo R, con `Origin:` apuntando a `<ID>`, en la
-MISMA pareja de zonas que la incidencia que la origina). Si el cierre
-falla, el muro no se intenta: no hay nada de que "salir".
-
-Solo aplica a incidencias (`I-...`): es el unico tipo que TEXTOS.md
-Sec.1.10 describe naciendo muro al cerrarse.
+`--restriction new` (solo incidencias) son dos commits: primero el cierre
+de `<ID>`, despues -- solo si salio bien -- el muro R en la misma pareja de
+zonas, con `Origin:` apuntando a `<ID>`.
 """
 
 import argparse
@@ -56,11 +46,7 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(prog="remove.py")
     parser.add_argument("id")
     parser.add_argument("reason")
-    # Corregido 2026-08-04: antes required=True para TODO tipo de nota --
-    # falso, incumplia P5: cerrar una I sin el flag revienta con el error
-    # crudo de argparse en vez de la pregunta del molde [TEXTOS.md
-    # Sec.1.10, decision del propietario]. Ahora opcional; main() decide
-    # segun el tipo via validator.validate_incident_close_question.
+    # Opcional: main() pregunta por el muro si una I llega sin el flag.
     parser.add_argument("--restriction", choices=("no", "new"), default=None)
     parser.add_argument("--restriction-text", default=None)
     parser.add_argument("--why", default=None)
@@ -70,28 +56,16 @@ def _parse_args(argv):
 
 
 def _empty_context():
-    """`notes.close()` recibe `ctx` por simetria de Superficie con
-    `write()`/`replace()` pero no lo usa -- cerrar no crea ninguna nota
-    nueva [notes.py, docstring de `close()`]. Ninguna de las cuatro ramas
-    de un `Context` real se lee nunca para esta llamada.
-    """
+    """Un `Context` vacio: `notes.close()` lo recibe pero no lo usa."""
     return validator.Context(
         zones={}, existing_in_zone=(), known_ids=frozenset(), config=config.Config(),
     )
 
 
 def _build_fence_context(pm, zone1, zone2):
-    """2026-08-05: `existing_in_zone` se filtra contra
-    `indexes.archived_ids(pm)` -- mismo arreglo y mismo porque que
-    `bin/memory/note.py::_build_context()` (ver su docstring): el muro
-    que nace aqui pasa por `validator.validate_note()`
-    (`_guard_restriction_new`) y por `notes.write()`
-    (`_create_fence`), las dos vias que llegan a
-    `validate_replacement()` -- sin este filtro, un muro archivado hace
-    meses seguia bloqueando uno nuevo parecido. `known_ids` se deja sin
-    filtrar: el propio muro cita con `--origin {args.id}` la incidencia
-    que el cierre de mas arriba en este mismo flujo acaba de archivar, y
-    ese puntero tiene que seguir resolviendo como conocido.
+    """El `Context` del muro: las notas vivas de su zona, sin las archivadas.
+    `known_ids` incluye las archivadas, porque el muro cita la incidencia que
+    se acaba de cerrar.
     """
     zones_map = zones_lib.load(pm / "zones.json")
     archived = indexes.archived_ids(pm)
@@ -109,12 +83,7 @@ def _build_fence_context(pm, zone1, zone2):
 
 
 def _build_fence_candidate(args, incident):
-    """La `Note` candidata del muro que nace de `incident` -- construccion
-    compartida entre el pre-chequeo de `_guard_restriction_new()` y el alta
-    real de `_create_fence()`, para no escribirla dos veces [encargo del
-    propietario, 2026-08-05: "si quiere apuntar un muro, tiene que
-    apuntarse ese muro"].
-    """
+    """La `Note` candidata del muro que nace de `incident`."""
     return Note(
         type="R",
         id="",
@@ -132,17 +101,9 @@ def _build_fence_candidate(args, incident):
 def _guard_restriction_new(args):
     """Comprobaciones previas de `--restriction new`, antes de tocar nada.
 
-    Devuelve la `Note` real de la incidencia si todo esta en orden, o
-    `None` si ya se imprimio el motivo del rechazo -- el llamador sale
-    con 1 en ese caso, sin intentar cerrar nada.
-
-    2026-08-05, encargo del propietario: ademas de las tres comprobaciones
-    de forma de siempre, la `Note` candidata del muro se pasa por
-    `validator.validate_note()` -- la MISMA funcion pura que `notes.write()`
-    ya llama antes de comprometer nada -- para que un muro que la aduana va
-    a rechazar (p.ej. titular de mas de 80 caracteres) no deje la
-    incidencia cerrada sin su leccion al lado: o las dos cosas nacen, o
-    ninguna.
+    Devuelve la `Note` de la incidencia, o `None` si ya se imprimio el
+    rechazo. El muro candidato pasa por `validator.validate_note()` aqui, para
+    que la incidencia no quede cerrada sin su muro: o nacen las dos, o ninguna.
     """
     if not args.id.startswith("I-"):
         print(
@@ -157,10 +118,7 @@ def _guard_restriction_new(args):
             file=sys.stderr,
         )
         return None
-    # Se lee ANTES de cerrar -- el commit de la incidencia sigue en el
-    # historial de git para siempre (cerrar solo retira la linea de
-    # indice), pero leerlo aqui deja claro que la zona del muro sale de
-    # la incidencia tal como estaba, no de un estado a medio cerrar.
+    # Se lee antes de cerrar: la zona del muro sale de la incidencia tal como estaba.
     incident = _incident_note(args)
     if incident is None:
         print(
@@ -243,8 +201,7 @@ def _replaces_target_problem(replaces, incident_id, pm):
     index_name = TYPE_INDEX_FILES.get(replaces.split("-", 1)[0])
     lines = indexes.read(index_name, pm) if index_name else ()
     line, duplicate = notes_duplicate.pick(
-        replaces, lines, None,
-        lambda sha: f'gitmem remove {replaces} "<motivo>" --commit {sha}',
+        replaces, lines, None, notes_duplicate.remove_relaunch(replaces)
     )
     if duplicate is not None:
         return rejection_.render_terminal(duplicate)
@@ -254,19 +211,9 @@ def _replaces_target_problem(replaces, incident_id, pm):
 
 
 def _headline_rejection_for_remove(args, rejection):
-    """El rechazo del titular largo, con el Relanza cambiado a `gitmem
-    remove` -- corregido 2026-10-19, hallazgo real: el de
-    `validator.validate_headline()` propone `gitmem note <TIPO> ...`, que
-    pegado tal cual escribe un muro suelto, sin `Origin:` y sin cerrar la
-    incidencia: justo lo que `_guard_restriction_new()` existe para evitar.
-    Se rehace solo el comando aqui, no en el validador: el camino de
-    `gitmem note` tiene que seguir proponiendo su propio comando.
-
-    El motivo y el porque van con `shlex.quote` -- corregido 2026-10-19,
-    hallazgo real (Cerberus F1): entre comillas dobles crudas, un acento
-    grave, un `$` o una `"` del texto los altera el shell al pegar el
-    comando, y la nota guarda otra cosa de lo que se escribio. Lleva todos
-    los flags que se dieron (`--replaces`, `--commit`).
+    """El rechazo del titular largo, con el Relanza cambiado a `gitmem remove`
+    con todos los flags que se dieron: el `gitmem note` del validador
+    escribiria un muro suelto sin cerrar la incidencia.
     """
     placeholder = f"<titular de hasta {validator.HEADLINE_MAX} caracteres>"
     return dataclasses.replace(rejection, relaunch=(_remove_command(args, text=placeholder),))
@@ -297,30 +244,8 @@ def _remove_command(args, replaces=None, commit=None, text=None):
 
 
 def _fence_retry_command(args, incident):
-    """El comando exacto para volver a intentar SOLO el muro suelto --
-    sin repetir el cierre, que ya es permanente -- misma gramatica de
-    `note.py` [Sec.10, fila `note.py`]. Usado por `_create_fence()` si el
-    muro no nace: ver su docstring para el porque.
-
-    Ejecutable TAL CUAL, sin editar -- corregido 2026-08-03, hallazgo
-    real: la version anterior omitia dos flags que `note.py` exige de
-    verdad para un tipo R y el comando rebotaba dos veces si se pegaba
-    literal (primero por la pregunta del dolor sin responder, despues por
-    el campo obligatorio que falta). `--stops yes` responde la pregunta
-    del dolor [`validator.validate_pain_question`]: no hace falta
-    preguntarla, porque `_create_fence()` (mas abajo en este fichero)
-    siempre construye una `Note(type="R", ...)`, y toda R contesta "si".
-    `--description` es obligatorio para el tipo R
-    [`vocabulary.TYPES["R"].required_fields`] -- lleva el MISMO texto que
-    `_create_fence()` usa de verdad al escribir el muro
-    (`description=args.restriction_text`), asi que no hay ningun hueco
-    que rellenar: el dato ya esta disponible aqui. `--searched` lleva el
-    hueco a rellenar, como el resto de relanzamientos [D-098].
-
-    El texto del muro y el porque van con `shlex.quote` -- corregido
-    2026-10-19, hallazgo real (gemelo de Cerberus F1): entre comillas
-    dobles crudas, un acento grave, un `$` o una `"` los altera el shell
-    al pegar, y el comando dejaba de ser ejecutable tal cual.
+    """El comando exacto, ejecutable tal cual, para relanzar SOLO el muro
+    cuando el cierre ya quedo hecho. Toda R contesta `--stops yes`.
     """
     text = shlex.quote(args.restriction_text)
     command = f"gitmem note R --zones {incident.zone1} {incident.zone2} {text}"
@@ -335,20 +260,11 @@ def _fence_retry_command(args, incident):
 
 
 def _create_fence(args, incident):
-    """La R que sale de `incident`, en su misma pareja de zonas, con
-    `Origin:` apuntando a la incidencia -- decision del propietario
-    [PIEZAS.md Sec.10.1, punto 2]. Devuelve el codigo de salida.
+    """La R que sale de `incident`, en su misma pareja de zonas, con `Origin:`
+    apuntando a la incidencia. Devuelve el codigo de salida.
 
-    **Si el muro no nace, el aviso deja claro que el cierre YA es
-    permanente** -- corregido 2026-08-02, hallazgo real: `main()` ya
-    imprimio "✅ <ID> archivada" (el cierre se comiteo de verdad, no hay
-    vuelta atras) antes de llegar aqui; un fallo aqui abajo (p.ej. un
-    titular de mas de 80 caracteres) salia con codigo 1 sin decir que el
-    cierre ya quedo guardado -- quien mirase solo el codigo de salida
-    reintentaria el comando ENTERO, y el segundo intento fallaria de otra
-    forma porque `<ID>` ya no esta en su indice [demostrado ejecutando].
-    Por eso el aviso nombra el estado real primero, y da el comando EXACTO
-    para relanzar solo el muro, sin repetir un cierre que ya no hace falta.
+    Si el muro no nace, el aviso dice primero que el cierre ya es permanente y
+    da el comando para relanzar solo el muro.
     """
     root = notes.repo_root()
     pm = notes.pm_root(root)
@@ -378,13 +294,7 @@ def _create_fence(args, incident):
 
 
 def _report_close_failure(close_result, note_id):
-    """Imprime por que fallo el cierre y devuelve 1 -- extraida de
-    `main()` el 2026-08-04 para mantenerla bajo 50 LOC al anadir el
-    manejo de `close_result.rejections` (antes `close()` nunca devolvia
-    un rechazo real, asi que esta rama solo miraba `git_error`; un
-    rechazo real -- motivo con salto de linea, ver
-    `notes.py::_reject_close_reason_multiline` -- habria impreso "None").
-    """
+    """Imprime por que fallo el cierre y devuelve 1."""
     if close_result.rejections:
         for one_rejection in close_result.rejections:
             print(rejection_.render_terminal(one_rejection), file=sys.stderr)

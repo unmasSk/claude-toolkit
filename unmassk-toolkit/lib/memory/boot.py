@@ -17,9 +17,9 @@ Se construye con `context`, `health`, `indexes`, `notes`, `query` --
 nunca con `report`/`zones` (hueco declarado: las dos lineas de
 TEXTOS.md Sec.3.2 que leen `zones.json` quedan fuera).
 
-"Vigente" se deduce con `indexes.archived_ids(notes.pm_root(root))` --
-una nota es vigente si su id no aparece en `ARCHIVED.md`. Un
-`ARCHIVED.md` ausente cuenta como cero archivados, nunca como un fallo.
+Una nota es vigente si su id no aparece en `ARCHIVED.md`, o si su id y
+su titular siguen en un indice vivo (una gemela cuya hermana se archivo,
+D-148). Un `ARCHIVED.md` ausente cuenta como cero archivados.
 Blockers y restricciones salen de ese mismo filtro, sin tope.
 
 Los tres recuentos sin fuente fijada en el contrato (`open_questions`,
@@ -46,6 +46,7 @@ import emojis
 import health
 import indexes
 import notes
+import notes_duplicate
 import query
 import remote
 import repo_guard
@@ -128,8 +129,10 @@ def build() -> BootSummary:
         branch = None
     remote_state = remote.state(root, branch)
     archived_ids = indexes.archived_ids(notes.pm_root(root))
+    live_keys = frozenset((line.id, line.headline) for line in health.current_index_lines(root))
     live_notes = tuple(
-        note for note in query.by_zone(None, None) if note.id not in archived_ids
+        note for note in query.by_zone(None, None)
+        if note.id not in archived_ids or (note.id, note.headline) in live_keys
     )
 
     restrictions = tuple(
@@ -427,10 +430,11 @@ def _avisos_block(summary: BootSummary) -> list[str]:
     if report.duplicate_ids:
         lines.append(
             f"   ⚠️  duplicate IDs: {', '.join(report.duplicate_ids)} -- "
-            "fix each with `gitmem remove <id> --commit <sha>`"
+            f"fix each with `{notes_duplicate.remove_relaunch('<id>')('<sha>')}`"
         )
         for sha, note in report.duplicate_notes:
-            lines.append(f"      - {note.id} {sha[:7]} [{note.zone1}] [{note.zone2}] {note.headline}")
+            short = sha[:notes_duplicate.SHORT_SHA]
+            lines.append(f"      - {note.id} {short} [{note.zone1}] [{note.zone2}] {note.headline}")
     else:
         lines.append(f"   ✓  no duplicate IDs ({report.git_notes} notes)")
 

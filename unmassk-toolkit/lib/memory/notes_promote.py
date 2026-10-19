@@ -1,57 +1,11 @@
-"""El ascenso de una pregunta (Q) abierta -- contrato en
-docs/spec-sistema-memoria-v2.md Sec.4 y docs/memoria-v2/TEXTOS.md Sec.4.
+"""El ascenso de una pregunta (Q): sube a memo (M) si la respuesta es un
+hecho, cae a descarte (X) si es que no. La Q sale a `ARCHIVED.md` como
+"promoted".
 
-**Nace el 2026-08-05, por el techo de 500 lineas de `notes.py`** [encargo
-del propietario]: `notes.py` estaba en 495 lineas, y `promote()` mas sus
-dos rechazos mas la mecanica que comparte con `replace()` no cabian dentro
-sin pasarlo -- el mismo techo, y por el mismo motivo, que ya partio
-`notes_commit.py` de `notes.py` [ver el docstring de ese fichero].
-
-**Sigue EXACTAMENTE el mismo patron que esa partida**: `notes.py` importa
-de aqui de forma PLANA y reexpone bajo el mismo nombre [PIEZAS.md
-Sec.3.3bis], asi que `notes.promote` sigue alcanzable igual para quien lo
-llame (`bin/memory/note.py`). Este fichero, a su vez, NO importa nada de
-`notes.py` -- evita el ciclo; es `notes.py` quien depende de este, nunca
-al reves.
-
-QUE ES `promote()`: la Q asciende a memo (M) si la respuesta es un hecho,
-o cae a descarte (X) si es que no [spec Sec.4]. Es la TERCERA forma en
-que una nota sale de su indice a `ARCHIVED.md` -- junto a `replace()`/
-`close()`, las dos en `notes.py` -- con destino `"promoted"`
-[model.ArchiveLine.destination].
-
-**`swap_and_archive()` es la mecanica que `replace()` (en `notes.py`) y
-`promote()` (aqui) COMPARTEN**, en vez de cada una reimplementarla por su
-lado: candado, id nuevo (fundiendo indice vivo + archivado via
-`index_with_archived()`, punto 5 del docstring de `notes.py` -- el
-hallazgo real de Moriarty sobre reuso de identificadores archivados),
-retirada de la linea vieja, insercion de la nueva, archivado con un
-destino, commit y restauracion por snapshot si algo falla. Dos
-transacciones paralelas sobre los mismos indices es exactamente la unica
-amenaza que este proyecto declara (memoria corrompida por el propio
-sistema) -- por eso `notes.py` importa esta funcion en vez de copiar el
-cuerpo de `replace()` una segunda vez. `link_replaces` es la unica
-diferencia real de comportamiento entre las dos llamadoras: `replace()`
-la pasa a `True` (la nota nueva sustituye, lleva `Note.replaces=old_id`);
-`promote()` la pasa a `False` -- un ascenso no es una sustitucion, y
-`validate_replacement` solo mira `note.replaces`: forzarlo aqui
-dispararia una colision de similitud ajena al camino que este ascenso
-quiere aislar (ver el docstring de `promote()`).
-
-`pre_check`, si se da, corre DENTRO del mismo candado que `swap_and_archive`
-ya abre, justo tras `indexes.seed(pm)` y ANTES de tocar ningun indice --
-lo usa `promote()` para sus dos rechazos sobre `question_id` (no es una Q,
-no existe) sin abrir una segunda ventana de candado. `replace()` no lo
-necesita: su unico rechazo (`ValueError` de tipo desconocido) no depende
-de nada que el candado resuelva, y se comprueba antes de llamar aqui.
-
-Los dos rechazos de `question_id` (`_reject_bad_promotes_target`) **no
-tienen molde en TEXTOS.md todavia** -- redactados con el mismo tono que el
-resto via `rejection.build()`, nunca un texto impreso a mano; pendiente de
-que el documento se ponga al dia [aviso del propietario, misma tarea].
-
-No importa nada fuera de la biblioteca estandar de Python. Imports planos
-entre hermanos de `lib/memory/` [PIEZAS.md Sec.3.3bis].
+`swap_and_archive()` es la mecanica que comparten `notes.replace()` y
+`promote()`: candado, id nuevo, retirada de la linea vieja, insercion de la
+nueva, archivado y commit, o restauracion de los indices si algo falla.
+`notes.py` importa de aqui y lo reexpone; este fichero no importa `notes`.
 """
 
 import dataclasses
@@ -69,9 +23,6 @@ from notes_commit import lock_resource, pm_root, repo_root, restore_snapshot_bes
 from validator import Context, validate_note
 from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
 
-# Mismas dos constantes locales que ya tiene notes.py (y, por separado,
-# health.py) -- alias de datos, no la transaccion; duplicar un literal de
-# tres lineas no es el fallo que este fichero existe para evitar.
 _TYPE_TO_INDEX_FILE = TYPE_INDEX_FILES
 _ARCHIVE_FILE = "ARCHIVED.md"
 assert _ARCHIVE_FILE in INDEX_FILES, (
@@ -80,11 +31,8 @@ assert _ARCHIVE_FILE in INDEX_FILES, (
 
 
 def index_with_archived(current_index: tuple[IndexLine, ...], pm: Path) -> tuple[IndexLine, ...]:
-    """`current_index` mas un `IndexLine` hueco por cada id ya archivado en
-    `pm` -- movida aqui desde `notes.py` el 2026-08-05 (mismo techo de
-    500 lineas). `write()`/`close()` en `notes.py` y `swap_and_archive()`
-    aqui abajo la usan igual, importada de forma plana. Ver el punto 5 del
-    docstring de `notes.py` para el hallazgo real que la hizo necesaria.
+    """`current_index` mas una linea hueca por cada id ya archivado en `pm`,
+    para que `ids.next_id` nunca reuse un id archivado.
     """
     archived = indexes.archived_ids(pm)
     return current_index + tuple(
@@ -104,23 +52,13 @@ def swap_and_archive(
     pre_check=None,
     also_replaces: str | None = None,
 ) -> WriteResult:
-    """Retira `old_id` de `old_index_name`, escribe `new` con un id nuevo
-    en su propio indice, y archiva la vieja con `destination` -- las tres
-    cosas en un solo commit, o ninguna [PIEZAS.md Sec.8.1]. Ver el
-    docstring del modulo para el porque de compartir esta mecanica entre
-    `replace()` y `promote()` en vez de duplicarla.
+    """Retira `old_id` de `old_index_name`, escribe `new` con un id nuevo en
+    su indice y archiva la vieja con `destination`: todo en un commit, o nada.
 
-    Precondicion del llamador (salvo lo que cubra `pre_check`): `old_id`
-    ya tiene forma valida para `old_index_name` -- este helper no decide
-    si el tipo es el correcto, solo mueve datos. Mismo orden que fija el
-    docstring de `notes.py` (punto 4): id nuevo ANTES de retirar la vieja
-    (para que `replace()`/`promote()` nunca reusen, dentro del mismo
-    commit, el numero que estan a punto de liberar), restauracion por
-    snapshot completo (nunca `indexes.insert()`: una linea existente
-    puede estar en cualquier posicion del fichero).
-
-    `also_replaces`: una segunda nota viva que `new` sustituye; sale de su
-    indice y se archiva como "replaced" en el mismo commit.
+    El id nuevo se calcula antes de retirar la vieja. `link_replaces` pone
+    `replaces=old_id` en la nota nueva. `pre_check(pm)` corre dentro del
+    candado, antes de tocar ningun indice. `also_replaces`: una segunda nota
+    viva que `new` sustituye; se archiva como "replaced" en el mismo commit.
     """
     root = repo_root()
     pm = pm_root(root)
@@ -136,8 +74,7 @@ def swap_and_archive(
         old_index_snapshot = old_index_path.read_text(encoding="utf-8")
         old_lines = indexes.read(old_index_name, pm)
         old_line, duplicate = notes_duplicate.pick(
-            old_id, old_lines, None,
-            lambda sha: f'gitmem remove {old_id} "<motivo>" --commit {sha}',
+            old_id, old_lines, None, notes_duplicate.remove_relaunch(old_id)
         )
         if duplicate is not None:
             return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
@@ -236,8 +173,7 @@ def _retire_live(note_id: str, pm: Path, snapshots: dict) -> tuple[IndexLine | N
     path = pm / index_name
     snapshots.setdefault(path, path.read_text(encoding="utf-8"))
     line, duplicate = notes_duplicate.pick(
-        note_id, indexes.read(index_name, pm), None,
-        lambda sha: f'gitmem remove {note_id} "<motivo>" --commit {sha}',
+        note_id, indexes.read(index_name, pm), None, notes_duplicate.remove_relaunch(note_id)
     )
     if duplicate is not None:
         return None, duplicate
@@ -247,16 +183,10 @@ def _retire_live(note_id: str, pm: Path, snapshots: dict) -> tuple[IndexLine | N
     return line, None
 
 
-# 2026-08-05, encargo del propietario: los dos rechazos de --promotes no
-# tienen molde en TEXTOS.md -- redactados aqui con el mismo tono que el
-# resto via rejection.build(), nunca impresos a mano. Pendiente de que
-# TEXTOS.md Sec.1 se ponga al dia con estas dos formas.
+# Los dos rechazos de --promotes no tienen molde en TEXTOS.md todavia.
 def _reject_bad_promotes_target(new: Note, question_id: str, pm: Path) -> Rejection | None:
-    """`None` si `question_id` es una Q abierta de verdad; un `Rejection`
-    si no tiene forma de Q o si no esta vigente en QUESTIONS.md. Se llama
-    ANTES de tocar ningun indice (via `pre_check` de `swap_and_archive`) --
-    mismo criterio que `validator_pointers.validate_pointers` aplica a
-    Replaces/Origin: rebota citando el id, nada se escribe.
+    """`None` si `question_id` es una Q vigente; si no, el `Rejection` que lo
+    explica. Corre antes de tocar ningun indice.
     """
     relaunch = (
         f'gitmem note {new.type} --zones {new.zone1} {new.zone2} '
@@ -288,12 +218,9 @@ def _reject_bad_promotes_target(new: Note, question_id: str, pm: Path) -> Reject
 
 
 def promote(new: Note, question_id: str, ctx: Context) -> WriteResult:
-    """Asciende `question_id` (una Q vigente) a `new`: sube a memo si la
-    respuesta es un hecho, cae a descarte si es que no [spec Sec.4;
-    TEXTOS Sec.4]. Delega en `swap_and_archive()` con
-    `destination="promoted"` y `link_replaces=False` -- un ascenso no es
-    una sustitucion, ver el docstring del modulo. Si `new.replaces` es un
-    id real, esa nota se archiva como sustituida en el mismo commit.
+    """Asciende `question_id` (una Q vigente) a `new`, sin enlazar `replaces`.
+    Si `new.replaces` es un id real, esa nota se archiva como sustituida en el
+    mismo commit.
     """
     replaced = new.replaces if new.replaces not in (None, "none") else None
     return swap_and_archive(

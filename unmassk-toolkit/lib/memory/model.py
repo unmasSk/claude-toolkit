@@ -268,7 +268,7 @@ class HealthReport:
     # proyecto -- vacio cuando no falta nada (memoria montada de verdad).
     # Nombra cada pieza ausente por su nombre real, nunca un bool suelto.
     memory_setup_missing: tuple[str, ...] = ()
-    # (sha, nota) de cada commit bajo un id de `duplicate_ids` [D-147]:
+    # (sha, nota) de cada copia viva de un id de `duplicate_ids` [D-148]:
     # el arranque lista cada gemela para corregirla con `remove --commit`.
     duplicate_notes: tuple[tuple[str, Note], ...] = ()
     # (numero, state, title) de cada issue citada, de la misma consulta a gh
