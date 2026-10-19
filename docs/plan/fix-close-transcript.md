@@ -1,0 +1,32 @@
+# Close transcript extractor Plan
+
+**Procedure:** Full
+**Build mode:** test-first
+**Base:** f6419f58
+**Created:** 2026-10-19
+
+## Goal
+The session-close extractor (`unmassk-toolkit/skills/unmassk-close-session/scripts/session_transcript.py`) hands the close agent every word the owner typed in the session, and never comes out empty or partial without saying so.
+
+## Decisions
+- D-143: a redo close covers the whole session (skip this session's own earlier `[NEXT]`); `--since` bounds the commit range too; zero commits is said.
+- M-155: dead-ends (not the transcript choice, not `isMeta`, not git parsing).
+- Seam: yes. The script reads the `.jsonl` Claude Code writes and its output becomes the `[NEXT]` memory commit.
+
+## Out of scope
+- Rewriting the close-session skill or its agent prompt beyond documenting `--since` and the redo.
+- Other record types (tool results, thinking, subagent sidechains) stay dropped.
+- Peer-session messages and task notifications that arrive as `queued_command`: only `origin.kind == "human"` is the owner.
+
+## Phases
+
+### Phase 1: owner's words and boundaries
+**Files:** modify `unmassk-toolkit/skills/unmassk-close-session/scripts/session_transcript.py`; create its tests under `unmassk-toolkit/tests/`
+**Steps:**
+- [ ] 1.1 Dante: red tests through the script's command line, on real-shaped `.jsonl` fixtures and a disposable git repo: (a) a mid-turn owner message (`attachment` / `queued_command`, `origin.kind=human`) comes out, a peer message or task notification in the same shape does not; (b) the text inside `<command-args>` of a slash command comes out; (c) `--since` bounds the commits as well as the turns; (d) zero commits in the window prints a warning; (e) a second close in the same transcript takes the previous `[NEXT]` as boundary and returns the whole session.
+- [ ] 1.2 Ultron: make 1.1 green.
+- [ ] 1.3 Dante: round-trip check on this session's real transcript (copy): both mid-turn messages of 2026-10-19 come out.
+- [ ] 1.4 Verify: `python3 -m pytest unmassk-toolkit/tests -q -k transcript` green.
+
+## Wave map
+- Wave 1: Phase 1
