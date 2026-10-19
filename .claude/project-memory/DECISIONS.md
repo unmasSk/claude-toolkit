@@ -106,3 +106,4 @@
 [D-133][memory][boot] searched text rides in a leading Description so 1.47.0 reads new notes
 [D-135][skills][docs] flow's eight parts go by their own names, no number and no generic word
 [D-137][skills][docs] flow v2: open points of the draft decided by sector, one left for Bex
+[D-138][skills][docs] a Short task may ask Bilbo one pointed question when size can't be told
