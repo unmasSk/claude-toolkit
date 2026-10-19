@@ -1,16 +1,17 @@
-"""RED contract (I-007, House 2026-10-19): the merge gate does not read a Git
-Bash drive path (`/c/Users/me/proj`) as the session repo.
+"""Contract (I-007, House 2026-10-19): the merge gate reads a Git Bash drive
+path (`/c/Users/me/proj`) as the session repo.
 
 On Windows, Claude Code's shell is Git Bash, and Git Bash writes the absolute
 path `C:\\Users\\me\\proj` as `/c/Users/me/proj`; bash and git both accept it.
-`lib/merge_gate_target.py::_join_path` joins it with ntpath as it comes:
-ntpath.join(r"C:\\Users\\me\\proj", "/c/Users/me/proj") is "C:/c/Users/me/proj",
-a directory that does not exist. So an everyday merge into dev written as
-`git -C /c/<session repo> ...` or `cd /c/<session repo> && ...` reads as
-"runs elsewhere" -> unknown target -> the heavy staging gate. D-129 says a
-path to the session repo is read like no path, whatever its spelling.
-hooks/customs.py::_translate_git_bash_drive_path already does this
-translation for the commit gate (Windows only).
+Before the fix, `lib/merge_gate_target.py::_join_path` joined it with ntpath
+as it came: ntpath.join(r"C:\\Users\\me\\proj", "/c/Users/me/proj") is
+"C:/c/Users/me/proj", a directory that does not exist. So an everyday merge
+into dev written as `git -C /c/<session repo> ...` or
+`cd /c/<session repo> && ...` read as "runs elsewhere" -> unknown target ->
+the heavy staging gate. D-129 says a path to the session repo is read like no
+path, whatever its spelling. The translation now lives in
+lib/git_bash_path.py::native_path (Windows only), shared by this gate and the
+commit gate in hooks/customs.py. These tests pin that fix.
 
 Expected values come from D-129 and from how Git Bash spells a drive path,
 never from the gate's code.
@@ -32,7 +33,7 @@ How this runs on a Mac (no Windows here):
     toplevel(cwd) -> runs_elsewhere.
 
 The last class runs the real hook end to end, on Windows only (the user's
-door): it is the same contract, and it is red there until the fix lands.
+door): it is the same contract, checked through the hook itself.
 """
 
 import ntpath
@@ -110,7 +111,7 @@ def _where_each_call_runs(command, cwd=SESSION_REPO):
             for sub, name, paths in mgt.git_calls(tokens)]
 
 
-# ── RED today: the Git Bash spelling of the session repo ─────────────────
+# ── The contract: the Git Bash spelling of the session repo ──────────────
 
 
 class TestGitBashDrivePathIsTheSessionRepo:
@@ -141,10 +142,10 @@ class TestGitBashDrivePathIsTheSessionRepo:
 
 
 class TestSimulationAndBoundaries:
-    """Declared green today. The controls prove the Windows simulation reads
-    a native path as the session repo, so the red above is the missing
-    translation and nothing else. The guards fail if a fix translates too
-    much."""
+    """Green with or without the fix. The controls prove the Windows
+    simulation reads a native path as the session repo, so a failure above
+    means the translation is missing and nothing else. The guards fail if
+    the translation does too much."""
 
     @pytest.mark.parametrize("path", [
         "C:/Users/me/proj",

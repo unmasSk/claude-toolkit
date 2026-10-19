@@ -387,7 +387,7 @@ def _resolve_effective_cwd(command, base_cwd, limit_index=None):
     principio que ya fija el escape hatch de fichero corrupto: una ruta
     que no resuelve no puede tumbar la evaluacion].
 
-    En Windows (`os.name == "nt"`), una ruta absoluta estilo Git Bash
+    En Windows (`sys.platform == "win32"`), una ruta absoluta estilo Git Bash
     (`/c/Users/x`) se traduce a su forma nativa (`C:/Users/x`) ANTES de
     comprobar `os.path.isabs`/`os.path.isdir` -- ver
     `lib/git_bash_path.py::native_path`. Fuera de Windows no se traduce nada
