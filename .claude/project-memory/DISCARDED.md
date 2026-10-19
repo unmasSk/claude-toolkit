@@ -138,3 +138,4 @@
 [X-138][memory][testing] archive every note sharing the id
 [X-139][memory][testing] renumber the duplicate on remove
 [X-140][hooks][skills] force TaskCreate for flow boxes
+[X-141][hooks][skills] leave it as is
