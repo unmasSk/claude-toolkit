@@ -126,3 +126,4 @@
 [X-126][hooks][install] a Stop hook
 [X-127][hooks][install] a PreToolUse hook on AskUserQuestion
 [X-128][memory][boot] a plain Searched: line now
+[X-129][skills][docs] 'stage' / 'etapa' as a fifth work word
