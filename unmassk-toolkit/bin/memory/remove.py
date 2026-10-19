@@ -25,6 +25,7 @@ Sec.1.10 describe naciendo muro al cerrarse.
 import argparse
 import dataclasses
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 
@@ -187,13 +188,18 @@ def _headline_rejection_for_remove(args, rejection):
     incidencia: justo lo que `_guard_restriction_new()` existe para evitar.
     Se rehace solo el comando aqui, no en el validador: el camino de
     `gitmem note` tiene que seguir proponiendo su propio comando.
+
+    El motivo y el porque van con `shlex.quote` -- corregido 2026-10-19,
+    hallazgo real (Cerberus F1): entre comillas dobles crudas, un acento
+    grave, un `$` o una `"` del texto los altera el shell al pegar el
+    comando, y la nota guarda otra cosa de lo que se escribio.
     """
     command = (
-        f'gitmem remove {args.id} "{args.reason}" --restriction new '
+        f"gitmem remove {args.id} {shlex.quote(args.reason)} --restriction new "
         f'--restriction-text "<titular de hasta {validator.HEADLINE_MAX} caracteres>"'
     )
     if args.why:
-        command += f' --why "{args.why}"'
+        command += f" --why {shlex.quote(args.why)}"
     return dataclasses.replace(rejection, relaunch=(command,))
 
 
@@ -217,14 +223,17 @@ def _fence_retry_command(args, incident):
     (`description=args.restriction_text`), asi que no hay ningun hueco
     que rellenar: el dato ya esta disponible aqui. `--searched` lleva el
     hueco a rellenar, como el resto de relanzamientos [D-098].
+
+    El texto del muro y el porque van con `shlex.quote` -- corregido
+    2026-10-19, hallazgo real (gemelo de Cerberus F1): entre comillas
+    dobles crudas, un acento grave, un `$` o una `"` los altera el shell
+    al pegar, y el comando dejaba de ser ejecutable tal cual.
     """
-    command = (
-        f'gitmem note R --zones {incident.zone1} {incident.zone2} '
-        f'"{args.restriction_text}"'
-    )
+    text = shlex.quote(args.restriction_text)
+    command = f"gitmem note R --zones {incident.zone1} {incident.zone2} {text}"
     if args.why:
-        command += f' --why "{args.why}"'
-    command += f' --description "{args.restriction_text}" --stops yes'
+        command += f" --why {shlex.quote(args.why)}"
+    command += f" --description {text} --stops yes"
     command += f" --origin {args.id}"
     command += validator.searched_suffix(validator.SEARCHED_PLACEHOLDER)
     return command
