@@ -50,8 +50,8 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 ### Phase 5: Moriarty fix pass (D-147)
 **Files:** boot/health (G1) · remove.py, notes_duplicate.py (G2) · note.py, notes.py, notes_promote.py, validator.py, validator_pointers.py (G3) · tests under tests/memory
 - [x] 5.1 Dante: tests reshaped to D-147 (boot alerts on any duplicated id; no twin-reader tests)
-- [ ] 5.2 Ultron G1, G2, G3 in parallel until green
-- [ ] 5.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q`
+- [x] 5.2 Ultron G1, G2, G3 in parallel until green
+- [x] 5.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q`
 
 ## Wave map
 - Wave 1: Phase 1, Phase 3 (independent files)
