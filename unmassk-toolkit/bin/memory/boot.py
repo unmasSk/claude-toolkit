@@ -25,6 +25,11 @@ acordara de repetirlo.
 
 import os
 import sys
+import time
+
+# Hora de arranque: un informe escrito despues es de otra sesion a la
+# que le fue bien, y el aviso de fallo de esta no lo pisa.
+_STARTED = time.time()
 
 _BIN_MEMORY_DIR = os.path.dirname(os.path.abspath(__file__))
 _TOOLKIT_ROOT = os.path.dirname(os.path.dirname(_BIN_MEMORY_DIR))
@@ -99,6 +104,7 @@ def _leave_a_failure_marker(exc: Exception) -> None:
             "No hay informe de esta sesión. Lo que había aquí antes era de\n"
             "una sesión anterior y se ha sustituido por este aviso para que\n"
             "nadie lo lea como si fuera de hoy.\n",
+            started=_STARTED,
         )
     except Exception:
         # Si ni siquiera esto se puede escribir, queda el stderr de abajo.

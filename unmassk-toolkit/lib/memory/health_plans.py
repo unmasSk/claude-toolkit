@@ -71,7 +71,7 @@ import timefmt
 _FIELD_SEP = "\x1f"
 _ISSUE_TRAILER_RE = re.compile(r"^Issue: #(\d+)$", re.MULTILINE)
 _GH_DEADLINE_ENV = "UNMASSK_GH_DEADLINE_SECONDS"
-# Por debajo del tope del lanzador (boot_launcher.py, 25 s) y del hook (30 s).
+# Tope propio; en el arranque lo recorta `boot_common.network_budget`.
 _GH_DEADLINE_DEFAULT = 15.0
 # Un alias por issue citada; `{owner}`/`{repo}` los rellena `gh` desde el
 # repositorio del directorio actual.
@@ -140,7 +140,14 @@ def _gh_graphql(issue_numbers: list[int]) -> tuple[int, str, str]:
     aqui: `gh` sale con 1 cuando una issue citada no existe y aun asi
     devuelve el resto en `stdout`.
     """
-    deadline = _gh_deadline()
+    # El tope propio, recortado a lo que quede del arranque: el fetch ya
+    # gasto su parte [Moriarty T2, 2026-10-19].
+    deadline = boot_common.network_budget(_gh_deadline())
+    if deadline <= 0:
+        raise RuntimeError(
+            "gh api graphql no se lanzo: no quedaba tiempo dentro del tope del arranque"
+        )
+    deadline = round(max(deadline, 0.1), 1)
     fields = " ".join(_GH_ISSUE_FIELD % (n, n) for n in issue_numbers)
     try:
         # encoding="utf-8", errors="replace": sin `encoding=`, `text=True`

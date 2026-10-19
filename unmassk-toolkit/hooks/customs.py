@@ -340,6 +340,10 @@ _ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _RULE_VALUE_FLAGS = frozenset({"--kind", "--quote", "--retract", "--replaces", "--searched"})
 # Mismas dos palabras que `rule.py::_LEEN_EN_VEZ_DE_ESCRIBIR`: leen, no guardan.
 _RULE_READ_WORDS = ("list", "ls")
+# Mismas palabras que `rule.py::_NO_SON_UNA_REGLA`: rule.py las rebota sin guardar.
+_RULE_NOT_A_RULE_WORDS = ("add", "find", "show", "read", "verify", "rebuild", "help")
+# Pedir la ayuda de argparse no guarda nada [Moriarty ABUSE, 2026-10-19].
+_HELP_FLAGS = ("-h", "--help")
 
 
 def _flag_value(tokens, flag):
@@ -353,8 +357,8 @@ def _flag_value(tokens, flag):
 
 
 def _rule_saves(rest):
-    """`gitmem rule ...` guarda (alta o `--replaces`) -- leer, `list`/`ls`
-    y `--retract` no."""
+    """`gitmem rule ...` guarda (alta o `--replaces`) -- leer, `list`/`ls`,
+    una palabra suelta que rule.py rebota y `--retract` no."""
     flags = {tok.split("=", 1)[0] for tok in rest if tok.startswith("--")}
     if "--retract" in flags:
         return False
@@ -367,7 +371,8 @@ def _rule_saves(rest):
             i += 2
             continue
         if not tok.startswith("--"):
-            return tok.strip().lower() not in _RULE_READ_WORDS
+            word = tok.strip().lower()
+            return word not in _RULE_READ_WORDS and word not in _RULE_NOT_A_RULE_WORDS
         i += 1
     return False
 
@@ -390,7 +395,8 @@ def _find_unanswered_gitmem_save(command):
         if len(tokens) < 2 or not _GITMEM_PROGRAM_TOKEN_RE.search(tokens[0]):
             continue
         sub, rest = tokens[1], tokens[2:]
-        saves = sub == "note" or (sub == "rule" and _rule_saves(rest))
+        asks_help = any(tok in _HELP_FLAGS for tok in rest)
+        saves = not asks_help and (sub == "note" or (sub == "rule" and _rule_saves(rest)))
         if saves and not validator.searched_given(_flag_value(rest, "--searched")):
             return stmt_index, tokens
     return None

@@ -61,6 +61,7 @@ import query
 import remote
 import repo_guard
 import timefmt
+import validator
 from model import BootSummary, ContextNote
 
 _BOX_WIDTH = 72  # mismo ancho visual que report_render._BOX_WIDTH
@@ -91,7 +92,8 @@ _FIRST_NOTE_HINT = (
     "nota se guarda así:",
     "",
     '  gitmem note <TIPO> --zones <zona1> <zona2> "titular en inglés" \\',
-    '    --description "..." --stops <yes|no>',
+    '    --description "..." --stops <yes|no> \\',
+    f"    --searched '{validator.SEARCHED_PLACEHOLDER}'",
 )
 _MAP_IS_SET = (
     "El mapa está puesto. Dime por dónde: el Next, una pregunta, una issue,",
@@ -113,7 +115,8 @@ _SETUP_MISSING_HINT = (
     "Con al menos una zona dada de alta, la primera nota se guarda así:",
     "",
     '  gitmem note <TIPO> --zones <zona1> <zona2> "titular en inglés" \\',
-    '    --description "..." --stops <yes|no>',
+    '    --description "..." --stops <yes|no> \\',
+    f"    --searched '{validator.SEARCHED_PLACEHOLDER}'",
 )
 
 

@@ -35,6 +35,7 @@ from pathlib import Path
 import re
 import sys
 
+import boot_common
 import gitcmd
 import timefmt  # reexportado para boot.py, y usado aqui mismo abajo
 
@@ -149,11 +150,17 @@ def fetch_all(root: Path) -> tuple[bool, str | None]:
 
     `--prune` para que una rama borrada en el remoto deje de figurar aqui
     como sitio donde podria estar el trabajo.
+
+    Su tope sale de lo que quede del arranque (`boot_common.network_budget`):
+    sin tiempo, no se lanza y se dice por que.
     """
+    budget = boot_common.network_budget(FETCH_TIMEOUT)
+    if budget <= 0:
+        return False, "no se trajo el remoto: no quedaba tiempo dentro del tope del arranque"
     result = gitcmd.run(
         ["fetch", "--all", "--prune", "--quiet"],
         cwd=root,
-        timeout=FETCH_TIMEOUT,
+        timeout=round(max(budget, 0.1), 1),
         env=_HARDENED_ENV,
     )
     if result.returncode == 0:

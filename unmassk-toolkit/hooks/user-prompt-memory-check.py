@@ -222,7 +222,9 @@ def main() -> None:
             "MANDATORY — Do these steps NOW before responding to the user:\n"
             '  Step 1: Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
             '  Step 2: Use the Skill tool with skill="unmassk-memory" (TOOL CALL, not bash)\n'
-            "  Step 3: Show the user a boot summary from the SessionStart output above\n"
+            "  Step 3: Read the boot report whose path the [memory] lines of the session start give you,\n"
+            "          and tell the user the menu of the day. If no such line or no report arrived,\n"
+            "          the boot failed: say so in your first line\n"
             "DO NOT SKIP ANY STEP. DO NOT GREET THE USER BEFORE COMPLETING ALL STEPS."
         )
         # Create the flag so subsequent messages don't repeat this

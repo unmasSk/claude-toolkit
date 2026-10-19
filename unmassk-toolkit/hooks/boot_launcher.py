@@ -39,15 +39,18 @@ _BOOT_SCRIPT = os.path.join(_TOOLKIT_ROOT, "bin", "memory", "boot.py")
 # The launcher's own deadline for the whole hook -- first-boot installer
 # included -- [D-130, I-005]: below the 30 s SessionStart timeout in
 # hooks.json, because a hook Claude Code kills prints nothing at all.
+# boot.py gets the moment of the cut in its environment, so its network
+# steps share what is left instead of adding up past it (Moriarty T2).
 _BOOT_DEADLINE_ENV = "UNMASSK_BOOT_DEADLINE_SECONDS"
-_BOOT_DEADLINE_DEFAULT = 25.0
+_BOOT_DEADLINE_DEFAULT = 22.0
 # The SessionStart `timeout` in hooks.json, and the time kept back under
-# it for printing and exiting once the overrun marker step is done.
+# it once the overrun marker step is done: the hook ends by 25 s, with
+# real room to spare under Claude Code's kill.
 _HOOK_TIMEOUT = 30.0
-_EXIT_MARGIN = 2.0
+_EXIT_MARGIN = 5.0
 
 
-def _report_overrun(cwd, deadline, elapsed):
+def _report_overrun(cwd, deadline, elapsed, started_wall):
     """The installer or boot.py was killed: say so loudly FIRST, then try
     to replace the previous session's report with a failure marker (so
     nobody reads it as today's), within what is left under the hook
@@ -76,18 +79,26 @@ def _report_overrun(cwd, deadline, elapsed):
             raise RuntimeError("not a git repository")
         root = found.stdout.strip()
         destination = boot_common.report_path(root)
-        boot_common.write_failure_marker(
+        written = boot_common.write_failure_marker(
             root,
             "THE BOOT DID NOT FINISH",
             f"The boot (installer + bin/memory/boot.py) was stopped after {deadline:g} s.\n"
             "There is no report for this session. What was here before belonged\n"
             "to an earlier session and has been replaced by this notice so that\n"
             "nobody reads it as today's.\n",
+            started=started_wall,
         )
     except Exception:
         print(
             f"[memory] {destination} could NOT be replaced: whatever it holds "
             "is from an earlier session. Do not read it as today's."
+        )
+        return
+    if written is None:
+        print(
+            f"[memory] {destination} was NOT replaced: a boot finished writing "
+            "it after this one started (another session on this project), so "
+            "it is current. Read it as today's briefing."
         )
         return
     print(f"[memory] {destination} now holds only this failure notice.")
@@ -103,6 +114,7 @@ try:
     cwd = payload.get("cwd") or os.getcwd()
     deadline = boot_common.env_seconds(_BOOT_DEADLINE_ENV, _BOOT_DEADLINE_DEFAULT)
     started = time.monotonic()
+    started_wall = time.time()
     overrun = False
 
     def _remaining():
@@ -187,15 +199,16 @@ try:
 
     if not overrun and _remaining() > 0:
         try:
-            subprocess.run(
-                [sys.executable, _BOOT_SCRIPT], cwd=cwd, timeout=_remaining()
-            )
+            left = _remaining()
+            env = dict(os.environ)
+            env[boot_common.BOOT_ENDS_AT_ENV] = repr(time.time() + left)
+            subprocess.run([sys.executable, _BOOT_SCRIPT], cwd=cwd, env=env, timeout=left)
         except subprocess.TimeoutExpired:
             overrun = True
     else:
         overrun = True
     if overrun:
-        _report_overrun(cwd, deadline, lambda: time.monotonic() - started)
+        _report_overrun(cwd, deadline, lambda: time.monotonic() - started, started_wall)
 except Exception:
     pass
 
