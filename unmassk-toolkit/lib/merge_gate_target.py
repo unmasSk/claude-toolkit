@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 
+from git_bash_path import native_path
 from git_helpers import run_git
 
 _SHELL_PUNCTUATION = "();<>|&\n"
@@ -185,7 +186,7 @@ def _join_path(base, path):
     (`~`, `$VAR`, backticks, globs)."""
     if base is None or not path or path.startswith("-") or any(c in path for c in "~$`*?["):
         return None
-    return os.path.join(base, path)
+    return os.path.join(base, native_path(path))
 
 
 def _shell_dir(tokens, index, cwd, session_top):
