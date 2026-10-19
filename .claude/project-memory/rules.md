@@ -8,7 +8,6 @@
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
 [remember][user] 🧠 nunca matar procesos en la maquina del usuario con kill -9 o lsof+kill -- ya ha colgado la maquina; si hay que reiniciar un servidor, decirselo al usuario
 [remember][user] 🧠 los prompts a agentes de diagnostico deben decir explicitamente que skill leer por nombre y que usen context7 MCP para documentacion -- no lo hacen si no se les dice
-[remember][user] 🧠 pedir confirmacion antes de cada commit rutinario es friccion innecesaria -- solo pausar a pedir permiso cuando el cambio es de alto riesgo
 [remember][user] 🧠 nada se construye que no este en el roadmap, y nada entra al roadmap sin que el usuario lo firme -- una idea a media tarea se anota como candidata al final, no se abre ahi mismo
 [remember][user] 🧠 las reglas son para que las cumplas tu, no para ensenarmelas: nunca me las pongas en pantalla
 [remember][user] 🧠 al escribir una ficha de agente o una skill: repasala varias veces palabra por palabra y consultasela al propio agente antes de darla por buena
@@ -38,3 +37,4 @@
 [remember][user] 🧠 - Put ✅ before a sentence addressed to Bex. Put no tick on agent or status lines.
 [remember][user] 🧠 - Judge a reviewer's findings yourself before acting on them, Yoda's included.
 [remember][user] 🧠 - Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
+[remember][user] 🧠 - Ask permission before a commit only when the change is high-risk: irreversible, security, or not checkable by Bex.
