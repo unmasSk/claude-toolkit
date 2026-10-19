@@ -36,6 +36,9 @@ what is watched is the system leaving an incident and its fence apart.
 
 import os
 import shlex
+import shutil
+import stat
+import subprocess
 
 import pytest
 
@@ -264,3 +267,137 @@ class TestGuards:
         ], relaunch
         assert "gitmem remove" not in out + err
         assert run_git(["rev-parse", "HEAD"], tmp_repo)[1] == head_before
+
+
+# --- F1 (Cerberus 2026-10-19) and its pre-existing twin -------------------
+#
+# A printed relaunch is only worth something if pasting it into a shell hands
+# the program the same words that were typed. `shlex.split` alone cannot prove
+# that: it keeps a backtick or a `$` literal inside double quotes, where a real
+# shell runs the backtick as a command and expands the `$`. So "the paste" is
+# done by a real POSIX shell, and the words it hands over are compared with
+# the values this test typed.
+#
+# Each why below is one of the three shapes seen in this repo's own history
+# (7 of 1,250 `Why:` lines, Cerberus F1). The bug each one catches: the
+# relaunch wraps free text in raw double quotes instead of shell-quoting it.
+_WHYS_THE_SHELL_ALTERS = {
+    "backtick": "MARK_WHY se perdio la instruccion `Next:` durante 3 turnos",
+    "dollar": "MARK_WHY cada reintento costaba $5 de API sin tope",
+    "double_quote": 'MARK_WHY el propietario dijo "nunca mas" tras la caida',
+}
+_PLAIN_WHY = "MARK_WHY retries without a cap keep taking the API down"
+_RETRY_PREFIX = "Relanza solo el muro con: "
+
+
+def _posix_shell():
+    shell = shutil.which("sh") or shutil.which("bash")
+    assert shell, "no POSIX shell on PATH: cannot paste the relaunch like a person does"
+    return shell
+
+
+def _pasted_words(command):
+    """The argv a real shell builds from `command` pasted as typed.
+
+    `printf '%s\\0'` is a shell builtin that echoes back each word it got,
+    NUL-separated, so the result is exactly what `gitmem` would receive.
+    """
+    proc = subprocess.run(
+        [_posix_shell(), "-c", "printf '%s\\0' " + command],
+        capture_output=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.decode("utf-8").split("\0")[:-1]
+
+
+class TestHeadlineRelaunchSurvivesTheShell:
+    """F1 -- RED today for every why: `--why "<raw text>"`."""
+
+    @pytest.mark.parametrize("why", list(_WHYS_THE_SHELL_ALTERS.values()),
+                             ids=list(_WHYS_THE_SHELL_ALTERS))
+    def test_should_hand_the_shell_the_typed_reason_and_why_when_the_relaunch_is_pasted(
+        self, tmp_repo, why,
+    ):
+        incident_id = _seed_incident(tmp_repo, "payments", "retries6")
+        output = _run_rejected_remove(tmp_repo, incident_id, why=why)
+
+        commands = [c for c in _headline_relaunch_lines(output) if c.startswith("gitmem remove ")]
+        assert len(commands) == 1, f"one `gitmem remove` relaunch expected:\n{output}"
+        words = _pasted_words(commands[0])
+        assert words[:4] == ["gitmem", "remove", incident_id, _REASON], words
+        assert _flag_value(words, "--why") == why
+        assert _flag_value(words, "--restriction-text") == _HEADLINE_PLACEHOLDER
+
+
+# The fence-only retry (`_fence_retry_command`) prints only after the close is
+# already saved and the fence's own save then fails. It IS reachable through
+# the CLI in real use: any git refusal of that second save -- here a
+# repository pre-commit hook (gitcmd.py saves without skipping hooks) --
+# leaves the incident closed and prints the retry. This hook refuses only the
+# saves that stage RESTRICTIONS.md, so the close goes through and only the
+# fence bounces.
+_REFUSE_FENCE_HOOK = (
+    b"#!/bin/sh\n"
+    b"if git diff --cached --name-only | grep -q 'RESTRICTIONS.md'; then\n"
+    b"  echo 'MARK_HOOK refusing the fence' >&2\n"
+    b"  exit 1\n"
+    b"fi\n"
+    b"exit 0\n"
+)
+
+
+def _install_fence_refusing_hook(repo):
+    hook = os.path.join(repo, ".git", "hooks", "pre-commit")
+    with open(hook, "wb") as fh:
+        fh.write(_REFUSE_FENCE_HOOK)
+    os.chmod(hook, os.stat(hook).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _fence_retry_words(repo, incident_id, why):
+    _install_fence_refusing_hook(repo)
+    rc, out, err = run_gitmem_script(
+        ["remove", incident_id, _REASON, "--restriction", "new",
+         "--restriction-text", _SHORT_FENCE, "--why", why],
+        cwd=repo,
+    )
+    output = out + err
+    assert rc == 1, f"setup invalid: the fence save was not refused: {output!r}"
+    assert "MARK_HOOK" in output and "ya quedó cerrada" in output, (
+        f"setup invalid: did not reach the closed-but-no-fence path:\n{output}"
+    )
+    lines = [l for l in output.splitlines() if l.startswith(_RETRY_PREFIX)]
+    assert len(lines) == 1, f"one fence-only retry line expected:\n{output}"
+    return _pasted_words(lines[0][len(_RETRY_PREFIX):])
+
+
+def _assert_retry_carries_the_typed_values(words, incident_id, why, zones):
+    assert words[:3] == ["gitmem", "note", "R"], words
+    zi = words.index("--zones")
+    assert words[zi + 1:zi + 3] == list(zones), words
+    assert words[zi + 3] == _SHORT_FENCE, words  # the headline positional
+    assert _flag_value(words, "--why") == why
+    assert _flag_value(words, "--description") == _SHORT_FENCE
+    assert _flag_value(words, "--origin") == incident_id
+
+
+class TestFenceOnlyRetrySurvivesTheShell:
+    """Pre-existing twin of F1 in `_fence_retry_command`."""
+
+    def test_should_hand_the_shell_the_typed_why_when_the_why_is_plain(self, tmp_repo):
+        # GREEN today, on purpose: proves the hook route reaches the retry and
+        # that the reds below fail on quoting, not on the setup.
+        zones = ("payments", "retries7")
+        incident_id = _seed_incident(tmp_repo, *zones)
+        words = _fence_retry_words(tmp_repo, incident_id, _PLAIN_WHY)
+        _assert_retry_carries_the_typed_values(words, incident_id, _PLAIN_WHY, zones)
+
+    @pytest.mark.parametrize("why", list(_WHYS_THE_SHELL_ALTERS.values()),
+                             ids=list(_WHYS_THE_SHELL_ALTERS))
+    def test_should_hand_the_shell_the_typed_why_when_the_retry_is_pasted(
+        self, tmp_repo, why,
+    ):
+        # RED today: `--why "<raw text>"`.
+        zones = ("payments", "retries8")
+        incident_id = _seed_incident(tmp_repo, *zones)
+        words = _fence_retry_words(tmp_repo, incident_id, why)
+        _assert_retry_carries_the_typed_values(words, incident_id, why, zones)
