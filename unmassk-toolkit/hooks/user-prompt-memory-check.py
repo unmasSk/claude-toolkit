@@ -188,7 +188,8 @@ def main() -> None:
             "BEFORE doing anything else:\n"
             f'1. Run: python3 "{PLUGIN_ROOT}/bin/git-memory-install.py" --auto\n'
             '2. Use the Skill tool with skill="unmassk-core" (TOOL CALL, not bash)\n'
-            "3. Show the user a boot summary from the SessionStart output above.\n"
+            f'3. Run the boot: python3 "{PLUGIN_ROOT}/hooks/boot_launcher.py" < /dev/null\n'
+            "4. Read the boot report its [memory] line points to, and tell the user the menu of the day.\n"
             "DO NOT greet the user first. Install and boot FIRST.\n"
             "DO NOT SKIP ANY STEP."
         )

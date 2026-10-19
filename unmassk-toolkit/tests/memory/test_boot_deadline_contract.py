@@ -716,7 +716,10 @@ class TestHealthBuildCarriesTheError:
 
 def _overrun_env(boot_deadline):
     # The gh bound is set far above the launcher's deadline so the plans
-    # check cannot save the boot by itself: only the launcher can.
+    # check cannot save the boot by itself: only the launcher can. The
+    # overrun itself is forced by a slow `git log` inside boot.py
+    # (`_overrunning_boot`, section 5): since the Moriarty fix pass a
+    # hanging gh is cut to what is left and no longer overruns.
     return {_BOOT_KNOB: str(boot_deadline), _GH_KNOB: "60"}
 
 
@@ -727,13 +730,15 @@ class TestLauncherFailsLoudOnOverrun:
         # Bug caught: the launcher waits on boot.py with no deadline, Claude
         # Code kills it at 30 s and the session gets nothing (I-005).
         _seed_citations(tmp_repo, {3: 1})
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=25)
+        gh_stub.configure(issues=_all_unreflected([3]))
         deadline = 2.5
+        env, slow_log_started = _overrunning_boot(tmp_path, gh_stub, deadline)
 
-        run = _run_boot_hook(
-            tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=_overrun_env(deadline)
+        run = _run_boot_hook(tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=env)
+
+        assert slow_log_started.is_file(), (
+            "setup invalid: boot.py's git log was never slowed\n" + run.describe()
         )
-
         assert not run.killed and run.elapsed < deadline + _STARTUP_MARGIN_S, (
             f"with {_BOOT_KNOB}={deadline} the hook took {run.elapsed:.1f}s\n"
             + run.describe()
@@ -756,13 +761,18 @@ class TestLauncherFailsLoudOnOverrun:
         report_dir.mkdir(parents=True)
         stale = "BLOQUEANTES -- stale report from a previous session, Dante #95\n"
         (report_dir / "boot-latest.txt").write_text(stale, encoding="utf-8")
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=25)
+        # The stale report is older than this boot: back-date it, so the
+        # concurrent-boot guard (a report written AFTER this boot started
+        # is another session's and is kept) can never apply here.
+        old = time.time() - 3600
+        os.utime(report_dir / "boot-latest.txt", (old, old))
+        gh_stub.configure(issues=_all_unreflected([3]))
         deadline = 2.5
+        env, slow_log_started = _overrunning_boot(tmp_path, gh_stub, deadline)
 
-        run = _run_boot_hook(
-            tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=_overrun_env(deadline)
-        )
+        run = _run_boot_hook(tmp_repo, tmp_path, gh_stub, kill_after=25, extra_env=env)
 
+        assert slow_log_started.is_file(), "setup invalid\n" + run.describe()
         assert not run.killed and run.elapsed < deadline + _STARTUP_MARGIN_S, (
             run.describe()
         )
@@ -884,28 +894,49 @@ class TestDeadlineCountsTheInstallStep:
 # ==========================================================================
 #
 # HOW GIT IS SLOWED without touching production code: a `git` wrapper
-# first on the hook's PATH. It execs the real git for everything, except
-# `git rev-parse --show-toplevel` when its trigger holds:
-#   - "after_gh": the gh stub has been called (its log exists). boot.py is
-#     then blocked on the hanging gh, so the only `rev-parse` left is the
-#     launcher's marker step, after the cut (Argus SEC-MED-001).
-#   - "first_call": the very first `rev-parse --show-toplevel` of the
-#     hook, which is the launcher's install-step check when the repo has no
-#     manifest (Ultron's declared bound, min(10, time left)).
+# first on the hook's PATH. It execs the real git for everything, except:
+#   - `git log` run BY bin/memory/boot.py (its parent process), when
+#     `slow_boot_log` is on: the way to force an overrun since the
+#     Moriarty fix pass. A hanging gh no longer overruns (the network
+#     steps share what is left of the deadline and are skipped when
+#     nothing is left), but boot.py reads the log locally, uncut by any
+#     network budget -- a slow disk or a huge history. The installer's own
+#     `git log` (first boot) is NOT slowed, so the overrun is boot.py's.
+#   - `git rev-parse --show-toplevel` when its trigger holds:
+#       - "after_log": the slowed boot `git log` has started. boot.py is
+#         then blocked on it, so the only `rev-parse` left is the
+#         launcher's marker step, after the cut (Argus SEC-MED-001).
+#       - "first_call": the very first `rev-parse --show-toplevel` of the
+#         hook, which is the launcher's install-step check when the repo
+#         has no manifest (Ultron's declared bound, min(10, time left)).
 # The wrapper is Python and sleeps in-process (no child `sleep`), so a
 # `subprocess.run(timeout=...)` that kills it really frees the hook. It
 # leaves a marker file first: setup proof that the slow step happened.
 
 _SLOW_GIT_SOURCE = r'''#!/usr/bin/env python3
-import os, sys, time
+import os, subprocess, sys, time
 REAL_GIT = %r
 args = sys.argv[1:]
-if args[:2] == ["rev-parse", "--show-toplevel"]:
+
+
+def parent_is_boot_py():
+    parent = subprocess.run(
+        ["ps", "-o", "args=", "-p", str(os.getppid())],
+        capture_output=True, text=True,
+    ).stdout
+    return os.path.join("bin", "memory", "boot.py") in parent
+
+
+if args[:1] == ["log"] and os.environ.get("SLOW_GIT_BOOT_LOG") == "1" and parent_is_boot_py():
+    with open(os.environ["SLOW_GIT_LOG_MARKER"], "a", encoding="utf-8") as fh:
+        fh.write("slow boot git log started\n")
+    time.sleep(float(os.environ["SLOW_GIT_SECONDS"]))
+if args[:2] == ["rev-parse", "--show-toplevel"] and os.environ.get("SLOW_GIT_WHEN"):
     when = os.environ["SLOW_GIT_WHEN"]
     seen = os.environ["SLOW_GIT_SEEN"]
     trigger = (
-        os.path.exists(os.environ["SLOW_GIT_AFTER_FILE"])
-        if when == "after_gh"
+        os.path.exists(os.environ["SLOW_GIT_LOG_MARKER"])
+        if when == "after_log"
         else not os.path.exists(seen)
     )
     with open(seen, "a", encoding="utf-8") as fh:
@@ -918,24 +949,49 @@ os.execv(REAL_GIT, [REAL_GIT] + args)
 '''
 
 
-def _slow_git_env(tmp_path, gh_stub, *, when, seconds=60.0):
+class SlowGit:
+    """The env for the hook plus the two setup-proof marker files."""
+
+    def __init__(self, env, rev_parse_marker, boot_log_marker):
+        self.env = env
+        self.rev_parse_marker = rev_parse_marker
+        self.boot_log_marker = boot_log_marker
+
+
+def _slow_git(tmp_path, gh_stub, *, when=None, slow_boot_log=False, seconds=60.0):
     real_git = shutil.which("git")
     assert real_git, "setup invalid: no real git on PATH"
     wrapper_dir = tmp_path / "slow-git-bin"
-    wrapper_dir.mkdir()
+    wrapper_dir.mkdir(parents=True)
     wrapper = wrapper_dir / "git"
     wrapper.write_text(_SLOW_GIT_SOURCE % os.path.realpath(real_git), encoding="utf-8")
     wrapper.chmod(0o755)
-    marker = tmp_path / "slow-git-started.txt"
+    rev_parse_marker = tmp_path / "slow-git-started.txt"
+    boot_log_marker = tmp_path / "slow-boot-log-started.txt"
     env = {
         "PATH": str(wrapper_dir) + os.pathsep + gh_stub.env()["PATH"],
-        "SLOW_GIT_WHEN": when,
+        "SLOW_GIT_WHEN": when or "",
+        "SLOW_GIT_BOOT_LOG": "1" if slow_boot_log else "0",
         "SLOW_GIT_SEEN": str(tmp_path / "slow-git-seen.txt"),
-        "SLOW_GIT_AFTER_FILE": str(gh_stub.log_path),
-        "SLOW_GIT_MARKER": str(marker),
+        "SLOW_GIT_LOG_MARKER": str(boot_log_marker),
+        "SLOW_GIT_MARKER": str(rev_parse_marker),
         "SLOW_GIT_SECONDS": str(seconds),
     }
-    return env, marker
+    return SlowGit(env, rev_parse_marker, boot_log_marker)
+
+
+def _slow_git_env(tmp_path, gh_stub, *, when, seconds=60.0):
+    slow = _slow_git(
+        tmp_path, gh_stub, when=when, slow_boot_log=(when == "after_log"), seconds=seconds
+    )
+    return slow.env, slow.rev_parse_marker
+
+
+def _overrunning_boot(tmp_path, gh_stub, boot_deadline):
+    """Env that makes bin/memory/boot.py overrun `boot_deadline`: its
+    `git log` sleeps 60 s. Returns (env, marker proving the slow log ran)."""
+    slow = _slow_git(tmp_path, gh_stub, slow_boot_log=True)
+    return {**_overrun_env(boot_deadline), **slow.env}, slow.boot_log_marker
 
 
 def _seed_stale_report(repo):
@@ -943,6 +999,8 @@ def _seed_stale_report(repo):
     report_dir.mkdir(parents=True, exist_ok=True)
     stale = "BLOQUEANTES -- stale report from a previous session, Dante #95\n"
     (report_dir / "boot-latest.txt").write_text(stale, encoding="utf-8")
+    old = time.time() - 3600  # a previous session's: older than any boot here
+    os.utime(report_dir / "boot-latest.txt", (old, old))
     return stale
 
 
@@ -956,9 +1014,9 @@ class TestOverrunNoticeIsNotHeldHostageByGit:
         # session gets nothing. The hook is killed here while git sleeps:
         # whatever was not on stdout by then never will be.
         _seed_citations(tmp_repo, {3: 1})
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
+        gh_stub.configure(issues=_all_unreflected([3]))
         deadline = 2.5
-        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_gh")
+        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_log")
 
         run = _run_boot_hook(
             tmp_repo,
@@ -985,8 +1043,8 @@ class TestOverrunNoticeIsNotHeldHostageByGit:
         # as long as the hook timeout.
         stale = _seed_stale_report(tmp_repo)
         _seed_citations(tmp_repo, {3: 1})
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
-        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_gh")
+        gh_stub.configure(issues=_all_unreflected([3]))
+        git_env, slow_git_started = _slow_git_env(tmp_path, gh_stub, when="after_log")
         _command, hook_timeout = _boot_hook_entry()
 
         run = _run_boot_hook(
@@ -998,9 +1056,15 @@ class TestOverrunNoticeIsNotHeldHostageByGit:
         )
 
         assert slow_git_started.is_file(), "setup invalid\n" + run.describe()
-        assert not run.killed and run.elapsed < hook_timeout, (
+        # Moriarty fix pass (#95 step 2): ending under the kill is not
+        # enough -- the old 25 s + 2 s margin ended at ~28 s, a hair from
+        # the kill on a loaded machine. The owner's bar for this pass: the
+        # worst-case overrun ends with at least 4 s to spare.
+        spare = 4.0
+        assert not run.killed and run.elapsed <= hook_timeout - spare, (
             f"the hook took {run.elapsed:.1f}s with a slow git after the cut; "
-            f"Claude Code kills it at {hook_timeout:g}s\n" + run.describe()
+            f"Claude Code kills it at {hook_timeout:g}s and the overrun must end "
+            f"with at least {spare:g}s to spare\n" + run.describe()
         )
         assert run.rc == 0, run.describe()
         assert len(run.report_path_lines()) == 1, run.describe()
@@ -1057,9 +1121,17 @@ class TestOverrunSaysWhatHappenedToTheMarker:
         normal = _run_boot_hook(tmp_repo, tmp_path / "normal", gh_stub, kill_after=60)
         _assert_full_briefing(normal)
         previous = normal.report()
+        # The previous session's report: older than both overruns below.
+        old = time.time() - 3600
+        os.utime(normal.report_path(), (old, old))
 
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
         deadline = 2.5
+        failed_env, failed_slow_log = _overrunning_boot(
+            tmp_path / "read-only", gh_stub, deadline
+        )
+        replaced_env, replaced_slow_log = _overrunning_boot(
+            tmp_path / "writable", gh_stub, deadline
+        )
         report_dir = normal.report_path().parent
         report_dir.chmod(0o555)
         try:
@@ -1068,7 +1140,7 @@ class TestOverrunSaysWhatHappenedToTheMarker:
                 tmp_path / "read-only",
                 gh_stub,
                 kill_after=25,
-                extra_env=_overrun_env(deadline),
+                extra_env=failed_env,
             )
         finally:
             report_dir.chmod(0o755)
@@ -1078,9 +1150,12 @@ class TestOverrunSaysWhatHappenedToTheMarker:
             tmp_path / "writable",
             gh_stub,
             kill_after=25,
-            extra_env=_overrun_env(deadline),
+            extra_env=replaced_env,
         )
 
+        assert failed_slow_log.is_file() and replaced_slow_log.is_file(), (
+            "setup invalid: an overrun was not forced by boot.py's slow git log"
+        )
         assert after_failed_write == previous, (
             "setup invalid: the read-only folder did not stop the marker write"
         )
@@ -1123,18 +1198,21 @@ class TestBothWritersShareOneReportPath:
             "at the repository root\n" + normal.describe()
         )
         assert pointed[0].lower().startswith(tuple(_boot_py_pointer_prefixes())), pointed
+        old = time.time() - 3600  # the previous session's report
+        os.utime(normal.report_path(), (old, old))
 
-        gh_stub.configure(issues=_all_unreflected([3]), mode="hang", hang_seconds=60)
         deadline = 2.5
+        env, slow_log_started = _overrunning_boot(tmp_path / "overrun", gh_stub, deadline)
         overrun = _run_boot_hook(
             tmp_repo,
             tmp_path / "overrun",
             gh_stub,
             kill_after=25,
-            extra_env=_overrun_env(deadline),
+            extra_env=env,
             session_cwd=str(subfolder),
         )
 
+        assert slow_log_started.is_file(), "setup invalid\n" + overrun.describe()
         _assert_overrun_notice(overrun, deadline)
         named = overrun.report_path_lines()
         assert len(named) == 1, (
