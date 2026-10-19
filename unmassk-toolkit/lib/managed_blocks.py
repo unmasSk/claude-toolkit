@@ -110,6 +110,32 @@ def _render_block(block: dict[str, str]) -> str:
     return f"{block['begin']}\n{block['body']}\n{block['end']}"
 
 
+def _remove_legacy_blocks(content: str, log: list[str]) -> str:
+    """Cut every legacy block, touching only the blank lines at each cut.
+
+    The removed text is logged verbatim so a hand edit inside it stays
+    recoverable, as the update path does for an active block.
+    """
+    for pattern_str, name in _LEGACY_PATTERNS:
+        pattern = re.compile(pattern_str, re.DOTALL)
+        match = pattern.search(content)
+        while match:
+            before = content[:match.start()].rstrip("\n")
+            after = content[match.end():].lstrip("\n")
+            if before and after:
+                content = before + "\n\n" + after
+            elif before:
+                content = before + "\n"
+            else:
+                content = after
+            log.append(
+                f"removed legacy {name} block -- its content was deleted, "
+                f"recovered verbatim here: {match.group(0)}"
+            )
+            match = pattern.search(content)
+    return content
+
+
 def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
     """Update-or-insert all managed blocks into CLAUDE.md content.
 
@@ -122,14 +148,7 @@ def upsert_managed_blocks(content: str) -> tuple[str, list[str]]:
     log: list[str] = []
 
     # 1. Remove legacy blocks first
-    for pattern_str, name in _LEGACY_PATTERNS:
-        pattern = re.compile(pattern_str, re.DOTALL)
-        if pattern.search(content):
-            content = pattern.sub("", content)
-            content = re.sub(r"\n{3,}", "\n\n", content).strip()
-            if content:
-                content += "\n"
-            log.append(f"removed legacy {name} block")
+    content = _remove_legacy_blocks(content, log)
 
     # 2. For each block: replace if present, collect missing ones
     missing_blocks: list[dict[str, str]] = []
