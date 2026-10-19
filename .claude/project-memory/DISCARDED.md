@@ -129,3 +129,4 @@
 [X-129][skills][docs] 'stage' / 'etapa' as a fifth work word
 [X-130][skills][docs] flow's eight parts as the task's phases
 [X-131][skills][docs] apply on main now, next task as the trial
+[X-132][skills][docs] release as it stands
