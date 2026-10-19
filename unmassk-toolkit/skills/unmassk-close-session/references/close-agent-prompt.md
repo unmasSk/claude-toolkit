@@ -33,9 +33,13 @@ prevent.
 
 The file holds the boundary of the session, the first line of every
 commit saved since then, and the conversation — no tools, no diffs, no
-reports. Read the conversation from the start. If the header says the
-boundary was not found, the file may cover more than one session; say so
-in the close.
+reports. Read the conversation from the start. The conversation covers
+every session of the project since the boundary, each turn labelled with
+its session; a `sessions:` line in the header names them. If the header
+says the boundary was not found, the file may cover more than one
+session; say so in the close. Read the `note:` lines too: no commits since
+the boundary, or lines the script could not read, are said there — carry
+them into the close.
 
 STEP 2 — write the three parts.
 

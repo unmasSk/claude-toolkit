@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The close extractor reads every session since the last close, not only the newest transcript** (D-144): sessions that ended without a close or with `/clear` were dropped while their commits were still listed, so the Next lost whole days of conversation without warning. Turns are labelled by session and subagent sidechains stay out.
+- **The extractor keeps what the owner typed and drops what he did not**: messages sent mid-turn (text and image) and slash-command arguments now come through; injected reminders, hook output and non-owner records stay out.
+- **A redone close covers the whole session** (D-143): the session's own earlier close is recognised by its content and skipped, so the boundary is the close before it, not the one made minutes ago; a close written by a parallel window still counts as a boundary.
+- **`--since` bounds the commit list as well as the conversation**, and a close with zero commits or unreadable transcript lines says so on `note:` lines in the header.
+
 ## [1.49.0] - 2026-10-19
 
 ### Added
