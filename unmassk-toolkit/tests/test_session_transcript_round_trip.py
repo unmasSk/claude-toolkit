@@ -20,6 +20,7 @@ SCRIPT = os.path.join(
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures",
                        "session_transcript_real_records.jsonl")
 COMMAND_ARGS = re.compile(r"<command-args>(.*)</command-args>", re.DOTALL)
+INJECTED_BLOCK = re.compile(r"<system-reminder>.*</system-reminder>", re.DOTALL)
 
 
 def _records():
@@ -38,8 +39,16 @@ def _owner_texts(records):
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "queued_command" \
                 and (attachment.get("origin") or {}).get("kind") == "human":
-            out.append((record["timestamp"], attachment["prompt"]))
+            out.append((record["timestamp"], _prompt_text(attachment["prompt"])))
     return out
+
+
+def _prompt_text(prompt):
+    """A str prompt as is; a list prompt as its text blocks, injected reminders left out."""
+    if isinstance(prompt, str):
+        return prompt
+    return "\n".join(block["text"] for block in prompt
+                     if block.get("type") == "text" and not INJECTED_BLOCK.fullmatch(block["text"]))
 
 
 def _foreign_texts(records):
@@ -80,12 +89,16 @@ def test_fixture_should_hold_each_kind_of_record_the_round_trip_needs():
     """A guard on the fixture itself: trimmed of a kind, the other tests prove less."""
     records = _records()
     typed = [r for r in records if r.get("type") == "user"]
-    attachment_kinds = [(r.get("attachment") or {}).get("origin", {}).get("kind")
-                        for r in records if r.get("type") == "attachment"]
+    attachments = [r["attachment"] for r in records if r.get("type") == "attachment"]
+    attachment_kinds = [(a.get("origin") or {}).get("kind") for a in attachments]
+    list_prompts = [a for a in attachments
+                    if (a.get("origin") or {}).get("kind") == "human" and isinstance(a["prompt"], list)
+                    and any(INJECTED_BLOCK.fullmatch(b.get("text", "")) for b in a["prompt"])]
 
     assert (sum(not COMMAND_ARGS.search(r["message"]["content"]) for r in typed),
             sum(bool(COMMAND_ARGS.search(r["message"]["content"])) for r in typed),
-            sorted(attachment_kinds)) == (1, 1, ["human", "human", "peer", "task-notification"])
+            sorted(attachment_kinds), len(list_prompts)) == \
+        (1, 1, ["human", "human", "human", "peer", "task-notification"], 1)
 
 
 def test_should_output_every_owner_text_exactly_as_the_producer_wrote_it(extracted):
