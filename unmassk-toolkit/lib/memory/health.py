@@ -238,7 +238,7 @@ def duplicates(root: Path) -> tuple[str, ...]:
     return ids.find_duplicates(_current_index_lines(root) + _archive_lines(root))
 
 
-def duplicate_notes(duplicate_ids: tuple[str, ...]) -> tuple[tuple[str, Note], ...]:
+def _duplicate_notes(duplicate_ids: tuple[str, ...]) -> tuple[tuple[str, Note], ...]:
     """`(sha, nota)` de cada commit que lleva uno de `duplicate_ids`, para
     que el arranque liste cada gemela y se corrija con `remove --commit`.
     """
@@ -422,7 +422,7 @@ def build() -> HealthReport:
 
     return HealthReport(
         duplicate_ids=duplicate_ids,
-        duplicate_notes=duplicate_notes(duplicate_ids),
+        duplicate_notes=_duplicate_notes(duplicate_ids),
         index_lines=index_lines,
         git_notes=git_notes,
         index_discrepancies=index_discrepancies,
