@@ -138,9 +138,11 @@ from pathlib import Path
 
 _HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 _TOOLKIT_ROOT = os.path.dirname(_HOOKS_DIR)
-_LIB_MEMORY_DIR = os.path.join(_TOOLKIT_ROOT, "lib", "memory")
-if _LIB_MEMORY_DIR not in sys.path:
-    sys.path.insert(0, _LIB_MEMORY_DIR)
+_LIB_DIR = os.path.join(_TOOLKIT_ROOT, "lib")
+_LIB_MEMORY_DIR = os.path.join(_LIB_DIR, "memory")
+for _dir in (_LIB_DIR, _LIB_MEMORY_DIR):
+    if _dir not in sys.path:
+        sys.path.insert(0, _dir)
 
 from utf8 import force_utf8_streams  # noqa: E402  (import tras sys.path)
 
@@ -156,6 +158,7 @@ import save_command  # noqa: E402
 import validator  # noqa: E402
 import vocabulary  # noqa: E402
 import zones as zones_lib  # noqa: E402
+from git_bash_path import native_path  # noqa: E402
 
 _STDIN_READ_LIMIT = 1_048_576  # 1 MiB -- mismo limite que hooks/pre-merge-gate.py
 
@@ -331,47 +334,6 @@ def _find_commit_creating_statement(command):
     return None
 
 
-_GIT_BASH_DRIVE_RE = re.compile(r"^/([A-Za-z])(/.*)?$")
-
-
-def _translate_git_bash_drive_path(target):
-    """Traduce una ruta absoluta estilo Git Bash (`/c/Users/x`) a su forma
-    nativa de Windows (`C:/Users/x`) -- SOLO llamarla en Windows
-    (`os.name == "nt"`, comprobado por quien la llama, nunca aqui dentro).
-
-    Git Bash en Windows escribe una ruta absoluta como `C:\\Users\\x` en su
-    propio formato POSIX: `/c/Users/x` [hallazgo House, sin maquina Windows
-    a mano, razonamiento verificado con `ntpath` importado en macOS --
-    mismo modulo que usa Windows para `os.path` -- ver
-    TestGitBashStyleAbsolutePathResolvesToTheRealTargetRepo en
-    test_customs_hook.py]. `ntpath.isabs("/c/Users/x")` da `True` (empieza
-    por `/`) SIN traducir el prefijo `/c/` a la unidad real -- la rama "ya
-    es absoluta" de `_resolve_effective_cwd` la deja tal cual, y
-    `ntpath.isdir("/c/Users/x")` busca una carpeta LITERAL `c` bajo la raiz
-    de la unidad actual (normalmente no existe), asi que el `cd` se
-    ignoraba en silencio y la aduana evaluaba el proyecto de la SESION en
-    vez del de destino.
-
-    Solo traduce el patron `/<letra-de-unidad>` o `/<letra>/resto` -- una
-    letra de unidad es UNA SOLA letra seguida de `/` o de fin de cadena.
-    `/c/Users/x` -> `C:/Users/x`; `/d/algo` -> `D:/algo`; `/casa/x` NO
-    casa (la letra `c` esta seguida de `asa/x`, no de `/` ni de fin de
-    cadena -- es una carpeta llamada "casa", no la unidad C) y se devuelve
-    sin cambios. Una ruta ya nativa (`C:/Users/x`, no empieza por `/`)
-    tampoco casa -- se devuelve sin cambios.
-
-    Si el destino traducido no existe, el llamador ya cae al
-    comportamiento de hoy (`cd` ignorado, `cwd` sin cambios) via el mismo
-    chequeo `os.path.isdir` que ya tenia -- esta funcion no decide eso,
-    solo traduce el FORMATO de la ruta.
-    """
-    match = _GIT_BASH_DRIVE_RE.match(target)
-    if match is None:
-        return target
-    drive_letter, rest = match.group(1), match.group(2) or "/"
-    return f"{drive_letter.upper()}:{rest}"
-
-
 def _resolve_effective_cwd(command, base_cwd, limit_index=None):
     """Directorio EFECTIVO tras aplicar cada sentencia `cd` de `command`
     que llega ANTES de la sentencia de commit, en orden, empezando en
@@ -428,7 +390,7 @@ def _resolve_effective_cwd(command, base_cwd, limit_index=None):
     En Windows (`os.name == "nt"`), una ruta absoluta estilo Git Bash
     (`/c/Users/x`) se traduce a su forma nativa (`C:/Users/x`) ANTES de
     comprobar `os.path.isabs`/`os.path.isdir` -- ver
-    `_translate_git_bash_drive_path`. Fuera de Windows no se traduce nada
+    `lib/git_bash_path.py::native_path`. Fuera de Windows no se traduce nada
     (`/c/Users/x` puede ser una ruta real y valida en Linux/macOS).
     """
     statements = _shell_statements(command)
@@ -443,8 +405,7 @@ def _resolve_effective_cwd(command, base_cwd, limit_index=None):
             continue
         raw_target = statement[1] if len(statement) > 1 else "~"
         target = os.path.expanduser(raw_target)
-        if os.name == "nt":
-            target = _translate_git_bash_drive_path(target)
+        target = native_path(target)
         candidate = target if os.path.isabs(target) else os.path.join(cwd, target)
         if os.path.isdir(candidate):
             cwd = os.path.normpath(candidate)

@@ -1,7 +1,7 @@
 """Git Bash's spelling of a Windows drive path, read as Windows reads it.
 
 On Windows, Git Bash writes `C:\\Users\\x` as `/c/Users/x`; bash and git
-accept both. Same rule as hooks/customs.py::_translate_git_bash_drive_path.
+accept both. Shared by hooks/customs.py and lib/merge_gate_target.py.
 """
 
 import re
