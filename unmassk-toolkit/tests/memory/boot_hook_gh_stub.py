@@ -78,7 +78,7 @@ elif mode == "wrong_shape":
     sys.exit(0)
 
 issues = {int(k): v for k, v in cfg["issues"].items()}
-KNOWN_FIELDS = {"number", "state", "createdAt", "updatedAt", "comments"}
+KNOWN_FIELDS = {"number", "state", "title", "createdAt", "updatedAt", "comments"}
 
 
 def unsupported():
@@ -197,9 +197,10 @@ def gh_stub(tmp_path):
     return GhStub(tmp_path)
 
 
-def _issue(*, state="OPEN", created=_PAST_CREATED, comment_dates=()):
+def _issue(*, state="OPEN", created=_PAST_CREATED, comment_dates=(), title="fake issue title"):
     return {
         "state": state,
+        "title": title,
         "createdAt": created,
         "updatedAt": _future_iso(),
         "comments": [

@@ -266,7 +266,14 @@ class TestBootSafetyNetStillCountsAWorkCommitCarryingSkipCi:
                 # misma doble que test_health.py y el hook de arranque.
                 returncode, stdout, stderr = gh_graphql_answer(
                     cmd[1:],
-                    {issue_number: {"createdAt": "2020-01-01T00:00:00Z", "comments": []}},
+                    {
+                        issue_number: {
+                            "state": "OPEN",
+                            "title": f"fake issue {issue_number}",
+                            "createdAt": "2020-01-01T00:00:00Z",
+                            "comments": [],
+                        }
+                    },
                 )
                 return subprocess.CompletedProcess(
                     args=cmd, returncode=returncode, stdout=stdout, stderr=stderr

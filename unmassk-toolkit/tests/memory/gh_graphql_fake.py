@@ -23,15 +23,16 @@ an implementation that changes the request makes this double extended by
 a fresh Dante, never guessed at.
 
 `issues` is `{number: {"createdAt": iso, "updatedAt": iso, "state": str,
-"comments": [{"createdAt": iso, ...}, ...]}}`, comments oldest first
-(GitHub's order).
+"title": str, "comments": [{"createdAt": iso, ...}, ...]}}`, comments
+oldest first (GitHub's order). A scalar the query selects that the test
+did not configure exits 2 "unsupported", never a made-up value.
 """
 
 import json
 import re
 
 _VALUE_FLAGS = {"-F": "typed", "--field": "typed", "-f": "raw", "--raw-field": "raw"}
-_ISSUE_SCALARS = {"createdAt", "updatedAt", "state", "number"}
+_ISSUE_SCALARS = {"createdAt", "updatedAt", "state", "title", "number"}
 _COMMENT_SCALARS = {"createdAt"}
 
 
@@ -163,6 +164,11 @@ def _issue(selected, record, number):
     out = {}
     for alias, name, args, sub in selected:
         if name in _ISSUE_SCALARS:
+            if name != "number" and name not in record:
+                raise _Unsupported(
+                    f"issue #{number} configured without {name!r}: real GitHub always "
+                    "returns it -- configure it in the test"
+                )
             out[alias] = number if name == "number" else record[name]
         elif name == "comments" and sub is not None:
             out[alias] = _comments(sub, args, record.get("comments", []))

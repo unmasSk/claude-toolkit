@@ -93,3 +93,4 @@
 - [test-file-split-by-concern-technique-notes.md](test-file-split-by-concern-technique-notes.md) — split >500-LOC test files losslessly; #95 step 2 layout; fence-relaunch commit-msg trick
 - [session-transcript-extractor-contract-notes.md](session-transcript-extractor-contract-notes.md) — close extractor: real record shapes, real gitmem next producer in fixtures, D-143/D-144
 - [managed-block-slimming-89-contract-notes.md](managed-block-slimming-89-contract-notes.md) — #89 3.1 managed-block slimming: property tests, wrapped phrases, retire-a-block
+- [boot-slim-report-89-contract-notes.md](boot-slim-report-89-contract-notes.md) — #89 4.1 boot slimming RED: headline-only walls, one line per open issue, GitHub double field gotcha

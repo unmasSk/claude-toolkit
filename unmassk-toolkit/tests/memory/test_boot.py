@@ -105,6 +105,12 @@ import os
 import pytest
 
 from .conftest import import_lib_memory_module, run_git
+from .boot_issue_state_support import (
+    counts_section,
+    issue_record,
+    lines_naming_issue,
+    patch_gh,
+)
 from .gh_graphql_fake import real_gh_failure_line
 
 _BASE_NOTE_FIELDS = dict(
@@ -515,6 +521,16 @@ def test_all_restrictions_and_blockers_render_without_any_cap(
         f"boot.render() omite {len(missing_from_render)} de las "
         f"{2 * _NO_CAP_COUNT} notas sembradas -- el texto no puede recortar lo "
         f"que spec Sec.8.3 exige mostrar entero: {missing_from_render!r}"
+    )
+
+    # #89, paso 4.1 [aprobado por el propietario]: cada restriccion sale
+    # solo con su titular; el porque se lee con `gitmem search --id`, y una
+    # sola linea lo dice (D-094). Sin tope sigue siendo sin tope.
+    assert "MARK_BOOTNOCAP_WHY" not in rendered, (
+        f"el porque de las restricciones ya no se pinta en el arranque:\n{rendered}"
+    )
+    assert rendered.count("gitmem search --id R-") == 1, (
+        f"una sola linea debe decir donde se lee el porque completo:\n{rendered}"
     )
 
 
@@ -1303,36 +1319,19 @@ def test_avisos_names_the_specific_note_when_an_archived_lines_separator_becomes
     )
 
 
-def test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas(
-    boot, model, indexes, notes, tmp_repo, make_note, make_context
+def test_open_issue_line_and_count_drop_to_zero_when_its_only_note_is_archived(
+    boot, model, indexes, notes, tmp_repo, make_note, make_context, monkeypatch
 ):
-    """Bug 4 -- el recuento de planes mentia bajo la etiqueta "issues
-    abiertas". Actualizado [D-044/D-045, --issue abierto a los siete tipos
-    de nota]: la etiqueta pasa de "plans with a record" a "issues with a
-    live note", porque el numero ya no cuenta solo actas de plan (tipo M)
-    -- ahora una incidencia o un descarte con issue tambien entran, asi
-    que "plans" dejo de describir lo que mide.
+    """Bug 4, actualizado por #89 paso 4.1 [aprobado por el propietario]:
+    la seccion de issues ya no dice "issues with a live note" sin preguntar
+    a GitHub -- lista una linea por issue ABIERTA con notas vivas, y el
+    abierto/cerrado sale de la unica llamada a GitHub del arranque (R-025).
+    La etiqueta exacta no la fija el contrato, asi que no se fija aqui.
 
-    Fallo real que previene, SIN TOCAR [invariante de Argus, 2026-08-02,
-    no se toca en este cambio]: el numero nunca pregunta a GitHub, solo
-    cuenta notas LOCALES vigentes (sin archivar) con issue -- con la
-    etiqueta "issues abiertas" podia decir "0" con una issue real todavia
-    abierta (su nota archivada por limpieza rutinaria) o "1" con la issue
-    ya cerrada hace meses (su nota nunca se archivo). El arreglo sigue
-    siendo el ROTULO, no el calculo: `_recuentos_block()` debe pintar
-    "issues with a live note ....." en vez de "issues abiertas", que es
-    lo que el numero mide de verdad -- una nota vigente que apunta a una
-    issue, no el estado real de esa issue en GitHub.
-
-    Round-trip real [unmassk-standards Sec.34]: se escribe una nota real
-    con `issue=47`, se archiva de verdad (`indexes.remove()` +
-    `indexes.archive()`), y se comprueba que el numero baja a 0 aunque
-    GitHub nunca se toco -- exactamente el hallazgo de
-    `argus_open_issues_lie.py`.
-
-    Este test queda EN ROJO a proposito: la produccion todavia pinta
-    "plans with a record" (`boot.py:381`) -- Ultron cambia la etiqueta
-    despues.
+    Lo que sigue en pie: una nota archivada deja de contar. Round-trip
+    real: la nota con `issue=47` se escribe, la issue esta ABIERTA en la
+    doble de GitHub, se archiva de verdad y la issue desaparece de COUNTS
+    aunque en GitHub siga abierta.
     """
     from datetime import date
 
@@ -1353,24 +1352,18 @@ def test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas(
         f"seed del acta fallo: {write_result.git_error or write_result.rejections}"
     )
     note_id = write_result.note_id
+    patch_gh(monkeypatch, {47: issue_record("OPEN", "issue forty-seven")})
 
     with _cwd(root):
         summary_before = boot.build()
         rendered_before = boot.render(summary_before)
 
     assert summary_before.open_issues == 1, (
-        f"comprobacion previa: una nota vigente con issue deberia contar como "
-        f"1, salio {summary_before.open_issues!r}"
+        f"comprobacion previa: una issue abierta con nota viva cuenta 1, "
+        f"salio {summary_before.open_issues!r}"
     )
-    assert "issues abiertas" not in rendered_before, (
-        "la etiqueta vieja mentia -- este numero nunca pregunta a GitHub, "
-        f"solo cuenta notas locales sin archivar:\n{rendered_before}"
-    )
-    assert "issues with a live note" in rendered_before, (
-        "la etiqueta nueva ('issues with a live note', que es lo que el "
-        "numero mide de verdad ahora que --issue no es solo del acta de "
-        f"plan) no aparece -- sigue pintando la vieja 'plans with a "
-        f"record', que ya no describe que cuenta este numero:\n{rendered_before}"
+    assert len(lines_naming_issue(counts_section(rendered_before), 47)) == 1, (
+        f"comprobacion previa: la issue #47 abierta sale una vez:\n{rendered_before}"
     )
 
     with _cwd(root):
@@ -1392,18 +1385,11 @@ def test_recuentos_label_says_issues_with_a_live_note_not_issues_abiertas(
         rendered_after = boot.render(summary_after)
 
     assert summary_after.open_issues == 0, (
-        "la nota se archivo por limpieza rutinaria, sin tocar GitHub -- el "
-        f"numero LOCAL deberia bajar a 0, salio {summary_after.open_issues!r} "
-        "(si no baja, el calculo dejo de ser el que argus_open_issues_lie.py "
-        "demostro -- esta parte de la invariante no se toca en este cambio)"
+        "la unica nota se archivo: la issue ya no tiene trabajo vivo, salio "
+        f"{summary_after.open_issues!r}"
     )
-    assert "issues abiertas" not in rendered_after, (
-        f"la etiqueta vieja no deberia aparecer tampoco tras archivar:\n"
-        f"{rendered_after}"
-    )
-    assert "issues with a live note" in rendered_after, (
-        f"la etiqueta nueva deberia seguir ahi con su numero real (0):\n"
-        f"{rendered_after}"
+    assert lines_naming_issue(counts_section(rendered_after), 47) == [], (
+        f"la issue sin notas vivas no deberia salir en COUNTS:\n{rendered_after}"
     )
 
 
