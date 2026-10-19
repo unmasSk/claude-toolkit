@@ -105,4 +105,4 @@
 [D-132][hooks][install] Morse cue fires on Claude Code's Notification event: permission or idle prompt
 [D-133][memory][boot] searched text rides in a leading Description so 1.47.0 reads new notes
 [D-135][skills][docs] flow's eight parts go by their own names, no number and no generic word
-[D-136][skills][docs] flow v2: owner points 14-24 decided by sector, one left for Bex
+[D-137][skills][docs] flow v2: open points of the draft decided by sector, one left for Bex
