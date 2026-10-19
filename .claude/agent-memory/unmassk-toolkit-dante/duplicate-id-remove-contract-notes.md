@@ -25,3 +25,21 @@ file there -> Errno 20). Reported as a bug, not fixed.
 rejection code) and `"unrecognized arguments" not in output`; argparse exits 2.
 
 Fake HOME per call: `env={"HOME": tmp, "USERPROFILE": tmp}` on `run_gitmem_script`.
+
+## Fix pass (2026-10-19): duplicated I-, relaunch paste, --replaces guard, discard refusal
+
+Files: `test_remove_duplicate_incident_contract.py`, `test_remove_replaces_guard_contract.py`,
+`test_note_discard_refusal_contract.py` (8 RED, 11 green guards).
+
+- **Ambiguous sha prefix, built for real:** rewrite the clone's HEAD commit (same tree and message,
+  committer time + k) until `sha1(b"commit %d\0" % len(body) + body)` shares 4 hex chars with the other
+  note's sha; write it with `git hash-object -t commit -w --stdin`, `git update-ref HEAD <sha>`, then merge.
+  ~65k sha1 tries, under a second. Never rely on luck for a prefix collision.
+- **Different zones per clone** make "the wall is born in the picked incident's zones" checkable.
+- **Seeding an R in a zone that already holds an incident** needs `--origin none` (or the incident id),
+  otherwise the origin question bounces the seed.
+- **Run every relaunch you assert on:** extract the `Relanza:` block, split through a real shell
+  (`printf '%s\0'`), run `words[1:]` through `run_gitmem_script`, read the state back. A `"..."` word is the
+  one gap to fill; the fence retry's `--searched` placeholder too.
+- **Partial-act git failure:** a pre-commit hook refusing only commits that stage `DISCARDED.md` lets the
+  decision land and fails every X -- same trick as the RESTRICTIONS.md hook for the fence.

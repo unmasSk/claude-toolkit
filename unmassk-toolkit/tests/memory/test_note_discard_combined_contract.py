@@ -1,12 +1,6 @@
-"""Red contract for `gitmem note ... --discard` (D-145, R.13, R.7).
-
-R.13: `--discard` sends note.py down its own branch, which drops
-`--replaces` and `--promotes` on the floor: the old note stays live.
-R.7: the decision is committed before its discards are checked, so one
-invalid discard leaves a half-written act behind.
-
-Every test drives the real `bin/gitmem` against a throwaway git repo and
-reads the result back through the real index readers.
+"""`gitmem note ... --discard` honours `--replaces`/`--promotes`; an invalid
+discard writes nothing (D-145, R.13, R.7). Driven through `bin/gitmem` on a
+throwaway repo, read back through the real index readers.
 """
 
 from pathlib import Path
@@ -217,7 +211,7 @@ class TestInvalidDiscardWritesNothing:
 
 
 class TestAllValidDiscardsAreWritten:
-    """Guard, green today: the fix must keep writing everything on success."""
+    """With every discard valid, the decision and each discard are written."""
 
     def test_should_write_the_decision_and_every_discard_when_all_are_valid(
         self, tmp_repo, indexes

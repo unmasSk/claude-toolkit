@@ -27,7 +27,7 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 **Files:** modify `unmassk-toolkit/bin/memory/remove.py`, `unmassk-toolkit/lib/memory/notes.py` (close/replace), `unmassk-toolkit/lib/memory/indexes.py` (remove), `unmassk-toolkit/lib/memory/notes_promote.py` · test `unmassk-toolkit/tests/memory/`
 **Steps:**
 - [x] 1.1 Dante: red tests — duplicate id refused with the list and nothing touched; `--commit <sha>` archives exactly that one; output says how many were archived; replace/promote refuse a duplicated id; `remove --restriction new --replaces R-x` closes the incident and archives R-x
-- [ ] 1.2 Ultron: code until 1.1 is green
+- [x] 1.2 Ultron: code until 1.1 is green
 - [ ] 1.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q -k "remove or replace or promote"`
 
 ### Phase 2: note --discard (R.13, R.7)
@@ -35,7 +35,7 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 **Files:** modify `unmassk-toolkit/bin/memory/note.py`, `unmassk-toolkit/lib/memory/notes.py` (discard_alternatives) · test `unmassk-toolkit/tests/memory/`
 **Steps:**
 - [x] 2.1 Dante: red tests — `--discard` with `--replaces` archives the old note; with `--promotes` promotes; an invalid discard writes nothing at all
-- [ ] 2.2 Ultron: code until 2.1 is green
+- [x] 2.2 Ultron: code until 2.1 is green
 - [ ] 2.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q -k "discard or note"`
 
 ### Phase 3: tests never touch the real HOME (R.2, R.5)
