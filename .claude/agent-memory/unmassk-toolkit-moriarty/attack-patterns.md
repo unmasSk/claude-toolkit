@@ -18,6 +18,16 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Atacar un documento de proceso: seguir cada valor de una etapa a la que lo consume (2026-10-19)
+En una skill de pipeline, por cada dato que una etapa produce y otra posterior
+lee (commit base, modo de build, "no hay costura"), preguntar: ¿dónde queda
+escrito? Si solo vive en el contexto del orquestador, muere al cambiar de sesión.
+Y si una etapa posterior lo desmiente, ¿alguien lo retira antes de pasarlo al
+juez? Si no, una prueba de ausencia caducada desarma la puerta del juez. Además:
+correr literal cada comprobación que el documento manda, en el propio repo del
+propietario: un marcador literal en inglés falla contra planes escritos en
+español.
+
 ### Plazos anidados cuyos topes internos suman el tope externo (2026-10-19)
 Si dos pasos internos tienen cada uno su timeout (fetch 10 s, gh 15 s) y el
 lanzador mata todo a los 25 s, la misma causa (red colgada) agota los dos a la

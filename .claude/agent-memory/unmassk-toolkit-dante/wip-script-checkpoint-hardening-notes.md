@@ -73,3 +73,28 @@ CLAUDE.md snapshot; net effect of parallel work by other agents plus
 these 15 new tests). Confirmed zero collision with `test_validator.py`
 (a different Dante's file, explicitly off-limits this task) and zero
 new files besides `test_wip_script.py`.
+
+**2026-10-19, #104 point 3 -- `--path <directory>` RED contract**
+(`tests/memory/test_wip_directory_path.py`, 8 RED / 3 green-by-design).
+Techniques worth reusing: (1) the relaunch line is never compared to a
+hand-typed string -- it is extracted from real output (`shlex.split`),
+EXECUTED through the real facade, and the resulting commit's file list is
+compared to what the test changed on disk; (2) fixture places the
+untracked file inside a NEW subfolder (`src/sub/new.txt`) because plain
+`git status` folds it to `src/sub/` -- catches an implementation that
+forgets `-uall`; (3) plus an unchanged tracked file and a change outside
+the folder, both must NOT be listed. Gotcha: the PreToolUse customs hook
+blocks a raw `git commit` in a Bash repro even in a scratch repo -- do
+manual repros from a Python script instead.
+
+**#104.3 fix pass (2026-10-19):** +8 tests (mixed/dedupe, clean folder,
+staged rename, run-from-subfolder, deleted file, POSIX separators); 8/8
+mutants killed. Windows separators CANNOT be simulated faithfully on posix:
+the right fix (`Path(...).as_posix()`) depends on the host Path flavour, so a
+`wip.os.path=ntpath` monkeypatch stays red after the correct fix -- assert
+"no backslash" and let windows-latest CI be the red. Gotcha that matters on
+Windows: given files are echoed back via `str(Path(p))` -> backslashes there
+too, which also defeats the dedupe against posix folder entries. Mutating a
+scratch copy of tests/memory needs the copy to be a git repo (conftest's
+real-repo HEAD guard runs `git rev-parse` at its root) -- init + empty
+commit from Python, not Bash (customs hook).

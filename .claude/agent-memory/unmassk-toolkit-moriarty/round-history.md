@@ -5,6 +5,14 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: #101 revisión del borrador flow v2, mi parte (2026-10-19)
+Revisión de documento, sin cambiar nada. DEBIL (T2/T3). Lo principal: una
+rotura arreglada solo por Ultron sin test de regresión hace que Yoda dé REJECTED
+(T1 abierto); el commit base en trunk no se guarda en ningún sitio que dure;
+un prompt de una línea me deja sin modo de build cuando hay varios planes abiertos;
+la salida de "no hay costura" llega a Yoda aunque yo haya encontrado una costura.
+La comprobación de trabajo en curso marca aquí un plan en español ya completado.
+
 ## claude-toolkit: #95 paso 2 (plazo del arranque, reglas por import, --searched, Morse) (2026-10-19)
 Veredicto DEBIL. T2: con la red colgada (fetch 10 s + gh 15 s = plazo del
 lanzador 25 s) el arranque se mata y no hay informe, aunque cada fallo por

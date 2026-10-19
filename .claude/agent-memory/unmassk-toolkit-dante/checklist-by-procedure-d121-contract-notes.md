@@ -17,3 +17,7 @@ D-121 (#101 A3) contract in tests/hooks/test_checklist_by_procedure.py (2026-10-
 **How to apply:** in the hardening pass, re-read the hooks first; mutation targets: selector lookup, Trivial → empty, bigger-list tie-break, per-entry filtering (audit untouched).
 
 **Fix pass after Cerberus (2026-10-18):** an e2e "gate stays silent" test is vacuous unless it first proves the inject wrote the registry — a silent gate is also what you get with NO registry. Helper `_inject_real_flow` asserts rc, file exists, entry has `procedures`. Mutant "inject never saves" was only killed after this. Also added: blank selector -> no registry + stderr + rc 0; open Trivial selector never blocks (only test killing "Trivial demands its selector"); Trivial+Corto -> Corto.
+
+## flow v2 rename (2026-10-19)
+- FLOW_CORTO_BOXES is duplicated in TWO files: test_checklist_by_procedure.py AND test_checklist_drill_fixes.py. A box rename must touch both; drill_fixes indexes it positionally ([3], [5]) so a reorder changes which box those tests use (still any Corto box -- harmless today).
+- Ordering is pinned: procedures["Corto"] is compared with == on a list.

@@ -42,6 +42,9 @@ type: project
 - `unmassk-core/SKILL.md:44` vs `:77` (self-search claim vs skill-gate claim, both stale against the no-BM25 reality since 2026-07-12) and `unmassk-audit/SKILL.md:273` ("loads via BM25 skill search" — actually loads by frontmatter). Flagged 2026-07-12, unconfirmed whether fixed since.
 - `unmassk-core/SKILL.md:40` — still may say "unmassk-design | 1 skill" (revamped to 7 on 2026-07-14). Flagged 2026-07-14, unconfirmed since.
 
+- **flow v2 swap (#101) pending:** the draft in `.claude/informes/flow-v2-draft-2026-10-19/` is not live; the texts that must change with it are in the apply list of `flow-v2-mapping-2026-10-19.md` section 10. Re-check that list against `grep -rnE "Execute step|Step 5, Part|Verify step|Brainstorm" unmassk-toolkit` before trusting it.
+- **Lesson (2026-10-19):** when checking a skill's "read these report sections" list, open each card's report-section list; Dante's report has no `Files changed` and no `NEEDS_CONTEXT` status, which flow drafts and D-139 assumed.
+
 ## Durable lessons from resolved zones
 
 See doc-map.md's "Durable lessons" section — the "how we recover from X reads as plausible" lesson, the "check a Moriarty/Cerberus verdict against their own MEMORY.md directly" lesson, and the "surrounding paragraph may cite a newer decision than the brief" lesson all originated from zones fully cleared and compacted out of this file (the 2026-08-02/03 memoria-v2-era passes — see doc-map.md's "Retired" section for what those zones were).

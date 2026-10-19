@@ -586,3 +586,7 @@ Pattern: an output-ORDER contract takes its expected ids from the indexes the ru
 (DECISIONS.md by headline, DISCARDED.md by headline), never from `extract_note_id(out)` — that
 helper reads the same stdout under test. `_NOTE_ID_FROM_SUCCESS_RE` is anchored on ✅, not on
 position, so reordering the success lines does not break the older discard tests.
+
+## #104.4 corrected keys + --discard (2026-10-19)
+- Gotcha: `validator.normalize_keys` drops a key already present in the headline (e.g. `oauth` with "Google OAuth" in it) — pick keys absent from the headline or the canonical-keys assertion goes red for a test reason.
+- Corrected-key shape on screen: `  <raw>  →  <canonical>` lines before the final `✅ <D> guardada — con N keys corregidas, con N alternativas descartadas`.

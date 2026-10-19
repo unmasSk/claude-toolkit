@@ -57,3 +57,13 @@ end-to-end test failed for the right reason; broke `count_repo_cache_drift`
 to return `len(drifted)` instead of the real count → the exact 3 tests
 built to catch that (grouped-count, multi-subdir-sum, absent-subdir) failed
 and the rest stayed green. Both reverted before commit.
+
+**#104.2 reversal (2026-10-19, test-first RED):** without the toolkit's source
+tree the crew hook must print NO `[crew] PLUGIN:` line (old contract printed
+"no verificable (sin repo fuente...)"). New file
+`test_crew_plugin_sync_line_absent_without_source.py`; old pinning class
+removed from `test_crew_plugin_sync_line.py` (it also read the REAL HOME — leak).
+Anti-vacuity for "line absent" contracts: assert the hook's last line
+(`[crew] REPO:`) still prints, else a crashed hook passes. Fix pass (same day): source present + empty HOME now pinned in
+`TestToolkitRepoWithoutInstalledPluginIsExplicitNeverSilent` (exact line,
+mutant "silent on None" killed). Still unpinned: cache realpath == repo.
