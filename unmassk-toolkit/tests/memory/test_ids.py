@@ -128,3 +128,17 @@ def test_find_duplicates_detects_two_notes_with_the_same_id(
 
     assert "D-005" in duplicates
     assert "D-006" not in duplicates
+
+
+def test_find_duplicates_reports_once_with_first_spelling_when_ids_differ_only_in_case(
+    ids, make_index_line
+):
+    """#105 5.2 G1, owner's rule: ids compare in lowercase. "D-005" and
+    "d-005" are one id written twice; it is reported once, as first written."""
+    index = (
+        make_index_line(id="D-005", headline="version original"),
+        make_index_line(id="d-005", headline="same id typed in lowercase"),
+        make_index_line(id="D-006", headline="nota sin conflicto"),
+    )
+
+    assert ids.find_duplicates(index) == ("D-005",)

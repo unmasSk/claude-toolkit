@@ -85,5 +85,18 @@ other boot blocks). Cut the CHECKS block from "CHECKS" to the next blank line.
   and both-archived twins show "✓ no duplicate IDs"; `archived_notes` counts distinct ids
   ("1 archived" with two archived lines).
 - Guard for the fix: normal `remove` + `--replaces` must stay ✓ (archive line is not a second copy).
+## Step 5.2 "Beyond the tests" pass (2026-10-19)
+
+Files: `test_hito3_fixpass_promotes_relaunch.py` (new), plus additions to `test_ids.py`,
+`test_hito3_fixpass_{boot,remove}_twins.py`.
+
+- A relaunch with an unquoted placeholder (`--promotes <ID de una Q real>`) is a shell redirect:
+  replace the placeholder in the command string before `pasted_words`, as a person would.
+- `--work` on a D: the `field_not_allowed` relaunch (validator_issue.py ~184) drops `--why` and
+  never calls `carry_answer_flags`; pasted as printed it bounces again. Append `--why` in tests.
+- A "rezoned" index line has no producer command: build it with `indexes.remove(only=)` +
+  `indexes.insert`, then `git commit -am` in the tmp repo.
+- Probe file star-importing a test module re-collects its tests; import only helpers.
+
 - Probe a setup without adding a kept test: a temp `test_zz_*_tmp.py` importing the test file's
   helpers, run with -s, deleted after.

@@ -140,6 +140,22 @@ class TestBootAlertsOnEveryDuplicatedId:
 
         _assert_loud_and_listed(checks, note_id, (notes["here"], notes["there"]))
 
+    def test_should_count_both_archive_lines_when_one_id_was_archived_twice(
+        self, tmp_repo, tmp_path, fake_home, gh_stub  # noqa: F811
+    ):
+        """G1: the "archived" figure counts ARCHIVED.md lines, not distinct
+        ids. This test archives two notes under one id and leaves only the
+        base memo live."""
+        note_id, notes = _twins(tmp_repo, tmp_path, fake_home, "M")
+        _remove(tmp_repo, fake_home, "M", note_id, "--commit", notes["there"][0])
+        _remove(tmp_repo, fake_home, "M", note_id)
+
+        checks = _checks_block(tmp_repo, gh_stub)
+
+        assert "1 live + 2 archived" in checks, (
+            f"two notes were archived and one stays live; the boot must say so:\n{checks}"
+        )
+
 
 @POSIX_ONLY
 def test_should_stay_healthy_when_notes_were_removed_and_replaced_without_any_twin(

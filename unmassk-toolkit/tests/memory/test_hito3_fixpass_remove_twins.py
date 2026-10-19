@@ -15,13 +15,14 @@ never from the code under test.
 
 import pytest
 
-from .conftest import import_lib_memory_module, seed_zones_json
+from .conftest import import_lib_memory_module, pm_path, seed_zones_json
 from .hito3_twins_support import (
     NEWER_DATE,
     OLDER_DATE,
     SAVED_ID_RE,
     archive_lines,
     flag_value,
+    git_ok,
     gitmem,
     live_lines,
     make_twins,
@@ -87,6 +88,36 @@ class TestSameHeadlineTwinsInDifferentZones:
         )
         live = live_lines(indexes, tmp_repo, "M", note_id)
         assert [_zones(line) for line in live if line.headline == SAME_HEADLINE] == [zones[kept]]
+
+
+class TestRezonedTwin:
+    """G2: index lines pair to commits by headline and zones first, then by
+    headline alone, so a line whose zones no longer match its commit still
+    finds it. Index lines change zones only by hand or from an older tool:
+    the setup rezones one twin's line with `indexes` and commits it."""
+
+    def test_should_archive_the_rezoned_twin_when_its_commit_is_given(
+        self, tmp_repo, tmp_path, fake_home, indexes
+    ):
+        model = import_lib_memory_module("model")
+        here = (ZONES_A, "billing export runs at midnight", OLDER_DATE)
+        there = (ZONES_B, "ledger closes on the first monday", NEWER_DATE)
+        note_id, shas = make_twins(tmp_repo, tmp_path, fake_home, "M", here, there, ALL_ZONES)
+        pm = pm_path(tmp_repo)
+        old = next(line for line in live_lines(indexes, tmp_repo, "M", note_id) if line.headline == there[1])
+        indexes.remove(note_id, "MEMOS.md", pm, only=old)
+        indexes.insert(model.IndexLine(id=note_id, zone1=ZONES_INSTALL[0], zone2=ZONES_INSTALL[1],
+                                       headline=there[1]), "MEMOS.md", pm)
+        git_ok(["commit", "-q", "-am", "rezone one twin by hand"], tmp_repo)
+
+        rc, _out, combined = gitmem(["remove", note_id, REASON, "--commit", shas["there"]],
+                                    tmp_repo, fake_home)
+
+        assert rc == 0, f"--commit of the rezoned twin must pick it: {combined}"
+        assert [(a.headline, _zones(a)) for a in archive_lines(indexes, tmp_repo, note_id)] == [
+            (there[1], ZONES_INSTALL)
+        ]
+        assert [line.headline for line in live_lines(indexes, tmp_repo, "M", note_id)] == [here[1]]
 
 
 class TestWallFromDuplicatedIncidentAfterOneTwinClosed:
