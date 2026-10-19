@@ -97,9 +97,17 @@ def test_install(lifecycle_repo):
     assert not os.path.isdir(os.path.join(lifecycle_repo, ".claude-plugin"))
 
 
-def test_doctor_after_install(lifecycle_repo):
-    """Doctor after install should report healthy (no errors)."""
-    result, _ = run_doctor_json(lifecycle_repo)
+def test_doctor_after_install(tmp_path):
+    """Doctor after install should report healthy (no errors). Own repo:
+    it must pass when run alone, not only after test_install (R.5)."""
+    repo = str(tmp_path / "repo")
+    os.makedirs(repo)
+    git_cmd(["init"], repo)
+    git_cmd(["commit", "--allow-empty", "-m", "init"], repo)
+    rc, _, err = run_install(repo)
+    assert rc == 0, err
+
+    result, _ = run_doctor_json(repo)
     assert result.get("status") != "error"
     error_checks = [c for c in result.get("checks", []) if c.get("level") == "error"]
     assert not error_checks

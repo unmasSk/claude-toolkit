@@ -4,7 +4,7 @@
 **Branch:** main (trunk)
 **Procedure:** Full
 **Build mode:** test-first
-**Base:** (filled in at Build)
+**Base:** 69898f54
 **Created:** 2026-10-19
 
 ## Goal
@@ -41,8 +41,8 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 ### Phase 3: tests never touch the real HOME (R.2, R.5)
 **Files:** modify `unmassk-toolkit/tests/conftest.py`, `unmassk-toolkit/tests/test_lifecycle.py`
 **Steps:**
-- [ ] 3.1 Dante: autouse fake HOME for every test; `test_doctor_after_install` passes run alone
-- [ ] 3.2 verify: the 14 files from Bilbo's report run with a sentinel `~/.local/bin/gitmem` unchanged; `python3 -m pytest unmassk-toolkit/tests/test_lifecycle.py::test_doctor_after_install -q` green
+- [x] 3.1 Dante: autouse fake HOME for every test; `test_doctor_after_install` passes run alone
+- [x] 3.2 verify: the 14 files from Bilbo's report run with a sentinel `~/.local/bin/gitmem` unchanged; `python3 -m pytest unmassk-toolkit/tests/test_lifecycle.py::test_doctor_after_install -q` green
 
 ### Phase 4: round trip
 - [ ] 4.1 Dante: remove/discard write → `gitmem search` and `rezones --verify` read back the expected state (values from the real read, never typed by hand)

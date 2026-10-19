@@ -348,6 +348,22 @@ def claude_env(as_claude):
 
 # ── Fixtures ───────────────────────────────────────────────────────────
 
+HOME_BEFORE_ISOLATION = os.path.expanduser("~")
+"""The HOME pytest was launched with: the owner's real one on his machine."""
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_home(tmp_path_factory):
+    """Point HOME at a throwaway folder for the whole session, so the
+    installer never writes the owner's real ~/.local/bin/gitmem (R.2).
+    Session scope: module- and session-scoped fixtures see it too.
+    USERPROFILE because os.path.expanduser ignores HOME on Windows."""
+    home = str(tmp_path_factory.mktemp("home"))
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("HOME", home)
+        mp.setenv("USERPROFILE", home)
+        yield home
+
 
 @pytest.fixture
 def tmp_repo(tmp_path):
