@@ -79,7 +79,9 @@ _GH_QUERY = (
     "query($owner: String!, $name: String!) {"
     " repository(owner: $owner, name: $name) {%s} }"
 )
-_GH_ISSUE_FIELD = "i%d: issue(number: %d) { createdAt comments(last: 1) { nodes { createdAt } } }"
+_GH_ISSUE_FIELD = (
+    "i%d: issue(number: %d) { state title createdAt comments(last: 1) { nodes { createdAt } } }"
+)
 
 
 def _issue_commit_dates() -> dict[int, tuple[datetime, ...]]:
@@ -176,11 +178,12 @@ def _gh_graphql(issue_numbers: list[int]) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 
-def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
-    """La fecha de la ultima actividad real de cada issue citada: su
-    ultimo comentario, o su fecha de creacion si no tiene ninguno (sin
-    comentarios, cualquier commit que la cite queda "sin reflejar" por
-    definicion).
+def _last_activity_by_issue(
+    issue_numbers: list[int],
+) -> tuple[dict[int, datetime], dict[int, tuple[str, str]]]:
+    """La fecha de la ultima actividad real de cada issue citada (su
+    ultimo comentario, o su fecha de creacion si no tiene ninguno), y su
+    `(state, title)` de la misma respuesta.
 
     Nunca inventa un resultado: un fallo de `gh`, una respuesta con forma
     inesperada, o una issue citada que no vuelve (borrada, transferida,
@@ -200,6 +203,7 @@ def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
         )
 
     activity: dict[int, datetime] = {}
+    states: dict[int, tuple[str, str]] = {}
     try:
         for number in issue_numbers:
             issue = repository.get(f"i{number}")
@@ -208,6 +212,7 @@ def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
             dates = [c["createdAt"] for c in issue["comments"]["nodes"]]
             raw = max(dates) if dates else issue["createdAt"]
             activity[number] = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            states[number] = (str(issue["state"]), str(issue["title"]))
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise RuntimeError(f"respuesta de 'gh api graphql' con forma inesperada: {exc}") from exc
 
@@ -220,7 +225,7 @@ def _last_activity_by_issue(issue_numbers: list[int]) -> dict[int, datetime]:
             + " (citadas en commits)"
             + (f": {cause}" if cause else "")
         )
-    return activity
+    return activity, states
 
 
 def plans_unreflected() -> tuple[tuple[int, int], ...]:
@@ -235,16 +240,27 @@ def plans_unreflected() -> tuple[tuple[int, int], ...]:
     una issue, devuelve `()` sin llamar a `gh` -- no hay nada que
     verificar.
     """
+    return issues_checked()[0]
+
+
+def issues_checked() -> tuple[
+    tuple[tuple[int, int], ...], tuple[tuple[int, str, str], ...]
+]:
+    """`plans_unreflected()` mas el `(numero, state, title)` de cada issue
+    citada, sacados de la MISMA consulta a GitHub (R-025: una sola
+    llamada por arranque). Falla en alto igual que `plans_unreflected()`.
+    """
     by_issue = _issue_commit_dates()
     if not by_issue:
-        return ()
+        return (), ()
 
     issue_numbers = sorted(by_issue)
-    last_activity_by_issue = _last_activity_by_issue(issue_numbers)
+    last_activity_by_issue, states = _last_activity_by_issue(issue_numbers)
     results = []
     for issue_number in issue_numbers:
         last_activity = last_activity_by_issue[issue_number]
         unreflected = sum(1 for date in by_issue[issue_number] if date > last_activity)
         if unreflected:
             results.append((issue_number, unreflected))
-    return tuple(results)
+    issue_states = tuple((n, *states[n]) for n in issue_numbers)
+    return tuple(results), issue_states

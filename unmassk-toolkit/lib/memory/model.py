@@ -276,6 +276,8 @@ class HealthReport:
     # proyecto -- vacio cuando no falta nada (memoria montada de verdad).
     # Nombra cada pieza ausente por su nombre real, nunca un bool suelto.
     memory_setup_missing: tuple[str, ...] = ()
+    # (numero, state, title) de cada issue citada, de la misma consulta a gh
+    issue_states: tuple[tuple[int, str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -299,15 +301,6 @@ class BootSummary:
     questions: tuple[Note, ...]
     incidents: tuple[Note, ...]
     health: HealthReport
-    # Las notas vigentes que llevan `issue` puesto, enteras -- mismo
-    # motivo que `questions`/`incidents`: `open_issues` solo dice CUANTAS
-    # issues distintas hay, nunca CUALES. La fila "Issues" del menu que
-    # Claude pinta necesita el numero de issue y el titular de su nota
-    # para poder listarlas una por linea (D-060/D-064); antes de este
-    # campo esa fila no tenia de donde sacar el dato y solo existia el
-    # contador. Puede llevar varias notas para el mismo numero de issue
-    # -- no se deduplica, cada nota vigente con `issue` sale en su propia
-    # linea. Vacia cuando `open_issues` es cero. Con valor por defecto
-    # porque se anade despues de que el resto del molde ya estaba fijado
-    # [misma razon que `archived_ids` en `ZoneReport`/`WordChunk`].
+    # Las notas vigentes de trabajo (sin X) con `issue` puesto, de issues no
+    # cerradas en GitHub; varias por issue. Vacia cuando `open_issues` es 0.
     issues: tuple[Note, ...] = ()
