@@ -117,7 +117,7 @@ python3 bin/release.py <plugin> <new-version>
    - The local commit is on `origin/<branch>` (push succeeded)
    - `marketplace.json` and `plugin.json` both show the new version and agree with each other
 
-   On success: `Release verificado. el marketplace ya ofrece <plugin> v<version> en origin/<branch>.`
+   On success: `Release verificado: el marketplace ya ofrece <plugin> v<version> en origin/<branch>.`
 
 ## Flags
 
