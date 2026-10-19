@@ -27,7 +27,6 @@
 [remember][user] 🧠 plan de ejecucion escrito solo en el procedimiento Completo; la issue con lista solo cuando el trabajo cruza sesiones; el Corto no lleva plan — «uno corto lleva plan? no creo es corto es por ejemplo crea unos gtest»
 [remember][user] 🧠 every mark in a plan says the current state: once a thing is done or a failure is fixed, its yellow or X mark becomes a tick in the same act; no stale marks — «es un fallo dejar las marcas que ya no significan nada»
 [remember][user] 🧠 checking or comparing documents (skills, cards, plans, drafts) goes to Alexandria, on the strongest model, never to Bilbo — «prefiero que lo compruebe otro que no sea bilbo alguien mas listo, es tema de documentos deberia ser alex»
-[remember][user] 🧠 - Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
 [remember][user] 🧠 - Ask permission before a commit only when the change is high-risk: irreversible, security, or not checkable by Bex.
 [remember][claude] 🧠 - Give only the information. Write no preamble, softener, meta comment, apology or reassurance.
 [remember][user] 🧠 - When Bex says he did not see an answer, repeat it whole. Never reply that you already answered. — «Ten cuidado ya con eso de que me has contestado, pero no me has contestado. Ya va pasando varias veces esto, de que dices que me has contestado pero no me has contestado, o por lo menos yo no lo veo.»
@@ -38,3 +37,4 @@
 [remember][user] 🧠 Do not announce an action before doing it. Do it, then give the result.
 [remember][user] 🧠 Put ✅ before a sentence addressed to Bex. Put no tick on agent or status lines.
 [remember][user] 🧠 Judge a reviewer's findings yourself before acting on them, Yoda's included.
+[remember][user] 🧠 Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
