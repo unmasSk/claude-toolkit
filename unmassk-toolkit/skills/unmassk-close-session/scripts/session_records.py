@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from collections import namedtuple
 
 # Machinery the harness injects: reminders, subagent reports,
 # slash-command echoes. Only WELL-FORMED spans are removed: in a project
@@ -16,7 +17,6 @@ _INJECTED = (
     "local-command-caveat",
     "local-command-stdout",
     "local-command-stderr",
-    "command-name",
     "command-message",
     "user-prompt-submit-hook",
     "bash-input",
@@ -25,8 +25,9 @@ _INJECTED = (
 )
 _INLINE_TAGS = re.compile(r"<(" + "|".join(_INJECTED) + r")\b.*?</\1>", re.DOTALL)
 
-# The arguments of a slash command are what the owner typed: only the tags go.
-_COMMAND_ARGS_TAGS = re.compile(r"</?command-args>")
+# A slash command is what the owner typed: it comes out as `/name args`.
+_COMMAND_NAME = re.compile(r"<command-name>(.*?)</command-name>", re.DOTALL)
+_COMMAND_ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.DOTALL)
 
 # How recently another transcript must have been touched for a second
 # open session to be worth naming.
@@ -35,25 +36,44 @@ _RECENT_SECONDS = 1800
 # What the harness writes when the owner presses Esc: nothing he typed.
 _INTERRUPT_MARKER = re.compile(r"\[Request interrupted by user[^\]]*\]")
 
-# A close is written by `gitmem next`, which prints `<sha> [NEXT] ...`.
-_GITMEM_NEXT = re.compile(r"\bgitmem\b[^|;&\n]*\snext\s")
-_CLOSE_LINE = re.compile(r"^([0-9a-f]{7,40}) \[NEXT\]", re.MULTILINE)
+# A close is written by `gitmem next`, which prints its subject alone on a
+# line: `[NEXT] <emoji> <headline>` (bin/memory/next.py).
+_GITMEM_NEXT = re.compile(r'\bgitmem\b"?\s+next\b')
+_CLOSE_LINE = re.compile(r"^\[NEXT\] .*\S", re.MULTILINE)
+
+Talk = namedtuple("Talk", "turns undated unparsed sessions")
 
 
-def _records(path):
-    """Every JSON object in a .jsonl file, in order; other lines are skipped."""
+def _records(path, unparsed=None):
+    """Every JSON object in a .jsonl file, in order. Other non-blank lines are
+    skipped, and counted in `unparsed[0]` when a counter is given."""
     with open(path, encoding="utf-8", errors="replace") as handle:
         for line in handle:
+            if not line.strip():
+                continue
             try:
                 entry = json.loads(line)
             except ValueError:
-                continue
+                entry = None
             if isinstance(entry, dict):
                 yield entry
+            elif unparsed is not None:
+                unparsed[0] += 1
+
+
+def _typed_command(text):
+    """A slash command's tags as the owner typed it: `/name args`."""
+    name = _COMMAND_NAME.search(text)
+    if not name:
+        return _COMMAND_ARGS.sub(lambda found: found.group(1), text)
+    args = _COMMAND_ARGS.search(text)
+    typed = " ".join(part for part in (name.group(1).strip(),
+                                       args.group(1).strip() if args else "") if part)
+    return _COMMAND_NAME.sub(lambda _: typed, _COMMAND_ARGS.sub("", text), count=1)
 
 
 def _clean(text):
-    return _COMMAND_ARGS_TAGS.sub("", _INLINE_TAGS.sub("", text)).strip()
+    return _INLINE_TAGS.sub("", _typed_command(text)).strip()
 
 
 def _text_blocks(content):
@@ -120,7 +140,7 @@ def session_id(transcript):
     return os.path.splitext(os.path.basename(transcript))[0]
 
 
-def _turns(transcript, since_iso):
+def _turns(transcript, since_iso, unparsed):
     """[(sort_key, who, stamp, said)] of one transcript, in file order.
 
     An undated entry is kept, sorted where it sits: an empty timestamp sorts
@@ -128,7 +148,7 @@ def _turns(transcript, since_iso):
     """
     out = []
     last = ""
-    for entry in _records(transcript):
+    for entry in _records(transcript, unparsed):
         stamp = entry.get("timestamp") or ""
         if since_iso and stamp and stamp < since_iso:
             continue
@@ -140,13 +160,15 @@ def _turns(transcript, since_iso):
 
 
 def conversation(transcripts, since_iso):
-    """Returns (turns, undated, sessions) for every transcript since the boundary.
+    """A Talk of every transcript since the boundary; `unparsed` counts the
+    lines that were not a record.
 
     Turns of overlapping sessions interleave by time; each file keeps its own
     order. When more than one session speaks, each turn names its session.
     `sessions` lists the ids that contributed a turn, in the order given.
     """
-    per_file = [(session_id(path), _turns(path, since_iso)) for path in transcripts]
+    unparsed = [0]
+    per_file = [(session_id(path), _turns(path, since_iso, unparsed)) for path in transcripts]
     sessions = [sid for sid, turns in per_file if turns]
     labelled = len(sessions) > 1
     streams = [[(key, sid, who, stamp, said) for key, who, stamp, said in turns]
@@ -160,7 +182,7 @@ def conversation(transcripts, since_iso):
             stamp = "(no timestamp)"
         label = f" · session {sid[:8]}" if labelled else ""
         out.append(f"=== {who} {stamp}{label}\n" + "\n".join(said))
-    return out, undated, sessions
+    return Talk(out, undated, unparsed[0], sessions)
 
 
 def _results_of_close_calls(path):
@@ -183,11 +205,11 @@ def _results_of_close_calls(path):
 
 
 def held_closes(transcript):
-    """Sha prefixes of the closes this session wrote itself.
+    """Subjects of the closes this session wrote itself.
 
     A close is held when the session (or one of its subagents, under
-    `<session>/subagents/`) ran `gitmem next` and got the close's sha back.
-    Seeing a close in `git log` is not holding it.
+    `<session>/subagents/`) ran `gitmem next` and it printed the close's
+    subject. Seeing a close in `git log` or `gitmem search` is not holding it.
     """
     folder = os.path.join(os.path.splitext(transcript)[0], "subagents")
     files = [transcript]

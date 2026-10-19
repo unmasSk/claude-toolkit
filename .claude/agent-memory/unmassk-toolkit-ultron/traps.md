@@ -21,6 +21,8 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - Test doubles with a fixed signature break when I add a parameter to a function they replace: new parameters stay optional with a default.
 - `subprocess.run(text=True)` without `encoding=` breaks on Windows CI, and its newline translation can't be turned off: read bytes and decode.
 
+- Local python3 is 3.14, toolkit CI runs 3.10: stdlib that is newer (e.g. `fromisoformat` reading a `Z`) passes here and breaks in CI.
+
 ## Memory system (`lib/memory/`)
 - `format.parse_message` up to 1.47.0 drops a whole note on any body label it doesn't know: a new note field must still be read by the frozen cache copy (Searched rides as a first `Description: Searched:` the old reader overwrites).
 - conftest's "movio HEAD del repositorio git REAL" teardown error also fires when another session commits mid-run: compare `git log` times before blaming the test.

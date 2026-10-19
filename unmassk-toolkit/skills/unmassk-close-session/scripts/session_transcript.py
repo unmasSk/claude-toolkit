@@ -24,7 +24,7 @@ reminders: everything else is already in the commits.
 
 Usage:
     python3 session_transcript.py [--repo PATH] [--transcript PATH]
-                                  [--since ISO-UTC] [--out PATH]
+                                  [--since ISO] [--out PATH]
 
 Every argument is optional; the defaults are the ordinary case. With
 --transcript only that file is read. Works the same on macOS, Linux and
@@ -77,14 +77,30 @@ def _from_git_seconds(raw):
     return datetime.fromtimestamp(int(raw), tz=timezone.utc)
 
 
+def _since(raw):
+    """--since as UTC `YYYY-MM-DDTHH:MM:SS`; no zone means UTC. Anything else is refused."""
+    text = raw.strip()
+    if text[-1:] in ("Z", "z"):
+        text = text[:-1] + "+00:00"
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"{raw!r} is not a time such as 2026-10-19T08:30:00 (UTC) "
+            "or 2026-10-19T10:30:00+02:00")
+    if stamp.tzinfo is not None:
+        stamp = stamp.astimezone(timezone.utc)
+    return stamp.strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def _last_close(repo, held=()):
     """The newest close in history that this session does not hold itself.
 
     Returns (sha, iso_utc, subject, skipped) — the first three None when
-    none is found. A close whose sha starts with one in `held` is this
-    session's own earlier close and is skipped, newest first in `skipped`
-    as (sha, subject): a redo covers the whole session (D-143). A close
-    another window wrote is a boundary like any other (D-144).
+    none is found. A close whose subject is in `held` is this session's own
+    earlier close and is skipped, newest first in `skipped` as (sha,
+    subject): a redo covers the whole session (D-143). A close another
+    window wrote is a boundary like any other (D-144).
 
     The match is on the SUBJECT only: a note that merely mentions a close
     in its body is not one.
@@ -96,7 +112,7 @@ def _last_close(repo, held=()):
         sha, raw_epoch, subject = line.split("\0")
         if not subject.startswith(_NEXT_MARK):
             continue
-        if any(sha.startswith(prefix) for prefix in held):
+        if subject in held:
             skipped.append((sha, subject))
             continue
         stamp = _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S")
@@ -140,7 +156,8 @@ def _transcripts(args, repo):
     return files[-1], files, warning
 
 
-def _boundary_lines(args, sha, since, subject, skipped):
+def _boundary_lines(args, close):
+    sha, since, subject, skipped = close
     lines = []
     if skipped:
         lines.append(
@@ -148,7 +165,7 @@ def _boundary_lines(args, sha, since, subject, skipped):
             + "; ".join(f"{close_sha[:12]} {close_subject}" for close_sha, close_subject in skipped)
         )
     if args.since:
-        lines.append(f"boundary:   {args.since} (given with --since)")
+        lines.append(f"boundary:   {args.since} UTC (given with --since)")
     elif since:
         # The SHA is what anyone else needs to ask git about the same window.
         lines.append(f"boundary:   {since} — last close: {sha[:12]} {subject}")
@@ -167,18 +184,21 @@ def _boundary_lines(args, sha, since, subject, skipped):
     return lines
 
 
-def _notes(commits, conversation, undated, sessions, closing):
+def _notes(commits, talk, closing):
     lines = []
-    if sessions and sessions != [session_records.session_id(closing)]:
-        lines.append(f"sessions:   {len(sessions)} spoke since the boundary, turns labelled "
-                     "by session: " + ", ".join(sessions))
+    if talk.sessions and talk.sessions != [session_records.session_id(closing)]:
+        lines.append(f"sessions:   {len(talk.sessions)} spoke since the boundary, turns "
+                     "labelled by session: " + ", ".join(talk.sessions))
     if not commits:
         lines.append("note:       not one commit since the boundary. Either nothing was "
                      "saved this session or the boundary is wrong — say so in the close.")
-    if undated:
-        lines.append(f"note:       {undated} entries carried no timestamp and were "
+    if talk.undated:
+        lines.append(f"note:       {talk.undated} entries carried no timestamp and were "
                      "kept regardless — they may predate the boundary")
-    if not conversation:
+    if talk.unparsed:
+        lines.append(f"note:       {talk.unparsed} transcript line(s) were not a record and "
+                     "were skipped — a file still being written ends in a cut line")
+    if not talk.turns:
         lines.append("warning:    NOT ONE TURN OF CONVERSATION CAME OUT. Either the "
                      "boundary is wrong or this is the wrong transcript. Do not write "
                      "a close from memory — report this instead.")
@@ -205,7 +225,8 @@ def main(argv):
     parser = argparse.ArgumentParser(prog="session_transcript.py")
     parser.add_argument("--repo", default=os.getcwd())
     parser.add_argument("--transcript")
-    parser.add_argument("--since", help="ISO UTC, no zone suffix. Overrides the last close.")
+    parser.add_argument("--since", type=_since,
+                        help="ISO time; no zone means UTC. Overrides the last close.")
     parser.add_argument("--out")
     args = parser.parse_args(argv)
 
@@ -219,12 +240,12 @@ def main(argv):
     if warning:
         header.append(f"warning:    {warning}")
 
-    sha, since, subject, skipped = _last_close(repo, session_records.held_closes(closing))
-    header += _boundary_lines(args, sha, since, subject, skipped)
+    close = _last_close(repo, session_records.held_closes(closing))
+    header += _boundary_lines(args, close)
+    sha, since = close[0], close[1]
     commits = _commits(repo, sha, args.since)
-    conversation, undated, sessions = session_records.conversation(
-        transcripts, args.since or since)
-    header += _notes(commits, conversation, undated, sessions, closing)
+    talk = session_records.conversation(transcripts, args.since or since)
+    header += _notes(commits, talk, closing)
 
     # The pid in the name: two runs at once on a fixed path interleaved
     # both sessions in one file with no error [Moriarty, 2026-08-05].
@@ -233,12 +254,12 @@ def main(argv):
         f"close-session-{session_records.session_id(closing)}-{os.getpid()}.txt",
     )
     with open(destination, "w", encoding="utf-8") as handle:
-        handle.write(_render(header, commits, conversation))
+        handle.write(_render(header, commits, talk.turns))
 
     print(destination)
     print(
         f"{os.path.getsize(destination):,} bytes · "
-        f"{len(commits)} commits · {len(conversation)} turns"
+        f"{len(commits)} commits · {len(talk.turns)} turns"
     )
     return 0
 
