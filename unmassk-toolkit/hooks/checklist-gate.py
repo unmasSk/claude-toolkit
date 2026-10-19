@@ -31,7 +31,7 @@ real failure -- see the module docstring of casillas-por-programa.md):
    2026-08-23: the board's writes are per-file, not atomic).
 
 I/O:
-  stdin:  Stop event JSON -- session_id, cwd, stop_hook_active.
+  stdin:  Stop event JSON -- session_id, cwd, stop_hook_active, background_tasks.
   stdout: {"decision":"block","reason":"..."} when blocking; empty when
           allowing (silent when no process skill loaded this session, or
           everything is satisfied).
@@ -274,8 +274,8 @@ def main() -> None:
         sys.stderr.write(f"checklist-gate: unreadable stdin, allowing close ({e!r})\n")
         sys.exit(0)
 
-    # Protection 1: never re-block a Stop that already blocked itself.
-    if hook_input.get("stop_hook_active") is True:
+    # Protection 1: never re-block a Stop that blocked itself; nor one that waits on in-flight background_tasks (D-141), uncounted.
+    if hook_input.get("stop_hook_active") is True or (isinstance(bg := hook_input.get("background_tasks"), list) and bg):
         sys.exit(0)
 
     session_id = hook_input.get("session_id")
