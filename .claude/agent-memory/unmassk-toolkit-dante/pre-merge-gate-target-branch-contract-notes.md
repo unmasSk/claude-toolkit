@@ -22,4 +22,6 @@ D-119/D-120 (#101, 2026-10-18): merge/pull INTO dev = no gate; target above dev 
 
 - Drill round (2026-10-18): the text backstop must only fire when tokenize() fails (then LIGHT message, assert "argus" absent); shlex punctuation_chars splits `2>&1` into `2`,`>&`,`1`, so a redirect reads as a separator; a bare `-F - <<EOF` body with an apostrophe makes shlex fail (the `$(cat <<'EOF')` inside double quotes does not). Redirect AFTER the merge on HEAD=dev was already green.
 
+- I-007 (2026-10-19, 1.47.0 Windows CI red): any path interpolated into a command string must go through `_sh()` (`Path.as_posix()` + one-shell-word assert) -- the hook tokenizes like bash, which eats unquoted backslashes; block-expecting tests stay green on Windows for the wrong reason, so pair them with `_assert_names_target`. Git Bash `/c/...` gap: simulated on a Mac in `test_merge_gate_git_bash_drive_path.py` by swapping `merge_gate_target.os` for a proxy (name "nt", path=ntpath), `sys.platform="win32"`, a `run_git` double answering `rev-parse --show-toplevel` as git for Windows, and `toplevel.cache_clear()` around it. Never patch `os.name` globally (pathlib/shutil break).
+
 **How to apply:** any later round on this hook — keep the third-branch fixture and the dev->staging switch test.
