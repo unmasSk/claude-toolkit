@@ -15,3 +15,4 @@
 [R-022][skills][install] CLAUDE_PLUGIN_ROOT is empty in the Bash tool: use the skill's base directory
 [R-023][install][hooks] installer removes only its own exact old hooks, never the whole hooks key
 [R-024][release][testing] a release is not finished until its CI run is green on every OS
+[R-025][boot][hooks] the boot never makes one network call per item; it shares one bounded budget
