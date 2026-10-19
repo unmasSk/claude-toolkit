@@ -236,7 +236,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) as the base. **A
 4. Group meaningful changes under `[Unreleased]`, in the order of the rule above (the project's, or Keep a Changelog's).
 5. Ignore wip, context, memo/decision commits — real code changes only.
 6. Never dump commit messages — write human-readable descriptions.
-7. Save changelog state in memory (not in merge mode).
+7. Save changelog state in memory (not in merge mode). **A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
 
 ## Producer↔Consumer Contract Documentation (automatic every launch, when unmassk-standards §34 applies)
 

@@ -348,6 +348,8 @@ Verdict key — check in this order, first match wins:
 
 ## Memory Shutdown (before reporting results)
 
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
+
 Skip it when the task prompt says read-only.
 
 1. New attack pattern that worked? → `attack-patterns.md`

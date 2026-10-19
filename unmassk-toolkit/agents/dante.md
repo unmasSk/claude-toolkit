@@ -278,6 +278,8 @@ The report file carries these sections, in this order, under exactly these title
 
 ## Memory Shutdown (before writing the report)
 
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
+
 1. Learned a mock pattern, a recurring edge case or a test convention? → write it in the topic file it belongs to; if none fits, create one named after its topic. Never a catch-all file (`conventions.md`, `edge-cases.md`, `mock-patterns.md`): they grow into dumps nobody can search.
 2. New topic file? → add its link to `MEMORY.md`
 

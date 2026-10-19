@@ -290,6 +290,8 @@ Flat checklist. Run every item. If any fails: fix it or report it. Never hide a 
 
 ## Memory Shutdown (before reporting results)
 
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
+
 Save only what reading the code would not tell the next session: a mistake I made and why, a trap in this codebase that is not visible from the code, a wall I nearly broke. Not patterns, helpers or fixes — those are in the code and in git.
 
 1. Did I make a mistake worth not repeating, or nearly break a wall? → `lessons.md`, one short line with its why

@@ -400,6 +400,8 @@ Cerberus or Argus already found it → the reproduction, failure-path, diagnosti
 
 ## Memory Shutdown (before writing the report)
 
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
+
 1. Recurring diagnostic pattern, a hypothesis that failed in a memorable way, or an instrumentation strategy that worked → write it in the matching topic file in the index.
 2. No matching topic file → create one and add its link to MEMORY.md.
 

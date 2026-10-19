@@ -279,7 +279,7 @@ What never goes in: "I think the bug is in X", "this should be fine", "confirm t
 
 ### Agent reports — on file, read by index
 
-Every agent writes its report to one file in `<project>/.claude/informes/` (index of section titles first) and answers in three lines: status, the one thing to act on, the path (a 4th line only for BLOCKED / INCOMPLETE, with the reason). Read the index and only the sections you need. If `git check-ignore -q .claude/informes/x` fails in the project, add `.claude/informes/` to `.git/info/exclude` once — that is yours, never the agent's.
+Every agent writes its report to one file in `<project>/.claude/informes/` (index of section titles first) and answers in three lines: status, the one thing to act on, the path (a 4th line only for BLOCKED / INCOMPLETE, with the reason). Read the index and only the sections you need. Never set the report's file name in a prompt: the card names it, with a random suffix, so two agents of the same type launched together never pick the same name. If `git check-ignore -q .claude/informes/x` fails in the project, add `.claude/informes/` to `.git/info/exclude` once — that is yours, never the agent's.
 
 ### Step-sized delegation, and the wave it belongs to
 
