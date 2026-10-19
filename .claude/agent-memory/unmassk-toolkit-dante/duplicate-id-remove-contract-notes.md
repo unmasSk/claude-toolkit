@@ -72,3 +72,18 @@ Files: `hito3_twins_support.py` (make_twins), `test_hito3_fixpass_{remove,boot,s
   headline, so use keys outside it (exact-key gate) to trigger it reliably.
 - **"One consistent state or refused" without branching:** assert `old_live != claimed_replaced`
   and `(rc == 0) == written` -- both legal outcomes pass, the half state fails.
+
+## Step 5.1 reshape to D-147 (2026-10-19): boot alerts, readers not adapted
+
+Owner's D-147: a duplicated id is an error the boot reports, not a state readers support.
+Twin-reader tests (search word/--chain/clusters/--id two live, boot lists) were dropped; the boot
+file now asserts the CHECKS duplicate line across live + ARCHIVED.md, one line per note with
+sha[:7], both zones and headline (match rows by sha prefix, not headline: headlines also appear in
+other boot blocks). Cut the CHECKS block from "CHECKS" to the next blank line.
+
+- Today `health.duplicates` reads only live indexes (`_current_index_lines`), so one-live-one-archived
+  and both-archived twins show "✓ no duplicate IDs"; `archived_notes` counts distinct ids
+  ("1 archived" with two archived lines).
+- Guard for the fix: normal `remove` + `--replaces` must stay ✓ (archive line is not a second copy).
+- Probe a setup without adding a kept test: a temp `test_zz_*_tmp.py` importing the test file's
+  helpers, run with -s, deleted after.
