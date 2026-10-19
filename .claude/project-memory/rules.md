@@ -3,7 +3,6 @@
 [remember][user] 🧠 chatroom is a reference subproject: never touch it or its files, and it carries no CI in this repo (chatroom-ci.yml is removed)
 [remember][user] 🧠 no se habla nunca de chatroom: ni el subproyecto, ni sus issues, ni nada relacionado — parado y callado hasta que yo lo saque
 [remember][user] 🧠 los prompts a los agentes deben ser cortos: solo el QUE, nunca el COMO -- el agente ya tiene sus instrucciones en su propia definicion
-[remember][user] 🧠 no seguir ciegamente los hallazgos de un revisor (Yoda u otro): usar juicio propio, y nunca borrar contenido original sin preguntar antes
 [remember][user] 🧠 los agentes no escriben memoria ni ficheros propios dentro de directorios de solo lectura que estan explorando (p.ej. .ref-repos) -- contamina la fuente
 [remember][user] 🧠 para explorar una codebase desconocida se usa el agente Bilbo; Explore es solo para busquedas simples
 [remember][user] 🧠 /plugin update nunca ha funcionado bien: el proceso real es abrir /plugin, ir al marketplace y elegir ahi la opcion de actualizar
@@ -38,3 +37,4 @@
 [remember][user] 🧠 checking or comparing documents (skills, cards, plans, drafts) goes to Alexandria, on the strongest model, never to Bilbo — «prefiero que lo compruebe otro que no sea bilbo alguien mas listo, es tema de documentos deberia ser alex»
 [remember][user] 🧠 - Do not announce an action before doing it. Do it, then give the result.
 [remember][user] 🧠 - Put ✅ before a sentence addressed to Bex. Put no tick on agent or status lines.
+[remember][user] 🧠 - Judge a reviewer's findings yourself before acting on them, Yoda's included.
