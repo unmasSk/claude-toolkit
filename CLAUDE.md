@@ -9,12 +9,11 @@ Bex's personal tool: the ground every one of his projects runs on. It is not a p
 - **A test is justified only if it proves that**, and only if it compares two things written separately. A test that simulates an attacker is cut.
 - **`unmassk-standards` is this project's yardstick**: generic, on the axis "the system against itself". Weights: integrity ×3, silent failure ×3, structure ×2, real verification ×2, maintainability ×1.
 - **`unmassk-audit` is clean too**, with no fixed stack. Its 97 % coverage is a deliberate gate: an audit is stricter than an ordinary merge.
-- **The nine agent cards are agnostic** and travel to every project: never judge them against this one. No attacker here says nothing about whether Argus's OWASP material should exist; the host project sets that.
 
 ## How we work here
 
-1. **There are three sources and no fourth:** the docs; the code and the diff, read or run, never remembered; and asking Bex. What comes from none of them is not filled in with your own judgement: a gap may be deliberate.
-2. **Delegating is mandatory, and so is verifying.** Without delegating the session runs out mid-work; delegated work arrives unverified, and one agent deleted sixteen files in one pass.
+1. **There are four sources and no fifth:** the memory; the docs; the code and the diff, read or run, never remembered; and asking Bex. What comes from none of them is not filled in with your own judgement: a gap may be deliberate.
+2. **Filter findings before handing them over:** only what happens in everyday use, ordered by real frequency. A list of eight where three are far-fetched gets none of the five good ones read.
 3. **Test by running, through the door the user comes in by.** A «0 of 60» measured from inside came out «16 of 30» measured the way a person uses it.
 4. **What must really be forbidden goes in a hook or in removing the tool, not in a text.** Moriarty once lost the barrier against touching code: it rested on his not having the tool, not on being written.
 5. **When Bex asks to stop telling him something, it is literal.** No reasonable exception you think of applies; if a case seems worth telling, ask.
@@ -29,8 +28,7 @@ Bex's personal tool: the ground every one of his projects runs on. It is not a p
 ## Where this repo departs from the usual
 
 - Project memory is commits (`gitmem`), never files. How it works today is read in one place: `unmassk-toolkit/skills/unmassk-memory/`.
-- `gitmem work` and `wip` add `[skip ci]` to every working commit; the release commit is the only one that runs CI.
-- Cards, skills and prompts are written in English; Bex is shown them in Spanish, above all the diff.
+- `gitmem work` and `wip` add `[skip ci]` to working commits, so they start no CI run.
 
 ## Traps
 
@@ -47,7 +45,6 @@ Bex's personal tool: the ground every one of his projects runs on. It is not a p
 ## Skills by task
 
 - Publishing a version → this repository's `release` skill. Here, and only here, the session close publishes; it is not in the close-session skill on purpose: there it would be an order to publish in every project.
-- The CHANGELOG → always Alexandria, never the orchestrator.
 
 <!-- BEGIN unmassk-toolkit (managed block — do not edit) -->
 ## unmassk-toolkit Active

@@ -199,8 +199,8 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 | | |
 |---|---|
-| 🧭 **Today** | the Next — one line per task it names |
-| 📦 **Last session** | what the session that wrote the Next left done — one line per thing |
+| 🧭 **Today** | the Next — one line per task it names; the corrections block that opens its context is not a row: apply it from your first message |
+| 📦 **Last session** | what the session that wrote the Next left done or half-done, taken from its context — one line per thing |
 | ⛔ **Blockers** | one per line, each with who it waits on |
 | ❓ **Questions** | one per line, the ones that block work under way, by name — never a bare number |
 | 🔥 **Incidents** | one per line: open incidents, and plans with commits they never reflected |

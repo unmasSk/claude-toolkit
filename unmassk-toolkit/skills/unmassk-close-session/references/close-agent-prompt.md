@@ -61,8 +61,8 @@ commits, so none is copied here. What goes in:
 
 Quote the user where the words carry the point. Do not transcribe.
 
-Then, at the end of the body, one block the next session reads before
-anything else:
+Open the body with one block the next session reads before anything
+else:
 
     🧠 CORRECCIONES DE LA ÚLTIMA SESIÓN (aplícalas desde ya)
        - <what to do differently, one line> — «<the user's literal words>»

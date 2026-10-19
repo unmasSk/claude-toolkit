@@ -342,7 +342,7 @@ Read the skill FIRST. Improvising a review and reading the skill afterwards mean
 
 ### Protocol skills
 
-The project instruction file lists the protocol skills (its managed protocols block): pick from there. One more, not on that list: reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references → `unmassk-memory-doctor`.
+The project instruction file lists the protocol skills (its managed protocols block): pick from there. Scaffolding is normally reached through lifecycle; go straight to `unmassk-scaffolding` when the user's own words are already about scaffolding. One more, not on that list: reviewing the memory's own content for rot — contradictions, stale notes, semantic duplicates, dangling references → `unmassk-memory-doctor`.
 
 ---
 

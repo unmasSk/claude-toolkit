@@ -46,7 +46,7 @@ Expect back three lines and a report file: read its index — what she corrected
 
 **After Alexandria, never alongside her.** She changes files and the orchestrator commits them; a close written while she is still working describes a session missing her work.
 
-A `general-purpose` agent, handed the prompt at `references/close-agent-prompt.md` (relative to this skill's own directory) verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline, the context as the body, and every commit since the last close underneath.
+A `general-purpose` agent, handed the prompt at `references/close-agent-prompt.md` (relative to this skill's own directory) verbatim, with its placeholders resolved to absolute paths. It reads the session and writes one commit: the Next as the headline and the context as the body, ending with the owner's corrections in his own words.
 
 The script it runs reads every session transcript of the project since the last close — sessions that ended without a close, or with `/clear`, included — and keeps what the owner typed (messages sent mid-turn, text or image, and slash-command arguments) but not what the harness injected. If this session already closed once (a redo), that earlier close is skipped and the boundary is the close before it, so the redo covers the whole session; the header's `skipped:` line says so. `--since <ISO time, UTC if no zone>` overrides the boundary and bounds the commit list too. Zero commits and unreadable transcript lines appear as `note:` lines in the header, never silently.
 

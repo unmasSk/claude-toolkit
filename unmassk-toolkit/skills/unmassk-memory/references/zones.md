@@ -1,6 +1,6 @@
 # The two zones, in detail
 
-**A zone is a judgment call, never a script's default.** Naming the zones a project speaks about means reading its history and distilling what it is really about — which is why an installer leaves the zone list empty on purpose and never guesses one for you. You create the first zone after reading the commits; in a project carrying old memory, that is the *harvest* step of the distill pass (the third situation above).
+**A zone is a judgment call, never a script's default.** Naming the zones a project speaks about means reading its history and distilling what it is really about — which is why an installer leaves the zone list empty on purpose and never guesses one for you. You create the first zone after reading the commits; in a project carrying old memory, that is the *harvest* step of the distill pass (the third situation in the memory skill's «Which of the three situations you are in»).
 
 **The two-second rule:** if the word can modify another one — "the *testing* OF X" — it's zone 1. If it can only be the object, it's zone 2.
 
