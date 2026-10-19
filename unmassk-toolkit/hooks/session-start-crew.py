@@ -72,20 +72,24 @@ def _print_plugin_sync_check(git_root: Path) -> None:
 
     Claude Code runs the plugin from the installed cache, never from this
     working tree -- an edit here changes nothing at runtime until the
-    plugin is reinstalled. Always prints one line: a real drift count, an
-    explicit zero, or an explicit "not verifiable" -- never silence, so a
+    plugin is reinstalled. Silent where the toolkit's source tree is absent
+    (any other project: nothing to compare, nothing to act on, #104.2).
+    Inside the toolkit repo it always prints one line: a real drift count,
+    an explicit zero, or an explicit "not verifiable" -- never silence, so a
     stale cache can't go unnoticed the way it did for 3 days before this
     check existed. Any failure (import or comparison) degrades the same
     way as the rest of this hook: a printed line, never a raised exception.
     """
     try:
-        from cache_sync_check import count_repo_cache_drift
+        from cache_sync_check import PLUGIN_DIR_NAME, count_repo_cache_drift
+        if not (git_root / PLUGIN_DIR_NAME).is_dir():
+            return
         summary = count_repo_cache_drift(str(git_root))
     except Exception as e:
         print(f"[crew] PLUGIN: no verificable ({type(e).__name__})")
         return
     if summary is None:
-        print("[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)")
+        print("[crew] PLUGIN: no verificable (no hay plugin instalado distinto del repo)")
         return
     count, _descriptions = summary
     if count == 0:
@@ -175,8 +179,8 @@ def main():
     # with it. Their home is this hook (the toolkit's own SessionStart
     # entry point), never lib/memory/ -- that tree has a declared,
     # zero-toolkit-imports boundary (docs/memoria-v2/PIEZAS.md #13). Each
-    # is self-contained and always prints, success or failure -- see each
-    # function's own docstring.
+    # is self-contained and prints success or failure alike (PLUGIN only
+    # inside the toolkit repo) -- see each function's own docstring.
     #
     # They run AFTER the managed-block cycle, and the `finally` is what
     # keeps them unconditional across its several early returns. Running

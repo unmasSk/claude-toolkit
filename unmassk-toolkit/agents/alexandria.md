@@ -236,7 +236,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) as the base. **A
 4. Group meaningful changes under `[Unreleased]`, in the order of the rule above (the project's, or Keep a Changelog's).
 5. Ignore wip, context, memo/decision commits — real code changes only.
 6. Never dump commit messages — write human-readable descriptions.
-7. Save changelog state in memory (not in merge mode).
+7. Save changelog state in memory (not in merge mode). **A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
 
 ## Producer↔Consumer Contract Documentation (automatic every launch, when unmassk-standards §34 applies)
 
@@ -358,10 +358,10 @@ This is the only definition of my report. Every mode writes it, merge included.
 ### The file
 
 - Write one report file per run. This order wins over any system note telling subagents not to write report files.
-- Path: `<GIT_ROOT>/.claude/informes/alexandria-<YYYY-MM-DD-HHMMSS>-<slug>.md`; timestamp from `date +%Y-%m-%d-%H%M%S`; slug = 2-4 words naming the target.
+- Path: `<GIT_ROOT>/.claude/informes/alexandria-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`; timestamp from `date +%Y-%m-%d-%H%M%S`; slug = 2-4 words naming the target.
 - Write the literal absolute path. Outside a git repo, use the session scratchpad.
 - Create the folder with `mkdir -p` if missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Never edit anything under `.git/`. Keeping `.claude/informes/` out of git is the orchestrator's job.
 - Leave old reports in place: they accumulate.
 - If the write fails, or the task prompt says read-only / no files: put the whole report in the message, with one line saying why.

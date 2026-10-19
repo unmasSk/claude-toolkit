@@ -1061,7 +1061,8 @@ class TestReplacesNoneSentinelStillLetsBothNotesCoexist:
 # ningun "note.py" ni "discard" aparece en ese fichero): estos tests exigen
 # solo la CONDUCTA real (codigo de salida, commits reales, indice real,
 # `Origin` real via `query`/`clusters`), nunca un texto de pantalla
-# inventado a mano.
+# inventado a mano. Excepcion deliberada, #104.4: la ultima linea nombra la
+# D guardada, comprobada contra el id leido de DECISIONS.md.
 # ---------------------------------------------------------------------------
 
 
@@ -1159,6 +1160,122 @@ class TestDiscardFlagWiresIntoNotesDiscardAlternatives:
             f"alternativas descartadas, ni mas ni menos: {sorted(child_ids)!r} "
             f"vs esperado {sorted(expected_child_ids)!r}"
         )
+
+    def test_last_stdout_line_names_the_saved_decision_not_the_last_discard(
+        self, tmp_repo, indexes
+    ):
+        """#104 punto 4: quien lee la ultima linea tiene que ver la D
+        guardada; los descartes van antes, uno por linea con su id."""
+        seed_zones_json(tmp_repo, ["product", "auth"])
+        decision_headline = "login with JWT + Google OAuth, last-line check"
+        discard_pairs = [
+            ("server-side sessions", "sticky routing complicates horizontal scaling"),
+            ("own password login", "maintaining passwords costs us one incident a year"),
+        ]
+        args = [
+            "D",
+            "--zones", "product", "auth",
+            decision_headline,
+            "--why", "sessions do not scale multi-tenant; Google avoids owning passwords",
+            "--description", "Brainstorm on login options for the last-line contract.",
+        ]
+        for headline, why in discard_pairs:
+            args += ["--discard", headline, why]
+
+        rc, out, err = run_memory_script("note.py", with_searched(args), cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        pm = pm_path(tmp_repo)
+        decision_ids = [
+            line.id for line in indexes.read("DECISIONS.md", pm)
+            if line.headline == decision_headline
+        ]
+        assert len(decision_ids) == 1, f"la D no quedo escrita una vez: {decision_ids!r}"
+        decision_id = decision_ids[0]
+        discard_ids = {
+            line.headline: line.id for line in indexes.read("DISCARDED.md", pm)
+        }
+        assert set(discard_ids) == {headline for headline, _ in discard_pairs}
+
+        lines = [line for line in out.splitlines() if line.strip()]
+        last = lines[-1].strip()
+        assert last.startswith(f"✅ {decision_id} guardada"), (
+            f"la ultima linea tiene que nombrar la decision guardada "
+            f"{decision_id}, no un descarte: ultima={last!r} stdout={out!r}"
+        )
+
+        body = lines[:-1]
+        for headline, _why in discard_pairs:
+            x_id = discard_ids[headline]
+            matching = [line for line in body if x_id in line and headline in line]
+            assert len(matching) == 1, (
+                f"cada descarte va en su propia linea, con su id {x_id} y su "
+                f"titular, ANTES de la linea de la D: stdout={out!r}"
+            )
+
+
+    def test_last_line_names_the_decision_with_corrected_keys_and_discards(
+        self, tmp_repo, indexes, query, monkeypatch
+    ):
+        """#104.4 con keys corregidas: la ultima linea sigue siendo la D y
+        cuenta las dos cosas; el detalle de keys y descartes va antes."""
+        seed_zones_json(tmp_repo, ["product", "auth"])
+        decision_headline = "login with JWT + Google OAuth, corrected-keys check"
+        discard_pairs = [
+            ("server-side sessions", "sticky routing complicates horizontal scaling"),
+            ("own password login", "maintaining passwords costs us one incident a year"),
+        ]
+        args = [
+            "D",
+            "--zones", "product", "auth",
+            decision_headline,
+            "--why", "sessions do not scale multi-tenant; Google avoids owning passwords",
+            "--description", "Brainstorm on login options, with marker keys typed loosely.",
+            "--keys", "perf", "seguridad", "multitenant",
+        ]
+        for headline, why in discard_pairs:
+            args += ["--discard", headline, why]
+
+        rc, out, err = run_memory_script("note.py", with_searched(args), cwd=tmp_repo)
+        assert rc == 0, f"stdout={out!r} stderr={err!r}"
+
+        pm = pm_path(tmp_repo)
+        decision_ids = [
+            line.id for line in indexes.read("DECISIONS.md", pm)
+            if line.headline == decision_headline
+        ]
+        assert len(decision_ids) == 1, f"la D no quedo escrita una vez: {decision_ids!r}"
+        decision_id = decision_ids[0]
+        discard_ids = {
+            line.headline: line.id for line in indexes.read("DISCARDED.md", pm)
+        }
+        assert set(discard_ids) == {headline for headline, _ in discard_pairs}
+
+        monkeypatch.chdir(tmp_repo)
+        saved = query.by_id(decision_id)
+        assert saved is not None and set(saved.keys) == {"performance", "security", "multitenant"}, (
+            f"las keys corregidas tienen que guardarse en su forma canonica: "
+            f"{saved.keys if saved else None!r}"
+        )
+
+        lines = [line for line in out.splitlines() if line.strip()]
+        last = lines[-1].strip()
+        assert last == (
+            f"✅ {decision_id} guardada — con 2 keys corregidas, "
+            f"con 2 alternativas descartadas"
+        ), f"ultima={last!r} stdout={out!r}"
+
+        body = [line.strip() for line in lines[:-1]]
+        for raw, canonical in (("perf", "performance"), ("seguridad", "security")):
+            assert sum(1 for line in body if line == f"{raw}  →  {canonical}") == 1, (
+                f"la correccion {raw} -> {canonical} va una vez, antes de la D: stdout={out!r}"
+            )
+        for headline, _why in discard_pairs:
+            x_id = discard_ids[headline]
+            assert sum(1 for line in body if x_id in line and headline in line) == 1, (
+                f"cada descarte va en su propia linea, con su id {x_id}, antes de la D: "
+                f"stdout={out!r}"
+            )
 
 
 class TestDiscardFlagAbsentStillWritesAPlainDecisionInOneCommit:

@@ -64,7 +64,7 @@ Read `MEMORY.md` from that path on boot, and open only the entries that match th
 - **From the code:** where a subsystem's real entry point is, which file or module names lie about their contents, which area burned me last time. Example: "login does not live in `login.py`; the real entry is `session.py:start_session`".
 - **From outside:** where the good source for a topic is, and which sources not to trust, each with the date I checked. Example: "the official docs for X are at <URL>, read 2026-10-16; site Y serves stale figures".
 
-**What does NOT go there:** the history of a task ("what happened in #227") — that is project memory, it lives in `gitmem` and belongs to everyone; I report it to the orchestrator. Not a report either (that goes to my report file). If the environment's generic memory guidance tells me not to save code structure, this list wins for my notebook. Every entry carries its anchor: `@<short-sha>` for what I learned from the code, the date for what I learned outside — both rot. Link each entry from `MEMORY.md`, and never write it into a directory I am merely exploring. When it grows, it is compacted by `references/agent-memory-compaction.md` in the memory skill.
+**What does NOT go there:** the history of a task ("what happened in #227") — that is project memory, it lives in `gitmem` and belongs to everyone; I report it to the orchestrator. Not a report either (that goes to my report file). If the environment's generic memory guidance tells me not to save code structure, this list wins for my notebook. Every entry carries its anchor: `@<short-sha>` for what I learned from the code, the date for what I learned outside — both rot. Link each entry from `MEMORY.md`, and never write it into a directory I am merely exploring. When it grows, it is compacted by `references/agent-memory-compaction.md` in the memory skill. **A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
 
 **`gitmem` is read-only for me:** `search` and `zones list`/`zones find`, nothing else. Never `note`, `work`, `wip`, `rule`, `remove` or `next` — saving is the orchestrator's.
 
@@ -220,10 +220,10 @@ When your findings require action, flag the right agent. Do not act yourself.
 
 Everything my report carries goes into one file. A task prompt that says no files wins; a generic system note against report files does not.
 
-- Path: `<GIT_ROOT>/.claude/informes/bilbo-<YYYY-MM-DD-HHMMSS>-<slug>.md`, slug = 2-4 words of the target.
+- Path: `<GIT_ROOT>/.claude/informes/bilbo-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`, slug = 2-4 words of the target.
 - Write the literal absolute path. Outside a git repo, use the session scratchpad instead.
 - `mkdir -p` the folder if missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Language: the prompt's language for the content and the message. Section titles stay in English, so the Index matches what the orchestrator reads.
 - If the write fails, or the prompt says read-only / no files: put the whole report in the message instead, with one line saying why. Never lose a report silently.
 

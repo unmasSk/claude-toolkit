@@ -23,7 +23,7 @@
 - [file-lock-lost-update-contract-notes.md](file-lock-lost-update-contract-notes.md) — file_lock() T1 contract + 3 Moriarty regressions
 - [env-var-leak-and-dead-gate-detection-notes.md](env-var-leak-and-dead-gate-detection-notes.md) — run_cmd None-sentinel env removal
 - [wrapper-trailer-content-validation-contract-notes.md](wrapper-trailer-content-validation-contract-notes.md) — Memo/Remember validation RED + retirement
-- [plugin-sync-line-contract-notes.md](plugin-sync-line-contract-notes.md) — PLUGIN sync-line count-vs-grouped gotcha
+- [plugin-sync-line-contract-notes.md](plugin-sync-line-contract-notes.md) — PLUGIN sync-line count-vs-grouped gotcha; #104.2 silent without source
 - [vocabulary-contract-notes.md](vocabulary-contract-notes.md) — vocabulary.py §6.1, 3-state reader rule
 - [zones-py-full-contract-notes.md](zones-py-full-contract-notes.md) — lib/memory/zones.py + zones.py full campaign (5 rounds merged): §6.2 contract + cross-import fix, English rename + duplicate bounce, alias-collision bounce, doctor's check_project_zones() added, absent-vs-empty doctor gap
 - [similar-contract-notes.md](similar-contract-notes.md) — similar.py §6.5, zone2-only cross-zone design
@@ -53,13 +53,13 @@
 - [deuda24-search-by-id-contract-notes.md](deuda24-search-by-id-contract-notes.md) — search.py --id RED (#24), vocabulary gap found
 - [gitmem-wip-branch-protection-notes.md](gitmem-wip-branch-protection-notes.md) — wip test fixed after 2026-08-03 checkpoint decision
 - [customs-py-full-contract-notes.md](customs-py-full-contract-notes.md) — hooks/customs.py full campaign (3 rounds merged): auto-enable + rebase passthrough, corrupt-memory-file escape hatch, archived-key-zone parity with note.py
-- [wip-script-checkpoint-hardening-notes.md](wip-script-checkpoint-hardening-notes.md) — wip.py first test file, 15 green, binary round-trip
+- [wip-script-checkpoint-hardening-notes.md](wip-script-checkpoint-hardening-notes.md) — wip.py first test file; #104.3 --path-directory RED, run-the-relaunch technique
 - [deuda15-foreign-content-silent-discard-contract-notes.md](deuda15-foreign-content-silent-discard-contract-notes.md) — managed_blocks upsert() discards foreign content, RED
 - [deuda5-cache-sync-recursive-subdirs-contract-notes.md](deuda5-cache-sync-recursive-subdirs-contract-notes.md) — cache_sync_check RED: _dir_fingerprint non-recursive
 - [note-py-script-full-contract-notes.md](note-py-script-full-contract-notes.md) — bin/memory/note.py full campaign (7 rounds merged): alias regression, --replaces archiving, --discard, archived-similarity bypass, exact-key-zone gate, --promotes, --issue seven-types
 - [dante-owner-metric-over-allowlist-feedback.md](dante-owner-metric-over-allowlist-feedback.md) — owner prefers computed two-branch metric over allowlist
 - [relaunch-command-mechanism-notes.md](relaunch-command-mechanism-notes.md) — gitmem relaunch-command mechanism (2 rounds merged): AST-extracted argparse crosscheck (dead 'close' subcommand found), answer-amnesia cycle bug
-- [remove-py-incident-close-full-contract-notes.md](remove-py-incident-close-full-contract-notes.md) — remove.py incident-close feature (2 rounds merged): missing-flag question contract, fence-rejection atomicity fix
+- [remove-py-incident-close-full-contract-notes.md](remove-py-incident-close-full-contract-notes.md) — remove.py incident-close (3 rounds): question contract, fence atomicity, headline relaunch must say gitmem remove
 - [test-file-self-drift-correction-notes.md](test-file-self-drift-correction-notes.md) — stale prose inside test files, annotate-not-delete
 - [stop-dod-gate-py-full-contract-notes.md](stop-dod-gate-py-full-contract-notes.md) — hooks/stop-dod-gate.py full campaign (4 rounds merged): corrupt-config warn, D-042 identity coverage, fingerprint cache, declared-contract-in-flight
 - [customs-doctor-20260806-two-red-contracts-notes.md](customs-doctor-20260806-two-red-contracts-notes.md) — shlex-failure rescue + doctor type-gap; set-order pitfall
@@ -83,7 +83,7 @@
 - [rescued-python-test-techniques-notes.md](rescued-python-test-techniques-notes.md) — live pytest/git/Windows techniques rescued from the old catch-alls
 - [pre-merge-gate-target-branch-contract-notes.md](pre-merge-gate-target-branch-contract-notes.md) — D-119/D-120/D-129 gate contract + I-007 Windows paths, Git Bash /c/ simulation
 - [checklist-by-procedure-d121-contract-notes.md](checklist-by-procedure-d121-contract-notes.md) — D-121 procedures schema I fixed + green-by-design guards
-- [checklist-hooks-real-world-shape-notes.md](checklist-hooks-real-world-shape-notes.md) — real shapes: prefixed skill names, wiped boards, subfolder cwd
+- [checklist-hooks-real-world-shape-notes.md](checklist-hooks-real-world-shape-notes.md) — real shapes: prefixed skill names, wiped boards, subfolder cwd, Stop background_tasks
 - [boot-deadline-hook-timing-contract-notes.md](boot-deadline-hook-timing-contract-notes.md) — #95 boot-under-30s: hook timing, gh double, slow git log overrun, stalled remote, crash injection
 - [d124-per-message-checklist-contract-notes.md](d124-per-message-checklist-contract-notes.md) — #95 2b D-124 checklist RED: per-line concept anchors, [memory-check] fallback trap
 - [rules-import-claude-md-contract-notes.md](rules-import-claude-md-contract-notes.md) — #95 2a rules.md @import + read-now hint on the start that adds it; disposable HOME

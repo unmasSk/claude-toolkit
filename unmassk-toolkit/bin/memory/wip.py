@@ -46,6 +46,7 @@ de verdad directo desde la principal.
 
 import argparse
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -62,6 +63,7 @@ force_utf8_streams()
 import ci  # noqa: E402
 import config  # noqa: E402
 import emojis  # noqa: E402
+import gitcmd  # noqa: E402
 import notes  # noqa: E402
 import repo_guard  # noqa: E402
 
@@ -80,9 +82,70 @@ def _parse_args(argv):
     return parser.parse_args(argv)
 
 
+def _changed_files_under(directory, root, cwd):
+    """Ficheros cambiados (seguidos o nuevos) bajo `directory`, con la ruta
+    relativa a `cwd` -- la misma base con la que se pasan los `--path`.
+    `--untracked-files=all` para no recibir una subcarpeta nueva plegada.
+    """
+    result = gitcmd.run(
+        ["status", "--porcelain", "-z", "--untracked-files=all", "--", str(directory)],
+        cwd=cwd,
+        timeout=gitcmd.GIT_TIMEOUT,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git status fallo: {result.stderr.strip()}")
+    fields = result.stdout.split("\0")
+    changed = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        # Con -z, un renombrado o copia trae detras su ruta de origen.
+        if entry[0] in "RC":
+            i += 1
+        # Con `/` en todo sistema, como `notes_commit._relpath_posix`.
+        changed.append(Path(os.path.relpath(root / entry[3:], cwd)).as_posix())
+    return sorted(changed)
+
+
+def _directory_rejection(message, paths, root):
+    """Respuesta en llano cuando algun `--path` es una carpeta: que pasa,
+    que ficheros cambiaron dentro y el comando exacto para relanzar."""
+    cwd = Path.cwd().resolve()
+    root = Path(root).resolve()
+    files = []
+    lines = []
+    for path in paths:
+        if not path.is_dir():
+            # Con `/`, para deduplicar contra las rutas de la carpeta.
+            files.append(path.as_posix())
+            continue
+        under = _changed_files_under(path, root, cwd)
+        lines.append(f"\n«{path.as_posix()}» es una carpeta, y --path solo admite ficheros.")
+        if under:
+            lines.append("Ficheros cambiados dentro:")
+            lines.extend(f"  {name}" for name in under)
+        else:
+            lines.append("Dentro no hay ningun fichero cambiado.")
+        files.extend(under)
+    lines.insert(0, "No se ha guardado nada.")
+    if files:
+        unique = dict.fromkeys(files)
+        relaunch = " ".join(f"--path {shlex.quote(f)}" for f in unique)
+        lines.append("\nPara guardarlos, relanza con un --path por fichero:")
+        lines.append(f"  gitmem wip {shlex.quote(message)} {relaunch}")
+    return "\n".join(lines)
+
+
 def main(argv):
     args = _parse_args(argv)
     paths = [Path(p) for p in args.paths]
+
+    if any(path.is_dir() for path in paths):
+        print(_directory_rejection(args.message, paths, notes.repo_root()), file=sys.stderr)
+        return 1
 
     # Misma razon y mismo orden que `work.py`: leido antes de cualquier
     # subproceso de git o E/S propia [DEUDA.md punto 27, docstring de

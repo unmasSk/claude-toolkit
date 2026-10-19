@@ -36,7 +36,7 @@ Closing an issue or deleting a branch: what you can mechanically verify as finis
 
 ## 3. Alexandria, in `close` mode
 
-`subagent_type: unmassk-toolkit-alexandria`. Her profile holds the protocol; give her only what she cannot read from the repository — one line per thing the session shipped that is new or changed.
+`subagent_type: unmassk-toolkit:alexandria`. Her profile holds the protocol; give her only what she cannot read from the repository — one line per thing the session shipped that is new or changed.
 
 If the session shipped something, she also brings the CHANGELOG `[Unreleased]` up to date (owner's rule: «eso lo hace Alexandria en el closed session»).
 

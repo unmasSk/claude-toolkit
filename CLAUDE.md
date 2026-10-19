@@ -108,9 +108,15 @@ Estas seis salieron de fallos reales, no de teoría.
 This project uses the **unmassk toolkit**. Its memory lives in git, and it is
 what you know about this project -- not a log you may consult.
 
+The owner's rules below bind from the first message:
+
+@.claude/project-memory/rules.md
+
 **On every session start**, you MUST:
-1. Read the session-start briefing already in your context: the last Next,
-   every blocker, every restriction, the counts and the checks
+1. Read the boot report whose path the `[memory]` lines of the session
+   start give you: the last Next, every blocker, every restriction, the
+   counts and the checks. If no such line or no report arrived, the boot
+   failed: tell the user so in your first line
 2. Use the Skill tool with `skill="unmassk-core"` (TOOL CALL, not bash)
 3. Use the Skill tool with `skill="unmassk-memory"` (TOOL CALL, not bash)
 4. Tell the user the menu of the day, then respond
@@ -146,7 +152,7 @@ These protocols exist as skills. Detect the situation and load the matching skil
 
 **Building a feature, fixing a non-trivial bug, or refactoring:**
 
-- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (8-step creative pipeline, idea to shipped code)
+- Build a feature, implement, add functionality, fix a non-trivial bug, or refactor → Skill `unmassk-flow` (eight parts, Triage to Close, idea to merged code)
 
 **Auditing existing code against enterprise standards:**
 
@@ -180,10 +186,10 @@ All protocol output persists to **memory**, never to `.md` files.
 <!-- BEGIN unmassk-build-mode (managed block) -->
 ## Build mode (you decide, before delegating)
 
-Before running the Execute step of `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
+At the end of Ideas in `unmassk-flow` (the build pipeline skill), decide the build mode and tell the agents which one applies. The agents do not choose — you do.
 
 - **Test-first** (TDD/BDD/ATDD) → for business logic, APIs, anything with clear rules where being wrong is costly. Order: Dante writes failing tests (the contract) → Ultron implements until they pass.
-- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before the reviewers (Flow Step 5).
+- **Linear** → for prototypes, exploration, throwaway code, or when the shape isn't clear yet. Order: Ultron implements → Dante writes the tests for what was built, before that phase's review.
 
 Decision factors:
 - Clear, testable behavior + matters if wrong → test-first

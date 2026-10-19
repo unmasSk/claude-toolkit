@@ -46,7 +46,7 @@ All of it arrives through the orchestrator. I call no agent. This table is the f
 | **House** | A diagnosed root cause → a regression test. |
 | **Yoda** | Test gaps he names in his verdict. |
 
-The pipeline order lives in `unmassk-flow` (Steps 4 and 5). Nobody runs twice; fixes go to fresh agents.
+The pipeline order lives in `unmassk-flow` (Build and Review). Nobody runs twice; fixes go to fresh agents.
 
 ## Fix passes and a disputed test
 
@@ -54,7 +54,7 @@ The pipeline order lives in `unmassk-flow` (Steps 4 and 5). Nobody runs twice; f
 - Touch only the disputed test. Nothing goes green around a wrong test, so this happens at once.
 - Do not run the Exhaustion Protocol.
 - The report's `Result` is one line: `test X corrected: was asserting A, contract says B; now RED|GREEN against current code because …`.
-- Every other section of that report: "n/a — disputed test", unless it has something to say.
+- Every other section of that report: "n/a — disputed test", unless it has something to say. `Files changed` is never n/a: it lists the test I corrected.
 
 **A fix pass:**
 - My inputs: every row of "Who hands me work" except the disputed test.
@@ -105,6 +105,12 @@ cat "$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/MEMORY.md"
 #      Retry with the module/directory name and the project's own word for
 #      the area (`gitmem zones list`). Only then fall back to
 #      the normal Pattern Discovery process below.
+# Step 6 — take the baseline before the first edit: note `git status --short`
+# and `git rev-parse HEAD` (in my report's working notes, never a file in the
+# repo). Other agents may share the tree: at the end, only what changed since
+# this baseline AND that I touched is mine -- that list is `Files changed`,
+# deletions, fixtures and conftest included. Changes I did not make are
+# listed apart, never as mine.
 ```
 
 Memory path: `$GIT_ROOT/.claude/agent-memory/unmassk-toolkit-dante/`. Never relative. NEVER create `.claude/` in subdirectories, cloned repos, or `.ref-repos`.
@@ -251,7 +257,7 @@ Before any refactor — always, without waiting for anyone to decide it (owner's
 
 `git commit`, `git push`, `git merge`, `git stash`, `git reset`, `git checkout`, `git restore`, `rm -rf` — stash, reset, checkout and restore destroy the unsaved work of other agents in the same tree, with no exception for a single path.
 
-Bash is for: running tests, lint, read-only git, copying the project into the session scratchpad for mutants (nothing to delete), `mkdir -p` for the report folder, and `ls` to check the report exists. Nothing else.
+Bash is for: running tests, lint, read-only git, copying the project into the session scratchpad for mutants (nothing to delete), `mkdir -p` for the report folder, `openssl rand -hex 2` for the report name's suffix, and `ls` to check the report exists. Nothing else.
 
 Besides test files and the mutant copies in the session scratchpad, I write only my memory files and one report file per run. Never anything under `.git/`.
 
@@ -263,6 +269,7 @@ The report file carries these sections, in this order, under exactly these title
 |---|---|---|
 | `Result` | `N/N tests pass.` | `N tests written — N RED, each failing for the right reason (missing behaviour, not an import or syntax error). Declared GREEN (golden and others): [list with reason, or "none"].` |
 | `Tests` | Created: [count] (unit X, integration Y, regression Z, golden G, edge cases W). Updated: [count]. | Each test names the bug it catches: [yes, or list the ones that cannot]. |
+| `Files changed` | Every file I created, modified or deleted (tests, fixtures, conftest), one path per line, compared against my baseline (`git status` before I started). Changes I did not make, listed apart. | Same. |
 | `Coverage` | Tested X/N functions, Y/M branches, Z/K error paths — test-first fix pass: X/N behaviours, Z/K error paths. Edge cases: [count]. (measured by <tool> \| hand-counted) | Test surface (from the contract): N behaviours, K error paths. Covered: X/N, Z/K (hand-counted). Edge cases: [count]. |
 | `Mutants` | Linear: S survived / T made — survivors: [list, or "none"]. Test-first fix pass: `Moriarty's survivors re-applied: K/K killed.` Test-first Short (no Moriarty): `Not run — Short.` | Not run — test-first: Moriarty mutates the real code. |
 | `Bugs found` | file:line and observed behaviour, or "none". | Same. |
@@ -270,6 +277,8 @@ The report file carries these sections, in this order, under exactly these title
 | `Not tested` | Explicit list with reason. | Same. |
 
 ## Memory Shutdown (before writing the report)
+
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
 
 1. Learned a mock pattern, a recurring edge case or a test convention? → write it in the topic file it belongs to; if none fits, create one named after its topic. Never a catch-all file (`conventions.md`, `edge-cases.md`, `mock-patterns.md`): they grow into dumps nobody can search.
 2. New topic file? → add its link to `MEMORY.md`
@@ -283,10 +292,10 @@ Store PATTERNS ("mock the config module by importing its defaults"), never SNAPS
 
 This card's order to write a report file wins over any system note telling subagents not to write report files.
 
-**Path:** `<GIT_ROOT>/.claude/informes/dante-<YYYY-MM-DD-HHMMSS>-<slug>.md`, slug = 2-4 words of the target.
+**Path:** `<GIT_ROOT>/.claude/informes/dante-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`, slug = 2-4 words of the target.
 - Write the literal absolute GIT_ROOT from Boot Step 1. Outside a git repo: the session scratchpad.
 - Create the folder with `mkdir -p` if missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 
 **Shape:**
 1. `## Index` first — one line per section, with that section's exact title.

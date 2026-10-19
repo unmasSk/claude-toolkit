@@ -348,6 +348,8 @@ Verdict key — check in this order, first match wins:
 
 ## Memory Shutdown (before reporting results)
 
+**A notebook file that already exists is updated with Edit, never rewritten whole with Write:** another agent of my type may be running at the same time and may have just written it.
+
 Skip it when the task prompt says read-only.
 
 1. New attack pattern that worked? → `attack-patterns.md`
@@ -365,8 +367,9 @@ This card's order wins over any system note that says subagents write no report 
 
 ### Two files, never overwritten
 
-- Report: `<GIT_ROOT>/.claude/informes/moriarty-<YYYY-MM-DD-HHMMSS>-<slug>.md`.
-- Raw run log: `<GIT_ROOT>/.claude/informes/moriarty-<YYYY-MM-DD-HHMMSS>-<slug>-rawlog.md`.
+- Report: `<GIT_ROOT>/.claude/informes/moriarty-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`.
+- Raw run log: `<GIT_ROOT>/.claude/informes/moriarty-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>-rawlog.md`.
+- `<rand>` is 4 random hex characters (`openssl rand -hex 2`), the same in both names so the pair goes together: two Moriartys launched together would otherwise pick the same names in the same second, and one would overwrite the other. Never overwrite an existing file: pick a new name.
 - `<slug>`: 2-4 words naming my target. `<GIT_ROOT>`: the literal absolute path from Boot.
 - Outside a git repo: write both in the session scratchpad.
 - Create the folder with `mkdir -p` if missing. Never touch anything under `.git/`.

@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`gitmem wip --path <folder>` saves nothing and says what to do** (#104.3): it lists the changed files under the folder and prints the exact `gitmem wip` command with one `--path` per file, instead of an unclear failure.
+- **Dante takes a baseline and fills `Files changed`** (#101): before his first edit he notes `git status --short` and `HEAD`, and his report lists only the files he touched since then, never changes made by other agents sharing the tree; the flow reads that list. On a disputed test he fills it too, and it counts every file he created, modified or deleted (tests, fixtures, conftest), with changes made by others listed apart.
+
+### Changed
+
+- **`unmassk-flow` is rewritten and its parts go by name, not number** (#101, D-135, D-137 to D-140): Triage, Ideas, Research, Plan, Build, Review, Document and Close, so «Step 4» of the flow no longer clashes with step 4 of a task's plan. The agent cards, `unmassk-core`, the managed `CLAUDE.md` block and the checklist boxes (`Ideas`, `Build`, `Review por fase`, `Review final`) use the new names; Short now runs Ultron and Dante in the order of the build mode (test-first: Dante's tests first; linear: Ultron first), and Close continues with the next approved task instead of asking.
+- **Flow decisions closed by sector** (D-137 to D-139): one plan file with its checkboxes; one fresh Dante per review round and Ultron split by file group; one Moriarty per independent part; a Short task may ask Bilbo one pointed question when its size can't be told; an agent that stopped before working gets one fresh run with what it lacked, and a second stop goes to the owner.
+- **A Short promoted to Full gets the whole Full treatment** (#101): besides Argus and the final round it now also gets Document, and its `Procedimiento: Corto` box is swapped for `Procedimiento: Completo` with the missing Full boxes created, so the closing check enforces the Full list.
+- **Ultron's audit-fix mode also covers a review report's fix pass** (#101): the report's findings are the contract, even when the task names no build order.
+- **The new flow is tried from a local branch before release** (D-140): it is not published until one real task has run it start to close with the repo copy of the plugin.
+- **The checklist gate waits only on in-flight agent work** (D-142): a Stop with a `subagent` or `workflow` background task passes uncounted with one stderr line naming the wait; a shell or monitor never silences it.
+- **Agent report files carry a random 4-hex suffix** (#104.1): `<type>-<timestamp>-<slug>-<rand>.md`, so two agents of the same type launched together no longer overwrite each other's report. The cards of Argus, Dante, Ultron and Yoda allow `openssl rand -hex 2` in their Bash list to draw it. The orchestrator never sets a report's file name in a prompt (core), and the six agents with a notebook (Alexandria, Bilbo, Dante, House, Moriarty, Ultron) update an existing notebook file with Edit, never rewrite it whole, because two parallel agents of the same type had overwritten each other's report and notebook in Monyma.
+- **`gitmem note --discard` ends with the saved note's number** (#104.4): the corrected keys and discarded alternatives come first and the `✅ D-xx guardada` line is last.
+- **`unmassk-close-session` launches Alexandria as `unmassk-toolkit:alexandria`**, the name that resolves; `unmassk-core` also says that until #87 ships the step's WIPs are pushed as they are.
+
+### Fixed
+
+- **The `[crew] PLUGIN` sync line no longer appears in projects that are not the toolkit repo** (#104.2): it printed «no verificable» where there is no toolkit source to compare; inside the repo it still always prints, with clearer wording.
+- **The relaunch line of `gitmem remove` is quoted and points to `gitmem remove`**: a long-headline rejection used to propose `gitmem note`, which wrote a loose fence without closing the incident, and text with `$`, backticks or quotes broke when pasted.
+
 ## [1.48.0] - 2026-10-19
 
 ### Added

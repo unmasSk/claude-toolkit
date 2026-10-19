@@ -312,25 +312,22 @@ def _print_success(result, args, normalized_keys):
 
 
 def _print_success_with_discards(decision_result, alternatives, discard_results, args, normalized_keys):
-    """Sin molde en TEXTOS.md para esta salida -- forma corta, mismo tono
-    que `_print_success`, reusando `TYPE_EMOJI["X"]` en vez de un literal
-    nuevo. Reportada al propietario para aprobar o cambiar."""
-    lines = [f"✅ {decision_result.note_id} guardada"]
+    """La linea de la D va la ultima; keys corregidas y descartes, antes."""
     corrected = _corrected_key_pairs(args.keys, normalized_keys)
     suffixes = []
+    lines = []
     if corrected:
         plural_k = "s" if len(corrected) > 1 else ""
         suffixes.append(f"con {len(corrected)} key{plural_k} corregida{plural_k}")
-    plural_x = "s" if len(discard_results) != 1 else ""
-    suffixes.append(f"con {len(discard_results)} alternativa{plural_x} descartada{plural_x}")
-    lines[0] += " — " + ", ".join(suffixes)
-    if corrected:
-        lines.append("")
         for raw, canonical in corrected:
             lines.append(f"  {raw}  →  {canonical}")
-    lines.append("")
+        lines.append("")
+    plural_x = "s" if len(discard_results) != 1 else ""
+    suffixes.append(f"con {len(discard_results)} alternativa{plural_x} descartada{plural_x}")
     for alternative, result in zip(alternatives, discard_results):
         lines.append(f"  {TYPE_EMOJI['X']} {result.note_id}  {alternative.headline}")
+    lines.append("")
+    lines.append(f"✅ {decision_result.note_id} guardada — " + ", ".join(suffixes))
     print("\n".join(lines))
 
 

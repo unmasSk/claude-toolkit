@@ -130,3 +130,6 @@
 [X-130][skills][docs] flow's eight parts as the task's phases
 [X-131][skills][docs] apply on main now, next task as the trial
 [X-132][skills][docs] release as it stands
+[X-133][hooks][skills] parse the transcript for async launches without a completion
+[X-134][hooks][skills] raise the two-block cap
+[X-135][hooks][skills] any in-flight entry silences the gate

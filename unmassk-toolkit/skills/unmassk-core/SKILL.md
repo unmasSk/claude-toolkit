@@ -30,7 +30,7 @@ Bex's own rules for working with him. They hold in every project and override an
 ### Session and rhythm
 12. Bex closes the session by telling you to load the close-session skill. Never propose closing, pausing or stopping.
 13. After every agent that changes files, you (the orchestrator) save a WIP. Agents never commit.
-14. When a step ends, squash its WIPs into one step commit and push. Keep memory notes out of the squash. Until #87 ships, squash nothing.
+14. When a step ends, squash its WIPs into one step commit and push. Keep memory notes out of the squash. Until #87 ships, squash nothing: push the step's WIPs as they are.
 15. Finishing includes cleanup, same act, no asking: delete the merged branch, close the issue, close the incident, retire the wall of a removed piece.
 16. Every final report of a step or phase states loose ends — "Loose ends: none" included.
 17. Fix every real finding in the same pass, nitpicks included. Note what cannot happen in real use; do not fix it.
@@ -275,15 +275,15 @@ What never goes in: "I think the bug is in X", "this should be fine", "confirm t
 
 **For Yoda, Moriarty's raw run log is part of the ARTIFACT** — the separate raw-log file Moriarty writes (commands and output), passed by path, never his summary or his verdict word. Without it Yoda answers CANNOT JUDGE, by design.
 
-**One review per part.** What Cerberus and Argus flag goes to Ultron/Dante once, who fix and verify with the part's tests; the reviewers are not sent again over the fix (the flow's Verify step says the same). A second pass that finds something already in the file only proves the first pass was incomplete.
+**One review per part.** What Cerberus and Argus flag goes to Ultron/Dante once, who fix and verify with the part's tests; the reviewers are not sent again over the fix (flow's Review says the same). A second pass that finds something already in the file only proves the first pass was incomplete.
 
 ### Agent reports — on file, read by index
 
-Every agent writes its report to one file in `<project>/.claude/informes/` (index of section titles first) and answers in three lines: status, the one thing to act on, the path (a 4th line only for BLOCKED / INCOMPLETE, with the reason). Read the index and only the sections you need. If `git check-ignore -q .claude/informes/x` fails in the project, add `.claude/informes/` to `.git/info/exclude` once — that is yours, never the agent's.
+Every agent writes its report to one file in `<project>/.claude/informes/` (index of section titles first) and answers in three lines: status, the one thing to act on, the path (a 4th line only for BLOCKED / INCOMPLETE, with the reason). Read the index and only the sections you need. Never set the report's file name in a prompt: the card names it, with a random suffix, so two agents of the same type launched together never pick the same name. If `git check-ignore -q .claude/informes/x` fails in the project, add `.claude/informes/` to `.git/info/exclude` once — that is yours, never the agent's.
 
 ### Step-sized delegation, and the wave it belongs to
 
-**One step per prompt.** A delegated task is ONE point with ONE verifiable outcome — one concern, one file or tightly-coupled group, one verification command. Never batch several independent points into a single agent prompt: a batched task runs long with no checkpoint, can't be interrupted without losing work, and hides progress.
+**One step per prompt.** A delegated task is ONE point with ONE verifiable outcome — one concern, one file or tightly-coupled group, one verification command. Never batch several independent points into a single agent prompt: a batched task runs long with no checkpoint, can't be interrupted without losing work, and hides progress. A fix pass is the exception: one fresh Dante takes every report of a review round, and Ultron gets one prompt per group of files that belong together.
 
 **Independent steps leave together** (moment 6). One step per *prompt* never means one step per *message*: steps that don't share files go out in the same message and run at once.
 
@@ -334,7 +334,7 @@ The `unmassk-standards` skill holds stack-agnostic quality criteria that apply t
 
 ## Workflows: invoke before you improvise
 
-**Flow** — the user asks to build, fix or refactor → invoke `unmassk-flow`. It sets the procedure (Trivial, Short, Full); run every step that procedure has.
+**Flow** — the user asks to build, fix or refactor → invoke `unmassk-flow`. It sets the procedure (Trivial, Short, Full); run every part that procedure has.
 
 **Audit** — the user asks to audit a module against enterprise standards → invoke `unmassk-audit`. 14 steps, ending in a weighted score and a senior verdict.
 

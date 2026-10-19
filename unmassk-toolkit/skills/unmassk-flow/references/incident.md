@@ -1,56 +1,42 @@
-# Incidents — the scar of something that was already working
+# Incidents — the scar of something that was working
 
-## What an incident is, and what it is not
+Open this when something that was signed off breaks. An incident is a failure *after* delivery: a scar worth recording, because a second failure on the same ground means something underneath is wrong. A defect found while building is ordinary work: the reviewer says it, it is fixed, the build carries on (House handles a stuck step, `SKILL.md` Build).
 
-**An incident is something that had been signed off and then broke.** Not a defect found while building it — that is ordinary work: the reviewer says it, it gets fixed, and the module carries on. A module being polished is not leaving scars behind; it is being built.
-
-The line is the delivery. Before it, findings are work. After it, a failure is a scar, and a scar is worth recording because the next one on the same ground is not bad luck — it means something underneath is wrong.
-
-This file is the seam between the fix and the memory. It does not restate the pipeline, the agents' lanes, or how a note is written — those are owned elsewhere and pointing at them is the point.
-
-## The Iron Law
+An incident repair is not blocked by the one-task-in-flight check; park the open task first.
 
 ```
 NO INCIDENT IS CLOSED WITHOUT ANSWERING WHETHER A WALL COMES OUT OF IT
 ```
 
-The answer may be no. What may not happen is closing it without asking.
+The answer may be no. Asking is mandatory.
 
 ## 1. Investigate
 
-Three ways in. **Start with the first**; the others are for what it cannot give. Tell the diagnostician it is an incident — something already delivered that broke — so his report carries the incident note:
+Start with the first route; use the others for what it cannot give. Tell House it is an incident (already delivered, then broke) so his report carries the incident note, and tell him in the first prompt where the project writes its logs.
 
-| Route | Use it when | Ends in |
+| Route | Use when | Ends in |
 |---|---|---|
-| **Describe the failure in plain words** to the diagnostician | By default | A verdict with a root cause, or an honest "I could not diagnose this" |
-| **Hand over the production logs** | It cannot be reproduced here | The same verdict, on evidence from the real run |
-| **Map the area first** | Nobody knows which part broke | A map handed over — **never a diagnosis** |
+| Describe the failure in plain words to **House** | Default | A verdict with a root cause, or an honest «I could not diagnose this». |
+| Hand a fresh House the **production logs** | His first run could not reproduce it (`NO DIAGNOSIS`) | The same verdict, on evidence from the real run. |
+| Send **Bilbo** to map the area first | Nobody knows which part broke | A map: modules, callers, and the walls and scars of those zones. Never a diagnosis. |
 
-**The third route never concludes.** Whoever maps draws the territory — modules, callers, the walls of those zones and the scars already there — and hands it over. A map that names a culprit gets believed anyway, which is why it must not name one.
+A map names no culprit: a named culprit gets believed. Give the mapper what a diagnosis needs: how the failure reproduces, where the project writes its logs, and what was left out of the sweep.
 
-**Give the map what a diagnosis actually needs:** how the failure is reproduced, where this project writes its logs, and **what was left out** of the sweep. Without that last one the next person either redoes the reconnaissance or trusts an unknown gap.
-
-**There is always a manual door.** A client reports it, a deploy falls over, data goes missing — an incident does not require a diagnostician to exist. It requires a cause. What it may never be is your own guess written up as a verdict.
+An incident needs a cause, not a diagnostician. A client report, a failed deploy or missing data starts one manually. Never write your own guess up as a verdict.
 
 ## 2. Record the scar
 
-**Write it the moment the verdict arrives** — not after the fix, not at session close. By then the detail is gone and what gets written is a summary of a summary.
+Write it the moment the verdict arrives, before the fix and not at session close. The scar is House's Proposed incident note, committed as written: its zones and keys are what make it findable later. Its body holds:
+- **How sure the cause is:** confirmed, likely or probable.
+- **Where it lives**, anchored by function or module name, never a line number.
+- **How to reproduce it.** This becomes the regression test. If it could not be reproduced, write those words and put the log evidence and conditions in their place.
+- **What it cost**, if known: hours, data, downtime. That number later decides the wall.
 
-The verdict brings what the note needs. Three things belong in the body and are lost otherwise:
-
-- **How sure the cause is.** Confirmed, likely, or probable. A probable cause written flat reads as fact six months later.
-- **Where it lives, anchored by name** — the function or the module, never a line number: the fix moves the lines minutes later.
-- **How to reproduce it.** This is what turns the scar into a regression test. **When it could not be reproduced, say so in those words** and put the log evidence and the conditions in its place — otherwise whoever writes that test is chasing something that cannot be written.
-
-**And what it cost**, if it is known: hours, data, downtime. That number is what decides the wall later, and by then nobody remembers it.
-
-**When there is no root cause there is no incident** — half of it would be invented. Say it plainly. But if the failure **does reproduce**, the work is not lost: leave it as an open question with the steps and the paths already ruled out, so the next attempt does not burn the same three hypotheses.
+With no root cause there is no incident; say so plainly. If the failure does reproduce, leave an open question with the steps and the paths already ruled out.
 
 ## 3. Fix it
 
-A branch and the pipeline as usual, sized by the same triage as any other work. The scar is already recorded, so from here it is ordinary work.
-
-**It does not become a plan by itself.** If the fix is long enough to deserve one, offer it — opening it is the user's call.
+Use a branch and the procedure Triage picks; an incident repair is never Trivial. House's severity and affected files feed that triage, and a T1 or a data or memory path goes to Full. The scar is already recorded, so this is ordinary work. Whatever the build mode, Dante first turns House's Reproduction into a failing test; then the fixer House's Fix to route names makes it pass. In Full, Plan writes the plan file without asking; if the repair will span sessions, offer its issue and record (`references/plan.md`).
 
 ## 4. Close it
 
@@ -62,20 +48,17 @@ gitmem remove <incident-ID> "<what was done>" --restriction new \
   --restriction-text "<the wall>" --why "<what it cost>"
 ```
 
-It leaves the live index and lands in the archive with its reason. **Closing and the wall are one act: either both happen or neither does** — a wall that cannot be written stops the close and tells you why.
+The incident leaves the live index and lands in the archive with its reason. Closing and the wall are one act: a wall that cannot be written stops the close and says why. The wall's criterion is the one memory uses everywhere (`unmassk-memory`). Answer the wall question yourself; ask the owner when what it cost is his to know.
 
-The wall's yardstick is the one memory uses everywhere. **You answer it; ask the user when what it cost is theirs to know** — you can see what broke, not what it was worth.
+Then close as any work does (`SKILL.md` Close): merge, delete the branch, close the plan's issue if one was opened. Alexandria's CHANGELOG entry for the fix cites the incident id.
 
-Then the ordinary closing of any work: merge the branch (its step commits stay; the merge commit lists them), delete it, and close the plan's issue if one was opened.
+A closed incident is history. If the same thing breaks again it is a new incident, including when the first fix was wrong.
 
-**A closed incident is history.** If the same thing breaks again it is a new incident, not a reopening — including when it means the first fix was wrong. That is information, not an error.
+## Stop signs
 
-## Red Flags — STOP
-
-- Recording a scar for something found while building. That is work, not an incident.
-- Fixing first and recording afterwards. Record at the verdict.
+- Recording a scar for something found while building.
+- Fixing first and recording afterwards.
 - Writing the note from your own reading, with no cause established.
-- A map that names a culprit.
-- A note with no reproduction steps and no explicit "could not be reproduced".
-- Closing without answering the wall question because "it was small".
+- A note with neither reproduction steps nor an explicit «could not be reproduced».
+- Closing without answering the wall question.
 - Anchoring the cause to a line number.

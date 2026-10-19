@@ -8,11 +8,16 @@ _render_plugin_sync_line() + hooks/session-start-boot.py's wiring of it —
 both retired outright with the rest of the v1 memory system. The BEHAVIOR
 this line protects did not go away: it moved to
 hooks/session-start-crew.py::_print_plugin_sync_check(), confirmed live by
-reading that function (prints exactly one of the same 3 outcome shapes:
-"no verificable (<ExceptionType>)", "no verificable (sin repo fuente junto
-a la cache)", "sincronizado (0 ficheros)", or "N ficheros desincronizados
-... -> publica version y actualiza desde /plugin > marketplace") and by running
-the real hook end to end below.
+reading that function. Inside the toolkit's own repo it prints exactly one
+of four outcome shapes:
+  "no verificable (<ExceptionType>)",
+  "no verificable (no hay plugin instalado distinto del repo)",
+  "sincronizado (0 ficheros)", or
+  "N ficheros desincronizados ... -> publica version y actualiza desde
+  /plugin > marketplace".
+Outside the toolkit repo (no unmassk-toolkit/ source tree) it prints no
+line at all (#104.2, pinned in
+test_crew_plugin_sync_line_absent_without_source.py).
 
 Unlike the old boot_render._render_plugin_sync_line(), the crew hook's
 version has no pure-function return value to call directly and assert on
@@ -23,9 +28,9 @@ against a real git repo, real files standing in for the repo/cache trees on
 both sides of the comparison (unmassk-standards §34 — no fabricated
 producer/consumer values).
 
-Principle protected (P6, per this project's spec): the sync state is NEVER
-silent. A real drift count, an explicit zero, or an explicit "not
-verifiable" — never nothing. TestZeroDriftIsExplicitNeverSilent below is
+Principle protected (P6, per this project's spec): inside the toolkit repo
+the sync state is never silent. A real drift count, an explicit zero, or
+an explicit "not verifiable" — never nothing. TestZeroDriftIsExplicitNeverSilent below is
 the one the owner most wants kept green: an in-sync repo must still print a
 visible "sincronizado (0 ficheros)" line, not omit the PLUGIN: line
 entirely.
@@ -121,18 +126,43 @@ class TestZeroDriftIsExplicitNeverSilent:
         assert "[crew] PLUGIN: sincronizado (0 ficheros)" in stdout, stdout
 
 
-class TestOrdinaryProjectIsNotVerifiable:
-    def test_ordinary_project_without_toolkit_source_is_not_verifiable(self, tmp_path):
-        """The most common real case: any project that is not the toolkit
-        repo itself. No unmassk-toolkit/ tree, no HOME override needed --
-        this is what the vast majority of session starts against this hook
-        look like, and it must never claim "sincronizado"."""
+# TestOrdinaryProjectIsNotVerifiable lived here: it pinned
+# "[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)" for a
+# project without the toolkit's source (and read the real machine's HOME).
+# Issue #104.2 reversed that contract -- that case now prints NO plugin line.
+# The new contract, with a throwaway HOME, is in
+# test_crew_plugin_sync_line_absent_without_source.py.
+
+
+
+class TestToolkitRepoWithoutInstalledPluginIsExplicitNeverSilent:
+    """Cerberus #104.2 F1: inside the toolkit repo, with NO installed plugin
+    cache (a fresh machine before installing), the line must still print --
+    an explicit "not verifiable", never silence. Catches a refactor that
+    reuses the `summary is None` branch to stay quiet."""
+
+    # Written here, not imported from production (owner's wording, #104.2).
+    EXPECTED = ("[crew] PLUGIN: no verificable "
+                "(no hay plugin instalado distinto del repo)")
+
+    def test_should_print_one_not_verifiable_line_when_source_present_and_no_cache(
+        self, tmp_path
+    ):
         repo = _make_repo(tmp_path)
+        home = tmp_path / "empty-home"
+        home.mkdir()
+        _plant_toolkit_tree(
+            pathlib.Path(repo) / "unmassk-toolkit", {"lib/mod.py": "x = 1\n"}
+        )
 
-        rc, stdout, stderr = run_script(CREW_HOOK, repo)
+        rc, stdout, stderr = run_script(CREW_HOOK, repo, env=_home_env(home))
+
         assert rc == 0, f"session-start-crew.py must exit 0. stderr={stderr!r}"
-
-        assert "[crew] PLUGIN: no verificable (sin repo fuente junto a la cache)" in stdout, stdout
+        plugin_lines = [
+            line for line in (stdout + stderr).splitlines()
+            if "[crew] PLUGIN:" in line
+        ]
+        assert plugin_lines == [self.EXPECTED], stdout + stderr
 
 
 if __name__ == "__main__":
