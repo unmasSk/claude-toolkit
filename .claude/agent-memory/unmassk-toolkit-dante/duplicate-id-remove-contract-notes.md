@@ -57,3 +57,18 @@ File: `test_hito3_round_trip.py`. Expected side = `indexes.read`/`read_archive` 
 - Scratch mutant copies need `git init` in the copy root: conftest resolves the real repo root via
   `git rev-parse --show-toplevel` and crashes on '' otherwise.
 - Bash `git commit` is blocked by the customs hook even in scratchpad; explore with a python script.
+
+## Fix pass after Moriarty (2026-10-19): twins on every reader
+
+Files: `hito3_twins_support.py` (make_twins), `test_hito3_fixpass_{remove,boot,search}_twins.py`,
+`test_hito3_fixpass_discard_combos.py` (26 RED, 8 green guards).
+
+- **Deterministic twin order:** pass `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` in the env of each seed
+  (run_gitmem_script adds env; gitcmd inherits it). Parametrize "archived twin newer/older": an
+  id-only bug then dies in one case every run (m08 killed 3/3), never by git-log tie luck.
+- **Twin bugs hide in every sibling reader:** boot (R, I and Q all), word marker, --chain,
+  clusters (D twins collapse), search --id with two live twins. Check each reader, not just one.
+- **Overlap rejection needs a real overlap:** `normalize_keys` drops keys that appear in the
+  headline, so use keys outside it (exact-key gate) to trigger it reliably.
+- **"One consistent state or refused" without branching:** assert `old_live != claimed_replaced`
+  and `(rc == 0) == written` -- both legal outcomes pass, the half state fails.

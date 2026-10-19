@@ -5,6 +5,23 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: #105 remove con id repetido y lectura por search/arranque (2026-10-19)
+FALLA (T1). Tras `remove <id> --commit`, el arranque oculta el gemelo vivo (filtra
+por id) y sigue diciendo "✓ no duplicate IDs"; un muro nacido de una incidencia
+repetida cae en las zonas del gemelo archivado; con el mismo titular en dos zonas,
+`--commit` retira la otra nota. T2: `--replaces <la propia incidencia>` deja la
+incidencia cerrada sin muro; `--chain` pinta "cerrada" la nota viva. Mutantes vivos:
+build_note sin elegir gemelo vivo, remove de lineas identicas.
+
+## claude-toolkit: #105 note --discard con --replaces/--promotes (2026-10-19)
+FALLA (T1). `--promotes Q --replaces D --discard` sale rc 0 y deja D viva mientras
+la nota nueva lleva "Replaces: D" (search: "vigente · replaced by"; rezones --verify
+coherente). Ya pasaba en la base sin --discard. T2: el Relanza del rechazo por
+solape tira --discard/--promotes/--keys; pegado, deja la Q abierta y sin descartes.
+T3: el mismo --discard dos veces escribe dos X iguales. 10/10 mutantes muertos.
+Incidente mio: un `cd` a un repo sin crear dejo un `git cherry-pick` vacio en el
+repo real (solo usage, nada tocado) -- usar `cd $R || exit 1` siempre.
+
 ## claude-toolkit: codigo del #89 (bloques gestionados, router, tabla de hooks, informe del arranque) (2026-10-19)
 DEBIL. Sin T1: 13 CLAUDE.md reales del propietario (copias) conservan su texto,
 el informe lista exactamente las issues abiertas con trabajo vivo (contrastado

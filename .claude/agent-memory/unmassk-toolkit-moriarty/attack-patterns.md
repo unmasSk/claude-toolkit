@@ -18,6 +18,39 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un arreglo de "estado por X en vez de por Y" solo llega a los lectores que miran los tests (2026-10-19)
+Cuando un escritor nuevo produce un estado que antes no existia (un id archivado
+con un gemelo vivo), el arreglo suele cambiar los lectores que el test de ida y
+vuelta lee (search) y deja en el criterio viejo a todos los demas (arranque, vista
+de cadena, marcador de palabra). Grepear cada llamador de la primitiva vieja y
+pasar el estado nuevo por cada lector: el arranque escondia el muro vivo y sus
+checks seguian en verde.
+
+### Emparejar dos listas por una clave no unica elige mal cuando la clave choca (2026-10-19)
+Si el codigo casa lineas de un indice con commits por titular, y los dos listados
+siguen ordenes distintos (orden de fichero tras un merge contra orden de git log),
+dos elementos con la misma clave se cruzan: `--commit <sha>` retira la otra nota.
+Probar siempre la colision de la clave de emparejamiento con ordenes invertidos.
+
+### El chequeo previo y la escritura resuelven el objetivo por caminos distintos (2026-10-19)
+Si la guardia lee "la nota con este id" por el commit mas nuevo y la escritura
+actua sobre la linea viva, con un id repetido miran notas distintas: el muro nace
+en las zonas del gemelo ya archivado. Comparar como resuelve el objetivo cada paso.
+
+### Dos flags que "ganan" uno sobre otro: el perdedor se persiste igual (2026-10-19)
+Cuando el codigo elige una rama por precedencia (`if promotes: ... elif replaces: ...`)
+pero el valor del flag perdedor ya vive dentro del registro que se escribe, el
+registro afirma un efecto que nunca ocurrio: la nota nueva dice "Replaces: D-001",
+el buscador la pinta "vigente · replaced by D-002", y D-001 sigue viva. Probar
+siempre los flags combinados que el contrato da por sueltos, y leer el estado por
+el indice Y por el cuerpo del commit: el verificador de coherencia solo mira uno.
+
+### La plantilla "Relanza" de un rechazo se reconstruye desde el modelo, no desde argv (2026-10-19)
+Un rechazo que arma su comando desde los campos del registro pierde todo flag que
+no es campo (`--discard`, `--promotes`, `--keys`). Pegar ese comando tal cual da
+exito (rc 0) y deja la pregunta sin ascender y los descartes sin escribir. Ataque:
+provocar cada rechazo con TODOS los flags puestos y diffear argv contra el Relanza.
+
 ### Un router por frases: reproduce las ordenes REALES del propietario desde ~/.claude/history.jsonl (2026-10-19)
 `history.jsonl` guarda lo que el propietario tecleo (`display`, con
 `[Pasted text #N]` en lugar de lo pegado, y `pastedContents` aparte). Filtrar

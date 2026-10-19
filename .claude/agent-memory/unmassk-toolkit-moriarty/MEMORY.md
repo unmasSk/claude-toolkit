@@ -1,6 +1,6 @@
 # Moriarty — Memory Index
 
-- [round-history.md](round-history.md) — chronological log of every attack round, newest first. Latest: #89 code (2026-10-19), DÉBIL: generator and boot report held; 4 surviving mutants.
+- [round-history.md](round-history.md) — chronological log of every attack round, newest first. Latest: #105 remove/search (2026-10-19), FALLA: boot hides the live twin of an archived id.
 - [attack-patterns.md](attack-patterns.md) — reusable attack techniques that worked, organized by mechanism. Split into "sistema actual" (verified against today's code, with `[CERRADO ...]` notes where a past finding is now fixed) and "retirado" (v1 memory system, condensed to the transferable lesson only — files no longer exist).
 - [resilience.md](resilience.md) — what held under real attack and why, same "sistema actual"/"retirado" split — read the current section before re-attacking something already proven solid, to avoid repeating a closed round.
 

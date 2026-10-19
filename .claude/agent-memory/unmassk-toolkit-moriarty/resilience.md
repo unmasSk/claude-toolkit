@@ -8,6 +8,14 @@ recordado), sistema v1 retirado al final (borrado entero en `615f5cc`,
 El detalle completo de la era retirada sigue en `round-history.md` y
 `docs/deprecated/`.
 
+## gitmem remove con id repetido (#105, 2026-10-19) — lo que aguantó
+- `--commit`: prefijo de 3, sha de otra nota, sha en id no repetido, sha en
+  mayusculas, mismo `--commit` dos veces: todo rechaza o acierta sin tocar nada.
+- Dos `remove` a la vez (gemelos distintos, o la misma nota): el candado serializa;
+  solo el recuento "notas archivadas" se lee fuera del candado y cuenta de mas.
+- Relanza del rechazo con motivo hostil al shell (comilla, backtick, `$HOME`):
+  pegado tal cual archiva con el motivo exacto.
+
 ## unmassk-trading (plugin nuevo, 2026-08-27) — lo que aguantó
 
 ### price_check.py — no encontré nada, y lo intenté por 5 vías
@@ -25,6 +33,14 @@ El detalle completo de la era retirada sigue en `round-history.md` y
 - Estrés: 20.000 candidatos (7,7 MB) en 0,35 s; YAML anidado 5.000 niveles -> `Error: maximum recursion depth exceeded`, salida 1, sin traza. 645 tests en verde sin dejar ficheros sueltos.
 
 ## Sistema actual — memoria v2 (`lib/memory/*`, `hooks/customs.py`, `hooks/checklist-gate.py`, `hooks/skill-checklist-inject.py`, `bin/memory/*`)
+
+### note --discard con --replaces o --promotes por separado (#105, 2026-10-19)
+Aguanto: descartes validados antes de escribir nada (con 114 KB en un porque y
+59 descartes), id inexistente/archivado/duplicado en --replaces (nada escrito,
+rc 1), fallo de git a mitad de los descartes (indice sin linea huerfana, aviso
+de lo guardado), relanzar el comando entero tras ese fallo (no escribe dos veces),
+carreras de dos replace/promote sobre la misma nota y tres decisiones en paralelo
+(Origin correcto). 10 mutantes, 10 muertos. Lo que rompe: los dos flags JUNTOS.
 
 ### Generador de bloques e informe del arranque tras el #89 (2026-10-19)
 El borrado de bloques legados conserva el texto del propietario en 13
