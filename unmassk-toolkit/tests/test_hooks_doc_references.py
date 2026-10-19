@@ -129,13 +129,18 @@ class TestCheckReadsReferencesHooks:
         rc_w, out_w, err_w = _sync(root, "--write")
         assert rc_w == 0, (rc_w, out_w, err_w)
         hooks_json = root / "hooks" / "hooks.json"
+        before = {name for _, name in _declared_hooks(str(hooks_json))}
         data = json.loads(hooks_json.read_text(encoding="utf-8"))
         del data["hooks"]["Notification"]
         hooks_json.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # Expected names come from this run's own edit, never typed by hand.
+        dropped = before - {name for _, name in _declared_hooks(str(hooks_json))}
+        assert dropped, "the deleted group must drop at least one hook file"
         rc, out, err = _sync(root)
         assert rc == 1, (rc, out, err)
         assert out.startswith("error:"), out
-        assert "owner-cue.py" in out, out
+        for name in dropped:
+            assert name in out, (name, out)
 
     def test_should_not_report_ok_when_references_hooks_md_is_absent(self, tmp_path):
         # Bug caught: a missing table reported as a clean bill. SKILL.md here

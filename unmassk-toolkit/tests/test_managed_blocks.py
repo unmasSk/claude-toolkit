@@ -9,13 +9,13 @@ Covers:
 - Missing block is appended at end
 - Block order is preserved
 - Legacy blocks (including the retired caveman block) are removed
-- session-start-crew.py writes all 4 blocks
-- Uninstall removes all 4 blocks
+- session-start-crew.py writes every block
 - any_block_outdated / all_blocks_present helpers
 """
 
 import json
 import os
+import re
 import sys
 
 import pytest
@@ -342,7 +342,7 @@ class TestUpsertManagedBlocks:
         assert any("removed" in entry and "caveman" in entry for entry in log)
 
     def test_missing_all_blocks_all_appended(self):
-        """Content with no blocks gets all 4 appended."""
+        """Content with no blocks gets every block appended."""
         user = "# Project\n\nSome docs.\n"
         content, log = upsert_managed_blocks(user)
         assert all_blocks_present(content)
@@ -384,11 +384,11 @@ class TestHelpers:
         assert any_block_outdated(trimmed) is True
 
 
-# ── Integration tests: install writes 4 blocks ───────────────────────────
+# ── Integration tests: install writes every block ───────────────────────────
 
-class TestInstallFourBlocks:
-    def test_install_creates_all_four_blocks(self, tmp_path):
-        """After install, CLAUDE.md contains all 4 managed blocks."""
+class TestInstallAllBlocks:
+    def test_install_creates_all_blocks(self, tmp_path):
+        """After install, CLAUDE.md contains every managed block."""
         repo = _make_repo(tmp_path)
         rc, _, _ = run_script(INSTALL, repo, ["--auto"])
         assert rc == 0
@@ -398,7 +398,7 @@ class TestInstallFourBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "Install must write all 4 managed blocks to CLAUDE.md"
+            "Install must write every managed block to CLAUDE.md"
         )
 
     def test_install_block_content_is_correct(self, tmp_path):
@@ -460,15 +460,15 @@ class TestInstallFourBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "After install over partial CLAUDE.md, all 4 blocks must be present"
+            "After install over partial CLAUDE.md, every block must be present"
         )
 
 
 # ── Integration tests: session-start-crew hook ───────────────────────────
 
-class TestCrewHookFourBlocks:
-    def test_crew_hook_creates_all_four_blocks(self, tmp_path):
-        """session-start-crew.py writes all 4 blocks when CLAUDE.md is absent."""
+class TestCrewHookAllBlocks:
+    def test_crew_hook_creates_all_blocks(self, tmp_path):
+        """session-start-crew.py writes every block when CLAUDE.md is absent."""
         repo = _make_repo(tmp_path)
         rc, stdout, stderr = run_cmd([sys.executable, CREW_HOOK], cwd=repo)
         assert rc == 0, f"crew hook failed: {stderr}"
@@ -480,7 +480,7 @@ class TestCrewHookFourBlocks:
             content = f.read()
 
         assert all_blocks_present(content), (
-            "crew hook must write all 4 managed blocks"
+            "crew hook must write every managed block"
         )
 
     def test_crew_hook_updates_outdated_block(self, tmp_path):
@@ -529,7 +529,7 @@ class TestCrewHookFourBlocks:
         assert "Not a git repo" in stdout
 
 
-# ── Integration tests: uninstall removes all 4 blocks ────────────────────
+# ── Integration tests: uninstall removes every block ────────────────────
 #
 # Retirement note (2026-08-02): both tests that lived in this section are
 # gone now. test_uninstall_removes_all_four_blocks was removed first
@@ -552,8 +552,6 @@ class TestCrewHookFourBlocks:
 # file-based boot step stay; the protocols menu is one line per situation;
 # the progress-line rule leaves communication (it lives in core, rule 1);
 # build-mode is retired as a legacy block (unmassk-flow carries it).
-
-import re  # noqa: E402
 
 _SKILL_RE = re.compile(r"`(unmassk-[a-z-]+)`")
 
@@ -724,3 +722,89 @@ class TestBuildModeRetired:
         run_cmd([sys.executable, CREW_HOOK], cwd=repo)
         with open(claude_md, encoding="utf-8") as f:
             assert f.read() == first
+
+
+# ── #89 fix pass (Argus SEC-LOW-001): retiring a block is local and lossless ──
+#
+# Retiring build-mode fires once in every project. The cut must touch only
+# the block: the owner's own blank-line runs elsewhere stay byte for byte,
+# and text the owner hand-wrote inside the retired block is logged verbatim,
+# like the update path does for an active block (DEUDA #15).
+
+# Owner text with runs of 3+ newlines outside any block (a fenced snippet
+# and a spaced paragraph), written here by hand.
+_OWNER_SPACED_TEXT = (
+    "# Mine\n\n\n\nSpaced paragraph.\n\n\n\n"
+    "```\nline a\n\n\n\nline b\n```\n"
+)
+
+_OWNER_EDIT_LINE = "Owner note: in this repo, Moriarty always runs on payments."
+
+_EDITED_BUILD_MODE_BLOCK = _OLD_BUILD_MODE_BLOCK.replace(
+    "<!-- END unmassk-build-mode -->",
+    _OWNER_EDIT_LINE + "\n<!-- END unmassk-build-mode -->",
+)
+
+
+def _current_blocks_text():
+    return "\n\n".join(_rendered(b) for b in BLOCKS)
+
+
+class TestBuildModeRetirementIsLocalAndLossless:
+    def test_should_keep_owner_blank_line_runs_elsewhere_when_retiring(self):
+        # Bug caught: the post-removal collapse runs over the whole file and
+        # squeezes the owner's own 3+ newline runs (inside a code fence too).
+        old = (
+            _OWNER_SPACED_TEXT + "\n" + _current_blocks_text()
+            + "\n\n" + _OLD_BUILD_MODE_BLOCK + "\n"
+        )
+        content, _ = upsert_managed_blocks(old)
+        assert "unmassk-build-mode" not in content
+        assert _OWNER_SPACED_TEXT in content, repr(content)
+
+    def test_should_keep_owner_blank_line_runs_below_the_retired_block(self):
+        # Bug caught: same collapse, on owner text that sits after the cut.
+        old = (
+            _current_blocks_text() + "\n\n" + _OLD_BUILD_MODE_BLOCK
+            + "\n\n" + _OWNER_SPACED_TEXT
+        )
+        content, _ = upsert_managed_blocks(old)
+        assert "unmassk-build-mode" not in content
+        assert _OWNER_SPACED_TEXT in content, repr(content)
+
+    def test_should_log_owner_text_inside_retired_block_verbatim(self):
+        # Bug caught: hand-written text between the retired markers is
+        # deleted and the log only says "removed", so it is unrecoverable.
+        old = (
+            "# My Project\n\n" + _current_blocks_text()
+            + "\n\n" + _EDITED_BUILD_MODE_BLOCK + "\n"
+        )
+        content, log = upsert_managed_blocks(old)
+        assert _OWNER_EDIT_LINE not in content
+        removal = [e for e in log if "build-mode" in e]
+        assert any(_OWNER_EDIT_LINE in e for e in removal), log
+
+    def _run_crew_over_edited_spaced_file(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        claude_md = os.path.join(repo, "CLAUDE.md")
+        with open(claude_md, "w", encoding="utf-8") as f:
+            f.write(
+                _OWNER_SPACED_TEXT + "\n" + _current_blocks_text()
+                + "\n\n" + _EDITED_BUILD_MODE_BLOCK + "\n"
+            )
+        rc, stdout, stderr = run_cmd([sys.executable, CREW_HOOK], cwd=repo)
+        assert rc == 0, stderr
+        with open(claude_md, encoding="utf-8") as f:
+            return f.read(), stdout
+
+    def test_crew_hook_should_keep_owner_spacing_when_retiring(self, tmp_path):
+        """User's door: the every-start hook over a spaced CLAUDE.md."""
+        after, _ = self._run_crew_over_edited_spaced_file(tmp_path)
+        assert "unmassk-build-mode" not in after
+        assert _OWNER_SPACED_TEXT in after, repr(after)
+
+    def test_crew_hook_should_print_owner_edit_from_retired_block(self, tmp_path):
+        """User's door: the owner's hand edit is in the hook's output."""
+        after, stdout = self._run_crew_over_edited_spaced_file(tmp_path)
+        assert _OWNER_EDIT_LINE not in after
+        assert _OWNER_EDIT_LINE in stdout, stdout

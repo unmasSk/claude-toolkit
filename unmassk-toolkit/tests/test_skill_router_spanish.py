@@ -337,7 +337,13 @@ class TestHookEmitsSpanishRoutingAndReminders:
 # reference loaded on demand (D-094: nothing leaves without a pointer). The
 # reminder must name that file, and the file it names must exist.
 
-AUTOMATIC_MODE_REF = "unmassk-toolkit/skills/unmassk-core/references/automatic-mode.md"
+# Named by skill, not by a repo path: the plugin is installed under the
+# plugin cache, so "unmassk-toolkit/skills/..." exists only in claude-toolkit
+# (Cerberus F1). The skill name plus the path inside the skill resolves from
+# the skill's own base directory in every project.
+AUTOMATIC_MODE_SKILL = "unmassk-core"
+AUTOMATIC_MODE_REF = "references/automatic-mode.md"
+REPO_ONLY_PREFIX = "unmassk-toolkit/skills/"
 
 
 class TestAutomaticoPointsToReference:
@@ -349,7 +355,14 @@ class TestAutomaticoPointsToReference:
 
     def test_should_name_the_automatic_mode_reference_when_automatico_fires(self):
         # Bug caught: the reminder still sends Claude to the old core section.
-        assert AUTOMATIC_MODE_REF in self._text()
+        text = self._text()
+        assert AUTOMATIC_MODE_REF in text, text
+        assert AUTOMATIC_MODE_SKILL in text, text
+
+    def test_should_not_name_a_repo_only_path_when_automatico_fires(self):
+        # Bug caught: the pointer only opens inside claude-toolkit; in any
+        # other project the first Read fails.
+        assert REPO_ONLY_PREFIX not in self._text()
 
     def test_should_no_longer_point_to_core_section_when_automatico_fires(self):
         # Bug caught: two pointers, one to a section that no longer exists.
@@ -357,8 +370,8 @@ class TestAutomaticoPointsToReference:
 
     def test_named_reference_exists_in_the_shipped_plugin(self):
         # Bug caught: a pointer to a file nobody created.
-        rel = AUTOMATIC_MODE_REF.split("/", 1)[1]
-        assert os.path.isfile(os.path.join(SOURCE_ROOT, rel)), rel
+        path = os.path.join(SOURCE_ROOT, "skills", AUTOMATIC_MODE_SKILL, AUTOMATIC_MODE_REF)
+        assert os.path.isfile(path), path
 
     def test_hook_orden_line_carries_the_reference_for_owner_prompt(self, tmp_path):
         # Same through the user's door: the [orden] line the owner's own
@@ -367,7 +380,11 @@ class TestAutomaticoPointsToReference:
         rc, stdout, stderr = _run_hook(repo, "ponte en modo automático, me voy a dormir")
         assert rc == 0, (rc, stdout, stderr)
         orden = [l for l in stdout.splitlines() if l.startswith(REMINDER_MARKER)]
-        assert any(AUTOMATIC_MODE_REF in l for l in orden), stdout
+        assert any(
+            AUTOMATIC_MODE_REF in l and AUTOMATIC_MODE_SKILL in l
+            and REPO_ONLY_PREFIX not in l
+            for l in orden
+        ), stdout
 
 
 # ══════════════════════════════════════════════════════════════════════════
