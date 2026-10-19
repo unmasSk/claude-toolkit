@@ -80,3 +80,4 @@
 2026-10-19  [D-141][hooks][skills] 🧭 checklist gate stays quiet while background work runs (Stop background_tasks)  →  closed: replaced by D-142; R.13 (--replaces ignored with --discard) left it live
 2026-10-19  [D-123][skills][testing] 🧭 Dante enters once: tests first, then only the fix passes; no hardening pass  →  closed: replaced by D-125; R.13 (--replaces ignored with --discard) left it live
 2026-10-19  [D-147][memory][architecture] 🧭 a duplicated note id is an error to fix, not a state every reader supports  →  replaced by D-148
+2026-10-19  [I-008][memory][architecture] 🔥 gitmem remove archived every note sharing a duplicated ID, silently  →  closed: fixed in #105: remove refuses a repeated id and --commit picks one; boot alarms live repeats
