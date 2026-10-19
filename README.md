@@ -42,7 +42,7 @@ None of these shipped as bugs users hit. They shipped as regression tests, the d
 
 **Nine agents, one job each, and they don't take each other's word for it.** Bilbo explores, Ultron implements, Dante tests, Cerberus and Argus review code quality and security in parallel, then Moriarty attacks whatever they let through — that order never gets shortened. It's not a formality: Moriarty has caught four real problems the first two reviewers already approved, including a silent loss of saved memory while every test stayed green, and a session start that fed one project's plan into a different one. House diagnoses when something breaks anyway, Yoda gives the final verdict, Alexandria documents what's real.
 
-**Two structured pipelines instead of improvisation.** An 8-step build pipeline (triage → brainstorm → research → plan → execute → verify → document → close) for features and fixes. A 14-step enterprise audit with a weighted /110 score for reviewing existing code — same crew, adversarial validation included, nothing self-graded.
+**Two structured pipelines instead of improvisation.** An eight-part build flow (Triage → Ideas → Research → Plan → Build → Review → Document → Close, in a Trivial, Short or Full lane) for features and fixes. A 14-step enterprise audit with a weighted /110 score for reviewing existing code — same crew, adversarial validation included, nothing self-graded.
 
 **Quality rules that assume the code will try to lie to you.** Tiered findings, producer↔consumer round-trip checks (a fix isn't verified until it's proven against the real data on both ends, not a fixture someone guessed at), and a fail-loud rule: a silent failure ranks worse than a loud one, every time.
 
