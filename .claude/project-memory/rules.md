@@ -27,7 +27,6 @@
 [remember][user] 🧠 plan de ejecucion escrito solo en el procedimiento Completo; la issue con lista solo cuando el trabajo cruza sesiones; el Corto no lleva plan — «uno corto lleva plan? no creo es corto es por ejemplo crea unos gtest»
 [remember][user] 🧠 every mark in a plan says the current state: once a thing is done or a failure is fixed, its yellow or X mark becomes a tick in the same act; no stale marks — «es un fallo dejar las marcas que ya no significan nada»
 [remember][user] 🧠 checking or comparing documents (skills, cards, plans, drafts) goes to Alexandria, on the strongest model, never to Bilbo — «prefiero que lo compruebe otro que no sea bilbo alguien mas listo, es tema de documentos deberia ser alex»
-[remember][user] 🧠 - Do not announce an action before doing it. Do it, then give the result.
 [remember][user] 🧠 - Put ✅ before a sentence addressed to Bex. Put no tick on agent or status lines.
 [remember][user] 🧠 - Judge a reviewer's findings yourself before acting on them, Yoda's included.
 [remember][user] 🧠 - Know the owner as Jose, alias Bex: git handle bextia, email jatomillo@gmail.com. He is not Raul.
@@ -38,3 +37,4 @@
 [remember][user] 🧠 - Write cards, skills and prompts in English. When you change one, show Bex the diff. — «si en ingles como siempre, pero a mi me los das en castellano, pero siobretodo lo que necesito es el diff ver en que ha cambiado eso es lo que mas necesito»
 [remember][user] 🧠 - When Bex says the context is at 80-90 %, finish the work in progress. Leave the session open. — «No, el que te avisa del 80-90% del contexto soy yo. Tú no puedes mirar el contexto.»
 [remember][user] 🧠 Build only what is on the roadmap. Add to the roadmap only what Bex signs. Note a mid-task idea as a candidate at the end of the report. Do not start it.
+[remember][user] 🧠 Do not announce an action before doing it. Do it, then give the result.
