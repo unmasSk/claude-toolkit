@@ -112,3 +112,4 @@
 [D-143][memory][skills] a redo close covers the whole session: skip this session's own earlier close
 [D-144][memory][skills] close extractor reads every transcript since the last close, not only newest
 [D-145][memory][testing] gitmem remove refuses a duplicated id; --commit picks one note
+[D-146][hooks][skills] checklist gate also reads the desktop app's task list (R.1)
