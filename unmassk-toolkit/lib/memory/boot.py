@@ -266,15 +266,9 @@ def _next_block(ctx: ContextNote | None) -> list[str]:
         f"{_NEXT_LABEL}{emojis.CHANNEL_EMOJI['next']} {ctx.headline}",
         f"{_NEXT_INDENT}Context (cerrado {timefmt.utc_label(ctx.timestamp)}):",
     ]
-    # Prosa corrida, no una lista de puntos [decision del propietario,
-    # 2026-08-03]. Se pliega al ancho de la caja: son unas cincuenta
-    # lineas de texto y sin plegar salen como un parrafo unico que se
-    # desborda por la derecha -- ilegible justo en lo que mas importa
-    # leer del arranque.
-    #
-    # La lista de commits que el cierre deja al final del cuerpo NO se
-    # pliega: cada linea es un titular con su tipo y sus zonas delante, y
-    # partirla por la mitad rompe la unica columna que la hace ojeable.
+    # Prosa corrida plegada al ancho de la caja (unas veinticinco lineas).
+    # Los Next anteriores al #89 terminan con la lista de commits: esas
+    # lineas no se pliegan, para que sigan siendo una columna ojeable.
     for paragraph in ctx.context.split("\n"):
         if not paragraph.strip():
             lines.append("")
@@ -325,6 +319,13 @@ def _recuentos_block(summary: BootSummary) -> list[str]:
         lines.append(
             "   ⚠️  GitHub could not be asked: open/closed below is NOT checked"
         )
+    listed_numbers = {note.issue for note in summary.issues}
+    unchecked = [n for n in report.issues_unanswered if n in listed_numbers]
+    if unchecked:
+        lines.append(
+            f"   ⚠️  GitHub did not return {_issue_refs(unchecked)}: "
+            "its open/closed below is NOT checked"
+        )
     lines.append(f"   open issues with live work .  {summary.open_issues}")
     titles = {n: title for n, _state, title in report.issue_states}
     listed = set()
@@ -340,6 +341,10 @@ def _recuentos_block(summary: BootSummary) -> list[str]:
     lines.extend(_named_block("❓ OPEN QUESTIONS", summary.questions))
     lines.extend(_named_block("🔥 OPEN INCIDENTS", summary.incidents))
     return lines
+
+
+def _issue_refs(numbers) -> str:
+    return ", ".join(f"#{n}" for n in numbers)
 
 
 def _named_block(title: str, notes_seen) -> list[str]:
@@ -407,6 +412,11 @@ def _avisos_block(summary: BootSummary) -> list[str]:
             f"{report.plans_unreflected_error}"
         )
     else:
+        if report.issues_unanswered:
+            lines.append(
+                f"   ⚠️  GitHub no devolvio {_issue_refs(report.issues_unanswered)} "
+                "(citadas en commits): sus planes no se comprobaron"
+            )
         for issue_number, unreflected in report.plans_unreflected:
             plural = "" if unreflected == 1 else "s"
             lines.append(

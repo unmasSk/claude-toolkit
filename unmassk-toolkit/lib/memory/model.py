@@ -279,6 +279,8 @@ class HealthReport:
     memory_setup_missing: tuple[str, ...] = ()
     # (numero, state, title) de cada issue citada, de la misma consulta a gh
     issue_states: tuple[tuple[int, str, str], ...] = ()
+    # issues citadas que esa consulta no devolvio (borrada, transferida, PR)
+    issues_unanswered: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

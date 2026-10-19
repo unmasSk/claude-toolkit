@@ -180,15 +180,15 @@ def _gh_graphql(issue_numbers: list[int]) -> tuple[int, str, str]:
 
 def _last_activity_by_issue(
     issue_numbers: list[int],
-) -> tuple[dict[int, datetime], dict[int, tuple[str, str]]]:
+) -> tuple[dict[int, datetime], dict[int, tuple[str, str]], tuple[int, ...]]:
     """La fecha de la ultima actividad real de cada issue citada (su
-    ultimo comentario, o su fecha de creacion si no tiene ninguno), y su
-    `(state, title)` de la misma respuesta.
+    ultimo comentario, o su fecha de creacion si no tiene ninguno), su
+    `(state, title)` de la misma respuesta, y los numeros citados que no
+    vuelven (borrada, transferida, un numero que es una PR).
 
-    Nunca inventa un resultado: un fallo de `gh`, una respuesta con forma
-    inesperada, o una issue citada que no vuelve (borrada, transferida,
-    un numero que es una PR) lanza `RuntimeError`. Darla por "reflejada"
-    ocultaria un commit sin reflejar de verdad.
+    Nunca inventa un resultado: un fallo de `gh` o una respuesta con forma
+    inesperada lanza `RuntimeError`; un numero que no vuelve no se da por
+    "reflejado", se devuelve aparte para que el arranque lo nombre.
     """
     returncode, stdout, stderr = _gh_graphql(issue_numbers)
     try:
@@ -216,16 +216,8 @@ def _last_activity_by_issue(
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise RuntimeError(f"respuesta de 'gh api graphql' con forma inesperada: {exc}") from exc
 
-    missing = [n for n in issue_numbers if n not in activity]
-    if missing:
-        cause = stderr.strip()
-        raise RuntimeError(
-            "gh no devolvio "
-            + ", ".join(f"#{n}" for n in missing)
-            + " (citadas en commits)"
-            + (f": {cause}" if cause else "")
-        )
-    return activity, states
+    missing = tuple(n for n in issue_numbers if n not in activity)
+    return activity, states, missing
 
 
 def plans_unreflected() -> tuple[tuple[int, int], ...]:
@@ -244,23 +236,26 @@ def plans_unreflected() -> tuple[tuple[int, int], ...]:
 
 
 def issues_checked() -> tuple[
-    tuple[tuple[int, int], ...], tuple[tuple[int, str, str], ...]
+    tuple[tuple[int, int], ...], tuple[tuple[int, str, str], ...], tuple[int, ...]
 ]:
-    """`plans_unreflected()` mas el `(numero, state, title)` de cada issue
-    citada, sacados de la MISMA consulta a GitHub (R-025: una sola
-    llamada por arranque). Falla en alto igual que `plans_unreflected()`.
+    """`plans_unreflected()`, el `(numero, state, title)` de cada issue
+    citada y los numeros citados que GitHub no devolvio, sacados de la
+    MISMA consulta (R-025: una sola llamada por arranque). Falla en alto
+    igual que `plans_unreflected()`.
     """
     by_issue = _issue_commit_dates()
     if not by_issue:
-        return (), ()
+        return (), (), ()
 
     issue_numbers = sorted(by_issue)
-    last_activity_by_issue, states = _last_activity_by_issue(issue_numbers)
+    last_activity_by_issue, states, missing = _last_activity_by_issue(issue_numbers)
     results = []
     for issue_number in issue_numbers:
+        if issue_number in missing:
+            continue
         last_activity = last_activity_by_issue[issue_number]
         unreflected = sum(1 for date in by_issue[issue_number] if date > last_activity)
         if unreflected:
             results.append((issue_number, unreflected))
-    issue_states = tuple((n, *states[n]) for n in issue_numbers)
-    return tuple(results), issue_states
+    issue_states = tuple((n, *states[n]) for n in issue_numbers if n in states)
+    return tuple(results), issue_states, missing

@@ -391,10 +391,10 @@ def build() -> HealthReport:
         rule_head_lines, rule_file_lines, rule_discrepancies = 0, 0, ()
         rule_discrepancies_error = str(exc)
     try:
-        unreflected, issue_states = issues_checked()
+        unreflected, issue_states, issues_unanswered = issues_checked()
         unreflected_error = None
     except RuntimeError as exc:
-        unreflected, issue_states = (), ()
+        unreflected, issue_states, issues_unanswered = (), (), ()
         unreflected_error = str(exc)
 
     archived_notes = len(indexes.archived_ids(notes.pm_root(root)))
@@ -410,6 +410,7 @@ def build() -> HealthReport:
         plans_unreflected=unreflected,
         plans_unreflected_error=unreflected_error,
         issue_states=issue_states,
+        issues_unanswered=issues_unanswered,
         archived_notes=archived_notes,
         legacy_commits_suspected=legacy_commits_suspected,
         memory_setup_missing=memory_setup_missing,
