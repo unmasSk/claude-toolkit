@@ -133,3 +133,4 @@
 [M-154][hooks][skills] checklist gate reads no transcript; run_in_background is not a signal
 [M-155][memory][skills] close extractor dead-ends: not transcript choice, not isMeta, not git parsing
 [M-156][boot][docs] boot-read rules live in four sources; CLAUDE.md own part is split in two
+[M-157][memory][hooks] Hito 3 dead-ends: gate path, lifecycle machine bug, notes.replace
