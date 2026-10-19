@@ -11,8 +11,9 @@ import sys
 import pytest
 
 from conftest import run_cmd
-from test_session_transcript import (
-    SCRIPT, _base, commit, human, make_repo, run, ts, write_transcript,
+from session_transcript_harness import SCRIPT, commit, make_repo, run
+from session_transcript_records_helpers import (
+    base_record as _base, human, ts, write_transcript,
 )
 
 NOT_THE_OWNER = "TEXTO-QUE-NO-ESCRIBIO-EL-DUENO"

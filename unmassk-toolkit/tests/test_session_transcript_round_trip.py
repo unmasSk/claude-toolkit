@@ -20,6 +20,7 @@ SCRIPT = os.path.join(
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures",
                        "session_transcript_real_records.jsonl")
 COMMAND_ARGS = re.compile(r"<command-args>(.*)</command-args>", re.DOTALL)
+COMMAND_NAME = re.compile(r"<command-name>(.*?)</command-name>", re.DOTALL)
 INJECTED_BLOCK = re.compile(r"<system-reminder>.*</system-reminder>", re.DOTALL)
 
 
@@ -34,13 +35,20 @@ def _owner_texts(records):
     for record in records:
         if record.get("type") == "user" and (record.get("origin") or {}).get("kind") == "human":
             content = record["message"]["content"]
-            args = COMMAND_ARGS.search(content)
-            out.append((record["timestamp"], args.group(1) if args else content))
+            out.append((record["timestamp"], _typed(content)))
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "queued_command" \
                 and (attachment.get("origin") or {}).get("kind") == "human":
             out.append((record["timestamp"], _prompt_text(attachment["prompt"])))
     return out
+
+
+def _typed(content):
+    """A slash command as the owner typed it, `/name args`; any other text as is."""
+    args, name = COMMAND_ARGS.search(content), COMMAND_NAME.search(content)
+    if not args:
+        return content
+    return " ".join(part for part in (name.group(1), args.group(1)) if part)
 
 
 def _prompt_text(prompt):
