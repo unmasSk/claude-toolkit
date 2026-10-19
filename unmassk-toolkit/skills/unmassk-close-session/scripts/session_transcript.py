@@ -64,7 +64,6 @@ _INJECTED = (
     "local-command-stderr",
     "command-name",
     "command-message",
-    "command-args",
     "user-prompt-submit-hook",
     "bash-input",
     "bash-stdout",
@@ -76,6 +75,9 @@ _INLINE_TAGS = re.compile(
     r"<(" + "|".join(_INJECTED) + r")\b.*?</\1>",
     re.DOTALL,
 )
+
+# The arguments of a slash command are what the owner typed: only the tags go.
+_COMMAND_ARGS_TAGS = re.compile(r"</?command-args>")
 
 
 # git says this, and only this, when a repository has no commits yet.
@@ -208,10 +210,13 @@ def _from_git_seconds(raw):
     return datetime.fromtimestamp(int(raw), tz=timezone.utc)
 
 
-def _last_close(repo):
+def _last_close(repo, session_start=None):
     """The boundary of "this session" is the last close, because git has
     no idea what a session is and that mark is the only thing a close
     leaves behind. Returns (sha, iso_utc, subject) or three Nones.
+
+    A close written at or after `session_start` is this session's own
+    earlier close and is skipped: a redo covers the whole session (D-143).
 
     The match is on the SUBJECT and nowhere else. Asking git to search
     would also search the body, so a note that merely *mentions* the
@@ -232,18 +237,29 @@ def _last_close(repo):
         sha, raw_epoch, subject = line.split("\0")
         if not subject.startswith(_NEXT_MARK):
             continue
-        stamp = _from_git_seconds(raw_epoch)
-        return sha, stamp.strftime("%Y-%m-%dT%H:%M:%S"), subject
+        stamp = _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S")
+        if session_start and stamp >= session_start:
+            continue
+        return sha, stamp, subject
     return None, None, None
 
 
-def _commits(repo, since_sha):
+def _commits(repo, since_sha, since_iso=None):
     """The first line of every commit since the boundary, oldest first.
 
+    With `since_iso` (from --since) the window is that time, not the sha.
     No filtering by kind on purpose: a checkpoint, saved code and a note
     all count. If checkpoints were squashed, git only has the squash and
     that is what shows up -- which is the right answer, not a loss.
     """
+    if since_iso:
+        out = _git_log(["--format=%at%x00%s", "--reverse", "HEAD"], repo)
+        rows = (line.partition("\0") for line in out.split("\n") if "\0" in line)
+        return [
+            subject
+            for raw_epoch, _, subject in rows
+            if _from_git_seconds(raw_epoch).strftime("%Y-%m-%dT%H:%M:%S") >= since_iso
+        ]
     out = _git_log(
         ["--format=%s", "--reverse", f"{since_sha}..HEAD" if since_sha else "HEAD"],
         repo,
@@ -273,10 +289,44 @@ def _said(entry):
         # whole [Moriarty, 2026-08-05]. Injected entries are already
         # caught upstream by their own flag; leaking a stray tag is noise
         # a reader can see, while deleting a message is loss nobody can.
-        text = _INLINE_TAGS.sub("", chunk.get("text") or "").strip()
+        text = _clean(chunk.get("text") or "")
         if text:
             out.append(text)
     return out
+
+
+def _clean(text):
+    return _COMMAND_ARGS_TAGS.sub("", _INLINE_TAGS.sub("", text)).strip()
+
+
+def _typed_mid_turn(entry):
+    """The owner's message typed while Claude was working, if this is one.
+
+    It arrives only as a `queued_command` attachment; the queue operations
+    repeat its text and are ignored. Peers and task notifications are not
+    the owner.
+    """
+    attachment = entry.get("attachment")
+    if not isinstance(attachment, dict) or attachment.get("type") != "queued_command":
+        return []
+    if (attachment.get("origin") or {}).get("kind") != "human":
+        return []
+    prompt = attachment.get("prompt")
+    text = _clean(prompt) if isinstance(prompt, str) else ""
+    return [text] if text else []
+
+
+def _transcript_start(transcript):
+    """The first timestamp in the transcript, cut to whole seconds, or None."""
+    with open(transcript, encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                stamp = json.loads(line).get("timestamp")
+            except (ValueError, AttributeError):
+                continue
+            if isinstance(stamp, str) and stamp:
+                return stamp[:19]
+    return None
 
 
 def _conversation(transcript, since_iso):
@@ -293,8 +343,6 @@ def _conversation(transcript, since_iso):
                 entry = json.loads(line)
             except ValueError:
                 continue
-            if entry.get("type") not in ("user", "assistant"):
-                continue
             # A subagent's own conversation is not this conversation.
             if entry.get("isSidechain"):
                 continue
@@ -309,13 +357,18 @@ def _conversation(transcript, since_iso):
             stamp = entry.get("timestamp") or ""
             if since_iso and stamp and stamp < since_iso:
                 continue
-            said = _said(entry)
+            if entry.get("type") == "attachment":
+                who, said = "user", _typed_mid_turn(entry)
+            elif entry.get("type") in ("user", "assistant"):
+                who = (entry.get("message") or {}).get("role", entry["type"])
+                said = _said(entry)
+            else:
+                continue
             if not said:
                 continue
             if not stamp:
                 undated += 1
                 stamp = "(no timestamp)"
-            who = (entry.get("message") or {}).get("role", entry["type"])
             out.append(f"=== {who} {stamp}\n" + "\n".join(said))
     return out, undated
 
@@ -361,7 +414,7 @@ def main(argv):
     if warning:
         header.append(f"warning:    {warning}")
 
-    sha, since, subject = _last_close(repo)
+    sha, since, subject = _last_close(repo, _transcript_start(transcript))
     if args.since:
         since = args.since
         header.append(f"boundary:   {since} (given with --since)")
@@ -376,9 +429,14 @@ def main(argv):
             "Say so in the context: it may cover more than one session."
         )
 
-    commits = _commits(repo, sha)
+    commits = _commits(repo, sha, args.since)
     conversation, undated = _conversation(transcript, since)
 
+    if not commits:
+        header.append(
+            "warning:    NOT ONE COMMIT SINCE THE BOUNDARY. Either nothing was "
+            "saved this session or the boundary is wrong — say so in the close."
+        )
     if undated:
         header.append(
             f"note:       {undated} entries carried no timestamp and were "
