@@ -26,7 +26,7 @@ Yes: index files and archive are written and read back by `gitmem search`/boot. 
 ### Phase 1: remove with a duplicated id, and remove --replaces (#105, R.3)
 **Files:** modify `unmassk-toolkit/bin/memory/remove.py`, `unmassk-toolkit/lib/memory/notes.py` (close/replace), `unmassk-toolkit/lib/memory/indexes.py` (remove), `unmassk-toolkit/lib/memory/notes_promote.py` · test `unmassk-toolkit/tests/memory/`
 **Steps:**
-- [ ] 1.1 Dante: red tests — duplicate id refused with the list and nothing touched; `--commit <sha>` archives exactly that one; output says how many were archived; replace/promote refuse a duplicated id; `remove --restriction new --replaces R-x` closes the incident and archives R-x
+- [x] 1.1 Dante: red tests — duplicate id refused with the list and nothing touched; `--commit <sha>` archives exactly that one; output says how many were archived; replace/promote refuse a duplicated id; `remove --restriction new --replaces R-x` closes the incident and archives R-x
 - [ ] 1.2 Ultron: code until 1.1 is green
 - [ ] 1.3 verify: `python3 -m pytest unmassk-toolkit/tests/memory -q -k "remove or replace or promote"`
 

@@ -94,3 +94,5 @@
 - [session-transcript-extractor-contract-notes.md](session-transcript-extractor-contract-notes.md) — close extractor: real record shapes, real gitmem next producer in fixtures, D-143/D-144
 - [managed-block-slimming-89-contract-notes.md](managed-block-slimming-89-contract-notes.md) — #89 3.1 managed-block slimming: property tests, wrapped phrases, retire-a-block
 - [boot-slim-report-89-contract-notes.md](boot-slim-report-89-contract-notes.md) — #89 4.1 boot slimming RED: headline-only walls, one line per open issue, GitHub double field gotcha
+- [fake-home-session-isolation-notes.md](fake-home-session-isolation-notes.md) — R.2 session fake HOME: why session scope, mtime not checksum, sentinel proof
+- [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145 RED: real duplicate id via clone+union merge; gitmem fails in worktrees
