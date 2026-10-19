@@ -131,3 +131,4 @@
 [M-152][hooks][boot] rules file and D-124 checklist are wired nowhere at session start @cbac68de
 [M-153][skills][docs] flow v2 draft keeps every current rule except five spots found @cdd9b061
 [M-154][hooks][skills] checklist gate reads no transcript; run_in_background is not a signal
+[M-155][memory][skills] close extractor dead-ends: not transcript choice, not isMeta, not git parsing
