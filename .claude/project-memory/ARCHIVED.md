@@ -71,3 +71,4 @@
 2026-10-18  [D-115][memory][release] 🧭 commit protocol: one commit per step from squashed WIPs, merge commit sums up  →  replaced by D-118
 2026-10-18  [D-099][skills][install] 🧭 plugin review is its own skill, run once per project after a toolkit bump  →  closed: superseded by D-100: the plugin review became part of the project-cleanup skill (D-100 pointed at D-098 by mistake)
 2026-10-18  [D-125][skills][testing] 🧭 test-first: Dante writes every test once; Ultron codes only what the tests ask  →  replaced by D-126
+2026-10-19  [I-006][release][hooks] 🔥 1.47.0 published with its release CI red on Windows (merge gate paths)  →  closed: cause misread: House found the gate right and the tests wrong; replaced by a corrected incident
