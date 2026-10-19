@@ -135,3 +135,4 @@
 [X-135][hooks][skills] any in-flight entry silences the gate
 [X-136][memory][skills] the redo covers only what came after the first close
 [X-137][memory][skills] warn when the span is not covered, keep reading one file
+[X-138][memory][testing] archive every note sharing the id
