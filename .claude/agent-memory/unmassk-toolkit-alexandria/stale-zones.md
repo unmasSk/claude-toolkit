@@ -6,6 +6,9 @@ type: project
 
 ## Open, not yet fixed
 
+- **Root `CLAUDE.md` vs core on commits (seen 2026-10-19, #89 check):** CLAUDE.md "Reglas vivas" says WIPs are squashed into one pushed commit per step (D-118); `unmassk-core/SKILL.md` common rule 14 says squash nothing until #87 ships. Owner's call which wording wins; re-check both with `grep -n 'squash\|D-118' CLAUDE.md unmassk-toolkit/skills/unmassk-core/SKILL.md`.
+- **#89 boot slimming is a moving target:** the proposal artifact (2026-10-18) measured core/memory/CLAUDE.md/boot report before the 40 common rules, D-131 import and flow v2 landed. Re-measure with `wc -l -c` before trusting any estimate in it.
+
 - **`docs/` has no `docs/README.md` index** — four entries (`RELEASING.md`, `plan-activar-memoria.md`, `plan/`, `deprecated/`) and nothing linking them. Not a Diátaxis set, so building one is `foundation` mode, which the owner asks for by name. Flagged 2026-08-28, deliberately not created.
 - **The published `## [1.0.1]` CHANGELOG entry cites `R-018` as its pointer** — R-019 (2026-08-27) replaced it as *wrong* (it prescribed `${CLAUDE_PLUGIN_ROOT}`, which is empty in the Bash tool). A released entry is history and was not rewritten; the `[Unreleased]` 1.0.2 entry states the supersession instead. Decide once whether a pointer to a retracted restriction inside shipped history should ever be corrected in place.
 - **`gate-input.md:77` says the discipline gate "reads only its `recommendation`"** of a circuit-breaker report. `_artifact_decision()` in `check_pre_trade_discipline.py` (lines 295-298) actually returns the first present of `recommendation` / `decision` / `status`. True for the reports this plugin produces, so it does not mislead — imprecise only. Re-verified 2026-08-28; the sentence moved out of `SKILL.md` into `gate-input.md` during the cold-walk window, still unfixed. Reported, not edited.
