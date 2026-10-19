@@ -24,9 +24,9 @@ The session-close extractor (`unmassk-toolkit/skills/unmassk-close-session/scrip
 **Files:** modify `unmassk-toolkit/skills/unmassk-close-session/scripts/session_transcript.py`; create its tests under `unmassk-toolkit/tests/`
 **Steps:**
 - [x] 1.1 Dante: red tests (19: 13 red, 6 guards green) through the script's command line, on real-shaped `.jsonl` fixtures and a disposable git repo: (a) a mid-turn owner message (`attachment` / `queued_command`, `origin.kind=human`) comes out, a peer message or task notification in the same shape does not; (b) the text inside `<command-args>` of a slash command comes out; (c) `--since` bounds the commits as well as the turns; (d) zero commits in the window prints a warning; (e) a second close in the same transcript takes the previous `[NEXT]` as boundary and returns the whole session.
-- [ ] 1.2 Ultron: make 1.1 green.
-- [ ] 1.3 Dante: round-trip check on this session's real transcript (copy): both mid-turn messages of 2026-10-19 come out.
-- [ ] 1.4 Verify: `python3 -m pytest unmassk-toolkit/tests -q -k transcript` green.
+- [x] 1.2 Ultron: make 1.1 green (19 green; real transcript copy: both mid-turn messages come out).
+- [x] 1.3 Dante: round-trip check (3 tests on 10 real-shaped records, anonymised; 4/4 mutants killed) on this session's real transcript (copy): both mid-turn messages of 2026-10-19 come out.
+- [x] 1.4 Verify (22 passed): `python3 -m pytest unmassk-toolkit/tests -q -k transcript` green.
 
 ## Wave map
 - Wave 1: Phase 1
