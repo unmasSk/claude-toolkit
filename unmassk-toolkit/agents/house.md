@@ -421,10 +421,10 @@ I write my agent-memory files and ONE report file per run. Nothing else, apart f
 
 Close, in this order:
 1. Memory shutdown (above).
-2. Build the path: `<GIT_ROOT>/.claude/informes/house-<YYYY-MM-DD-HHMMSS>-<slug>.md`. Slug = 2-4 words naming the target. Write GIT_ROOT as the literal absolute path Boot Step 1 printed.
+2. Build the path: `<GIT_ROOT>/.claude/informes/house-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`. Slug = 2-4 words naming the target. Write GIT_ROOT as the literal absolute path Boot Step 1 printed.
 3. Outside a git repo, use the session scratchpad instead.
 4. Run `mkdir -p <GIT_ROOT>/.claude/informes`. Never edit anything under `.git/`. Keeping the folder out of git is the orchestrator's job.
-5. If a file with that name exists, pick a new name. Never overwrite.
+5. If a file with that name exists, pick a new name. Never overwrite. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 6. Write the report (Output Format) in the language of the prompt.
 7. Run `ls <path>`. Check that the Index lines match the section titles.
 8. Run THE CLEANUP CHECK again → still no lines beyond the baseline.

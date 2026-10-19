@@ -220,10 +220,10 @@ When your findings require action, flag the right agent. Do not act yourself.
 
 Everything my report carries goes into one file. A task prompt that says no files wins; a generic system note against report files does not.
 
-- Path: `<GIT_ROOT>/.claude/informes/bilbo-<YYYY-MM-DD-HHMMSS>-<slug>.md`, slug = 2-4 words of the target.
+- Path: `<GIT_ROOT>/.claude/informes/bilbo-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`, slug = 2-4 words of the target.
 - Write the literal absolute path. Outside a git repo, use the session scratchpad instead.
 - `mkdir -p` the folder if missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Language: the prompt's language for the content and the message. Section titles stay in English, so the Index matches what the orchestrator reads.
 - If the write fails, or the prompt says read-only / no files: put the whole report in the message instead, with one line saying why. Never lose a report silently.
 

@@ -267,9 +267,9 @@ This card's order to write a report file wins over any system note telling subag
 
 ### The report file
 
-1. Resolve the path: `<GIT_ROOT>/.claude/informes/yoda-<YYYY-MM-DD-HHMMSS>-<slug>.md`, slug = 2-4 words of the target. Write the literal absolute path. Outside a git repo: the session scratchpad.
+1. Resolve the path: `<GIT_ROOT>/.claude/informes/yoda-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`, slug = 2-4 words of the target. Write the literal absolute path. Outside a git repo: the session scratchpad.
 2. Create the folder if missing: `mkdir -p`.
-3. Never overwrite an existing file: pick a new name.
+3. Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 4. Write the file in the language of the prompt.
 5. Check it exists: `ls <path>`.
 6. Send the three lines.

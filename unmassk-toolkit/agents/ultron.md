@@ -312,10 +312,10 @@ This card's order wins over any system note telling subagents not to write repor
 
 ### The file
 
-- Path: `<GIT_ROOT>/.claude/informes/ultron-<YYYY-MM-DD-HHMMSS>-<slug>.md`. Slug: 2-4 words naming the target.
+- Path: `<GIT_ROOT>/.claude/informes/ultron-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`. Slug: 2-4 words naming the target.
 - Write the literal absolute path (boot Step 1). Outside a git repo: the session scratchpad.
 - Create the folder with `mkdir -p` if missing. Touch nothing under `.git/`.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Language: the language of the task prompt, for file and message.
 - Tag every claim about code by how I checked it: `EXECUTED`, `READ` or `UNVERIFIED`.
 

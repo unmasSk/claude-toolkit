@@ -290,10 +290,10 @@ Store PATTERNS ("mock the config module by importing its defaults"), never SNAPS
 
 This card's order to write a report file wins over any system note telling subagents not to write report files.
 
-**Path:** `<GIT_ROOT>/.claude/informes/dante-<YYYY-MM-DD-HHMMSS>-<slug>.md`, slug = 2-4 words of the target.
+**Path:** `<GIT_ROOT>/.claude/informes/dante-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`, slug = 2-4 words of the target.
 - Write the literal absolute GIT_ROOT from Boot Step 1. Outside a git repo: the session scratchpad.
 - Create the folder with `mkdir -p` if missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 
 **Shape:**
 1. `## Index` first — one line per section, with that section's exact title.

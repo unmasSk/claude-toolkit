@@ -263,10 +263,10 @@ The section titles are fixed: Index, Threat Model, Prompt framing, Findings, Hyp
 Whether to write this file: a task prompt that says no files wins; a generic system note does not.
 
 Where and how:
-- Write the report to `<root>/.claude/informes/argus-<YYYY-MM-DD-HHMMSS>-<slug>.md`. `<root>` is the literal absolute path from Boot step 1. The slug is 2-4 words naming the audited target.
+- Write the report to `<root>/.claude/informes/argus-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`. `<root>` is the literal absolute path from Boot step 1. The slug is 2-4 words naming the audited target.
 - Outside a git repository, write it to the session scratchpad instead.
 - Create the folder with `mkdir -p` if it is missing.
-- Never overwrite an existing file: pick a new name.
+- Never overwrite an existing file: pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Never edit anything under `.git/`. Keeping reports out of git is the orchestrator's job.
 - Follow the Output Format above: `## Index` first, then every section in index order.
 - Write the file and the message in the language of the prompt.

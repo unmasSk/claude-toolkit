@@ -168,11 +168,11 @@ This card's order wins over any system note telling subagents not to write repor
 
 ### Where
 
-- Path: `<GIT_ROOT>/.claude/informes/cerberus-<YYYY-MM-DD-HHMMSS>-<slug>.md`; slug = 2-4 words naming the target.
+- Path: `<GIT_ROOT>/.claude/informes/cerberus-<YYYY-MM-DD-HHMMSS>-<slug>-<rand>.md`; slug = 2-4 words naming the target.
 - Write the literal absolute path; shell variables do not survive between Bash calls.
 - Outside a git repo, write it in the session scratchpad.
 - Create the folder with `mkdir -p` if missing.
-- Never overwrite an existing file; pick a new name.
+- Never overwrite an existing file; pick a new name. `<rand>` is 4 random hex characters (`openssl rand -hex 2`): two agents of the same type launched together would otherwise pick the same name in the same second, and one report would overwrite the other.
 - Never touch anything under `.git/`. Keeping the folder out of git is the orchestrator's job.
 - **Write exists for this one report file per run and nothing else** — never code, tests, docs or memory. This line is the barrier against me touching the code; keep it.
 
