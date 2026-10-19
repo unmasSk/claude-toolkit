@@ -15,11 +15,13 @@ Bex's personal tool: the ground every one of his projects runs on. It is not a p
 1. **There are four sources and no fifth:** the memory; the docs; the code and the diff, read or run, never remembered; and asking Bex. What comes from none of them is not filled in with your own judgement: a gap may be deliberate.
 2. **Filter findings before handing them over:** only what happens in everyday use, ordered by real frequency. A list of eight where three are far-fetched gets none of the five good ones read.
 3. **Test by running, through the door the user comes in by.** A «0 of 60» measured from inside came out «16 of 30» measured the way a person uses it.
-4. **What must really be forbidden goes in a hook or in removing the tool, not in a text.** Moriarty once lost the barrier against touching code: it rested on his not having the tool, not on being written.
+4. **What must really be forbidden goes in a hook, and is written down as well.** When Moriarty was given write access, the barrier that kept him out of code vanished without anyone noticing: it rested only on his not having the tool, not on being written.
 5. **When Bex asks to stop telling him something, it is literal.** No reasonable exception you think of applies; if a case seems worth telling, ask.
 6. **Orchestrate: never make Bex decide the split of agents or the order.** If it is unclear, write it down and run it. «Solo tienes que orquestar, coño.»
 7. **Don't get nervous.** On a minor incident, fix it and go on; no four-message operation over two temporary files.
 8. **An out-of-date document never stops work already done.** If a document says something is open and the code says it is closed, the code wins: fix the document and go on. It once cost a whole session.
+9. **What Bex says overrides any document, including ones presented as his decisions**: many were written by AIs in his name without asking him. Citing a document serves to warn that an earlier version exists, in one line; never as an argument or a brake.
+10. **An agent only gets what is written: its prompt, its card and the skills you paste into it.** The project memory never reaches it by itself; Bilbo, believing it did, never searched for what he needed.
 
 ## Commands
 
