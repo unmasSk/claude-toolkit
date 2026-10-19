@@ -185,3 +185,22 @@ def test_should_name_only_the_missing_number_when_one_cited_number_is_missing(
 
     assert any(lines_naming_issue([w], 52) for w in report_warnings), rendered
     assert all(lines_naming_issue([w], 52) for w in counts_warnings), counts_warnings
+
+
+def test_should_warn_in_counts_naming_the_number_github_did_not_return(
+    boot, notes, make_note, ctx, tmp_repo, monkeypatch
+):
+    # Bug caught (Moriarty survivor): the COUNTS warning for the missing
+    # number is dropped, so the list above reads as checked while #52's
+    # open/closed was never confirmed; only CHECKS, further down, says so.
+    root = Path(tmp_repo)
+    _seed_one_missing(notes, make_note, ctx, root, monkeypatch)
+
+    _summary, rendered = _render(boot, root)
+    section = counts_section(rendered)
+    counts_warnings = _warnings(section)
+
+    assert lines_naming_issue(section, 52), "setup invalid: #52 not listed"
+    assert len(counts_warnings) == 1, "\n".join(section)
+    assert lines_naming_issue(counts_warnings, 52), counts_warnings
+    assert not lines_naming_issue(counts_warnings, 50), counts_warnings

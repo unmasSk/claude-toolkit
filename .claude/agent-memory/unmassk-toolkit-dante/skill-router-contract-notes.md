@@ -260,3 +260,6 @@ user `content`) shows the real wrapper: `<pasted_content id="f4e1">\n…\n
 `TestPastedContentDoesNotFireAutomatico`: paste-only => no automatico; owner
 words before / after / between two pastes => fires (guards drop-to-end and
 greedy-strip implementations). Search the transcript, not history.jsonl.
+
+## Pasted-block strip greediness (#89 Moriarty, 2026-10-19)
+The strip regex is tied to its id by backreference, so a greedy mutant only bites when two pastes share the SAME id. A between-two-pastes test with different ids never kills it.

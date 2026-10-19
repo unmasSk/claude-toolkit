@@ -14,3 +14,4 @@ metadata:
 - Legacy-block removal (fix pass): pin that owner text with 3+ newline runs elsewhere survives byte for byte, and owner edits inside a retired block reach the log / hook stdout verbatim. Fixture = current rendered BLOCKS + old block, so only the legacy path acts.
 - A pointer to a shipped file must be named by skill + in-skill path, never `unmassk-toolkit/skills/...` (exists only in this repo); assert the repo prefix is absent.
 - Satisfiability check: apply a sample implementation on a scratch copy and run the file there — proves the contract is reachable. Sibling suites erroring with FileNotFoundError('') in a scratch copy is environmental, not a signal.
+- Moriarty fix pass: legacy removal of 2 copies — pin the whole file byte for byte against a hand-written expected (owner paragraphs joined by exactly one blank line); kills both "only first copy" and "\n instead of \n\n" mutants in one assertion.

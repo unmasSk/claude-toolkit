@@ -808,3 +808,65 @@ class TestBuildModeRetirementIsLocalAndLossless:
         after, stdout = self._run_crew_over_edited_spaced_file(tmp_path)
         assert _OWNER_EDIT_LINE not in after
         assert _OWNER_EDIT_LINE in stdout, stdout
+
+
+# ── #89 fix pass (Moriarty survivors 1 and 2): every copy goes, the cut is clean ──
+#
+# A CLAUDE.md can carry the retired block more than once (an old generator
+# appended it again). Every copy goes, each logged, and the owner's own
+# paragraphs on both sides of each cut stay separate Markdown paragraphs:
+# exactly one blank line between them, never zero and never two.
+
+_TWO_COPIES_OWNER_HEAD = "# Mine\n\nAlpha paragraph.\n\n"
+_TWO_COPIES_OLD = (
+    _TWO_COPIES_OWNER_HEAD
+    + _OLD_BUILD_MODE_BLOCK + "\n\nMiddle paragraph.\n\n"
+    + _EDITED_BUILD_MODE_BLOCK + "\n\nOmega paragraph.\n\n"
+)
+# Written by hand: the owner text with each cut closed by one blank line.
+_TWO_COPIES_EXPECTED_OWNER = (
+    "# Mine\n\nAlpha paragraph.\n\nMiddle paragraph.\n\nOmega paragraph.\n\n"
+)
+
+
+class TestLegacyRetirementEveryCopyCleanCut:
+    def test_should_remove_every_copy_of_a_retired_block(self):
+        # Bug caught: only the first copy is cut; the second stays in the file.
+        content, log = upsert_managed_blocks(_TWO_COPIES_OLD + _current_blocks_text() + "\n")
+        assert content.count("<!-- BEGIN unmassk-build-mode") == 0, content
+        assert content.count("<!-- END unmassk-build-mode -->") == 0, content
+        assert "## Build mode" not in content
+        removals = [e for e in log if "removed legacy unmassk-build-mode" in e]
+        assert len(removals) == 2, log
+        assert sum(_OWNER_EDIT_LINE in e for e in removals) == 1, log
+
+    def test_should_leave_one_blank_line_between_owner_paragraphs_at_each_cut(self):
+        # Bug caught: the cut joins the paragraphs with a single newline
+        # (Markdown merges them) or leaves a stray extra blank line.
+        old = _TWO_COPIES_OLD + _current_blocks_text() + "\n"
+        content, _ = upsert_managed_blocks(old)
+        assert content == _TWO_COPIES_EXPECTED_OWNER + _current_blocks_text() + "\n", repr(content)
+
+    def test_should_end_with_one_newline_when_retired_block_is_last(self):
+        # Bug caught: a cut at the end of the file leaves trailing blank lines.
+        old = "# Mine\n\n" + _current_blocks_text() + "\n\n" + _OLD_BUILD_MODE_BLOCK + "\n\n\n"
+        content, _ = upsert_managed_blocks(old)
+        assert content == "# Mine\n\n" + _current_blocks_text() + "\n", repr(content)
+
+    def test_crew_hook_should_cut_both_copies_cleanly_and_stay_put(self, tmp_path):
+        """User's door: the every-start hook over a file with two copies."""
+        repo = _make_repo(tmp_path)
+        claude_md = os.path.join(repo, "CLAUDE.md")
+        with open(claude_md, "w", encoding="utf-8") as f:
+            f.write(_TWO_COPIES_OLD + _current_blocks_text() + "\n")
+
+        rc, stdout, stderr = run_cmd([sys.executable, CREW_HOOK], cwd=repo)
+        assert rc == 0, stderr
+        with open(claude_md, encoding="utf-8") as f:
+            first = f.read()
+        assert first == _TWO_COPIES_EXPECTED_OWNER + _current_blocks_text() + "\n", repr(first)
+        assert _OWNER_EDIT_LINE in stdout, stdout
+
+        run_cmd([sys.executable, CREW_HOOK], cwd=repo)
+        with open(claude_md, encoding="utf-8") as f:
+            assert f.read() == first

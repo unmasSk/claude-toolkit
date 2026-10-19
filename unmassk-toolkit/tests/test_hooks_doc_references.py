@@ -63,6 +63,39 @@ def _table_rows(text):
     return rows
 
 
+def _declared_hooks_full(hooks_json_path):
+    """(event, matcher, hook filename, timeout) per declared command, from
+    hooks.json as Claude Code reads it. A missing matcher or timeout is "—"."""
+    with open(hooks_json_path, encoding="utf-8") as f:
+        data = json.load(f)
+    out = []
+    for event, groups in data["hooks"].items():
+        for group in groups:
+            for entry in group["hooks"]:
+                m = re.search(r"hooks/([^/\s]+\.py)", entry["command"])
+                if m:
+                    timeout = entry.get("timeout")
+                    out.append((
+                        event,
+                        group.get("matcher") or "—",
+                        m.group(1),
+                        f"{timeout}s" if timeout is not None else "—",
+                    ))
+    return out
+
+
+def _table_rows_full(text):
+    """All four columns per table row; an escaped pipe in a cell is a pipe."""
+    body = text[text.index(BEGIN) + len(BEGIN):text.index(END)]
+    rows = []
+    for line in body.splitlines():
+        cells = [c.strip().strip("`").replace("\\|", "|")
+                 for c in re.split(r"(?<!\\)\|", line)]
+        if len(cells) >= 6 and cells[3].endswith(".py"):
+            rows.append((cells[1], cells[2], cells[3], cells[4]))
+    return rows
+
+
 def _make_plugin_root(tmp_path, reference_text, skill_text=SKILL_WITHOUT_TABLE):
     """Disposable plugin root: a copy of the real hooks/ plus the two docs.
     reference_text None means references/hooks.md is absent."""
@@ -156,6 +189,35 @@ class TestCheckReadsReferencesHooks:
         assert not out.startswith("ok:"), out
 
 
+class TestCheckSeesMatcherAndTimeout:
+    def _drift(self, tmp_path, field, value):
+        root = _make_plugin_root(tmp_path, _empty_reference())
+        rc_w, out_w, err_w = _sync(root, "--write")
+        assert rc_w == 0, (rc_w, out_w, err_w)
+        hooks_json = root / "hooks" / "hooks.json"
+        data = json.loads(hooks_json.read_text(encoding="utf-8"))
+        group = data["hooks"]["PreToolUse"][0]
+        if field == "matcher":
+            group["matcher"] = value
+        else:
+            group["hooks"][0]["timeout"] = value
+        hooks_json.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return _sync(root)
+
+    def test_should_fail_check_when_a_hook_matcher_changes(self, tmp_path):
+        # Bug caught: the check compares event and file only, so a matcher
+        # edited in hooks.json leaves the table wrong and still "ok".
+        rc, out, err = self._drift(tmp_path, "matcher", "Bash|Write")
+        assert rc == 1, (rc, out, err)
+        assert not out.startswith("ok:"), out
+
+    def test_should_fail_check_when_a_hook_timeout_changes(self, tmp_path):
+        # Bug caught: same, for the timeout column.
+        rc, out, err = self._drift(tmp_path, "timeout", 61)
+        assert rc == 1, (rc, out, err)
+        assert not out.startswith("ok:"), out
+
+
 class TestRefusalAtNewLocation:
     def test_should_refuse_and_change_nothing_when_reference_markers_missing(self, tmp_path):
         # Guard (green by design today): no markers -> refuse, never guess.
@@ -176,6 +238,14 @@ class TestShippedPlugin:
         with open(path, encoding="utf-8") as f:
             rows = _table_rows(f.read())
         assert rows == _declared_hooks(os.path.join(REAL_HOOKS_DIR, "hooks.json"))
+
+    def test_shipped_table_matches_every_column_of_hooks_json(self):
+        # Bug caught (Moriarty, deception): the in-sync test above reads
+        # event and file only; a matcher or timeout changed in hooks.json
+        # without regenerating the table stays green.
+        with open(os.path.join(SOURCE_ROOT, REFERENCE_REL), encoding="utf-8") as f:
+            rows = _table_rows_full(f.read())
+        assert rows == _declared_hooks_full(os.path.join(REAL_HOOKS_DIR, "hooks.json"))
 
     def test_shipped_skill_md_has_no_table_and_points_to_reference(self):
         # Bug caught: two copies of the table in what Claude reads, or the

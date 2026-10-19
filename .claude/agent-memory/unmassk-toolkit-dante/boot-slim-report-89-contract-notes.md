@@ -31,3 +31,5 @@ metadata:
   wording: every ⚠ line in COUNTS must name the missing #N.
 - Teardown errors seen once in `test_boot_step2_moriarty_fix_pass.py`
   hang/overrun tests under a batched run; not reproducible alone.
+- `all(...)` over a warnings list is vacuous when the list is empty — pin the count (exactly one COUNTS warning naming the missing #N) or the dropped-warning mutant survives.
+- Mutant copies of tests/memory need a bare `git init` at the copy root (no first revision needed): conftest's real-repo guard runs rev-parse with cwd='' otherwise. Creating a revision there is blocked by customs anyway.

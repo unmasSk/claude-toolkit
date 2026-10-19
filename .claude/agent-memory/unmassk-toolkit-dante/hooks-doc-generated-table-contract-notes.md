@@ -19,3 +19,5 @@ would say ok over a missing table.
 assertion, seed the OLD location with an in-sync block built by
 `render_hooks_block` (setup input from the lib is fine) so today's code says
 `ok:`. The marker-missing refusal guard is green by design.
+
+**Four columns, not two (#89 Moriarty):** compare all of event/matcher/file/timeout (unescape `\|` in cells). The shipped-table test catches hooks.json drift; a render mutant (matcher constant) is caught only by a write-then-edit-hooks.json drift test through the sync script. Mutating hooks.json in the copy makes the drift test a no-op — mutate the lib instead.

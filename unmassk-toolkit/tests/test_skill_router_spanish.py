@@ -413,6 +413,12 @@ TYPED_BETWEEN_PASTES_PROMPT = (
     _pasted(_PASTE_NEUTRAL, "a1f0") + "\n\nponte en modo automático\n\n" + _pasted(_PASTE_NEUTRAL, "c7e2")
 )
 
+# Two pastes can carry the same id (not seen in transcripts; Moriarty
+# left it unverified), which is where a greedy strip bites.
+TYPED_BETWEEN_SAME_ID_PASTES_PROMPT = (
+    _pasted(_PASTE_NEUTRAL, "d4d4") + "\n\nponte en modo automático\n\n" + _pasted(_PASTE_NEUTRAL, "d4d4")
+)
+
 
 def _automatico_keys(prompt):
     return [k for k, _ in _import_match_reminders()(prompt) if k == "automatico"]
@@ -442,6 +448,28 @@ class TestPastedContentDoesNotFireAutomatico:
         # Bug caught: a greedy strip from the first opening tag to the last
         # closing tag swallows the owner's words between two pastes.
         assert _automatico_keys(TYPED_BETWEEN_PASTES_PROMPT) == ["automatico"]
+
+    def test_should_fire_automatico_when_owner_types_it_between_two_pastes_with_the_same_id(self):
+        # Bug caught: a greedy strip runs from the first opening tag to the
+        # LAST matching closing tag, so with both pastes under one id the
+        # owner's words between them are dropped and the order stays silent.
+        assert _automatico_keys(TYPED_BETWEEN_SAME_ID_PASTES_PROMPT) == ["automatico"]
+
+    def test_should_not_fire_automatico_when_order_is_only_in_second_same_id_paste(self):
+        # Control for the strip: both blocks still go, only the owner's
+        # neutral words between them remain.
+        prompt = (
+            _pasted(_PASTE_NEUTRAL, "d4d4") + "\n\nlee los dos\n\n"
+            + _pasted(_PASTE_WITH_ORDER, "d4d4")
+        )
+        assert _automatico_keys(prompt) == []
+
+    def test_hook_emits_automatico_line_when_owner_types_it_between_same_id_pastes(self, tmp_path):
+        # Through the user's door: the real hook, fed the same-id two-paste prompt.
+        repo = _make_installed_repo(tmp_path)
+        rc, stdout, stderr = _run_hook(repo, TYPED_BETWEEN_SAME_ID_PASTES_PROMPT)
+        assert rc == 0, (rc, stdout, stderr)
+        assert len(_automatico_orden_lines(stdout)) == 1, stdout
 
     def test_hook_emits_no_automatico_line_when_words_are_only_pasted(self, tmp_path):
         # Through the user's door: the real hook, fed the paste-only prompt.
