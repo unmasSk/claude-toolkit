@@ -24,7 +24,7 @@ esta pieza no tiene consumidor real; el contrato ya declara quien lo
 sera.
 """
 
-from model import IndexLine
+from model import ArchiveLine, IndexLine
 
 
 def next_id(type_: str, index: tuple[IndexLine, ...]) -> str:
@@ -45,15 +45,15 @@ def next_id(type_: str, index: tuple[IndexLine, ...]) -> str:
     return f"{prefix}{next_number:03d}"
 
 
-def find_duplicates(index: tuple[IndexLine, ...]) -> tuple[str, ...]:
-    """Identificadores que aparecen mas de una vez en ``index``.
+def find_duplicates(index: tuple[IndexLine | ArchiveLine, ...]) -> tuple[str, ...]:
+    """Identificadores que aparecen mas de una vez en ``index``, comparados
+    en minusculas; cada uno con la grafia de su primera aparicion.
 
-    Alarma pasiva: solo detecta y devuelve los ids repetidos, en el
-    orden en que aparece cada uno por primera vez -- no muta ``index``,
-    no renumera nada y no decide cual de las dos notas es la valida
-    [spec Sec.3.1, "Que NO hace"].
+    Alarma pasiva: no muta ``index``, no renumera nada y no decide cual
+    de las dos notas es la valida [spec Sec.3.1, "Que NO hace"].
     """
-    seen: dict[str, int] = {}
+    seen: dict[str, list] = {}
     for line in index:
-        seen[line.id] = seen.get(line.id, 0) + 1
-    return tuple(id_ for id_, count in seen.items() if count > 1)
+        entry = seen.setdefault(line.id.lower(), [line.id, 0])
+        entry[1] += 1
+    return tuple(first for first, count in seen.values() if count > 1)

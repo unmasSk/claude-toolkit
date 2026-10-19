@@ -425,7 +425,12 @@ def _avisos_block(summary: BootSummary) -> list[str]:
             )
 
     if report.duplicate_ids:
-        lines.append(f"   ⚠️  duplicate IDs: {', '.join(report.duplicate_ids)}")
+        lines.append(
+            f"   ⚠️  duplicate IDs: {', '.join(report.duplicate_ids)} -- "
+            "fix each with `gitmem remove <id> --commit <sha>`"
+        )
+        for sha, note in report.duplicate_notes:
+            lines.append(f"      - {note.id} {sha[:7]} [{note.zone1}] [{note.zone2}] {note.headline}")
     else:
         lines.append(f"   ✓  no duplicate IDs ({report.git_notes} notes)")
 

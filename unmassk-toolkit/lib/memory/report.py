@@ -287,6 +287,7 @@ def build_note(note_id: str) -> NoteReport | None:
     note = query.by_id(note_id)
     if note is None:
         return None
+    note_id = note.id
 
     root = _repo_root()
     state = _archived_state(root)

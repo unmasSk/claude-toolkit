@@ -72,7 +72,7 @@ import query
 import rules
 import zones
 from health_plans import issues_checked, plans_unreflected
-from model import HealthReport, IndexLine, Note
+from model import ArchiveLine, HealthReport, IndexLine, Note
 from vocabulary import INDEX_FILES, TYPE_INDEX_FILES
 
 _ARCHIVE_FILE = "ARCHIVED.md"
@@ -222,14 +222,27 @@ def coherence_rules(root: Path) -> tuple[int, int, tuple[str, ...]]:
     return len(head_texts), len(file_texts), discrepancies
 
 
-def duplicates(root: Path) -> tuple[str, ...]:
-    """Identificadores repetidos entre los siete indices vigentes.
+def _archive_lines(root: Path) -> tuple[ArchiveLine, ...]:
+    """Las lineas de `ARCHIVED.md`; un fichero ausente es cero lineas."""
+    try:
+        return indexes.read_archive(notes.pm_root(root))
+    except FileNotFoundError:
+        return ()
 
-    Reutiliza `ids.find_duplicates` sobre las lineas ya leidas -- alarma
-    pasiva, no repara nada.
+
+def duplicates(root: Path) -> tuple[str, ...]:
+    """Identificadores repetidos entre los indices vigentes y `ARCHIVED.md`
+    [D-147: un id repetido, vivo o archivado, es un error]. Alarma pasiva.
     """
     root = Path(root)
-    return ids.find_duplicates(_current_index_lines(root))
+    return ids.find_duplicates(_current_index_lines(root) + _archive_lines(root))
+
+
+def duplicate_notes(duplicate_ids: tuple[str, ...]) -> tuple[tuple[str, Note], ...]:
+    """`(sha, nota)` de cada commit que lleva uno de `duplicate_ids`, para
+    que el arranque liste cada gemela y se corrija con `remove --commit`.
+    """
+    return tuple(pair for note_id in duplicate_ids for pair in query.commits_by_id(note_id))
 
 
 def _total_commit_count() -> int:
@@ -401,13 +414,15 @@ def build() -> HealthReport:
         unreflected, issue_states, issues_unanswered = (), (), ()
         unreflected_error = str(exc)
 
-    archived_notes = len(indexes.archived_ids(notes.pm_root(root)))
+    archived_notes = len(_archive_lines(root))
+    duplicate_ids = duplicates(root)
 
     legacy_commits_suspected = _possible_unconverted_legacy(_total_commit_count(), git_notes)
     _mounted, memory_setup_missing = _memory_mounted(root)
 
     return HealthReport(
-        duplicate_ids=duplicates(root),
+        duplicate_ids=duplicate_ids,
+        duplicate_notes=duplicate_notes(duplicate_ids),
         index_lines=index_lines,
         git_notes=git_notes,
         index_discrepancies=index_discrepancies,
