@@ -45,13 +45,12 @@ igual que `--stops`; `--quote` SI lo es (`Note.quote`, solo Q/I).
 asciende la pregunta (Q) `<ID>` -- sube a memo si la respuesta es un
 hecho, cae a descarte si es que no [spec Sec.4]. Llama a
 `notes.promote()` (reexportada de `notes_promote.py`, ver su docstring)
-en vez de `notes.write()`/`notes.replace()`; no se combina con
-`--replaces` en ningun test de esta tarea, y no se le exige a este
-script decidir nada sobre esa combinacion -- toda decision de "esto es
-valido" sigue en `validator.py`/`notes_promote.py`.
+en vez de `notes.write()`/`notes.replace()`, y gana sobre `--replaces`
+si llegan las dos -- toda decision de "esto es valido" sigue en
+`validator.py`/`notes_promote.py`.
 
-`--discard` es repetible (una vez por alternativa) -- ningun test de
-esta tarea lo combina con `--replaces <ID>`. El SEGUNDO valor de cada
+`--discard` es repetible (una vez por alternativa) y respeta
+`--replaces`/`--promotes` (D-145). El SEGUNDO valor de cada
 pareja llena `Note.description` de la alternativa (tipo `X`), NUNCA
 `Note.why` [`vocabulary.TYPES["X"].required_fields == {"description"}`,
 `why` es opcional para X]. `origin` lo pone `discard_alternatives()` por
@@ -339,14 +338,17 @@ def _print_rejection(one_rejection, args):
 
 
 def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
-    """Rama `--discard`: `notes.discard_alternatives()` escribe la
-    decision y cada alternativa, cada una en su propio commit [PIEZAS.md
-    Sec.8.1]. Si la decision falla, devuelve solo ese resultado. Si una
-    alternativa rebota tras la decision, el resto sigue intentandose --
-    este script solo reporta cada rechazo real, nunca inventa uno propio.
+    """Rama `--discard`: `notes.discard_alternatives()` valida todas las
+    alternativas, y solo entonces escribe la decision (respetando
+    `--replaces`/`--promotes`, via `_write_decision`) y cada alternativa,
+    cada una en su propio commit [PIEZAS.md Sec.8.1]. Un primer resultado
+    fallido es que no se escribio nada; un fallo posterior es de git.
     """
     alternatives = _build_discard_candidates(args.discard, zone1, zone2, args.searched)
-    results = notes.discard_alternatives(candidate, alternatives, ctx)
+    results = notes.discard_alternatives(
+        candidate, alternatives, ctx,
+        write_decision=lambda decision, c: _write_decision(decision, args, c),
+    )
     decision_result = results[0]
 
     if not decision_result.ok:
@@ -372,8 +374,8 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2):
     return 0
 
 
-def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
-    """Rama sin `--discard`: `--promotes` [2026-08-05] tiene prioridad --
+def _write_decision(candidate, args, ctx):
+    """`--promotes` [2026-08-05] tiene prioridad --
     si se dio, `notes.promote()` es la unica que se llama (asciende la Q
     citada, ver el docstring del modulo). Si no, `--replaces` distingue
     tres casos [TEXTOS.md Sec.1.6] -- ausente (nada se sustituye), el
@@ -386,14 +388,15 @@ def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
     el commit, sin que `note.py` decida nada mas.
     """
     if args.promotes is not None:
-        result = notes.promote(candidate, args.promotes, ctx)
-    else:
-        replaces_real_id = args.replaces is not None and args.replaces != "none"
-        if replaces_real_id:
-            result = notes.replace(candidate, args.replaces, ctx)
-        else:
-            result = notes.write(candidate, ctx)
+        return notes.promote(candidate, args.promotes, ctx)
+    if args.replaces is not None and args.replaces != "none":
+        return notes.replace(candidate, args.replaces, ctx)
+    return notes.write(candidate, ctx)
 
+
+def _handle_write_or_replace(candidate, args, normalized_keys, ctx):
+    """Rama sin `--discard`: escribe la nota via `_write_decision`."""
+    result = _write_decision(candidate, args, ctx)
     if not result.ok:
         if result.rejections:
             for one_rejection in result.rejections:
@@ -444,8 +447,8 @@ def main(argv):
         _print_rejection(issue_rejection, args)
         return 1
 
-    # `--discard` es su propio flujo: la nota se escribe via
-    # `notes.discard_alternatives()`, nunca via `write()`/`replace()`.
+    # `--discard` es su propio flujo: `notes.discard_alternatives()` valida
+    # los descartes y luego escribe la nota via `_write_decision`.
     if args.discard:
         return _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2)
 

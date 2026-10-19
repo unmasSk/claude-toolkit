@@ -170,17 +170,26 @@ def write(note: Note, ctx: Context) -> WriteResult:
 
 
 def discard_alternatives(
-    decision: Note, alternatives: tuple[Note, ...], ctx: Context
+    decision: Note, alternatives: tuple[Note, ...], ctx: Context, write_decision=write
 ) -> tuple[WriteResult, ...]:
     """Escribe `decision` y cada una de `alternatives`, cada una en su
     propio commit -- "un acto, un commit" aplica a nota+indice, no al
     acto completo. Una decision con dos alternativas produce tres
     resultados, no dos.
 
+    Todas las alternativas se validan ANTES de escribir nada: si alguna
+    rebota, vuelve un solo resultado con todos sus rechazos y no se
+    escribe nada. `write_decision(decision, ctx)` escribe la decision
+    (`write`, o `replace`/`promote` envueltas por quien llama).
+
     Cada alternativa se escribe con `origin` apuntando al id real de
     `decision` -- el enlace que `clusters.py` necesita para agruparlas.
     """
-    decision_result = write(decision, ctx)
+    rejections = tuple(r for alt in alternatives for r in validate_note(alt, ctx))
+    if rejections:
+        return (WriteResult(ok=False, note_id=None, rejections=rejections, git_error=None),)
+
+    decision_result = write_decision(decision, ctx)
     if not decision_result.ok:
         return (decision_result,)
 
