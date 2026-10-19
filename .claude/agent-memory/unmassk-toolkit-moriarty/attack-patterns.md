@@ -18,6 +18,17 @@ original del hallazgo se queda intacto encima, nunca se acorta.
 
 ## Técnicas transferibles (no atadas a un fichero concreto)
 
+### Un límite sacado de una fuente (git) y un contenido leído de otra (un solo fichero) (2026-10-19)
+Cuando un lector toma el límite de "la sesión" de una marca en git (el último
+cierre) pero lee el contenido de UN solo fichero de transcript, todo lo que pasó
+entre esa marca y el inicio de ese fichero (sesiones sin cierre, `/clear`, una
+ventana nueva) sale en la lista de commits y falta en la conversación, sin aviso.
+Cómo atacarlo: cuenta los ficheros de transcript cuya vida cae entre la marca y
+el fichero elegido (en los reales es lo normal, no lo raro), y ejecuta el lector
+contra el repo real en modo lectura. Pariente: el "esto es tuyo" decidido solo
+por hora (una marca posterior al inicio del fichero) etiqueta como propio el
+cierre de una ventana paralela.
+
 ### Atacar un documento de proceso: seguir cada valor de una etapa a la que lo consume (2026-10-19)
 En una skill de pipeline, por cada dato que una etapa produce y otra posterior
 lee (commit base, modo de build, "no hay costura"), preguntar: ¿dónde queda

@@ -26,6 +26,13 @@ El detalle completo de la era retirada sigue en `round-history.md` y
 
 ## Sistema actual — memoria v2 (`lib/memory/*`, `hooks/customs.py`, `hooks/checklist-gate.py`, `hooks/skill-checklist-inject.py`, `bin/memory/*`)
 
+### Extractor del cierre: dentro de UN transcript no pierde palabras del dueño (2026-10-19)
+Contrastado contra los 71 transcripts reales (copias), con el texto de cada
+`enqueue` como segundo canal independiente: solo faltan los nombres de los
+comandos de barra. Mensajes a mitad de turno, listas con aviso delante, peers y
+notificaciones: aguantan. Frente a la versión base, 0 turnos perdidos. No
+repetirlo; lo que rompe está ENTRE ficheros, no dentro (ver attack-patterns).
+
 ### --searched en un Description previo (D-133, #95, 2026-10-19)
 Aguanto: lineas en blanco dentro de lo buscado, descripcion real que empieza
 por "Searched: ", continuacion con "Description: ", 100 KB, 4 guardados a la

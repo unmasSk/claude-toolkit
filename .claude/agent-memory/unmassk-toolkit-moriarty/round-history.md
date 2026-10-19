@@ -5,6 +5,14 @@ metadata:
   type: project
 ---
 
+## claude-toolkit: extractor del cierre de sesión, fix-close-transcript (2026-10-19)
+FALLA (T1). Una sesión que acaba sin cierre deja su conversación en otro
+fichero: el siguiente cierre lista sus commits y omite sus palabras, sin aviso
+(probado en el repo real). T2: la ventana paralela cerrada se etiqueta como
+"cierre propio"; los registros user no humanos (tarea programada, prompt de
+sesión lanzada) entran como dueño; 3 mutantes vivos (sin fecha, fallo de git,
+elección del transcript).
+
 ## claude-toolkit: #101 revisión del borrador flow v2, mi parte (2026-10-19)
 Revisión de documento, sin cambiar nada. DEBIL (T2/T3). Lo principal: una
 rotura arreglada solo por Ultron sin test de regresión hace que Yoda dé REJECTED
