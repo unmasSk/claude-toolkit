@@ -170,6 +170,25 @@ def write(note: Note, ctx: Context) -> WriteResult:
         return WriteResult(ok=True, note_id=candidate.id, rejections=(), git_error=None)
 
 
+def refused_alternatives(
+    alternatives: tuple[Note, ...], ctx: Context
+) -> tuple[tuple[Note, tuple[Rejection, ...]], ...]:
+    """Cada alternativa que rebota, con sus rechazos. Cada una se compara
+    tambien con las anteriores ya aceptadas: la misma alternativa dos veces
+    rebota en la puerta de duplicados igual que si ya estuviera escrita."""
+    refused = []
+    accepted: tuple[Note, ...] = ()
+    for alternative in alternatives:
+        seen = dataclasses.replace(ctx, existing_in_zone=ctx.existing_in_zone + accepted)
+        found = validate_note(alternative, seen)
+        if found:
+            refused.append((alternative, found))
+        else:
+            label = f"(--discard {len(accepted) + 1})"
+            accepted += (dataclasses.replace(alternative, id=label),)
+    return tuple(refused)
+
+
 def discard_alternatives(
     decision: Note,
     alternatives: tuple[Note, ...],
@@ -189,7 +208,7 @@ def discard_alternatives(
     Cada alternativa se escribe con `origin` apuntando al id real de
     `decision` -- el enlace que `clusters.py` necesita para agruparlas.
     """
-    rejections = tuple(r for alt in alternatives for r in validate_note(alt, ctx))
+    rejections = tuple(r for _alt, found in refused_alternatives(alternatives, ctx) for r in found)
     if rejections:
         return (WriteResult(ok=False, note_id=None, rejections=rejections, git_error=None),)
 

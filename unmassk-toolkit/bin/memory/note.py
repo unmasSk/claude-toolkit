@@ -45,8 +45,9 @@ igual que `--stops`; `--quote` SI lo es (`Note.quote`, solo Q/I).
 asciende la pregunta (Q) `<ID>` -- sube a memo si la respuesta es un
 hecho, cae a descarte si es que no [spec Sec.4]. Llama a
 `notes.promote()` (reexportada de `notes_promote.py`, ver su docstring)
-en vez de `notes.write()`/`notes.replace()`, y gana sobre `--replaces`
-si llegan las dos -- toda decision de "esto es valido" sigue en
+en vez de `notes.write()`/`notes.replace()`; si llega tambien un
+`--replaces <ID>` real, el mismo commit archiva esa nota como sustituida
+-- toda decision de "esto es valido" sigue en
 `validator.py`/`notes_promote.py`.
 
 `--discard` es repetible (una vez por alternativa) y respeta
@@ -71,6 +72,7 @@ al guardar"].
 """
 
 import argparse
+import collections
 import dataclasses
 import os
 import shlex
@@ -332,20 +334,45 @@ def _print_success_with_discards(decision_result, alternatives, discard_results,
     print("\n".join(lines))
 
 
-def _print_rejection(one_rejection, args):
+def _carry_cli_flags(one_rejection, args):
+    """Los relanzamientos `gitmem note` arrastran `--promotes` y `--discard`,
+    que no son campos de `Note` y el rechazo no conoce."""
+    promotes = f" --promotes {shlex.quote(args.promotes)}" if args.promotes is not None else ""
+    discards = "".join(f" --discard {shlex.join(pair)}" for pair in args.discard or ())
+
+    def carried(command):
+        if not command.startswith("gitmem note "):
+            return command
+        if "--promotes" not in command:
+            command += promotes
+        if "--discard" not in command:
+            command += discards
+        return command
+
+    return dataclasses.replace(one_rejection, relaunch=tuple(map(carried, one_rejection.relaunch)))
+
+
+def _print_rejection(one_rejection, args, *, carry_cli=True):
     """Todo rechazo de este script arrastra el `--searched` ya contestado
-    en sus relanzamientos [D-098, ver `validator.carry_searched`]."""
+    en sus relanzamientos [D-098, ver `validator.carry_searched`]; los de la
+    nota que aun no se escribio arrastran tambien `--promotes`/`--discard`."""
+    if carry_cli:
+        one_rejection = _carry_cli_flags(one_rejection, args)
     carried = validator.carry_searched(one_rejection, args.searched, "gitmem note ")
     print(rejection_.render_terminal(carried))
 
 
 def _without_discards(argv, dropped):
-    """`argv` sin las parejas `--discard <titular> <porque>` de `dropped`."""
+    """`argv` sin las parejas `--discard <titular> <porque>` de `dropped`,
+    tantas veces como cuente cada pareja."""
+    left = collections.Counter(dropped)
     out, i = [], 0
     while i < len(argv):
         token = argv[i]
         is_discard = len(token) >= 4 and "--discard".startswith(token)
-        if is_discard and tuple(argv[i + 1:i + 3]) in dropped:
+        pair = tuple(argv[i + 1:i + 3])
+        if is_discard and left[pair] > 0:
+            left[pair] -= 1
             i += 3
             continue
         out.append(token)
@@ -361,10 +388,10 @@ def _print_refused_discards(rejections, alternatives, ctx, argv):
     for one_rejection in rejections:
         print(rejection_.render_terminal(dataclasses.replace(one_rejection, relaunch=())))
         print()
-    dropped = {
-        (alt.headline, alt.description) for alt in alternatives if validator.validate_note(alt, ctx)
-    }
-    listed = tuple(f"  --discard {shlex.join(pair)}" for pair in sorted(dropped))
+    dropped = collections.Counter(
+        (alt.headline, alt.description) for alt, _found in notes.refused_alternatives(alternatives, ctx)
+    )
+    listed = tuple(f"  --discard {shlex.join(pair)}" for pair in sorted(dropped.elements()))
     summary = rejection_.build(
         kind="discard_refused",
         what="no se ha guardado nada: ni la decision ni sus descartes",
@@ -409,7 +436,7 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
         for result in failed:
             if result.rejections:
                 for one_rejection in result.rejections:
-                    _print_rejection(one_rejection, args)
+                    _print_rejection(one_rejection, args, carry_cli=False)
             else:
                 print(f"git fallo al guardar un descarte: {result.git_error}", file=sys.stderr)
         saved = [decision_result.note_id] + [r.note_id for r in discard_results if r.ok]
@@ -425,9 +452,9 @@ def _handle_discard(candidate, args, normalized_keys, ctx, zone1, zone2, argv):
 
 
 def _write_decision(candidate, args, ctx):
-    """`--promotes` [2026-08-05] tiene prioridad --
-    si se dio, `notes.promote()` es la unica que se llama (asciende la Q
-    citada, ver el docstring del modulo). Si no, `--replaces` distingue
+    """`--promotes` [2026-08-05]: si se dio, `notes.promote()` es la unica
+    que se llama (asciende la Q citada y, con un `--replaces` real, archiva
+    tambien la sustituida, ver el docstring del modulo). Si no, `--replaces` distingue
     tres casos [TEXTOS.md Sec.1.6] -- ausente (nada se sustituye), el
     centinela literal "none" ("conviven las dos, a proposito" --
     `validator.validate_replacement`), o un ID real ("la sustituye" -- la

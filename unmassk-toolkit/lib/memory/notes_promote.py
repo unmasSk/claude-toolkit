@@ -102,6 +102,7 @@ def swap_and_archive(
     destination: str,
     link_replaces: bool,
     pre_check=None,
+    also_replaces: str | None = None,
 ) -> WriteResult:
     """Retira `old_id` de `old_index_name`, escribe `new` con un id nuevo
     en su propio indice, y archiva la vieja con `destination` -- las tres
@@ -117,6 +118,9 @@ def swap_and_archive(
     commit, el numero que estan a punto de liberar), restauracion por
     snapshot completo (nunca `indexes.insert()`: una linea existente
     puede estar en cualquier posicion del fichero).
+
+    `also_replaces`: una segunda nota viva que `new` sustituye; sale de su
+    indice y se archiva como "replaced" en el mismo commit.
     """
     root = repo_root()
     pm = pm_root(root)
@@ -159,33 +163,53 @@ def swap_and_archive(
 
         # index_name_new nunca es None aqui: validate_type ya lo habria rechazado.
         new_index_path = pm / index_name_new
-        new_index_snapshot = (
-            old_index_snapshot if same_file else new_index_path.read_text(encoding="utf-8")
-        )
+        snapshots = {old_index_path: old_index_snapshot}
+        snapshots.setdefault(new_index_path, new_index_path.read_text(encoding="utf-8"))
+        archive_path = pm / _ARCHIVE_FILE
+        snapshots[archive_path] = archive_path.read_text(encoding="utf-8")
+
+        def _restore_all() -> None:
+            for path, text in snapshots.items():
+                restore_snapshot_best_effort(path, text)
+
+        retired_line = None
+        if also_replaces is not None:
+            try:
+                retired_line, duplicate = _retire_live(also_replaces, pm, snapshots)
+            except BaseException:
+                _restore_all()
+                raise
+            if duplicate is not None:
+                _restore_all()
+                return WriteResult(ok=False, note_id=None, rejections=(duplicate,), git_error=None)
+
         new_line = IndexLine(
             id=candidate.id, zone1=candidate.zone1, zone2=candidate.zone2,
             headline=candidate.headline,
         )
         indexes.insert(new_line, index_name_new, pm)
 
-        archive_path = pm / _ARCHIVE_FILE
-        archive_snapshot = archive_path.read_text(encoding="utf-8")
-        old_type = old_id.split("-", 1)[0]
+        today = datetime.now(timezone.utc).date()
         indexes.archive(
             ArchiveLine(
-                date=datetime.now(timezone.utc).date(), type=old_type, id=old_id,
+                date=today, type=old_id.split("-", 1)[0], id=old_id,
                 zone1=old_line.zone1, zone2=old_line.zone2, headline=old_line.headline,
                 destination=destination, destination_detail=candidate.id,
             ),
             pm,
         )
+        if retired_line is not None:
+            indexes.archive(
+                ArchiveLine(
+                    date=today, type=also_replaces.split("-", 1)[0], id=also_replaces,
+                    zone1=retired_line.zone1, zone2=retired_line.zone2,
+                    headline=retired_line.headline,
+                    destination="replaced", destination_detail=candidate.id,
+                ),
+                pm,
+            )
 
-        touched = list({old_index_path, new_index_path, archive_path})
-
-        def _restore_all() -> None:
-            restore_snapshot_best_effort(old_index_path, old_index_snapshot)
-            restore_snapshot_best_effort(new_index_path, new_index_snapshot)
-            restore_snapshot_best_effort(archive_path, archive_snapshot)
+        touched = list(snapshots)
 
         try:
             message = format.build_message(candidate)
@@ -201,6 +225,26 @@ def swap_and_archive(
             return WriteResult(ok=False, note_id=None, rejections=(), git_error=git_result.stderr)
 
         return WriteResult(ok=True, note_id=candidate.id, rejections=(), git_error=None)
+
+
+def _retire_live(note_id: str, pm: Path, snapshots: dict) -> tuple[IndexLine | None, Rejection | None]:
+    """Retira de su indice la unica linea viva de `note_id`; guarda antes en
+    `snapshots` el texto previo de ese indice si aun no estaba."""
+    index_name = _TYPE_TO_INDEX_FILE.get(note_id.split("-", 1)[0])
+    if index_name is None:
+        raise ValueError(f"{note_id!r}: tipo desconocido, ningun indice le corresponde")
+    path = pm / index_name
+    snapshots.setdefault(path, path.read_text(encoding="utf-8"))
+    line, duplicate = notes_duplicate.pick(
+        note_id, indexes.read(index_name, pm), None,
+        lambda sha: f'gitmem remove {note_id} "<motivo>" --commit {sha}',
+    )
+    if duplicate is not None:
+        return None, duplicate
+    if line is None:
+        raise RuntimeError(f"--replaces {note_id}: no esta vigente en {index_name}")
+    indexes.remove(note_id, index_name, pm, only=line)
+    return line, None
 
 
 # 2026-08-05, encargo del propietario: los dos rechazos de --promotes no
@@ -248,8 +292,10 @@ def promote(new: Note, question_id: str, ctx: Context) -> WriteResult:
     respuesta es un hecho, cae a descarte si es que no [spec Sec.4;
     TEXTOS Sec.4]. Delega en `swap_and_archive()` con
     `destination="promoted"` y `link_replaces=False` -- un ascenso no es
-    una sustitucion, ver el docstring del modulo.
+    una sustitucion, ver el docstring del modulo. Si `new.replaces` es un
+    id real, esa nota se archiva como sustituida en el mismo commit.
     """
+    replaced = new.replaces if new.replaces not in (None, "none") else None
     return swap_and_archive(
         question_id,
         _TYPE_TO_INDEX_FILE["Q"],
@@ -258,4 +304,5 @@ def promote(new: Note, question_id: str, ctx: Context) -> WriteResult:
         destination="promoted",
         link_replaces=False,
         pre_check=lambda pm: _reject_bad_promotes_target(new, question_id, pm),
+        also_replaces=replaced,
     )

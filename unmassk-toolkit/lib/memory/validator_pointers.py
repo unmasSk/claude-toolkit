@@ -52,6 +52,7 @@ hermanos de `lib/memory/` [PIEZAS.md Sec.13], importados PLANOS
 """
 
 import re
+import shlex
 
 from model import Note, Rejection
 import rejection as rejection_
@@ -166,7 +167,7 @@ def _reject_restriction_without_incident(
 # decide nada (no produce `Rejection`, no es "esto es valido") -- solo
 # vuelve a imprimir, sin inventar, lo que `note` YA trae.
 def carry_answer_flags(note: Note, *, skip: frozenset[str] = frozenset()) -> str:
-    """Los flags ``--stops``/``--origin``/``--replaces``/``--awaits`` que
+    """Los flags ``--stops``/``--origin``/``--replaces``/``--awaits``/``--keys`` que
     ``note`` YA trae, listos para pegar en un comando de relanzamiento --
     nunca fabrica un valor que el usuario no dio. ``--stops`` no es un
     campo de ``Note``; se deriva del tipo (R -> "yes", M -> "no"), que solo
@@ -184,4 +185,6 @@ def carry_answer_flags(note: Note, *, skip: frozenset[str] = frozenset()) -> str
         parts.append(f' --replaces {note.replaces}')
     if "--awaits" not in skip and note.awaits is not None and note.awaits.strip():
         parts.append(f' --awaits "{note.awaits}"')
+    if "--keys" not in skip and note.keys:
+        parts.append(f" --keys {shlex.join(note.keys)}")
     return "".join(parts)
