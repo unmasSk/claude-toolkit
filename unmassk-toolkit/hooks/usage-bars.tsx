@@ -1,4 +1,4 @@
-// The usage bars under the plan in the side pane (D-165, D-166): two bars, the session (5 h) and the week (7 d), percent only.
+// The usage bars under the plan in the side pane (D-165, D-166): two bars, this session's context and the week (7 d), percent only (D-168).
 // Cut down from MoonZhe/usage-band (hooks/register.tsx and pills.ts), Copyright (c) 2026 MoonZhe, MIT;
 // see NOTICE beside this file.
 import { update } from 'claude-code'
@@ -9,11 +9,6 @@ import type { UsageReading, UsageWindow } from './plan-pane-state'
 
 type Rate = { kind: string; percentUsed: number; resetsAt?: string }
 
-// The owner's order and labels: never the engine's list order.
-const WINDOWS = [
-  { label: 'Sesión', pick: (r: UsageReading) => r.fiveHour },
-  { label: 'Semana', pick: (r: UsageReading) => r.sevenDay },
-] as const
 
 const CELLS = 10
 const BAR_W = 60
@@ -27,11 +22,20 @@ const pickLimit = (list: readonly Rate[], kind: string): UsageWindow | null => {
   return r ? { percentUsed: r.percentUsed, resetsAt: r.resetsAt ?? null } : null
 }
 
-// Only the two windows; a reading with neither is no reading.
-const toReading = (list: readonly Rate[]): UsageReading | null => {
-  const fiveHour = pickLimit(list, 'five_hour')
-  const sevenDay = pickLimit(list, 'seven_day')
-  return fiveHour || sevenDay ? { fiveHour, sevenDay } : null
+type Context = { tokens?: number; window?: number; percent?: number }
+
+// How full this session's context is, in percent; unknown until the engine says.
+const contextPercent = (c: Context | undefined): number | null => {
+  if (c === undefined) return null
+  if (typeof c.percent === 'number') return c.percent
+  return typeof c.tokens === 'number' && typeof c.window === 'number' && c.window > 0 ? (100 * c.tokens) / c.window : null
+}
+
+// This session's context and the weekly limit; a reading with neither is no reading.
+const toReading = (context: Context | undefined, list: readonly Rate[]): UsageReading | null => {
+  const sessionPercent = contextPercent(context)
+  const sevenDay = pickLimit(list ?? [], 'seven_day')
+  return sessionPercent !== null || sevenDay ? { context: sessionPercent, sevenDay } : null
 }
 
 // A window whose reset time has passed starts over, whatever the last reading said.
@@ -58,12 +62,12 @@ const barCells = (percent: number) => {
 
 export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
-    const reading = toReading(e.rateLimits)
+    const reading = toReading(e.context, e.rateLimits)
     if (reading !== null) {
       // The band redraws from state first: a refused store write only costs the next session's first draw.
       await update($, { plugin: 'unmassk-toolkit', key: 'usage' }, () => reading)
-      // Kept for the next session until its first reading arrives.
-      await $.store.set('usage-bars', reading).catch(() => undefined)
+      // Only the week is kept for the next session: its context starts empty.
+      await $.store.set('usage-bars', { context: null, sevenDay: reading.sevenDay }).catch(() => undefined)
       $.ui.invalidate('ui.render')
     }
 
@@ -77,10 +81,11 @@ type Ui = { Box: any; Text: any; Svg?: any }
 export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number) => {
   if (reading === null) return null
   const { Box, Text, Svg } = ui
-  const shown = WINDOWS.flatMap(({ label, pick }) => {
-    const w = pick(reading)
-    return w ? [{ label, percent: percentOf(w, now) }] : []
-  })
+  // The owner's order and labels: never the engine's list order.
+  const shown = [
+    ...(reading.context !== null ? [{ label: 'Sesión', percent: Math.max(0, Math.min(100, reading.context)) }] : []),
+    ...(reading.sevenDay ? [{ label: 'Semana', percent: percentOf(reading.sevenDay, now) }] : []),
+  ]
   return (
     <Box flexDirection="column" marginTop={1}>
       {shown.map(({ label, percent }) =>
