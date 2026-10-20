@@ -222,10 +222,14 @@ def _headline_rejection_for_remove(args, rejection):
 def _overlap_rejection_for_remove(args, rejection, candidate, ctx):
     """El rechazo del muro parecido, con el Relanza cambiado a `gitmem
     remove ... --replaces <el parecido>`: el `gitmem note R` del validador
-    escribe un muro suelto y deja la incidencia abierta.
+    escribe un muro suelto y deja la incidencia abierta. La incidencia que
+    se cierra nunca es el parecido (el muro nace de ella); si solo se parece
+    a ella, el Relanza lleva `--replaces none`.
     """
-    first = similar.find_overlapping(candidate, ctx.existing_in_zone, threshold=SIMILARITY_THRESHOLD)[0]
-    return dataclasses.replace(rejection, relaunch=(_remove_command(args, replaces=first.id),))
+    overlapping = similar.find_overlapping(candidate, ctx.existing_in_zone, threshold=SIMILARITY_THRESHOLD)
+    others = [n.id for n in overlapping if n.id.lower() != args.id.lower()]
+    replaces = others[0] if others else "none"
+    return dataclasses.replace(rejection, relaunch=(_remove_command(args, replaces=replaces),))
 
 
 def _remove_command(args, replaces=None, commit=None, text=None):
