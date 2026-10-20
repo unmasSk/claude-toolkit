@@ -46,6 +46,8 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - Two engines on this machine: the CLI `~/.local/bin/claude` is 2.1.287; the desktop app's is `~/Library/Application Support/Claude/claude-code/2.1.299/*/claude.app/Contents/MacOS/claude`. Run mod tests on both.
 - Any `$.state` key fails `validate` unless plugin.json names a `"types"` .d.ts declaring it in PluginState.
 - No tsc on this machine: a mod's type-check stays UNVERIFIED unless one is installed.
+- As a subagent I have no Skill tool and the built-in `plugin-authoring` skill has no file on disk: learn the mod API from plan-pane.tsx and the tests.
+- `$.ui.invalidate('ui.render')` in plan-pane's 1 s tick redraws every render hook of the plugin, the AbovePrompt band too.
 - plan-agents tests pin the agent's whole first answer line in its row: a "first word only" status turns them red.
 - In the test kit `$.ui.resolve(e)` on the terminal still hands back an `Svg` that draws nothing: branch on `e.surface`, never on whether Svg exists.
 

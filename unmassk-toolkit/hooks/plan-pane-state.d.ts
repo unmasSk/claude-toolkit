@@ -36,8 +36,13 @@ export type FoldedTask = { title: string; issue: number | null; durationMs: numb
 
 export type Plan = { current: PlanTask | null; finished: FoldedTask[] }
 
+// A plan limit window as last read (D-166); resetsAt is an ISO time, null when the engine gave none.
+export type UsageWindow = { percentUsed: number; resetsAt: string | null }
+
+export type UsageReading = { fiveHour: UsageWindow | null; sevenDay: UsageWindow | null }
+
 declare module 'claude-code' {
   interface PluginState {
-    'unmassk-toolkit': { plan: Plan }
+    'unmassk-toolkit': { plan: Plan; usage: UsageReading }
   }
 }

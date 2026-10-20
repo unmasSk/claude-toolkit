@@ -5,6 +5,7 @@ import { drawPane } from './plan-pane-look.tsx'
 import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, isTicking, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanStep, PlanTask } from './plan-pane-state'
+import { register as registerUsageBars } from './usage-bars.tsx'
 
 // The plan stays in view (D-149, D-153): opened without focus, closeOnEscape or holdToasts.
 const PANE = 'plan'
@@ -59,6 +60,9 @@ const closeRefusal = (task: PlanTask, pending: PlanStep[]) =>
   `${pending.map(stepLabel).join('; ')}. Finish them and tick them with the plan tool first.`
 
 export const register: Register = on => {
+  // hooks.json takes one module per plugin: the usage band (D-166) registers from here.
+  registerUsageBars(on)
+
   on('session.start', async ($, e, next) => {
     // The pane opens before the tool registers: a failed register must not leave it closed.
     await $.ui.open({ id: PANE, title: 'Plan' })
