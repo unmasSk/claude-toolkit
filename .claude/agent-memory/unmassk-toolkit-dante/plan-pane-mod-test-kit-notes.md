@@ -29,5 +29,7 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - Test tool placement through `$.tool.describe({ tool, description, isDeferred: true, provider })` with a `tool.describe` bottom answering `isDeferred: true` (registered before startSession). Add a control tool that must stay deferred (kills a dropped matcher) and assert the bottom's description survives (kills a hook that skips `next`).
 - `turn.complete` with `reason: 'refusal'` needs a `refusal: { category, explanation }` field (TurnCompleteRefused). Give stopped turns a non-empty partial answer, else "the answer leaked" mutants survive. Mutants: copy the whole `unmassk-toolkit/` dir to the scratchpad and run `claude plugin test unmassk-toolkit` from there.
 
+- Built-in tool calls (D-156 close gate): `$.tool.call({ tool: 'Bash', command })` reaches the kit's bottom `tool.call` (it records into `fellThrough` and denies "reached the bottom"). So "passed untouched" = fellThrough holds exactly `[['Bash', command]]` and the answer is the bottom's; "refused" = own deny + fellThrough empty. The plugin's classic PreToolUse settings hooks (customs.py…) did not interfere in the test run.
+
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
