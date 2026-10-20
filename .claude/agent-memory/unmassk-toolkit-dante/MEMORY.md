@@ -95,4 +95,5 @@
 - [managed-block-slimming-89-contract-notes.md](managed-block-slimming-89-contract-notes.md) — #89 3.1 managed-block slimming: property tests, wrapped phrases, retire-a-block
 - [boot-slim-report-89-contract-notes.md](boot-slim-report-89-contract-notes.md) — #89 4.1 boot slimming RED: headline-only walls, one line per open issue, GitHub double field gotcha
 - [fake-home-session-isolation-notes.md](fake-home-session-isolation-notes.md) — R.2 session fake HOME: why session scope, mtime not checksum, sentinel proof
+- [plan-pane-mod-test-kit-notes.md](plan-pane-mod-test-kit-notes.md) — #98 mod tests: unaliased claude plugin test, bottom-hook answers, skipped hooks invisible
 - [duplicate-id-remove-contract-notes.md](duplicate-id-remove-contract-notes.md) — #105 D-145 duplicate id, sha-prefix collision, pasted relaunches; D-147 boot alert over twin readers
