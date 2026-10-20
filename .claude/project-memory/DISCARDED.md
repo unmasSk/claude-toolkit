@@ -158,3 +158,4 @@
 [X-158][hooks][design] copy MaeharaTakumi/claude-usage-band
 [X-159][hooks][design] justmorenoise/claude-code-limits as base
 [X-160][hooks][design] Desktop context card copy (blue full-width line)
+[X-161][hooks][design] big numeral with hairline underline (option B)
