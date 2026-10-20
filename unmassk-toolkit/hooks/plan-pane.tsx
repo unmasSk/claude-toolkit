@@ -4,8 +4,8 @@ import type { Register, StateDollar } from 'claude-code'
 import { drawPane } from './plan-pane-look.tsx'
 import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, isTicking, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
-import type { Plan, PlanStep, PlanTask } from './plan-pane-state'
-import { register as registerUsageBars } from './usage-bars.tsx'
+import type { Plan, PlanStep, PlanTask, UsageReading } from './plan-pane-state'
+import { drawUsage, register as registerUsageBars } from './usage-bars.tsx'
 
 // The plan stays in view (D-149, D-153): opened without focus, closeOnEscape or holdToasts.
 const PANE = 'plan'
@@ -134,6 +134,19 @@ export const register: Register = on => {
     // Only these surfaces draw an Svg; elsewhere resolve may still hand one back that draws nothing.
     const hasSvg = e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile'
 
-    return drawPane(hasSvg ? ui : { Box: ui.Box, Text: ui.Text }, plan, e.props.bodyColumns, now)
+    const surface = hasSvg ? ui : { Box: ui.Box, Text: ui.Text }
+    // This session's reading (D-166), else the one the last session stored.
+    const { value: measured } = await $.state.get({ plugin: 'unmassk-toolkit', key: 'usage' })
+    // A store that cannot be read only leaves the bars out until the first reading.
+    const stored = measured ? undefined : await $.store.get('usage-bars').catch(() => undefined)
+    const usage = measured ?? (stored as UsageReading | undefined) ?? null
+    const usageNow = usage === null ? 0 : now || (await $.clock.now())
+
+    return (
+      <ui.Box flexDirection="column">
+        {drawPane(surface, plan, e.props.bodyColumns, now)}
+        {drawUsage(surface, usage, usageNow)}
+      </ui.Box>
+    )
   })
 }

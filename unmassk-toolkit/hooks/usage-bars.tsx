@@ -1,14 +1,11 @@
-// The usage band above the prompt (D-165, D-166): two bars, the session (5 h) and the week (7 d), percent only.
+// The usage bars under the plan in the side pane (D-165, D-166): two bars, the session (5 h) and the week (7 d), percent only.
 // Cut down from MoonZhe/usage-band (hooks/register.tsx and pills.ts), Copyright (c) 2026 MoonZhe, MIT;
 // see NOTICE beside this file.
 import { update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { Register } from 'claude-code'
 
 import type { UsageReading, UsageWindow } from './plan-pane-state'
 
-const USAGE = { plugin: 'unmassk-toolkit', key: 'usage' } as const
-// The last reading, kept for the next session until its first one arrives.
-const STORE_KEY = 'usage-bars'
 
 type Rate = { kind: string; percentUsed: number; resetsAt?: string }
 
@@ -59,64 +56,48 @@ const barCells = (percent: number) => {
   return '█'.repeat(filled) + '░'.repeat(CELLS - filled)
 }
 
-// This session's reading, else the one the last session stored.
-const readingOf = async ($: EngineInterface): Promise<UsageReading | null> => {
-  const { value } = await $.state.get(USAGE)
-  if (value) return value
-  // Only session.measure writes this key, and always a UsageReading.
-  const stored = await $.store.get(STORE_KEY)
-  return (stored as UsageReading | undefined) ?? null
-}
-
 export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const reading = toReading(e.rateLimits)
     if (reading !== null) {
       // The band redraws from state first: a refused store write only costs the next session's first draw.
-      await update($, USAGE, () => reading)
-      await $.store.set(STORE_KEY, reading).catch(() => undefined)
+      await update($, { plugin: 'unmassk-toolkit', key: 'usage' }, () => reading)
+      // Kept for the next session until its first reading arrives.
+      await $.store.set('usage-bars', reading).catch(() => undefined)
+      $.ui.invalidate('ui.render')
     }
 
     return next(e)
   })
+}
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
-    const reading = await readingOf($)
-    if (reading === null) return next(e)
-    const now = await $.clock.now()
-    const shown = WINDOWS.flatMap(({ label, pick }) => {
-      const w = pick(reading)
-      return w ? [{ label, percent: percentOf(w, now) }] : []
-    })
+type Ui = { Box: any; Text: any; Svg?: any }
 
-    // Only these surfaces draw an Svg; elsewhere resolve may still hand one back that draws nothing.
-    if (e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile') {
-      const { Box, Text, Svg } = $.ui.resolve(e)
-      return (
-        <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-          {shown.map(({ label, percent }) => (
-            <Box key={label} flexDirection="row" columnGap={1} alignItems="center">
-              <Text>{label}</Text>
-              <Svg source={barSvg(percent)} alt={`${label} ${fmtPercent(percent)}`} width={BAR_W} height={BAR_H} />
-              <Text bold>{fmtPercent(percent)}</Text>
-            </Box>
-          ))}
-        </Box>
-      )
-    }
-
-    const { Box, Text } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-        {shown.map(({ label, percent }) => (
+// Drawn by the plan pane under the plan; nothing until the first reading.
+export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number) => {
+  if (reading === null) return null
+  const { Box, Text, Svg } = ui
+  const shown = WINDOWS.flatMap(({ label, pick }) => {
+    const w = pick(reading)
+    return w ? [{ label, percent: percentOf(w, now) }] : []
+  })
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {shown.map(({ label, percent }) =>
+        Svg === undefined ? (
           <Text key={label}>
             {`${label} `}
             <Text color={LEVEL_TERMINAL[level(percent)]}>{barCells(percent)}</Text>
             <Text bold>{` ${fmtPercent(percent)}`}</Text>
           </Text>
-        ))}
-      </Box>
-    )
-  })
+        ) : (
+          <Box key={label} flexDirection="row" columnGap={1} alignItems="center">
+            <Text>{label}</Text>
+            <Svg source={barSvg(percent)} alt={`${label} ${fmtPercent(percent)}`} width={BAR_W} height={BAR_H} />
+            <Text bold>{fmtPercent(percent)}</Text>
+          </Box>
+        ),
+      )}
+    </Box>
+  )
 }

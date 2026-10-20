@@ -23,6 +23,15 @@ export const iso = (ms: number) => new Date(ms).toISOString()
 export const fiveHour = (percentUsed: number, resetsAt = START + 3 * HOUR): Limit => ({ kind: 'five_hour', percentUsed, resetsAt: iso(resetsAt) })
 export const sevenDay = (percentUsed: number, resetsAt = START + 4 * 24 * HOUR): Limit => ({ kind: 'seven_day', percentUsed, resetsAt: iso(resetsAt) })
 
+const PANE_PROPS = {
+  title: 'Plan',
+  isFocused: false,
+  bodyColumns: 60,
+  placement: 'dock',
+  scroll: { offset: 0, bodyRows: 40 },
+  view: {},
+}
+
 export const BAND = {
   hasSurvey: false,
   isWorking: false,
@@ -111,7 +120,8 @@ export const nextSession = (world: World, options: { isStoreKept: boolean }) => 
 }
 
 export const mountBand = ($: any, surface: Surface) =>
-  $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', requestId: 'above-prompt', props: BAND })
+  // The bars live under the plan in the side pane (Bex, 2026-10-20).
+  $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: 'plan', props: PANE_PROPS })
 
 // The band drawn once on a surface: mount, read, unmount.
 export const drawnBand = async ($: any, surface: Surface) => {
@@ -124,8 +134,11 @@ export const drawnBand = async ($: any, surface: Surface) => {
 type Cell = { ch: string; key: string } | { svg: Record<string, any> }
 
 // The band as a stream in document order: one cell per character with its paint, one per Svg.
+// The pane also draws the plan above the bars: only what follows it is the band's.
+const PLAN_EMPTY = 'No plan yet.'
+
 const streamOf = (tree: any): Cell[] =>
-  leavesOf(tree).flatMap(leaf =>
+  leavesOf(tree).filter(leaf => leaf.kind === 'svg' || leaf.text !== PLAN_EMPTY).flatMap(leaf =>
     leaf.kind === 'svg'
       ? [{ svg: leaf.props }]
       : [...leaf.text].map(ch => ({ ch, key: `${ch} ${leaf.paint.color ?? ''} ${leaf.paint.dim ? 'dim' : ''}` })),
