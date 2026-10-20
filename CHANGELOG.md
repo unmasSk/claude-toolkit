@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Usage band above the prompt** (D-165, D-166): a mod shipped with `unmassk-toolkit` draws two bars, the session (5 h) and the week (7 d), percent only, coloured green, yellow or red by level; cut down from MoonZhe/usage-band (MIT, credited in `unmassk-toolkit/hooks/NOTICE`) and registered from the plan pane's module because `hooks.json` takes one module per plugin.
+
+### Changed
+
+- **Plan pane shows the task total on the title row, and step times are painted like their label**: the total counts live next to the task title, and done, running and pending step times take their label's colour (dark grey when done, bold while running).
+
 ### Fixed
 
 - **An overlap rejection offered exits the note's type cannot take** (D-164, R.17): a Q, X, I or B bounced with `--replaces <id>`, which it does not accept, so it could never be saved; `--replaces none` now works for all seven types, `--replaces <id>` stays for D, M and R only, and the rejection shows only the exits the type admits.
