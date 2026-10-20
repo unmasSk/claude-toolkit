@@ -136,3 +136,4 @@
 [M-157][memory][hooks] Hito 3 dead-ends: gate path, lifecycle machine bug, notes.replace
 [M-158][memory][architecture] Twin-id sweep dead-ends: next_id, restore, rezones remove, boot lines
 [M-159][hooks][skills] hooks see the app's update_plan calls; partial ones carry no full list
+[M-160][hooks][skills] R.1 gate-map dead-ends: no app-list code anywhere; _board_dir is right
