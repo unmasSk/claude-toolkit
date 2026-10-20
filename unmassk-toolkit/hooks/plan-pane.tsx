@@ -1,7 +1,7 @@
 import { update } from 'claude-code'
 import type { Register, StateDollar } from 'claude-code'
 
-import { drawPane } from './plan-pane-look.tsx'
+import { Section, drawPane } from './plan-pane-look.tsx'
 import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, isTicking, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanStep, PlanTask, UsageReading } from './plan-pane-state'
@@ -145,6 +145,7 @@ export const register: Register = on => {
     return (
       <ui.Box flexDirection="column">
         {drawPane(surface, plan, e.props.bodyColumns, now)}
+        {usage !== null && Section(surface, 'Uso', e.props.bodyColumns)}
         {drawUsage(surface, usage, usageNow, e.props.bodyColumns)}
       </ui.Box>
     )

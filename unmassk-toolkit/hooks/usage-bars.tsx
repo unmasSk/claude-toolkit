@@ -102,7 +102,7 @@ export const drawUsage = (ui: Ui, reading: UsageReading | null, now: number, col
   // A pane column is about 7 px wide on the desktop.
   const width = Math.max(120, columns * 7)
   return (
-    <Box flexDirection="column" marginTop={1} rowGap={1}>
+    <Box flexDirection="column" rowGap={1}>
       {shown.map(({ label, percent, detail }) =>
         Svg === undefined ? (
           <Text key={label}>
