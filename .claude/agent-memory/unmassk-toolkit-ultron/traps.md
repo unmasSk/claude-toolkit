@@ -40,7 +40,8 @@ Checked against the tree on 2026-10-16. If one stops being true, delete the line
 - `claude plugin validate` reads a hook matcher only from a plain literal const: `requestId: PANE.id` shows as `requestId=?` though tests pass.
 - `claude plugin test` refuses the `claude` shell alias: call `/Users/unmassk/.local/bin/claude`.
 - `claude plugin test unmassk-toolkit` resolves the plugin from the cwd: run it from the repo root, not from inside unmassk-toolkit/.
-- The skill's types can be newer than the installed engine: Text `weight` is declared (2.1.299) but 2.1.287 refuses it; trust the test run, use `bold`.
+- The skill's types can be newer than the installed engine: Text `weight` is declared (2.1.299) but 2.1.287 refuses it, and one refused prop blanks the whole pane.
+- Two engines on this machine: the CLI `~/.local/bin/claude` is 2.1.287; the desktop app's is `~/Library/Application Support/Claude/claude-code/2.1.299/*/claude.app/Contents/MacOS/claude`. Run mod tests on both.
 - Any `$.state` key fails `validate` unless plugin.json names a `"types"` .d.ts declaring it in PluginState.
 - No tsc on this machine: a mod's type-check stays UNVERIFIED unless one is installed.
 - plan-agents tests pin the agent's whole first answer line in its row: a "first word only" status turns them red.

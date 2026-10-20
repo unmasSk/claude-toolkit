@@ -2,7 +2,7 @@
 // nix-checklist-sidebar (hooks/register.tsx), Copyright (c) 2026 nikscz, MIT; see NOTICE beside this file.
 import type { Elements } from 'claude-code'
 
-import { formatDuration, isStopped, stepsOf } from './plan-pane-model.ts'
+import { agentSoFar, formatDuration, isStopped, stepSoFar, stepsOf } from './plan-pane-model.ts'
 import type { Plan, PlanAgent, PlanStatus, PlanStep, PlanTask } from './plan-pane-state'
 
 // What every surface draws with; Svg is absent on the terminal only.
@@ -40,6 +40,12 @@ const TERMINAL_PAINT: Record<PlanStatus, { color?: string; dimColor?: boolean }>
   pending: { dimColor: true },
 }
 const SEGMENT: Record<PlanStatus, string> = { done: '━', in_progress: '━', pending: '─' }
+// The label: done in grey, not dim; in progress weight bold (`bold` alone draws semibold).
+const LABEL_PAINT: Record<PlanStatus, { color?: string; weight?: 'bold' }> = {
+  done: { color: GREY },
+  in_progress: { weight: 'bold' },
+  pending: {},
+}
 
 const TICK = '✓'
 const ELLIPSIS = '…'
@@ -59,9 +65,12 @@ const pills = (steps: readonly PlanStep[]) => {
   }
 }
 
-// How long a done step took; none for a step never in progress or saved before spentMs existed.
-const tookOf = (step: PlanStep) =>
-  step.status === 'done' && typeof step.spentMs === 'number' ? formatDuration(step.spentMs) : null
+// How long a done step took, or the time so far of one in progress; none for a step never in
+// progress or saved before spentMs existed.
+const tookOf = (step: PlanStep, now: number) => {
+  const ms = step.status === 'done' ? step.spentMs : stepSoFar(step, now)
+  return typeof ms === 'number' ? formatDuration(ms) : null
+}
 
 const issueOf = (issue: number | null) => (issue === null ? '' : ` #${issue}`)
 
@@ -119,9 +128,8 @@ const Took = ({ Box, Text }: Ui, took: string | null) =>
   )
 
 // Only the numbered title is cut: the round mark and the duration always show.
-const StepRow = (ui: Ui, step: PlanStep) => {
+const StepRow = (ui: Ui, step: PlanStep, now: number) => {
   const { Box, Text, Svg } = ui
-  const label = { bold: step.status === 'in_progress', dimColor: step.status === 'done' }
   const mark =
     Svg === undefined ? (
       <Text {...TERMINAL_PAINT[step.status]}>{MARK[step.status]}</Text>
@@ -133,20 +141,21 @@ const StepRow = (ui: Ui, step: PlanStep) => {
       {mark}
       <Box flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} gap={1}>
         <Box flexShrink={1} minWidth={0}>
-          <Text wrap="truncate-end" {...label}>{`${step.id} ${step.title}`}</Text>
+          <Text wrap="truncate-end" {...LABEL_PAINT[step.status]}>{`${step.id} ${step.title}`}</Text>
         </Box>
         {Rounds(ui, step.rounds)}
       </Box>
-      {Took(ui, tookOf(step))}
+      {Took(ui, tookOf(step, now))}
     </Box>
   )
 }
 
 // One line per agent: the status is cut so the name and the duration always show.
-const AgentRow = (ui: Ui, agent: PlanAgent, columns: number) => {
+const AgentRow = (ui: Ui, agent: PlanAgent, columns: number, now: number) => {
   const { Box, Text } = ui
   const head = `${agent.type.split(':').pop()} · `
-  const took = agent.durationMs === null ? null : formatDuration(agent.durationMs)
+  const ms = agent.durationMs ?? agentSoFar(agent, now)
+  const took = ms === null ? null : formatDuration(ms)
   const room = columns - AGENT_INDENT - [...head].length - (took === null ? 0 : [...took].length + 1)
   return (
     <Box flexDirection="row" paddingLeft={AGENT_INDENT} gap={1}>
@@ -161,7 +170,7 @@ const AgentRow = (ui: Ui, agent: PlanAgent, columns: number) => {
   )
 }
 
-export const drawPane = (ui: Ui, plan: Plan, columns: number) => {
+export const drawPane = (ui: Ui, plan: Plan, columns: number, now: number) => {
   const { Box, Text } = ui
   const task = plan.current
   return (
@@ -178,8 +187,8 @@ export const drawPane = (ui: Ui, plan: Plan, columns: number) => {
           {phase.title !== null && <Text dimColor wrap="truncate-end">{phase.title}</Text>}
           {phase.steps.map(step => (
             <Box flexDirection="column">
-              {StepRow(ui, step)}
-              {step.agents.map(agent => AgentRow(ui, agent, columns))}
+              {StepRow(ui, step, now)}
+              {step.agents.map(agent => AgentRow(ui, agent, columns, now))}
             </Box>
           ))}
         </Box>

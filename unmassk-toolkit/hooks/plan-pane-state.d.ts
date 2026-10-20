@@ -1,6 +1,13 @@
 export type PlanStatus = 'pending' | 'in_progress' | 'done'
 
-export type PlanAgent = { id: string; type: string; result: string | null; durationMs: number | null }
+// startedAt: when it was spawned (ms); plans saved before may lack it.
+export type PlanAgent = {
+  id: string
+  type: string
+  result: string | null
+  durationMs: number | null
+  startedAt?: number
+}
 
 // startedAt: when its current span in progress began (ms), null outside one.
 // spentMs: the sum of its closed spans, null until the first one closes.

@@ -2,13 +2,15 @@ import { update } from 'claude-code'
 import type { Register, StateDollar } from 'claude-code'
 
 import { drawPane } from './plan-pane-look.tsx'
-import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, pendingSteps } from './plan-pane-model.ts'
+import { EMPTY_PLAN, addAgent, applyStatus, applyTask, endAgent, isTicking, pendingSteps } from './plan-pane-model.ts'
 import type { Change } from './plan-pane-model.ts'
 import type { Plan, PlanStep, PlanTask } from './plan-pane-state'
 
 // The plan stays in view (D-149, D-153): opened without focus, closeOnEscape or holdToasts.
 const PANE = 'plan'
 const PLAN = { plugin: 'unmassk-toolkit', key: 'plan' } as const
+// Running times tick on screen once a second (D-162).
+const TICK_MS = 1000
 
 const PLAN_TOOL_SPEC = {
   name: 'plan',
@@ -60,6 +62,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     // The pane opens before the tool registers: a failed register must not leave it closed.
     await $.ui.open({ id: PANE, title: 'Plan' })
+    $.clock.every(TICK_MS, () => $.ui.invalidate('ui.render'))
     await $.tool.register(PLAN_TOOL_SPEC)
 
     return next(e)
@@ -100,7 +103,10 @@ export const register: Register = on => {
   on('agent.spawn', async ($, e, next) => {
     const started = await next(e)
     const agentId = started.deny === undefined ? started.agentId : undefined
-    if (agentId !== undefined) await change($, plan => ({ plan: addAgent(plan, agentId, e.subagentType) }))
+    if (agentId !== undefined) {
+      const now = await $.clock.now()
+      await change($, plan => ({ plan: addAgent(plan, agentId, e.subagentType, now) }))
+    }
 
     return started
   })
@@ -117,11 +123,13 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { value: plan = EMPTY_PLAN } = await $.state.get(PLAN)
+    // The clock is read only when a live time is drawn; with nothing running `now` is unused.
+    const now = isTicking(plan) ? await $.clock.now() : 0
 
     const ui = $.ui.resolve(e)
     // Only these surfaces draw an Svg; elsewhere resolve may still hand one back that draws nothing.
     const hasSvg = e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile'
 
-    return drawPane(hasSvg ? ui : { Box: ui.Box, Text: ui.Text }, plan, e.props.bodyColumns)
+    return drawPane(hasSvg ? ui : { Box: ui.Box, Text: ui.Text }, plan, e.props.bodyColumns, now)
   })
 }

@@ -11,6 +11,7 @@ const STATUSES: readonly PlanStatus[] = ['in_progress', 'done']
 
 const SECOND_MS = 1000
 const MINUTE_MS = 60_000
+const HOUR_MS = 3_600_000
 
 const isStatus = (value: unknown): value is PlanStatus => STATUSES.some(one => one === value)
 
@@ -110,13 +111,16 @@ export const applyStatus = (plan: Plan, stepId: unknown, status: unknown, now: n
 const activeStep = (task: PlanTask): PlanStep | undefined =>
   stepsOf(task).find(step => step.status === 'in_progress')
 
+// Whether anything shows a live time: a step in progress (running agents sit only under one).
+export const isTicking = (plan: Plan) => plan.current !== null && activeStep(plan.current) !== undefined
+
 // An agent launched with no step in progress is not drawn.
-export const addAgent = (plan: Plan, agentId: string, type: string): Plan => {
+export const addAgent = (plan: Plan, agentId: string, type: string, now: number): Plan => {
   if (plan.current === null) return plan
   const current = structuredClone(plan.current)
   const step = activeStep(current)
   if (step === undefined) return plan
-  step.agents.push({ id: agentId, type, result: null, durationMs: null })
+  step.agents.push({ id: agentId, type, result: null, durationMs: null, startedAt: now })
   const launches = new Map<string, number>()
   for (const agent of step.agents) launches.set(agent.type, (launches.get(agent.type) ?? 0) + 1)
   // Rounds = the most launches of one agent type in the step.
@@ -152,5 +156,22 @@ export const endAgent = (
   return { ...plan, current }
 }
 
-export const formatDuration = (ms: number) =>
-  ms < MINUTE_MS ? `${Math.floor(ms / SECOND_MS)} s` : `${Math.round(ms / MINUTE_MS)} min`
+const twoDigits = (n: number) => String(n).padStart(2, '0')
+
+// `45s` under a minute, `12m 05s` under an hour, `1h 12m` from an hour; each unit rounded down.
+export const formatDuration = (ms: number) => {
+  const seconds = Math.floor(Math.max(ms, 0) / SECOND_MS)
+  if (ms < MINUTE_MS) return `${seconds}s`
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)}m ${twoDigits(seconds % 60)}s`
+  return `${Math.floor(ms / HOUR_MS)}h ${twoDigits(Math.floor(ms / MINUTE_MS) % 60)}m`
+}
+
+// A step in progress: its closed spans plus the open one so far; null when it is not running.
+export const stepSoFar = (step: PlanStep, now: number) =>
+  step.status === 'in_progress' && typeof step.startedAt === 'number'
+    ? (step.spentMs ?? 0) + now - step.startedAt
+    : null
+
+// A running agent: the time since its spawn; null once ended or when no spawn time was saved.
+export const agentSoFar = (agent: PlanAgent, now: number) =>
+  agent.durationMs === null && typeof agent.startedAt === 'number' ? now - agent.startedAt : null
