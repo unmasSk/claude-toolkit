@@ -14,8 +14,7 @@ A note of any type that resembles another in its zones can be saved: the overlap
 - M-164: Bilbo's dead-ends (the gate works; the loop is the relaunch text plus `allowed_fields`).
 
 ## Out of scope
-- R.16 (the `--work` relaunch dropping `--why`, `--keys`, `--replaces`, `--origin` in `validator_issue.py`).
-- The relaunch of a missing required field dropping `--why`/`--keys` (seen 2026-10-20 on an X): same family as R.16.
+- The relaunch of a missing required field dropping `--why`/`--keys` (seen 2026-10-20 on an X).
 - Threat model: the system against itself (CLAUDE.md). No hostile input.
 
 ## Seam
@@ -29,7 +28,7 @@ Yes: a note is written by `gitmem note` and read back by `gitmem search` and the
 - [ ] 3.1 Dante: red tests through `gitmem note` — Q, X, I, B overlapping a note bounce with only exits they accept; each saves with `--replaces none`; `--replaces <id>` on Q/X/I/B still rejected; D/M/R unchanged; the relaunch pasted as printed is accepted (or bounces only on the `...` placeholders); round-trip: the saved note is found by `gitmem search` and the index check stays green; `remove`'s new-fence path unchanged.
 - [ ] 3.2 Ultron: code until those tests are green.
 - [ ] 3.3 Cerberus and Argus on the diff against the base.
-- [ ] 3.4 One fix pass.
+- [ ] 3.4 One fix pass (Cerberus and Argus, 2026-10-20): the overlap relaunch carries `--issue` and `--quote`; no `--work no` beside `--issue N`; the issue-gate relaunch carries `--replaces`, `--why`, `--keys`, `--origin` (R.16, taken in: without it the two rejections ping-pong); `Replaces: none` never shows as `(↺ none)` or `sustituye a none`.
 
 ### Phase 4: Final round
 - [ ] 4.1 Moriarty.
