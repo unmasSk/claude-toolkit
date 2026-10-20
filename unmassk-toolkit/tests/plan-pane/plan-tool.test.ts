@@ -18,6 +18,24 @@ test('should_register_the_plan_tool_when_the_session_starts', async ($, on) => {
   expect(registered.map(spec => spec.name), 'tools registered on session.start').toContain('plan')
 })
 
+test('should_register_the_plan_tool_with_the_arguments_the_model_sends', async ($, on) => {
+  const { registered } = await startSession($, on)
+
+  const plan = registered.find(spec => spec.name === 'plan')
+
+  expect(Object.keys(plan?.inputSchema?.properties ?? {}).sort(), 'the arguments the model may send').toEqual(['status', 'step', 'task'])
+  expect(plan?.inputSchema?.properties?.status?.enum, 'the two statuses a step can take').toEqual(['in_progress', 'done'])
+})
+
+test('should_offer_the_plan_tool_from_the_start_not_behind_tool_search', async ($, on) => {
+  const { registered } = await startSession($, on)
+
+  const plan = registered.find(spec => spec.name === 'plan')
+
+  // Deferred, the model would have to search for the tool before it could send the task (phase 5).
+  expect(plan?.isDeferred, 'the model sees the plan tool from the start').toBe(false)
+})
+
 test('should_draw_title_issue_phases_and_steps_in_order_when_the_model_sends_the_whole_task', async ($, on) => {
   const { opens } = await startSession($, on)
 

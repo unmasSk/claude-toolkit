@@ -23,6 +23,9 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - Agents: drive `$.agent.spawn({ ..., name })` (bottom answers `{ model, agentId }`) and `$.turn.complete({ agentId, answer, durationMs, isAborted, turnId, reason })`. `mock.clock(on)` in the shared start, since one `$.clock` call without it skips the hook.
 - Read the drawing as rows (outermost Text/Button text, descendants joined) and assert by document order; Text takes no `key`.
 - Prove the tests can go green on a scratchpad module before reporting RED: it caught three test bugs here.
+- Test hooks must be registered BEFORE the test's first `$` call (else TypeError), and one event per test only once ("registered twice"): extra bottoms go before `startSession`.
+- To make a module's `$` op fail: a test hook that THROWS is skipped and core answers anyway. Answer `{ deny }` instead, from a toggled hook (`box.isBroken`) registered before startSession, flipped after. That is how the plan tool's `.catch` was reached.
+- Engine 2.1.287 `$.tool.register` forwards only name/description/inputSchema: `isDeferred` never reaches the event (read in the binary). A test on it stays red on that engine whatever the mod does.
 
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
