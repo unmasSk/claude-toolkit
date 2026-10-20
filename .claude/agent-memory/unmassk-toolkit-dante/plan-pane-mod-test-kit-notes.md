@@ -30,6 +30,8 @@ Mod tests (`*.test.ts`, kit `claude-code/testing`) for the #98 plan pane, in `un
 - `turn.complete` with `reason: 'refusal'` needs a `refusal: { category, explanation }` field (TurnCompleteRefused). Give stopped turns a non-empty partial answer, else "the answer leaked" mutants survive. Mutants: copy the whole `unmassk-toolkit/` dir to the scratchpad and run `claude plugin test unmassk-toolkit` from there.
 
 - Built-in tool calls (D-156 close gate): `$.tool.call({ tool: 'Bash', command })` reaches the kit's bottom `tool.call` (it records into `fellThrough` and denies "reached the bottom"). So "passed untouched" = fellThrough holds exactly `[['Bash', command]]` and the answer is the bottom's; "refused" = own deny + fellThrough empty. The plugin's classic PreToolUse settings hooks (customs.py…) did not interfere in the test run.
+- An event the kit already hooks (state.get) can still get a second test hook if it carries a MATCHER (`on('state.get', PLAN_STATE, ...)`), registered before startSession: no "registered twice". A toggled `{ deny }` there makes the module's `$.state.get` reject and reaches its `.catch` (D-156 fail-closed test).
+- Writing a test command that contains `git commit -m` through a Bash heredoc trips the customs hook: put such strings in with the Edit tool.
 
 **Why:** first mod in the repo; kit docs live only in the plugin-authoring skill's types file (`declare module 'claude-code/testing'`).
 **How to apply:** phases 2-4 of #98 reuse the startSession helper pattern and the scratchpad empty-module trick.
