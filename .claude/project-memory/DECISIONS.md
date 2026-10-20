@@ -121,3 +121,4 @@
 [D-154][hooks][skills] build the plan pane first, then the gate reading it
 [D-155][hooks][skills] the plan-pane mod is built with the Short procedure
 [D-156][hooks][skills] the gate stops closing work while the pane has steps unticked
+[D-157][install][memory] the installer does not commit on a protected branch; the boot says so
