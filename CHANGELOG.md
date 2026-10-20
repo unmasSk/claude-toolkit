@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **An overlap rejection offered exits the note's type cannot take** (D-164, R.17): a Q, X, I or B bounced with `--replaces <id>`, which it does not accept, so it could never be saved; `--replaces none` now works for all seven types, `--replaces <id>` stays for D, M and R only, and the rejection shows only the exits the type admits.
+- **Relaunch commands dropped or invented fields** (D-164, R.17): a relaunch now keeps the `--description`, `--why`, `--issue`, `--work` and `--quote` already given instead of a `"..."` placeholder, and adds `--why` only to types that take it; `gitmem remove` offers `--replaces none` when the only overlap is its own incident or a closing type.
+
 ## [1.54.0] - 2026-10-20
 
 ### Added

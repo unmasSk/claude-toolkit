@@ -4,7 +4,7 @@ A rejection is the system asking, with the options and the exact relaunch inside
 
 | The rejection says | You answer |
 |---|---|
-| This overlaps something already written | `--replaces <ID>`, or `--replaces none` if both stand |
+| This overlaps something already written | `--replaces <ID>` (a D, M or R only, over a D, M or R), or `--replaces none` if both stand (all seven types, `none` in any case) |
 | The cost question is unanswered | `--stops yes` or `--stops no` |
 | This rule is nearly the one already saved | Keep one. Don't reword and re-save |
 | A wall with incidents in its zone | `--origin <incident-ID>`, or `--origin none` |

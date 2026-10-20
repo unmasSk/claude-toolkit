@@ -127,6 +127,8 @@ Sending a field a type doesn't accept is rejected exactly like omitting a requir
 | **I** | `--description`, and `--work no` **or** `--issue` | `--why` `--keys` · `--quote` (only with `--issue none`) |
 | **B** | `--description` `--awaits` | `--keys` `--issue` |
 
+**`--replaces`:** `--replaces none` (both notes stand) is valid for all seven types; `--replaces <id>` only for D, M and R, and only over a D, M or R — an X never dies, a Q is promoted, an I closes by its protocol, a B is resolved (D-164). A type outside D, M, R answers an overlap with `--replaces none` or by not saving; its rejection offers no other exit. The relaunch printed carries what you already gave and only fields the type takes.
+
 **`--issue` is accepted by all seven** — a note that points at work can be of any type. The number must belong to an issue that already exists; the system checks it once, when the note is saved, and rejects the note if it doesn't. If the issue is opened *after* the note was saved, the note is not rewritten: the issue cites the note instead.
 
 **Q and I pass through the issue customs:** each needs `--issue N` or `--work no`, and an owner's no needs his literal words. Before saving either, and for a D that defers future building, read `references/fields.md`. A restriction carries the scar it was born from (`--origin`); `--stops` is asked of memos and restrictions only — same file.
