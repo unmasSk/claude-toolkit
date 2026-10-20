@@ -6,8 +6,12 @@ export const PLAN_TOOL = `mcp__${PLUGIN}__plan`
 export const PLAN_STATE = { plugin: PLUGIN, key: 'plan' } as const
 export const SURFACES = ['terminal', 'desktop'] as const
 
-// Marks the pane draws (proposal; one place to change them).
-export const TICK = '✓'
+// Marks the pane draws (D-158): an empty circle for a pending step, a filled or
+// ticked circle for a done one; one place to change them.
+export const PENDING = '○'
+export const DONE_MARKS: readonly string[] = ['●', '◉', '⦿']
+// A finished task folded to one line (D-153) may keep its tick.
+export const FOLDED_MARKS: readonly string[] = [...DONE_MARKS, '✓']
 export const rounds = (n: number) => new RegExp(`↻\\s?${n}\\b`)
 export const minutes = (n: number) => new RegExp(`\\b${n} min\\b`)
 
@@ -120,4 +124,31 @@ export const ISSUE_TASK = {
       steps: [{ id: '3.1', title: 'Write the agent tests' }],
     },
   ],
+}
+
+// The progress bar's count, `done/total`, closes its row (D-158).
+export const COUNTER = /(\d+)\/(\d+)\s*$/
+
+// The first glyph a row shows: a step's circle.
+export const markOf = (row: string | undefined) => [...(row ?? '').trimStart()][0] ?? ''
+
+export const isDoneStep = (row: string | undefined) => !COUNTER.test(row ?? '') && DONE_MARKS.includes(markOf(row))
+
+export const doneSteps = (rows: string[]) => rows.filter(isDoneStep)
+
+// The bar as drawn: one glyph per segment, spaces between allowed, the count on
+// the same row or on the row right after the segments.
+export const progressOf = (rows: string[]) => {
+  const at = rows.findIndex(row => COUNTER.test(row))
+  const [, done, total] = rows[at]?.match(COUNTER) ?? []
+  const glyphs = (row: string | undefined) => [...(row ?? '').replace(COUNTER, '').replace(/\s/g, '')]
+  const own = glyphs(rows[at])
+  const barAt = own.length > 0 ? at : at - 1
+  return {
+    at: barAt,
+    counters: rows.filter(row => COUNTER.test(row)).length,
+    done: Number(done),
+    total: Number(total),
+    segments: barAt === at ? own : glyphs(rows[barAt]),
+  }
 }

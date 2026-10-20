@@ -4,9 +4,9 @@
 import { test, expect } from 'claude-code/testing'
 import {
   ISSUE_TASK,
-  TICK,
   callPlan,
   drawnRows,
+  isDoneStep,
   endAgent,
   minutes,
   mountPane,
@@ -82,7 +82,7 @@ test('should_drop_the_agents_and_keep_the_tick_and_rounds_when_the_step_ends', a
   const stepRow = rows[rowIndex(rows, FIRST.title)]
   expect(rowsUnder(rows, FIRST.title, SECOND.title), `no agent left under ${FIRST.id}`).toEqual([])
   expect(rows.filter(row => /ultron|cerberus/i.test(row)), 'no agent anywhere').toEqual([])
-  expect(stepRow, 'the step is ticked').toContain(TICK)
+  expect(isDoneStep(stepRow), `the step is ticked: ${stepRow}`).toBe(true)
   expect(stepRow, 'with its rounds').toMatch(rounds(2))
 })
 

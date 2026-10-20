@@ -5,9 +5,12 @@ import { test, expect } from 'claude-code/testing'
 import {
   ISSUE_TASK,
   SURFACES,
-  TICK,
+  FOLDED_MARKS,
   callPlan,
+  doneSteps,
   drawnRows,
+  isDoneStep,
+  markOf,
   minutes,
   mountPane,
   rowIndex,
@@ -54,7 +57,7 @@ test('should_keep_every_field_the_model_sent_and_draw_it_back', async ($, on) =>
     await ui.unmount()
     expect(keptTitles.filter(title => rowIndex(rows, title) < 0), `kept titles not drawn on ${surface}`).toEqual([])
     expect(rows[rowIndex(rows, kept.title)], `kept issue drawn on ${surface}`).toContain(`#${kept.issue}`)
-    expect(rows.filter(row => row.includes(TICK)).length, `kept done steps ticked on ${surface}`).toBe(
+    expect(doneSteps(rows).length, `kept done steps ticked on ${surface}`).toBe(
       kept.phases.flatMap((p: any) => p.steps).filter((s: any) => s.status === 'done').length,
     )
   }
@@ -68,7 +71,7 @@ test('should_keep_a_finished_task_whole_with_its_total_time_until_the_next_start
   await finishTask($)
 
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
-  expect(STEP_TITLES.filter(title => !rows[rowIndex(rows, title)]?.includes(TICK)), `unticked: ${JSON.stringify(rows)}`).toEqual([])
+  expect(STEP_TITLES.filter(title => !isDoneStep(rows[rowIndex(rows, title)])), `unticked: ${JSON.stringify(rows)}`).toEqual([])
   expect(rows[rowIndex(rows, ISSUE_TASK.title)], 'the task row carries its total time').toMatch(minutes(25))
 })
 
@@ -84,7 +87,7 @@ test('should_fold_the_finished_task_to_one_line_at_the_bottom_when_the_next_star
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
   const folded = rows.filter(row => row.includes(ISSUE_TASK.title))
   expect(folded, `the finished task is one line: ${JSON.stringify(rows)}`).toHaveLength(1)
-  expect(folded[0]).toContain(TICK)
+  expect(FOLDED_MARKS, `the folded line is ticked: ${folded[0]}`).toContain(markOf(folded[0]))
   expect(folded[0]).toMatch(minutes(25))
   expect(rows[rows.length - 1], 'that line is the last of the pane').toEqual(folded[0])
   expect(STEP_TITLES.filter(title => rowIndex(rows, title) >= 0), 'its steps are no longer drawn').toEqual([])

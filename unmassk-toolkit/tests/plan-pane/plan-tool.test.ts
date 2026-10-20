@@ -5,9 +5,10 @@ import {
   ISSUE_TASK,
   PLAN_TOOL,
   SURFACES,
-  TICK,
   callPlan,
+  doneSteps,
   drawnRows,
+  isDoneStep,
   mountPane,
   rowIndex,
   startSession,
@@ -70,7 +71,7 @@ test('should_draw_title_issue_phases_and_steps_in_order_when_the_model_sends_the
     expect(order.every(at => at >= 0), `every title drawn on ${surface}: ${JSON.stringify(rows)}`).toBe(true)
     expect([...order].sort((a, b) => a - b), `task, phases and steps in order on ${surface}`).toEqual(order)
     expect(rows[order[0]], `issue on the task row on ${surface}`).toContain('#98')
-    expect(rows.filter(row => row.includes(TICK)), `nothing ticked yet on ${surface}`).toEqual([])
+    expect(doneSteps(rows), `nothing ticked yet on ${surface}`).toEqual([])
     await ui.unmount()
   }
 })
@@ -114,9 +115,9 @@ test('should_mark_the_step_in_progress_and_then_tick_it_when_the_model_changes_i
 
   expect([started.deny, ended.deny], 'both status changes answered').toEqual([undefined, undefined])
   expect(runningRow, 'the step in progress is drawn apart from a pending one').not.toEqual(pendingRow)
-  expect(runningRow, 'a step in progress is not ticked').not.toContain(TICK)
-  expect(doneRows[rowIndex(doneRows, step.title)], 'the finished step is ticked').toContain(TICK)
-  expect(doneRows.filter(row => row.includes(TICK)), 'only that step is ticked').toHaveLength(1)
+  expect(isDoneStep(runningRow), 'a step in progress is not ticked').toBe(false)
+  expect(isDoneStep(doneRows[rowIndex(doneRows, step.title)]), 'the finished step is ticked').toBe(true)
+  expect(doneSteps(doneRows), 'only that step is ticked').toHaveLength(1)
 })
 
 test('should_refuse_a_status_change_for_a_step_the_task_does_not_have', async ($, on) => {
@@ -130,7 +131,7 @@ test('should_refuse_a_status_change_for_a_step_the_task_does_not_have', async ($
   expect(JSON.stringify(answer), 'the refusal names the step').toContain('9.9')
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
   expect(rowIndex(rows, ISSUE_TASK.title), 'the task is still drawn').toBeGreaterThanOrEqual(0)
-  expect(rows.filter(row => row.includes(TICK)), 'nothing ticked').toEqual([])
+  expect(doneSteps(rows), 'nothing ticked').toEqual([])
 })
 
 test('should_refuse_a_status_change_when_no_task_was_sent', async ($, on) => {

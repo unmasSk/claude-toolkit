@@ -4,9 +4,9 @@
 import { test, expect } from 'claude-code/testing'
 import {
   ISSUE_TASK,
-  TICK,
   callPlan,
   drawnRows,
+  isDoneStep,
   mountPane,
   rowIndex,
   startSession,
@@ -92,8 +92,8 @@ test('should_tick_a_step_when_its_id_differs_from_the_sent_one_only_in_case_and_
 
   expect([first.deny, second.deny], 'both lookups found their step').toEqual([undefined, undefined])
   const rows = await drawnRows(await mountPane($, opens[0]!.id, 'desktop'))
-  expect(rows[rowIndex(rows, task.steps[0].title)], `Á.1 ticked by a.1: ${JSON.stringify(rows)}`).toContain(TICK)
-  expect(rows[rowIndex(rows, task.steps[1].title)], 'B.2 started b.2, not ticked it').not.toContain(TICK)
+  expect(isDoneStep(rows[rowIndex(rows, task.steps[0].title)]), `Á.1 ticked by a.1: ${JSON.stringify(rows)}`).toBe(true)
+  expect(isDoneStep(rows[rowIndex(rows, task.steps[1].title)]), 'B.2 started b.2, not ticked it').toBe(false)
 })
 
 test('should_refuse_the_call_and_not_answer_ok_when_the_plan_cannot_be_written', async ($, on) => {
