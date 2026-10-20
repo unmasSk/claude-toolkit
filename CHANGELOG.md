@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Plan pane look copied from nix-checklist-sidebar** (D-158, D-160, D-161, D-162; MIT, credited in `unmassk-toolkit/hooks/NOTICE`): green, orange and grey icons and pills for done, in progress and pending, each step carries its number, and the duration sits right-aligned (`45s`, `12m 05s`, `1h 05m`).
+- **Live ticking time in the plan pane** (D-162): the running step and the running agents show a time that counts up while they work; done labels are a darker grey and the running step is in real bold.
+
+### Changed
+
+- **The installer makes no commit on a protected branch** (R.6, D-157): it leaves the changes in the working tree and the session boot says so; the protected-branch rule now lives in one copy (`lib/memory/repo_guard.py`).
+
 ## [1.53.0] - 2026-10-20
 
 ### Added
