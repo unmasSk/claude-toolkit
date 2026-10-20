@@ -2,6 +2,7 @@
 
 **Branch:** main (trunk)
 **Procedure:** Full
+**Status: COMPLETED**
 **Build mode:** test-first
 **Base:** e228b8e6
 **Created:** 2026-10-20
@@ -25,22 +26,22 @@ Yes: a note is written by `gitmem note` and read back by `gitmem search` and the
 ### Phase 3: Fix
 **Files:** modify `unmassk-toolkit/lib/memory/validator.py`, `unmassk-toolkit/lib/memory/vocabulary.py` (or wherever `replaces` is allowed), `unmassk-toolkit/bin/memory/note.py` if the `none` sentinel is handled there; keep `bin/memory/remove.py`'s use of `validate_replacement` working. Tests under `unmassk-toolkit/tests/memory/`.
 **Steps:**
-- [ ] 3.1 Dante: red tests through `gitmem note` — Q, X, I, B overlapping a note bounce with only exits they accept; each saves with `--replaces none`; `--replaces <id>` on Q/X/I/B still rejected; D/M/R unchanged; the relaunch pasted as printed is accepted (or bounces only on the `...` placeholders); round-trip: the saved note is found by `gitmem search` and the index check stays green; `remove`'s new-fence path unchanged.
-- [ ] 3.2 Ultron: code until those tests are green.
-- [ ] 3.3 Cerberus and Argus on the diff against the base.
-- [ ] 3.4 One fix pass (Cerberus and Argus, 2026-10-20): the overlap relaunch carries `--issue` and `--quote`; no `--work no` beside `--issue N`; the issue-gate relaunch carries `--replaces`, `--why`, `--keys`, `--origin` (R.16, taken in: without it the two rejections ping-pong); `Replaces: none` never shows as `(↺ none)` or `sustituye a none`.
+- [x] 3.1 Dante: red tests through `gitmem note` — Q, X, I, B overlapping a note bounce with only exits they accept; each saves with `--replaces none`; `--replaces <id>` on Q/X/I/B still rejected; D/M/R unchanged; the relaunch pasted as printed is accepted (or bounces only on the `...` placeholders); round-trip: the saved note is found by `gitmem search` and the index check stays green; `remove`'s new-fence path unchanged.
+- [x] 3.2 Ultron: code until those tests are green.
+- [x] 3.3 Cerberus and Argus on the diff against the base.
+- [x] 3.4 One fix pass (Cerberus and Argus, 2026-10-20): the overlap relaunch carries `--issue` and `--quote`; no `--work no` beside `--issue N`; the issue-gate relaunch carries `--replaces`, `--why`, `--keys`, `--origin` (R.16, taken in: without it the two rejections ping-pong); `Replaces: none` never shows as `(↺ none)` or `sustituye a none`.
 
 ### Phase 4: Final round
-- [ ] 4.1 Moriarty.
-- [ ] 4.2 Fix what he broke.
-- [ ] 4.3 Yoda.
-- [ ] 4.4 Fix what he named.
+- [x] 4.1 Moriarty.
+- [x] 4.2 Fix what he broke.
+- [x] 4.3 Yoda.
+- [x] 4.4 Fix what he named.
 
 ### Phase 5: Close
-- [ ] 5.1 Alexandria: docs (the memory skill's field table) and CHANGELOG.
-- [ ] 5.2 `python3 -m pytest unmassk-toolkit/tests/memory -q` green.
+- [x] 5.1 Alexandria: docs (the memory skill's field table) and CHANGELOG.
+- [x] 5.2 `python3 -m pytest unmassk-toolkit/tests/memory -q` green.
 - [x] 5.3 Save the swarm discard: X-155.
-- [ ] 5.4 Commit, push, Status COMPLETED.
+- [x] 5.4 Commit, push, Status COMPLETED.
 
 ## Wave map
 - Wave 1: 3.1 → 3.2 → 3.3 → 3.4 (one module, sequential by mode)
