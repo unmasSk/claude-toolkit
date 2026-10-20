@@ -145,3 +145,4 @@
 [X-145][hooks][skills] a plan only for flow tasks
 [X-146][hooks][skills] group by stage (prepare, build, review)
 [X-147][hooks][skills] keep every agent visible under every step plus a tally table
+[X-148][hooks][skills] build pane and gate together
