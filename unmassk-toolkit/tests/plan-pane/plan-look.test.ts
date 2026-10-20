@@ -56,7 +56,8 @@ test('should_draw_a_bar_of_one_segment_per_step_with_the_count_beside_it_under_t
 })
 
 // D-160 marks the step in progress's segment apart (orange) from both pending and done.
-test('should_fill_one_segment_per_done_step_and_never_count_a_step_in_progress', async ($, on) => {
+// The count is the reference mod's position: done, plus one while a step runs (the GIF's 3/7).
+test('should_fill_one_segment_per_done_step_and_count_the_step_in_progress_as_its_position', async ($, on) => {
   const { opens } = await startSession($, on)
   await callPlan($, { task: ISSUE_TASK })
   const fresh = (await barNow($, opens[0]!.id, 'desktop')).bar
@@ -69,7 +70,7 @@ test('should_fill_one_segment_per_done_step_and_never_count_a_step_in_progress',
   for (const step of STEPS.slice(1)) await callPlan($, { step: step.id, status: 'done' })
   const all = (await barNow($, opens[0]!.id, 'desktop')).bar
 
-  expect([running.done, running.total], 'a step in progress counts nothing').toEqual([0, 3])
+  expect([running.done, running.total], 'the step in progress is the position: 1 of 3').toEqual([1, 3])
   expect(running.segments.slice(1), 'the rest stay pending').toEqual(fresh.segments.slice(1))
   expect([one.bar.done, one.bar.total], `1 of 3 after one step: ${JSON.stringify(one.rows)}`).toEqual([1, 3])
   expect(one.bar.segments[0], 'the done step fills its segment').not.toEqual(pendingGlyph)
@@ -77,6 +78,35 @@ test('should_fill_one_segment_per_done_step_and_never_count_a_step_in_progress',
   expect([pendingGlyph, one.bar.segments[0]], 'the step in progress is marked as neither pending nor done').not.toContain(running.segments[0])
   expect([all.done, all.total], '3 of 3 when every step is done').toEqual([3, 3])
   expect(all.segments, 'every segment filled').toEqual([one.bar.segments[0], one.bar.segments[0], one.bar.segments[0]])
+})
+
+// The GIF frame: 2 done, 1 in progress, 4 to do reads 3/7 on both surfaces.
+test('should_show_3_of_7_with_two_steps_done_and_one_in_progress_as_the_gif', async ($, on) => {
+  const { opens } = await startSession($, on)
+  const steps = Array.from({ length: 7 }, (_, i) => ({ id: String(i + 1), title: `Paso ${i + 1}` }))
+  await callPlan($, { task: { title: 'Siete pasos', issue: null, steps } })
+  await callPlan($, { step: '1', status: 'done' })
+  await callPlan($, { step: '2', status: 'done' })
+  await callPlan($, { step: '3', status: 'in_progress' })
+
+  for (const surface of SURFACES) {
+    const { rows, bar } = await barNow($, opens[0]!.id, surface)
+    expect([bar.done, bar.total], `3/7 on ${surface}: ${JSON.stringify(rows)}`).toEqual([3, 7])
+  }
+})
+
+// The reference adds one for any step in progress, never one per step in progress.
+test('should_add_only_one_to_the_count_when_two_steps_are_in_progress', async ($, on) => {
+  const { opens } = await startSession($, on)
+  await callPlan($, { task: ISSUE_TASK })
+  await callPlan($, { step: STEPS[0]!.id, status: 'done' })
+  await callPlan($, { step: STEPS[1]!.id, status: 'in_progress' })
+  await callPlan($, { step: STEPS[2]!.id, status: 'in_progress' })
+
+  for (const surface of SURFACES) {
+    const { rows, bar } = await barNow($, opens[0]!.id, surface)
+    expect([bar.done, bar.total], `2/3, not 3/3, on ${surface}: ${JSON.stringify(rows)}`).toEqual([2, 3])
+  }
 })
 
 test('should_count_the_steps_of_a_plain_task_with_no_phases', async ($, on) => {

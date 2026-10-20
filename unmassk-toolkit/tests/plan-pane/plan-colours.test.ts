@@ -151,19 +151,39 @@ test('should_draw_the_bar_on_the_desktop_as_one_14x4_rounded_rect_per_step_green
   expect(paintAt(leaves, COUNTER)?.dim, 'the count dim').toBe(true)
 })
 
-test('should_narrow_the_desktop_bar_segments_to_8_past_12_steps', async ($, on) => {
+const desktopBar = async ($: any, on: any, count: number, statuses: Record<string, 'in_progress' | 'done'>) => {
   const { opens } = await startSession($, on, START)
-  const steps = Array.from({ length: 13 }, (_, i) => ({ id: String(i + 1), title: `Paso ${i + 1}` }))
+  const steps = Array.from({ length: count }, (_, i) => ({ id: String(i + 1), title: `Paso ${i + 1}` }))
   await callPlan($, { task: { title: 'Muchos pasos', issue: null, steps } })
-
+  for (const [step, status] of Object.entries(statuses)) await callPlan($, { step, status })
   const tree = await drawn($, opens[0]!.id, 'desktop')
-  const bar = rowNodesOf(tree)[progressOf(tree).at]
+  const progress = progressOf(tree)
+  const bar = rowNodesOf(tree)[progress.at]
   const svg = (bar === undefined ? [] : leavesOf(bar)).find(leaf => leaf.kind === 'svg')
-  const rects = shapesOf(String(svg?.kind === 'svg' ? svg.props.source : ''), 'rect')
+  const props = svg?.kind === 'svg' ? svg.props : {}
+  return { progress, svg: props, rects: shapesOf(String(props.source ?? ''), 'rect') }
+}
 
-  expect(rects.length, `a bar Svg: ${JSON.stringify(svg)}`).toBeGreaterThan(0)
+// The reference pills(): past 12 steps, 12 segments 8 wide for the first 12 steps; the count keeps every step.
+test('should_draw_12_segments_8_wide_for_the_first_12_steps_past_12_steps', async ($, on) => {
+  // 14 steps: 1 done, 2 in progress, 13 done (beyond the 12 drawn), the rest to do.
+  const { progress, svg, rects } = await desktopBar($, on, 14, { '1': 'done', '2': 'in_progress', '13': 'done' })
+
+  expect(rects.map(r => r.fill), `12 segments, the first 12 steps: ${JSON.stringify(svg)}`).toEqual([GREEN, ORANGE, ...Array(10).fill(GREY)])
   expect([...new Set(rects.map(r => r.width))], 'every segment 8 wide').toEqual(['8'])
-  expect(rects.slice(1).map((r, i) => Number(r.x) - Number(rects[i]!.x)), 'still a gap of 4').toEqual(rects.slice(1).map(() => 12))
+  expect(rects.map(r => Number(r.x)), 'a gap of 4: x = 12 per segment').toEqual(Array.from({ length: 12 }, (_, i) => i * 12))
+  // 12 * 8 + 11 * 4 = 140, by hand.
+  expect(Number(svg.width), 'the bar 140 wide').toBe(140)
+  expect([progress.done, progress.total], 'the count of all 14 steps: 2 done, one running').toEqual([3, 14])
+})
+
+test('should_keep_one_14_wide_segment_per_step_at_exactly_12_steps', async ($, on) => {
+  const { svg, rects } = await desktopBar($, on, 12, { '12': 'done' })
+
+  expect(rects.map(r => r.fill), `12 segments, the last done: ${JSON.stringify(svg)}`).toEqual([...Array(11).fill(GREY), GREEN])
+  expect([...new Set(rects.map(r => r.width))], 'every segment 14 wide').toEqual(['14'])
+  // 12 * 14 + 11 * 4 = 212, by hand.
+  expect(Number(svg.width), 'the bar 212 wide').toBe(212)
 })
 
 test('should_paint_the_terminal_circles_green_done_orange_in_progress_grey_pending', async ($, on) => {
