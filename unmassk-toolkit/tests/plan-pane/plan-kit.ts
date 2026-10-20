@@ -193,6 +193,36 @@ export const paintAt = (leaves: Leaf[], text: string | RegExp): Paint | undefine
       leaf.kind === 'text' && (typeof text === 'string' ? leaf.text.includes(text) : text.test(leaf.text)),
   )?.paint
 
+const kidsOf = (node: any): any[] =>
+  (Array.isArray(node?.children) ? node.children : [node?.children]).filter(
+    (kid: any) => kid !== null && kid !== undefined && kid !== false && kid !== '',
+  )
+
+const textIn = (node: any) =>
+  leavesOf(node)
+    .map(leaf => (leaf.kind === 'text' ? leaf.text : ''))
+    .join('')
+    .trim()
+
+// The row's last element when the layout pushes it to the right edge (a growing sibling
+// before it, a space-between/flex-end row, or marginLeft auto); undefined otherwise.
+// `node` is that element, for reading its paint.
+export const rightColumnOf = (row: any) => {
+  let box = row
+  while (box?.type === 'Box' && kidsOf(box).length === 1 && kidsOf(box)[0]?.type === 'Box') box = kidsOf(box)[0]
+  if (box?.type !== 'Box' || String(box.props?.flexDirection ?? 'row').startsWith('column')) return undefined
+  const kids = kidsOf(box)
+  const last = kids.at(-1)
+  if (typeof last !== 'object') return undefined
+  const pushed =
+    ['space-between', 'flex-end'].includes(box.props?.justifyContent) ||
+    last.props?.marginLeft === 'auto' ||
+    kids.slice(0, -1).some(kid => typeof kid === 'object' && Number(kid.props?.flexGrow) > 0)
+  if (!pushed) return undefined
+  const texts = leavesOf(last).filter(leaf => leaf.kind === 'text' && leaf.text.trim() !== '')
+  return { text: textIn(last), dim: texts.length > 0 && texts.every(leaf => leaf.kind === 'text' && leaf.paint.dim), node: last }
+}
+
 // The step's circle: its Svg on a surface that draws one, else the first text run that shows a glyph.
 export const markLeafOf = (leaves: Leaf[]): Leaf | undefined =>
   leaves.find(leaf => leaf.kind === 'svg' || leaf.text.trim() !== '')

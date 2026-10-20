@@ -123,7 +123,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 
   // D-161: the duration runs from the step's start (in_progress) to its tick; written by hand.
-  test(`should_end_each_done_row_with_how_long_the_step_took_dim_never_a_clock_time_on_the_${surface}`, async ($, on) => {
+  test(`should_end_each_done_row_with_how_long_the_step_took_never_a_clock_time_on_the_${surface}`, async ($, on) => {
     const { opens, clock } = await startSession($, on, START)
     await callPlan($, { task: ISSUE_TASK })
     await clock.advance(2 * MINUTE)
@@ -144,13 +144,28 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     expect(first?.text.trim(), `2.1 took 16m 00s, at the row's end: ${JSON.stringify(rowOf(tree, DONE!.title).leaves)}`).toMatch(/(^|\s)16m 00s$/)
     expect(second?.text.trim(), '2.2 took 45s, from its own start, not the task start nor now').toMatch(/(^|\s)45s$/)
-    expect([first?.paint.dim, second?.paint.dim], 'the durations dim').toEqual([true, true])
     expect(
       [DONE!.title, RUNNING!.title].filter(title => rowOf(tree, title).leaves.some(leaf => leaf.kind === 'text' && clockTime.test(leaf.text))),
       'no clock time (HH:MM) on a done step',
     ).toEqual([])
     // D-162: the step in progress shows the time so far, 40m 00s since it started.
     expect(lastRun(PENDING_STEP.title)?.text.trim(), `3.1 in progress for 40m 00s: ${JSON.stringify(rowOf(tree, PENDING_STEP.title).leaves)}`).toMatch(/(^|\s)40m 00s$/)
+  })
+
+  // Bex, 2026-10-20: «si el texto de antes es el gris oscuro, los tiempos también son gris oscuro».
+  test(`should_paint_a_done_step_time_in_the_same_dark_grey_as_its_label_not_dim_on_the_${surface}`, async ($, on) => {
+    const { opens, clock } = await startSession($, on, START)
+    await callPlan($, { task: ISSUE_TASK })
+    await callPlan($, { step: DONE!.id, status: 'in_progress' })
+    await clock.advance(16 * MINUTE)
+    await callPlan($, { step: DONE!.id, status: 'done' })
+    await callPlan($, { step: RUNNING!.id, status: 'in_progress' })
+    await clock.advance(45_000)
+
+    const tree = await drawn($, opens[0]!.id, surface)
+    const leaves = rowOf(tree, DONE!.title).leaves
+
+    expect(paintAt(leaves, '16m 00s'), `2.1's 16m 00s in #5c5b56, not dim: ${JSON.stringify(leaves)}`).toMatchObject({ color: GREY, dim: false })
   })
 }
 

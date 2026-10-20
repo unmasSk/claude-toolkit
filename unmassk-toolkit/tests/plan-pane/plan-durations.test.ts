@@ -11,8 +11,8 @@ import {
   SURFACES,
   callPlan,
   endAgent,
-  leavesOf,
   mountPane,
+  rightColumnOf,
   rounds,
   rowOf,
   rowsOf,
@@ -38,33 +38,9 @@ const drawn = async ($: any, paneId: string, surface: Surface) => {
   return tree
 }
 
-const kidsOf = (node: any): any[] =>
-  (Array.isArray(node?.children) ? node.children : [node?.children]).filter(
-    (kid: any) => kid !== null && kid !== undefined && kid !== false && kid !== '',
-  )
-
-const textIn = (node: any) =>
-  leavesOf(node)
-    .map(leaf => (leaf.kind === 'text' ? leaf.text : ''))
-    .join('')
-    .trim()
-
-// The row's last element when the layout pushes it to the right edge (a growing sibling
-// before it, a space-between/flex-end row, or marginLeft auto); undefined otherwise.
-const rightColumnOf = (row: any) => {
-  let box = row
-  while (box?.type === 'Box' && kidsOf(box).length === 1 && kidsOf(box)[0]?.type === 'Box') box = kidsOf(box)[0]
-  if (box?.type !== 'Box' || String(box.props?.flexDirection ?? 'row').startsWith('column')) return undefined
-  const kids = kidsOf(box)
-  const last = kids.at(-1)
-  if (typeof last !== 'object') return undefined
-  const pushed =
-    ['space-between', 'flex-end'].includes(box.props?.justifyContent) ||
-    last.props?.marginLeft === 'auto' ||
-    kids.slice(0, -1).some(kid => typeof kid === 'object' && Number(kid.props?.flexGrow) > 0)
-  if (!pushed) return undefined
-  const texts = leavesOf(last).filter(leaf => leaf.kind === 'text' && leaf.text.trim() !== '')
-  return { text: textIn(last), dim: texts.length > 0 && texts.every(leaf => leaf.kind === 'text' && leaf.paint.dim) }
+const aligned = (row: any) => {
+  const right = rightColumnOf(row)
+  return right === undefined ? undefined : { text: right.text, dim: right.dim }
 }
 
 const durationsIn = (row: any) => (rowsOf(row)[0] ?? '').match(DURATION) ?? []
@@ -101,9 +77,10 @@ for (const surface of SURFACES) {
     const cerberus = rowOf(tree, /cerberus/i).node
     const step = rowOf(tree, FIRST!.title).node
 
-    expect(rightColumnOf(step), `control: the done step's 16m 00s sits right-aligned, dim: ${JSON.stringify(step)}`).toEqual({ text: '16m 00s', dim: true })
-    expect(rightColumnOf(ultron), `ultron's 2m 00s right-aligned, dim, alone: ${JSON.stringify(ultron)}`).toEqual({ text: '2m 00s', dim: true })
-    expect(rightColumnOf(cerberus), `cerberus's 12s right-aligned, dim, alone: ${JSON.stringify(cerberus)}`).toEqual({ text: '12s', dim: true })
+    // The done step's time takes its label's grey (plan-colours); an agent's stays dim like its line.
+    expect(rightColumnOf(step)?.text, `control: the done step's 16m 00s sits right-aligned: ${JSON.stringify(step)}`).toBe('16m 00s')
+    expect(aligned(ultron), `ultron's 2m 00s right-aligned, dim, alone: ${JSON.stringify(ultron)}`).toEqual({ text: '2m 00s', dim: true })
+    expect(aligned(cerberus), `cerberus's 12s right-aligned, dim, alone: ${JSON.stringify(cerberus)}`).toEqual({ text: '12s', dim: true })
     expect([durationsIn(ultron), durationsIn(cerberus)], 'each duration drawn once, not also inline').toEqual([['2m 00s'], ['12s']])
   })
 
